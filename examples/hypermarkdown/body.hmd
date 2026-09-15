@@ -1,0 +1,15 @@
+<!-- corpus
+status: proposed
+feature: Hmd cell value
+implementation: pending
+environment: knowledge-v1
+expected-type: Hmd
+expected: host may render the returned Hmd at this location
+note: Escaping, nested evaluation, transclusion identity and trust policies are not settled.
+-->
+
+# Included body value
+
+```hql#eval
+resolve([[alice]]).body
+```

@@ -1,0 +1,4 @@
+# Resolver commit series
+
+The fixture records resolver design work. It supplies an ordinary evidence
+Card, without asserting that the claim it supports is true.

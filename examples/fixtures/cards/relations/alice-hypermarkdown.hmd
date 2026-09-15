@@ -1,0 +1,24 @@
+---
+type: worksOn
+source: "[[alice]]"
+target: "[[hypermarkdown]]"
+since: "2026-01-01"
+role: architect
+status: active
+confidence: 0.8
+---
+# Alice works on HyperMarkDown
+
+## Evidence
+
+- [[meeting-notes#^meeting-2026-01-12]]
+- [[commit-series-resolver]]
+
+## Examples
+
+Alice designed the initial namespace resolver.
+
+## Rationale
+
+This claim is considered active by its author. Another Card can disagree.
+The identity of this claim is relations/alice-hypermarkdown, not its endpoints.

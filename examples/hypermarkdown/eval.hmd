@@ -1,0 +1,14 @@
+<!-- corpus
+status: proposed
+feature: eval cell
+implementation: pending
+environment: knowledge-v1
+expected-type: String
+expected: Alice as a value; host may insert/display it
+-->
+
+# Title
+
+```hql#eval
+resolve([[alice]]).title
+```

@@ -1,0 +1,10 @@
+id	origin	subject	predicate	object	confidence	provenance
+link-alice-bob	link	alice	linksTo	bob	unknown	alice#Bio
+link-bob-carol	link	bob	linksTo	carol	unknown	bob
+link-carol-alice	link	carol	linksTo	alice	unknown	carol
+works-active	relation-card	alice	worksOn	hypermarkdown	0.8	relations/alice-hypermarkdown
+works-ended	relation-card	alice	worksOn	hypermarkdown	unknown	relations/alice-hypermarkdown-ended
+alice-kind	metadata	alice	type	person	unknown	alice frontmatter
+bio-parent	structure	alice#Bio	sectionOf	alice	unknown	alice#Bio
+family-claim	imported-declaration	alice	daughterOf	bob	0.9	family-record via modules/architecture.hql
+adult-alice	derived	alice	satisfies	Adult	unknown	alice frontmatter; explicit rule age >= 18

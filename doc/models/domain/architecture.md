@@ -35,3 +35,11 @@ The concrete Card schema, host interface, serialization, and evaluation effects
 are unresolved; no speculative traits or Card stubs are introduced now.
 See [integration evidence](../../wiki/hmd-integration.hmd) and
 [bootstrap value data](../data/values.md).
+
+## Corpus design refinements
+
+[Program values](../behavior/program-values.md) records last-expression results,
+lexical cell environments and host-controlled presentation. The
+[knowledge model](knowledge.md) distinguishes structural links, Relation Cards,
+Knowledge, Graph and HmdGraph. These declarations guide future work; they do not
+expand the implemented expression core. See the [corpus](../../../examples/README.md).

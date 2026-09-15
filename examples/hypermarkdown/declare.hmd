@@ -1,0 +1,17 @@
+<!-- corpus
+status: design-question
+feature: declaration cell
+implementation: pending
+environment: alice-cell-v1
+expected-type: Unit
+expected: host receives contribution; no visible cell result
+note: Historical relation-declaration cell candidate. Preferred rich relationships live in Relation Cards. Unit produces no display; contribution processing belongs to the host.
+-->
+
+# Family evidence
+
+```hql#declare
+relatedTo -> [[bob]] {
+    kind = daughter
+}
+```

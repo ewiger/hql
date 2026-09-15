@@ -1,0 +1,10 @@
+# Origin card
+
+```hql#declare
+x : Int = 10
+captured = ignored => x
+```
+
+```hql#eval
+captured(0)
+```

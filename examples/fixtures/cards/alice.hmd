@@ -1,0 +1,11 @@
+---
+type: person
+name: Alice
+age: 42
+tags: [researcher, engineer]
+---
+# Alice
+
+## Bio
+
+Alice collaborates with [[bob]]. ^bio

@@ -1,0 +1,15 @@
+<!-- corpus
+status: proposed
+feature: graph cell
+implementation: pending
+environment: knowledge-v1
+expected-type: Graph
+expected: host may display an interactive graph, not a textual printout
+-->
+
+# Knowledge
+
+```hql#query
+knowledge
+| graph
+```

@@ -1,0 +1,9 @@
+---
+type: person
+name: Bob
+age: 16
+tags: [student]
+---
+# Bob
+
+Bob learns from [[carol]].

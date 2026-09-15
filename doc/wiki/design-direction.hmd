@@ -20,6 +20,19 @@ imports, value construction, transformations, constraint validation, and typed
 results belong to the intended scope. [[hmd-integration]] describes how partial
 frontmatter schemas could contribute structural/type information.
 
+## Recorded direction
+
+The [example corpus](../../examples/README.md) records current design inputs.
+Bare typed/inferred bindings are preferred; let is an alternative. A program
+returns its last expression; rendering and explicit output are separate.
+Cells close over explicit card environments, with isolated local bindings.
+See [program values](../models/behavior/program-values.md).
+
+Significant relationships are Relation Cards. `cards | typed Relation | graph`
+is a core example. Knowledge includes evidence, provenance and conflicting
+claims; Graph is one projection and HmdGraph is a presentation value. See the
+[knowledge model](../models/domain/knowledge.md).
+
 ## Deliberately unresolved
 
 - Function syntax, application, binding, pipeline desugaring, and precedence.
@@ -31,8 +44,20 @@ frontmatter schemas could contribute structural/type information.
   constraints/proofs, HMD-producing expressions, diagram-producing expressions,
   and richer computational cells.
 - Specialized HMD fences such as `hql#query`, `hql#eval`, and `hql#declare`,
-  including execution policy and typed result presentation.
+  including effect policy, dependency order, and exact presentation types.
+  Lexical capture and value/context separation are recorded above.
 
 Bootstrap `i64`, `+`, and the 256-literal bound prove [[first-milestone]]; they do
 not settle these questions. There is no theorem prover, graph implementation,
 HMD renderer, module system, or large standard library in this repository.
+
+## Type vocabulary to leave room for
+
+Future foundations include Float, Date/DateTime, Option[T], Result[T,E],
+List[T], Map[K,V], Section, Block, Ref[T] and Namespace, with records, ADTs,
+pattern matching and refinement. Prefer explicit optional/error values over
+pervasive null. String/Str and Frontmatter/FrontMatter naming, generic brackets
+and concrete schema syntax remain open. Formal direction uses constraint and
+satisfaction vocabulary; solver-backed or dependent checking is not bootstrap
+work. Reading is pure; transformations construct values and persistence is an
+explicit future effect.

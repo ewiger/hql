@@ -1,0 +1,21 @@
+---
+imports:
+  alice: ./alice.hmd
+---
+
+<!-- corpus
+status: design-question
+feature: alternative card imports
+implementation: pending
+environment: knowledge-v1
+expected-type: String
+expected: Alice only if a new bridge interprets imports
+note: Plural imports is user-owned metadata in current HMD, not an existing import mechanism.
+alternatives: hypermarkdown/card-import.hmd
+-->
+
+# Alternative bridge
+
+```hql#eval
+alice.title
+```

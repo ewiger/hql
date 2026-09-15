@@ -1,0 +1,23 @@
+---
+import:
+  - from . import alice
+---
+
+<!-- corpus
+status: proposed
+feature: lexical shadowing
+implementation: pending
+environment: knowledge-v1
+expected: first cell String Bob; second cell String Alice
+note: Local binding shadows the imported Card only within that closure. Other cells retain the original card environment.
+-->
+# Independent closures
+
+```hql#eval
+alice = resolve([[bob]])
+alice.title
+```
+
+```hql#eval
+alice.title
+```

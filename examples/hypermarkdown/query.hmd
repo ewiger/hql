@@ -1,0 +1,16 @@
+<!-- corpus
+status: proposed
+feature: query cell
+implementation: pending
+environment: knowledge-v1
+expected-type: List[Card]
+expected: host presents returned cards at the fence
+note: No implicit stdout. Presentation is an HMD host policy, not evaluator semantics.
+-->
+
+# People
+
+```hql#query
+cards
+| filter(.type == "person")
+```
