@@ -1,0 +1,4 @@
+# Build output. Keep this entry: `grem upgrade` requires a fully clean Git
+# worktree, including untracked files, so an unignored target/ blocks upgrades.
+/target
+**/*.rs.bk

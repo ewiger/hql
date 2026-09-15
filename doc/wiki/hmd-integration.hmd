@@ -1,0 +1,51 @@
+---
+tags: [hql, hypermarkdown, architecture]
+---
+# HyperMarkDown integration boundary
+
+HyperMarkDown remains authored/storage content; [[hql]] is a separate language
+that will compute over typed knowledge. Integration is planned, not implemented.
+
+## Existing implementation inspected
+
+The inspected HyperMarkDown checkout was revision
+`74487940adb82654207cfec4cfd934d03eeee8f9` of
+[ewiger/hypermarkdown](https://github.com/ewiger/hypermarkdown).
+Paths below refer to that revision:
+
+- [`tools/hmd/src/hypermarkdown/parse.py`](https://github.com/ewiger/hypermarkdown/blob/74487940adb82654207cfec4cfd934d03eeee8f9/tools/hmd/src/hypermarkdown/parse.py):
+  `parse(path, text, rel)` returns a `Document` with parse diagnostics.
+- [`model.py`](https://github.com/ewiger/hypermarkdown/blob/74487940adb82654207cfec4cfd934d03eeee8f9/tools/hmd/src/hypermarkdown/model.py):
+  `Document` retains text, frontmatter, `CardConfig`, headings, anchors, and
+  links. Link records include target, fragment, display, embed status, and span.
+- [`frontmatter.py`](https://github.com/ewiger/hypermarkdown/blob/74487940adb82654207cfec4cfd934d03eeee8f9/tools/hmd/src/hypermarkdown/frontmatter.py):
+  the reserved `tags`, `use`, `import`, and `nav` keys are checked; other keys
+  remain user-owned. This is a partial schema, not a complete record type.
+- [`resolve.py`](https://github.com/ewiger/hypermarkdown/blob/74487940adb82654207cfec4cfd934d03eeee8f9/tools/hmd/src/hypermarkdown/resolve.py):
+  `Workspace` owns documents and contextual resolution. Resolution distinguishes
+  resolved, unresolved, ambiguous, and escaping references; precedence includes
+  named imports, spine, imported search paths, and autodiscovery.
+
+The repository README identifies the Python tool as canonical and the
+TypeScript core as a second implementation sharing a conformance corpus.
+There is no reason to create another HMD parser in this Rust bootstrap.
+
+## Proposed integration route (unresolved transport)
+
+A host adapter can call the canonical Python library to parse and resolve a
+workspace, then expose a versioned projection to Rust through serialization or
+an in-process bridge. A protocol/export is work to design, not an existing API
+we assume is available. The adapter would translate each `Document` into a
+language-facing `Card`, preserving provenance, document structure, metadata,
+namespace context, relation outcomes, and diagnostics.
+
+Reserved frontmatter can supply known field types; user fields need an explicit
+schema or a deliberate unknown-value policy. Never infer a complete schema from
+one example. Preserve ambiguity and missing references instead of choosing a
+card silently. Verify span coordinate conventions with Unicode fixtures before
+translating Python positions into HQL UTF-8 byte diagnostics.
+
+Keep HMD import/resolution rules in the adapter; `.hql` module semantics are a
+separate design. An eventual adapter should use the HMD conformance corpus plus
+projection tests. The present core has no HMD dependency or Card placeholder.
+See [architecture](../models/domain/architecture.md) and [[design-direction]].

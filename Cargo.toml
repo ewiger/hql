@@ -1,0 +1,22 @@
+[package]
+name = "hql"
+version = "0.1.0"
+description = "HQL — Hyper Query Language: an experimental typed functional language"
+publish = false
+edition = "2024"
+rust-version = "1.85"
+
+[lib]
+name = "hql"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hql"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

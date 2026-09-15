@@ -1,0 +1,38 @@
+---
+tags: [hql, design]
+---
+# Language direction and open questions
+
+[[hql]] favors typed functional expressions and composition. These sketches
+illustrate intent only; neither is accepted by the bootstrap parser:
+
+```hql
+resolve([[alice]]) : Card
+```
+
+```hql
+knowledge
+| graph
+```
+
+A document should resolve naturally to a `Card`. Functions, `.hql` module
+imports, value construction, transformations, constraint validation, and typed
+results belong to the intended scope. [[hmd-integration]] describes how partial
+frontmatter schemas could contribute structural/type information.
+
+## Deliberately unresolved
+
+- Function syntax, application, binding, pipeline desugaring, and precedence.
+- Type inference, structural versus nominal records, schema checking, optional
+  and unknown frontmatter fields, polymorphism, and numeric representation.
+- Card identity, namespace context, unresolved/ambiguous references, graph value
+  semantics, and the concrete host adapter interface.
+- Module loading, effects and resource limits, transformation application,
+  constraints/proofs, HMD-producing expressions, diagram-producing expressions,
+  and richer computational cells.
+- Specialized HMD fences such as `hql#query`, `hql#eval`, and `hql#declare`,
+  including execution policy and typed result presentation.
+
+Bootstrap `i64`, `+`, and the 256-literal bound prove [[first-milestone]]; they do
+not settle these questions. There is no theorem prover, graph implementation,
+HMD renderer, module system, or large standard library in this repository.
