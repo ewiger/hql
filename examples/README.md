@@ -282,12 +282,13 @@ values in pending rows are candidate expectations. Fixture files are listed in
 
 | File | Status | Feature | Expected type / value / error | Implementation |
 | --- | --- | --- | --- | --- |
-| [realistic/backlinks.hql](realistic/backlinks.hql) | proposed | backlinks | type: List[Card]; value: carol, family-record, research/graph-notes | pending |
+| [realistic/downlinks.hql](realistic/downlinks.hql) | proposed | downlinks | type: List[Card]; value: carol, family-record, research/graph-notes | pending |
 | [realistic/namespace.hql](realistic/namespace.hql) | proposed | namespace selection | type: List[Card]; value: projects/active-project | pending |
 | [realistic/people-graph.hql](realistic/people-graph.hql) | proposed | people graph | type: Graph; value: people graph with provenance retained | pending |
 | [realistic/related-knowledge.hql](realistic/related-knowledge.hql) | proposed | related evidence graph | type: Graph; value: alice-centered evidence graph, preserving provenance | pending |
 | [realistic/research-cards.hql](realistic/research-cards.hql) | proposed | recent research | type: List[Card]; value: research/type-notes, research/graph-notes, carol | pending |
 | [realistic/typed-selection.hql](realistic/typed-selection.hql) | design-question | typed selection | type: List[Person]; value: alice, carol | pending |
+| [realistic/uplinks.hql](realistic/uplinks.hql) | proposed | uplinks | type: List[Card]; value: bob | pending |
 
 ### types
 

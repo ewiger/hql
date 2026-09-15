@@ -15,6 +15,9 @@ implementation, then refined the design during corpus construction.
   with typed endpoints, identity, evidence and prose. Preserve old assertion
   syntaxes only as design alternatives. `cards | typed Relation | graph` is a
   core preferred example.
+- Links are node edges traversed in two directions: `downlinks` (incoming) and
+  `uplinks` (outgoing). The `backlinks` keyword is dropped; it named only one
+  half of the relation. A node may be its own uplink and downlink.
 - Knowledge is central and richer than Graph: structural links, metadata,
   Relation Cards, structure, imports, derivations, conflicts, constraints and
   evidence. Graph is a projection; HmdGraph is a presentation value. Provenance

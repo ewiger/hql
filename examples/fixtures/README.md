@@ -61,9 +61,11 @@ No arbitrary HMD link-property syntax is introduced here.
 `[[sam]]` has two candidate cards at people/sam and archive/sam with no explicit
 import/spine winner. `does-not-exist` has no target. HQL must delegate actual
 resolution to HMD; this fixture does not implement a competing resolver.
-Backlink expectations count authored body links only (not YAML endpoint fields,
-synthetic facts or transclusions), giving carol, family-record and
-research/graph-notes for alice. The resolver's final adapter contract must make
+Link traversal is a pair of edge directions: downlinks are the incoming half and
+uplinks the outgoing half; a card may be its own uplink and downlink. Both count
+authored body links only (not YAML endpoint fields, synthetic facts or
+transclusions), giving carol, family-record and research/graph-notes as alice's
+downlinks and bob as her uplink. The resolver's final adapter contract must make
 these scopes explicit.
 
 ## Knowledge profile and provenance
