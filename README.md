@@ -42,6 +42,12 @@ type without evaluating it. `eval` prints a value. Language and I/O failures go
 to stderr with exit status 1; CLI usage errors use status 2. Diagnostic ranges
 are zero-based UTF-8 byte offsets. File extensions are not enforced.
 
+## Example corpus
+
+[108 design cases](examples/README.md) distinguish current behavior, proposed
+syntax, intentional errors, and open alternatives. Run the supported corpus
+checks with `cargo test --locked --test corpus`.
+
 ## Project knowledge
 
 - [System requirements](doc/models/requirements/bootstrap.md)
@@ -54,3 +60,7 @@ are zero-based UTF-8 byte offsets. File extensions are not enforced.
 
 Scaffolded with [grem](https://github.com/ewiger/grem)'s Rust template using
 `grem init . -t rust --name hql` in an empty `hql` directory.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

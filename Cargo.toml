@@ -2,6 +2,7 @@
 name = "hql"
 version = "0.1.0"
 description = "HQL — Hyper Query Language: an experimental typed functional language"
+license = "MIT"
 publish = false
 edition = "2024"
 rust-version = "1.85"
