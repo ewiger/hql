@@ -9,9 +9,12 @@ also construct values, evaluate functions, transform data, validate constraints,
 and return typed results. Its direction is closer to rust, Kusto, Scala, Haskell, 
 or even Lean, rather than to SQL. See [doc/wiki/hql/**](hql)
 
-HyperMarkDown remains the authoring and storage format. Markdown docuemnts are second to it. 
-HQL will operate on a typed model of docs, cards, metadata, document structure, namespaces, 
-relations, and knowledge graphs. See [[hmd-integration]] and [[design-direction]].
+HQL will operate on a typed model of docs, cards, metadata, document structure,
+namespaces, relations, and knowledge graphs. Sources reach the language through
+extensions, and HyperMarkDown is one of them: an `.hmd` file and an `.md` file
+are both documents, and a card is the document that represents a piece of
+knowledge rather than the one written in a particular format. See
+[[hmd-integration]] and [[design-direction]]. But we also work with YAML/JSON documents as `Collection<Data>`.
 
 The working bootstrap evaluates integer and Boolean literals and integer
 addition. It has no knowledge-source integration yet. See [[first-milestone]]

@@ -5,7 +5,7 @@ The published HMD model lines up nicely with this. An HMD namespace is a rooted 
 So at the HQL level I think the right conceptual model is:
 
 ```hql
-cards : List<HmdCard>
+cards : List<Card>
 ```
 
 or perhaps simply:
@@ -14,7 +14,7 @@ or perhaps simply:
 cards : List<Card>
 ```
 
-where `Card` is the HQL-facing name and `HmdCard` is the implementation/domain name.
+where `Card` is the HQL-facing name and `Card` is the implementation/domain name.
 
 A card is not just the document body. It is something closer to:
 

@@ -1,36 +1,111 @@
 ---
-tags: [hql, cards, type-system, hypermarkdown]
+tags: [hql, documents, type-system, hypermarkdown]
 ---
 # Doc
 
-`Doc` is a Markdown document: the content a person wrote, as opposed to the
-metadata said about it. It is HQL's view of the CommonMark body that follows a
-card's optional frontmatter block, plus the structure HyperMarkDown's hyper layer
-adds on top of it.
+`Doc` is HQL's type for a document. Every document is a header and a body:
 
-An [[card-type|HmdCard]] *holds* a `Doc`; it is not one. A card is a header plus
-a document, and `card.body` reaches through to `card.doc.body`. There is no
-inheritance between the two types — see [[card-type]] for why.
+```hql
+type Doc {
+    header : Data
+    body   : Content
+}
+```
 
-Keeping `Doc` a type of its own is what makes that worth doing. A document need
-not be a card: an embedded fragment, a constructed body and an ordinary `.md`
-file that was never given a header are all documents, and none of them have a
-place in a vault or a header to carry.
+The body is what a person wrote. The header is everything known *about* the
+document. Both halves exist for every document, including a plain Markdown file
+that carries no metadata of its own — see [[card-type]] for the narrowed kind of
+document that participates in knowledge.
 
-The split also matters because the two halves are open in different ways. A
-header is open in its *shape*, which is why it is a [[data-type|Data]] tree. A
-document is open in its *prose*, but its structure is small and fixed: a body
-made of headings, anchored blocks, links and embeds. That structure can carry
-real types.
+The host adapter described in [[hmd-integration]] supplies both halves from the
+existing HMD parser and resolver. The bootstrap evaluator does not yet run any
+of this.
 
-Nothing on this card is implemented. The host adapter described in
-[[hmd-integration]] would supply it from the existing HMD parser and resolver.
+## The header exists whether or not it was written
 
-## Structure
+A document's header is a [[data-type|Data]] tree. It is never absent and never
+optional: a file with no metadata block has an empty header, not a missing one.
+There is no `Data?` to unwrap before every lookup, and no difference in kind
+between a document authored without metadata and one whose metadata block was
+empty. A missing *key* is still a missing key — that is a question for path
+traversal, not for the header.
+
+The reason the header is always populated is that most of it is derived. A
+document that exists at all has a name, a location and a format, whether or not
+anyone typed them:
+
+| Entry | Derivation |
+| --- | --- |
+| `header.name` | The file's base name, which is also the slug a wikilink uses |
+| `header.path` | The document's location relative to the vault root |
+| `header.source` | Where the document was actually read from |
+| `header.format` | Which document dialect the body is written in |
+| `header.title` | The document's title, from its first heading or its metadata |
+
+These are derived entries, not reserved keys. HMD reserves keys in *frontmatter*,
+which is a different thing — see below.
+
+`title` is the one with a genuine conflict: a document can state a title in its
+metadata and open with a different first heading. Which wins, and whether the
+loser stays reachable, is unresolved. `name` and `path` have no such problem
+because nothing authored can contradict them.
+
+## Three layers, one tree
+
+The header is one `Data` tree assembled from three sources:
+
+1. **Derived** — established by the host from the file itself: `name`, `path`,
+   `source`, `format`.
+2. **Authored** — written by a person into the document's metadata block.
+3. **Contributed** — added by an [[hql/extensions|extension]] that knows
+   something about the document.
+
+Precedence between the layers is undecided, and it is not one rule. An author
+overriding a derived `title` is reasonable; an author overriding a derived
+`path` is not, because the derived value is a fact about where the file is.
+Whether contributed entries may overwrite authored ones is a separate question
+again, treated in [[card-type]].
+
+What the layers must not do is become indistinguishable once merged. Provenance
+records where a header entry came from; it does not make the entry true, and a
+derived entry is not more authoritative than an authored one merely by being
+mechanical.
+
+## format
+
+`header.format` names the dialect the body is written in.
+
+```hql
+header.format   // md | hmd
+```
+
+This matters because the document features HQL can rely on are not universal.
+Plain Markdown has no wikilinks, no embeds and no namespace. HyperMarkDown adds
+the hyper layer on top of an unchanged CommonMark base, which is why every `.md`
+file is already valid `.hmd` — the relation between the two formats is inclusion,
+not translation.
+
+`format` is therefore the entry that says which of the operations below apply.
+Asking a `md` document for its uplinks is a well-formed question with an empty
+answer; asking it to resolve `[[alice]]` is not a question at all, because the
+text is not a link in that dialect.
+
+Frontmatter belongs on this side of the line. A YAML block fenced by `---` is a
+Markdown convention that HMD inherits, not the definition of a header. It is one
+format-specific way of supplying the authored layer, and a format that supplies
+metadata some other way — or not at all — still has a header. This is why the
+type is `header` and not `frontmatter`.
+
+Which formats HQL admits beyond `md` and `hmd`, and whether `format` is a closed
+enumeration or an open name that extensions can register, are open. So is
+whether a document can be reinterpreted under a different format.
+
+## Body structure
 
 | Type | Role |
 | --- | --- |
-| `Doc` | One authored Markdown document |
+| `Content` | Parsed body content, whatever the dialect |
+| `HmdContent` | Parsed HyperMarkDown content; `HmdContent <: Content` |
 | `Section` | A heading and the content beneath it |
 | `Block` | Anchored content addressable by name |
 | `Link` | A reference from this document to a target |
@@ -41,17 +116,23 @@ document's headings form a tree rather than a flat list. Whether `Doc` exposes
 that tree, a flat sequence, or both is open.
 
 ```hql
-doc.body      : Hmd
+doc.body      : Content
 doc.sections  : Seq<Section>
-doc.title     : String?
 ```
 
-The example corpus ascribes `Hmd` to a card's body, which suggests `Doc` is the
-document and `Hmd` is the marked-up content inside it; whether those are two
-types or one name used twice is not settled. A title is optional because HMD does
-not require a card to open with a heading, and because a title may equally come
-from a card's header — which of the two wins needs a decision, and it is a
-decision about cards rather than about documents.
+`Hmd` is not a type here. It names a *format* — the dialect `header.format`
+reports — and a format is not the parsed value that results from reading a
+document in it. The parsed value is `HmdContent`, and `Content` is the type a
+document's body has before anything is known about which dialect produced it.
+Their relation is the usual narrowing: a body is `Content`, and establishing
+`header.format` is `hmd` is what establishes it as `HmdContent`, with the
+addressing and embed operations below attached to that stronger type.
+
+Keeping content apart from `Doc` is also what lets an embedded fragment or a
+constructed body be a value without inventing a header for it.
+
+Whether `Content` is one type with narrowings per dialect, or a union, and what
+a body is before it has been parsed at all, are open.
 
 ## Addressing
 
@@ -59,7 +140,7 @@ HyperMarkDown addresses content at three granularities, and HQL should be able
 to name all three:
 
 ```hql
-[[alice]]           // the card
+[[alice]]           // the document
 [[alice#Bio]]       // a heading fragment
 [[alice#^claim]]    // an anchored block
 ```
@@ -72,61 +153,80 @@ bio : Ref[Section] = [[alice#Bio]]
 resolve(bio)
 ```
 
-`resolve : Ref[T] -> T` is the conceptual signature. It can fail, and the failure
-modes are HMD's own: a target that does not exist, a fragment missing from a card
-that does, a name matching several cards, or a target escaping the namespace
-root. HMD treats an unresolved link as a warning, deliberately — writing forward
-to a card that has not been written yet is permitted, and the diagnostic report
-is a to-do list. HQL must not turn that into a hard error by accident. How
-failure is carried, and whether generic references use brackets or angles,
-remain open.
+`resolve : Ref[T] -> T` is the conceptual signature.
 
-Resolution itself belongs to the adapter, not to HQL. A bare name is resolved by
-named imports, then the spine walk outward from the card's own directory, then
-wildcard import origins, then autodiscovery — and ambiguity is an error with no
-ranking rule. HQL consumes the outcome. It must preserve unresolved and ambiguous
-references as outcomes rather than silently picking a card.
+What resolution does **not** do is hand back a [[card-type|Card]]. Older sketches
+write `resolve([[alice]]) : Card`, as though a reference resolved naturally to a
+card. It does not, and treating it as sugar hides the step that matters:
+`[[alice]]` names a document, resolution yields a `Doc`, and card-ness is a
+knowledge property that has to be established rather than assumed. A reference
+cannot know that its target represents a piece of knowledge; only a checked
+narrowing can say so.
+
+```hql
+doc  : Doc  = resolve([[alice]])
+card : Card = doc as Card        // a narrowing, and it can fail
+```
+
+The spelling of that step is unresolved, and so is what it produces when the
+document turns out not to be a card. It can fail, and the failure
+modes are HMD's own: a target that does not exist, a fragment missing from a
+document that does, a name matching several documents, or a target escaping the
+namespace root. HMD treats an unresolved link as a warning, deliberately —
+writing forward to a card that has not been written yet is permitted, and the
+diagnostic report is a to-do list. HQL must not turn that into a hard error by
+accident. How failure is carried, and whether generic references use brackets or
+angles, remain open.
+
+Resolution needs a namespace, which a bare document does not have. A bare name
+is resolved by named imports, then the spine walk outward from the document's own
+directory, then wildcard import origins, then autodiscovery — and ambiguity is an
+error with no ranking rule. That machinery belongs to the vault, so it belongs to
+[[card-type]]. HQL consumes the outcome, and must preserve unresolved and
+ambiguous references as outcomes rather than silently picking a document.
 
 ## Links
 
 A link is lightweight structural connectivity, conceptually `Link(this, ref)`.
-It belongs to the document, while the identity on either end of it belongs to a
-card. It is not an edge-property container, and display text does not declare a
+It is not an edge-property container, and display text does not declare a
 relationship type: `[[alice|Alice B.]]` links the same way `[[alice]]` does.
 
-Links traverse in two directions. `uplinks` are the card's outgoing references;
-`downlinks` are the references that point at it. A card can be its own uplink
-and downlink. The older `backlinks` spelling is dropped because it named only
-one half of the relation.
+Links traverse in two directions. `uplinks` are the document's outgoing
+references; `downlinks` are the references that point at it. A document can be
+its own uplink and downlink. The older `backlinks` spelling is dropped because it
+named only one half of the relation.
+
+Downlinks are the direction that needs a vault: a document cannot know what
+points at it by reading itself. Uplinks are readable from the body alone.
 
 When a relationship needs properties, provenance, discussion or its own incoming
 links, it should stop being a link and become a Relation Card — see
-[[hql/knowledge]]. That is the boundary this card is defending: `Doc` stays
-cheap, and meaning lives elsewhere.
+[[hql/knowledge]]. That is the boundary this card is defending: a link stays
+cheap, and meaning lives in knowledge.
 
 ## Embeds
 
-An embed pulls another card, heading or block into this one:
+An embed pulls another document, heading or block into this one:
 
 ```text
 ![[glossary/token#^definition]]
 ```
 
-Embeds raise a question `Doc` has to answer explicitly: does a document's
-content include what it transcluded? Both readings are useful. Rendering erases
-the boundary, and the reader sees one continuous page. Analysis usually must not:
-a word count, a link inventory or an evidence check should distinguish what this
-card asserts from what it borrowed.
+Embeds raise a question `Doc` has to answer explicitly: does a document's content
+include what it transcluded? Both readings are useful. Rendering erases the
+boundary, and the reader sees one continuous page. Analysis usually must not: a
+word count, a link inventory or an evidence check should distinguish what this
+document asserts from what it borrowed.
 
 The current direction is that `Doc` preserves the boundary and expansion is a
 separate operation, so that provenance survives. HMD's own limits apply to any
 expansion — cycles are an error and nesting is bounded — and an embedded block
-keeps its defining card as its origin.
+keeps its defining document as its origin.
 
 ## Doc is not text
 
-Reducing a card to its source string would make HQL a text-search language over
-`.hmd` files, which [[hql/core]] explicitly rejects. `Doc` is structure: a
+Reducing a document to its source string would make HQL a text-search language
+over `.hmd` files, which [[hql/core]] explicitly rejects. `Doc` is structure: a
 pipeline selects sections, follows links and inspects anchors, and only reaches
 for raw text where text is genuinely what is wanted.
 
@@ -134,10 +234,12 @@ The same applies in the other direction. Constructing a `Doc` produces a value;
 it does not write a file. Persistence is an explicit effect, and rendering
 belongs to the host — see the presenter vocabulary in [[hql/knowledge]].
 
-Serialization back to `.hmd` is unresolved, and is not merely the inverse of
+Serialization back to a file is unresolved, and is not merely the inverse of
 parsing: a round trip has to decide what happens to formatting the parser did
-not keep, and whether expanded embeds collapse back into their embed syntax.
+not keep, whether expanded embeds collapse back into their embed syntax, and
+which header layers are written out at all. A derived `path` must not be
+serialized into an authored metadata block.
 
-See [[card-type]] for the card that holds a document, [[data-type]] for the
-header's tree type, [[pipes]] for composition and [[hql/design-status]] for open
-decisions.
+See [[card-type]] for documents that participate in knowledge, [[data-type]] for
+the header's tree type, [[pipes]] for composition and [[hql/design-status]] for
+open decisions.

@@ -3,10 +3,12 @@ tags: [hql, language, design]
 ---
 # HQL core
 
-HQL is a typed functional language for querying and manipulating HyperMarkDown
-knowledge. The language is still being designed. This card describes the intended
-core; the working bootstrap supports only Int, Float, Bool and same-type
-numeric addition.
+HQL is a typed functional language for querying and manipulating typed
+knowledge. The core names no source: documents, relational tables and graph
+stores all arrive through an [[hql/extensions|extension]], and HyperMarkDown is
+one of them — see [[hmd-integration]]. The language is still being designed.
+This card describes the intended core; the working bootstrap supports only Int,
+Float, Bool and same-type numeric addition.
 
 The core should stay small: typed values, bindings, ordinary functions, function
 application and composition through `|`. Document and semantic types provide the
@@ -68,8 +70,10 @@ graph projection and presentation.
 
 ## Design boundaries
 
-The host supplies a typed document model through an adapter to the existing HMD
-parser and resolver. Raw HMD string searching is not the language's foundation.
+The host supplies a typed document model through an extension over the existing
+HMD parser and resolver. Raw HMD string searching is not the language's
+foundation, and neither is HMD the foundation: the document vocabulary belongs
+to the extension that supplies documents.
 Namespace imports belong in [[hql/extensions]], including optional `init.hql`.
 
 The design baseline and unresolved choices are collected in [[hql/design-status]].

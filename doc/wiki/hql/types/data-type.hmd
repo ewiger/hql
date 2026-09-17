@@ -61,8 +61,9 @@ One of the main purposes of `Data` is metadata.
 
 Metadata usually does not deserve a new HQL record type merely because it has several named properties. Its natural representation is a `Data` tree.
 
-HyperMarkDown frontmatter is the canonical example: an [[card-type|HmdCard]] is
-a header plus a [[doc-type|Doc]], and that header is a `Data` tree.
+A document header is the canonical example. Every [[doc-type|Doc]] — and so
+every [[card-type|card]], which is a narrowed document — carries a `header` that
+is a `Data` tree.
 
 A card may begin with optional YAML metadata:
 
@@ -83,25 +84,27 @@ The complete frontmatter is `Data`.
 Conceptually:
 
 ```hql
-card.header : Data
+doc.header : Data
 ```
 
-`header` rather than `frontmatter`, because frontmatter is only the authored source of a header and a card's metadata can come from elsewhere. The header is not optional: a card without a frontmatter block has an empty header. See [[card-type]].
+`header` rather than `frontmatter`, because frontmatter is a Markdown-specific way of writing the authored part of a header, while the rest of a header is derived by the host or contributed by an extension. The header is not optional: a document with no metadata block has an empty header. See [[doc-type]].
 
 The metadata can be traversed naturally:
 
 ```hql
-card.header.title
-card.header.tags
-card.header.status
-card.header.source.format
+doc.header.title
+doc.header.format
+doc.header.tags
+doc.header.status
 ```
+
+A single `Data` tree is what lets derived entries such as `format` and `path` sit beside authored keys and extension-contributed ones without three separate metadata types.
 
 These expressions do not imply that HQL contains a statically declared `Frontmatter` struct with fields called `title`, `tags`, `status`, and `source`.
 
 They are paths through a `Data` tree.
 
-This distinction is central because HyperMarkDown frontmatter is deliberately extensible. HMD reserves only `tags`, `use`, `import`, and `nav`; every other key belongs to the author. Different cards, applications, extensions, and namespaces can place different metadata there without extending the HQL type system every time a new YAML key appears.
+This distinction is central because a document header is deliberately extensible. HMD reserves only `tags`, `use`, `import`, and `nav` in frontmatter; every other key belongs to the author, and the derived and contributed layers add keys no author wrote. Different cards, applications, extensions, and namespaces can place different metadata there without extending the HQL type system every time a new YAML key appears.
 
 The same principle applies beyond frontmatter. Configuration, annotations, extension metadata, query metadata, imported YAML, JSON-like API responses, database JSON values, and similar structured payloads are naturally `Data`.
 
@@ -166,7 +169,7 @@ person : Person =
     metadata.as<Person>()
 ```
 
-This gives HQL a useful separation between raw structured information and typed interpretation.
+This gives HQL a useful separation between raw structured information and typed interpretation. Interpretation need not copy: HMD, extensions and the program itself progressively establish stronger types for regions of one unchanged tree. See [[refinement-of-types]].
 
 The source can remain faithful to YAML while an extension, function, schema, or application imposes additional meaning where necessary.
 
@@ -315,6 +318,6 @@ Data is a structured value whose shape is a tree.
 
 That tree can later be queried, transformed, validated, interpreted, or converted into stronger HQL types without losing the original structure.
 
-See [[card-type]] for the card that carries metadata, [[doc-type]] for its
-authored half, [[pipes]] for composition, and [[hql/knowledge]] for the semantic
-side of the `Data`/`Knowledge` boundary.
+See [[doc-type]] for the document header, [[card-type]] for the knowledge-bearing
+kind of document, [[pipes]] for composition, and [[hql/knowledge]] for the
+semantic side of the `Data`/`Knowledge` boundary.

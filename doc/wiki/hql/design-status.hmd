@@ -13,9 +13,10 @@ separate it from both older corpus alternatives and implemented behavior.
 | [[pipes]] | Ordinary functions, composition and data-parallel execution |
 | [[hql/knowledge]] | Semantic universe, Relation Cards and presentation |
 | [[hql/extensions]] | External capabilities, modules and `init.hql` |
-| [[card-type]] | `HmdCard`, the `cards` keyword, metadata and narrowing |
-| [[doc-type]] | `Doc`, sections, anchors, links and embeds |
-| [[data-type]] | `Data`, the tree type of metadata and structured payloads |
+| [[doc-type]] | `Doc`, the header, `format`, sections, links and embeds |
+| [[card-type]] | `Card <: Doc`, the vault, knowledge and the `cards` keyword |
+| [[data-type]] | `Data`, the tree type of headers and structured payloads |
+| [[refinement-of-types]] | Open structural data and progressive type refinement |
 
 ## Current direction
 
@@ -38,7 +39,7 @@ the implementation.
 
 - Function/declaration grammar, generics, inference and pipe argument placement.
 - Collection equality, Card identity, mapping duplicates and ordering contracts.
-- Whether `cards` is `List<HmdCard>` or `Set<Card>`: [[card-type]] states the
+- Whether `cards` is `List<Card>` or `Set<Card>`: [[card-type]] states the
   ordered reading, [[hql/collections]] the unordered one. Vault order is the
   question, not the spelling.
 - Document schemas, reference failures, optional values and error carriers.
