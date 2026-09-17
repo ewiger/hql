@@ -1,0 +1,18 @@
+<!-- corpus
+status: design-question
+feature: implicit empty presentation
+implementation: pending
+environment: alice-cell-v1
+expected-type: Unit
+expected: no visible cell output; the host receives the contribution
+note: A cell whose value is Unit has nothing to present, so the fence uses the implicit empty presentation. That is a consequence of the result type, not an explicit presenter; whether an explicit empty is also allowed here is unresolved.
+alternatives: hypermarkdown/declare.hmd, presentation/empty.hql
+-->
+
+# Family evidence
+
+```hql#declare
+relatedTo -> [[bob]] {
+    kind = daughter
+}
+```

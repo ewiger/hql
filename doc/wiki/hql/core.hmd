@@ -1,0 +1,76 @@
+---
+tags: [hql, language, design]
+---
+# HQL core
+
+HQL is a typed functional language for querying and manipulating HyperMarkDown
+knowledge. The language is still being designed. This card describes the intended
+core; the working bootstrap supports only Int, Bool and integer addition.
+
+The core should stay small: typed values, bindings, ordinary functions, function
+application and composition through `|`. Document and semantic types provide the
+domain vocabulary. Most operations should be functions, with external capabilities
+supplied by [[hql/extensions]]. HQL should develop its own functional syntax,
+without adopting SQL clauses or Rust-like trait machinery.
+
+## Value vocabulary
+
+| Family | Types | Role |
+| --- | --- | --- |
+| Documents | `Card`, `Frontmatter`, `Section`, `Link` | Authored knowledge and its structure |
+| Semantic | `Concept`, `Relation`, `Proposition`, `Evidence` | Meaning, claims and support |
+| Collections | `Set<T>`, `Seq<T>`, `Map<K,V>` | Membership, order and keyed lookup |
+| Ordinary | `String`, `Int`, `Bool`, `Date` | General computation |
+
+These are the current design names. Generic types use angle brackets in these
+pages; older corpus examples preserve other candidate spellings. Precise schemas,
+declarations, polymorphism, optional/error types and Date operations remain open.
+This vocabulary does not require each type to be a primitive in the evaluator.
+
+## Bindings and values
+
+```hql
+alice : Card = resolve([[alice]])
+```
+
+`[[alice]]` is a reference literal. `resolve` is an ordinary function that resolves
+it in the current context. The binding names the resulting Card; a filename does
+not implicitly introduce a variable. Inferred binding is also preferred:
+
+```hql
+alice = resolve([[alice]])
+```
+
+An expression returns a typed value. A program returns its last expression;
+earlier unbound values are discarded. Bindings retain values for later use.
+Rendering belongs to the host, and printing or saving requires an explicit
+effect. Constructing an updated Card does not itself persist a document.
+The spelling of a no-result type, Unit or Void, remains open.
+
+## Context values
+
+`cards : Set<Card>` denotes the cards in the current vault or namespace. It
+does not imply a traversal order. See [[hql/collections]].
+
+`knowledge` denotes the semantic knowledge universe composed of concepts,
+relations, propositions and evidence. It is richer than a collection of cards
+or a graph. See [[hql/knowledge]].
+
+```hql
+knowledge
+| graph
+```
+
+Pipes are fundamental to composition and querying. [[hql/pipes]] describes the
+execution direction; [[hql/knowledge]] records the unresolved distinction between
+graph projection and presentation.
+
+## Design boundaries
+
+The host supplies a typed document model through an adapter to the existing HMD
+parser and resolver. Raw HMD string searching is not the language's foundation.
+Namespace imports belong in [[hql/extensions]], including optional `init.hql`.
+
+The design baseline and unresolved choices are collected in [[hql/design-status]].
+See also [[hql]], [[hmd-integration]] and the
+[program-value model](../../models/behavior/program-values.md).

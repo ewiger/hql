@@ -1,6 +1,6 @@
 # HQL example corpus
 
-108 small design cases, plus the existing raw `answer.hql` smoke example.
+125 small design cases, plus the existing raw `answer.hql` smoke example.
 The language implementation is unchanged. Examples are design inputs and future
 parser/typechecker/evaluator fixtures, not a claim that the whole language works.
 
@@ -15,6 +15,9 @@ parser/typechecker/evaluator fixtures, not a claim that the whole language works
    [conflicting claims](knowledge/contradictory-claims.hql), [HmdGraph presentation](outputs/hmd-graph.hql).
 5. [Cell shadowing](hypermarkdown/shadowing.hmd), [transclusion closure](hypermarkdown/transclusion.hmd),
    and [structural evidence satisfaction](constraints/supported-relation.hql).
+6. [Presentation family](presentation/table.hql): a value and the view of it are
+   separate. Compare [three views of one Knowledge value](presentation/knowledge-views.hql)
+   with the [projection reading](knowledge/projections.hql) of the same stages.
 
 ## Status and metadata contract
 
@@ -74,6 +77,17 @@ predicate validation, and Hmd/diagram/presentation conversions. Frontmatter/fm,
 String/Str and Frontmatter/FrontMatter names are not all settled. The corpus uses
 readable working names rather than declaring aliases implemented.
 
+**Presentation is separate from evaluation.** `table`, `json`, `graph`, `markdown`,
+`tree`, `text`, `value` and `empty` are terminal presenters that turn a typed value
+into a renderable one; they are not semantic transformations, so `timeline`, `matrix`
+or `diagram` can be added without touching the type of `cards` or `knowledge`.
+A cell with no presenter falls back to a [host default](presentation/default.hql)
+chosen by result type, and `Knowledge` is deliberately excluded from that fallback.
+Two questions stay open: whether presenters share one opaque
+[Presentation type](presentation/type-functional.hql) or get
+[named subtypes](presentation/type-nominal.hql), and whether `graph` names the
+[Knowledge projection or the view](presentation/graph.hql).
+
 The latest preference is **Relation as a Card specialization**. Older structured
 assertion forms are labeled design-question alternatives. Rich persistent
 relationships gain identity, typed fields and ordinary evidence/prose sections;
@@ -106,7 +120,7 @@ Every row describes the source after its corpus envelope is removed. Types and
 values in pending rows are candidate expectations. Fixture files are listed in
 [fixtures/README.md](fixtures/README.md) and are not counted as executable cases.
 
-38 design-question, 13 invalid, 51 proposed, 6 valid-now.
+47 design-question, 14 invalid, 58 proposed, 6 valid-now.
 
 ### basics
 
@@ -182,6 +196,7 @@ values in pending rows are candidate expectations. Fixture files are listed in
 | [errors/invalid-field.hql](errors/invalid-field.hql) | invalid | diagnostic | error: InvalidField | pending |
 | [errors/invalid-pipeline.hql](errors/invalid-pipeline.hql) | invalid | diagnostic | error: PipelineTypeMismatch | pending |
 | [errors/overflow.hql](errors/overflow.hql) | invalid | diagnostic | type: Int; error: IntegerOverflow | implemented |
+| [errors/presentation-not-a-collection.hql](errors/presentation-not-a-collection.hql) | invalid | diagnostic | error: PipelineTypeMismatch | pending |
 | [errors/syntax.hql](errors/syntax.hql) | invalid | diagnostic | error: SyntaxError | implemented |
 | [errors/type-mismatch.hql](errors/type-mismatch.hql) | invalid | diagnostic | error: TypeMismatch | pending |
 | [errors/undefined-variable.hql](errors/undefined-variable.hql) | invalid | diagnostic | error: UndefinedVariable | pending |
@@ -227,11 +242,14 @@ values in pending rows are candidate expectations. Fixture files are listed in
 | [hypermarkdown/card-local.hmd](hypermarkdown/card-local.hmd) | proposed | card environment | value: declaration contributes card binding; later eval returns Int 10 | pending |
 | [hypermarkdown/cell-local.hmd](hypermarkdown/cell-local.hmd) | proposed | cell isolation | value: first cell returns Int 10; second reports UndefinedVariable | pending |
 | [hypermarkdown/declare.hmd](hypermarkdown/declare.hmd) | design-question | declaration cell | type: Unit; value: host receives contribution; no visible cell result | pending |
+| [hypermarkdown/empty-cell.hmd](hypermarkdown/empty-cell.hmd) | design-question | implicit empty presentation | type: Unit; value: no visible cell output; the host receives the contribution | pending |
 | [hypermarkdown/eval.hmd](hypermarkdown/eval.hmd) | proposed | eval cell | type: String; value: Alice as a value; host may insert/display it | pending |
 | [hypermarkdown/graph.hmd](hypermarkdown/graph.hmd) | proposed | graph cell | type: Graph; value: host may display an interactive graph, not a textual printout | pending |
 | [hypermarkdown/imports-mapping.hmd](hypermarkdown/imports-mapping.hmd) | design-question | alternative card imports | type: String; value: Alice only if a new bridge interprets imports | pending |
+| [hypermarkdown/markdown-cell.hmd](hypermarkdown/markdown-cell.hmd) | proposed | markdown cell | type: Presentation; value: the generated link list rendered as document content at the fence | pending |
 | [hypermarkdown/query.hmd](hypermarkdown/query.hmd) | proposed | query cell | type: List[Card]; value: host presents returned cards at the fence | pending |
 | [hypermarkdown/shadowing.hmd](hypermarkdown/shadowing.hmd) | proposed | lexical shadowing | value: first cell String Bob; second cell String Alice | pending |
+| [hypermarkdown/table-cell.hmd](hypermarkdown/table-cell.hmd) | proposed | table cell | type: Presentation; value: host inserts a table of alice, bob, carol at the fence | pending |
 | [hypermarkdown/transclusion.hmd](hypermarkdown/transclusion.hmd) | proposed | transclusion scope | value: lexical candidate: included closure returns 10, not host x = 99 | pending |
 
 ### knowledge
@@ -277,6 +295,24 @@ values in pending rows are candidate expectations. Fixture files are listed in
 | [pipelines/inline.hql](pipelines/inline.hql) | design-question | pipeline layout | type: List[Card]; value: alice, bob, carol | pending |
 | [pipelines/multiline.hql](pipelines/multiline.hql) | design-question | pipeline layout | type: List[Card]; value: alice, bob, carol | pending |
 | [pipelines/partial-application.hql](pipelines/partial-application.hql) | proposed | pipeline argument placement | type: List[String]; value: Alice, Carol | pending |
+
+### presentation
+
+| File | Status | Feature | Expected type / value / error | Implementation |
+| --- | --- | --- | --- | --- |
+| [presentation/default.hql](presentation/default.hql) | design-question | implicit presentation | type: String; value: Alice, shown through a host-chosen default presenter | pending |
+| [presentation/empty.hql](presentation/empty.hql) | design-question | empty presentation | type: Presentation; value: no visible output; the updated Card is still computed | pending |
+| [presentation/graph-view.hql](presentation/graph-view.hql) | design-question | disambiguated graph presentation | type: Presentation; value: node-and-relation presentation of the projected graph | pending |
+| [presentation/graph.hql](presentation/graph.hql) | design-question | graph as presenter | type: Presentation; value: node-and-relation presentation over fixture evidence | pending |
+| [presentation/json.hql](presentation/json.hql) | proposed | json presentation | type: Presentation; value: structured serialization of the same three person cards | pending |
+| [presentation/knowledge-views.hql](presentation/knowledge-views.hql) | design-question | multiple views of one value | type: Presentation; value: the graph presentation is the program result; t and j are retained presentation bindings | pending |
+| [presentation/markdown.hql](presentation/markdown.hql) | proposed | markdown presentation | type: Presentation; value: rendered presentation of the generated link list | pending |
+| [presentation/table.hql](presentation/table.hql) | proposed | table presentation | type: Presentation; value: row-and-column presentation of alice, bob, carol | pending |
+| [presentation/text.hql](presentation/text.hql) | proposed | text presentation | type: Presentation; value: plain textual presentation carrying Alice | pending |
+| [presentation/tree.hql](presentation/tree.hql) | proposed | tree presentation | type: Presentation; value: hierarchical presentation of the projects namespace | pending |
+| [presentation/type-functional.hql](presentation/type-functional.hql) | design-question | presentation typing alternative | type: Presentation; value: table presentation of all fixture cards | pending |
+| [presentation/type-nominal.hql](presentation/type-nominal.hql) | design-question | presentation typing alternative | type: TablePresentation; value: table presentation of all fixture cards | pending |
+| [presentation/value.hql](presentation/value.hql) | design-question | default value presentation | type: Presentation; value: scalar presentation carrying 42 | pending |
 
 ### realistic
 

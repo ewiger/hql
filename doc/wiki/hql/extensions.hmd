@@ -1,0 +1,73 @@
+---
+tags: [hql, extensions, modules, design]
+---
+# HQL extensions and namespace initialization
+
+Extensions provide capabilities outside the small [[hql/core]]. They may be
+implemented in Rust, but HQL users should interact with ordinary typed functions
+and values. Rust traits, lifetimes and implementation details do not become HQL
+language requirements. No extension runtime or module loader is implemented yet.
+
+An HQL module organizes reusable HQL definitions. An extension connects HQL to
+external capabilities: for example, a data source, a renderer or an explicit
+persistence operation. These are candidate uses, not a bundled extension list.
+An extension may expose pure operations as well as effects.
+
+## Namespace initialization
+
+A vault or namespace may contain `init.hql`. Its intended role is to import the
+modules and extensions available to that namespace. This gives the namespace
+an explicit entry point for its evaluation environment.
+
+Illustrative layout:
+
+```text
+vault/
+  init.hql
+  alice.hmd
+  research/
+    init.hql
+    notes.hmd
+```
+
+Illustrative contents of `init.hql`, using candidate module-import syntax:
+
+```hql
+import people
+import graph
+```
+
+The names represent available modules or extension interfaces; their discovery
+and installation are separate host responsibilities. Import syntax, exports,
+qualification and any distinction between module and extension imports remain
+open. An import is not implicitly a package download.
+
+The research namespace can have its own imports. Whether it inherits the vault's
+imports, how names shadow or conflict, initialization order, cycles, reloads and
+failure handling all require decisions. The presence of nested `init.hql` files
+alone does not settle those policies. Whether initialization permits work beyond
+imports is also unresolved.
+
+## Environments and capabilities
+
+Initialization establishes namespace availability. The bridge into card and cell
+environments still needs a precise contract. Cells close over their defining card
+environment, including explicit imports and bindings. Locals can shadow names;
+transclusion preserves the defining closure. Namespace initialization must remain
+compatible with those lexical rules. Card filenames never implicitly bind names.
+
+The extension boundary should expose typed inputs, outputs and failures. It also
+needs a way to distinguish pure computation from effects so [[hql/pipes]] can be
+optimized safely. Importing a capability and invoking an effect are separate
+operations. Reading, network access, printing and saving need explicit host
+contracts; importing a renderer does not itself render a value.
+
+The host adapter supplies typed HMD documents using the existing parser/resolver.
+An extension should operate through that boundary rather than make raw text
+parsing part of the core. Native ABI versus another transport, registration,
+versioning, resource limits and capability policy remain open. This document does
+not choose a Rust plugin ABI or prescribe a trait hierarchy.
+
+See [architecture](../../models/domain/architecture.md),
+[cell environments](../../models/behavior/program-values.md) and
+[[hql/design-status]].

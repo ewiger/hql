@@ -1,0 +1,70 @@
+---
+tags: [hql, knowledge, design]
+---
+# HQL knowledge
+
+`knowledge` is the semantic knowledge universe composed of concepts, relations,
+propositions and evidence. `Knowledge` is the working name for its type. This
+design model is richer than Graph and is not implemented by the bootstrap.
+
+| Type | Conceptual role |
+| --- | --- |
+| `Concept` | Something identified or described in the knowledge model |
+| `Relation` | A meaningful relationship with typed participants |
+| `Proposition` | A claim that can be supported, disputed or constrained |
+| `Evidence` | Material offered in support of or against a claim |
+
+These roles do not settle constructors, logical syntax or a proof system.
+The universe can draw on document structure, metadata, links, Relation Cards,
+imports and explicit derivations. Namespace visibility and imported knowledge
+merge rules remain open; `knowledge` does not imply unrestricted global access.
+
+## Documents and meaning
+
+`Card`, `Frontmatter`, `Section` and `Link` describe the authored document model.
+An ordinary link remains lightweight structural connectivity. It does not gain
+an arbitrary property bag or automatically assert a semantic relation.
+`uplinks` traverse outgoing links and `downlinks` incoming links; a node can
+link to itself.
+
+Significant relationships are preferably Relation Cards: a typed specialization
+of Card with its own identity, typed endpoints, fields and ordinary prose or
+evidence sections. Semantic and document families can therefore overlap; they
+are not disjoint storage classes. Exact subtype syntax remains open.
+
+```hql
+cards | typed Relation | graph
+```
+
+Distinct Relation Cards may express conflicting claims about the same endpoints.
+Knowledge must retain those identities, conflicts, provenance and evidence.
+Provenance records origin; it does not establish meaning or truth. A derivation
+must retain the rule/model used. An Evidence section can satisfy a structural
+requirement without proving its claim.
+
+## Projection and presentation
+
+```hql
+knowledge
+| graph
+```
+
+This is a preferred example, with an unresolved result contract. Graph is a
+structural projection of Knowledge; a graph presentation is a view consumed by
+the host. The earlier model uses `graph` for projection, while the newer presenter
+direction uses it for a terminal view. Whether to give these separate names
+remains open. Neither reading reduces Knowledge itself to Graph.
+
+`table`, `json`, `graph`, `markdown`, `tree`, `text`, `value` and `empty` form the
+current presenter vocabulary. Presenters produce renderable values, rather than
+changing the underlying claims. A presentation is terminal with respect to
+semantic collection processing. The host performs actual rendering.
+
+One opaque Presentation type versus named presentation types such as HmdGraph
+is unresolved. Hosts may choose default presenters by result type, but Knowledge
+requires an explicit view because its projections are equally valid. Additional
+views should not require changes to the semantic types.
+
+See the [knowledge model](../../models/domain/knowledge.md),
+[presentation alternatives](../../../examples/presentation/knowledge-views.hql)
+and [[hql/design-status]].

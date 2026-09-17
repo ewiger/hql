@@ -1,0 +1,49 @@
+---
+tags: [hql, collections, design]
+---
+# HQL collections
+
+HQL distinguishes membership, order and lookup through three collection types.
+These are language-design contracts, not implemented collection APIs.
+
+| Type | Intended meaning | Design consequence |
+| --- | --- | --- |
+| `Set<T>` | Unordered collection of distinct elements | No implicit first element or stable iteration order |
+| `Seq<T>` | Ordered sequence, allowing repeated elements | Position and order are observable |
+| `Map<K,V>` | Values associated with distinct keys | Lookup is by key; iteration order is not implied |
+
+Equality, Card identity, key eligibility, missing-key results and duplicate-key
+construction policy need explicit definitions before implementation. Set
+membership must not accidentally equate distinct claims merely because they
+have the same endpoints or text.
+
+## Cards are a set
+
+```hql
+cards : Set<Card>
+```
+
+This is a type statement for the context value, not a proposed standalone
+declaration syntax. `cards` represents the current vault or namespace. Sorting
+can establish a sequence; merely discovering files must not establish a language
+ordering guarantee. Selecting a reproducible prefix requires a defined order,
+including how equal sort keys are handled.
+
+Older [corpus examples](../../../examples/README.md) use `List[Card]` and sometimes
+fixture path order. Those are earlier design candidates. The current direction
+uses `Set<Card>` for `cards` and `Seq<T>` when order matters; no List alias or
+automatic conversion has been decided.
+
+## Collection functions
+
+Filtering, mapping, sorting and aggregation should be ordinary typed functions
+used through [[hql/pipes]]. Their signatures must make collection behavior clear.
+Filtering a set can preserve membership semantics. Mapping a set raises a choice:
+whether equal outputs collapse into a set or another collection retains them.
+That choice, generic function syntax and conversion names remain open.
+
+Unordered inputs give an executor room to partition pure work. Sequence order,
+duplicate behavior and aggregation laws constrain that freedom. A parallel
+execution strategy must preserve the result promised by the collection function.
+
+See [[hql/core]] for the type vocabulary and [[hql/knowledge]] for semantic identity.

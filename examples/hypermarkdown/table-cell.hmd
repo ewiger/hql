@@ -1,0 +1,18 @@
+<!-- corpus
+status: proposed
+feature: table cell
+implementation: pending
+environment: knowledge-v1
+expected-type: Presentation
+expected: host inserts a table of alice, bob, carol at the fence
+note: The cell names its presenter instead of relying on the host default, so the same query can be shown as a table here and as json elsewhere.
+alternatives: hypermarkdown/query.hmd, presentation/table.hql
+-->
+
+# People
+
+```hql#query
+cards
+| filter(.type == "person")
+| table
+```

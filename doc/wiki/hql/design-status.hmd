@@ -1,0 +1,62 @@
+---
+tags: [hql, decisions, design]
+---
+# HQL design status
+
+HQL remains in language design. These cards record the current direction and
+separate it from both older corpus alternatives and implemented behavior.
+
+| Card | Scope |
+| --- | --- |
+| [[hql/core]] | Small typed functional core and domain vocabulary |
+| [[hql/collections]] | Set, Seq, Map and `cards : Set<Card>` |
+| [[hql/pipes]] | Ordinary functions, composition and data-parallel execution |
+| [[hql/knowledge]] | Semantic universe, Relation Cards and presentation |
+| [[hql/extensions]] | External capabilities, modules and `init.hql` |
+
+## Current direction
+
+Prefer ordinary functions, bare bindings and fundamental pipe syntax. Keep SQL
+clauses and Rust-like trait machinery out of the design. Extensions supply
+external capabilities and may be written in Rust. Optional namespace `init.hql`
+files import available modules and extensions.
+
+`cards` is a `Set<Card>` in the current vault or namespace. `knowledge` comprises
+concepts, relations, propositions and evidence. Knowledge retains conflicting
+claims and provenance; a graph is only one projection. Programs return typed
+values, persistence is explicit, and presentation belongs to a separate layer.
+
+The Set/Seq vocabulary supersedes the assumption in older examples that `cards`
+is an ordered List. Those examples remain design inputs, not a final language
+specification. This documentation change does not migrate the corpus or expand
+the implementation.
+
+## Decisions still needed
+
+- Function/declaration grammar, generics, inference and pipe argument placement.
+- Collection equality, Card identity, mapping duplicates and ordering contracts.
+- Document schemas, reference failures, optional values and error carriers.
+- Semantic constructors, derivation rules and constraint/satisfaction types.
+- The name and type boundary between graph projection and graph presentation.
+- Module resolution, namespace inheritance and `init.hql` initialization policy.
+- Extension transport, effect contracts and optimizer-visible execution properties.
+
+The implemented slice remains Int/Bool literals and checked integer addition.
+Its signed 64-bit representation and 256-literal limit are provisional bootstrap
+choices, not settled full-language requirements. See [[first-milestone]].
+
+## Architecture sources
+
+The supplied context names `docs/language-design.md`, `docs/knowledge-model.md`
+and `docs/decisions.md`. Those paths are absent from this repository. The existing
+sources used for these cards are:
+
+- [[design-direction]] and the [example corpus](../../../examples/README.md).
+- [Knowledge model](../../models/domain/knowledge.md) and
+  [integration architecture](../../models/domain/architecture.md).
+- [Program values](../../models/behavior/program-values.md),
+  [corpus decisions](../../memory/corpus-direction.md) and
+  [bootstrap decisions](../../memory/bootstrap.md).
+
+Read those sources before changing language design. Keep unresolved alternatives
+visible until a decision is made; illustrative syntax is not implementation evidence.
