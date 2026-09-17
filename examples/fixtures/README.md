@@ -44,6 +44,13 @@ projecting validated fields onto Card specializations are proposed adapter work.
 
 ## Field conventions and ordinary HMD
 
+`notes/plain.md` is the one plain Markdown document in the workspace. It carries
+no metadata block and no wikilinks, so its header holds only derived entries and
+its uplinks are empty. It is not a Person and does not participate in the
+knowledge fixture; it exists so a case can show a Markdown document being a card
+without an HMD body. Whether the HMD resolver is asked to resolve `[[notes/plain]]`
+across formats is itself a design question, raised in `std-lib/impl-md-card.hql`.
+
 For this corpus, title comes from the first heading, body is an Hmd value,
 frontmatter is a Frontmatter value, and sections/blocks/links retain identity
 and source positions. `fm` is candidate shorthand for `frontmatter`;

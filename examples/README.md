@@ -1,6 +1,6 @@
 # HQL example corpus
 
-125 small design cases, plus the existing raw `answer.hql` smoke example.
+149 small design cases, plus the existing raw `answer.hql` smoke example.
 The language implementation is unchanged. Examples are design inputs and future
 parser/typechecker/evaluator fixtures, not a claim that the whole language works.
 
@@ -18,6 +18,11 @@ parser/typechecker/evaluator fixtures, not a claim that the whole language works
 6. [Presentation family](presentation/table.hql): a value and the view of it are
    separate. Compare [three views of one Knowledge value](presentation/knowledge-views.hql)
    with the [projection reading](knowledge/projections.hql) of the same stages.
+7. [Standard library cases](std-lib/README.md): `Card` as a trait implemented by
+   [DataCard](std-lib/impl-data-card.hql), [MdCard](std-lib/impl-md-card.hql) and
+   [HmdCard](std-lib/impl-hmd-card.hql); structural refinement with
+   [proved shape](std-lib/refinement-structural.hql) instead of duck typing;
+   [Option](std-lib/option-declaration.hql) in place of null. No pipelines.
 
 ## Status and metadata contract
 
@@ -88,6 +93,17 @@ Two questions stay open: whether presenters share one opaque
 [named subtypes](presentation/type-nominal.hql), and whether `graph` names the
 [Knowledge projection or the view](presentation/graph.hql).
 
+**Card-ness as a trait is the newest and least settled direction.** The
+[std-lib cases](std-lib/README.md) propose `trait` and `impl` as the replacement
+for interfaces, with one `Card` surface implemented by a `Data` document, a
+Markdown document and an HMD document. That conflicts with two statements the
+wiki cards still make — that Rust-like trait machinery stays out of the design,
+and that `Card` is a narrowed `Doc` — so both readings are kept side by side in
+[trait-card.hql](std-lib/trait-card.hql) and
+[card-narrowing-alternative.hql](std-lib/card-narrowing-alternative.hql) until
+the decision is recorded. Nothing in the std-lib directory uses `|`: the trait,
+refinement, `Option` and function questions are settled before composition.
+
 The latest preference is **Relation as a Card specialization**. Older structured
 assertion forms are labeled design-question alternatives. Rich persistent
 relationships gain identity, typed fields and ordinary evidence/prose sections;
@@ -120,7 +136,7 @@ Every row describes the source after its corpus envelope is removed. Types and
 values in pending rows are candidate expectations. Fixture files are listed in
 [fixtures/README.md](fixtures/README.md) and are not counted as executable cases.
 
-47 design-question, 14 invalid, 58 proposed, 6 valid-now.
+58 design-question, 17 invalid, 68 proposed, 6 valid-now.
 
 ### basics
 
@@ -325,6 +341,34 @@ values in pending rows are candidate expectations. Fixture files are listed in
 | [realistic/research-cards.hql](realistic/research-cards.hql) | proposed | recent research | type: List[Card]; value: research/type-notes, research/graph-notes, carol | pending |
 | [realistic/typed-selection.hql](realistic/typed-selection.hql) | design-question | typed selection | type: List[Person]; value: alice, carol | pending |
 | [realistic/uplinks.hql](realistic/uplinks.hql) | proposed | uplinks | type: List[Card]; value: bob | pending |
+
+### std-lib
+
+| File | Status | Feature | Expected type / value / error | Implementation |
+| --- | --- | --- | --- | --- |
+| [std-lib/card-narrowing-alternative.hql](std-lib/card-narrowing-alternative.hql) | design-question | narrowing alternative to a trait | type: Unit; value: a contributed contract with no runtime value | pending |
+| [std-lib/function-declaration.hql](std-lib/function-declaration.hql) | design-question | function declaration | type: Int; value: 5 | pending |
+| [std-lib/higher-order.hql](std-lib/higher-order.hql) | proposed | generic higher-order function | type: Int; value: 42 | pending |
+| [std-lib/impl-data-card.hql](std-lib/impl-data-card.hql) | proposed | trait implementation | type: String; value: alice | pending |
+| [std-lib/impl-hmd-card.hql](std-lib/impl-hmd-card.hql) | proposed | trait implementation | type: Seq<Ref<Doc>>; value: reference bob | pending |
+| [std-lib/impl-md-card.hql](std-lib/impl-md-card.hql) | proposed | trait implementation | type: Seq<Ref<Doc>>; value: the empty sequence: plain Markdown has no wikilink dialect | pending |
+| [std-lib/impl-spelling-alternative.hql](std-lib/impl-spelling-alternative.hql) | design-question | implementation block spelling | type: Seq<Ref<Doc>>; value: reference bob | pending |
+| [std-lib/newtype-mismatch.hql](std-lib/newtype-mismatch.hql) | invalid | nominal distinctness | error: TypeMismatch | pending |
+| [std-lib/newtype.hql](std-lib/newtype.hql) | design-question | nominal distinctness | type: String; value: alice | pending |
+| [std-lib/option-declaration.hql](std-lib/option-declaration.hql) | proposed | optional value declaration | type: Option<Int>; value: Some(1) | pending |
+| [std-lib/option-map.hql](std-lib/option-map.hql) | design-question | Option combinators | type: Int; value: 5 | pending |
+| [std-lib/option-match.hql](std-lib/option-match.hql) | proposed | exhaustive match on Option | type: String; value: Alice | pending |
+| [std-lib/record-strictness.hql](std-lib/record-strictness.hql) | invalid | incomplete record literal | error: MissingField | pending |
+| [std-lib/record-type.hql](std-lib/record-type.hql) | proposed | record type | type: Int; value: 42 | pending |
+| [std-lib/refinement-failure.hql](std-lib/refinement-failure.hql) | design-question | fallible refinement | type: Option<PostgresConfig>; value: None | pending |
+| [std-lib/refinement-progressive.hql](std-lib/refinement-progressive.hql) | proposed | progressive type refinement | type: Seq<String>; value: researcher, engineer | pending |
+| [std-lib/refinement-structural.hql](std-lib/refinement-structural.hql) | design-question | structural refinement with evidence | type: String; value: db.example.org | pending |
+| [std-lib/sum-type-alternative.hql](std-lib/sum-type-alternative.hql) | design-question | sum type spelling | type: Option<Int>; value: Some(1) | pending |
+| [std-lib/trait-bound-generic.hql](std-lib/trait-bound-generic.hql) | design-question | generic trait bound | type: Seq<String>; value: alice, bob | pending |
+| [std-lib/trait-card.hql](std-lib/trait-card.hql) | design-question | trait declaration | type: Unit; value: a contributed contract with no runtime value | pending |
+| [std-lib/trait-coherence.hql](std-lib/trait-coherence.hql) | invalid | conflicting implementations | error: ConflictingImpl | pending |
+| [std-lib/trait-default-member.hql](std-lib/trait-default-member.hql) | design-question | default trait member | type: String; value: alice | pending |
+| [std-lib/trait-dispatch.hql](std-lib/trait-dispatch.hql) | proposed | trait as an argument bound | type: String; value: Alice | pending |
 
 ### types
 
