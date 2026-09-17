@@ -5,7 +5,8 @@ tags: [hql, language, design]
 
 HQL is a typed functional language for querying and manipulating HyperMarkDown
 knowledge. The language is still being designed. This card describes the intended
-core; the working bootstrap supports only Int, Bool and integer addition.
+core; the working bootstrap supports only Int, Float, Bool and same-type
+numeric addition.
 
 The core should stay small: typed values, bindings, ordinary functions, function
 application and composition through `|`. Document and semantic types provide the
@@ -20,7 +21,7 @@ without adopting SQL clauses or Rust-like trait machinery.
 | Documents | `Card`, `Frontmatter`, `Section`, `Link` | Authored knowledge and its structure |
 | Semantic | `Concept`, `Relation`, `Proposition`, `Evidence` | Meaning, claims and support |
 | Collections | `Set<T>`, `Seq<T>`, `Map<K,V>` | Membership, order and keyed lookup |
-| Ordinary | `String`, `Int`, `Bool`, `Date` | General computation |
+| Ordinary | `String`, `Int`, `Float`, `Bool`, `Date` | General computation |
 
 These are the current design names. Generic types use angle brackets in these
 pages; older corpus examples preserve other candidate spellings. Precise schemas,
@@ -61,7 +62,7 @@ knowledge
 | graph
 ```
 
-Pipes are fundamental to composition and querying. [[hql/pipes]] describes the
+Pipes are fundamental to composition and querying. [[pipes]] describes the
 execution direction; [[hql/knowledge]] records the unresolved distinction between
 graph projection and presentation.
 

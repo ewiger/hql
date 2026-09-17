@@ -15,7 +15,13 @@ fn hql(args: &[&str]) -> Output {
 
 #[test]
 fn eval_prints_values() {
-    for (expression, expected) in [("40 + 2", "42\n"), ("true", "true\n"), ("-1 + 2", "1\n")] {
+    for (expression, expected) in [
+        ("40 + 2", "42\n"),
+        ("true", "true\n"),
+        ("-1 + 2", "1\n"),
+        ("0.5 + 0.25", "0.75\n"),
+        ("1.0 + 2.0", "3.0\n"),
+    ] {
         let output = hql(&["eval", expression]);
         assert!(output.status.success());
         assert_eq!(String::from_utf8(output.stdout).unwrap(), expected);
@@ -28,7 +34,8 @@ fn expression_failures_use_stderr_and_exit_one() {
     for (source, message) in [
         ("1 +", "syntax error"),
         ("true + 1", "type error"),
-        ("9223372036854775807 + 1", "integer overflow"),
+        ("9223372036854775807 + 1", "numeric overflow"),
+        ("1 + 2.0", "type error"),
     ] {
         let output = hql(&["eval", source]);
         assert_eq!(output.status.code(), Some(1));

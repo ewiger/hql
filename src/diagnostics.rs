@@ -13,14 +13,14 @@ pub enum Diagnostic {
         /// A human-readable explanation.
         message: String,
     },
-    /// Addition requires two integer operands.
-    #[error("type error at bytes {span:?}: addition requires Int operands")]
+    /// Addition requires two operands of the same numeric type.
+    #[error("type error at bytes {span:?}: addition requires two Int or two Float operands")]
     Type {
         /// The range of the operand with the wrong type.
         span: Range<usize>,
     },
-    /// An integer addition exceeded the bootstrap integer range.
-    #[error("evaluation error at bytes {span:?}: integer overflow")]
+    /// An addition left the bootstrap `i64` or finite `f64` range.
+    #[error("evaluation error at bytes {span:?}: numeric overflow")]
     Overflow {
         /// The range of the addition expression.
         span: Range<usize>,

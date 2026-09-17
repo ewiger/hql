@@ -10,9 +10,12 @@ separate it from both older corpus alternatives and implemented behavior.
 | --- | --- |
 | [[hql/core]] | Small typed functional core and domain vocabulary |
 | [[hql/collections]] | Set, Seq, Map and `cards : Set<Card>` |
-| [[hql/pipes]] | Ordinary functions, composition and data-parallel execution |
+| [[pipes]] | Ordinary functions, composition and data-parallel execution |
 | [[hql/knowledge]] | Semantic universe, Relation Cards and presentation |
 | [[hql/extensions]] | External capabilities, modules and `init.hql` |
+| [[card-type]] | `HmdCard`, the `cards` keyword, metadata and narrowing |
+| [[doc-type]] | `Doc`, sections, anchors, links and embeds |
+| [[data-type]] | `Data`, the tree type of metadata and structured payloads |
 
 ## Current direction
 
@@ -35,15 +38,19 @@ the implementation.
 
 - Function/declaration grammar, generics, inference and pipe argument placement.
 - Collection equality, Card identity, mapping duplicates and ordering contracts.
+- Whether `cards` is `List<HmdCard>` or `Set<Card>`: [[card-type]] states the
+  ordered reading, [[hql/collections]] the unordered one. Vault order is the
+  question, not the spelling.
 - Document schemas, reference failures, optional values and error carriers.
 - Semantic constructors, derivation rules and constraint/satisfaction types.
 - The name and type boundary between graph projection and graph presentation.
 - Module resolution, namespace inheritance and `init.hql` initialization policy.
 - Extension transport, effect contracts and optimizer-visible execution properties.
 
-The implemented slice remains Int/Bool literals and checked integer addition.
-Its signed 64-bit representation and 256-literal limit are provisional bootstrap
-choices, not settled full-language requirements. See [[first-milestone]].
+The implemented slice remains Int/Float/Bool literals and checked same-type
+numeric addition. Its signed 64-bit and double-precision representations, the
+absence of Int-to-Float widening, and the 256-literal limit are provisional
+bootstrap choices, not settled full-language requirements. See [[first-milestone]].
 
 ## Architecture sources
 

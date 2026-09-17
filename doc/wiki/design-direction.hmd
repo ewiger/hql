@@ -47,13 +47,14 @@ claims; Graph is one projection and HmdGraph is a presentation value. See the
   including effect policy, dependency order, and exact presentation types.
   Lexical capture and value/context separation are recorded above.
 
-Bootstrap `i64`, `+`, and the 256-literal bound prove [[first-milestone]]; they do
-not settle these questions. There is no theorem prover, graph implementation,
+Bootstrap `i64`, `f64`, `+`, and the 256-literal bound prove
+[[first-milestone]]; they do not settle these questions. Float is now a working
+bootstrap type, but decimal semantics, rounding and a numeric tower are not. There is no theorem prover, graph implementation,
 HMD renderer, module system, or large standard library in this repository.
 
 ## Type vocabulary to leave room for
 
-Future foundations include Float, Date/DateTime, Option[T], Result[T,E],
+Future foundations include Date/DateTime, Option[T], Result[T,E],
 List[T], Map[K,V], Section, Block, Ref[T] and Namespace, with records, ADTs,
 pattern matching and refinement. Prefer explicit optional/error values over
 pervasive null. String/Str and Frontmatter/FrontMatter naming, generic brackets

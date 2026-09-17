@@ -10,8 +10,9 @@ Status: implemented bootstrap; language design remains experimental.
   structured knowledge, initially centered on HyperMarkDown.
 - HyperMarkDown remains the authored/storage representation. HQL must have a
   pure language core separate from document parsing, resolution, and I/O.
-- First milestone: parse, type-check, and evaluate literals and integer addition
-  through the library and `hql eval`; check a file through `hql check`.
+- First milestone: parse, type-check, and evaluate literals and same-type numeric
+  addition through the library and `hql eval`; check a file through `hql check`.
+  `Int` and `Float` are separate types; neither widens into the other.
 - Failures must be diagnostics, not panics or silent arithmetic wrapping.
 - Rust edition 2024, cargo, clap derive, tests, and the grem knowledge structure
   are the bootstrap stack. Preserve the generated dormant control layer.

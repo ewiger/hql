@@ -4,28 +4,37 @@ Status: implemented. This is the current grammar, not a complete HQL design.
 
 ```text
 expression := literal ("+" literal)*
-literal    := integer | "true" | "false"
+literal    := float | integer | "true" | "false"
 integer    := "-"? ASCII_DIGIT+
+float      := integer "." ASCII_DIGIT+
 ```
 
 Whitespace (Rust `char::is_whitespace`, including newlines) is allowed between
 tokens and around the expression. A minus must touch its digits. Leading zeros
-are accepted as decimal. There are no comments, parentheses, other operators,
+are accepted as decimal. A float needs digits on both sides of the point; there
+is no exponent notation. There are no comments, parentheses, other operators,
 identifiers, type annotations, or multiple expressions. The entire input must
 be consumed. At most 256 literals are accepted to bound AST recursion depth.
 
-Literals infer `Int` or `Bool`. Addition associates left and requires two `Int`
-operands, producing `Int`. Type checking runs over the entire expression before
-evaluation. Integer literals must fit `i64`; out-of-range literals are syntax
-errors. Addition overflow is an evaluation error, without wrapping.
+Literals infer `Int`, `Float` or `Bool`. Addition associates left and requires
+two operands of the same numeric type, producing that type; `Int` is not widened
+to `Float`. Type checking runs over the entire expression before evaluation.
+Integer literals must fit `i64` and float literals must be finite `f64`;
+out-of-range literals are syntax errors. Addition overflow — an `i64` that wraps
+or a sum that leaves the finite floats — is an evaluation error, not a wrapped
+or infinite value. Floats print with a decimal point, so `1.0` is not `1`.
 
 | Input | `check` | `eval` |
 | --- | --- | --- |
 | `40 + 2` | `Int` | `42` |
 | `-1 + 2` | `Int` | `1` |
+| `0.5 + 0.25` | `Float` | `0.75` |
+| `1.0 + 2.0` | `Float` | `3.0` |
+| `1 + 2.0` | Type error | Type error |
 | `true` | `Bool` | `true` |
 | `1 + true` | Type error | Type error |
 | `1 +` | Syntax error | Syntax error |
+| `1.` | Syntax error | Syntax error |
 | `9223372036854775807 + 1` | `Int` | Overflow error |
 
 `hql eval '<expression>'` evaluates its argument. `hql check <file.hql>` reads

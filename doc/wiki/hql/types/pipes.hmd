@@ -18,8 +18,9 @@ cards
 ```
 
 This preferred example selects Relation Cards and requests a graph of them.
-`typed Relation` must check the relevant type/schema contract; a frontmatter
-label alone does not establish conformance. The exact application syntax and
+`cards` is the reserved keyword for the namespace vault's cards; see
+[[card-type]]. `typed Relation` must check the relevant type/schema contract; a
+frontmatter label alone does not establish conformance. The exact application syntax and
 the result type of `graph` remain design questions.
 
 ## Functions as stages
@@ -57,4 +58,6 @@ Unknown extension functions remain ordinary calls unless their declared contract
 allows more. Purity, failure and execution metadata, plus the eager/lazy boundary,
 are open design work shared with [[hql/extensions]].
 
-See [[hql/collections]] for ordering and [[hql/knowledge]] for terminal presenters.
+See [[hql/collections]] for ordering, [[hql/knowledge]] for terminal presenters,
+and [[card-type]], [[doc-type]] and [[data-type]] for the values that flow through
+a pipeline.

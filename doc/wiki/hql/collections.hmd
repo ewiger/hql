@@ -37,7 +37,7 @@ automatic conversion has been decided.
 ## Collection functions
 
 Filtering, mapping, sorting and aggregation should be ordinary typed functions
-used through [[hql/pipes]]. Their signatures must make collection behavior clear.
+used through [[pipes]]. Their signatures must make collection behavior clear.
 Filtering a set can preserve membership semantics. Mapping a set raises a choice:
 whether equal outputs collapse into a set or another collection retains them.
 That choice, generic function syntax and conversion names remain open.

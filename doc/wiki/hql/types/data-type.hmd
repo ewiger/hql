@@ -1,0 +1,320 @@
+---
+tags: [hql, data, type-system, yaml]
+---
+
+# Data
+
+`Data` is a fundamental HQL type for structured information.
+
+It is not HQL's equivalent of a `struct`, record, object, or database row. Those abstractions describe values according to a predefined set of fields. `Data` instead describes a tree whose structure is carried by the value itself.
+
+The closest existing representation is YAML. Conceptually, an HQL `Data` value should be able to represent a YAML document essentially one-to-one.
+
+```yaml
+name: Alice
+age: 42
+
+address:
+  city: Zürich
+  country: CH
+
+roles:
+  - admin
+  - author
+```
+
+This is naturally a `Data` tree:
+
+```text
+Data
+└── mapping
+    ├── name
+    │   └── "Alice"
+    ├── age
+    │   └── 42
+    ├── address
+    │   └── mapping
+    │       ├── city
+    │       │   └── "Zürich"
+    │       └── country
+    │           └── "CH"
+    └── roles
+        └── sequence
+            ├── "admin"
+            └── "author"
+```
+
+At the conceptual level, `Data` is recursive:
+
+```text
+Data =
+    Scalar
+  | Sequence<Data>
+  | Mapping<String, Data>
+```
+
+The exact implementation does not have to use this definition literally. What matters is the model: `Data` is a tree made from mappings, sequences, and scalar values.
+
+## Metadata is Data
+
+One of the main purposes of `Data` is metadata.
+
+Metadata usually does not deserve a new HQL record type merely because it has several named properties. Its natural representation is a `Data` tree.
+
+HyperMarkDown frontmatter is the canonical example: an [[card-type|HmdCard]] is
+a header plus a [[doc-type|Doc]], and that header is a `Data` tree.
+
+A card may begin with optional YAML metadata:
+
+```yaml
+---
+title: Data
+tags: [hql, type-system]
+status: draft
+
+source:
+  format: yaml
+  version: 1
+---
+```
+
+The complete frontmatter is `Data`.
+
+Conceptually:
+
+```hql
+card.header : Data
+```
+
+`header` rather than `frontmatter`, because frontmatter is only the authored source of a header and a card's metadata can come from elsewhere. The header is not optional: a card without a frontmatter block has an empty header. See [[card-type]].
+
+The metadata can be traversed naturally:
+
+```hql
+card.header.title
+card.header.tags
+card.header.status
+card.header.source.format
+```
+
+These expressions do not imply that HQL contains a statically declared `Frontmatter` struct with fields called `title`, `tags`, `status`, and `source`.
+
+They are paths through a `Data` tree.
+
+This distinction is central because HyperMarkDown frontmatter is deliberately extensible. HMD reserves only `tags`, `use`, `import`, and `nav`; every other key belongs to the author. Different cards, applications, extensions, and namespaces can place different metadata there without extending the HQL type system every time a new YAML key appears.
+
+The same principle applies beyond frontmatter. Configuration, annotations, extension metadata, query metadata, imported YAML, JSON-like API responses, database JSON values, and similar structured payloads are naturally `Data`.
+
+In other words, when HQL encounters structured metadata for which there is no stronger semantic type, the default type is `Data`.
+
+## Data is not a record
+
+A record describes a known shape.
+
+For example, HQL may eventually support a type such as:
+
+```hql
+type Person = {
+    name: String
+    age: Int
+}
+```
+
+A value of `Person` is constrained by the definition of `Person`.
+
+`Data` has no such requirement.
+
+```yaml
+name: Alice
+age: 42
+```
+
+and:
+
+```yaml
+server:
+  host: localhost
+  ports:
+    - 8080
+    - 8443
+```
+
+are both perfectly valid `Data` values even though their shapes have nothing in common.
+
+A record therefore answers:
+
+> What is the declared shape of this value?
+
+`Data` answers:
+
+> What tree is present here?
+
+This also distinguishes `Data` from a database row. A row belongs to a relation with columns and a schema. `Data` is hierarchical and carries arbitrary nesting.
+
+## Structure first, stronger types later
+
+Representing something as `Data` does not prevent HQL from giving parts of it stronger types.
+
+A tree can be interpreted, validated, or converted later.
+
+Conceptually:
+
+```hql
+metadata : Data = ...
+
+person : Person =
+    metadata.as<Person>()
+```
+
+This gives HQL a useful separation between raw structured information and typed interpretation.
+
+The source can remain faithful to YAML while an extension, function, schema, or application imposes additional meaning where necessary.
+
+The same idea applies to HyperMarkDown itself. The entire frontmatter remains `Data`, while HMD or HQL can assign special meaning to particular entries.
+
+The tree does not have to stop being `Data` merely because some of its paths are understood by the system.
+
+This is what makes card types narrow rather than being declared up front. See [[card-type]].
+
+## YAML as the native serialization of Data
+
+YAML provides a useful way of thinking about the external representation of `Data`.
+
+Loading YAML should naturally produce `Data`:
+
+```hql
+config : Data = yaml.load("config.yaml")
+```
+
+and a `Data` value should naturally be serializable back to YAML:
+
+```hql
+yaml.dump(config)
+```
+
+This relationship should be sufficiently direct that HQL does not need an intermediate generic object model merely to represent a YAML document.
+
+JSON can fit the same tree model, although YAML is the more direct model for HyperMarkDown because HMD already uses YAML for its optional frontmatter.
+
+This makes `Data` the common structural substrate between HQL, HyperMarkDown metadata, configuration, and external structured information.
+
+## Paths
+
+Because `Data` is a tree, path navigation is one of its fundamental operations.
+
+Given:
+
+```yaml
+database:
+  primary:
+    host: db.example.org
+    port: 5432
+```
+
+the natural HQL expression is:
+
+```hql
+data.database.primary.host
+```
+
+Dynamic access can use the same tree without pretending the keys were statically declared fields:
+
+```hql
+data["database"]["primary"]["host"]
+```
+
+The precise path API remains part of the HQL language design, but path traversal follows directly from the nature of `Data`.
+
+## Data and HQL extensions
+
+`Data` is also an important boundary type for the HQL extension architecture.
+
+An extension frequently needs to expose structured information without introducing an entire hierarchy of new HQL types.
+
+For example:
+
+```hql
+postgres.describe("users") : Data
+```
+
+Extension-contributed card metadata works the same way, which is why extensions can enrich a card without the HQL core gaining a document type per extension. See [[hql/extensions]].
+
+
+
+or:
+
+```hql
+git.metadata(...) : Data
+```
+
+or:
+
+```hql
+http.get(...).yaml() : Data
+```
+
+The extension can preserve the source structure as `Data`. Stronger HQL types can be added where there is a genuine semantic reason for them.
+
+This keeps the HQL core type system small while still allowing extensions to expose arbitrarily rich structured information.
+
+## Data and knowledge
+
+`Data` describes structure, not meaning.
+
+For example:
+
+```yaml
+alice:
+  daughter: bob
+```
+
+is a `Data` tree.
+
+Its presence alone does not necessarily establish a semantic HQL relation such as:
+
+```text
+daughterOf(Alice, Bob)
+```
+
+That requires interpretation.
+
+This creates an important boundary in HQL:
+
+```text
+Data       structured information
+Knowledge  semantic information
+```
+
+`Data` can contain a representation of knowledge, just as YAML can contain a representation of almost anything. But the tree itself is not automatically the semantic model.
+
+A parser, schema, declaration, or extension can interpret `Data` and produce concepts, relations, propositions, evidence, or other HQL values.
+
+## Data as a central HQL type
+
+`Data` should therefore be treated as one of HQL's core types rather than as a convenience container.
+
+It is the native type of arbitrary hierarchical structured information.
+
+HyperMarkDown frontmatter is `Data`.
+
+YAML documents are `Data`.
+
+Most untyped or loosely typed metadata is `Data`.
+
+Extension-defined structured metadata can be `Data`.
+
+Configuration and external JSON/YAML-like payloads can be `Data`.
+
+The defining idea is not that `Data` is a generic object or `Map<String, Any>`.
+
+The defining idea is:
+
+```text
+Data is a structured value whose shape is a tree.
+```
+
+That tree can later be queried, transformed, validated, interpreted, or converted into stronger HQL types without losing the original structure.
+
+See [[card-type]] for the card that carries metadata, [[doc-type]] for its
+authored half, [[pipes]] for composition, and [[hql/knowledge]] for the semantic
+side of the `Data`/`Knowledge` boundary.

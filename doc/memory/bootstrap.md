@@ -14,6 +14,14 @@
   checking before evaluation. The scanner lives in the parser; no empty modules.
   Signed 64-bit integers and 256-literal maximum are provisional implementation
   choices. Keep broader syntax, Card schemas, and host transport unresolved.
+- Added Float to that slice as `f64` with literals of the form `digits "." digits`
+  (no exponent). Addition stays homogeneous: two Int or two Float, never mixed,
+  because implicit widening would be the first implicit conversion in a language
+  that has none. Values stay finite, so a non-finite sum or literal is an
+  overflow or syntax diagnostic rather than `inf`. Float displays through Debug
+  formatting so `1.0` does not print as `1`. Consequently the overflow message
+  is now "numeric overflow" and the addition type error names both Int and Float.
+  Decimal semantics, rounding, and a unified numeric tower remain open.
 - Follow the stamped stack: thiserror for structured library failures, tempfile
   for isolated filesystem tests, clap derive for the CLI. The CLI formats errors
   directly; it does not need an additional general-purpose error dependency.

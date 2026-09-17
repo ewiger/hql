@@ -57,7 +57,7 @@ transclusion preserves the defining closure. Namespace initialization must remai
 compatible with those lexical rules. Card filenames never implicitly bind names.
 
 The extension boundary should expose typed inputs, outputs and failures. It also
-needs a way to distinguish pure computation from effects so [[hql/pipes]] can be
+needs a way to distinguish pure computation from effects so [[pipes]] can be
 optimized safely. Importing a capability and invoking an effect are separate
 operations. Reading, network access, printing and saving need explicit host
 contracts; importing a renderer does not itself render a value.

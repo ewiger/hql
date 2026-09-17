@@ -69,33 +69,54 @@ impl Parser<'_> {
             self.offset += 5;
             Kind::Bool(false)
         } else {
-            // A minus is part of an integer literal, not a unary operator.
+            // A minus is part of a numeric literal, not a unary operator.
             if rest.starts_with('-') {
                 self.offset += 1;
             }
             let digits = self.offset;
-            while self
-                .source
-                .as_bytes()
-                .get(self.offset)
-                .is_some_and(u8::is_ascii_digit)
-            {
-                self.offset += 1;
-            }
+            self.digits();
             if self.offset == digits {
-                return Err(self.error("expected an integer or Boolean literal"));
+                return Err(self.error("expected a number or Boolean literal"));
             }
-            let value = self.source[start..self.offset]
-                .parse::<i64>()
-                .map_err(|_| Diagnostic::Syntax {
+            // A decimal point makes the literal a Float and must carry digits.
+            let fraction = self.source.as_bytes().get(self.offset) == Some(&b'.');
+            if fraction {
+                self.offset += 1;
+                let fractional = self.offset;
+                self.digits();
+                if self.offset == fractional {
+                    return Err(self.error("expected a digit after the decimal point"));
+                }
+            }
+            let text = &self.source[start..self.offset];
+            if fraction {
+                let value = text.parse::<f64>().ok().filter(|value| value.is_finite());
+                Kind::Float(value.ok_or_else(|| Diagnostic::Syntax {
+                    span: start..self.offset,
+                    message:
+                        "float literal is outside the finite double-precision range".to_owned(),
+                })?)
+            } else {
+                Kind::Int(text.parse::<i64>().map_err(|_| Diagnostic::Syntax {
                     span: start..self.offset,
                     message: "integer literal is outside the signed 64-bit range".to_owned(),
-                })?;
-            Kind::Int(value)
+                })?)
+            }
         };
         Ok(Expr {
             kind,
             span: start..self.offset,
         })
+    }
+
+    fn digits(&mut self) {
+        while self
+            .source
+            .as_bytes()
+            .get(self.offset)
+            .is_some_and(u8::is_ascii_digit)
+        {
+            self.offset += 1;
+        }
     }
 }

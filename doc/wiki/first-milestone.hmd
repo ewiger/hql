@@ -4,8 +4,8 @@ tags: [hql, implementation]
 # First executable milestone
 
 The first slice demonstrates source → AST → type checking → value, with useful
-errors at each stage. Keeping two types makes type checking observable without
-inventing a large language.
+errors at each stage. Keeping a few types makes type checking observable
+without inventing a large language.
 
 ```hql
 40 + 2
@@ -13,7 +13,8 @@ inventing a large language.
 
 Run `cargo run --locked -- eval '40 + 2'` to get `42`, or
 `cargo run --locked -- check examples/answer.hql` to get `Int`.
-`true + 1` is rejected before evaluation. Checking an overflowing addition
+`true + 1` is rejected before evaluation, and so is `1 + 2.0`: addition takes
+two `Int` or two `Float` operands, since no numeric type widens into another. Checking an overflowing addition
 succeeds because checking does not execute it.
 
 The scanner stays inside the parser until syntax justifies extracting it.

@@ -9,8 +9,8 @@ and is intended to operate over its cards, document structure, metadata, and
 knowledge graph. HyperMarkDown remains the authored/storage representation;
 HQL is a separate language and repository.
 
-**Experimental bootstrap:** currently only integer and Boolean literals and
-integer addition work. There is no HyperMarkDown integration yet.
+**Experimental bootstrap:** currently only integer, float and Boolean literals
+and same-type numeric addition work. There is no HyperMarkDown integration yet.
 
 ## Develop and run
 
@@ -22,6 +22,7 @@ cargo test --locked
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo run --locked -- eval '40 + 2'           # 42
+cargo run --locked -- eval '0.5 + 0.25'       # 0.75
 cargo run --locked -- eval 'true'             # true
 cargo run --locked -- check examples/answer.hql  # Int
 ```

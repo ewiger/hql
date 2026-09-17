@@ -11,6 +11,7 @@ pub(crate) struct Expr {
 #[derive(Debug)]
 pub(crate) enum Kind {
     Int(i64),
+    Float(f64),
     Bool(bool),
     Add(Box<Expr>, Box<Expr>),
 }
