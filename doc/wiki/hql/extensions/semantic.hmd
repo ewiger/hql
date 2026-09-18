@@ -1,0 +1,80 @@
+---
+tags: [hql, extensions, retrieval, embeddings]
+---
+# The semantic extension
+
+`semantic` ranks a corpus against a query by the meaning a language model found
+in both. The model is not in this binary and will not be: an index is built
+ahead of time by [`contrib/semantics/`](../../../../contrib/semantics/README.md),
+and this extension reads it.
+
+```hql
+import semantic
+
+cards
+| semantic("night hunting birds")
+| take(3)
+| table
+```
+
+Against the birds corpus that returns the owls, none of which contains the word
+"night" — they are nocturnal, and abroad after dark. [[lexical]] over the same
+query returns a swan, a songbird order and a kingfisher family, because shared
+spellings are all it has.
+
+## The index
+
+A vault names its index, and the path resolves inside the vault root:
+
+```toml
+[semantics]
+index = ".hql/index.sqlite"
+```
+
+With no index configured, `semantic` is an error naming both the missing
+configuration and `hql-semantics build`. It never falls back to [[lexical]]: a
+silent fallback restores exactly the confusion that renaming the matcher
+removed, and a `Hit` would once again claim a model that had not run.
+
+The index is untrusted input — a file the vault names, parsed by this binary —
+so everything read from it is checked. An unknown schema version is refused
+rather than interpreted. An index whose `index_meta.vault` names another corpus
+is refused rather than used to rank cards it has never seen. Dimensions are
+bounded, and a vector that is not exactly its declared length is refused rather
+than read past.
+
+## Why a query must be in the index
+
+A consumer with no model cannot embed a document, and it cannot embed a question
+either. So the producer embeds the queries too, and `semantic` looks one up. A
+query the index has no vector for is a failure naming
+`hql-semantics build --query "…"`, and never a ranking of nothing.
+
+That is a real limit: this implementation answers the questions its index was
+built for. It is the price of keeping the model out of the binary, and it is
+paid openly — the alternative is a consumer that invents a vector and reports a
+score nobody can reproduce.
+
+## Staleness and coverage
+
+Neither is silent and neither is fatal; both go through the
+[report queue](../error-reporting.hmd).
+
+- A card whose text has changed since the build has a vector for text that no
+  longer exists. It **ranks anyway**, with a warning naming it. A stale score is
+  a wrong answer rather than an impossible one — and skipping it would make an
+  edited card vanish from a ranking, which a reader cannot tell from
+  irrelevance.
+- A card absent from the index is **absent from the ranking**, with one warning
+  counting how many were skipped. Scoring it zero would be indistinguishable
+  from indexed and unrelated.
+
+## What a ranking reports
+
+Every `Hit` carries the `Retrieval`: the query, the index path, the model id,
+its pinned `revision`, `metric: cosine`, and `approximate: false` — scoring is
+exact brute force over every stored vector, with no approximate index and no
+top-k pushdown. See [[hql/semantic-search]] for why `approximate` is a field
+rather than an assumption, and
+[HQL-0002](../../../proposals/HQL-0002/README.md) for the schema, the text
+contract and what is out of scope.

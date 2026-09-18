@@ -14,7 +14,10 @@ contract and what is out of scope.
 ```sh
 python3 cli.py build   --vault ../../tests/fixtures/birds \
                        --out   ../../tests/fixtures/birds/.hql/index.sqlite \
-                       --built-at 2026-09-18T00:00:00+00:00
+                       --built-at 2026-09-18T00:00:00+00:00 \
+                       --query "night hunting birds" \
+                       --query "birds swimming underwater catching fish" \
+                       --query "birds weaving hanging nests"
 python3 cli.py verify  --vault ../../tests/fixtures/birds \
                        --index ../../tests/fixtures/birds/.hql/index.sqlite
 python3 cli.py inspect --index ../../tests/fixtures/birds/.hql/index.sqlite
@@ -24,6 +27,13 @@ python3 cli.py inspect --index ../../tests/fixtures/birds/.hql/index.sqlite
 in the local cache. `--built-at` pins the build stamp, so rebuilding an
 unchanged vault produces a byte-identical file and a regenerated index is not a
 diff nobody can review.
+
+`--query` is repeatable and embeds a question into the index. The `hql` binary
+has no model, so it cannot embed a document *or* a question: `semantic` looks a
+query up, and one the index does not hold is a failure naming this command
+rather than a ranking of nothing. That is a real limit — an index answers the
+questions it was built for — and it is the price of keeping the model out of the
+binary.
 
 `verify` exits 1 when the index no longer describes the vault: a card whose text
 has changed since the build, a card missing from either side, or a vector that

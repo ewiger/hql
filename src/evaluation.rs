@@ -348,6 +348,10 @@ impl EvalCx for Evaluator<'_> {
     fn apply_lambda(&mut self, argument: &Arg, element: Value) -> Result<Value, Diagnostic> {
         self.apply(argument, element)
     }
+
+    fn warn(&mut self, warning: Warning) {
+        self.warnings.push(warning);
+    }
 }
 
 fn text(value: &str) -> Value {

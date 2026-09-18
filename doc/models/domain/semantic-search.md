@@ -38,10 +38,10 @@ decision about what `graph` means when it is given both a collection and a depth
 The form this model recommends separates the last step into two:
 
 ```hql
-import semantic
+import lexical
 
 cards
-| semantic("bearer token authorization")
+| lexical("bearer token authorization")
 | take(5)
 | expand(depth = 1)
 | graph
@@ -294,28 +294,41 @@ Ordered so each step is testable without the one after it.
    prefix question resolved better than this document expected: a `Card` is
    orderable by its own name, so a prefix is reproducible without vault order
    becoming observable. See [Orderable](../../wiki/hql/types/orderable.hmd).
-2. **`Hit`, `Ranking`, `Retrieval`** — *done.* `semantic` is a pure function
-   over a supplied corpus with a locally computed embedding, `hql.hashbag.v1`,
-   deterministic and exact. Every hit carries the rule that produced it.
-3. **The index extension** — *partly.* Embeddings are computed per query rather
-   than stored, and the card's metadata carries only what index it belongs to,
-   under `metadata.search`, a key the extension owns. Index revision and horizon
-   are not modelled.
-4. **The execution contract** — *not started*, and it is the one that cannot be
-   deferred past a real store. Nothing is approximate yet, which is exactly why
-   `approximate` is already a field: the day it is true, every consumer can see
-   it.
+2. **`Hit`, `Ranking`, `Retrieval`** — *done.* A retrieval is a pure function
+   over a supplied corpus, and every hit carries the rule that produced it. The
+   locally computed `hql.hashbag.v1` embedding is now named
+   [lexical](../../wiki/hql/extensions/lexical.hmd), because it matches shared
+   spellings and a `Hit` claiming a *model* produced its score was claiming more
+   than it could support.
+3. **The index extension** — *done.*
+   [semantic](../../wiki/hql/extensions/semantic.hmd) scores against vectors a
+   language model computed ahead of time and stored in an SQLite index the vault
+   names. The producer is Python and the consumer is Rust, so the model never
+   enters the binary. `Retrieval` gained `revision`, which pins the numbers a
+   score is; a card whose text has drifted from its vector ranks and warns, and
+   a card the index has not seen is absent rather than scored zero. The card's
+   metadata carries `metadata.lexical`, a key that extension owns. The decision
+   is [HQL-0002](../../proposals/HQL-0002/README.md).
+4. **The execution contract** — *not started*, and deliberately untouched by
+   step three. Step three brought a real index without bringing approximation
+   with it: scoring is exact brute force over every stored vector, there is no
+   top-k pushdown, and `approximate` is still `false` on every ranking. That was
+   the point of doing them in this order. Pushing an approximate search into a
+   source is currently forbidden by
+   [pipes](../../wiki/hql/types/pipes.hmd), which requires an optimisation to
+   preserve observable values, and changing that needs its own proposal —
+   which is exactly the contract this step is.
 5. **Traversal** — *done.* `expand(depth, direction)` in the graph domain, with
    the relation-card seeding rule and per-node presence provenance.
 6. **`recall` over knowledge** — *not started.* Cardless concepts remain
-   unreachable, and the implementation says so rather than pretending `semantic`
-   covers them.
+   unreachable, and the implementation says so rather than pretending a
+   retrieval covers them.
 7. **The write path** — *not started.* Effects, reconciliation, consolidation,
    eviction.
 
 Steps one and two were language work and needed no infrastructure, which is why
-they came first. Step four remains the one that cannot be deferred past a real
-index, because implementing the index first and describing its semantics
+they came first. Step four remains the one that cannot be deferred past an
+*approximate* index, because implementing one first and describing its semantics
 afterwards is how approximation becomes an undocumented property of the
 language.
 

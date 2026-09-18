@@ -245,9 +245,17 @@ The header is the extension boundary, and an [[hql/extensions|extension]] can
 extend it in two quite different senses. Keeping them apart matters.
 
 **Contributing entries.** Some extensions know facts the file does not state — a
-`git` extension supplying authorship and revision, an indexer supplying
-embeddings or a semantic-search score, a link checker supplying resolution
-diagnostics, a build supplying publication state.
+`git` extension supplying authorship and revision, an indexer supplying its
+embedding and which index the card belongs to, a link checker supplying
+resolution diagnostics, a build supplying publication state.
+
+A **score** is not among them. An embedding is a property of the card: it exists
+whether or not anyone ever searches, and it goes stale when the card's content
+changes, so the assembled metadata layer is its home. A score exists only
+relative to a query, and storing one per card would mean either one privileged
+query or a number whose name no longer describes it. A score belongs to the
+retrieval result, where it travels with the query and the model revision that
+produced it — see [[hql/semantic-search]].
 
 ```hql
 git.metadata(card) : Data

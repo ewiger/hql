@@ -30,11 +30,12 @@ Steps split by the layering core → graph → knowledge:
 | `graph` | `uplinks` `downlinks` `expand` `graph` | the prelude |
 | `present` | `table` `json` `text` | the prelude |
 | `lexical` | `lexical` | `import lexical` |
+| `semantic` | `semantic` | `import semantic` |
 
 Collection operations stay in the core because they operate on the core's own
 collection types and mention nothing above them. Retrieval and drawing are not
-the core's business — see [[lexical]], [[hql/semantic-search]] and
-[[hql/presentation]].
+the core's business — see [[lexical]], [[semantic]], [[hql/semantic-search]]
+and [[hql/presentation]].
 
 `import <extension>` binds an extension's steps, and `extension.step(…)` is
 always available for one that is imported. A name provided by two imported

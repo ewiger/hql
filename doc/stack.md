@@ -94,6 +94,8 @@ Reach for these before introducing an alternative:
 | Tests | `cargo test` (`insta` for snapshots) |
 | CLI | clap (`derive`) |
 | Serialization | serde |
+| SQLite | rusqlite (`bundled`) |
+| Hashing | sha2 |
 | Config files | toml |
 | Errors | thiserror (library), anyhow (binary) |
 | Logging | tracing |

@@ -21,6 +21,7 @@ pub(crate) mod collections;
 pub(crate) mod graph;
 pub mod lexical;
 pub(crate) mod present;
+pub mod semantic;
 
 /// Whether the executor may move a step around.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +73,8 @@ pub(crate) trait EvalCx {
     fn evaluate(&mut self, expression: &Expr) -> Result<Value, Diagnostic>;
     /// A lambda argument applied to one element.
     fn apply_lambda(&mut self, argument: &Arg, element: Value) -> Result<Value, Diagnostic>;
+    /// Queue something worth saying that does not make the result impossible.
+    fn warn(&mut self, warning: crate::warnings::Warning);
 }
 
 /// One name a pipeline may write.
@@ -128,13 +131,19 @@ static LEXICAL: Extension = Extension {
     steps: lexical::STEPS,
 };
 
+static SEMANTIC: Extension = Extension {
+    name: "semantic",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: semantic::STEPS,
+};
+
 /// Every extension compiled into this binary, core first.
 ///
 /// Registration is not import: a step here is known to diagnostics and to
 /// `hql builtins` whether or not the program has imported the extension that
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
-pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &PRESENT, &LEXICAL];
+pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &PRESENT, &LEXICAL, &SEMANTIC];
 
 impl Extension {
     /// The step of a name this extension provides.

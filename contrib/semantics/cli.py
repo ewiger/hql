@@ -27,6 +27,8 @@ def build(args) -> int:
         return 1
     model = embed.load(args.model, args.revision, offline=args.offline)
     vectors = model.embed([document.text() for document in documents])
+    queries = sorted(set(args.query or []))
+    query_rows = list(zip(queries, model.embed(queries))) if queries else []
     rows = [
         (
             document.name,
@@ -37,8 +39,11 @@ def build(args) -> int:
         for document, vector in zip(documents, vectors)
     ]
     out = Path(args.out)
-    store.write(out, root.as_posix(), model, rows, built_at=args.built_at)
-    print(f"{out}: {len(rows)} cards, {model.dimensions} dimensions, {model.id}")
+    store.write(out, root.as_posix(), model, rows, query_rows, built_at=args.built_at)
+    print(
+        f"{out}: {len(rows)} cards, {len(query_rows)} queries, "
+        f"{model.dimensions} dimensions, {model.id}"
+    )
     return 0
 
 
@@ -65,6 +70,9 @@ def verify(args) -> int:
     for name, _, _, blob in index["cards"]:
         if len(blob) != dimensions * 4:
             problems.append(f"{name}: embedding is {len(blob)} bytes, not {dimensions * 4}")
+    for text, blob in index["queries"]:
+        if len(blob) != dimensions * 4:
+            problems.append(f"query {text!r}: embedding is the wrong length")
     for problem in problems:
         print(problem, file=sys.stderr)
     if problems:
@@ -87,6 +95,9 @@ def inspect(args) -> int:
     print(f"metric        {metric}")
     print(f"normalized    {bool(normalized)}")
     print(f"cards         {len(index['cards'])}")
+    print(f"queries       {len(index['queries'])}")
+    for text, _ in index["queries"]:
+        print(f"              {text}")
     return 0
 
 
@@ -101,6 +112,9 @@ def main(argv=None) -> int:
     builder.add_argument("--revision", default=embed.DEFAULT_REVISION)
     builder.add_argument("--offline", action="store_true",
                          help="refuse the network; what CI uses")
+    builder.add_argument("--query", action="append", default=[],
+                         help="a query to embed into the index; repeatable, "
+                              "because the reader cannot embed one itself")
     builder.add_argument("--built-at", default=None,
                          help="pin the build stamp, so a rebuild is byte-identical")
     builder.set_defaults(run=build)

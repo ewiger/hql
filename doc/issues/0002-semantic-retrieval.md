@@ -1,6 +1,6 @@
 # 0002 — Semantic retrieval over a real embedding index
 
-Status: todo
+Status: done
 Decision: [HQL-0002](../proposals/HQL-0002/README.md)
 Branch: `feat/semantics`, off `feat/extensions`
 Blocked by: [0001](0001-extension-mechanism.md)
@@ -34,10 +34,9 @@ Four commits, in this order.
 ## The acceptance criterion
 
 Write the corpus so the difference is measurable, as the proposal's Test Plan
-requires: owls described as "nocturnal", "after dark", "low light", never as
-hunting "at night". Then `lexical("birds that hunt at night")` finds nothing
-useful and `semantic` finds the owls. At least three such pairs, asserted by card
-name.
+requires: owls described as "nocturnal" and "after dark", never as hunting "at
+night". Then `lexical("night hunting birds")` finds nothing useful and
+`semantic` finds the owls. At least three such pairs, asserted by card name.
 
 This is the whole point of the issue. If these tests are weak, nothing else in
 it compensates.
@@ -46,8 +45,8 @@ it compensates.
 
 - The three paraphrase pairs pass.
 - `cargo test --locked` passes on a machine with no Python installed.
-- `hql-semantics build` regenerates the committed index reproducibly and
-  `hql-semantics verify` reports it clean.
+- `hql-semantics build --built-at …` regenerates the committed index
+  reproducibly and `hql-semantics verify` reports it clean.
 - `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check`
   are clean.
 - Documentation: `doc/models/domain/semantic-search.md` moves step three to done

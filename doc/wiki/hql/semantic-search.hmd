@@ -108,8 +108,10 @@ means rather than a liberty the executor took. `approximate` is a field on
 `Retrieval` for the same reason — a consumer can see which answer it got.
 
 Purity follows the same line. The same query against a changed index gives
-different answers; pinning an index revision makes `semantic` reproducible, and
-without pinning it is an effect.
+different answers; pinning an index makes `semantic` reproducible, and without
+pinning it is an effect. What is pinned today is the model's revision, carried
+on every `Retrieval`, and a card whose text has drifted from its vector says so
+rather than scoring quietly.
 
 ## What is built
 
@@ -117,6 +119,13 @@ Two retrievals, each an extension and each honestly named. [[lexical]] matches
 shared spellings with `hql.hashbag.v1`, a hashed bag of words compared by
 cosine, offline, deterministic and exact, reporting `approximate: false`. It
 models no meaning and its name no longer claims to.
+
+[[semantic]] scores against vectors a language model computed ahead of time,
+stored in an SQLite index a vault names in `hql.toml`. The model stays out of
+this binary, so the index carries the queries too and a query it does not hold
+is a failure naming the command that would add one. Scoring is exact brute force
+over stored vectors, so `approximate` is `false` here as well; an approximate
+index is step four and is not built.
 
 Replacing one retrieval with another changes the numbers, not the shape — which
 is the point of `Retrieval` travelling on every `Hit`, and why it carries the

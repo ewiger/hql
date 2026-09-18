@@ -128,10 +128,28 @@ CREATE TABLE card (
     content_hash TEXT NOT NULL,       -- sha256 of the embedded text, lowercase hex
     embedding    BLOB NOT NULL        -- f32 little-endian, `dimensions` of them
 );
+
+CREATE TABLE query (
+    text      TEXT PRIMARY KEY,
+    embedding BLOB NOT NULL        -- the same f32 little-endian layout
+);
 ```
 
+The `query` table is what makes the rest of this proposal implementable. A
+consumer with no model cannot embed a document *or* a question, and inventing a
+vector for one would be exactly the silent wrongness the split exists to avoid.
+So the producer embeds the queries too — `hql-semantics build --query "…"`,
+repeatable — and `semantic` looks one up. A query the index has no vector for
+MUST be a failure naming that command, and MUST NOT be answered with a ranking
+of nothing.
+
+The consequence is a real limit, and it is the price of keeping the model out of
+the binary: this implementation answers the questions an index was built for.
+Embedding a query as it is asked needs a model at the consumer, which is a
+proposal of its own.
+
 The schema MUST remain able to grow a `chunk` table without changing these
-three. No `chunk` table is added here.
+four. No `chunk` table is added here.
 
 ### 4. The embedded text
 
@@ -193,6 +211,7 @@ it, and `cargo test` MUST NOT require it.
 
 ```text
 hql-semantics build   --vault DIR --out PATH [--model NAME] [--offline]
+                      [--query TEXT]... [--built-at STAMP]
 hql-semantics verify  --vault DIR --index PATH    # exit 1 when stale
 hql-semantics inspect --index PATH
 ```
@@ -200,6 +219,9 @@ hql-semantics inspect --index PATH
 - Default model `sentence-transformers/all-MiniLM-L6-v2`, `384` dimensions.
 - The model **revision** MUST be pinned, not only its name.
 - Vectors MUST be L2-normalised, and `model.normalized` MUST record it.
+- `--built-at` pins the build stamp, so rebuilding an unchanged vault produces a
+  byte-identical file. A committed fixture that changes on every rebuild is a
+  diff nobody can review.
 
 ## Backwards Compatibility
 
@@ -235,7 +257,8 @@ model; `--offline` MUST make that impossible and MUST be what CI uses.
 - `contrib/semantics/` — `cli.py`, `vault.py`, `embed.py`, `store.py`, `tests/`
 - `src/extensions/lexical.rs` — today's `src/search.rs`, renamed
 - `src/extensions/semantic.rs` — the SQLite reader and the scorer
-- `src/search.rs` — `Retrieval` gains `revision`
+- `src/search.rs` — what a retrieval is; `Retrieval` gains `revision`, and
+  nothing here computes a score
 
 ## Test Plan
 
@@ -263,11 +286,16 @@ hedge rather than slung from a branch.
 
 Unit tests MUST include:
 
-- the golden text test: Python and Rust agree byte for byte on every card
+- the golden text test: Python and Rust agree byte for byte on every card. From
+  the Rust side this is the absence of a stale-card warning over the whole
+  corpus, which needs no Python and so runs in `cargo test`.
 - a truncated `embedding` blob rejected, not read past
 - an unknown `schema_version` refused with the exact reason `unknown index schema`
 - a stale `content_hash` producing a warning and still ranking
 - a card absent from the index absent from the ranking, with the count warned
+- a query with no stored vector failing with the command that would add one
+- an index whose `index_meta.vault` names another corpus refused
+- a configured index path that climbs out of the vault refused
 
 Integration tests MUST include:
 
@@ -289,6 +317,9 @@ cd contrib/semantics && pytest
   the corpus lives in `tests/fixtures/birds/`, a stale vector warns and still
   ranks, `rusqlite` with `bundled` is the reader, `lexical` keeps its name, and
   `revision` carries the model revision alone
+- 2026-09-18: the schema grows a `query` table. Without it the proposal is not
+  implementable: it gives the consumer no model and then asks it to score a
+  query. The producer embeds queries, and an unknown query fails by name
 - 2026-09-18: the embedded text is the *authored* header, because
   `Document::text()` was including the derived `path` and so scoring a card on
   its filename

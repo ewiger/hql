@@ -21,9 +21,6 @@ board:
   items:
     backlog: []
     todo:
-      - id: "0002"
-        title: Semantic retrieval over a real embedding index
-        file: 0002-semantic-retrieval.md
       - id: "0003"
         title: Parse and check `type` declarations
         file: 0003-type-declarations.md
@@ -32,6 +29,9 @@ board:
         file: 0004-collection-order-vocabulary.md
     doing: []
     done:
+      - id: "0002"
+        title: Semantic retrieval over a real embedding index
+        file: 0002-semantic-retrieval.md
       - id: "0001"
         title: The extension mechanism
         file: 0001-extension-mechanism.md

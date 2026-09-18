@@ -26,7 +26,6 @@ behind them.
 | INC-25 | Eight documents link into `examples/`, which exists in no branch | broken | wiki, models, proposals, root README |
 | INC-13 | The wiki breaks its own two rules about wikilink spelling and scope | contradiction | [hypermarkdown.hmd](../wiki/hypermarkdown.hmd) and the HQL cards |
 | INC-12 | Four links point at renamed or nonexistent cards | broken | wiki README, hypermarkdown, issues README, kanban.yaml |
-| INC-23 | An indexer is said to contribute "embeddings or a semantic-search score"; a score is not a per-card fact | contradiction | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
 | INC-20 | The Kanban README's worked example does not match the real board | stale | [issues/README.hmd](../issues/README.hmd) |
 
 Blocked, not open: `INC-04`, `INC-06`, `INC-08`, `INC-16`, `INC-17` and `INC-18`
@@ -100,24 +99,6 @@ convert that one link.
 are fine — but the card closes with "See [[kanban]]", which reads as a pointer to
 something written, and `kanban.yaml` names the card as an existing convention.
 
-## INC-23 — An indexer cannot contribute a score
-
-[Card](../wiki/hql/types/card-type.hmd) lists, among the entries an extension may
-contribute, "an indexer supplying embeddings or a semantic-search score". The two
-are not the same kind of thing.
-
-An embedding is a property of the card: it exists whether or not anyone ever
-searches, it goes stale when the card's content changes, and the assembled
-`card.metadata` layer is the right home for it. A score exists only relative to a
-query. Storing one in a per-card layer means either one privileged query or a
-number whose name no longer describes it.
-
-The fix is to split the sentence, keeping embeddings, chunk identity and index
-membership as contributions and moving the score into the retrieval result, where
-it travels with the query and index revision that produced it. The
-[semantic search model](../models/domain/semantic-search.md) already states the
-correction; the card has not been edited to match.
-
 ## INC-20 — The Kanban example does not match the board
 
 [doc/issues/README.hmd](../issues/README.hmd) shows a sample board with
@@ -129,6 +110,10 @@ three live cards. The README example is illustrative, but nothing says so.
 
 Worth recording, because these were checked and hold:
 
+- An indexer contributes its embedding and index membership, and never a score.
+  `INC-23` recorded the contradiction; the split is now implemented as well as
+  stated — `metadata.lexical` carries what an extension knows about a card, and
+  a score exists only on a `Hit`, beside the `Retrieval` that produced it.
 - The `uplinks` / `downlinks` rename is complete. No `backlinks` survives except
   where the rename is explained, and the direction sense ("uplinks outgoing,
   downlinks incoming") is stated identically in

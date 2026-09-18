@@ -7,6 +7,7 @@
 use crate::data::Data;
 use crate::document::{Card, Document, Format, Kind};
 use crate::extensions::Config;
+use crate::extensions::semantic::Semantics;
 use crate::graph::{Edge, EdgeKind};
 use crate::warnings::Warning;
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,6 +30,8 @@ pub struct Vault {
     pub warnings: Vec<String>,
     /// What the vault's `hql.toml` says about extensions.
     pub extensions: Config,
+    /// What it says about its embedding index.
+    pub semantics: Semantics,
 }
 
 impl Vault {
@@ -42,6 +45,7 @@ impl Vault {
             edges: Vec::new(),
             warnings: Vec::new(),
             extensions: Config::default(),
+            semantics: Semantics::default(),
         }
     }
 
@@ -145,6 +149,7 @@ pub fn load(root: &Path) -> io::Result<Vault> {
         edges,
         warnings,
         extensions: Config::read(root),
+        semantics: Semantics::read(root),
     })
 }
 

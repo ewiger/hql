@@ -39,26 +39,52 @@ cargo install --path . --locked
 
 ### Querying a vault
 
+`tests/fixtures/birds/` is a worked example: fifty-six encyclopedia articles
+about birds, with an embedding index committed beside them.
+
 ```sh
-hql --vault notes/ eval '
-import lexical
+hql --vault tests/fixtures/birds eval '
+import semantic
 
 cards
-| lexical("bearer token authorization")
-| take(5)
+| semantic("night hunting birds")
+| take(3)
 | expand(depth = 1)
 | graph
 | table'
 ```
 
-`cards` is the vault's cards. `lexical` ranks them by the words they share with
-the query and keeps
-the retrieval — model, metric, index — with every score, because a score is
-evidence rather than relevance. `take` needs elements that carry an order of
-their own, which a card does, so a prefix is reproducible without the vault's
-file order ever being observable. `expand` traverses outwards and records *why*
-each node is present, so a graph of five matches and their neighbours does not
-claim that all of them matched.
+That returns the owls. Not one of their articles contains the word "night" —
+they are nocturnal, and abroad after dark — so the same query through the other
+retrieval finds nothing of the kind:
+
+```sh
+hql --vault tests/fixtures/birds eval '
+import lexical
+
+cards
+| lexical("night hunting birds")
+| take(3)
+| map(h => h.card.name)'
+```
+
+```text
+[mute-swan, passeriformes, alcedinidae]
+```
+
+Two retrievals, each named for what it does. `lexical` matches shared spellings,
+offline and with nothing to build. `semantic` scores against vectors a language
+model computed ahead of time, which
+[`contrib/semantics/`](contrib/semantics/README.md) produces and the binary only
+reads — the model is not in here and will not be.
+
+Either way the answer keeps its evidence. Every hit carries the retrieval that
+produced it — query, index, model, model revision, metric, and whether the
+search was approximate — because a score is evidence rather than relevance.
+`take` needs elements that carry an order of their own, which a card does, so a
+prefix is reproducible without the vault's file order ever being observable.
+`expand` traverses outwards and records *why* each node is present, so a graph
+of three matches and their neighbours does not claim that all of them matched.
 
 ### Commands
 

@@ -38,6 +38,11 @@ CREATE TABLE card (
     content_hash TEXT NOT NULL,
     embedding    BLOB NOT NULL
 );
+
+CREATE TABLE query (
+    text      TEXT PRIMARY KEY,
+    embedding BLOB NOT NULL
+);
 """
 
 
@@ -50,8 +55,13 @@ def unpack(blob: bytes) -> list[float]:
     return list(struct.unpack("<%df" % (len(blob) // 4), blob))
 
 
-def write(out: Path, vault_name: str, model, rows, built_at=None) -> None:
-    """Write a whole index. `rows` is (name, path, content_hash, vector)."""
+def write(out: Path, vault_name: str, model, rows, queries=(), built_at=None) -> None:
+    """Write a whole index.
+
+    `rows` is (name, path, content_hash, vector); `queries` is (text, vector).
+    Queries are embedded here because the model lives here: the Rust consumer
+    reads vectors and never computes one.
+    """
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists():
         out.unlink()
@@ -71,6 +81,10 @@ def write(out: Path, vault_name: str, model, rows, built_at=None) -> None:
             "INSERT INTO card VALUES (?, ?, ?, ?)",
             [(name, path, digest, pack(vector)) for name, path, digest, vector in rows],
         )
+        connection.executemany(
+            "INSERT INTO query VALUES (?, ?)",
+            [(text, pack(vector)) for text, vector in queries],
+        )
         connection.commit()
     finally:
         connection.close()
@@ -89,6 +103,9 @@ def read(path: Path) -> dict:
         cards = connection.execute(
             "SELECT name, path, content_hash, embedding FROM card ORDER BY name"
         ).fetchall()
+        queries = connection.execute(
+            "SELECT text, embedding FROM query ORDER BY text"
+        ).fetchall()
     finally:
         connection.close()
-    return {"model": model, "meta": meta, "cards": cards}
+    return {"model": model, "meta": meta, "cards": cards, "queries": queries}
