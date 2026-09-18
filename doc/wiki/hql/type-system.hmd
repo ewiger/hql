@@ -9,7 +9,7 @@ with a value being used at a stronger type than it started with.
 | Mechanism | Written | The question it answers |
 | --- | --- | --- |
 | Subtyping | `Card <: Doc` | Which types stand in for which? |
-| Generics | `Graph[N, E]` | What does this type leave unknown? |
+| Generics | `Graph<N, E>` | What does this type leave unknown? |
 | Refinement | `card.header.database : PostgresConfig` | What is known about *this value*? |
 
 Subtyping relates whole type domains. Generics abstract over them. Refinement
@@ -58,21 +58,21 @@ The case this form exists for is `KnowledgeGraph`, below.
 `<:` states what a value **is**. Three other relations end with a value being
 used at a stronger type, and none of them is subtyping.
 
-**Capability is not ancestry.** `Graph <: Renderable[Html]` is tempting and
+**Capability is not ancestry.** `Graph <: Renderable<Html>` is tempting and
 wrong in the same way for every renderable type: it declares a parent whose
 implementation does not exist anywhere in the type graph, and the checker is
 left asking where `render` comes from. A capability is supplied *for* a type, by
 an [[hql/extensions|extension]] registering `render(Graph) -> Html`, not
 inherited by it. HQL knows the type; the extension knows what can be done with
 it. A capability is therefore a **registration the checker consults**, not a
-type participating in `<:`. That follows from HQL having no traits: with the
-competing answer withdrawn, there is nothing for `Renderable[T]` to be except a
-registration — see [no traits](../../memory/no-traits.md). What a parameterized
-registration looks like is still a design question; whether it is a type is not.
+type participating in `<:`. That follows from HQL having no traits: there is
+nothing for `Renderable<T>` to be except a registration — see *There are no
+traits* below. What a parameterized registration looks like is still a design
+question; whether it is a type is not.
 
 `Orderable` is the contrasting case and is genuine ancestry. A card's ordering
 key is its own name, not something an extension supplies, so `Card <: Orderable`
-is an ordinary narrowing — see [orderable cards](../../memory/orderable-cards.md).
+is an ordinary narrowing — see [[orderable]].
 
 **Representation is not ancestry.** A `RelationCard` represents a `Relation`; it
 is not one, and a `Relation` is not a `Card`. See below.
@@ -83,40 +83,67 @@ projection is a function — see [[graph-type]]. What a projection's *result* ma
 do is declare both parents for itself, which is a claim about that one type and
 leaves the two domains peers; that case is below.
 
-## `[T]` abstracts
+### There are no traits
+
+A trait is a **host-language** mechanism. An extension is written in Rust and may
+use traits internally, as any Rust program does; none of that reaches HQL's
+surface. "Rust does it this way" is never an argument for an HQL feature — see
+[the stack scope note](../../stack.md) and [[hql/extensions]].
+
+Three different things had been collapsed into one mechanism, and separating
+them is why none of them needs a trait:
+
+| What is being said | The mechanism |
+| --- | --- |
+| The value genuinely **is** the thing | ordinary `<:` — `Card <: Doc`, `Card <: Orderable` |
+| Something can be **done with** the value, by someone else | an [[hql/extensions|extension]] registers `render(Graph) -> Html` |
+| Several types happen to have **the same fields** | a partial schema over an open [[data-type|Data]] tree — see [[fields]] |
+
+Typing is strict, not duck typing, and that is *why* no trait is needed: the
+checker asks about structure it can see. A record declares its shape and an
+incomplete literal fails at construction; a `Data` tree earns a stronger type by
+established structure, checked only where the evidence holds, and refinement
+never converts the value.
+
+Absence is not part of this. `Option` is an ordinary sum type, not a trait — see
+[[option-type]].
+
+## `<T>` abstracts
+
+Generics are written with **angle brackets**, in both positions: `Seq<T>` applies
+a type constructor and `fn first<T>(xs: Seq<T>) : T?` binds the parameter. There
+is no second spelling for binders. Square brackets stay value-level — `[alice,
+bob]` is a sequence and `xs[0]` is indexing — so an angle bracket always means
+the type world. The argument is in
+[bind versus apply](../../models/behavior/bind-vs-apply-in-generic-types.md).
 
 A generic parameter is an unknown type that a declaration is written against,
 so that one declaration serves a whole family:
 
 ```hql
-type Edge[S, T] {
+type Edge<S, T> {
     source: S
     target: T
     data:   Data
 }
 
-type Graph[N, E]
+type Graph<N, E>
 ```
 
 `S` and `T` are not types with values of their own. They are positions, filled
-at each use — `Edge[Card, Card]`, `Edge[Card, Concept]` — and the declaration is
+at each use — `Edge<Card, Card>`, `Edge<Card, Concept>` — and the declaration is
 checked once for all of them. This is what lets a graph over documents and a
 graph over concepts share one definition without a node union or a `kind` field.
 
 Functions abstract the same way:
 
 ```hql
-map[A, B](f: A -> B) : Collection[A] -> Collection[B]
+map<A, B>(f: A -> B) : Collection<A> -> Collection<B>
 ```
 
 Nothing here is inferred away by the reader: `map` has one body, and `A` and `B`
 are chosen by the call site. Users are not expected to write those parameters at
 a call — they are inferred — but they exist in the signature.
-
-> These pages write generics in square brackets, `Set[T]`, while
-> [[hql/collections]] and [[hql/core]] write `Set<T>`. The two spellings are
-> tracked as one unsettled choice and this card does not settle it; it uses
-> square brackets so that `Edge[S, T]` here matches [[graph-type]].
 
 ## Where the two cooperate: bounds
 
@@ -124,7 +151,7 @@ A bare parameter admits every type, which is usually more freedom than a functio
 wants. A **bound** restricts it with the subtype relation:
 
 ```hql
-fn titles[T](docs: Collection[T]) : Collection[String]
+fn titles<T>(docs: Collection<T>) : Collection<String>
 where T <: Doc
 ```
 
@@ -139,19 +166,19 @@ family of such domains. A bound is where a function says which part of the
 lattice it needs, and `<:` is the only vocabulary it needs to say so:
 
 ```hql
-fn show[T, R](x: T) : R
-where T <: Renderable[R]
+fn show<T, R>(x: T) : R
+where T <: Renderable<R>
 ```
 
-A separate constraint syntax — Rust's `T: Renderable[R]` — would introduce a
+A separate constraint syntax — Rust's `T: Renderable<R>` — would introduce a
 second relation symbol meaning something close enough to `<:` to be confusing and
 different enough to have to be learned. One symbol is the stronger design, and
-the more compact `fn show[T <: Renderable[R], R](x: T)` is the same relation
+the more compact `fn show<T <: Renderable<R>, R>(x: T)` is the same relation
 inlined. Which form the grammar takes is open; that it is `<:` in both is not.
 
 **Variance is open.** `Card <: Doc` does not by itself decide whether
-`Graph[Card, Link] <: Graph[Doc, Edge]` holds, and a function written over
-`Graph[Doc, Edge]` is useless if it does not. Covariance is defensible while
+`Graph<Card, Link> <: Graph<Doc, Edge>` holds, and a function written over
+`Graph<Doc, Edge>` is useless if it does not. Covariance is defensible while
 graphs are immutable values and unsound as soon as one can be extended in place,
 so the answer depends on decisions about construction that have not been made —
 see [[graph-type]].
@@ -191,7 +218,7 @@ import knowledge
 
 card.metadata          : Data              // before
 card.metadata          : KnowledgeMetadata // after
-card.metadata.concepts : List[Concept]
+card.metadata.concepts : List<Concept>
 ```
 
 The runtime value has not changed. What changed is what the checker can prove
@@ -270,10 +297,10 @@ and a function over `Concept` may take it. The supertype set normalizes:
 
 ```hql
 card.metadata.knowledge.type == Relation
-card.metadata.relation : Relation[S, T]
+card.metadata.relation : Relation<S, T>
 ```
 
-`Relation[S, T] <: Card` is **never true**. `Relation` is a first-class type in
+`Relation<S, T> <: Card` is **never true**. `Relation` is a first-class type in
 the knowledge vocabulary, beside `Concept`, `Proposition` and `Evidence` — a
 relationship with typed endpoints, its own identity, and evidence and provenance
 behind it. A relation acquires none of that from a document: it can be imported
@@ -290,7 +317,7 @@ so it is a claim the checker must verify against a contract, exactly as
 What `Relation` does narrow is the edge:
 
 ```hql
-type Relation[S, T] <: Edge[S, T]
+type Relation<S, T> <: Edge<S, T>
 ```
 
 An edge has a source, a target and data; a relation has all three and adds
@@ -303,8 +330,8 @@ The three mechanisms, side by side on this one family:
 | Written | Mechanism | What it establishes |
 | --- | --- | --- |
 | `ConceptCard <: {Card, Concept}` | subtyping | every concept card, for all time |
-| `Relation[S, T] <: Edge[S, T]` | subtyping over a generic parent | every relation, at every endpoint pairing |
-| `card.metadata.relation : Relation[S, T]` | refinement | what is known about *this* card |
+| `Relation<S, T> <: Edge<S, T>` | subtyping over a generic parent | every relation, at every endpoint pairing |
+| `card.metadata.relation : Relation<S, T>` | refinement | what is known about *this* card |
 
 The first two are declarations about type domains and hold whether or not any
 value exists. The third could fail for the next card along without disturbing
@@ -331,12 +358,12 @@ metadata a card assembles.
 ## KnowledgeGraph is both
 
 ```hql
-type KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}
+type KnowledgeGraph <: {Knowledge, Graph<Concept, Relation>}
 ```
 
 This is the case the supertype set was invented for, and it is worth reading
 directly against `RelationCard` above. That type declares only `Card`, because a
-card representing a relation is not a relation and `{Card, Edge[S, T]}` would
+card representing a relation is not a relation and `{Card, Edge<S, T>}` would
 claim an ancestry that is not there. `KnowledgeGraph` is the opposite situation.
 A knowledge graph genuinely *is* a graph: concepts are its nodes and relations
 its edges. It genuinely *is* knowledge: it retains conflicting claims,
@@ -350,7 +377,7 @@ demanding, and worth making explicit:
 
 **Both surfaces must be answerable.** A `KnowledgeGraph` has to respond to
 `nodes`, `edges` and traversal *and* to claims, provenance, evidence and
-satisfaction. A value that answers only the first is a `Graph[Concept, Relation]`
+satisfaction. A value that answers only the first is a `Graph<Concept, Relation>`
 and should be typed as one.
 
 **The set has to be a real intersection.** If `X <: {A, B}` is only a list of
@@ -360,8 +387,8 @@ contracts hold simultaneously.
 
 **Projection can then be lossless.** `knowledge | graph` has been described as a
 view that keeps adjacency and drops rationale. If its result is a
-`KnowledgeGraph`, nothing is dropped, and a genuinely lossy `Graph[Concept,
-Relation]` stays available as the weaker result for hosts that only draw
+`KnowledgeGraph`, nothing is dropped, and a genuinely lossy `Graph<Concept,
+Relation>` stays available as the weaker result for hosts that only draw
 pictures. Whether these are two operations or one whose result type is stronger
 than it used to be is open — see [[graph-type]] and the
 [knowledge model](../../models/domain/knowledge.md).
@@ -375,21 +402,20 @@ language's central value cannot be the place where the rule is improvised.
 
 - Whether narrowing is nominal or structural, and what a failed narrowing yields
   — an `Option`, a diagnostic, or a value carrying its failure.
-- The spelling of validation and refinement at the call site: `validate[Person](card)`,
+- The spelling of validation and refinement at the call site: `validate<Person>(card)`,
   a `where` clause, or a predicate that the checker records.
 - Variance of generic parameters, which depends on whether constructed values
   are immutable.
-- Square versus angle brackets for generics, unsettled across these cards.
 - Whether a supertype set is genuinely an intersection type or only a list of
   declared parents, which decides what `X <: {A, B}` means when `A` and `B`
-  conflict. `KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}` is the case
+  conflict. `KnowledgeGraph <: {Knowledge, Graph<Concept, Relation>}` is the case
   that forces the answer.
-- What a parameterized capability registration such as `Renderable[T]` looks
+- What a parameterized capability registration such as `Renderable<T>` looks
   like. That it is a registration rather than a type is decided; its shape is
   not.
 - How much refinement survives a boundary: a value passed to an extension, a
   cell, or a host and back.
-- Whether a declared-optional field is exactly `Option[T]`, and whether a subtype
+- Whether a declared-optional field is exactly `Option<T>`, and whether a subtype
   may change a field's optionality — tracked on [[fields]].
 
 See [[data-type]] for the tree being refined, [[fields]] for optional fields and

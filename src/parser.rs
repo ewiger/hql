@@ -189,7 +189,7 @@ impl Parser {
         };
         let mut arguments = Vec::new();
         let mut span = head.span;
-        if self.eat(&Token::OpenBracket) {
+        if self.eat(&Token::Less) {
             self.nesting += 1;
             loop {
                 arguments.push(self.type_annotation()?);
@@ -197,7 +197,7 @@ impl Parser {
                     break;
                 }
             }
-            let close = self.expect(&Token::CloseBracket, "after type arguments")?;
+            let close = self.expect(&Token::Greater, "after type arguments")?;
             self.nesting -= 1;
             span = span.start..close.span.end;
         }
@@ -418,6 +418,12 @@ impl Parser {
         }
         let head = self.advance();
         let kind = match head.token {
+            Token::OpenBracket => {
+                return Err(Diagnostic::syntax(
+                    head.span,
+                    "square brackets are value-level; sequence literals are not implemented",
+                ));
+            }
             Token::Int(value) => Kind::Int(value),
             Token::Float(value) => Kind::Float(value),
             Token::Bool(value) => Kind::Bool(value),

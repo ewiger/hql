@@ -212,6 +212,40 @@ fn cards_and_traversal_say_they_need_a_vault_rather_than_finding_nothing() {
 }
 
 #[test]
+fn generics_are_written_with_angle_brackets() {
+    // An angle bracket always means the type world; a square bracket stays
+    // value-level. See doc/models/behavior/bind-vs-apply-in-generic-types.md.
+    assert_eq!(check("[[alice]]").unwrap().to_string(), "Option<Card>");
+    assert_eq!(
+        check("[[alice]].header").unwrap().to_string(),
+        "Option<Data>"
+    );
+    assert_eq!(
+        check("x : Option<Card> = [[alice]]\nx")
+            .unwrap()
+            .to_string(),
+        "Option<Card>"
+    );
+    // Nesting closes with two separate `>`, so `>>` needs no special token.
+    assert!(matches!(
+        check("x : Seq<Hit<Card>> = 1"),
+        Err(Diagnostic::Type { .. })
+    ));
+}
+
+#[test]
+fn square_brackets_are_not_the_type_world() {
+    // The former spelling, and the value literal that reserves the bracket.
+    for source in ["x : Set[Card] = 1", "[1, 2]", "x : Option[Int] = 1"] {
+        assert!(
+            matches!(check(source), Err(Diagnostic::Syntax { .. })),
+            "{source}: {:?}",
+            check(source)
+        );
+    }
+}
+
+#[test]
 fn a_lambda_is_an_argument_and_not_a_value() {
     assert!(matches!(check("c => c"), Err(Diagnostic::Type { .. })));
     assert!(matches!(check("f = c => c"), Err(Diagnostic::Type { .. })));

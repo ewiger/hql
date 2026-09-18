@@ -27,6 +27,8 @@ pub(crate) enum Token {
     CloseBrace,
     OpenBracket,
     CloseBracket,
+    Less,
+    Greater,
     Newline,
     End,
 }
@@ -56,6 +58,8 @@ impl Token {
             Self::CloseBrace => "`}`".to_owned(),
             Self::OpenBracket => "`[`".to_owned(),
             Self::CloseBracket => "`]`".to_owned(),
+            Self::Less => "`<`".to_owned(),
+            Self::Greater => "`>`".to_owned(),
             Self::Newline => "end of line".to_owned(),
             Self::End => "end of input".to_owned(),
         }
@@ -131,6 +135,7 @@ impl Scanner<'_> {
                 '{' => Some(Token::OpenBrace),
                 '}' => Some(Token::CloseBrace),
                 ']' => Some(Token::CloseBracket),
+                '>' => Some(Token::Greater),
                 _ => None,
             };
             if let Some(token) = simple {
@@ -139,6 +144,11 @@ impl Scanner<'_> {
                 continue;
             }
 
+            if character == '<' {
+                self.offset += 1;
+                self.push(Token::Less, start);
+                continue;
+            }
             if self.rest().starts_with("==") {
                 self.offset += 2;
                 self.push(Token::EqualEqual, start);

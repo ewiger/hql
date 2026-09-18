@@ -22,13 +22,13 @@ without adopting SQL clauses or Rust-like trait machinery.
 | --- | --- | --- |
 | Documents | `Doc`, `Card`, `Section`, `Link` | Authored knowledge and its structure |
 | Semantic | `Concept`, `Relation`, `Proposition`, `Evidence` | Meaning, claims and support |
-| Collections | `Set<T>`, `Seq<T>`, `Map<K,V>` | Membership, order and keyed lookup |
+| Collections | `Set<T>`, `Seq<T>`, `Map<K, V>` | Membership, order and keyed lookup |
 | Ordinary | `String`, `Int`, `Float`, `Bool`, `Date` | General computation |
 
-These are the current design names. Generic types use angle brackets in these
-pages; older corpus examples preserve other candidate spellings, and
-[[type-system]] writes them in square brackets — the spelling is unsettled.
-Subtyping, generic parameters and progressive refinement are that card's subject.
+These are the current design names. Generic types are written with angle
+brackets, `Set<T>` and `Edge<S, T>`, everywhere, and square brackets stay
+value-level: `[alice, bob]` is a sequence and `xs[0]` is indexing. Subtyping,
+generic parameters and progressive refinement are [[type-system]]'s subject.
 Precise schemas, declarations, polymorphism, optional/error types and Date
 operations remain open.
 This vocabulary does not require each type to be a primitive in the evaluator.

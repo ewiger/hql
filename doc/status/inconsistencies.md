@@ -28,7 +28,7 @@ a `contradiction` needs a decision, `stale` and `broken` need only an edit.
 | ~~INC-01~~ | ~~A chat transcript is pasted into the Card card, reversing its own decisions~~ | contradiction | resolved | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
 | ~~INC-02~~ | ~~`header` / `frontmatter` / `metadata` / `fm` name one concept four ways~~ | contradiction | resolved | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
 | ~~INC-03~~ | ~~The `Card` / `HmdCard` alias rests on one sentence in one card~~ | ambiguity | resolved | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
-| INC-04 | `cards : Set<Card>` versus `List[Card]` has a third site the tracked question omits | contradiction | tracked | [fixtures/README.md](../../examples/fixtures/README.md) |
+| INC-04 | `cards : Set<Card>` versus `List<Card>` has a third site the tracked question omits | contradiction | tracked | [fixtures/README.md](../../examples/fixtures/README.md) |
 | INC-05 | `Seq<T>` exists only in the wiki; `List` is the corpus's only sequence | stale | open | collections, corpus |
 | INC-06 | `Option<List[Card]>` mixes both generic bracket styles in one type | stale | open | [graphs/path.hql](../../examples/graphs/path.hql) |
 | ~~INC-07~~ | ~~Two files still say the evaluator supports only Int, Bool and addition~~ | stale | resolved | [hql.hmd](../wiki/hql.hmd), [knowledge.md](../models/domain/knowledge.md) |
@@ -36,6 +36,7 @@ a `contradiction` needs a decision, `stale` and `broken` need only an edit.
 | INC-09 | A standard library is both a bootstrap non-goal and a wiki card | ambiguity | open | [bootstrap.md](../models/requirements/bootstrap.md), [std-lib.hmd](../wiki/hql/std-lib.hmd) |
 | INC-22 | `typed Relation` filtered cards by a type no card can have | contradiction | resolved | wiki cards, corpus |
 | INC-23 | An indexer is said to contribute "embeddings or a semantic-search score"; a score is not a per-card fact | contradiction | open | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
+| ~~INC-24~~ | ~~The implementation writes `Set[Card]`; the cards decided `Set<Card>`~~ | contradiction | resolved | `src/`, [type-system.hmd](../wiki/hql/type-system.hmd) |
 | ~~INC-10~~ | ~~`refinement-of-types.hmd` is zero bytes, untracked and unlinked~~ | stub | resolved | [type-system.hmd](../wiki/hql/type-system.hmd) |
 | ~~INC-11~~ | ~~The design-status card table omits an existing card~~ | stale | resolved | [design-status.hmd](../wiki/hql/design-status.hmd) |
 | INC-12 | Four links point at renamed or nonexistent cards | broken | open | wiki README, hypermarkdown, issues README, kanban.yaml |
@@ -74,10 +75,10 @@ silently withdrawn. Nothing else in the repository uses `card.metadata`.
 throughout. The naming question was decided first: `header` is the
 document-level tree and is not optional, `metadata` is the card's knowledge
 layer, and `frontmatter` names no field — see
-[knowledge metadata](../memory/knowledge-metadata.md) and `INC-02`. The
+[fields](../wiki/hql/fields.hmd) and `INC-02`. The
 "refinement rather than inheritance" reading of `Relation <: Card` is settled
 the other way: a relation is not a card at all — see
-[relation is not a card](../memory/relation-not-a-card.md). The two spellings
+[the type system](../wiki/hql/type-system.hmd). The two spellings
 can no longer drift apart, because they are not one concept: `header.metadata` is
 the document's optional authored block and `card.metadata` is the card's
 assembled layer — see [fields](../wiki/hql/fields.hmd).
@@ -130,7 +131,7 @@ The finding was: [Card](../wiki/hql/types/card-type.hmd) opened by declaring
 own declarations while every other card, model and example used `Card`. That was
 coherent but load-bearing on one sentence in one card.
 
-## INC-04 — cards : Set<Card> versus List[Card]
+## INC-04 — cards : Set<Card> versus List<Card>
 
 [HQL design status](../wiki/hql/design-status.hmd), under decisions still needed,
 records this as a two-way conflict between [Card](../wiki/hql/types/card-type.hmd)
@@ -153,19 +154,27 @@ question should say so.
 [HQL collections](../wiki/hql/collections.hmd) introduces `Seq<T>` and notes that
 "no List alias or automatic conversion has been decided", yet `List` is the only
 sequence type the corpus uses (about thirty cases) and
-[design-direction](../wiki/design-direction.hmd) still lists `List[T]` under
+[design-direction](../wiki/design-direction.hmd) still lists `List<T>` under
 "type vocabulary to leave room for". `Seq` appears nowhere outside the wiki.
+
+This is a vocabulary question and not a spelling one: `CON-13` settled the
+brackets and deliberately did not settle `List` against `Seq` or `Set` at any
+site.
 
 ## INC-06 — Mixed generic brackets in one type
 
-Bracket style is unsettled by design, but one case mixes both spellings in a
-single type: [graphs/path.hql](../../examples/graphs/path.hql) expects
-`Option<List[Card]>`. Whatever is decided, that is a typo in either direction.
+One case mixes both spellings in a single type:
+[graphs/path.hql](../../examples/graphs/path.hql) expects `Option<List[Card]>`.
+That was a typo in either direction when bracket style was still unsettled. It
+is now decided — generics are written `<>` throughout, see `CON-13` — so the
+correction is `Option<Seq<Card>>` or `Option<Set<Card>>` depending on `INC-05`,
+applied when the corpus is back in the tree. The quotation above keeps the
+original spelling, because it is the finding.
 
 ## INC-07 — Stale "Int, Bool and addition" after Float landed
 
 `Float` is implemented — see [expression behavior](../models/behavior/expressions.md)
-and [bootstrap decisions](../memory/bootstrap.md) — and most files say so. Two
+and [bootstrap requirements](../models/requirements/bootstrap.md) — and most files say so. Two
 do not:
 
 - [HQL overview](../wiki/hql.hmd): "evaluates integer and Boolean literals and
@@ -195,14 +204,42 @@ that assertion would keep this from recurring.
 
 **Resolved 2026-09-18.** The warning wins, because a forward link to a document
 nobody has written yet is ordinary and the link operator permits it. `[[name]]`
-is `Option[Card]` by type; an unresolved one yields absence and queues a
+is `Option<Card>` by type; an unresolved one yields absence and queues a
 warning, and the exit status does not change.
 
 The corpus case expecting a hard error is superseded. It is not in this working
 tree, so it is residue alongside `CON-11`. See
-[absence and warnings](../memory/absence-and-warnings.md) and
+[Option](../wiki/hql/types/option-type.hmd) and
 [reporting](../models/behavior/reporting.md), which supplies the warning
 channel the decision needed.
+
+## INC-24 — Angle brackets in the cards, square brackets in the code
+
+[Type system](../wiki/hql/type-system.hmd) decided that generics are written
+with **angle brackets** in both positions — `Seq<T>` applies a constructor and
+`fn first<T>(…)` binds the parameter — with square brackets reserved for
+sequence values and indexing, so an angle bracket always means the type world.
+The argument is in
+[bind versus apply](../models/behavior/bind-vs-apply-in-generic-types.md).
+
+The implementation predates that decision and uses square brackets throughout:
+`src/parser.rs` parses a type annotation as `Name[A, B]`, and `Type::Display` in
+`src/types.rs` prints `Set[Card]`, `Option[String]` and `Ranking[Card]` — so
+every type in every diagnostic contradicts the cards.
+
+**Resolved 2026-09-18.** The lexer gained `<` and `>`, the parser reads type
+arguments between them, and `Type::Display` prints `Set<Card>`, `Option<String>`
+and `Ranking<Hit<Card>>`. Nesting needs no `>>` token, because each `>` is lexed
+alone — which also leaves `<:` available to the `type` statement
+[issue 0003](../issues/0003-type-declarations.md) will add.
+
+A square bracket is now a syntax error naming the reason: it is value-level, and
+sequence literals are not implemented. Both spellings are pinned by tests in
+`tests/core.rs`, since nothing had pinned the old one.
+
+Carrying the same spelling through `doc/**` is the other half and is tracked as
+`CON-13` in [consolidation](consolidation.md); the example corpus is its
+outstanding residue.
 
 ## INC-23 — An indexer cannot contribute a score
 
@@ -329,7 +366,7 @@ others as alternatives:
   `validate[Person](card)` — one argument, type applied.
 - [constraints/predicate-alternative.hql](../../examples/constraints/predicate-alternative.hql):
   `validate(alice, adult)` — two arguments, predicate passed, returning
-  `Validation[Person]`.
+  `Validation<Person>`.
 
 [Card](../wiki/hql/types/card-type.hmd) uses only the first form. The second is a
 genuine alternative and is worth keeping, but it should be labelled as one — it
@@ -348,18 +385,18 @@ form, and without `nickname`. The corpus keeps both readings deliberately as
 picking one while its README states the other is the inconsistency, not the
 existence of two forms. The missing optional `nickname` matters because
 [frontmatter/missing.hql](../../examples/frontmatter/missing.hql) expects
-`Option[String]` / `None` on the strength of it.
+`Option<String>` / `None` on the strength of it.
 
 ## INC-18 — Types named in expectations that no vocabulary defines
 
 Expected types in the corpus reference names absent from the vocabulary in
 [HQL core](../wiki/hql/core.hmd) and from every type card: `Unknown`
-(four `frontmatter/` cases), `Validation[T]`, `Satisfaction[T]`, `Visualization`,
-`Diagram[D2]`, `Origin`, `Provenance`, `Edge`, `Role`, `Record` and `GraphLike`.
+(four `frontmatter/` cases), `Validation<T>`, `Satisfaction<T>`, `Visualization`,
+`Diagram<D2>`, `Origin`, `Provenance`, `Edge`, `Role`, `Record` and `GraphLike`.
 Most are openly speculative and labelled `design-question`, which is fine. Two are
 not: [frontmatter/tags.hql](../../examples/frontmatter/tags.hql) is `proposed`,
 and [knowledge/provenance.hql](../../examples/knowledge/provenance.hql) is
-`proposed` while expecting `List[(Origin, Option[Float], Provenance)]` — a tuple
+`proposed` while expecting `List<(Origin, Option<Float>, Provenance)>` — a tuple
 type that no card mentions at all. Either demote them or give the vocabulary a
 home; [HQL core](../wiki/hql/core.hmd) says the list is "the current design names",
 which the corpus contradicts by using a dozen more.
@@ -407,7 +444,7 @@ Worth recording, because these were checked and hold:
   in the two places that explain the rename, and the direction sense ("uplinks
   outgoing, downlinks incoming") is stated identically in
   [Doc](../wiki/hql/types/doc-type.hmd), [HQL knowledge](../wiki/hql/knowledge.hmd),
-  [corpus direction](../memory/corpus-direction.md),
+  [the link operator](../wiki/hql/operators/link-op.hmd),
   [fixtures](../../examples/fixtures/README.md) and both realistic cases.
 - The fixture link graph supports its expected values exactly. Alice's uplink is
   `bob`; her downlinks are `carol`, `family-record` and `research/graph-notes` —

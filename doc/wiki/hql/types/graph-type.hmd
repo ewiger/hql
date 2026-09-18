@@ -7,7 +7,7 @@ A graph in HQL is an ordinary value with two type parameters — what its nodes
 are, and what its edges are:
 
 ```hql
-type Graph[N, E]
+type Graph<N, E>
 ```
 
 It is not a rendering, not a keyword and not a fixed structure the language
@@ -18,7 +18,7 @@ core → graph → knowledge, with document sources beside it.
 ## The edge is the primitive
 
 ```hql
-type Edge[S, T] {
+type Edge<S, T> {
     source: S
     target: T
     data:   Data
@@ -28,7 +28,7 @@ type Edge[S, T] {
 Three things follow from that shape, and they are why the graph model stays
 small.
 
-**Source and target are typed separately.** `Edge[S, T]` rather than `Edge[N]`
+**Source and target are typed separately.** `Edge<S, T>` rather than `Edge<N>`
 admits an edge whose ends are different kinds of thing — a card pointing at a
 concept, a concept supported by a document — without a union type at the node
 position.
@@ -47,11 +47,11 @@ a tree is an author's claim. This is the same rule that keeps a
 ## Two specializations, one mechanism
 
 ```hql
-type Link[S, T]     <: Edge[S, T]
-type HmdGraph       <: Graph[Card, Link]
+type Link<S, T>     <: Edge<S, T>
+type HmdGraph       <: Graph<Card, Link>
 
-type Relation[S, T] <: Edge[S, T]
-type KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}
+type Relation<S, T> <: Edge<S, T>
+type KnowledgeGraph <: {Knowledge, Graph<Concept, Relation>}
 ```
 
 | Graph | Nodes | Edges | Comes from |
@@ -83,7 +83,7 @@ knowledge graph is argued for.
 `Relation` is a first-class knowledge type with one supertype:
 
 ```hql
-type Relation[S, T] <: Edge[S, T]
+type Relation<S, T> <: Edge<S, T>
 ```
 
 An edge has a source, a target and data. A relation has all three and adds
@@ -97,7 +97,7 @@ vault and incoming links of its own:
 
 ```hql
 card.metadata.knowledge.type == Relation
-card.metadata.relation : Relation[S, T]
+card.metadata.relation : Relation<S, T>
 ```
 
 That is refinement of the card's knowledge layer, not a second parent — see
@@ -105,12 +105,12 @@ That is refinement of the card's knowledge layer, not a second parent — see
 sibling is worth noting here, because it is a statement about the graph: a
 `ConceptCard` declares `{Card, Concept}` and so occupies a node position, while
 a `RelationCard` declares no graph parent at all. It contributes an edge and is
-not itself a node, which is what keeps `Graph[Concept, Relation]` a graph of
+not itself a node, which is what keeps `Graph<Concept, Relation>` a graph of
 concepts rather than one with an explained relationship appearing twice.
 
-It also marks where `<:` stops. `Edge[S, T]` is what a relation *is*. Being
+It also marks where `<:` stops. `Edge<S, T>` is what a relation *is*. Being
 renderable is not: that is a capability, supplied by an extension as
-`Renderable[Html]` rather than by inheritance.
+`Renderable<Html>` rather than by inheritance.
 
 ## Endpoint identity, and where it fails
 
@@ -141,15 +141,12 @@ Whether `Graph` exposes its nodes and edges as collections, and which ones, is
 open:
 
 ```hql
-graph.nodes : Set[N]
-graph.edges : Set[E]
+graph.nodes : Set<N>
+graph.edges : Set<E>
 ```
 
 `Set` follows [[hql/collections]], since discovering edges must not establish an
-ordering guarantee. This card writes generics in square brackets, following the
-design conversation and [[type-system]], while
-[[hql/collections]] writes `Set<T>`; that divergence is unsettled everywhere and
-this card does not settle it.
+ordering guarantee.
 
 What is less clear is whether a graph over a vault should be materialized at
 all, or whether it is a query that a source may execute — a graph store, a
@@ -176,13 +173,13 @@ when it is a graph over cards.
 
 ## Open questions
 
-- Variance. `HmdGraph <: Graph[Card, Link]`, and `Card <: Doc`, so does
-  `Graph[Card, Link] <: Graph[Doc, Edge]` hold? A function written over
-  `Graph[Doc, Edge]` is useless if it does not. Covariance is defensible while
+- Variance. `HmdGraph <: Graph<Card, Link>`, and `Card <: Doc`, so does
+  `Graph<Card, Link> <: Graph<Doc, Edge>` hold? A function written over
+  `Graph<Doc, Edge>` is useless if it does not. Covariance is defensible while
   graphs are immutable values, and unsound the moment a graph can be extended in
   place, so this is a question about whether graph construction is pure.
 - Node identity. Two documents, two concepts, a document and the concept it
-  describes: when are they the same node? `Set[N]` presumes an answer.
+  describes: when are they the same node? `Set<N>` presumes an answer.
 - Whether nodes must be values in the graph at all, or whether an edge's
   endpoints are references that the graph never resolves — the forward-link case
   from [[link-op]] argues for references.

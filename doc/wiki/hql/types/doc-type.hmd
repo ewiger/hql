@@ -193,8 +193,7 @@ a target that does not exist, a fragment missing from a document that does, a
 name matching several documents, or a target escaping the namespace root. HMD treats an unresolved link as a warning, deliberately —
 writing forward to a card that has not been written yet is permitted, and the
 diagnostic report is a to-do list. HQL must not turn that into a hard error by
-accident. How failure is carried, and whether generic references use brackets or
-angles, remain open.
+accident. How failure is carried remains open.
 
 Resolution needs a namespace, which a bare document does not have. A bare name
 is resolved by named imports, then the spine walk outward from the document's own

@@ -72,13 +72,11 @@ An `.hmd` file can be a document that represents nothing in particular. The
 reference goes from the card to the concept — a card explains concepts, and a
 concept may be explained by more than one card, or by none.
 
-> [[card-type]] currently narrows `Card <: Doc` on two conditions: that
-> `header.format` is `hmd`, and that the document sits in a vault. The first of
-> those conditions is superseded by this card — format does not make a card —
-> and the type's `Hmd` prefix follows the format for the same reason. The vault
-> condition is a separate matter: naming and `downlinks` do need a namespace to
-> be answerable in. Reconciling the two pages needs a decision about what a card
-> requires, not an edit that makes the spellings agree.
+[[card-type]] narrows `Card <: Doc` on one condition: that the document sits in
+a vault. Format is not among the conditions, because format does not make a
+card. The vault is, because naming and `downlinks` need a namespace to be
+answerable in — whether that requirement belongs to the language or only to a
+host is open.
 
 ## What the HMD extension provides
 

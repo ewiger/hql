@@ -51,11 +51,11 @@ once, at the declaration, instead of every reader guessing.
 ### Absence is not a weaker value
 
 `?` says the field may not be there. It does not say the field is there holding
-nothing. HQL has no null, and absence is carried by `Option` — see the
-[no traits](../../memory/no-traits.md) — so a reader of an optional
-field gets something it must handle rather than something that might surprise it.
+nothing. HQL has no null, and absence is carried by `Option` — see [[option-type]] — so
+a reader of an optional field gets something it must handle rather than
+something that might surprise it.
 
-Whether `metadata? : Data` is therefore exactly `metadata : Option[Data]`, or
+Whether `metadata? : Data` is therefore exactly `metadata : Option<Data>`, or
 whether a missing key in a tree and a present key holding `None` stay
 distinguishable, is open. So is the relationship to the postfix spelling
 `born: Date?` used on [[card-type]]: one marks the *field* optional and the other
@@ -137,7 +137,7 @@ and the card built from it has its own.
 
 ## Open questions
 
-- **Whether `field? : T` is exactly `field : Option[T]`**, and whether an absent
+- **Whether `field? : T` is exactly `field : Option<T>`**, and whether an absent
   key stays distinguishable from a present key holding `None`.
 - **Whether `metadata? : Data` and `born: Date?` are one feature or two** — the
   field marked optional versus the type marked optional.

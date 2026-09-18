@@ -22,13 +22,17 @@ primary     := int | float | bool | string | docref | lambda
 lambda      := ident "=>" expression
 data        := "{" (key ":" expression ("," key ":" expression)*)? "}"
 docref      := "[[" name "]]"
-type        := ident ("[" type ("," type)* "]")?
+type        := ident ("<" type ("," type)* ">")?
 ```
 
 Whitespace separates tokens. A newline ends a statement **unless** the
 expression is incomplete or the next line opens with an infix operator, so a
 pipeline may be written one step per line with a leading `|`, and `1 +\n2` is
 one expression. `//` begins a comment that runs to the end of the line.
+
+Generics are written with angle brackets, so an angle bracket always means the
+type world. A square bracket stays value-level and is currently a syntax error,
+because sequence literals are not implemented.
 
 `-` belongs to a numeric literal and must touch its digits. There is no unary
 minus and no subtraction, so `- 1` and `1 - 2` are syntax errors. A float needs
@@ -45,9 +49,9 @@ expression, and expressions nest at most 128 deep.
 | `true`, `false` | `Bool` |
 | `"text"` | `String` |
 | `{ key: value }` | `Data` |
-| `[[name]]` | `Option[Card]` |
+| `[[name]]` | `Option<Card>` |
 | `[[a]] -> [[b]] {..}` | `Edge` |
-| `cards` | `Set[Card]` |
+| `cards` | `Set<Card>` |
 
 Addition is homogeneous: two `Int` or two `Float`, never mixed, and `Int` never
 widens. Overflow — an `i64` that wraps or a sum that leaves the finite floats —
@@ -61,11 +65,11 @@ in a binding returns `Unit`.
 
 ## A document reference is optional by type
 
-`[[name]]` is `Option[Card]`, because a forward link to a document nobody has
+`[[name]]` is `Option<Card>`, because a forward link to a document nobody has
 written yet is permitted. When it does not resolve, evaluation yields absence
 and **warns**; the exit status does not change.
 
-Absence propagates through a field — `[[nowhere]].title` is `Option[String]` —
+Absence propagates through a field — `[[nowhere]].title` is `Option<String>` —
 and a pipeline step applied to absence is one applied to nothing rather than a
 failure. There is no `match` yet, so this lifting is how absence is currently
 consumed, and replacing it with an explicit form is open.

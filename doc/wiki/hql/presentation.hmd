@@ -1,0 +1,54 @@
+---
+tags: [hql, presentation, rendering, pipes]
+---
+# Presentation
+
+Presentation is separate from the value an expression returns. A presenter is a
+**terminal** stage: it produces a renderable result rather than transforming the
+value semantically, and nothing pipes out of it.
+
+| Presenter | Result |
+| --- | --- |
+| `table` | rows and columns |
+| `json` | structured data |
+| `graph` | a graph view |
+| `markdown` | document text |
+| `tree` | nested structure |
+| `text` | plain text |
+| `value` | the value's own rendering |
+| `empty` | nothing rendered |
+
+```hql
+cards
+| typed RelationCard
+| table
+```
+
+## A cell without a presenter
+
+A cell that ends without a presenter uses a host default chosen by the result
+type. [[hql/knowledge|Knowledge]] is excluded from that default, because its
+views are equally valid and picking one silently would make a presentation
+choice look like a property of the knowledge.
+
+Rendering belongs to the host. Printing or saving is an explicit effect, and
+constructing an updated [[card-type|Card]] does not itself persist a document.
+
+## `graph` is doing two jobs
+
+`graph` appears both as the projection from knowledge to a graph and as a view
+of one. The projection is a function over values; the view is a presenter. They
+are currently the same name, and separating them — or deciding they are one
+thing — is unresolved. `expand` is traversal and stays distinct from both; see
+[[hql/semantic-search]].
+
+## Open
+
+- Presenter naming, and whether one opaque `Presentation` type or named subtypes.
+- Whether `graph` is the projection or the view.
+- Presenter arguments — columns for `table`, depth for `tree` — and whether a
+  presenter may be parameterized at all.
+- Conversion between presentations, and what `HmdGraph` is as a value.
+
+See [[pipes]] for the execution direction and [[hql/knowledge]] for the
+projection this separates itself from.

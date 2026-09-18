@@ -2,8 +2,9 @@
 
 `doc/status/` is the project's **audit layer**: findings about the knowledge base
 itself rather than about the language. It is descriptive, not normative — nothing
-here declares a decision. A decision belongs in `doc/proposals/`, a small one in
-`doc/memory/`, and the work that carries it out in `doc/issues/`.
+here declares a decision. A decision belongs in `doc/proposals/` or a
+`doc/models/` document, a small and still-undigested one in `doc/memory/`, and
+the work that carries it out in `doc/issues/`.
 
 | File | Scope |
 | --- | --- |

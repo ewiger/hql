@@ -1,0 +1,61 @@
+---
+tags: [hql, types, absence, option]
+---
+# `Option<T>` and absence
+
+HQL has no null. A value that may not be there is `Option<T>`, an ordinary sum
+type, and the reader gets something it must handle rather than something that
+might surprise it. `Option` is not a trait, a bound or a special case in the
+checker — see [[type-system]].
+
+## A doc reference is optional by type
+
+`[[name]]` is `Option<Card>` **by type**, not only when it fails. The vault is
+not consulted to decide what the expression's type is, and a reference that does
+resolve has the same type as one that does not.
+
+```hql
+alice   = [[alice]]      // Option<Card>
+nowhere = [[nowhere]]    // Option<Card>, and absent
+```
+
+Evaluating an unresolved reference yields absence and queues a warning; the exit
+status does not change. A forward link to a document nobody has written yet is
+ordinary, which is why it is a warning rather than an error — see
+[[error-reporting]] and [[link-op]].
+
+## Absence propagates
+
+Absence lifts through a field access and through a stage:
+
+```hql
+[[nowhere]].title              // Option<String>
+[[nowhere]] | downlinks        // a stage applied to nothing, not a failure
+```
+
+A stage applied to absence is a stage applied to nothing rather than a failure.
+
+**This lifting is a stopgap.** There is no `match` and no sum-type syntax yet,
+so implicit propagation is how absence is currently consumed. It is the one
+place the implementation is weaker than the design asks: absence is meant to be
+an ordinary sum type consumed by an exhaustive `match`, with no null check
+anywhere. Replacing the lifting with an explicit form is open.
+
+## Optional fields
+
+`metadata? : Data` marks a *field* optional at the declaration; `born: Date?`
+marks a *type* optional. Whether those are the same claim, and whether a missing
+key in a `Data` tree stays distinguishable from a present key holding nothing,
+is open — see [[fields]].
+
+## Open
+
+- The `match` form itself, and whether absence may ever be consumed implicitly
+  once it exists.
+- Whether `Option` is the only sum type or the first of several, and how a
+  failure carrier relates to it.
+- How an unresolved endpoint is carried by the [[link-op|link operator]], where
+  the edge exists but one of its ends does not.
+
+Implemented in `src/evaluation.rs` and `src/checker.rs`; tests in
+`tests/vault.rs`. See [the grammar](../../../models/behavior/expressions.md).

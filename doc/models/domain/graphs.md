@@ -16,9 +16,9 @@ evidence.
 
 ```text
 Node        whatever a graph relates; never a type of its own
-Edge[S,T]   a directed connection: source, target, data
-Graph[N,E]  a set of nodes and a set of edges over them
-Link[S,T]   an edge in a document graph
+Edge<S,T>   a directed connection: source, target, data
+Graph<N,E>  a set of nodes and a set of edges over them
+Link<S,T>   an edge in a document graph
 Relation    a knowledge relation, which is also an edge
 ```
 
@@ -27,16 +27,16 @@ over documents and a graph over concepts share one definition rather than a node
 union or a `kind` field.
 
 ```hql
-type Edge[S, T] {
+type Edge<S, T> {
     source: S
     target: T
     data:   Data
 }
 
-type Graph[N, E]
+type Graph<N, E>
 ```
 
-`Edge[S, T]` types the two ends separately. An edge whose ends differ in kind —
+`Edge<S, T>` types the two ends separately. An edge whose ends differ in kind —
 a card pointing at a concept, a concept supported by a document — needs no union
 at the node position, which is what keeps a mixed graph expressible.
 
@@ -48,11 +48,11 @@ thereby a `Parent` edge — an authored key never mints a type.
 ## Two instantiations
 
 ```hql
-type Link[S, T]     <: Edge[S, T]
-type HmdGraph       <: Graph[Card, Link]
+type Link<S, T>     <: Edge<S, T>
+type HmdGraph       <: Graph<Card, Link>
 
-type Relation[S, T] <: Edge[S, T]
-type KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}
+type Relation<S, T> <: Edge<S, T>
+type KnowledgeGraph <: {Knowledge, Graph<Concept, Relation>}
 ```
 
 The node parameters differ in a way worth reading carefully. The document graph
@@ -80,7 +80,7 @@ Both render through the same machinery without being the same object, which is
 the reason `Graph` is parameterized rather than declared once with a
 discriminator.
 
-`Relation[S, T] <: Edge[S, T]` is an ordinary narrowing: an edge has source,
+`Relation<S, T> <: Edge<S, T>` is an ordinary narrowing: an edge has source,
 target and data; a relation has those and adds identity, evidence and
 provenance. What is *not* true is `Relation <: Card`. A relation may be
 imported, derived or read from a store with no document anywhere; a
@@ -129,7 +129,7 @@ This is that requirement with a type behind it.
 
 Node identity is open. Two documents, two concepts, or a document and the
 concept it describes: when these are the same node has not been decided, and
-`Set[N]` presumes an answer.
+`Set<N>` presumes an answer.
 
 ## Direction and traversal
 
@@ -141,8 +141,8 @@ needs a vault. A node may be its own source and target.
 Whether a graph exposes its parts as collections, and which ones, is open:
 
 ```hql
-graph.nodes : Set[N]
-graph.edges : Set[E]
+graph.nodes : Set<N>
+graph.edges : Set<E>
 ```
 
 `Set` follows the collections model, since discovering edges must not establish
@@ -167,7 +167,7 @@ in a host as a picture.
 
 Its result type is the open question. A `KnowledgeGraph` keeps both contracts,
 so the projection loses nothing and the result can still be asked about claims,
-provenance and evidence. A bare `Graph[Concept, Relation]` is the weaker,
+provenance and evidence. A bare `Graph<Concept, Relation>` is the weaker,
 genuinely lossy result, which is all a host that only draws pictures needs.
 Whether these are two operations or one whose result type is stronger than it
 used to be is undecided.
@@ -200,8 +200,8 @@ boundary the [architecture](architecture.md) draws for documents.
 
 ## Open questions
 
-- **Variance.** `Card <: Doc`, so does `Graph[Card, Link] <: Graph[Doc, Edge]`?
-  A function written over `Graph[Doc, Edge]` is useless if not. Covariance is
+- **Variance.** `Card <: Doc`, so does `Graph<Card, Link> <: Graph<Doc, Edge>`?
+  A function written over `Graph<Doc, Edge>` is useless if not. Covariance is
   defensible while graphs are immutable values and unsound once one can be
   extended in place, so the answer follows from whether construction is pure.
 - **Endpoints as values or references.** A forward link to a document that does

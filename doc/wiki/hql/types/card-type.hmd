@@ -213,7 +213,7 @@ with an empty header, a card carrying a diagnostic, or no card at all.
 vault:
 
 ```hql
-cards : List<Card>
+cards : Set<Card>
 ```
 
 This is a context value, not a function call and not a filesystem sweep written
@@ -235,12 +235,9 @@ There is no matching keyword for documents, and there should not be. `cards` is
 bounded because a vault is bounded; documents in general are not a collection
 anything can enumerate.
 
-> The collection type is unsettled. This card states `List<Card>`, while
-> [[hql/collections]] records `Set<Card>`, on the grounds that discovering files
-> must not establish an ordering guarantee. The two pages have to be reconciled
-> by a decision about whether vault order is observable, not by editing one page
-> to match the other. Tracked as `CON-05` in
-> [consolidation](../../../status/consolidation.md).
+`cards` is a `Set<Card>`: discovering files establishes no ordering guarantee.
+A reproducible prefix does not need one, because a card carries its own
+ordering key — see [[orderable]] and [[hql/collections]].
 
 ## Extensions extend the header
 
@@ -268,8 +265,14 @@ import knowledge
 
 card.metadata          : Data              // before
 card.metadata          : KnowledgeMetadata
-card.metadata.concepts : List<Concept>
+card.metadata.concepts : List<Concept>   // see below
 ```
+
+> `List` is no longer part of the decided collection vocabulary, so this
+> occurrence needs a semantic choice between `Seq<Concept>` and `Set<Concept>`.
+> It is left unresolved deliberately: the answer follows from whether the order
+> of a card's concepts carries information, not from the bracket migration. See
+> [[hql/collections]].
 
 The runtime value is unchanged; what changed is what the checker can prove about
 it. An extension owns type knowledge about a header, not the header itself —
@@ -313,7 +316,7 @@ knowledge layer:
 
 ```hql
 card.metadata.knowledge.type == Relation
-card.metadata.relation : Relation[S, T]
+card.metadata.relation : Relation<S, T>
 ```
 
 That is refinement, reached the same way as any other metadata — see
@@ -328,7 +331,7 @@ narrowing, the spelling of validation and refinement, and whether narrowing is
 nominal or structural remain open.
 
 ```hql
-person : Person = validate[Person](card)
+person : Person = validate<Person>(card)
 ```
 
 Narrowing is also how a vault stays usable while it is being typed. A document

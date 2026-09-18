@@ -57,11 +57,11 @@ HMD renderer, module system, or large standard library in this repository.
 
 ## Type vocabulary to leave room for
 
-Future foundations include Date/DateTime, Option[T], Result[T,E],
-List[T], Map[K,V], Section, Block, Ref[T] and Namespace, with records, ADTs,
+Future foundations include Date/DateTime, Option<T>, Result<T,E>,
+List<T>, Map<K,V>, Section, Block, Ref<T> and Namespace, with records, ADTs,
 pattern matching and refinement. Prefer explicit optional/error values over
-pervasive null. String/Str naming, generic brackets and concrete schema syntax
-remain open. Formal direction uses constraint and
+pervasive null. Generics are written with angle brackets; String/Str naming and
+concrete schema syntax remain open. Formal direction uses constraint and
 satisfaction vocabulary; solver-backed or dependent checking is not bootstrap
 work. Reading is pure; transformations construct values and persistence is an
 explicit future effect.

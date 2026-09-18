@@ -107,7 +107,7 @@ the concept, carry propositions about it and supply evidence for those claims.
 An Alice card and a Project Atlas card are two concept nodes. A `WorksOn`
 relation connects them. Concepts imported without any card occupy node positions
 too — `ConceptCard <: Concept` does not require every concept to have a card,
-which is why `Graph[Concept, Relation]` is parameterized by `Concept` rather
+which is why `Graph<Concept, Relation>` is parameterized by `Concept` rather
 than by `ConceptCard`.
 
 ## RelationCard: the exception
@@ -120,7 +120,7 @@ name in the vault and incoming links of its own.
 
 ```hql
 card.metadata.knowledge.type == Relation
-card.metadata.relation : Relation[S, T]
+card.metadata.relation : Relation<S, T>
 ```
 
 **A `RelationCard` is not a `Relation`, and it is not a `ConceptCard` either.**
@@ -147,7 +147,7 @@ down, not what a relation is.
 What a relation narrows is the edge:
 
 ```hql
-type Relation[S, T] <: Edge[S, T]
+type Relation<S, T> <: Edge<S, T>
 ```
 
 An edge has source, target and data; a relation adds identity, evidence and
@@ -194,7 +194,7 @@ The knowledge extension then refines it:
 import knowledge
 
 card.metadata          : KnowledgeMetadata
-card.metadata.concepts : List[Concept]
+card.metadata.concepts : List<Concept>
 ```
 
 That is progressive refinement of one unchanged tree, not conversion. An
@@ -251,14 +251,14 @@ The graph projection is the one case where losing it is not acceptable, and the
 goal is a type that says so:
 
 ```hql
-type KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}
+type KnowledgeGraph <: {Knowledge, Graph<Concept, Relation>}
 ```
 
 A knowledge graph is a graph — concepts, concept cards among them, as nodes and
 relations as edges — and is still knowledge, retaining conflicting claims, provenance, evidence and
 constraints. Both contracts hold at once, so the projection loses nothing and
 the result can still be interrogated as knowledge rather than only drawn. A bare
-`Graph[Concept, Relation]` remains the weaker, lossy result for a host that only
+`Graph<Concept, Relation>` remains the weaker, lossy result for a host that only
 needs a picture. See [type system](../../wiki/hql/type-system.hmd) for what the
 declaration demands and [graph model](graphs.md) for the structural half.
 

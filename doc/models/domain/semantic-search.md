@@ -57,13 +57,13 @@ Embedding    a vector representation, produced by a named model
 Index        a searchable store over a corpus, with a revision and a horizon
 Metric       how two embeddings are compared
 Score        a metric result — always relative to one query
-Hit[T]       a value, its score, and the retrieval that produced both
-Ranking[T]   an ordered collection of hits with a stated tie rule
+Hit<T>       a value, its score, and the retrieval that produced both
+Ranking<T>   an ordered collection of hits with a stated tie rule
 Retrieval    the retained rule: query, index, model, metric, approximation
 ```
 
 ```hql
-type Hit[T] {
+type Hit<T> {
     value      : T
     score      : Score
     provenance : Retrieval
@@ -77,12 +77,12 @@ type Retrieval {
     approximate : Bool
 }
 
-type Ranking[T] <: Seq[Hit[T]]
+type Ranking<T> <: Seq<Hit<T>>
 ```
 
 `Ranking` narrows `Seq` the way `Relation` narrows `Edge`: it adds what makes the
 order meaningful — the query the order is relative to, and the rule that broke
-ties. A bare `Seq[Hit[T]]` is an ordered pile of scored things with no statement
+ties. A bare `Seq<Hit<T>>` is an ordered pile of scored things with no statement
 about where the order came from.
 
 `Query` is a type, not a `String`. HQL has no implicit conversions, so
@@ -155,7 +155,7 @@ inputs to one path, and which wins is not decided.
 `cards | semantic(...)` ranks **representations**. AI memory wants to recall
 **knowledge**. The knowledge model is explicit that these differ: `Card` is the
 base representation type, `ConceptCard <: {Card, Concept}` occupies a node
-position, and `Graph[Concept, Relation]` is parameterized by `Concept` rather
+position, and `Graph<Concept, Relation>` is parameterized by `Concept` rather
 than `ConceptCard` precisely because a concept can exist with no card at all —
 imported, derived, or read from a store.
 
@@ -164,8 +164,8 @@ that silently cannot recall part of itself is worse than one that says so. Two
 operations, not one:
 
 ```hql
-semantic(q) : Set[Card]  -> Ranking[Card]      // over representations
-recall(q)   : Knowledge  -> Ranking[Concept]   // over knowledge
+semantic(q) : Set<Card>  -> Ranking<Card>      // over representations
+recall(q)   : Knowledge  -> Ranking<Concept>   // over knowledge
 ```
 
 `recall` is the AI-memory operation. It needs a stated answer for how a concept
@@ -288,7 +288,7 @@ Ordered so each step is testable without the one after it.
 1. **Ordering primitives** — *done.* `Seq`, `take(n)`, and a tie rule. The
    prefix question resolved better than this document expected: a `Card` is
    orderable by its own name, so a prefix is reproducible without vault order
-   becoming observable. See [orderable cards](../../memory/orderable-cards.md).
+   becoming observable. See [Orderable](../../wiki/hql/types/orderable.hmd).
 2. **`Hit`, `Ranking`, `Retrieval`** — *done.* `semantic` is a pure function
    over a supplied corpus with a locally computed embedding, `hql.hashbag.v1`,
    deterministic and exact. Every hit carries the rule that produced it.
@@ -321,12 +321,12 @@ language.
   mints no node and no edge. If that is wrong, the correction is that `Hit` and
   `Ranking` belong to the knowledge domain as evidence types.
 - **`Query` construction** and whether a bare string literal may stand for one.
-- **Whether `Ranking[T] <: Seq[Hit[T]]`** or ranking is a carrier that yields a
+- **Whether `Ranking<T> <: Seq<Hit<T>>`** or ranking is a carrier that yields a
   sequence, which is the same shape as the graph-materialization question.
 - **Whether a score may ever be persisted**, for example as a cached answer to a
   pinned query against a pinned index revision.
-- **Chunking.** A card is not a retrieval unit; a passage is. What a `Hit[Card]`
-  means when the match was one section, and whether `Hit[Section]` exists.
+- **Chunking.** A card is not a retrieval unit; a passage is. What a `Hit<Card>`
+  means when the match was one section, and whether `Hit<Section>` exists.
 - **Multiple indexes.** Which answers, how results from two models combine, and
   whether combining is a ranking operation or a knowledge one.
 - **Hybrid retrieval.** Lexical and structural signals beside the vector one, and

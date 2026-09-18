@@ -4,8 +4,8 @@ Opened 2026-09-17 on branch `feat/lang-design`.
 
 This file tracks **consolidation work**: renames and removals that a settled
 decision implies but that have not yet been carried through every file. It is a
-work index, not a decision record. A decision belongs in `doc/proposals/` or
-`doc/memory/`; a contradiction still awaiting one belongs in
+work index, not a decision record. A decision belongs in `doc/proposals/` or a
+`doc/models/` document; a contradiction still awaiting one belongs in
 [inconsistencies.md](inconsistencies.md) as an `INC-NN` finding.
 
 Items carry stable `CON-NN` identifiers so a commit can point at one without
@@ -26,13 +26,14 @@ the decision behind it is recorded, and its identifier is not reused.
 | CON-10 | Links to `first-milestone`, which no longer exists | done |
 | CON-11 | `typed Relation` over cards becomes `typed RelationCard` | open, corpus residue |
 | CON-12 | `Card` splits into `ConceptCard` and `RelationCard` | done, corpus residue |
+| CON-13 | Generics are written `<T>`; `[]` stays value-level | done, corpus residue |
 
 ## CON-01 — Drop HmdCard
 
 **Decided.** The type is `Card`, with no alias and no `Hmd` prefix. The prefix
 named a condition the type no longer has: card-ness is a knowledge property, not
 a file format, so nothing about a card follows from its file being `.hmd`. See
-[extension boundary](../memory/extension-boundary.md).
+[extensions](../wiki/hql/extensions.hmd).
 
 Done in [Card](../wiki/hql/types/card-type.hmd),
 [design status](../wiki/hql/design-status.hmd),
@@ -68,9 +69,9 @@ this item.
 **Decided 2026-09-18**, and not by picking one of the two spellings. The
 question was whether a reproducible prefix requires vault order to be
 observable. It does not: a `Card` carries an ordering key of its own, its name,
-so `cards : Set[Card]` stands *and* `cards | take(5)` is well defined. Order
+so `cards : Set<Card>` stands *and* `cards | take(5)` is well defined. Order
 comes from the values, never from how they were found — see
-[orderable cards](../memory/orderable-cards.md).
+[Orderable](../wiki/hql/types/orderable.hmd).
 
 `Orderable` is now what `take` requires of an element type, and it is
 implemented. The `List<Card>` reading in
@@ -94,7 +95,7 @@ sidestepped rather than answered: an extension contributes under a key it owns
 (`metadata.search.*`, `metadata.git.*`), so an authored entry and a contributed
 one cannot collide. What remains open is an authored entry contradicting a
 derived one on a path neither obviously owns, such as `title`, which is `CON-06`.
-See [the CLI host](../memory/cli-host.md).
+See [the command line](../models/behavior/cli.md).
 
 The original statement of the item follows.
 
@@ -135,8 +136,7 @@ card described. `INC-12`'s four other broken links are untouched and still open.
 `Relation`. The idiom is `cards | typed RelationCard | graph` — see `INC-22`.
 
 Done throughout `doc/`. Residue: the example corpus is not present in this
-working tree, and [corpus direction](../memory/corpus-direction.md) records that
-its rows still carry the old spelling. Closing this item means sweeping
+working tree, and its rows still carry the old spelling. Closing this item means sweeping
 `examples/` when it is back.
 
 ## CON-12 — Card splits into ConceptCard and RelationCard
@@ -145,7 +145,7 @@ its rows still carry the old spelling. Closing this item means sweeping
 `ConceptCard <: {Card, Concept}` is the node-occupying default and
 `RelationCard <: Card` is the exception, declared by
 `metadata.knowledge.type == Relation`. `Card <: Concept` is withdrawn. See
-[card family](../memory/card-family.md).
+[Card](../wiki/hql/types/card-type.hmd).
 
 Done in the knowledge and graph models and in the Card, Doc, Graph, type-system,
 knowledge, pipes, link-op, design-status and design-direction cards.
@@ -154,3 +154,33 @@ Residue: the example corpus, same reason as `CON-11`. Also unswept are
 `examples/std-lib/`, where `HmdCard`, `MdCard` and `DataCard` implement `Card` —
 that direction is unaffected, since they are representations of the base type,
 but the cases should say which kind they produce.
+
+## CON-13 — Generic brackets become angle brackets
+
+**Decided 2026-09-18.** Generics are written `<T>` in every position — binding a
+parameter and applying a constructor alike — and square brackets are reserved
+for sequence values and indexing. The hybrid that would have bound with `[]` and
+applied with `<>` is rejected. See
+[bind versus apply](../models/behavior/bind-vs-apply-in-generic-types.md).
+
+This closes the divergence the wiki had been tracking in its own text: three
+cards carried a note saying the two spellings were one unsettled choice that the
+card did not settle. Those notes are gone, and the rule is stated in
+[type-system](../wiki/hql/type-system.hmd), [core](../wiki/hql/core.hmd) and
+[design-status](../wiki/hql/design-status.hmd).
+
+Done throughout `doc/**`, including binder positions such as `fn titles<T>` and
+call-site application such as `validate<Person>(card)`. The implementation was
+converted separately and is `INC-24`, which the lexer, parser and `Type::Display`
+now satisfy; this item is the documentation half of the same decision.
+
+Residue: the example corpus is not present in this working tree and still uses
+`[]`, same reason as `CON-11` — `INC-05` and `INC-06` name the affected cases.
+Deliberately unswept inside `doc/`: the rejected-hybrid examples in the decision
+document, which are what it argues against, and the quotations in
+[inconsistencies.md](inconsistencies.md) that are the evidence for `INC-06` and
+`INC-16`.
+
+The migration was spelling only. Where respelling would have required a semantic
+choice — `List<Concept>` on [Card](../wiki/hql/types/card-type.hmd) — the
+occurrence was left unresolved and annotated instead.

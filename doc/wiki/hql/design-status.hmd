@@ -3,8 +3,9 @@ tags: [hql, decisions, design]
 ---
 # HQL design status
 
-HQL remains in language design. These cards record the current direction and
-separate it from both older corpus alternatives and implemented behavior.
+HQL remains in language design. These cards are the current state of that
+design and the source of truth for it. Where an implementation is narrower than
+the design, the card says so.
 
 | Card | Scope |
 | --- | --- |
@@ -19,22 +20,29 @@ separate it from both older corpus alternatives and implemented behavior.
 | [[type-system]] | `<:`, generic parameters and progressive type refinement |
 | [[fields]] | Optional `?` fields, partial schemas, and the two metadata layers |
 | [[link-op]] | Doc references and the `[[..]] -> [[..]] {..}` link operator |
-| [[graph-type]] | `Graph[N, E]`, `Edge[S, T]`, and the document and knowledge graphs |
+| [[graph-type]] | `Graph<N, E>`, `Edge<S, T>`, and the document and knowledge graphs |
+| [[orderable]] | `Orderable`, the card's own key, and the `take` contract |
+| [[option-type]] | `Option<T>`, absence, and the optional-by-type doc reference |
+| [[hql/presentation]] | Terminal presenters and the host default |
+| [[hql/error-reporting]] | Severities, the report queue, `strict` and `collect` |
+| [[hql/semantic-search]] | `semantic`, `Hit`, `Ranking` and the read path of memory |
 | [[hql/std-lib]] | Placeholder for the standard library; a bootstrap non-goal |
 
 ## Current direction
 
-Prefer ordinary functions, bare bindings and fundamental pipe syntax. Keep SQL
-clauses and Rust-like trait machinery out of the design — **decided**, against
-the competing direction an earlier memory note had recorded. A trait is a host
+Prefer ordinary functions, bare bindings and fundamental pipe syntax. SQL
+clauses and Rust-like trait machinery stay out of the design. A trait is a host
 mechanism an extension may use internally and it never reaches HQL's surface;
-what had been asked of it splits into ancestry (`<:`), capability (an extension
-registers a function) and a partial schema over `Data`. See
-[no traits](../../memory/no-traits.md). Extensions supply
-external capabilities and may be written in Rust. Optional namespace `init.hql`
-files import available modules and extensions.
+what would be asked of it splits into ancestry (`<:`), capability (an extension
+registers a function) and a partial schema over `Data` — see [[type-system]].
+Extensions supply external capabilities and may be written in Rust. Optional
+namespace `init.hql` files import available modules and extensions.
 
-`cards` is a `Set<Card>` in the current vault or namespace. `knowledge` comprises
+Generic types are written with angle brackets — `Set<Card>`, `fn first<T>(xs:
+Seq<T>) : T?` — and square brackets are reserved for sequence values and
+indexing. `cards` is a `Set<Card>` in the current vault or namespace, and a
+prefix of it is reproducible because a card carries its own ordering key — see
+[[orderable]]. `knowledge` comprises
 concepts, relations, propositions and evidence. Knowledge retains conflicting
 claims and provenance; a graph is only one projection. Programs return typed
 values, persistence is explicit, and presentation belongs to a separate layer.
@@ -58,22 +66,16 @@ contributions, `.hmd/**` vault state and other derived information, under
 precedence rules [[card-type]] owns and has not settled. The card family is
 recorded in [[type-system]] and fields in [[fields]].
 
-The Set/Seq vocabulary supersedes the assumption in older examples that `cards`
-is an ordered List. Those examples remain design inputs, not a final language
-specification. This documentation change does not migrate the corpus or expand
-the implementation.
-
 ## Decisions still needed
 
-- Function/declaration grammar, generic bracket spelling, bound syntax,
-  variance, inference and pipe argument placement — see [[type-system]].
+- Function/declaration grammar, bound syntax, variance, inference and pipe
+  argument placement — see [[type-system]].
 - Collection equality, Card identity, mapping duplicates and ordering contracts.
-- Whether `cards` is `List<Card>` or `Set<Card>`: [[card-type]] states the
-  ordered reading, [[hql/collections]] the unordered one. Vault order is the
-  question, not the spelling.
-- Document schemas, reference failures, optional values and error carriers.
+- Document schemas and error carriers; an explicit `match` in place of the
+  implicit lifting of absence — see [[option-type]].
 - Semantic constructors, derivation rules and constraint/satisfaction types.
-- The name and type boundary between graph projection and graph presentation.
+- The name and type boundary between graph projection and graph presentation —
+  see [[hql/presentation]].
 - Module resolution, namespace inheritance and `init.hql` initialization policy.
 - Extension transport, effect contracts and optimizer-visible execution properties.
 
@@ -88,11 +90,10 @@ parser accepts is recorded in
 [the grammar](../../models/behavior/expressions.md); what it deliberately does
 not is in the [bootstrap requirements](../../models/requirements/bootstrap.md).
 
-Implementing that slice settled `CON-05` — a `Card` is orderable by its name, so
-a reproducible prefix needs no observable vault order — and `INC-15`, where an
-unresolved reference warns and yields absence. Both are recorded in
+Which findings the implemented slice settled is tracked in
 [consolidation](../../status/consolidation.md) and
-[inconsistencies](../../status/inconsistencies.md).
+[inconsistencies](../../status/inconsistencies.md); this card records the
+outcome, not the history.
 
 ## Architecture sources
 
@@ -101,9 +102,12 @@ The sources these cards were drawn from:
 - [[design-direction]] and the [example corpus](../../../examples/README.md).
 - [Knowledge model](../../models/domain/knowledge.md) and
   [integration architecture](../../models/domain/architecture.md).
-- [Program values](../../models/behavior/program-values.md),
-  [corpus decisions](../../memory/corpus-direction.md) and
-  [bootstrap decisions](../../memory/bootstrap.md).
+- [Program values](../../models/behavior/program-values.md) and the
+  [bootstrap requirements](../../models/requirements/bootstrap.md).
+- [Bind versus apply in generic types](../../models/behavior/bind-vs-apply-in-generic-types.md),
+  which decides the bracket rule, and
+  [optional fields and optional values](../../models/behavior/options-in-types-and-fields.md),
+  which decides `field?` against `type?`.
 
 Read those sources before changing language design. Keep unresolved alternatives
 visible until a decision is made; illustrative syntax is not implementation evidence.

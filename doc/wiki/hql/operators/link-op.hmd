@@ -137,24 +137,24 @@ same reason the header is `Data` rather than a declared record.
 The edge types belong to the graph extension, not to the core:
 
 ```hql
-type Edge[S, T] {
+type Edge<S, T> {
     source: S
     target: T
     data: Data
 }
 
-type Graph[N, E]
+type Graph<N, E>
 ```
 
 HMD specializes them for documents, and the knowledge extension specializes them
 independently for meaning:
 
 ```hql
-type Link[S, T]     <: Edge[S, T]
-type HmdGraph       <: Graph[Card, Link]
+type Link<S, T>     <: Edge<S, T>
+type HmdGraph       <: Graph<Card, Link>
 
-type Relation[S, T] <: Edge[S, T]
-type KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}
+type Relation<S, T> <: Edge<S, T>
+type KnowledgeGraph <: {Knowledge, Graph<Concept, Relation>}
 ```
 
 That separation is the point. `[[alice]] -> [[project-x]]` is an edge in the

@@ -45,7 +45,7 @@ link to itself.
 Significant relationships are preferably given relation cards: a card that
 represents a `Relation`, so the relationship gains a body, a name in the vault
 and incoming links of its own. `Relation` is a first-class type here, narrowing
-`Edge[S, T]` — see [[graph-type]] — and never `Card`; a card *carries* one, as
+`Edge<S, T>` — see [[graph-type]] — and never `Card`; a card *carries* one, as
 `card.metadata.relation`, which is refinement and not narrowing. That is why
 `RelationCard` takes no graph parent: it contributes an edge without becoming a
 node, while `ConceptCard <: Concept` does occupy a node position. Semantic and

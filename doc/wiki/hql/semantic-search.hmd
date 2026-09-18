@@ -1,0 +1,133 @@
+---
+tags: [hql, search, retrieval, knowledge, memory]
+---
+# Semantic search
+
+Semantic search orders a corpus against a query and hands back a prefix. It is
+the **read path of AI memory** over a [[hql/knowledge|knowledge]] base.
+
+```hql
+cards
+| semantic("bearer token authorization")
+| take(5)
+| expand(depth = 1)
+| graph
+```
+
+It has a vocabulary of its own but mints no node type and no edge type, so it is
+not a peer domain in the sense [[type-system]] uses: nothing in it is anyone's
+parent.
+
+## Vocabulary
+
+```hql
+type Hit<T> {
+    value      : T
+    score      : Score
+    provenance : Retrieval
+}
+
+type Retrieval {
+    query       : Query
+    index       : IndexRef
+    model       : ModelRef
+    metric      : Metric
+    approximate : Bool
+}
+
+type Ranking<T> <: Seq<Hit<T>>
+```
+
+`Ranking` narrows `Seq` the way a `Relation` narrows an `Edge`: it adds what
+makes the order meaningful — the query the order is relative to, and the rule
+that broke ties. A bare `Seq<Hit<T>>` is an ordered pile of scored things with
+no statement about where the order came from. See [[orderable]] for the tie rule.
+
+## A score is evidence, never relevance
+
+The knowledge domain rests on one rule: interpretation is a step, and the rule
+used must be retained with the result. A similarity score is an interpretation —
+produced by a named model over a particular chunking under a particular metric
+against an index at a particular revision.
+
+```text
+Proposition   Relevant(card, query)
+Evidence      the Hit — score, model, index revision, metric
+Provenance    which index answered, and when
+```
+
+A card scoring 0.91 is not more true than one scoring 0.42; it is more similar
+to a query under one model. That is why **`Retrieval` is not optional on
+`Hit`**: a hit that cannot say how it was produced is not evidence.
+
+## An index contributes embeddings, never scores
+
+| Belongs in `card.metadata` | Cannot | Why |
+| --- | --- | --- |
+| Embeddings, chunk identities | | a property of the card |
+| Index membership, indexed revision | | a property of the card |
+| Staleness against the card's content | | a property of the card |
+| | A score | exists only relative to a query |
+| | A rank | exists only relative to a query and a corpus |
+
+A card has an embedding whether or not anyone ever searches; it has no score
+until someone asks something. The index extension contributes under
+`metadata.search`, a key it owns — see [[fields]] and [[card-type]].
+
+## Cards are not concepts
+
+`semantic` ranks **representations**. AI memory wants to recall **knowledge**.
+
+```hql
+semantic(q) : Set<Card>  -> Ranking<Card>      // over representations
+recall(q)   : Knowledge  -> Ranking<Concept>   // over knowledge
+```
+
+A `Concept` can exist with no card at all — imported, derived, or read from a
+store — which is why `Graph<Concept, Relation>` is parameterized by `Concept`.
+Those cardless concepts have no text, so text search cannot reach them, and a
+memory that silently cannot recall part of itself is worse than one that says
+so. `recall` is the AI-memory operation and is not implemented.
+
+**A `RelationCard` hit is not a seed.** It contributes an edge and is not a
+node, so treating every hit as a node reintroduces the duplication the card
+split prevents — see [[card-type]].
+
+## Approximation is semantics, not optimization
+
+Approximate nearest-neighbour search does not preserve observable values, so
+pushing `semantic | take` into a store is illegal under the [[pipes]] optimizer
+rule. The resolution is not to weaken that rule: **`semantic` declares itself
+approximate in its own contract**, so the difference is part of what the step
+means rather than a liberty the executor took. `approximate` is a field on
+`Retrieval` for the same reason — a consumer can see which answer it got.
+
+Purity follows the same line. The same query against a changed index gives
+different answers; pinning an index revision makes `semantic` reproducible, and
+without pinning it is an effect.
+
+## What is built
+
+`semantic` uses `hql.hashbag.v1`: a hashed bag of words compared by cosine,
+offline, deterministic and exact, reporting `approximate: false`. It is a step
+on the path, not a stand-in for a trained model. Replacing the model changes the
+numbers, not the shape — which is the point of `Retrieval` being on every `Hit`.
+
+`expand` and `graph` stay two stages. `expand(depth, direction)` traverses and
+produces a graph carrying why each node is present; `graph` projects a
+collection, and projecting a graph yields it unchanged.
+
+## Open
+
+- **`Query` construction** and whether a bare string literal may stand for one.
+- **Chunking.** A card is not a retrieval unit; a passage is.
+- **Multiple indexes**, hybrid retrieval, and whether a fused score can still
+  carry an honest `Retrieval`.
+- **Filtering before or after** — `cards | typed ConceptCard | semantic(q)`
+  versus filtering the ranking.
+- **The write path** — remembering, reconciliation, consolidation of
+  co-retrieval into derived relations, and eviction. A score may *propose* that
+  two concepts are the same and may never *decide* it.
+
+See the [semantic search model](../../models/domain/semantic-search.md) for the
+staged implementation path and the full set of open questions.

@@ -165,16 +165,16 @@ impl fmt::Display for Type {
             Self::Graph => f.write_str("Graph"),
             Self::Presentation => f.write_str("Presentation"),
             Self::Orderable => f.write_str("Orderable"),
-            Self::Set(element) => write!(f, "Set[{element}]"),
-            Self::Seq(element) => write!(f, "Seq[{element}]"),
-            Self::Hit(element) => write!(f, "Hit[{element}]"),
-            Self::Ranking(element) => write!(f, "Ranking[{element}]"),
-            Self::Option(element) => write!(f, "Option[{element}]"),
+            Self::Set(element) => write!(f, "Set<{element}>"),
+            Self::Seq(element) => write!(f, "Seq<{element}>"),
+            Self::Hit(element) => write!(f, "Hit<{element}>"),
+            Self::Ranking(element) => write!(f, "Ranking<{element}>"),
+            Self::Option(element) => write!(f, "Option<{element}>"),
         }
     }
 }
 
-/// Resolve a written type name, such as `Set[Card]`.
+/// Resolve a written type name, such as `Set<Card>`.
 #[must_use]
 pub fn named(name: &str, arguments: &[Type]) -> Option<Type> {
     let single = || arguments.first().cloned().unwrap_or(Type::Data);

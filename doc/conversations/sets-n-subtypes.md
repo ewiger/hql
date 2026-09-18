@@ -1,7 +1,7 @@
 # Sets, subtypes, and the pipe boundary
 
 A design conversation on `<:` as the single subtype relation, set-of-supertypes
-syntax, edges as ordinary data, generic contracts such as `Renderable[T]`, and
+syntax, edges as ordinary data, generic contracts such as `Renderable<T>`, and
 what typing the pipe operator does and does not carry.
 
 ## Converging surface
@@ -113,29 +113,29 @@ boundary extremely well.
 The graph extension could introduce something along these lines:
 
 ```hql
-type Edge[S, T] {
+type Edge<S, T> {
     source: S
     target: T
     data: Data
 }
 
-type Graph[N, E]
+type Graph<N, E>
 ```
 
 Then HMD specializes it:
 
 ```hql
-type Link[S, T] <: Edge[S, T]
+type Link<S, T> <: Edge<S, T>
 
-type HmdGraph <: Graph[Card, Link]
+type HmdGraph <: Graph<Card, Link>
 ```
 
 while the knowledge extension can independently have things such as:
 
 ```hql
-type Relation[S, T] <: Edge[S, T]
+type Relation<S, T> <: Edge<S, T>
 
-type KnowledgeGraph <: Graph[Concept, Relation]
+type KnowledgeGraph <: Graph<Concept, Relation>
 ```
 
 That distinction is useful. An HMD link `[[alice]] -> [[project-x]]` is an edge
@@ -205,24 +205,24 @@ function/operator transforming a knowledge value into a `Graph`; the resulting
 
 ## Generic contracts
 
-> I forgot the generic typing as in `Renderable[T] {..}`
+> I forgot the generic typing as in `Renderable<T> {..}`
 
 That actually makes the model cleaner. Instead of a bare `Renderable`, the
-rendering contract can be parameterized by the rendered result: `Renderable[T]`.
+rendering contract can be parameterized by the rendered result: `Renderable<T>`.
 
 ```hql
-Graph <: Renderable[Html]
-Table <: Renderable[Html]
-Json  <: Renderable[Text]
+Graph <: Renderable<Html>
+Table <: Renderable<Html>
+Json  <: Renderable<Text>
 ```
 
 or, if one type can support several renderings:
 
 ```hql
 Graph <: {
-    Renderable[Html],
-    Renderable[Svg],
-    Renderable[Json]
+    Renderable<Html>,
+    Renderable<Svg>,
+    Renderable<Json>
 }
 ```
 
@@ -232,7 +232,7 @@ That is much more expressive than a non-generic `Renderable`, because
 Conceptually it would be defined as something like:
 
 ```hql
-type Renderable[T] {
+type Renderable<T> {
     render: () -> T
 }
 ```
@@ -240,7 +240,7 @@ type Renderable[T] {
 or, depending on how HQL handles behavior:
 
 ```hql
-type Renderable[T]
+type Renderable<T>
 ```
 
 with the actual `render(Self) -> T` implementation supplied by the
@@ -249,17 +249,17 @@ extension/runtime.
 This also means generic constraints become useful:
 
 ```hql
-fn show[T, R](x: T)
-where T <: Renderable[R]
+fn show<T, R>(x: T)
+where T <: Renderable<R>
 ```
 
 or perhaps more compactly:
 
 ```hql
-fn show[T <: Renderable[R], R](x: T)
+fn show<T <: Renderable<R>, R>(x: T)
 ```
 
-But rushing into Rust-style `T: Renderable[R]` syntax is worth avoiding if `<:`
+But rushing into Rust-style `T: Renderable<R>` syntax is worth avoiding if `<:`
 is already the canonical subtype relation. Keeping one relation syntax is
 aesthetically stronger.
 
@@ -267,16 +267,16 @@ And then the set-of-supertypes idea becomes particularly nice:
 
 ```hql
 type Graph <: {
-    Collection[Edge],
-    Renderable[Html],
-    Renderable[Svg]
+    Collection<Edge>,
+    Renderable<Html>,
+    Renderable<Svg>
 }
 ```
 
 Now `{...}` isn't just multiple nominal parents; it naturally expresses the set
 of generic contracts the type refines/satisfies.
 
-The key question then becomes whether `Renderable[T]` is meant to be a true
+The key question then becomes whether `Renderable<T>` is meant to be a true
 subtype with structure, or a behavior-only contract backed by Rust
 implementations. For HQL the latter is probably more useful.
 
@@ -314,7 +314,7 @@ output type of left stage <: input type of right stage
 Conceptually the operator is polymorphic:
 
 ```text
-(|)[A, B] : A -> (A -> B) -> B
+(|)<A, B> : A -> (A -> B) -> B
 ```
 
 but users would never be required to write those generics. They are inferred.
@@ -352,26 +352,26 @@ Query semantics:
 The standard operations have ordinary generic types:
 
 ```hql
-map[A, B](
+map<A, B>(
     f: A -> B
-) : Collection[A] -> Collection[B]
+) : Collection<A> -> Collection<B>
 
-filter[T](
+filter<T>(
     predicate: T -> Bool
-) : Collection[T] -> Collection[T]
+) : Collection<T> -> Collection<T>
 
-reduce[A, B](
+reduce<A, B>(
     initial: B,
     f: (B, A) -> B
-) : Collection[A] -> B
+) : Collection<A> -> B
 ```
 
 Possibly:
 
 ```hql
-group[A, K](
+group<A, K>(
     key: A -> K
-) : Collection[A] -> Groups[K, A]
+) : Collection<A> -> Groups<K, A>
 ```
 
 Now the compiler can type-check a whole pipeline:
@@ -419,7 +419,7 @@ QueryStage<Groups<Kind, Concept>, Summary>
 It can then determine that the first two stages are trivially parallelizable,
 `group` introduces repartitioning, and `reduce` is an aggregation boundary.
 
-But exposing something such as `Pipe[A, B]` as a fundamental HQL concept is
+But exposing something such as `Pipe<A, B>` as a fundamental HQL concept is
 premature.
 
 A Rust extension implementing a function may internally advertise execution
@@ -427,22 +427,22 @@ properties like:
 
 ```text
 map
-  input: Collection[A]
-  output: Collection[B]
+  input: Collection<A>
+  output: Collection<B>
   parallel: elementwise
 
 filter
-  input: Collection[A]
-  output: Collection[A]
+  input: Collection<A>
+  output: Collection<A>
   parallel: elementwise
 
 group
-  input: Collection[A]
-  output: Groups[K, A]
+  input: Collection<A>
+  output: Groups<K, A>
   parallel: partition
 
 reduce
-  input: Collection[A]
+  input: Collection<A>
   output: B
   parallel: reduction
 ```

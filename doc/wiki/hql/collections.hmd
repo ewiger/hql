@@ -10,7 +10,7 @@ These are language-design contracts, not implemented collection APIs.
 | --- | --- | --- |
 | `Set<T>` | Unordered collection of distinct elements | No implicit first element or stable iteration order |
 | `Seq<T>` | Ordered sequence, allowing repeated elements | Position and order are observable |
-| `Map<K,V>` | Values associated with distinct keys | Lookup is by key; iteration order is not implied |
+| `Map<K, V>` | Values associated with distinct keys | Lookup is by key; iteration order is not implied |
 
 Equality, Card identity, key eligibility, missing-key results and duplicate-key
 construction policy need explicit definitions before implementation. Set
@@ -29,10 +29,10 @@ can establish a sequence; merely discovering files must not establish a language
 ordering guarantee. Selecting a reproducible prefix requires a defined order,
 including how equal sort keys are handled.
 
-Older [corpus examples](../../../examples/README.md) use `List[Card]` and sometimes
-fixture path order. Those are earlier design candidates. The current direction
-uses `Set<Card>` for `cards` and `Seq<T>` when order matters; no List alias or
-automatic conversion has been decided.
+`cards` is a `Set<Card>`, and `Seq<T>` is what a `sort` or a ranking produces
+when order matters. There is no `List` alias and no automatic conversion. A
+prefix of a set is reproducible because its elements carry their own ordering
+key — see [[orderable]].
 
 ## Collection functions
 

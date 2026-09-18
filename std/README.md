@@ -1,0 +1,53 @@
+# `std/` — the HQL standard library
+
+The type declarations HQL ships with, written in HQL.
+
+**Status: not yet loadable.** The parser has no `type` declaration, so nothing
+here is read by the binary or checked by a test. These files are the single
+place the declarations live as *source* rather than as prose inside a card.
+Making them load is [issue 0003](../doc/issues/0003-type-declarations.md).
+
+## What belongs here, and what does not
+
+| Place | Holds |
+| --- | --- |
+| `std/` | the declarations themselves, as HQL |
+| `doc/wiki/hql/` | cards arguing *why* a declaration is what it is |
+| `doc/models/` | the domains the declarations describe |
+| `examples/` | design inputs, explicitly allowed to keep superseded alternatives |
+| `tests/fixtures/` | inputs to tests |
+
+The distinction that matters is the fourth row. The corpus under `examples/` may
+hold a withdrawn spelling beside a current one, because its job is to record
+what was considered. A standard library may not: there is one declaration of
+`Edge`, and it is the one that is true now. Keeping them apart is what stops a
+reader finding two answers and having to date them.
+
+A card and a file here will say the same thing twice, which is a real cost.
+The rule is that the file is the declaration and the card is the argument: when
+they disagree, the card explains something that no longer exists, and the card
+is what gets fixed.
+
+## Layout
+
+One file per module, mirroring the extension split in
+[HQL-0001](../doc/proposals/HQL-0001/README.md), so a module's declarations sit
+where its steps will:
+
+| File | Module |
+| --- | --- |
+| `core.hql` | the collection and data vocabulary the core owns |
+| `doc.hql` | documents |
+| `graph.hql` | the graph domain |
+| `knowledge.hql` | the knowledge domain, including the card family |
+| `retrieval.hql` | ranking, arriving with [HQL-0002](../doc/proposals/HQL-0002/README.md) |
+
+## Conventions
+
+Generics are written with **angle brackets** in both positions — `Set<T>`,
+`Edge<S, T>` — and square brackets stay value-level. See
+[bind versus apply](../doc/models/behavior/bind-vs-apply-in-generic-types.md).
+
+Every declaration here appears in a card. Nothing is invented in this folder: if
+a declaration is not settled, it stays in the card as an open question until it
+is, rather than being written here to look decided.

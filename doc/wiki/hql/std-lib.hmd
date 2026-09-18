@@ -1,4 +1,35 @@
+---
+tags: [hql, std-lib, types, design]
+---
 # Standard HQL library
 
+The declarations HQL ships with live in [`std/`](../../../std/README.md), written
+in HQL rather than described in prose. One file per module, mirroring the
+extension split: `core`, `doc`, `graph`, `knowledge`, `retrieval`.
 
-Core + plus some frequently used extensions
+These cards and those files say the same thing twice, which is a real cost worth
+naming. The division is that **the file is the declaration and the card is the
+argument**. `std/graph.hql` states that `Link<S, T> <: Edge<S, T>`;
+[[graph-type]] explains why an edge is the primitive and why its payload is
+[[data-type|Data]]. When the two disagree, the card is describing something that
+no longer exists, and the card is what gets fixed.
+
+`std/` is deliberately not [the corpus](../../../examples/README.md). The corpus
+records what was considered and may keep a withdrawn spelling beside a current
+one; a standard library may not. There is one declaration of `Edge`, and it is
+the one that is true now.
+
+## Not yet loadable
+
+The parser has no `type` statement, so nothing in `std/` is read by the binary
+or checked by a test. Tracked as
+[issue 0003](../../issues/0003-type-declarations.md), which is itself blocked on
+the angle-bracket migration recorded as `INC-24`.
+
+A standard library is a bootstrap non-goal in
+[requirements](../../models/requirements/bootstrap.md), and that still holds:
+having a home for the declarations is not the same as shipping a library of
+functions.
+
+See [[type-system]] for `<:`, generics and refinement, [[hql/core]] for the
+vocabulary, and [[hql/extensions]] for the modules the layout follows.

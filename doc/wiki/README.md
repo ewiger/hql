@@ -6,7 +6,7 @@ single thing and links to its neighbours with `[[wikilinks]]`, so understanding
 emerges from small, connected cards rather than one long document.
 
 Start from any card and follow the links; see
-[hyper-markdown.hmd](hyper-markdown.hmd) for the format itself. Related cards can
+[hypermarkdown.hmd](hypermarkdown.hmd) for the format itself. Related cards can
 be grouped in topic subfolders.
 
 ## Writing a card

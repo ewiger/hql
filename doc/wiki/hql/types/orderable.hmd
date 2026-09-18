@@ -1,0 +1,63 @@
+---
+tags: [hql, types, ordering, collections]
+---
+# `Orderable`
+
+`Orderable` is an ordinary **supertype**, not a bound, a capability or a trait.
+A type narrows it when its values carry an ordering key of their own:
+
+```hql
+Int <: Orderable
+Float <: Orderable
+String <: Orderable
+Doc <: Orderable
+Card <: Orderable
+Hit <: Orderable
+```
+
+Collections and [[data-type|Data]] do not. The distinction is the one
+[[type-system]] draws between ancestry and capability: the key is a property of
+the value, not something registered for it from outside.
+
+## Why a card is orderable
+
+A card carries its own key: its **name**. That is what makes a prefix of the
+vault reproducible without vault order becoming observable.
+
+```hql
+cards | take(5)
+```
+
+`cards : Set<Card>` stands — see [[hql/collections]] — *and* `take(5)` over it is
+well defined, because the order comes from the values rather than from how the
+files were found. Discovering documents still establishes no ordering guarantee.
+
+The question was never `Set` versus `Seq`. It was whether a reproducible prefix
+requires an observable vault order, and it does not.
+
+## `take`
+
+- Over a `Set`, `take(n)` imposes the canonical order the elements' keys give.
+- Over a `Seq`, `take(n)` **keeps the order the sequence already has.**
+  Re-imposing the canonical order there would silently discard the `sort` that
+  produced it.
+- Over elements that do not narrow `Orderable`, `take` is a type error that says
+  to sort with an explicit key first.
+
+## Ties
+
+A `Hit` orders by score descending, then by its card's key, so equal scores do
+not make a prefix depend on load order. `Score` is a `Float` and ties are
+ordinary at realistic precision, so a ranked collection must state its tiebreak
+rather than inherit one — see [[hql/semantic-search]].
+
+## Open
+
+- Whether `Orderable` is a single total order per type or a type may offer
+  several named keys.
+- Card key collisions across namespaces, and whether the key is the name or the
+  qualified path.
+- Whether user-declared types may narrow `Orderable`, and how they state the key.
+
+Implemented in `src/types.rs` (`is_orderable`), `src/values.rs` (`order_key`)
+and `src/evaluation.rs`. Tests in `tests/vault.rs`.

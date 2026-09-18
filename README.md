@@ -119,7 +119,7 @@ the working tree.
 - [HQL overview](doc/wiki/hql.hmd)
 - [HyperMarkDown integration](doc/wiki/hmd-integration.hmd)
 - [Open design questions](doc/wiki/design-direction.hmd)
-- [Bootstrap decisions and provenance](doc/memory/bootstrap.md)
+- [Bootstrap requirements](doc/models/requirements/bootstrap.md)
 
 Scaffolded with [grem](https://github.com/ewiger/grem)'s Rust template using
 `grem init . -t rust --name hql` in an empty `hql` directory.

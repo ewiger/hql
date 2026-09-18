@@ -19,7 +19,7 @@ pub(crate) enum Stmt {
     Expr(Expr),
 }
 
-/// A written type, such as `Card` or `Set[Card]`.
+/// A written type, such as `Card` or `Set<Card>`.
 #[derive(Debug, Clone)]
 pub(crate) struct TypeAnn {
     pub name: String,
