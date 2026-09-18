@@ -1,6 +1,0 @@
-# Meeting notes
-
-Alice discussed the resolver architecture at this meeting. ^meeting-2026-01-12
-
-A source block identifies where a claim came from; it does not, by itself,
-establish that Alice works on a project.

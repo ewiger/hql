@@ -3,8 +3,8 @@
 The user requested an example-first corpus before any expansion of the language
 implementation, then refined the design during corpus construction.
 
-- Prefer bare bindings: `alice : Card = resolve([[alice]])` and inferred
-  `alice = resolve([[alice]])`. `let` is an alternative, not required syntax.
+- Prefer bare bindings: `alice : Doc = [[alice]]` and inferred `alice = [[alice]]`.
+  `let` is an alternative, not required syntax. See [link operator](link-operator.md).
 - Evaluation returns typed values; a program returns its last expression.
   Earlier unbound values are discarded. Context chooses rendering/printing.
   print/save are explicit effects. Unit/Void spelling remains open.

@@ -25,7 +25,8 @@ HyperMarkDown documents
  values / cards / graphs / HMD / diagnostics / transformations
 ```
 
-A HyperMarkDown document resolves naturally to a `Card`. The host adapter will
+A HyperMarkDown document resolves to a typed document; card-ness is established
+by a checked narrowing rather than by the reference. The host adapter will
 supply typed document structure, frontmatter, namespaces, and resolved links /
 relations. Knowledge graphs are a future value domain. Do not make string
 search over raw HMD the core model. Host parsing/resolution and language

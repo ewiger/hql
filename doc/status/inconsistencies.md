@@ -247,7 +247,7 @@ with status `invalid` expecting the diagnostic `UnresolvedCard` at the `resolve`
 stage. Its note — "Fixture deliberately has no matching card" — presents this as
 settled, and the case is not marked `design-question`.
 
-These may both be right: `resolve` failing is not the same event as a body link
+These may both be right: resolution failing is not the same event as a body link
 being unresolved during a link check. But nothing in either file says so, and
 [HQL design status](../wiki/hql/design-status.hmd) lists "reference failures" as
 open while the corpus row reads as decided. Say which of the two it is.

@@ -7,7 +7,7 @@ tags: [hql, design]
 illustrate intent only; neither is accepted by the bootstrap parser:
 
 ```hql
-resolve([[alice]]) : Card
+alice : Doc = [[alice]]
 ```
 
 ```hql
@@ -15,7 +15,8 @@ knowledge
 | graph
 ```
 
-A document should resolve naturally to a `Card`. Functions, `.hql` module
+`[[..]]` is the wiki-link operator and resolves on its own; card-ness is a
+separate checked narrowing — see [[link-op]]. Functions, `.hql` module
 imports, value construction, transformations, constraint validation, and typed
 results belong to the intended scope. [[hmd-integration]] describes how partial
 frontmatter schemas could contribute structural/type information.

@@ -145,34 +145,29 @@ to name all three:
 [[alice#^claim]]    // an anchored block
 ```
 
-A fragment reference is a reference to a part, so the natural reading is that a
-reference carries the type of what it points at:
+Writing a name in brackets *is* the resolution — `[[..]]` is an operator, and
+[[link-op]] defines it. What matters here is what it yields: an address to a part
+carries the type of that part, so the three granularities above are `Doc`,
+`Section` and `Block`.
 
 ```hql
-bio : Ref[Section] = [[alice#Bio]]
-resolve(bio)
+bio : Section = [[alice#Bio]]
 ```
 
-`resolve : Ref[T] -> T` is the conceptual signature.
-
-What resolution does **not** do is hand back a [[card-type|Card]]. Older sketches
-write `resolve([[alice]]) : Card`, as though a reference resolved naturally to a
-card. It does not, and treating it as sugar hides the step that matters:
-`[[alice]]` names a document, resolution yields a `Doc`, and card-ness is a
-knowledge property that has to be established rather than assumed. A reference
-cannot know that its target represents a piece of knowledge; only a checked
-narrowing can say so.
+What resolution does **not** hand back is a [[card-type|Card]]. `[[alice]]` names
+a document, and card-ness is a knowledge property that has to be established
+rather than assumed: a reference cannot know that its target represents a piece
+of knowledge, and only a checked narrowing can say so.
 
 ```hql
-doc  : Doc  = resolve([[alice]])
+doc  : Doc  = [[alice]]
 card : Card = doc as Card        // a narrowing, and it can fail
 ```
 
 The spelling of that step is unresolved, and so is what it produces when the
-document turns out not to be a card. It can fail, and the failure
-modes are HMD's own: a target that does not exist, a fragment missing from a
-document that does, a name matching several documents, or a target escaping the
-namespace root. HMD treats an unresolved link as a warning, deliberately —
+document turns out not to be a card. Resolution can fail too, in HMD's own ways:
+a target that does not exist, a fragment missing from a document that does, a
+name matching several documents, or a target escaping the namespace root. HMD treats an unresolved link as a warning, deliberately —
 writing forward to a card that has not been written yet is permitted, and the
 diagnostic report is a to-do list. HQL must not turn that into a hard error by
 accident. How failure is carried, and whether generic references use brackets or

@@ -1,0 +1,128 @@
+---
+tags: [hql, operators, cards, hypermarkdown, type-system]
+---
+# The `[[..]]` operator
+
+`[[..]]` is HQL's **wiki-link operator**. Written around a name, it is an
+expression that denotes what that name addresses in the current namespace:
+
+```hql
+alice = [[alice]]
+```
+
+Nothing wraps it. The brackets are the resolution: the source text that names a
+target and the point at which the namespace is consulted are the same
+characters, which is what makes the failure modes below attributable to a place
+in the program.
+
+The notation is the one an author already writes in a card body, so a cell and
+its surrounding prose address the vault the same way. That is the operator's
+strongest argument: HQL does not invent a second addressing syntax for the
+documents it is embedded in.
+
+## What it yields
+
+The result type follows the **granularity of the address**, not the role of the
+target:
+
+```hql
+[[alice]]           : Doc       // the document
+[[alice#Bio]]       : Section   // a heading fragment
+[[alice#^claim]]    : Block     // an anchored block
+```
+
+These are HyperMarkDown's three granularities; see [[doc-type]] for the body
+structure they name.
+
+What the operator does **not** yield is a [[card-type|Card]]. Card-ness is a
+knowledge property that has to be established, not something a name can know
+about its target, so the narrowing is a separate and fallible step:
+
+```hql
+doc  : Doc  = [[alice]]
+card : Card = doc as Card        // a narrowing, and it can fail
+```
+
+The spelling of that narrowing remains unresolved.
+
+## The brackets are not a call
+
+Inside the brackets is a **name**, resolved by the vault's rules. It is not an
+expression, not a string and not a path:
+
+```hql
+[[alice]]              // a name in this namespace
+[[people/alice]]       // a name qualified by module
+```
+
+A consequence worth stating: the operator has no variable form. Addressing a
+target whose name is computed at runtime is a different operation, over `Ref`
+values, and it needs its own spelling. What that is, and whether a name can be
+interpolated into the brackets at all, are open.
+
+Display text is HMD's, not HQL's. `[[alice|Alice B.]]` addresses the same
+document as `[[alice]]` and the operator returns the same value; the alternative
+text is for the rendered body. Whether HQL source accepts the pipe form at all
+is open, and there is an argument that it should not, since `|` is the pipe
+operator — see [[pipes]].
+
+## Resolution is contextual
+
+The operator is not a constant. The same three words in two different cards can
+denote two different documents, because a bare name is probed against named
+imports, then the spine of ancestor modules, then wildcard import origins, then
+autodiscovery, with ambiguity an error and no ranking rule to break it.
+
+That machinery belongs to the vault, and so the operator does too: it has the
+horizon a wikilink has, and never reaches into a neighbouring vault. See
+[[card-type]] for the vault and namespace it needs, and [[hql/extensions]] for
+where imports are declared.
+
+## Failure
+
+Resolution can fail in HMD's own ways: a target that does not exist, a fragment
+missing from a document that does, a name matching several documents, or a
+target escaping the namespace root. HMD treats an unresolved link as a *warning*
+by design — writing forward to a card that has not been written yet is permitted,
+and the diagnostic report is a to-do list. HQL must not turn that into a hard
+error by accident.
+
+An operator has to produce a value, which sharpens the question rather than
+answering it. The candidates are an `Option`-typed result, a value that carries
+its unresolved state, and a diagnostic that fails the program. Since absence is
+`Option` and there is no null, an operator that yields `Doc` outright is the
+reading hardest to defend. How failure is carried is the largest open question
+about this operator.
+
+## References at runtime
+
+A name written in HQL source is this operator. A reference obtained from a value
+is a different situation, and the two should not be conflated: a document's
+links carry references that have not been resolved, and reading them is
+ordinary.
+
+```hql
+doc.uplinks : Seq<Link>
+```
+
+A `Link` is structural connectivity, conceptually `Link(this, ref)`, and it does
+not assert a semantic relation — see [[doc-type]] for uplinks and downlinks.
+What turns such a reference into its target, and whether `Ref[T]` survives as a
+type, are open.
+
+## Links from a cell
+
+An occurrence of `[[alice]]` in a card body is a link, and contributes an uplink
+from that card and a downlink to `alice`. Whether the same occurrence *inside an
+HQL cell* in that card does so as well is open. Arguing yes: the vault should be
+able to see that the cell depends on `alice`, and a dependency invisible to the
+graph is a dependency that breaks silently. Arguing no: a cell may address a
+document it merely computes over, and manufacturing structural connectivity out
+of a query would inflate the graph with edges no author wrote.
+
+The question is not decidable from the notation, which is the same in both
+places. It needs a decision about whether computed addressing is authorship.
+
+See [[doc-type]] for what resolution yields, [[card-type]] for the vault that
+resolves it, [[pipes]] for composition, and [[hql/design-status]] for what
+remains undecided.

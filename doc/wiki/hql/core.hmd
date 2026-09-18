@@ -33,16 +33,20 @@ This vocabulary does not require each type to be a primitive in the evaluator.
 ## Bindings and values
 
 ```hql
-alice : Card = resolve([[alice]])
+alice : Doc = [[alice]]
 ```
 
-`[[alice]]` is a reference literal. `resolve` is an ordinary function that resolves
-it in the current context. The binding names the resulting Card; a filename does
-not implicitly introduce a variable. Inferred binding is also preferred:
+`[[alice]]` is the wiki-link operator: it resolves the name in the current
+namespace and yields the document it addresses — see [[link-op]]. The binding
+names that value; a filename does not implicitly introduce a variable. Inferred
+binding is also preferred:
 
 ```hql
-alice = resolve([[alice]])
+alice = [[alice]]
 ```
+
+A document is not yet a card. Card-ness is established by a checked narrowing,
+never by the reference; see [[card-type]].
 
 An expression returns a typed value. A program returns its last expression;
 earlier unbound values are discarded. Bindings retain values for later use.

@@ -17,6 +17,7 @@ separate it from both older corpus alternatives and implemented behavior.
 | [[card-type]] | `Card <: Doc`, the vault, knowledge and the `cards` keyword |
 | [[data-type]] | `Data`, the tree type of headers and structured payloads |
 | [[refinement-of-types]] | Open structural data and progressive type refinement |
+| [[link-op]] | The `[[..]]` wiki-link operator: addressing and resolution |
 
 ## Current direction
 

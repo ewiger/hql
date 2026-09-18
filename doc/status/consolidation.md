@@ -17,7 +17,6 @@ the decision behind it is recorded, and its identifier is not reused.
 | ID | Item | State |
 | --- | --- | --- |
 | CON-01 | Drop `HmdCard`; the type is `Card` | done, residue |
-| CON-02 | `resolve(...)` does not yield a `Card` | open |
 | CON-03 | `Hmd` is a format, not the parsed body type | done, residue |
 | CON-04 | One name for the metadata field | open, needs decision |
 | CON-05 | `cards` ordering: `List<Card>` or `Set<Card>` | open, needs decision |
@@ -43,29 +42,6 @@ Done in [Card](../wiki/hql/types/card-type.hmd),
 Residue: [inconsistencies.md](inconsistencies.md) still contains the name where a
 finding quotes text that used it. Those are quotations of a former state and are
 deliberately left, since rewriting them would falsify the audit record.
-
-## CON-02 — resolve does not yield a Card
-
-**Decided.** `resolve([[alice]]) : Card` is not sugar and should not be written.
-A reference names a document; resolution yields a `Doc`; card-ness is established
-by a checked narrowing, because a reference cannot know that its target
-represents a piece of knowledge. Writing the ascription hides exactly the step
-that can fail.
-
-Done in [Doc](../wiki/hql/types/doc-type.hmd), which now shows the narrowing as
-a separate step and records that its spelling is unresolved.
-
-Open, all of them outside `doc/wiki/hql/types/`:
-
-| Where | What it says |
-| --- | --- |
-| [design-direction.hmd](../wiki/design-direction.hmd) | `resolve([[alice]]) : Card` as a headline sketch, plus "A document should resolve naturally to a `Card`" |
-| [core.hmd](../wiki/hql/core.hmd) | `alice : Card = resolve([[alice]])` and the inferred form beneath it |
-| `examples/cards/`, `examples/frontmatter/`, `examples/types/` | `card : Card = resolve([[alice]])` in several cases, and `expected-type: Card` in their envelopes |
-
-The corpus is a design input and may preserve superseded alternatives, so the
-corpus cases need a label rather than a rewrite. The two wiki cards are current
-direction and need the edit.
 
 ## CON-03 — Hmd is a format, not a type
 
