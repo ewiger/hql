@@ -1,0 +1,6 @@
+---
+title: Bearer tokens
+---
+# Bearer tokens
+
+A bearer token is presented in an authorization header.

@@ -5,6 +5,8 @@ use std::process::{Command, Output, Stdio};
 use tempfile::tempdir;
 
 const VAULT: &str = "tests/fixtures/vault";
+/// A vault that declines the prelude and configures its own import.
+const CONFIGURED: &str = "tests/fixtures/configured";
 
 fn hql(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_hql"))
@@ -261,6 +263,21 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
     for name in ["semantic", "expand", "graph", "take", "typed"] {
         assert!(stdout(&listed).contains(name), "{name}");
     }
+    // A flat list stops being true once a name can come from two places, so
+    // help says who supplies each step and whether this vault has it.
+    for provider in [
+        "core",
+        "graph",
+        "present",
+        "always available",
+        "prelude",
+        "imported where it is used",
+    ] {
+        assert!(stdout(&listed).contains(provider), "{provider}");
+    }
+    let configured = stdout(&hql(&["--vault", CONFIGURED, "builtins"]));
+    assert!(configured.contains("semantic 0.1.0 (imported by this vault)"));
+    assert!(configured.contains("present 0.1.0 (imported where it is used)"));
 
     let configured = hql(&["--vault", VAULT, "config"]);
     assert!(stdout(&configured).contains("strict"));
@@ -279,4 +296,28 @@ fn cli_surface_identifies_hql_and_usage_errors_exit_two() {
     let missing = hql(&["--vault", "tests/fixtures/nowhere", "eval", "1"]);
     assert_eq!(missing.status.code(), Some(1));
     assert!(stderr(&missing).contains("not a directory"));
+}
+
+#[test]
+fn a_vault_may_decline_the_prelude_and_import_for_every_program() {
+    // Declining the prelude is what makes `| table` need saying out loud.
+    let declined = hql(&["--vault", CONFIGURED, "eval", "1 | table"]);
+    assert!(!declined.status.success());
+    assert!(
+        stderr(&declined).contains("write `import present`"),
+        "{}",
+        stderr(&declined)
+    );
+    let written = hql(&["--vault", CONFIGURED, "eval", "import present\n1 | table"]);
+    assert!(written.status.success(), "{}", stderr(&written));
+
+    // What the vault imports, a query does not have to.
+    let ranked = hql(&[
+        "--vault",
+        CONFIGURED,
+        "eval",
+        "cards | semantic(\"bearer token authorization\") | count",
+    ]);
+    assert!(ranked.status.success(), "{}", stderr(&ranked));
+    assert_eq!(stdout(&ranked).trim(), "1");
 }

@@ -19,7 +19,7 @@ binary can reach is logic that cannot be tested.
 | `hql run <file>` | check and evaluate a file |
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL blocks in a document and transclude the answers |
-| `hql builtins` | list the steps a pipeline may use |
+| `hql builtins` | list the steps a pipeline may use, grouped by provider |
 | `hql config` | the reporting mode in force, and where it came from |
 
 `-` reads standard input wherever a file is taken, so `hql` composes in a
@@ -36,6 +36,31 @@ pipeline.
 Without `--vault`, `cards`, `downlinks` and `expand` say they need one rather
 than quietly finding nothing. That is the CLI's answer to `CON-08`: this host
 requires a vault for card-ness. Whether the *language* does is still open.
+
+## Extensions
+
+`hql builtins` groups steps by the extension that provides them and says, of
+each extension, whether this vault has it: the core is always available, the
+prelude arrives unless the vault declines it, and everything else is written
+out where it is used. Every *registered* extension is listed, not only what the
+vault resolves — otherwise a reader told to write `import semantic` would have
+nowhere to look it up.
+
+A vault configures its own imports in `hql.toml`, beside
+[the reporting mode](reporting.md):
+
+```toml
+[extensions]
+import  = ["semantic"]   # imported for every program this vault runs
+prelude = false          # optional; omits graph and present
+```
+
+`import` here saves writing the same line at the head of every query in one
+vault; a query that travels between vaults carries its own `import` statement
+instead — see [the grammar](expressions.md). A configured import that names no
+registered extension, or that collides with something already imported, fails
+every program in the vault rather than failing quietly, and the diagnostic says
+it came from `hql.toml`.
 
 ## Exit status
 

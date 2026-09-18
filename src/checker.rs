@@ -18,7 +18,7 @@ pub(crate) fn check(program: &Program, vault: &Vault) -> Result<Type, Diagnostic
     Checker {
         vault,
         scope: HashMap::new(),
-        resolution: Resolution::new(true),
+        resolution: Resolution::new(&vault.extensions)?,
     }
     .program(program)
 }
@@ -29,10 +29,16 @@ pub(crate) fn check(program: &Program, vault: &Vault) -> Result<Type, Diagnostic
 /// type, so the statements after it are reported on their own faults rather
 /// than on a cascade from this one.
 pub(crate) fn check_collecting(program: &Program, vault: &Vault) -> (Type, Vec<Diagnostic>) {
+    let resolution = match Resolution::new(&vault.extensions) {
+        Ok(resolution) => resolution,
+        // A vault that cannot resolve its own configuration has nothing to
+        // say about the program: every statement would fail for one reason.
+        Err(diagnostic) => return (Type::Unit, vec![diagnostic]),
+    };
     let mut checker = Checker {
         vault,
         scope: HashMap::new(),
-        resolution: Resolution::new(true),
+        resolution,
     };
     let mut found = Vec::new();
     let mut last = Type::Unit;

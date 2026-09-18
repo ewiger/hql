@@ -13,7 +13,7 @@ the design, the card says so.
 | [[hql/collections]] | Set, Seq, Map and `cards : Set<Card>` |
 | [[pipes]] | Ordinary functions, composition and data-parallel execution |
 | [[hql/knowledge]] | Semantic universe, the card family and presentation |
-| [[hql/extensions]] | External capabilities, modules and `init.hql` |
+| [[hql/extensions]] | The extension registry, `import`, and the unbuilt module loader |
 | [[doc-type]] | `Doc`, the header, `format`, sections, links and embeds |
 | [[card-type]] | `Card` and its two kinds, the vault, and the `cards` keyword |
 | [[data-type]] | `Data`, the tree type of headers and structured payloads |
@@ -35,8 +35,11 @@ clauses and Rust-like trait machinery stay out of the design. A trait is a host
 mechanism an extension may use internally and it never reaches HQL's surface;
 what would be asked of it splits into ancestry (`<:`), capability (an extension
 registers a function) and a partial schema over `Data` — see [[type-system]].
-Extensions supply external capabilities and may be written in Rust. Optional
-namespace `init.hql` files import available modules and extensions.
+Extensions supply external capabilities and may be written in Rust. That
+registration is now implemented: collection steps are the core's, `graph` and
+`present` are a prelude a vault may decline, and retrieval is imported where it
+is used — see [[hql/extensions]]. Module resolution is not, so optional
+namespace `init.hql` files remain design.
 
 Generic types are written with angle brackets — `Set<Card>`, `fn first<T>(xs:
 Seq<T>) : T?` — and square brackets are reserved for sequence values and
@@ -77,13 +80,14 @@ recorded in [[type-system]] and fields in [[fields]].
 - The name and type boundary between graph projection and graph presentation —
   see [[hql/presentation]].
 - Module resolution, namespace inheritance and `init.hql` initialization policy.
-- Extension transport, effect contracts and optimizer-visible execution properties.
+- Extension transport, and whether an extension may supply anything beyond
+  steps — a type, a renderer or a document source.
 
 The implemented slice is now larger than the literal core: statements and
 bindings, strings and data literals, document references, the link operator,
 pipelines with lambdas, a vault of Markdown and HyperMarkDown documents, the card
-family checked at load, semantic retrieval, graph traversal, and a reporting
-queue. The signed 64-bit and double-precision representations, the absence of
+family checked at load, semantic retrieval, graph traversal, an extension
+registry with `import`, and a reporting queue. The signed 64-bit and double-precision representations, the absence of
 Int-to-Float widening, and the addition-chain limit remain provisional
 implementation choices rather than settled language requirements. What the
 parser accepts is recorded in

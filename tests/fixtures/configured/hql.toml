@@ -1,0 +1,5 @@
+# A vault that states every capability its programs use: no prelude, and the
+# retrieval extension imported once here rather than in every query.
+[extensions]
+import = ["semantic"]
+prelude = false

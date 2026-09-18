@@ -114,13 +114,23 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
 
     match &cli.command {
         Command::Builtins => {
-            for step in crate::extensions::listing() {
+            for provider in crate::extensions::catalogue(&vault.extensions) {
                 writeln!(
                     out,
-                    "{}\n    {}\n    {}",
-                    step.name, step.signature, step.summary
+                    "{} {} ({})",
+                    provider.name,
+                    provider.version,
+                    provider.availability.label()
                 )
                 .map_err(|error| error.to_string())?;
+                for step in provider.steps {
+                    writeln!(
+                        out,
+                        "  {}\n    {}\n    {}",
+                        step.name, step.signature, step.summary
+                    )
+                    .map_err(|error| error.to_string())?;
+                }
             }
             Ok(0)
         }

@@ -7,12 +7,17 @@ Semantic search orders a corpus against a query and hands back a prefix. It is
 the **read path of AI memory** over a [[hql/knowledge|knowledge]] base.
 
 ```hql
+import semantic
+
 cards
 | semantic("bearer token authorization")
 | take(5)
 | expand(depth = 1)
 | graph
 ```
+
+`semantic` is written out because retrieval is an extension capability rather
+than the core's business — see [[hql/extensions]].
 
 It has a vocabulary of its own but mints no node type and no edge type, so it is
 not a peer domain in the sense [[type-system]] uses: nothing in it is anyone's

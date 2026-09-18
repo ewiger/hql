@@ -38,6 +38,8 @@ decision about what `graph` means when it is given both a collection and a depth
 The form this model recommends separates the last step into two:
 
 ```hql
+import semantic
+
 cards
 | semantic("bearer token authorization")
 | take(5)
@@ -45,7 +47,10 @@ cards
 | graph
 ```
 
-This is the form that was implemented, and it runs today. `expand` is traversal
+This is the form that was implemented, and it runs today. `semantic` is
+imported rather than always present, because retrieval is an extension
+capability — the split is
+[HQL-0001](../../proposals/HQL-0001/README.md). `expand` is traversal
 and `graph` stays the projection it is in the knowledge model. Folding both into one name would settle the open naming question in
 [graphs.md](graphs.md) by accident, in the direction that loses the distinction.
 

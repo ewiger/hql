@@ -6,7 +6,50 @@ tags: [hql, extensions, modules, design]
 Extensions provide capabilities outside the small [[hql/core]]. They may be
 implemented in Rust, but HQL users should interact with ordinary typed functions
 and values. Rust traits, lifetimes and implementation details do not become HQL
-language requirements. No extension runtime or module loader is implemented yet.
+language requirements.
+
+## The registry
+
+A registry of extensions is implemented; a module loader is not. An extension
+declares a name, a version and its steps, and each step supplies the function
+that checks it, the function that evaluates it, and whether it is pure — so a
+capability is added without editing the core's checker or evaluator. Extensions
+are compiled into the binary and registered in one table. There is no dynamic
+loading and no plugin ABI: registration says what exists, and it is a host
+mechanism that never reaches HQL's surface.
+
+Registration is not import. Every extension in the binary is registered;
+a program resolves what it has imported. That is what lets a diagnostic name
+the import a program is missing instead of guessing at a misspelling.
+
+Steps split by the layering core → graph → knowledge:
+
+| Provider | Steps | How a program gets it |
+| --- | --- | --- |
+| core | `count` `sort` `take` `filter` `map` `typed` | always |
+| `graph` | `uplinks` `downlinks` `expand` `graph` | the prelude |
+| `present` | `table` `json` `text` | the prelude |
+| `semantic` | `semantic` | `import semantic` |
+
+Collection operations stay in the core because they operate on the core's own
+collection types and mention nothing above them. Retrieval and drawing are not
+the core's business — see [[hql/semantic-search]] and [[hql/presentation]].
+
+`import <extension>` binds an extension's steps, and `extension.step(…)` is
+always available for one that is imported. A name provided by two imported
+extensions fails at the import, naming both. A vault states its own imports in
+`hql.toml`, and may decline the prelude. The rules are in
+[the grammar](../../models/behavior/expressions.md) and
+[the command line](../../models/behavior/cli.md); the decision is
+[HQL-0001](../../proposals/HQL-0001/README.md).
+
+An extension declares each step `Pure` or `Effectful`, because [[pipes]]
+reserves execution freedom that is only safe over pure steps. Every step
+registered today is pure.
+
+What an extension may supply is steps, and only steps. Extension-defined types,
+renderers and document sources are not implemented and need a decision of their
+own.
 
 An HQL module organizes reusable HQL definitions. An extension connects HQL to
 external capabilities: for example, a data source, a renderer or an explicit
@@ -15,8 +58,10 @@ An extension may expose pure operations as well as effects.
 
 ## Namespace initialization
 
-A vault or namespace may contain `init.hql`. Its intended role is to import the
-modules and extensions available to that namespace. This gives the namespace
+Namespace initialization is unimplemented and independent of the registry
+above: it needs module resolution, which the registry deliberately does not
+provide. A vault or namespace may contain `init.hql`. Its intended role is to
+import the modules and extensions available to that namespace. This gives the namespace
 an explicit entry point for its evaluation environment.
 
 Illustrative layout:

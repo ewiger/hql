@@ -6,6 +6,7 @@
 
 use crate::data::Data;
 use crate::document::{Card, Document, Format, Kind};
+use crate::extensions::Config;
 use crate::graph::{Edge, EdgeKind};
 use crate::warnings::Warning;
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,6 +27,8 @@ pub struct Vault {
     pub edges: Vec<Edge>,
     /// What loading wanted to say without refusing to load.
     pub warnings: Vec<String>,
+    /// What the vault's `hql.toml` says about extensions.
+    pub extensions: Config,
 }
 
 impl Vault {
@@ -38,6 +41,7 @@ impl Vault {
             by_name: BTreeMap::new(),
             edges: Vec::new(),
             warnings: Vec::new(),
+            extensions: Config::default(),
         }
     }
 
@@ -140,6 +144,7 @@ pub fn load(root: &Path) -> io::Result<Vault> {
         by_name,
         edges,
         warnings,
+        extensions: Config::read(root),
     })
 }
 

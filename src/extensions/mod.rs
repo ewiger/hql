@@ -15,6 +15,7 @@ use crate::types::Type;
 use crate::values::Value;
 use crate::vault::Vault;
 use std::ops::Range;
+use std::path::Path;
 
 pub(crate) mod collections;
 pub(crate) mod graph;
@@ -166,6 +167,85 @@ pub(crate) fn providers(step: &str) -> Vec<&'static Extension> {
         .collect()
 }
 
+/// What a vault's `hql.toml` says about extensions.
+///
+/// The prelude is a compatibility convenience, and a vault that wants every
+/// capability stated in the program that uses it must be able to decline it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Config {
+    /// Extensions imported for every program this vault runs.
+    pub imports: Vec<String>,
+    /// Whether `graph` and `present` arrive without being asked for.
+    pub prelude: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            imports: Vec::new(),
+            prelude: true,
+        }
+    }
+}
+
+impl Config {
+    /// Read `[extensions]` from a vault's configuration file.
+    ///
+    /// A file that is absent or says nothing about extensions leaves the
+    /// defaults in force, which is what a vault that has never heard of an
+    /// extension expects.
+    #[must_use]
+    pub fn read(root: &Path) -> Self {
+        let mut config = Self::default();
+        let Ok(text) = std::fs::read_to_string(root.join(crate::reporting::CONFIG_FILE)) else {
+            return config;
+        };
+        let Ok(parsed) = toml::from_str::<toml::Value>(&text) else {
+            return config;
+        };
+        let Some(section) = parsed.get("extensions") else {
+            return config;
+        };
+        if let Some(prelude) = section.get("prelude").and_then(toml::Value::as_bool) {
+            config.prelude = prelude;
+        }
+        if let Some(imports) = section.get("import").and_then(toml::Value::as_array) {
+            config.imports = imports
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::to_owned)
+                .collect();
+        }
+        config
+    }
+}
+
+/// Whether an extension is available to a program, and why.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Availability {
+    /// The core, which is never imported because it is never absent.
+    Core,
+    /// In the prelude this vault keeps.
+    Prelude,
+    /// Named by the vault's `hql.toml`.
+    Configured,
+    /// Registered, and written out by any program that wants it.
+    Absent,
+}
+
+impl Availability {
+    /// How help says it.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Core => "always available",
+            Self::Prelude => "prelude",
+            Self::Configured => "imported by this vault",
+            Self::Absent => "imported where it is used",
+        }
+    }
+}
+
 /// Which extensions a program has imported, and what they let it write.
 ///
 /// Registration and import are different things: every extension in the binary
@@ -179,12 +259,34 @@ pub(crate) struct Resolution {
 
 impl Resolution {
     /// The core, plus the prelude unless the vault declines it.
-    pub(crate) fn new(prelude: bool) -> Self {
+    pub(crate) fn bare(prelude: bool) -> Self {
         let mut imported = vec![&CORE];
         if prelude {
             imported.extend(PRELUDE.iter().filter_map(|name| extension(name)));
         }
         Self { imported }
+    }
+
+    /// What a vault starts every program with.
+    ///
+    /// A configured import fails the same way a written one does, at a span
+    /// pointing at the program's start, because the fault is in the vault
+    /// rather than in the line a reader is looking at.
+    pub(crate) fn new(config: &Config) -> Result<Self, Diagnostic> {
+        let mut resolution = Self::bare(config.prelude);
+        for name in &config.imports {
+            resolution.import(name, &(0..0)).map_err(|failed| {
+                Diagnostic::name(
+                    0..0,
+                    format!(
+                        "the vault's {}: {}",
+                        crate::reporting::CONFIG_FILE,
+                        failed.message()
+                    ),
+                )
+            })?;
+        }
+        Ok(resolution)
     }
 
     /// Bind an extension's steps into the program.
@@ -312,20 +414,53 @@ pub struct Listing {
     pub purity: Purity,
 }
 
-/// Every registered step, grouped by provider in registration order.
+/// One extension and its steps, as `hql builtins` prints them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Provider {
+    /// The name an `import` writes.
+    pub name: &'static str,
+    /// The version this extension reports.
+    pub version: &'static str,
+    /// Whether a program in this vault has it without asking.
+    pub availability: Availability,
+    /// What it supplies.
+    pub steps: Vec<Listing>,
+}
+
+/// Every registered extension and its steps, as one vault resolves them.
+///
+/// Every registered extension is listed, not only what the vault imports:
+/// help and the suggestion index answer the same question, so listing only
+/// the imported ones would leave a reader unable to find the import a
+/// diagnostic has just told them to write.
 #[must_use]
-pub fn listing() -> Vec<Listing> {
+pub fn catalogue(config: &Config) -> Vec<Provider> {
     REGISTERED
         .iter()
-        .flat_map(|extension| {
-            extension.steps.iter().map(|step| Listing {
-                provider: extension.name,
-                version: extension.version,
-                name: step.name,
-                signature: step.signature,
-                summary: step.summary,
-                purity: step.purity,
-            })
+        .map(|extension| Provider {
+            name: extension.name,
+            version: extension.version,
+            availability: if extension.name == CORE.name {
+                Availability::Core
+            } else if config.prelude && PRELUDE.contains(&extension.name) {
+                Availability::Prelude
+            } else if config.imports.iter().any(|held| held == extension.name) {
+                Availability::Configured
+            } else {
+                Availability::Absent
+            },
+            steps: extension
+                .steps
+                .iter()
+                .map(|step| Listing {
+                    provider: extension.name,
+                    version: extension.version,
+                    name: step.name,
+                    signature: step.signature,
+                    summary: step.summary,
+                    purity: step.purity,
+                })
+                .collect(),
         })
         .collect()
 }
@@ -360,6 +495,13 @@ pub(crate) fn named_or_first<'a>(arguments: &'a [Arg], name: &str) -> Option<&'a
 mod tests {
     use super::*;
 
+    fn listing() -> Vec<Listing> {
+        catalogue(&Config::default())
+            .into_iter()
+            .flat_map(|provider| provider.steps)
+            .collect()
+    }
+
     #[test]
     fn every_registered_step_declares_a_purity_and_a_provider() {
         let listed = listing();
@@ -387,7 +529,7 @@ mod tests {
 
     #[test]
     fn the_core_resolves_without_an_import_and_retrieval_does_not() {
-        let mut resolution = Resolution::new(true);
+        let mut resolution = Resolution::bare(true);
         assert!(resolution.step("count", &(0..1)).is_ok());
         assert!(resolution.step("table", &(0..1)).is_ok());
 
@@ -410,7 +552,7 @@ mod tests {
 
     #[test]
     fn the_prelude_is_a_convenience_a_vault_may_decline() {
-        let bare = Resolution::new(false);
+        let bare = Resolution::bare(false);
         let missing = bare.step("table", &(0..1)).unwrap_err();
         assert!(
             missing.message().contains("import present"),
@@ -437,7 +579,7 @@ mod tests {
 
     #[test]
     fn two_extensions_providing_one_name_collide_at_the_import() {
-        let mut resolution = Resolution::new(true);
+        let mut resolution = Resolution::bare(true);
         let collision = resolution.bind(&PROBE, &(0..1)).unwrap_err();
         assert!(
             collision
@@ -452,15 +594,60 @@ mod tests {
 
     #[test]
     fn importing_the_same_extension_twice_is_not_a_collision() {
-        let mut resolution = Resolution::new(true);
+        let mut resolution = Resolution::bare(true);
         resolution.import("semantic", &(0..1)).unwrap();
         resolution.import("semantic", &(0..1)).unwrap();
         assert!(resolution.step("semantic", &(0..1)).is_ok());
     }
 
     #[test]
+    fn a_vault_may_import_for_every_program_and_may_decline_the_prelude() {
+        let config = Config {
+            imports: vec!["semantic".to_owned()],
+            prelude: false,
+        };
+        let resolution = Resolution::new(&config).expect("the configuration resolves");
+        assert!(resolution.step("semantic", &(0..1)).is_ok());
+        assert!(resolution.step("table", &(0..1)).is_err());
+
+        let listed = catalogue(&config);
+        let by_name = |wanted: &str| {
+            listed
+                .iter()
+                .find(|provider| provider.name == wanted)
+                .unwrap()
+                .availability
+        };
+        assert_eq!(by_name("core"), Availability::Core);
+        assert_eq!(by_name("present"), Availability::Absent);
+        assert_eq!(by_name("semantic"), Availability::Configured);
+        assert_eq!(by_name("graph"), Availability::Absent);
+
+        let kept = catalogue(&Config::default());
+        let graph = kept.iter().find(|provider| provider.name == "graph");
+        assert_eq!(
+            graph.map(|provider| provider.availability),
+            Some(Availability::Prelude)
+        );
+    }
+
+    #[test]
+    fn a_configured_import_that_is_not_registered_fails_every_program() {
+        let config = Config {
+            imports: vec!["nonesuch".to_owned()],
+            prelude: true,
+        };
+        let failed = Resolution::new(&config).unwrap_err();
+        assert!(
+            failed.message().contains("hql.toml"),
+            "{}",
+            failed.message()
+        );
+    }
+
+    #[test]
     fn importing_an_extension_that_is_not_registered_says_so() {
-        let mut resolution = Resolution::new(true);
+        let mut resolution = Resolution::bare(true);
         let failed = resolution.import("nonesuch", &(0..1)).unwrap_err();
         assert!(
             failed.message().contains("no extension named `nonesuch`"),

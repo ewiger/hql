@@ -29,7 +29,7 @@ pub(crate) fn evaluate(
         vault,
         scope: HashMap::new(),
         warnings: Vec::new(),
-        resolution: Resolution::new(true),
+        resolution: Resolution::new(&vault.extensions)?,
     };
     let value = evaluator.program(program)?;
     Ok((value, evaluator.warnings))
