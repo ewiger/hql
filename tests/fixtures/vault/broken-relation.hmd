@@ -1,0 +1,12 @@
+---
+title: A relation whose endpoints are missing
+metadata:
+  knowledge:
+    type: Relation
+    relation:
+      source: nowhere
+      target: elsewhere
+---
+# A relation whose endpoints are missing
+
+The claim is authored, unchecked, and does not hold.

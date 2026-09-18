@@ -1,0 +1,91 @@
+---
+tags: [hql, knowledge, design]
+---
+# HQL knowledge
+
+`knowledge` is the semantic knowledge universe composed of concepts, relations,
+propositions and evidence. `Knowledge` is the working name for its type. This
+design model is richer than Graph and is not implemented by the bootstrap.
+
+| Type | Conceptual role |
+| --- | --- |
+| `Concept` | Something identified or described in the knowledge model |
+| `Relation` | A meaningful relationship with typed participants |
+| `Proposition` | A claim that can be supported, disputed or constrained |
+| `Evidence` | Material offered in support of or against a claim |
+
+Those are what the domain is about. How it is written down is a second, smaller
+family, with `Card` as its base representation type:
+
+| Type | Written | Role |
+| --- | --- | --- |
+| `Card` | `<: Doc` | Knowledge given a physical document. Says nothing about the subject |
+| `ConceptCard` | `<: {Card, Concept}` | Subject is a concept, so the card is a node |
+| `RelationCard` | `<: Card` | Subject is a relation, so the card clarifies an edge |
+
+`ConceptCard` is the default and the ordinary case, because most knowledge lives
+in nodes. `RelationCard` is opted into with `metadata.knowledge.type == Relation`
+and is the exception. A card's `metadata` is assembled when the document becomes
+a card and is a different field from the document's optional authored
+`header.metadata` — see [[fields]] and [[card-type]].
+
+These roles do not settle constructors, logical syntax or a proof system.
+The universe can draw on document structure, metadata, links, relation cards,
+imports and explicit derivations. Namespace visibility and imported knowledge
+merge rules remain open; `knowledge` does not imply unrestricted global access.
+
+## Documents and meaning
+
+`Doc`, `Card`, `Section` and `Link` describe the authored document model.
+An ordinary link is an edge and may carry data — see [[link-op]] — but carrying
+data neither gives it identity nor asserts a semantic relation.
+`uplinks` traverse outgoing links and `downlinks` incoming links; a node can
+link to itself.
+
+Significant relationships are preferably given relation cards: a card that
+represents a `Relation`, so the relationship gains a body, a name in the vault
+and incoming links of its own. `Relation` is a first-class type here, narrowing
+`Edge[S, T]` — see [[graph-type]] — and never `Card`; a card *carries* one, as
+`card.metadata.relation`, which is refinement and not narrowing. That is why
+`RelationCard` takes no graph parent: it contributes an edge without becoming a
+node, while `ConceptCard <: Concept` does occupy a node position. Semantic and
+document families therefore overlap without either being a kind of the other —
+see [[type-system]].
+
+```hql
+cards | typed RelationCard | graph
+```
+
+Distinct relation cards may express conflicting claims about the same endpoints.
+Knowledge must retain those identities, conflicts, provenance and evidence.
+Provenance records origin; it does not establish meaning or truth. A derivation
+must retain the rule/model used. An Evidence section can satisfy a structural
+requirement without proving its claim.
+
+## Projection and presentation
+
+```hql
+knowledge
+| graph
+```
+
+This is a preferred example, with an unresolved result contract. Graph is a
+structural projection of Knowledge; a graph presentation is a view consumed by
+the host. The earlier model uses `graph` for projection, while the newer presenter
+direction uses it for a terminal view. Whether to give these separate names
+remains open. Neither reading reduces Knowledge itself to Graph.
+
+`table`, `json`, `graph`, `markdown`, `tree`, `text`, `value` and `empty` form the
+current presenter vocabulary. Presenters produce renderable values, rather than
+changing the underlying claims. A presentation is terminal with respect to
+semantic collection processing. The host performs actual rendering.
+
+One opaque Presentation type versus named presentation types such as HmdGraph
+is unresolved. Hosts may choose default presenters by result type, but Knowledge
+requires an explicit view because its projections are equally valid. Additional
+views should not require changes to the semantic types.
+
+See the [knowledge model](../../models/domain/knowledge.md) for the domain,
+the [graph model](../../models/domain/graphs.md) for its structural peer,
+[presentation alternatives](../../../examples/presentation/knowledge-views.hql)
+and [[hql/design-status]].

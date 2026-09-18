@@ -1,22 +1,97 @@
 ---
-tags: [hql, hypermarkdown, architecture]
+tags: [hql, hypermarkdown, extensions, architecture]
 ---
-# HyperMarkDown integration boundary
+# HyperMarkDown as an extension
 
-HyperMarkDown remains authored/storage content; [[hql]] is a separate language
-that will compute over typed knowledge. Integration is planned, not implemented.
+HyperMarkDown is one source HQL can read, integrated through an
+[[hql/extensions|extension]] like any other. It is not the language's subject
+and not a privileged case. [[hql]] is a general typed functional language, and
+nothing in [[hql/core]] names HMD: the core has typed values, bindings,
+functions and composition, and every way of reaching outside the program is an
+extension.
 
-## Existing implementation inspected
+Integration is planned, not implemented. There is no extension runtime, no
+loader and no HMD dependency in the bootstrap.
 
-The inspected HyperMarkDown checkout was revision
+## HQL is not an HMD query language
+
+An extension connects the core to a capability it does not have. Reading a tree
+of documents off a filesystem is one such capability; so is talking to Postgres,
+to a graph store, or to bulk storage such as HDFS or an object bucket. These are
+candidate sources, not a bundled list, and they are peers — the same language
+computes over all of them, and a program that never touches a document is an
+ordinary HQL program.
+
+This has a practical consequence for the type vocabulary. Document types belong
+to whichever extension supplies documents; they are not core types that other
+sources have to be translated into. A relational source yields rows, not
+documents pretending to be rows.
+
+## Knowledge depends on the graph capability, not on HMD
+
+Layering runs core → graph → knowledge, and HMD sits to one side of it.
+
+- The **graph** capability is core: nodes, edges and traversal, including the
+  two link directions [[doc-type|documents]] expose as `uplinks` and
+  `downlinks`.
+- The **knowledge** extension builds on that capability — concepts, relations,
+  propositions and evidence are graph-shaped, so [[hql/knowledge]] requires
+  graph and not the reverse. Plus `cards` becomes a mechanism that connected documents to knowledge graph.
+- The **HMD** extension supplies documents. It does not supply knowledge.
+  Interpreting documents as knowledge is the knowledge extension's work, and
+  the interpretation is explicit, never a parse result.
+
+So a vault of `.hmd` files is not knowledge because it is HMD. It becomes
+knowledge when something reads it as such, and the same reading could run over
+documents fetched from a database.
+
+## HMD is a format, not a category of thing
+
+An `.hmd` file is a document. An `.md` file is a document. Both project to
+`Doc`, and the extension that reads a directory reads a collection of documents
+without sorting them into two kinds. The relation between the formats is
+inclusion — HyperMarkDown is an unchanged CommonMark base plus a hyper layer —
+so `header.format` says which body features are available to ask about, and
+nothing more. Asking a Markdown document for its wikilinks is a well-formed
+question with an empty answer.
+
+What the format does **not** do is decide what a document *is*. There is no
+divide under which `.hmd` files are cards and `.md` files are mere documents.
+That distinction was a mistake about where card-ness comes from.
+
+## A card is a physical representation of knowledge
+
+`Card` is an additional data type, and its subject is knowledge rather than
+storage. A card is the physical representation a piece of knowledge is given:
+one document that stands for a concept, a relation or a claim, and that can
+reference the concepts it explains.
+
+That makes card-ness a knowledge notion carried by a document, not a property a
+file acquires from its extension. A plain Markdown file can represent a concept.
+An `.hmd` file can be a document that represents nothing in particular. The
+reference goes from the card to the concept — a card explains concepts, and a
+concept may be explained by more than one card, or by none.
+
+> [[card-type]] currently narrows `Card <: Doc` on two conditions: that
+> `header.format` is `hmd`, and that the document sits in a vault. The first of
+> those conditions is superseded by this card — format does not make a card —
+> and the type's `Hmd` prefix follows the format for the same reason. The vault
+> condition is a separate matter: naming and `downlinks` do need a namespace to
+> be answerable in. Reconciling the two pages needs a decision about what a card
+> requires, not an edit that makes the spellings agree.
+
+## What the HMD extension provides
+
+The extension's job is to turn a workspace on disk into typed documents, and the
+parsing work already exists. The inspected HyperMarkDown checkout was revision
 `74487940adb82654207cfec4cfd934d03eeee8f9` of
-[ewiger/hypermarkdown](https://github.com/ewiger/hypermarkdown).
-Paths below refer to that revision:
+[ewiger/hypermarkdown](https://github.com/ewiger/hypermarkdown). Paths below
+refer to that revision:
 
 - [`tools/hmd/src/hypermarkdown/parse.py`](https://github.com/ewiger/hypermarkdown/blob/74487940adb82654207cfec4cfd934d03eeee8f9/tools/hmd/src/hypermarkdown/parse.py):
   `parse(path, text, rel)` returns a `Document` with parse diagnostics.
 - [`model.py`](https://github.com/ewiger/hypermarkdown/blob/74487940adb82654207cfec4cfd934d03eeee8f9/tools/hmd/src/hypermarkdown/model.py):
-  `Document` retains text, frontmatter, `CardConfig`, headings, anchors, and
+  `Document` retains text, the authored header block, `CardConfig`, headings, anchors, and
   links. Link records include target, fragment, display, embed status, and span.
 - [`frontmatter.py`](https://github.com/ewiger/hypermarkdown/blob/74487940adb82654207cfec4cfd934d03eeee8f9/tools/hmd/src/hypermarkdown/frontmatter.py):
   the reserved `tags`, `use`, `import`, and `nav` keys are checked; other keys
@@ -27,25 +102,31 @@ Paths below refer to that revision:
   named imports, spine, imported search paths, and autodiscovery.
 
 The repository README identifies the Python tool as canonical and the
-TypeScript core as a second implementation sharing a conformance corpus.
-There is no reason to create another HMD parser in this Rust bootstrap.
+TypeScript core as a second implementation sharing a conformance corpus. There
+is no reason to write another HMD parser in this Rust bootstrap.
 
-## Proposed integration route (unresolved transport)
+## Unresolved transport
 
-A host adapter can call the canonical Python library to parse and resolve a
+The extension can call the canonical Python library to parse and resolve a
 workspace, then expose a versioned projection to Rust through serialization or
-an in-process bridge. A protocol/export is work to design, not an existing API
-we assume is available. The adapter would translate each `Document` into a
-language-facing `Card`, preserving provenance, document structure, metadata,
-namespace context, relation outcomes, and diagnostics.
+an in-process bridge. That protocol is work to design, not an existing API we
+assume is available. The projection translates each `Document` into a
+language-facing document value, preserving provenance, document structure,
+metadata, namespace context, relation outcomes, and diagnostics.
 
-Reserved frontmatter can supply known field types; user fields need an explicit
-schema or a deliberate unknown-value policy. Never infer a complete schema from
-one example. Preserve ambiguity and missing references instead of choosing a
-card silently. Verify span coordinate conventions with Unicode fixtures before
-translating Python positions into HQL UTF-8 byte diagnostics.
+Reserved header keys can supply known field types; user fields need an explicit
+schema or a deliberate unknown-value policy, and [[type-system]]
+describes the progressive route rather than inferring a complete schema from one
+example. Preserve ambiguity and missing references instead of choosing a
+document silently — HMD treats an unresolved link as a warning on purpose.
+Verify span coordinate conventions with Unicode fixtures before translating
+Python positions into HQL UTF-8 byte diagnostics.
 
-Keep HMD import/resolution rules in the adapter; `.hql` module semantics are a
-separate design. An eventual adapter should use the HMD conformance corpus plus
-projection tests. The present core has no HMD dependency or Card placeholder.
-See [architecture](../models/domain/architecture.md) and [[design-direction]].
+Keep HMD import and resolution rules inside the extension; `.hql` module
+semantics are a separate design, recorded in [[hql/extensions]]. The extension
+should use the HMD conformance corpus plus projection tests. The present core
+has no HMD dependency and no document placeholder.
+
+See [architecture](../models/domain/architecture.md), [[hypermarkdown]] for the
+format, [[doc-type]] for the document type, [[card-type]] for the card type and
+[[design-direction]] for what is still open.

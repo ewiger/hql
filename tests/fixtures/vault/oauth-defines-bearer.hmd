@@ -1,0 +1,13 @@
+---
+title: OAuth defines the bearer token
+metadata:
+  status: done
+  knowledge:
+    type: Relation
+    relation:
+      source: oauth
+      target: bearer-tokens
+---
+# OAuth defines the bearer token
+
+The specification names the bearer scheme, on the authority of RFC 6750.

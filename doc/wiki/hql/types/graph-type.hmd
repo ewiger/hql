@@ -1,0 +1,199 @@
+---
+tags: [hql, graph, knowledge, type-system]
+---
+# Graph
+
+A graph in HQL is an ordinary value with two type parameters — what its nodes
+are, and what its edges are:
+
+```hql
+type Graph[N, E]
+```
+
+It is not a rendering, not a keyword and not a fixed structure the language
+knows about. `Graph` and `Edge` belong to the **graph extension**; HMD and
+knowledge each specialize them without either owning the other. The layering is
+core → graph → knowledge, with document sources beside it.
+
+## The edge is the primitive
+
+```hql
+type Edge[S, T] {
+    source: S
+    target: T
+    data:   Data
+}
+```
+
+Three things follow from that shape, and they are why the graph model stays
+small.
+
+**Source and target are typed separately.** `Edge[S, T]` rather than `Edge[N]`
+admits an edge whose ends are different kinds of thing — a card pointing at a
+concept, a concept supported by a document — without a union type at the node
+position.
+
+**The payload is [[data-type|Data]].** An edge carries a tree, and the keys in it
+are the author's. `relation: parent` is an entry, not grammar, which is what
+keeps every vocabulary a vault invents out of the language — see [[link-op]] for
+the `[[..]] -> [[..]] {..}` form that writes one.
+
+**Carrying data is not being typed.** An edge annotated `relation: parent` is not
+thereby a `Parent` edge. `typed RelationCard` has to check a contract; a key in
+a tree is an author's claim. This is the same rule that keeps a
+`metadata.knowledge.type` entry from minting a type by itself — see
+[[card-type]].
+
+## Two specializations, one mechanism
+
+```hql
+type Link[S, T]     <: Edge[S, T]
+type HmdGraph       <: Graph[Card, Link]
+
+type Relation[S, T] <: Edge[S, T]
+type KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}
+```
+
+| Graph | Nodes | Edges | Comes from |
+| --- | --- | --- | --- |
+| Document graph | documents | authored links | the vault's own structure |
+| Knowledge graph | concepts | relations | interpretation, and it must be performed |
+
+The two declarations are deliberately not symmetric. `HmdGraph` is a graph and
+nothing more: it is what the vault's links look like when read structurally, and
+a host that draws it has everything it needs. `KnowledgeGraph` also narrows
+`Knowledge`, because a graph of concepts and relations that had forgotten its
+conflicting claims, provenance and evidence would not be knowledge any more — it
+would be a picture of knowledge. Whether `HmdGraph` should gain a second parent
+of its own is not currently argued for; a document graph has no comparable
+second contract to keep.
+
+That second parent is what makes the projection able to be lossless, and it is
+the case that forces the supertype set to be a real intersection rather than a
+list of parents — see [[type-system]].
+
+`[[alice]] -> [[project-x]]` is an edge in the first. `WorksOn(alice, project_x)`
+is an edge in the second. They render through the same machinery without being
+the same object, and that is the point of parameterizing `Graph` rather than
+declaring one graph type with a `kind` field. A document graph is discovered; a
+knowledge graph is argued for.
+
+## A relation is an edge, and a card may represent it
+
+`Relation` is a first-class knowledge type with one supertype:
+
+```hql
+type Relation[S, T] <: Edge[S, T]
+```
+
+An edge has a source, a target and data. A relation has all three and adds
+identity, evidence and provenance, so the narrowing is ordinary. What it does
+**not** narrow is `Card`. A relation can be imported from another namespace,
+derived by a rule or read out of a database, and in each of those cases there is
+a relation and no document anywhere, so a relation cannot be a kind of card.
+
+A `RelationCard` is a card that represents one, giving it a body, a name in the
+vault and incoming links of its own:
+
+```hql
+card.metadata.knowledge.type == Relation
+card.metadata.relation : Relation[S, T]
+```
+
+That is refinement of the card's knowledge layer, not a second parent — see
+[[type-system]], which separates the two mechanisms. The asymmetry with its
+sibling is worth noting here, because it is a statement about the graph: a
+`ConceptCard` declares `{Card, Concept}` and so occupies a node position, while
+a `RelationCard` declares no graph parent at all. It contributes an edge and is
+not itself a node, which is what keeps `Graph[Concept, Relation]` a graph of
+concepts rather than one with an explained relationship appearing twice.
+
+It also marks where `<:` stops. `Edge[S, T]` is what a relation *is*. Being
+renderable is not: that is a capability, supplied by an extension as
+`Renderable[Html]` rather than by inheritance.
+
+## Endpoint identity, and where it fails
+
+[[link-op]] settles identity for the document graph: an edge is identified by its
+endpoints, so authoring the same link twice updates one annotation rather than
+adding a second edge. That makes the document graph a simple graph, which is
+right for it — two `[[bob]]` links in `alice` are one dependency stated twice.
+
+A knowledge graph cannot be keyed that way. Distinct relation cards may make
+conflicting claims about the same pair, and knowledge must retain both with their
+provenance and evidence rather than merging them into one annotated edge — see
+[[hql/knowledge]]. The knowledge graph is therefore a multigraph whose edges have
+identity of their own, and that identity belongs to the relation itself rather
+than to any document that happens to represent it.
+
+So the two graphs differ in a way worth stating plainly: **the document graph is
+keyed by endpoints, the knowledge graph by edge identity.** [[hql/collections]]
+already warns that set membership must not equate distinct claims because they
+share endpoints; this is that warning with a type behind it.
+
+## Direction and traversal
+
+An edge is directed — it has a source and a target — and `uplinks` and
+`downlinks` are the two directions of traversal over one edge set, not two edge
+sets. A node can be its own source and target. See [[doc-type]].
+
+Whether `Graph` exposes its nodes and edges as collections, and which ones, is
+open:
+
+```hql
+graph.nodes : Set[N]
+graph.edges : Set[E]
+```
+
+`Set` follows [[hql/collections]], since discovering edges must not establish an
+ordering guarantee. This card writes generics in square brackets, following the
+design conversation and [[type-system]], while
+[[hql/collections]] writes `Set<T>`; that divergence is unsettled everywhere and
+this card does not settle it.
+
+What is less clear is whether a graph over a vault should be materialized at
+all, or whether it is a query that a source may execute — a graph store, a
+database, or the vault index — which is the same execution
+freedom [[pipes]] reserves for collection stages.
+
+## Projection and presentation
+
+```hql
+knowledge
+| graph
+```
+
+`graph` here is an ordinary function from a knowledge value to a `Graph`, not a
+presentation keyword. The resulting value happens to have a renderer registered
+by the graph extension, which is what makes it appear in a host as a picture.
+
+That reading resolves the tension [[hql/knowledge]] records between `graph` as a
+projection and `graph` as a terminal presenter: the projection produces the
+value, and rendering is a capability of the value. It does not resolve the
+naming — whether the projection and the view should share a name is still a
+decision, and `HmdGraph` currently reads as though it were a presentation type
+when it is a graph over cards.
+
+## Open questions
+
+- Variance. `HmdGraph <: Graph[Card, Link]`, and `Card <: Doc`, so does
+  `Graph[Card, Link] <: Graph[Doc, Edge]` hold? A function written over
+  `Graph[Doc, Edge]` is useless if it does not. Covariance is defensible while
+  graphs are immutable values, and unsound the moment a graph can be extended in
+  place, so this is a question about whether graph construction is pure.
+- Node identity. Two documents, two concepts, a document and the concept it
+  describes: when are they the same node? `Set[N]` presumes an answer.
+- Whether nodes must be values in the graph at all, or whether an edge's
+  endpoints are references that the graph never resolves — the forward-link case
+  from [[link-op]] argues for references.
+- What a graph's horizon is. `cards` stops at the vault; a graph built from
+  imported namespaces or an external store may not.
+- Whether `Graph` is one type or a family with a shared surface, and whether
+  traversal, subgraph selection and path queries are functions over it or a
+  separate query vocabulary.
+
+See the [graph model](../../../models/domain/graphs.md) for the domain this card
+types, [[link-op]] for the edge-writing operator, [[type-system]] for what `<:`
+does and does not cover, [[card-type]] for `Card` and its two kinds, [[hql/knowledge]] for the semantic universe, [[hql/collections]] for
+the node and edge collections and [[hql/design-status]] for what remains
+undecided.

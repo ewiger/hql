@@ -1,0 +1,64 @@
+---
+tags: [hql, functions, design]
+---
+# HQL pipes
+
+The `|` operator is fundamental to HQL. A pipeline composes typed functions and
+should naturally support query and data-parallel execution. It remains a language
+design feature; the bootstrap parser does not accept pipelines yet.
+
+For a unary function, the intended reading of `x | f` is `f(x)`. A stage consumes
+the previous value and returns the next. Input and output types must agree;
+piping a collection into a function expecting one Card is not implicitly a map.
+
+```hql
+cards
+| typed RelationCard
+| graph
+```
+
+This preferred example selects relation cards and requests a graph of them.
+`cards` is the reserved keyword for the namespace vault's cards; see
+[[card-type]]. `typed RelationCard` must check the contract, not the
+`metadata.knowledge.type` label alone; an authored entry does not establish
+conformance. The exact application syntax and the result type of `graph`
+remain design questions.
+
+## Functions as stages
+
+A candidate composition style lets configured operations return unary functions:
+
+```hql
+people
+| filter(p => p.age >= 18)
+| map(p => p.name)
+```
+
+Here `people` is an explicitly supplied collection of typed values with `age`
+and `name` fields. Lambda spelling and partial application are illustrative.
+Argument placement, currying, shorthand fields, precedence and multiline
+continuation rules still need a grammar decision.
+
+Prefer these ordinary functions over a trait system exposed to language users.
+That preference leaves room to design generic functions and type inference
+without importing Rust's syntax or extension mechanisms.
+
+## Execution freedom
+
+Pure collection stages should leave room for lazy evaluation, stage fusion,
+source-side query execution and partitioned work. These are executor options,
+not promises that every pipe runs in parallel or that a query planner exists.
+
+An optimization must preserve observable values, sequence order and failures.
+Parallel reduction needs a suitable combining operation; arbitrary functions
+cannot be assumed associative. Sorting and whole-collection operations may
+require coordination or materialization. Effects must not be reordered or
+duplicated merely because they appear in a pipeline.
+
+Unknown extension functions remain ordinary calls unless their declared contract
+allows more. Purity, failure and execution metadata, plus the eager/lazy boundary,
+are open design work shared with [[hql/extensions]].
+
+See [[hql/collections]] for ordering, [[hql/knowledge]] for terminal presenters,
+and [[card-type]], [[doc-type]] and [[data-type]] for the values that flow through
+a pipeline.

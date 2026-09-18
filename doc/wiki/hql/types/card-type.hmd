@@ -1,0 +1,342 @@
+---
+tags: [hql, cards, knowledge, type-system, hypermarkdown]
+---
+# Card
+
+`Card` is the **base representation type** of the knowledge domain: a document
+that gives a piece of knowledge a physical form.
+
+```hql
+type Card <: Doc {
+    // the document represents a piece of knowledge
+    // the document has a place in a vault
+}
+```
+
+The narrowing conditions do not include the body's format. A plain Markdown file
+gives knowledge a representation as readily as an `.hmd` one — see
+[[hmd-integration]]. Card-ness is a knowledge notion.
+
+Everything `Doc` provides — a `Data` header, a body, sections, anchors, links —
+a card has, because a card is one. This page is about what a card has *in
+addition*, and that addition is the point of the type.
+
+## Two kinds of card
+
+`Card` deliberately says nothing about what the card is *about*. That is
+declared by its two subtypes:
+
+```hql
+type ConceptCard  <: {Card, Concept}  // its subject is a concept — a node
+type RelationCard <: Card             // its subject is a relation — an edge
+```
+
+`{Card, Concept}` is the normalized supertype set: `Card <: Doc` already holds,
+so `{Card, Concept, Doc}` would name `Doc` twice — see [[type-system]]. The
+third parent, `Concept`, is what puts a concept card in a node position in a
+[[graph-type|knowledge graph]].
+
+Most knowledge lives in nodes, so `ConceptCard` is the ordinary case and is the
+default. A `RelationCard` is the exception, opted into explicitly:
+
+```hql
+card.metadata.knowledge.type : KnowledgeKind   // Concept | Relation
+```
+
+A card that declares nothing is a concept card. `knowledge.type == Relation`
+makes it a relation card, and — like every refinement — the entry is an author's
+claim that has to be checked against a contract rather than trusted. See
+[[hql/knowledge]] and the [knowledge model](../../../models/domain/knowledge.md)
+for what each kind does.
+
+## A card is a document that knows where it is
+
+A bare document is a file. A card is a file with a place in a **vault**, and
+that place is what makes it addressable by name.
+
+The vault boundary is HMD's. A namespace is a rooted tree of modules, and
+resolution never crosses into a neighbouring vault: two vaults are two
+namespaces. A card therefore has a name that other cards can write in double
+brackets, a spine of ancestor modules that a bare name is probed against, and a
+set of documents that may point at it.
+
+This is what turns document machinery into card machinery:
+
+- `[[alice]]` resolves, because there is a namespace to resolve it in.
+- `downlinks` are answerable, because the vault knows what points at this card.
+- `header.path` means something, because there is a root to be relative to.
+- `import` and `use` in the header inherit or not, because there are ancestor
+  folder notes to inherit from.
+
+A plain Markdown file dropped into a vault becomes a card by acquiring that
+context, not by being rewritten. That is the practical content of HMD's claim
+that every `.md` file is already valid `.hmd`.
+
+## A card is a knowledge participant
+
+The difference that matters is not the file format. `card` is a term from
+knowledge management, and a card is the kind of document that can reference
+knowledge and operate on knowledge concepts.
+
+```hql
+knowledge : Knowledge
+```
+
+Knowledge is designed from day one, not deferred behind a release boundary. A
+card's body, links, header and embeds are not merely content to be rendered:
+they are the material that concepts, relations, propositions and evidence are
+drawn from. A type system that treats cards as documents first and knowledge as
+a later projection gets the dependency backwards, because the reason cards exist
+is to carry meaning that a file system cannot.
+
+Concretely, a card can:
+
+- be a **`ConceptCard`** — an identified thing the vault has something to say
+  about, and a node in the knowledge graph.
+- be a **`RelationCard`** — a relationship promoted into a document so that it
+  gains a body, a name in the vault and incoming links. It represents an edge; it
+  does not become a node.
+- carry **propositions** in its body, which other cards may support or dispute.
+- supply **evidence**, as ordinary sections with ordinary links.
+
+None of this is automatic. A link is structural connectivity and does not assert
+a semantic relation; a header entry is an author's claim and not a proof of
+conformance. The path from document to knowledge runs through explicit
+interpretation, and the rule used must be retained with the result. See
+[[hql/knowledge]] for the semantic universe and what it retains: conflicting
+claims, provenance, constraints and satisfaction.
+
+`Doc` has no such capability and does not need one. A constructed body, an
+embedded fragment or an ordinary Markdown file outside any vault is a perfectly
+good document with nothing to say about knowledge. The narrowing is exactly the
+step at which meaning becomes possible.
+
+## A card's metadata
+
+A card has a second layer the document does not, and it has its own name:
+
+```hql
+type Card <: Doc {
+    metadata : Data     // the knowledge attached to this card
+}
+```
+
+`header` and `metadata` are not two spellings of one field. A header is a
+document-level notion — name, path, format, title, whatever an author wrote and
+whatever an extension contributed about the file. Metadata is a knowledge-level
+one: concepts, relations, propositions and evidence attached to this card, which
+is exactly the addition that makes a card more than a document. Only a card has
+it, because only a card participates in knowledge.
+
+That is why `metadata` belongs to [[hql/knowledge]] rather than to [[doc-type]],
+and why the knowledge extension refines `card.metadata` while a `git` or
+database extension contributes to `card.header`. Both refine one unchanged tree
+in the same way — see [[type-system]].
+
+### `card.metadata` is assembled, not inherited
+
+`card.metadata` is **not** the authored `header.metadata` under another name. The
+two are different fields with different semantics, and both stay addressable:
+
+```hql
+card.header.metadata?   // optional — what the author wrote, if anything
+card.metadata           // always present — what the system knows
+```
+
+The authored block is optional, because authoring metadata is a choice. The
+card's own layer is not, because it exists whether or not the file said anything.
+It is assembled when the document becomes a card, from inputs that include:
+
+- the authored `header.metadata`, where the document has one;
+- system metadata supplied at load;
+- entries contributed by extensions — `git`, an indexer, a link checker;
+- vault state held under `.hmd/**`;
+- semantic-search state and other derived information.
+
+Authored metadata is one input among these and does not win by being authored.
+Which inputs may overwrite which is the **Card metadata precedence**, and it is
+this card's to settle; it is not settled yet.
+
+A query has to know which layer it is addressing. `card.header.metadata` answers
+*what did the author write?*; `card.metadata` answers *what does the system know
+about this card?* A linter checking that authors tagged their notes wants the
+first, a search ranking cards wants the second, and confusing them reports the
+vault's own bookkeeping as something a person typed. See [[fields]] for the
+two-layer distinction in full.
+
+`metadata.knowledge.type` lives in the assembled layer, which is why the choice
+between `ConceptCard` and `RelationCard` is a knowledge-level one and not a
+filename or folder convention.
+
+What a card's metadata contains before any extension declares its shape is open,
+as are the precedence rules above.
+
+## A card's header
+
+A card's header is a [[data-type|Data]] tree like any document's, assembled from
+the same derived, authored and contributed layers, and it is readable like any
+other field — nothing about a card hides it. Two things are worth stating here,
+though neither is what makes a document a card.
+
+First, `header.format` is what licenses wikilinks, embeds and fragment
+addressing in the body. A card written in `hmd` has them; a card written in `md`
+has a header and a body like any other document, and no hyper layer to ask
+about.
+
+Second, where the body is `hmd`, HyperMarkDown reserves exactly four authored
+header keys and leaves every other key to the author:
+
+| Key | Meaning |
+| --- | --- |
+| `tags` | `/`-separated hierarchical strings; categorize, but do not resolve |
+| `use` | Per-card feature toggles; inherits from the nearest ancestor folder note |
+| `import` | Name bindings and search origins; applies to this card only, never inherits |
+| `nav` | `order` and `visibility` for publication |
+
+Projecting these as stronger HQL types is sound, because HMD validates them. The
+rest of the tree stays `Data`, and that openness is deliberate: a type system
+with a declared header record would have to grow a field every time a vault
+invented a key.
+
+```hql
+card.header.tags
+card.header.nav.visibility
+```
+
+What a card whose authored header block fails to parse projects to is
+unresolved — a card
+with an empty header, a card carrying a diagnostic, or no card at all.
+
+## cards
+
+`cards` is a reserved keyword. It denotes every card in the current namespace
+vault:
+
+```hql
+cards : List<Card>
+```
+
+This is a context value, not a function call and not a filesystem sweep written
+by the user. It has the same horizon a wikilink does: `cards` in one vault never
+contains a card from another.
+
+```hql
+cards
+| typed RelationCard
+| graph
+```
+
+Being a keyword rather than a binding means a card cannot shadow it by being
+named `cards`, and that a program never has to state where the vault is. What
+`cards` means inside a nested module — the whole vault, or the module subtree —
+still needs a decision, as does whether imported namespaces contribute to it.
+
+There is no matching keyword for documents, and there should not be. `cards` is
+bounded because a vault is bounded; documents in general are not a collection
+anything can enumerate.
+
+> The collection type is unsettled. This card states `List<Card>`, while
+> [[hql/collections]] records `Set<Card>`, on the grounds that discovering files
+> must not establish an ordering guarantee. The two pages have to be reconciled
+> by a decision about whether vault order is observable, not by editing one page
+> to match the other. Tracked as `CON-05` in
+> [consolidation](../../../status/consolidation.md).
+
+## Extensions extend the header
+
+The header is the extension boundary, and an [[hql/extensions|extension]] can
+extend it in two quite different senses. Keeping them apart matters.
+
+**Contributing entries.** Some extensions know facts the file does not state — a
+`git` extension supplying authorship and revision, an indexer supplying
+embeddings or a semantic-search score, a link checker supplying resolution
+diagnostics, a build supplying publication state.
+
+```hql
+git.metadata(card) : Data
+```
+
+This is the second reason the header is broader than what an author writes:
+most of what a mature vault knows about a card was never typed into the card.
+
+**Contributing type knowledge.** Other extensions add nothing to the tree at all.
+They declare what an existing region of it means, so a subtree that was `Data`
+becomes usable at a stronger type without being converted or copied.
+
+```hql
+import knowledge
+
+card.metadata          : Data              // before
+card.metadata          : KnowledgeMetadata
+card.metadata.concepts : List<Concept>
+```
+
+The runtime value is unchanged; what changed is what the checker can prove about
+it. An extension owns type knowledge about a header, not the header itself —
+[[type-system]] develops this as open structural data with progressive
+refinement, and it is the mechanism behind the narrowing below.
+
+The core's obligation is to keep contributions distinguishable. A header entry
+that was derived, authored or contributed is not interchangeable with the
+others, and provenance records where a value came from rather than conferring
+authority on it. How contributed entries are namespaced, whether an extension
+may overwrite an author's key, and what happens when two extensions contribute
+the same path are open — though an extension that only contributes type
+knowledge raises none of those questions, which is an argument for preferring
+that form.
+
+## Types narrow
+
+`Card <: Doc` is the first narrowing, not a special case. The same mechanism
+continues past it, and it is the same mechanism by which a `Data` subtree
+becomes a known shape — see [[type-system]].
+
+```hql
+type Person <: Card {
+    name: String
+    born: Date?
+}
+```
+
+Declaration syntax is illustrative. The direction is not: a `Person` card keeps
+its body, its links and its own identity, and other cards can link to it.
+Narrowing adds guarantees; it never replaces the card with a record.
+
+`ConceptCard` and `RelationCard` are narrowings of this kind too — the two the
+domain declares rather than ones a vault invents.
+
+What is **not** a narrowing is the relation a relation card is about. `Relation`
+is a first-class knowledge type, never a specialization of `Card`: it can be
+imported, derived by a rule or read out of a store with no document anywhere.
+The card represents one, and the relation is reached through the card's
+knowledge layer:
+
+```hql
+card.metadata.knowledge.type == Relation
+card.metadata.relation : Relation[S, T]
+```
+
+That is refinement, reached the same way as any other metadata — see
+[[type-system]] for why representation and ancestry are different mechanisms,
+[[graph-type]] for the edge a relation narrows and [[hql/knowledge]] for why
+significant relationships are preferably given cards.
+
+Narrowing has to be checked. A `knowledge.type: Relation` entry in the metadata
+is an author's claim, and `typed RelationCard` must verify the contract rather
+than trust the label — an unchecked `as` would let any YAML key mint a type. The result of a failed
+narrowing, the spelling of validation and refinement, and whether narrowing is
+nominal or structural remain open.
+
+```hql
+person : Person = validate[Person](card)
+```
+
+Narrowing is also how a vault stays usable while it is being typed. A document
+that satisfies nothing beyond `Doc` is still a first-class value; a card that
+satisfies nothing beyond `Card` is still in `cards` and still traversable.
+Stronger types are earned where there is a reason for them, and the untyped
+remainder is not an error.
+
+See [[doc-type]] for the document a card narrows, [[data-type]] for the header's
+tree type, [[hql/knowledge]] for the semantic universe, [[pipes]] for composition
+and [[hql/design-status]] for what is still undecided.

@@ -1,0 +1,109 @@
+---
+tags: [hql, decisions, design]
+---
+# HQL design status
+
+HQL remains in language design. These cards record the current direction and
+separate it from both older corpus alternatives and implemented behavior.
+
+| Card | Scope |
+| --- | --- |
+| [[hql/core]] | Small typed functional core and domain vocabulary |
+| [[hql/collections]] | Set, Seq, Map and `cards : Set<Card>` |
+| [[pipes]] | Ordinary functions, composition and data-parallel execution |
+| [[hql/knowledge]] | Semantic universe, the card family and presentation |
+| [[hql/extensions]] | External capabilities, modules and `init.hql` |
+| [[doc-type]] | `Doc`, the header, `format`, sections, links and embeds |
+| [[card-type]] | `Card` and its two kinds, the vault, and the `cards` keyword |
+| [[data-type]] | `Data`, the tree type of headers and structured payloads |
+| [[type-system]] | `<:`, generic parameters and progressive type refinement |
+| [[fields]] | Optional `?` fields, partial schemas, and the two metadata layers |
+| [[link-op]] | Doc references and the `[[..]] -> [[..]] {..}` link operator |
+| [[graph-type]] | `Graph[N, E]`, `Edge[S, T]`, and the document and knowledge graphs |
+| [[hql/std-lib]] | Placeholder for the standard library; a bootstrap non-goal |
+
+## Current direction
+
+Prefer ordinary functions, bare bindings and fundamental pipe syntax. Keep SQL
+clauses and Rust-like trait machinery out of the design — **decided**, against
+the competing direction an earlier memory note had recorded. A trait is a host
+mechanism an extension may use internally and it never reaches HQL's surface;
+what had been asked of it splits into ancestry (`<:`), capability (an extension
+registers a function) and a partial schema over `Data`. See
+[no traits](../../memory/no-traits.md). Extensions supply
+external capabilities and may be written in Rust. Optional namespace `init.hql`
+files import available modules and extensions.
+
+`cards` is a `Set<Card>` in the current vault or namespace. `knowledge` comprises
+concepts, relations, propositions and evidence. Knowledge retains conflicting
+claims and provenance; a graph is only one projection. Programs return typed
+values, persistence is explicit, and presentation belongs to a separate layer.
+
+`Card` is the base representation type of the knowledge domain, with two kinds:
+`ConceptCard <: {Card, Concept}` occupies a node position, and
+`RelationCard <: Card` represents an edge without becoming a node. The kind is
+declared by `metadata.knowledge.type` and must be checked, not trusted.
+
+HQL has **no field visibility**: no `pub`, `protected` or `private`. Values are
+data and declared fields are queryable data, so there is no privileged inside for
+a modifier to protect, and a subtype neither hides nor re-exposes what it
+inherits. What a type may declare instead is that a field is optional, `metadata?
+: Data`, and that it constrains only the paths it knows about — a partial schema
+over an otherwise open `Data` tree.
+
+`doc.header` is required; `doc.header.metadata` is optional, because authoring
+metadata is a choice. `card.metadata` is a **different field**, assembled when a
+document becomes a card from the authored block, system metadata, extension
+contributions, `.hmd/**` vault state and other derived information, under
+precedence rules [[card-type]] owns and has not settled. The card family is
+recorded in [[type-system]] and fields in [[fields]].
+
+The Set/Seq vocabulary supersedes the assumption in older examples that `cards`
+is an ordered List. Those examples remain design inputs, not a final language
+specification. This documentation change does not migrate the corpus or expand
+the implementation.
+
+## Decisions still needed
+
+- Function/declaration grammar, generic bracket spelling, bound syntax,
+  variance, inference and pipe argument placement — see [[type-system]].
+- Collection equality, Card identity, mapping duplicates and ordering contracts.
+- Whether `cards` is `List<Card>` or `Set<Card>`: [[card-type]] states the
+  ordered reading, [[hql/collections]] the unordered one. Vault order is the
+  question, not the spelling.
+- Document schemas, reference failures, optional values and error carriers.
+- Semantic constructors, derivation rules and constraint/satisfaction types.
+- The name and type boundary between graph projection and graph presentation.
+- Module resolution, namespace inheritance and `init.hql` initialization policy.
+- Extension transport, effect contracts and optimizer-visible execution properties.
+
+The implemented slice is now larger than the literal core: statements and
+bindings, strings and data literals, document references, the link operator,
+pipelines with lambdas, a vault of Markdown and HyperMarkDown documents, the card
+family checked at load, semantic retrieval, graph traversal, and a reporting
+queue. The signed 64-bit and double-precision representations, the absence of
+Int-to-Float widening, and the addition-chain limit remain provisional
+implementation choices rather than settled language requirements. What the
+parser accepts is recorded in
+[the grammar](../../models/behavior/expressions.md); what it deliberately does
+not is in the [bootstrap requirements](../../models/requirements/bootstrap.md).
+
+Implementing that slice settled `CON-05` — a `Card` is orderable by its name, so
+a reproducible prefix needs no observable vault order — and `INC-15`, where an
+unresolved reference warns and yields absence. Both are recorded in
+[consolidation](../../status/consolidation.md) and
+[inconsistencies](../../status/inconsistencies.md).
+
+## Architecture sources
+
+The sources these cards were drawn from:
+
+- [[design-direction]] and the [example corpus](../../../examples/README.md).
+- [Knowledge model](../../models/domain/knowledge.md) and
+  [integration architecture](../../models/domain/architecture.md).
+- [Program values](../../models/behavior/program-values.md),
+  [corpus decisions](../../memory/corpus-direction.md) and
+  [bootstrap decisions](../../memory/bootstrap.md).
+
+Read those sources before changing language design. Keep unresolved alternatives
+visible until a decision is made; illustrative syntax is not implementation evidence.

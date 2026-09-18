@@ -1,0 +1,10 @@
+---
+title: Session cookies
+metadata:
+  status: todo
+  owner: ada
+---
+# Session cookies
+
+A cookie identifies a session on the server. The browser sends it back on every
+request to the same origin.

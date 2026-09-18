@@ -1,0 +1,10 @@
+---
+title: OAuth 2.0
+metadata:
+  status: done
+  owner: grace
+---
+# OAuth 2.0
+
+OAuth issues an access token. A client presents it as a bearer token in the
+authorization header. See [[bearer-tokens]] {relation: defines}.

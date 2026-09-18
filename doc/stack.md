@@ -4,7 +4,16 @@ hql is built on this stack. Read it before adding a dependency,
 picking a tool, or writing code — it is the contract contributors and agents
 follow, so keep it current when the stack changes.
 
-## Language
+**Scope: the implementation, not the language.** Everything here governs the
+Rust program that parses and evaluates HQL. None of it governs HQL's own design.
+The host language's defaults, idioms and vocabulary carry no authority over what
+HQL's syntax, type system or semantics should be — an argument for an HQL feature
+is never "Rust does it this way". HQL is a data language and diverges freely
+where that serves it; `doc/models/` and `doc/wiki/` are where its design is
+argued. See [extensions](wiki/hql/extensions.hmd), which draws the same boundary
+for what extensions may expose.
+
+## Implementation language
 
 - Rust, edition 2024. `rust-version` in `Cargo.toml` is the floor, and
   `rust-toolchain.toml` pins the channel everyone builds with.

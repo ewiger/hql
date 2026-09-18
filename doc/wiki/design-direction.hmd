@@ -7,7 +7,7 @@ tags: [hql, design]
 illustrate intent only; neither is accepted by the bootstrap parser:
 
 ```hql
-resolve([[alice]]) : Card
+alice : Doc = [[alice]]
 ```
 
 ```hql
@@ -15,10 +15,12 @@ knowledge
 | graph
 ```
 
-A document should resolve naturally to a `Card`. Functions, `.hql` module
+`[[..]]` is a doc reference, and `[[..]] -> [[..]] {..}` the link operator over
+two of them; card-ness is a separate checked narrowing — see [[link-op]].
+Functions, `.hql` module
 imports, value construction, transformations, constraint validation, and typed
 results belong to the intended scope. [[hmd-integration]] describes how partial
-frontmatter schemas could contribute structural/type information.
+header schemas could contribute structural/type information.
 
 ## Recorded direction
 
@@ -28,7 +30,7 @@ returns its last expression; rendering and explicit output are separate.
 Cells close over explicit card environments, with isolated local bindings.
 See [program values](../models/behavior/program-values.md).
 
-Significant relationships are Relation Cards. `cards | typed Relation | graph`
+Significant relationships are relation cards. `cards | typed RelationCard | graph`
 is a core example. Knowledge includes evidence, provenance and conflicting
 claims; Graph is one projection and HmdGraph is a presentation value. See the
 [knowledge model](../models/domain/knowledge.md).
@@ -37,7 +39,7 @@ claims; Graph is one projection and HmdGraph is a presentation value. See the
 
 - Function syntax, application, binding, pipeline desugaring, and precedence.
 - Type inference, structural versus nominal records, schema checking, optional
-  and unknown frontmatter fields, polymorphism, and numeric representation.
+  and unknown header fields, polymorphism, and numeric representation.
 - Card identity, namespace context, unresolved/ambiguous references, graph value
   semantics, and the concrete host adapter interface.
 - Module loading, effects and resource limits, transformation application,
@@ -47,17 +49,19 @@ claims; Graph is one projection and HmdGraph is a presentation value. See the
   including effect policy, dependency order, and exact presentation types.
   Lexical capture and value/context separation are recorded above.
 
-Bootstrap `i64`, `+`, and the 256-literal bound prove [[first-milestone]]; they do
-not settle these questions. There is no theorem prover, graph implementation,
+Bootstrap `i64`, `f64`, `+`, and the 256-literal bound prove the
+[bootstrap requirements](../models/requirements/bootstrap.md); they do not settle
+these questions. Float is now a working
+bootstrap type, but decimal semantics, rounding and a numeric tower are not. There is no theorem prover, graph implementation,
 HMD renderer, module system, or large standard library in this repository.
 
 ## Type vocabulary to leave room for
 
-Future foundations include Float, Date/DateTime, Option[T], Result[T,E],
+Future foundations include Date/DateTime, Option[T], Result[T,E],
 List[T], Map[K,V], Section, Block, Ref[T] and Namespace, with records, ADTs,
 pattern matching and refinement. Prefer explicit optional/error values over
-pervasive null. String/Str and Frontmatter/FrontMatter naming, generic brackets
-and concrete schema syntax remain open. Formal direction uses constraint and
+pervasive null. String/Str naming, generic brackets and concrete schema syntax
+remain open. Formal direction uses constraint and
 satisfaction vocabulary; solver-backed or dependent checking is not bootstrap
 work. Reading is pure; transformations construct values and persistence is an
 explicit future effect.

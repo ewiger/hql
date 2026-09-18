@@ -25,8 +25,9 @@ HyperMarkDown documents
  values / cards / graphs / HMD / diagnostics / transformations
 ```
 
-A HyperMarkDown document resolves naturally to a `Card`. The host adapter will
-supply typed document structure, frontmatter, namespaces, and resolved links /
+A HyperMarkDown document resolves to a typed document; card-ness is established
+by a checked narrowing rather than by the reference. The host adapter will
+supply typed document structure, headers, namespaces, and resolved links /
 relations. Knowledge graphs are a future value domain. Do not make string
 search over raw HMD the core model. Host parsing/resolution and language
 semantics must remain separable, allowing future non-HMD data sources.
@@ -40,6 +41,6 @@ See [integration evidence](../../wiki/hmd-integration.hmd) and
 
 [Program values](../behavior/program-values.md) records last-expression results,
 lexical cell environments and host-controlled presentation. The
-[knowledge model](knowledge.md) distinguishes structural links, Relation Cards,
-Knowledge, Graph and HmdGraph. These declarations guide future work; they do not
-expand the implemented expression core. See the [corpus](../../../examples/README.md).
+[knowledge model](knowledge.md) distinguishes structural links, relation cards,
+Knowledge, Graph and HmdGraph. These are settled design, not deferred work; what
+is deferred is the *implementation*, which stays the bootstrap expression core. See the [corpus](../../../examples/README.md).
