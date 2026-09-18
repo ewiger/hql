@@ -3,7 +3,7 @@
 //!
 //! How a value prints is [`display`](super::display).
 
-use super::Type;
+use super::{MapKind, MapValue, TypeRef};
 use crate::data::Data;
 use crate::document::{Card, Document, Kind};
 use crate::graph::{Edge, Graph};
@@ -25,6 +25,10 @@ pub struct Presentation {
 pub enum Value {
     /// A declaration's result: nothing to show.
     Unit,
+    /// The result of a total comparison.
+    Ordering(std::cmp::Ordering),
+    /// A finite map with checked unique keys.
+    Map(Rc<MapValue>),
     /// A signed 64-bit integer.
     Int(i64),
     /// A finite double-precision number.
@@ -34,7 +38,9 @@ pub enum Value {
     /// Text.
     Str(Rc<str>),
     /// Absence, carrying the type of what is not there.
-    Absent(Type),
+    Absent(TypeRef),
+    /// Presence retains the optional type instead of erasing its wrapper.
+    Present(Rc<Value>),
     /// An open tree.
     Data(Rc<Data>),
     /// A document.
@@ -46,9 +52,9 @@ pub enum Value {
     /// A graph.
     Graph(Rc<Graph>),
     /// An unordered collection, with the type of its elements.
-    Set(Rc<Vec<Value>>, Type),
+    Set(Rc<Vec<Value>>, TypeRef),
     /// An ordered collection, with the type of its elements.
-    Seq(Rc<Vec<Value>>, Type),
+    List(Rc<Vec<Value>>, TypeRef),
     /// One scored result.
     Hit(Rc<Hit>),
     /// An ordered collection of hits.
@@ -58,41 +64,87 @@ pub enum Value {
 }
 
 impl Value {
+    /// Expose a checked annotation's map contract without changing storage.
+    pub(crate) fn viewed_as(self, expected: &TypeRef) -> Self {
+        match (&self, MapKind::of(expected.constructor)) {
+            (Self::Map(map), Some(_)) => Self::Map(Rc::new(map.viewed_as(expected))),
+            (Self::Present(value), _) if expected.constructor.0 == "Option" => Self::Present(
+                Rc::new(value.as_ref().clone().viewed_as(expected.present())),
+            ),
+            (Self::List(values, _), _) if expected.is_collection() => {
+                let Some(element) = expected.element() else {
+                    return self;
+                };
+                Self::list(
+                    values
+                        .iter()
+                        .cloned()
+                        .map(|value| value.viewed_as(&element))
+                        .collect(),
+                    element,
+                )
+            }
+            (Self::Set(values, _), _) if expected.is_collection() => {
+                let Some(element) = expected.element() else {
+                    return self;
+                };
+                Self::set(
+                    values
+                        .iter()
+                        .cloned()
+                        .map(|value| value.viewed_as(&element))
+                        .collect(),
+                    element,
+                )
+            }
+            _ => self,
+        }
+    }
+
     /// A set of values of a known element type.
     #[must_use]
-    pub fn set(values: Vec<Self>, element: Type) -> Self {
-        Self::Set(Rc::new(values), element)
+    pub fn set(values: Vec<Self>, element: TypeRef) -> Self {
+        let mut unique = Vec::with_capacity(values.len());
+        for value in values {
+            if !unique.contains(&value) {
+                unique.push(value);
+            }
+        }
+        Self::Set(Rc::new(unique), element)
     }
 
     /// A sequence of values of a known element type.
     #[must_use]
-    pub fn seq(values: Vec<Self>, element: Type) -> Self {
-        Self::Seq(Rc::new(values), element)
+    pub fn list(values: Vec<Self>, element: TypeRef) -> Self {
+        Self::List(Rc::new(values), element)
     }
 
     /// The type of the value.
     #[must_use]
-    pub fn type_of(&self) -> Type {
+    pub fn type_of(&self) -> TypeRef {
         match self {
-            Self::Unit => Type::Unit,
-            Self::Int(_) => Type::Int,
-            Self::Float(_) => Type::Float,
-            Self::Bool(_) => Type::Bool,
-            Self::Str(_) => Type::Str,
-            Self::Absent(element) => Type::Option(Box::new(element.clone())),
-            Self::Data(_) => Type::Data,
-            Self::Doc(_) => Type::Doc,
+            Self::Unit => TypeRef::UNIT,
+            Self::Ordering(_) => TypeRef::ORDERING,
+            Self::Map(map) => map.type_of(),
+            Self::Int(_) => TypeRef::INT,
+            Self::Float(_) => TypeRef::FLOAT,
+            Self::Bool(_) => TypeRef::BOOL,
+            Self::Str(_) => TypeRef::STR,
+            Self::Absent(element) => TypeRef::optional(element.clone()),
+            Self::Present(value) => TypeRef::optional(value.type_of()),
+            Self::Data(_) => TypeRef::DATA,
+            Self::Doc(_) => TypeRef::DOC,
             Self::Card(card) => match card.kind {
-                Kind::Concept => Type::ConceptCard,
-                Kind::Relation => Type::RelationCard,
+                Kind::Concept => TypeRef::CONCEPT_CARD,
+                Kind::Relation => TypeRef::RELATION_CARD,
             },
-            Self::Edge(_) => Type::Edge,
-            Self::Graph(_) => Type::Graph,
-            Self::Set(_, element) => Type::Set(Box::new(element.clone())),
-            Self::Seq(_, element) => Type::Seq(Box::new(element.clone())),
-            Self::Hit(_) => Type::Hit(Box::new(Type::Card)),
-            Self::Ranking(_) => Type::Ranking(Box::new(Type::Card)),
-            Self::Presentation(_) => Type::Presentation,
+            Self::Edge(_) => TypeRef::EDGE,
+            Self::Graph(_) => TypeRef::GRAPH,
+            Self::Set(_, element) => TypeRef::set(element.clone()),
+            Self::List(_, element) => TypeRef::list(element.clone()),
+            Self::Hit(_) => TypeRef::hit(TypeRef::CARD),
+            Self::Ranking(_) => TypeRef::ranking(TypeRef::CARD),
+            Self::Presentation(_) => TypeRef::PRESENTATION,
         }
     }
 
@@ -100,7 +152,7 @@ impl Value {
     #[must_use]
     pub fn elements(&self) -> Option<Vec<Self>> {
         match self {
-            Self::Set(values, _) | Self::Seq(values, _) => Some(values.as_ref().clone()),
+            Self::Set(values, _) | Self::List(values, _) => Some(values.as_ref().clone()),
             Self::Ranking(ranking) => Some(
                 ranking
                     .hits
@@ -117,6 +169,7 @@ impl Value {
     pub fn as_card(&self) -> Option<Rc<Card>> {
         match self {
             Self::Card(card) => Some(Rc::clone(card)),
+            Self::Present(value) => value.as_card(),
             Self::Hit(hit) => Some(Rc::clone(&hit.card)),
             _ => None,
         }
@@ -129,16 +182,13 @@ impl Value {
     #[must_use]
     pub fn order_key(&self) -> Option<Key> {
         match self {
-            Self::Int(value) => Some(Key::number(*value as f64)),
-            Self::Float(value) => Some(Key::number(*value)),
+            Self::Int(value) => Some(Key::Integer(*value)),
+            Self::Float(value) => Some(Key::Number(if *value == 0.0 { 0.0 } else { *value })),
             Self::Str(text) => Some(Key::text(text)),
             Self::Doc(doc) => Some(Key::text(&doc.name)),
             Self::Card(card) => Some(Key::text(card.name())),
             // Best first, then the card's own key, so equal scores are stable.
-            Self::Hit(hit) => Some(Key {
-                number: Some(-hit.score),
-                text: hit.card.name().to_owned(),
-            }),
+            Self::Hit(hit) => Some(Key::Scored(-hit.score, hit.card.name().to_owned())),
             _ => None,
         }
     }
@@ -151,41 +201,43 @@ impl Value {
             _ => None,
         }
     }
-
 }
 
-/// A value's position in its own ordering.
+/// A value's intrinsic order, retaining exact integer precision.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Key {
-    /// The numeric part, compared first when both keys have one.
-    pub number: Option<f64>,
-    /// The textual part, which breaks a numeric tie.
-    pub text: String,
+pub enum Key {
+    /// An exact signed integer.
+    Integer(i64),
+    /// A finite floating-point number.
+    Number(f64),
+    /// A text key.
+    Text(String),
+    /// A retrieval score with a deterministic document tiebreak.
+    Scored(f64, String),
 }
 
 impl Key {
-    fn number(value: f64) -> Self {
-        Self {
-            number: Some(value),
-            text: String::new(),
-        }
-    }
-
     fn text(value: &str) -> Self {
-        Self {
-            number: None,
-            text: value.to_owned(),
+        Self::Text(value.to_owned())
+    }
+
+    /// Compare compatible keys, with deterministic ordering across key families.
+    pub fn compare(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Self::Integer(a), Self::Integer(b)) => a.cmp(b),
+            (Self::Number(a), Self::Number(b)) => a.total_cmp(b),
+            (Self::Text(a), Self::Text(b)) => a.cmp(b),
+            (Self::Scored(a, x), Self::Scored(b, y)) => a.total_cmp(b).then_with(|| x.cmp(y)),
+            _ => self.family().cmp(&other.family()),
         }
     }
 
-    /// Compare two keys, numbers first and text as the tiebreak.
-    #[must_use]
-    pub fn compare(&self, other: &Self) -> std::cmp::Ordering {
-        match (self.number, other.number) {
-            (Some(left), Some(right)) => left
-                .total_cmp(&right)
-                .then_with(|| self.text.cmp(&other.text)),
-            _ => self.text.cmp(&other.text),
+    fn family(&self) -> u8 {
+        match self {
+            Self::Integer(_) => 0,
+            Self::Number(_) => 1,
+            Self::Text(_) => 2,
+            Self::Scored(..) => 3,
         }
     }
 }
@@ -194,20 +246,38 @@ impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Unit, Self::Unit) => true,
+            (Self::Ordering(a), Self::Ordering(b)) => a == b,
+            (Self::Map(a), Self::Map(b)) => a == b,
             (Self::Int(left), Self::Int(right)) => left == right,
             (Self::Float(left), Self::Float(right)) => left == right,
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::Str(left), Self::Str(right)) => left == right,
             (Self::Absent(left), Self::Absent(right)) => left == right,
+            (Self::Present(left), Self::Present(right)) => left == right,
             (Self::Data(left), Self::Data(right)) => left == right,
             // Heavier values compare by what identifies them, not structurally.
             (Self::Doc(left), Self::Doc(right)) => left.path == right.path,
             (Self::Card(left), Self::Card(right)) => left.document.path == right.document.path,
             (Self::Edge(left), Self::Edge(right)) => {
-                left.source == right.source && left.target == right.target
+                left.source == right.source
+                    && left.target == right.target
+                    && left.data == right.data
+                    && left.kind == right.kind
             }
-            (Self::Set(left, _), Self::Set(right, _))
-            | (Self::Seq(left, _), Self::Seq(right, _)) => left == right,
+            (Self::Set(left, _), Self::Set(right, _)) => {
+                left.len() == right.len() && left.iter().all(|value| right.contains(value))
+            }
+            (Self::List(left, _), Self::List(right, _)) => left == right,
+            (Self::Graph(a), Self::Graph(b)) => Rc::ptr_eq(a, b),
+            (Self::Hit(a), Self::Hit(b)) => {
+                Rc::ptr_eq(a, b)
+                    || (a.card.document.path == b.card.document.path
+                        && a.score == b.score
+                        && self.to_json() == other.to_json())
+            }
+            (Self::Ranking(a), Self::Ranking(b)) => {
+                Rc::ptr_eq(a, b) || self.to_json() == other.to_json()
+            }
             (Self::Presentation(left), Self::Presentation(right)) => left == right,
             _ => false,
         }

@@ -13,9 +13,9 @@ abstract type Collection<T>
 with the conceptual operations:
 
 ```hql
-size     : Collection<T> -> Nat
+size     : Collection<T> -> Int
 contains : (Collection<T>, T) -> Bool
-count    : (Collection<T>, T) -> Nat
+count    : (Collection<T>, T) -> Int
 ```
 
 and these laws:

@@ -9,7 +9,7 @@ use crate::ast::Arg;
 use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
 use crate::graph::{Edge, Graph, Presence};
-use crate::types::Type;
+use crate::types::TypeRef;
 use crate::types::Value;
 use crate::vault::Vault;
 use std::collections::{BTreeMap, VecDeque};
@@ -54,28 +54,28 @@ pub(crate) static STEPS: &[Step] = &[
 
 fn check_uplinks(
     cx: &mut dyn CheckCx,
-    input: &Type,
+    input: &TypeRef,
     _: &[Arg],
     span: Range<usize>,
-) -> Result<Type, Diagnostic> {
+) -> Result<TypeRef, Diagnostic> {
     check_links(cx, input, "uplinks", span)
 }
 
 fn check_downlinks(
     cx: &mut dyn CheckCx,
-    input: &Type,
+    input: &TypeRef,
     _: &[Arg],
     span: Range<usize>,
-) -> Result<Type, Diagnostic> {
+) -> Result<TypeRef, Diagnostic> {
     check_links(cx, input, "downlinks", span)
 }
 
 fn check_links(
     cx: &mut dyn CheckCx,
-    input: &Type,
+    input: &TypeRef,
     name: &str,
     span: Range<usize>,
-) -> Result<Type, Diagnostic> {
+) -> Result<TypeRef, Diagnostic> {
     if name == "downlinks" && !cx.vault().is_present() {
         return Err(Diagnostic::name(
             span,
@@ -83,13 +83,13 @@ fn check_links(
         ));
     }
     let subject = input.element().unwrap_or_else(|| input.clone());
-    if !subject.is(&Type::Doc) && !matches!(subject, Type::Hit(_)) {
+    if !subject.is(&TypeRef::DOC) && subject.constructor.0 != "Hit" {
         return Err(Diagnostic::typing(
             span,
             format!("`{name}` needs a card or cards, not {input}"),
         ));
     }
-    Ok(Type::Seq(Box::new(Type::Edge)))
+    Ok(TypeRef::list(TypeRef::EDGE))
 }
 
 fn eval_uplinks(
@@ -133,18 +133,18 @@ fn eval_links(
                 .map(|edge| Value::Edge(Rc::new(edge.clone()))),
         );
     }
-    Ok(Value::seq(edges, Type::Edge))
+    Ok(Value::list(edges, TypeRef::EDGE))
 }
 
 fn check_expand(
     cx: &mut dyn CheckCx,
-    input: &Type,
+    input: &TypeRef,
     arguments: &[Arg],
     span: Range<usize>,
-) -> Result<Type, Diagnostic> {
+) -> Result<TypeRef, Diagnostic> {
     if let Some(argument) = named_or_first(arguments, "depth") {
         let depth = cx.infer(&argument.value)?;
-        if depth != Type::Int {
+        if depth != TypeRef::INT {
             return Err(Diagnostic::typing(
                 argument.value.span.clone(),
                 format!("`depth` is an Int, not {depth}"),
@@ -153,7 +153,7 @@ fn check_expand(
     }
     if let Some(argument) = named(arguments, "direction") {
         let direction = cx.infer(&argument.value)?;
-        if direction != Type::Str {
+        if direction != TypeRef::STR {
             return Err(Diagnostic::typing(
                 argument.value.span.clone(),
                 format!("`direction` is text, not {direction}"),
@@ -164,7 +164,7 @@ fn check_expand(
         return Err(Diagnostic::name(span, "`expand` needs a vault to traverse"));
     }
     graph_input(input, "expand", &span)?;
-    Ok(Type::Graph)
+    Ok(TypeRef::GRAPH)
 }
 
 fn eval_expand(
@@ -206,12 +206,12 @@ fn eval_expand(
 
 fn check_graph(
     _: &mut dyn CheckCx,
-    input: &Type,
+    input: &TypeRef,
     _: &[Arg],
     span: Range<usize>,
-) -> Result<Type, Diagnostic> {
+) -> Result<TypeRef, Diagnostic> {
     graph_input(input, "graph", &span)?;
-    Ok(Type::Graph)
+    Ok(TypeRef::GRAPH)
 }
 
 fn eval_graph(
@@ -229,8 +229,8 @@ fn eval_graph(
     Ok(Value::Graph(Rc::new(projected)))
 }
 
-fn graph_input(input: &Type, name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
-    if *input == Type::Graph || input.is(&Type::Doc) {
+fn graph_input(input: &TypeRef, name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
+    if *input == TypeRef::GRAPH || input.is(&TypeRef::DOC) {
         // A single card projects to the graph of one node, which is what a
         // traversal from one card needs as its seed.
         return Ok(());
@@ -241,11 +241,12 @@ fn graph_input(input: &Type, name: &str, span: &Range<usize>) -> Result<(), Diag
             format!("`{name}` needs a collection of cards, not {input}"),
         )
     })?;
-    let subject = match &element {
-        Type::Hit(inner) => inner.as_ref().clone(),
-        other => other.clone(),
+    let subject = if element.constructor.0 == "Hit" {
+        element.args.first().cloned().unwrap_or(TypeRef::DATA)
+    } else {
+        element.clone()
     };
-    if subject.is(&Type::Doc) {
+    if subject.is(&TypeRef::DOC) {
         Ok(())
     } else {
         Err(Diagnostic::typing(

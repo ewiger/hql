@@ -30,6 +30,8 @@ pub(crate) enum Stmt {
 #[derive(Debug)]
 pub(crate) struct TypeDecl {
     pub name: String,
+    pub abstract_type: bool,
+    pub bounds: Vec<(String, TypeAnn)>,
     /// The generic parameters, `S` and `T` in `type Edge<S, T>`.
     pub parameters: Vec<String>,
     /// What it narrows: one type, or a supertype set written `{A, B}`.
@@ -72,6 +74,15 @@ pub(crate) struct Arg {
 
 #[derive(Debug)]
 pub(crate) enum Kind {
+    /// A materialized sequence literal.
+    List(Vec<Expr>),
+    /// An unordered collection literal.
+    Set(Vec<Expr>),
+    /// A collection constructor with explicit type arguments.
+    Construct {
+        annotation: TypeAnn,
+        arguments: Vec<Arg>,
+    },
     Int(i64),
     Float(f64),
     Bool(bool),
@@ -106,7 +117,7 @@ pub(crate) enum Kind {
     },
     /// `p => p.title`.
     Lambda {
-        parameter: String,
+        parameters: Vec<String>,
         body: Box<Expr>,
     },
 }

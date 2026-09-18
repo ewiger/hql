@@ -1,0 +1,42 @@
+---
+title: Collection views
+metadata:
+  category: guide
+---
+# Collection views
+
+The notebook in [[field-notes]] has three useful keyed views.
+
+| Type | Key contract | Key projection |
+| --- | --- | --- |
+| `Map<String, Int>` | Each species has one count | `Set<String>` |
+| `OrderedMap<String, Int>` | Keys retain construction positions | `Seq<String>` |
+| `SortedMap<String, Int>` | Key positions follow String order | `Seq<String>` |
+
+A map has its own lookup contract. It is not a collection of entries.
+Its keys can be projected into a collection and queried there.
+
+```hql#eval
+route : OrderedMap<String, Int> = OrderedMap(
+    ["european-robin", "barn-owl", "common-raven"],
+    [1, 2, 1]
+)
+alphabet : SortedMap<String, Int> = SortedMap(
+    ["european-robin", "barn-owl", "common-raven"],
+    [1, 2, 1]
+)
+
+{
+    route: route.keys,
+    alphabet: alphabet.keys,
+    owl_observations: get(alphabet, "barn-owl"),
+}
+```
+
+The ordered route begins at [[european-robin]]. The sorted keys begin at
+[[barn-owl]], followed by [[common-raven]] and the robin. Changing a map's static
+view to `Map<String, Int>` exposes set semantics for its keys while retaining
+the same associations.
+
+A repeated key is rejected during construction. Use a list for repeated
+observations and a map for the single count associated with each species.

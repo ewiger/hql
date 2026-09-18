@@ -1,0 +1,35 @@
+---
+title: Field notes
+metadata:
+  category: guide
+---
+# Field notes
+
+Four illustrative observations refer to three species: [[barn-owl]],
+[[european-robin]], [[barn-owl]] again, and [[common-raven]].
+
+A `List<String>` retains every occurrence and its position. Viewing it as
+`Seq<String>` retains the positional contract. Viewing it as
+`Collection<String>` lets a query ask about membership and multiplicity.
+
+```hql#eval
+sightings : List<String> = [
+    "barn-owl",
+    "european-robin",
+    "barn-owl",
+    "common-raven",
+]
+occurrences : Collection<String> = sightings
+species : Set<String> = Set(sightings)
+
+{
+    observations: size(occurrences),
+    barn_owls: count(occurrences, "barn-owl"),
+    species: size(species),
+    saw_robin: contains(species, "european-robin"),
+}
+```
+
+There are four occurrences and three distinct species. The list contains two
+owl observations; the set contains one owl name. See [[collection-views]] for
+keyed counts.

@@ -1,0 +1,24 @@
+---
+title: Birds
+metadata:
+  category: guide
+---
+# Birds
+
+A small wiki for a birdwatching notebook. Start with [[barn-owl]],
+[[common-raven]], and [[european-robin]], then follow [[field-notes]] to see how
+several observations of one species differ from several species.
+
+[[collection-views]] shows the same notebook as lists, sets, and maps.
+The observation counts and route are illustrative.
+
+The species catalog is computed from the cards:
+
+```hql#eval
+bird_cards : Set<Card> = cards
+| filter(c => c.metadata.category == "bird")
+
+List(bird_cards)
+| sort(by = c => c.name)
+| map(c => c.title)
+```

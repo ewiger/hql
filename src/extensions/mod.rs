@@ -11,7 +11,7 @@
 
 use crate::ast::{Arg, Expr};
 use crate::diagnostics::Diagnostic;
-use crate::types::Type;
+use crate::types::TypeRef;
 use crate::types::Value;
 use crate::vault::Vault;
 use std::ops::Range;
@@ -46,7 +46,7 @@ impl Purity {
 
 /// What a step does to a type.
 pub(crate) type Check =
-    fn(&mut dyn CheckCx, &Type, &[Arg], Range<usize>) -> Result<Type, Diagnostic>;
+    fn(&mut dyn CheckCx, &TypeRef, &[Arg], Range<usize>) -> Result<TypeRef, Diagnostic>;
 
 /// What a step does to a value.
 pub(crate) type Eval =
@@ -60,9 +60,11 @@ pub(crate) trait CheckCx {
     /// The vault the program is checked against.
     fn vault(&self) -> &Vault;
     /// The type of an argument expression.
-    fn infer(&mut self, expression: &Expr) -> Result<Type, Diagnostic>;
+    fn infer(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic>;
     /// The result type of a lambda argument, with its parameter bound.
-    fn lambda(&mut self, argument: &Arg, parameter: Type) -> Result<Type, Diagnostic>;
+    fn lambda(&mut self, argument: &Arg, parameter: TypeRef) -> Result<TypeRef, Diagnostic>;
+    /// Check a two-argument comparison with both parameters bound to the element type.
+    fn comparator(&mut self, argument: &Arg, parameter: TypeRef) -> Result<TypeRef, Diagnostic>;
 }
 
 /// What evaluating a step may ask of the evaluator around it.
@@ -73,6 +75,13 @@ pub(crate) trait EvalCx {
     fn evaluate(&mut self, expression: &Expr) -> Result<Value, Diagnostic>;
     /// A lambda argument applied to one element.
     fn apply_lambda(&mut self, argument: &Arg, element: Value) -> Result<Value, Diagnostic>;
+    /// Apply a comparison to a pair of elements.
+    fn apply_comparator(
+        &mut self,
+        argument: &Arg,
+        left: Value,
+        right: Value,
+    ) -> Result<Value, Diagnostic>;
     /// Queue something worth saying that does not make the result impossible.
     fn warn(&mut self, warning: crate::warnings::Warning);
 }
@@ -476,10 +485,10 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
 
 /// The element type of a collection, or the failure that says it is not one.
 pub(crate) fn collection(
-    input: &Type,
+    input: &TypeRef,
     name: &str,
     span: &Range<usize>,
-) -> Result<Type, Diagnostic> {
+) -> Result<TypeRef, Diagnostic> {
     input.element().ok_or_else(|| {
         Diagnostic::typing(
             span.clone(),
@@ -577,7 +586,7 @@ mod tests {
             signature: "collection | count",
             summary: "A second `count`, so the collision has two sides.",
             purity: Purity::Pure,
-            check: |_, _, _, _| Ok(Type::Int),
+            check: |_, _, _, _| Ok(TypeRef::INT),
             eval: |_, _, _, _| Ok(Value::Int(0)),
         }],
     };

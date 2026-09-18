@@ -16,11 +16,16 @@ impl Value {
         use serde_json::{Value as J, json};
         match self {
             Self::Unit => J::Null,
+            Self::Ordering(order) => J::String(format!("{order:?}")),
+            Self::Map(map) => {
+                json!({"type": map.type_of().to_string(), "entries": map.entries().iter().map(|(key, value)| json!({"key": key.to_json(), "value": value.to_json()})).collect::<Vec<_>>() })
+            }
             Self::Int(value) => J::from(*value),
             Self::Float(value) => serde_json::Number::from_f64(*value).map_or(J::Null, J::Number),
             Self::Bool(value) => J::Bool(*value),
             Self::Str(text) => J::String(text.to_string()),
             Self::Absent(_) => J::Null,
+            Self::Present(value) => value.to_json(),
             Self::Data(data) => data.to_json(),
             Self::Doc(doc) => json!({
                 "name": doc.name,
@@ -56,7 +61,7 @@ impl Value {
                     "data": edge.data.to_json(),
                 })).collect::<Vec<_>>(),
             }),
-            Self::Set(values, _) | Self::Seq(values, _) => {
+            Self::Set(values, _) | Self::List(values, _) => {
                 J::Array(values.iter().map(Self::to_json).collect())
             }
             Self::Hit(hit) => json!({
@@ -95,12 +100,24 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unit => f.write_str("()"),
+            Self::Ordering(order) => write!(f, "{order:?}"),
+            Self::Map(map) => {
+                write!(f, "{} {{", map.type_of().constructor)?;
+                for (index, (key, value)) in map.entries().iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{key}: {value}")?;
+                }
+                f.write_str("}")
+            }
             Self::Int(value) => write!(f, "{value}"),
             // Debug formatting keeps the decimal point, so 1.0 is not printed as 1.
             Self::Float(value) => write!(f, "{value:?}"),
             Self::Bool(value) => write!(f, "{value}"),
             Self::Str(text) => write!(f, "{text}"),
             Self::Absent(_) => f.write_str("none"),
+            Self::Present(value) => value.fmt(f),
             Self::Data(data) => write!(f, "{data}"),
             Self::Doc(doc) => write!(f, "{}", doc.name),
             Self::Card(card) => write!(f, "{}", card.name()),
@@ -111,7 +128,7 @@ impl fmt::Display for Value {
                 graph.nodes.len(),
                 graph.induced().len()
             ),
-            Self::Set(values, _) | Self::Seq(values, _) => {
+            Self::Set(values, _) | Self::List(values, _) => {
                 let rendered: Vec<String> = values
                     .iter()
                     .map(std::string::ToString::to_string)
@@ -143,6 +160,7 @@ impl Value {
 
 fn table(value: &Value) -> String {
     match value {
+        Value::Present(value) => table(value),
         Value::Ranking(ranking) => rows(
             &["rank", "score", "card", "title"],
             ranking
@@ -192,7 +210,7 @@ fn table(value: &Value) -> String {
             );
             format!("{nodes}\n{edges}")
         }
-        Value::Set(values, _) | Value::Seq(values, _) => {
+        Value::Set(values, _) | Value::List(values, _) => {
             if values.iter().all(|value| value.as_card().is_some()) {
                 return rows(
                     &["card", "kind", "title"],
@@ -217,6 +235,13 @@ fn table(value: &Value) -> String {
                 values.iter().map(|value| vec![value.to_string()]).collect(),
             )
         }
+        Value::Map(map) => rows(
+            &["key", "value"],
+            map.entries()
+                .iter()
+                .map(|(key, value)| vec![key.to_string(), value.to_string()])
+                .collect(),
+        ),
         Value::Data(data) => match data.as_ref() {
             Data::Map(entries) => rows(
                 &["key", "value"],

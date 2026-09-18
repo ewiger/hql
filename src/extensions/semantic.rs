@@ -16,8 +16,7 @@ use crate::ast::Arg;
 use crate::diagnostics::Diagnostic;
 use crate::document::Card;
 use crate::search::{self, Retrieval};
-use crate::types::hyper::{Card as CardType, Ranking};
-use crate::types::{HyperType, Type, Value};
+use crate::types::{TypeRef, Value};
 use crate::vault::Vault;
 use crate::warnings::Warning;
 use rusqlite::{Connection, OpenFlags};
@@ -74,12 +73,12 @@ pub(crate) static STEPS: &[Step] = &[Step {
 
 fn check_semantic(
     cx: &mut dyn CheckCx,
-    input: &Type,
+    input: &TypeRef,
     arguments: &[Arg],
     span: Range<usize>,
-) -> Result<Type, Diagnostic> {
+) -> Result<TypeRef, Diagnostic> {
     let element = collection(input, "semantic", &span)?;
-    if !element.is(&Type::Doc) {
+    if !element.is(&TypeRef::DOC) {
         return Err(Diagnostic::typing(
             span.clone(),
             format!("`semantic` ranks documents, not {element}"),
@@ -89,7 +88,7 @@ fn check_semantic(
         Diagnostic::typing(span.clone(), "`semantic` needs a query: `semantic(\"…\")`")
     })?;
     let query = cx.infer(&argument.value)?;
-    if query != Type::Str {
+    if query != TypeRef::STR {
         return Err(Diagnostic::typing(
             argument.value.span.clone(),
             format!("a query is text, not {query}"),
@@ -98,7 +97,7 @@ fn check_semantic(
     // The index is named by the vault, so a program that cannot reach one is
     // wrong before it runs rather than empty after it.
     configured(cx.vault(), &span)?;
-    Ok(Ranking::<CardType>::lattice())
+    Ok(TypeRef::ranking(TypeRef::CARD))
 }
 
 fn eval_semantic(

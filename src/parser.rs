@@ -161,6 +161,14 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, Diagnostic> {
+        if self.peek() == &Token::Ident("abstract".to_owned()) {
+            self.advance();
+            self.expect(&Token::Ident("type".to_owned()), "after abstract")?;
+            self.index -= 1;
+            let mut declaration = self.declaration()?;
+            declaration.abstract_type = true;
+            return Ok(Stmt::Type(declaration));
+        }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "import"
             && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
@@ -278,8 +286,31 @@ impl Parser {
             self.nesting -= 1;
         }
 
+        let mut bounds = Vec::new();
+        if self.at_infix(&Token::Ident("where".to_owned())) {
+            self.continuation();
+            loop {
+                let parameter = self.advance();
+                let Token::Ident(parameter) = parameter.token else {
+                    return Err(Diagnostic::syntax(
+                        parameter.span,
+                        "expected a constrained parameter",
+                    ));
+                };
+                self.expect(&Token::Subtype, "in a type bound")?;
+                let bound = self.type_annotation()?;
+                end = bound.span.end;
+                bounds.push((parameter, bound));
+                if !self.eat(&Token::Comma) {
+                    break;
+                }
+                self.continuation();
+            }
+        }
         Ok(TypeDecl {
             name,
+            abstract_type: false,
+            bounds,
             parameters,
             supertypes,
             fields,
@@ -316,7 +347,7 @@ impl Parser {
         if self.eat(&Token::Less) {
             self.nesting += 1;
             loop {
-                arguments.push(self.type_annotation()?);
+                arguments.push(self.nested(Self::type_annotation)?);
                 if !self.eat(&Token::Comma) {
                     break;
                 }
@@ -529,10 +560,89 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, Diagnostic> {
+        if matches!(self.peek(), Token::OpenBracket) {
+            return self.collection_literal(false);
+        }
         if matches!(self.peek(), Token::OpenBrace) {
+            let mut next = self.index + 1;
+            while matches!(self.tokens[next].token, Token::Newline) {
+                next += 1;
+            }
+            let mut after = next + 1;
+            while self
+                .tokens
+                .get(after)
+                .is_some_and(|token| matches!(token.token, Token::Newline))
+            {
+                after += 1;
+            }
+            if !matches!(self.tokens[next].token, Token::CloseBrace | Token::End)
+                && !self
+                    .tokens
+                    .get(after)
+                    .is_some_and(|token| matches!(token.token, Token::Colon))
+            {
+                return self.collection_literal(true);
+            }
             return self.data_literal();
         }
+        if matches!(self.peek(), Token::Ident(_))
+            && matches!(self.tokens[self.index + 1].token, Token::Less)
+        {
+            let annotation = self.type_annotation()?;
+            let (arguments, end) = self.arguments()?;
+            let span = annotation.span.start..end;
+            return Ok(Expr {
+                kind: Kind::Construct {
+                    annotation,
+                    arguments,
+                },
+                span,
+            });
+        }
         if matches!(self.peek(), Token::OpenParen) {
+            let mut look = self.index + 1;
+            while matches!(
+                self.tokens[look].token,
+                Token::Ident(_) | Token::Comma | Token::Newline
+            ) {
+                look += 1;
+            }
+            if matches!(self.tokens[look].token, Token::CloseParen)
+                && matches!(self.tokens[look + 1].token, Token::FatArrow)
+            {
+                let start = self.advance().span.start;
+                self.nesting += 1;
+                let mut parameters = Vec::new();
+                loop {
+                    let name = self.advance();
+                    let Token::Ident(name) = name.token else {
+                        return Err(Diagnostic::syntax(name.span, "expected a lambda parameter"));
+                    };
+                    if parameters.contains(&name) {
+                        return Err(Diagnostic::syntax(
+                            start..self.peek_span().end,
+                            "lambda parameters must be distinct",
+                        ));
+                    }
+                    parameters.push(name);
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                }
+                self.expect(&Token::CloseParen, "after lambda parameters")?;
+                self.nesting -= 1;
+                self.expect(&Token::FatArrow, "before a lambda body")?;
+                let body = self.nested(Self::pipeline)?;
+                let span = start..body.span.end;
+                return Ok(Expr {
+                    kind: Kind::Lambda {
+                        parameters,
+                        body: Box::new(body),
+                    },
+                    span,
+                });
+            }
             self.advance();
             self.nesting += 1;
             let inner = self.nested(Self::pipeline)?;
@@ -561,7 +671,7 @@ impl Parser {
                     let span = head.span.start..body.span.end;
                     return Ok(Expr {
                         kind: Kind::Lambda {
-                            parameter: name,
+                            parameters: vec![name],
                             body: Box::new(body),
                         },
                         span,
@@ -583,6 +693,33 @@ impl Parser {
         Ok(Expr {
             kind,
             span: head.span,
+        })
+    }
+
+    fn collection_literal(&mut self, set: bool) -> Result<Expr, Diagnostic> {
+        let open = self.advance();
+        let close = if set {
+            Token::CloseBrace
+        } else {
+            Token::CloseBracket
+        };
+        self.nesting += 1;
+        let mut elements = Vec::new();
+        while self.peek() != &close {
+            elements.push(self.nested(Self::pipeline)?);
+            if !self.eat(&Token::Comma) {
+                break;
+            }
+        }
+        let end = self.expect(&close, "after collection elements")?.span.end;
+        self.nesting -= 1;
+        Ok(Expr {
+            kind: if set {
+                Kind::Set(elements)
+            } else {
+                Kind::List(elements)
+            },
+            span: open.span.start..end,
         })
     }
 }

@@ -133,10 +133,10 @@ column and a caret.
 
 ## Example corpus
 
-[Design cases](examples/README.md) distinguish current behavior, proposed syntax,
-intentional errors, and open alternatives. Run the supported corpus checks with
-`cargo test --locked --test corpus`; they skip when the corpus is not present in
-the working tree.
+[The birds wiki](examples/birds/README.md) pairs linked HyperMarkDown cards with
+runnable collection queries: repeated sightings, distinct species, keyed counts,
+ordered routes, and sorted keys. It also includes intentional errors for
+duplicate keys and non-orderable sorted-map keys.
 
 ## Project knowledge
 

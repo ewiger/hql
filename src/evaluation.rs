@@ -8,7 +8,7 @@ use crate::document::Kind as CardKind;
 use crate::extensions::{EvalCx, Resolution, Step};
 use crate::graph::Edge;
 use crate::search;
-use crate::types::Type;
+use crate::types::TypeRef;
 use crate::types::Value;
 use crate::vault::Vault;
 use crate::warnings::Warning;
@@ -48,8 +48,16 @@ impl Evaluator<'_> {
         let mut last = Value::Unit;
         for statement in &program.statements {
             last = match statement {
-                Stmt::Bind { name, value, .. } => {
-                    let evaluated = self.expression(value)?;
+                Stmt::Bind {
+                    name,
+                    value,
+                    annotation,
+                } => {
+                    let mut evaluated = self.expression(value)?;
+                    if let Some(annotation) = annotation {
+                        evaluated =
+                            evaluated.viewed_as(&crate::declarations::annotation(annotation)?);
+                    }
                     self.scope.insert(name.clone(), evaluated);
                     Value::Unit
                 }
@@ -69,6 +77,35 @@ impl Evaluator<'_> {
     fn expression(&mut self, expression: &Expr) -> Result<Value, Diagnostic> {
         let span = expression.span.clone();
         match &expression.kind {
+            Kind::List(expressions) | Kind::Set(expressions) => {
+                let mut values = Vec::new();
+                let mut element = TypeRef::NEVER;
+                for expression in expressions {
+                    let value = self.expression(expression)?;
+                    element = element.common(&value.type_of()).ok_or_else(|| {
+                        Diagnostic::runtime(span.clone(), "incompatible collection elements")
+                    })?;
+                    values.push(value);
+                }
+                Ok(if matches!(expression.kind, Kind::Set(_)) {
+                    Value::set(values, element)
+                } else {
+                    Value::list(values, element)
+                })
+            }
+            Kind::Construct {
+                annotation,
+                arguments,
+            } => {
+                let expected = crate::declarations::annotation(annotation)?;
+                crate::constructors::evaluate(
+                    self,
+                    expected.constructor,
+                    arguments,
+                    Some(&expected),
+                    span,
+                )
+            }
             Kind::Int(value) => Ok(Value::Int(*value)),
             Kind::Float(value) => Ok(Value::Float(*value)),
             Kind::Bool(value) => Ok(Value::Bool(*value)),
@@ -86,10 +123,10 @@ impl Evaluator<'_> {
                     .iter()
                     .map(|card| Value::Card(Rc::clone(card)))
                     .collect(),
-                Type::Card,
+                TypeRef::CARD,
             )),
             Kind::DocRef(name) => match self.vault.resolve(name) {
-                Some(card) => Ok(Value::Card(card)),
+                Some(card) => Ok(Value::Present(Rc::new(Value::Card(card)))),
                 None => {
                     // Permitted: a forward link to a document nobody has
                     // written yet. Said out loud, because absence is easy to
@@ -98,7 +135,7 @@ impl Evaluator<'_> {
                         span,
                         format!("`[[{name}]]` does not resolve in this vault"),
                     ));
-                    Ok(Value::Absent(Type::Card))
+                    Ok(Value::Absent(TypeRef::CARD))
                 }
             },
             Kind::Ident(name) => self
@@ -138,9 +175,14 @@ impl Evaluator<'_> {
                 right,
                 negated,
             } => {
-                let left = as_data(&self.expression(left)?);
-                let right = as_data(&self.expression(right)?);
-                Ok(Value::Bool((left == right) != *negated))
+                let left = self.expression(left)?;
+                let right = self.expression(right)?;
+                let equal = if matches!(left, Value::Data(_)) || matches!(right, Value::Data(_)) {
+                    as_data(&left) == as_data(&right)
+                } else {
+                    left == right
+                };
+                Ok(Value::Bool(equal != *negated))
             }
             Kind::Field(receiver, field) => {
                 let value = self.expression(receiver)?;
@@ -163,10 +205,32 @@ impl Evaluator<'_> {
                 span,
                 "a lambda may only be written as an argument",
             )),
-            Kind::Call { .. } => Err(Diagnostic::typing(
-                span,
-                "a pipeline step needs an input: write `… | step(…)`",
-            )),
+            Kind::Call { callee, arguments } => {
+                let Kind::Ident(name) = &callee.kind else {
+                    return Err(Diagnostic::typing(span, "expected a named function"));
+                };
+                if let Some(constructor) = crate::constructors::named(name) {
+                    return crate::constructors::evaluate(self, constructor, arguments, None, span);
+                }
+                if name == "compare" {
+                    let [left, right] = arguments.as_slice() else {
+                        return Err(Diagnostic::runtime(span, "compare expects two values"));
+                    };
+                    let left = self.expression(&left.value)?.order_key().ok_or_else(|| {
+                        Diagnostic::runtime(span.clone(), "left value is not Orderable")
+                    })?;
+                    let right = self.expression(&right.value)?.order_key().ok_or_else(|| {
+                        Diagnostic::runtime(span.clone(), "right value is not Orderable")
+                    })?;
+                    return Ok(Value::Ordering(left.compare(&right)));
+                }
+                let Some((input, arguments)) = arguments.split_first() else {
+                    return Err(Diagnostic::runtime(span, "a function needs an input"));
+                };
+                let input = self.expression(&input.value)?;
+                let step = self.resolution.step(name, &span)?;
+                self.step(step, input, arguments, span)
+            }
             Kind::Pipe(input, step) => {
                 let value = self.expression(input)?;
                 let reference = step_of(step)?;
@@ -182,6 +246,14 @@ impl Evaluator<'_> {
             return Ok(name.clone());
         }
         match self.expression(expression)? {
+            Value::Present(value) => match value.as_ref() {
+                Value::Card(card) => Ok(card.name().to_owned()),
+                Value::Doc(doc) => Ok(doc.name.clone()),
+                _ => Err(Diagnostic::typing(
+                    expression.span.clone(),
+                    "a link endpoint must be a document",
+                )),
+            },
             Value::Str(text) => Ok(text.to_string()),
             Value::Card(card) => Ok(card.name().to_owned()),
             Value::Doc(doc) => Ok(doc.name.clone()),
@@ -203,14 +275,20 @@ impl Evaluator<'_> {
             )
         };
         match value {
+            Value::Present(value) => self
+                .field(value, field, span)
+                .map(|value| Value::Present(Rc::new(value))),
+            Value::Map(map) if field == "keys" => Ok(map.keys()),
             // Absence propagates rather than becoming a failure, because the
             // reference that produced it was permitted.
             Value::Absent(element) => Ok(Value::Absent(
-                checker::field_type(element, field).unwrap_or(Type::Data),
+                checker::field_type(element, field).unwrap_or(TypeRef::DATA),
             )),
-            Value::Data(data) => Ok(data.get(field).map_or(Value::Absent(Type::Data), |found| {
-                Value::Data(Rc::new(found.clone()))
-            })),
+            Value::Data(data) => Ok(data
+                .get(field)
+                .map_or(Value::Absent(TypeRef::DATA), |found| {
+                    Value::Data(Rc::new(found.clone()))
+                })),
             Value::Card(card) => match field {
                 "name" => Ok(text(card.name())),
                 "title" => Ok(text(card.document.title())),
@@ -248,30 +326,30 @@ impl Evaluator<'_> {
                 _ => Err(missing()),
             },
             Value::Ranking(ranking) => match field {
-                "hits" => Ok(Value::seq(
+                "hits" => Ok(Value::list(
                     ranking
                         .hits
                         .iter()
                         .map(|hit| Value::Hit(Rc::new(hit.clone())))
                         .collect(),
-                    Type::Hit(Box::new(Type::Card)),
+                    TypeRef::hit(TypeRef::CARD),
                 )),
                 "query" => Ok(text(&ranking.retrieval.query)),
                 "retrieval" => Ok(Value::Data(Rc::new(retrieval_data(&ranking.retrieval)))),
                 _ => Err(missing()),
             },
             Value::Graph(graph) => match field {
-                "nodes" => Ok(Value::seq(
+                "nodes" => Ok(Value::list(
                     graph.nodes.iter().map(|name| text(name)).collect(),
-                    Type::Str,
+                    TypeRef::STR,
                 )),
-                "edges" => Ok(Value::seq(
+                "edges" => Ok(Value::list(
                     graph
                         .induced()
                         .into_iter()
                         .map(|edge| Value::Edge(Rc::new(edge.clone())))
                         .collect(),
-                    Type::Edge,
+                    TypeRef::EDGE,
                 )),
                 _ => Err(missing()),
             },
@@ -280,19 +358,35 @@ impl Evaluator<'_> {
     }
 
     /// Evaluate a lambda argument once per element.
-    fn apply(&mut self, argument: &Arg, element: Value) -> Result<Value, Diagnostic> {
-        let Kind::Lambda { parameter, body } = &argument.value.kind else {
+    fn apply(&mut self, argument: &Arg, values: Vec<Value>) -> Result<Value, Diagnostic> {
+        let Kind::Lambda { parameters, body } = &argument.value.kind else {
             return Err(Diagnostic::typing(
                 argument.value.span.clone(),
-                "expected a function",
+                "expected a lambda",
             ));
         };
-        let shadowed = self.scope.insert(parameter.clone(), element);
+        if parameters.len() != values.len() {
+            return Err(Diagnostic::runtime(
+                argument.value.span.clone(),
+                "wrong lambda arity",
+            ));
+        }
+        let previous = parameters
+            .iter()
+            .zip(values)
+            .map(|(name, value)| (name, self.scope.insert(name.clone(), value)))
+            .collect::<Vec<_>>();
         let result = self.expression(body);
-        match shadowed {
-            Some(previous) => self.scope.insert(parameter.clone(), previous),
-            None => self.scope.remove(parameter),
-        };
+        for (name, value) in previous {
+            match value {
+                Some(value) => {
+                    self.scope.insert(name.clone(), value);
+                }
+                None => {
+                    self.scope.remove(name);
+                }
+            }
+        }
         result
     }
 
@@ -332,6 +426,7 @@ impl Evaluator<'_> {
         // Absence is the empty collection here, so every step sees a
         // collection and none of them has to know about it.
         let input = match input {
+            Value::Present(value) => value.as_ref().clone(),
             Value::Absent(element) => Value::set(Vec::new(), element),
             other => other,
         };
@@ -349,7 +444,16 @@ impl EvalCx for Evaluator<'_> {
     }
 
     fn apply_lambda(&mut self, argument: &Arg, element: Value) -> Result<Value, Diagnostic> {
-        self.apply(argument, element)
+        self.apply(argument, vec![element])
+    }
+
+    fn apply_comparator(
+        &mut self,
+        argument: &Arg,
+        left: Value,
+        right: Value,
+    ) -> Result<Value, Diagnostic> {
+        self.apply(argument, vec![left, right])
     }
 
     fn warn(&mut self, warning: Warning) {
@@ -380,6 +484,10 @@ fn as_data(value: &Value) -> Data {
         Value::Str(text) => Data::Str(text.to_string()),
         Value::Data(data) => data.as_ref().clone(),
         Value::Absent(_) | Value::Unit => Data::Empty,
+        Value::Present(value) => as_data(value),
+        Value::List(values, _) | Value::Set(values, _) => {
+            Data::List(values.iter().map(as_data).collect())
+        }
         other => Data::Str(other.to_string()),
     }
 }

@@ -1,13 +1,4 @@
----
 
-type: concept
-tags:
-
-* hql
-* type-system
-* collections
-
----
 
 # Collection Types
 

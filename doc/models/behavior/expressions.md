@@ -8,7 +8,8 @@ design.
 program     := statement (NEWLINE+ statement)*
 statement   := import | declaration | binding | expression
 import      := "import" ident
-declaration := "type" ident params? ("<:" supertypes)? record?
+declaration := "abstract"? "type" ident params? ("<:" supertypes)? record? bounds?
+bounds      := "where" ident "<:" type ("," ident "<:" type)*
 params      := "<" ident ("," ident)* ">"
 supertypes  := type | "{" type ("," type)* "}"
 record      := "{" field ("," | NEWLINE)* "}"
@@ -24,9 +25,12 @@ postfix     := primary (("." ident) | call)*
 call        := "(" (argument ("," argument)*)? ")"
 argument    := (ident "=")? expression
 primary     := int | float | bool | string | docref | lambda
-             | ident | "cards" | "(" expression ")" | data
-lambda      := ident "=>" expression
+             | ident | "cards" | "(" expression ")" | data | list | set
+             | type call
+lambda      := (ident | "(" ident ("," ident)* ")") "=>" expression
 data        := "{" (key ":" expression ("," key ":" expression)*)? "}"
+list        := "[" (expression ("," expression)* ","?)? "]"
+set         := "{" expression ("," expression)* ","? "}"
 docref      := "[[" name "]]"
 type        := ident ("<" type ("," type)* ">")?
 ```
@@ -37,8 +41,30 @@ pipeline may be written one step per line with a leading `|`, and `1 +\n2` is
 one expression. `//` begins a comment that runs to the end of the line.
 
 Generics are written with angle brackets, so an angle bracket always means the
-type world. A square bracket stays value-level and is currently a syntax error,
-because sequence literals are not implemented.
+type world. A square bracket stays value-level: `[1, 2, 1]` materializes a
+`List<Int>`. `{1, 2, 1}` materializes a `Set<Int>` with two distinct elements;
+`{}` remains an empty `Data` literal, so an empty typed set is `Set<Int>([])`.
+
+`abstract type` declares a contract with no independent runtime constructor.
+`Collection` and `Seq` are abstract; `List` and `Set` are concrete. Type arguments
+and `where` bounds are checked recursively, including the orderable-key bound
+on `SortedMap<K, V>`.
+
+`Map(keys, values)`, `OrderedMap(keys, values)`, and `SortedMap(keys, values)`
+pair equally long sequences and reject duplicate keys using HQL equality.
+Explicit applications such as `SortedMap<String, Int>([], [])` carry the types
+of empty maps. Maps expose a `keys` projection: `Set<K>` through a `Map` view,
+and `Seq<K>` through an ordered or sorted view.
+
+Core operations can also be called directly: `size(xs)`, `count(xs, value)`,
+`contains(xs, value)`, `get(map, key)`, and `sort(xs)`. `count(xs)` retains its
+earlier cardinality meaning as an alias for `size(xs)`. Lookup returns
+`Option<V>` and preserves presence and absence at runtime.
+
+Sorting consumes a sequence and returns a materialized list. Its `by` argument
+accepts either a unary orderable key selector or a binary comparison returning
+`Ordering`, such as `(a, b) => compare(size(a), size(b))` for lists. Supplying a
+comparison does not make the element type intrinsically orderable.
 
 `-` belongs to a numeric literal and must touch its digits. There is no unary
 minus and no subtraction, so `- 1` and `1 - 2` are syntax errors. A float needs

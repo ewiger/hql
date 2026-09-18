@@ -6,7 +6,7 @@
 use super::{CheckCx, EvalCx, Purity, Step};
 use crate::ast::Arg;
 use crate::diagnostics::Diagnostic;
-use crate::types::Type;
+use crate::types::TypeRef;
 use crate::types::{Presentation, Value};
 use std::ops::Range;
 use std::rc::Rc;
@@ -43,11 +43,11 @@ pub(crate) static STEPS: &[Step] = &[
 /// mattering, which is why nothing downstream may read the result.
 fn check_presentation(
     _: &mut dyn CheckCx,
-    _: &Type,
+    _: &TypeRef,
     _: &[Arg],
     _: Range<usize>,
-) -> Result<Type, Diagnostic> {
-    Ok(Type::Presentation)
+) -> Result<TypeRef, Diagnostic> {
+    Ok(TypeRef::PRESENTATION)
 }
 
 fn eval_table(

@@ -12,8 +12,7 @@ use crate::ast::Arg;
 use crate::diagnostics::Diagnostic;
 use crate::document::Card;
 use crate::search::{self, Retrieval};
-use crate::types::hyper::{Card as CardType, Ranking};
-use crate::types::{HyperType, Type, Value};
+use crate::types::{TypeRef, Value};
 use std::ops::Range;
 use std::rc::Rc;
 
@@ -92,12 +91,12 @@ fn bucket(word: &str) -> usize {
 
 fn check_lexical(
     cx: &mut dyn CheckCx,
-    input: &Type,
+    input: &TypeRef,
     arguments: &[Arg],
     span: Range<usize>,
-) -> Result<Type, Diagnostic> {
+) -> Result<TypeRef, Diagnostic> {
     let element = collection(input, "lexical", &span)?;
-    if !element.is(&Type::Doc) {
+    if !element.is(&TypeRef::DOC) {
         return Err(Diagnostic::typing(
             span.clone(),
             format!("`lexical` ranks documents, not {element}"),
@@ -107,13 +106,13 @@ fn check_lexical(
         Diagnostic::typing(span.clone(), "`lexical` needs a query: `lexical(\"…\")`")
     })?;
     let query = cx.infer(&argument.value)?;
-    if query != Type::Str {
+    if query != TypeRef::STR {
         return Err(Diagnostic::typing(
             argument.value.span.clone(),
             format!("a query is text, not {query}"),
         ));
     }
-    Ok(Ranking::<CardType>::lattice())
+    Ok(TypeRef::ranking(TypeRef::CARD))
 }
 
 fn eval_lexical(

@@ -1,23 +1,42 @@
-// Membership, order and lookup: three different contracts, one per type.
-//
-// See doc/wiki/hql/collections.hmd for the argument, and types/orderable.hmd
-// for value order, which is a property of an element and not of a collection.
+// Finite occurrences, positional order, and keyed lookup.
+// See doc/wiki/hql/types/collections/collection-types.md and collection.md.
 
-// Unordered, distinct elements. No implicit first element and no stable
-// iteration order: discovering values must not establish a language ordering
-// guarantee.
-type Set<T>
+// No runtime representation and no promise of order or uniqueness.
+// size(c) counts occurrences; count(c, x) counts occurrences equal to x.
+// contains(c, x) iff count(c, x) > 0.
+// size(c) is the sum of count(c, x) over all distinct values occurring in c.
+abstract type Collection<T>
 
-// Positional order. A position exists for every element — 0, 1, 2 … — and the
-// positions come from the sequence, not from the values. Repeats are allowed.
-// A Seq<T> is ordered whether or not T is Orderable: Seq<Function> has a first
-// and a second element while no two functions have a meaningful order.
-type Seq<T>
+// Every occurrence occupies exactly one position in 0 .. size(c)-1.
+// Positional order does not require T <: Orderable.
+abstract type Seq<T> <: Collection<T>
 
-// A Seq whose elements are all present at once. Seq states that a position
-// exists for every element; List states that they are held rather than
-// produced, so a length is known and a second traversal costs nothing.
+// Materialized occurrences; repeated traversal preserves positions.
 type List<T> <: Seq<T>
 
-// Lookup by key. Keys are distinct; iteration order is not implied.
+// Materialized distinct values, using HQL equality: count(s, x) <= 1.
+// Traversal order is not a semantic guarantee.
+type Set<T> <: Collection<T>
+
+// Materialized associations with distinct keys; unrelated to Collection<T>.
+// Construct from equally long key and value sequences: Map(keys, values).
+// Repeated keys are rejected. Missing lookup results are Option<V>.
+// The key projection of this static view has type Set<K>.
 type Map<K, V>
+
+// Keys preserve their construction positions; keys have type Seq<K>.
+// K need not be Orderable. Viewing this as Map exposes set key semantics.
+type OrderedMap<K, V> <: Map<K, V>
+
+// Key positions follow K's intrinsic total ordering.
+type SortedMap<K, V> <: OrderedMap<K, V>
+where K <: Orderable
+
+// Core operations, callable directly or through a pipe:
+// size<T>(xs: Collection<T>) : Int
+// count<T>(xs: Collection<T>, value: T) : Int
+// contains<T>(xs: Collection<T>, value: T) : Bool
+// get<K, V>(xs: Map<K, V>, key: K) : Option<V>
+// sort<T>(xs: Seq<T>) : List<T> where T <: Orderable
+// sort<T>(xs: Seq<T>, by: (T, T) -> Ordering) : List<T>
+// count(xs) remains a compatibility spelling of size(xs).

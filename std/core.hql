@@ -1,7 +1,8 @@
 // The vocabulary the core owns: the open tree, absence, value order.
 // Collections are their own module — see collections.hql.
 //
-// See doc/wiki/hql/types/data-type.hmd, option-type.hmd, orderable.hmd.
+// See doc/wiki/hql/types/data-type.hmd, option-type.hmd, and
+// types/collections/collection-types.md.
 
 // An open tree whose keys belong to whoever wrote them.
 type Data
@@ -14,4 +15,13 @@ type Option<T>
 // it — a Card is orderable because it has a name, which is what makes a prefix
 // of an unordered collection reproducible without discovery order becoming
 // observable. Sorting expects the order to be total.
-type Orderable
+abstract type Orderable
+
+// Primitive intrinsic orders used by sorting and SortedMap keys.
+type Int <: Orderable
+type Float <: Orderable
+type String <: Orderable
+
+// compare(a, b) returns Less, Equal, or Greater for one Orderable type.
+// Supplying a comparison to sort does not change the element's ancestry.
+type Ordering

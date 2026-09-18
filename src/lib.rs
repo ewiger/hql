@@ -14,6 +14,7 @@
 
 mod ast;
 mod checker;
+mod constructors;
 mod declarations;
 mod evaluation;
 mod lexer;
@@ -36,7 +37,7 @@ pub mod warnings;
 
 use diagnostics::Diagnostic;
 use reporting::{Mode, Report, Reports};
-use types::{Type, Value};
+use types::{TypeRef, Value};
 use vault::Vault;
 
 /// What running a program produced: a value, if one survived, and the queue.
@@ -45,7 +46,7 @@ pub struct Outcome {
     /// The value of the program's last expression, absent when it did not run.
     pub value: Option<Value>,
     /// The type of that expression, when checking got far enough to know.
-    pub inferred: Option<Type>,
+    pub inferred: Option<TypeRef>,
     /// Everything the run had to say, oldest first.
     pub reports: Reports,
 }
@@ -63,7 +64,7 @@ impl Outcome {
 /// # Errors
 ///
 /// Returns the first syntax, type or name failure.
-pub fn check(source: &str) -> Result<Type, Diagnostic> {
+pub fn check(source: &str) -> Result<TypeRef, Diagnostic> {
     check_in(source, &Vault::empty())
 }
 
@@ -72,7 +73,7 @@ pub fn check(source: &str) -> Result<Type, Diagnostic> {
 /// # Errors
 ///
 /// Returns the first syntax, type or name failure.
-pub fn check_in(source: &str, vault: &Vault) -> Result<Type, Diagnostic> {
+pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
     checker::check(&parser::parse(source)?, vault)
 }
 
@@ -145,11 +146,11 @@ pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
     }
 }
 
-fn infer(program: &ast::Program, vault: &Vault, mode: Mode) -> (Type, Vec<Diagnostic>) {
+fn infer(program: &ast::Program, vault: &Vault, mode: Mode) -> (TypeRef, Vec<Diagnostic>) {
     match mode {
         Mode::Strict => match checker::check(program, vault) {
             Ok(inferred) => (inferred, Vec::new()),
-            Err(diagnostic) => (Type::Unit, vec![diagnostic]),
+            Err(diagnostic) => (TypeRef::UNIT, vec![diagnostic]),
         },
         Mode::Collect => checker::check_collecting(program, vault),
     }

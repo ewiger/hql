@@ -25,6 +25,7 @@ type Hit<T> {
     provenance : Retrieval
 }
 
-// Narrows Seq the way Relation narrows Edge: it adds what makes the order
+// A concrete retrieval satisfies the abstract positional Seq contract.
+// It adds what makes the order
 // meaningful — the query it is relative to, and the rule that broke ties.
 type Ranking<T> <: Seq<Hit<T>>

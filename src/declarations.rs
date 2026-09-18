@@ -8,7 +8,7 @@
 
 use crate::ast::{TypeAnn, TypeDecl};
 use crate::diagnostics::Diagnostic;
-use crate::types::{self, Type};
+use crate::types::{self, TypeKind, TypeRef, builtin};
 use std::collections::HashMap;
 use std::ops::Range;
 
@@ -17,13 +17,34 @@ use std::ops::Range;
 /// A type parameter has no lattice counterpart, so it stands as `Data`: the
 /// question a declaration answers is about the shape, not about what a
 /// parameter will later be bound to.
-fn lattice(written: &TypeAnn) -> Option<Type> {
-    let arguments: Vec<Type> = written
+fn lattice(written: &TypeAnn) -> Option<TypeRef> {
+    let arguments: Vec<TypeRef> = written
         .arguments
         .iter()
-        .map(|argument| lattice(argument).unwrap_or(Type::Data))
+        .map(|argument| lattice(argument).unwrap_or(TypeRef::DATA))
         .collect();
     types::named(&written.name, &arguments)
+}
+
+/// Resolve a runtime annotation recursively and validate every supplied argument.
+pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
+    let args = written
+        .arguments
+        .iter()
+        .map(annotation)
+        .collect::<Result<Vec<_>, _>>()?;
+    let constructor = builtin::constructor(&written.name).ok_or_else(|| {
+        Diagnostic::name(
+            written.span.clone(),
+            format!("unknown type `{}`", written.name),
+        )
+    })?;
+    let system = builtin::system()
+        .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
+    let reference = system
+        .apply(constructor, args)
+        .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
+    Ok(reference)
 }
 
 /// What a program has declared so far.
@@ -48,7 +69,81 @@ impl Declarations {
     pub(crate) fn declare(&mut self, declaration: &TypeDecl) -> Result<(), Diagnostic> {
         self.name_is_free(declaration)?;
         self.parameters_are_distinct(declaration)?;
-        let scope: Vec<&str> = declaration.parameters.iter().map(String::as_str).collect();
+        let scope: HashMap<String, TypeRef> = declaration
+            .parameters
+            .iter()
+            .map(|parameter| {
+                let bound = declaration
+                    .bounds
+                    .iter()
+                    .find(|(name, _)| name == parameter)
+                    .and_then(|(_, bound)| lattice(bound))
+                    .unwrap_or(TypeRef::DATA);
+                (parameter.clone(), bound)
+            })
+            .collect();
+        let mut bounded = Vec::new();
+        for (parameter, bound) in &declaration.bounds {
+            if !scope.contains_key(parameter) || bounded.contains(&parameter) {
+                return Err(Diagnostic::typing(
+                    bound.span.clone(),
+                    format!(
+                        "`{parameter}` must name one distinct parameter of `{}`",
+                        declaration.name
+                    ),
+                ));
+            }
+            self.resolve(bound, &scope)?;
+            bounded.push(parameter);
+        }
+        if let Ok(system) = builtin::system() {
+            if let Some(constructor) = system.constructor(&declaration.name) {
+                let definition = system.definition(constructor).map_err(|error| {
+                    Diagnostic::typing(declaration.span.clone(), error.to_string())
+                })?;
+                if matches!(
+                    declaration.name.as_str(),
+                    "Collection"
+                        | "Seq"
+                        | "List"
+                        | "Set"
+                        | "Map"
+                        | "OrderedMap"
+                        | "SortedMap"
+                        | "Orderable"
+                ) {
+                    if declaration.abstract_type != (definition.kind == TypeKind::Abstract)
+                        || declaration.parameters.len() != definition.parameters.len()
+                    {
+                        return Err(Diagnostic::typing(
+                            declaration.span.clone(),
+                            format!(
+                                "`{}` contradicts its built-in kind or arity",
+                                declaration.name
+                            ),
+                        ));
+                    }
+                    for (name, parameter) in
+                        declaration.parameters.iter().zip(&definition.parameters)
+                    {
+                        let bound = declaration
+                            .bounds
+                            .iter()
+                            .find(|(held, _)| held == name)
+                            .and_then(|(_, bound)| lattice(bound));
+                        if bound != parameter.bound {
+                            return Err(Diagnostic::typing(
+                                declaration.span.clone(),
+                                format!(
+                                    "`{name}` must preserve the bound declared by `{}`",
+                                    declaration.name
+                                ),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
 
         let mut parents = Vec::new();
         for supertype in &declaration.supertypes {
@@ -167,7 +262,7 @@ impl Declarations {
             }
             // A parameter standing for any type must not be spelled like one
             // that already exists, or a reader cannot tell which is meant.
-            if types::named(parameter, &[]).is_some() || self.holds(parameter) {
+            if builtin::constructor(parameter).is_some() || self.holds(parameter) {
                 return Err(Diagnostic::name(
                     declaration.span.clone(),
                     format!(
@@ -183,11 +278,15 @@ impl Declarations {
 
     /// A written type must name something: a built-in, a declaration, or a
     /// parameter of the declaration being checked.
-    fn resolve(&self, written: &TypeAnn, scope: &[&str]) -> Result<(), Diagnostic> {
+    fn resolve(
+        &self,
+        written: &TypeAnn,
+        scope: &HashMap<String, TypeRef>,
+    ) -> Result<(), Diagnostic> {
         for argument in &written.arguments {
             self.resolve(argument, scope)?;
         }
-        if scope.contains(&written.name.as_str()) {
+        if scope.contains_key(&written.name) {
             if written.arguments.is_empty() {
                 return Ok(());
             }
@@ -198,6 +297,22 @@ impl Declarations {
                     written.name
                 ),
             ));
+        }
+        if let Ok(system) = builtin::system() {
+            if let Some(constructor) = system.constructor(&written.name) {
+                if !written.arguments.is_empty() && !matches!(constructor.0, "Graph" | "Edge") {
+                    let args = written
+                        .arguments
+                        .iter()
+                        .map(|argument| self.scoped_type(argument, scope))
+                        .collect::<Option<Vec<_>>>();
+                    if let Some(args) = args {
+                        system.apply(constructor, args).map_err(|error| {
+                            Diagnostic::typing(written.span.clone(), error.to_string())
+                        })?;
+                    }
+                }
+            }
         }
         if let Some(declared) = self.known.get(&written.name) {
             // A bare name is the constructor itself — `Graph<Card, Link>`
@@ -223,13 +338,35 @@ impl Declarations {
                 ),
             ));
         }
-        if types::named(&written.name, &[]).is_some() {
+        if builtin::constructor(&written.name).is_some() {
             return Ok(());
         }
         Err(Diagnostic::name(
             written.span.clone(),
             format!("unknown type `{}`", written.name),
         ))
+    }
+
+    fn scoped_type(&self, written: &TypeAnn, scope: &HashMap<String, TypeRef>) -> Option<TypeRef> {
+        if let Some(bound) = scope.get(&written.name) {
+            return Some(bound.clone());
+        }
+        let args = written
+            .arguments
+            .iter()
+            .map(|argument| self.scoped_type(argument, scope))
+            .collect::<Option<Vec<_>>>()?;
+        if let Some(reference) = types::named(&written.name, &args) {
+            return Some(reference);
+        }
+        let declaration = self.known.get(&written.name)?;
+        Some(
+            declaration
+                .parents
+                .iter()
+                .find_map(|parent| types::named(parent, &[]))
+                .unwrap_or(TypeRef::DATA),
+        )
     }
 
     /// A declaration may restate a type the binary already has — that is what
@@ -239,13 +376,40 @@ impl Declarations {
         declaration: &TypeDecl,
         parents: &[&TypeAnn],
     ) -> Result<(), Diagnostic> {
-        let Some(built_in) = types::named(&declaration.name, &[]) else {
+        let parameters = declaration
+            .parameters
+            .iter()
+            .map(|parameter| {
+                declaration
+                    .bounds
+                    .iter()
+                    .find(|(name, _)| name == parameter)
+                    .and_then(|(_, bound)| lattice(bound))
+                    .unwrap_or(TypeRef::DATA)
+            })
+            .collect::<Vec<_>>();
+        let Some(built_in) = types::named(&declaration.name, &parameters) else {
             return Ok(());
         };
         for parent in parents {
             // A parent this binary does not know is a declaration of its own,
             // and there is nothing in the lattice to disagree with.
-            let Some(expected) = lattice(parent) else {
+            fn instantiate(
+                written: &TypeAnn,
+                names: &[String],
+                parameters: &[TypeRef],
+            ) -> Option<TypeRef> {
+                if let Some(index) = names.iter().position(|name| name == &written.name) {
+                    return parameters.get(index).cloned();
+                }
+                let args = written
+                    .arguments
+                    .iter()
+                    .map(|argument| instantiate(argument, names, parameters))
+                    .collect::<Option<Vec<_>>>()?;
+                types::named(&written.name, &args)
+            }
+            let Some(expected) = instantiate(parent, &declaration.parameters, &parameters) else {
                 continue;
             };
             if !built_in.is(&expected) {
@@ -278,7 +442,10 @@ impl Declarations {
                 if one.is(&other) || other.is(&one) {
                     continue;
                 }
-                if one.join(&other) == Type::Data && one != Type::Data && other != Type::Data {
+                if one.join(&other) == TypeRef::DATA
+                    && one != TypeRef::DATA
+                    && other != TypeRef::DATA
+                {
                     return Err(Diagnostic::typing(
                         right.span.clone(),
                         format!(

@@ -5,7 +5,7 @@ use crate::builtins;
 use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
 use crate::extensions::{CheckCx, Resolution, Step};
-use crate::types::{self, Type};
+use crate::types::TypeRef;
 use crate::vault::Vault;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -15,7 +15,7 @@ use std::ops::Range;
 /// # Errors
 ///
 /// Returns the first syntax, type or name failure.
-pub(crate) fn check(program: &Program, vault: &Vault) -> Result<Type, Diagnostic> {
+pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypeRef, Diagnostic> {
     Checker {
         vault,
         scope: HashMap::new(),
@@ -30,12 +30,12 @@ pub(crate) fn check(program: &Program, vault: &Vault) -> Result<Type, Diagnostic
 /// A statement that does not check still binds its name, at the open tree
 /// type, so the statements after it are reported on their own faults rather
 /// than on a cascade from this one.
-pub(crate) fn check_collecting(program: &Program, vault: &Vault) -> (Type, Vec<Diagnostic>) {
+pub(crate) fn check_collecting(program: &Program, vault: &Vault) -> (TypeRef, Vec<Diagnostic>) {
     let resolution = match Resolution::new(&vault.extensions) {
         Ok(resolution) => resolution,
         // A vault that cannot resolve its own configuration has nothing to
         // say about the program: every statement would fail for one reason.
-        Err(diagnostic) => return (Type::Unit, vec![diagnostic]),
+        Err(diagnostic) => return (TypeRef::UNIT, vec![diagnostic]),
     };
     let mut checker = Checker {
         vault,
@@ -44,16 +44,16 @@ pub(crate) fn check_collecting(program: &Program, vault: &Vault) -> (Type, Vec<D
         declarations: Declarations::default(),
     };
     let mut found = Vec::new();
-    let mut last = Type::Unit;
+    let mut last = TypeRef::UNIT;
     for statement in &program.statements {
         match checker.statement(statement) {
             Ok(inferred) => last = inferred,
             Err(diagnostic) => {
                 if let Stmt::Bind { name, .. } = statement {
-                    checker.scope.insert(name.clone(), Type::Data);
+                    checker.scope.insert(name.clone(), TypeRef::DATA);
                 }
                 found.push(diagnostic);
-                last = Type::Unit;
+                last = TypeRef::UNIT;
             }
         }
     }
@@ -62,7 +62,7 @@ pub(crate) fn check_collecting(program: &Program, vault: &Vault) -> (Type, Vec<D
 
 struct Checker<'a> {
     vault: &'a Vault,
-    scope: HashMap<String, Type>,
+    scope: HashMap<String, TypeRef>,
     /// Which extensions this program has imported.
     resolution: Resolution,
     /// What this program has declared.
@@ -70,15 +70,15 @@ struct Checker<'a> {
 }
 
 impl Checker<'_> {
-    fn program(&mut self, program: &Program) -> Result<Type, Diagnostic> {
-        let mut last = Type::Unit;
+    fn program(&mut self, program: &Program) -> Result<TypeRef, Diagnostic> {
+        let mut last = TypeRef::UNIT;
         for statement in &program.statements {
             last = self.statement(statement)?;
         }
         Ok(last)
     }
 
-    fn statement(&mut self, statement: &Stmt) -> Result<Type, Diagnostic> {
+    fn statement(&mut self, statement: &Stmt) -> Result<TypeRef, Diagnostic> {
         Ok({
             match statement {
                 Stmt::Bind {
@@ -89,25 +89,7 @@ impl Checker<'_> {
                 } => {
                     let inferred = self.expression(value)?;
                     if let Some(annotation) = annotation {
-                        let arguments = annotation
-                            .arguments
-                            .iter()
-                            .map(|argument| {
-                                types::named(&argument.name, &[]).ok_or_else(|| {
-                                    Diagnostic::name(
-                                        argument.span.clone(),
-                                        format!("unknown type `{}`", argument.name),
-                                    )
-                                })
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let declared =
-                            types::named(&annotation.name, &arguments).ok_or_else(|| {
-                                Diagnostic::name(
-                                    annotation.span.clone(),
-                                    format!("unknown type `{}`", annotation.name),
-                                )
-                            })?;
+                        let declared = crate::declarations::annotation(annotation)?;
                         if !inferred.is(&declared) {
                             return Err(Diagnostic::typing(
                                 value.span.clone(),
@@ -120,42 +102,74 @@ impl Checker<'_> {
                     } else {
                         self.scope.insert(name.clone(), inferred);
                     }
-                    Type::Unit
+                    TypeRef::UNIT
                 }
                 Stmt::Import { name, span } => {
                     self.resolution.import(name, span)?;
-                    Type::Unit
+                    TypeRef::UNIT
                 }
                 // A declaration is checked and yields nothing to show. It
                 // introduces no value: constructing one is separate work.
                 Stmt::Type(declaration) => {
                     self.declarations.declare(declaration)?;
-                    Type::Unit
+                    TypeRef::UNIT
                 }
                 Stmt::Expr(expression) => self.expression(expression)?,
             }
         })
     }
 
-    fn expression(&mut self, expression: &Expr) -> Result<Type, Diagnostic> {
+    fn expression(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic> {
         let span = expression.span.clone();
         match &expression.kind {
-            Kind::Int(_) => Ok(Type::Int),
-            Kind::Float(_) => Ok(Type::Float),
-            Kind::Bool(_) => Ok(Type::Bool),
-            Kind::Str(_) => Ok(Type::Str),
+            Kind::List(values) | Kind::Set(values) => {
+                let mut element = TypeRef::NEVER;
+                for value in values {
+                    let actual = self.expression(value)?;
+                    element = element.common(&actual).ok_or_else(|| {
+                        Diagnostic::typing(
+                            value.span.clone(),
+                            format!(
+                                "collection elements {element} and {actual} have no common type"
+                            ),
+                        )
+                    })?;
+                }
+                Ok(if matches!(expression.kind, Kind::Set(_)) {
+                    TypeRef::set(element)
+                } else {
+                    TypeRef::list(element)
+                })
+            }
+            Kind::Construct {
+                annotation,
+                arguments,
+            } => {
+                let expected = crate::declarations::annotation(annotation)?;
+                crate::constructors::check(
+                    self,
+                    expected.constructor,
+                    arguments,
+                    Some(&expected),
+                    span,
+                )
+            }
+            Kind::Int(_) => Ok(TypeRef::INT),
+            Kind::Float(_) => Ok(TypeRef::FLOAT),
+            Kind::Bool(_) => Ok(TypeRef::BOOL),
+            Kind::Str(_) => Ok(TypeRef::STR),
             Kind::Data(entries) => {
                 for (_, value) in entries {
                     self.expression(value)?;
                 }
-                Ok(Type::Data)
+                Ok(TypeRef::DATA)
             }
             // A reference may not resolve — a forward link to a document
             // nobody has written is ordinary — so it is optional by type.
-            Kind::DocRef(_) => Ok(Type::Option(Box::new(Type::Card))),
+            Kind::DocRef(_) => Ok(TypeRef::optional(TypeRef::CARD)),
             Kind::Cards => {
                 if self.vault.is_present() {
-                    Ok(Type::Set(Box::new(Type::Card)))
+                    Ok(TypeRef::set(TypeRef::CARD))
                 } else {
                     Err(Diagnostic::name(
                         span,
@@ -181,7 +195,7 @@ impl Checker<'_> {
             Kind::Add(left, right) => {
                 // Addition is homogeneous: there is no implicit widening.
                 let expected = self.expression(left)?;
-                if !matches!(expected, Type::Int | Type::Float) {
+                if !matches!(expected.constructor.0, "Int" | "Float") {
                     return Err(Diagnostic::typing(
                         left.span.clone(),
                         "addition requires two Int or two Float operands",
@@ -201,15 +215,16 @@ impl Checker<'_> {
                 let right_type = self.expression(right)?;
                 // An open tree's leaf may be compared with a literal: that is
                 // what asking a header a question looks like.
-                let comparable =
-                    left_type == right_type || left_type == Type::Data || right_type == Type::Data;
+                let comparable = left_type == right_type
+                    || left_type == TypeRef::DATA
+                    || right_type == TypeRef::DATA;
                 if !comparable {
                     return Err(Diagnostic::typing(
                         span,
                         format!("{left_type} and {right_type} are never equal"),
                     ));
                 }
-                Ok(Type::Bool)
+                Ok(TypeRef::BOOL)
             }
             Kind::Field(receiver, field) => {
                 let receiver_type = self.expression(receiver)?;
@@ -220,18 +235,15 @@ impl Checker<'_> {
             Kind::Link { source, target, .. } => {
                 for end in [source, target] {
                     let end_type = self.expression(end)?;
-                    let resolved = match &end_type {
-                        Type::Option(inner) => inner.as_ref().clone(),
-                        other => other.clone(),
-                    };
-                    if !resolved.is(&Type::Doc) && resolved != Type::Str {
+                    let resolved = end_type.present().clone();
+                    if !resolved.is(&TypeRef::DOC) && resolved != TypeRef::STR {
                         return Err(Diagnostic::typing(
                             end.span.clone(),
                             format!("a link endpoint is a document reference, not {end_type}"),
                         ));
                     }
                 }
-                Ok(Type::Edge)
+                Ok(TypeRef::EDGE)
             }
             Kind::Lambda { .. } => Err(Diagnostic::typing(
                 span,
@@ -244,13 +256,39 @@ impl Checker<'_> {
                         "only a named pipeline step can be called",
                     ));
                 };
+                if let Some(constructor) = crate::constructors::named(name) {
+                    return crate::constructors::check(self, constructor, arguments, None, span);
+                }
+                if name == "compare" {
+                    if arguments.len() != 2 || arguments.iter().any(|arg| arg.name.is_some()) {
+                        return Err(Diagnostic::typing(
+                            span,
+                            "compare expects two positional values",
+                        ));
+                    }
+                    let left = self.expression(&arguments[0].value)?;
+                    let right = self.expression(&arguments[1].value)?;
+                    if left != right || !left.is_orderable() {
+                        return Err(Diagnostic::typing(
+                            span,
+                            "compare requires two values of the same Orderable type",
+                        ));
+                    }
+                    return Ok(TypeRef::ORDERING);
+                }
                 if builtins::exists(name) {
-                    return Err(Diagnostic::typing(
-                        span,
-                        format!(
-                            "`{name}` is a pipeline step and needs an input: write `… | {name}(…)`"
-                        ),
-                    ));
+                    let Some((input, arguments)) = arguments.split_first() else {
+                        return Err(Diagnostic::typing(span, format!("{name} needs an input")));
+                    };
+                    if input.name.is_some() {
+                        return Err(Diagnostic::typing(
+                            input.value.span.clone(),
+                            "the input must be positional",
+                        ));
+                    }
+                    let input = self.expression(&input.value)?;
+                    let step = self.resolution.step(name, &span)?;
+                    return self.step(step, &input, arguments, span);
                 }
                 let _ = arguments;
                 let hint = builtins::nearest(name)
@@ -276,23 +314,35 @@ impl Checker<'_> {
     }
 
     /// Check a lambda argument with its parameter bound to an element type.
-    fn lambda_type(&mut self, argument: &Arg, parameter: Type) -> Result<Type, Diagnostic> {
-        let Kind::Lambda {
-            parameter: name,
-            body,
-        } = &argument.value.kind
-        else {
+    fn lambda_type(&mut self, argument: &Arg, types: Vec<TypeRef>) -> Result<TypeRef, Diagnostic> {
+        let Kind::Lambda { parameters, body } = &argument.value.kind else {
             return Err(Diagnostic::typing(
                 argument.value.span.clone(),
-                "expected a function, such as `c => c.title`",
+                "expected a lambda",
             ));
         };
-        let shadowed = self.scope.insert(name.clone(), parameter);
+        if parameters.len() != types.len() {
+            return Err(Diagnostic::typing(
+                argument.value.span.clone(),
+                format!("expected {} lambda parameters", types.len()),
+            ));
+        }
+        let previous = parameters
+            .iter()
+            .zip(types)
+            .map(|(name, ty)| (name, self.scope.insert(name.clone(), ty)))
+            .collect::<Vec<_>>();
         let result = self.expression(body);
-        match shadowed {
-            Some(previous) => self.scope.insert(name.clone(), previous),
-            None => self.scope.remove(name),
-        };
+        for (name, value) in previous {
+            match value {
+                Some(value) => {
+                    self.scope.insert(name.clone(), value);
+                }
+                None => {
+                    self.scope.remove(name);
+                }
+            }
+        }
         result
     }
 
@@ -329,16 +379,13 @@ impl Checker<'_> {
     fn step(
         &mut self,
         step: &'static Step,
-        input: &Type,
+        input: &TypeRef,
         arguments: &[Arg],
         span: Range<usize>,
-    ) -> Result<Type, Diagnostic> {
+    ) -> Result<TypeRef, Diagnostic> {
         // A step applied to absence is a step applied to nothing, not a
         // failure: the reference that produced the absence was permitted.
-        let input = match input {
-            Type::Option(inner) => inner.as_ref().clone(),
-            other => other.clone(),
-        };
+        let input = input.present().clone();
         (step.check)(self, &input, arguments, span)
     }
 }
@@ -348,12 +395,15 @@ impl CheckCx for Checker<'_> {
         self.vault
     }
 
-    fn infer(&mut self, expression: &Expr) -> Result<Type, Diagnostic> {
+    fn infer(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic> {
         self.expression(expression)
     }
 
-    fn lambda(&mut self, argument: &Arg, parameter: Type) -> Result<Type, Diagnostic> {
-        self.lambda_type(argument, parameter)
+    fn lambda(&mut self, argument: &Arg, parameter: TypeRef) -> Result<TypeRef, Diagnostic> {
+        self.lambda_type(argument, vec![parameter])
+    }
+    fn comparator(&mut self, argument: &Arg, parameter: TypeRef) -> Result<TypeRef, Diagnostic> {
+        self.lambda_type(argument, vec![parameter.clone(), parameter])
     }
 }
 
@@ -406,41 +456,48 @@ pub(crate) fn step_of(step: &Expr) -> Result<StepRef<'_>, Diagnostic> {
 }
 
 /// The type of a field on a value of a type.
-pub(crate) fn field_type(receiver: &Type, field: &str) -> Option<Type> {
-    match receiver {
-        Type::Option(inner) => field_type(inner, field).map(|inner| Type::Option(Box::new(inner))),
-        Type::Data => Some(Type::Data),
-        Type::Doc | Type::Card | Type::ConceptCard | Type::RelationCard => {
+pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
+    if field == "keys" && crate::types::MapKind::of(receiver.constructor).is_some() {
+        return crate::types::collections::keys_type(
+            crate::types::builtin::system().ok()?,
+            receiver,
+        )
+        .ok();
+    }
+    match receiver.constructor.0 {
+        "Option" => field_type(receiver.args.first()?, field).map(TypeRef::optional),
+        "Data" => Some(TypeRef::DATA),
+        "Doc" | "Card" | "ConceptCard" | "RelationCard" => {
             let card = receiver.is_card();
             match field {
-                "name" | "title" | "path" | "format" | "body" => Some(Type::Str),
-                "header" => Some(Type::Data),
-                "metadata" if card => Some(Type::Data),
-                "kind" if card => Some(Type::Str),
+                "name" | "title" | "path" | "format" | "body" => Some(TypeRef::STR),
+                "header" => Some(TypeRef::DATA),
+                "metadata" if card => Some(TypeRef::DATA),
+                "kind" if card => Some(TypeRef::STR),
                 _ => None,
             }
         }
-        Type::Edge => match field {
-            "source" | "target" => Some(Type::Str),
-            "data" => Some(Type::Data),
+        "Edge" => match field {
+            "source" | "target" => Some(TypeRef::STR),
+            "data" => Some(TypeRef::DATA),
             _ => None,
         },
-        Type::Hit(element) => match field {
-            "card" => Some(element.as_ref().clone()),
-            "score" => Some(Type::Float),
-            "query" => Some(Type::Str),
-            "retrieval" => Some(Type::Data),
+        "Hit" => match field {
+            "card" => Some(receiver.args.first()?.clone()),
+            "score" => Some(TypeRef::FLOAT),
+            "query" => Some(TypeRef::STR),
+            "retrieval" => Some(TypeRef::DATA),
             _ => None,
         },
-        Type::Ranking(element) => match field {
-            "hits" => Some(Type::Seq(Box::new(Type::Hit(element.clone())))),
-            "query" => Some(Type::Str),
-            "retrieval" => Some(Type::Data),
+        "Ranking" => match field {
+            "hits" => Some(TypeRef::list(TypeRef::hit(receiver.args.first()?.clone()))),
+            "query" => Some(TypeRef::STR),
+            "retrieval" => Some(TypeRef::DATA),
             _ => None,
         },
-        Type::Graph => match field {
-            "nodes" => Some(Type::Seq(Box::new(Type::Str))),
-            "edges" => Some(Type::Seq(Box::new(Type::Edge))),
+        "Graph" => match field {
+            "nodes" => Some(TypeRef::list(TypeRef::STR)),
+            "edges" => Some(TypeRef::list(TypeRef::EDGE)),
             _ => None,
         },
         _ => None,

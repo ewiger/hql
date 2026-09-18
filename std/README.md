@@ -13,6 +13,19 @@ work. What is checked is that each declaration is coherent, and that where it
 restates a type the binary already holds it agrees with it — see
 [the grammar](../doc/models/behavior/expressions.md).
 
+`abstract type` declares a contract without a runtime constructor. Collection
+declarations and their `where` bounds agree with the Rust `TypeConstructor` /
+`TypeRef` registry. `List` and `Set` materialize occurrences; `Map`, `OrderedMap`,
+and `SortedMap` materialize associations. `SortedMap` requires orderable keys.
+
+Collection operations are core functions and also pipeline steps. For example,
+`count(["owl", "owl"], "owl")` returns `2`, and `sort([2, 1])` returns a
+`List<Int>`. The signatures beside the declarations document these implemented
+functions; they are not user-defined function bodies.
+
+See the runnable [birds wiki](../examples/birds/README.md) for collection
+literals, construction, key projections, lookup, and explicit comparison.
+
 ## What belongs here, and what does not
 
 | Place | Holds |

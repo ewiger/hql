@@ -123,9 +123,12 @@ fn fence(line: &str) -> Option<&str> {
 fn present(value: &Value) -> String {
     match value {
         Value::Presentation(presentation) => presentation.text.clone(),
-        Value::Set(..) | Value::Seq(..) | Value::Ranking(_) | Value::Graph(_) | Value::Data(_) => {
-            value.to_table()
-        }
+        Value::Set(..)
+        | Value::List(..)
+        | Value::Map(_)
+        | Value::Ranking(_)
+        | Value::Graph(_)
+        | Value::Data(_) => value.to_table(),
         other => other.to_string(),
     }
 }
