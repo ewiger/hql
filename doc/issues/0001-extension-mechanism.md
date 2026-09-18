@@ -1,6 +1,6 @@
 # 0001 — The extension mechanism
 
-Status: todo
+Status: done
 Decision: [HQL-0001](../proposals/HQL-0001/README.md)
 Branch: `feat/extensions`, off `feat/lang-design`
 Blocks: [0002](0002-semantic-retrieval.md)
@@ -29,8 +29,9 @@ safe to do.
 
 ## Done when
 
-- Every query in `tests/fixtures/queries/` and every example in `doc/` runs
-  unchanged.
+- Every query in `tests/fixtures/queries/` and every example in `doc/` runs,
+  with the queries that name `semantic` gaining the import line the proposal's
+  Backwards Compatibility section predicted and nothing else changing.
 - A step name provided by two imported extensions fails at the import, naming
   both.
 - An unimported step reports which extension provides it.
