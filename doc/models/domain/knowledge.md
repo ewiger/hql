@@ -5,8 +5,8 @@ future work. The working evaluator still supports only Int, Bool and addition.
 
 ```text
 HMD        authored source documents
-Card       a document with frontmatter, structure and lightweight links
-Relation   a typed specialization of Card for significant relationships
+Card       a document with a header, structure and lightweight links
+Relation   a first-class typed relationship; a Card may represent one
 Knowledge  semantic interpretation, claims, evidence and provenance
 Graph      one structural projection of Knowledge
 HmdGraph   one possible typed presentation of a Graph
@@ -23,8 +23,13 @@ link syntax.
 Relation Cards are associative entities promoted into documents: typed source
 and target, other fields, ordinary Evidence/Examples/Rationale sections, and
 identity independent of their endpoints. Others can link to a Relation Card;
-relations can relate Cards that are themselves relations. `Relation[S,T] <: Card`
-and `WorksOn <: Relation[Person,Project]` are illustrative type syntax only.
+relations can relate Cards that are themselves relations. `Relation` is not a
+specialization of `Card`: a relation may be imported, derived or read from a
+store with no document anywhere, so a Relation Card *represents* a relation
+rather than being one, and `card.metadata.relation : Relation[S,T]` is
+refinement rather than narrowing — see
+[type system](../../wiki/hql/type-system.hmd). What a relation does narrow is
+the edge, `Relation[S,T] <: Edge[S,T]`; all type syntax here is illustrative.
 A relation's source endpoint is not the same field as a fact's provenance.
 
 ```hql
@@ -33,7 +38,7 @@ cards | typed Relation | graph
 
 This is a core corpus example. Structural link edges and semantic relation
 claims remain distinguishable even in a combined graph. `typed Relation` must
-not treat arbitrary frontmatter type labels as proof of schema conformance.
+not treat arbitrary header type labels as proof of schema conformance.
 Pure construction and persistence/knowledge contribution are separate operations.
 
 Knowledge is richer than Graph. It can combine ordinary links, typed metadata,

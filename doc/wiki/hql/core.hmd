@@ -20,14 +20,17 @@ without adopting SQL clauses or Rust-like trait machinery.
 
 | Family | Types | Role |
 | --- | --- | --- |
-| Documents | `Card`, `Frontmatter`, `Section`, `Link` | Authored knowledge and its structure |
+| Documents | `Doc`, `Card`, `Section`, `Link` | Authored knowledge and its structure |
 | Semantic | `Concept`, `Relation`, `Proposition`, `Evidence` | Meaning, claims and support |
 | Collections | `Set<T>`, `Seq<T>`, `Map<K,V>` | Membership, order and keyed lookup |
 | Ordinary | `String`, `Int`, `Float`, `Bool`, `Date` | General computation |
 
 These are the current design names. Generic types use angle brackets in these
-pages; older corpus examples preserve other candidate spellings. Precise schemas,
-declarations, polymorphism, optional/error types and Date operations remain open.
+pages; older corpus examples preserve other candidate spellings, and
+[[type-system]] writes them in square brackets — the spelling is unsettled.
+Subtyping, generic parameters and progressive refinement are that card's subject.
+Precise schemas, declarations, polymorphism, optional/error types and Date
+operations remain open.
 This vocabulary does not require each type to be a primitive in the evaluator.
 
 ## Bindings and values
@@ -36,10 +39,10 @@ This vocabulary does not require each type to be a primitive in the evaluator.
 alice : Doc = [[alice]]
 ```
 
-`[[alice]]` is the wiki-link operator: it resolves the name in the current
-namespace and yields the document it addresses — see [[link-op]]. The binding
-names that value; a filename does not implicitly introduce a variable. Inferred
-binding is also preferred:
+`[[alice]]` is a doc reference: it names a document in the current namespace and
+nothing more, and the `->` form built from it is the link operator — see
+[[link-op]]. The binding names the referenced document; a filename does not
+implicitly introduce a variable. Inferred binding is also preferred:
 
 ```hql
 alice = [[alice]]

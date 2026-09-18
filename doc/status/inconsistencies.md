@@ -26,7 +26,7 @@ a `contradiction` needs a decision, `stale` and `broken` need only an edit.
 | ID | Finding | Kind | State | Where |
 | --- | --- | --- | --- | --- |
 | INC-01 | A chat transcript is pasted into the Card card, reversing its own decisions | contradiction | open | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
-| INC-02 | `header` / `frontmatter` / `metadata` / `fm` name one concept four ways | contradiction | open | core, program-values, both corpus READMEs |
+| ~~INC-02~~ | ~~`header` / `frontmatter` / `metadata` / `fm` name one concept four ways~~ | contradiction | resolved | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
 | ~~INC-03~~ | ~~The `Card` / `HmdCard` alias rests on one sentence in one card~~ | ambiguity | resolved | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
 | INC-04 | `cards : Set<Card>` versus `List[Card]` has a third site the tracked question omits | contradiction | tracked | [fixtures/README.md](../../examples/fixtures/README.md) |
 | INC-05 | `Seq<T>` exists only in the wiki; `List` is the corpus's only sequence | stale | open | collections, corpus |
@@ -34,8 +34,8 @@ a `contradiction` needs a decision, `stale` and `broken` need only an edit.
 | INC-07 | Two files still say the evaluator supports only Int, Bool and addition | stale | open | [hql.hmd](../wiki/hql.hmd), [knowledge.md](../models/domain/knowledge.md) |
 | INC-08 | Corpus case counts disagree three ways, and no test catches it | stale | open | [README.md](../../README.md), [examples/README.md](../../examples/README.md) |
 | INC-09 | A standard library is both a bootstrap non-goal and a wiki card | ambiguity | open | [bootstrap.md](../models/requirements/bootstrap.md), [std-lib.hmd](../wiki/hql/std-lib.hmd) |
-| INC-10 | `refinement-of-types.hmd` is zero bytes, untracked and unlinked | stub | open | [refinement-of-types.hmd](../wiki/hql/refinement-of-types.hmd) |
-| INC-11 | The design-status card table omits two existing cards | stale | open | [design-status.hmd](../wiki/hql/design-status.hmd) |
+| ~~INC-10~~ | ~~`refinement-of-types.hmd` is zero bytes, untracked and unlinked~~ | stub | resolved | [type-system.hmd](../wiki/hql/type-system.hmd) |
+| INC-11 | The design-status card table omits an existing card | stale | open | [design-status.hmd](../wiki/hql/design-status.hmd) |
 | INC-12 | Four links point at renamed or nonexistent cards | broken | open | wiki README, hypermarkdown, issues README, kanban.yaml |
 | INC-13 | The wiki breaks its own two rules about wikilink spelling and scope | contradiction | open | [hypermarkdown.hmd](../wiki/hypermarkdown.hmd) and the HQL cards |
 | INC-14 | A directory is linked as though it were a card | stale | open | [hql.hmd](../wiki/hql.hmd) |
@@ -68,14 +68,24 @@ So the same file now offers three competing names for one concept — `header`,
 `metadata`, `frontmatter` — and the "not optional" argument is stated and then
 silently withdrawn. Nothing else in the repository uses `card.metadata`.
 
-**Resolution needed:** decide whether the layered `metadata` / `frontmatter`
-split supersedes the single non-optional `header`, record that as a proposal or
-a `doc/memory/` note, then rewrite the card in its own voice. The transcript
-should not survive in either case — the `.hmd/**`-backed `metadata.state` idea
-and the "refinement rather than inheritance" reading of `Relation <: Card` are
-worth keeping, but as prose the card owns. Resolving this decides INC-02.
+**Partly resolved.** The naming question is decided: `header` is the
+document-level tree and is not optional, `metadata` is the card's knowledge
+layer, and `frontmatter` names no field — see
+[knowledge metadata](../memory/knowledge-metadata.md) and `INC-02`. What remains
+is the register problem this finding opened with: the appended transcript should
+not survive, and the `.hmd/**`-backed `metadata.state` idea is worth keeping as
+prose the card owns. The "refinement rather than inheritance" reading of
+`Relation <: Card` is settled the other way: a relation is not a card at all —
+see [relation is not a card](../memory/relation-not-a-card.md).
 
 ## INC-02 — header / frontmatter / metadata / fm
+
+**Resolved.** The four spellings were not four names for one concept. `header`
+is the document-level tree every document has. `metadata` is the knowledge
+attached to a card, which only a card has — see
+[Card](../wiki/hql/types/card-type.hmd). `frontmatter` is HMD's word for one
+format's authored block and names no field in HQL; `fm` is gone with it. The
+quotations below are of the former state and are left as written.
 
 [Card](../wiki/hql/types/card-type.hmd) and [Data](../wiki/hql/types/data-type.hmd)
 both settle on `card.header : Data` and reject a declared `Frontmatter` record.
@@ -182,20 +192,20 @@ three lines and is linked from nothing. Not a contradiction of substance — a
 non-goal may still have a design card — but the card currently asserts a scope it
 does not describe.
 
-## INC-10 — An empty card
+## ~~INC-10 — An empty card~~
 
-[doc/wiki/hql/refinement-of-types.hmd](../wiki/hql/refinement-of-types.hmd) is
-**zero bytes**, untracked, and unlinked. Refinement is discussed across
-[Card](../wiki/hql/types/card-type.hmd), [Data](../wiki/hql/types/data-type.hmd)
-and the transcript in INC-01, so the topic is real and the placeholder is a
-forward link — but an empty card breaks the wiki's "a card defines a single
-thing" contract in [doc/wiki/README.md](../wiki/README.md).
+**Resolved.** `refinement-of-types.hmd` filled up with a chat transcript rather
+than a card, and `subtyping.hmd` was a single unlinked paragraph. Both are gone,
+merged into [type system](../wiki/hql/type-system.hmd), which covers subtyping,
+generics and progressive refinement as one account and is linked from Card, Data,
+Graph, design status and HMD integration.
 
 ## INC-11 — The design-status card table is incomplete
 
-Neither `std-lib` (INC-09) nor `refinement-of-types` (INC-10) appears in the card
-table in [HQL design status](../wiki/hql/design-status.hmd), which otherwise
-claims to enumerate the HQL cards.
+`std-lib` (INC-09) does not appear in the card table in
+[HQL design status](../wiki/hql/design-status.hmd), which otherwise claims to
+enumerate the HQL cards. The same was true of `refinement-of-types`, now listed
+as [type system](../wiki/hql/type-system.hmd).
 
 ## INC-12 — Broken links
 

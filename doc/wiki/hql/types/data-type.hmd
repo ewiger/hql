@@ -79,7 +79,7 @@ source:
 ---
 ```
 
-The complete frontmatter is `Data`.
+The complete header is `Data`.
 
 Conceptually:
 
@@ -87,7 +87,7 @@ Conceptually:
 doc.header : Data
 ```
 
-`header` rather than `frontmatter`, because frontmatter is a Markdown-specific way of writing the authored part of a header, while the rest of a header is derived by the host or contributed by an extension. The header is not optional: a document with no metadata block has an empty header. See [[doc-type]].
+`header` is the name, because a fenced YAML block is only a Markdown-specific way of writing the authored part of a header, while the rest of a header is derived by the host or contributed by an extension. The header is not optional: a document with no metadata block has an empty header. See [[doc-type]].
 
 The metadata can be traversed naturally:
 
@@ -100,13 +100,13 @@ doc.header.status
 
 A single `Data` tree is what lets derived entries such as `format` and `path` sit beside authored keys and extension-contributed ones without three separate metadata types.
 
-These expressions do not imply that HQL contains a statically declared `Frontmatter` struct with fields called `title`, `tags`, `status`, and `source`.
+These expressions do not imply that HQL contains a statically declared header struct with fields called `title`, `tags`, `status`, and `source`.
 
 They are paths through a `Data` tree.
 
-This distinction is central because a document header is deliberately extensible. HMD reserves only `tags`, `use`, `import`, and `nav` in frontmatter; every other key belongs to the author, and the derived and contributed layers add keys no author wrote. Different cards, applications, extensions, and namespaces can place different metadata there without extending the HQL type system every time a new YAML key appears.
+This distinction is central because a document header is deliberately extensible. HMD reserves only `tags`, `use`, `import`, and `nav` in the authored block; every other key belongs to the author, and the derived and contributed layers add keys no author wrote. Different cards, applications, extensions, and namespaces can place different metadata there without extending the HQL type system every time a new YAML key appears.
 
-The same principle applies beyond frontmatter. Configuration, annotations, extension metadata, query metadata, imported YAML, JSON-like API responses, database JSON values, and similar structured payloads are naturally `Data`.
+The same principle applies beyond document headers. Configuration, annotations, extension metadata, query metadata, imported YAML, JSON-like API responses, database JSON values, and similar structured payloads are naturally `Data`.
 
 In other words, when HQL encounters structured metadata for which there is no stronger semantic type, the default type is `Data`.
 
@@ -169,11 +169,11 @@ person : Person =
     metadata.as<Person>()
 ```
 
-This gives HQL a useful separation between raw structured information and typed interpretation. Interpretation need not copy: HMD, extensions and the program itself progressively establish stronger types for regions of one unchanged tree. See [[refinement-of-types]].
+This gives HQL a useful separation between raw structured information and typed interpretation. Interpretation need not copy: HMD, extensions and the program itself progressively establish stronger types for regions of one unchanged tree. See [[type-system]].
 
 The source can remain faithful to YAML while an extension, function, schema, or application imposes additional meaning where necessary.
 
-The same idea applies to HyperMarkDown itself. The entire frontmatter remains `Data`, while HMD or HQL can assign special meaning to particular entries.
+The same idea applies to HyperMarkDown itself. The entire header remains `Data`, while HMD or HQL can assign special meaning to particular entries.
 
 The tree does not have to stop being `Data` merely because some of its paths are understood by the system.
 
@@ -197,7 +197,7 @@ yaml.dump(config)
 
 This relationship should be sufficiently direct that HQL does not need an intermediate generic object model merely to represent a YAML document.
 
-JSON can fit the same tree model, although YAML is the more direct model for HyperMarkDown because HMD already uses YAML for its optional frontmatter.
+JSON can fit the same tree model, although YAML is the more direct model for HyperMarkDown because HMD already uses YAML for its optional authored block.
 
 This makes `Data` the common structural substrate between HQL, HyperMarkDown metadata, configuration, and external structured information.
 
@@ -298,7 +298,7 @@ A parser, schema, declaration, or extension can interpret `Data` and produce con
 
 It is the native type of arbitrary hierarchical structured information.
 
-HyperMarkDown frontmatter is `Data`.
+A HyperMarkDown header is `Data`.
 
 YAML documents are `Data`.
 

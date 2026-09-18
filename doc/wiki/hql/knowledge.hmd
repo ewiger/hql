@@ -21,16 +21,19 @@ merge rules remain open; `knowledge` does not imply unrestricted global access.
 
 ## Documents and meaning
 
-`Card`, `Frontmatter`, `Section` and `Link` describe the authored document model.
-An ordinary link remains lightweight structural connectivity. It does not gain
-an arbitrary property bag or automatically assert a semantic relation.
+`Doc`, `Card`, `Section` and `Link` describe the authored document model.
+An ordinary link is an edge and may carry data — see [[link-op]] — but carrying
+data neither gives it identity nor asserts a semantic relation.
 `uplinks` traverse outgoing links and `downlinks` incoming links; a node can
 link to itself.
 
-Significant relationships are preferably Relation Cards: a typed specialization
-of Card with its own identity, typed endpoints, fields and ordinary prose or
-evidence sections. Semantic and document families can therefore overlap; they
-are not disjoint storage classes. Exact subtype syntax remains open.
+Significant relationships are preferably given Relation Cards: a card that
+represents a `Relation`, so the relationship gains a body, a name in the vault
+and incoming links of its own. `Relation` is a first-class type here, narrowing
+`Edge[S, T]` — see [[graph-type]] — and never `Card`; a card *carries* one, as
+`card.metadata.relation`, which is refinement and not narrowing. Semantic and
+document families therefore overlap without either being a kind of the other —
+see [[type-system]].
 
 ```hql
 cards | typed Relation | graph

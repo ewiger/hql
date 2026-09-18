@@ -20,7 +20,7 @@ cards
 This preferred example selects Relation Cards and requests a graph of them.
 `cards` is the reserved keyword for the namespace vault's cards; see
 [[card-type]]. `typed Relation` must check the relevant type/schema contract; a
-frontmatter label alone does not establish conformance. The exact application syntax and
+header label alone does not establish conformance. The exact application syntax and
 the result type of `graph` remain design questions.
 
 ## Functions as stages

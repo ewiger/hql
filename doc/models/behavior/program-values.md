@@ -12,15 +12,15 @@ Unit in the corpus; Unit versus Void spelling remains unresolved.
 alice : Doc = [[alice]]
 
 title : String = alice.title
-fm = alice.frontmatter
+header = alice.header
 
 alice.body
 ```
 
 The program result is the body value. It does not implicitly print title,
-frontmatter and body. Preferred typed and inferred bindings do not require `let`.
-The wiki-link operator `[[alice]]`, expression ascription `[[alice]] : Doc` and
-typed binding `alice : Doc = [[alice]]` are distinct constructs.
+header and body. Preferred typed and inferred bindings do not require `let`.
+The doc reference `[[alice]]`, expression ascription `[[alice]] : Doc` and typed
+binding `alice : Doc = [[alice]]` are distinct constructs.
 
 The execution context consumes the returned value. The standalone CLI currently
 chooses to print its one expression result. Future hosts can instead retain it,
@@ -31,7 +31,7 @@ construct a modified Card; persistence needs a separate explicit effect.
 ## HMD cell contexts
 
 Cells are closures over the defining card environment: this:Card, explicit
-frontmatter imports, and explicit card-level bindings. Cards never implicitly
+header imports, and explicit card-level bindings. Cards never implicitly
 export variables named after themselves. Cell-local bindings/imports may shadow
 those names without altering another cell's closure. Transclusion retains the
 defining closure environment. Order, dependency cycles and cache invalidation

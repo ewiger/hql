@@ -18,7 +18,6 @@ the decision behind it is recorded, and its identifier is not reused.
 | --- | --- | --- |
 | CON-01 | Drop `HmdCard`; the type is `Card` | done, residue |
 | CON-03 | `Hmd` is a format, not the parsed body type | done, residue |
-| CON-04 | One name for the metadata field | open, needs decision |
 | CON-05 | `cards` ordering: `List<Card>` or `Set<Card>` | open, needs decision |
 | CON-06 | Title precedence: derived heading or authored entry | open, needs decision |
 | CON-07 | Precedence between derived, authored and contributed header layers | open, needs decision |
@@ -35,7 +34,6 @@ a file format, so nothing about a card follows from its file being `.hmd`. See
 
 Done in [Card](../wiki/hql/types/card-type.hmd),
 [design status](../wiki/hql/design-status.hmd),
-[refinement of types](../wiki/hql/refinement-of-types.hmd),
 [HMD integration](../wiki/hmd-integration.hmd) and the extension-boundary memory.
 `INC-03` is struck as resolved.
 
@@ -63,20 +61,10 @@ Residue, in the corpus and its index:
 chosen by a decision record, and confirming or replacing them is part of closing
 this item.
 
-## CON-04 — One name for the metadata field
-
-Needs a decision. Four spellings are live: `header` in the three type cards,
-`metadata` in [refinement of types](../wiki/hql/refinement-of-types.hmd),
-`frontmatter` in the corpus, and `fm` in at least one fixture. Tracked as
-`INC-02`; the argument for `header` is written out in
-[Doc](../wiki/hql/types/doc-type.hmd), which is not the same as the project
-having chosen it.
-
 ## CON-05 — cards ordering
 
 Needs a decision, and it is about whether vault order is observable rather than
-about a spelling. [Card](../wiki/hql/types/card-type.hmd) and
-[refinement of types](../wiki/hql/refinement-of-types.hmd) say `List<Card>`;
+about a spelling. [Card](../wiki/hql/types/card-type.hmd) says `List<Card>`;
 [HQL collections](../wiki/hql/collections.hmd) says `Set<Card>`;
 [fixture environments](../../examples/fixtures/README.md) assumes root-relative
 path order. Tracked as `INC-04`.

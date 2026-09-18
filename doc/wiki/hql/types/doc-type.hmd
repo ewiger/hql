@@ -42,7 +42,8 @@ anyone typed them:
 | `header.format` | Which document dialect the body is written in |
 | `header.title` | The document's title, from its first heading or its metadata |
 
-These are derived entries, not reserved keys. HMD reserves keys in *frontmatter*,
+These are derived entries, not reserved keys. HMD reserves keys in the *authored
+block*,
 which is a different thing — see below.
 
 `title` is the one with a genuine conflict: a document can state a title in its
@@ -90,11 +91,13 @@ Asking a `md` document for its uplinks is a well-formed question with an empty
 answer; asking it to resolve `[[alice]]` is not a question at all, because the
 text is not a link in that dialect.
 
-Frontmatter belongs on this side of the line. A YAML block fenced by `---` is a
-Markdown convention that HMD inherits, not the definition of a header. It is one
-format-specific way of supplying the authored layer, and a format that supplies
-metadata some other way — or not at all — still has a header. This is why the
-type is `header` and not `frontmatter`.
+The authored block belongs on this side of the line. A YAML block fenced by
+`---` — *frontmatter* in Markdown's and HMD's vocabulary — is a format
+convention, not the definition of a header. It is one format-specific way of
+supplying the authored layer, and a format that supplies metadata some other way
+— or not at all — still has a header. That is why the field is `header`, and why
+HMD's term for one way of writing it is not used as a type name anywhere in
+HQL.
 
 Which formats HQL admits beyond `md` and `hmd`, and whether `format` is a closed
 enumeration or an open name that extensions can register, are open. So is
@@ -145,9 +148,9 @@ to name all three:
 [[alice#^claim]]    // an anchored block
 ```
 
-Writing a name in brackets *is* the resolution — `[[..]]` is an operator, and
-[[link-op]] defines it. What matters here is what it yields: an address to a part
-carries the type of that part, so the three granularities above are `Doc`,
+A bracket pair is a doc reference, defined in [[link-op]] along with the `->`
+edge form built from it. What matters here is what it addresses: a reference to a
+part carries the type of that part, so the three granularities above are `Doc`,
 `Section` and `Block`.
 
 ```hql
@@ -182,9 +185,10 @@ ambiguous references as outcomes rather than silently picking a document.
 
 ## Links
 
-A link is lightweight structural connectivity, conceptually `Link(this, ref)`.
-It is not an edge-property container, and display text does not declare a
-relationship type: `[[alice|Alice B.]]` links the same way `[[alice]]` does.
+A link is an edge from this document to a reference, and an authored `[[bob]]`
+is `[[this]] -> [[bob]]` with whatever data the author attached — see
+[[link-op]]. Display text declares nothing: `[[alice|Alice B.]]` links the same
+way `[[alice]]` does, and data on an edge does not assert a relationship type.
 
 Links traverse in two directions. `uplinks` are the document's outgoing
 references; `downlinks` are the references that point at it. A document can be
@@ -194,10 +198,10 @@ named only one half of the relation.
 Downlinks are the direction that needs a vault: a document cannot know what
 points at it by reading itself. Uplinks are readable from the body alone.
 
-When a relationship needs properties, provenance, discussion or its own incoming
+When a relationship needs identity, provenance, discussion or its own incoming
 links, it should stop being a link and become a Relation Card — see
 [[hql/knowledge]]. That is the boundary this card is defending: a link stays
-cheap, and meaning lives in knowledge.
+cheap and anonymous, and meaning lives in knowledge.
 
 ## Embeds
 

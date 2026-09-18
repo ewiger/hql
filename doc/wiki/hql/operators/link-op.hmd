@@ -1,128 +1,203 @@
 ---
-tags: [hql, operators, cards, hypermarkdown, type-system]
+tags: [hql, operators, graph, cards, hypermarkdown]
 ---
-# The `[[..]]` operator
+# The link operator
 
-`[[..]]` is HQL's **wiki-link operator**. Written around a name, it is an
-expression that denotes what that name addresses in the current namespace:
-
-```hql
-alice = [[alice]]
-```
-
-Nothing wraps it. The brackets are the resolution: the source text that names a
-target and the point at which the namespace is consulted are the same
-characters, which is what makes the failure modes below attributable to a place
-in the program.
-
-The notation is the one an author already writes in a card body, so a cell and
-its surrounding prose address the vault the same way. That is the operator's
-strongest argument: HQL does not invent a second addressing syntax for the
-documents it is embedded in.
-
-## What it yields
-
-The result type follows the **granularity of the address**, not the role of the
-target:
+The link operator is the three-part form
 
 ```hql
-[[alice]]           : Doc       // the document
-[[alice#Bio]]       : Section   // a heading fragment
-[[alice#^claim]]    : Block     // an anchored block
+[[alice]] -> [[bob]] {
+    relation: parent
+    confidence: 0.9
+}
 ```
 
-These are HyperMarkDown's three granularities; see [[doc-type]] for the body
-structure they name.
+`->` constructs an edge, the brackets on either side name its endpoints, and
+`{..}` is the data carried on it. A bracket pair on its own is not this operator:
+`[[bob]]` is a **doc reference** and asserts nothing.
 
-What the operator does **not** yield is a [[card-type|Card]]. Card-ness is a
-knowledge property that has to be established, not something a name can know
-about its target, so the narrowing is a separate and fallible step:
+## `[[..]]` is a doc reference
 
-```hql
-doc  : Doc  = [[alice]]
-card : Card = doc as Card        // a narrowing, and it can fail
-```
-
-The spelling of that narrowing remains unresolved.
-
-## The brackets are not a call
-
-Inside the brackets is a **name**, resolved by the vault's rules. It is not an
-expression, not a string and not a path:
+`[[..]]` written around a name references a document in the current namespace:
 
 ```hql
 [[alice]]              // a name in this namespace
 [[people/alice]]       // a name qualified by module
+[[alice#Bio]]          // a heading fragment
+[[alice#^claim]]       // an anchored block
 ```
 
-A consequence worth stating: the operator has no variable form. Addressing a
-target whose name is computed at runtime is a different operation, over `Ref`
-values, and it needs its own spelling. What that is, and whether a name can be
-interpolated into the brackets at all, are open.
+The referenced document can be in any format the vault holds — Markdown, HMD,
+JSON, YAML, HTML. A reference addresses a document, and format is something the
+document has, not something the reference selects. Nor does it hand back a
+[[card-type|Card]]: card-ness is a knowledge property established by a checked
+narrowing, never by the name that points at the target. See [[doc-type]] for what
+a document is and [[card-type]] for the vault that resolves the name in it.
 
-Display text is HMD's, not HQL's. `[[alice|Alice B.]]` addresses the same
-document as `[[alice]]` and the operator returns the same value; the alternative
-text is for the rendered body. Whether HQL source accepts the pipe form at all
-is open, and there is an argument that it should not, since `|` is the pipe
-operator — see [[pipes]].
+Inside the brackets is a name, not an expression: the operator has no variable
+form, and addressing a target whose name is computed at runtime needs its own
+spelling. Display text is HMD's, not HQL's — `[[alice|Alice B.]]` references the
+same document as `[[alice]]`, and whether HQL source accepts the pipe form at all
+is open, since `|` is the pipe operator (see [[pipes]]).
 
-## Resolution is contextual
+## An authored link has an implicit source
 
-The operator is not a constant. The same three words in two different cards can
-denote two different documents, because a bare name is probed against named
-imports, then the spine of ancestor modules, then wildcard import origins, then
-autodiscovery, with ambiguity an error and no ranking rule to break it.
+In a document body, a bare reference *is* an edge, because the document it sits
+in supplies the missing endpoint. Written in `alice`:
 
-That machinery belongs to the vault, and so the operator does too: it has the
-horizon a wikilink has, and never reaches into a neighbouring vault. See
-[[card-type]] for the vault and namespace it needs, and [[hql/extensions]] for
-where imports are declared.
+```hql
+[[bob]] {
+    color: red
+    relation: parent
+}
+```
+
+means
+
+```hql
+[[alice]] -> [[bob]] {
+    color: red
+    relation: parent
+}
+```
+
+`[[this]]` is the source, and `[[this]]` in `alice` is `[[alice]]`. This is what
+gives a reference two readings without giving it two meanings. As a value,
+`x = [[bob]]` is the reference. As an authored link, `[[bob]]` is that edge, and
+`[[bob]]` with no braces is the same edge with empty data. Uplinks and downlinks
+are the two directions of traversal over exactly these edges — see [[doc-type]].
+
+## Authoring one adds it to the vault graph
+
+The expansion is not only a reading. An authored link **adds the edge to the
+vault's graph**, and the vault is where uplinks, downlinks and `cards` already
+come from.
+
+If the edge is already there, the write is an update rather than a second edge:
+the data in the braces is merged into the annotation the edge already carries.
+So the two links
+
+```hql
+[[bob]] { relation: parent }
+[[bob]] { confidence: 0.9 }
+```
+
+leave one edge from `alice` to `bob` annotated with both keys, not two edges
+side by side.
+
+Three things follow, and they are consequences rather than separate decisions:
+
+- **An edge is identified by its endpoints.** One `alice -> bob` edge exists, and
+  writing the link again addresses it. A vault that needed two distinct edges
+  between the same pair — two different claims, kept apart — could not express
+  it this way; it would need an edge identity beyond the pair, which is what a
+  Relation Card supplies.
+- **The annotation accumulates.** Data arrives from every place the link is
+  authored, so the annotation on an edge is not necessarily any one author's
+  statement.
+- **Forward links still work.** The target need not exist, because the edge is
+  keyed by the reference, not by a resolved document.
+
+Open: whether the merge is per key at the top level or deep through the tree,
+and what happens when two authored links give the same key different values. A
+last-write-wins rule would make the annotation depend on vault traversal order,
+which is the same objection that makes `cards` ordering a live question — see
+[[card-type]]. Retaining both values is the reading consistent with knowledge
+keeping conflicting claims, and that argues the conflict should surface rather
+than resolve silently.
+
+Also open: whether `[[this]]` is a keyword a program may write, and whether an
+edge constructed in an HQL cell asserts into the graph the way an authored one
+does. Constructing a value does not persist a document, so a cell that wrote
+edges into the vault would be performing an effect, and that has to be explicit.
+
+## `{..}` is ordinary data
+
+The braces are not graph syntax. They are the [[data-type|Data]] attached to the
+edge, and the keys in them are the author's:
+
+```hql
+Edge {
+    source: [[alice]]
+    target: [[bob]]
+    data: {
+        relation: parent
+        confidence: 0.9
+    }
+}
+```
+
+`relation`, `color` and `confidence` are entries in a tree, not grammar. Nothing
+in the core knows what `relation: parent` means, which is what keeps the edge
+form from turning every vocabulary a vault invents into a language keyword — the
+same reason the header is `Data` rather than a declared record.
+
+## The graph model behind it
+
+The edge types belong to the graph extension, not to the core:
+
+```hql
+type Edge[S, T] {
+    source: S
+    target: T
+    data: Data
+}
+
+type Graph[N, E]
+```
+
+HMD specializes them for documents, and the knowledge extension specializes them
+independently for meaning:
+
+```hql
+type Link[S, T]     <: Edge[S, T]
+type HmdGraph       <: Graph[Card, Link]
+
+type Relation[S, T] <: Edge[S, T]
+type KnowledgeGraph <: Graph[Concept, Relation]
+```
+
+That separation is the point. `[[alice]] -> [[project-x]]` is an edge in the
+document graph; a semantic claim such as `WorksOn(alice, project_x)` is an edge
+in a knowledge graph. Both render through the same graph machinery without being
+treated as the same object. The layering is core → graph → knowledge, and HMD
+sits beside them as one source of documents.
+
+## Data on an edge is not a semantic relation
+
+An edge carries data; that is what `{..}` is for. What it does not do is make the
+edge a claim. `relation: parent` is an author's entry in a tree, and reading it
+as a typed relationship is an interpretation that has to be performed and
+retained — see [[hql/knowledge]].
+
+The boundary still holds: when a relationship needs identity, provenance,
+evidence, discussion or incoming links of its own, it should stop being an edge
+and become a Relation Card. An edge is cheap and anonymous. A Relation Card is a
+document, and other documents can point at it.
+
+> This revises the flat claim on [[doc-type]] and [[hql/knowledge]] that a link is
+> never an edge-property container. It can carry data. What it cannot do is
+> acquire identity or assert meaning by carrying it.
 
 ## Failure
 
 Resolution can fail in HMD's own ways: a target that does not exist, a fragment
 missing from a document that does, a name matching several documents, or a
 target escaping the namespace root. HMD treats an unresolved link as a *warning*
-by design — writing forward to a card that has not been written yet is permitted,
-and the diagnostic report is a to-do list. HQL must not turn that into a hard
-error by accident.
+by design — writing forward to a document that has not been written yet is
+permitted, and the diagnostic report is a to-do list. HQL must not turn that into
+a hard error by accident.
 
-An operator has to produce a value, which sharpens the question rather than
-answering it. The candidates are an `Option`-typed result, a value that carries
-its unresolved state, and a diagnostic that fails the program. Since absence is
-`Option` and there is no null, an operator that yields `Doc` outright is the
-reading hardest to defend. How failure is carried is the largest open question
-about this operator.
+The edge form makes this concrete rather than settling it: an edge can be
+constructed over an endpoint that does not resolve, and the endpoint is the
+reference, not the document. Whether a reference used where a document is wanted
+yields an `Option`, a value carrying its unresolved state, or a diagnostic is the
+largest open question here. Since absence is `Option` and there is no null, the
+reading hardest to defend is the one that quietly yields a `Doc`.
 
-## References at runtime
+Also open: whether `<-` exists as the mirrored form, how `->` binds against `|`,
+and whether an endpoint may be an expression rather than a bracketed name.
 
-A name written in HQL source is this operator. A reference obtained from a value
-is a different situation, and the two should not be conflated: a document's
-links carry references that have not been resolved, and reading them is
-ordinary.
-
-```hql
-doc.uplinks : Seq<Link>
-```
-
-A `Link` is structural connectivity, conceptually `Link(this, ref)`, and it does
-not assert a semantic relation — see [[doc-type]] for uplinks and downlinks.
-What turns such a reference into its target, and whether `Ref[T]` survives as a
-type, are open.
-
-## Links from a cell
-
-An occurrence of `[[alice]]` in a card body is a link, and contributes an uplink
-from that card and a downlink to `alice`. Whether the same occurrence *inside an
-HQL cell* in that card does so as well is open. Arguing yes: the vault should be
-able to see that the cell depends on `alice`, and a dependency invisible to the
-graph is a dependency that breaks silently. Arguing no: a cell may address a
-document it merely computes over, and manufacturing structural connectivity out
-of a query would inflate the graph with edges no author wrote.
-
-The question is not decidable from the notation, which is the same in both
-places. It needs a decision about whether computed addressing is authorship.
-
-See [[doc-type]] for what resolution yields, [[card-type]] for the vault that
-resolves it, [[pipes]] for composition, and [[hql/design-status]] for what
-remains undecided.
+See [[doc-type]] for uplinks and downlinks, [[card-type]] for the vault,
+[[hql/knowledge]] for Relation Cards, [[data-type]] for the edge's data and
+[[hql/design-status]] for what remains undecided.

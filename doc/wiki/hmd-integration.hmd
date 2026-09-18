@@ -91,7 +91,7 @@ refer to that revision:
 - [`tools/hmd/src/hypermarkdown/parse.py`](https://github.com/ewiger/hypermarkdown/blob/74487940adb82654207cfec4cfd934d03eeee8f9/tools/hmd/src/hypermarkdown/parse.py):
   `parse(path, text, rel)` returns a `Document` with parse diagnostics.
 - [`model.py`](https://github.com/ewiger/hypermarkdown/blob/74487940adb82654207cfec4cfd934d03eeee8f9/tools/hmd/src/hypermarkdown/model.py):
-  `Document` retains text, frontmatter, `CardConfig`, headings, anchors, and
+  `Document` retains text, the authored header block, `CardConfig`, headings, anchors, and
   links. Link records include target, fragment, display, embed status, and span.
 - [`frontmatter.py`](https://github.com/ewiger/hypermarkdown/blob/74487940adb82654207cfec4cfd934d03eeee8f9/tools/hmd/src/hypermarkdown/frontmatter.py):
   the reserved `tags`, `use`, `import`, and `nav` keys are checked; other keys
@@ -114,8 +114,8 @@ assume is available. The projection translates each `Document` into a
 language-facing document value, preserving provenance, document structure,
 metadata, namespace context, relation outcomes, and diagnostics.
 
-Reserved frontmatter can supply known field types; user fields need an explicit
-schema or a deliberate unknown-value policy, and [[refinement-of-types]]
+Reserved header keys can supply known field types; user fields need an explicit
+schema or a deliberate unknown-value policy, and [[type-system]]
 describes the progressive route rather than inferring a complete schema from one
 example. Preserve ambiguity and missing references instead of choosing a
 document silently — HMD treats an unresolved link as a warning on purpose.

@@ -90,6 +90,30 @@ embedded fragment or an ordinary Markdown file outside any vault is a perfectly
 good document with nothing to say about knowledge. The narrowing is exactly the
 step at which meaning becomes possible.
 
+## A card's metadata
+
+A card has a second layer the document does not, and it has its own name:
+
+```hql
+card.header   : Data   // what is known about the document
+card.metadata : Data   // the knowledge attached to this card
+```
+
+`header` and `metadata` are not two spellings of one field. A header is a
+document-level notion — name, path, format, title, whatever an author wrote and
+whatever an extension contributed about the file. Metadata is a knowledge-level
+one: concepts, relations, propositions and evidence attached to this card, which
+is exactly the addition that makes a card more than a document. Only a card has
+it, because only a card participates in knowledge.
+
+That is why `metadata` belongs to [[hql/knowledge]] rather than to [[doc-type]],
+and why the knowledge extension refines `card.metadata` while a `git` or
+database extension contributes to `card.header`. Both refine one unchanged tree
+in the same way — see [[type-system]].
+
+What a card's metadata contains before any extension declares its shape, and
+whether an authored header entry can promote itself into metadata, are open.
+
 ## A card's header
 
 A card's header is a [[data-type|Data]] tree like any document's, assembled from
@@ -101,8 +125,8 @@ addressing in the body. A card written in `hmd` has them; a card written in `md`
 has a header and a body like any other document, and no hyper layer to ask
 about.
 
-Second, where the body is `hmd`, HyperMarkDown reserves exactly four frontmatter
-keys and leaves every other key to the author:
+Second, where the body is `hmd`, HyperMarkDown reserves exactly four authored
+header keys and leaves every other key to the author:
 
 | Key | Meaning |
 | --- | --- |
@@ -113,15 +137,16 @@ keys and leaves every other key to the author:
 
 Projecting these as stronger HQL types is sound, because HMD validates them. The
 rest of the tree stays `Data`, and that openness is deliberate: a type system
-with a declared `Frontmatter` record would have to grow a field every time a
-vault invented a key.
+with a declared header record would have to grow a field every time a vault
+invented a key.
 
 ```hql
 card.header.tags
 card.header.nav.visibility
 ```
 
-What a card whose frontmatter fails to parse projects to is unresolved — a card
+What a card whose authored header block fails to parse projects to is
+unresolved — a card
 with an empty header, a card carrying a diagnostic, or no card at all.
 
 ## cards
@@ -173,8 +198,8 @@ diagnostics, a build supplying publication state.
 git.metadata(card) : Data
 ```
 
-This is the second reason the header is broader than frontmatter: most of what a
-mature vault knows about a card was never typed into the card.
+This is the second reason the header is broader than what an author writes:
+most of what a mature vault knows about a card was never typed into the card.
 
 **Contributing type knowledge.** Other extensions add nothing to the tree at all.
 They declare what an existing region of it means, so a subtree that was `Data`
@@ -183,14 +208,14 @@ becomes usable at a stronger type without being converted or copied.
 ```hql
 import knowledge
 
-card.header.knowledge          : Data?   // before
-card.header.knowledge          : KnowledgeMetadata?
-card.header.knowledge.concepts : List<Concept>
+card.metadata          : Data              // before
+card.metadata          : KnowledgeMetadata
+card.metadata.concepts : List<Concept>
 ```
 
 The runtime value is unchanged; what changed is what the checker can prove about
 it. An extension owns type knowledge about a header, not the header itself —
-[[refinement-of-types]] develops this as open structural data with progressive
+[[type-system]] develops this as open structural data with progressive
 refinement, and it is the mechanism behind the narrowing below.
 
 The core's obligation is to keep contributions distinguishable. A header entry
@@ -202,34 +227,35 @@ the same path are open — though an extension that only contributes type
 knowledge raises none of those questions, which is an argument for preferring
 that form.
 
-> [[refinement-of-types]] spells this field `card.metadata`. This page and
-> [[doc-type]] spell it `card.header`, on the grounds that a header is a
-> document-level notion and `metadata` says less about where it sits. The two
-> pages describe the same field and the spelling still has to be settled in one
-> place.
-
 ## Types narrow
 
 `Card <: Doc` is the first narrowing, not a special case. The same mechanism
 continues past it, and it is the same mechanism by which a `Data` subtree
-becomes a known shape — see [[refinement-of-types]].
+becomes a known shape — see [[type-system]].
 
 ```hql
-type Relation[S, T] <: Card {
-    source: Ref[S]
-    target: Ref[T]
-}
-
-type WorksOn <: Relation[Person, Project] {
-    since: Date?
-    role: Role?
+type Person <: Card {
+    name: String
+    born: Date?
 }
 ```
 
-Declaration syntax is illustrative. The direction is not: a Relation Card is a
-card, so it keeps its body, its links and its own identity, and other cards can
-link to it. Narrowing adds guarantees; it never replaces the card with a record.
-See [[hql/knowledge]] for why significant relationships are preferably cards.
+Declaration syntax is illustrative. The direction is not: a `Person` card keeps
+its body, its links and its own identity, and other cards can link to it.
+Narrowing adds guarantees; it never replaces the card with a record.
+
+A **Relation Card** is not one of these narrowings. `Relation` is a first-class
+knowledge type, not a specialization of `Card`, and a Relation Card is a card
+that *represents* a relation:
+
+```hql
+card.metadata.relation : Relation[S, T]
+```
+
+That is refinement of the card's knowledge layer, reached the same way as any
+other metadata — see [[type-system]] for why the two are different mechanisms,
+[[graph-type]] for the edge a relation narrows and [[hql/knowledge]] for why
+significant relationships are preferably given cards.
 
 Narrowing has to be checked. A `type: WorksOn` entry in the header is an author's
 claim, and `typed Relation` must verify the contract rather than trust the label

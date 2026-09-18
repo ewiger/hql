@@ -15,11 +15,12 @@ knowledge
 | graph
 ```
 
-`[[..]]` is the wiki-link operator and resolves on its own; card-ness is a
-separate checked narrowing — see [[link-op]]. Functions, `.hql` module
+`[[..]]` is a doc reference, and `[[..]] -> [[..]] {..}` the link operator over
+two of them; card-ness is a separate checked narrowing — see [[link-op]].
+Functions, `.hql` module
 imports, value construction, transformations, constraint validation, and typed
 results belong to the intended scope. [[hmd-integration]] describes how partial
-frontmatter schemas could contribute structural/type information.
+header schemas could contribute structural/type information.
 
 ## Recorded direction
 
@@ -38,7 +39,7 @@ claims; Graph is one projection and HmdGraph is a presentation value. See the
 
 - Function syntax, application, binding, pipeline desugaring, and precedence.
 - Type inference, structural versus nominal records, schema checking, optional
-  and unknown frontmatter fields, polymorphism, and numeric representation.
+  and unknown header fields, polymorphism, and numeric representation.
 - Card identity, namespace context, unresolved/ambiguous references, graph value
   semantics, and the concrete host adapter interface.
 - Module loading, effects and resource limits, transformation application,
@@ -58,8 +59,8 @@ HMD renderer, module system, or large standard library in this repository.
 Future foundations include Date/DateTime, Option[T], Result[T,E],
 List[T], Map[K,V], Section, Block, Ref[T] and Namespace, with records, ADTs,
 pattern matching and refinement. Prefer explicit optional/error values over
-pervasive null. String/Str and Frontmatter/FrontMatter naming, generic brackets
-and concrete schema syntax remain open. Formal direction uses constraint and
+pervasive null. String/Str naming, generic brackets and concrete schema syntax
+remain open. Formal direction uses constraint and
 satisfaction vocabulary; solver-backed or dependent checking is not bootstrap
 work. Reading is pure; transformations construct values and persistence is an
 explicit future effect.

@@ -16,8 +16,9 @@ separate it from both older corpus alternatives and implemented behavior.
 | [[doc-type]] | `Doc`, the header, `format`, sections, links and embeds |
 | [[card-type]] | `Card <: Doc`, the vault, knowledge and the `cards` keyword |
 | [[data-type]] | `Data`, the tree type of headers and structured payloads |
-| [[refinement-of-types]] | Open structural data and progressive type refinement |
-| [[link-op]] | The `[[..]]` wiki-link operator: addressing and resolution |
+| [[type-system]] | `<:`, generic parameters and progressive type refinement |
+| [[link-op]] | Doc references and the `[[..]] -> [[..]] {..}` link operator |
+| [[graph-type]] | `Graph[N, E]`, `Edge[S, T]`, and the document and knowledge graphs |
 
 ## Current direction
 
@@ -38,7 +39,8 @@ the implementation.
 
 ## Decisions still needed
 
-- Function/declaration grammar, generics, inference and pipe argument placement.
+- Function/declaration grammar, generic bracket spelling, bound syntax,
+  variance, inference and pipe argument placement — see [[type-system]].
 - Collection equality, Card identity, mapping duplicates and ordering contracts.
 - Whether `cards` is `List<Card>` or `Set<Card>`: [[card-type]] states the
   ordered reading, [[hql/collections]] the unordered one. Vault order is the

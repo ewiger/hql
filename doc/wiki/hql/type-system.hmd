@@ -1,0 +1,313 @@
+---
+tags: [hql, type-system, generics, design]
+---
+# The HQL type system
+
+Three mechanisms do the work, and they are easy to confuse because all three end
+with a value being used at a stronger type than it started with.
+
+| Mechanism | Written | The question it answers |
+| --- | --- | --- |
+| Subtyping | `Card <: Doc` | Which types stand in for which? |
+| Generics | `Graph[N, E]` | What does this type leave unknown? |
+| Refinement | `card.header.database : PostgresConfig` | What is known about *this value*? |
+
+Subtyping relates whole type domains. Generics abstract over them. Refinement
+concerns evidence about one value, whose representation never changes. They meet
+at exactly one place — a **bound**, `T <: Doc`, where a generic unknown is
+restricted by the subtype relation — and that single meeting point is why one
+relation symbol is enough for the whole language.
+
+## `<:` narrows
+
+`Card <: Doc` means that `Card` is a **specialization** of `Doc`: every card
+satisfies the contract of a document, while adding structure or stronger
+constraints of its own. The relation reads from the specific toward the general,
+and a value of the subtype is usable wherever the supertype is expected.
+
+Nothing is extended or mutated by writing it. `Doc` is unchanged and unaware;
+declaring `Card <: Doc` makes a claim about `Card` alone. That is why narrowing
+composes freely — `Card <: Doc` and `Person <: Card` give `Person <: Doc`
+without either declaration being consulted about the other.
+
+### A type may narrow several at once
+
+```hql
+type X <: {A, B, C}
+```
+
+The braces are the ordinary set literal, and the reading is the obvious one: `X`
+is a subtype of every type in this set. It is what a type system with an
+intersection operator would write `A & B & C`, obtained without spending `&` on
+it. In supertype position the grammar knows a set of types is a supertype set,
+which is what keeps `{A, B}` and `{a: A, b: B}` apart there as everywhere else.
+
+The supertype set is normalized, so an ancestor reachable twice is present once:
+`{Card, Doc}` where `Card <: Doc` already holds says no more than `{Card}`, and
+the redundancy is worth a warning rather than an error.
+
+### What `<:` is not
+
+`<:` states what a value **is**. Three other relations end with a value being
+used at a stronger type, and none of them is subtyping.
+
+**Capability is not ancestry.** `Graph <: Renderable[Html]` is tempting and
+wrong in the same way for every renderable type: it declares a parent whose
+implementation does not exist anywhere in the type graph, and the checker is
+left asking where `render` comes from. A capability is supplied *for* a type, by
+an [[hql/extensions|extension]] registering `render(Graph) -> Html`, not
+inherited by it. HQL knows the type; the extension knows what can be done with
+it. Whether a parameterized capability such as `Renderable[T]` is a type at all,
+or only a registration the checker consults, is open — and it is the same
+question the [trait direction](../../memory/trait-direction.md) records.
+
+**Representation is not ancestry.** A Relation Card represents a `Relation`; it
+is not one, and a `Relation` is not a `Card`. See below.
+
+**Projection is not ancestry.** `knowledge | graph` yields a `Graph`, and
+`Knowledge` is not thereby a supertype of anything. A projection is a function
+— see [[graph-type]].
+
+## `[T]` abstracts
+
+A generic parameter is an unknown type that a declaration is written against,
+so that one declaration serves a whole family:
+
+```hql
+type Edge[S, T] {
+    source: S
+    target: T
+    data:   Data
+}
+
+type Graph[N, E]
+```
+
+`S` and `T` are not types with values of their own. They are positions, filled
+at each use — `Edge[Card, Card]`, `Edge[Card, Concept]` — and the declaration is
+checked once for all of them. This is what lets a graph over documents and a
+graph over concepts share one definition without a node union or a `kind` field.
+
+Functions abstract the same way:
+
+```hql
+map[A, B](f: A -> B) : Collection[A] -> Collection[B]
+```
+
+Nothing here is inferred away by the reader: `map` has one body, and `A` and `B`
+are chosen by the call site. Users are not expected to write those parameters at
+a call — they are inferred — but they exist in the signature.
+
+> These pages write generics in square brackets, `Set[T]`, while
+> [[hql/collections]] and [[hql/core]] write `Set<T>`. The two spellings are
+> tracked as one unsettled choice and this card does not settle it; it uses
+> square brackets so that `Edge[S, T]` here matches [[graph-type]].
+
+## Where the two cooperate: bounds
+
+A bare parameter admits every type, which is usually more freedom than a function
+wants. A **bound** restricts it with the subtype relation:
+
+```hql
+fn titles[T](docs: Collection[T]) : Collection[String]
+where T <: Doc
+```
+
+`T` is still unknown, and the body may now use everything `Doc` guarantees. The
+call site supplies `Card`, `Person` or `Doc` itself, and each is checked against
+the bound rather than against the body.
+
+This is the whole of the interaction, and it is worth stating what it is not.
+Subtyping describes relationships between concrete type domains that exist
+whether or not any function is written. Generics let one function range over a
+family of such domains. A bound is where a function says which part of the
+lattice it needs, and `<:` is the only vocabulary it needs to say so:
+
+```hql
+fn show[T, R](x: T) : R
+where T <: Renderable[R]
+```
+
+A separate constraint syntax — Rust's `T: Renderable[R]` — would introduce a
+second relation symbol meaning something close enough to `<:` to be confusing and
+different enough to have to be learned. One symbol is the stronger design, and
+the more compact `fn show[T <: Renderable[R], R](x: T)` is the same relation
+inlined. Which form the grammar takes is open; that it is `<:` in both is not.
+
+**Variance is open.** `Card <: Doc` does not by itself decide whether
+`Graph[Card, Link] <: Graph[Doc, Edge]` holds, and a function written over
+`Graph[Doc, Edge]` is useless if it does not. Covariance is defensible while
+graphs are immutable values and unsound as soon as one can be extended in place,
+so the answer depends on decisions about construction that have not been made —
+see [[graph-type]].
+
+## Refinement establishes
+
+Subtyping and generics are statements about types. Refinement is a statement
+about a **value**: its structure becomes progressively better known, and the
+value itself is never touched.
+
+The starting point is [[data-type|Data]], which is not `Any`. `Data` already
+says something strong — *this is a valid structured tree* — and everything that
+follows says stronger things about regions of that one tree.
+
+```text
+authored YAML
+  ↓
+Data
+  ↓  HMD knows some paths: tags, use, import, nav
+Data refined by HMD
+  ↓  extensions contribute schemas
+Data refined by HMD and extension schemas
+  ↓  the program tests existence and shape
+locally refined further still
+```
+
+HMD's own specification reserves a small number of frontmatter keys and leaves
+every other key to the author while still requiring it to reach consumers, which
+is precisely a tree with a few known paths — see the
+[language specification](https://hypermarkdown.org/wiki/hmd-lang-spec/) and the
+[document model](https://hypermarkdown.org/proposals/HMD-0020/).
+
+An extension refines by declaring what an existing region means:
+
+```hql
+import knowledge
+
+card.metadata          : Data              // before
+card.metadata          : KnowledgeMetadata // after
+card.metadata.concepts : List[Concept]
+```
+
+The runtime value has not changed. What changed is what the checker can prove
+about it, which is the single most important property of the mechanism: an
+extension owns **type knowledge about a tree**, never the tree. Nothing is
+converted, copied or wrapped, so a header does not become a record on the way in
+and back again on the way out.
+
+The same happens one layer down, on an ordinary authored header:
+
+```yaml
+database:
+  engine: postgres
+  host: db.example.org
+```
+
+```hql
+card.header.database : Data?               // before
+card.header.database : PostgresConfig      // once the shape is established
+```
+
+The subtree never declared itself to be a `PostgresConfig`. It became usable as
+one because the required structure is there, and that is the intuition behind
+duck typing — *if it has the shape, use it accordingly*. HQL is stricter than
+that in one decisive respect:
+
+```text
+duck typing
+    it looks like a Duck, so attempt the operation
+
+HQL
+    the known structure proves this value satisfies Duck,
+    and operations are checked against the proof
+```
+
+So the accurate description of the mechanism is **open structural data with
+progressive type refinement**: `Data` values keep their original tree
+representation while HMD semantics, extensions, schemas and predicates
+progressively establish stronger types for parts of that tree. The informal
+gloss — rigorous duck typing — is fair, and the technical name is the one to
+design against.
+
+Two rules keep it honest.
+
+**Refinement never converts.** The refined value is the same value; no `as`
+rewrites it, and losing the refinement loses only knowledge, never data.
+
+**Refinement must be checked.** A `type: WorksOn` entry in a header is an
+author's claim, and `typed Relation` has to verify the contract. An unchecked
+narrowing would let any authored key mint a type, which is the same rule that
+stops `relation: parent` on an edge from making it a `Parent` — see
+[[card-type]] and [[graph-type]]. What a failed narrowing yields is open.
+
+## Relation is not a Card
+
+`Relation[S, T] <: Card` appeared in several of these cards and is **never
+true**. It is worth keeping the correction here, because the reason it is wrong
+is exactly the boundary this card draws.
+
+`Relation` is a first-class type in the knowledge vocabulary, beside `Concept`,
+`Proposition` and `Evidence` — a meaningful relationship with typed endpoints,
+its own identity, and evidence and provenance behind it. A relation acquires
+none of that from a document. It can be imported from another namespace, derived
+by a rule, or read out of a database, and in each case there is a relation and
+no card anywhere.
+
+A **Relation Card** is then what its name says: a card that *represents* a
+relation, giving it a body, a name in the vault and incoming links of its own.
+
+```hql
+card.metadata.relation : Relation[S, T]
+```
+
+That is refinement, not narrowing. The card is a `Card`; the relation is a
+`Relation`; neither is a specialization of the other, and the relation is
+reached through the card's knowledge layer like any other metadata. Preferring a
+Relation Card for a significant relationship — over an anonymous annotated edge
+— is unchanged by this, and is argued in [[hql/knowledge]].
+
+What `Relation` does narrow is the edge:
+
+```hql
+type Relation[S, T] <: Edge[S, T]
+```
+
+An edge has a source, a target and data; a relation has all three and adds
+identity and evidence, so the narrowing is ordinary. A relation's identity is
+its own, which is what makes the knowledge graph a multigraph able to retain two
+conflicting claims about one pair — see [[graph-type]].
+
+> This replaces the reading on [[card-type]], [[graph-type]] and the
+> [knowledge model](../../models/domain/knowledge.md) that a Relation Card is a
+> narrowing of `Card`, and the supertype-set form `Relation[S, T] <: {Card,
+> Edge[S, T]}` that followed from it. The supertype-set syntax itself stands; it
+> simply is not motivated by this case.
+
+## The three at once
+
+A card carrying a relation exercises all three mechanisms, each doing only its
+own job:
+
+```hql
+type Card <: Doc                       // subtyping: a card is a document
+type Relation[S, T] <: Edge[S, T]      // subtyping over a generic parent
+card.metadata.relation : Relation[S, T] // refinement: this card carries one
+```
+
+The first says where `Card` sits for every card there will ever be. The second
+does the same for relations, once, for every endpoint pairing. The third says
+what has been established about one value, and could fail for the next card
+along without disturbing either declaration.
+
+## Open questions
+
+- Whether narrowing is nominal or structural, and what a failed narrowing yields
+  — an `Option`, a diagnostic, or a value carrying its failure.
+- The spelling of validation and refinement at the call site: `validate[Person](card)`,
+  a `where` clause, or a predicate that the checker records.
+- Variance of generic parameters, which depends on whether constructed values
+  are immutable.
+- Square versus angle brackets for generics, unsettled across these cards.
+- Whether a supertype set is genuinely an intersection type or only a list of
+  declared parents, which decides what `X <: {A, B}` means when `A` and `B`
+  conflict.
+- Whether capability contracts such as `Renderable[T]` are types participating
+  in `<:`, or registrations outside the type graph — and how either reading
+  coexists with the preference against exposing trait machinery to users.
+- How much refinement survives a boundary: a value passed to an extension, a
+  cell, or a host and back.
+
+See [[data-type]] for the tree being refined, [[card-type]] for the narrowing
+from `Doc` and the card's two layers, [[graph-type]] for `Edge`, `Graph` and
+variance, [[hql/knowledge]] for relations as knowledge, [[hql/collections]] for
+the generic collections and [[hql/design-status]] for what remains undecided.
