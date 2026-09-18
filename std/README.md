@@ -13,6 +13,11 @@ work. What is checked is that each declaration is coherent, and that where it
 restates a type the binary already holds it agrees with it — see
 [the grammar](../doc/models/behavior/expressions.md).
 
+`type Data = union { Scalar, Seq<Data>, Map<String, Data> }` is the one union
+here: a tree is one of its members rather than all of its parents. The binary
+holds the same three members, and restating it with one more or fewer is
+refused.
+
 `abstract type` declares a contract without a runtime constructor. Collection
 declarations and their `where` bounds agree with the Rust `TypeConstructor` /
 `TypeRef` registry. `List` and `Set` materialize occurrences; `Map`, `OrderedMap`,
@@ -55,7 +60,7 @@ where its steps will:
 
 | File | Module |
 | --- | --- |
-| `core.hql` | the data, absence and value-order vocabulary the core owns |
+| `core.hql` | the scalar, data, absence and value-order vocabulary the core owns |
 | `collections.hql` | membership, order and lookup |
 | `doc.hql` | documents |
 | `graph.hql` | the graph domain |

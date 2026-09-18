@@ -1,10 +1,11 @@
 //! Declaration metadata and checked semantic ancestry.
 
 use super::{TypeConstructor, TypeRef};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-/// Whether a declaration describes a contract or a concrete runtime type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Whether a declaration describes a contract, a concrete runtime type, or a
+/// choice among other types.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeKind {
     /// An uninhabited type, used as the element type of an empty collection.
     Bottom,
@@ -12,6 +13,10 @@ pub enum TypeKind {
     Abstract,
     /// A type that requires a runtime representation for its values.
     Concrete,
+    /// Exactly the listed alternatives: a value of any member is a value of
+    /// the union, and nothing else is. A member may apply the union itself,
+    /// as `Seq<Data>` does inside `Data`, which is what makes a tree.
+    Union(Vec<TypeRef>),
 }
 
 /// How an argument participates in subtyping.
@@ -34,7 +39,8 @@ pub struct TypeParameter {
     pub bound: Option<TypeRef>,
 }
 
-/// A declaration whose parent receives the same arguments, or none when nongeneric.
+/// A declaration whose parents each receive the same arguments, or none when
+/// nongeneric.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeDefinition {
     /// The constructor introduced by this declaration.
@@ -43,8 +49,9 @@ pub struct TypeDefinition {
     pub kind: TypeKind,
     /// The constructor's parameters in application order.
     pub parameters: Vec<TypeParameter>,
-    /// Its immediate semantic ancestor.
-    pub parent: Option<TypeConstructor>,
+    /// Its immediate semantic ancestors. A supertype set declares several,
+    /// and every one of them must hold.
+    pub parents: Vec<TypeConstructor>,
 }
 
 /// A malformed declaration or type application.
@@ -64,9 +71,15 @@ pub enum TypeError {
         /// The repeated parameter name.
         parameter: &'static str,
     },
-    /// An abstract contract cannot be the concrete type of a runtime value.
+    /// A contract or a union cannot be the concrete type of a runtime value.
     #[error("{0} is abstract and has no independent runtime representation")]
     AbstractType(TypeRef),
+    /// A union needs at least one alternative.
+    #[error("union {0} lists no members")]
+    EmptyUnion(TypeConstructor),
+    /// A union that lists itself admits nothing its other members do not.
+    #[error("union {0} lists itself as a member")]
+    SelfMember(TypeConstructor),
     /// An operation requires ancestry through a particular constructor.
     #[error("{actual} does not descend from {expected}")]
     ExpectedConstructor {
@@ -116,6 +129,9 @@ pub enum TypeError {
 }
 
 /// An append-only set of declarations with acyclic semantic ancestry.
+///
+/// Ancestry is a directed acyclic graph: a declaration may narrow several
+/// parents, and an ancestor reachable along two paths is one ancestor.
 #[derive(Debug, Clone, Default)]
 pub struct TypeSystem {
     definitions: BTreeMap<TypeConstructor, TypeDefinition>,
@@ -127,7 +143,10 @@ impl TypeSystem {
         Self::default()
     }
 
-    /// Declare a constructor after its parent and bound types are declared.
+    /// Declare a constructor after its parents and bound types are declared.
+    ///
+    /// A union's members are the one exception to declaration order: they may
+    /// apply the union being declared, so they are validated once it exists.
     pub fn declare(&mut self, definition: TypeDefinition) -> Result<(), TypeError> {
         let constructor = definition.constructor;
         if self.definitions.contains_key(&constructor) {
@@ -145,7 +164,7 @@ impl TypeSystem {
                 self.validate(bound)?;
             }
         }
-        if let Some(parent) = definition.parent {
+        for &parent in &definition.parents {
             let ancestor = self.definition(parent)?;
             if (!ancestor.parameters.is_empty()
                 && definition.parameters.len() != ancestor.parameters.len())
@@ -164,8 +183,32 @@ impl TypeSystem {
                 });
             }
         }
+        if let TypeKind::Union(members) = &definition.kind {
+            if members.is_empty() {
+                return Err(TypeError::EmptyUnion(constructor));
+            }
+            // `Seq<Data>` inside `Data` is recursion through an argument and
+            // terminates; a bare `Data` inside `Data` would not.
+            if members
+                .iter()
+                .any(|member| member.constructor == constructor)
+            {
+                return Err(TypeError::SelfMember(constructor));
+            }
+        }
         // Requiring ancestors to exist before insertion rules out cycles.
+        let members = match &definition.kind {
+            TypeKind::Union(members) => members.clone(),
+            TypeKind::Bottom | TypeKind::Abstract | TypeKind::Concrete => Vec::new(),
+        };
         self.definitions.insert(constructor, definition);
+        if let Some(error) = members
+            .iter()
+            .find_map(|member| self.validate(member).err())
+        {
+            self.definitions.remove(&constructor);
+            return Err(error);
+        }
         Ok(())
     }
 
@@ -233,9 +276,10 @@ impl TypeSystem {
     /// This checks the declaration, not whether a carrier has been implemented.
     pub fn validate_concrete(&self, reference: &TypeRef) -> Result<(), TypeError> {
         self.validate(reference)?;
-        match self.definition(reference.constructor)?.kind {
+        match &self.definition(reference.constructor)?.kind {
             TypeKind::Concrete => Ok(()),
-            TypeKind::Abstract | TypeKind::Bottom => {
+            // A union's values are represented as one of its members.
+            TypeKind::Abstract | TypeKind::Bottom | TypeKind::Union(_) => {
                 Err(TypeError::AbstractType(reference.clone()))
             }
         }
@@ -281,7 +325,8 @@ impl TypeSystem {
         {
             return true;
         }
-        self.ancestors(source.constructor)
+        let declared = self
+            .ancestors(source.constructor)
             .find(|definition| definition.constructor == target.constructor)
             .is_some_and(|definition| {
                 definition.parameters.len() == target.args.len()
@@ -294,16 +339,42 @@ impl TypeSystem {
                             Variance::Covariant => self.narrows(source, target),
                             Variance::Invariant => source == target,
                         })
-            })
+            });
+        if declared {
+            return true;
+        }
+        // Membership is the other way into a union: `Int` never declared
+        // `Data`, and is one because `Scalar` is listed. Each step either
+        // descends into a smaller source or moves to a union declared earlier,
+        // so this terminates.
+        match self
+            .definitions
+            .get(&target.constructor)
+            .map(|definition| &definition.kind)
+        {
+            Some(TypeKind::Union(members)) => {
+                members.iter().any(|member| self.narrows(source, member))
+            }
+            Some(TypeKind::Bottom | TypeKind::Abstract | TypeKind::Concrete) | None => false,
+        }
     }
 
+    /// A declaration and everything it narrows, nearest first, each once.
     fn ancestors(&self, constructor: TypeConstructor) -> impl Iterator<Item = &TypeDefinition> {
         // Declarations are append-only and checked before insertion, so every
-        // parent exists and each chain terminates at a root.
-        std::iter::successors(self.definitions.get(&constructor), |definition| {
-            definition
-                .parent
-                .and_then(|parent| self.definitions.get(&parent))
-        })
+        // parent exists and the walk terminates at the roots.
+        let mut found: Vec<&TypeDefinition> = Vec::new();
+        let mut pending = VecDeque::from([constructor]);
+        while let Some(next) = pending.pop_front() {
+            if found.iter().any(|seen| seen.constructor == next) {
+                continue;
+            }
+            let Some(definition) = self.definitions.get(&next) else {
+                continue;
+            };
+            found.push(definition);
+            pending.extend(definition.parents.iter().copied());
+        }
+        found.into_iter()
     }
 }

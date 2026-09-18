@@ -3,13 +3,14 @@
 //! A declaration is checked and yields `Unit`. It introduces no value and no
 //! case in the [lattice](crate::types) — constructing a value of a declared
 //! record type is separate work. What is checked here is that the declaration
-//! is coherent: its parents exist, its parents can be narrowed together, and
-//! where it restates a type this binary already has, it agrees with it.
+//! is coherent: its parents exist, its parents can be narrowed together, a
+//! union's members exist and are distinct, and where it restates a type this
+//! binary already has, it agrees with it.
 
 use crate::ast::{TypeAnn, TypeDecl};
 use crate::diagnostics::Diagnostic;
 use crate::types::{self, TypeKind, TypeRef, builtin};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::ops::Range;
 
 /// The lattice type a written annotation denotes, when the binary has one.
@@ -111,6 +112,7 @@ impl Declarations {
                         | "OrderedMap"
                         | "SortedMap"
                         | "Orderable"
+                        | "Scalar"
                 ) {
                     if declaration.abstract_type != (definition.kind == TypeKind::Abstract)
                         || declaration.parameters.len() != definition.parameters.len()
@@ -143,6 +145,10 @@ impl Declarations {
                     }
                 }
             }
+        }
+
+        if let Some(members) = &declaration.union {
+            return self.declare_union(declaration, members, &scope);
         }
 
         let mut parents = Vec::new();
@@ -188,6 +194,98 @@ impl Declarations {
                 span: declaration.span.clone(),
             },
         );
+        Ok(())
+    }
+
+    /// Check `type Name = union {A, B}` and record it.
+    fn declare_union(
+        &mut self,
+        declaration: &TypeDecl,
+        members: &[TypeAnn],
+        scope: &HashMap<String, TypeRef>,
+    ) -> Result<(), Diagnostic> {
+        // A member may apply the union being declared — `Seq<Data>` inside
+        // `Data` is what makes a tree — so the name has to resolve while the
+        // members are read, and is withdrawn again if they do not hold.
+        self.known.insert(
+            declaration.name.clone(),
+            Declared {
+                parameters: declaration.parameters.len(),
+                parents: Vec::new(),
+                fields: Vec::new(),
+                span: declaration.span.clone(),
+            },
+        );
+        let checked = self.union_holds(declaration, members, scope);
+        if checked.is_err() {
+            self.known.remove(&declaration.name);
+        }
+        checked
+    }
+
+    fn union_holds(
+        &self,
+        declaration: &TypeDecl,
+        members: &[TypeAnn],
+        scope: &HashMap<String, TypeRef>,
+    ) -> Result<(), Diagnostic> {
+        let mut seen: Vec<String> = Vec::new();
+        for member in members {
+            // Recursion through an argument terminates; a bare self-member
+            // admits nothing the other members do not.
+            if member.name == declaration.name {
+                return Err(Diagnostic::typing(
+                    member.span.clone(),
+                    format!(
+                        "`{}` lists itself as a member, which admits nothing new",
+                        declaration.name
+                    ),
+                ));
+            }
+            self.resolve(member, scope)?;
+            let written = spelling(member);
+            if seen.contains(&written) {
+                return Err(Diagnostic::typing(
+                    member.span.clone(),
+                    format!("`{}` lists {written} twice", declaration.name),
+                ));
+            }
+            seen.push(written);
+        }
+        Self::union_agrees_with_the_lattice(declaration, members)
+    }
+
+    /// A union the binary already holds is restated member for member: one
+    /// alternative more or fewer is a different type.
+    fn union_agrees_with_the_lattice(
+        declaration: &TypeDecl,
+        members: &[TypeAnn],
+    ) -> Result<(), Diagnostic> {
+        let Some(constructor) = builtin::constructor(&declaration.name) else {
+            return Ok(());
+        };
+        let contradiction = |held: String| {
+            Diagnostic::typing(
+                declaration.span.clone(),
+                format!(
+                    "`{}` is built in as {held}, so this declaration contradicts it",
+                    declaration.name
+                ),
+            )
+        };
+        let system = builtin::system()
+            .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
+        let definition = system
+            .definition(constructor)
+            .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
+        let TypeKind::Union(held) = &definition.kind else {
+            return Err(contradiction("a type that is not a union".to_owned()));
+        };
+        let written: Option<BTreeSet<TypeRef>> = members.iter().map(lattice).collect();
+        if written != Some(held.iter().cloned().collect()) {
+            let held: Vec<String> = held.iter().map(ToString::to_string).collect();
+            return Err(contradiction(format!("union {{{}}}", held.join(", "))));
+        }
         Ok(())
     }
 
@@ -428,6 +526,10 @@ impl Declarations {
 
     /// Two parents a value could never satisfy at once make the declaration
     /// uninhabitable, which is a mistake rather than an empty type.
+    ///
+    /// Only two concrete types can exclude each other. A contract such as
+    /// `Scalar` or `Orderable`, or a union such as `Data`, is satisfied *by*
+    /// other types, so `{Scalar, Orderable}` is two claims one value can meet.
     fn parents_are_jointly_inhabitable(parents: &[&TypeAnn]) -> Result<(), Diagnostic> {
         for (position, left) in parents.iter().enumerate() {
             let Some(one) = lattice(left) else {
@@ -442,10 +544,7 @@ impl Declarations {
                 if one.is(&other) || other.is(&one) {
                     continue;
                 }
-                if one.join(&other) == TypeRef::DATA
-                    && one != TypeRef::DATA
-                    && other != TypeRef::DATA
-                {
+                if one.is_concrete() && other.is_concrete() && one.common(&other).is_none() {
                     return Err(Diagnostic::typing(
                         right.span.clone(),
                         format!(
@@ -458,4 +557,13 @@ impl Declarations {
         }
         Ok(())
     }
+}
+
+/// A written type as its author spelled it, for naming it in a diagnostic.
+fn spelling(written: &TypeAnn) -> String {
+    if written.arguments.is_empty() {
+        return written.name.clone();
+    }
+    let arguments: Vec<String> = written.arguments.iter().map(spelling).collect();
+    format!("{}<{}>", written.name, arguments.join(", "))
 }

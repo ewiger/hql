@@ -75,7 +75,7 @@ pub fn definitions() -> impl Iterator<Item = TypeDefinition> {
         constructor,
         kind,
         parameters,
-        parent,
+        parents: parent.into_iter().collect(),
     })
 }
 

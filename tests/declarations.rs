@@ -139,6 +139,89 @@ fn a_supertype_set_a_value_could_never_satisfy_is_refused() {
 }
 
 #[test]
+fn contracts_and_unions_never_exclude_each_other_in_a_supertype_set() {
+    // Only two concrete types can share nothing. A contract is satisfied by
+    // other types, so two of them are two claims one value can meet — which
+    // is what `type Int : {Scalar, Orderable}` relies on.
+    for source in [
+        "type Stamp : {Scalar, Orderable}",
+        "type Flag : {Bool, Orderable}",
+        "type Fruit : {Data, Orderable}",
+        "type Int : {Scalar, Orderable}",
+        "type Bool : Scalar",
+    ] {
+        assert_eq!(check(source), Ok(TypeRef::UNIT), "{source}");
+    }
+    // The built-in `Bool` is a leaf with no order, and restating it otherwise
+    // contradicts the binary.
+    assert!(refused("type Bool : {Scalar, Orderable}").contains("does not narrow Orderable"));
+    assert!(refused("type Scalar").contains("contradicts its built-in kind"));
+}
+
+#[test]
+fn a_union_lists_its_alternatives() {
+    for source in [
+        "type Id = union {Int, String}",
+        "type Id = union {\n    Int,\n    String\n}",
+        "type Id = union {Int, String,}",
+        // A member may apply the union itself: that is what makes a tree.
+        "type Json = union {Scalar, Seq<Json>, Map<String, Json>}",
+        "type Tree<T> = union {T, Seq<Tree<T>>}",
+        "type Id = union {Int, String}\ntype Holder { id : Id }",
+        // What `std/core.hql` says, and what the binary holds.
+        "type Data = union {Scalar, Seq<Data>, Map<String, Data>}",
+        "type Data = union {Map<String, Data>, Scalar, Seq<Data>}",
+    ] {
+        assert_eq!(check(source), Ok(TypeRef::UNIT), "{source}");
+    }
+    assert_eq!(eval("type Id = union {Int, String}"), Ok(Value::Unit));
+}
+
+#[test]
+fn a_union_that_does_not_hold_is_refused() {
+    assert!(refused("type Id = union {Int, Nonesuch}").contains("unknown type `Nonesuch`"));
+    assert!(refused("type Id = union {Int, Int}").contains("lists Int twice"));
+    assert!(refused("type Id = union {Seq<Int>, Seq<Int>}").contains("lists Seq<Int> twice"));
+    assert!(refused("type Id = union {Int, Id}").contains("lists itself as a member"));
+    assert!(refused("type Id = union {Map<Int>}").contains("expects 2 type arguments"));
+    // A refused union is withdrawn, so its name is free for a second attempt.
+    assert!(refused("type Id = union {Id}\ntype Use { id : Id }").contains("lists itself"));
+
+    // A built-in union is restated member for member.
+    let narrower = refused("type Data = union {Scalar}");
+    assert!(
+        narrower.contains("built in as union {Scalar, Seq<Data>, Map<String, Data>}"),
+        "{narrower}"
+    );
+    assert!(
+        refused("type Data = union {Scalar, Seq<Data>, Map<String, Data>, Card}")
+            .contains("contradicts it")
+    );
+    assert!(refused("type Card = union {Int, String}").contains("not a union"));
+}
+
+#[test]
+fn a_union_is_written_with_equals_and_nothing_else() {
+    for source in [
+        "type Id = {Int, String}",
+        "type Id = Int",
+        "type Id = union",
+        "type Id = union {}",
+        "type Id = union {Int} : Data",
+        "type Id : Data = union {Int}",
+        "abstract type Id = union {Int}",
+    ] {
+        assert!(
+            matches!(check(source), Err(Diagnostic::Syntax { .. })),
+            "{source}: {:?}",
+            check(source)
+        );
+    }
+    // `union` is a word only after `=` in a declaration; elsewhere it is a name.
+    assert_eq!(check("union = 1\nunion"), Ok(TypeRef::INT));
+}
+
+#[test]
 fn a_name_is_declared_once_and_a_field_appears_once() {
     assert!(refused("type Colour\ntype Colour").contains("is declared twice"));
     assert!(

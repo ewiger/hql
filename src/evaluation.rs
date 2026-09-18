@@ -82,7 +82,7 @@ impl Evaluator<'_> {
                 let mut element = TypeRef::NEVER;
                 for expression in expressions {
                     let value = self.expression(expression)?;
-                    element = element.common(&value.type_of()).ok_or_else(|| {
+                    element = held_together(&element, &value.type_of()).ok_or_else(|| {
                         Diagnostic::runtime(span.clone(), "incompatible collection elements")
                     })?;
                     values.push(value);
@@ -479,6 +479,18 @@ impl EvalCx for Evaluator<'_> {
 
 fn text(value: &str) -> Value {
     Value::Str(Rc::from(value))
+}
+
+/// The element type of values the checker has already accepted side by side.
+///
+/// A view is static: `count : Scalar = 3` still evaluates to an `Int`, so the
+/// runtime types of `[count, "owl"]` are unrelated although the checked ones
+/// were not. Leaves, sequences and string-keyed maps are all trees, and the
+/// open tree is the type they are held at.
+fn held_together(element: &TypeRef, actual: &TypeRef) -> Option<TypeRef> {
+    element.common(actual).or_else(|| {
+        (element.is(&TypeRef::DATA) && actual.is(&TypeRef::DATA)).then_some(TypeRef::DATA)
+    })
 }
 
 fn retrieval_data(retrieval: &search::Retrieval) -> Data {

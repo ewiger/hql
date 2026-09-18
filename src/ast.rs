@@ -21,7 +21,7 @@ pub(crate) enum Stmt {
         name: String,
         span: Range<usize>,
     },
-    /// `type Name<P> : Parent { field : Type }`.
+    /// `type Name<P> : Parent { field : Type }`, or `type Name = union { A, B }`.
     Type(TypeDecl),
     Expr(Expr),
 }
@@ -38,6 +38,10 @@ pub(crate) struct TypeDecl {
     pub supertypes: Vec<TypeAnn>,
     /// The record body, empty when the declaration has none.
     pub fields: Vec<Field>,
+    /// The alternatives written `= union {A, B}`. A union lists what it is
+    /// rather than what it narrows, so the parser leaves `supertypes` and
+    /// `fields` empty whenever this is present.
+    pub union: Option<Vec<TypeAnn>>,
     pub span: Range<usize>,
 }
 

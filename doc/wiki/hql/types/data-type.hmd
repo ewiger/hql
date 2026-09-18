@@ -44,16 +44,52 @@ Data
             └── "author"
 ```
 
-At the conceptual level, `Data` is recursive:
+`Data` is recursive, and its declaration in [`std/core.hql`](../../../../std/core.hql) says so directly:
 
-```text
-Data =
-    Scalar
-  | Sequence<Data>
-  | Mapping<String, Data>
+```hql
+type Data = union {
+    Scalar,
+    Seq<Data>,
+    Map<String, Data>
+}
 ```
 
-The exact implementation does not have to use this definition literally. What matters is the model: `Data` is a tree made from mappings, sequences, and scalar values.
+A tree is a leaf, a sequence of trees, or a string-keyed map of trees, and nothing else. That is the whole of YAML's and JSON's data model, which is why `Data` is the natural type for querying either.
+
+## Data is a union
+
+A supertype set, `type X : {A, B}`, says that `X` is every one of its parents at once. `Data` is the opposite situation: a value is **one** of the alternatives, never all three. That is what a union is for, and `Data` is where HQL genuinely needs one — see [[type-system]].
+
+A type is a `Data` by being one of its members, not by declaring `Data` as a parent:
+
+```hql
+count : Data = 3                           // a leaf
+hours : Data = ["dusk", "dawn"]            // a sequence of trees
+tally : Data = Map(["barn-owl"], [2])      // a string-keyed map of trees
+note  : Data = { species: "barn-owl" }     // a tree literal
+```
+
+Membership recurses through the argument, so a `List<List<Map<String, Float>>>` is a tree because each layer is. Two things that look close are not trees, and the members say why: a `Set<Int>` has no positions, and a tree's children have them; a `Map<Int, Int>` has no string keys.
+
+Membership runs one way. Knowing a value is `Data` does not make it a `Scalar` or a `Seq<Data>`; finding out which it is belongs to refinement.
+
+Viewing a value as `Data` never converts it. `tally` above is still the `Map<String, Int>` it was, and only what the checker knows about it has changed. This is the same rule refinement follows in the other direction.
+
+## Scalars are the leaves
+
+```hql
+abstract type Scalar
+
+type Bool   : Scalar
+type Int    : {Scalar, Orderable}
+type Float  : {Scalar, Orderable}
+type String : {Scalar, Orderable}
+type Date   : {Scalar, Orderable}
+```
+
+`Scalar` is an abstract type of law: a value with no parts of its own. Being a leaf and having an order are separate contracts, which is why they are separate parents. `Bool` is a leaf with no order worth sorting by. A `Card` has an order, by its name, and is no leaf. The four ordered scalars satisfy both, and `{Scalar, Orderable}` is an ordinary supertype set.
+
+`Date` is declared so a schema can name it. No literal produces one yet, and its operations remain open.
 
 ## Metadata is Data
 
@@ -114,10 +150,10 @@ In other words, when HQL encounters structured metadata for which there is no st
 
 A record describes a known shape.
 
-For example, HQL may eventually support a type such as:
+For example:
 
 ```hql
-type Person = {
+type Person {
     name: String
     age: Int
 }
@@ -308,7 +344,7 @@ Extension-defined structured metadata can be `Data`.
 
 Configuration and external JSON/YAML-like payloads can be `Data`.
 
-The defining idea is not that `Data` is a generic object or `Map<String, Any>`.
+The defining idea is not that `Data` is a generic object or `Map<String, Any>`. There is no `Any`: every position in the tree is a leaf, a sequence, or a string-keyed map.
 
 The defining idea is:
 

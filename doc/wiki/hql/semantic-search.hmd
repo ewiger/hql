@@ -76,8 +76,10 @@ to a query under one model. That is why **`Retrieval` is not optional on
 | | A rank | exists only relative to a query and a corpus |
 
 A card has an embedding whether or not anyone ever searches; it has no score
-until someone asks something. The index extension contributes under
-`metadata.search`, a key it owns — see [[fields]] and [[card-type]].
+until someone asks something. A retrieval extension contributes under a key
+named after itself — the matcher writes `metadata.lexical` — because two
+retrievals cannot both be "the" search, and a key either of them could claim is
+one they would take turns overwriting. See [[fields]] and [[card-type]].
 
 ## Cards are not concepts
 

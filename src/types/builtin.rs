@@ -20,7 +20,7 @@ atoms! {
     BOOL => "Bool", STR => "String", DATA => "Data", DOC => "Doc", CARD => "Card",
     CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
     GRAPH => "Graph", PRESENTATION => "Presentation", ORDERABLE => "Orderable",
-    ORDERING => "Ordering",
+    ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
 }
 
 macro_rules! applications {
@@ -44,32 +44,42 @@ pub fn system() -> Result<&'static TypeSystem, TypeError> {
 
 fn build() -> Result<TypeSystem, TypeError> {
     let mut system = collections::type_system()?;
-    for (reference, parent) in [
-        (TypeRef::NEVER, None),
-        (TypeRef::UNIT, None),
-        (TypeRef::INT, Some(TypeRef::ORDERABLE)),
-        (TypeRef::FLOAT, Some(TypeRef::ORDERABLE)),
-        (TypeRef::STR, Some(TypeRef::ORDERABLE)),
-        (TypeRef::BOOL, None),
-        (TypeRef::DATA, None),
-        (TypeRef::DOC, Some(TypeRef::ORDERABLE)),
-        (TypeRef::CARD, Some(TypeRef::DOC)),
-        (TypeRef::CONCEPT_CARD, Some(TypeRef::CARD)),
-        (TypeRef::RELATION_CARD, Some(TypeRef::CARD)),
-        (TypeRef::EDGE, None),
-        (TypeRef::GRAPH, None),
-        (TypeRef::PRESENTATION, None),
-        (TypeRef::ORDERING, None),
+    // A leaf of a tree: a value with no parts of its own. `Bool` is one and is
+    // not `Orderable`, which is why the two contracts are separate parents.
+    let ordered_scalar = [TypeRef::SCALAR, TypeRef::ORDERABLE];
+    for (reference, kind, parents) in [
+        (TypeRef::NEVER, TypeKind::Bottom, &[][..]),
+        (TypeRef::UNIT, TypeKind::Concrete, &[]),
+        (TypeRef::SCALAR, TypeKind::Abstract, &[]),
+        (TypeRef::BOOL, TypeKind::Concrete, &[TypeRef::SCALAR]),
+        (TypeRef::INT, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::FLOAT, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::STR, TypeKind::Concrete, &ordered_scalar),
+        // Declared so a schema can name it; no literal produces one yet.
+        (TypeRef::DATE, TypeKind::Concrete, &ordered_scalar),
+        (
+            TypeRef::DATA,
+            TypeKind::Union(vec![
+                TypeRef::SCALAR,
+                TypeRef::seq(TypeRef::DATA),
+                collections::MAP.apply([TypeRef::STR, TypeRef::DATA]),
+            ]),
+            &[],
+        ),
+        (TypeRef::DOC, TypeKind::Concrete, &[TypeRef::ORDERABLE]),
+        (TypeRef::CARD, TypeKind::Concrete, &[TypeRef::DOC]),
+        (TypeRef::CONCEPT_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
+        (TypeRef::RELATION_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
+        (TypeRef::EDGE, TypeKind::Concrete, &[]),
+        (TypeRef::GRAPH, TypeKind::Concrete, &[]),
+        (TypeRef::PRESENTATION, TypeKind::Concrete, &[]),
+        (TypeRef::ORDERING, TypeKind::Concrete, &[]),
     ] {
         system.declare(TypeDefinition {
-            kind: if reference == TypeRef::NEVER {
-                TypeKind::Bottom
-            } else {
-                TypeKind::Concrete
-            },
+            kind,
             constructor: reference.constructor,
             parameters: vec![],
-            parent: parent.map(|parent| parent.constructor),
+            parents: parents.iter().map(|parent| parent.constructor).collect(),
         })?;
     }
     for (name, parent) in [
@@ -85,7 +95,7 @@ fn build() -> Result<TypeSystem, TypeError> {
                 variance: Variance::Covariant,
                 bound: None,
             }],
-            parent,
+            parents: parent.into_iter().collect(),
         })?;
     }
     Ok(system)
@@ -124,6 +134,16 @@ impl TypeRef {
                 .is_some_and(|element| Self::seq(Self::hit(element.clone())).is(expected));
         }
         system().is_ok_and(|system| system.is_subtype(self, expected).unwrap_or(false))
+    }
+
+    /// Whether this type has a runtime representation of its own, rather than
+    /// being a contract or a union that other types satisfy.
+    pub fn is_concrete(&self) -> bool {
+        system().is_ok_and(|system| {
+            system
+                .definition(self.constructor)
+                .is_ok_and(|definition| definition.kind == TypeKind::Concrete)
+        })
     }
 
     /// Whether values of this type carry an intrinsic total ordering.
@@ -205,10 +225,5 @@ impl TypeRef {
             return Some(self.constructor.apply(args));
         }
         None
-    }
-
-    /// A common type, with open data as the declaration checker's fallback.
-    pub fn join(&self, other: &Self) -> Self {
-        self.common(other).unwrap_or(Self::DATA)
     }
 }

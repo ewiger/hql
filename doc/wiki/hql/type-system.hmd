@@ -110,7 +110,48 @@ The supertype set is normalized, so an ancestor reachable twice is present once:
 `{Card, Doc}` where `Card : Doc` already holds says no more than `{Card}`, and
 the redundancy is worth a warning rather than an error.
 
-The case this form exists for is `KnowledgeGraph`, below.
+The case this form exists for is `KnowledgeGraph`, below. The scalars use it
+too: `type Int : {Scalar, Orderable}` says an integer is a leaf *and* has an
+order, two contracts that `Bool` and `Card` each satisfy only one of.
+
+Two contracts never exclude each other, because a contract is satisfied *by*
+other types. Only two concrete types can share nothing, so `{Int, String}` is
+refused and `{Scalar, Orderable}` is not.
+
+### A union lists alternatives
+
+```hql
+type Data = union {
+    Scalar,
+    Seq<Data>,
+    Map<String, Data>
+}
+```
+
+A supertype set is a conjunction: `X` is every parent at once. A **union** is a
+choice: a value of `Data` is exactly one of the members. The two are written
+differently because they say different things — `:` says what a type narrows,
+and `= union {…}` says what a type *is* — and a declaration uses one or the
+other, never both.
+
+Membership is how a type enters a union. `Int` never declares `Data` as a
+parent; it is a `Data` because it is a `Scalar` and `Scalar` is listed. A type
+may still narrow a union the ordinary way — `type PostgresConfig : Data` declares
+a tree whose shape is known — and that adds no fourth alternative: such a value
+is still a leaf, a sequence or a map, so whatever handles `Data` may rely on
+there being three cases.
+
+A member may apply the union being declared. `Seq<Data>` inside `Data` is
+recursion through an argument, which is what makes a tree and always bottoms out
+in a leaf. A bare self-member would admit nothing new and is refused.
+
+Membership runs one way: a `Data` is not thereby a `Scalar`. Going from the
+union to one of its members is learning something about a value, which is
+refinement's job, below.
+
+`Data` is where a union is genuinely needed, and the bar stays there. A graph
+over documents and concepts is a generic, not a node union, and absence is
+`Option<T>`, not a union with a null.
 
 ### What `:` is not
 
@@ -319,8 +360,9 @@ about a **value**: its structure becomes progressively better known, and the
 value itself is never touched.
 
 The starting point is [[data-type|Data]], which is not `Any`. `Data` already
-says something strong — *this is a valid structured tree* — and everything that
-follows says stronger things about regions of that one tree.
+says something strong — *this is a valid structured tree*, a leaf, a sequence of
+trees or a string-keyed map of trees — and everything that follows says stronger
+things about regions of that one tree.
 
 ```text
 authored YAML

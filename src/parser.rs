@@ -166,6 +166,12 @@ impl Parser {
             self.expect(&Token::Ident("type".to_owned()), "after abstract")?;
             self.index -= 1;
             let mut declaration = self.declaration()?;
+            if declaration.union.is_some() {
+                return Err(Diagnostic::syntax(
+                    declaration.span,
+                    "a union has no constructor of its own, so `abstract` says nothing about it",
+                ));
+            }
             declaration.abstract_type = true;
             return Ok(Stmt::Type(declaration));
         }
@@ -211,7 +217,7 @@ impl Parser {
     }
 
     /// `type Name<P, Q> : Parent { field : Type }`, with every part optional
-    /// after the name.
+    /// after the name, or `type Name<P> = union { A, B }`.
     fn declaration(&mut self) -> Result<TypeDecl, Diagnostic> {
         let keyword = self.advance();
         let named = self.advance();
@@ -243,8 +249,33 @@ impl Parser {
             self.nesting -= 1;
         }
 
+        // `=` defines the type as a choice among others. It says what the type
+        // is, where `:` says what it narrows, so the two are not combined.
+        let mut union = None;
+        if self.eat(&Token::Equals) {
+            self.continuation();
+            self.expect(&Token::Ident("union".to_owned()), "after `=` in a type")?;
+            self.expect(&Token::OpenBrace, "to open a union")?;
+            self.nesting += 1;
+            let mut members = Vec::new();
+            loop {
+                members.push(self.type_annotation()?);
+                // One member per line reads best, and a trailing comma is
+                // accepted for anyone who writes one.
+                if !self.eat(&Token::Comma) || matches!(self.peek(), Token::CloseBrace) {
+                    break;
+                }
+            }
+            end = self
+                .expect(&Token::CloseBrace, "to close a union")?
+                .span
+                .end;
+            self.nesting -= 1;
+            union = Some(members);
+        }
+
         let mut supertypes = Vec::new();
-        if self.eat(&Token::Colon) {
+        if union.is_none() && self.eat(&Token::Colon) {
             self.continuation();
             // In supertype position a set of types is a supertype set, which
             // is what keeps `{A, B}` and `{a: A, b: B}` apart here.
@@ -270,7 +301,7 @@ impl Parser {
         }
 
         let mut fields = Vec::new();
-        if matches!(self.tokens[self.index].token, Token::OpenBrace) {
+        if union.is_none() && matches!(self.tokens[self.index].token, Token::OpenBrace) {
             self.advance();
             self.nesting += 1;
             while !matches!(self.peek(), Token::CloseBrace) {
@@ -314,6 +345,7 @@ impl Parser {
             parameters,
             supertypes,
             fields,
+            union,
             span: keyword.span.start..end,
         })
     }

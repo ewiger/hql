@@ -12,6 +12,7 @@ target/debug/hql --vault examples/birds/wiki run examples/birds/queries/catalog.
 target/debug/hql run examples/birds/queries/sightings.hql
 target/debug/hql run examples/birds/queries/ordered-map.hql
 target/debug/hql run examples/birds/queries/sorted-map.hql
+target/debug/hql run examples/birds/queries/tree.hql
 target/debug/hql --vault examples/birds/wiki render examples/birds/wiki/field-notes.hmd
 ```
 
@@ -28,6 +29,7 @@ result. Rendering without `--write` prints the card with computed answers.
 | [map views](queries/map-views.hql) | `SortedMap : OrderedMap : Map` | Same lookup; sequence or set key projections |
 | [sorting](queries/sorting.hql) | An explicit comparison of lists by size | One-observation groups before the two-observation group |
 | [empty collections](queries/empty.hql) | Empty lists and explicitly typed constructors | Zero occurrences and no membership |
+| [tree](queries/tree.hql) | `Data` as a union: leaves, a list, a string-keyed map, and a tree literal held together | A `List<Data>` of six trees, each still the value it was |
 
 Binding types are inferred from their expressions. Annotations are optional;
 the examples use them when illustrating an abstract view or typing an empty
@@ -56,6 +58,12 @@ target/debug/hql run examples/birds/queries/duplicate-keys.hql
 The first fails checking because `List<String>` is not `Orderable`. The second
 fails construction because a species key appears twice. Repeated observations
 belong in a list; one aggregate count per species belongs in a map.
+
+`Data` is a union rather than a parent: a leaf, a `Seq<Data>`, or a
+`Map<String, Data>`. A value is a tree by being one of those, so
+`tally : Data = Map(["barn-owl"], [2])` needs no conversion and stays the map it
+was. A `Set` has no positions and a map keyed by `Int` has no string keys, so
+neither is a tree. See [std/core.hql](../../std/core.hql).
 
 The declarations are in [std/collections.hql](../../std/collections.hql), with
 the laws explained in the [collection model](../../doc/wiki/hql/types/collections/collection-types.md).

@@ -9,6 +9,7 @@ program     := statement (NEWLINE+ statement)*
 statement   := import | declaration | binding | expression
 import      := "import" ident
 declaration := "abstract"? "type" ident params? (":" supertypes)? record? bounds?
+             | "type" ident params? "=" "union" "{" type ("," type)* ","? "}" bounds?
 bounds      := "where" ident ":" type ("," ident ":" type)*
 params      := "<" ident ("," ident)* ">"
 supertypes  := type | "{" type ("," type)* "}"
@@ -83,6 +84,7 @@ expression, and expressions nest at most 128 deep.
 | `true`, `false` | `Bool` |
 | `"text"` | `String` |
 | `{ key: value }` | `Data` |
+| `true`, `42`, `1.5`, `"text"` | also `Scalar`, and so also `Data` |
 | `[[name]]` | `Option<Card>` |
 | `[[a]] -> [[b]] {..}` | `Edge` |
 | `cards` | `Set<Card>` |
@@ -126,6 +128,7 @@ type HmdContent : Content
 type Edge<S, T> { source : S, target : T, data : Data }
 type ConceptCard : {Card, Concept}
 type HmdHeader { metadata? : Data }
+type Data = union { Scalar, Seq<Data>, Map<String, Data> }
 ```
 
 A supertype set narrows several types at once, and in supertype position `{…}`
@@ -135,6 +138,17 @@ accepted for anyone who writes one. `name? : Type` says the key may be absent,
 which is a claim about the shape of the containing value and not about the
 domain of the contained one — the two are different, and
 [optional fields and optional values](options-in-types-and-fields.md) says why.
+
+`= union {…}` declares a type as a choice among its members, one member per
+line or comma-separated on one. It says what the type *is*, where `:` says what
+a type narrows, so a union takes no supertypes, no record body and no
+`abstract`. `union` is a word only after `=` in a declaration, and stays an
+ordinary name everywhere else. A type is a member's subtype by membership:
+`Int` is a `Data` because `Scalar` is listed, and `List<List<Int>>` is one
+because `Seq<Data>` is. So `tree : Data = [1, 2]` checks, the value stays the
+list it was, and `tree : Data = {1, 2}` does not, because a set has no
+positions. `[{ a: 1 }, "owl", 3]` is a `List<Data>`; `[1, "owl"]` is still
+refused, because nothing in it asked for a tree.
 
 What is checked:
 
@@ -146,8 +160,14 @@ What is checked:
 - a declaration may **restate** a type this binary already has — that is what
   [`std/`](../../../std/README.md) is — but it may not contradict one.
   `type Card : Doc` holds and `type Card : Edge` does not;
-- a supertype set whose members share nothing declares a type no value can
-  have, and is refused: `type X : {Int, String}`;
+- a supertype set holding two concrete types that share nothing declares a
+  type no value can have, and is refused: `type X : {Int, String}`. A contract
+  or a union is satisfied by other types and never excludes anything, so
+  `type Int : {Scalar, Orderable}` holds;
+- a union's members each name something, appear once, and are not the union
+  itself — `Seq<Json>` inside `Json` is recursion through an argument and is
+  what makes a tree. A union this binary already has is restated member for
+  member: `type Data = union {Scalar}` contradicts it;
 - a subtype may not turn a required field of a parent into an optional one,
   because that widens the shape rather than narrowing it.
 
