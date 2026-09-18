@@ -161,6 +161,20 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, Diagnostic> {
+        if let Token::Ident(keyword) = self.peek().clone()
+            && keyword == "import"
+            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+        {
+            let head = self.advance();
+            let named = self.advance();
+            let Token::Ident(name) = named.token else {
+                return Err(Diagnostic::syntax(named.span, "expected an extension name"));
+            };
+            return Ok(Stmt::Import {
+                name,
+                span: head.span.start..named.span.end,
+            });
+        }
         if let Token::Ident(name) = self.peek().clone() {
             let follows = &self.tokens[self.index + 1].token;
             if matches!(follows, Token::Equals | Token::Colon) {

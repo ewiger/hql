@@ -6,7 +6,8 @@ design.
 
 ```text
 program     := statement (NEWLINE+ statement)*
-statement   := binding | expression
+statement   := import | binding | expression
+import      := "import" ident
 binding     := ident (":" type)? "=" expression
 
 expression  := pipeline
@@ -74,12 +75,35 @@ and a pipeline step applied to absence is one applied to nothing rather than a
 failure. There is no `match` yet, so this lifting is how absence is currently
 consumed, and replacing it with an explicit form is open.
 
-## Stages
+## Steps
 
 A pipeline step is a name or a call, and `x | f(a)` reads as "`f`, configured
 with `a`, applied to `x`". Writing a step without an input is an error that
 says so. The list is [`hql builtins`](cli.md), and it is ordinary functions
 rather than grammar.
+
+## Import
+
+`import <extension>` binds an extension's steps into the program, and must
+appear before they are used. `import` is a statement rather than only a
+configuration key because a program that depends on a capability says so on its
+own: a query pasted into a document carries its imports with it. It is not
+module resolution — an import names an extension compiled into the binary,
+never a path or a package — so no extension is downloaded, and importing one
+twice is not an error.
+
+Collection steps are the core's and are never imported. `graph` and `present`
+are the prelude, imported unless the vault declines them. Everything else is
+written out. A step name provided by two imported extensions fails at the
+`import` that completes the pair, naming both extensions and the colliding
+name, rather than at a use site — where the failure would depend on which
+pipeline a reader happened to look at.
+
+`extension.step(…)` is always available for an imported extension, and is how a
+reader disambiguates by hand. A binding may carry an extension's name: a value
+and a step are read in different positions, so the binding never hides the step,
+and `present | text` goes on meaning the step. It does hide the namespace —
+while `present` is bound, `present.text` reads a field of that value.
 
 `take` needs elements that carry an order of their own. A `Card` does — its
 name — so `cards | take(5)` is reproducible even though `cards` is a `Set` and

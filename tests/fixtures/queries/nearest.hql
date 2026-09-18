@@ -6,6 +6,8 @@
 // because a score is evidence rather than relevance. `expand` then records why
 // each node is present, so the graph does not claim that the neighbours matched.
 
+import semantic
+
 question = "bearer token authorization"
 
 cards

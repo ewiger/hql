@@ -1,11 +1,11 @@
 //! Evaluation: pure over the values it is given, with the vault as its source.
 
 use crate::ast::{Arg, Expr, Kind, Program, Stmt};
-use crate::checker::{self, step_of};
+use crate::checker::{self, StepRef, step_of};
 use crate::data::Data;
 use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
-use crate::extensions::{self, EvalCx};
+use crate::extensions::{EvalCx, Resolution, Step};
 use crate::graph::Edge;
 use crate::search;
 use crate::types::Type;
@@ -29,6 +29,7 @@ pub(crate) fn evaluate(
         vault,
         scope: HashMap::new(),
         warnings: Vec::new(),
+        resolution: Resolution::new(true),
     };
     let value = evaluator.program(program)?;
     Ok((value, evaluator.warnings))
@@ -38,6 +39,8 @@ struct Evaluator<'a> {
     vault: &'a Vault,
     scope: HashMap<String, Value>,
     warnings: Vec<Warning>,
+    /// Which extensions this program has imported.
+    resolution: Resolution,
 }
 
 impl Evaluator<'_> {
@@ -48,6 +51,10 @@ impl Evaluator<'_> {
                 Stmt::Bind { name, value, .. } => {
                     let evaluated = self.expression(value)?;
                     self.scope.insert(name.clone(), evaluated);
+                    Value::Unit
+                }
+                Stmt::Import { name, span } => {
+                    self.resolution.import(name, span)?;
                     Value::Unit
                 }
                 Stmt::Expr(expression) => self.expression(expression)?,
@@ -159,8 +166,9 @@ impl Evaluator<'_> {
             )),
             Kind::Pipe(input, step) => {
                 let value = self.expression(input)?;
-                let (name, arguments) = step_of(step)?;
-                self.step(name, value, arguments, step.span.clone())
+                let reference = step_of(step)?;
+                let resolved = self.resolve(&reference, &step.span)?;
+                self.step(resolved, value, reference.arguments(), step.span.clone())
             }
         }
     }
@@ -285,10 +293,35 @@ impl Evaluator<'_> {
         result
     }
 
+    /// Which step a written reference names, given what is imported.
+    fn resolve(
+        &self,
+        reference: &StepRef<'_>,
+        span: &Range<usize>,
+    ) -> Result<&'static Step, Diagnostic> {
+        match reference {
+            StepRef::Bare { name, .. } => self.resolution.step(name, span),
+            StepRef::Qualified {
+                extension, name, ..
+            } => {
+                if self.scope.contains_key(*extension) {
+                    return Err(Diagnostic::typing(
+                        span.clone(),
+                        format!(
+                            "`{extension}` is bound to a value here, so `{extension}.{name}` \
+                             reads a field rather than naming a step"
+                        ),
+                    ));
+                }
+                self.resolution.qualified(extension, name, span)
+            }
+        }
+    }
+
     /// Dispatch a pipeline step to the extension that provides it.
     fn step(
         &mut self,
-        name: &str,
+        step: &'static Step,
         input: Value,
         arguments: &[Arg],
         span: Range<usize>,
@@ -299,9 +332,6 @@ impl Evaluator<'_> {
             Value::Absent(element) => Value::set(Vec::new(), element),
             other => other,
         };
-        let step = extensions::step(name).ok_or_else(|| {
-            Diagnostic::name(span.clone(), format!("`{name}` is not a pipeline step"))
-        })?;
         (step.eval)(self, input, arguments, span)
     }
 }

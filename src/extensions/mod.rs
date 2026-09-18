@@ -74,6 +74,7 @@ pub(crate) trait EvalCx {
 }
 
 /// One name a pipeline may write.
+#[derive(Debug)]
 pub struct Step {
     /// How it is written.
     pub(crate) name: &'static str,
@@ -90,6 +91,7 @@ pub struct Step {
 }
 
 /// A named unit supplying pipeline steps.
+#[derive(Debug)]
 pub struct Extension {
     /// The lowercase identifier an `import` names.
     pub(crate) name: &'static str,
@@ -140,9 +142,150 @@ impl Extension {
     }
 }
 
-/// The step a bare name resolves to, searching every registered extension.
-pub(crate) fn step(name: &str) -> Option<&'static Step> {
-    REGISTERED.iter().find_map(|extension| extension.step(name))
+/// The extensions imported unless a vault opts out.
+///
+/// A prelude exists so that a program that only walks a graph and prints a
+/// table does not open with two lines of ceremony. It is a convenience, not a
+/// rule, which is why a vault can decline it.
+pub(crate) static PRELUDE: &[&str] = &["graph", "present"];
+
+/// The registered extension of a name.
+pub(crate) fn extension(name: &str) -> Option<&'static Extension> {
+    REGISTERED
+        .iter()
+        .copied()
+        .find(|extension| extension.name == name)
+}
+
+/// Every registered extension providing a step name, in registration order.
+pub(crate) fn providers(step: &str) -> Vec<&'static Extension> {
+    REGISTERED
+        .iter()
+        .copied()
+        .filter(|extension| extension.step(step).is_some())
+        .collect()
+}
+
+/// Which extensions a program has imported, and what they let it write.
+///
+/// Registration and import are different things: every extension in the binary
+/// is registered, and a program resolves only what it has imported. That is
+/// what lets a diagnostic name the import a program is missing instead of
+/// guessing at a misspelling.
+#[derive(Debug, Clone)]
+pub(crate) struct Resolution {
+    imported: Vec<&'static Extension>,
+}
+
+impl Resolution {
+    /// The core, plus the prelude unless the vault declines it.
+    pub(crate) fn new(prelude: bool) -> Self {
+        let mut imported = vec![&CORE];
+        if prelude {
+            imported.extend(PRELUDE.iter().filter_map(|name| extension(name)));
+        }
+        Self { imported }
+    }
+
+    /// Bind an extension's steps into the program.
+    ///
+    /// A collision is reported here rather than at the use site, where the
+    /// failure would depend on which pipeline a reader happened to look at.
+    pub(crate) fn import(&mut self, name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
+        let wanted = extension(name).ok_or_else(|| {
+            Diagnostic::name(
+                span.clone(),
+                format!("no extension named `{name}` is registered"),
+            )
+        })?;
+        self.bind(wanted, span)
+    }
+
+    /// Bind an extension whose identity is already known.
+    pub(crate) fn bind(
+        &mut self,
+        wanted: &'static Extension,
+        span: &Range<usize>,
+    ) -> Result<(), Diagnostic> {
+        if self.imported.iter().any(|held| held.name == wanted.name) {
+            return Ok(());
+        }
+        for step in wanted.steps {
+            if let Some(held) = self
+                .imported
+                .iter()
+                .find(|held| held.step(step.name).is_some())
+            {
+                return Err(Diagnostic::name(
+                    span.clone(),
+                    format!(
+                        "`{}` and `{}` both provide `{}`, so importing both leaves it ambiguous",
+                        held.name, wanted.name, step.name
+                    ),
+                ));
+            }
+        }
+        self.imported.push(wanted);
+        Ok(())
+    }
+
+    /// The step a bare name resolves to.
+    pub(crate) fn step(
+        &self,
+        name: &str,
+        span: &Range<usize>,
+    ) -> Result<&'static Step, Diagnostic> {
+        if let Some(step) = self.imported.iter().find_map(|held| held.step(name)) {
+            return Ok(step);
+        }
+        Err(self.unresolved(name, span))
+    }
+
+    /// The step `<extension>.<step>` names, which is always available for an
+    /// imported extension.
+    pub(crate) fn qualified(
+        &self,
+        extension: &str,
+        name: &str,
+        span: &Range<usize>,
+    ) -> Result<&'static Step, Diagnostic> {
+        let held = self
+            .imported
+            .iter()
+            .find(|held| held.name == extension)
+            .ok_or_else(|| self.unresolved(extension, span))?;
+        held.step(name).ok_or_else(|| {
+            Diagnostic::name(
+                span.clone(),
+                format!("the `{extension}` extension provides no step `{name}`"),
+            )
+        })
+    }
+
+    /// Why a name did not resolve: a missing import, or no such step at all.
+    fn unresolved(&self, name: &str, span: &Range<usize>) -> Diagnostic {
+        let providers = providers(name);
+        let message = match providers.as_slice() {
+            [] => {
+                let hint = crate::builtins::nearest(name)
+                    .map(|near| format!("; did you mean `{near}`?"))
+                    .unwrap_or_default();
+                format!("`{name}` is not a pipeline step{hint}")
+            }
+            [only] => format!(
+                "`{name}` is provided by the `{}` extension: write `import {}`",
+                only.name, only.name
+            ),
+            many => format!(
+                "`{name}` is provided by the {} extensions: import one of them",
+                many.iter()
+                    .map(|extension| format!("`{}`", extension.name))
+                    .collect::<Vec<_>>()
+                    .join(" and ")
+            ),
+        };
+        Diagnostic::name(span.clone(), message)
+    }
 }
 
 /// Every registered step name, for the suggestion index.
@@ -231,12 +374,98 @@ mod tests {
 
     #[test]
     fn a_step_name_resolves_to_the_extension_that_provides_it() {
-        assert!(step("count").is_some());
-        assert!(step("nonesuch").is_none());
         let listed = listing();
         let count = listed.iter().find(|entry| entry.name == "count").unwrap();
         assert_eq!(count.provider, "core");
         let table = listed.iter().find(|entry| entry.name == "table").unwrap();
         assert_eq!(table.provider, "present");
+        assert_eq!(providers("count").len(), 1);
+        assert!(providers("nonesuch").is_empty());
+        assert!(extension("graph").is_some());
+        assert!(extension("nonesuch").is_none());
+    }
+
+    #[test]
+    fn the_core_resolves_without_an_import_and_retrieval_does_not() {
+        let mut resolution = Resolution::new(true);
+        assert!(resolution.step("count", &(0..1)).is_ok());
+        assert!(resolution.step("table", &(0..1)).is_ok());
+
+        let missing = resolution.step("semantic", &(0..1)).unwrap_err();
+        assert!(
+            missing.message().contains("import semantic"),
+            "{}",
+            missing.message()
+        );
+
+        resolution.import("semantic", &(0..1)).unwrap();
+        assert!(resolution.step("semantic", &(0..1)).is_ok());
+        assert!(
+            resolution
+                .qualified("semantic", "semantic", &(0..1))
+                .is_ok()
+        );
+        assert!(resolution.qualified("semantic", "rank", &(0..1)).is_err());
+    }
+
+    #[test]
+    fn the_prelude_is_a_convenience_a_vault_may_decline() {
+        let bare = Resolution::new(false);
+        let missing = bare.step("table", &(0..1)).unwrap_err();
+        assert!(
+            missing.message().contains("import present"),
+            "{}",
+            missing.message()
+        );
+        assert!(bare.step("count", &(0..1)).is_ok());
+    }
+
+    /// A second provider of a name the core already has, which no registered
+    /// extension is allowed to be — the collision is the point of the test.
+    static PROBE: Extension = Extension {
+        name: "probe",
+        version: "0",
+        steps: &[Step {
+            name: "count",
+            signature: "collection | count",
+            summary: "A second `count`, so the collision has two sides.",
+            purity: Purity::Pure,
+            check: |_, _, _, _| Ok(Type::Int),
+            eval: |_, _, _, _| Ok(Value::Int(0)),
+        }],
+    };
+
+    #[test]
+    fn two_extensions_providing_one_name_collide_at_the_import() {
+        let mut resolution = Resolution::new(true);
+        let collision = resolution.bind(&PROBE, &(0..1)).unwrap_err();
+        assert!(
+            collision
+                .message()
+                .contains("`core` and `probe` both provide `count`"),
+            "{}",
+            collision.message()
+        );
+        // The failed import changed nothing: `count` is still the core's.
+        assert!(resolution.step("count", &(0..1)).is_ok());
+    }
+
+    #[test]
+    fn importing_the_same_extension_twice_is_not_a_collision() {
+        let mut resolution = Resolution::new(true);
+        resolution.import("semantic", &(0..1)).unwrap();
+        resolution.import("semantic", &(0..1)).unwrap();
+        assert!(resolution.step("semantic", &(0..1)).is_ok());
+    }
+
+    #[test]
+    fn importing_an_extension_that_is_not_registered_says_so() {
+        let mut resolution = Resolution::new(true);
+        let failed = resolution.import("nonesuch", &(0..1)).unwrap_err();
+        assert!(
+            failed.message().contains("no extension named `nonesuch`"),
+            "{}",
+            failed.message()
+        );
     }
 }

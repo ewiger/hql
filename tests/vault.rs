@@ -117,7 +117,7 @@ fn uplinks_and_downlinks_traverse_one_edge_set_in_two_directions() {
 
 #[test]
 fn semantic_ranks_by_similarity_and_retains_the_retrieval() {
-    let ranked = value("cards | semantic(\"bearer token authorization\")");
+    let ranked = value("import semantic\ncards | semantic(\"bearer token authorization\")");
     let Value::Ranking(ranking) = &ranked else {
         panic!("expected a ranking, got {ranked:?}")
     };
@@ -130,14 +130,16 @@ fn semantic_ranks_by_similarity_and_retains_the_retrieval() {
     assert_eq!(ranking.retrieval.query, "bearer token authorization");
 
     assert_eq!(
-        text("cards | semantic(\"bearer token authorization\") | take(1) | map(h => h.card.name)"),
+        text(
+            "import semantic\ncards | semantic(\"bearer token authorization\") | take(1) | map(h => h.card.name)"
+        ),
         "[bearer-tokens]"
     );
 }
 
 #[test]
 fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
-    let ranked = value("cards | semantic(\"bearer token authorization\")");
+    let ranked = value("import semantic\ncards | semantic(\"bearer token authorization\")");
     let Value::Ranking(ranking) = &ranked else {
         panic!("expected a ranking")
     };
@@ -148,7 +150,8 @@ fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
 #[test]
 fn the_whole_pipeline_runs_and_says_why_each_node_is_present() {
     let projected = value(
-        "cards\n\
+        "import semantic\n\
+         cards\n\
          | semantic(\"bearer token authorization\")\n\
          | take(2)\n\
          | expand(depth = 1)\n\

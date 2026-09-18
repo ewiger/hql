@@ -41,6 +41,8 @@ cargo install --path . --locked
 
 ```sh
 hql --vault notes/ eval '
+import semantic
+
 cards
 | semantic("bearer token authorization")
 | take(5)

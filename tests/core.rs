@@ -266,3 +266,48 @@ fn a_near_miss_on_a_step_name_is_suggested() {
         other => panic!("expected a name error, got {other:?}"),
     }
 }
+
+#[test]
+fn an_unimported_step_reports_the_import_rather_than_a_misspelling() {
+    let failed = check("1 | semantic(\"anything\")").expect_err("semantic is not imported");
+    assert!(
+        failed.message().contains("write `import semantic`"),
+        "{}",
+        failed.message()
+    );
+
+    let unknown = check("1 | nonesuch").expect_err("no such step");
+    assert!(
+        unknown.message().contains("is not a pipeline step"),
+        "{}",
+        unknown.message()
+    );
+}
+
+#[test]
+fn an_import_names_a_registered_extension() {
+    let failed = check("import nonesuch\n1").expect_err("no such extension");
+    assert!(
+        failed.message().contains("no extension named `nonesuch`"),
+        "{}",
+        failed.message()
+    );
+    assert_eq!(check("import semantic\n1"), Ok(Type::Int));
+}
+
+#[test]
+fn a_binding_shadows_the_namespace_and_not_the_step() {
+    // The core's own steps show the rule without needing a vault: a value
+    // bound to an extension's name hides the qualified form, and the bare
+    // form goes on resolving, because a step is only ever read after `|`.
+    let shadowed = check("present = 1\n1 | present.text").expect_err("present is bound");
+    assert!(
+        shadowed
+            .message()
+            .contains("reads a field rather than naming a step"),
+        "{}",
+        shadowed.message()
+    );
+    assert_eq!(check("present = 1\n1 | text"), Ok(Type::Presentation));
+    assert_eq!(check("1 | present.text"), Ok(Type::Presentation));
+}

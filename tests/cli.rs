@@ -151,7 +151,7 @@ fn the_whole_pipeline_runs_from_the_command_line() {
         "--vault",
         VAULT,
         "eval",
-        "cards\n| semantic(\"bearer token authorization\")\n| take(2)\n| expand(depth = 1)\n| table",
+        "import semantic\ncards\n| semantic(\"bearer token authorization\")\n| take(2)\n| expand(depth = 1)\n| table",
     ]);
     assert!(output.status.success(), "{}", stderr(&output));
     let table = stdout(&output);

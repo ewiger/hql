@@ -3,7 +3,7 @@
 use crate::ast::{Arg, Expr, Kind, Program, Stmt};
 use crate::builtins;
 use crate::diagnostics::Diagnostic;
-use crate::extensions::{self, CheckCx};
+use crate::extensions::{CheckCx, Resolution, Step};
 use crate::types::{self, Type};
 use crate::vault::Vault;
 use std::collections::HashMap;
@@ -18,6 +18,7 @@ pub(crate) fn check(program: &Program, vault: &Vault) -> Result<Type, Diagnostic
     Checker {
         vault,
         scope: HashMap::new(),
+        resolution: Resolution::new(true),
     }
     .program(program)
 }
@@ -31,6 +32,7 @@ pub(crate) fn check_collecting(program: &Program, vault: &Vault) -> (Type, Vec<D
     let mut checker = Checker {
         vault,
         scope: HashMap::new(),
+        resolution: Resolution::new(true),
     };
     let mut found = Vec::new();
     let mut last = Type::Unit;
@@ -52,6 +54,8 @@ pub(crate) fn check_collecting(program: &Program, vault: &Vault) -> (Type, Vec<D
 struct Checker<'a> {
     vault: &'a Vault,
     scope: HashMap<String, Type>,
+    /// Which extensions this program has imported.
+    resolution: Resolution,
 }
 
 impl Checker<'_> {
@@ -105,6 +109,10 @@ impl Checker<'_> {
                     } else {
                         self.scope.insert(name.clone(), inferred);
                     }
+                    Type::Unit
+                }
+                Stmt::Import { name, span } => {
+                    self.resolution.import(name, span)?;
                     Type::Unit
                 }
                 Stmt::Expr(expression) => self.expression(expression)?,
@@ -238,8 +246,14 @@ impl Checker<'_> {
             }
             Kind::Pipe(input, step) => {
                 let input_type = self.expression(input)?;
-                let (name, arguments) = step_of(step)?;
-                self.step(name, &input_type, arguments, step.span.clone())
+                let reference = step_of(step)?;
+                let resolved = self.resolve(&reference, &step.span)?;
+                self.step(
+                    resolved,
+                    &input_type,
+                    reference.arguments(),
+                    step.span.clone(),
+                )
             }
         }
     }
@@ -265,10 +279,39 @@ impl Checker<'_> {
         result
     }
 
+    /// Which step a written reference names, given what is imported.
+    ///
+    /// A binding shadows the namespace and not the step: while `semantic` is
+    /// bound, `semantic.rank` reads a field of that value, and the step stays
+    /// reachable in its bare form.
+    fn resolve(
+        &self,
+        reference: &StepRef<'_>,
+        span: &Range<usize>,
+    ) -> Result<&'static Step, Diagnostic> {
+        match reference {
+            StepRef::Bare { name, .. } => self.resolution.step(name, span),
+            StepRef::Qualified {
+                extension, name, ..
+            } => {
+                if self.scope.contains_key(*extension) {
+                    return Err(Diagnostic::typing(
+                        span.clone(),
+                        format!(
+                            "`{extension}` is bound to a value here, so `{extension}.{name}` \
+                             reads a field rather than naming a step"
+                        ),
+                    ));
+                }
+                self.resolution.qualified(extension, name, span)
+            }
+        }
+    }
+
     /// Dispatch a pipeline step to the extension that provides it.
     fn step(
         &mut self,
-        name: &str,
+        step: &'static Step,
         input: &Type,
         arguments: &[Arg],
         span: Range<usize>,
@@ -279,7 +322,6 @@ impl Checker<'_> {
             Type::Option(inner) => inner.as_ref().clone(),
             other => other.clone(),
         };
-        let step = extensions::step(name).ok_or_else(|| unknown_step(name, &span))?;
         (step.check)(self, &input, arguments, span)
     }
 }
@@ -298,32 +340,51 @@ impl CheckCx for Checker<'_> {
     }
 }
 
-/// The failure for a name no registered extension provides.
-fn unknown_step(name: &str, span: &Range<usize>) -> Diagnostic {
-    let hint = builtins::nearest(name)
-        .map(|near| format!("; did you mean `{near}`?"))
-        .unwrap_or_default();
-    Diagnostic::name(
-        span.clone(),
-        format!("`{name}` is not a pipeline step{hint}"),
-    )
+/// How a pipeline step was written: bare, or qualified by its extension.
+pub(crate) enum StepRef<'a> {
+    /// `| take(5)` — resolved against everything the program imported.
+    Bare { name: &'a str, arguments: &'a [Arg] },
+    /// `| semantic.semantic("…")` — always available for an imported
+    /// extension, and the way a reader disambiguates by hand.
+    Qualified {
+        extension: &'a str,
+        name: &'a str,
+        arguments: &'a [Arg],
+    },
 }
 
-/// The name and arguments of a pipeline step.
-pub(crate) fn step_of(step: &Expr) -> Result<(&str, &[Arg]), Diagnostic> {
-    match &step.kind {
-        Kind::Ident(name) => Ok((name, &[])),
-        Kind::Call { callee, arguments } => match &callee.kind {
-            Kind::Ident(name) => Ok((name, arguments)),
-            _ => Err(Diagnostic::typing(
-                step.span.clone(),
-                "a pipeline step is a name or a call",
-            )),
-        },
-        _ => Err(Diagnostic::typing(
+impl<'a> StepRef<'a> {
+    /// The arguments written at the call, which stay unevaluated syntax.
+    pub(crate) fn arguments(&self) -> &'a [Arg] {
+        match self {
+            Self::Bare { arguments, .. } | Self::Qualified { arguments, .. } => arguments,
+        }
+    }
+}
+
+/// How a pipeline step was written.
+pub(crate) fn step_of(step: &Expr) -> Result<StepRef<'_>, Diagnostic> {
+    let not_a_step = || {
+        Diagnostic::typing(
             step.span.clone(),
-            "a pipeline step is a name or a call",
-        )),
+            "a pipeline step is a name or a call, optionally qualified by its extension",
+        )
+    };
+    let (callee, arguments) = match &step.kind {
+        Kind::Call { callee, arguments } => (callee.as_ref(), arguments.as_slice()),
+        _ => (step, &[][..]),
+    };
+    match &callee.kind {
+        Kind::Ident(name) => Ok(StepRef::Bare { name, arguments }),
+        Kind::Field(receiver, name) => match &receiver.kind {
+            Kind::Ident(extension) => Ok(StepRef::Qualified {
+                extension,
+                name,
+                arguments,
+            }),
+            _ => Err(not_a_step()),
+        },
+        _ => Err(not_a_step()),
     }
 }
 

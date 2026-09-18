@@ -142,8 +142,8 @@ A step is written bare; the qualified form exists for disambiguation.
 ```text
 import semantic
 
-cards | semantic("birds that hunt at night")     // bare
-cards | semantic.rank("birds that hunt at night") // qualified, always valid
+cards | semantic("birds that hunt at night")          // bare
+cards | semantic.semantic("birds that hunt at night") // qualified, always valid
 ```
 
 ### 4. The prelude, and where today's fourteen names go
@@ -248,6 +248,9 @@ cargo clippy --locked --all-targets -- -D warnings
 ## Changelog
 
 - 2026-09-18: drafted
+- 2026-09-18: corrected the qualified-form example, which wrote a step name the
+  extension does not provide: the form is `<extension>.<step>`, and the
+  `semantic` extension's step is `semantic`
 - 2026-09-18: accepted; the four open questions settled into the specification —
   a binding shadows the namespace and not the step, `prelude = false` stays,
   `import` is a statement, and `hql builtins` lists every registered extension

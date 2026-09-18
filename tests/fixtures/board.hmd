@@ -20,6 +20,8 @@ Session cookies
 ## Closest to bearer tokens
 
 ```hql#query
+import semantic
+
 cards
 | semantic("bearer token authorization")
 | take(2)

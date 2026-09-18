@@ -16,6 +16,11 @@ pub(crate) enum Stmt {
         annotation: Option<TypeAnn>,
         value: Expr,
     },
+    /// `import <extension>` — bind an extension's steps into the program.
+    Import {
+        name: String,
+        span: Range<usize>,
+    },
     Expr(Expr),
 }
 
