@@ -58,7 +58,7 @@ HMD renderer, module system, or large standard library in this repository.
 ## Type vocabulary to leave room for
 
 Future foundations include Date/DateTime, Option<T>, Result<T,E>,
-Map<K,V>, Section, Block, Ref<T> and Namespace, with records, ADTs,
+List<T>, Map<K,V>, Section, Block, Ref<T> and Namespace, with records, ADTs,
 pattern matching and refinement. Prefer explicit optional/error values over
 pervasive null. Generics are written with angle brackets; String/Str naming and
 concrete schema syntax remain open. Formal direction uses constraint and

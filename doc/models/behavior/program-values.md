@@ -39,7 +39,7 @@ remain open; these choices must not silently change lexical scope.
 
 - `hql#eval` evaluates arbitrary HQL code; the host may insert the returned
   value using its type, including String or Hmd.
-- `hql#query` returns a value the host presents, such as Seq<Card> or Graph.
+- `hql#query` returns a value the host presents, such as List<Card> or Graph.
 - `hql#declare` contributes bindings/knowledge under an explicit host contract;
   its Unit-like result normally renders nothing. Contribution transaction and
   replay rules are unresolved.

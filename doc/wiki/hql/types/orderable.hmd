@@ -28,11 +28,12 @@ checked from a declaration — see [[type-system]], *Where the laws live*.
 
 ## Ordered is not orderable
 
-`Orderable` is a property of a **value**, not of a collection, and the two are
-different claims neither of which implies the other. The account of order —
-positional order, value order, their agreement, and `sort` as a signature rather
-than a supertype — is [[hql/collections]], *Ordered is not orderable*. This card
-holds only the element's half of it.
+`Orderable` is a property of a **value**, not of a collection. A `Seq<T>` is
+*ordered* — a position exists for every element — whether or not `T` is
+`Orderable` at all: `Seq<Function>` has a first and a second element and no two
+functions have a meaningful `<`. The two are not the same claim and neither
+implies the other. See [[hql/collections]], *Ordered is not orderable*, for the
+three-way distinction and for `sort` as a signature rather than a supertype.
 
 ## Why a card is orderable
 
@@ -59,43 +60,18 @@ requires an observable vault order, and it does not.
 - Over elements that do not narrow `Orderable`, `take` is a type error that says
   to sort with an explicit key first.
 
-## One total order per type
-
-`Orderable` is a **single total order per type**, not a family of named keys.
-
-The law is that any two values of the type can be put in order — one relation,
-decided by the type. A type offering several named keys offers several
-relations, none of which is *the* type's order, and then `take(5)` over a `Set`
-has no canonical prefix to take: the question "which five" would have no answer
-until a key was named, which is exactly the vault order this card exists to keep
-unobservable.
-
-Nothing is lost by refusing it. A second ordering arrives at the call site, as
-`sort(by = c => c.title)`, which is the signature [[hql/collections]] already
-gives. The type keeps one meaning and the caller keeps every other one.
-
-## A ranking carries both orders, for different reasons
-
-`Ranking<T> <: Seq<Hit<T>>` and `Hit <: Orderable` are both true and neither
-restates the other.
-
-- `Ranking <: Seq` is **positional**: the hits have a first, a second and a
-  third, and that is a property of the collection.
-- `Hit <: Orderable` is **value order**: a hit carries a score, and that is a
-  property of the element.
-
-They agree, which is the third concept in [[hql/collections]] and the only place
-the language has it: a ranking's positions *are* its hits' value order, best
-first. That agreement is why `take` over a `Ranking` keeps the ranking rather
-than re-imposing anything, and why no `SortedSeq<T>` is declared.
+## Ties
 
 A `Hit` orders by score descending, then by its card's key, so equal scores do
 not make a prefix depend on load order. `Score` is a `Float` and ties are
-ordinary at realistic precision, so a ranked collection states its tiebreak
-rather than inheriting one — see [[hql/semantic-search]].
+ordinary at realistic precision, so a ranked collection must state its tiebreak
+rather than inherit one — see [[hql/semantic-search]].
 
 ## Open
 
+- Whether `Orderable` is a single total order per type or a type may offer
+  several named keys. Sorting expects a **total** order; a partial one leaves the
+  result undetermined, so this question is not cosmetic.
 - Card key collisions across namespaces, and whether the key is the name or the
   qualified path.
 - Whether user-declared types may narrow `Orderable`, and how they state the key.

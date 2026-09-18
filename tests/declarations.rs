@@ -180,13 +180,3 @@ fn the_standard_library_is_where_the_declarations_live() {
     }
     assert_eq!(check(&together), Ok(Type::Unit), "{:?}", check(&together));
 }
-
-#[test]
-fn the_vocabulary_holds_no_name_the_library_no_longer_declares() {
-    // `List` is withdrawn: a claim about representation earns a name only
-    // where the language tells two representations apart, and HQL does not.
-    // The checker must not go on resolving a name `std/` has dropped.
-    assert!(refused("cards : List<Card> = 1").contains("unknown type `List`"));
-    assert!(refused("type Held <: List<Card>").contains("unknown type `List`"));
-    assert_eq!(check("type Held <: Seq<Card>"), Ok(Type::Unit));
-}
