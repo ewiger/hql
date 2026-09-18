@@ -17,7 +17,7 @@ separate it from both older corpus alternatives and implemented behavior.
 | [[card-type]] | `Card` and its two kinds, the vault, and the `cards` keyword |
 | [[data-type]] | `Data`, the tree type of headers and structured payloads |
 | [[type-system]] | `<:`, generic parameters and progressive type refinement |
-| [[visibility]] | `pub`/`protected`/`private` on fields, overrides and getters |
+| [[fields]] | Optional `?` fields, partial schemas, and the two metadata layers |
 | [[link-op]] | Doc references and the `[[..]] -> [[..]] {..}` link operator |
 | [[graph-type]] | `Graph[N, E]`, `Edge[S, T]`, and the document and knowledge graphs |
 | [[hql/std-lib]] | Placeholder for the standard library; a bootstrap non-goal |
@@ -39,15 +39,19 @@ values, persistence is explicit, and presentation belongs to a separate layer.
 `RelationCard <: Card` represents an edge without becoming a node. The kind is
 declared by `metadata.knowledge.type` and must be checked, not trusted.
 
-Fields declared in a `type {..}` construct are `pub` by default, with `protected`
-and `private` as opt-ins; a subtype overrides what it inherits, and `private` is
-never inherited at all. An override only closes — widening is not permitted, and
-a subtype that needs to republish a closed field writes a getter,
-`pub title <- super.header.title`, which exposes one name instead of reopening
-the field. `Card` overrides `header` to `protected`, leaving
-`metadata` — built at load from the authored block plus system-supplied entries —
-as its only public surface. The card family is recorded in [[type-system]] and
-visibility in [[visibility]].
+HQL has **no field visibility**: no `pub`, `protected` or `private`. Values are
+data and declared fields are queryable data, so there is no privileged inside for
+a modifier to protect, and a subtype neither hides nor re-exposes what it
+inherits. What a type may declare instead is that a field is optional, `metadata?
+: Data`, and that it constrains only the paths it knows about — a partial schema
+over an otherwise open `Data` tree.
+
+`doc.header` is required; `doc.header.metadata` is optional, because authoring
+metadata is a choice. `card.metadata` is a **different field**, assembled when a
+document becomes a card from the authored block, system metadata, extension
+contributions, `.hmd/**` vault state and other derived information, under
+precedence rules [[card-type]] owns and has not settled. The card family is
+recorded in [[type-system]] and fields in [[fields]].
 
 The Set/Seq vocabulary supersedes the assumption in older examples that `cards`
 is an ordered List. Those examples remain design inputs, not a final language

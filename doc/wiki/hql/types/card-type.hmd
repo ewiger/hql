@@ -111,49 +111,15 @@ embedded fragment or an ordinary Markdown file outside any vault is a perfectly
 good document with nothing to say about knowledge. The narrowing is exactly the
 step at which meaning becomes possible.
 
-## A card's metadata is its only public surface
+## A card's metadata
 
 A card has a second layer the document does not, and it has its own name:
 
 ```hql
 type Card <: Doc {
-    protected header              // override: Doc declares it pub
-    pub       metadata : Data     // the knowledge attached to this card
+    metadata : Data     // the knowledge attached to this card
 }
 ```
-
-Fields are `pub` by default in HQL — see [[visibility]] for why a data language
-starts open, and for the override rule this section uses. `Card` is where that default is deliberately reversed for one
-member, and `metadata` is left as the only public surface.
-
-`HmdCard`, `MdCard` and `DataCard` differ in exactly what a header records:
-which dialect the body is in, whether there are wikilinks, whether there is a
-body at all. Left public, that difference stands in front of every consumer and
-code written against cards starts branching on `header.format`. `protected`
-keeps it reachable from those three — a subtype is on the inside of the override
-its parent made — and out of reach of a consumer holding a `Card`.
-
-### The public layer is constructed, not renamed
-
-An HMD document writes its authored knowledge entries into the header, under
-`metadata`, and at the document level they are ordinary public content. A card
-overrides that path and builds its own layer from it:
-
-```hql
-hmd_doc.header.metadata     // pub at HmdDoc — what the author wrote
-card.header.metadata        // protected at Card
-card.metadata               // pub — constructed at load
-```
-
-`card.metadata` is not an alias for the authored block. It is built from those
-entries **together with** what the system adds when the card instance is
-initialized into memory, so a card in a vault knows things its file never
-stated. The authored block is one input.
-
-Overriding the authored path is what keeps the two apart. Two public paths — one
-constructed and complete, one authored and partial — would read as two spellings
-of one field, which is `INC-02` reappearing in a new form. One public path, with
-its input still visible to the subtypes that assemble it.
 
 `header` and `metadata` are not two spellings of one field. A header is a
 document-level notion — name, path, format, title, whatever an author wrote and
@@ -167,21 +133,50 @@ and why the knowledge extension refines `card.metadata` while a `git` or
 database extension contributes to `card.header`. Both refine one unchanged tree
 in the same way — see [[type-system]].
 
-`metadata.knowledge.type` lives here, which is why the choice between
-`ConceptCard` and `RelationCard` is a knowledge-level one and not a filename or
-folder convention — and why it is answerable by anyone holding the card, without
-protected access and without knowing the format it was written in.
+### `card.metadata` is assembled, not inherited
 
-What a card's metadata contains before any extension declares its shape, and
-whether an authored header entry can promote itself into metadata, are open.
+`card.metadata` is **not** the authored `header.metadata` under another name. The
+two are different fields with different semantics, and both stay addressable:
+
+```hql
+card.header.metadata?   // optional — what the author wrote, if anything
+card.metadata           // always present — what the system knows
+```
+
+The authored block is optional, because authoring metadata is a choice. The
+card's own layer is not, because it exists whether or not the file said anything.
+It is assembled when the document becomes a card, from inputs that include:
+
+- the authored `header.metadata`, where the document has one;
+- system metadata supplied at load;
+- entries contributed by extensions — `git`, an indexer, a link checker;
+- vault state held under `.hmd/**`;
+- semantic-search state and other derived information.
+
+Authored metadata is one input among these and does not win by being authored.
+Which inputs may overwrite which is the **Card metadata precedence**, and it is
+this card's to settle; it is not settled yet.
+
+A query has to know which layer it is addressing. `card.header.metadata` answers
+*what did the author write?*; `card.metadata` answers *what does the system know
+about this card?* A linter checking that authors tagged their notes wants the
+first, a search ranking cards wants the second, and confusing them reports the
+vault's own bookkeeping as something a person typed. See [[fields]] for the
+two-layer distinction in full.
+
+`metadata.knowledge.type` lives in the assembled layer, which is why the choice
+between `ConceptCard` and `RelationCard` is a knowledge-level one and not a
+filename or folder convention.
+
+What a card's metadata contains before any extension declares its shape is open,
+as are the precedence rules above.
 
 ## A card's header
 
 A card's header is a [[data-type|Data]] tree like any document's, assembled from
-the same derived, authored and contributed layers. On a card it is `protected`,
-so what follows describes the contract subtypes build on rather than a surface a
-consumer reaches. Two things are worth stating here, though neither is what
-makes a document a card.
+the same derived, authored and contributed layers, and it is readable like any
+other field — nothing about a card hides it. Two things are worth stating here,
+though neither is what makes a document a card.
 
 First, `header.format` is what licenses wikilinks, embeds and fragment
 addressing in the body. A card written in `hmd` has them; a card written in `md`

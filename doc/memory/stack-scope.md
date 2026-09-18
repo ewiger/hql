@@ -8,8 +8,10 @@ HQL language default.
   edition, crates, error handling, test layout, clippy. None of it governs HQL's
   own syntax, type system or semantics.
 - "Rust does it this way" is never an argument for an HQL feature. HQL is a data
-  language and diverges freely; the visibility default is the first place it does
-  so on purpose — see [field visibility](../wiki/hql/visibility.hmd).
+  language and diverges freely. The clearest case: HQL has **no field
+  visibility** at all, because values are data and there is no privileged inside
+  for `pub`/`protected`/`private` to protect — see
+  [fields](../wiki/hql/fields.hmd).
 - The scope note now opens `doc/stack.md`, its language section is retitled
   *Implementation language*, and `CLAUDE.md` says the file does not govern HQL's
   design. [Extensions](../wiki/hql/extensions.hmd) already drew the same boundary

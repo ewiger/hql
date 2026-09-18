@@ -25,8 +25,9 @@ family, with `Card` as its base representation type:
 
 `ConceptCard` is the default and the ordinary case, because most knowledge lives
 in nodes. `RelationCard` is opted into with `metadata.knowledge.type == Relation`
-and is the exception. A card's `metadata` is its only public member; the header
-and the body are protected — see [[type-system]].
+and is the exception. A card's `metadata` is assembled when the document becomes
+a card and is a different field from the document's optional authored
+`header.metadata` — see [[fields]] and [[card-type]].
 
 These roles do not settle constructors, logical syntax or a proof system.
 The universe can draw on document structure, metadata, links, relation cards,

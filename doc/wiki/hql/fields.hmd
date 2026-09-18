@@ -1,0 +1,157 @@
+---
+tags: [hql, type-system, data, schema, design]
+---
+# Fields
+
+A field is data. That is the whole premise of this card, and most of what
+follows is a consequence of it.
+
+## There is no field visibility
+
+HQL has no `pub`, `protected` or `private`. Nothing in a type is hidden from
+anyone holding a value of it, and a subtype neither changes the visibility of an
+inherited field nor conceals one.
+
+The reason is not minimalism. Visibility modifiers exist to protect an
+**inside**: a privileged execution context — methods on the object — that may
+touch representation the outside must not. HQL has no such context. Values are
+data, declared fields are queryable data, and every consumer of a value is in the
+same position as every other. A modifier that partitions callers into privileged
+and unprivileged would be partitioning a set with one member.
+
+So the question a visibility system answers — *may I reach this?* — is not a
+question HQL has. The question it does have is *is this here?*, and that is what
+`?` is for.
+
+## Required and optional fields
+
+A field declared without `?` is **required** by that type. A field declared with
+`?` **may be absent**.
+
+```hql
+type Doc {
+    header : Data
+    body   : Content
+}
+
+type HmdHeader {
+    metadata? : Data
+}
+```
+
+Every `Doc` has a header and a body; asking for either always succeeds. An
+`HmdHeader` may or may not carry `metadata`, because a document does not have to
+author any.
+
+This is an ordinary part of the type system, not a device for emulating
+something else. Most real schemas have optional parts — a `nickname`, a `born`
+date, a config block a deployment may not set — and `?` is how a type says so
+once, at the declaration, instead of every reader guessing.
+
+### Absence is not a weaker value
+
+`?` says the field may not be there. It does not say the field is there holding
+nothing. HQL has no null, and absence is carried by `Option` — see the
+[trait direction](../../memory/trait-direction.md) — so a reader of an optional
+field gets something it must handle rather than something that might surprise it.
+
+Whether `metadata? : Data` is therefore exactly `metadata : Option[Data]`, or
+whether a missing key in a tree and a present key holding `None` stay
+distinguishable, is open. So is the relationship to the postfix spelling
+`born: Date?` used on [[card-type]]: one marks the *field* optional and the other
+marks the *type* optional, and they may or may not be the same claim.
+
+## Partial schemas over `Data`
+
+[[data-type|Data]] is an open tree whose keys belong to whoever wrote them, and
+it stays that way. What a type may do is declare a **partial schema**: a shape
+for the paths it knows about, leaving every other path untouched and still open.
+
+```hql
+type HmdDoc <: Doc {
+    header : HmdHeader        // a known shape on some paths
+}
+```
+
+`HmdHeader` constrains `metadata` and says nothing about the rest, so a vault
+inventing `deploy.region` tomorrow breaks nothing and needs no declaration. This
+is the same progressive refinement [[type-system]] describes, written down in
+advance rather than established at a use site: a type can supply the known paths
+up front, and a program can still establish more about a particular value later.
+
+The two meet without conflict because neither closes the tree. A schema that
+required the whole tree to be specified statically would make `Data` useless for
+the thing it exists for.
+
+## The worked example: document metadata and card metadata
+
+This is where the distinction that matters most in the knowledge domain lives,
+and it is worth stating slowly, because two similar-looking paths mean different
+things.
+
+```hql
+doc.header              // always present
+doc.header.metadata?    // may be absent — authored, or not
+card.metadata           // always present — assembled
+```
+
+**The header is not optional and is never hidden.** Every document has one, and
+every holder of a document can read it. Most of it is derived — name, path,
+format — so there is nothing for an author to omit.
+
+**`header.metadata` is optional**, because authoring metadata is a choice.
+
+**`card.metadata` is a different field**, not a renaming, an alias, or the same
+field reached another way. When a document becomes a [[card-type|Card]], the card
+gets a metadata field of its own, and that field is *assembled*. Its inputs
+include:
+
+- the authored `header.metadata`, if the document has one;
+- system metadata the runtime supplies at load;
+- entries contributed by extensions — `git`, an indexer, a link checker;
+- vault state held under `.hmd/**`;
+- semantic-search state and other derived information.
+
+Authored metadata participates in that assembly under the Card metadata rules,
+including their defined precedence. It is one input among several, and being
+authored does not by itself win — see [[card-type]].
+
+### Two layers, and a query has to know which
+
+Both fields remain addressable, and they answer different questions:
+
+| Path | Question it answers |
+| --- | --- |
+| `card.header.metadata` | what did the author of this file write? |
+| `card.metadata` | what does the system know about this card? |
+
+A query over `card.header.metadata` sees authored intent and nothing else. A
+query over `card.metadata` sees the effective picture and cannot tell, without
+asking further, which layer any given entry came from.
+
+Neither is the right answer in general. A linter checking that authors tagged
+their notes wants the first; a search ranking cards wants the second; and a tool
+that confuses them will report the vault's own bookkeeping as something a person
+typed. The complexity is real and belongs in the open: a document has metadata,
+and the card built from it has its own.
+
+## Open questions
+
+- **Whether `field? : T` is exactly `field : Option[T]`**, and whether an absent
+  key stays distinguishable from a present key holding `None`.
+- **Whether `metadata? : Data` and `born: Date?` are one feature or two** — the
+  field marked optional versus the type marked optional.
+- **Whether a subtype may change optionality**, making a required field optional
+  or an optional field required, and in which direction that is sound.
+- **What a partial schema does with a path that is present but ill-typed** — a
+  diagnostic, an absence, or a value carrying its failure.
+- **The precedence rules for Card metadata assembly**, which this card names and
+  [[card-type]] owns. Which inputs may overwrite which, and whether an entry
+  records the layer it came from, are not settled.
+- **Whether `card.metadata` is materialized at load or computed on demand**,
+  which matters once assembly has cost.
+
+See [[type-system]] for subtyping, generics and refinement, [[data-type]] for the
+tree a partial schema constrains, [[doc-type]] for the header, [[card-type]] for
+the assembled metadata and its rules, and [[hql/design-status]] for what remains
+undecided.

@@ -172,13 +172,21 @@ card.metadata : Data   // the knowledge attached to this card
 ```
 
 `header` is document-level and every document has one. `metadata` is card-only
-and knowledge-level, and it is the card's **only public member**: `Card`
-overrides the inherited `header` to `protected`, because three representations of
-a card differ in exactly what a header records and a consumer should not be
-branching on the file format. `card.metadata` is built at load from the authored
-block together with what the system contributes — see
-[field visibility](../../wiki/hql/visibility.hmd) for the rule and
-[Card](../../wiki/hql/types/card-type.hmd) for the construction.
+and knowledge-level, and it is a **different field** from the document's authored
+`header.metadata` rather than that field renamed:
+
+```hql
+card.header.metadata?   // optional — what the author wrote, if anything
+card.metadata           // always present — assembled when the card is built
+```
+
+The authored block is optional, because authoring metadata is a choice. The
+card's layer is not, because it exists whether or not the file said anything: it
+is assembled from the authored entries, system metadata, extension contributions,
+vault state and other derived information, under precedence rules
+[Card](../../wiki/hql/types/card-type.hmd) owns. Both paths stay addressable, and
+a query has to know which layer it is asking about — see
+[fields](../../wiki/hql/fields.hmd).
 
 The knowledge extension then refines it:
 
@@ -281,10 +289,8 @@ Namespace visibility and the merge rules for imported knowledge are open, and
   node in it.
 - Whether `metadata.knowledge.type` admits kinds beyond `Concept` and `Relation`,
   and whether a card may change kind without changing identity.
-- What a card's metadata holds before an extension declares its shape, and what
-  the system contributes to it at load beyond the authored block.
-- Whether an extension is inside or outside `protected`, given that contributing
-  to a card's header requires reaching it.
+- What a card's metadata holds before an extension declares its shape, and the
+  precedence between its authored, system, extension and vault-state inputs.
 - Satisfaction and validation types, and what a failed narrowing yields.
 - Imported-knowledge merge policy and namespace visibility.
 - Whether the projection and the view may share the name `graph`.

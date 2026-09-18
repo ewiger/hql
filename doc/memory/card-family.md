@@ -31,4 +31,5 @@ Recorded 2026-09-18 from a user correction, replacing the earlier
 Stated in [knowledge model](../models/domain/knowledge.md),
 [Card](../wiki/hql/types/card-type.hmd), [type system](../wiki/hql/type-system.hmd),
 [Graph](../wiki/hql/types/graph-type.hmd) and [knowledge](../wiki/hql/knowledge.hmd).
-See [field visibility](../wiki/hql/visibility.hmd) for what a card exposes.
+See [fields](../wiki/hql/fields.hmd) for optional fields and the two metadata
+layers.

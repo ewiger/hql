@@ -77,8 +77,9 @@ layer, and `frontmatter` names no field — see
 "refinement rather than inheritance" reading of `Relation <: Card` is settled
 the other way: a relation is not a card at all — see
 [relation is not a card](../memory/relation-not-a-card.md). The two spellings
-can no longer drift apart, because `Card` overrides `header` to `protected` and
-leaves one public path — see [field visibility](../wiki/hql/visibility.hmd).
+can no longer drift apart, because they are not one concept: `header.metadata` is
+the document's optional authored block and `card.metadata` is the card's
+assembled layer — see [fields](../wiki/hql/fields.hmd).
 
 ## INC-02 — header / frontmatter / metadata / fm
 

@@ -4,24 +4,24 @@ tags: [hql, type-system, generics, design]
 # The HQL type system
 
 Three mechanisms do the work, and they are easy to confuse because all three end
-with a value being used at a stronger type than it started with. A fourth,
-visibility, is independent of them and is what keeps the first three from
-leaking representation.
+with a value being used at a stronger type than it started with.
 
 | Mechanism | Written | The question it answers |
 | --- | --- | --- |
 | Subtyping | `Card <: Doc` | Which types stand in for which? |
 | Generics | `Graph[N, E]` | What does this type leave unknown? |
 | Refinement | `card.header.database : PostgresConfig` | What is known about *this value*? |
-| Visibility | `pub metadata : Data` | Who may reach this field? — [[visibility]] |
 
 Subtyping relates whole type domains. Generics abstract over them. Refinement
-concerns evidence about one value, whose representation never changes. The first
-three meet at exactly one place — a **bound**, `T <: Doc`, where a generic
-unknown is restricted by the subtype relation — and that single meeting point is
-why one relation symbol is enough for the whole language. Visibility crosses all
-of them without being any of them: it says nothing about what a value *is*, only
-about what a holder of it may ask.
+concerns evidence about one value, whose representation never changes. They meet
+at exactly one place — a **bound**, `T <: Doc`, where a generic unknown is
+restricted by the subtype relation — and that single meeting point is why one
+relation symbol is enough for the whole language.
+
+There is no fourth mechanism for hiding anything. HQL has no field visibility:
+values are data and declared fields are queryable data, so a type exposes
+everything it declares. What a type *can* say is that a field may be absent —
+see [[fields]].
 
 ## `<:` narrows
 
@@ -304,35 +304,23 @@ The first two are declarations about type domains and hold whether or not any
 value exists. The third could fail for the next card along without disturbing
 either.
 
-## Visibility is a fourth, separate question
+## Optionality is part of the schema, not a fourth mechanism
 
-Everything above says what a value **is**. Visibility says who may reach its
-fields, and it is independent of all three mechanisms: a type can gain a parent
-without gaining the right to expose what that parent declared.
+A type may declare a field optional, and that is a statement about the shape of
+the data rather than about who may see it:
 
-| Modifier | Reachable from | Inherited |
-| --- | --- | --- |
-| `pub` | anywhere a value of the type is held — **the default** | yes |
-| `protected` | the type itself and its subtypes | yes |
-| `private` | the type itself | **never** |
+```hql
+type HmdHeader {
+    metadata? : Data
+}
+```
 
-`pub` by default, because HQL is a data language and a declared field is content
-rather than machinery. A subtype may override what it inherits — `Card` closes
-`Doc`'s `header` to `protected` and leaves `metadata` as its only public surface
-— and because `private` never crosses the subtype boundary, an override only ever
-concerns `pub` and `protected` fields.
-
-**An override only closes.** Widening back to `pub` is not permitted. A subtype
-that needs to republish something its parent shut writes a getter instead,
-`pub title <- super.header.title`, which exposes one name rather than reopening
-the field — and which is why `private`, the level a subtype never receives, is
-the one that makes re-export impossible.
-
-Visibility is also the one place where a subtype acts *on* its parent's
-declaration rather than only adding to it, which is why it is not folded into
-`<:`. It has its own card: see [[visibility]] for the levels, the override rule,
-how an undeclared path inside a [[data-type|Data]] tree inherits from the nearest
-declared field above it, and the worked case on [[card-type]].
+This sits with refinement rather than beside it. A partial schema supplies the
+paths a type knows about in advance and leaves the rest of the tree open, while
+refinement establishes more about one value at a use site. Neither closes `Data`,
+which is what lets the two compose. See [[fields]] for optionality, partial
+schemas and the distinction between a document's authored metadata and the
+metadata a card assembles.
 
 ## KnowledgeGraph is both
 
@@ -395,12 +383,12 @@ language's central value cannot be the place where the rule is improvised.
   coexists with the preference against exposing trait machinery to users.
 - How much refinement survives a boundary: a value passed to an extension, a
   cell, or a host and back.
-- The visibility questions are tracked on [[visibility]]: whether a subtype may
-  widen, where extensions stand relative to `protected`, and whether visibility
-  is a type or a module notion.
+- Whether a declared-optional field is exactly `Option[T]`, and whether a subtype
+  may change a field's optionality — tracked on [[fields]].
 
-See [[data-type]] for the tree being refined, [[visibility]] for who may reach a
-field, [[card-type]] for `Card` and its two kinds, [[doc-type]] for the header
-being protected, [[graph-type]] for `Edge`, `Graph` and variance, [[hql/knowledge]] for relations as knowledge,
+See [[data-type]] for the tree being refined, [[fields]] for optional fields and
+partial schemas, [[card-type]] for `Card` and its two kinds, [[doc-type]] for the
+header, [[graph-type]] for `Edge`, `Graph` and variance, [[hql/knowledge]] for
+relations as knowledge,
 [[hql/collections]] for the generic collections and [[hql/design-status]] for
 what remains undecided.

@@ -17,20 +17,25 @@ document. Both halves exist for every document, including a plain Markdown file
 that carries no metadata of its own — see [[card-type]] for the narrowed kind of
 document that participates in knowledge.
 
-Both fields are `pub`, which is HQL's default for anything declared in a
-`type {..}` construct — a data language starts open, and a document's header and
-body are content rather than machinery. See [[visibility]] for the levels.
+Both fields are required and both are readable. HQL has no field visibility —
+values are data and declared fields are queryable data — so nothing here is
+hidden from a holder of a document, and no subtype can hide it later. What a type
+may say instead is that a field *may be absent*; see [[fields]].
 
-`Doc` therefore closes nothing. [[card-type|Card]] does: it overrides `header` to
-`protected` so that its own `metadata` is the one public surface, because three
-representations of a card differ in exactly what a header records. That override
-is a claim about cards, and it leaves `Doc` unchanged — declaring a subtype never
-reaches back into its parent.
+The header is not one of those. Every document has one, and most of it is derived
+— name, path, format — so there is nothing for an author to omit. Where a format
+writes authored entries into it, HMD's `metadata` block being the case that
+matters, *that* block is optional:
 
-Where a format writes authored knowledge entries into the header, HMD's
-`metadata` block being the case that matters, they are ordinary public header
-content here. A card builds its own knowledge layer from them at load; a document
-that is not a card has no such layer, and nothing to build.
+```hql
+type HmdHeader {
+    metadata? : Data
+}
+```
+
+A card builds a knowledge layer of its own from those entries and several other
+sources — see [[card-type]]. It is a separate field, not this one renamed, and a
+document that is not a card has no such layer.
 
 The host adapter described in [[hmd-integration]] supplies both halves from the
 existing HMD parser and resolver. The bootstrap evaluator does not yet run any
