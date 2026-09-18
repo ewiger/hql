@@ -19,11 +19,25 @@ records what was considered and may keep a withdrawn spelling beside a current
 one; a standard library may not. There is one declaration of `Edge`, and it is
 the one that is true now.
 
-## Not yet loadable
+## Parsed and checked, not evaluated
 
-The parser has no `type` statement, so nothing in `std/` is read by the binary
-or checked by a test. Tracked as
-[issue 0003](../../issues/0003-type-declarations.md).
+The parser reads the `type` statement, and every file in `std/` checks:
+`hql check std/graph.hql` prints `Unit`, and a test walks the folder so a file
+added there cannot be silently left unchecked.
+
+Checking is not evaluating. A declaration yields `Unit` and introduces no value
+and no case in the implemented lattice; constructing a value of a declared
+record type is separate work. What holds today is that each declaration is
+coherent — its parents exist, its parents can be narrowed together, a parameter
+is a name no type already has, and a subtype does not turn a required field
+optional — and that where a declaration restates a type the binary already
+holds, the two agree. `type Card <: Doc` checks; `type Card <: Edge` is refused
+as a contradiction. The rules are in
+[the grammar](../../models/behavior/expressions.md).
+
+That agreement is the point of the folder. `std/` is not a second opinion about
+the type lattice; it is the lattice written down where a reader can find it,
+and a file that drifts from the binary now fails rather than going unread.
 
 A standard library is a bootstrap non-goal in
 [requirements](../../models/requirements/bootstrap.md), and that still holds:

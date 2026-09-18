@@ -29,6 +29,10 @@ pub(crate) enum Token {
     CloseBracket,
     Less,
     Greater,
+    /// `<:`, which reads "narrows".
+    Subtype,
+    /// `?`, which marks a field optional.
+    Question,
     Newline,
     End,
 }
@@ -60,6 +64,8 @@ impl Token {
             Self::CloseBracket => "`]`".to_owned(),
             Self::Less => "`<`".to_owned(),
             Self::Greater => "`>`".to_owned(),
+            Self::Subtype => "`<:`".to_owned(),
+            Self::Question => "`?`".to_owned(),
             Self::Newline => "end of line".to_owned(),
             Self::End => "end of input".to_owned(),
         }
@@ -144,9 +150,21 @@ impl Scanner<'_> {
                 continue;
             }
 
+            // `<:` before `<`, so a supertype is never read as an empty
+            // generic argument list.
+            if self.rest().starts_with("<:") {
+                self.offset += 2;
+                self.push(Token::Subtype, start);
+                continue;
+            }
             if character == '<' {
                 self.offset += 1;
                 self.push(Token::Less, start);
+                continue;
+            }
+            if character == '?' {
+                self.offset += 1;
+                self.push(Token::Question, start);
                 continue;
             }
             if self.rest().starts_with("==") {

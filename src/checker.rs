@@ -2,6 +2,7 @@
 
 use crate::ast::{Arg, Expr, Kind, Program, Stmt};
 use crate::builtins;
+use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
 use crate::extensions::{CheckCx, Resolution, Step};
 use crate::types::{self, Type};
@@ -19,6 +20,7 @@ pub(crate) fn check(program: &Program, vault: &Vault) -> Result<Type, Diagnostic
         vault,
         scope: HashMap::new(),
         resolution: Resolution::new(&vault.extensions)?,
+        declarations: Declarations::default(),
     }
     .program(program)
 }
@@ -39,6 +41,7 @@ pub(crate) fn check_collecting(program: &Program, vault: &Vault) -> (Type, Vec<D
         vault,
         scope: HashMap::new(),
         resolution,
+        declarations: Declarations::default(),
     };
     let mut found = Vec::new();
     let mut last = Type::Unit;
@@ -62,6 +65,8 @@ struct Checker<'a> {
     scope: HashMap<String, Type>,
     /// Which extensions this program has imported.
     resolution: Resolution,
+    /// What this program has declared.
+    declarations: Declarations,
 }
 
 impl Checker<'_> {
@@ -119,6 +124,12 @@ impl Checker<'_> {
                 }
                 Stmt::Import { name, span } => {
                     self.resolution.import(name, span)?;
+                    Type::Unit
+                }
+                // A declaration is checked and yields nothing to show. It
+                // introduces no value: constructing one is separate work.
+                Stmt::Type(declaration) => {
+                    self.declarations.declare(declaration)?;
                     Type::Unit
                 }
                 Stmt::Expr(expression) => self.expression(expression)?,

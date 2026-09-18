@@ -21,7 +21,32 @@ pub(crate) enum Stmt {
         name: String,
         span: Range<usize>,
     },
+    /// `type Name<P> <: Parent { field : Type }`.
+    Type(TypeDecl),
     Expr(Expr),
+}
+
+/// A declared type: what it is called, what it narrows, and what it holds.
+#[derive(Debug)]
+pub(crate) struct TypeDecl {
+    pub name: String,
+    /// The generic parameters, `S` and `T` in `type Edge<S, T>`.
+    pub parameters: Vec<String>,
+    /// What it narrows: one type, or a supertype set written `{A, B}`.
+    pub supertypes: Vec<TypeAnn>,
+    /// The record body, empty when the declaration has none.
+    pub fields: Vec<Field>,
+    pub span: Range<usize>,
+}
+
+/// One entry in a record body.
+#[derive(Debug)]
+pub(crate) struct Field {
+    pub name: String,
+    /// Whether the field is written `name? : Type`.
+    pub optional: bool,
+    pub annotation: TypeAnn,
+    pub span: Range<usize>,
 }
 
 /// A written type, such as `Card` or `Set<Card>`.

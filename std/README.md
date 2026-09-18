@@ -2,10 +2,16 @@
 
 The type declarations HQL ships with, written in HQL.
 
-**Status: not yet loadable.** The parser has no `type` declaration, so nothing
-here is read by the binary or checked by a test. These files are the single
-place the declarations live as *source* rather than as prose inside a card.
-Making them load is [issue 0003](../doc/issues/0003-type-declarations.md).
+**Status: parsed and checked.** `hql check std/graph.hql` prints `Unit`, and
+`tests/declarations.rs` walks this folder, so a file added here cannot be
+silently left unchecked. These files are the single place the declarations live
+as *source* rather than as prose inside a card.
+
+Checking a declaration is not evaluating one. A declaration yields `Unit` and
+introduces no value; constructing a value of a declared record type is separate
+work. What is checked is that each declaration is coherent, and that where it
+restates a type the binary already holds it agrees with it — see
+[the grammar](../doc/models/behavior/expressions.md).
 
 ## What belongs here, and what does not
 

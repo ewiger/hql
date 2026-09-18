@@ -14,6 +14,7 @@
 
 mod ast;
 mod checker;
+mod declarations;
 mod evaluation;
 mod lexer;
 mod parser;

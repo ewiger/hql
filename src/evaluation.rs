@@ -57,6 +57,9 @@ impl Evaluator<'_> {
                     self.resolution.import(name, span)?;
                     Value::Unit
                 }
+                // Checking established what the declaration says; evaluating
+                // it has nothing left to do.
+                Stmt::Type(_) => Value::Unit,
                 Stmt::Expr(expression) => self.expression(expression)?,
             };
         }

@@ -6,8 +6,13 @@ design.
 
 ```text
 program     := statement (NEWLINE+ statement)*
-statement   := import | binding | expression
+statement   := import | declaration | binding | expression
 import      := "import" ident
+declaration := "type" ident params? ("<:" supertypes)? record?
+params      := "<" ident ("," ident)* ">"
+supertypes  := type | "{" type ("," type)* "}"
+record      := "{" field ("," | NEWLINE)* "}"
+field       := ident "?"? ":" type
 binding     := ident (":" type)? "=" expression
 
 expression  := pipeline
@@ -81,6 +86,47 @@ A pipeline step is a name or a call, and `x | f(a)` reads as "`f`, configured
 with `a`, applied to `x`". Writing a step without an input is an error that
 says so. The list is [`hql builtins`](cli.md), and it is ordinary functions
 rather than grammar.
+
+## Type declarations
+
+`type` declares a type. It yields `Unit` and introduces no value: constructing
+a value of a declared record type is separate work, not implemented.
+
+```hql
+type Content
+type HmdContent <: Content
+type Edge<S, T> { source : S, target : T, data : Data }
+type ConceptCard <: {Card, Concept}
+type HmdHeader { metadata? : Data }
+```
+
+A supertype set narrows several types at once, and in supertype position `{…}`
+is always a set of types rather than a record, which is what keeps `{A, B}` and
+`{a: A, b: B}` apart. A record body separates its fields by line; a comma is
+accepted for anyone who writes one. `name? : Type` says the key may be absent,
+which is a claim about the shape of the containing value and not about the
+domain of the contained one — the two are different, and
+[optional fields and optional values](options-in-types-and-fields.md) says why.
+
+What is checked:
+
+- every parent and every field type names something: a built-in, a type
+  declared earlier in the program, or a parameter of this declaration;
+- a name is declared once, and a record holds one entry per key;
+- a parameter is a name no type already has, so a reader can tell which is
+  meant, and inside the body it takes no arguments of its own;
+- a declaration may **restate** a type this binary already has — that is what
+  [`std/`](../../../std/README.md) is — but it may not contradict one.
+  `type Card <: Doc` holds and `type Card <: Edge` does not;
+- a supertype set whose members share nothing declares a type no value can
+  have, and is refused: `type X <: {Int, String}`;
+- a subtype may not turn a required field of a parent into an optional one,
+  because that widens the shape rather than narrowing it.
+
+Arity is checked where arguments are written. A bare generic name is the
+constructor itself — `Graph<Card, Link>` passes `Link`, not a `Link` of
+something — and whether a constructor may stand where a type is expected is not
+settled, so a bare name is accepted rather than counted.
 
 ## Import
 

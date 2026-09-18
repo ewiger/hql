@@ -321,3 +321,11 @@ fn a_vault_may_decline_the_prelude_and_import_for_every_program() {
     assert!(ranked.status.success(), "{}", stderr(&ranked));
     assert_eq!(stdout(&ranked).trim(), "1");
 }
+
+#[test]
+fn the_standard_library_checks_from_the_command_line() {
+    let checked = hql(&["check", "std/graph.hql"]);
+    assert!(checked.status.success(), "{}", stderr(&checked));
+    assert_eq!(stdout(&checked).trim(), "Unit");
+    assert_eq!(stderr(&checked), "");
+}

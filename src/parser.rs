@@ -1,6 +1,6 @@
 //! Parse tokens into a program: statements, bindings, pipelines and calls.
 
-use crate::ast::{Arg, Expr, Kind, Program, Stmt, TypeAnn};
+use crate::ast::{Arg, Expr, Field, Kind, Program, Stmt, TypeAnn, TypeDecl};
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
 use std::ops::Range;
@@ -175,6 +175,12 @@ impl Parser {
                 span: head.span.start..named.span.end,
             });
         }
+        if let Token::Ident(keyword) = self.peek().clone()
+            && keyword == "type"
+            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+        {
+            return Ok(Stmt::Type(self.declaration()?));
+        }
         if let Token::Ident(name) = self.peek().clone() {
             let follows = &self.tokens[self.index + 1].token;
             if matches!(follows, Token::Equals | Token::Colon) {
@@ -194,6 +200,110 @@ impl Parser {
             }
         }
         Ok(Stmt::Expr(self.expression()?))
+    }
+
+    /// `type Name<P, Q> <: Parent { field : Type }`, with every part optional
+    /// after the name.
+    fn declaration(&mut self) -> Result<TypeDecl, Diagnostic> {
+        let keyword = self.advance();
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(named.span, "expected a type name"));
+        };
+        let mut end = named.span.end;
+
+        let mut parameters = Vec::new();
+        if self.eat(&Token::Less) {
+            self.nesting += 1;
+            loop {
+                let parameter = self.advance();
+                let Token::Ident(parameter_name) = parameter.token else {
+                    return Err(Diagnostic::syntax(
+                        parameter.span,
+                        "expected a type parameter name",
+                    ));
+                };
+                parameters.push(parameter_name);
+                if !self.eat(&Token::Comma) {
+                    break;
+                }
+            }
+            end = self
+                .expect(&Token::Greater, "after type parameters")?
+                .span
+                .end;
+            self.nesting -= 1;
+        }
+
+        let mut supertypes = Vec::new();
+        if self.eat(&Token::Subtype) {
+            self.continuation();
+            // In supertype position a set of types is a supertype set, which
+            // is what keeps `{A, B}` and `{a: A, b: B}` apart here.
+            if matches!(self.peek(), Token::OpenBrace) {
+                self.advance();
+                self.nesting += 1;
+                loop {
+                    supertypes.push(self.type_annotation()?);
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                }
+                end = self
+                    .expect(&Token::CloseBrace, "after a supertype set")?
+                    .span
+                    .end;
+                self.nesting -= 1;
+            } else {
+                let only = self.type_annotation()?;
+                end = only.span.end;
+                supertypes.push(only);
+            }
+        }
+
+        let mut fields = Vec::new();
+        if matches!(self.tokens[self.index].token, Token::OpenBrace) {
+            self.advance();
+            self.nesting += 1;
+            while !matches!(self.peek(), Token::CloseBrace) {
+                fields.push(self.field()?);
+                // A record body separates its fields by line, and a comma is
+                // accepted for anyone who writes one.
+                self.eat(&Token::Comma);
+            }
+            end = self
+                .expect(&Token::CloseBrace, "to close a record body")?
+                .span
+                .end;
+            self.nesting -= 1;
+        }
+
+        Ok(TypeDecl {
+            name,
+            parameters,
+            supertypes,
+            fields,
+            span: keyword.span.start..end,
+        })
+    }
+
+    fn field(&mut self) -> Result<Field, Diagnostic> {
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(named.span, "expected a field name"));
+        };
+        // Optionality is part of the schema: `metadata? : Data` says the path
+        // may be absent, not that the field is a different type.
+        let optional = self.eat(&Token::Question);
+        self.expect(&Token::Colon, "after a field name")?;
+        let annotation = self.type_annotation()?;
+        let span = named.span.start..annotation.span.end;
+        Ok(Field {
+            name,
+            optional,
+            annotation,
+            span,
+        })
     }
 
     fn type_annotation(&mut self) -> Result<TypeAnn, Diagnostic> {
