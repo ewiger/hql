@@ -51,7 +51,7 @@ mod tests {
     #[test]
     fn suggests_a_near_miss_and_stays_quiet_otherwise() {
         assert_eq!(nearest("tabel"), Some("table"));
-        assert_eq!(nearest("semantik"), Some("semantic"));
+        assert_eq!(nearest("lexicl"), Some("lexical"));
         assert_eq!(nearest("qwertyuiop"), None);
     }
 

@@ -301,9 +301,9 @@ mod tests {
     #[test]
     fn insert_path_creates_intermediate_maps() {
         let mut data = Data::map();
-        data.insert_path("search.model", Data::Str("hql.hashbag.v1".to_owned()));
+        data.insert_path("lexical.model", Data::Str("hql.hashbag.v1".to_owned()));
         assert_eq!(
-            data.path("search.model").and_then(Data::as_str),
+            data.path("lexical.model").and_then(Data::as_str),
             Some("hql.hashbag.v1")
         );
     }

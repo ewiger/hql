@@ -1,0 +1,58 @@
+---
+tags: [hql, extensions, retrieval]
+---
+# The lexical extension
+
+`lexical` ranks a corpus by the words it shares with a query. It is the
+retrieval HQL always has: no index, no model file, no configuration, nothing to
+build. Written out with `import lexical`, it supplies one step.
+
+```hql
+import lexical
+
+cards
+| lexical("bearer token authorization")
+| take(5)
+| table
+```
+
+## What it computes
+
+Each document and the query become a hashed bag of words: every word longer
+than one character is lowercased, hashed into one of 256 buckets by FNV-1a, and
+weighted by damped term frequency — `1 + ln(count)` — so a long document does
+not outrank a precise one merely by repeating a word. The vectors are
+L2-normalised and compared by cosine. The hash is fixed, so the bucket a word
+lands in never depends on the build.
+
+A card scoring nothing is dropped rather than ranked last, because zero
+similarity is not a weak answer but the absence of one. Ties break on the card's
+own ordering key, so a prefix never depends on the order a vault loaded in.
+
+The text it sees is the card's title, its authored header strings and its body —
+the same text [[semantic]] embeds, and the contract is in
+[HQL-0002](../../../proposals/HQL-0002/README.md).
+
+## What it does not compute
+
+It models no meaning. A query and a document that share no word score zero
+however plainly one answers the other: against the birds corpus,
+`lexical("night hunting birds")` finds no owl, because the owl articles say
+"nocturnal" and "after dark" and never "night". That is not a defect to be fixed
+inside `lexical` — it is what matching spellings is — and it is why [[semantic]]
+exists beside it rather than on top of it.
+
+The name is the point. It was called `semantic` once, and a `Hit` that told
+every consumer a model had produced its score was making a claim
+`hql.hashbag.v1` could not support. A score is evidence, and evidence whose
+provenance misdescribes it is worse than no evidence.
+
+## What a ranking reports
+
+Every `Hit` carries the `Retrieval` that produced it: the query, the index (the
+vault's root), `model: hql.hashbag.v1`, the crate version as `revision`,
+`metric: cosine`, and `approximate: false` — the scoring is exact brute force
+over every card it was handed.
+
+See [[hql/semantic-search]] for the vocabulary, [[hql/extensions]] for the
+registry, and [[orderable]] for why a ranking carries its own order.

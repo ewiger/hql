@@ -20,10 +20,10 @@ Session cookies
 ## Closest to bearer tokens
 
 ```hql#query
-import semantic
+import lexical
 
 cards
-| semantic("bearer token authorization")
+| lexical("bearer token authorization")
 | take(2)
 | table
 ```

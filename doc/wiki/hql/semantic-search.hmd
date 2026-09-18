@@ -7,17 +7,17 @@ Semantic search orders a corpus against a query and hands back a prefix. It is
 the **read path of AI memory** over a [[hql/knowledge|knowledge]] base.
 
 ```hql
-import semantic
+import lexical
 
 cards
-| semantic("bearer token authorization")
+| lexical("bearer token authorization")
 | take(5)
 | expand(depth = 1)
 | graph
 ```
 
-`semantic` is written out because retrieval is an extension capability rather
-than the core's business — see [[hql/extensions]].
+A retrieval is written out because it is an extension capability rather than the
+core's business — see [[hql/extensions]].
 
 It has a vocabulary of its own but mints no node type and no edge type, so it is
 not a peer domain in the sense [[type-system]] uses: nothing in it is anyone's
@@ -113,10 +113,14 @@ without pinning it is an effect.
 
 ## What is built
 
-`semantic` uses `hql.hashbag.v1`: a hashed bag of words compared by cosine,
-offline, deterministic and exact, reporting `approximate: false`. It is a step
-on the path, not a stand-in for a trained model. Replacing the model changes the
-numbers, not the shape — which is the point of `Retrieval` being on every `Hit`.
+Two retrievals, each an extension and each honestly named. [[lexical]] matches
+shared spellings with `hql.hashbag.v1`, a hashed bag of words compared by
+cosine, offline, deterministic and exact, reporting `approximate: false`. It
+models no meaning and its name no longer claims to.
+
+Replacing one retrieval with another changes the numbers, not the shape — which
+is the point of `Retrieval` travelling on every `Hit`, and why it carries the
+model's `revision` as well as its name.
 
 `expand` and `graph` stay two stages. `expand(depth, direction)` traverses and
 produces a graph carrying why each node is present; `graph` projects a

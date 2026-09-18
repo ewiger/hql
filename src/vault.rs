@@ -196,9 +196,14 @@ fn build_card(document: Document, names: &BTreeSet<String>, warnings: &mut Vec<S
     };
 
     // Extensions contribute under a key they own, so an authored entry and a
-    // contributed one can never collide and no precedence rule is needed.
-    metadata.insert_path("search.model", Data::Str(crate::search::MODEL.to_owned()));
-    metadata.insert_path("search.indexed", Data::Bool(true));
+    // contributed one can never collide and no precedence rule is needed. The
+    // key is the extension's name, which is why it is `lexical` rather than
+    // `search`: two retrievals cannot both be "the" search.
+    metadata.insert_path(
+        "lexical.model",
+        Data::Str(crate::extensions::lexical::MODEL.to_owned()),
+    );
+    metadata.insert_path("lexical.indexed", Data::Bool(true));
 
     Card {
         document,

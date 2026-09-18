@@ -100,7 +100,7 @@ fn fields_reach_both_metadata_layers() {
     assert_eq!(text("[[bearer-tokens]].metadata.status"), "\"todo\"");
     // An extension contributes under a key it owns, so nothing collides.
     assert_eq!(
-        text("[[bearer-tokens]].metadata.search.model"),
+        text("[[bearer-tokens]].metadata.lexical.model"),
         "\"hql.hashbag.v1\""
     );
 }
@@ -116,8 +116,8 @@ fn uplinks_and_downlinks_traverse_one_edge_set_in_two_directions() {
 }
 
 #[test]
-fn semantic_ranks_by_similarity_and_retains_the_retrieval() {
-    let ranked = value("import semantic\ncards | semantic(\"bearer token authorization\")");
+fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
+    let ranked = value("import lexical\ncards | lexical(\"bearer token authorization\")");
     let Value::Ranking(ranking) = &ranked else {
         panic!("expected a ranking, got {ranked:?}")
     };
@@ -127,14 +127,14 @@ fn semantic_ranks_by_similarity_and_retains_the_retrieval() {
     assert_eq!(ranking.hits[0].card.name(), "oauth");
     assert!(ranking.hits[0].score > ranking.hits[1].score);
     // A score is evidence, so it travels with the rule that produced it.
-    assert_eq!(ranking.retrieval.model, hql::search::MODEL);
+    assert_eq!(ranking.retrieval.model, hql::extensions::lexical::MODEL);
     assert_eq!(ranking.retrieval.metric, "cosine");
     assert!(!ranking.retrieval.approximate);
     assert_eq!(ranking.retrieval.query, "bearer token authorization");
 
     assert_eq!(
         text(
-            "import semantic\ncards | semantic(\"bearer token authorization\") | take(1) | map(h => h.card.name)"
+            "import lexical\ncards | lexical(\"bearer token authorization\") | take(1) | map(h => h.card.name)"
         ),
         "[oauth]"
     );
@@ -142,7 +142,7 @@ fn semantic_ranks_by_similarity_and_retains_the_retrieval() {
 
 #[test]
 fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
-    let ranked = value("import semantic\ncards | semantic(\"bearer token authorization\")");
+    let ranked = value("import lexical\ncards | lexical(\"bearer token authorization\")");
     let Value::Ranking(ranking) = &ranked else {
         panic!("expected a ranking")
     };
@@ -153,9 +153,9 @@ fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
 #[test]
 fn the_whole_pipeline_runs_and_says_why_each_node_is_present() {
     let projected = value(
-        "import semantic\n\
+        "import lexical\n\
          cards\n\
-         | semantic(\"bearer token authorization\")\n\
+         | lexical(\"bearer token authorization\")\n\
          | take(2)\n\
          | expand(depth = 1)\n\
          | graph",

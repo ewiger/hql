@@ -19,8 +19,8 @@ use std::path::Path;
 
 pub(crate) mod collections;
 pub(crate) mod graph;
+pub mod lexical;
 pub(crate) mod present;
-pub(crate) mod retrieval;
 
 /// Whether the executor may move a step around.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,10 +122,10 @@ static PRESENT: Extension = Extension {
     steps: present::STEPS,
 };
 
-static SEMANTIC: Extension = Extension {
-    name: "semantic",
+static LEXICAL: Extension = Extension {
+    name: "lexical",
     version: env!("CARGO_PKG_VERSION"),
-    steps: retrieval::STEPS,
+    steps: lexical::STEPS,
 };
 
 /// Every extension compiled into this binary, core first.
@@ -134,7 +134,7 @@ static SEMANTIC: Extension = Extension {
 /// `hql builtins` whether or not the program has imported the extension that
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
-pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &PRESENT, &SEMANTIC];
+pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &PRESENT, &LEXICAL];
 
 impl Extension {
     /// The step of a name this extension provides.
@@ -533,21 +533,17 @@ mod tests {
         assert!(resolution.step("count", &(0..1)).is_ok());
         assert!(resolution.step("table", &(0..1)).is_ok());
 
-        let missing = resolution.step("semantic", &(0..1)).unwrap_err();
+        let missing = resolution.step("lexical", &(0..1)).unwrap_err();
         assert!(
-            missing.message().contains("import semantic"),
+            missing.message().contains("import lexical"),
             "{}",
             missing.message()
         );
 
-        resolution.import("semantic", &(0..1)).unwrap();
-        assert!(resolution.step("semantic", &(0..1)).is_ok());
-        assert!(
-            resolution
-                .qualified("semantic", "semantic", &(0..1))
-                .is_ok()
-        );
-        assert!(resolution.qualified("semantic", "rank", &(0..1)).is_err());
+        resolution.import("lexical", &(0..1)).unwrap();
+        assert!(resolution.step("lexical", &(0..1)).is_ok());
+        assert!(resolution.qualified("lexical", "lexical", &(0..1)).is_ok());
+        assert!(resolution.qualified("lexical", "rank", &(0..1)).is_err());
     }
 
     #[test]
@@ -595,19 +591,19 @@ mod tests {
     #[test]
     fn importing_the_same_extension_twice_is_not_a_collision() {
         let mut resolution = Resolution::bare(true);
-        resolution.import("semantic", &(0..1)).unwrap();
-        resolution.import("semantic", &(0..1)).unwrap();
-        assert!(resolution.step("semantic", &(0..1)).is_ok());
+        resolution.import("lexical", &(0..1)).unwrap();
+        resolution.import("lexical", &(0..1)).unwrap();
+        assert!(resolution.step("lexical", &(0..1)).is_ok());
     }
 
     #[test]
     fn a_vault_may_import_for_every_program_and_may_decline_the_prelude() {
         let config = Config {
-            imports: vec!["semantic".to_owned()],
+            imports: vec!["lexical".to_owned()],
             prelude: false,
         };
         let resolution = Resolution::new(&config).expect("the configuration resolves");
-        assert!(resolution.step("semantic", &(0..1)).is_ok());
+        assert!(resolution.step("lexical", &(0..1)).is_ok());
         assert!(resolution.step("table", &(0..1)).is_err());
 
         let listed = catalogue(&config);
@@ -620,7 +616,7 @@ mod tests {
         };
         assert_eq!(by_name("core"), Availability::Core);
         assert_eq!(by_name("present"), Availability::Absent);
-        assert_eq!(by_name("semantic"), Availability::Configured);
+        assert_eq!(by_name("lexical"), Availability::Configured);
         assert_eq!(by_name("graph"), Availability::Absent);
 
         let kept = catalogue(&Config::default());

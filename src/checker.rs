@@ -287,8 +287,8 @@ impl Checker<'_> {
 
     /// Which step a written reference names, given what is imported.
     ///
-    /// A binding shadows the namespace and not the step: while `semantic` is
-    /// bound, `semantic.rank` reads a field of that value, and the step stays
+    /// A binding shadows the namespace and not the step: while `lexical` is
+    /// bound, `lexical.rank` reads a field of that value, and the step stays
     /// reachable in its bare form.
     fn resolve(
         &self,
@@ -350,7 +350,7 @@ impl CheckCx for Checker<'_> {
 pub(crate) enum StepRef<'a> {
     /// `| take(5)` — resolved against everything the program imported.
     Bare { name: &'a str, arguments: &'a [Arg] },
-    /// `| semantic.semantic("…")` — always available for an imported
+    /// `| lexical.lexical("…")` — always available for an imported
     /// extension, and the way a reader disambiguates by hand.
     Qualified {
         extension: &'a str,

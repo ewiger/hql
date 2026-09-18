@@ -359,6 +359,7 @@ fn retrieval_data(retrieval: &search::Retrieval) -> Data {
     data.insert_path("query", Data::Str(retrieval.query.clone()));
     data.insert_path("index", Data::Str(retrieval.index.clone()));
     data.insert_path("model", Data::Str(retrieval.model.clone()));
+    data.insert_path("revision", Data::Str(retrieval.revision.clone()));
     data.insert_path("metric", Data::Str(retrieval.metric.clone()));
     data.insert_path("approximate", Data::Bool(retrieval.approximate));
     data

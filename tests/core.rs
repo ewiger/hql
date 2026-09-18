@@ -269,9 +269,9 @@ fn a_near_miss_on_a_step_name_is_suggested() {
 
 #[test]
 fn an_unimported_step_reports_the_import_rather_than_a_misspelling() {
-    let failed = check("1 | semantic(\"anything\")").expect_err("semantic is not imported");
+    let failed = check("1 | lexical(\"anything\")").expect_err("lexical is not imported");
     assert!(
-        failed.message().contains("write `import semantic`"),
+        failed.message().contains("write `import lexical`"),
         "{}",
         failed.message()
     );
@@ -292,7 +292,7 @@ fn an_import_names_a_registered_extension() {
         "{}",
         failed.message()
     );
-    assert_eq!(check("import semantic\n1"), Ok(Type::Int));
+    assert_eq!(check("import lexical\n1"), Ok(Type::Int));
 }
 
 #[test]

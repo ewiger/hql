@@ -153,7 +153,7 @@ fn the_whole_pipeline_runs_from_the_command_line() {
         "--vault",
         VAULT,
         "eval",
-        "import semantic\ncards\n| semantic(\"bearer token authorization\")\n| take(2)\n| expand(depth = 1)\n| table",
+        "import lexical\ncards\n| lexical(\"bearer token authorization\")\n| take(2)\n| expand(depth = 1)\n| table",
     ]);
     assert!(output.status.success(), "{}", stderr(&output));
     let table = stdout(&output);
@@ -260,7 +260,7 @@ fn the_repl_keeps_bindings_and_answers_type_questions() {
 fn builtins_and_config_explain_the_surface_and_the_settings() {
     let listed = hql(&["builtins"]);
     assert!(listed.status.success());
-    for name in ["semantic", "expand", "graph", "take", "typed"] {
+    for name in ["lexical", "expand", "graph", "take", "typed"] {
         assert!(stdout(&listed).contains(name), "{name}");
     }
     // A flat list stops being true once a name can come from two places, so
@@ -276,7 +276,7 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
         assert!(stdout(&listed).contains(provider), "{provider}");
     }
     let configured = stdout(&hql(&["--vault", CONFIGURED, "builtins"]));
-    assert!(configured.contains("semantic 0.1.0 (imported by this vault)"));
+    assert!(configured.contains("lexical 0.1.0 (imported by this vault)"));
     assert!(configured.contains("present 0.1.0 (imported where it is used)"));
 
     let configured = hql(&["--vault", VAULT, "config"]);
@@ -316,7 +316,7 @@ fn a_vault_may_decline_the_prelude_and_import_for_every_program() {
         "--vault",
         CONFIGURED,
         "eval",
-        "cards | semantic(\"bearer token authorization\") | count",
+        "cards | lexical(\"bearer token authorization\") | count",
     ]);
     assert!(ranked.status.success(), "{}", stderr(&ranked));
     assert_eq!(stdout(&ranked).trim(), "1");

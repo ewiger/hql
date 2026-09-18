@@ -41,17 +41,18 @@ cargo install --path . --locked
 
 ```sh
 hql --vault notes/ eval '
-import semantic
+import lexical
 
 cards
-| semantic("bearer token authorization")
+| lexical("bearer token authorization")
 | take(5)
 | expand(depth = 1)
 | graph
 | table'
 ```
 
-`cards` is the vault's cards. `semantic` ranks them against a query and keeps
+`cards` is the vault's cards. `lexical` ranks them by the words they share with
+the query and keeps
 the retrieval — model, metric, index — with every score, because a score is
 evidence rather than relevance. `take` needs elements that carry an order of
 their own, which a card does, so a prefix is reproducible without the vault's

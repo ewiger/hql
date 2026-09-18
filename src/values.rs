@@ -225,6 +225,7 @@ fn retrieval_json(retrieval: &crate::search::Retrieval) -> serde_json::Value {
         "query": retrieval.query,
         "index": retrieval.index,
         "model": retrieval.model,
+        "revision": retrieval.revision,
         "metric": retrieval.metric,
         "approximate": retrieval.approximate,
     })
