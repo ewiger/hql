@@ -22,8 +22,10 @@ the decision behind it is recorded, and its identifier is not reused.
 | CON-06 | Title precedence: derived heading or authored entry | open, needs decision |
 | CON-07 | Precedence between derived, authored and contributed header layers | open, needs decision |
 | CON-08 | Whether a card requires a vault | open, needs decision |
-| CON-09 | Knowledge is day-one design, not future work | open |
-| CON-10 | Links to `first-milestone`, which no longer exists | open |
+| CON-09 | Knowledge is day-one design, not future work | done |
+| CON-10 | Links to `first-milestone`, which no longer exists | done |
+| CON-11 | `typed Relation` over cards becomes `typed RelationCard` | open, corpus residue |
+| CON-12 | `Card` splits into `ConceptCard` and `RelationCard` | done, corpus residue |
 
 ## CON-01 — Drop HmdCard
 
@@ -95,21 +97,42 @@ represent a piece of knowledge is unresolved.
 
 ## CON-09 — Knowledge is day-one design
 
-The type cards now treat knowledge as planned from the start rather than
-deferred. Two files still carry the older framing:
-[knowledge model](../models/domain/knowledge.md) opens "all related syntax and
-runtime support are future work", and
-[architecture](../models/domain/architecture.md) says its declarations "guide
-future work".
-
-Both statements are true about the *implementation*, which supports Int, Bool
-and addition. The item is to make them say that, rather than reading as though
-the knowledge design itself were postponed.
+**Done 2026-09-18.** Both files now separate the settled design from the deferred
+implementation. [Knowledge model](../models/domain/knowledge.md) opens "preferred
+conceptual model, designed from day one rather than deferred… the *implementation*
+is a bootstrap evaluator", and [architecture](../models/domain/architecture.md)
+says the declarations "are settled design, not deferred work; what is deferred is
+the *implementation*". [Graphs](../models/domain/graphs.md) was reworded to
+match. Closes the second half of `INC-07`.
 
 ## CON-10 — Links to a deleted card
 
-`first-milestone.hmd` was removed but is still linked from
-[design status](../wiki/hql/design-status.hmd), [HQL](../wiki/hql.hmd) and
-[design direction](../wiki/design-direction.hmd). Unresolved links are warnings
-in HMD rather than errors, so this is a cleanup: repoint each link or restore the
-card. Related to `INC-12`, which lists four other broken links.
+**Done 2026-09-18.** All three `[[first-milestone]]` links are repointed at
+[bootstrap requirements](../models/requirements/bootstrap.md), which is what the
+card described. `INC-12`'s four other broken links are untouched and still open.
+
+## CON-11 — typed Relation becomes typed RelationCard
+
+`cards | typed Relation | graph` selects nothing, because a card is never a
+`Relation`. The idiom is `cards | typed RelationCard | graph` — see `INC-22`.
+
+Done throughout `doc/`. Residue: the example corpus is not present in this
+working tree, and [corpus direction](../memory/corpus-direction.md) records that
+its rows still carry the old spelling. Closing this item means sweeping
+`examples/` when it is back.
+
+## CON-12 — Card splits into ConceptCard and RelationCard
+
+**Decided.** `Card <: Doc` is the base representation type;
+`ConceptCard <: {Card, Concept}` is the node-occupying default and
+`RelationCard <: Card` is the exception, declared by
+`metadata.knowledge.type == Relation`. `Card <: Concept` is withdrawn. See
+[card family](../memory/card-family.md).
+
+Done in the knowledge and graph models and in the Card, Doc, Graph, type-system,
+knowledge, pipes, link-op, design-status and design-direction cards.
+
+Residue: the example corpus, same reason as `CON-11`. Also unswept are
+`examples/std-lib/`, where `HmdCard`, `MdCard` and `DataCard` implement `Card` —
+that direction is unaffected, since they are representations of the base type,
+but the cases should say which kind they produce.

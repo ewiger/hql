@@ -14,8 +14,22 @@ design model is richer than Graph and is not implemented by the bootstrap.
 | `Proposition` | A claim that can be supported, disputed or constrained |
 | `Evidence` | Material offered in support of or against a claim |
 
+Those are what the domain is about. How it is written down is a second, smaller
+family, with `Card` as its base representation type:
+
+| Type | Written | Role |
+| --- | --- | --- |
+| `Card` | `<: Doc` | Knowledge given a physical document. Says nothing about the subject |
+| `ConceptCard` | `<: {Card, Concept}` | Subject is a concept, so the card is a node |
+| `RelationCard` | `<: Card` | Subject is a relation, so the card clarifies an edge |
+
+`ConceptCard` is the default and the ordinary case, because most knowledge lives
+in nodes. `RelationCard` is opted into with `metadata.knowledge.type == Relation`
+and is the exception. A card's `metadata` is its only public member; the header
+and the body are protected — see [[type-system]].
+
 These roles do not settle constructors, logical syntax or a proof system.
-The universe can draw on document structure, metadata, links, Relation Cards,
+The universe can draw on document structure, metadata, links, relation cards,
 imports and explicit derivations. Namespace visibility and imported knowledge
 merge rules remain open; `knowledge` does not imply unrestricted global access.
 
@@ -27,19 +41,21 @@ data neither gives it identity nor asserts a semantic relation.
 `uplinks` traverse outgoing links and `downlinks` incoming links; a node can
 link to itself.
 
-Significant relationships are preferably given Relation Cards: a card that
+Significant relationships are preferably given relation cards: a card that
 represents a `Relation`, so the relationship gains a body, a name in the vault
 and incoming links of its own. `Relation` is a first-class type here, narrowing
 `Edge[S, T]` — see [[graph-type]] — and never `Card`; a card *carries* one, as
-`card.metadata.relation`, which is refinement and not narrowing. Semantic and
+`card.metadata.relation`, which is refinement and not narrowing. That is why
+`RelationCard` takes no graph parent: it contributes an edge without becoming a
+node, while `ConceptCard <: Concept` does occupy a node position. Semantic and
 document families therefore overlap without either being a kind of the other —
 see [[type-system]].
 
 ```hql
-cards | typed Relation | graph
+cards | typed RelationCard | graph
 ```
 
-Distinct Relation Cards may express conflicting claims about the same endpoints.
+Distinct relation cards may express conflicting claims about the same endpoints.
 Knowledge must retain those identities, conflicts, provenance and evidence.
 Provenance records origin; it does not establish meaning or truth. A derivation
 must retain the rule/model used. An Evidence section can satisfy a structural
@@ -68,6 +84,7 @@ is unresolved. Hosts may choose default presenters by result type, but Knowledge
 requires an explicit view because its projections are equally valid. Additional
 views should not require changes to the semantic types.
 
-See the [knowledge model](../../models/domain/knowledge.md),
+See the [knowledge model](../../models/domain/knowledge.md) for the domain,
+the [graph model](../../models/domain/graphs.md) for its structural peer,
 [presentation alternatives](../../../examples/presentation/knowledge-views.hql)
 and [[hql/design-status]].

@@ -13,8 +13,9 @@ implementation, then refined the design during corpus construction.
   transclusions preserve their defining closure environment.
 - Keep ordinary links lightweight. Significant relationships are Relation Cards,
   with typed endpoints, identity, evidence and prose. Preserve old assertion
-  syntaxes only as design alternatives. `cards | typed Relation | graph` is a
-  core preferred example.
+  syntaxes only as design alternatives. `cards | typed RelationCard | graph` is a
+  core preferred example; the older `typed Relation` spelling is wrong now that a
+  card is never a `Relation` — see [card family](card-family.md).
 - Links are node edges traversed in two directions: `downlinks` (incoming) and
   `uplinks` (outgoing). The `backlinks` keyword is dropped; it named only one
   half of the relation. A node may be its own uplink and downlink.

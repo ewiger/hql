@@ -13,15 +13,16 @@ piping a collection into a function expecting one Card is not implicitly a map.
 
 ```hql
 cards
-| typed Relation
+| typed RelationCard
 | graph
 ```
 
-This preferred example selects Relation Cards and requests a graph of them.
+This preferred example selects relation cards and requests a graph of them.
 `cards` is the reserved keyword for the namespace vault's cards; see
-[[card-type]]. `typed Relation` must check the relevant type/schema contract; a
-header label alone does not establish conformance. The exact application syntax and
-the result type of `graph` remain design questions.
+[[card-type]]. `typed RelationCard` must check the contract, not the
+`metadata.knowledge.type` label alone; an authored entry does not establish
+conformance. The exact application syntax and the result type of `graph`
+remain design questions.
 
 ## Functions as stages
 

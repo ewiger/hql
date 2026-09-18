@@ -17,6 +17,21 @@ document. Both halves exist for every document, including a plain Markdown file
 that carries no metadata of its own — see [[card-type]] for the narrowed kind of
 document that participates in knowledge.
 
+Both fields are `pub`, which is HQL's default for anything declared in a
+`type {..}` construct — a data language starts open, and a document's header and
+body are content rather than machinery. See [[visibility]] for the levels.
+
+`Doc` therefore closes nothing. [[card-type|Card]] does: it overrides `header` to
+`protected` so that its own `metadata` is the one public surface, because three
+representations of a card differ in exactly what a header records. That override
+is a claim about cards, and it leaves `Doc` unchanged — declaring a subtype never
+reaches back into its parent.
+
+Where a format writes authored knowledge entries into the header, HMD's
+`metadata` block being the case that matters, they are ordinary public header
+content here. A card builds its own knowledge layer from them at load; a document
+that is not a card has no such layer, and nothing to build.
+
 The host adapter described in [[hmd-integration]] supplies both halves from the
 existing HMD parser and resolver. The bootstrap evaluator does not yet run any
 of this.
@@ -199,7 +214,7 @@ Downlinks are the direction that needs a vault: a document cannot know what
 points at it by reading itself. Uplinks are readable from the body alone.
 
 When a relationship needs identity, provenance, discussion or its own incoming
-links, it should stop being a link and become a Relation Card — see
+links, it should stop being a link and become a `RelationCard` — see
 [[hql/knowledge]]. That is the boundary this card is defending: a link stays
 cheap and anonymous, and meaning lives in knowledge.
 

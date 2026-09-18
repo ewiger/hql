@@ -30,7 +30,7 @@ returns its last expression; rendering and explicit output are separate.
 Cells close over explicit card environments, with isolated local bindings.
 See [program values](../models/behavior/program-values.md).
 
-Significant relationships are Relation Cards. `cards | typed Relation | graph`
+Significant relationships are relation cards. `cards | typed RelationCard | graph`
 is a core example. Knowledge includes evidence, provenance and conflicting
 claims; Graph is one projection and HmdGraph is a presentation value. See the
 [knowledge model](../models/domain/knowledge.md).
@@ -49,8 +49,9 @@ claims; Graph is one projection and HmdGraph is a presentation value. See the
   including effect policy, dependency order, and exact presentation types.
   Lexical capture and value/context separation are recorded above.
 
-Bootstrap `i64`, `f64`, `+`, and the 256-literal bound prove
-[[first-milestone]]; they do not settle these questions. Float is now a working
+Bootstrap `i64`, `f64`, `+`, and the 256-literal bound prove the
+[bootstrap requirements](../models/requirements/bootstrap.md); they do not settle
+these questions. Float is now a working
 bootstrap type, but decimal semantics, rounding and a numeric tower are not. There is no theorem prover, graph implementation,
 HMD renderer, module system, or large standard library in this repository.
 

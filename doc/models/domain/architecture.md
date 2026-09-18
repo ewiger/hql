@@ -41,6 +41,6 @@ See [integration evidence](../../wiki/hmd-integration.hmd) and
 
 [Program values](../behavior/program-values.md) records last-expression results,
 lexical cell environments and host-controlled presentation. The
-[knowledge model](knowledge.md) distinguishes structural links, Relation Cards,
-Knowledge, Graph and HmdGraph. These declarations guide future work; they do not
-expand the implemented expression core. See the [corpus](../../../examples/README.md).
+[knowledge model](knowledge.md) distinguishes structural links, relation cards,
+Knowledge, Graph and HmdGraph. These are settled design, not deferred work; what
+is deferred is the *implementation*, which stays the bootstrap expression core. See the [corpus](../../../examples/README.md).

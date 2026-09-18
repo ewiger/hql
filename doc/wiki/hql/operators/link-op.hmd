@@ -91,7 +91,7 @@ Three things follow, and they are consequences rather than separate decisions:
   writing the link again addresses it. A vault that needed two distinct edges
   between the same pair — two different claims, kept apart — could not express
   it this way; it would need an edge identity beyond the pair, which is what a
-  Relation Card supplies.
+  `RelationCard` supplies.
 - **The annotation accumulates.** Data arrives from every place the link is
   authored, so the annotation on an edge is not necessarily any one author's
   statement.
@@ -154,7 +154,7 @@ type Link[S, T]     <: Edge[S, T]
 type HmdGraph       <: Graph[Card, Link]
 
 type Relation[S, T] <: Edge[S, T]
-type KnowledgeGraph <: Graph[Concept, Relation]
+type KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}
 ```
 
 That separation is the point. `[[alice]] -> [[project-x]]` is an edge in the
@@ -170,14 +170,12 @@ edge a claim. `relation: parent` is an author's entry in a tree, and reading it
 as a typed relationship is an interpretation that has to be performed and
 retained — see [[hql/knowledge]].
 
-The boundary still holds: when a relationship needs identity, provenance,
+So a link **can** carry data. What it cannot do is acquire identity or assert
+meaning by carrying it. When a relationship needs identity, provenance,
 evidence, discussion or incoming links of its own, it should stop being an edge
-and become a Relation Card. An edge is cheap and anonymous. A Relation Card is a
-document, and other documents can point at it.
-
-> This revises the flat claim on [[doc-type]] and [[hql/knowledge]] that a link is
-> never an edge-property container. It can carry data. What it cannot do is
-> acquire identity or assert meaning by carrying it.
+and become a `RelationCard`: an edge is cheap and anonymous, while a card is a
+document other documents can point at — see [[card-type]] for the two kinds of
+card and why this one takes no node position.
 
 ## Failure
 
@@ -199,5 +197,5 @@ Also open: whether `<-` exists as the mirrored form, how `->` binds against `|`,
 and whether an endpoint may be an expression rather than a bracketed name.
 
 See [[doc-type]] for uplinks and downlinks, [[card-type]] for the vault,
-[[hql/knowledge]] for Relation Cards, [[data-type]] for the edge's data and
+[[hql/knowledge]] for relation cards, [[data-type]] for the edge's data and
 [[hql/design-status]] for what remains undecided.

@@ -4,19 +4,24 @@ tags: [hql, type-system, generics, design]
 # The HQL type system
 
 Three mechanisms do the work, and they are easy to confuse because all three end
-with a value being used at a stronger type than it started with.
+with a value being used at a stronger type than it started with. A fourth,
+visibility, is independent of them and is what keeps the first three from
+leaking representation.
 
 | Mechanism | Written | The question it answers |
 | --- | --- | --- |
 | Subtyping | `Card <: Doc` | Which types stand in for which? |
 | Generics | `Graph[N, E]` | What does this type leave unknown? |
 | Refinement | `card.header.database : PostgresConfig` | What is known about *this value*? |
+| Visibility | `pub metadata : Data` | Who may reach this field? — [[visibility]] |
 
 Subtyping relates whole type domains. Generics abstract over them. Refinement
-concerns evidence about one value, whose representation never changes. They meet
-at exactly one place — a **bound**, `T <: Doc`, where a generic unknown is
-restricted by the subtype relation — and that single meeting point is why one
-relation symbol is enough for the whole language.
+concerns evidence about one value, whose representation never changes. The first
+three meet at exactly one place — a **bound**, `T <: Doc`, where a generic
+unknown is restricted by the subtype relation — and that single meeting point is
+why one relation symbol is enough for the whole language. Visibility crosses all
+of them without being any of them: it says nothing about what a value *is*, only
+about what a holder of it may ask.
 
 ## `<:` narrows
 
@@ -46,6 +51,8 @@ The supertype set is normalized, so an ancestor reachable twice is present once:
 `{Card, Doc}` where `Card <: Doc` already holds says no more than `{Card}`, and
 the redundancy is worth a warning rather than an error.
 
+The case this form exists for is `KnowledgeGraph`, below.
+
 ### What `<:` is not
 
 `<:` states what a value **is**. Three other relations end with a value being
@@ -61,12 +68,14 @@ it. Whether a parameterized capability such as `Renderable[T]` is a type at all,
 or only a registration the checker consults, is open — and it is the same
 question the [trait direction](../../memory/trait-direction.md) records.
 
-**Representation is not ancestry.** A Relation Card represents a `Relation`; it
+**Representation is not ancestry.** A `RelationCard` represents a `Relation`; it
 is not one, and a `Relation` is not a `Card`. See below.
 
-**Projection is not ancestry.** `knowledge | graph` yields a `Graph`, and
-`Knowledge` is not thereby a supertype of anything. A projection is a function
-— see [[graph-type]].
+**Projection is not ancestry.** `knowledge | graph` yields a graph, and
+`Knowledge` is not thereby a supertype of `Graph`, nor `Graph` of `Knowledge`. A
+projection is a function — see [[graph-type]]. What a projection's *result* may
+do is declare both parents for itself, which is a claim about that one type and
+leaves the two domains peers; that case is below.
 
 ## `[T]` abstracts
 
@@ -225,36 +234,52 @@ Two rules keep it honest.
 rewrites it, and losing the refinement loses only knowledge, never data.
 
 **Refinement must be checked.** A `type: WorksOn` entry in a header is an
-author's claim, and `typed Relation` has to verify the contract. An unchecked
+author's claim, and `typed RelationCard` has to verify the contract. An unchecked
 narrowing would let any authored key mint a type, which is the same rule that
 stops `relation: parent` on an edge from making it a `Parent` — see
 [[card-type]] and [[graph-type]]. What a failed narrowing yields is open.
 
-## Relation is not a Card
+## Cards, concepts and relations
 
-`Relation[S, T] <: Card` appeared in several of these cards and is **never
-true**. It is worth keeping the correction here, because the reason it is wrong
-is exactly the boundary this card draws.
-
-`Relation` is a first-class type in the knowledge vocabulary, beside `Concept`,
-`Proposition` and `Evidence` — a meaningful relationship with typed endpoints,
-its own identity, and evidence and provenance behind it. A relation acquires
-none of that from a document. It can be imported from another namespace, derived
-by a rule, or read out of a database, and in each case there is a relation and
-no card anywhere.
-
-A **Relation Card** is then what its name says: a card that *represents* a
-relation, giving it a body, a name in the vault and incoming links of its own.
+The knowledge domain uses all three mechanisms at once, and the shape of its
+type family is the clearest illustration of what each one is for.
 
 ```hql
+type Card <: Doc                      // base representation: knowledge, written down
+
+type ConceptCard  <: {Card, Concept}  // subject is a concept — a node
+type RelationCard <: Card             // subject is a relation — an edge
+```
+
+`Card` says only that a document represents knowledge. What it represents is the
+subtypes' business, and the asymmetry between them is the point.
+
+**`ConceptCard` declares a second parent because it genuinely has one.** A
+concept card *is* a concept; it occupies a node position in a knowledge graph,
+and a function over `Concept` may take it. The supertype set normalizes:
+`{Card, Concept, Doc}` names `Doc` twice, since `Card <: Doc` already holds, so
+`{Card, Concept}` is the form to write.
+
+**`RelationCard` declares no second parent, because it does not have one.**
+
+```hql
+card.metadata.knowledge.type == Relation
 card.metadata.relation : Relation[S, T]
 ```
 
-That is refinement, not narrowing. The card is a `Card`; the relation is a
-`Relation`; neither is a specialization of the other, and the relation is
-reached through the card's knowledge layer like any other metadata. Preferring a
-Relation Card for a significant relationship — over an anonymous annotated edge
-— is unchanged by this, and is argued in [[hql/knowledge]].
+`Relation[S, T] <: Card` is **never true**. `Relation` is a first-class type in
+the knowledge vocabulary, beside `Concept`, `Proposition` and `Evidence` — a
+relationship with typed endpoints, its own identity, and evidence and provenance
+behind it. A relation acquires none of that from a document: it can be imported
+from another namespace, derived by a rule, or read out of a database, and in
+each case there is a relation and no card anywhere.
+
+So a relation card *represents* a relation rather than being one, and the
+relation is reached by refinement through the card's knowledge layer. The
+discriminator is refinement too: `metadata.knowledge.type` is an authored entry,
+so it is a claim the checker must verify against a contract, exactly as
+`relation: parent` on an edge does not mint a `Parent` — see [[card-type]] and
+[[graph-type]].
 
 What `Relation` does narrow is the edge:
 
@@ -263,31 +288,94 @@ type Relation[S, T] <: Edge[S, T]
 ```
 
 An edge has a source, a target and data; a relation has all three and adds
-identity and evidence, so the narrowing is ordinary. A relation's identity is
-its own, which is what makes the knowledge graph a multigraph able to retain two
+identity and evidence, so the narrowing is ordinary. A relation's identity is its
+own, which is what makes the knowledge graph a multigraph able to retain two
 conflicting claims about one pair — see [[graph-type]].
 
-> This replaces the reading on [[card-type]], [[graph-type]] and the
-> [knowledge model](../../models/domain/knowledge.md) that a Relation Card is a
-> narrowing of `Card`, and the supertype-set form `Relation[S, T] <: {Card,
-> Edge[S, T]}` that followed from it. The supertype-set syntax itself stands; it
-> simply is not motivated by this case.
+The three mechanisms, side by side on this one family:
 
-## The three at once
+| Written | Mechanism | What it establishes |
+| --- | --- | --- |
+| `ConceptCard <: {Card, Concept}` | subtyping | every concept card, for all time |
+| `Relation[S, T] <: Edge[S, T]` | subtyping over a generic parent | every relation, at every endpoint pairing |
+| `card.metadata.relation : Relation[S, T]` | refinement | what is known about *this* card |
 
-A card carrying a relation exercises all three mechanisms, each doing only its
-own job:
+The first two are declarations about type domains and hold whether or not any
+value exists. The third could fail for the next card along without disturbing
+either.
+
+## Visibility is a fourth, separate question
+
+Everything above says what a value **is**. Visibility says who may reach its
+fields, and it is independent of all three mechanisms: a type can gain a parent
+without gaining the right to expose what that parent declared.
+
+| Modifier | Reachable from | Inherited |
+| --- | --- | --- |
+| `pub` | anywhere a value of the type is held — **the default** | yes |
+| `protected` | the type itself and its subtypes | yes |
+| `private` | the type itself | **never** |
+
+`pub` by default, because HQL is a data language and a declared field is content
+rather than machinery. A subtype may override what it inherits — `Card` closes
+`Doc`'s `header` to `protected` and leaves `metadata` as its only public surface
+— and because `private` never crosses the subtype boundary, an override only ever
+concerns `pub` and `protected` fields.
+
+**An override only closes.** Widening back to `pub` is not permitted. A subtype
+that needs to republish something its parent shut writes a getter instead,
+`pub title <- super.header.title`, which exposes one name rather than reopening
+the field — and which is why `private`, the level a subtype never receives, is
+the one that makes re-export impossible.
+
+Visibility is also the one place where a subtype acts *on* its parent's
+declaration rather than only adding to it, which is why it is not folded into
+`<:`. It has its own card: see [[visibility]] for the levels, the override rule,
+how an undeclared path inside a [[data-type|Data]] tree inherits from the nearest
+declared field above it, and the worked case on [[card-type]].
+
+## KnowledgeGraph is both
 
 ```hql
-type Card <: Doc                       // subtyping: a card is a document
-type Relation[S, T] <: Edge[S, T]      // subtyping over a generic parent
-card.metadata.relation : Relation[S, T] // refinement: this card carries one
+type KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}
 ```
 
-The first says where `Card` sits for every card there will ever be. The second
-does the same for relations, once, for every endpoint pairing. The third says
-what has been established about one value, and could fail for the next card
-along without disturbing either declaration.
+This is the case the supertype set was invented for, and it is worth reading
+directly against `RelationCard` above. That type declares only `Card`, because a
+card representing a relation is not a relation and `{Card, Edge[S, T]}` would
+claim an ancestry that is not there. `KnowledgeGraph` is the opposite situation.
+A knowledge graph genuinely *is* a graph: concepts are its nodes and relations
+its edges. It genuinely *is* knowledge: it retains conflicting claims,
+provenance, evidence and constraints. Neither parent stands in for the other,
+and dropping either loses something the value really provides. The set is
+earned here and is not earned there, which is the whole test.
+
+The two domains stay peers. `Knowledge` does not become a supertype of `Graph`,
+and the declaration says nothing about any type but this one. What it does say is
+demanding, and worth making explicit:
+
+**Both surfaces must be answerable.** A `KnowledgeGraph` has to respond to
+`nodes`, `edges` and traversal *and* to claims, provenance, evidence and
+satisfaction. A value that answers only the first is a `Graph[Concept, Relation]`
+and should be typed as one.
+
+**The set has to be a real intersection.** If `X <: {A, B}` is only a list of
+declared parents, this declaration promises less than it appears to. This case is
+what decides that open question, because the whole point of it is that both
+contracts hold simultaneously.
+
+**Projection can then be lossless.** `knowledge | graph` has been described as a
+view that keeps adjacency and drops rationale. If its result is a
+`KnowledgeGraph`, nothing is dropped, and a genuinely lossy `Graph[Concept,
+Relation]` stays available as the weaker result for hosts that only draw
+pictures. Whether these are two operations or one whose result type is stronger
+than it used to be is open — see [[graph-type]] and the
+[knowledge model](../../models/domain/knowledge.md).
+
+**Conflicts have to have an answer.** Two concrete parents can disagree: a
+member with the same name and different types, or a shared ancestor reached two
+ways. `{A, B}` currently has no rule for that, and a type intended to be the
+language's central value cannot be the place where the rule is improvised.
 
 ## Open questions
 
@@ -300,14 +388,19 @@ along without disturbing either declaration.
 - Square versus angle brackets for generics, unsettled across these cards.
 - Whether a supertype set is genuinely an intersection type or only a list of
   declared parents, which decides what `X <: {A, B}` means when `A` and `B`
-  conflict.
+  conflict. `KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}` is the case
+  that forces the answer.
 - Whether capability contracts such as `Renderable[T]` are types participating
   in `<:`, or registrations outside the type graph — and how either reading
   coexists with the preference against exposing trait machinery to users.
 - How much refinement survives a boundary: a value passed to an extension, a
   cell, or a host and back.
+- The visibility questions are tracked on [[visibility]]: whether a subtype may
+  widen, where extensions stand relative to `protected`, and whether visibility
+  is a type or a module notion.
 
-See [[data-type]] for the tree being refined, [[card-type]] for the narrowing
-from `Doc` and the card's two layers, [[graph-type]] for `Edge`, `Graph` and
-variance, [[hql/knowledge]] for relations as knowledge, [[hql/collections]] for
-the generic collections and [[hql/design-status]] for what remains undecided.
+See [[data-type]] for the tree being refined, [[visibility]] for who may reach a
+field, [[card-type]] for `Card` and its two kinds, [[doc-type]] for the header
+being protected, [[graph-type]] for `Edge`, `Graph` and variance, [[hql/knowledge]] for relations as knowledge,
+[[hql/collections]] for the generic collections and [[hql/design-status]] for
+what remains undecided.

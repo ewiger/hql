@@ -8,10 +8,12 @@ first-class high-level type.
   and `Evidence`. It has typed endpoints, its own identity, evidence and
   provenance, and it acquires none of that from a document: a relation may be
   imported, derived by a rule or read from a store with no card anywhere.
-- A **Relation Card** is a card that *represents* a relation, reached as
+- A **`RelationCard`** is a card that *represents* a relation, reached as
   `card.metadata.relation : Relation[S, T]`. That is progressive refinement of
   the card's knowledge layer, not narrowing — see
-  [knowledge metadata](knowledge-metadata.md).
+  [knowledge metadata](knowledge-metadata.md). It is a subtype of `Card` and of
+  nothing else, and in particular not of `Concept`: it contributes an edge and
+  is not a node. See [card family](card-family.md).
 - What a relation does narrow is the edge: `Relation[S, T] <: Edge[S, T]` adds
   identity and evidence to source, target and data. A knowledge graph is a
   multigraph because that identity is the relation's own, not because a card

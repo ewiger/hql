@@ -25,25 +25,26 @@ a `contradiction` needs a decision, `stale` and `broken` need only an edit.
 
 | ID | Finding | Kind | State | Where |
 | --- | --- | --- | --- | --- |
-| INC-01 | A chat transcript is pasted into the Card card, reversing its own decisions | contradiction | open | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
+| ~~INC-01~~ | ~~A chat transcript is pasted into the Card card, reversing its own decisions~~ | contradiction | resolved | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
 | ~~INC-02~~ | ~~`header` / `frontmatter` / `metadata` / `fm` name one concept four ways~~ | contradiction | resolved | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
 | ~~INC-03~~ | ~~The `Card` / `HmdCard` alias rests on one sentence in one card~~ | ambiguity | resolved | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
 | INC-04 | `cards : Set<Card>` versus `List[Card]` has a third site the tracked question omits | contradiction | tracked | [fixtures/README.md](../../examples/fixtures/README.md) |
 | INC-05 | `Seq<T>` exists only in the wiki; `List` is the corpus's only sequence | stale | open | collections, corpus |
 | INC-06 | `Option<List[Card]>` mixes both generic bracket styles in one type | stale | open | [graphs/path.hql](../../examples/graphs/path.hql) |
-| INC-07 | Two files still say the evaluator supports only Int, Bool and addition | stale | open | [hql.hmd](../wiki/hql.hmd), [knowledge.md](../models/domain/knowledge.md) |
+| ~~INC-07~~ | ~~Two files still say the evaluator supports only Int, Bool and addition~~ | stale | resolved | [hql.hmd](../wiki/hql.hmd), [knowledge.md](../models/domain/knowledge.md) |
 | INC-08 | Corpus case counts disagree three ways, and no test catches it | stale | open | [README.md](../../README.md), [examples/README.md](../../examples/README.md) |
 | INC-09 | A standard library is both a bootstrap non-goal and a wiki card | ambiguity | open | [bootstrap.md](../models/requirements/bootstrap.md), [std-lib.hmd](../wiki/hql/std-lib.hmd) |
+| INC-22 | `typed Relation` filtered cards by a type no card can have | contradiction | resolved | wiki cards, corpus |
 | ~~INC-10~~ | ~~`refinement-of-types.hmd` is zero bytes, untracked and unlinked~~ | stub | resolved | [type-system.hmd](../wiki/hql/type-system.hmd) |
-| INC-11 | The design-status card table omits an existing card | stale | open | [design-status.hmd](../wiki/hql/design-status.hmd) |
+| ~~INC-11~~ | ~~The design-status card table omits an existing card~~ | stale | resolved | [design-status.hmd](../wiki/hql/design-status.hmd) |
 | INC-12 | Four links point at renamed or nonexistent cards | broken | open | wiki README, hypermarkdown, issues README, kanban.yaml |
 | INC-13 | The wiki breaks its own two rules about wikilink spelling and scope | contradiction | open | [hypermarkdown.hmd](../wiki/hypermarkdown.hmd) and the HQL cards |
-| INC-14 | A directory is linked as though it were a card | stale | open | [hql.hmd](../wiki/hql.hmd) |
+| ~~INC-14~~ | ~~A directory is linked as though it were a card~~ | stale | resolved | [hql.hmd](../wiki/hql.hmd) |
 | INC-15 | Unresolved reference: a warning in the card, a hard error in the corpus | contradiction | open | [doc-type.hmd](../wiki/hql/types/doc-type.hmd), [unresolved-card.hql](../../examples/errors/unresolved-card.hql) |
 | INC-16 | `validate` is used with two incompatible signatures, neither labelled | contradiction | open | `types/`, `design/`, `constraints/` |
 | INC-17 | The Person fixture module contradicts the schema its own README states | contradiction | open | [people.hql](../../examples/fixtures/modules/people.hql), [fixtures/README.md](../../examples/fixtures/README.md) |
 | INC-18 | Corpus expectations name a dozen types no vocabulary defines | contradiction | open | [core.hmd](../wiki/hql/core.hmd), corpus expectations |
-| INC-19 | Prompt context leaked into a design card, documenting files that never existed | stale | open | [design-status.hmd](../wiki/hql/design-status.hmd) |
+| ~~INC-19~~ | ~~Prompt context leaked into a design card, documenting files that never existed~~ | stale | resolved | [design-status.hmd](../wiki/hql/design-status.hmd) |
 | INC-20 | The Kanban README's worked example does not match the real board | stale | open | [issues/README.hmd](../issues/README.hmd), [kanban.yaml](../issues/kanban.yaml) |
 | INC-21 | Typos, missing frontmatter, and an empty proposals index | cosmetic | open | several |
 
@@ -68,15 +69,16 @@ So the same file now offers three competing names for one concept — `header`,
 `metadata`, `frontmatter` — and the "not optional" argument is stated and then
 silently withdrawn. Nothing else in the repository uses `card.metadata`.
 
-**Partly resolved.** The naming question is decided: `header` is the
+**Resolved 2026-09-18.** The transcript is gone and the card owns its prose
+throughout. The naming question was decided first: `header` is the
 document-level tree and is not optional, `metadata` is the card's knowledge
 layer, and `frontmatter` names no field — see
-[knowledge metadata](../memory/knowledge-metadata.md) and `INC-02`. What remains
-is the register problem this finding opened with: the appended transcript should
-not survive, and the `.hmd/**`-backed `metadata.state` idea is worth keeping as
-prose the card owns. The "refinement rather than inheritance" reading of
-`Relation <: Card` is settled the other way: a relation is not a card at all —
-see [relation is not a card](../memory/relation-not-a-card.md).
+[knowledge metadata](../memory/knowledge-metadata.md) and `INC-02`. The
+"refinement rather than inheritance" reading of `Relation <: Card` is settled
+the other way: a relation is not a card at all — see
+[relation is not a card](../memory/relation-not-a-card.md). The two spellings
+can no longer drift apart, because `Card` overrides `header` to `protected` and
+leaves one public path — see [field visibility](../wiki/hql/visibility.hmd).
 
 ## INC-02 — header / frontmatter / metadata / fm
 
@@ -169,6 +171,10 @@ do not:
 - [Knowledge model](../models/domain/knowledge.md), status line: "The working
   evaluator still supports only Int, Bool and addition."
 
+**Resolved 2026-09-18.** Both now say Int, Float and Bool literals with same-type
+addition, and both distinguish the implemented slice from the settled design
+rather than calling the design future work — which also closes `CON-09`.
+
 ## INC-08 — Corpus case counts disagree three ways
 
 | Source | Claim |
@@ -182,6 +188,21 @@ The index table itself is correct and complete: 126 rows, 126 files, no orphan o
 either side. Only the prose totals are stale, and `tests/corpus.rs` does not
 catch them — it asserts row count equals case count, never the sentences. Adding
 that assertion would keep this from recurring.
+
+## INC-22 — typed Relation filtered cards by a type no card can have
+
+**Resolved 2026-09-18**, and worth an identifier because it was load-bearing:
+`cards | typed Relation | graph` appeared across the wiki and the corpus as the
+preferred example, while `Relation <: Card` was being denied everywhere else. If
+a card is never a relation, filtering `cards` to `Relation` selects nothing.
+
+The correction is `cards | typed RelationCard | graph`, which names the type the
+stage can actually produce. Fixed in [pipes](../wiki/hql/types/pipes.hmd),
+[knowledge](../wiki/hql/knowledge.hmd), [Card](../wiki/hql/types/card-type.hmd),
+[Graph](../wiki/hql/types/graph-type.hmd), [type system](../wiki/hql/type-system.hmd)
+and [design direction](../wiki/design-direction.hmd). The corpus was not present in
+this working tree; its rows still use the old spelling and are residue, tracked
+as `CON-11`.
 
 ## INC-09 — The standard library is a card and a non-goal
 
@@ -200,12 +221,13 @@ merged into [type system](../wiki/hql/type-system.hmd), which covers subtyping,
 generics and progressive refinement as one account and is linked from Card, Data,
 Graph, design status and HMD integration.
 
-## INC-11 — The design-status card table is incomplete
+## ~~INC-11 — The design-status card table is incomplete~~
 
-`std-lib` (INC-09) does not appear in the card table in
-[HQL design status](../wiki/hql/design-status.hmd), which otherwise claims to
-enumerate the HQL cards. The same was true of `refinement-of-types`, now listed
-as [type system](../wiki/hql/type-system.hmd).
+**Resolved 2026-09-18.** `std-lib` now has a row, so the table enumerates every
+HQL card again. The finding was that `std-lib` (INC-09) was missing from the card
+table in [HQL design status](../wiki/hql/design-status.hmd), which claims to
+enumerate them; the same had been true of `refinement-of-types`, now listed as
+[type system](../wiki/hql/type-system.hmd).
 
 ## INC-12 — Broken links
 
@@ -240,10 +262,12 @@ wiki graph that the wiki itself breaks:
 then apply it once; and either extend the `[[ ]]` space to `doc/issues/` or
 convert that one link.
 
-## INC-14 — A directory linked as a card
+## ~~INC-14 — A directory linked as a card~~
 
-[HQL overview](../wiki/hql.hmd) links a *directory* as `[doc/wiki/hql/**](hql)`,
-which is neither a wikilink to a card nor a link to a file. It sits between the
+**Resolved 2026-09-18.** The link is now an ordinary relative link to the
+directory. The finding was that [HQL overview](../wiki/hql.hmd) linked a
+directory with a glob in its label and a bare directory name as its target,
+which was neither a wikilink to a card nor a link to a file, sitting between the
 two rules in INC-13 rather than breaking either.
 
 ## INC-15 — Unresolved reference: error or warning?
@@ -308,17 +332,17 @@ type that no card mentions at all. Either demote them or give the vocabulary a
 home; [HQL core](../wiki/hql/core.hmd) says the list is "the current design names",
 which the corpus contradicts by using a dozen more.
 
-## INC-19 — Prompt context leaked into a design card
+## ~~INC-19 — Prompt context leaked into a design card~~
 
-[HQL design status](../wiki/hql/design-status.hmd), under architecture sources,
-opens: "The supplied context names `docs/language-design.md`,
-`docs/knowledge-model.md` and `docs/decisions.md`. Those paths are absent from this
-repository."
+**Resolved 2026-09-18.** The two sentences are gone; the section now opens
+directly on the list of sources that exist.
 
-"The supplied context" is an artifact of how the card was produced, not a fact
-about HQL, and the sentence documents three files that have never existed. The
-useful half — the list of sources that *are* real — should stay; the first two
-sentences should go.
+The finding was: [HQL design status](../wiki/hql/design-status.hmd), under
+architecture sources, opened "The supplied context names
+`docs/language-design.md`, `docs/knowledge-model.md` and `docs/decisions.md`.
+Those paths are absent from this repository." That is an artifact of how the card
+was produced, not a fact about HQL, and it documented three files that never
+existed.
 
 ## INC-20 — The Kanban example does not match the board
 
@@ -329,8 +353,9 @@ it names a file `0001-first-issue.md` that does not exist.
 
 ## INC-21 — Smaller items
 
-- [HQL overview](../wiki/hql.hmd): "Markdown docuemnts" (typo); "closer to rust"
-  (lowercase, beside capitalised Kusto, Scala, Haskell, Lean).
+- [HQL overview](../wiki/hql.hmd): "Markdown docuemnts" (typo) — already absent
+  from the working tree; "closer to rust" (lowercase, beside capitalised Kusto,
+  Scala, Haskell, Lean) — fixed 2026-09-18.
 - [doc/wiki/hql/std-lib.hmd](../wiki/hql/std-lib.hmd) and
   [doc/wiki/hypermarkdown.hmd](../wiki/hypermarkdown.hmd) carry no YAML
   frontmatter, unlike every other card in the wiki.
@@ -338,7 +363,7 @@ it names a file `0001-first-issue.md` that does not exist.
   header row and no rows, and no proposal has been written — consistent, but it
   means every "record this as a proposal" resolution above starts from empty.
 - `doc/status/` (this folder) is not mentioned in the knowledge-base list in
-  [CLAUDE.md](../../CLAUDE.md).
+  [CLAUDE.md](../../CLAUDE.md) — fixed 2026-09-18.
 
 ## Verified consistent
 

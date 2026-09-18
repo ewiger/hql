@@ -39,9 +39,10 @@ keeps every vocabulary a vault invents out of the language — see [[link-op]] f
 the `[[..]] -> [[..]] {..}` form that writes one.
 
 **Carrying data is not being typed.** An edge annotated `relation: parent` is not
-thereby a `Parent` edge. `typed Relation` has to check a contract; a key in a
-tree is an author's claim. This is the same rule that keeps a `type:` entry in a
-header from minting a type — see [[card-type]].
+thereby a `Parent` edge. `typed RelationCard` has to check a contract; a key in
+a tree is an author's claim. This is the same rule that keeps a
+`metadata.knowledge.type` entry from minting a type by itself — see
+[[card-type]].
 
 ## Two specializations, one mechanism
 
@@ -50,13 +51,26 @@ type Link[S, T]     <: Edge[S, T]
 type HmdGraph       <: Graph[Card, Link]
 
 type Relation[S, T] <: Edge[S, T]
-type KnowledgeGraph <: Graph[Concept, Relation]
+type KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}
 ```
 
 | Graph | Nodes | Edges | Comes from |
 | --- | --- | --- | --- |
 | Document graph | documents | authored links | the vault's own structure |
 | Knowledge graph | concepts | relations | interpretation, and it must be performed |
+
+The two declarations are deliberately not symmetric. `HmdGraph` is a graph and
+nothing more: it is what the vault's links look like when read structurally, and
+a host that draws it has everything it needs. `KnowledgeGraph` also narrows
+`Knowledge`, because a graph of concepts and relations that had forgotten its
+conflicting claims, provenance and evidence would not be knowledge any more — it
+would be a picture of knowledge. Whether `HmdGraph` should gain a second parent
+of its own is not currently argued for; a document graph has no comparable
+second contract to keep.
+
+That second parent is what makes the projection able to be lossless, and it is
+the case that forces the supertype set to be a real intersection rather than a
+list of parents — see [[type-system]].
 
 `[[alice]] -> [[project-x]]` is an edge in the first. `WorksOn(alice, project_x)`
 is an edge in the second. They render through the same machinery without being
@@ -78,23 +92,25 @@ identity, evidence and provenance, so the narrowing is ordinary. What it does
 derived by a rule or read out of a database, and in each of those cases there is
 a relation and no document anywhere, so a relation cannot be a kind of card.
 
-A **Relation Card** is a card that represents one, giving it a body, a name in
-the vault and incoming links of its own:
+A `RelationCard` is a card that represents one, giving it a body, a name in the
+vault and incoming links of its own:
 
 ```hql
+card.metadata.knowledge.type == Relation
 card.metadata.relation : Relation[S, T]
 ```
 
 That is refinement of the card's knowledge layer, not a second parent — see
-[[type-system]], which separates the two mechanisms.
+[[type-system]], which separates the two mechanisms. The asymmetry with its
+sibling is worth noting here, because it is a statement about the graph: a
+`ConceptCard` declares `{Card, Concept}` and so occupies a node position, while
+a `RelationCard` declares no graph parent at all. It contributes an edge and is
+not itself a node, which is what keeps `Graph[Concept, Relation]` a graph of
+concepts rather than one with an explained relationship appearing twice.
 
 It also marks where `<:` stops. `Edge[S, T]` is what a relation *is*. Being
 renderable is not: that is a capability, supplied by an extension as
 `Renderable[Html]` rather than by inheritance.
-
-> This replaces an earlier reading on this card and on [[card-type]] that a
-> Relation Card had two supertypes, `{Card, Edge[S, T]}`. The supertype-set
-> syntax stands on its own; this case does not motivate it.
 
 ## Endpoint identity, and where it fails
 
@@ -103,7 +119,7 @@ endpoints, so authoring the same link twice updates one annotation rather than
 adding a second edge. That makes the document graph a simple graph, which is
 right for it — two `[[bob]]` links in `alice` are one dependency stated twice.
 
-A knowledge graph cannot be keyed that way. Distinct Relation Cards may make
+A knowledge graph cannot be keyed that way. Distinct relation cards may make
 conflicting claims about the same pair, and knowledge must retain both with their
 provenance and evidence rather than merging them into one annotated edge — see
 [[hql/knowledge]]. The knowledge graph is therefore a multigraph whose edges have
@@ -176,7 +192,8 @@ when it is a graph over cards.
   traversal, subgraph selection and path queries are functions over it or a
   separate query vocabulary.
 
-See [[link-op]] for the edge-writing operator, [[type-system]] for what `<:`
-does and does not cover, [[card-type]] for the card that may represent a
-relation, [[hql/knowledge]] for the semantic universe, [[hql/collections]] for the node and
-edge collections and [[hql/design-status]] for what remains undecided.
+See the [graph model](../../../models/domain/graphs.md) for the domain this card
+types, [[link-op]] for the edge-writing operator, [[type-system]] for what `<:`
+does and does not cover, [[card-type]] for `Card` and its two kinds, [[hql/knowledge]] for the semantic universe, [[hql/collections]] for
+the node and edge collections and [[hql/design-status]] for what remains
+undecided.

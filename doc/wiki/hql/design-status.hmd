@@ -11,14 +11,16 @@ separate it from both older corpus alternatives and implemented behavior.
 | [[hql/core]] | Small typed functional core and domain vocabulary |
 | [[hql/collections]] | Set, Seq, Map and `cards : Set<Card>` |
 | [[pipes]] | Ordinary functions, composition and data-parallel execution |
-| [[hql/knowledge]] | Semantic universe, Relation Cards and presentation |
+| [[hql/knowledge]] | Semantic universe, the card family and presentation |
 | [[hql/extensions]] | External capabilities, modules and `init.hql` |
 | [[doc-type]] | `Doc`, the header, `format`, sections, links and embeds |
-| [[card-type]] | `Card <: Doc`, the vault, knowledge and the `cards` keyword |
+| [[card-type]] | `Card` and its two kinds, the vault, and the `cards` keyword |
 | [[data-type]] | `Data`, the tree type of headers and structured payloads |
 | [[type-system]] | `<:`, generic parameters and progressive type refinement |
+| [[visibility]] | `pub`/`protected`/`private` on fields, overrides and getters |
 | [[link-op]] | Doc references and the `[[..]] -> [[..]] {..}` link operator |
 | [[graph-type]] | `Graph[N, E]`, `Edge[S, T]`, and the document and knowledge graphs |
+| [[hql/std-lib]] | Placeholder for the standard library; a bootstrap non-goal |
 
 ## Current direction
 
@@ -31,6 +33,21 @@ files import available modules and extensions.
 concepts, relations, propositions and evidence. Knowledge retains conflicting
 claims and provenance; a graph is only one projection. Programs return typed
 values, persistence is explicit, and presentation belongs to a separate layer.
+
+`Card` is the base representation type of the knowledge domain, with two kinds:
+`ConceptCard <: {Card, Concept}` occupies a node position, and
+`RelationCard <: Card` represents an edge without becoming a node. The kind is
+declared by `metadata.knowledge.type` and must be checked, not trusted.
+
+Fields declared in a `type {..}` construct are `pub` by default, with `protected`
+and `private` as opt-ins; a subtype overrides what it inherits, and `private` is
+never inherited at all. An override only closes — widening is not permitted, and
+a subtype that needs to republish a closed field writes a getter,
+`pub title <- super.header.title`, which exposes one name instead of reopening
+the field. `Card` overrides `header` to `protected`, leaving
+`metadata` — built at load from the authored block plus system-supplied entries —
+as its only public surface. The card family is recorded in [[type-system]] and
+visibility in [[visibility]].
 
 The Set/Seq vocabulary supersedes the assumption in older examples that `cards`
 is an ordered List. Those examples remain design inputs, not a final language
@@ -54,13 +71,12 @@ the implementation.
 The implemented slice remains Int/Float/Bool literals and checked same-type
 numeric addition. Its signed 64-bit and double-precision representations, the
 absence of Int-to-Float widening, and the 256-literal limit are provisional
-bootstrap choices, not settled full-language requirements. See [[first-milestone]].
+bootstrap choices, not settled full-language requirements. See the
+[bootstrap requirements](../../models/requirements/bootstrap.md).
 
 ## Architecture sources
 
-The supplied context names `docs/language-design.md`, `docs/knowledge-model.md`
-and `docs/decisions.md`. Those paths are absent from this repository. The existing
-sources used for these cards are:
+The sources these cards were drawn from:
 
 - [[design-direction]] and the [example corpus](../../../examples/README.md).
 - [Knowledge model](../../models/domain/knowledge.md) and

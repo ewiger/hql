@@ -14,8 +14,15 @@ is truly a knowledge attribute — a knowledge-type element.
 - Consequently the knowledge extension refines `card.metadata`, while `git`,
   database or indexer extensions contribute to `card.header`. Both are the same
   progressive-refinement mechanism over one unchanged tree.
+- Superseded in one respect: the authored header entry does not "promote itself"
+  into metadata. `card.metadata` is **constructed at card load** from the
+  authored block plus system-supplied entries, and `Card` overrides `header` to
+  `protected` so there is one public path rather than two. See
+  [field visibility](../wiki/hql/visibility.hmd).
+- `metadata.knowledge.type` lives in this layer and is what distinguishes a
+  `ConceptCard` from a `RelationCard` — see [card family](card-family.md).
 - Open: what a card's metadata holds before an extension declares its shape, and
-  whether an authored header entry can promote itself into metadata.
+  what the system contributes to it at load beyond the authored block.
 
 Recorded in [Card](../wiki/hql/types/card-type.hmd) and
 [type system](../wiki/hql/type-system.hmd). See
