@@ -30,7 +30,7 @@ behind them.
 | INC-29 | `Orderable` ancestry is stated three ways by the cards, the binary and `std/` | contradiction | [type-system.hmd](../wiki/hql/type-system.hmd), [std-lib.hmd](../wiki/hql/std-lib.hmd), `std/`, `src/types/builtin.rs` |
 | INC-28 | `examples/` is described as a record of superseded alternatives; the restored corpus is a runnable notebook | contradiction | two cards, two models, [std/README.md](../../std/README.md) |
 | INC-30 | Contributed metadata lands in the header in one card and in `card.metadata` everywhere else | contradiction | [doc-type.hmd](../wiki/hql/types/doc-type.hmd), [data-type.hmd](../wiki/hql/types/data-type.hmd) |
-| INC-13 | The wiki breaks its own two rules about wikilink spelling and scope | contradiction | [hypermarkdown.hmd](../wiki/hypermarkdown.hmd) and the HQL cards |
+| INC-13 | The card's slug rule contradicts the HMD spec it cites, and 83 links rest on autodiscovery | contradiction | [hypermarkdown.hmd](../wiki/hypermarkdown.hmd) |
 | INC-31 | The collection model is two `.md` files inside a wiki of `.hmd` cards | contradiction | [types/collections/](../wiki/hql/types/collections/) |
 | INC-25 | One link still points into a corpus path that does not exist | broken | [knowledge.hmd](../wiki/hql/knowledge.hmd) |
 | INC-12 | Three links point at renamed or nonexistent cards | broken | hypermarkdown, issues README, kanban.yaml |
@@ -144,40 +144,80 @@ with the second pair — `src/vault.rs` inserts `lexical.model` and
 noticed this under **What this does not settle** and said it belonged here; it
 was never filed.
 
-## INC-13 — The wiki breaks its own linking rules
+## INC-13 — The card's slug rule contradicts the HMD specification
 
-[hypermarkdown.hmd](../wiki/hypermarkdown.hmd) states two rules about the wiki
-graph that the wiki itself breaks:
+[hypermarkdown.hmd](../wiki/hypermarkdown.hmd) states the rule for a `[[ ]]`
+link as naming "a `.hmd` file anywhere under `doc/wiki/` — subfolders included —
+by filename alone". The
+[language specification](https://hypermarkdown.org/wiki/hmd-lang-spec/) the card
+cites in its own opening line defines something different, and the difference is
+not cosmetic.
 
-1. **"The slug names a `.hmd` file … by filename alone (subfolders included)."**
-   Seventy-six links across the HQL cards are path-qualified instead —
-   `[[hql/knowledge]]` twenty-three times, `[[hql/extensions]]` seventeen,
-   `[[hql/design-status]]` ten, `[[hql/collections]]` nine, and so on — beside
-   263 bare ones, often in the same file. The mixture means the rule is being
-   ignored rather than applied, and a reader cannot tell which spelling is
-   canonical.
-2. **"Anything outside `doc/wiki/` … uses ordinary relative Markdown links,
-   never `[[ ]]`."** [doc/issues/README.hmd](../issues/README.hmd) is outside
-   `doc/wiki/` and uses `[[hyper-markdown]]`.
+Under **Grammar**, a page reference is absolute, relative or unqualified, and an
+unqualified reference is either a *bare name* of one segment or an *unqualified
+path* of two or more. The spec is explicit that the two "are collectively
+unqualified references and use the same search phases". So `[[hql/knowledge]]`
+is ordinary grammar rather than a departure from the rule, and the card's
+"by filename alone" both describes one phase of four and forbids a spelling the
+format provides.
 
-The by-filename rule is no longer sufficient on its own. Two filenames now occur
-twice under `doc/wiki/`: `knowledge.hmd` in `hql/` and `hql/extensions/`, and
-`hypermarkdown.hmd` at the wiki root and in `hql/extensions/`. A bare
-`[[knowledge]]` or `[[hypermarkdown]]` is ambiguous, so at least those slugs need
-a path.
+**What the wiki actually does.** The spec's resolution algorithm, run over every
+wikilink under `doc/wiki/` with this repository's effective configuration — no
+`.hmd/config.toml` exists, so the root is `doc/wiki`, autodiscovery is on and its
+mode is `both`, and no card declares an import:
 
-**Resolution needed:** decide whether wiki subfolders take path-qualified slugs,
-then apply it once; and either extend the `[[ ]]` space to `doc/issues/` or
-convert that one link.
+| Outcome | Links |
+| --- | --- |
+| Resolved on the spine — pure path arithmetic from the card outward | 160 |
+| Resolved only by the autodiscovery sweep | 83 |
+| Unresolved, all of them `[[orderable]]` and `[[kanban]]` | 10 |
+| Ambiguous, escaping the root, or malformed | 0 |
+
+Nothing is ambiguous, and the 76 path-qualified links are not the defect. They
+are load-bearing. Two filenames occur twice under `doc/wiki/`: `knowledge.hmd` in
+`hql/` and in `hql/extensions/`, and `hypermarkdown.hmd` at the wiki root and in
+`hql/extensions/`. A bare `[[knowledge]]` resolves by the spine walk to whichever
+is nearer the card that writes it — the extensions card from inside
+`hql/extensions/`, the HQL one from elsewhere under `hql/` — but written in
+[hmd-integration.hmd](../wiki/hmd-integration.hmd), whose spine reaches neither,
+it falls to the sweep and matches both, which is the `HMD002` error. That card
+writes `[[hql/knowledge]]`, and the spec prescribes exactly that: "The remedy is
+to qualify the link, not to memorise a tie-break."
+
+**The real fragility is the 83.** Those resolve only in the spec's last phase,
+which it describes as "a convenience … allowed to fail loudly" — `[[card-type]]`
+written in `hql/`, for instance, whose spine never enters `hql/types/`. They hold
+today only because autodiscovery defaults on. Adding a `.hmd/config.toml` that
+sets `autodiscovery = false`, or a single card opting out with
+`use: [no_autodiscovery]`, unresolves all 83 at once; the spec also warns that
+adding a wildcard import may silently redirect a reference that had resolved this
+way. Nothing in the repository records that dependency.
+
+**The scope rule is sound.** The card's second rule — anything outside
+`doc/wiki/` uses ordinary Markdown links, never `[[ ]]` — matches the spec's
+namespace containment, which addresses nothing outside the namespace root and
+reports a target that escapes it as `HMD003`.
+[doc/issues/README.hmd](../issues/README.hmd) still breaks it with
+`[[hyper-markdown]]`, which is also a dead slug; see `INC-12`.
+
+**Resolution needed:** correct the card's rule to the spec's three reference
+forms and its phase order, rather than applying a house spelling the format does
+not have. Then decide whether the wiki depends on autodiscovery deliberately —
+qualifying those 83 links, or pinning `autodiscovery = true` in a config file
+with a comment saying what rests on it. The one genuine violation to fix is the
+`[[ ]]` link in `doc/issues/`.
 
 ## INC-31 — The collection model is not a card
 
 [collection-types.md](../wiki/hql/types/collections/collection-types.md) and
 [collection.md](../wiki/hql/types/collections/collection.md) sit under
 `doc/wiki/hql/types/`, but [the wiki README](../wiki/README.md) and the project
-instructions both say the wiki holds `.hmd` cards, one concept per file, and
-[hypermarkdown.hmd](../wiki/hypermarkdown.hmd) resolves a slug to a `.hmd` file
-only. So neither file can be the target of a wikilink:
+instructions both say the wiki holds `.hmd` cards, one concept per file. Being
+`.md` puts them outside the graph by the format's own rule, not merely by
+convention: the binding step of the
+[language specification](https://hypermarkdown.org/wiki/hmd-lang-spec/) appends
+`.hmd` to a reference and otherwise looks for a directory's `index.hmd`, so no
+wikilink can name a `.md` file at all. Neither is therefore reachable:
 [collections.hmd](../wiki/hql/collections.hmd) and
 [type-system.hmd](../wiki/hql/type-system.hmd) reach the first by a relative
 Markdown link, nothing under `doc/` links the second, and the

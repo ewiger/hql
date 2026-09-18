@@ -17,9 +17,18 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 7 # to be incremented when adding a new issue card
+  last_id: 10 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0010"
+        title: "`yield` and `bind`: generated sequences as query sources"
+        file: 0010-yield-and-bind.md
+      - id: "0009"
+        title: A function type, and functions as values
+        file: 0009-function-type-and-constructor.md
+      - id: "0008"
+        title: "`cards` is a vault binding, not a keyword"
+        file: 0008-cards-as-a-vault-binding.md
       - id: "0007"
         title: Evaluate a collection literal at its checked element type
         file: 0007-checked-element-type-at-runtime.md
