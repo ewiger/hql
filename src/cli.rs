@@ -114,11 +114,11 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
 
     match &cli.command {
         Command::Builtins => {
-            for builtin in crate::builtins::BUILTINS {
+            for step in crate::extensions::listing() {
                 writeln!(
                     out,
                     "{}\n    {}\n    {}",
-                    builtin.name, builtin.signature, builtin.summary
+                    step.name, step.signature, step.summary
                 )
                 .map_err(|error| error.to_string())?;
             }

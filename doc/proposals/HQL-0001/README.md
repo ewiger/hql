@@ -1,6 +1,6 @@
 # HQL-0001: The extension mechanism
 
-**Status**: drafted
+**Status**: accepted
 **Created**: 2026-09-18
 **Source**: [extensions](../../wiki/hql/extensions.hmd)
 
@@ -128,6 +128,16 @@ A step is written bare; the qualified form exists for disambiguation.
   happened to look at.
 - An unimported step name MUST produce a name error that says which extension
   provides it, when exactly one does.
+- A binding MAY carry the name of an imported extension. A value and a step are
+  read in different positions — a bare step name is only ever written after `|`
+  — so a binding never hides a step and the shadowing is not an error. It does
+  hide the namespace: while `semantic` is bound, `semantic.rank` reads the field
+  `rank` of that value, and the step stays reachable in its bare form.
+- `import` is a statement rather than only an `hql.toml` key, because a program
+  that depends on a capability MUST be able to say so on its own. A query
+  pasted into a document carries its imports with it; a vault's configuration
+  does not travel with it. This is not module resolution: an import names a
+  registered extension, never a path or a package.
 
 ```text
 import semantic
@@ -154,6 +164,10 @@ core → graph → knowledge.
 - The **prelude** is `graph` and `present`, imported unless a vault opts out. A
   prelude exists so that today's programs keep working, and so that the common
   case does not open with two lines of ceremony.
+- A vault MAY opt out with `prelude = false`. The prelude is a compatibility
+  convenience, and a vault that wants every capability stated in the program
+  that uses it must be able to say so; without the opt-out the convenience
+  would be a rule.
 - A vault MAY configure imports:
 
 ```toml
@@ -166,6 +180,10 @@ prelude = false          # optional; omits graph and present
 
 - `hql builtins` MUST group by provider and show which extension supplies each
   step, since a flat list stops being true once a name can come from two places.
+- `hql builtins` MUST list every *registered* extension, marking which of them
+  the current vault resolves. Help and the suggestion index answer the same
+  question, so listing only what is imported would leave a reader unable to
+  find the import a diagnostic just told them to write.
 - The "did you mean" suggestion in `src/builtins.rs` MUST search every
   *registered* extension, not only imported ones, so that a missing import
   reports the import rather than a misspelling.
@@ -227,16 +245,9 @@ cargo test --locked
 cargo clippy --locked --all-targets -- -D warnings
 ```
 
-## Open Questions
-
-- May a binding shadow an imported extension name — `semantic = 1` — and if so,
-  is the qualified form then unavailable, or is the shadowing an error?
-- Is `prelude = false` worth having, or should the prelude be fixed?
-- Does `import` belong in the grammar at all before module resolution exists, or
-  should `hql.toml` be the only mechanism until then?
-- Should `hql builtins` list unimported extensions' steps, or only what the
-  current vault resolves?
-
 ## Changelog
 
 - 2026-09-18: drafted
+- 2026-09-18: accepted; the four open questions settled into the specification —
+  a binding shadows the namespace and not the step, `prelude = false` stays,
+  `import` is a statement, and `hql builtins` lists every registered extension

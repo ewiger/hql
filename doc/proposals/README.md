@@ -8,5 +8,5 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 
 | ID | Status | Title |
 | --- | --- | --- |
-| [HQL-0001](HQL-0001/README.md) | drafted | The extension mechanism |
+| [HQL-0001](HQL-0001/README.md) | accepted | The extension mechanism |
 | [HQL-0002](HQL-0002/README.md) | drafted | Semantic retrieval over a precomputed embedding index |

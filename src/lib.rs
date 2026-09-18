@@ -23,6 +23,7 @@ pub mod cli;
 pub mod data;
 pub mod diagnostics;
 pub mod document;
+pub mod extensions;
 pub mod graph;
 pub mod render;
 pub mod reporting;

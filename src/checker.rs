@@ -3,6 +3,7 @@
 use crate::ast::{Arg, Expr, Kind, Program, Stmt};
 use crate::builtins;
 use crate::diagnostics::Diagnostic;
+use crate::extensions::{self, CheckCx};
 use crate::types::{self, Type};
 use crate::vault::Vault;
 use std::collections::HashMap;
@@ -244,7 +245,7 @@ impl Checker<'_> {
     }
 
     /// Check a lambda argument with its parameter bound to an element type.
-    fn lambda(&mut self, argument: &Arg, parameter: Type) -> Result<Type, Diagnostic> {
+    fn lambda_type(&mut self, argument: &Arg, parameter: Type) -> Result<Type, Diagnostic> {
         let Kind::Lambda {
             parameter: name,
             body,
@@ -264,6 +265,7 @@ impl Checker<'_> {
         result
     }
 
+    /// Dispatch a pipeline step to the extension that provides it.
     fn step(
         &mut self,
         name: &str,
@@ -274,234 +276,37 @@ impl Checker<'_> {
         // A step applied to absence is a step applied to nothing, not a
         // failure: the reference that produced the absence was permitted.
         let input = match input {
-            Type::Option(inner) => inner.as_ref(),
-            other => other,
+            Type::Option(inner) => inner.as_ref().clone(),
+            other => other.clone(),
         };
-        let collection = |input: &Type| -> Result<Type, Diagnostic> {
-            input.element().ok_or_else(|| {
-                Diagnostic::typing(
-                    span.clone(),
-                    format!("`{name}` needs a collection, not {input}"),
-                )
-            })
-        };
-
-        match name {
-            "count" => {
-                collection(input)?;
-                Ok(Type::Int)
-            }
-            "sort" => {
-                let element = collection(input)?;
-                match named_or_first(arguments, "by") {
-                    Some(argument) => {
-                        let key = self.lambda(argument, element.clone())?;
-                        if !key.is_orderable() {
-                            return Err(Diagnostic::typing(
-                                argument.value.span.clone(),
-                                format!("a sort key must be orderable, and {key} is not"),
-                            ));
-                        }
-                    }
-                    None => require_orderable(&element, name, &span)?,
-                }
-                Ok(Type::Seq(Box::new(element)))
-            }
-            "take" => {
-                let element = collection(input)?;
-                let argument = named_or_first(arguments, "n").ok_or_else(|| {
-                    Diagnostic::typing(span.clone(), "`take` needs a count: `take(5)`")
-                })?;
-                let count = self.expression(&argument.value)?;
-                if count != Type::Int {
-                    return Err(Diagnostic::typing(
-                        argument.value.span.clone(),
-                        format!("`take` needs an Int count, not {count}"),
-                    ));
-                }
-                // A prefix must be reproducible, which needs the elements to
-                // carry an order of their own rather than the order they were
-                // discovered in.
-                require_orderable(&element, name, &span)?;
-                Ok(match input {
-                    Type::Ranking(_) => input.clone(),
-                    _ => Type::Seq(Box::new(element)),
-                })
-            }
-            "filter" => {
-                let element = collection(input)?;
-                let argument = named_or_first(arguments, "by").ok_or_else(|| {
-                    Diagnostic::typing(span.clone(), "`filter` needs a predicate: `filter(c => …)`")
-                })?;
-                let result = self.lambda(argument, element.clone())?;
-                if result != Type::Bool {
-                    return Err(Diagnostic::typing(
-                        argument.value.span.clone(),
-                        format!("a filter predicate returns Bool, not {result}"),
-                    ));
-                }
-                Ok(input.with_element(element))
-            }
-            "map" => {
-                let element = collection(input)?;
-                let argument = named_or_first(arguments, "by").ok_or_else(|| {
-                    Diagnostic::typing(span.clone(), "`map` needs a function: `map(c => …)`")
-                })?;
-                // Mapping a set does not decide whether equal outputs collapse,
-                // so the result is a sequence and the question stays open.
-                Ok(Type::Seq(Box::new(self.lambda(argument, element)?)))
-            }
-            "typed" => {
-                let element = collection(input)?;
-                let argument = named_or_first(arguments, "as").ok_or_else(|| {
-                    Diagnostic::typing(span.clone(), "`typed` needs a type: `typed(RelationCard)`")
-                })?;
-                let Kind::Ident(type_name) = &argument.value.kind else {
-                    return Err(Diagnostic::typing(
-                        argument.value.span.clone(),
-                        "`typed` takes a type name",
-                    ));
-                };
-                let wanted = types::named(type_name, &[]).ok_or_else(|| {
-                    Diagnostic::name(
-                        argument.value.span.clone(),
-                        format!("unknown type `{type_name}`"),
-                    )
-                })?;
-                if !wanted.is(&element) && !element.is(&wanted) {
-                    return Err(Diagnostic::typing(
-                        argument.value.span.clone(),
-                        format!("no {element} can be a {wanted}, so this selects nothing"),
-                    ));
-                }
-                Ok(input.with_element(wanted))
-            }
-            "uplinks" | "downlinks" => {
-                if name == "downlinks" && !self.vault.is_present() {
-                    return Err(Diagnostic::name(
-                        span,
-                        "`downlinks` needs a vault: a document cannot know what points at it",
-                    ));
-                }
-                let subject = input.element().unwrap_or_else(|| input.clone());
-                if !subject.is(&Type::Doc) && !matches!(subject, Type::Hit(_)) {
-                    return Err(Diagnostic::typing(
-                        span,
-                        format!("`{name}` needs a card or cards, not {input}"),
-                    ));
-                }
-                Ok(Type::Seq(Box::new(Type::Edge)))
-            }
-            "semantic" => {
-                let element = collection(input)?;
-                if !element.is(&Type::Doc) {
-                    return Err(Diagnostic::typing(
-                        span.clone(),
-                        format!("`semantic` ranks documents, not {element}"),
-                    ));
-                }
-                let argument = named_or_first(arguments, "query").ok_or_else(|| {
-                    Diagnostic::typing(span.clone(), "`semantic` needs a query: `semantic(\"…\")`")
-                })?;
-                let query = self.expression(&argument.value)?;
-                if query != Type::Str {
-                    return Err(Diagnostic::typing(
-                        argument.value.span.clone(),
-                        format!("a query is text, not {query}"),
-                    ));
-                }
-                Ok(Type::Ranking(Box::new(Type::Card)))
-            }
-            "expand" => {
-                if let Some(argument) = named_or_first(arguments, "depth") {
-                    let depth = self.expression(&argument.value)?;
-                    if depth != Type::Int {
-                        return Err(Diagnostic::typing(
-                            argument.value.span.clone(),
-                            format!("`depth` is an Int, not {depth}"),
-                        ));
-                    }
-                }
-                if let Some(argument) = named(arguments, "direction") {
-                    let direction = self.expression(&argument.value)?;
-                    if direction != Type::Str {
-                        return Err(Diagnostic::typing(
-                            argument.value.span.clone(),
-                            format!("`direction` is text, not {direction}"),
-                        ));
-                    }
-                }
-                if !self.vault.is_present() {
-                    return Err(Diagnostic::name(span, "`expand` needs a vault to traverse"));
-                }
-                graph_input(input, name, &span)?;
-                Ok(Type::Graph)
-            }
-            "graph" => {
-                graph_input(input, name, &span)?;
-                Ok(Type::Graph)
-            }
-            "table" | "json" | "text" => Ok(Type::Presentation),
-            other => {
-                let hint = builtins::nearest(other)
-                    .map(|near| format!("; did you mean `{near}`?"))
-                    .unwrap_or_default();
-                Err(Diagnostic::name(
-                    span,
-                    format!("`{other}` is not a pipeline step{hint}"),
-                ))
-            }
-        }
+        let step = extensions::step(name).ok_or_else(|| unknown_step(name, &span))?;
+        (step.check)(self, &input, arguments, span)
     }
 }
 
-fn graph_input(input: &Type, name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
-    if *input == Type::Graph || input.is(&Type::Doc) {
-        // A single card projects to the graph of one node, which is what a
-        // traversal from one card needs as its seed.
-        return Ok(());
+impl CheckCx for Checker<'_> {
+    fn vault(&self) -> &Vault {
+        self.vault
     }
-    let element = input.element().ok_or_else(|| {
-        Diagnostic::typing(
-            span.clone(),
-            format!("`{name}` needs a collection of cards, not {input}"),
-        )
-    })?;
-    let subject = match &element {
-        Type::Hit(inner) => inner.as_ref().clone(),
-        other => other.clone(),
-    };
-    if subject.is(&Type::Doc) {
-        Ok(())
-    } else {
-        Err(Diagnostic::typing(
-            span.clone(),
-            format!("`{name}` needs cards, not {element}"),
-        ))
+
+    fn infer(&mut self, expression: &Expr) -> Result<Type, Diagnostic> {
+        self.expression(expression)
+    }
+
+    fn lambda(&mut self, argument: &Arg, parameter: Type) -> Result<Type, Diagnostic> {
+        self.lambda_type(argument, parameter)
     }
 }
 
-fn require_orderable(element: &Type, name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
-    if element.is_orderable() {
-        return Ok(());
-    }
-    Err(Diagnostic::typing(
+/// The failure for a name no registered extension provides.
+fn unknown_step(name: &str, span: &Range<usize>) -> Diagnostic {
+    let hint = builtins::nearest(name)
+        .map(|near| format!("; did you mean `{near}`?"))
+        .unwrap_or_default();
+    Diagnostic::name(
         span.clone(),
-        format!(
-            "`{name}` needs elements with an order of their own, and {element} has none; \
-             sort with an explicit key first"
-        ),
-    ))
-}
-
-fn named<'a>(arguments: &'a [Arg], name: &str) -> Option<&'a Arg> {
-    arguments
-        .iter()
-        .find(|argument| argument.name.as_deref() == Some(name))
-}
-
-fn named_or_first<'a>(arguments: &'a [Arg], name: &str) -> Option<&'a Arg> {
-    named(arguments, name).or_else(|| arguments.iter().find(|argument| argument.name.is_none()))
+        format!("`{name}` is not a pipeline step{hint}"),
+    )
 }
 
 /// The name and arguments of a pipeline step.
