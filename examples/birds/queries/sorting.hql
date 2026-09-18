@@ -5,7 +5,7 @@
 // expected-type: List<List<String>>
 // expected: [[european-robin], [common-raven], [barn-owl, barn-owl]]
 
-groups : List<List<String>> = [
+groups = [
     ["barn-owl", "barn-owl"],
     ["european-robin"],
     ["common-raven"],

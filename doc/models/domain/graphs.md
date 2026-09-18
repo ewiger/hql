@@ -48,18 +48,18 @@ thereby a `Parent` edge — an authored key never mints a type.
 ## Two instantiations
 
 ```hql
-type Link<S, T>     <: Edge<S, T>
-type HmdGraph       <: Graph<Card, Link>
+type Link<S, T> : Edge<S, T>
+type HmdGraph : Graph<Card, Link>
 
-type Relation<S, T> <: Edge<S, T>
-type KnowledgeGraph <: {Knowledge, Graph<Concept, Relation>}
+type Relation<S, T> : Edge<S, T>
+type KnowledgeGraph : {Knowledge, Graph<Concept, Relation>}
 ```
 
 The node parameters differ in a way worth reading carefully. The document graph
 is over `Card`, because every card is a document and every document is a node in
 it — a relation card included, since structurally it is a file with links like
 any other. The knowledge graph is over `Concept`, so only a `ConceptCard`
-qualifies: `ConceptCard <: {Card, Concept}` supplies the node, while a
+qualifies: `ConceptCard : {Card, Concept}` supplies the node, while a
 `RelationCard` supplies an edge and no node. The same file therefore sits at
 different positions in the two graphs, which is exactly what it means for the
 domains to be peers.
@@ -80,9 +80,9 @@ Both render through the same machinery without being the same object, which is
 the reason `Graph` is parameterized rather than declared once with a
 discriminator.
 
-`Relation<S, T> <: Edge<S, T>` is an ordinary narrowing: an edge has source,
+`Relation<S, T> : Edge<S, T>` is an ordinary narrowing: an edge has source,
 target and data; a relation has those and adds identity, evidence and
-provenance. What is *not* true is `Relation <: Card`. A relation may be
+provenance. What is *not* true is `Relation : Card`. A relation may be
 imported, derived or read from a store with no document anywhere; a
 `RelationCard` merely represents one. See [knowledge model](knowledge.md).
 
@@ -174,7 +174,7 @@ used to be is undecided.
 
 That separates the two readings that have been competing: the projection
 produces a value, and rendering is a capability *of* that value, supplied by an
-extension as `render(Graph) -> Html` rather than inherited through `<:`. The
+extension as `render(Graph) -> Html` rather than inherited through `:`. The
 naming is still unsettled — whether the projection and the view may share the
 name `graph`, and whether `HmdGraph` should be called that when it is a graph
 over cards rather than a presentation.
@@ -200,7 +200,7 @@ boundary the [architecture](architecture.md) draws for documents.
 
 ## Open questions
 
-- **Variance.** `Card <: Doc`, so does `Graph<Card, Link> <: Graph<Doc, Edge>`?
+- **Variance.** `Card : Doc`, so does `Graph<Card, Link> : Graph<Doc, Edge>`?
   A function written over `Graph<Doc, Edge>` is useless if not. Covariance is
   defensible while graphs are immutable values and unsound once one can be
   extended in place, so the answer follows from whether construction is pure.
@@ -218,7 +218,7 @@ boundary the [architecture](architecture.md) draws for documents.
 
 See [Graph](../../wiki/hql/types/graph-type.hmd) for the type card,
 [link operator](../../wiki/hql/operators/link-op.hmd) for the edge-writing
-syntax, [type system](../../wiki/hql/type-system.hmd) for `<:`, generics and
+syntax, [type system](../../wiki/hql/type-system.hmd) for `:`, generics and
 refinement, [knowledge model](knowledge.md) for the other domain,
 [semantic search](semantic-search.md) for the first concrete demand on a
 traversal vocabulary, and the

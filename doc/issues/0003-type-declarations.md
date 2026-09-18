@@ -7,7 +7,7 @@ Branch: `feat/type-declarations`
 could not read a line of it:
 
 ```text
-$ hql eval 'type Link<S, T> <: Edge<S, T>'
+$ hql eval 'type Link<S, T> : Edge<S, T>'
 syntax failure: unexpected character
 ```
 
@@ -18,8 +18,8 @@ and belonged on the board rather than in a comment.
 
 ## Scope
 
-- The `type` statement: `type Name`, `type Name <: Parent`,
-  `type Name <: {A, B}`, record bodies, and generic parameters in both
+- The `type` statement: `type Name`, `type Name : Parent`,
+  `type Name : {A, B}`, record bodies, and generic parameters in both
   positions — `Set<T>`, `type Edge<S, T> { … }`.
 - Optional fields, `metadata? : Data`, per `doc/wiki/hql/fields.hmd`.
 - Checking a declaration: a parent must exist, a supertype set must not join

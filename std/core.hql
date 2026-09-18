@@ -4,7 +4,7 @@
 // See doc/wiki/hql/types/data-type.hmd, option-type.hmd, and
 // types/collections/collection-types.md.
 
-// An open tree whose keys belong to whoever wrote them.
+// An open tree whose keys belong to whoever wrote them - essentially JSON universe
 type Data
 
 // Absence is an ordinary sum type. There is no null.
@@ -18,9 +18,9 @@ type Option<T>
 abstract type Orderable
 
 // Primitive intrinsic orders used by sorting and SortedMap keys.
-type Int <: Orderable
-type Float <: Orderable
-type String <: Orderable
+type Int : Orderable
+type Float : Orderable
+type String : Orderable
 
 // compare(a, b) returns Less, Equal, or Greater for one Orderable type.
 // Supplying a comparison to sort does not change the element's ancestry.

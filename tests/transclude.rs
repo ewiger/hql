@@ -71,3 +71,43 @@ fn a_fence_that_is_not_hql_is_left_alone() {
     assert_eq!(rendered.blocks, 0);
     assert_eq!(rendered.document, source);
 }
+
+#[test]
+fn the_birds_example_wiki_resolves_and_renders_every_query() {
+    let vault = vault::load(Path::new("examples/birds/wiki")).expect("the example wiki");
+    assert!(vault.warnings.is_empty(), "{:?}", vault.warnings);
+    let mut blocks = 0;
+    for card in &vault.cards {
+        for reference in &card.document.references {
+            assert!(
+                vault.resolve(&reference.target).is_some(),
+                "{}: unresolved {}",
+                card.name(),
+                reference.target
+            );
+        }
+        let source = std::fs::read_to_string(&card.document.path).unwrap();
+        let rendered = transclude::render(&source, &vault, Mode::Strict);
+        assert!(
+            rendered.reports.is_empty(),
+            "{}: {:?}",
+            card.name(),
+            rendered.reports
+        );
+        blocks += rendered.blocks;
+        assert_eq!(
+            transclude::render(&rendered.document, &vault, Mode::Strict).document,
+            rendered.document,
+            "{}: rendering is idempotent",
+            card.name()
+        );
+        if rendered.blocks > 0 {
+            assert!(
+                rendered.document.contains("```hql#result"),
+                "{}",
+                card.name()
+            );
+        }
+    }
+    assert!(blocks >= 3, "the collection notebook's queries must run");
+}

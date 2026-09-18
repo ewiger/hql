@@ -40,7 +40,7 @@ type Retrieval {
     approximate : Bool
 }
 
-type Ranking<T> <: Seq<Hit<T>>
+type Ranking<T> : Seq<Hit<T>>
 ```
 
 `Ranking` narrows `Seq` the way a `Relation` narrows an `Edge`: it adds what

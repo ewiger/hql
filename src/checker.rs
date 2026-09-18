@@ -192,24 +192,7 @@ impl Checker<'_> {
                     Diagnostic::name(span, format!("`{name}` is not bound{hint}"))
                 }
             }),
-            Kind::Add(left, right) => {
-                // Addition is homogeneous: there is no implicit widening.
-                let expected = self.expression(left)?;
-                if !matches!(expected.constructor.0, "Int" | "Float") {
-                    return Err(Diagnostic::typing(
-                        left.span.clone(),
-                        "addition requires two Int or two Float operands",
-                    ));
-                }
-                let found = self.expression(right)?;
-                if found != expected {
-                    return Err(Diagnostic::typing(
-                        right.span.clone(),
-                        "addition requires two Int or two Float operands",
-                    ));
-                }
-                Ok(expected)
-            }
+            Kind::Add(..) => self.addition(expression),
             Kind::Compare { left, right, .. } => {
                 let left_type = self.expression(left)?;
                 let right_type = self.expression(right)?;
@@ -311,6 +294,32 @@ impl Checker<'_> {
                 )
             }
         }
+    }
+
+    /// Check a left-associated chain without consuming stack per addition.
+    fn addition(&mut self, mut expression: &Expr) -> Result<TypeRef, Diagnostic> {
+        let mut operands = Vec::new();
+        while let Kind::Add(left, right) = &expression.kind {
+            operands.push((left.as_ref(), right.as_ref()));
+            expression = left;
+        }
+        let expected = self.expression(expression)?;
+        for (left, right) in operands.into_iter().rev() {
+            // Addition is homogeneous: there is no implicit widening.
+            if !matches!(expected.constructor.0, "Int" | "Float") {
+                return Err(Diagnostic::typing(
+                    left.span.clone(),
+                    "addition requires two Int or two Float operands",
+                ));
+            }
+            if self.expression(right)? != expected {
+                return Err(Diagnostic::typing(
+                    right.span.clone(),
+                    "addition requires two Int or two Float operands",
+                ));
+            }
+        }
+        Ok(expected)
     }
 
     /// Check a lambda argument with its parameter bound to an element type.

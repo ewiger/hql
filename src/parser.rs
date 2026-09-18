@@ -210,7 +210,7 @@ impl Parser {
         Ok(Stmt::Expr(self.expression()?))
     }
 
-    /// `type Name<P, Q> <: Parent { field : Type }`, with every part optional
+    /// `type Name<P, Q> : Parent { field : Type }`, with every part optional
     /// after the name.
     fn declaration(&mut self) -> Result<TypeDecl, Diagnostic> {
         let keyword = self.advance();
@@ -244,7 +244,7 @@ impl Parser {
         }
 
         let mut supertypes = Vec::new();
-        if self.eat(&Token::Subtype) {
+        if self.eat(&Token::Colon) {
             self.continuation();
             // In supertype position a set of types is a supertype set, which
             // is what keeps `{A, B}` and `{a: A, b: B}` apart here.
@@ -297,7 +297,7 @@ impl Parser {
                         "expected a constrained parameter",
                     ));
                 };
-                self.expect(&Token::Subtype, "in a type bound")?;
+                self.expect(&Token::Colon, "in a type bound")?;
                 let bound = self.type_annotation()?;
                 end = bound.span.end;
                 bounds.push((parameter, bound));

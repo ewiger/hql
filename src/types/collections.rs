@@ -109,16 +109,16 @@ pub fn keys_type(system: &TypeSystem, map: &TypeRef) -> Result<TypeRef, TypeErro
     system.apply(constructor, [key])
 }
 
-/// Check a sequence's sorting requirements and return its materialized list type.
+/// Check a collection's sorting requirements and return its materialized list type.
 ///
-/// Sets are not sequences. Positional order does not imply that elements are
-/// intrinsically orderable; an explicit comparison supplies that operation's order.
+/// Sorting supplies positions even when the input has none. An explicit
+/// comparison supplies an order without making the element type orderable.
 pub fn sort_type(
     system: &TypeSystem,
-    sequence: &TypeRef,
+    collection: &TypeRef,
     order: SortOrder,
 ) -> Result<TypeRef, TypeError> {
-    let [element] = arguments(system, sequence, SEQ)?;
+    let [element] = arguments(system, collection, COLLECTION)?;
     if order == SortOrder::Intrinsic {
         let expected = ORDERABLE.into();
         if !system.is_subtype(&element, &expected)? {

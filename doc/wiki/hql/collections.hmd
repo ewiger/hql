@@ -3,20 +3,22 @@ tags: [hql, collections, design]
 ---
 # HQL collections
 
-HQL distinguishes membership, order and lookup through three collection types.
-These are language-design contracts, not implemented collection APIs.
+HQL distinguishes membership, positions and lookup through collection contracts
+and concrete carriers. Their declarations are in `std/collections.hql`.
 
 | Type | Intended meaning | Design consequence |
 | --- | --- | --- |
+| `Collection<T>` | Finite occurrences with membership and multiplicity | No positional order or uniqueness promise |
 | `Set<T>` | Unordered collection of distinct elements | No implicit first element or stable iteration order |
 | `Seq<T>` | Positionally ordered sequence, allowing repeated elements | Positions are observable; the *elements* need not be orderable |
 | `List<T>` | A `Seq<T>` held entirely in memory | Length is known; a second traversal is free |
 | `Map<K, V>` | Values associated with distinct keys | Lookup is by key; iteration order is not implied |
 
-Equality, Card identity, key eligibility, missing-key results and duplicate-key
-construction policy need explicit definitions before implementation. Set
-membership must not accidentally equate distinct claims merely because they
-have the same endpoints or text.
+Sets deduplicate using HQL equality, and cards compare by document identity.
+Maps reject duplicate keys and return `Option<V>` for lookup. `OrderedMap`
+preserves key positions; `SortedMap` orders those positions by intrinsic key
+order. See the [collection model](types/collections/collection-types.md) for
+the hierarchy and contracts.
 
 ## Cards are a set
 
@@ -30,14 +32,21 @@ can establish a sequence; merely discovering files must not establish a language
 ordering guarantee. Selecting a reproducible prefix requires a defined order,
 including how equal sort keys are handled.
 
-`cards` is a `Set<Card>`, and `Seq<T>` is what a `sort` or a ranking produces
-when order matters. A prefix of a set is reproducible because its elements carry
-their own ordering key — see [[orderable]].
+`cards` is inferred as `Set<Card>`. Sorting it produces `List<Card>`, which
+satisfies `Seq<Card>`, without an explicit conversion:
+
+```hql
+open = cards | filter(c => c.metadata.status == "todo")
+open | sort(by = c => c.title) | map(c => c.title)
+```
+
+A prefix of a set is reproducible when its elements carry their own ordering
+key — see [[orderable]].
 
 ## `List` narrows `Seq`
 
 ```hql
-List<T> <: Seq<T>
+type List<T> : Seq<T>
 ```
 
 `List` is not an alias for `Seq` and not a second name for the same contract.
@@ -49,8 +58,7 @@ it, and traversing it twice costs what traversing it once did. Every `List` is
 therefore a `Seq`, and the narrowing is the usual one.
 
 `Seq<T>` is an abstract type of law, and the narrowing asserts that
-`List` satisfies it — see [[type-system]], *Abstract types of law*,
-which also records why the distinction may not be worth keeping.
+`List` satisfies it — see [[type-system]], *Abstract types of law*.
 
 ## Ordered is not orderable
 
@@ -86,15 +94,15 @@ foundational property a type has. It is therefore a signature and not a
 supertype:
 
 ```hql
-fn sort<T>(xs: Seq<T>) : Seq<T>
-where T <: Orderable
+fn sort<T>(xs: Collection<T>) : List<T>
+where T : Orderable
 ```
 
 or, when the caller supplies the relation rather than the element type carrying
 it:
 
 ```hql
-fn sort<T>(xs: Seq<T>, by: (T, T) -> Ordering) : Seq<T>
+fn sort<T>(xs: Collection<T>, by: (T, T) -> Ordering) : List<T>
 ```
 
 The second form is what makes `Seq<Function>` sortable without `Function` being
@@ -103,17 +111,18 @@ The second form is what makes `Seq<Function>` sortable without `Function` being
 says the values *have* a key, and supplying one from outside is the other
 signature, not the same one narrowed.
 
-`Ordering` and `SortedSeq<T>` are named here and declared nowhere. Neither is in
-[[hql/core]] or `std/collections.hql` yet, and adding them is part of
-[issue 0004](../../issues/0004-collection-order-vocabulary.md).
+`Ordering` is declared in `std/core.hql`. `SortedSeq<T>` remains a design name;
+sorting currently returns `List<T>`. A key selector such as `by = c => c.title`
+uses the selected key's intrinsic order. Equal keys retain their relative
+positions in a sequence; unordered inputs have no prior positions to preserve.
 
 ## Collection functions
 
-Filtering, mapping, sorting and aggregation should be ordinary typed functions
-used through [[pipes]]. Their signatures must make collection behavior clear.
-Filtering a set can preserve membership semantics. Mapping a set raises a choice:
-whether equal outputs collapse into a set or another collection retains them.
-That choice, generic function syntax and conversion names remain open.
+Filtering, mapping, sorting and aggregation are typed operations used through
+[[pipes]] or direct calls. Filtering a set preserves set semantics. Mapping
+returns a list and retains repeated outputs; `Set(result)` explicitly collapses
+duplicates. Binding annotations are optional because the checker infers these
+types from the input and the supplied lambda.
 
 Unordered inputs give an executor room to partition pure work. Sequence order,
 duplicate behavior and aggregation laws constrain that freedom. A parallel

@@ -17,11 +17,11 @@ A map has its own lookup contract. It is not a collection of entries.
 Its keys can be projected into a collection and queried there.
 
 ```hql#eval
-route : OrderedMap<String, Int> = OrderedMap(
+route = OrderedMap(
     ["european-robin", "barn-owl", "common-raven"],
     [1, 2, 1]
 )
-alphabet : SortedMap<String, Int> = SortedMap(
+alphabet = SortedMap(
     ["european-robin", "barn-owl", "common-raven"],
     [1, 2, 1]
 )

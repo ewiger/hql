@@ -19,9 +19,9 @@ family, with `Card` as its base representation type:
 
 | Type | Written | Role |
 | --- | --- | --- |
-| `Card` | `<: Doc` | Knowledge given a physical document. Says nothing about the subject |
-| `ConceptCard` | `<: {Card, Concept}` | Subject is a concept, so the card is a node |
-| `RelationCard` | `<: Card` | Subject is a relation, so the card clarifies an edge |
+| `Card` | `: Doc` | Knowledge given a physical document. Says nothing about the subject |
+| `ConceptCard` | `: {Card, Concept}` | Subject is a concept, so the card is a node |
+| `RelationCard` | `: Card` | Subject is a relation, so the card clarifies an edge |
 
 `ConceptCard` is the default and the ordinary case, because most knowledge lives
 in nodes. `RelationCard` is opted into with `metadata.knowledge.type == Relation`
@@ -48,7 +48,7 @@ and incoming links of its own. `Relation` is a first-class type here, narrowing
 `Edge<S, T>` — see [[graph-type]] — and never `Card`; a card *carries* one, as
 `card.metadata.relation`, which is refinement and not narrowing. That is why
 `RelationCard` takes no graph parent: it contributes an edge without becoming a
-node, while `ConceptCard <: Concept` does occupy a node position. Semantic and
+node, while `ConceptCard : Concept` does occupy a node position. Semantic and
 document families therefore overlap without either being a kind of the other —
 see [[type-system]].
 

@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Data
+// expected-json: {"distinct_keys":3,"positions":["barn-owl","common-raven","european-robin"],"same_lookup":true}
 
-sorted : SortedMap<String, Int> = SortedMap(
+sorted = SortedMap(
     ["european-robin", "barn-owl", "common-raven"],
     [1, 2, 1]
 )

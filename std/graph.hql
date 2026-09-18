@@ -14,5 +14,5 @@ type Edge<S, T> {
 type Graph<N, E>
 
 // The document graph: authored links over cards.
-type Link<S, T> <: Edge<S, T>
-type HmdGraph   <: Graph<Card, Link>
+type Link<S, T> : Edge<S, T>
+type HmdGraph   : Graph<Card, Link>

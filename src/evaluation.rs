@@ -143,33 +143,7 @@ impl Evaluator<'_> {
                 .get(name)
                 .cloned()
                 .ok_or_else(|| Diagnostic::name(span, format!("`{name}` is not bound"))),
-            Kind::Add(left, right) => {
-                let overflow = || Diagnostic::Overflow { span: span.clone() };
-                match (self.expression(left)?, self.expression(right)?) {
-                    (Value::Int(a), Value::Int(b)) => {
-                        a.checked_add(b).map(Value::Int).ok_or_else(overflow)
-                    }
-                    // Values stay finite, so a saturating sum is reported.
-                    (Value::Float(a), Value::Float(b)) => {
-                        let sum = a + b;
-                        sum.is_finite()
-                            .then_some(Value::Float(sum))
-                            .ok_or_else(overflow)
-                    }
-                    (a, b) => Err(Diagnostic::typing(
-                        if matches!(a, Value::Int(_) | Value::Float(_)) {
-                            right.span.clone()
-                        } else {
-                            left.span.clone()
-                        },
-                        format!(
-                            "addition requires two Int or two Float operands, not {} and {}",
-                            a.type_of(),
-                            b.type_of()
-                        ),
-                    )),
-                }
-            }
+            Kind::Add(..) => self.addition(expression),
             Kind::Compare {
                 left,
                 right,
@@ -238,6 +212,48 @@ impl Evaluator<'_> {
                 self.step(resolved, value, reference.arguments(), step.span.clone())
             }
         }
+    }
+
+    /// Fold a left-associated chain, retaining each partial sum's overflow span.
+    fn addition(&mut self, mut expression: &Expr) -> Result<Value, Diagnostic> {
+        let mut operands = Vec::new();
+        while let Kind::Add(left, right) = &expression.kind {
+            operands.push((expression, left.as_ref(), right.as_ref()));
+            expression = left;
+        }
+        let mut sum = self.expression(expression)?;
+        for (addition, left, right) in operands.into_iter().rev() {
+            let overflow = || Diagnostic::Overflow {
+                span: addition.span.clone(),
+            };
+            sum = match (sum, self.expression(right)?) {
+                (Value::Int(a), Value::Int(b)) => {
+                    a.checked_add(b).map(Value::Int).ok_or_else(overflow)?
+                }
+                (Value::Float(a), Value::Float(b)) => {
+                    let sum = a + b;
+                    if !sum.is_finite() {
+                        return Err(overflow());
+                    }
+                    Value::Float(sum)
+                }
+                (a, b) => {
+                    return Err(Diagnostic::typing(
+                        if matches!(a, Value::Int(_) | Value::Float(_)) {
+                            right.span.clone()
+                        } else {
+                            left.span.clone()
+                        },
+                        format!(
+                            "addition requires two Int or two Float operands, not {} and {}",
+                            a.type_of(),
+                            b.type_of()
+                        ),
+                    ));
+                }
+            };
+        }
+        Ok(sum)
     }
 
     /// The name a link endpoint denotes, whether or not it resolves.

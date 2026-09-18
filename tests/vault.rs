@@ -1,7 +1,7 @@
 //! The vault: loading documents, the card family, traversal and retrieval.
 
 use hql::reporting::Mode;
-use hql::types::Type;
+use hql::types::TypeRef;
 use hql::types::Value;
 use hql::{run, vault};
 use std::path::Path;
@@ -74,6 +74,38 @@ fn typed_selects_the_kind_the_checker_established() {
     assert_eq!(
         text("cards | typed(RelationCard) | map(c => c.name)"),
         "[oauth-defines-bearer]"
+    );
+}
+
+#[test]
+fn a_filtered_card_pipeline_needs_no_annotations_or_conversions() {
+    let vault = fixture();
+    let binding = "open = cards | filter(c => c.metadata.status == \"todo\")\n";
+    for (expression, expected) in [
+        ("open", TypeRef::set(TypeRef::CARD)),
+        (
+            "open | sort(by = c => c.title)",
+            TypeRef::list(TypeRef::CARD),
+        ),
+        (
+            "open | sort(by = c => c.title) | map(c => c.title)",
+            TypeRef::list(TypeRef::STR),
+        ),
+        (
+            "open | sort(by = c => c.title) | map(c => c.title) | table",
+            TypeRef::PRESENTATION,
+        ),
+    ] {
+        assert_eq!(
+            hql::check_in(&format!("{binding}{expression}"), &vault),
+            Ok(expected)
+        );
+    }
+    assert_eq!(
+        text(&format!(
+            "{binding}open | sort(by = c => c.title) | map(c => c.title)"
+        )),
+        "[Bearer tokens, Session cookies]"
     );
 }
 
@@ -194,7 +226,7 @@ fn a_relation_card_contributes_an_edge_without_becoming_a_node() {
 #[test]
 fn an_unresolved_reference_warns_and_yields_absence() {
     let outcome = run("[[nowhere]]", &fixture(), Mode::Strict);
-    assert_eq!(outcome.value, Some(Value::Absent(Type::Card)));
+    assert_eq!(outcome.value, Some(Value::Absent(TypeRef::CARD)));
     assert!(!outcome.failed(), "a forward link is permitted");
     assert_eq!(outcome.reports.len(), 1);
     let report = outcome.reports.iter().next().expect("one warning");
@@ -203,7 +235,7 @@ fn an_unresolved_reference_warns_and_yields_absence() {
 
     // Absence propagates through a field rather than becoming a failure.
     let outcome = run("[[nowhere]].title", &fixture(), Mode::Strict);
-    assert_eq!(outcome.value, Some(Value::Absent(Type::Str)));
+    assert_eq!(outcome.value, Some(Value::Absent(TypeRef::STR)));
 }
 
 #[test]

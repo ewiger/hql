@@ -1,8 +1,12 @@
 # Sets, subtypes, and the pipe boundary
 
-A design conversation on `<:` as the single subtype relation, set-of-supertypes
-syntax, edges as ordinary data, generic contracts such as `Renderable<T>`, and
-what typing the pipe operator does and does not carry.
+A design conversation on a single subtype relation, set-of-supertypes syntax,
+edges as ordinary data, generic contracts such as `Renderable<T>`, and what
+typing the pipe operator does and does not carry.
+
+It is a transcript, so it is left as it was spoken. It writes the subtype
+relation `<:`; HQL now writes it `:`, and
+[type-system](../wiki/hql/type-system.hmd) is what states the current syntax.
 
 ## Converging surface
 

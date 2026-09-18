@@ -11,12 +11,12 @@ type Doc {
 }
 
 // A dialect narrows the body and may declare a shape over part of the header.
-type HmdContent <: Content
+type HmdContent : Content
 
 type HmdHeader {
     metadata? : Data
 }
 
-type HmdDoc <: Doc {
+type HmdDoc : Doc {
     header : HmdHeader        // a partial schema: other paths stay open
 }

@@ -68,7 +68,7 @@ it stays that way. What a type may do is declare a **partial schema**: a shape
 for the paths it knows about, leaving every other path untouched and still open.
 
 ```hql
-type HmdDoc <: Doc {
+type HmdDoc : Doc {
     header : HmdHeader        // a known shape on some paths
 }
 ```

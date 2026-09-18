@@ -3,12 +3,13 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Data
+// expected-json: {"barn_owls":2,"missing":null,"species":3}
 
-counts : Map<String, Int> = Map(
+counts = Map(
     ["european-robin", "barn-owl", "common-raven"],
     [1, 2, 1]
 )
-species : Set<String> = counts.keys
+species = counts.keys
 occurrences : Collection<String> = species
 
 {

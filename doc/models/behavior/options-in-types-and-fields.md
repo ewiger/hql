@@ -194,7 +194,7 @@ type A {
     x? : T
 }
 
-type B <: A {
+type B : A {
     x : T
 }
 ```
@@ -207,7 +207,7 @@ type A {
     x : T
 }
 
-type B <: A {
+type B : A {
     x? : T      // illegal
 }
 ```

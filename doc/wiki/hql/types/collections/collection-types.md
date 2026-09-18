@@ -8,22 +8,22 @@ An `abstract type` is defined by its semantics, laws, and required behavior. It 
 
 A plain `type` is concrete. Values of that type exist at runtime and must have an in-memory representation.
 
-The subtype relation `<:` is semantic ancestry. If `A <: B`, every value of `A` satisfies the contract of `B`.
+The subtype relation `:` is semantic ancestry. If `A : B`, every value of `A` satisfies the contract of `B`.
 
 ```hql
 abstract type Collection<T>
 
-abstract type Seq<T> <: Collection<T>
+abstract type Seq<T> : Collection<T>
 
-type List<T> <: Seq<T>
+type List<T> : Seq<T>
 
-type Set<T> <: Collection<T>
+type Set<T> : Collection<T>
 
 type Map<K, V>
 
-type OrderedMap<K, V> <: Map<K, V>
+type OrderedMap<K, V> : Map<K, V>
 
-type SortedMap<K, V> <: OrderedMap<K, V>
+type SortedMap<K, V> : OrderedMap<K, V>
 
 abstract type Orderable
 ```
@@ -67,7 +67,7 @@ abstract type Collection<T>
 `Seq<T>` is an abstract collection whose elements have stable positions.
 
 ```hql
-abstract type Seq<T> <: Collection<T>
+abstract type Seq<T> : Collection<T>
     // Rust:
     // Preserve positional order through sequence operations.
     // Seq<T> itself has no required storage representation.
@@ -96,7 +96,7 @@ is valid even if `Function` is not `Orderable`.
 `List<T>` is the concrete, materialized form of a sequence.
 
 ```hql
-type List<T> <: Seq<T>
+type List<T> : Seq<T>
     // Rust:
     // Store all elements in memory.
     // Length is immediately available.
@@ -117,7 +117,7 @@ List<T>    concrete materialized sequence
 `Set<T>` is a concrete collection of distinct values.
 
 ```hql
-type Set<T> <: Collection<T>
+type Set<T> : Collection<T>
     // Rust:
     // Materialize the set in memory.
     // Enforce uniqueness using HQL equality semantics.
@@ -153,7 +153,7 @@ map.keys : Set<K>
 `OrderedMap<K, V>` is a map whose keys additionally have stable positions.
 
 ```hql
-type OrderedMap<K, V> <: Map<K, V>
+type OrderedMap<K, V> : Map<K, V>
     // Rust:
     // Preserve a stable key sequence.
     // Iteration over keys and entries follows that sequence.
@@ -197,8 +197,8 @@ A type below `Orderable` has an intrinsic ordering relation.
 Conceptually:
 
 ```hql
-Int <: Orderable
-String <: Orderable
+Int : Orderable
+String : Orderable
 ```
 
 `Orderable` is different from sequence ordering:
@@ -206,7 +206,7 @@ String <: Orderable
 ```text
 Seq<T>         positions are ordered
 
-T <: Orderable values of T can be ordered
+T : Orderable values of T can be ordered
 ```
 
 The two properties are independent.
@@ -216,8 +216,8 @@ The two properties are independent.
 `SortedMap<K, V>` is an ordered map whose key sequence follows the intrinsic ordering of its keys.
 
 ```hql
-type SortedMap<K, V> <: OrderedMap<K, V>
-where K <: Orderable
+type SortedMap<K, V> : OrderedMap<K, V>
+where K : Orderable
     // Rust:
     // Preserve Map and OrderedMap semantics.
     // Key iteration must follow the intrinsic total order of K.
@@ -239,7 +239,7 @@ SortedMap<K, V>
 An `OrderedMap` does not require:
 
 ```hql
-K <: Orderable
+K : Orderable
 ```
 
 A `SortedMap` does.
@@ -249,22 +249,31 @@ A `SortedMap` does.
 Sorting is an operation, not a type named `Sortable`.
 
 ```hql
-fn sort<T>(xs: Seq<T>) : List<T>
-where T <: Orderable
+fn sort<T>(xs: Collection<T>) : List<T>
+where T : Orderable
 ```
 
-The operation consumes sequence semantics, uses the intrinsic ordering of `T`, and produces a concrete materialized sequence.
+The operation accepts any collection, uses the intrinsic ordering of `T`, and
+produces a concrete materialized sequence. A set needs no explicit conversion
+to a list before sorting. The checker infers the element type and the resulting
+`List<T>` from the input.
 
 An explicit comparison may supply the ordering directly:
 
 ```hql
 fn sort<T>(
-    xs: Seq<T>,
+    xs: Collection<T>,
     by: (T, T) -> Ordering
 ) : List<T>
 ```
 
 Providing such a comparison does not make `T` a subtype of `Orderable`. The ordering came from the operation rather than from the type itself.
+
+A key selector such as `cards | sort(by = c => c.title)` orders by the selected
+key's intrinsic order. Type annotations on bindings are optional; the checker
+infers both the collection's element type and the selector's parameter type.
+Equal keys retain their relative positions when the input is a sequence. An
+unordered collection promises no relative order among equal keys.
 
 ## Complete declaration
 
@@ -283,19 +292,19 @@ abstract type Collection<T>
     // No runtime Value representation.
 
 
-abstract type Seq<T> <: Collection<T>
+abstract type Seq<T> : Collection<T>
     // Rust:
     // Law-only positional collection abstraction.
     // Preserve sequence order through sequence operations.
 
 
-type List<T> <: Seq<T>
+type List<T> : Seq<T>
     // Rust:
     // Concrete materialized sequence.
     // All elements exist in memory.
 
 
-type Set<T> <: Collection<T>
+type Set<T> : Collection<T>
     // Rust:
     // Concrete materialized collection.
     // Values are unique.
@@ -309,14 +318,14 @@ type Map<K, V>
     // No key order is guaranteed.
 
 
-type OrderedMap<K, V> <: Map<K, V>
+type OrderedMap<K, V> : Map<K, V>
     // Rust:
     // Concrete map with stable key sequence.
     // map.keys : Seq<K>
 
 
-type SortedMap<K, V> <: OrderedMap<K, V>
-where K <: Orderable
+type SortedMap<K, V> : OrderedMap<K, V>
+where K : Orderable
     // Rust:
     // Concrete ordered map.
     // Key sequence follows K's intrinsic ordering.
@@ -329,7 +338,7 @@ Seq<T>             order belongs to element positions
 
 OrderedMap<K, V>   order belongs to key positions
 
-K <: Orderable     order belongs intrinsically to values of K
+K : Orderable     order belongs intrinsically to values of K
 ```
 
 `SortedMap<K, V>` is where the latter two meet.

@@ -3,6 +3,7 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Data
+// expected-json: {"keys":0,"observations":0,"saw_owl":false,"species":0}
 
 sightings : List<String> = []
 species : Set<String> = Set<String>([])

@@ -8,13 +8,13 @@ with a value being used at a stronger type than it started with.
 
 | Mechanism | Written | The question it answers |
 | --- | --- | --- |
-| Subtyping | `Card <: Doc` | Which types stand in for which? |
+| Subtyping | `Card : Doc` | Which types stand in for which? |
 | Generics | `Graph<N, E>` | What does this type leave unknown? |
 | Refinement | `card.header.database : PostgresConfig` | What is known about *this value*? |
 
 Subtyping relates whole type domains. Generics abstract over them. Refinement
 concerns evidence about one value, whose representation never changes. They meet
-at exactly one place — a **bound**, `T <: Doc`, where a generic unknown is
+at exactly one place — a **bound**, `T : Doc`, where a generic unknown is
 restricted by the subtype relation — and that single meeting point is why one
 relation symbol is enough for the whole language.
 
@@ -31,21 +31,26 @@ see [[fields]].
 alice : Person
 ```
 
-means that `alice` is an inhabitant of `Person`, or equivalently that the expression `alice` has type `Person`. The notation `x : T` is a typing judgment about a value.
+means that `alice` is an inhabitant of `Person`, or equivalently that the
+expression `alice` has type `Person`. The notation `x : T` is the conventional
+type-theoretic typing judgment about a value. Set membership uses `x ∈ A`;
+it is a different judgment from assigning a type to an expression.
 
-**Subtyping** relates one type to another type.
+**Subtyping** relates one type to another type, and HQL writes it with the same
+`:`, under the `type` keyword:
 
 ```hql
-HmdCard <: Card
-Card <: Doc
+type HmdCard : Card
+type Card : Doc
 ```
 
-`A <: B` means that every value inhabiting `A` may also be treated as a value of `B`. Therefore:
+`A : B` means that every value inhabiting `A` may also be treated as a value of
+`B`. Therefore:
 
 ```hql
 card : HmdCard
-HmdCard <: Card
-Card <: Doc
+type HmdCard : Card
+type Card : Doc
 ```
 
 implies:
@@ -55,72 +60,77 @@ card : Card
 card : Doc
 ```
 
-Subtyping is a relation between types; inhabitation is a relation between values and types.
+Subtyping is a relation between types; inhabitation is a relation between values
+and types. The two readings never compete for a reader, because the `type`
+keyword marks a type declaration, a binding annotation describes a value, and
+a `where` bound constrains a type parameter. A
+dedicated `<:` would carry no information the keyword does not already carry, so
+HQL spends one symbol rather than two.
 
-**Inheritance** is a mechanism for defining one type in terms of another, usually by inheriting fields, operations, implementations, or declarations. It concerns how a type is constructed or defined.
+**Inheritance** is a mechanism for defining one type in terms of another,
+usually by inheriting fields, operations, implementations, or declarations. It
+concerns how a type is constructed or defined.
 
-Inheritance and subtyping are therefore distinct concepts. A language may make inheritance produce a subtype relationship, but this is a language-design choice rather than the definition of subtyping itself.
+Inheritance and subtyping are therefore distinct concepts. A language may make
+inheritance produce a subtype relationship, but this is a language-design choice
+rather than the definition of subtyping itself.
 
-In HQL the notation can remain explicit:
+In HQL the two readings of `:` are told apart by context alone:
 
 ```hql
-x : T        // x inhabits T
-
-A <: B       // A is a subtype of B
+x : T             // x inhabits T
+type A : B        // A is a subtype of B
 ```
 
-Thus `:` operates between a value and a type, while `<:` operates between two types.
 
+## `:` narrows
 
-## `<:` narrows
-
-`Card <: Doc` means that `Card` is a **specialization** of `Doc`: every card
+`Card : Doc` means that `Card` is a **specialization** of `Doc`: every card
 satisfies the contract of a document, while adding structure or stronger
 constraints of its own. The relation reads from the specific toward the general,
 and a value of the subtype is usable wherever the supertype is expected.
 
 Nothing is extended or mutated by writing it. `Doc` is unchanged and unaware;
-declaring `Card <: Doc` makes a claim about `Card` alone. That is why narrowing
-composes freely — `Card <: Doc` and `Person <: Card` give `Person <: Doc`
+declaring `Card : Doc` makes a claim about `Card` alone. That is why narrowing
+composes freely — `Card : Doc` and `Person : Card` give `Person : Doc`
 without either declaration being consulted about the other.
 
 ### A type may narrow several at once
 
 ```hql
-type X <: {A, B, C}
+type X : {A, B, C}
 ```
 
-The braces are the ordinary set literal, and the reading is the obvious one: `X`
-is a subtype of every type in this set. It is what a type system with an
-intersection operator would write `A & B & C`, obtained without spending `&` on
-it. In supertype position the grammar knows a set of types is a supertype set,
-which is what keeps `{A, B}` and `{a: A, b: B}` apart there as everywhere else.
+The braces hold a set of supertypes: `X` declares each of `A`, `B`, and `C` as
+a parent and must satisfy every declared parent. They do not construct a union
+or intersection type. In supertype position the grammar reads `{A, B}` as a
+supertype set, while `{a: A, b: B}` describes fields.
 
 The supertype set is normalized, so an ancestor reachable twice is present once:
-`{Card, Doc}` where `Card <: Doc` already holds says no more than `{Card}`, and
+`{Card, Doc}` where `Card : Doc` already holds says no more than `{Card}`, and
 the redundancy is worth a warning rather than an error.
 
 The case this form exists for is `KnowledgeGraph`, below.
 
-### What `<:` is not
+### What `:` is not
 
-`<:` states what a value **is**. Three other relations end with a value being
+`:` states what a value **is**. Three other relations end with a value being
 used at a stronger type, and none of them is subtyping.
 
-**Capability is not ancestry.** `Graph <: Renderable<Html>` is tempting and
+**Capability is not ancestry.** `Graph : Renderable<Html>` is tempting and
 wrong in the same way for every renderable type: it declares a parent whose
 implementation does not exist anywhere in the type graph, and the checker is
 left asking where `render` comes from. A capability is supplied *for* a type, by
 an [[hql/extensions|extension]] registering `render(Graph) -> Html`, not
 inherited by it. HQL knows the type; the extension knows what can be done with
 it. A capability is therefore a **registration the checker consults**, not a
-type participating in `<:`. That follows from HQL having no traits: there is
+type participating in `:`. That follows from HQL having no traits: there is
 nothing for `Renderable<T>` to be except a registration — see *There are no
 traits* below. What a parameterized registration looks like is still a design
 question; whether it is a type is not.
 
 `Orderable` is the contrasting case and is genuine ancestry. A card's ordering
-key is its own name, not something an extension supplies, so `Card <: Orderable`
+key is its own name, not something an extension supplies, so `Card : Orderable`
 is an ordinary narrowing — see [[orderable]].
 
 **Representation is not ancestry.** A `RelationCard` represents a `Relation`; it
@@ -144,7 +154,7 @@ them is why none of them needs a trait:
 
 | What is being said | The mechanism |
 | --- | --- |
-| The value genuinely **is** the thing | ordinary `<:` — `Card <: Doc`, `Card <: Orderable` |
+| The value genuinely **is** the thing | ordinary `:` — `Card : Doc`, `Card : Orderable` |
 | Something can be **done with** the value, by someone else | an [[hql/extensions|extension]] registers `render(Graph) -> Html` |
 | Several types happen to have **the same fields** | a partial schema over an open [[data-type|Data]] tree — see [[fields]] |
 
@@ -159,7 +169,7 @@ Absence is not part of this. `Option` is an ordinary sum type, not a trait — s
 
 ## Abstract types of law
 
-The `<:` section above says what narrowing does to the subtype. This one says
+The `:` section above says what narrowing does to the subtype. This one says
 what stands on the other side of the relation.
 
 An **abstract type** is defined by an algebraic or logical specification rather
@@ -170,21 +180,21 @@ numbers in order — and it prescribes no layout, no storage and no fields.
 **An abstract type is not a supertype.** It exists on its own terms, declared
 and complete, whether or not anything ever narrows it. *Supertype* is a **role
 conferred by someone else's declaration**, not a kind of type: `Seq<T>` becomes
-a supertype of `List<T>` at the moment `List<T> <: Seq<T>` is written, and
+a supertype of `List<T>` at the moment `List<T> : Seq<T>` is written, and
 `Seq<T>` is neither changed nor consulted by that. This is the narrowing
 section's point read from the other end — `Doc` is unchanged and unaware, and
-declaring `Card <: Doc` makes a claim about `Card` alone.
+declaring `Card : Doc` makes a claim about `Card` alone.
 
-What `<:` asserts is that the laws are satisfied:
+What `:` asserts is that the laws are satisfied:
 
 ```hql
-type Seq<T>        // an abstract type, defined by its laws
-List<T> <: Seq<T>  // an assertion that List satisfies them
+abstract type Seq<T> : Collection<T>  // positional laws
+type List<T> : Seq<T>                 // a materialized carrier
 ```
 
-In plain terms: **`Seq<T>` is an abstract type of law, and `A <: B`
+In plain terms: **`Seq<T>` is an abstract type of law, and `A : B`
 asserts that `A` satisfies the laws of `B`.** It is why the checker is entitled
-to reject a narrowing it cannot support, and why `Card <: Orderable` is genuine
+to reject a narrowing it cannot support, and why `Card : Orderable` is genuine
 ancestry rather than a capability: the law is about the card's own name, so the
 card is in a position to satisfy it.
 
@@ -200,7 +210,7 @@ the type:
 
 | Part | Where it sits |
 | --- | --- |
-| the declaration | one short line in [`std/`](../../../std/README.md) — `type Seq<T>` in `collections.hql` |
+| the declaration | one short line in [`std/`](../../../std/README.md) — `abstract type Seq<T> : Collection<T>` in `collections.hql` |
 | the law it stands for | the comment beside that line, and the card arguing it |
 | enforcement | the Rust implementation under `src/` |
 
@@ -210,29 +220,22 @@ values of the type — where it is not. `Seq`'s positional law is of the second
 kind: nothing verifies that positions exist, and everything that builds a `Seq`
 supplies them.
 
-Nothing under `std/` is read by the binary yet — see
-[issue 0003](../../issues/0003-type-declarations.md) — so today the third column
-carries the whole weight, and the first two are prose that a test cannot
-contradict.
+The binary carries the built-in declarations in Rust. Tests check the source
+declarations in `std/` against those built-ins, while evaluation enforces the
+behavioral laws. See [issue 0003](../../issues/0003-type-declarations.md).
 
 ### What this decides about `Seq` and `List`
 
-Reading `Seq<T>` as the abstraction makes the choice between it and `List<T>`
-not a naming competition. `Seq<T>` is the mathematical object HQL cares about.
-`List<T> <: Seq<T>` — the elements held rather than produced — earns its place
-only if HQL genuinely needs to distinguish one **representation** of that
-abstraction from another, which is a question about what the language does, not
-about which word reads better.
+`Seq<T>` specifies positions without prescribing storage. `List<T>` is its
+concrete materialized carrier, represented by `Value::List`. Both are named by
+`TypeConstructor` and applied through `TypeRef`; abstract types such as `Seq`
+and `Orderable` have no separate runtime value variant.
 
-The declaration stands in [`std/collections.hql`](../../../std/collections.hql) pending that
-question, and the question itself is
-[issue 0004](../../issues/0004-collection-order-vocabulary.md). Two observations
-bear on it. The bootstrap evaluator's `Value::Seq` holds an `Rc<Vec<Value>>`, so
-the only representation currently implemented is the materialized one — the
-evaluator's `Seq` *is* a `List`. And `Orderable`, by contrast, has no `Value`
-variant at all and is the one type in `Type` that does not: it is an abstract
-type of law and nothing else, which is what a law-only supertype looks like
-when it reaches code.
+Bindings infer their types from expressions. An annotation can request a
+broader view, such as `observations : Collection<String> = sightings`, but
+ordinary pipelines need none. Sorting accepts `Collection<T>` and produces
+`List<T>`, so `cards | sort(by = c => c.title)` directly orders the inferred
+card set. See the [collection model](types/collections/collection-types.md).
 
 ## `<T>` abstracts
 
@@ -278,7 +281,7 @@ wants. A **bound** restricts it with the subtype relation:
 
 ```hql
 fn titles<T>(docs: Collection<T>) : Collection<String>
-where T <: Doc
+where T : Doc
 ```
 
 `T` is still unknown, and the body may now use everything `Doc` guarantees. The
@@ -289,21 +292,21 @@ This is the whole of the interaction, and it is worth stating what it is not.
 Subtyping describes relationships between concrete type domains that exist
 whether or not any function is written. Generics let one function range over a
 family of such domains. A bound is where a function says which part of the
-lattice it needs, and `<:` is the only vocabulary it needs to say so:
+lattice it needs, and `:` is the only vocabulary it needs to say so:
 
 ```hql
-fn show<T, R>(x: T) : R
-where T <: Renderable<R>
+fn ordered<T>(xs: Collection<T>) : List<T>
+where T : Orderable
 ```
 
-A separate constraint syntax — Rust's `T: Renderable<R>` — would introduce a
-second relation symbol meaning something close enough to `<:` to be confusing and
-different enough to have to be learned. One symbol is the stronger design, and
-the more compact `fn show<T <: Renderable<R>, R>(x: T)` is the same relation
-inlined. Which form the grammar takes is open; that it is `<:` in both is not.
+A bound uses the same subtype relation as a declaration. The `where` context
+identifies the constrained parameter, just as `type` identifies a declaration,
+so both use `:`. The parser accepts type-declaration bounds such as
+`type SortedMap<K, V> : OrderedMap<K, V> where K : Orderable`; the function
+signatures above illustrate the same relation.
 
-**Variance is open.** `Card <: Doc` does not by itself decide whether
-`Graph<Card, Link> <: Graph<Doc, Edge>` holds, and a function written over
+**Variance is open.** `Card : Doc` does not by itself decide whether
+`Graph<Card, Link> : Graph<Doc, Edge>` holds, and a function written over
 `Graph<Doc, Edge>` is useless if it does not. Covariance is defensible while
 graphs are immutable values and unsound as soon as one can be extended in place,
 so the answer depends on decisions about construction that have not been made —
@@ -404,10 +407,10 @@ The knowledge domain uses all three mechanisms at once, and the shape of its
 type family is the clearest illustration of what each one is for.
 
 ```hql
-type Card <: Doc                      // base representation: knowledge, written down
+type Card : Doc                    // base representation: knowledge, written down
 
-type ConceptCard  <: {Card, Concept}  // subject is a concept — a node
-type RelationCard <: Card             // subject is a relation — an edge
+type ConceptCard : {Card, Concept}  // subject is a concept — a node
+type RelationCard : Card           // subject is a relation — an edge
 ```
 
 `Card` says only that a document represents knowledge. What it represents is the
@@ -416,7 +419,7 @@ subtypes' business, and the asymmetry between them is the point.
 **`ConceptCard` declares a second parent because it genuinely has one.** A
 concept card *is* a concept; it occupies a node position in a knowledge graph,
 and a function over `Concept` may take it. The supertype set normalizes:
-`{Card, Concept, Doc}` names `Doc` twice, since `Card <: Doc` already holds, so
+`{Card, Concept, Doc}` names `Doc` twice, since `Card : Doc` already holds, so
 `{Card, Concept}` is the form to write.
 
 **`RelationCard` declares no second parent, because it does not have one.**
@@ -426,7 +429,7 @@ card.metadata.knowledge.type == Relation
 card.metadata.relation : Relation<S, T>
 ```
 
-`Relation<S, T> <: Card` is **never true**. `Relation` is a first-class type in
+`Relation<S, T> : Card` is **never true**. `Relation` is a first-class type in
 the knowledge vocabulary, beside `Concept`, `Proposition` and `Evidence` — a
 relationship with typed endpoints, its own identity, and evidence and provenance
 behind it. A relation acquires none of that from a document: it can be imported
@@ -443,7 +446,7 @@ so it is a claim the checker must verify against a contract, exactly as
 What `Relation` does narrow is the edge:
 
 ```hql
-type Relation<S, T> <: Edge<S, T>
+type Relation<S, T> : Edge<S, T>
 ```
 
 An edge has a source, a target and data; a relation has all three and adds
@@ -455,8 +458,8 @@ The three mechanisms, side by side on this one family:
 
 | Written | Mechanism | What it establishes |
 | --- | --- | --- |
-| `ConceptCard <: {Card, Concept}` | subtyping | every concept card, for all time |
-| `Relation<S, T> <: Edge<S, T>` | subtyping over a generic parent | every relation, at every endpoint pairing |
+| `ConceptCard : {Card, Concept}` | subtyping | every concept card, for all time |
+| `Relation<S, T> : Edge<S, T>` | subtyping over a generic parent | every relation, at every endpoint pairing |
 | `card.metadata.relation : Relation<S, T>` | refinement | what is known about *this* card |
 
 The first two are declarations about type domains and hold whether or not any
@@ -484,7 +487,7 @@ metadata a card assembles.
 ## KnowledgeGraph is both
 
 ```hql
-type KnowledgeGraph <: {Knowledge, Graph<Concept, Relation>}
+type KnowledgeGraph : {Knowledge, Graph<Concept, Relation>}
 ```
 
 This is the case the supertype set was invented for, and it is worth reading
@@ -506,10 +509,9 @@ demanding, and worth making explicit:
 satisfaction. A value that answers only the first is a `Graph<Concept, Relation>`
 and should be typed as one.
 
-**The set has to be a real intersection.** If `X <: {A, B}` is only a list of
-declared parents, this declaration promises less than it appears to. This case is
-what decides that open question, because the whole point of it is that both
-contracts hold simultaneously.
+**Every declared supertype must hold.** `X : {A, B}` names a set of two
+supertypes, and `X` must satisfy both contracts. The set records those parents;
+it does not introduce a separate compound type.
 
 **Projection can then be lossless.** `knowledge | graph` has been described as a
 view that keeps adjacency and drops rationale. If its result is a
@@ -526,19 +528,15 @@ language's central value cannot be the place where the rule is improvised.
 
 ## Open questions
 
-- Whether `List<T> <: Seq<T>` is needed at all, which turns on whether HQL ever
-  distinguishes two representations of the sequence abstraction — see
-  [issue 0004](../../issues/0004-collection-order-vocabulary.md).
 - Whether narrowing is nominal or structural, and what a failed narrowing yields
   — an `Option`, a diagnostic, or a value carrying its failure.
 - The spelling of validation and refinement at the call site: `validate<Person>(card)`,
   a `where` clause, or a predicate that the checker records.
 - Variance of generic parameters, which depends on whether constructed values
   are immutable.
-- Whether a supertype set is genuinely an intersection type or only a list of
-  declared parents, which decides what `X <: {A, B}` means when `A` and `B`
-  conflict. `KnowledgeGraph <: {Knowledge, Graph<Concept, Relation>}` is the case
-  that forces the answer.
+- How conflicting requirements from parents in a supertype set are diagnosed.
+  Every declared parent must hold; the set notation and its normalization stay
+  the same.
 - What a parameterized capability registration such as `Renderable<T>` looks
   like. That it is a registration rather than a type is decided; its shape is
   not.

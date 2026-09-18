@@ -60,14 +60,14 @@ point: the card is the document, and what the document is *about* is declared by
 its two subtypes.
 
 ```hql
-type Card <: Doc                      // knowledge, written down
+type Card : Doc                      // knowledge, written down
 
-type ConceptCard  <: {Card, Concept}  // its subject is a concept
-type RelationCard <: Card             // its subject is a relation
+type ConceptCard : {Card, Concept}  // its subject is a concept
+type RelationCard : Card             // its subject is a relation
 ```
 
-`ConceptCard <: {Card, Concept}` is the normalized form of
-`{Card, Concept, Doc}`: `Card <: Doc` already holds, so naming `Doc` again adds
+`ConceptCard : {Card, Concept}` is the normalized form of
+`{Card, Concept, Doc}`: `Card : Doc` already holds, so naming `Doc` again adds
 nothing — see [type system](../../wiki/hql/type-system.hmd) for the
 normalization rule. Read it as the declaration it is: a concept card is a
 document, a card, and a concept, and it is `Concept` that puts it in a node
@@ -106,7 +106,7 @@ the concept, carry propositions about it and supply evidence for those claims.
 
 An Alice card and a Project Atlas card are two concept nodes. A `WorksOn`
 relation connects them. Concepts imported without any card occupy node positions
-too — `ConceptCard <: Concept` does not require every concept to have a card,
+too — `ConceptCard : Concept` does not require every concept to have a card,
 which is why `Graph<Concept, Relation>` is parameterized by `Concept` rather
 than by `ConceptCard`.
 
@@ -147,7 +147,7 @@ down, not what a relation is.
 What a relation narrows is the edge:
 
 ```hql
-type Relation<S, T> <: Edge<S, T>
+type Relation<S, T> : Edge<S, T>
 ```
 
 An edge has source, target and data; a relation adds identity, evidence and
@@ -251,7 +251,7 @@ The graph projection is the one case where losing it is not acceptable, and the
 goal is a type that says so:
 
 ```hql
-type KnowledgeGraph <: {Knowledge, Graph<Concept, Relation>}
+type KnowledgeGraph : {Knowledge, Graph<Concept, Relation>}
 ```
 
 A knowledge graph is a graph — concepts, concept cards among them, as nodes and

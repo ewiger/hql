@@ -67,7 +67,7 @@ fn top_three(step: &str, query: &str, vault: &vault::Vault) -> Vec<String> {
     let value = outcome
         .value
         .unwrap_or_else(|| panic!("{source}: {:?}", outcome.reports));
-    let Value::Seq(elements, _) = &value else {
+    let Value::List(elements, _) = &value else {
         panic!("expected a sequence, got {value:?}")
     };
     elements

@@ -28,4 +28,4 @@ type Hit<T> {
 // A concrete retrieval satisfies the abstract positional Seq contract.
 // It adds what makes the order
 // meaningful — the query it is relative to, and the rule that broke ties.
-type Ranking<T> <: Seq<Hit<T>>
+type Ranking<T> : Seq<Hit<T>>

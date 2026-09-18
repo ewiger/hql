@@ -5,9 +5,9 @@
 // expected-type: Seq<String>
 // expected: [barn-owl, common-raven, european-robin]
 
-counts : SortedMap<String, Int> = SortedMap(
+counts = SortedMap(
     ["european-robin", "barn-owl", "common-raven"],
     [1, 2, 1]
 )
-alphabet : Seq<String> = counts.keys
+alphabet = counts.keys
 alphabet

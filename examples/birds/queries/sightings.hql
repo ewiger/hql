@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Data
+// expected-json: {"barn_owls":2,"distinct_barn_owls":1,"distinct_species":3,"observations":4,"saw_robin":true}
 
-sightings : List<String> = [
+sightings = [
     "barn-owl",
     "european-robin",
     "barn-owl",
@@ -12,7 +13,7 @@ sightings : List<String> = [
 ]
 sequence : Seq<String> = sightings
 occurrences : Collection<String> = sequence
-species : Set<String> = Set(sightings)
+species = Set(sightings)
 
 {
     observations: size(occurrences),

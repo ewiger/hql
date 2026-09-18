@@ -5,9 +5,9 @@
 // expected-type: Seq<String>
 // expected: [european-robin, barn-owl, common-raven]
 
-route : OrderedMap<String, Int> = OrderedMap(
+route = OrderedMap(
     ["european-robin", "barn-owl", "common-raven"],
     [1, 2, 1]
 )
-stops : Seq<String> = route.keys
+stops = route.keys
 stops

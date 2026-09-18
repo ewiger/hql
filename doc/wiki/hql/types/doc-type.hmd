@@ -128,7 +128,7 @@ whether a document can be reinterpreted under a different format.
 | Type | Role |
 | --- | --- |
 | `Content` | Parsed body content, whatever the dialect |
-| `HmdContent` | Parsed HyperMarkDown content; `HmdContent <: Content` |
+| `HmdContent` | Parsed HyperMarkDown content; `HmdContent : Content` |
 | `Section` | A heading and the content beneath it |
 | `Block` | Anchored content addressable by name |
 | `Link` | A reference from this document to a target |

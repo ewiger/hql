@@ -8,8 +8,8 @@ design.
 program     := statement (NEWLINE+ statement)*
 statement   := import | declaration | binding | expression
 import      := "import" ident
-declaration := "abstract"? "type" ident params? ("<:" supertypes)? record? bounds?
-bounds      := "where" ident "<:" type ("," ident "<:" type)*
+declaration := "abstract"? "type" ident params? (":" supertypes)? record? bounds?
+bounds      := "where" ident ":" type ("," ident ":" type)*
 params      := "<" ident ("," ident)* ">"
 supertypes  := type | "{" type ("," type)* "}"
 record      := "{" field ("," | NEWLINE)* "}"
@@ -61,7 +61,9 @@ Core operations can also be called directly: `size(xs)`, `count(xs, value)`,
 earlier cardinality meaning as an alias for `size(xs)`. Lookup returns
 `Option<V>` and preserves presence and absence at runtime.
 
-Sorting consumes a sequence and returns a materialized list. Its `by` argument
+Sorting consumes any collection and returns a materialized list. The checker
+infers its element and result types, so a set can be sorted directly without a
+`List` constructor or a binding annotation. Its `by` argument
 accepts either a unary orderable key selector or a binary comparison returning
 `Ordering`, such as `(a, b) => compare(size(a), size(b))` for lists. Supplying a
 comparison does not make the element type intrinsically orderable.
@@ -120,9 +122,9 @@ a value of a declared record type is separate work, not implemented.
 
 ```hql
 type Content
-type HmdContent <: Content
+type HmdContent : Content
 type Edge<S, T> { source : S, target : T, data : Data }
-type ConceptCard <: {Card, Concept}
+type ConceptCard : {Card, Concept}
 type HmdHeader { metadata? : Data }
 ```
 
@@ -143,9 +145,9 @@ What is checked:
   meant, and inside the body it takes no arguments of its own;
 - a declaration may **restate** a type this binary already has — that is what
   [`std/`](../../../std/README.md) is — but it may not contradict one.
-  `type Card <: Doc` holds and `type Card <: Edge` does not;
+  `type Card : Doc` holds and `type Card : Edge` does not;
 - a supertype set whose members share nothing declares a type no value can
-  have, and is refused: `type X <: {Int, String}`;
+  have, and is refused: `type X : {Int, String}`;
 - a subtype may not turn a required field of a parent into an optional one,
   because that widens the shape rather than narrowing it.
 

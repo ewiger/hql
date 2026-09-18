@@ -238,12 +238,6 @@ fn check_sort(
     span: Range<usize>,
 ) -> Result<TypeRef, Diagnostic> {
     let element = collection(input, "sort", &span)?;
-    if !input.is_sequence() {
-        return Err(Diagnostic::typing(
-            span,
-            "sort needs a Seq; materialize an unordered collection with List first",
-        ));
-    }
     if arguments.len() > 1
         || arguments
             .iter()

@@ -7,7 +7,7 @@ tags: [hql, cards, knowledge, type-system, hypermarkdown]
 that gives a piece of knowledge a physical form.
 
 ```hql
-type Card <: Doc {
+type Card : Doc {
     // the document represents a piece of knowledge
     // the document has a place in a vault
 }
@@ -27,11 +27,11 @@ addition*, and that addition is the point of the type.
 declared by its two subtypes:
 
 ```hql
-type ConceptCard  <: {Card, Concept}  // its subject is a concept — a node
-type RelationCard <: Card             // its subject is a relation — an edge
+type ConceptCard : {Card, Concept}  // its subject is a concept — a node
+type RelationCard : Card             // its subject is a relation — an edge
 ```
 
-`{Card, Concept}` is the normalized supertype set: `Card <: Doc` already holds,
+`{Card, Concept}` is the normalized supertype set: `Card : Doc` already holds,
 so `{Card, Concept, Doc}` would name `Doc` twice — see [[type-system]]. The
 third parent, `Concept`, is what puts a concept card in a node position in a
 [[graph-type|knowledge graph]].
@@ -116,7 +116,7 @@ step at which meaning becomes possible.
 A card has a second layer the document does not, and it has its own name:
 
 ```hql
-type Card <: Doc {
+type Card : Doc {
     metadata : Data     // the knowledge attached to this card
 }
 ```
@@ -298,12 +298,12 @@ that form.
 
 ## Types narrow
 
-`Card <: Doc` is the first narrowing, not a special case. The same mechanism
+`Card : Doc` is the first narrowing, not a special case. The same mechanism
 continues past it, and it is the same mechanism by which a `Data` subtree
 becomes a known shape — see [[type-system]].
 
 ```hql
-type Person <: Card {
+type Person : Card {
     name: String
     born: Date?
 }

@@ -73,7 +73,10 @@ fn the_corpus_is_large_enough_and_holds_every_card_kind() {
 #[test]
 fn a_forward_link_to_a_document_nobody_wrote_warns_rather_than_failing() {
     let outcome = run("[[andean-condor]]", &birds(), Mode::Strict);
-    assert_eq!(outcome.value, Some(Value::Absent(hql::types::Type::Card)));
+    assert_eq!(
+        outcome.value,
+        Some(Value::Absent(hql::types::TypeRef::CARD))
+    );
     assert!(
         outcome
             .reports

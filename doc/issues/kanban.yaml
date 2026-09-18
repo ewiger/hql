@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 4 # to be incremented when adding a new issue card
+  last_id: 5 # to be incremented when adding a new issue card
   items:
     backlog: []
     todo:
@@ -26,6 +26,9 @@ board:
         file: 0004-collection-order-vocabulary.md
     doing: []
     done:
+      - id: "0005"
+        title: Replace `<:` with `:`
+        file: 0005-colon-subtype-operator.md
       - id: "0003"
         title: Parse and check `type` declarations
         file: 0003-type-declarations.md

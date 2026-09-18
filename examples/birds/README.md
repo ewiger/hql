@@ -20,14 +20,19 @@ result. Rendering without `--write` prints the card with computed answers.
 
 | Query | What it shows | Result |
 | --- | --- | --- |
-| [catalog](queries/catalog.hql) | `Set<Card>` from the wiki, materialized and sorted | Barn owl, Common raven, European robin |
+| [catalog](queries/catalog.hql) | Inferred `Set<Card>` sorted into `List<Card>` | Barn owl, Common raven, European robin |
 | [sightings](queries/sightings.hql) | `List` viewed as `Seq` and `Collection`, plus a distinct `Set` | Four observations, two owl occurrences, three species |
 | [map](queries/map.hql) | `Map<String, Int>`, set keys, optional lookup | Three keys, two owl observations, absent swallow |
 | [ordered map](queries/ordered-map.hql) | Stable construction positions | robin, owl, raven |
 | [sorted map](queries/sorted-map.hql) | Key positions follow intrinsic String order | owl, raven, robin |
-| [map views](queries/map-views.hql) | `SortedMap <: OrderedMap <: Map` | Same lookup; sequence or set key projections |
+| [map views](queries/map-views.hql) | `SortedMap : OrderedMap : Map` | Same lookup; sequence or set key projections |
 | [sorting](queries/sorting.hql) | An explicit comparison of lists by size | One-observation groups before the two-observation group |
 | [empty collections](queries/empty.hql) | Empty lists and explicitly typed constructors | Zero occurrences and no membership |
+
+Binding types are inferred from their expressions. Annotations are optional;
+the examples use them when illustrating an abstract view or typing an empty
+collection. Sorting a set directly produces a list, so `bird_cards | sort`
+needs no `List(bird_cards)` wrapper.
 
 `Collection<T>` counts occurrences. A `List<T>` preserves their positions, and a
 `Set<T>` keeps one occurrence of each distinct value. Neither positional order
@@ -35,11 +40,13 @@ nor uniqueness makes the element type `Orderable`.
 
 Map constructors accept equally long key and value sequences, pairing their
 positions. `OrderedMap` retains that key sequence. `SortedMap` reorders the
-associations by intrinsic key order and requires `K <: Orderable`. The ordinary
+associations by intrinsic key order and requires `K : Orderable`. The ordinary
 `Map` contract gives no key-order guarantee. Use `get(map, key)` for lookup;
 its result is `Option<V>`.
 
-The two intentional failures exit with status `1`:
+The two intentional failures,
+[invalid sorted keys](queries/invalid-sorted-keys.hql) and
+[duplicate keys](queries/duplicate-keys.hql), exit with status `1`:
 
 ```sh
 target/debug/hql run examples/birds/queries/invalid-sorted-keys.hql

@@ -1,13 +1,28 @@
-//! Validate the design corpus and run only explicitly implemented cases.
+//! Check runnable examples against their declared types, results, and failures.
 
 use std::{collections::BTreeMap, fs, path::Path};
 
-use hql::{check, diagnostics::Diagnostic, eval};
+use hql::{check, check_in, diagnostics::Diagnostic, eval, reporting::Mode, run, vault};
 
 struct Case {
     path: String,
     metadata: BTreeMap<String, String>,
     source: String,
+}
+
+impl Case {
+    fn vault(&self) -> vault::Vault {
+        match self.metadata["environment"].as_str() {
+            "pure" => vault::Vault::empty(),
+            "knowledge-v1" => {
+                let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("examples")
+                    .join(&self.metadata["vault"]);
+                vault::load(&path).unwrap_or_else(|e| panic!("{}: {e}", self.path))
+            }
+            other => panic!("{}: unsupported environment {other}", self.path),
+        }
+    }
 }
 
 fn load_cases() -> Vec<Case> {
@@ -25,28 +40,16 @@ fn load_cases() -> Vec<Case> {
             if path == root.join("answer.hql") {
                 continue;
             }
-            let extension = path.extension().and_then(|s| s.to_str());
-            if !matches!(extension, Some("hql" | "hmd")) {
+            if path.extension().and_then(|s| s.to_str()) != Some("hql") {
                 continue;
             }
             let text = fs::read_to_string(&path).unwrap();
-            let (header, source) = if extension == Some("hql") {
-                let (header, source) = text.split_once("\n\n").expect("missing corpus header");
-                let header = header
-                    .lines()
-                    .map(|line| line.strip_prefix("// ").expect("invalid HQL metadata line"))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                (header, source.to_owned())
-            } else {
-                let (_, rest) = text
-                    .split_once("<!-- corpus\n")
-                    .expect("missing HMD metadata");
-                let (header, _) = rest.split_once("\n-->").expect("unclosed HMD metadata");
-                (header.to_owned(), text.clone())
-            };
+            let (header, source) = text
+                .split_once("\n\n")
+                .unwrap_or_else(|| panic!("{}: missing corpus header", path.display()));
             let mut metadata = BTreeMap::new();
             for line in header.lines() {
+                let line = line.strip_prefix("// ").expect("invalid HQL metadata line");
                 let (key, value) = line.split_once(": ").expect("invalid metadata field");
                 assert!(!value.is_empty(), "{}: empty {key}", path.display());
                 assert!(metadata.insert(key.to_owned(), value.to_owned()).is_none());
@@ -58,154 +61,123 @@ fn load_cases() -> Vec<Case> {
                     .to_string_lossy()
                     .replace('\\', "/"),
                 metadata,
-                source,
+                source: source.to_owned(),
             });
         }
     }
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
     let mut cases = Vec::new();
-    if !root.is_dir() {
-        // The corpus is a separate working tree in some checkouts. Say so and
-        // skip, rather than failing a suite that is testing something else.
-        eprintln!("corpus: {} is absent; skipping", root.display());
-        return cases;
-    }
     visit(&root, &root, &mut cases);
     cases.sort_by(|a, b| a.path.cmp(&b.path));
     cases
 }
 
-/// Whether the corpus is present in this working tree.
-fn present() -> bool {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("examples")
-        .is_dir()
-}
-
 #[test]
 fn corpus_metadata_and_index_cover_every_case() {
-    if !present() {
-        return;
-    }
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
-    let index = fs::read_to_string(root.join("README.md")).unwrap();
     let cases = load_cases();
     assert!(!cases.is_empty());
-    assert_eq!(
-        index.lines().filter(|line| line.starts_with("| [")).count(),
-        cases.len()
-    );
-    let mut statuses = BTreeMap::new();
     for case in cases {
         let m = &case.metadata;
         for field in ["status", "feature", "implementation", "environment"] {
             assert!(m.contains_key(field), "{}: missing {field}", case.path);
         }
         let status = m["status"].as_str();
-        assert!(matches!(
-            status,
-            "valid-now" | "proposed" | "invalid" | "design-question"
-        ));
-        *statuses.entry(status.to_owned()).or_insert(0) += 1;
-        assert!(matches!(
-            m["implementation"].as_str(),
-            "implemented" | "pending"
-        ));
-        assert!(matches!(
-            m["environment"].as_str(),
-            "pure"
-                | "prelude-v1"
-                | "knowledge-v1"
-                | "unbound-card-v1"
-                | "modules-v1"
-                | "alice-cell-v1"
-                | "transclusion-v1"
-        ));
+        assert!(matches!(status, "valid-now" | "invalid"), "{}", case.path);
+        assert_eq!(m["implementation"], "implemented", "{}", case.path);
+        match m["environment"].as_str() {
+            "pure" => assert!(!m.contains_key("vault"), "{}", case.path),
+            "knowledge-v1" => assert!(root.join(&m["vault"]).is_dir(), "{}", case.path),
+            other => panic!("{}: unsupported environment {other}", case.path),
+        }
         if status == "valid-now" {
-            assert_eq!(m["implementation"], "implemented");
-            assert!(m.contains_key("expected-type") && m.contains_key("expected"));
+            assert!(m.contains_key("expected-type"), "{}", case.path);
+            assert!(
+                m.contains_key("expected") ^ m.contains_key("expected-json"),
+                "{}: declare one expected result",
+                case.path
+            );
+            if let Some(json) = m.get("expected-json") {
+                serde_json::from_str::<serde_json::Value>(json).expect("a JSON expectation");
+            }
         }
         if status == "invalid" {
             assert!(m.contains_key("error") && m.contains_key("stage"));
-        }
-        if m["implementation"] == "implemented" {
-            assert!(matches!(status, "valid-now" | "invalid"));
+            // `eval` exposes the precise Diagnostic for pure failure examples.
             assert_eq!(m["environment"], "pure");
-            assert!(case.path.ends_with(".hql"));
-        }
-        let mut expected = Vec::new();
-        for (key, label) in [
-            ("expected-type", "type"),
-            ("expected", "value"),
-            ("error", "error"),
-        ] {
-            if let Some(value) = m.get(key) {
-                expected.push(format!("{label}: {value}"));
+            if m["stage"] == "evaluate" {
+                assert!(m.contains_key("expected-type"), "{}", case.path);
             }
         }
-        assert!(!expected.is_empty(), "{}: missing expectation", case.path);
-        let expected = expected.join("; ").replace('|', "\\|");
-        let row = format!(
-            "| [{p}]({p}) | {status} | {feature} | {expected} | {implementation} |",
-            p = case.path,
-            feature = m["feature"],
-            implementation = m["implementation"]
-        );
+        let path = root.join(&case.path);
+        let directory = path
+            .parent()
+            .unwrap()
+            .ancestors()
+            .find(|directory| directory.join("README.md").is_file())
+            .expect("an example README");
+        let index = fs::read_to_string(directory.join("README.md")).unwrap();
+        let relative = path
+            .strip_prefix(directory)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
         assert!(
-            index.lines().any(|line| line == row),
-            "missing or stale index row:\n{row}"
+            index.contains(&format!("]({relative})")),
+            "{}: missing README link",
+            case.path
         );
-        for key in ["alternatives", "expected-file"] {
-            if let Some(paths) = m.get(key) {
-                for path in paths.split(", ") {
-                    assert!(
-                        root.join(path).is_file(),
-                        "{}: missing {key} {path}",
-                        case.path
-                    );
-                }
-            }
-        }
-    }
-    for status in ["valid-now", "proposed", "invalid", "design-question"] {
-        assert!(statuses.contains_key(status));
     }
 }
 
 #[test]
 fn valid_now_cases_check_and_evaluate() {
-    if !present() {
-        return;
-    }
     let mut count = 0;
     for case in load_cases() {
         if case.metadata["status"] != "valid-now" {
             continue;
         }
         count += 1;
-        let ty = check(&case.source).unwrap_or_else(|e| panic!("{}: {e}", case.path));
-        let value = eval(&case.source).unwrap_or_else(|e| panic!("{}: {e}", case.path));
+        let vault = case.vault();
+        let ty = check_in(&case.source, &vault).unwrap_or_else(|e| panic!("{}: {e}", case.path));
+        let outcome = run(&case.source, &vault, Mode::Strict);
+        assert!(
+            outcome.reports.is_empty(),
+            "{}: {:?}",
+            case.path,
+            outcome.reports
+        );
+        assert_eq!(outcome.inferred.as_ref(), Some(&ty), "{}", case.path);
+        let value = outcome
+            .value
+            .expect("a successful example produces a value");
         assert_eq!(
             ty.to_string(),
             case.metadata["expected-type"],
             "{}",
             case.path
         );
-        assert_eq!(
-            value.to_string(),
-            case.metadata["expected"],
-            "{}",
-            case.path
-        );
+        if let Some(expected) = case.metadata.get("expected-json") {
+            assert_eq!(
+                value.to_json(),
+                serde_json::from_str::<serde_json::Value>(expected).unwrap(),
+                "{}",
+                case.path
+            );
+        } else {
+            assert_eq!(
+                value.to_string(),
+                case.metadata["expected"],
+                "{}",
+                case.path
+            );
+        }
     }
     assert!(count > 0);
 }
 
 #[test]
 fn implemented_invalid_cases_fail_at_the_declared_stage() {
-    if !present() {
-        return;
-    }
     let mut count = 0;
     for case in load_cases() {
         let m = &case.metadata;

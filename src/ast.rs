@@ -21,7 +21,7 @@ pub(crate) enum Stmt {
         name: String,
         span: Range<usize>,
     },
-    /// `type Name<P> <: Parent { field : Type }`.
+    /// `type Name<P> : Parent { field : Type }`.
     Type(TypeDecl),
     Expr(Expr),
 }
