@@ -52,7 +52,7 @@ once, at the declaration, instead of every reader guessing.
 
 `?` says the field may not be there. It does not say the field is there holding
 nothing. HQL has no null, and absence is carried by `Option` — see the
-[trait direction](../../memory/trait-direction.md) — so a reader of an optional
+[no traits](../../memory/no-traits.md) — so a reader of an optional
 field gets something it must handle rather than something that might surprise it.
 
 Whether `metadata? : Data` is therefore exactly `metadata : Option[Data]`, or

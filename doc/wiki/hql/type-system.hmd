@@ -64,9 +64,15 @@ implementation does not exist anywhere in the type graph, and the checker is
 left asking where `render` comes from. A capability is supplied *for* a type, by
 an [[hql/extensions|extension]] registering `render(Graph) -> Html`, not
 inherited by it. HQL knows the type; the extension knows what can be done with
-it. Whether a parameterized capability such as `Renderable[T]` is a type at all,
-or only a registration the checker consults, is open — and it is the same
-question the [trait direction](../../memory/trait-direction.md) records.
+it. A capability is therefore a **registration the checker consults**, not a
+type participating in `<:`. That follows from HQL having no traits: with the
+competing answer withdrawn, there is nothing for `Renderable[T]` to be except a
+registration — see [no traits](../../memory/no-traits.md). What a parameterized
+registration looks like is still a design question; whether it is a type is not.
+
+`Orderable` is the contrasting case and is genuine ancestry. A card's ordering
+key is its own name, not something an extension supplies, so `Card <: Orderable`
+is an ordinary narrowing — see [orderable cards](../../memory/orderable-cards.md).
 
 **Representation is not ancestry.** A `RelationCard` represents a `Relation`; it
 is not one, and a `Relation` is not a `Card`. See below.
@@ -378,9 +384,9 @@ language's central value cannot be the place where the rule is improvised.
   declared parents, which decides what `X <: {A, B}` means when `A` and `B`
   conflict. `KnowledgeGraph <: {Knowledge, Graph[Concept, Relation]}` is the case
   that forces the answer.
-- Whether capability contracts such as `Renderable[T]` are types participating
-  in `<:`, or registrations outside the type graph — and how either reading
-  coexists with the preference against exposing trait machinery to users.
+- What a parameterized capability registration such as `Renderable[T]` looks
+  like. That it is a registration rather than a type is decided; its shape is
+  not.
 - How much refinement survives a boundary: a value passed to an extension, a
   cell, or a host and back.
 - Whether a declared-optional field is exactly `Option[T]`, and whether a subtype

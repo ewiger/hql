@@ -300,5 +300,7 @@ Namespace visibility and the merge rules for imported knowledge are open, and
 See [knowledge](../../wiki/hql/knowledge.hmd) for the wiki card,
 [Card](../../wiki/hql/types/card-type.hmd) for the document that carries
 knowledge, [type system](../../wiki/hql/type-system.hmd) for narrowing and
-refinement, [graph model](graphs.md) for the other domain and
-[program values](../behavior/program-values.md) for what a program returns.
+refinement, [graph model](graphs.md) for the other domain,
+[semantic search](semantic-search.md) for retrieval and the read path of AI
+memory, and [program values](../behavior/program-values.md) for what a program
+returns.

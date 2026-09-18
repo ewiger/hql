@@ -25,7 +25,12 @@ separate it from both older corpus alternatives and implemented behavior.
 ## Current direction
 
 Prefer ordinary functions, bare bindings and fundamental pipe syntax. Keep SQL
-clauses and Rust-like trait machinery out of the design. Extensions supply
+clauses and Rust-like trait machinery out of the design — **decided**, against
+the competing direction an earlier memory note had recorded. A trait is a host
+mechanism an extension may use internally and it never reaches HQL's surface;
+what had been asked of it splits into ancestry (`<:`), capability (an extension
+registers a function) and a partial schema over `Data`. See
+[no traits](../../memory/no-traits.md). Extensions supply
 external capabilities and may be written in Rust. Optional namespace `init.hql`
 files import available modules and extensions.
 
@@ -72,11 +77,22 @@ the implementation.
 - Module resolution, namespace inheritance and `init.hql` initialization policy.
 - Extension transport, effect contracts and optimizer-visible execution properties.
 
-The implemented slice remains Int/Float/Bool literals and checked same-type
-numeric addition. Its signed 64-bit and double-precision representations, the
-absence of Int-to-Float widening, and the 256-literal limit are provisional
-bootstrap choices, not settled full-language requirements. See the
-[bootstrap requirements](../../models/requirements/bootstrap.md).
+The implemented slice is now larger than the literal core: statements and
+bindings, strings and data literals, document references, the link operator,
+pipelines with lambdas, a vault of Markdown and HyperMarkDown documents, the card
+family checked at load, semantic retrieval, graph traversal, and a reporting
+queue. The signed 64-bit and double-precision representations, the absence of
+Int-to-Float widening, and the addition-chain limit remain provisional
+implementation choices rather than settled language requirements. What the
+parser accepts is recorded in
+[the grammar](../../models/behavior/expressions.md); what it deliberately does
+not is in the [bootstrap requirements](../../models/requirements/bootstrap.md).
+
+Implementing that slice settled `CON-05` — a `Card` is orderable by its name, so
+a reproducible prefix needs no observable vault order — and `INC-15`, where an
+unresolved reference warns and yields absence. Both are recorded in
+[consolidation](../../status/consolidation.md) and
+[inconsistencies](../../status/inconsistencies.md).
 
 ## Architecture sources
 

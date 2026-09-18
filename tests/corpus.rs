@@ -64,13 +64,29 @@ fn load_cases() -> Vec<Case> {
     }
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
     let mut cases = Vec::new();
+    if !root.is_dir() {
+        // The corpus is a separate working tree in some checkouts. Say so and
+        // skip, rather than failing a suite that is testing something else.
+        eprintln!("corpus: {} is absent; skipping", root.display());
+        return cases;
+    }
     visit(&root, &root, &mut cases);
     cases.sort_by(|a, b| a.path.cmp(&b.path));
     cases
 }
 
+/// Whether the corpus is present in this working tree.
+fn present() -> bool {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("examples")
+        .is_dir()
+}
+
 #[test]
 fn corpus_metadata_and_index_cover_every_case() {
+    if !present() {
+        return;
+    }
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
     let index = fs::read_to_string(root.join("README.md")).unwrap();
     let cases = load_cases();
@@ -158,6 +174,9 @@ fn corpus_metadata_and_index_cover_every_case() {
 
 #[test]
 fn valid_now_cases_check_and_evaluate() {
+    if !present() {
+        return;
+    }
     let mut count = 0;
     for case in load_cases() {
         if case.metadata["status"] != "valid-now" {
@@ -184,6 +203,9 @@ fn valid_now_cases_check_and_evaluate() {
 
 #[test]
 fn implemented_invalid_cases_fail_at_the_declared_stage() {
+    if !present() {
+        return;
+    }
     let mut count = 0;
     for case in load_cases() {
         let m = &case.metadata;
@@ -207,6 +229,8 @@ fn implemented_invalid_cases_fail_at_the_declared_stage() {
             Diagnostic::Syntax { .. } => ("SyntaxError", "parse"),
             Diagnostic::Type { .. } => ("TypeMismatch", "typecheck"),
             Diagnostic::Overflow { .. } => ("IntegerOverflow", "evaluate"),
+            Diagnostic::Name { .. } => ("NameError", "typecheck"),
+            Diagnostic::Runtime { .. } => ("RuntimeError", "evaluate"),
         };
         assert_eq!(name, m["error"], "{}", case.path);
         assert_eq!(stage, m["stage"], "{}", case.path);

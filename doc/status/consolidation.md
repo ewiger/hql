@@ -18,7 +18,7 @@ the decision behind it is recorded, and its identifier is not reused.
 | --- | --- | --- |
 | CON-01 | Drop `HmdCard`; the type is `Card` | done, residue |
 | CON-03 | `Hmd` is a format, not the parsed body type | done, residue |
-| CON-05 | `cards` ordering: `List<Card>` or `Set<Card>` | open, needs decision |
+| CON-05 | `cards` ordering: `List<Card>` or `Set<Card>` | done, residue |
 | CON-06 | Title precedence: derived heading or authored entry | open, needs decision |
 | CON-07 | Precedence between derived, authored and contributed header layers | open, needs decision |
 | CON-08 | Whether a card requires a vault | open, needs decision |
@@ -65,11 +65,18 @@ this item.
 
 ## CON-05 — cards ordering
 
-Needs a decision, and it is about whether vault order is observable rather than
-about a spelling. [Card](../wiki/hql/types/card-type.hmd) says `List<Card>`;
-[HQL collections](../wiki/hql/collections.hmd) says `Set<Card>`;
-[fixture environments](../../examples/fixtures/README.md) assumes root-relative
-path order. Tracked as `INC-04`.
+**Decided 2026-09-18**, and not by picking one of the two spellings. The
+question was whether a reproducible prefix requires vault order to be
+observable. It does not: a `Card` carries an ordering key of its own, its name,
+so `cards : Set[Card]` stands *and* `cards | take(5)` is well defined. Order
+comes from the values, never from how they were found — see
+[orderable cards](../memory/orderable-cards.md).
+
+`Orderable` is now what `take` requires of an element type, and it is
+implemented. The `List<Card>` reading in
+[Card](../wiki/hql/types/card-type.hmd) is superseded and that card still needs
+the edit. `INC-04`'s third site is the corpus, which is not in this working
+tree, so it stays residue alongside `CON-11` and `CON-12`.
 
 ## CON-06 — Title precedence
 
@@ -79,6 +86,17 @@ recorded as open in [Doc](../wiki/hql/types/doc-type.hmd). `name` and `path`
 have no equivalent problem, because nothing authored can contradict them.
 
 ## CON-07 — Header layer precedence
+
+**Half decided 2026-09-18** by the implementation. For a *header*, derived paths
+— `name`, `path`, `format` — win over anything authored, because nothing
+authored can contradict where a document is. For *metadata*, the question is
+sidestepped rather than answered: an extension contributes under a key it owns
+(`metadata.search.*`, `metadata.git.*`), so an authored entry and a contributed
+one cannot collide. What remains open is an authored entry contradicting a
+derived one on a path neither obviously owns, such as `title`, which is `CON-06`.
+See [the CLI host](../memory/cli-host.md).
+
+The original statement of the item follows.
 
 Needs a decision, and not a single rule. A header is assembled from derived,
 authored and contributed entries. An author overriding a derived `title` is

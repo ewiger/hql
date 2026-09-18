@@ -35,12 +35,13 @@ a `contradiction` needs a decision, `stale` and `broken` need only an edit.
 | INC-08 | Corpus case counts disagree three ways, and no test catches it | stale | open | [README.md](../../README.md), [examples/README.md](../../examples/README.md) |
 | INC-09 | A standard library is both a bootstrap non-goal and a wiki card | ambiguity | open | [bootstrap.md](../models/requirements/bootstrap.md), [std-lib.hmd](../wiki/hql/std-lib.hmd) |
 | INC-22 | `typed Relation` filtered cards by a type no card can have | contradiction | resolved | wiki cards, corpus |
+| INC-23 | An indexer is said to contribute "embeddings or a semantic-search score"; a score is not a per-card fact | contradiction | open | [card-type.hmd](../wiki/hql/types/card-type.hmd) |
 | ~~INC-10~~ | ~~`refinement-of-types.hmd` is zero bytes, untracked and unlinked~~ | stub | resolved | [type-system.hmd](../wiki/hql/type-system.hmd) |
 | ~~INC-11~~ | ~~The design-status card table omits an existing card~~ | stale | resolved | [design-status.hmd](../wiki/hql/design-status.hmd) |
 | INC-12 | Four links point at renamed or nonexistent cards | broken | open | wiki README, hypermarkdown, issues README, kanban.yaml |
 | INC-13 | The wiki breaks its own two rules about wikilink spelling and scope | contradiction | open | [hypermarkdown.hmd](../wiki/hypermarkdown.hmd) and the HQL cards |
 | ~~INC-14~~ | ~~A directory is linked as though it were a card~~ | stale | resolved | [hql.hmd](../wiki/hql.hmd) |
-| INC-15 | Unresolved reference: a warning in the card, a hard error in the corpus | contradiction | open | [doc-type.hmd](../wiki/hql/types/doc-type.hmd), [unresolved-card.hql](../../examples/errors/unresolved-card.hql) |
+| ~~INC-15~~ | ~~Unresolved reference: a warning in the card, a hard error in the corpus~~ | contradiction | resolved | [doc-type.hmd](../wiki/hql/types/doc-type.hmd) |
 | INC-16 | `validate` is used with two incompatible signatures, neither labelled | contradiction | open | `types/`, `design/`, `constraints/` |
 | INC-17 | The Person fixture module contradicts the schema its own README states | contradiction | open | [people.hql](../../examples/fixtures/modules/people.hql), [fixtures/README.md](../../examples/fixtures/README.md) |
 | INC-18 | Corpus expectations name a dozen types no vocabulary defines | contradiction | open | [core.hmd](../wiki/hql/core.hmd), corpus expectations |
@@ -189,6 +190,36 @@ The index table itself is correct and complete: 126 rows, 126 files, no orphan o
 either side. Only the prose totals are stale, and `tests/corpus.rs` does not
 catch them — it asserts row count equals case count, never the sentences. Adding
 that assertion would keep this from recurring.
+
+## INC-15 — Unresolved reference: warning or error
+
+**Resolved 2026-09-18.** The warning wins, because a forward link to a document
+nobody has written yet is ordinary and the link operator permits it. `[[name]]`
+is `Option[Card]` by type; an unresolved one yields absence and queues a
+warning, and the exit status does not change.
+
+The corpus case expecting a hard error is superseded. It is not in this working
+tree, so it is residue alongside `CON-11`. See
+[absence and warnings](../memory/absence-and-warnings.md) and
+[reporting](../models/behavior/reporting.md), which supplies the warning
+channel the decision needed.
+
+## INC-23 — An indexer cannot contribute a score
+
+[Card](../wiki/hql/types/card-type.hmd) lists, among the entries an extension may
+contribute, "an indexer supplying embeddings or a semantic-search score". The two
+are not the same kind of thing.
+
+An embedding is a property of the card: it exists whether or not anyone ever
+searches, it goes stale when the card's content changes, and the assembled
+`card.metadata` layer is the right home for it. A score exists only relative to a
+query. Storing one in a per-card layer means either one privileged query or a
+number whose name no longer describes it.
+
+The fix is to split the sentence, keeping embeddings, chunk identity and index
+membership as contributions and moving the score into the retrieval result, where
+it travels with the query and index revision that produced it. See the
+[semantic search model](../models/domain/semantic-search.md).
 
 ## INC-22 — typed Relation filtered cards by a type no card can have
 

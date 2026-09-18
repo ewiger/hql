@@ -1,0 +1,10 @@
+---
+title: Bearer tokens
+metadata:
+  status: todo
+  owner: ada
+---
+# Bearer tokens
+
+A bearer token is sent in the Authorization header. Anyone holding the token can
+use it, which is what bearer means. See [[oauth]] and [[http-headers]].
