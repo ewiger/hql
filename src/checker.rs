@@ -126,7 +126,7 @@ impl Checker<'_> {
                 let mut element = TypeRef::NEVER;
                 for value in values {
                     let actual = self.expression(value)?;
-                    element = element.common(&actual).ok_or_else(|| {
+                    element = element.common_type(&actual).ok_or_else(|| {
                         Diagnostic::typing(
                             value.span.clone(),
                             format!(

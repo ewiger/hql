@@ -63,7 +63,8 @@ belong in a list; one aggregate count per species belongs in a map.
 `Map<String, Data>`. A value is a tree by being one of those, so
 `tally : Data = Map(["barn-owl"], [2])` needs no conversion and stays the map it
 was. A `Set` has no positions and a map keyed by `Int` has no string keys, so
-neither is a tree. See [std/core.hql](../../std/core.hql).
+neither is a tree. Trees of different types are held together as `Data`, so
+`[3, "barn-owl", true]` is a `List<Data>`, as it is in JSON. See [std/core.hql](../../std/core.hql).
 
 The declarations are in [std/collections.hql](../../std/collections.hql), with
 the laws explained in the [collection model](../../doc/wiki/hql/types/collections/collection-types.md).

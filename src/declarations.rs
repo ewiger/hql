@@ -544,7 +544,10 @@ impl Declarations {
                 if one.is(&other) || other.is(&one) {
                     continue;
                 }
-                if one.is_concrete() && other.is_concrete() && one.common(&other).is_none() {
+                if one.is_concrete()
+                    && other.is_concrete()
+                    && one.declared_common_type(&other).is_none()
+                {
                     return Err(Diagnostic::typing(
                         right.span.clone(),
                         format!(

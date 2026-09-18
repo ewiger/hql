@@ -71,6 +71,8 @@ note  : Data = { species: "barn-owl" }     // a tree literal
 
 Membership recurses through the argument, so a `List<List<Map<String, Float>>>` is a tree because each layer is. Two things that look close are not trees, and the members say why: a `Set<Int>` has no positions, and a tree's children have them; a `Map<Int, Int>` has no string keys.
 
+Trees of different types are held together as `Data`. `Int` and `String` share no parent a list could be held at, and both are trees, so `[1, "owl"]` is a `List<Data>` — exactly what it is in JSON — and `{ tags: [1, "owl", [true, 2.5]] }` is a tree literal like any other. Declared ancestry is tried first, so `[1, 2]` stays a `List<Int>`. A card is not a tree, and `[1, [[owl]]]` has no common type.
+
 Membership runs one way. Knowing a value is `Data` does not make it a `Scalar` or a `Seq<Data>`; finding out which it is belongs to refinement.
 
 Viewing a value as `Data` never converts it. `tally` above is still the `Map<String, Int>` it was, and only what the checker knows about it has changed. This is the same rule refinement follows in the other direction.

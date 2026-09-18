@@ -199,8 +199,31 @@ impl TypeRef {
         }
     }
 
-    /// Find a common type, returning none for unrelated value domains.
-    pub fn common(&self, other: &Self) -> Option<Self> {
+    /// The type two values are held at side by side, or none when they belong
+    /// to unrelated domains.
+    ///
+    /// Declared ancestry is tried first. Where it relates nothing, two trees
+    /// are still trees: `[1, "owl"]` is a `List<Data>`, exactly as it is in
+    /// JSON. A card is not a tree, so `Int` and `Card` stay unrelated.
+    ///
+    /// This is a rule and not a least upper bound. `Int` and `String` are both
+    /// `Scalar` and both `Orderable`, neither of which is below the other, so
+    /// no smallest common type exists; `Data` is chosen because a tree is what
+    /// a mixed literal is for.
+    pub fn common_type(&self, other: &Self) -> Option<Self> {
+        self.related(other, true)
+    }
+
+    /// The common type declared ancestry alone gives, never falling back to
+    /// `Data`.
+    ///
+    /// This is what decides whether two types exclude each other: every leaf
+    /// is a tree, and nothing is both an `Int` and a `String` for that.
+    pub fn declared_common_type(&self, other: &Self) -> Option<Self> {
+        self.related(other, false)
+    }
+
+    fn related(&self, other: &Self, trees_are_data: bool) -> Option<Self> {
         if self.is(other) {
             return Some(other.clone());
         }
@@ -218,12 +241,17 @@ impl TypeRef {
                 .zip(&other.args)
                 .zip(&definition.parameters)
                 .map(|((left, right), parameter)| match parameter.variance {
-                    Variance::Covariant => left.common(right),
+                    Variance::Covariant => left.related(right, trees_are_data),
                     Variance::Invariant => (left == right).then(|| left.clone()),
                 })
-                .collect::<Option<Vec<_>>>()?;
-            return Some(self.constructor.apply(args));
+                .collect::<Option<Vec<_>>>();
+            // `List<Int>` beside `List<String>` is a `List<Data>`, which says
+            // more than `Data`; only when the arguments cannot meet does the
+            // pair fall through to the tree they both are.
+            if let Some(args) = args {
+                return Some(self.constructor.apply(args));
+            }
         }
-        None
+        (trees_are_data && self.is(&Self::DATA) && other.is(&Self::DATA)).then_some(Self::DATA)
     }
 }

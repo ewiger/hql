@@ -16,10 +16,11 @@ The checker accepts this as `List<Collection<Int>>`. At runtime `held` is a
 `List<Int>` and `distinct` a `Set<Int>`, which have no common type, so a checked
 program fails with `incompatible collection elements`.
 
-[0006](0006-scalar-and-data-union.md) made the case where every element is a
-tree hold, by letting the evaluator fall back to `Data`. That repairs a failure
-and not the cause. The program above still fails, and where the fallback
-applies the runtime tag is broader than the checked type:
+Since [0006](0006-scalar-and-data-union.md), unrelated trees have `Data` as
+their common type, so a literal whose elements are all trees always evaluates.
+That hides the cause where it applies and leaves it elsewhere. The program
+above still fails, and where trees are held as `Data` the runtime tag is broader
+than the checked type:
 
 ```hql
 first : Orderable = 1
@@ -35,7 +36,8 @@ is `List<Data>`.
 - The evaluator takes a literal's element type from the checker rather than
   inferring it a second time. The likely shape is a table from a literal's span
   to its checked type, produced by `check` and read by `evaluate`.
-- `held_together` in `src/evaluation.rs` is removed once that holds.
+- The same holds for `map`, which re-infers its result's element type from the
+  mapped values in `src/extensions/collections.rs`.
 
 ## Done when
 

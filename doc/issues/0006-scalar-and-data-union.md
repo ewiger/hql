@@ -57,9 +57,17 @@ what makes `Data` the type for querying them.
   viewing a list or a map as `Data` converts nothing.
 - **Not leaf refinement.** Going from `Data` to the member a value actually is —
   `header.age : Int` — stays with refinement, which is still design.
-- **`[1, "owl"]` is still refused.** A list literal becomes a `List<Data>` only
-  when an element already is one. Whether unrelated leaves should join to a tree
-  on their own is a separate decision.
+- **The common type of unrelated trees is `Data`.** `[1, "owl"]` is valid JSON, so it is a
+  `List<Data>`: where declared ancestry relates nothing and both types are
+  trees, their common type is `Data`, in any order. `[1, [[owl]]]` stays an
+  error, because a card is not a tree. The cost is accepted: a list whose leaves
+  were mixed by accident is no longer refused at the literal, and surfaces at
+  the step that wanted `List<Int>`. Deciding whether two types exclude each
+  other uses declared ancestry alone, so `type X : {Int, String}` is still
+  refused. This is a rule and not a least upper bound: `Int` and `String` are
+  both `Scalar` and both `Orderable`, and neither is below the other, so no
+  smallest common type exists. The operation is `common_type` in the code and
+  the docs for that reason.
 
 ## Done when
 
@@ -72,12 +80,13 @@ what makes `Data` the type for querying them.
 
 ## Validation
 
-- `cargo test --offline --locked`: 148 tests pass.
+- `cargo test --offline --locked`: 150 tests pass.
 - `cargo clippy --offline --locked --all-targets -- -D warnings`: clean.
 - `cargo fmt --all -- --check`: clean.
 - `hql check` prints `Unit` for every file under `std/`.
 - `hql run examples/birds/queries/tree.hql` prints a `List<Data>` of six trees.
 
 Evaluating a list literal re-infers its element type from runtime values, which
-cannot see a static view. This issue makes the tree case hold; the general
-repair is [0007](0007-checked-element-type-at-runtime.md).
+cannot see a static view. Holding unrelated trees as `Data` makes every tree
+case evaluate; the general repair is
+[0007](0007-checked-element-type-at-runtime.md).

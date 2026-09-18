@@ -124,8 +124,63 @@ fn a_tree_beside_leaves_makes_a_sequence_of_trees() {
         eval(source).unwrap().to_string(),
         "[{species: \"owl\"}, owl, 3]"
     );
-    // Leaves alone still need a type in common: nothing asked for a tree.
-    assert!(check("[1, \"owl\"]").is_err());
+}
+
+#[test]
+fn unrelated_trees_are_held_as_data_wherever_they_stand() {
+    // Any JSON array can be written: leaves of different types are trees.
+    for source in [
+        "[1, \"owl\"]",
+        "[\"owl\", 1]",
+        "[1, \"owl\", { a: 1 }]",
+        "[{ a: 1 }, 1, \"owl\"]",
+        "[1, 2.5, true]",
+        "[1, [2]]",
+    ] {
+        assert_eq!(check(source), Ok(TypeRef::list(TypeRef::DATA)), "{source}");
+        assert_eq!(
+            eval(source).expect(source).type_of(),
+            TypeRef::list(TypeRef::DATA),
+            "{source}"
+        );
+    }
+    assert_eq!(check("{1, \"owl\"}"), Ok(TypeRef::set(TypeRef::DATA)));
+    // Arguments meet first, which says more than the tree they both are.
+    assert_eq!(
+        check("[ [1], [\"owl\"] ]"),
+        Ok(TypeRef::list(TypeRef::list(TypeRef::DATA)))
+    );
+    assert_eq!(check("tree : Data = [1, \"owl\"]\ntree"), Ok(TypeRef::DATA));
+    assert_eq!(
+        eval("{ tags: [1, \"owl\", [true, 2.5]] }")
+            .unwrap()
+            .to_string(),
+        "{tags: [1, \"owl\", [true, 2.5]]}"
+    );
+    // Related types still meet where they always did.
+    assert_eq!(check("[1, 2]"), Ok(TypeRef::list(TypeRef::INT)));
+}
+
+#[test]
+fn what_is_not_a_tree_still_has_nothing_in_common_with_one() {
+    // A set has no positions, so it is no tree, and neither is absence.
+    for source in ["[1, {2}]", "[{2}, 1]", "[\"owl\", Map([1], [1])]"] {
+        let refusal = check(source).expect_err(source).message();
+        assert!(
+            refusal.contains("have no common type"),
+            "{source}: {refusal}"
+        );
+    }
+    // The mistake of mixing leaves now surfaces where an order was wanted.
+    let refusal = check("[1, \"owl\"] | sort")
+        .expect_err("an unordered tree")
+        .message();
+    assert!(refusal.contains("Data has none"), "{refusal}");
+    // A common type is for holding values together; it does not make two concrete
+    // types one, so a supertype set of them is still uninhabitable.
+    assert_eq!(TypeRef::INT.common_type(&TypeRef::STR), Some(TypeRef::DATA));
+    assert_eq!(TypeRef::INT.declared_common_type(&TypeRef::STR), None);
+    assert!(check("type Impossible : {Int, String}").is_err());
 }
 
 #[test]

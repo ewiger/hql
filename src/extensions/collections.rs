@@ -455,7 +455,7 @@ fn eval_map(
     let element = mapped
         .iter()
         .map(Value::type_of)
-        .try_fold(TypeRef::NEVER, |held, next| held.common(&next))
+        .try_fold(TypeRef::NEVER, |held, next| held.common_type(&next))
         .ok_or_else(|| Diagnostic::runtime(span, "mapped values have incompatible types"))?;
     Ok(Value::list(mapped, element))
 }

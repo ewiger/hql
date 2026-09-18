@@ -147,8 +147,24 @@ ordinary name everywhere else. A type is a member's subtype by membership:
 `Int` is a `Data` because `Scalar` is listed, and `List<List<Int>>` is one
 because `Seq<Data>` is. So `tree : Data = [1, 2]` checks, the value stays the
 list it was, and `tree : Data = {1, 2}` does not, because a set has no
-positions. `[{ a: 1 }, "owl", 3]` is a `List<Data>`; `[1, "owl"]` is still
-refused, because nothing in it asked for a tree.
+positions.
+
+Elements of a collection literal are held at their **common type**:
+`common_type(Int, Int) = Int`, `common_type(Int, String) = Data`, and
+`common_type(List<Int>, List<String>) = List<Data>`. Declared
+ancestry is tried first, so `[1, 2]` is a `List<Int>`. Where it relates nothing
+and both elements are trees, they are held as `Data`: `[1, "owl"]` and
+`[1, 2.5]` are `List<Data>`, wherever in the list the elements stand, and
+`[ [1], ["owl"] ]` is a `List<List<Data>>`. Any JSON array can therefore be
+written as a literal. What is not a tree still shares nothing with one, so
+`[1, {2}]` is refused. Mixing leaves by accident is no longer caught at the
+literal; it surfaces at the step that needed more than a tree, as
+`[1, "owl"] | sort` does.
+
+The common type is a rule, not a least upper bound. `Int` and `String` are both
+`Scalar` and both `Orderable`, and neither contract is below the other, so no
+smallest common type exists. `Data` is chosen because a tree is what a mixed
+literal is for.
 
 What is checked:
 
