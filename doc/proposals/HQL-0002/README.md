@@ -231,7 +231,7 @@ model; `--offline` MUST make that impossible and MUST be what CI uses.
   cards; at least four relation cards, one with endpoints that deliberately do
   not resolve; `metadata.status` on a subset; `[[links]]` including one forward
   link to a document that does not exist
-- `tests/fixtures/birds/.hql/index.sqlite` — generated, committed, about 61 KB
+- `tests/fixtures/birds/.hql/index.sqlite` — generated, committed, about 136 KB
 - `contrib/semantics/` — `cli.py`, `vault.py`, `embed.py`, `store.py`, `tests/`
 - `src/extensions/lexical.rs` — today's `src/search.rs`, renamed
 - `src/extensions/semantic.rs` — the SQLite reader and the scorer
@@ -240,10 +240,26 @@ model; `--offline` MUST make that impossible and MUST be what CI uses.
 ## Test Plan
 
 The articles MUST be written so the difference is measurable. Describe owls as
-"nocturnal", "after dark" and "low light", and never as hunting "at night"; then
-`lexical("birds that hunt at night")` finds nothing useful and `semantic` finds
-the owls. At least **three** such pairs, asserted by card name. If these are
-weak, the rest of the proposal does not compensate.
+"nocturnal" and "after dark" and never as hunting "at night"; then
+`lexical("night hunting birds")` finds nothing useful and `semantic` finds the
+owls. At least **three** such pairs, asserted by card name. If these are weak,
+the rest of the proposal does not compensate.
+
+Two rules make the pairs measure what they claim to.
+
+- An article MUST satisfy every part of its query in other words. An owl that is
+  nocturnal but never described as a predator answers half the question, and
+  half an answer loses to a decoy that answers the other half.
+- A query MUST carry no function words. `lexical` tokenises `that` and `at` like
+  any other word, so a query containing them ranks by how often a document
+  happens to write `that`, which is evidence of nothing and makes the pair
+  measure noise. The queries are therefore `night hunting birds`,
+  `birds swimming underwater catching fish` and `birds weaving hanging nests`.
+
+Each group's articles MUST have decoys: documents that do write the query's
+words while meaning something else — herons that catch fish from above the
+surface without entering it, a blackbird whose nest of grass is wedged into a
+hedge rather than slung from a branch.
 
 Unit tests MUST include:
 

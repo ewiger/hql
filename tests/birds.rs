@@ -87,11 +87,13 @@ fn a_forward_link_to_a_document_nobody_wrote_warns_rather_than_failing() {
 #[test]
 fn the_three_query_groups_share_no_words_with_the_queries_they_answer() {
     // This is the property the whole corpus exists for. Each group answers its
-    // query and writes none of its content words, so a matcher over shared
-    // spellings cannot find it and one over meaning can.
+    // query and writes not one of the query's words, so a matcher over shared
+    // spellings cannot find it and one over meaning can. The queries carry no
+    // function words either, because `lexical` tokenises `that` and `at` like
+    // any other word and a shared `that` is not evidence of anything.
     for (query, group) in [
         (
-            "birds that hunt at night",
+            "night hunting birds",
             &[
                 "strigiformes",
                 "tytonidae",
@@ -104,7 +106,7 @@ fn the_three_query_groups_share_no_words_with_the_queries_they_answer() {
             ][..],
         ),
         (
-            "birds that swim underwater to catch fish",
+            "birds swimming underwater catching fish",
             &[
                 "phalacrocoracidae",
                 "great-cormorant",
@@ -118,7 +120,7 @@ fn the_three_query_groups_share_no_words_with_the_queries_they_answer() {
             ][..],
         ),
         (
-            "birds that build hanging nests woven from grass",
+            "birds weaving hanging nests",
             &[
                 "ploceidae",
                 "village-weaver",
@@ -134,11 +136,6 @@ fn the_three_query_groups_share_no_words_with_the_queries_they_answer() {
             let card = birds().resolve(name).expect("a card of the group");
             let article = words(&card.document.text());
             for word in &asked {
-                // `that`, `at`, `to` and `from` carry no content; everything
-                // else in a query must be absent from the article.
-                if matches!(word.as_str(), "that" | "at" | "to" | "from") {
-                    continue;
-                }
                 assert!(
                     !article.contains(word),
                     "{name} writes `{word}`, which `{query}` also writes"

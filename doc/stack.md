@@ -50,6 +50,17 @@ for what extensions may expose.
   tests in `tests/`. Logic that only the binary can reach is logic that cannot
   be tested.
 
+## `contrib/`
+
+`contrib/` holds tooling that is not part of the binary and that `cargo test`
+never invokes. It may be written in another language, and
+[`contrib/semantics/`](../contrib/semantics/README.md) is: the embedding model
+that produces an HQL index belongs where the model ecosystem is, and the
+consumer belongs in Rust. Anything under `contrib/` MUST be runnable on its own,
+MUST carry its own tests and its own README, and MUST NOT be a build dependency
+of the crate — a contributor with no Python installed builds and tests
+everything.
+
 ## Tests
 
 - `cargo test`. Unit tests live in a `#[cfg(test)] mod tests` beside the code
