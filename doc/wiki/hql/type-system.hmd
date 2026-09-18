@@ -170,16 +170,16 @@ numbers in order — and it prescribes no layout, no storage and no fields.
 **An abstract type is not a supertype.** It exists on its own terms, declared
 and complete, whether or not anything ever narrows it. *Supertype* is a **role
 conferred by someone else's declaration**, not a kind of type: `Seq<T>` becomes
-a supertype of `List<T>` at the moment `List<T> <: Seq<T>` is written, and
-`Seq<T>` is neither changed nor consulted by that. This is the narrowing
+a supertype of `Ranking<T>` at the moment `Ranking<T> <: Seq<Hit<T>>` is
+written, and `Seq<T>` is neither changed nor consulted by that. This is the narrowing
 section's point read from the other end — `Doc` is unchanged and unaware, and
 declaring `Card <: Doc` makes a claim about `Card` alone.
 
 What `<:` asserts is that the laws are satisfied:
 
 ```hql
-type Seq<T>        // an abstract type, defined by its laws
-List<T> <: Seq<T>  // an assertion that List satisfies them
+type Seq<T>                 // an abstract type, defined by its laws
+Ranking<T> <: Seq<Hit<T>>   // an assertion that Ranking satisfies them
 ```
 
 In plain terms: **`Seq<T>` is an abstract type governed by laws, and `A <: B`
@@ -215,24 +215,19 @@ Nothing under `std/` is read by the binary yet — see
 carries the whole weight, and the first two are prose that a test cannot
 contradict.
 
-### What this decides about `Seq` and `List`
+### What this decided about `Seq` and `List`
 
-Reading `Seq<T>` as the abstraction makes the choice between it and `List<T>`
-not a naming competition. `Seq<T>` is the mathematical object HQL cares about.
-`List<T> <: Seq<T>` — the elements held rather than produced — earns its place
-only if HQL genuinely needs to distinguish one **representation** of that
-abstraction from another, which is a question about what the language does, not
-about which word reads better.
+Reading `Seq<T>` as the abstraction settled the choice between it and `List<T>`,
+and settled it by withdrawing `List`. `Seq<T>` is the mathematical object HQL
+cares about; `List<T> <: Seq<T>` — the elements held rather than produced — was
+a claim about **representation**, and such a claim earns a name only where the
+language distinguishes one representation of an abstraction from another. HQL
+does not, so the name is gone. The account is [[hql/collections]], *There is no
+`List`*.
 
-The declaration stands in [`std/collections.hql`](../../../std/collections.hql) pending that
-question, and the question itself is
-[issue 0004](../../issues/0004-collection-order-vocabulary.md). Two observations
-bear on it. The bootstrap evaluator's `Value::Seq` holds an `Rc<Vec<Value>>`, so
-the only representation currently implemented is the materialized one — the
-evaluator's `Seq` *is* a `List`. And `Orderable`, by contrast, has no `Value`
-variant at all and is the one type in `Type` that does not: it is an abstract
-type with laws and nothing else, which is what a law-only supertype looks like
-when it reaches code.
+`Orderable`, by contrast, has no `Value` variant at all and is the one type in
+`Type` that does not: it is an abstract type with laws and nothing else, which
+is what a law-only supertype looks like when it reaches code.
 
 ## `<T>` abstracts
 
@@ -344,7 +339,7 @@ import knowledge
 
 card.metadata          : Data              // before
 card.metadata          : KnowledgeMetadata // after
-card.metadata.concepts : List<Concept>
+card.metadata.concepts : Seq<Concept>
 ```
 
 The runtime value has not changed. What changed is what the checker can prove
@@ -526,9 +521,6 @@ language's central value cannot be the place where the rule is improvised.
 
 ## Open questions
 
-- Whether `List<T> <: Seq<T>` is needed at all, which turns on whether HQL ever
-  distinguishes two representations of the sequence abstraction — see
-  [issue 0004](../../issues/0004-collection-order-vocabulary.md).
 - Whether narrowing is nominal or structural, and what a failed narrowing yields
   — an `Option`, a diagnostic, or a value carrying its failure.
 - The spelling of validation and refinement at the call site: `validate<Person>(card)`,

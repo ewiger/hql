@@ -194,7 +194,7 @@ pub fn named(name: &str, arguments: &[Type]) -> Option<Type> {
         "Presentation" => Type::Presentation,
         "Orderable" => Type::Orderable,
         "Set" => Type::Set(Box::new(single())),
-        "Seq" | "List" => Type::Seq(Box::new(single())),
+        "Seq" => Type::Seq(Box::new(single())),
         "Hit" => Type::Hit(Box::new(single())),
         "Ranking" => Type::Ranking(Box::new(single())),
         "Option" => Type::Option(Box::new(single())),

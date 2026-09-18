@@ -22,7 +22,7 @@ without adopting SQL clauses or Rust-like trait machinery.
 | --- | --- | --- |
 | Documents | `Doc`, `Card`, `Section`, `Link` | Authored knowledge and its structure |
 | Semantic | `Concept`, `Relation`, `Proposition`, `Evidence` | Meaning, claims and support |
-| Collections | `Set<T>`, `Seq<T>`, `List<T>`, `Map<K, V>` | Membership, order, residence and keyed lookup |
+| Collections | `Set<T>`, `Seq<T>`, `Map<K, V>` | Membership, order and keyed lookup — see [[hql/collections]] |
 | Ordinary | `String`, `Int`, `Float`, `Bool`, `Date` | General computation |
 
 These are the current design names. Generic types are written with angle

@@ -79,10 +79,11 @@ change. This is not:
 card.metadata.concepts : List<Concept>
 ```
 
-`List` is no longer part of the decided collection vocabulary, so the occurrence
-cannot simply be respelled — it needs a semantic choice between `Seq<Concept>`
-and `Set<Concept>`. That choice follows from whether the order of a card's
-concepts carries information, which is a question about what `concepts` means.
+`List` is withdrawn — see [collections](../../wiki/hql/collections.hmd), *There
+is no `List`* — so the occurrence cannot simply be respelled. It needs a
+semantic choice between `Seq<Concept>` and `Set<Concept>`, and that choice
+follows from whether the order of a card's concepts carries information, which
+is a question about what `concepts` means.
 It was therefore left unresolved in [Card](../../wiki/hql/types/card-type.hmd)
 rather than settled in passing.
 

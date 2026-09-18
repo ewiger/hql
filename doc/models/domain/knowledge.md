@@ -194,7 +194,7 @@ The knowledge extension then refines it:
 import knowledge
 
 card.metadata          : KnowledgeMetadata
-card.metadata.concepts : List<Concept>
+card.metadata.concepts : Seq<Concept>   // provisional; see collections
 ```
 
 That is progressive refinement of one unchanged tree, not conversion. An

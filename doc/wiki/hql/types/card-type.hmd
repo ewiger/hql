@@ -273,14 +273,14 @@ import knowledge
 
 card.metadata          : Data              // before
 card.metadata          : KnowledgeMetadata
-card.metadata.concepts : List<Concept>   // see below
+card.metadata.concepts : Seq<Concept>   // see below
 ```
 
-> `List` is no longer part of the decided collection vocabulary, so this
-> occurrence needs a semantic choice between `Seq<Concept>` and `Set<Concept>`.
-> It is left unresolved deliberately: the answer follows from whether the order
-> of a card's concepts carries information, not from the bracket migration. See
-> [[hql/collections]].
+> `List` is withdrawn — see [[hql/collections]], *There is no `List`* — and the
+> choice left here is between `Seq<Concept>` and `Set<Concept>`. It is written
+> as `Seq` provisionally and stays open deliberately: the answer follows from
+> whether the order of a card's concepts carries information, which nothing has
+> yet decided.
 
 The runtime value is unchanged; what changed is what the checker can prove about
 it. An extension owns type knowledge about a header, not the header itself —
