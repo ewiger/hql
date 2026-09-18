@@ -36,7 +36,8 @@ where its steps will:
 
 | File | Module |
 | --- | --- |
-| `core.hql` | the collection and data vocabulary the core owns |
+| `core.hql` | the data, absence and value-order vocabulary the core owns |
+| `collections.hql` | membership, order and lookup |
 | `doc.hql` | documents |
 | `graph.hql` | the graph domain |
 | `knowledge.hql` | the knowledge domain, including the card family |

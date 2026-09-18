@@ -1,6 +1,7 @@
 # Consolidation TODO
 
-Opened 2026-09-17 on branch `feat/lang-design`.
+Opened 2026-09-17 on branch `feat/lang-design`; pruned 2026-09-18 on
+`feat/semantic-search`.
 
 This file tracks **consolidation work**: renames and removals that a settled
 decision implies but that have not yet been carried through every file. It is a
@@ -9,75 +10,26 @@ work index, not a decision record. A decision belongs in `doc/proposals/` or a
 [inconsistencies.md](inconsistencies.md) as an `INC-NN` finding.
 
 Items carry stable `CON-NN` identifiers so a commit can point at one without
-restating it. An item is removed when the work is finished everywhere, not when
-the decision behind it is recorded, and its identifier is not reused.
+restating it. **A finished item is deleted**, not kept as a record that it was
+done; git history is that record. Identifiers are not reused.
 
 ## Index
 
 | ID | Item | State |
 | --- | --- | --- |
-| CON-01 | Drop `HmdCard`; the type is `Card` | done, residue |
-| CON-03 | `Hmd` is a format, not the parsed body type | done, residue |
-| CON-05 | `cards` ordering: `List<Card>` or `Set<Card>` | done, residue |
-| CON-06 | Title precedence: derived heading or authored entry | open, needs decision |
-| CON-07 | Precedence between derived, authored and contributed header layers | open, needs decision |
-| CON-08 | Whether a card requires a vault | open, needs decision |
-| CON-09 | Knowledge is day-one design, not future work | done |
-| CON-10 | Links to `first-milestone`, which no longer exists | done |
-| CON-11 | `typed Relation` over cards becomes `typed RelationCard` | open, corpus residue |
-| CON-12 | `Card` splits into `ConceptCard` and `RelationCard` | done, corpus residue |
-| CON-13 | Generics are written `<T>`; `[]` stays value-level | done, corpus residue |
+| CON-06 | Title precedence: derived heading or authored entry | needs a decision |
+| CON-07 | Precedence between derived, authored and contributed header layers | half decided |
+| CON-08 | Whether a card requires a vault | needs a decision |
 
-## CON-01 — Drop HmdCard
+Closed by the corpus being absent: `CON-01`, `CON-03`, `CON-05`, `CON-11`,
+`CON-12` and `CON-13` were each carried through `doc/**`, `src/` and `std/`, and
+their only outstanding residue was `examples/`, which is in no branch. They are
+deleted here and reopen only if the corpus returns — see `INC-25`.
 
-**Decided.** The type is `Card`, with no alias and no `Hmd` prefix. The prefix
-named a condition the type no longer has: card-ness is a knowledge property, not
-a file format, so nothing about a card follows from its file being `.hmd`. See
-[extensions](../wiki/hql/extensions.hmd).
-
-Done in [Card](../wiki/hql/types/card-type.hmd),
-[design status](../wiki/hql/design-status.hmd),
-[HMD integration](../wiki/hmd-integration.hmd) and the extension-boundary memory.
-`INC-03` is struck as resolved.
-
-Residue: [inconsistencies.md](inconsistencies.md) still contains the name where a
-finding quotes text that used it. Those are quotations of a former state and are
-deliberately left, since rewriting them would falsify the audit record.
-
-## CON-03 — Hmd is a format, not a type
-
-**Decided.** `Hmd` names the dialect that `header.format` reports. The parsed
-body value is `HmdContent`, and `Content` is a document body's type before its
-dialect is established; `HmdContent <: Content` is the usual narrowing.
-
-Done in [Doc](../wiki/hql/types/doc-type.hmd).
-
-Residue, in the corpus and its index:
-
-| Where | What it says |
-| --- | --- |
-| [cards/body.hql](../../examples/cards/body.hql) | `expected-type: Hmd` |
-| [cards/field-sequence.hql](../../examples/cards/field-sequence.hql) | `expected-type: Hmd` |
-| [examples/README.md](../../examples/README.md) | "type: Hmd" in the case table |
-
-`Content` and `HmdContent` are the names this consolidation used. They were not
-chosen by a decision record, and confirming or replacing them is part of closing
-this item.
-
-## CON-05 — cards ordering
-
-**Decided 2026-09-18**, and not by picking one of the two spellings. The
-question was whether a reproducible prefix requires vault order to be
-observable. It does not: a `Card` carries an ordering key of its own, its name,
-so `cards : Set<Card>` stands *and* `cards | take(5)` is well defined. Order
-comes from the values, never from how they were found — see
-[Orderable](../wiki/hql/types/orderable.hmd).
-
-`Orderable` is now what `take` requires of an element type, and it is
-implemented. The `List<Card>` reading in
-[Card](../wiki/hql/types/card-type.hmd) is superseded and that card still needs
-the edit. `INC-04`'s third site is the corpus, which is not in this working
-tree, so it stays residue alongside `CON-11` and `CON-12`.
+**These three items are misfiled.** A consolidation item is work implied by a
+decision already made; all three below are decisions not yet made, which is what
+`doc/proposals/` is for. Promoting them to proposals, or to issue cards, would
+empty this file.
 
 ## CON-06 — Title precedence
 
@@ -93,94 +45,19 @@ have no equivalent problem, because nothing authored can contradict them.
 authored can contradict where a document is. For *metadata*, the question is
 sidestepped rather than answered: an extension contributes under a key it owns
 (`metadata.search.*`, `metadata.git.*`), so an authored entry and a contributed
-one cannot collide. What remains open is an authored entry contradicting a
-derived one on a path neither obviously owns, such as `title`, which is `CON-06`.
-See [the command line](../models/behavior/cli.md).
+one cannot collide. See [the command line](../models/behavior/cli.md).
 
-The original statement of the item follows.
-
-Needs a decision, and not a single rule. A header is assembled from derived,
-authored and contributed entries. An author overriding a derived `title` is
-reasonable; an author overriding a derived `path` is not. Whether a contributed
-entry may overwrite an authored one is a third question, and an extension that
-contributes only type knowledge raises none of them. Recorded as open in
-[Doc](../wiki/hql/types/doc-type.hmd) and [Card](../wiki/hql/types/card-type.hmd).
+What remains open is an authored entry contradicting a derived one on a path
+neither obviously owns, such as `title` — which is `CON-06`. Whether a
+contributed entry may overwrite an authored one is a third question, and an
+extension that contributes only type knowledge raises none of them. Recorded as
+open in [Doc](../wiki/hql/types/doc-type.hmd) and
+[Card](../wiki/hql/types/card-type.hmd).
 
 ## CON-08 — Does a card require a vault
 
-Needs a decision, raised by the extension-boundary memory. Card-ness no longer
-follows from the file format, but [Card](../wiki/hql/types/card-type.hmd) still
-narrows on two conditions, the second being a place in a vault. Naming and
-`downlinks` do need a namespace; whether a document outside one can nonetheless
-represent a piece of knowledge is unresolved.
-
-## CON-09 — Knowledge is day-one design
-
-**Done 2026-09-18.** Both files now separate the settled design from the deferred
-implementation. [Knowledge model](../models/domain/knowledge.md) opens "preferred
-conceptual model, designed from day one rather than deferred… the *implementation*
-is a bootstrap evaluator", and [architecture](../models/domain/architecture.md)
-says the declarations "are settled design, not deferred work; what is deferred is
-the *implementation*". [Graphs](../models/domain/graphs.md) was reworded to
-match. Closes the second half of `INC-07`.
-
-## CON-10 — Links to a deleted card
-
-**Done 2026-09-18.** All three `[[first-milestone]]` links are repointed at
-[bootstrap requirements](../models/requirements/bootstrap.md), which is what the
-card described. `INC-12`'s four other broken links are untouched and still open.
-
-## CON-11 — typed Relation becomes typed RelationCard
-
-`cards | typed Relation | graph` selects nothing, because a card is never a
-`Relation`. The idiom is `cards | typed RelationCard | graph` — see `INC-22`.
-
-Done throughout `doc/`. Residue: the example corpus is not present in this
-working tree, and its rows still carry the old spelling. Closing this item means sweeping
-`examples/` when it is back.
-
-## CON-12 — Card splits into ConceptCard and RelationCard
-
-**Decided.** `Card <: Doc` is the base representation type;
-`ConceptCard <: {Card, Concept}` is the node-occupying default and
-`RelationCard <: Card` is the exception, declared by
-`metadata.knowledge.type == Relation`. `Card <: Concept` is withdrawn. See
-[Card](../wiki/hql/types/card-type.hmd).
-
-Done in the knowledge and graph models and in the Card, Doc, Graph, type-system,
-knowledge, pipes, link-op, design-status and design-direction cards.
-
-Residue: the example corpus, same reason as `CON-11`. Also unswept are
-`examples/std-lib/`, where `HmdCard`, `MdCard` and `DataCard` implement `Card` —
-that direction is unaffected, since they are representations of the base type,
-but the cases should say which kind they produce.
-
-## CON-13 — Generic brackets become angle brackets
-
-**Decided 2026-09-18.** Generics are written `<T>` in every position — binding a
-parameter and applying a constructor alike — and square brackets are reserved
-for sequence values and indexing. The hybrid that would have bound with `[]` and
-applied with `<>` is rejected. See
-[bind versus apply](../models/behavior/bind-vs-apply-in-generic-types.md).
-
-This closes the divergence the wiki had been tracking in its own text: three
-cards carried a note saying the two spellings were one unsettled choice that the
-card did not settle. Those notes are gone, and the rule is stated in
-[type-system](../wiki/hql/type-system.hmd), [core](../wiki/hql/core.hmd) and
-[design-status](../wiki/hql/design-status.hmd).
-
-Done throughout `doc/**`, including binder positions such as `fn titles<T>` and
-call-site application such as `validate<Person>(card)`. The implementation was
-converted separately and is `INC-24`, which the lexer, parser and `Type::Display`
-now satisfy; this item is the documentation half of the same decision.
-
-Residue: the example corpus is not present in this working tree and still uses
-`[]`, same reason as `CON-11` — `INC-05` and `INC-06` name the affected cases.
-Deliberately unswept inside `doc/`: the rejected-hybrid examples in the decision
-document, which are what it argues against, and the quotations in
-[inconsistencies.md](inconsistencies.md) that are the evidence for `INC-06` and
-`INC-16`.
-
-The migration was spelling only. Where respelling would have required a semantic
-choice — `List<Concept>` on [Card](../wiki/hql/types/card-type.hmd) — the
-occurrence was left unresolved and annotated instead.
+Needs a decision. Card-ness no longer follows from the file format, but
+[Card](../wiki/hql/types/card-type.hmd) still narrows on two conditions, the
+second being a place in a vault. Naming and `downlinks` do need a namespace;
+whether a document outside one can nonetheless represent a piece of knowledge is
+unresolved.

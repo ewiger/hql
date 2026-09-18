@@ -9,7 +9,8 @@ These are language-design contracts, not implemented collection APIs.
 | Type | Intended meaning | Design consequence |
 | --- | --- | --- |
 | `Set<T>` | Unordered collection of distinct elements | No implicit first element or stable iteration order |
-| `Seq<T>` | Ordered sequence, allowing repeated elements | Position and order are observable |
+| `Seq<T>` | Positionally ordered sequence, allowing repeated elements | Positions are observable; the *elements* need not be orderable |
+| `List<T>` | A `Seq<T>` held entirely in memory | Length is known; a second traversal is free |
 | `Map<K, V>` | Values associated with distinct keys | Lookup is by key; iteration order is not implied |
 
 Equality, Card identity, key eligibility, missing-key results and duplicate-key
@@ -30,9 +31,81 @@ ordering guarantee. Selecting a reproducible prefix requires a defined order,
 including how equal sort keys are handled.
 
 `cards` is a `Set<Card>`, and `Seq<T>` is what a `sort` or a ranking produces
-when order matters. There is no `List` alias and no automatic conversion. A
-prefix of a set is reproducible because its elements carry their own ordering
-key — see [[orderable]].
+when order matters. A prefix of a set is reproducible because its elements carry
+their own ordering key — see [[orderable]].
+
+## `List` narrows `Seq`
+
+```hql
+List<T> <: Seq<T>
+```
+
+`List` is not an alias for `Seq` and not a second name for the same contract.
+`Seq<T>` says a position exists for every element — each one can be assigned a
+natural number — which a lazily produced sequence satisfies without ever being
+materialized. `List<T>` adds that the elements are **held rather than
+produced**: the collection is in memory, its length is known without consuming
+it, and traversing it twice costs what traversing it once did. Every `List` is
+therefore a `Seq`, and the narrowing is the usual one.
+
+`Seq<T>` is an abstract type governed by laws, and the narrowing asserts that
+`List` satisfies them — see [[type-system]], *Abstract types and their laws*,
+which also records why the distinction may not be worth keeping.
+
+## Ordered is not orderable
+
+Three words in this area are close enough to be confused, and they are three
+different things. This is settled, and the register matters as much as the
+vocabulary.
+
+| Concept | What it says | Whose property |
+| --- | --- | --- |
+| `Seq<T>` | **Positional order.** A position exists for every element: `0 → 42`, `1 → 7`, `2 → 19`. | the collection |
+| `Orderable` | **Value order.** For any two values of the type, which comes first is determinable — `∀ a, b : T`, `a ≤ b` can be decided. | the element type |
+| `SortedSeq<T>` | **Both, and they agree.** The positional order coincides with the value order. | the collection, relative to its elements |
+
+The load-bearing sentence:
+
+> **A sequence is ordered, but its elements need not be orderable.**
+
+`Seq<Function>` is the case that proves it. It has a first, a second and a third
+element, and no two functions have a meaningful `<` between them. The positions
+come from the sequence, not from the values — which is the exact mirror of
+`cards : Set<Card>`, where the order comes from the values and not from the
+collection.
+
+So the phrase "`Seq` is orderable" is wrong and should not appear. A `Seq` is
+**ordered**, or **indexed**. `Orderable` is reserved for a type whose values
+possess an ordering relation. Sorting expects that relation to be **total**, or
+the result is not determined.
+
+### Sorting is an operation, not a type property
+
+"Sortable" names something a function can do with a collection, not a
+foundational property a type has. It is therefore a signature and not a
+supertype:
+
+```hql
+fn sort<T>(xs: Seq<T>) : Seq<T>
+where T <: Orderable
+```
+
+or, when the caller supplies the relation rather than the element type carrying
+it:
+
+```hql
+fn sort<T>(xs: Seq<T>, by: (T, T) -> Ordering) : Seq<T>
+```
+
+The second form is what makes `Seq<Function>` sortable without `Function` being
+`Orderable` — the order arrives with the comparator. This is also why
+[[orderable|`Orderable`]] stays a supertype rather than becoming a capability: it
+says the values *have* a key, and supplying one from outside is the other
+signature, not the same one narrowed.
+
+`Ordering` and `SortedSeq<T>` are named here and declared nowhere. Neither is in
+[[hql/core]] or `std/collections.hql` yet, and adding them is part of
+[issue 0004](../../issues/0004-collection-order-vocabulary.md).
 
 ## Collection functions
 

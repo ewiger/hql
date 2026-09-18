@@ -1,19 +1,17 @@
-// The vocabulary the core owns: collections, the open tree, absence, order.
+// The vocabulary the core owns: the open tree, absence, value order.
+// Collections are their own module — see collections.hql.
 //
-// See doc/wiki/hql/collections.hmd, data-type.hmd, option-type.hmd.
+// See doc/wiki/hql/types/data-type.hmd, option-type.hmd, orderable.hmd.
 
 // An open tree whose keys belong to whoever wrote them.
 type Data
 
-// Membership, order and lookup are three different contracts.
-type Set<T>         // unordered, distinct elements; no implicit first element
-type Seq<T>         // ordered, repeats allowed; position is observable
-type Map<K, V>      // lookup by key; iteration order is not implied
-
 // Absence is an ordinary sum type. There is no null.
 type Option<T>
 
-// Anything carrying an ordering key of its own, so that a prefix of an
-// unordered collection is reproducible without discovery order being
-// observable. A Card is orderable because it has a name.
+// Value order: for any two values of the type, which comes first can be
+// decided. This is a property of the element, not of any collection holding
+// it — a Card is orderable because it has a name, which is what makes a prefix
+// of an unordered collection reproducible without discovery order becoming
+// observable. Sorting expects the order to be total.
 type Orderable

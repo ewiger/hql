@@ -23,8 +23,7 @@ the one that is true now.
 
 The parser has no `type` statement, so nothing in `std/` is read by the binary
 or checked by a test. Tracked as
-[issue 0003](../../issues/0003-type-declarations.md), which is itself blocked on
-the angle-bracket migration recorded as `INC-24`.
+[issue 0003](../../issues/0003-type-declarations.md).
 
 A standard library is a bootstrap non-goal in
 [requirements](../../models/requirements/bootstrap.md), and that still holds:

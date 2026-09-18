@@ -3,8 +3,10 @@ tags: [hql, types, ordering, collections]
 ---
 # `Orderable`
 
-`Orderable` is an ordinary **supertype**, not a bound, a capability or a trait.
-A type narrows it when its values carry an ordering key of their own:
+`Orderable` is an **abstract type with laws**, narrowed by ordinary `<:` — not a
+bound, a capability or a trait. Its law is that any two values of the type can be
+put in order. A type narrows it when its values carry an ordering key of their
+own:
 
 ```hql
 Int <: Orderable
@@ -18,6 +20,20 @@ Hit <: Orderable
 Collections and [[data-type|Data]] do not. The distinction is the one
 [[type-system]] draws between ancestry and capability: the key is a property of
 the value, not something registered for it from outside.
+
+`Orderable` declares no field and prescribes no representation: it is the one
+member of `Type` in `src/types.rs` with no corresponding `Value`. The law is
+enforced there behaviorally, by `order_key` in `src/values.rs`, rather than
+checked from a declaration — see [[type-system]], *Where the laws live*.
+
+## Ordered is not orderable
+
+`Orderable` is a property of a **value**, not of a collection. A `Seq<T>` is
+*ordered* — a position exists for every element — whether or not `T` is
+`Orderable` at all: `Seq<Function>` has a first and a second element and no two
+functions have a meaningful `<`. The two are not the same claim and neither
+implies the other. See [[hql/collections]], *Ordered is not orderable*, for the
+three-way distinction and for `sort` as a signature rather than a supertype.
 
 ## Why a card is orderable
 
@@ -54,7 +70,8 @@ rather than inherit one — see [[hql/semantic-search]].
 ## Open
 
 - Whether `Orderable` is a single total order per type or a type may offer
-  several named keys.
+  several named keys. Sorting expects a **total** order; a partial one leaves the
+  result undetermined, so this question is not cosmetic.
 - Card key collisions across namespaces, and whether the key is the name or the
   qualified path.
 - Whether user-declared types may narrow `Orderable`, and how they state the key.

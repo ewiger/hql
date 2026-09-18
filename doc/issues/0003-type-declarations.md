@@ -28,12 +28,6 @@ gap is real and belongs on the board rather than in a comment.
 - **Not evaluation.** A declaration yields `Unit`. Constructing a value of a
   declared record type is separate work.
 
-## Unblocked
-
-The angle-bracket migration, `INC-24`, is done: the lexer has `<` and `>`, type
-arguments are read between them, and each `>` is lexed alone, so `<:` is free
-for the statement this issue adds.
-
 ## Done when
 
 - Every file under `std/` parses and checks, pinned by a test that walks the

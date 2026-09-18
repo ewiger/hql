@@ -23,6 +23,55 @@ values are data and declared fields are queryable data, so a type exposes
 everything it declares. What a type *can* say is that a field may be absent —
 see [[fields]].
 
+# Inhabitation, Subtyping, and Inheritance
+
+**Inhabitation** relates a value or expression to a type.
+
+```hql
+alice : Person
+```
+
+means that `alice` is an inhabitant of `Person`, or equivalently that the expression `alice` has type `Person`. The notation `x : T` is a typing judgment about a value.
+
+**Subtyping** relates one type to another type.
+
+```hql
+HmdCard <: Card
+Card <: Doc
+```
+
+`A <: B` means that every value inhabiting `A` may also be treated as a value of `B`. Therefore:
+
+```hql
+card : HmdCard
+HmdCard <: Card
+Card <: Doc
+```
+
+implies:
+
+```hql
+card : Card
+card : Doc
+```
+
+Subtyping is a relation between types; inhabitation is a relation between values and types.
+
+**Inheritance** is a mechanism for defining one type in terms of another, usually by inheriting fields, operations, implementations, or declarations. It concerns how a type is constructed or defined.
+
+Inheritance and subtyping are therefore distinct concepts. A language may make inheritance produce a subtype relationship, but this is a language-design choice rather than the definition of subtyping itself.
+
+In HQL the notation can remain explicit:
+
+```hql
+x : T        // x inhabits T
+
+A <: B       // A is a subtype of B
+```
+
+Thus `:` operates between a value and a type, while `<:` operates between two types.
+
+
 ## `<:` narrows
 
 `Card <: Doc` means that `Card` is a **specialization** of `Doc`: every card
@@ -107,6 +156,83 @@ never converts the value.
 
 Absence is not part of this. `Option` is an ordinary sum type, not a trait — see
 [[option-type]].
+
+## Abstract types and their laws
+
+The `<:` section above says what narrowing does to the subtype. This one says
+what stands on the other side of the relation.
+
+An **abstract type** is defined by an algebraic or logical specification rather
+than by a representation. `Seq<T>` is the clearest case: its whole content is a
+law — a position exists for every element, and the positions are the natural
+numbers in order — and it prescribes no layout, no storage and no fields.
+
+**An abstract type is not a supertype.** It exists on its own terms, declared
+and complete, whether or not anything ever narrows it. *Supertype* is a **role
+conferred by someone else's declaration**, not a kind of type: `Seq<T>` becomes
+a supertype of `List<T>` at the moment `List<T> <: Seq<T>` is written, and
+`Seq<T>` is neither changed nor consulted by that. This is the narrowing
+section's point read from the other end — `Doc` is unchanged and unaware, and
+declaring `Card <: Doc` makes a claim about `Card` alone.
+
+What `<:` asserts is that the laws are satisfied:
+
+```hql
+type Seq<T>        // an abstract type, defined by its laws
+List<T> <: Seq<T>  // an assertion that List satisfies them
+```
+
+In plain terms: **`Seq<T>` is an abstract type governed by laws, and `A <: B`
+asserts that `A` satisfies the laws of `B`.** It is why the checker is entitled
+to reject a narrowing it cannot support, and why `Card <: Orderable` is genuine
+ancestry rather than a capability: the law is about the card's own name, so the
+card is in a position to satisfy it.
+
+The phrase to use in prose is **abstract type with laws**, or **axiomatized
+abstract type** where more formality helps. The second is not the canonical name
+of a single type-theory construct, but every word in it maps cleanly to an
+established one.
+
+### Where the laws live
+
+An abstract type reaches the repository in three parts, and no one of them is
+the type:
+
+| Part | Where it sits |
+| --- | --- |
+| the declaration | one short line in [`std/`](../../../std/README.md) — `type Seq<T>` in `collections.hql` |
+| the law it stands for | the comment beside that line, and the card arguing it |
+| enforcement | the Rust implementation under `src/` |
+
+A law is therefore implemented **as defined** where it is directly checkable, and
+described **behaviorally** — honored by the operations that produce and consume
+values of the type — where it is not. `Seq`'s positional law is of the second
+kind: nothing verifies that positions exist, and everything that builds a `Seq`
+supplies them.
+
+Nothing under `std/` is read by the binary yet — see
+[issue 0003](../../issues/0003-type-declarations.md) — so today the third column
+carries the whole weight, and the first two are prose that a test cannot
+contradict.
+
+### What this decides about `Seq` and `List`
+
+Reading `Seq<T>` as the abstraction makes the choice between it and `List<T>`
+not a naming competition. `Seq<T>` is the mathematical object HQL cares about.
+`List<T> <: Seq<T>` — the elements held rather than produced — earns its place
+only if HQL genuinely needs to distinguish one **representation** of that
+abstraction from another, which is a question about what the language does, not
+about which word reads better.
+
+The declaration stands in [`std/collections.hql`](../../../std/collections.hql) pending that
+question, and the question itself is
+[issue 0004](../../issues/0004-collection-order-vocabulary.md). Two observations
+bear on it. The bootstrap evaluator's `Value::Seq` holds an `Rc<Vec<Value>>`, so
+the only representation currently implemented is the materialized one — the
+evaluator's `Seq` *is* a `List`. And `Orderable`, by contrast, has no `Value`
+variant at all and is the one type in `Type` that does not: it is an abstract
+type with laws and nothing else, which is what a law-only supertype looks like
+when it reaches code.
 
 ## `<T>` abstracts
 
@@ -400,6 +526,9 @@ language's central value cannot be the place where the rule is improvised.
 
 ## Open questions
 
+- Whether `List<T> <: Seq<T>` is needed at all, which turns on whether HQL ever
+  distinguishes two representations of the sequence abstraction — see
+  [issue 0004](../../issues/0004-collection-order-vocabulary.md).
 - Whether narrowing is nominal or structural, and what a failed narrowing yields
   — an `Option`, a diagnostic, or a value carrying its failure.
 - The spelling of validation and refinement at the call site: `validate<Person>(card)`,
