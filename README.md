@@ -28,7 +28,7 @@ cargo clippy --locked --all-targets -- -D warnings
 ```sh
 cargo run -- eval '40 + 2'                       # 42
 cargo run -- --vault <dir> eval 'cards | count'
-cargo run -- builtins                            # the stages a pipeline may use
+cargo run -- builtins                            # the steps a pipeline may use
 ```
 
 To install the `hql` command locally:
@@ -66,7 +66,7 @@ claim that all of them matched.
 | `hql run <file>` | check and evaluate a file |
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL blocks in a document, transcluding the answers |
-| `hql builtins` | list the stages |
+| `hql builtins` | list the steps |
 | `hql config` | the reporting mode in force, and where it came from |
 
 `-` reads standard input wherever a file is taken. `--format json` emits the

@@ -73,7 +73,7 @@ enum Command {
         #[arg(long)]
         write: bool,
     },
-    /// List the stages a pipeline may use.
+    /// List the steps a pipeline may use.
     Builtins,
     /// Show the reporting mode in force, and where it came from.
     Config,

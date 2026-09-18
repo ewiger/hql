@@ -22,7 +22,7 @@ board:
     backlog: []
     todo:
       - id: "0001"
-        title: Real embeddings, and a name that tells the truth
+        title: Real embeddings, and renaming the lexical matcher
         file: 0001-real-embeddings.md
     doing: []
     done: []

@@ -1,7 +1,7 @@
 //! Evaluation: pure over the values it is given, with the vault as its source.
 
 use crate::ast::{Arg, Expr, Kind, Program, Stmt};
-use crate::checker::{self, stage_of};
+use crate::checker::{self, step_of};
 use crate::data::Data;
 use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
@@ -154,12 +154,12 @@ impl Evaluator<'_> {
             )),
             Kind::Call { .. } => Err(Diagnostic::typing(
                 span,
-                "a stage needs an input: write `… | stage(…)`",
+                "a pipeline step needs an input: write `… | step(…)`",
             )),
-            Kind::Pipe(input, stage) => {
+            Kind::Pipe(input, step) => {
                 let value = self.expression(input)?;
-                let (name, arguments) = stage_of(stage)?;
-                self.stage(name, value, arguments, stage.span.clone())
+                let (name, arguments) = step_of(step)?;
+                self.step(name, value, arguments, step.span.clone())
             }
         }
     }
@@ -284,14 +284,14 @@ impl Evaluator<'_> {
         result
     }
 
-    fn stage(
+    fn step(
         &mut self,
         name: &str,
         input: Value,
         arguments: &[Arg],
         span: Range<usize>,
     ) -> Result<Value, Diagnostic> {
-        // Absence is the empty collection here, so every stage below sees a
+        // Absence is the empty collection here, so every step below sees a
         // collection and none of them has to know about it.
         let input = match input {
             Value::Absent(element) => Value::set(Vec::new(), element),
@@ -490,7 +490,10 @@ impl Evaluator<'_> {
                     .unwrap_or_else(|_| "null".to_owned()),
             )),
             "text" => Ok(present("text", input.to_string())),
-            other => Err(Diagnostic::name(span, format!("`{other}` is not a stage"))),
+            other => Err(Diagnostic::name(
+                span,
+                format!("`{other}` is not a pipeline step"),
+            )),
         }
     }
 

@@ -218,7 +218,7 @@ fn a_lambda_is_an_argument_and_not_a_value() {
 }
 
 #[test]
-fn a_stage_without_an_input_says_so() {
+fn a_step_without_an_input_says_so() {
     match check("take(5)") {
         Err(Diagnostic::Type { message, .. }) => assert!(message.contains("needs an input")),
         other => panic!("expected a type error, got {other:?}"),
@@ -226,7 +226,7 @@ fn a_stage_without_an_input_says_so() {
 }
 
 #[test]
-fn a_near_miss_on_a_stage_name_is_suggested() {
+fn a_near_miss_on_a_step_name_is_suggested() {
     match check("1 | tabl") {
         Err(Diagnostic::Name { message, .. }) => assert!(message.contains("`table`"), "{message}"),
         other => panic!("expected a name error, got {other:?}"),

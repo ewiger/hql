@@ -7,7 +7,7 @@ The `|` operator is fundamental to HQL. A pipeline composes typed functions and
 should naturally support query and data-parallel execution. It remains a language
 design feature; the bootstrap parser does not accept pipelines yet.
 
-For a unary function, the intended reading of `x | f` is `f(x)`. A stage consumes
+For a unary function, the intended reading of `x | f` is `f(x)`. A step consumes
 the previous value and returns the next. Input and output types must agree;
 piping a collection into a function expecting one Card is not implicitly a map.
 
@@ -24,7 +24,7 @@ This preferred example selects relation cards and requests a graph of them.
 conformance. The exact application syntax and the result type of `graph`
 remain design questions.
 
-## Functions as stages
+## Functions as steps
 
 A candidate composition style lets configured operations return unary functions:
 
@@ -45,7 +45,7 @@ without importing Rust's syntax or extension mechanisms.
 
 ## Execution freedom
 
-Pure collection stages should leave room for lazy evaluation, stage fusion,
+Pure collection steps should leave room for lazy evaluation, step fusion,
 source-side query execution and partitioned work. These are executor options,
 not promises that every pipe runs in parallel or that a query planner exists.
 

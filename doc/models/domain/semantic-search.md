@@ -30,12 +30,12 @@ cards
 | graph(depth = 1)
 ```
 
-Four stages, and the current documentation supports none of them. Read
+Four steps, and the current documentation supports none of them. Read
 left to right, the missing parts are: a ranked collection type, a prefix
 operation over it, an index that is not the vault, a traversal vocabulary, and a
 decision about what `graph` means when it is given both a collection and a depth.
 
-The form this model recommends separates the last stage into two:
+The form this model recommends separates the last step into two:
 
 ```hql
 cards
@@ -232,7 +232,7 @@ enumerate the vault, score every card, sort, keep five.
 
 The resolution is not to weaken the optimizer rule. It is that **`semantic`
 declares itself approximate in its own contract**, so the difference is part of
-what the stage means rather than a liberty the executor took. `approximate` is a
+what the step means rather than a liberty the executor took. `approximate` is a
 field on `Retrieval` for the same reason: a consumer can see which answer it got.
 
 Two further consequences, both landing on decisions
@@ -240,7 +240,7 @@ Two further consequences, both landing on decisions
 extension transport and optimizer-visible execution properties:
 
 - **Top-k fusion.** `semantic | take(n)` is the operation a store implements. The
-  fusion is only available if `take` is visible to the stage that precedes it,
+  fusion is only available if `take` is visible to the step that precedes it,
   which is a contract question, not a rewrite rule.
 - **Purity.** The same query against a changed index gives different answers.
   Pinning an index revision makes `semantic` reproducible; without pinning it is

@@ -141,7 +141,9 @@ impl Checker<'_> {
                 if builtins::exists(name) {
                     Diagnostic::typing(
                         span,
-                        format!("`{name}` is a stage and needs an input: write `… | {name}`"),
+                        format!(
+                            "`{name}` is a pipeline step and needs an input: write `… | {name}`"
+                        ),
                     )
                 } else {
                     let hint = builtins::nearest(name)
@@ -211,12 +213,17 @@ impl Checker<'_> {
             )),
             Kind::Call { callee, arguments } => {
                 let Kind::Ident(name) = &callee.kind else {
-                    return Err(Diagnostic::typing(span, "only a named stage can be called"));
+                    return Err(Diagnostic::typing(
+                        span,
+                        "only a named pipeline step can be called",
+                    ));
                 };
                 if builtins::exists(name) {
                     return Err(Diagnostic::typing(
                         span,
-                        format!("`{name}` is a stage and needs an input: write `… | {name}(…)`"),
+                        format!(
+                            "`{name}` is a pipeline step and needs an input: write `… | {name}(…)`"
+                        ),
                     ));
                 }
                 let _ = arguments;
@@ -228,10 +235,10 @@ impl Checker<'_> {
                     format!("`{name}` is not bound{hint}"),
                 ))
             }
-            Kind::Pipe(input, stage) => {
+            Kind::Pipe(input, step) => {
                 let input_type = self.expression(input)?;
-                let (name, arguments) = stage_of(stage)?;
-                self.stage(name, &input_type, arguments, stage.span.clone())
+                let (name, arguments) = step_of(step)?;
+                self.step(name, &input_type, arguments, step.span.clone())
             }
         }
     }
@@ -257,14 +264,14 @@ impl Checker<'_> {
         result
     }
 
-    fn stage(
+    fn step(
         &mut self,
         name: &str,
         input: &Type,
         arguments: &[Arg],
         span: Range<usize>,
     ) -> Result<Type, Diagnostic> {
-        // A stage applied to absence is a stage applied to nothing, not a
+        // A step applied to absence is a step applied to nothing, not a
         // failure: the reference that produced the absence was permitted.
         let input = match input {
             Type::Option(inner) => inner.as_ref(),
@@ -441,7 +448,7 @@ impl Checker<'_> {
                     .unwrap_or_default();
                 Err(Diagnostic::name(
                     span,
-                    format!("`{other}` is not a stage{hint}"),
+                    format!("`{other}` is not a pipeline step{hint}"),
                 ))
             }
         }
@@ -497,20 +504,20 @@ fn named_or_first<'a>(arguments: &'a [Arg], name: &str) -> Option<&'a Arg> {
     named(arguments, name).or_else(|| arguments.iter().find(|argument| argument.name.is_none()))
 }
 
-/// The name and arguments of a pipeline stage.
-pub(crate) fn stage_of(stage: &Expr) -> Result<(&str, &[Arg]), Diagnostic> {
-    match &stage.kind {
+/// The name and arguments of a pipeline step.
+pub(crate) fn step_of(step: &Expr) -> Result<(&str, &[Arg]), Diagnostic> {
+    match &step.kind {
         Kind::Ident(name) => Ok((name, &[])),
         Kind::Call { callee, arguments } => match &callee.kind {
             Kind::Ident(name) => Ok((name, arguments)),
             _ => Err(Diagnostic::typing(
-                stage.span.clone(),
-                "a pipeline stage is a name or a call",
+                step.span.clone(),
+                "a pipeline step is a name or a call",
             )),
         },
         _ => Err(Diagnostic::typing(
-            stage.span.clone(),
-            "a pipeline stage is a name or a call",
+            step.span.clone(),
+            "a pipeline step is a name or a call",
         )),
     }
 }

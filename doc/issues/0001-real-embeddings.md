@@ -1,4 +1,4 @@
-# 0001 — Real embeddings, and a name that tells the truth
+# 0001 — Real embeddings, and renaming the lexical matcher
 
 Status: todo
 Created: 2026-09-18
@@ -20,7 +20,7 @@ semantic("delegated credential handover")     → one hit at 0.07, on the word "
 ```
 
 The second query is an ordinary English paraphrase of OAuth and finds nothing.
-A stage named `semantic` that cannot survive a synonym is misnamed, and the name
+A step named `semantic` that cannot survive a synonym is misnamed, and the name
 is the part that misleads: every consumer of a `Hit` is told a model produced
 the score, and `hql.hashbag.v1` is not a model of meaning.
 
@@ -72,11 +72,11 @@ Structure it so it exercises the whole card family:
 
 Write real prose. Three to eight sentences per article, in a consistent
 encyclopedic register. The articles are the corpus a language model will embed,
-so thin or templated text makes the whole exercise meaningless.
+so thin or templated text leaves nothing to measure.
 
 **The articles MUST be written so that lexical search demonstrably fails and
 embedding search demonstrably succeeds.** This is the acceptance criterion for
-the whole issue, so design it deliberately: write the owl articles using
+the whole issue, so design for it: write the owl articles using
 "nocturnal", "after dark", "low light", and never the phrase "hunt at night".
 Then `lexical("birds that hunt at night")` finds nothing useful and
 `semantic("birds that hunt at night")` surfaces the owls. Produce **at least
@@ -117,7 +117,8 @@ contract in both implementations and test it with a golden fixture: today
 `Document::text()` in `src/document.rs` is the title, then every string in the
 header, then the body, joined by single spaces. If that definition changes,
 it changes in both places in the same commit. A mismatch here produces an index
-that silently scores the wrong text, which is the worst failure mode available.
+that scores the wrong text with no symptom, so it fails silently and stays
+wrong.
 
 ### (3) Rename, and consume the index
 
@@ -126,8 +127,8 @@ that silently scores the wrong text, which is the worst failure mode available.
   `hql.hashbag.v1`. Nothing about it was wrong except its name.
 - **`semantic(query)`** requires an embedding index. With none configured it is
   an error naming the missing index and the command that builds one — never a
-  silent fallback to `lexical`, which would reintroduce exactly the confusion
-  this issue exists to remove.
+  silent fallback to `lexical`, which would restore the confusion this issue
+  removes.
 
 Configure the index per vault, in the `hql.toml` the reporting layer already
 reads:
@@ -171,9 +172,9 @@ Card-level vectors only. Chunking is a real open question in
 retrieval unit, a passage is — and it is explicitly **out of scope here**. Leave
 the schema able to grow a `chunk` table later; do not add one now.
 
-## Honesty requirements
+## What the index must report
 
-These are the point of the exercise. None of them is optional.
+None of these is optional; they are what makes a score usable as evidence.
 
 - **`Retrieval` reports what actually ran.** `model` is the real model id,
   `revision` is the pinned revision, `metric` is what was computed,
@@ -183,8 +184,8 @@ These are the point of the exercise. None of them is optional.
   and compares. A card whose hash differs from the index has a vector for text
   that no longer exists. Recommended: rank it anyway and queue a **warning**
   naming the card, because a stale score is a wrong answer rather than an
-  impossible one — and this is precisely what the reports queue in
-  `src/reporting.rs` is for. See Open Questions.
+  impossible one, and the reports queue in `src/reporting.rs` already handles
+  that distinction. See Open Questions.
 - **A card absent from the index is absent from the ranking**, with a warning
   saying how many were skipped. Never score it as zero: that is indistinguishable
   from "indexed and unrelated".
@@ -217,7 +218,7 @@ is built around, and leaving it stale is how `INC-15` and `CON-05` happened.
 
 - `doc/models/domain/semantic-search.md` — step three moves to done; record the
   `lexical` / `semantic` split; note that step four is still untouched and why.
-- `doc/models/behavior/cli.md` — the new stage, and the `[semantics]` key.
+- `doc/models/behavior/cli.md` — the new step, and the `[semantics]` key.
 - `doc/wiki/hql/extensions/semantics.hmd` — currently absent; the extension card.
   (`doc/wiki/hql/extensions/` holds three zero-byte stubs; this one should be
   real.)

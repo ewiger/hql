@@ -10,7 +10,7 @@ Recorded 2026-09-18 from a user decision, resolving `INC-15`.
   Evaluating an unresolved one yields absence and queues a warning; the exit
   status does not change.
 - Absence propagates through a field — `[[nowhere]].title` is
-  `Option[String]` — and a stage applied to absence is a stage applied to
+  `Option[String]` — and a pipeline step applied to absence is one applied to
   nothing rather than a failure. That lifting is a stopgap: there is no `match`
   and no sum-type syntax yet, so it is how absence is currently consumed.
   Replacing it with an explicit form is open, and it is the one place the

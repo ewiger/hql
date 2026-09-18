@@ -149,7 +149,7 @@ graph.edges : Set[E]
 an ordering guarantee. Less clear is whether a graph over a vault is
 materialized at all. It may be a query a source executes — a store, a database
 or the vault index — which is the execution freedom
-[pipes](../../wiki/hql/types/pipes.hmd) already reserves for collection stages.
+[pipes](../../wiki/hql/types/pipes.hmd) already reserves for collection steps.
 A traversal, subgraph or path vocabulary has not been designed, and whether it
 is ordinary functions or a separate query surface is undecided.
 
@@ -161,7 +161,7 @@ knowledge
 ```
 
 `graph` is an ordinary function from a knowledge value to a graph, not a
-presentation keyword and not a magical stage. The value it returns happens to
+presentation keyword and not a magical pipeline step. The value it returns happens to
 have a renderer registered by the graph extension, which is what makes it appear
 in a host as a picture.
 

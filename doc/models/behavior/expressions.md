@@ -27,7 +27,7 @@ type        := ident ("[" type ("," type)* "]")?
 
 Whitespace separates tokens. A newline ends a statement **unless** the
 expression is incomplete or the next line opens with an infix operator, so a
-pipeline may be written one stage per line with a leading `|`, and `1 +\n2` is
+pipeline may be written one step per line with a leading `|`, and `1 +\n2` is
 one expression. `//` begins a comment that runs to the end of the line.
 
 `-` belongs to a numeric literal and must touch its digits. There is no unary
@@ -66,14 +66,14 @@ written yet is permitted. When it does not resolve, evaluation yields absence
 and **warns**; the exit status does not change.
 
 Absence propagates through a field — `[[nowhere]].title` is `Option[String]` —
-and a stage applied to absence is a stage applied to nothing rather than a
+and a pipeline step applied to absence is one applied to nothing rather than a
 failure. There is no `match` yet, so this lifting is how absence is currently
 consumed, and replacing it with an explicit form is open.
 
 ## Stages
 
-A pipeline stage is a name or a call, and `x | f(a)` reads as "`f`, configured
-with `a`, applied to `x`". Writing a stage without an input is an error that
+A pipeline step is a name or a call, and `x | f(a)` reads as "`f`, configured
+with `a`, applied to `x`". Writing a step without an input is an error that
 says so. The list is [`hql builtins`](cli.md), and it is ordinary functions
 rather than grammar.
 

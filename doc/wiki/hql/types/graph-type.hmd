@@ -154,7 +154,7 @@ this card does not settle it.
 What is less clear is whether a graph over a vault should be materialized at
 all, or whether it is a query that a source may execute — a graph store, a
 database, or the vault index — which is the same execution
-freedom [[pipes]] reserves for collection stages.
+freedom [[pipes]] reserves for collection steps.
 
 ## Projection and presentation
 

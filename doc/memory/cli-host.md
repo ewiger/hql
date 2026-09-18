@@ -27,7 +27,7 @@ Decided in passing, all small:
   nothing is lost — the user's choice.
 - **A relation card contributes an edge and does not become a node**, and its
   endpoints enter the graph as expanded nodes so the edge has ends.
-- **`expand` and `graph` are two stages.** `expand(depth = n)` traverses and
+- **`expand` and `graph` are two pipeline steps.** `expand(depth = n)` traverses and
   produces a graph carrying why each node is present; `graph` projects a
   collection, and projecting a graph yields it unchanged. The naming question in
   [graphs](../models/domain/graphs.md) stays open rather than being answered by

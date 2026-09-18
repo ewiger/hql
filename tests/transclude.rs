@@ -55,7 +55,7 @@ fn rendering_twice_leaves_what_rendering_once_did() {
 
 #[test]
 fn a_block_that_fails_reports_and_the_document_still_renders() {
-    let source = "# Notes\n\n```hql\ncards | nosuchstage\n```\n";
+    let source = "# Notes\n\n```hql\ncards | nosuchstep\n```\n";
     let rendered = transclude::render(source, &fixture(), Mode::Strict);
     assert_eq!(rendered.blocks, 1);
     assert!(rendered.reports.has_errors());

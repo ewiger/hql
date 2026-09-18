@@ -61,7 +61,7 @@ pub(crate) enum Kind {
         right: Box<Expr>,
         negated: bool,
     },
-    /// `input | stage`, where the stage is a name or a call.
+    /// `input | step`, where the step is a name or a call.
     Pipe(Box<Expr>, Box<Expr>),
     /// `[[a]] -> [[b]] { .. }` — the link operator.
     Link {

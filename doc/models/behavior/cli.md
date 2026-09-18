@@ -19,7 +19,7 @@ binary can reach is logic that cannot be tested.
 | `hql run <file>` | check and evaluate a file |
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL blocks in a document and transclude the answers |
-| `hql builtins` | list the stages a pipeline may use |
+| `hql builtins` | list the steps a pipeline may use |
 | `hql config` | the reporting mode in force, and where it came from |
 
 `-` reads standard input wherever a file is taken, so `hql` composes in a
