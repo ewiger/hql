@@ -157,7 +157,7 @@ never converts the value.
 Absence is not part of this. `Option` is an ordinary sum type, not a trait — see
 [[option-type]].
 
-## Abstract types and their laws
+## Abstract types of law
 
 The `<:` section above says what narrowing does to the subtype. This one says
 what stands on the other side of the relation.
@@ -182,13 +182,13 @@ type Seq<T>        // an abstract type, defined by its laws
 List<T> <: Seq<T>  // an assertion that List satisfies them
 ```
 
-In plain terms: **`Seq<T>` is an abstract type governed by laws, and `A <: B`
+In plain terms: **`Seq<T>` is an abstract type of law, and `A <: B`
 asserts that `A` satisfies the laws of `B`.** It is why the checker is entitled
 to reject a narrowing it cannot support, and why `Card <: Orderable` is genuine
 ancestry rather than a capability: the law is about the card's own name, so the
 card is in a position to satisfy it.
 
-The phrase to use in prose is **abstract type with laws**, or **axiomatized
+Such type is explicitly defined as **abstract type of law**, or **axiomatized
 abstract type** where more formality helps. The second is not the canonical name
 of a single type-theory construct, but every word in it maps cleanly to an
 established one.
@@ -231,7 +231,7 @@ bear on it. The bootstrap evaluator's `Value::Seq` holds an `Rc<Vec<Value>>`, so
 the only representation currently implemented is the materialized one — the
 evaluator's `Seq` *is* a `List`. And `Orderable`, by contrast, has no `Value`
 variant at all and is the one type in `Type` that does not: it is an abstract
-type with laws and nothing else, which is what a law-only supertype looks like
+type of law and nothing else, which is what a law-only supertype looks like
 when it reaches code.
 
 ## `<T>` abstracts

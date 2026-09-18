@@ -12,8 +12,8 @@ use crate::ast::Arg;
 use crate::diagnostics::Diagnostic;
 use crate::document::Card;
 use crate::search::{self, Retrieval};
-use crate::types::Type;
-use crate::values::Value;
+use crate::types::hyper::{Card as CardType, Ranking};
+use crate::types::{HyperType, Type, Value};
 use std::ops::Range;
 use std::rc::Rc;
 
@@ -113,7 +113,7 @@ fn check_lexical(
             format!("a query is text, not {query}"),
         ));
     }
-    Ok(Type::Ranking(Box::new(Type::Card)))
+    Ok(Ranking::<CardType>::lattice())
 }
 
 fn eval_lexical(

@@ -12,7 +12,7 @@
 use crate::ast::{Arg, Expr};
 use crate::diagnostics::Diagnostic;
 use crate::types::Type;
-use crate::values::Value;
+use crate::types::Value;
 use crate::vault::Vault;
 use std::ops::Range;
 use std::path::Path;

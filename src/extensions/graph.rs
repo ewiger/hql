@@ -10,7 +10,7 @@ use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
 use crate::graph::{Edge, Graph, Presence};
 use crate::types::Type;
-use crate::values::Value;
+use crate::types::Value;
 use crate::vault::Vault;
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::Range;

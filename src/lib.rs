@@ -31,14 +31,12 @@ pub mod reporting;
 pub mod search;
 pub mod transclude;
 pub mod types;
-pub mod values;
 pub mod vault;
 pub mod warnings;
 
 use diagnostics::Diagnostic;
 use reporting::{Mode, Report, Reports};
-use types::Type;
-use values::Value;
+use types::{Type, Value};
 use vault::Vault;
 
 /// What running a program produced: a value, if one survived, and the queue.

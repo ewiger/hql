@@ -2,7 +2,7 @@
 
 use hql::reporting::Mode;
 use hql::types::Type;
-use hql::values::Value;
+use hql::types::Value;
 use hql::{run, vault};
 use std::path::Path;
 

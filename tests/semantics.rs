@@ -5,7 +5,7 @@
 //! tests everything.
 
 use hql::reporting::Mode;
-use hql::values::Value;
+use hql::types::Value;
 use hql::{run, vault};
 use std::fs;
 use std::path::{Path, PathBuf};

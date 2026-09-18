@@ -9,7 +9,7 @@ use crate::extensions::{EvalCx, Resolution, Step};
 use crate::graph::Edge;
 use crate::search;
 use crate::types::Type;
-use crate::values::Value;
+use crate::types::Value;
 use crate::vault::Vault;
 use crate::warnings::Warning;
 use std::collections::HashMap;

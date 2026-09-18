@@ -48,8 +48,8 @@ produced**: the collection is in memory, its length is known without consuming
 it, and traversing it twice costs what traversing it once did. Every `List` is
 therefore a `Seq`, and the narrowing is the usual one.
 
-`Seq<T>` is an abstract type governed by laws, and the narrowing asserts that
-`List` satisfies them — see [[type-system]], *Abstract types and their laws*,
+`Seq<T>` is an abstract type of law, and the narrowing asserts that
+`List` satisfies it — see [[type-system]], *Abstract types of law*,
 which also records why the distinction may not be worth keeping.
 
 ## Ordered is not orderable

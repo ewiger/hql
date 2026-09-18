@@ -1,4 +1,10 @@
-//! The type lattice, its narrowing relation, and what may be ordered.
+//! The lattice: every type HQL has, the narrowing relation over them, and
+//! what may be ordered.
+//!
+//! This is the run-time reification — what the checker builds when it reads
+//! `Set<Card>` out of a program. The compile-time counterpart, binding each
+//! of these to the Rust value that carries it, is
+//! [`HyperType`](super::HyperType).
 
 use std::fmt;
 

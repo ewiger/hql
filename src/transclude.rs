@@ -10,7 +10,7 @@
 //! leaves the document as rendering once did.
 
 use crate::reporting::{Mode, Report, Reports};
-use crate::values::Value;
+use crate::types::Value;
 use crate::vault::Vault;
 
 /// The marker a transcluded answer is written under.

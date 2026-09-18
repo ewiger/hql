@@ -4,7 +4,7 @@
 //! only the binary can reach is logic that cannot be tested.
 
 use crate::reporting::{Mode, Reports, Settings, Severity};
-use crate::values::Value;
+use crate::types::Value;
 use crate::vault::{self, Vault};
 use crate::{render, transclude};
 use clap::{Args, Parser, Subcommand, ValueEnum};

@@ -7,7 +7,7 @@ use super::{CheckCx, EvalCx, Purity, Step};
 use crate::ast::Arg;
 use crate::diagnostics::Diagnostic;
 use crate::types::Type;
-use crate::values::{Presentation, Value};
+use crate::types::{Presentation, Value};
 use std::ops::Range;
 use std::rc::Rc;
 

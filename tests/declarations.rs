@@ -3,7 +3,7 @@
 //! A declaration is checked and yields `Unit`. It introduces no value, so
 //! everything here is about whether what a declaration says is coherent.
 
-use hql::{check, diagnostics::Diagnostic, eval, types::Type, values::Value};
+use hql::{check, diagnostics::Diagnostic, eval, types::{Type, Value}};
 use std::fs;
 use std::path::Path;
 

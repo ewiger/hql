@@ -9,7 +9,7 @@
 
 use hql::document::Kind;
 use hql::reporting::Mode;
-use hql::values::Value;
+use hql::types::Value;
 use hql::{run, vault};
 use std::path::Path;
 

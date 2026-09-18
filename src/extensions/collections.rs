@@ -8,7 +8,7 @@ use crate::ast::{Arg, Kind};
 use crate::diagnostics::Diagnostic;
 use crate::search::Ranking;
 use crate::types::{self, Type};
-use crate::values::{Key, Value};
+use crate::types::{Key, Value};
 use std::cmp::Ordering;
 use std::ops::Range;
 use std::rc::Rc;

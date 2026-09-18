@@ -1,6 +1,6 @@
 //! Public API coverage of syntax, typing, evaluation, and diagnostics.
 
-use hql::{check, diagnostics::Diagnostic, eval, types::Type, values::Value};
+use hql::{check, diagnostics::Diagnostic, eval, types::{Type, Value}};
 use std::ops::Range;
 
 fn type_error(source: &str) -> Range<usize> {

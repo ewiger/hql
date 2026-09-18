@@ -16,8 +16,8 @@ use crate::ast::Arg;
 use crate::diagnostics::Diagnostic;
 use crate::document::Card;
 use crate::search::{self, Retrieval};
-use crate::types::Type;
-use crate::values::Value;
+use crate::types::hyper::{Card as CardType, Ranking};
+use crate::types::{HyperType, Type, Value};
 use crate::vault::Vault;
 use crate::warnings::Warning;
 use rusqlite::{Connection, OpenFlags};
@@ -98,7 +98,7 @@ fn check_semantic(
     // The index is named by the vault, so a program that cannot reach one is
     // wrong before it runs rather than empty after it.
     configured(cx.vault(), &span)?;
-    Ok(Type::Ranking(Box::new(Type::Card)))
+    Ok(Ranking::<CardType>::lattice())
 }
 
 fn eval_semantic(
