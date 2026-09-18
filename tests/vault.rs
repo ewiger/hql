@@ -121,7 +121,10 @@ fn semantic_ranks_by_similarity_and_retains_the_retrieval() {
     let Value::Ranking(ranking) = &ranked else {
         panic!("expected a ranking, got {ranked:?}")
     };
-    assert_eq!(ranking.hits[0].card.name(), "bearer-tokens");
+    // `oauth` writes every word of the query and `bearer-tokens` writes two
+    // of them, so the order is decided by the articles rather than by the
+    // filenames: an index sees what a document says, not where it sits.
+    assert_eq!(ranking.hits[0].card.name(), "oauth");
     assert!(ranking.hits[0].score > ranking.hits[1].score);
     // A score is evidence, so it travels with the rule that produced it.
     assert_eq!(ranking.retrieval.model, hql::search::MODEL);
@@ -133,7 +136,7 @@ fn semantic_ranks_by_similarity_and_retains_the_retrieval() {
         text(
             "import semantic\ncards | semantic(\"bearer token authorization\") | take(1) | map(h => h.card.name)"
         ),
-        "[bearer-tokens]"
+        "[oauth]"
     );
 }
 

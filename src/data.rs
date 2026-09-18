@@ -88,7 +88,8 @@ impl Data {
     }
 
     /// Every word in every string in the tree, for indexing a header.
-    pub(crate) fn words(&self, out: &mut Vec<String>) {
+    /// Collect every string in this tree, depth-first in key order.
+    pub fn words(&self, out: &mut Vec<String>) {
         match self {
             Self::Str(text) => out.push(text.clone()),
             Self::List(items) => items.iter().for_each(|item| item.words(out)),

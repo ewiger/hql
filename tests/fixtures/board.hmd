@@ -31,6 +31,6 @@ cards
 ```hql#result
 rank  score   card           title
 ----  ------  -------------  -------------
-1     0.4534  bearer-tokens  Bearer tokens
-2     0.4198  oauth          OAuth 2.0
+1     0.4861  oauth          OAuth 2.0
+2     0.4819  bearer-tokens  Bearer tokens
 ```

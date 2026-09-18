@@ -1,6 +1,6 @@
 # HQL-0002: Semantic retrieval over a precomputed embedding index
 
-**Status**: drafted
+**Status**: accepted
 **Created**: 2026-09-18
 **Source**: [semantic search](../../models/domain/semantic-search.md)
 
@@ -70,11 +70,18 @@ step four.
 Depends on [HQL-0001](../HQL-0001/README.md): both are extensions under the
 registry it defines, and both are `Pure`.
 
-### 1. The two extensions
+### 0. Where the corpus lives
+
+`tests/fixtures/birds/` holds it. The suite must never depend on a tree that
+may be absent, and a corpus the acceptance criterion rests on is part of the
+suite rather than an illustration beside it.
 
 - `lexical` provides `lexical(query : String)`. It is today's implementation,
   moved unchanged. Its `Retrieval.model` remains `hql.hashbag.v1` and its
   `revision` is the crate version. Nothing about it was wrong except its name.
+  The name is `lexical` rather than `bm25` or `keywords` because it names the
+  claim — scoring over shared spellings — and so stays true if the scoring
+  inside it is ever upgraded.
 - `semantic` provides `semantic(query : String)`. It MUST NOT fall back to
   `lexical` under any condition, because a silent fallback restores exactly the
   confusion this proposal removes.
@@ -134,10 +141,13 @@ mismatch produces an index that scores text nobody wrote, and every score is
 quietly wrong.
 
 ```text
-text(card) = title | header strings in key order | body     joined by " "
+text(card) = title | authored header strings in key order | body   joined by " "
 ```
 
-That is `Document::text()` in `src/document.rs` today. Both implementations MUST
+That is `Document::text()` in `src/document.rs`. The *authored* header only:
+the derived `name`, `path` and `format` entries say where a document sits and
+what it is called rather than what it says, and a card that moves between
+directories must not thereby change its score. Both implementations MUST
 implement it, and a change MUST change both in one commit. A golden test over
 every card in the corpus MUST pin the agreement.
 
@@ -146,7 +156,10 @@ every card in the corpus MUST pin the agreement.
 `Retrieval` gains `revision`. Every field MUST describe what actually ran.
 
 - `model` — the model id from the `model` table, never a placeholder
-- `revision` — the pinned model revision
+- `revision` — the pinned model revision, and nothing else. It does not also
+  carry the index's `built_at`: one field with two meanings is the confusion
+  this proposal exists to remove. Which build answered is recoverable from
+  `index`, and `built_at` stays in `index_meta` where the index owns it.
 - `metric` — the metric computed
 - `approximate` — `false`, because scoring is exact brute force
 
@@ -158,10 +171,20 @@ silent, and neither is fatal.
 - A card whose recomputed `content_hash` differs from the index has a vector for
   text that no longer exists. It MUST be ranked anyway and MUST queue a
   **warning** naming the card. A stale score is a wrong answer rather than an
-  impossible one, which is what separates a warning from an error.
+  impossible one, which is what separates a warning from an error. Skipping it
+  instead would make an edited card vanish from a ranking, which is a silence
+  a reader cannot tell from irrelevance.
 - A card absent from the index MUST be absent from the ranking, with one warning
   counting how many were skipped. It MUST NOT be scored zero, which is
   indistinguishable from indexed and unrelated.
+
+### 6a. The reader
+
+`rusqlite` with the `bundled` feature reads the index. Writing an SQLite reader
+by hand is exactly the significant, well-understood work `doc/stack.md` says a
+crate may remove, and `bundled` compiles a pinned SQLite rather than trusting
+whichever one a machine happens to carry, which is what a committed fixture
+needs. `#![forbid(unsafe_code)]` binds this crate and is unaffected.
 
 ### 7. The producer
 
@@ -243,20 +266,13 @@ cargo clippy --locked --all-targets -- -D warnings
 cd contrib/semantics && pytest
 ```
 
-## Open Questions
-
-- Where does the birds corpus live — `tests/fixtures/birds/`, so the suite never
-  depends on a tree that may be absent, or `examples/vaults/birds/`, where it
-  semantically belongs?
-- Is a stale vector a warning that still ranks (proposed), a warning that skips,
-  or an error?
-- Which SQLite crate, and is `rusqlite` with `bundled` acceptable given that
-  `doc/stack.md` prefers the standard library?
-- Is `lexical` the right name, against `matching`, `keywords`, or `bm25` if the
-  scoring is ever upgraded?
-- Should `Retrieval.revision` also record the index's `built_at`, so a ranking
-  can be reproduced against a specific build?
-
 ## Changelog
 
 - 2026-09-18: drafted
+- 2026-09-18: accepted; the five open questions settled into the specification —
+  the corpus lives in `tests/fixtures/birds/`, a stale vector warns and still
+  ranks, `rusqlite` with `bundled` is the reader, `lexical` keeps its name, and
+  `revision` carries the model revision alone
+- 2026-09-18: the embedded text is the *authored* header, because
+  `Document::text()` was including the derived `path` and so scoring a card on
+  its filename

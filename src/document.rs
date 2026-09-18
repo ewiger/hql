@@ -103,11 +103,24 @@ impl Document {
             .unwrap_or(&self.name)
     }
 
-    /// The words an index sees: title, header strings and body text.
+    /// The words an index sees: the title, the authored header's strings in
+    /// key order, and the body.
+    ///
+    /// The derived entries are left out. `name`, `path` and `format` say where
+    /// a document sits and what it is called, not what it says, and a card
+    /// that moves between directories must not thereby change its score. The
+    /// title is written once, at the front, rather than again in key order.
     #[must_use]
     pub fn text(&self) -> String {
         let mut parts = vec![self.title().to_owned()];
-        self.header.words(&mut parts);
+        if let Data::Map(entries) = &self.header {
+            for (key, value) in entries {
+                if matches!(key.as_str(), "name" | "path" | "format" | "title") {
+                    continue;
+                }
+                value.words(&mut parts);
+            }
+        }
         parts.push(self.body.clone());
         parts.join(" ")
     }
