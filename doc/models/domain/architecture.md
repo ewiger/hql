@@ -3,39 +3,54 @@
 ## Implemented boundary
 
 ```text
-source string → parser/scanner → private AST → type checking → evaluation → Value
-                                      └──────── diagnostics ────────────────┘
-CLI: arguments + file I/O + output, calling only hql::check and hql::eval
+source string → lexer/parser → private AST → checker → typed execution IR
+                                                        ↓
+                                                    evaluation → Value
+                    └────────────── diagnostics ──────────────────────┘
+CLI: arguments + file I/O + output, calling the public library API
 ```
 
-`parser.rs` owns the tiny scanner and parser together; a separate lexer adds
-no useful boundary yet. `ast.rs` carries source byte ranges. `types.rs` owns
-static checking, `values.rs` runtime results, `evaluation.rs` checked arithmetic,
-and `diagnostics.rs` structured failures. All modules have working consumers.
-The AST remains private so callers cannot bypass limits or construct malformed
-syntax. The library accesses neither the filesystem nor HyperMarkDown.
+`lexer.rs` and `parser.rs` produce private syntax with source byte ranges.
+`checker.rs` resolves imports, step identities, fields, constructors, annotations,
+and expression types. `execution.rs` lowers those checked facts into a private
+execution tree. Failed checking produces no executable program, including in
+collect mode. `evaluation.rs` consumes only that tree; it does not resolve imports
+or infer collection element types again. Runtime failures such as overflow,
+negative counts, missing index data, and unequal map lengths remain fallible.
 
-## Intended integration boundary (not implemented)
+Collection literals and lambda results retain their checked element types,
+including empty `map` results. Left-associated addition chains lower to a flat
+fold while retaining overflow spans. Extension evaluators receive typed arguments;
+their structural `StepSpec` drives checking and generated help. Dependent hooks
+add source requirements or ordering constraints after ordinary checking.
+
+Runtime values, cards, graph values, and retrieval provenance share immutable
+storage through `Arc`. Runtime and extension carriers are checked for `Send + Sync`.
+Execution is still sequential: a planner, parallel scheduling, and backend
+pushdown are future consumers of the typed execution boundary.
+
+## Source and knowledge assembly
 
 ```text
-HyperMarkDown documents
-    ↓ existing HMD parser + resolver, behind an adapter
- typed Card / document model
-    ↓ HQL core
- values / cards / graphs / HMD / diagnostics / transformations
+VaultSource → source snapshot → DocumentStore → card and knowledge assembly
+                                                     ↓
+                                           extension metadata contributions
+                                                     ↓
+                                              Vault → HQL execution
 ```
 
-A HyperMarkDown document resolves to a typed document; card-ness is established
-by a checked narrowing rather than by the reference. The host adapter will
-supply typed document structure, headers, namespaces, and resolved links /
-relations. Knowledge graphs are a future value domain. Do not make string
-search over raw HMD the core model. Host parsing/resolution and language
-semantics must remain separable, allowing future non-HMD data sources.
+`sources.rs` owns filesystem traversal and reading behind `VaultSource`.
+`document.rs` assigns names, parses headers and references, and reports bad
+documents. `knowledge.rs` assembles effective metadata, verifies relation
+endpoints, and builds link and relation edges. The extension registry dispatches
+metadata contributions; lexical metadata is owned by the lexical extension.
+`vault.rs` coordinates these stages and exposes their aggregate to HQL.
 
-The concrete Card schema, host interface, serialization, and evaluation effects
-are unresolved; no speculative traits or Card stubs are introduced now.
-See [integration evidence](../../wiki/hmd-integration.hmd) and
-[bootstrap value data](../data/values.md).
+YAML syntax belongs to the YAML library. Conversion to HQL `Data` is fallible:
+unsupported keys, tags, and numbers are diagnosed rather than reinterpreted.
+Invalid documents are skipped with a warning containing their source path.
+Memory sources use the same naming, parsing, and knowledge assembly as files.
+See [the stack](../../stack.md) and [data values](../data/values.md).
 
 ## Corpus design refinements
 
@@ -43,4 +58,5 @@ See [integration evidence](../../wiki/hmd-integration.hmd) and
 lexical cell environments and host-controlled presentation. The
 [knowledge model](knowledge.md) distinguishes structural links, relation cards,
 Knowledge, Graph and HmdGraph. These are settled design, not deferred work; what
-is deferred is the *implementation*, which stays the bootstrap expression core. See the [corpus](../../../examples/README.md).
+is deferred is the remaining *implementation*, including first-class functions
+and generated query sources. See the [corpus](../../../examples/README.md).

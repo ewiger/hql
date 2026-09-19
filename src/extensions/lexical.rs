@@ -7,14 +7,15 @@
 //! no word score zero however plainly one answers the other.
 
 use super::collections::{elements, wrong};
-use super::{CheckCx, EvalCx, Purity, Step, collection, named_or_first};
-use crate::ast::Arg;
+use super::spec::{ArgumentSpec, Output as O, StepSpec, TypeParameter, TypePattern as P};
+use super::{EvalCx, Purity, Step, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::document::Card;
+use crate::execution::Arg as TypedArg;
 use crate::search::{self, Retrieval};
-use crate::types::{TypeRef, Value};
+use crate::types::Value;
 use std::ops::Range;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// The name this implementation reports as the model that produced a vector.
 pub const MODEL: &str = "hql.hashbag.v1";
@@ -26,10 +27,24 @@ const DIMENSIONS: usize = 256;
 /// Every step the `lexical` extension provides.
 pub(crate) static STEPS: &[Step] = &[Step {
     name: "lexical",
-    signature: "cards | lexical(\"bearer token authorization\")",
+    spec: StepSpec {
+        parameters: &[TypeParameter {
+            name: "T",
+            bound: Some(crate::types::TypeConstructor("Doc")),
+        }],
+        input: P::Collection(&P::Var("T")),
+        arguments: &[ArgumentSpec::value(
+            "query",
+            P::Type(crate::types::TypeConstructor("String")),
+        )],
+        output: O::Type(P::Apply(
+            crate::types::TypeConstructor("Ranking"),
+            &[P::Type(crate::types::TypeConstructor("Card"))],
+        )),
+    },
     summary: "Rank a corpus by the words it shares with a query.",
     purity: Purity::Pure,
-    check: check_lexical,
+    check: None,
     eval: eval_lexical,
 }];
 
@@ -89,36 +104,10 @@ fn bucket(word: &str) -> usize {
     (hash % DIMENSIONS as u64) as usize
 }
 
-fn check_lexical(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    arguments: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    let element = collection(input, "lexical", &span)?;
-    if !element.is(&TypeRef::DOC) {
-        return Err(Diagnostic::typing(
-            span.clone(),
-            format!("`lexical` ranks documents, not {element}"),
-        ));
-    }
-    let argument = named_or_first(arguments, "query").ok_or_else(|| {
-        Diagnostic::typing(span.clone(), "`lexical` needs a query: `lexical(\"…\")`")
-    })?;
-    let query = cx.infer(&argument.value)?;
-    if query != TypeRef::STR {
-        return Err(Diagnostic::typing(
-            argument.value.span.clone(),
-            format!("a query is text, not {query}"),
-        ));
-    }
-    Ok(TypeRef::ranking(TypeRef::CARD))
-}
-
 fn eval_lexical(
     cx: &mut dyn EvalCx,
     input: Value,
-    arguments: &[Arg],
+    arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let argument =
@@ -127,7 +116,7 @@ fn eval_lexical(
         return Err(wrong("lexical", "a text query", &span));
     };
     let elements = elements(&input, "lexical", &span)?;
-    let cards: Vec<Rc<Card>> = elements.iter().filter_map(Value::as_card).collect();
+    let cards: Vec<Arc<Card>> = elements.iter().filter_map(Value::as_card).collect();
     if cards.len() != elements.len() {
         return Err(wrong("lexical", "a collection of cards", &span));
     }
@@ -139,7 +128,7 @@ fn eval_lexical(
             (card, score)
         })
         .collect();
-    Ok(Value::Ranking(Rc::new(search::rank(
+    Ok(Value::Ranking(Arc::new(search::rank(
         scored,
         Retrieval {
             query: query.to_string(),
@@ -150,6 +139,14 @@ fn eval_lexical(
             approximate: false,
         },
     ))))
+}
+
+/// Describe the lexical model supplied for every loaded card.
+pub(crate) fn contribute_metadata(card: &mut crate::document::Card) {
+    card.metadata
+        .insert_path("lexical.model", crate::data::Data::Str(MODEL.to_owned()));
+    card.metadata
+        .insert_path("lexical.indexed", crate::data::Data::Bool(true));
 }
 
 #[cfg(test)]

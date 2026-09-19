@@ -94,6 +94,7 @@ Reach for these before introducing an alternative:
 | Tests | `cargo test` (`insta` for snapshots) |
 | CLI | clap (`derive`) |
 | Serialization | serde |
+| YAML headers and reference annotations | serde_yaml_ng, then fallible conversion to Data |
 | SQLite | rusqlite (`bundled`) |
 | Hashing | sha2 |
 | Config files | toml |
@@ -104,3 +105,10 @@ Reach for these before introducing an alternative:
 Changing the stack is a decision, not a detail. Record a small one in
 `doc/memory/` and a substantial one as a numbered proposal under
 `doc/proposals/`, then update this file.
+
+YAML parsing belongs to [`serde_yaml_ng`](https://docs.rs/serde_yaml_ng/latest/serde_yaml_ng/);
+HQL owns only the conversion to `Data`.
+Headers and annotations must be mappings. Non-string keys, custom tags,
+non-finite numbers, and integers outside `i64` are loader errors, not text.
+Invalid documents are skipped with a path-qualified warning. This replaces the
+former indentation and comma-splitting parser as part of issue 0011.

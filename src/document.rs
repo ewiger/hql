@@ -7,6 +7,78 @@
 use crate::data::{self, Data};
 use std::path::{Path, PathBuf};
 
+/// Parsed documents and source diagnostics before knowledge assembly.
+pub(crate) struct DocumentStore {
+    pub documents: Vec<Document>,
+    pub warnings: Vec<String>,
+}
+
+impl DocumentStore {
+    pub fn from_source(mut snapshot: crate::sources::Snapshot) -> Self {
+        snapshot
+            .documents
+            .sort_by(|left, right| left.path.cmp(&right.path));
+        let stem = |path: &Path| {
+            path.file_stem()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default()
+                .to_owned()
+        };
+        let mut counts = std::collections::BTreeMap::new();
+        for document in &snapshot.documents {
+            *counts.entry(stem(&document.path)).or_insert(0) += 1;
+        }
+        let mut store = Self {
+            documents: Vec::new(),
+            warnings: Vec::new(),
+        };
+        for document in snapshot.documents {
+            let path = snapshot.root.join(&document.path);
+            let text = match document.text {
+                Ok(text) => text,
+                Err(error) => {
+                    store.warnings.push(format!("{}: {error}", path.display()));
+                    continue;
+                }
+            };
+            let mut name = stem(&document.path);
+            if counts.get(&name).copied().unwrap_or_default() > 1 {
+                name = document
+                    .path
+                    .with_extension("")
+                    .components()
+                    .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join("/");
+            }
+            match Document::parse(&name, &path, document.format, &text) {
+                Ok(document) => store.documents.push(document),
+                Err(error) => store
+                    .warnings
+                    .push(format!("{}: {error}; document skipped", path.display())),
+            }
+        }
+        store
+    }
+}
+
+/// A document boundary or YAML tree that cannot be loaded faithfully.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// Invalid front matter.
+    #[error("header: {0}")]
+    Header(#[from] data::Error),
+    /// A leading front matter fence was not closed.
+    #[error("unterminated front matter")]
+    UnclosedHeader,
+    /// A reference's YAML annotation was invalid.
+    #[error("reference annotation at body byte {offset}: {source}")]
+    Annotation { offset: usize, source: data::Error },
+    /// A reference annotation was not closed.
+    #[error("unterminated reference annotation at body byte {0}")]
+    UnclosedAnnotation(usize),
+}
+
 /// The dialect a document was written in, as `header.format` reports it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
@@ -65,10 +137,12 @@ pub struct Document {
 
 impl Document {
     /// Build a document from source text, splitting a `---` header if present.
-    #[must_use]
-    pub fn parse(name: &str, path: &Path, format: Format, source: &str) -> Self {
-        let (authored, body) = split_header(source);
-        let mut header = data::parse_header(authored);
+    ///
+    /// # Errors
+    /// Rejects malformed front matter and reference annotations.
+    pub fn parse(name: &str, path: &Path, format: Format, source: &str) -> Result<Self, Error> {
+        let (authored, body) = split_header(source)?;
+        let mut header = data::parse_header(authored)?;
         // A title is always a header entry. An authored one wins, the body's
         // first heading supplies it next, and the name stands in when the
         // document offers neither.
@@ -84,14 +158,14 @@ impl Document {
             .unwrap_or_else(|| name.to_owned());
         header.insert_path("title", Data::Str(title));
 
-        Self {
+        Ok(Self {
             name: name.to_owned(),
             path: path.to_owned(),
             format,
             header,
             body: body.to_owned(),
-            references: references(body),
-        }
+            references: references(body)?,
+        })
     }
 
     /// The document's title, which `parse` always wrote into the header.
@@ -163,23 +237,23 @@ impl Card {
 }
 
 /// Split a leading `---` fenced header from the body.
-fn split_header(source: &str) -> (&str, &str) {
+fn split_header(source: &str) -> Result<(&str, &str), Error> {
     let rest = source.strip_prefix("---\n").or_else(|| {
         source
             .strip_prefix("---\r\n")
             .or_else(|| source.strip_prefix("---").filter(|r| r.starts_with('\n')))
     });
     let Some(rest) = rest else {
-        return ("", source);
+        return Ok(("", source));
     };
     let mut offset = 0;
     for line in rest.split_inclusive('\n') {
         if line.trim_end() == "---" {
-            return (&rest[..offset], &rest[offset + line.len()..]);
+            return Ok((&rest[..offset], &rest[offset + line.len()..]));
         }
         offset += line.len();
     }
-    ("", source)
+    Err(Error::UnclosedHeader)
 }
 
 /// The first ATX heading in a body, which is a document's title when the
@@ -191,7 +265,7 @@ fn heading(body: &str) -> Option<String> {
 }
 
 /// Collect `[[target]]` references and the `{..}` annotations that follow them.
-fn references(body: &str) -> Vec<Reference> {
+fn references(body: &str) -> Result<Vec<Reference>, Error> {
     let mut found = Vec::new();
     let bytes = body.as_bytes();
     let mut offset = 0;
@@ -212,17 +286,59 @@ fn references(body: &str) -> Vec<Reference> {
             probe += 1;
         }
         let data = if bytes.get(probe) == Some(&b'{') {
-            body[probe..].find('}').map_or(Data::map(), |close| {
-                let inner = &body[probe + 1..probe + close];
-                offset = probe + close + 1;
-                data::parse_header(&inner.replace(',', "\n"))
-            })
+            let end = annotation_end(&body[probe..]).ok_or(Error::UnclosedAnnotation(probe))?;
+            offset = probe + end;
+            data::parse_header(&body[probe..offset]).map_err(|source| Error::Annotation {
+                offset: probe,
+                source,
+            })?
         } else {
             Data::map()
         };
         found.push(Reference { target, data });
     }
-    found
+    Ok(found)
+}
+
+/// Locate the flow mapping boundary; YAML itself parses its contents.
+fn annotation_end(source: &str) -> Option<usize> {
+    let mut depth = 0;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut previous = None;
+    let mut chars = source.char_indices().peekable();
+    while let Some((offset, ch)) = chars.next() {
+        if let Some(delimiter) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' && delimiter == '"' {
+                escaped = true;
+            } else if ch == delimiter {
+                if delimiter == '\'' && chars.peek().is_some_and(|(_, next)| *next == '\'') {
+                    chars.next();
+                } else {
+                    quote = None;
+                    previous = Some(ch);
+                }
+            }
+            continue;
+        }
+        match ch {
+            '\'' | '"' if matches!(previous, Some('{' | '[' | ',' | ':')) => quote = Some(ch),
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(offset + 1);
+                }
+            }
+            _ => {}
+        }
+        if !ch.is_whitespace() {
+            previous = Some(ch);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -230,7 +346,7 @@ mod tests {
     use super::*;
 
     fn document(source: &str) -> Document {
-        Document::parse("alice", Path::new("alice.hmd"), Format::Hmd, source)
+        Document::parse("alice", Path::new("alice.hmd"), Format::Hmd, source).unwrap()
     }
 
     #[test]

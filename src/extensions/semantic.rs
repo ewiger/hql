@@ -11,12 +11,13 @@
 //! every vector.
 
 use super::collections::{elements, wrong};
-use super::{CheckCx, EvalCx, Purity, Step, collection, named_or_first};
-use crate::ast::Arg;
+use super::spec::{ArgumentSpec, Output as O, StepSpec, TypeParameter, TypePattern as P};
+use super::{EvalCx, Purity, Step, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::document::Card;
+use crate::execution::Arg as TypedArg;
 use crate::search::{self, Retrieval};
-use crate::types::{TypeRef, Value};
+use crate::types::Value;
 use crate::vault::Vault;
 use crate::warnings::Warning;
 use rusqlite::{Connection, OpenFlags};
@@ -24,7 +25,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// The only schema this reader knows.
 pub const SCHEMA_VERSION: i64 = 1;
@@ -64,46 +65,31 @@ impl Semantics {
 /// Every step the `semantic` extension provides.
 pub(crate) static STEPS: &[Step] = &[Step {
     name: "semantic",
-    signature: "cards | semantic(\"night hunting birds\")",
+    spec: StepSpec {
+        parameters: &[TypeParameter {
+            name: "T",
+            bound: Some(crate::types::TypeConstructor("Doc")),
+        }],
+        input: P::Collection(&P::Var("T")),
+        arguments: &[ArgumentSpec::value(
+            "query",
+            P::Type(crate::types::TypeConstructor("String")),
+        )],
+        output: O::Type(P::Apply(
+            crate::types::TypeConstructor("Ranking"),
+            &[P::Type(crate::types::TypeConstructor("Card"))],
+        )),
+    },
     summary: "Rank a corpus against a query by the meaning a model found in both.",
     purity: Purity::Pure,
-    check: check_semantic,
+    check: Some(check_semantic),
     eval: eval_semantic,
 }];
-
-fn check_semantic(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    arguments: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    let element = collection(input, "semantic", &span)?;
-    if !element.is(&TypeRef::DOC) {
-        return Err(Diagnostic::typing(
-            span.clone(),
-            format!("`semantic` ranks documents, not {element}"),
-        ));
-    }
-    let argument = named_or_first(arguments, "query").ok_or_else(|| {
-        Diagnostic::typing(span.clone(), "`semantic` needs a query: `semantic(\"…\")`")
-    })?;
-    let query = cx.infer(&argument.value)?;
-    if query != TypeRef::STR {
-        return Err(Diagnostic::typing(
-            argument.value.span.clone(),
-            format!("a query is text, not {query}"),
-        ));
-    }
-    // The index is named by the vault, so a program that cannot reach one is
-    // wrong before it runs rather than empty after it.
-    configured(cx.vault(), &span)?;
-    Ok(TypeRef::ranking(TypeRef::CARD))
-}
 
 fn eval_semantic(
     cx: &mut dyn EvalCx,
     input: Value,
-    arguments: &[Arg],
+    arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let argument =
@@ -112,7 +98,7 @@ fn eval_semantic(
         return Err(wrong("semantic", "a text query", &span));
     };
     let elements = elements(&input, "semantic", &span)?;
-    let cards: Vec<Rc<Card>> = elements.iter().filter_map(Value::as_card).collect();
+    let cards: Vec<Arc<Card>> = elements.iter().filter_map(Value::as_card).collect();
     if cards.len() != elements.len() {
         return Err(wrong("semantic", "a collection of cards", &span));
     }
@@ -156,7 +142,7 @@ fn eval_semantic(
         ));
     }
 
-    Ok(Value::Ranking(Rc::new(search::rank(
+    Ok(Value::Ranking(Arc::new(search::rank(
         scored,
         Retrieval {
             query: query.to_string(),
@@ -374,6 +360,15 @@ pub(crate) fn digest(text: &str) -> String {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+fn check_semantic(
+    cx: &dyn super::CheckCx,
+    _: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    configured(cx.vault(), &span)?;
+    Ok(())
 }
 
 #[cfg(test)]

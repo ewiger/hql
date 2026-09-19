@@ -1,7 +1,7 @@
 //! Finite maps with unique keys and explicit positional guarantees.
 
 use super::{TypeConstructor, TypeRef, Value, builtin, collections};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Which ordering contract a map exposes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,7 +68,7 @@ pub enum CollectionError {
 /// A materialized map whose entries can only be created through checked construction.
 #[derive(Debug, Clone)]
 pub struct MapValue {
-    entries: Rc<Vec<(Value, Value)>>,
+    entries: Arc<Vec<(Value, Value)>>,
     concrete: MapKind,
     view: MapKind,
     key: TypeRef,
@@ -122,7 +122,7 @@ impl MapValue {
             entries = keyed.into_iter().map(|(_, entry)| entry).collect();
         }
         Ok(Self {
-            entries: Rc::new(entries),
+            entries: Arc::new(entries),
             concrete: kind,
             view: kind,
             key,
@@ -159,7 +159,7 @@ impl MapValue {
             .find(|(held, _)| held == key)
             .map_or_else(
                 || Value::Absent(self.value_view.clone()),
-                |(_, value)| Value::Present(Rc::new(value.clone().viewed_as(&self.value_view))),
+                |(_, value)| Value::Present(Arc::new(value.clone().viewed_as(&self.value_view))),
             )
     }
 

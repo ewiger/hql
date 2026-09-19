@@ -153,106 +153,85 @@ impl fmt::Display for Data {
     }
 }
 
-/// Parse the subset of YAML that document headers use.
-///
-/// Scalars, nested maps by indentation, block lists and inline `[a, b]` lists.
-/// Anything richer is kept as the text it was written as, because a header is
-/// an open tree and refusing to load a document over a YAML feature would make
-/// the vault less readable, not more correct.
-#[must_use]
-pub fn parse_header(source: &str) -> Data {
-    let lines: Vec<&str> = source
-        .lines()
-        .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
-        .collect();
-    let mut cursor = 0;
-    parse_block(&lines, &mut cursor, 0)
+/// A YAML syntax error or a value that cannot be represented faithfully as Data.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// The YAML parser rejected the source.
+    #[error("invalid YAML: {0}")]
+    Yaml(#[from] serde_yaml_ng::Error),
+    /// Data cannot represent this YAML value.
+    #[error("unsupported YAML value: {0}")]
+    Unsupported(&'static str),
+    /// Document headers and reference annotations must have string keys.
+    #[error("a header or reference annotation must be a YAML mapping")]
+    MappingRequired,
 }
 
-fn indent_of(line: &str) -> usize {
-    line.len() - line.trim_start().len()
-}
+impl TryFrom<serde_yaml_ng::Value> for Data {
+    type Error = Error;
 
-fn parse_block(lines: &[&str], cursor: &mut usize, indent: usize) -> Data {
-    if *cursor < lines.len() && lines[*cursor].trim_start().starts_with("- ") {
-        let mut items = Vec::new();
-        while *cursor < lines.len() {
-            let line = lines[*cursor];
-            if indent_of(line) < indent || !line.trim_start().starts_with("- ") {
-                break;
+    fn try_from(value: serde_yaml_ng::Value) -> Result<Self, Self::Error> {
+        use serde_yaml_ng::Value as Y;
+        Ok(match value {
+            Y::Null => Self::Empty,
+            Y::Bool(value) => Self::Bool(value),
+            Y::String(value) => Self::Str(value),
+            Y::Number(value) => {
+                if let Some(number) = value.as_i64() {
+                    Self::Int(number)
+                } else if value.is_u64() {
+                    return Err(Error::Unsupported("integer exceeds signed 64-bit range"));
+                } else {
+                    let number = value
+                        .as_f64()
+                        .filter(|number| number.is_finite())
+                        .ok_or(Error::Unsupported("numbers must be finite"))?;
+                    Self::Float(number)
+                }
             }
-            items.push(parse_scalar(
-                line.trim_start().trim_start_matches("- ").trim(),
-            ));
-            *cursor += 1;
-        }
-        return Data::List(items);
+            Y::Sequence(values) => Self::List(
+                values
+                    .into_iter()
+                    .map(Self::try_from)
+                    .collect::<Result<_, _>>()?,
+            ),
+            Y::Mapping(entries) => {
+                let mut data = BTreeMap::new();
+                for (key, value) in entries {
+                    let Y::String(key) = key else {
+                        return Err(Error::Unsupported("map keys must be strings"));
+                    };
+                    data.insert(key, Self::try_from(value)?);
+                }
+                Self::Map(data)
+            }
+            Y::Tagged(_) => {
+                return Err(Error::Unsupported(
+                    "custom YAML tags have no Data representation",
+                ));
+            }
+        })
     }
-
-    let mut entries = BTreeMap::new();
-    while *cursor < lines.len() {
-        let line = lines[*cursor];
-        let own = indent_of(line);
-        if own < indent {
-            break;
-        }
-        let trimmed = line.trim();
-        let Some((key, rest)) = trimmed.split_once(':') else {
-            // Not a mapping line at this level; stop rather than guess.
-            break;
-        };
-        let key = key.trim().trim_matches('"').to_owned();
-        let rest = rest.trim();
-        *cursor += 1;
-        if rest.is_empty() {
-            let deeper = lines
-                .get(*cursor)
-                .map_or(own + 1, |next| indent_of(next))
-                .max(own + 1);
-            let nested = if lines.get(*cursor).is_some_and(|next| indent_of(next) > own) {
-                parse_block(lines, cursor, deeper)
-            } else {
-                Data::Empty
-            };
-            entries.insert(key, nested);
-        } else {
-            entries.insert(key, parse_scalar(rest));
-        }
-    }
-    Data::Map(entries)
 }
 
-fn parse_scalar(text: &str) -> Data {
-    if let Some(inner) = text.strip_prefix('[').and_then(|t| t.strip_suffix(']')) {
-        let items = inner
-            .split(',')
-            .map(str::trim)
-            .filter(|item| !item.is_empty())
-            .map(parse_scalar)
-            .collect();
-        return Data::List(items);
-    }
-    if (text.starts_with('"') && text.ends_with('"') && text.len() >= 2)
-        || (text.starts_with('\'') && text.ends_with('\'') && text.len() >= 2)
+/// Parse YAML and convert its tree without guessing at unsupported values.
+///
+/// # Errors
+/// Rejects malformed YAML, non-mapping headers, and values outside Data.
+pub fn parse_header(source: &str) -> Result<Data, Error> {
+    if source
+        .lines()
+        .all(|line| line.trim().is_empty() || line.trim_start().starts_with('#'))
     {
-        return Data::Str(text[1..text.len() - 1].to_owned());
+        return Ok(Data::map());
     }
-    match text {
-        "true" => return Data::Bool(true),
-        "false" => return Data::Bool(false),
-        "null" | "~" | "" => return Data::Empty,
-        _ => {}
+    let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(source)?;
+    value.apply_merge()?;
+    let data = Data::try_from(value)?;
+    if !matches!(data, Data::Map(_)) {
+        return Err(Error::MappingRequired);
     }
-    if let Ok(value) = text.parse::<i64>() {
-        return Data::Int(value);
-    }
-    if let Ok(value) = text.parse::<f64>()
-        && value.is_finite()
-        && text.contains('.')
-    {
-        return Data::Float(value);
-    }
-    Data::Str(text.to_owned())
+    Ok(data)
 }
 
 #[cfg(test)]
@@ -263,7 +242,7 @@ mod tests {
     fn parses_scalars_nesting_and_lists() {
         let header = parse_header(
             "title: Bearer tokens\ntags: [auth, http]\nknowledge:\n  type: Relation\ndraft: false\n",
-        );
+        ).unwrap();
         assert_eq!(
             header.path("title").and_then(Data::as_str),
             Some("Bearer tokens")
@@ -284,7 +263,7 @@ mod tests {
 
     #[test]
     fn parses_block_lists_and_keeps_unknown_text() {
-        let header = parse_header("authors:\n  - ada\n  - grace\nnote: 3 o'clock\n");
+        let header = parse_header("authors:\n  - ada\n  - grace\nnote: 3 o'clock\n").unwrap();
         assert_eq!(
             header.path("authors"),
             Some(&Data::List(vec![

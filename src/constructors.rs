@@ -5,7 +5,7 @@ use crate::diagnostics::Diagnostic;
 use crate::extensions::{CheckCx, EvalCx};
 use crate::types::{MapKind, MapValue, TypeConstructor, TypeRef, Value, builtin, collections};
 use std::ops::Range;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub(crate) fn named(name: &str) -> Option<TypeConstructor> {
     [
@@ -88,26 +88,16 @@ pub(crate) fn check(
 
 pub(crate) fn evaluate(
     cx: &mut dyn EvalCx,
-    constructor: TypeConstructor,
-    args: &[Arg],
-    expected: Option<&TypeRef>,
+    args: &[crate::execution::Arg],
+    expected: &TypeRef,
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    let constructor = expected.constructor;
     let mut inputs = Vec::new();
     for argument in args {
         inputs.push(cx.evaluate(&argument.value)?);
     }
-    let element = |index: usize| {
-        expected
-            .and_then(|reference| reference.args.get(index))
-            .cloned()
-            .or_else(|| {
-                inputs
-                    .get(index)
-                    .and_then(|input| input.type_of().element())
-            })
-            .unwrap_or(TypeRef::NEVER)
-    };
+    let element = |index: usize| expected.args.get(index).cloned().unwrap_or(TypeRef::NEVER);
     let elements = |index: usize| {
         inputs.get(index).and_then(Value::elements).ok_or_else(|| {
             Diagnostic::runtime(
@@ -119,7 +109,7 @@ pub(crate) fn evaluate(
     if let Some(kind) = MapKind::of(constructor) {
         let map = MapValue::new(kind, elements(0)?, elements(1)?, element(0), element(1))
             .map_err(|error| Diagnostic::runtime(span, error.to_string()))?;
-        return Ok(Value::Map(Rc::new(map)));
+        return Ok(Value::Map(Arc::new(map)));
     }
     match constructor {
         collections::LIST => Ok(Value::list(elements(0)?, element(0))),

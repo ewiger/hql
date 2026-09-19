@@ -1,11 +1,11 @@
 //! Evaluation: pure over the values it is given, with the vault as its source.
 
-use crate::ast::{Arg, Expr, Kind, Program, Stmt};
-use crate::checker::{self, StepRef, step_of};
+use crate::execution::{Arg, Expr, Field, Kind, Program, Stmt};
+
 use crate::data::Data;
 use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
-use crate::extensions::{EvalCx, Resolution, Step};
+use crate::extensions::{EvalCx, Step};
 use crate::graph::Edge;
 use crate::search;
 use crate::types::TypeRef;
@@ -14,7 +14,7 @@ use crate::vault::Vault;
 use crate::warnings::Warning;
 use std::collections::HashMap;
 use std::ops::Range;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Evaluate a checked program, collecting anything worth saying along the way.
 ///
@@ -29,7 +29,6 @@ pub(crate) fn evaluate(
         vault,
         scope: HashMap::new(),
         warnings: Vec::new(),
-        resolution: Resolution::new(&vault.extensions)?,
     };
     let value = evaluator.program(program)?;
     Ok((value, evaluator.warnings))
@@ -39,8 +38,6 @@ struct Evaluator<'a> {
     vault: &'a Vault,
     scope: HashMap<String, Value>,
     warnings: Vec<Warning>,
-    /// Which extensions this program has imported.
-    resolution: Resolution,
 }
 
 impl Evaluator<'_> {
@@ -48,26 +45,12 @@ impl Evaluator<'_> {
         let mut last = Value::Unit;
         for statement in &program.statements {
             last = match statement {
-                Stmt::Bind {
-                    name,
-                    value,
-                    annotation,
-                } => {
-                    let mut evaluated = self.expression(value)?;
-                    if let Some(annotation) = annotation {
-                        evaluated =
-                            evaluated.viewed_as(&crate::declarations::annotation(annotation)?);
-                    }
+                Stmt::Bind { name, value, view } => {
+                    let evaluated = self.expression(value)?.viewed_as(view);
                     self.scope.insert(name.clone(), evaluated);
                     Value::Unit
                 }
-                Stmt::Import { name, span } => {
-                    self.resolution.import(name, span)?;
-                    Value::Unit
-                }
-                // Checking established what the declaration says; evaluating
-                // it has nothing left to do.
-                Stmt::Type(_) => Value::Unit,
+                Stmt::Unit => Value::Unit,
                 Stmt::Expr(expression) => self.expression(expression)?,
             };
         }
@@ -79,13 +62,9 @@ impl Evaluator<'_> {
         match &expression.kind {
             Kind::List(expressions) | Kind::Set(expressions) => {
                 let mut values = Vec::new();
-                let mut element = TypeRef::NEVER;
+                let element = expression.ty.element().unwrap_or(TypeRef::NEVER);
                 for expression in expressions {
-                    let value = self.expression(expression)?;
-                    element = element.common_type(&value.type_of()).ok_or_else(|| {
-                        Diagnostic::runtime(span.clone(), "incompatible collection elements")
-                    })?;
-                    values.push(value);
+                    values.push(self.expression(expression)?);
                 }
                 Ok(if matches!(expression.kind, Kind::Set(_)) {
                     Value::set(values, element)
@@ -93,40 +72,30 @@ impl Evaluator<'_> {
                     Value::list(values, element)
                 })
             }
-            Kind::Construct {
-                annotation,
-                arguments,
-            } => {
-                let expected = crate::declarations::annotation(annotation)?;
-                crate::constructors::evaluate(
-                    self,
-                    expected.constructor,
-                    arguments,
-                    Some(&expected),
-                    span,
-                )
+            Kind::Construct(arguments) => {
+                crate::constructors::evaluate(self, arguments, &expression.ty, span)
             }
             Kind::Int(value) => Ok(Value::Int(*value)),
             Kind::Float(value) => Ok(Value::Float(*value)),
             Kind::Bool(value) => Ok(Value::Bool(*value)),
-            Kind::Str(text) => Ok(Value::Str(Rc::from(text.as_str()))),
+            Kind::Str(text) => Ok(Value::Str(Arc::from(text.as_str()))),
             Kind::Data(entries) => {
                 let mut data = Data::map();
                 for (key, value) in entries {
                     data.insert_path(key, as_data(&self.expression(value)?));
                 }
-                Ok(Value::Data(Rc::new(data)))
+                Ok(Value::Data(Arc::new(data)))
             }
             Kind::Cards => Ok(Value::set(
                 self.vault
                     .cards
                     .iter()
-                    .map(|card| Value::Card(Rc::clone(card)))
+                    .map(|card| Value::Card(Arc::clone(card)))
                     .collect(),
                 TypeRef::CARD,
             )),
             Kind::DocRef(name) => match self.vault.resolve(name) {
-                Some(card) => Ok(Value::Present(Rc::new(Value::Card(card)))),
+                Some(card) => Ok(Value::Present(Arc::new(Value::Card(card)))),
                 None => {
                     // Permitted: a forward link to a document nobody has
                     // written yet. Said out loud, because absence is easy to
@@ -143,7 +112,7 @@ impl Evaluator<'_> {
                 .get(name)
                 .cloned()
                 .ok_or_else(|| Diagnostic::name(span, format!("`{name}` is not bound"))),
-            Kind::Add(..) => self.addition(expression),
+            Kind::Add { first, rest } => self.addition(first, rest),
             Kind::Compare {
                 left,
                 right,
@@ -160,7 +129,7 @@ impl Evaluator<'_> {
             }
             Kind::Field(receiver, field) => {
                 let value = self.expression(receiver)?;
-                self.field(&value, field, &span)
+                Self::field(&value, field, &expression.ty, &span)
             }
             Kind::Link {
                 source,
@@ -173,59 +142,42 @@ impl Evaluator<'_> {
                     Some(literal) => as_data(&self.expression(literal)?),
                     None => Data::map(),
                 };
-                Ok(Value::Edge(Rc::new(Edge::link(&from, &to, annotation))))
+                Ok(Value::Edge(Arc::new(Edge::link(&from, &to, annotation))))
             }
             Kind::Lambda { .. } => Err(Diagnostic::typing(
                 span,
                 "a lambda may only be written as an argument",
             )),
-            Kind::Call { callee, arguments } => {
-                let Kind::Ident(name) = &callee.kind else {
-                    return Err(Diagnostic::typing(span, "expected a named function"));
-                };
-                if let Some(constructor) = crate::constructors::named(name) {
-                    return crate::constructors::evaluate(self, constructor, arguments, None, span);
-                }
-                if name == "compare" {
-                    let [left, right] = arguments.as_slice() else {
-                        return Err(Diagnostic::runtime(span, "compare expects two values"));
-                    };
-                    let left = self.expression(&left.value)?.order_key().ok_or_else(|| {
-                        Diagnostic::runtime(span.clone(), "left value is not Orderable")
-                    })?;
-                    let right = self.expression(&right.value)?.order_key().ok_or_else(|| {
-                        Diagnostic::runtime(span.clone(), "right value is not Orderable")
-                    })?;
-                    return Ok(Value::Ordering(left.compare(&right)));
-                }
-                let Some((input, arguments)) = arguments.split_first() else {
-                    return Err(Diagnostic::runtime(span, "a function needs an input"));
-                };
-                let input = self.expression(&input.value)?;
-                let step = self.resolution.step(name, &span)?;
-                self.step(step, input, arguments, span)
+            Kind::Order(left, right) => {
+                let left = self.expression(left)?.order_key().ok_or_else(|| {
+                    Diagnostic::runtime(span.clone(), "checked ordering value has no key")
+                })?;
+                let right = self.expression(right)?.order_key().ok_or_else(|| {
+                    Diagnostic::runtime(span.clone(), "checked ordering value has no key")
+                })?;
+                Ok(Value::Ordering(left.compare(&right)))
             }
-            Kind::Pipe(input, step) => {
+            Kind::Step {
+                step,
+                input,
+                arguments,
+            } => {
                 let value = self.expression(input)?;
-                let reference = step_of(step)?;
-                let resolved = self.resolve(&reference, &step.span)?;
-                self.step(resolved, value, reference.arguments(), step.span.clone())
+                self.step(step, value, arguments, span)
             }
+            Kind::Type => Err(Diagnostic::runtime(span, "a type argument is not a value")),
         }
     }
 
     /// Fold a left-associated chain, retaining each partial sum's overflow span.
-    fn addition(&mut self, mut expression: &Expr) -> Result<Value, Diagnostic> {
-        let mut operands = Vec::new();
-        while let Kind::Add(left, right) = &expression.kind {
-            operands.push((expression, left.as_ref(), right.as_ref()));
-            expression = left;
-        }
-        let mut sum = self.expression(expression)?;
-        for (addition, left, right) in operands.into_iter().rev() {
-            let overflow = || Diagnostic::Overflow {
-                span: addition.span.clone(),
-            };
+    fn addition(
+        &mut self,
+        first: &Expr,
+        rest: &[(Expr, Range<usize>)],
+    ) -> Result<Value, Diagnostic> {
+        let mut sum = self.expression(first)?;
+        for (right, span) in rest {
+            let overflow = || Diagnostic::Overflow { span: span.clone() };
             sum = match (sum, self.expression(right)?) {
                 (Value::Int(a), Value::Int(b)) => {
                     a.checked_add(b).map(Value::Int).ok_or_else(overflow)?
@@ -237,18 +189,10 @@ impl Evaluator<'_> {
                     }
                     Value::Float(sum)
                 }
-                (a, b) => {
-                    return Err(Diagnostic::typing(
-                        if matches!(a, Value::Int(_) | Value::Float(_)) {
-                            right.span.clone()
-                        } else {
-                            left.span.clone()
-                        },
-                        format!(
-                            "addition requires two Int or two Float operands, not {} and {}",
-                            a.type_of(),
-                            b.type_of()
-                        ),
+                _ => {
+                    return Err(Diagnostic::runtime(
+                        span.clone(),
+                        "invalid checked addition",
                     ));
                 }
             };
@@ -283,87 +227,92 @@ impl Evaluator<'_> {
         }
     }
 
-    fn field(&self, value: &Value, field: &str, span: &Range<usize>) -> Result<Value, Diagnostic> {
+    fn field(
+        value: &Value,
+        field: &Field,
+        result: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
         let missing = || {
             Diagnostic::name(
                 span.clone(),
-                format!("{} has no field `{field}`", value.type_of()),
+                format!("{} has no field `{field:?}`", value.type_of()),
             )
         };
         match value {
-            Value::Present(value) => self
-                .field(value, field, span)
-                .map(|value| Value::Present(Rc::new(value))),
-            Value::Map(map) if field == "keys" => Ok(map.keys()),
+            Value::Present(value) => Self::field(value, field, result.present(), span)
+                .map(|value| Value::Present(Arc::new(value))),
+            Value::Map(map) if matches!(field, Field::Keys) => Ok(map.keys()),
             // Absence propagates rather than becoming a failure, because the
             // reference that produced it was permitted.
-            Value::Absent(element) => Ok(Value::Absent(
-                checker::field_type(element, field).unwrap_or(TypeRef::DATA),
-            )),
+            Value::Absent(_) => Ok(Value::Absent(result.present().clone())),
             Value::Data(data) => Ok(data
-                .get(field)
+                .get(match field {
+                    Field::Key(key) => key,
+                    _ => return Err(missing()),
+                })
                 .map_or(Value::Absent(TypeRef::DATA), |found| {
-                    Value::Data(Rc::new(found.clone()))
+                    Value::Data(Arc::new(found.clone()))
                 })),
             Value::Card(card) => match field {
-                "name" => Ok(text(card.name())),
-                "title" => Ok(text(card.document.title())),
-                "path" => Ok(text(&card.document.path.display().to_string())),
-                "format" => Ok(text(card.document.format.name())),
-                "body" => Ok(text(&card.document.body)),
-                "header" => Ok(Value::Data(Rc::new(card.document.header.clone()))),
-                "metadata" => Ok(Value::Data(Rc::new(card.metadata.clone()))),
-                "kind" => Ok(text(match card.kind {
+                Field::Name => Ok(text(card.name())),
+                Field::Title => Ok(text(card.document.title())),
+                Field::Path => Ok(text(&card.document.path.display().to_string())),
+                Field::Format => Ok(text(card.document.format.name())),
+                Field::Body => Ok(text(&card.document.body)),
+                Field::Header => Ok(Value::Data(Arc::new(card.document.header.clone()))),
+                Field::Metadata => Ok(Value::Data(Arc::new(card.metadata.clone()))),
+                Field::Kind => Ok(text(match card.kind {
                     CardKind::Concept => "ConceptCard",
                     CardKind::Relation => "RelationCard",
                 })),
                 _ => Err(missing()),
             },
             Value::Doc(doc) => match field {
-                "name" => Ok(text(&doc.name)),
-                "title" => Ok(text(doc.title())),
-                "path" => Ok(text(&doc.path.display().to_string())),
-                "format" => Ok(text(doc.format.name())),
-                "body" => Ok(text(&doc.body)),
-                "header" => Ok(Value::Data(Rc::new(doc.header.clone()))),
+                Field::Name => Ok(text(&doc.name)),
+                Field::Title => Ok(text(doc.title())),
+                Field::Path => Ok(text(&doc.path.display().to_string())),
+                Field::Format => Ok(text(doc.format.name())),
+                Field::Body => Ok(text(&doc.body)),
+                Field::Header => Ok(Value::Data(Arc::new(doc.header.clone()))),
                 _ => Err(missing()),
             },
             Value::Edge(edge) => match field {
-                "source" => Ok(text(&edge.source)),
-                "target" => Ok(text(&edge.target)),
-                "data" => Ok(Value::Data(Rc::new(edge.data.clone()))),
+                Field::Source => Ok(text(&edge.source)),
+                Field::Target => Ok(text(&edge.target)),
+                Field::Data => Ok(Value::Data(Arc::new(edge.data.clone()))),
                 _ => Err(missing()),
             },
             Value::Hit(hit) => match field {
-                "card" => Ok(Value::Card(Rc::clone(&hit.card))),
-                "score" => Ok(Value::Float(hit.score)),
-                "query" => Ok(text(&hit.provenance.query)),
-                "retrieval" => Ok(Value::Data(Rc::new(retrieval_data(&hit.provenance)))),
+                Field::Card => Ok(Value::Card(Arc::clone(&hit.card))),
+                Field::Score => Ok(Value::Float(hit.score)),
+                Field::Query => Ok(text(&hit.provenance.query)),
+                Field::Retrieval => Ok(Value::Data(Arc::new(retrieval_data(&hit.provenance)))),
                 _ => Err(missing()),
             },
             Value::Ranking(ranking) => match field {
-                "hits" => Ok(Value::list(
+                Field::Hits => Ok(Value::list(
                     ranking
                         .hits
                         .iter()
-                        .map(|hit| Value::Hit(Rc::new(hit.clone())))
+                        .map(|hit| Value::Hit(Arc::new(hit.clone())))
                         .collect(),
                     TypeRef::hit(TypeRef::CARD),
                 )),
-                "query" => Ok(text(&ranking.retrieval.query)),
-                "retrieval" => Ok(Value::Data(Rc::new(retrieval_data(&ranking.retrieval)))),
+                Field::Query => Ok(text(&ranking.retrieval.query)),
+                Field::Retrieval => Ok(Value::Data(Arc::new(retrieval_data(&ranking.retrieval)))),
                 _ => Err(missing()),
             },
             Value::Graph(graph) => match field {
-                "nodes" => Ok(Value::list(
+                Field::Nodes => Ok(Value::list(
                     graph.nodes.iter().map(|name| text(name)).collect(),
                     TypeRef::STR,
                 )),
-                "edges" => Ok(Value::list(
+                Field::Edges => Ok(Value::list(
                     graph
                         .induced()
                         .into_iter()
-                        .map(|edge| Value::Edge(Rc::new(edge.clone())))
+                        .map(|edge| Value::Edge(Arc::new(edge.clone())))
                         .collect(),
                     TypeRef::EDGE,
                 )),
@@ -393,7 +342,7 @@ impl Evaluator<'_> {
             .map(|(name, value)| (name, self.scope.insert(name.clone(), value)))
             .collect::<Vec<_>>();
         let result = self.expression(body);
-        for (name, value) in previous {
+        for (name, value) in previous.into_iter().rev() {
             match value {
                 Some(value) => {
                     self.scope.insert(name.clone(), value);
@@ -404,31 +353,6 @@ impl Evaluator<'_> {
             }
         }
         result
-    }
-
-    /// Which step a written reference names, given what is imported.
-    fn resolve(
-        &self,
-        reference: &StepRef<'_>,
-        span: &Range<usize>,
-    ) -> Result<&'static Step, Diagnostic> {
-        match reference {
-            StepRef::Bare { name, .. } => self.resolution.step(name, span),
-            StepRef::Qualified {
-                extension, name, ..
-            } => {
-                if self.scope.contains_key(*extension) {
-                    return Err(Diagnostic::typing(
-                        span.clone(),
-                        format!(
-                            "`{extension}` is bound to a value here, so `{extension}.{name}` \
-                             reads a field rather than naming a step"
-                        ),
-                    ));
-                }
-                self.resolution.qualified(extension, name, span)
-            }
-        }
     }
 
     /// Dispatch a pipeline step to the extension that provides it.
@@ -478,7 +402,7 @@ impl EvalCx for Evaluator<'_> {
 }
 
 fn text(value: &str) -> Value {
-    Value::Str(Rc::from(value))
+    Value::Str(Arc::from(value))
 }
 
 fn retrieval_data(retrieval: &search::Retrieval) -> Data {

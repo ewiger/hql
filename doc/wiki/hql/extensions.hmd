@@ -11,12 +11,21 @@ language requirements.
 ## The registry
 
 A registry of extensions is implemented; a module loader is not. An extension
-declares a name, a version and its steps, and each step supplies the function
-that checks it, the function that evaluates it, and whether it is pure — so a
+declares a name, a version and its steps, and each step supplies a structural
+`StepSpec`, its evaluator, and whether it is pure — so a
 capability is added without editing the core's checker or evaluator. Extensions
 are compiled into the binary and registered in one table. There is no dynamic
 loading and no plugin ABI: registration says what exists, and it is a host
 mechanism that never reaches HQL's surface.
+
+The signature declares generic parameters and bounds, input and result types,
+argument names and arity, and lambda or type arguments. The checker and
+`hql builtins` consume the same declaration. Ordinary steps need no custom
+checker; dependent hooks add constraints such as intrinsic ordering or a
+configured semantic index. Invalid signatures are rejected before checking a
+program. Unknown, duplicate, and excess arguments are errors rather than ignored
+syntax. Evaluators receive the checked execution tree, with resolved step and
+type identities.
 
 Registration is not import. Every extension in the binary is registered;
 a program resolves what it has imported. That is what lets a diagnostic name
@@ -26,7 +35,7 @@ Steps split by the layering core → graph → knowledge:
 
 | Provider | Steps | How a program gets it |
 | --- | --- | --- |
-| core | `count` `sort` `take` `filter` `map` `typed` | always |
+| core | `size` `contains` `get` `count` `sort` `take` `filter` `map` `typed` | always |
 | `graph` | `uplinks` `downlinks` `expand` `graph` | the prelude |
 | `present` | `table` `json` `text` | the prelude |
 | `lexical` | `lexical` | `import lexical` |
@@ -49,9 +58,9 @@ An extension declares each step `Pure` or `Effectful`, because [[pipes]]
 reserves execution freedom that is only safe over pure steps. Every step
 registered today is pure.
 
-What an extension may supply is steps, and only steps. Extension-defined types,
-renderers and document sources are not implemented and need a decision of their
-own.
+An extension may also contribute metadata while cards are assembled; lexical
+owns its own model and indexing entries. Extension-defined types and dynamically
+registered document sources are not implemented and need a decision of their own.
 
 An HQL module organizes reusable HQL definitions. An extension connects HQL to
 external capabilities: for example, a data source, a renderer or an explicit
