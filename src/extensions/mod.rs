@@ -11,6 +11,7 @@
 
 use crate::ast::{Arg, Expr};
 use crate::diagnostics::Diagnostic;
+use crate::execution::{Arg as TypedArg, Expr as TypedExpr};
 use crate::types::TypeRef;
 use crate::types::Value;
 use crate::vault::Vault;
@@ -22,6 +23,8 @@ pub(crate) mod graph;
 pub mod lexical;
 pub(crate) mod present;
 pub mod semantic;
+pub mod spec;
+use spec::{CheckedCall, StepSpec};
 
 /// Whether the executor may move a step around.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,40 +48,43 @@ impl Purity {
 }
 
 /// What a step does to a type.
-pub(crate) type Check =
-    fn(&mut dyn CheckCx, &TypeRef, &[Arg], Range<usize>) -> Result<TypeRef, Diagnostic>;
+pub(crate) type Check = fn(&dyn CheckCx, &CheckedCall<'_>, Range<usize>) -> Result<(), Diagnostic>;
 
 /// What a step does to a value.
 pub(crate) type Eval =
-    fn(&mut dyn EvalCx, Value, &[Arg], Range<usize>) -> Result<Value, Diagnostic>;
+    fn(&mut dyn EvalCx, Value, &[TypedArg], Range<usize>) -> Result<Value, Diagnostic>;
 
 /// What checking a step may ask of the checker around it.
 ///
 /// An argument arrives as unevaluated syntax, because a step such as
 /// `filter(c => …)` applies its argument once per element rather than once.
-pub(crate) trait CheckCx {
+pub(crate) trait CheckCx: Send {
     /// The vault the program is checked against.
     fn vault(&self) -> &Vault;
     /// The type of an argument expression.
     fn infer(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic>;
-    /// The result type of a lambda argument, with its parameter bound.
-    fn lambda(&mut self, argument: &Arg, parameter: TypeRef) -> Result<TypeRef, Diagnostic>;
-    /// Check a two-argument comparison with both parameters bound to the element type.
-    fn comparator(&mut self, argument: &Arg, parameter: TypeRef) -> Result<TypeRef, Diagnostic>;
+    /// Check a lambda with the parameter types declared by its step contract.
+    fn lambda_parameters(
+        &mut self,
+        argument: &Arg,
+        parameters: Vec<TypeRef>,
+    ) -> Result<TypeRef, Diagnostic>;
+    /// Resolve a type argument and retain its identity in the execution tree.
+    fn type_argument(&mut self, argument: &Arg) -> Result<TypeRef, Diagnostic>;
 }
 
 /// What evaluating a step may ask of the evaluator around it.
-pub(crate) trait EvalCx {
+pub(crate) trait EvalCx: Send {
     /// The vault the program runs against.
     fn vault(&self) -> &Vault;
     /// The value of an argument expression.
-    fn evaluate(&mut self, expression: &Expr) -> Result<Value, Diagnostic>;
+    fn evaluate(&mut self, expression: &TypedExpr) -> Result<Value, Diagnostic>;
     /// A lambda argument applied to one element.
-    fn apply_lambda(&mut self, argument: &Arg, element: Value) -> Result<Value, Diagnostic>;
+    fn apply_lambda(&mut self, argument: &TypedArg, element: Value) -> Result<Value, Diagnostic>;
     /// Apply a comparison to a pair of elements.
     fn apply_comparator(
         &mut self,
-        argument: &Arg,
+        argument: &TypedArg,
         left: Value,
         right: Value,
     ) -> Result<Value, Diagnostic>;
@@ -91,14 +97,14 @@ pub(crate) trait EvalCx {
 pub struct Step {
     /// How it is written.
     pub(crate) name: &'static str,
-    /// How it is called, for help output.
-    pub(crate) signature: &'static str,
+    /// Structural signature used for checking and help.
+    pub(crate) spec: StepSpec,
     /// One sentence about what it does.
     pub(crate) summary: &'static str,
     /// Whether the executor may move it.
     pub(crate) purity: Purity,
     /// What it does to a type.
-    pub(crate) check: Check,
+    pub(crate) check: Option<Check>,
     /// What it does to a value.
     pub(crate) eval: Eval,
 }
@@ -112,6 +118,7 @@ pub struct Extension {
     pub(crate) version: &'static str,
     /// What it supplies.
     pub(crate) steps: &'static [Step],
+    pub(crate) metadata: Option<fn(&mut crate::document::Card)>,
 }
 
 /// The core: collection operations, which mention nothing above the core's own
@@ -120,30 +127,35 @@ pub(crate) static CORE: Extension = Extension {
     name: "core",
     version: env!("CARGO_PKG_VERSION"),
     steps: collections::STEPS,
+    metadata: None,
 };
 
 static GRAPH: Extension = Extension {
     name: "graph",
     version: env!("CARGO_PKG_VERSION"),
     steps: graph::STEPS,
+    metadata: None,
 };
 
 static PRESENT: Extension = Extension {
     name: "present",
     version: env!("CARGO_PKG_VERSION"),
     steps: present::STEPS,
+    metadata: None,
 };
 
 static LEXICAL: Extension = Extension {
     name: "lexical",
     version: env!("CARGO_PKG_VERSION"),
     steps: lexical::STEPS,
+    metadata: Some(lexical::contribute_metadata),
 };
 
 static SEMANTIC: Extension = Extension {
     name: "semantic",
     version: env!("CARGO_PKG_VERSION"),
     steps: semantic::STEPS,
+    metadata: None,
 };
 
 /// Every extension compiled into this binary, core first.
@@ -291,6 +303,13 @@ impl Resolution {
     /// pointing at the program's start, because the fault is in the vault
     /// rather than in the line a reader is looking at.
     pub(crate) fn new(config: &Config) -> Result<Self, Diagnostic> {
+        for extension in REGISTERED {
+            for step in extension.steps {
+                step.spec.validate().map_err(|error| {
+                    Diagnostic::typing(0..0, format!("{}.{}, {error}", extension.name, step.name))
+                })?;
+            }
+        }
         let mut resolution = Self::bare(config.prelude);
         for name in &config.imports {
             resolution.import(name, &(0..0)).map_err(|failed| {
@@ -416,7 +435,7 @@ pub(crate) fn names() -> impl Iterator<Item = &'static str> {
 }
 
 /// One step, as `hql builtins` prints it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listing {
     /// Which extension supplies it.
     pub provider: &'static str,
@@ -425,7 +444,9 @@ pub struct Listing {
     /// How it is written.
     pub name: &'static str,
     /// How it is called.
-    pub signature: &'static str,
+    pub signature: String,
+    /// The structural contract behind the rendered signature.
+    pub spec: &'static StepSpec,
     /// One sentence about what it does.
     pub summary: &'static str,
     /// Whether the executor may move it.
@@ -474,7 +495,8 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
                     provider: extension.name,
                     version: extension.version,
                     name: step.name,
-                    signature: step.signature,
+                    signature: step.spec.signature(step.name),
+                    spec: &step.spec,
                     summary: step.summary,
                     purity: step.purity,
                 })
@@ -483,30 +505,25 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
         .collect()
 }
 
-/// The element type of a collection, or the failure that says it is not one.
-pub(crate) fn collection(
-    input: &TypeRef,
-    name: &str,
-    span: &Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    input.element().ok_or_else(|| {
-        Diagnostic::typing(
-            span.clone(),
-            format!("`{name}` needs a collection, not {input}"),
-        )
-    })
-}
-
 /// The argument written with a name.
-pub(crate) fn named<'a>(arguments: &'a [Arg], name: &str) -> Option<&'a Arg> {
+pub(crate) fn named<'a, E>(arguments: &'a [Arg<E>], name: &str) -> Option<&'a Arg<E>> {
     arguments
         .iter()
         .find(|argument| argument.name.as_deref() == Some(name))
 }
 
 /// The argument written with a name, or the first written without one.
-pub(crate) fn named_or_first<'a>(arguments: &'a [Arg], name: &str) -> Option<&'a Arg> {
+pub(crate) fn named_or_first<'a, E>(arguments: &'a [Arg<E>], name: &str) -> Option<&'a Arg<E>> {
     named(arguments, name).or_else(|| arguments.iter().find(|argument| argument.name.is_none()))
+}
+
+/// Let each registered extension contribute the metadata it owns.
+pub(crate) fn contribute_metadata(card: &mut crate::document::Card) {
+    for extension in REGISTERED {
+        if let Some(contribute) = extension.metadata {
+            contribute(card);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -581,12 +598,20 @@ mod tests {
     static PROBE: Extension = Extension {
         name: "probe",
         version: "0",
+        metadata: None,
         steps: &[Step {
             name: "count",
-            signature: "collection | count",
+            spec: StepSpec {
+                parameters: &[],
+                input: spec::TypePattern::Any,
+                arguments: &[],
+                output: spec::Output::Type(spec::TypePattern::Type(crate::types::TypeConstructor(
+                    "Int",
+                ))),
+            },
             summary: "A second `count`, so the collision has two sides.",
             purity: Purity::Pure,
-            check: |_, _, _, _| Ok(TypeRef::INT),
+            check: None,
             eval: |_, _, _, _| Ok(Value::Int(0)),
         }],
     };

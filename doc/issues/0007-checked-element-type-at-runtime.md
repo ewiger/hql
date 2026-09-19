@@ -1,10 +1,17 @@
 # 0007 — Evaluate a collection literal at its checked element type
 
-Status: backlog
+Status: done
 
-The checker infers a list or set literal's element type from the static types of
-its elements. The evaluator infers it again from the runtime types of the values
-it built. A view is static, so the two can disagree:
+Resolved by [0011](0011-runtime-architecture-refactoring.md). The evaluator now
+consumes typed execution IR, preserving checked element types for literals,
+constructors, and `map`, including empty results. Regression coverage lives in
+`tests/collections.rs`.
+
+## Original failure
+
+The checker inferred a list or set literal's element type from the static types
+of its elements. The evaluator inferred it again from runtime values. A view is
+static, so the two could disagree:
 
 ```hql
 held : Collection<Int> = [1]

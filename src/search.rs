@@ -7,7 +7,7 @@
 //! index's to decide.
 
 use crate::document::Card;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// The rule a ranking was produced by, retained so a score stays evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,11 +31,11 @@ pub struct Retrieval {
 #[derive(Debug, Clone)]
 pub struct Hit {
     /// What was retrieved.
-    pub card: Rc<Card>,
+    pub card: Arc<Card>,
     /// The metric result, relative to one query.
     pub score: f64,
     /// The retained rule.
-    pub provenance: Rc<Retrieval>,
+    pub provenance: Arc<Retrieval>,
 }
 
 /// An ordered collection of hits, with the query its order is relative to.
@@ -44,7 +44,7 @@ pub struct Ranking {
     /// The hits, best first.
     pub hits: Vec<Hit>,
     /// The retained rule, shared by every hit.
-    pub retrieval: Rc<Retrieval>,
+    pub retrieval: Arc<Retrieval>,
 }
 
 /// Assemble scored cards into a ranking.
@@ -53,15 +53,15 @@ pub struct Ranking {
 /// answer, it is the absence of one. Ties break on the card's own ordering
 /// key, so a prefix never depends on the order a vault happened to load in.
 #[must_use]
-pub fn rank(scored: Vec<(Rc<Card>, f64)>, retrieval: Retrieval) -> Ranking {
-    let retrieval = Rc::new(retrieval);
+pub fn rank(scored: Vec<(Arc<Card>, f64)>, retrieval: Retrieval) -> Ranking {
+    let retrieval = Arc::new(retrieval);
     let mut hits: Vec<Hit> = scored
         .into_iter()
         .filter(|(_, score)| *score > 0.0)
         .map(|(card, score)| Hit {
             card,
             score,
-            provenance: Rc::clone(&retrieval),
+            provenance: Arc::clone(&retrieval),
         })
         .collect();
     hits.sort_by(|left, right| {

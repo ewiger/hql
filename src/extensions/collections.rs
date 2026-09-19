@@ -3,121 +3,235 @@
 //! These stay in the core rather than becoming an extension because they
 //! operate on the core's own collection types and mention nothing above them.
 
-use super::{CheckCx, EvalCx, Purity, Step, collection, named_or_first};
-use crate::ast::{Arg, Kind};
+use super::spec::{
+    ArgumentKind as A, ArgumentSpec, Output as O, StepSpec, TypeParameter, TypePattern as P,
+};
+use super::{EvalCx, Purity, Step, named_or_first};
 use crate::diagnostics::Diagnostic;
+use crate::execution::{Arg as TypedArg, Kind as TypedKind};
 use crate::search::Ranking;
-use crate::types::{self, TypeRef};
+use crate::types::TypeRef;
 use crate::types::{Key, Value};
 use std::cmp::Ordering;
 use std::ops::Range;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Every step the core provides, in the order help prints them.
 pub(crate) static STEPS: &[Step] = &[
     Step {
         name: "size",
-        signature: "collection | size",
+        spec: StepSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[],
+            output: O::Type(P::Type(crate::types::TypeConstructor("Int"))),
+        },
         summary: "Count all element occurrences.",
         purity: Purity::Pure,
-        check: check_size,
+        check: None,
         eval: eval_size,
     },
     Step {
         name: "contains",
-        signature: "collection | contains(value)",
+        spec: StepSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[ArgumentSpec {
+                named: false,
+                ..ArgumentSpec::value("value", P::Var("T"))
+            }],
+            output: O::Type(P::Type(crate::types::TypeConstructor("Bool"))),
+        },
         summary: "Whether a value occurs in the collection.",
         purity: Purity::Pure,
-        check: check_contains,
+        check: None,
         eval: eval_contains,
     },
     Step {
         name: "get",
-        signature: "map | get(key)",
+        spec: StepSpec {
+            parameters: &[
+                TypeParameter {
+                    name: "K",
+                    bound: None,
+                },
+                TypeParameter {
+                    name: "V",
+                    bound: None,
+                },
+            ],
+            input: P::Apply(crate::types::collections::MAP, &[P::Var("K"), P::Var("V")]),
+            arguments: &[ArgumentSpec {
+                named: false,
+                ..ArgumentSpec::value("key", P::Var("K"))
+            }],
+            output: O::Type(P::Apply(
+                crate::types::TypeConstructor("Option"),
+                &[P::Var("V")],
+            )),
+        },
         summary: "Look up a key, yielding absence when it is missing.",
         purity: Purity::Pure,
-        check: check_get,
+        check: None,
         eval: eval_get,
     },
     Step {
         name: "count",
-        signature: "collection | count(value)",
+        spec: StepSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[ArgumentSpec {
+                required: false,
+                named: false,
+                ..ArgumentSpec::value("value", P::Var("T"))
+            }],
+            output: O::Type(P::Type(crate::types::TypeConstructor("Int"))),
+        },
         summary: "Count occurrences of a value; without an argument, count all occurrences.",
         purity: Purity::Pure,
-        check: check_count,
+        check: None,
         eval: eval_count,
     },
     Step {
         name: "sort",
-        signature: "collection | sort  |  collection | sort(by = c => c.title)",
+        spec: StepSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[ArgumentSpec {
+                name: "by",
+                kind: A::Ordering(P::Var("T")),
+                required: false,
+                positional: true,
+                named: true,
+            }],
+            output: O::Type(P::Apply(crate::types::collections::LIST, &[P::Var("T")])),
+        },
         summary: "Order a collection by its elements' own key, or by one you supply.",
         purity: Purity::Pure,
-        check: check_sort,
+        check: Some(check_sort),
         eval: eval_sort,
     },
     Step {
         name: "take",
-        signature: "collection | take(5)",
+        spec: StepSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[ArgumentSpec::value(
+                "n",
+                P::Type(crate::types::TypeConstructor("Int")),
+            )],
+            output: O::Prefix("T"),
+        },
         summary: "The first n elements, in the elements' own order.",
         purity: Purity::Pure,
-        check: check_take,
+        check: Some(check_take),
         eval: eval_take,
     },
     Step {
         name: "filter",
-        signature: "collection | filter(c => c.kind)",
+        spec: StepSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[ArgumentSpec {
+                name: "by",
+                kind: A::Lambda {
+                    parameters: &[P::Var("T")],
+                    result: P::Type(crate::types::TypeConstructor("Bool")),
+                },
+                required: true,
+                positional: true,
+                named: true,
+            }],
+            output: O::Input,
+        },
         summary: "Keep the elements a predicate accepts.",
         purity: Purity::Pure,
-        check: check_filter,
+        check: None,
         eval: eval_filter,
     },
     Step {
         name: "map",
-        signature: "collection | map(c => c.title)",
+        spec: StepSpec {
+            parameters: &[
+                TypeParameter {
+                    name: "T",
+                    bound: None,
+                },
+                TypeParameter {
+                    name: "R",
+                    bound: None,
+                },
+            ],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[ArgumentSpec {
+                name: "by",
+                kind: A::Lambda {
+                    parameters: &[P::Var("T")],
+                    result: P::Var("R"),
+                },
+                required: true,
+                positional: true,
+                named: true,
+            }],
+            output: O::Type(P::Apply(crate::types::collections::LIST, &[P::Var("R")])),
+        },
         summary: "Apply a function to every element, yielding a sequence.",
         purity: Purity::Pure,
-        check: check_map,
+        check: None,
         eval: eval_map,
     },
     Step {
         name: "typed",
-        signature: "cards | typed(RelationCard)",
+        spec: StepSpec {
+            parameters: &[
+                TypeParameter {
+                    name: "T",
+                    bound: None,
+                },
+                TypeParameter {
+                    name: "U",
+                    bound: None,
+                },
+            ],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[ArgumentSpec {
+                name: "as",
+                kind: A::TypeName("U"),
+                required: true,
+                positional: true,
+                named: true,
+            }],
+            output: O::WithElement("U"),
+        },
         summary: "Keep the elements that are of a type, checked rather than trusted.",
         purity: Purity::Pure,
-        check: check_typed,
+        check: Some(check_typed),
         eval: eval_typed,
     },
 ];
 
-fn check_count(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    args: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    let element = collection(input, "count", &span)?;
-    if args.len() > 1 || args.iter().any(|arg| arg.name.is_some()) {
-        return Err(Diagnostic::typing(
-            span,
-            "count accepts one positional value",
-        ));
-    }
-    if let Some(arg) = args.first() {
-        let wanted = cx.infer(&arg.value)?;
-        if element != TypeRef::NEVER && !wanted.is(&element) {
-            return Err(Diagnostic::typing(
-                arg.value.span.clone(),
-                format!("{wanted} is not an element of {input}"),
-            ));
-        }
-    }
-    Ok(TypeRef::INT)
-}
-
 fn eval_count(
     cx: &mut dyn EvalCx,
     input: Value,
-    args: &[Arg],
+    args: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let elements = elements(&input, "count", &span)?;
@@ -136,47 +250,19 @@ fn eval_count(
         .map_err(|_| Diagnostic::runtime(span, "collection size exceeds Int"))
 }
 
-fn check_size(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    args: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    if !args.is_empty() {
-        return Err(Diagnostic::typing(
-            span,
-            "size takes no arguments after its input",
-        ));
-    }
-    check_count(cx, input, args, span)
-}
-
 fn eval_size(
     cx: &mut dyn EvalCx,
     input: Value,
-    args: &[Arg],
+    args: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     eval_count(cx, input, args, span)
 }
 
-fn check_contains(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    args: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    if args.len() != 1 {
-        return Err(Diagnostic::typing(span, "contains needs one value"));
-    }
-    check_count(cx, input, args, span)?;
-    Ok(TypeRef::BOOL)
-}
-
 fn eval_contains(
     cx: &mut dyn EvalCx,
     input: Value,
-    args: &[Arg],
+    args: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let result = eval_count(cx, input, args, span)?;
@@ -185,41 +271,10 @@ fn eval_contains(
     ))
 }
 
-fn check_get(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    args: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    if crate::types::MapKind::of(input.constructor).is_none() {
-        return Err(Diagnostic::typing(
-            span,
-            format!("get needs a map, not {input}"),
-        ));
-    }
-    let [argument] = args else {
-        return Err(Diagnostic::typing(span, "get needs one key"));
-    };
-    if argument.name.is_some() {
-        return Err(Diagnostic::typing(span, "get needs a positional key"));
-    }
-    let actual = cx.infer(&argument.value)?;
-    let [key, value] = input.args.as_slice() else {
-        return Err(Diagnostic::typing(span, "a map needs key and value types"));
-    };
-    if *key != TypeRef::NEVER && !actual.is(key) {
-        return Err(Diagnostic::typing(
-            span,
-            format!("{actual} is not a {key} key"),
-        ));
-    }
-    Ok(TypeRef::optional(value.clone()))
-}
-
 fn eval_get(
     cx: &mut dyn EvalCx,
     input: Value,
-    args: &[Arg],
+    args: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let Value::Map(map) = input else {
@@ -231,56 +286,16 @@ fn eval_get(
     Ok(map.get(&cx.evaluate(&argument.value)?))
 }
 
-fn check_sort(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    arguments: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    let element = collection(input, "sort", &span)?;
-    if arguments.len() > 1
-        || arguments
-            .iter()
-            .any(|arg| arg.name.as_deref().is_some_and(|name| name != "by"))
-    {
-        return Err(Diagnostic::typing(
-            span,
-            "sort accepts one comparison or key selector named by",
-        ));
-    }
-    match named_or_first(arguments, "by") {
-        Some(argument) if is_comparator(argument) => {
-            let result = cx.comparator(argument, element.clone())?;
-            if result != TypeRef::ORDERING {
-                return Err(Diagnostic::typing(
-                    argument.value.span.clone(),
-                    "a comparison must return Ordering",
-                ));
-            }
-        }
-        Some(argument) => {
-            let key = cx.lambda(argument, element.clone())?;
-            if !key.is_orderable() {
-                return Err(Diagnostic::typing(
-                    argument.value.span.clone(),
-                    format!("a sort key must be orderable, and {key} is not"),
-                ));
-            }
-        }
-        None => require_orderable(&element, "sort", &span)?,
-    }
-    Ok(TypeRef::list(element))
-}
-
 fn eval_sort(
     cx: &mut dyn EvalCx,
     input: Value,
-    arguments: &[Arg],
+    arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let mut elements = elements(&input, "sort", &span)?;
     match named_or_first(arguments, "by") {
-        Some(argument) if is_comparator(argument) => {
+        Some(argument) if matches!(&argument.value.kind, TypedKind::Lambda { parameters, .. } if parameters.len() == 2) =>
+        {
             // A fallible comparison must never be hidden inside an infallible
             // sorting callback. Insertion sort also preserves equal-key positions.
             for index in 1..elements.len() {
@@ -319,42 +334,10 @@ fn eval_sort(
     Ok(Value::list(elements, element_type(&input)))
 }
 
-fn is_comparator(argument: &Arg) -> bool {
-    matches!(&argument.value.kind, Kind::Lambda { parameters, .. } if parameters.len() == 2)
-}
-
-fn check_take(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    arguments: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    let element = collection(input, "take", &span)?;
-    let argument = named_or_first(arguments, "n")
-        .ok_or_else(|| Diagnostic::typing(span.clone(), "`take` needs a count: `take(5)`"))?;
-    let count = cx.infer(&argument.value)?;
-    if count != TypeRef::INT {
-        return Err(Diagnostic::typing(
-            argument.value.span.clone(),
-            format!("`take` needs an Int count, not {count}"),
-        ));
-    }
-    // A prefix must be reproducible, which needs the elements to carry an
-    // order of their own rather than the order they were discovered in.
-    if !input.is_sequence() {
-        require_orderable(&element, "take", &span)?;
-    }
-    Ok(if input.constructor.0 == "Ranking" {
-        input.clone()
-    } else {
-        TypeRef::list(element)
-    })
-}
-
 fn eval_take(
     cx: &mut dyn EvalCx,
     input: Value,
-    arguments: &[Arg],
+    arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let argument =
@@ -367,9 +350,9 @@ fn eval_take(
     })?;
     if let Value::Ranking(ranking) = &input {
         // Already ordered by score, and that order is the point.
-        return Ok(Value::Ranking(Rc::new(Ranking {
+        return Ok(Value::Ranking(Arc::new(Ranking {
             hits: ranking.hits.iter().take(count).cloned().collect(),
-            retrieval: Rc::clone(&ranking.retrieval),
+            retrieval: Arc::clone(&ranking.retrieval),
         })));
     }
     let mut elements = elements(&input, "take", &span)?;
@@ -383,30 +366,10 @@ fn eval_take(
     Ok(Value::list(elements, element_type(&input)))
 }
 
-fn check_filter(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    arguments: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    let element = collection(input, "filter", &span)?;
-    let argument = named_or_first(arguments, "by").ok_or_else(|| {
-        Diagnostic::typing(span.clone(), "`filter` needs a predicate: `filter(c => …)`")
-    })?;
-    let result = cx.lambda(argument, element.clone())?;
-    if result != TypeRef::BOOL {
-        return Err(Diagnostic::typing(
-            argument.value.span.clone(),
-            format!("a filter predicate returns Bool, not {result}"),
-        ));
-    }
-    Ok(input.with_element(element))
-}
-
 fn eval_filter(
     cx: &mut dyn EvalCx,
     input: Value,
-    arguments: &[Arg],
+    arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let argument =
@@ -426,24 +389,10 @@ fn eval_filter(
     Ok(rebuild(&input, kept))
 }
 
-fn check_map(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    arguments: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    let element = collection(input, "map", &span)?;
-    let argument = named_or_first(arguments, "by")
-        .ok_or_else(|| Diagnostic::typing(span.clone(), "`map` needs a function: `map(c => …)`"))?;
-    // Mapping a set does not decide whether equal outputs collapse, so the
-    // result is a sequence and the question stays open.
-    Ok(TypeRef::list(cx.lambda(argument, element)?))
-}
-
 fn eval_map(
     cx: &mut dyn EvalCx,
     input: Value,
-    arguments: &[Arg],
+    arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let argument =
@@ -452,65 +401,27 @@ fn eval_map(
     for element in elements(&input, "map", &span)? {
         mapped.push(cx.apply_lambda(argument, element)?);
     }
-    let element = mapped
-        .iter()
-        .map(Value::type_of)
-        .try_fold(TypeRef::NEVER, |held, next| held.common_type(&next))
-        .ok_or_else(|| Diagnostic::runtime(span, "mapped values have incompatible types"))?;
-    Ok(Value::list(mapped, element))
-}
-
-fn check_typed(
-    _: &mut dyn CheckCx,
-    input: &TypeRef,
-    arguments: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    let element = collection(input, "typed", &span)?;
-    let argument = named_or_first(arguments, "as").ok_or_else(|| {
-        Diagnostic::typing(span.clone(), "`typed` needs a type: `typed(RelationCard)`")
-    })?;
-    let wanted = wanted_type(argument)?;
-    if !wanted.is(&element) && !element.is(&wanted) {
-        return Err(Diagnostic::typing(
-            argument.value.span.clone(),
-            format!("no {element} can be a {wanted}, so this selects nothing"),
-        ));
-    }
-    Ok(input.with_element(wanted))
+    Ok(Value::list(mapped, argument.value.ty.clone()))
 }
 
 fn eval_typed(
     _: &mut dyn EvalCx,
     input: Value,
-    arguments: &[Arg],
+    arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let argument =
         named_or_first(arguments, "as").ok_or_else(|| wrong("typed", "a type name", &span))?;
-    let wanted = wanted_type(argument)?;
+    let wanted = argument.value.ty.clone();
     // The kind was checked when the vault loaded; an authored entry alone
     // never put a card in this result.
     let kept: Vec<Value> = elements(&input, "typed", &span)?
         .into_iter()
         .filter(|element| element.type_of().is(&wanted))
         .collect();
-    Ok(Value::set(kept, wanted))
-}
-
-/// The type an argument names, for `typed`.
-fn wanted_type(argument: &Arg) -> Result<TypeRef, Diagnostic> {
-    let Kind::Ident(name) = &argument.value.kind else {
-        return Err(Diagnostic::typing(
-            argument.value.span.clone(),
-            "`typed` takes a type name",
-        ));
-    };
-    types::named(name, &[]).ok_or_else(|| {
-        Diagnostic::name(
-            argument.value.span.clone(),
-            format!("unknown type `{name}`"),
-        )
+    Ok(match input {
+        Value::Set(..) => Value::set(kept, wanted),
+        _ => rebuild(&input, kept).viewed_as(&input.type_of().with_element(wanted)),
     })
 }
 
@@ -552,7 +463,16 @@ pub(crate) fn element_type(input: &Value) -> TypeRef {
 fn rebuild(input: &Value, kept: Vec<Value>) -> Value {
     match input {
         Value::Set(_, element) => Value::set(kept, element.clone()),
-        Value::Ranking(_) => Value::list(kept, TypeRef::hit(TypeRef::CARD)),
+        Value::Ranking(ranking) => Value::Ranking(Arc::new(Ranking {
+            hits: kept
+                .into_iter()
+                .filter_map(|value| match value {
+                    Value::Hit(hit) => Some(hit.as_ref().clone()),
+                    _ => None,
+                })
+                .collect(),
+            retrieval: Arc::clone(&ranking.retrieval),
+        })),
         _ => Value::list(kept, element_type(input)),
     }
 }
@@ -562,4 +482,40 @@ fn compare(left: &Option<Key>, right: &Option<Key>) -> Ordering {
         (Some(left), Some(right)) => left.compare(right),
         _ => Ordering::Equal,
     }
+}
+
+fn check_sort(
+    _: &dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    if call.arguments.is_empty() {
+        require_orderable(&call.bindings["T"], "sort", &span)?;
+    }
+    Ok(())
+}
+fn check_take(
+    _: &dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    if !call.input.is_sequence() {
+        require_orderable(&call.bindings["T"], "take", &span)?;
+    }
+    Ok(())
+}
+fn check_typed(
+    _: &dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    let element = &call.bindings["T"];
+    let wanted = &call.bindings["U"];
+    if !wanted.is(element) && !element.is(wanted) {
+        return Err(Diagnostic::typing(
+            span,
+            format!("no {element} can be a {wanted}, so this selects nothing"),
+        ));
+    }
+    Ok(())
 }

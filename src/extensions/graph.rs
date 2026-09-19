@@ -4,98 +4,148 @@
 //! knowledge, and these steps are the graph layer's half of it.
 
 use super::collections::wrong;
-use super::{CheckCx, EvalCx, Purity, Step, named, named_or_first};
-use crate::ast::Arg;
+use super::spec::{ArgumentSpec, Output as O, StepSpec, TypePattern as P};
+use super::{EvalCx, Purity, Step, named, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
+use crate::execution::Arg as TypedArg;
 use crate::graph::{Edge, Graph, Presence};
 use crate::types::TypeRef;
 use crate::types::Value;
 use crate::vault::Vault;
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::Range;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Every step the `graph` extension provides.
 pub(crate) static STEPS: &[Step] = &[
     Step {
         name: "uplinks",
-        signature: "card | uplinks",
+        spec: StepSpec {
+            parameters: &[],
+            input: P::OneOf(&[
+                P::OneOf(&[
+                    P::Type(crate::types::TypeConstructor("Doc")),
+                    P::Apply(
+                        crate::types::TypeConstructor("Hit"),
+                        &[P::Type(crate::types::TypeConstructor("Card"))],
+                    ),
+                ]),
+                P::Collection(&P::OneOf(&[
+                    P::Type(crate::types::TypeConstructor("Doc")),
+                    P::Apply(
+                        crate::types::TypeConstructor("Hit"),
+                        &[P::Type(crate::types::TypeConstructor("Card"))],
+                    ),
+                ])),
+            ]),
+            arguments: &[],
+            output: O::Type(P::Apply(
+                crate::types::collections::LIST,
+                &[P::Type(crate::types::TypeConstructor("Edge"))],
+            )),
+        },
         summary: "The edges leaving a card.",
         purity: Purity::Pure,
-        check: check_uplinks,
+        check: None,
         eval: eval_uplinks,
     },
     Step {
         name: "downlinks",
-        signature: "card | downlinks",
+        spec: StepSpec {
+            parameters: &[],
+            input: P::OneOf(&[
+                P::OneOf(&[
+                    P::Type(crate::types::TypeConstructor("Doc")),
+                    P::Apply(
+                        crate::types::TypeConstructor("Hit"),
+                        &[P::Type(crate::types::TypeConstructor("Card"))],
+                    ),
+                ]),
+                P::Collection(&P::OneOf(&[
+                    P::Type(crate::types::TypeConstructor("Doc")),
+                    P::Apply(
+                        crate::types::TypeConstructor("Hit"),
+                        &[P::Type(crate::types::TypeConstructor("Card"))],
+                    ),
+                ])),
+            ]),
+            arguments: &[],
+            output: O::Type(P::Apply(
+                crate::types::collections::LIST,
+                &[P::Type(crate::types::TypeConstructor("Edge"))],
+            )),
+        },
         summary: "The edges entering a card, which needs a vault.",
         purity: Purity::Pure,
-        check: check_downlinks,
+        check: Some(check_downlinks),
         eval: eval_downlinks,
     },
     Step {
         name: "expand",
-        signature: "collection | expand(depth = 1)",
+        spec: StepSpec {
+            parameters: &[],
+            input: P::OneOf(&[
+                P::Type(crate::types::TypeConstructor("Graph")),
+                P::Type(crate::types::TypeConstructor("Doc")),
+                P::Collection(&P::OneOf(&[
+                    P::Type(crate::types::TypeConstructor("Doc")),
+                    P::Apply(
+                        crate::types::TypeConstructor("Hit"),
+                        &[P::Type(crate::types::TypeConstructor("Card"))],
+                    ),
+                ])),
+            ]),
+            arguments: &[
+                ArgumentSpec {
+                    required: false,
+                    ..ArgumentSpec::value("depth", P::Type(crate::types::TypeConstructor("Int")))
+                },
+                ArgumentSpec {
+                    required: false,
+                    positional: false,
+                    ..ArgumentSpec::value(
+                        "direction",
+                        P::Type(crate::types::TypeConstructor("String")),
+                    )
+                },
+            ],
+            output: O::Type(P::Type(crate::types::TypeConstructor("Graph"))),
+        },
         summary: "Traverse outwards, keeping why each node is present.",
         purity: Purity::Pure,
-        check: check_expand,
+        check: Some(check_expand),
         eval: eval_expand,
     },
     Step {
         name: "graph",
-        signature: "collection | graph",
+        spec: StepSpec {
+            parameters: &[],
+            input: P::OneOf(&[
+                P::Type(crate::types::TypeConstructor("Graph")),
+                P::Type(crate::types::TypeConstructor("Doc")),
+                P::Collection(&P::OneOf(&[
+                    P::Type(crate::types::TypeConstructor("Doc")),
+                    P::Apply(
+                        crate::types::TypeConstructor("Hit"),
+                        &[P::Type(crate::types::TypeConstructor("Card"))],
+                    ),
+                ])),
+            ]),
+            arguments: &[],
+            output: O::Type(P::Type(crate::types::TypeConstructor("Graph"))),
+        },
         summary: "Project a collection of cards into a graph.",
         purity: Purity::Pure,
-        check: check_graph,
+        check: None,
         eval: eval_graph,
     },
 ];
 
-fn check_uplinks(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    _: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    check_links(cx, input, "uplinks", span)
-}
-
-fn check_downlinks(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    _: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    check_links(cx, input, "downlinks", span)
-}
-
-fn check_links(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    name: &str,
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    if name == "downlinks" && !cx.vault().is_present() {
-        return Err(Diagnostic::name(
-            span,
-            "`downlinks` needs a vault: a document cannot know what points at it",
-        ));
-    }
-    let subject = input.element().unwrap_or_else(|| input.clone());
-    if !subject.is(&TypeRef::DOC) && subject.constructor.0 != "Hit" {
-        return Err(Diagnostic::typing(
-            span,
-            format!("`{name}` needs a card or cards, not {input}"),
-        ));
-    }
-    Ok(TypeRef::list(TypeRef::EDGE))
-}
-
 fn eval_uplinks(
     cx: &mut dyn EvalCx,
     input: Value,
-    _: &[Arg],
+    _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     eval_links(cx, &input, "uplinks", &span)
@@ -104,7 +154,7 @@ fn eval_uplinks(
 fn eval_downlinks(
     cx: &mut dyn EvalCx,
     input: Value,
-    _: &[Arg],
+    _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     eval_links(cx, &input, "downlinks", &span)
@@ -130,47 +180,16 @@ fn eval_links(
         edges.extend(
             found
                 .into_iter()
-                .map(|edge| Value::Edge(Rc::new(edge.clone()))),
+                .map(|edge| Value::Edge(Arc::new(edge.clone()))),
         );
     }
     Ok(Value::list(edges, TypeRef::EDGE))
 }
 
-fn check_expand(
-    cx: &mut dyn CheckCx,
-    input: &TypeRef,
-    arguments: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    if let Some(argument) = named_or_first(arguments, "depth") {
-        let depth = cx.infer(&argument.value)?;
-        if depth != TypeRef::INT {
-            return Err(Diagnostic::typing(
-                argument.value.span.clone(),
-                format!("`depth` is an Int, not {depth}"),
-            ));
-        }
-    }
-    if let Some(argument) = named(arguments, "direction") {
-        let direction = cx.infer(&argument.value)?;
-        if direction != TypeRef::STR {
-            return Err(Diagnostic::typing(
-                argument.value.span.clone(),
-                format!("`direction` is text, not {direction}"),
-            ));
-        }
-    }
-    if !cx.vault().is_present() {
-        return Err(Diagnostic::name(span, "`expand` needs a vault to traverse"));
-    }
-    graph_input(input, "expand", &span)?;
-    Ok(TypeRef::GRAPH)
-}
-
 fn eval_expand(
     cx: &mut dyn EvalCx,
     input: Value,
-    arguments: &[Arg],
+    arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let depth = match named_or_first(arguments, "depth") {
@@ -196,7 +215,7 @@ fn eval_expand(
         ));
     }
     let seeded = project(cx.vault(), &input, &span)?;
-    Ok(Value::Graph(Rc::new(expand(
+    Ok(Value::Graph(Arc::new(expand(
         cx.vault(),
         seeded,
         depth,
@@ -204,20 +223,10 @@ fn eval_expand(
     ))))
 }
 
-fn check_graph(
-    _: &mut dyn CheckCx,
-    input: &TypeRef,
-    _: &[Arg],
-    span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    graph_input(input, "graph", &span)?;
-    Ok(TypeRef::GRAPH)
-}
-
 fn eval_graph(
     cx: &mut dyn EvalCx,
     input: Value,
-    _: &[Arg],
+    _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     if let Value::Graph(_) = input {
@@ -226,34 +235,7 @@ fn eval_graph(
         return Ok(input);
     }
     let projected = project(cx.vault(), &input, &span)?;
-    Ok(Value::Graph(Rc::new(projected)))
-}
-
-fn graph_input(input: &TypeRef, name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
-    if *input == TypeRef::GRAPH || input.is(&TypeRef::DOC) {
-        // A single card projects to the graph of one node, which is what a
-        // traversal from one card needs as its seed.
-        return Ok(());
-    }
-    let element = input.element().ok_or_else(|| {
-        Diagnostic::typing(
-            span.clone(),
-            format!("`{name}` needs a collection of cards, not {input}"),
-        )
-    })?;
-    let subject = if element.constructor.0 == "Hit" {
-        element.args.first().cloned().unwrap_or(TypeRef::DATA)
-    } else {
-        element.clone()
-    };
-    if subject.is(&TypeRef::DOC) {
-        Ok(())
-    } else {
-        Err(Diagnostic::typing(
-            span.clone(),
-            format!("`{name}` needs cards, not {element}"),
-        ))
-    }
+    Ok(Value::Graph(Arc::new(projected)))
 }
 
 /// Project a collection of cards into a graph, recording why each node is
@@ -342,4 +324,28 @@ fn expand(vault: &Vault, seeded: Graph, depth: usize, direction: &str) -> Graph 
         }
     }
     Graph::new(presence, seeded.edges)
+}
+
+fn check_downlinks(
+    cx: &dyn super::CheckCx,
+    _: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    if !cx.vault().is_present() {
+        return Err(Diagnostic::name(
+            span,
+            "`downlinks` needs a vault: a document cannot know what points at it",
+        ));
+    }
+    Ok(())
+}
+fn check_expand(
+    cx: &dyn super::CheckCx,
+    _: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    if !cx.vault().is_present() {
+        return Err(Diagnostic::name(span, "`expand` needs a vault to traverse"));
+    }
+    Ok(())
 }

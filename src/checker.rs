@@ -4,6 +4,7 @@ use crate::ast::{Arg, Expr, Kind, Program, Stmt};
 use crate::builtins;
 use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
+use crate::execution::{Checked, Program as TypedProgram};
 use crate::extensions::{CheckCx, Resolution, Step};
 use crate::types::TypeRef;
 use crate::vault::Vault;
@@ -15,12 +16,13 @@ use std::ops::Range;
 /// # Errors
 ///
 /// Returns the first syntax, type or name failure.
-pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypeRef, Diagnostic> {
+pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypedProgram, Diagnostic> {
     Checker {
         vault,
         scope: HashMap::new(),
         resolution: Resolution::new(&vault.extensions)?,
         declarations: Declarations::default(),
+        checked: Checked::default(),
     }
     .program(program)
 }
@@ -30,18 +32,22 @@ pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypeRef, Diagnos
 /// A statement that does not check still binds its name, at the open tree
 /// type, so the statements after it are reported on their own faults rather
 /// than on a cascade from this one.
-pub(crate) fn check_collecting(program: &Program, vault: &Vault) -> (TypeRef, Vec<Diagnostic>) {
+pub(crate) fn check_collecting(
+    program: &Program,
+    vault: &Vault,
+) -> (Option<TypedProgram>, Vec<Diagnostic>) {
     let resolution = match Resolution::new(&vault.extensions) {
         Ok(resolution) => resolution,
         // A vault that cannot resolve its own configuration has nothing to
         // say about the program: every statement would fail for one reason.
-        Err(diagnostic) => return (TypeRef::UNIT, vec![diagnostic]),
+        Err(diagnostic) => return (None, vec![diagnostic]),
     };
     let mut checker = Checker {
         vault,
         scope: HashMap::new(),
         resolution,
         declarations: Declarations::default(),
+        checked: Checked::default(),
     };
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
@@ -57,7 +63,13 @@ pub(crate) fn check_collecting(program: &Program, vault: &Vault) -> (TypeRef, Ve
             }
         }
     }
-    (last, found)
+    if !found.is_empty() {
+        return (None, found);
+    }
+    match checker.checked.program(program, last) {
+        Ok(program) => (Some(program), found),
+        Err(diagnostic) => (None, vec![diagnostic]),
+    }
 }
 
 struct Checker<'a> {
@@ -67,15 +79,16 @@ struct Checker<'a> {
     resolution: Resolution,
     /// What this program has declared.
     declarations: Declarations,
+    checked: Checked,
 }
 
 impl Checker<'_> {
-    fn program(&mut self, program: &Program) -> Result<TypeRef, Diagnostic> {
+    fn program(&mut self, program: &Program) -> Result<TypedProgram, Diagnostic> {
         let mut last = TypeRef::UNIT;
         for statement in &program.statements {
             last = self.statement(statement)?;
         }
-        Ok(last)
+        self.checked.program(program, last)
     }
 
     fn statement(&mut self, statement: &Stmt) -> Result<TypeRef, Diagnostic> {
@@ -98,6 +111,9 @@ impl Checker<'_> {
                                 ),
                             ));
                         }
+                        self.checked
+                            .views
+                            .insert(value.span.clone(), declared.clone());
                         self.scope.insert(name.clone(), declared);
                     } else {
                         self.scope.insert(name.clone(), inferred);
@@ -120,6 +136,14 @@ impl Checker<'_> {
     }
 
     fn expression(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic> {
+        let ty = self.infer_expression(expression)?;
+        self.checked
+            .types
+            .insert(expression.span.clone(), ty.clone());
+        Ok(ty)
+    }
+
+    fn infer_expression(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic> {
         let span = expression.span.clone();
         match &expression.kind {
             Kind::List(values) | Kind::Set(values) => {
@@ -211,11 +235,30 @@ impl Checker<'_> {
             }
             Kind::Field(receiver, field) => {
                 let receiver_type = self.expression(receiver)?;
-                field_type(&receiver_type, field).ok_or_else(|| {
-                    Diagnostic::name(span, format!("{receiver_type} has no field `{field}`"))
-                })
+                let ty = field_type(&receiver_type, field).ok_or_else(|| {
+                    Diagnostic::name(
+                        span.clone(),
+                        format!("{receiver_type} has no field `{field}`"),
+                    )
+                })?;
+                let resolved =
+                    crate::execution::Field::resolve(&receiver_type, field).ok_or_else(|| {
+                        Diagnostic::name(
+                            span.clone(),
+                            format!("{receiver_type} has no field `{field}`"),
+                        )
+                    })?;
+                self.checked.fields.insert(span, resolved);
+                Ok(ty)
             }
-            Kind::Link { source, target, .. } => {
+            Kind::Link {
+                source,
+                target,
+                data,
+            } => {
+                if let Some(data) = data {
+                    self.expression(data)?;
+                }
                 for end in [source, target] {
                     let end_type = self.expression(end)?;
                     let resolved = end_type.present().clone();
@@ -271,6 +314,7 @@ impl Checker<'_> {
                     }
                     let input = self.expression(&input.value)?;
                     let step = self.resolution.step(name, &span)?;
+                    self.checked.steps.insert(span.clone(), step);
                     return self.step(step, &input, arguments, span);
                 }
                 let _ = arguments;
@@ -286,6 +330,7 @@ impl Checker<'_> {
                 let input_type = self.expression(input)?;
                 let reference = step_of(step)?;
                 let resolved = self.resolve(&reference, &step.span)?;
+                self.checked.steps.insert(span.clone(), resolved);
                 self.step(
                     resolved,
                     &input_type,
@@ -342,7 +387,7 @@ impl Checker<'_> {
             .map(|(name, ty)| (name, self.scope.insert(name.clone(), ty)))
             .collect::<Vec<_>>();
         let result = self.expression(body);
-        for (name, value) in previous {
+        for (name, value) in previous.into_iter().rev() {
             match value {
                 Some(value) => {
                     self.scope.insert(name.clone(), value);
@@ -395,7 +440,11 @@ impl Checker<'_> {
         // A step applied to absence is a step applied to nothing, not a
         // failure: the reference that produced the absence was permitted.
         let input = input.present().clone();
-        (step.check)(self, &input, arguments, span)
+        let (result, call) = step.spec.check(step.name, self, &input, arguments, &span)?;
+        if let Some(check) = step.check {
+            check(self, &call, span)?;
+        }
+        Ok(result)
     }
 }
 
@@ -408,11 +457,34 @@ impl CheckCx for Checker<'_> {
         self.expression(expression)
     }
 
-    fn lambda(&mut self, argument: &Arg, parameter: TypeRef) -> Result<TypeRef, Diagnostic> {
-        self.lambda_type(argument, vec![parameter])
+    fn lambda_parameters(
+        &mut self,
+        argument: &Arg,
+        parameters: Vec<TypeRef>,
+    ) -> Result<TypeRef, Diagnostic> {
+        self.lambda_type(argument, parameters)
     }
-    fn comparator(&mut self, argument: &Arg, parameter: TypeRef) -> Result<TypeRef, Diagnostic> {
-        self.lambda_type(argument, vec![parameter.clone(), parameter])
+
+    fn type_argument(&mut self, argument: &Arg) -> Result<TypeRef, Diagnostic> {
+        let Kind::Ident(name) = &argument.value.kind else {
+            return Err(Diagnostic::typing(
+                argument.value.span.clone(),
+                "expected a type name",
+            ));
+        };
+        let ty = crate::types::named(name, &[]).ok_or_else(|| {
+            Diagnostic::name(
+                argument.value.span.clone(),
+                format!("unknown type `{name}`"),
+            )
+        })?;
+        self.checked
+            .types
+            .insert(argument.value.span.clone(), ty.clone());
+        self.checked
+            .type_arguments
+            .insert(argument.value.span.clone());
+        Ok(ty)
     }
 }
 

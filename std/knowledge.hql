@@ -2,7 +2,7 @@
 //
 // See doc/models/domain/knowledge.md and doc/wiki/hql/knowledge.hmd.
 
-abstract type Cocept
+abstract type Concept
 abstract type Proposition
 abstract type Evidence
 abstract type Knowledge

@@ -1,4 +1,4 @@
-//! Private syntax tree shared by parsing, type checking, and evaluation.
+//! Private syntax tree shared by parsing and checking, before execution lowering.
 
 use std::ops::Range;
 
@@ -70,10 +70,10 @@ pub(crate) struct Expr {
 }
 
 #[derive(Debug)]
-pub(crate) struct Arg {
+pub(crate) struct Arg<E = Expr> {
     /// `Some` for a named argument, `depth = 1`.
     pub name: Option<String>,
-    pub value: Expr,
+    pub value: E,
 }
 
 #[derive(Debug)]

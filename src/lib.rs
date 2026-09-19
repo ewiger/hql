@@ -17,6 +17,8 @@ mod checker;
 mod constructors;
 mod declarations;
 mod evaluation;
+mod execution;
+mod knowledge;
 mod lexer;
 mod parser;
 
@@ -30,6 +32,7 @@ pub mod graph;
 pub mod render;
 pub mod reporting;
 pub mod search;
+pub mod sources;
 pub mod transclude;
 pub mod types;
 pub mod vault;
@@ -74,7 +77,7 @@ pub fn check(source: &str) -> Result<TypeRef, Diagnostic> {
 ///
 /// Returns the first syntax, type or name failure.
 pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
-    checker::check(&parser::parse(source)?, vault)
+    checker::check(&parser::parse(source)?, vault).map(|program| program.result)
 }
 
 /// Parse, type-check, then evaluate a program with no vault.
@@ -84,7 +87,7 @@ pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
 /// Returns the first failure from any stage.
 pub fn eval(source: &str) -> Result<Value, Diagnostic> {
     let program = parser::parse(source)?;
-    checker::check(&program, &Vault::empty())?;
+    let program = checker::check(&program, &Vault::empty())?;
     evaluation::evaluate(&program, &Vault::empty()).map(|(value, _)| value)
 }
 
@@ -95,11 +98,11 @@ pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
         Ok(program) => program,
         Err(diagnostic) => return failed(&diagnostic),
     };
-    let (inferred, found) = infer(&program, vault, mode);
+    let (checked, found) = infer(&program, vault, mode);
     let reports: Reports = found.iter().map(Report::of).collect();
     Outcome {
         value: None,
-        inferred: (!reports.has_errors()).then_some(inferred),
+        inferred: checked.map(|program| program.result),
         reports,
     }
 }
@@ -115,7 +118,7 @@ pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
         Ok(program) => program,
         Err(diagnostic) => return failed(&diagnostic),
     };
-    let (inferred, found) = infer(&program, vault, mode);
+    let (checked, found) = infer(&program, vault, mode);
     let mut reports: Reports = found.iter().map(Report::of).collect();
     if reports.has_errors() {
         return Outcome {
@@ -124,6 +127,14 @@ pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
             reports,
         };
     }
+    let Some(program) = checked else {
+        return Outcome {
+            value: None,
+            inferred: None,
+            reports,
+        };
+    };
+    let inferred = program.result.clone();
     match evaluation::evaluate(&program, vault) {
         Ok((value, warnings)) => {
             for warning in &warnings {
@@ -146,11 +157,15 @@ pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
     }
 }
 
-fn infer(program: &ast::Program, vault: &Vault, mode: Mode) -> (TypeRef, Vec<Diagnostic>) {
+fn infer(
+    program: &ast::Program,
+    vault: &Vault,
+    mode: Mode,
+) -> (Option<execution::Program>, Vec<Diagnostic>) {
     match mode {
         Mode::Strict => match checker::check(program, vault) {
-            Ok(inferred) => (inferred, Vec::new()),
-            Err(diagnostic) => (TypeRef::UNIT, vec![diagnostic]),
+            Ok(program) => (Some(program), Vec::new()),
+            Err(diagnostic) => (None, vec![diagnostic]),
         },
         Mode::Collect => checker::check_collecting(program, vault),
     }

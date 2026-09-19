@@ -8,7 +8,7 @@ use crate::data::Data;
 use crate::document::{Card, Document, Kind};
 use crate::graph::{Edge, Graph};
 use crate::search::{Hit, Ranking};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A renderable result. Terminal with respect to semantic processing: the
 /// host draws it, and nothing downstream asks it a question about knowledge.
@@ -28,7 +28,7 @@ pub enum Value {
     /// The result of a total comparison.
     Ordering(std::cmp::Ordering),
     /// A finite map with checked unique keys.
-    Map(Rc<MapValue>),
+    Map(Arc<MapValue>),
     /// A signed 64-bit integer.
     Int(i64),
     /// A finite double-precision number.
@@ -36,40 +36,40 @@ pub enum Value {
     /// A Boolean truth value.
     Bool(bool),
     /// Text.
-    Str(Rc<str>),
+    Str(Arc<str>),
     /// Absence, carrying the type of what is not there.
     Absent(TypeRef),
     /// Presence retains the optional type instead of erasing its wrapper.
-    Present(Rc<Value>),
+    Present(Arc<Value>),
     /// An open tree.
-    Data(Rc<Data>),
+    Data(Arc<Data>),
     /// A document.
-    Doc(Rc<Document>),
+    Doc(Arc<Document>),
     /// A card.
-    Card(Rc<Card>),
+    Card(Arc<Card>),
     /// A directed connection.
-    Edge(Rc<Edge>),
+    Edge(Arc<Edge>),
     /// A graph.
-    Graph(Rc<Graph>),
+    Graph(Arc<Graph>),
     /// An unordered collection, with the type of its elements.
-    Set(Rc<Vec<Value>>, TypeRef),
+    Set(Arc<Vec<Value>>, TypeRef),
     /// An ordered collection, with the type of its elements.
-    List(Rc<Vec<Value>>, TypeRef),
+    List(Arc<Vec<Value>>, TypeRef),
     /// One scored result.
-    Hit(Rc<Hit>),
+    Hit(Arc<Hit>),
     /// An ordered collection of hits.
-    Ranking(Rc<Ranking>),
+    Ranking(Arc<Ranking>),
     /// A rendered result.
-    Presentation(Rc<Presentation>),
+    Presentation(Arc<Presentation>),
 }
 
 impl Value {
     /// Expose a checked annotation's map contract without changing storage.
     pub(crate) fn viewed_as(self, expected: &TypeRef) -> Self {
         match (&self, MapKind::of(expected.constructor)) {
-            (Self::Map(map), Some(_)) => Self::Map(Rc::new(map.viewed_as(expected))),
+            (Self::Map(map), Some(_)) => Self::Map(Arc::new(map.viewed_as(expected))),
             (Self::Present(value), _) if expected.constructor.0 == "Option" => Self::Present(
-                Rc::new(value.as_ref().clone().viewed_as(expected.present())),
+                Arc::new(value.as_ref().clone().viewed_as(expected.present())),
             ),
             (Self::List(values, _), _) if expected.is_collection() => {
                 let Some(element) = expected.element() else {
@@ -110,13 +110,13 @@ impl Value {
                 unique.push(value);
             }
         }
-        Self::Set(Rc::new(unique), element)
+        Self::Set(Arc::new(unique), element)
     }
 
     /// A sequence of values of a known element type.
     #[must_use]
     pub fn list(values: Vec<Self>, element: TypeRef) -> Self {
-        Self::List(Rc::new(values), element)
+        Self::List(Arc::new(values), element)
     }
 
     /// The type of the value.
@@ -157,7 +157,7 @@ impl Value {
                 ranking
                     .hits
                     .iter()
-                    .map(|hit| Self::Hit(Rc::new(hit.clone())))
+                    .map(|hit| Self::Hit(Arc::new(hit.clone())))
                     .collect(),
             ),
             _ => None,
@@ -166,11 +166,11 @@ impl Value {
 
     /// The card a value is, or the card a hit retrieved.
     #[must_use]
-    pub fn as_card(&self) -> Option<Rc<Card>> {
+    pub fn as_card(&self) -> Option<Arc<Card>> {
         match self {
-            Self::Card(card) => Some(Rc::clone(card)),
+            Self::Card(card) => Some(Arc::clone(card)),
             Self::Present(value) => value.as_card(),
-            Self::Hit(hit) => Some(Rc::clone(&hit.card)),
+            Self::Hit(hit) => Some(Arc::clone(&hit.card)),
             _ => None,
         }
     }
@@ -268,15 +268,15 @@ impl PartialEq for Value {
                 left.len() == right.len() && left.iter().all(|value| right.contains(value))
             }
             (Self::List(left, _), Self::List(right, _)) => left == right,
-            (Self::Graph(a), Self::Graph(b)) => Rc::ptr_eq(a, b),
+            (Self::Graph(a), Self::Graph(b)) => Arc::ptr_eq(a, b),
             (Self::Hit(a), Self::Hit(b)) => {
-                Rc::ptr_eq(a, b)
+                Arc::ptr_eq(a, b)
                     || (a.card.document.path == b.card.document.path
                         && a.score == b.score
                         && self.to_json() == other.to_json())
             }
             (Self::Ranking(a), Self::Ranking(b)) => {
-                Rc::ptr_eq(a, b) || self.to_json() == other.to_json()
+                Arc::ptr_eq(a, b) || self.to_json() == other.to_json()
             }
             (Self::Presentation(left), Self::Presentation(right)) => left == right,
             _ => false,

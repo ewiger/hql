@@ -30,6 +30,12 @@ fn every_file_in_the_standard_library_parses_and_checks() {
             continue;
         }
         let source = fs::read_to_string(&path).expect("a readable file");
+        // Knowledge declarations refer to the document dialect declarations.
+        let source = if path.file_name().and_then(|name| name.to_str()) == Some("knowledge.hql") {
+            format!("{}\n{source}", include_str!("../std/doc.hql"))
+        } else {
+            source
+        };
         assert_eq!(
             check(&source),
             Ok(TypeRef::UNIT),

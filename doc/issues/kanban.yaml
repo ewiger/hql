@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 10 # to be incremented when adding a new issue card
+  last_id: 11 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0010"
@@ -29,15 +29,18 @@ board:
       - id: "0008"
         title: "`cards` is a vault binding, not a keyword"
         file: 0008-cards-as-a-vault-binding.md
-      - id: "0007"
-        title: Evaluate a collection literal at its checked element type
-        file: 0007-checked-element-type-at-runtime.md
     todo:
       - id: "0004"
         title: Unify the collection-order vocabulary
         file: 0004-collection-order-vocabulary.md
     doing: []
     done:
+      - id: "0011"
+        title: Refactor checked execution, vault assembly, YAML, and extension contracts
+        file: 0011-runtime-architecture-refactoring.md
+      - id: "0007"
+        title: Evaluate a collection literal at its checked element type
+        file: 0007-checked-element-type-at-runtime.md
       - id: "0006"
         title: "`Scalar`, and `Data` as a union"
         file: 0006-scalar-and-data-union.md

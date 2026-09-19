@@ -7,6 +7,33 @@ use hql::types::{
 use hql::{check, diagnostics::Diagnostic, eval};
 
 #[test]
+fn execution_preserves_checked_collection_types_and_empty_map_results() {
+    for source in [
+        "held : Collection<Int> = [1]\ndistinct : Collection<Int> = {2}\n[held, distinct]",
+        "first : Orderable = 1\nsecond : Orderable = \"owl\"\n[first, second]",
+        "first : Orderable = 1\nsecond : Orderable = \"owl\"\n{first, second}",
+        "empty : List<Int> = []\nempty | map(n => n + 1)",
+        "held : Orderable = 1\n[1, 2] | map(n => held)",
+        "held : Collection<Int> = [1]\nList([held])",
+        "held : Collection<Int> = [1]\nMap([1], [held])",
+    ] {
+        assert_eq!(
+            eval(source).unwrap().type_of(),
+            check(source).unwrap(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn nested_lambdas_restore_the_outer_scope() {
+    assert_eq!(
+        eval("n = 9\n[1, 2] | map(n => [3] | map(n => n + 1))\nn"),
+        Ok(Value::Int(9))
+    );
+}
+
+#[test]
 fn sorting_infers_a_list_from_an_unannotated_collection() {
     for source in [
         "open = {3, 1, 2}\nopen | sort",
