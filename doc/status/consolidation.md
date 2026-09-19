@@ -17,31 +17,20 @@ done; git history is that record. Identifiers are not reused.
 
 | ID | Item | State |
 | --- | --- | --- |
-| CON-14 | `HmdCard` survives in the type-system card | residue |
 | CON-06 | Title precedence: derived heading or authored entry | needs a decision |
 | CON-07 | Precedence between derived, authored and contributed header layers | half decided |
 | CON-08 | Whether a card requires a vault | needs a decision |
 
-`CON-01`, `CON-03`, `CON-05`, `CON-11`, `CON-12` and `CON-13` were closed with
-`examples/` as their only outstanding residue. The corpus restored in `8aa265e`
-was checked for each — `HmdCard`, `Hmd` as a body type, `List<Card>` for `cards`,
-`typed Relation`, square-bracket generics — and carries none of them, so the six
-stay deleted. `CON-14` is what that check found outside the corpus.
+`CON-01`, `CON-03`, `CON-05`, `CON-11`, `CON-12`, `CON-13` and `CON-14` were
+closed with `examples/` as their only outstanding residue. The corpus restored in
+`8aa265e` was checked for each — `Hmd` as a body type, `List<Card>` for `cards`,
+`typed Relation`, square-bracket generics — and carries none of them, so the
+seven stay deleted.
 
 **`CON-06`, `CON-07` and `CON-08` are misfiled.** A consolidation item is work
 implied by a decision already made; those three are decisions not yet made, which
 is what `doc/proposals/` is for. Promoting them to proposals, or to issue cards,
 would leave this file holding only real residue.
-
-## CON-14 — `HmdCard` in the type-system card
-
-The decision `CON-01` carried was that there is no `HmdCard`: the type is `Card`,
-and [std/knowledge.hql](../../std/knowledge.hql) declares `type Card : Doc` and
-nothing beneath it for the format. [type-system.hmd](../wiki/hql/type-system.hmd)
-still uses `type HmdCard : Card` three times as its worked example of subtyping,
-under **Subtyping**. `CON-01` was closed as carried through `doc/**`; this site
-was missed. Any real pair from `std/` — `ConceptCard : Card`, `Card : Doc` —
-makes the same point.
 
 ## CON-06 — Title precedence
 

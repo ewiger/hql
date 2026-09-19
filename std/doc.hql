@@ -3,9 +3,9 @@
 // See doc/wiki/hql/types/doc-type.hmd and fields.hmd.
 
 // A document body before its dialect is established.
-type Content
+abstract type Content
 
-type Doc {
+abstract type Doc {
     header : Data
     body   : Content
 }
