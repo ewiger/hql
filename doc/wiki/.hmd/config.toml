@@ -1,0 +1,23 @@
+# Vault configuration for doc/wiki/.
+#
+# The presence of this directory marks doc/wiki/ as the vault: an HMD tool
+# walking up from a card stops here, so the namespace root is this directory
+# itself.
+#
+# See ../hypermarkdown.hmd for what these settings mean and
+# https://hypermarkdown.org/wiki/hmd-lang-spec/ for the format's own rules.
+
+wiki = "."
+
+[discovery]
+# Load-bearing. Roughly a third of this vault's wikilinks resolve only in the
+# autodiscovery sweep — the last resolution phase — because a bare name is
+# written from a card whose spine walk never reaches the target's subfolder
+# ([[card-type]] written in hql/, for instance). That is deliberate: it is what
+# lets a card move between subfolders without rewriting its inbound links.
+#
+# Setting autodiscovery = false, or narrowing mode to "recursive", unresolves
+# those links at once. Both settings are pinned here rather than left to the
+# defaults so the dependency is visible at the place it would be changed.
+autodiscovery = true
+mode = "both"

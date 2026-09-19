@@ -5,33 +5,112 @@
 **Hyper-markdown** (`.hmd`) is this project's most generic and most-used
 knowledge format: plain Markdown extended with **wiki features**, above all
 `[[wikilinks]]` between cards. It is the default home for cross-linked, reusable
-explanations of a single idea, and every file under `doc/wiki/` is one such
-**card**. A `.hmd` file also reads fine as plain Markdown — the format is
-Markdown plus a wiki graph, nothing more exotic, with no external toolchain to
-satisfy.
+explanations of a single idea. A `.hmd` file is a **card**, and cards live in a
+**vault** — the single directory that bounds the graph. This project's vault is
+[`doc/wiki/`](README.md). A card also reads fine as plain Markdown: the format
+is Markdown plus a wiki graph, nothing more exotic, with no external toolchain
+to satisfy.
 
 ## A card is a node in a graph
 
 A card explains one concept and nothing else; its value is the links.
-Cross-reference other cards liberally with `[[slug]]` so a whole model emerges
+Cross-reference other cards liberally with `[[ ]]` so a whole model emerges
 from small, connected cards rather than one long document. Keep it **DRY and
 bidirectional**: never restate what another card owns — link to it — and make
 each idea reachable from both directions.
 
-## Wiki features
+## The vault
 
-The wiki graph is **closed to `doc/wiki/`**: a `[[ ]]` link resolves only to a
-card in the wiki space, never to a file elsewhere in the repo.
+A vault is the namespace root: the one directory a `[[ ]]` link may resolve
+inside, and the frame every reference is written against. A target that escapes
+it is an error (`HMD003`), so the graph is closed by construction. **Everything
+outside the vault** is reached by an ordinary relative Markdown link, never by
+`[[ ]]`.
 
-- **`[[slug]]`** links a concept to its card. The slug names a `.hmd` file
-  anywhere under `doc/wiki/` — subfolders included — by filename alone
-  (`[[kanban]]` → `doc/wiki/kanban.hmd`).
-- **`[[slug|display text]]`** links while showing different surface text, so the
-  sentence still reads naturally.
-- **Forward links are fine** — linking a concept that has no card yet marks it as
-  worth writing later; it is not an error.
-- **Anything outside `doc/wiki/`** — `src/`, `.grem/`, proposals, model specs —
-  uses ordinary relative Markdown links, never `[[ ]]`.
+What makes a directory a vault is an `.hmd/` directory at its root — that
+marker, and the vault state and configuration it holds, are owned by
+[[card-type]]. The settings in [.hmd/config.toml](.hmd/config.toml) govern every
+card beneath it and are optional; where a key is absent its default is assumed.
+
+Binding a reference to a file is uniform: the reference plus `.hmd` is tried as
+a file, and otherwise the reference is tried as a directory holding an
+`index.hmd`. A trailing `.hmd` may be written and is stripped before matching.
+No wikilink can name a `.md` file, so a document that is not `.hmd` is outside
+the graph however it is filed.
+
+## Writing a reference
+
+A reference takes one of three forms, all of which may carry display text as
+`[[target|display text]]` so the sentence still reads naturally.
+
+- **Unqualified** — no leading path marker, and the form to reach for by
+  default. It is either a *bare name* of one segment (`[[type-system]]`) or an
+  *unqualified path* of two or more (`[[hql/knowledge]]`). Both are searched the
+  same way; a path is not a special case but the remedy when a bare name is
+  ambiguous.
+- **Relative** — begins with `./` or `../`, and names a card by walking from the
+  card that writes it.
+- **Absolute** — begins with `/`, and names a card from the vault root.
+
+Relative and absolute references bind directly. Unqualified ones are searched,
+and the search is what the next section describes.
+
+**Forward links are fine.** Linking a concept that has no card yet marks it as
+worth writing later; an unresolved link is a warning (`HMD001`), not an error.
+
+## How an unqualified reference resolves
+
+Four phases, in order, first match wins:
+
+1. **Named imports.** A bare name matching an `import` binding in the card's
+   frontmatter resolves to that card immediately.
+2. **The spine walk.** From the writing card's own directory upward to the
+   vault root, probing each directory without recursing. This is pure path
+   arithmetic and depends on nothing but the file tree.
+3. **Imported search paths.** The directories named by wildcard imports, in
+   declaration order, without recursing.
+4. **The autodiscovery sweep.** Everything else in scope.
+
+**This vault uses phases 2 and 4.** Its config pins the defaults:
+autodiscovery on, mode `both`, so the sweep covers the whole vault rather than
+only the writing card's subtree. No card declares an `import` or a `use`
+directive, so phases 1 and 3 never fire.
+
+## Autodiscovery is load-bearing here
+
+The sweep is not a fallback this vault tolerates — it is how roughly a third of
+the links resolve, and deliberately so. `[[card-type]]` written in `hql/` is the
+ordinary case: the spine of a card in `hql/` never enters `hql/types/`, and the
+link works because the sweep finds the card anywhere in the vault. That is the
+feature being used, and it is what keeps a card free to move between subfolders
+without its inbound links being rewritten.
+
+What that costs is worth naming. Those links resolve **only** in the last phase.
+Turning autodiscovery off — vault-wide with `autodiscovery = false` under
+`[discovery]`, or for one card with `use: [no_autodiscovery]` in its frontmatter
+— unresolves all of them at once. Adding a wildcard import can also silently
+redirect a reference that had been resolving by sweep, since phase 3 runs first.
+The rule that follows: **this vault depends on autodiscovery staying on**, and a
+change to either setting is a change to the whole link graph. The config says so
+where the setting is written.
+
+## When to qualify a link
+
+Qualify with an unqualified path when a bare name would match more than one
+card. Two filenames occur twice in this vault: `knowledge.hmd` in `hql/` and
+in `hql/extensions/`, and `hypermarkdown.hmd` at the root and in
+`hql/extensions/`. A bare `[[knowledge]]` resolves on the spine to whichever is
+nearer the writing card, but from a card whose spine reaches neither it falls to
+the sweep, matches both, and is an ambiguity error (`HMD002`). The remedy is to
+write `[[hql/knowledge]]`, not to memorise a tie-break.
+
+## Frontmatter
+
+A card's YAML header is **optional** — a card without one is well formed, and
+most cards here have none. When present it may carry `tags` (hierarchical
+labels, informational only), `use` (feature toggles, `no_`-prefixed to disable),
+`import` (named bindings and wildcard search origins), and `nav` (publication
+`order` and `visibility`).
 
 ## Writing a card
 
@@ -43,8 +122,7 @@ document for an agent to apply.
 
 ## Where it is used
 
-Every card in `doc/wiki/` is hyper-markdown, including the [[kanban]] board
-convention. It is one of the notations the project's design layer under
-`doc/models/` may be written in, alongside more formal specifications.
-
-See [[kanban]].
+Every card in the vault is hyper-markdown. It is one of the notations the
+project's design layer under `doc/models/` may be written in, alongside more
+formal specifications, and the format HQL itself reads as knowledge — see
+[[hmd-integration]].
