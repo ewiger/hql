@@ -64,13 +64,30 @@ This is what turns document machinery into card machinery:
 
 - `[[alice]]` resolves, because there is a namespace to resolve it in.
 - `downlinks` are answerable, because the vault knows what points at this card.
-- `header.path` means something, because there is a root to be relative to.
+- `path` means something, because there is a root to be relative to.
 - `import` and `use` in the header inherit or not, because there are ancestor
   folder notes to inherit from.
 
 A plain Markdown file dropped into a vault becomes a card by acquiring that
 context, not by being rewritten. That is the practical content of HMD's claim
 that every `.md` file is already valid `.hmd`.
+
+### What has to be there for a vault to be one
+
+A `.hmd/` directory at the root, and nothing more. It is the marker `hmd` walks
+up to find, it is where vault state lives, and it is what tells a vault apart
+from a folder of Markdown.
+
+`.hmd/config.toml` inside it is optional. Where it is absent its defaults are
+assumed — the wiki root, the namespace name, autodiscovery and its mode, as
+`hmd init` writes them — so a vault is readable before anyone has configured it,
+and configuring it later changes behaviour rather than granting it. The
+directory is not optional in the same way: without it there is no root to
+discover, nowhere for vault state to live, and no semantic index, which is why
+working with `.hmd` cards outside one fails
+[semantic search](../semantic-search.hmd) first and more afterwards. The
+requirements state the chain in full — see
+[semantic search](../../../models/requirements/semantic-search.md).
 
 ## A card is a knowledge participant
 
@@ -122,16 +139,16 @@ type Card : Doc {
 ```
 
 `header` and `metadata` are not two spellings of one field. A header is a
-document-level notion — name, path, format, title, whatever an author wrote and
-whatever an extension contributed about the file. Metadata is a knowledge-level
-one: concepts, relations, propositions and evidence attached to this card, which
-is exactly the addition that makes a card more than a document. Only a card has
-it, because only a card participates in knowledge.
+document-level notion — what an author wrote about the file, plus its title.
+Metadata is a knowledge-level one: concepts, relations, propositions and
+evidence attached to this card, which is exactly the addition that makes a card
+more than a document. Only a card has it, because only a card participates in
+knowledge.
 
 That is why `metadata` belongs to [[hql/knowledge]] rather than to [[doc-type]],
-and why the knowledge extension refines `card.metadata` while a `git` or
-database extension contributes to `card.header`. Both refine one unchanged tree
-in the same way — see [[type-system]].
+and why every extension — the knowledge extension, a `git` or database one —
+contributes to `card.metadata` and none of them writes into the header. They
+refine one unchanged tree in the same way — see [[type-system]].
 
 ### `card.metadata` is assembled, not inherited
 
@@ -153,9 +170,11 @@ It is assembled when the document becomes a card, from inputs that include:
 - vault state held under `.hmd/**`;
 - semantic-search state and other derived information.
 
-Authored metadata is one input among these and does not win by being authored.
-Which inputs may overwrite which is the **Card metadata precedence**, and it is
-this card's to settle; it is not settled yet.
+Authored metadata is one input among these and does not win by being authored,
+because nothing contests it: an extension contributes under a key named after
+itself — `metadata.lexical.*` for the search index — so a contribution overwrites
+no authored entry and no two extensions collide. Precedence is settled by
+construction rather than by a rule for resolving conflicts.
 
 A query has to know which layer it is addressing. `card.header.metadata` answers
 *what did the author write?*; `card.metadata` answers *what does the system know
@@ -173,12 +192,12 @@ as are the precedence rules above.
 
 ## A card's header
 
-A card's header is a [[data-type|Data]] tree like any document's, assembled from
-the same derived, authored and contributed layers, and it is readable like any
-other field — nothing about a card hides it. Two things are worth stating here,
+A card's header is a [[data-type|Data]] tree like any document's — what the
+author wrote, plus a title — and it is readable like any other field: nothing
+about a card hides it. Two things are worth stating here,
 though neither is what makes a document a card.
 
-First, `header.format` is what licenses wikilinks, embeds and fragment
+First, `format` is what licenses wikilinks, embeds and fragment
 addressing in the body. A card written in `hmd` has them; a card written in `md`
 has a header and a body like any other document, and no hyper layer to ask
 about.
@@ -287,14 +306,12 @@ it. An extension owns type knowledge about a header, not the header itself —
 [[type-system]] develops this as open structural data with progressive
 refinement, and it is the mechanism behind the narrowing below.
 
-The core's obligation is to keep contributions distinguishable. A header entry
-that was derived, authored or contributed is not interchangeable with the
-others, and provenance records where a value came from rather than conferring
-authority on it. How contributed entries are namespaced, whether an extension
-may overwrite an author's key, and what happens when two extensions contribute
-the same path are open — though an extension that only contributes type
-knowledge raises none of those questions, which is an argument for preferring
-that form.
+The core's obligation is to keep contributions distinguishable, and where a
+value sits is what keeps them so. A derived fact about the file is a field, an
+authored entry is in the header, and a contribution is in `card.metadata` under
+its extension's own key; provenance records where a value came from rather than
+conferring authority on it. An extension that only contributes type knowledge
+writes nowhere at all, which is an argument for preferring that form.
 
 ## Types narrow
 

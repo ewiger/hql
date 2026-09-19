@@ -43,17 +43,33 @@ def test_nested_maps_and_scalars_parse_as_the_loader_parses_them():
     }
 
 
-def test_the_indexed_text_leaves_out_where_a_document_sits():
-    # `name`, `path` and `format` say where a card is, not what it says; a card
-    # that moves between directories must not thereby change its score.
+def test_the_indexed_text_writes_the_title_once():
+    # The title leads the text and is not repeated in key order. Where a card
+    # is — `name`, `path`, `format` — is a field rather than a header entry, so
+    # nothing has to be filtered out to keep a move between directories from
+    # changing a score.
     document = vault.Document(
         name="a",
         path=Path("somewhere/a.hmd"),
         title="A title",
-        header={"title": "A title", "path": "somewhere/a.hmd", "status": "todo"},
+        header={"title": "A title", "status": "todo"},
         body="the body",
     )
     assert document.text() == "A title todo the body"
+
+
+def test_an_authored_key_named_after_a_field_is_ordinary_authored_text():
+    # `Document::parse` no longer writes `name`, `path` or `format` into the
+    # header, so a key of that name is something a person wrote and is indexed
+    # like any other authored entry.
+    document = vault.Document(
+        name="a",
+        path=Path("somewhere/a.hmd"),
+        title="A title",
+        header={"title": "A title", "path": "elsewhere"},
+        body="the body",
+    )
+    assert document.text() == "A title elsewhere the body"
 
 
 def test_the_title_falls_back_to_the_first_heading():

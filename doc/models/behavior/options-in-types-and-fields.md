@@ -372,15 +372,13 @@ partiality is in the type, an editor can say *this predicate is partial because
 
 ## What this does not settle
 
-The corpus separately disagrees about where metadata lives:
-[fields](../../wiki/hql/fields.hmd) presents `doc.header.metadata?` and
-`card.metadata` as two locations, while [doc-type](../../wiki/hql/types/doc-type.hmd)
-and [data-type](../../wiki/hql/types/data-type.hmd) still describe one tree
-assembled in `doc.header`. That is a real inconsistency and belongs in
-[`doc/status/inconsistencies.md`](../../status/inconsistencies.md), not here.
+Where metadata lives is settled elsewhere and not restated here:
+[fields](../../wiki/hql/fields.hmd) and [doc-type](../../wiki/hql/types/doc-type.hmd)
+agree that `doc.header.metadata?` is what an author wrote and `card.metadata` is
+what the system assembled, and that the two are different fields.
 
-The optionality rule holds whichever architecture wins. A required `header :
-Data` can contain an optional known path:
+The optionality rule holds either way. A required `header : Data` can contain an
+optional known path:
 
 ```hql
 type HeaderSchema {

@@ -183,8 +183,9 @@ card.metadata           // always present — assembled when the card is built
 The authored block is optional, because authoring metadata is a choice. The
 card's layer is not, because it exists whether or not the file said anything: it
 is assembled from the authored entries, system metadata, extension contributions,
-vault state and other derived information, under precedence rules
-[Card](../../wiki/hql/types/card-type.hmd) owns. Both paths stay addressable, and
+vault state and other derived information. Each extension contributes under a key
+named after itself, so the inputs do not contest one another; see
+[Card](../../wiki/hql/types/card-type.hmd). Both paths stay addressable, and
 a query has to know which layer it is asking about — see
 [fields](../../wiki/hql/fields.hmd).
 
@@ -301,6 +302,6 @@ See [knowledge](../../wiki/hql/knowledge.hmd) for the wiki card,
 [Card](../../wiki/hql/types/card-type.hmd) for the document that carries
 knowledge, [type system](../../wiki/hql/type-system.hmd) for narrowing and
 refinement, [graph model](graphs.md) for the other domain,
-[semantic search](semantic-search.md) for retrieval and the read path of AI
+[semantic search](../requirements/semantic-search.md) for retrieval and the read path of AI
 memory, and [program values](../behavior/program-values.md) for what a program
 returns.

@@ -13,9 +13,11 @@ import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
-DERIVED = ("name", "path", "format", "title")
-"""Header keys the loader owns, which say where a document sits rather than
-what it says, and so are left out of the indexed text."""
+DERIVED = ("title",)
+"""Header keys the loader owns, and so leaves out of the indexed text. `title`
+is written once at the front instead. Where a document sits — `name`, `path`,
+`format` — is a field of the document and never a header entry, so an authored
+key of that name is an ordinary authored entry and is indexed like any other."""
 
 
 @dataclass(frozen=True)

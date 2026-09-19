@@ -144,7 +144,7 @@ duplicate keys and non-orderable sorted-map keys.
 - [Architecture](doc/models/domain/architecture.md)
 - [The implemented grammar](doc/models/behavior/expressions.md)
 - [The command-line host](doc/models/behavior/cli.md) and [reporting](doc/models/behavior/reporting.md)
-- [The knowledge](doc/models/domain/knowledge.md), [graph](doc/models/domain/graphs.md) and [semantic search](doc/models/domain/semantic-search.md) domains
+- [The knowledge](doc/models/domain/knowledge.md), [graph](doc/models/domain/graphs.md) and [semantic search](doc/models/requirements/semantic-search.md) domains
 - [HQL overview](doc/wiki/hql.hmd)
 - [HyperMarkDown integration](doc/wiki/hmd-integration.hmd)
 - [Open design questions](doc/wiki/design-direction.hmd)

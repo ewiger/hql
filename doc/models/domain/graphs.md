@@ -220,7 +220,7 @@ See [Graph](../../wiki/hql/types/graph-type.hmd) for the type card,
 [link operator](../../wiki/hql/operators/link-op.hmd) for the edge-writing
 syntax, [type system](../../wiki/hql/type-system.hmd) for `:`, generics and
 refinement, [knowledge model](knowledge.md) for the other domain,
-[semantic search](semantic-search.md) for the first concrete demand on a
+[semantic search](../requirements/semantic-search.md) for the first concrete demand on a
 traversal vocabulary, and the
 [design conversation](../../conversations/sets-n-subtypes.md) this model was
 drawn from.

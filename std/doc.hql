@@ -5,8 +5,14 @@
 // A document body before its dialect is established.
 abstract type Content
 
+// Where a document is and what it is called are facts about the file, so they
+// are fields of the document itself. Nothing in the header or the metadata can
+// contradict them, because they are not written there.
 abstract type Doc {
-    header : Data
+    name   : String   // its name in its namespace — the file stem for a file
+    path   : String   // where it is, relative to the vault root
+    format : String   // the dialect its body is written in
+    header : Data     // everything the document says about itself
     body   : Content
 }
 

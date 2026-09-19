@@ -51,7 +51,7 @@ An `.hmd` file is a document. An `.md` file is a document. Both project to
 `Doc`, and the extension that reads a directory reads a collection of documents
 without sorting them into two kinds. The relation between the formats is
 inclusion — HyperMarkDown is an unchanged CommonMark base plus a hyper layer —
-so `header.format` says which body features are available to ask about, and
+so `doc.format` says which body features are available to ask about, and
 nothing more. Asking a Markdown document for its wikilinks is a well-formed
 question with an empty answer.
 

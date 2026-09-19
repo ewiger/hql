@@ -149,5 +149,5 @@ collection, and projecting a graph yields it unchanged.
   co-retrieval into derived relations, and eviction. A score may *propose* that
   two concepts are the same and may never *decide* it.
 
-See the [semantic search model](../../models/domain/semantic-search.md) for the
+See the [semantic-search requirements](../../models/requirements/semantic-search.md) for the
 staged implementation path and the full set of open questions.

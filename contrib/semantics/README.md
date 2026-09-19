@@ -7,7 +7,16 @@ The split is deliberate: the model does not belong in the Rust binary, and the
 binary never invokes this tool. `cargo test` runs against the committed index
 and needs no Python at all. See
 [HQL-0002](../../doc/proposals/HQL-0002/README.md) for the schema, the text
-contract and what is out of scope.
+contract and what is out of scope, and
+[the requirements](../../doc/models/requirements/semantic-search.md) for the
+chain a query depends on.
+
+`--vault` wants a vault: a directory with `.hmd/` at its root. A
+`.hmd/config.toml` inside it is optional and its defaults are assumed where it
+is absent. This tool does not check that yet, and a directory that is not a
+vault reports "no documents" rather than saying so —
+[issue 0011](../../doc/issues/0011-wire-the-semantic-search-toolchain.md) is that
+work.
 
 ## Use
 
@@ -48,9 +57,19 @@ reaching for a YAML library, whose idea of the same document would differ in
 ways nothing would report. A change to `Document::text()` changes both in one
 commit, and `tests/semantics.rs` fails until it does.
 
+The text is the title, then the authored header's strings in key order, then the
+body. `title` is the only key filtered out, because it is written once at the
+front. Where a document sits — `name`, `path`, `format` — is a field of `Doc`
+rather than a header entry, so there is nothing to filter: a card that moves
+between directories does not change its score, and a header key someone wrote
+called `path` is authored text like any other.
+
 ## Requirements
 
-`transformers` and `torch`, for the model; `pytest`, to run the tests.
+`transformers` and `torch`, for the model; `pytest`, to run the tests. The
+HyperMarkDown CLI is a dependency in practice — it owns root discovery and
+`.hmd/config.toml` — but is not declared or used yet; see
+[issue 0011](../../doc/issues/0011-wire-the-semantic-search-toolchain.md).
 
 ```sh
 pip install -r requirements.txt

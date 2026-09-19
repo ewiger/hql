@@ -3,29 +3,37 @@ tags: [hql, documents, type-system, hypermarkdown]
 ---
 # Doc
 
-`Doc` is HQL's type for a document. Every document is a header and a body:
+`Doc` is HQL's type for a document. Every document is a place, a header and a
+body:
 
 ```hql
-type Doc {
+abstract type Doc {
+    name   : String
+    path   : String
+    format : String
     header : Data
     body   : Content
 }
 ```
 
-The body is what a person wrote. The header is everything known *about* the
-document. Both halves exist for every document, including a plain Markdown file
-that carries no metadata of its own — see [[card-type]] for the narrowed kind of
-document that participates in knowledge.
+The body is what a person wrote. The header is everything the document says
+about itself. `name`, `path` and `format` are neither: they are facts about the
+file, established by the host from the file itself, and they are fields so that
+nothing written inside the document can contradict them. An author who writes
+`name:` into a metadata block has written an ordinary authored entry about
+something else — `header.name` — and the document's own name is untouched. All
+of this exists for every document, including a plain Markdown file that carries
+no metadata of its own — see [[card-type]] for the narrowed kind of document
+that participates in knowledge.
 
-Both fields are required and both are readable. HQL has no field visibility —
-values are data and declared fields are queryable data — so nothing here is
-hidden from a holder of a document, and no subtype can hide it later. What a type
-may say instead is that a field *may be absent*; see [[fields]].
+Every field is required and every field is readable. HQL has no field
+visibility — values are data and declared fields are queryable data — so nothing
+here is hidden from a holder of a document, and no subtype can hide it later.
+What a type may say instead is that a field *may be absent*; see [[fields]].
 
-The header is not one of those. Every document has one, and most of it is derived
-— name, path, format — so there is nothing for an author to omit. Where a format
-writes authored entries into it, HMD's `metadata` block being the case that
-matters, *that* block is optional:
+The header is not one of those. Every document has one, empty or not. Where a
+format writes authored entries into it, HMD's `metadata` block being the case
+that matters, *that* block is optional:
 
 ```hql
 type HmdHeader {
@@ -50,54 +58,58 @@ between a document authored without metadata and one whose metadata block was
 empty. A missing *key* is still a missing key — that is a question for path
 traversal, not for the header.
 
-The reason the header is always populated is that most of it is derived. A
-document that exists at all has a name, a location and a format, whether or not
-anyone typed them:
+What a document that exists at all has, whether or not anyone typed it, is
+derived by the host — and derived facts about the file are fields, not entries:
 
-| Entry | Derivation |
+| Field | Derivation |
 | --- | --- |
-| `header.name` | The file's base name, which is also the slug a wikilink uses |
-| `header.path` | The document's location relative to the vault root |
-| `header.source` | Where the document was actually read from |
-| `header.format` | Which document dialect the body is written in |
-| `header.title` | The document's title, from its first heading or its metadata |
+| `name` | The file's base name, which is also the slug a wikilink uses |
+| `path` | The document's location relative to the vault root |
+| `format` | Which document dialect the body is written in |
 
-These are derived entries, not reserved keys. HMD reserves keys in the *authored
-block*,
-which is a different thing — see below.
+Where a document was actually read from is a fact of the same kind and belongs
+with them; no field declares it yet.
 
-`title` is the one with a genuine conflict: a document can state a title in its
-metadata and open with a different first heading. Which wins, and whether the
-loser stays reachable, is unresolved. `name` and `path` have no such problem
-because nothing authored can contradict them.
+The one derived thing that *is* a header entry is `header.title`, because a
+title is the one derived value an author may legitimately contradict. A document
+can state a title in its metadata and open with a different first heading, and
+the authored entry wins: a heading is prose, and a person who wrote `title:`
+meant it. A document with neither is titled by its `name`, so `header.title` is
+populated for every document and reading it needs no fallback. The heading a
+title displaces stays in the body, where it was written; nothing is lost and
+nothing is stored twice.
 
-## Three layers, one tree
+`name`, `path` and `format` cannot be contradicted this way, because there is
+nowhere to write a contradiction: the keys of that name in a header are ordinary
+authored entries and no reader of `doc.name` consults them.
 
-The header is one `Data` tree assembled from three sources:
+## What the header holds, and what it does not
 
-1. **Derived** — established by the host from the file itself: `name`, `path`,
-   `source`, `format`.
-2. **Authored** — written by a person into the document's metadata block.
-3. **Contributed** — added by an [[hql/extensions|extension]] that knows
-   something about the document.
+The header is what the document says about itself: the entries a person wrote
+into its metadata block, plus `title` when nobody wrote one. Nothing else is
+merged into it.
 
-Precedence between the layers is undecided, and it is not one rule. An author
-overriding a derived `title` is reasonable; an author overriding a derived
-`path` is not, because the derived value is a fact about where the file is.
-Whether contributed entries may overwrite authored ones is a separate question
-again, treated in [[card-type]].
+Two other kinds of knowledge about a document stay out, each for its own reason:
 
-What the layers must not do is become indistinguishable once merged. Provenance
-records where a header entry came from; it does not make the entry true, and a
-derived entry is not more authoritative than an authored one merely by being
+- **Derived facts about the file** — `name`, `path`, `format` — are fields.
+  Keeping them out of the tree is what makes them incontestable.
+- **Contributions from an [[hql/extensions|extension]]** are assembled into
+  `card.metadata`, under a key named after the extension, and never into the
+  header. A contribution therefore cannot overwrite an authored entry: the two
+  are not in the same tree. See [[card-type]].
+
+The rule that falls out of this is that an entry's origin is legible from where
+it sits, rather than from provenance attached to a merged value. Provenance
+still records what wrote an entry; it does not make the entry true, and a
+mechanical entry is not more authoritative than an authored one merely by being
 mechanical.
 
 ## format
 
-`header.format` names the dialect the body is written in.
+`format` names the dialect the body is written in.
 
 ```hql
-header.format   // md | hmd
+doc.format   // md | hmd
 ```
 
 This matters because the document features HQL can rely on are not universal.
@@ -143,12 +155,12 @@ doc.body      : Content
 doc.sections  : Seq<Section>
 ```
 
-`Hmd` is not a type here. It names a *format* — the dialect `header.format`
+`Hmd` is not a type here. It names a *format* — the dialect `doc.format`
 reports — and a format is not the parsed value that results from reading a
 document in it. The parsed value is `HmdContent`, and `Content` is the type a
 document's body has before anything is known about which dialect produced it.
 Their relation is the usual narrowing: a body is `Content`, and establishing
-`header.format` is `hmd` is what establishes it as `HmdContent`, with the
+`doc.format` is `hmd` is what establishes it as `HmdContent`, with the
 addressing and embed operations below attached to that stronger type.
 
 Keeping content apart from `Doc` is also what lets an embedded fragment or a

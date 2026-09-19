@@ -49,7 +49,7 @@ it compensates.
   reproducibly and `hql-semantics verify` reports it clean.
 - `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check`
   are clean.
-- Documentation: `doc/models/domain/semantic-search.md` moves step three to done
+- Documentation: the semantic-search model moves step three to done
   and records why step four is untouched; `doc/wiki/hql/extensions/semantic.hmd`
   and `lexical.hmd` exist and are real, not the zero-byte stubs currently in that
   folder; `doc/stack.md` records the SQLite crate and a `contrib/` section;

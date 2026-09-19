@@ -125,18 +125,17 @@ Conceptually:
 doc.header : Data
 ```
 
-`header` is the name, because a fenced YAML block is only a Markdown-specific way of writing the authored part of a header, while the rest of a header is derived by the host or contributed by an extension. The header is not optional: a document with no metadata block has an empty header. See [[doc-type]].
+`header` is the name, because a fenced YAML block is only a Markdown-specific way of writing the authored entries of a header, and a header also carries a title the host derived when nobody wrote one. The header is not optional: a document with no metadata block has an empty header. See [[doc-type]].
 
 The metadata can be traversed naturally:
 
 ```hql
 doc.header.title
-doc.header.format
 doc.header.tags
 doc.header.status
 ```
 
-A single `Data` tree is what lets derived entries such as `format` and `path` sit beside authored keys and extension-contributed ones without three separate metadata types.
+A single open tree is what lets a derived `title` sit beside authored keys without a second metadata type. Where a document *is* — `name`, `path`, `format` — is not in the tree at all but a field of [[doc-type|Doc]], so an authored key of that name contradicts nothing, and an extension's contributions are assembled into `card.metadata` rather than merged in here.
 
 These expressions do not imply that HQL contains a statically declared header struct with fields called `title`, `tags`, `status`, and `source`.
 

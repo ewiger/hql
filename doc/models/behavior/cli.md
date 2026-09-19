@@ -34,8 +34,11 @@ pipeline.
 | `--report strict\|collect` | when the run stops; see [reporting](reporting.md) |
 
 Without `--vault`, `cards`, `downlinks` and `expand` say they need one rather
-than quietly finding nothing. That is the CLI's answer to `CON-08`: this host
-requires a vault for card-ness. Whether the *language* does is still open.
+than quietly finding nothing. The language requires one too: card-ness is a
+place in a namespace, and a vault is a directory with `.hmd/` in it — the config
+file inside is optional and defaults for it are assumed, the directory is not.
+See [Card](../../wiki/hql/types/card-type.hmd) and
+[the semantic-search requirements](../requirements/semantic-search.md).
 
 ## Extensions
 

@@ -25,11 +25,9 @@ behind them.
 
 | ID | Finding | Kind | Where |
 | --- | --- | --- | --- |
-| INC-26 | Seven links point at the semantic-search model, which was deleted | broken | root README, two models, both proposals, one card |
 | INC-27 | Eight wikilinks and the card table point at the `orderable` card, which was deleted | broken | seven HQL cards |
 | INC-29 | `Orderable` ancestry is stated three ways by the cards, the binary and `std/` | contradiction | [type-system.hmd](../wiki/hql/type-system.hmd), [std-lib.hmd](../wiki/hql/std-lib.hmd), `std/`, `src/types/builtin.rs` |
 | INC-28 | `examples/` is described as a record of superseded alternatives; the restored corpus is a runnable notebook | contradiction | two cards, two models, [std/README.md](../../std/README.md) |
-| INC-30 | Contributed metadata lands in the header in one card and in `card.metadata` everywhere else | contradiction | [doc-type.hmd](../wiki/hql/types/doc-type.hmd), [data-type.hmd](../wiki/hql/types/data-type.hmd) |
 | INC-13 | The card's slug rule contradicts the HMD spec it cites, and 83 links rest on autodiscovery | contradiction | [hypermarkdown.hmd](../wiki/hypermarkdown.hmd) |
 | INC-31 | The collection model is two `.md` files inside a wiki of `.hmd` cards | contradiction | [types/collections/](../wiki/hql/types/collections/) |
 | INC-25 | One link still points into a corpus path that does not exist | broken | [knowledge.hmd](../wiki/hql/knowledge.hmd) |
@@ -42,27 +40,6 @@ behind them.
 against files of the earlier corpus — `examples/fixtures/`, `examples/graphs/`,
 `examples/errors/` and its case counts. The corpus restored in `8aa265e` contains
 none of those files and none of those contradictions, so the six are deleted.
-
-## INC-26 — Links to the deleted semantic-search model
-
-`doc/models/domain/semantic-search.md` was removed in `99fdc52`. Seven links still
-point at it:
-
-| Where | Count |
-| --- | --- |
-| [README.md](../../README.md), under **Project knowledge** | 1 |
-| [graphs.md](../models/domain/graphs.md) | 1 |
-| [knowledge.md](../models/domain/knowledge.md) | 1 |
-| [HQL-0001](../proposals/HQL-0001/README.md) | 1 |
-| [HQL-0002](../proposals/HQL-0002/README.md) | 2 |
-| [semantic-search.hmd](../wiki/hql/semantic-search.hmd) | 1 |
-
-`HQL-0002` is an accepted proposal that names the model as the argument it rests
-on, so this is more than link hygiene: the longer argument behind the
-[semantic search card](../wiki/hql/semantic-search.hmd) is no longer in the tree.
-
-**Resolution needed:** restore the model, or repoint the seven links at the card
-and accept that the card is now the whole argument.
 
 ## INC-27 — Links to the deleted `orderable` card
 
@@ -125,24 +102,6 @@ withdrawn spelling, and the corpus now holds none.
 **Resolution needed:** decide whether `examples/` is a design-input corpus that
 may run ahead of the implementation or a set of runnable examples that may not,
 then bring the five descriptions into line.
-
-## INC-30 — Where contributed metadata lives
-
-[doc-type.hmd](../wiki/hql/types/doc-type.hmd), under **Three layers, one tree**,
-assembles the *header* from derived, authored and contributed entries, and
-[data-type.hmd](../wiki/hql/types/data-type.hmd) repeats it: one `Data` tree lets
-derived entries "sit beside authored keys and extension-contributed ones".
-
-[fields.hmd](../wiki/hql/fields.hmd) and
-[card-type.hmd](../wiki/hql/types/card-type.hmd) say otherwise: `header.metadata`
-is what the author wrote and nothing else, and contributions are assembled into
-`card.metadata`, which fields.hmd calls "a different field, not a renaming". The binary agrees
-with the second pair — `src/vault.rs` inserts `lexical.model` and
-`lexical.indexed` into the card's metadata, not the header.
-
-[options-in-types-and-fields.md](../models/behavior/options-in-types-and-fields.md)
-noticed this under **What this does not settle** and said it belonged here; it
-was never filed.
 
 ## INC-13 — The card's slug rule contradicts the HMD specification
 

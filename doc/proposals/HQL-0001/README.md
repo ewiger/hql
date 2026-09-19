@@ -27,7 +27,7 @@ says:
   [knowledge](../../models/domain/knowledge.md) set the layering as core → graph
   → knowledge, with document sources beside it. Retrieval is not the core's
   business, and neither is drawing.
-- [semantic search](../../models/domain/semantic-search.md) states that
+- [semantic search](../../models/requirements/semantic-search.md) states that
   retrieval is an extension capability, not a peer domain, and mints no type.
 - [type system](../../wiki/hql/type-system.hmd), under *There are no traits*,
   settles that a *capability* is a registration the checker consults rather than

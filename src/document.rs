@@ -69,20 +69,20 @@ impl Document {
     pub fn parse(name: &str, path: &Path, format: Format, source: &str) -> Self {
         let (authored, body) = split_header(source);
         let mut header = data::parse_header(authored);
+        // A title is always a header entry. An authored one wins, the body's
+        // first heading supplies it next, and the name stands in when the
+        // document offers neither.
+        //
+        // `name`, `path` and `format` are fields of the document rather than
+        // header entries, so nothing authored can contradict them and nothing
+        // needs to overwrite an author's key to keep them true.
         let title = header
             .path("title")
             .and_then(Data::as_str)
             .map(str::to_owned)
-            .or_else(|| heading(body));
-
-        // Derived entries own their paths: nothing authored may contradict
-        // where a document is or what it is called.
-        header.insert_path("name", Data::Str(name.to_owned()));
-        header.insert_path("path", Data::Str(path.display().to_string()));
-        header.insert_path("format", Data::Str(format.name().to_owned()));
-        if let Some(title) = title {
-            header.insert_path("title", Data::Str(title));
-        }
+            .or_else(|| heading(body))
+            .unwrap_or_else(|| name.to_owned());
+        header.insert_path("title", Data::Str(title));
 
         Self {
             name: name.to_owned(),
@@ -94,7 +94,7 @@ impl Document {
         }
     }
 
-    /// The document's title, which falls back to its name.
+    /// The document's title, which `parse` always wrote into the header.
     #[must_use]
     pub fn title(&self) -> &str {
         self.header
@@ -106,16 +106,16 @@ impl Document {
     /// The words an index sees: the title, the authored header's strings in
     /// key order, and the body.
     ///
-    /// The derived entries are left out. `name`, `path` and `format` say where
-    /// a document sits and what it is called, not what it says, and a card
-    /// that moves between directories must not thereby change its score. The
-    /// title is written once, at the front, rather than again in key order.
+    /// Where a document sits and what it is called are fields, not header
+    /// entries, and they say nothing about what it says: a card that moves
+    /// between directories must not thereby change its score. The title is
+    /// written once, at the front, rather than again in key order.
     #[must_use]
     pub fn text(&self) -> String {
         let mut parts = vec![self.title().to_owned()];
         if let Data::Map(entries) = &self.header {
             for (key, value) in entries {
-                if matches!(key.as_str(), "name" | "path" | "format" | "title") {
+                if key == "title" {
                     continue;
                 }
                 value.words(&mut parts);
@@ -234,17 +234,24 @@ mod tests {
     }
 
     #[test]
-    fn splits_a_header_and_derives_entries() {
+    fn splits_a_header_from_a_body() {
         let doc = document("---\ntitle: Alice\n---\n# Ignored\n\nbody\n");
         assert_eq!(doc.title(), "Alice");
         assert_eq!(doc.body.trim_start(), "# Ignored\n\nbody\n".trim_start());
-        assert_eq!(
-            doc.header.path("format").and_then(Data::as_str),
-            Some("Hmd")
-        );
+        assert_eq!(doc.name, "alice");
+        assert_eq!(doc.format, Format::Hmd);
+    }
+
+    #[test]
+    fn where_a_document_is_stays_out_of_its_header() {
+        // An author who writes these keys is writing about something else:
+        // the document's own name, path and format are fields.
+        let doc = document("---\nname: elsewhere\npath: /nowhere\nformat: md\n---\n");
+        assert_eq!(doc.name, "alice");
+        assert_eq!(doc.format, Format::Hmd);
         assert_eq!(
             doc.header.path("name").and_then(Data::as_str),
-            Some("alice")
+            Some("elsewhere")
         );
     }
 
@@ -252,6 +259,20 @@ mod tests {
     fn a_heading_supplies_the_title_when_the_header_does_not() {
         assert_eq!(document("# Bearer tokens\n\ntext").title(), "Bearer tokens");
         assert_eq!(document("no heading").title(), "alice");
+    }
+
+    #[test]
+    fn the_header_always_carries_a_title() {
+        for source in ["---\ntitle: Alice\n---\n# Ignored\n", "# Heading\n", "bare"] {
+            assert!(
+                document(source)
+                    .header
+                    .path("title")
+                    .and_then(Data::as_str)
+                    .is_some(),
+                "no title entry for {source:?}"
+            );
+        }
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 **Status**: accepted
 **Created**: 2026-09-18
-**Source**: [semantic search](../../models/domain/semantic-search.md)
+**Source**: [semantic-search requirements](../../models/requirements/semantic-search.md)
 
 ## Abstract
 
@@ -41,7 +41,7 @@ should keep existing under a name that describes it. `semantic` should mean what
 it says, which needs a model, which does not belong in this binary.
 
 This is step three of the path in
-[semantic search](../../models/domain/semantic-search.md). It does not reach
+[semantic search](../../models/requirements/semantic-search.md). It does not reach
 step four.
 
 ## Goals
@@ -247,6 +247,26 @@ model; `--offline` MUST make that impossible and MUST be what CI uses.
 5. add the `semantic` extension reading the index
 6. only then remove any remaining assumption that `semantic` needs no index
 
+### What each side may depend on
+
+The dependency runs one way, and this is what keeps the model out of the binary
+a real property rather than an intention.
+
+The **producer** may assume the HyperMarkDown CLI is installed: working with
+`HmdCard`s is the default case, `hmd` owns root discovery and `.hmd/config.toml`,
+and reimplementing that walk here would be a second answer to a settled
+question. A vault is a directory with `.hmd/` in it; the config file inside is
+optional and its defaults are assumed where it is absent, the directory is not.
+
+The **consumer** may assume nothing but the index file. No Python, no `hmd`, no
+model, no network: `cargo test` runs against the committed index, and a vault
+that ships an index needs none of the producer's dependencies to be queried.
+
+Wiring the producer to `hmd` is
+[issue 0011](../../issues/0011-wire-the-semantic-search-toolchain.md); the chain
+a query depends on is stated in
+[the semantic-search requirements](../../models/requirements/semantic-search.md).
+
 ## Reference Implementation
 
 - `tests/fixtures/birds/` — at least 40 documents: order, family and species
@@ -323,3 +343,8 @@ cd contrib/semantics && pytest
 - 2026-09-18: the embedded text is the *authored* header, because
   `Document::text()` was including the derived `path` and so scoring a card on
   its filename
+- 2026-09-19: `name`, `path` and `format` became fields of `Doc` rather than
+  header entries, so the producer filters only `title`; a key of that name in a
+  header is an ordinary authored entry and is embedded
+- 2026-09-19: what each side may depend on is written down. The producer may
+  assume `hmd`; the consumer may assume only the index
