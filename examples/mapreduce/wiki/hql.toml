@@ -1,0 +1,6 @@
+# Which backend runs a program against this vault. `localhost` is the
+# in-memory evaluator and the default, so this line changes nothing today; it
+# is here so the example states where its results are promised to hold.
+# See doc/proposals/HQL-0004/README.md.
+[execution]
+backend = "localhost"

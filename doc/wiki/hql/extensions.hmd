@@ -56,7 +56,11 @@ extensions fails at the import, naming both. A vault states its own imports in
 
 An extension declares each step `Pure` or `Effectful`, because [[pipes]]
 reserves execution freedom that is only safe over pure steps. Every step
-registered today is pure.
+registered today is pure. [HQL-0004](../../proposals/HQL-0004/README.md) adds a
+shape beside purity — elementwise, partition, reduction or barrier — and the
+backend a checked program runs on. The map/reduce vocabulary and the backend
+contract are one Rust module, `mapreduce`; its steps are the core's, and the
+module is how the binary is organized, not something a program imports.
 
 An extension may also contribute metadata while cards are assembled; lexical
 owns its own model and indexing entries. Extension-defined types and dynamically

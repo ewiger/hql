@@ -1,0 +1,26 @@
+---
+title: Library
+metadata:
+  category: guide
+---
+# Library
+
+A small shelf of six books, each a card with a `genre` and a page count:
+[[dune]], [[frankenstein]] and [[the-hobbit]] are novels;
+[[a-room-of-ones-own]] and [[the-common-reader]] are essays; [[leaves-of-grass]]
+is poetry. Three genres of three, two and one books, so a count per genre is
+never a tie.
+
+The shelf exists to be grouped and reduced. A query over it is a pipeline of
+stages — filter, map, group, reduce — and the vault is small enough that every
+result can be checked by hand, which is what makes it a fair oracle for any
+execution backend.
+
+The novels, computed from the cards:
+
+```hql#eval
+cards
+| filter(c => c.metadata.genre == "novel")
+| sort(by = c => c.name)
+| map(c => c.title)
+```

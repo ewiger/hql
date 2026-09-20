@@ -83,14 +83,33 @@ fn corpus_metadata_and_index_cover_every_case() {
             assert!(m.contains_key(field), "{}: missing {field}", case.path);
         }
         let status = m["status"].as_str();
-        assert!(matches!(status, "valid-now" | "invalid"), "{}", case.path);
-        assert_eq!(m["implementation"], "implemented", "{}", case.path);
+        assert!(
+            matches!(status, "valid-now" | "invalid" | "proposed"),
+            "{}",
+            case.path
+        );
+        if status == "proposed" {
+            // Written ahead of the implementation: the header pins the type
+            // and result the case is meant to produce, and `proposal` names
+            // the record that specifies them.
+            assert_eq!(m["implementation"], "pending", "{}", case.path);
+            let proposal = Path::new(env!("CARGO_MANIFEST_DIR")).join(&m["proposal"]);
+            assert!(
+                proposal.is_file(),
+                "{}: no proposal at {}",
+                case.path,
+                m["proposal"]
+            );
+        } else {
+            assert_eq!(m["implementation"], "implemented", "{}", case.path);
+            assert!(!m.contains_key("proposal"), "{}", case.path);
+        }
         match m["environment"].as_str() {
             "pure" => assert!(!m.contains_key("vault"), "{}", case.path),
             "knowledge-v1" => assert!(root.join(&m["vault"]).is_dir(), "{}", case.path),
             other => panic!("{}: unsupported environment {other}", case.path),
         }
-        if status == "valid-now" {
+        if status == "valid-now" || status == "proposed" {
             assert!(m.contains_key("expected-type"), "{}", case.path);
             assert!(
                 m.contains_key("expected") ^ m.contains_key("expected-json"),
@@ -174,6 +193,25 @@ fn valid_now_cases_check_and_evaluate() {
         }
     }
     assert!(count > 0);
+}
+
+/// A proposed case is a design input, not a regression test. It stays
+/// proposed only while the implementation cannot check it; the day it checks,
+/// this test names it so that its header is promoted rather than left claiming
+/// a step does not exist.
+#[test]
+fn proposed_cases_do_not_check_yet() {
+    for case in load_cases() {
+        if case.metadata["status"] != "proposed" {
+            continue;
+        }
+        let vault = case.vault();
+        assert!(
+            check_in(&case.source, &vault).is_err(),
+            "{}: checks now; promote it to valid-now",
+            case.path
+        );
+    }
 }
 
 #[test]

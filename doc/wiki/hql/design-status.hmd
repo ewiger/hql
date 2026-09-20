@@ -82,6 +82,8 @@ recorded in [[type-system]] and fields in [[fields]].
 - Module resolution, namespace inheritance and `init.hql` initialization policy.
 - Extension transport, and whether an extension may supply anything beyond
   steps — a type, a renderer or a document source.
+- The reduce side of the pipeline vocabulary and the execution backend that
+  runs a program — drafted in [HQL-0004](../../proposals/HQL-0004/README.md).
 
 The implemented slice is now larger than the literal core: statements and
 bindings, strings and data literals, document references, the link operator,

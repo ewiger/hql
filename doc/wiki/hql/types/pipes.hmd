@@ -55,6 +55,16 @@ cannot be assumed associative. Sorting and whole-collection operations may
 require coordination or materialization. Effects must not be reordered or
 duplicated merely because they appear in a pipeline.
 
+[HQL-0004](../../../proposals/HQL-0004/README.md) gives this freedom a shape.
+`x | f(a)` is typed as `f(x, a)` and lowers to a stage the executor still sees;
+a chain of stages is a region. Every step declares, beside its purity, whether
+it is elementwise, a partition, a reduction with a known combiner, or a barrier,
+and that is the whole of what a backend may assume about splitting it. A
+checked program runs on a backend; `localhost` is the in-memory evaluator, one
+stage after another with no parallelism, and the oracle every other backend has
+to match. The reduce side — `reduce`, `group`, `collect` — is specified there
+and shown in [the mapreduce example](../../../../examples/mapreduce/README.md).
+
 Unknown extension functions remain ordinary calls unless their declared contract
 allows more. Purity, failure and execution metadata, plus the eager/lazy boundary,
 are open design work shared with [[hql/extensions]].

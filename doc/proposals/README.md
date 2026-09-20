@@ -10,3 +10,5 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | --- | --- | --- |
 | [HQL-0001](HQL-0001/README.md) | accepted | The extension mechanism |
 | [HQL-0002](HQL-0002/README.md) | accepted | Semantic retrieval over a precomputed embedding index |
+| [HQL-0003](HQL-0003/README.md) | drafted | A graph example corpus |
+| [HQL-0004](HQL-0004/README.md) | drafted | MapReduce: pipeline stages and execution backends |
