@@ -369,9 +369,14 @@ fn floats(blob: &[u8], dimensions: usize) -> Option<Vec<f32>> {
     if blob.len() != dimensions * 4 {
         return None;
     }
+    // `as_chunks` gives `[u8; 4]` directly, so the width is in the type rather
+    // than in four index expressions that could disagree with it.
     Some(
-        blob.chunks_exact(4)
-            .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        blob.as_chunks::<4>()
+            .0
+            .iter()
+            .copied()
+            .map(f32::from_le_bytes)
             .collect(),
     )
 }
