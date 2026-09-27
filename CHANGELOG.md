@@ -4,8 +4,7 @@ Notable changes to HQL, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versions follow
 [SemVer 2](https://semver.org/spec/v2.0.0.html).
 
-**Experimental.** While the major version is `0`, the language and the CLI may
-change in any release, and a minor bump may break a program that ran before.
+The language continues to be in active development.
 
 ## [Unreleased]
 

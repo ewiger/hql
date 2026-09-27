@@ -12,10 +12,11 @@ and is intended to operate over its cards, document structure, metadata, and
 knowledge graph. HyperMarkDown remains the authored/storage representation;
 HQL is a separate language and repository.
 
-**Experimental.** The language is in design. What runs today is a typed
-expression core, a vault of Markdown and HyperMarkDown documents, pipelines over
-its cards, semantic retrieval and graph traversal. Most of `doc/models/` is still
-design, and the implementation says so rather than faking it.
+**In development.** What runs today is a typed expression core, a vault of
+Markdown and HyperMarkDown documents, pipelines over its cards, semantic
+retrieval and graph traversal. Much of `doc/models/` specifies more language
+than the binary implements yet, and the implementation says so rather than
+faking it.
 
 ## Install
 

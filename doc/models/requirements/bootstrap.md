@@ -1,6 +1,6 @@
 # Bootstrap requirements
 
-Status: implemented bootstrap; language design remains experimental.
+Status: bootstrap implemented; the language design continues beyond it.
 
 - The language is **HQL — Hyper Query Language**. Repository and binary: `hql`;
   sources: `.hql`; ordinary code fences: `hql`. Hibernate's HQL naming collision

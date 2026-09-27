@@ -3,7 +3,7 @@ tags: [hql, language]
 ---
 # HQL — Hyper Query Language
 
-HQL is an experimental typed functional language for querying and computing over
+HQL is a typed functional language for querying and computing over
 structured knowledge. Querying is one capability: the intended language can
 also construct values, evaluate functions, transform data, validate constraints,
 and return typed results. Its direction is closer to Rust, Kusto, Scala, Haskell, 

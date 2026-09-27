@@ -1,7 +1,7 @@
 [package]
 name = "hql"
 version = "0.1.0"
-description = "HQL — Hyper Query Language: an experimental typed functional language"
+description = "HQL — Hyper Query Language: a typed functional language for structured knowledge"
 license = "MIT"
 edition = "2024"
 rust-version = "1.88"
