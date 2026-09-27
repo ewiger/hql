@@ -32,7 +32,9 @@ The targets are `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and
 `x86_64-apple-darwin`. Verifying the checksum is the point of publishing it: an
 archive that does not match is not the one that was built.
 
-To build it yourself instead, with Rust from [rustup](https://rustup.rs):
+To build it yourself instead, with Rust 1.88 or newer from
+[rustup](https://rustup.rs) — the floor is `rust-version` in `Cargo.toml`, and CI
+builds on it so the declared floor stays true:
 
 ```sh
 cargo install --git https://github.com/ewiger/hql --locked   # the latest commit

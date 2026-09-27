@@ -97,51 +97,49 @@ impl Declarations {
             self.resolve(bound, &scope)?;
             bounded.push(parameter);
         }
-        if let Ok(system) = builtin::system() {
-            if let Some(constructor) = system.constructor(&declaration.name) {
-                let definition = system.definition(constructor).map_err(|error| {
-                    Diagnostic::typing(declaration.span.clone(), error.to_string())
-                })?;
-                if matches!(
-                    declaration.name.as_str(),
-                    "Collection"
-                        | "Seq"
-                        | "List"
-                        | "Set"
-                        | "Map"
-                        | "OrderedMap"
-                        | "SortedMap"
-                        | "Orderable"
-                        | "Scalar"
-                ) {
-                    if declaration.abstract_type != (definition.kind == TypeKind::Abstract)
-                        || declaration.parameters.len() != definition.parameters.len()
-                    {
+        if let Ok(system) = builtin::system()
+            && let Some(constructor) = system.constructor(&declaration.name)
+        {
+            let definition = system
+                .definition(constructor)
+                .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
+            if matches!(
+                declaration.name.as_str(),
+                "Collection"
+                    | "Seq"
+                    | "List"
+                    | "Set"
+                    | "Map"
+                    | "OrderedMap"
+                    | "SortedMap"
+                    | "Orderable"
+                    | "Scalar"
+            ) {
+                if declaration.abstract_type != (definition.kind == TypeKind::Abstract)
+                    || declaration.parameters.len() != definition.parameters.len()
+                {
+                    return Err(Diagnostic::typing(
+                        declaration.span.clone(),
+                        format!(
+                            "`{}` contradicts its built-in kind or arity",
+                            declaration.name
+                        ),
+                    ));
+                }
+                for (name, parameter) in declaration.parameters.iter().zip(&definition.parameters) {
+                    let bound = declaration
+                        .bounds
+                        .iter()
+                        .find(|(held, _)| held == name)
+                        .and_then(|(_, bound)| lattice(bound));
+                    if bound != parameter.bound {
                         return Err(Diagnostic::typing(
                             declaration.span.clone(),
                             format!(
-                                "`{}` contradicts its built-in kind or arity",
+                                "`{name}` must preserve the bound declared by `{}`",
                                 declaration.name
                             ),
                         ));
-                    }
-                    for (name, parameter) in
-                        declaration.parameters.iter().zip(&definition.parameters)
-                    {
-                        let bound = declaration
-                            .bounds
-                            .iter()
-                            .find(|(held, _)| held == name)
-                            .and_then(|(_, bound)| lattice(bound));
-                        if bound != parameter.bound {
-                            return Err(Diagnostic::typing(
-                                declaration.span.clone(),
-                                format!(
-                                    "`{name}` must preserve the bound declared by `{}`",
-                                    declaration.name
-                                ),
-                            ));
-                        }
                     }
                 }
             }
@@ -396,20 +394,20 @@ impl Declarations {
                 ),
             ));
         }
-        if let Ok(system) = builtin::system() {
-            if let Some(constructor) = system.constructor(&written.name) {
-                if !written.arguments.is_empty() && !matches!(constructor.0, "Graph" | "Edge") {
-                    let args = written
-                        .arguments
-                        .iter()
-                        .map(|argument| self.scoped_type(argument, scope))
-                        .collect::<Option<Vec<_>>>();
-                    if let Some(args) = args {
-                        system.apply(constructor, args).map_err(|error| {
-                            Diagnostic::typing(written.span.clone(), error.to_string())
-                        })?;
-                    }
-                }
+        if let Ok(system) = builtin::system()
+            && let Some(constructor) = system.constructor(&written.name)
+            && !written.arguments.is_empty()
+            && !matches!(constructor.0, "Graph" | "Edge")
+        {
+            let args = written
+                .arguments
+                .iter()
+                .map(|argument| self.scoped_type(argument, scope))
+                .collect::<Option<Vec<_>>>();
+            if let Some(args) = args {
+                system
+                    .apply(constructor, args)
+                    .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
             }
         }
         if let Some(declared) = self.known.get(&written.name) {
