@@ -24,8 +24,13 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: macos-latest
             target: aarch64-apple-darwin
-          - os: macos-13
+          # Cross-compiled from the Apple silicon runner: the `macos-13` image
+          # that ran x86_64 natively is retired, and a job asking for it queues
+          # forever rather than failing. `cross` marks the target whose tests
+          # this runner cannot execute.
+          - os: macos-latest
             target: x86_64-apple-darwin
+            cross: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,7 +40,12 @@ jobs:
           rustup show active-toolchain || rustup toolchain install
           rustup target add ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --locked --target ${{ matrix.target }}
+      # A cross-compiled target's tests cannot run here: the runner executes a
+      # different architecture. The same commit is tested natively on the other
+      # two targets, and CI tests it on Linux and macOS besides.
+      - name: Test
+        if: ${{ !matrix.cross }}
+        run: cargo test --locked --target ${{ matrix.target }}
       - run: cargo build --locked --release --target ${{ matrix.target }}
       - name: Package
         id: package
