@@ -15,6 +15,25 @@ from pathlib import Path
 
 SCHEMA_VERSION = 1
 TOOL_VERSION = "hql-semantics 0.1.0"
+METRIC = "cosine"
+TOLERANCE = 1e-5
+"""How far from unit length a stored vector may be. The reader scores with a dot
+product, which is cosine only for unit-length vectors, so this is the tolerance
+of that equality rather than a formatting preference."""
+
+
+class StoreError(Exception):
+    """An index cannot be written as the reader requires it."""
+
+
+def norm(vector) -> float:
+    """The Euclidean length of a vector."""
+    return sum(value * value for value in vector) ** 0.5
+
+
+def unit(vector) -> bool:
+    """Whether a vector is unit-length within `TOLERANCE`."""
+    return abs(norm(vector) - 1.0) <= TOLERANCE
 
 SCHEMA = """
 CREATE TABLE model (
@@ -61,7 +80,15 @@ def write(out: Path, vault_name: str, model, rows, queries=(), built_at=None) ->
     `rows` is (name, path, content_hash, vector); `queries` is (text, vector).
     Queries are embedded here because the model lives here: the Rust consumer
     reads vectors and never computes one.
+
+    Every vector is checked against what `model.normalized` is about to claim.
+    The reader trusts that column and scores with a dot product, so writing a
+    vector that is not unit-length would make every score wrong with no symptom.
     """
+    for name, _, _, vector in rows:
+        _unit_or_refuse(vector, f"card `{name}`", model.dimensions)
+    for text, vector in queries:
+        _unit_or_refuse(vector, f"query {text!r}", model.dimensions)
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists():
         out.unlink()
@@ -70,7 +97,7 @@ def write(out: Path, vault_name: str, model, rows, queries=(), built_at=None) ->
         connection.executescript(SCHEMA)
         connection.execute(
             "INSERT INTO model VALUES (?, ?, ?, ?, ?)",
-            (model.id, model.revision, model.dimensions, "cosine", 1),
+            (model.id, model.revision, model.dimensions, METRIC, 1),
         )
         stamp = built_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         connection.execute(
@@ -88,6 +115,19 @@ def write(out: Path, vault_name: str, model, rows, queries=(), built_at=None) ->
         connection.commit()
     finally:
         connection.close()
+
+
+def _unit_or_refuse(vector, what: str, dimensions: int) -> None:
+    if len(vector) != dimensions:
+        raise StoreError(
+            f"{what}: {len(vector)} dimensions where the model declares {dimensions}"
+        )
+    if not unit(vector):
+        raise StoreError(
+            f"{what}: its length is {norm(vector):.6f} and the reader scores with "
+            "a dot product, which is cosine only at length 1. Normalise before "
+            "storing"
+        )
 
 
 def read(path: Path) -> dict:

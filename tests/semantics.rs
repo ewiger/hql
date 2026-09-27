@@ -304,6 +304,77 @@ fn a_vault_with_no_index_is_told_to_build_one_rather_than_falling_back() {
 }
 
 #[test]
+fn an_index_that_does_not_claim_unit_length_vectors_is_refused() {
+    // Scoring is a dot product, which is cosine only at unit length. The claim
+    // lives in `model.normalized`, and an index that withdraws it is refused
+    // rather than scored by an arithmetic nobody asked for — magnitude would
+    // otherwise leak in, and a long card would outrank a relevant one.
+    let (_directory, root) = copied();
+    spoil(&root, "UPDATE model SET normalized = 0");
+    let said = failure(
+        &root,
+        "import semantic\ncards | semantic(\"night hunting birds\")",
+    );
+    assert!(said.contains("not normalized"), "{said}");
+    assert!(said.contains("hql-semantics build"), "{said}");
+}
+
+#[test]
+fn an_index_scored_by_a_metric_this_reader_does_not_compute_is_refused() {
+    // Reporting one metric through `Retrieval` while computing another is
+    // exactly the misdescribed evidence the split exists to remove.
+    let (_directory, root) = copied();
+    spoil(&root, "UPDATE model SET metric = 'euclidean'");
+    let said = failure(
+        &root,
+        "import semantic\ncards | semantic(\"night hunting birds\")",
+    );
+    assert!(said.contains("`euclidean`"), "{said}");
+    assert!(said.contains("cosine"), "{said}");
+}
+
+#[test]
+fn a_vault_that_declares_an_embedder_still_answers_and_its_scores_name_the_index() {
+    // `[semantics.embedder]` tells the producer which model to fill an index
+    // with. This binary has no model to configure: it must neither read the
+    // table nor refuse it, and provenance must come from what actually ran.
+    let (_directory, root) = copied();
+    fs::write(
+        root.join("hql.toml"),
+        "[semantics]\n\
+         index = \".hql/index.sqlite\"\n\
+         \n\
+         [semantics.embedder]\n\
+         provider = \"http\"\n\
+         model = \"text-embedding-3-small\"\n\
+         revision = \"2024-01-25\"\n\
+         endpoint = \"https://api.openai.com/v1/embeddings\"\n\
+         api_key_env = \"OPENAI_API_KEY\"\n\
+         dimensions = 1536\n",
+    )
+    .expect("the configuration");
+    let vault = vault::load(&root).expect("the copied vault loads");
+    let outcome = run(
+        "import semantic\ncards | semantic(\"night hunting birds\")",
+        &vault,
+        Mode::Collect,
+    );
+    let Some(Value::Ranking(ranking)) = &outcome.value else {
+        panic!("expected a ranking, got {:?}", outcome.reports)
+    };
+    // The index says what produced these scores; the table only says what a
+    // future build would use, and a score that quoted it would be a claim about
+    // configuration rather than about what ran.
+    assert_eq!(
+        ranking.retrieval.model,
+        "sentence-transformers/all-MiniLM-L6-v2"
+    );
+    assert_ne!(ranking.retrieval.revision, "2024-01-25");
+    assert_eq!(ranking.retrieval.metric, "cosine");
+    assert!(!outcome.failed(), "{:?}", outcome.reports);
+}
+
+#[test]
 fn an_index_outside_the_vault_is_refused() {
     let (_directory, root) = copied();
     fs::write(

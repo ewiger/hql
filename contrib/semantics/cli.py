@@ -14,6 +14,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import config
 import embed
 import store
 import vault as vault_reader
@@ -25,7 +26,17 @@ def build(args) -> int:
     if not documents:
         print(f"{root}: no documents", file=sys.stderr)
         return 1
-    model = embed.load(args.model, args.revision, offline=args.offline)
+    # The vault declares its embedder; flags override it field by field.
+    embedder = config.resolve(
+        config.read(root),
+        provider=args.provider,
+        model=args.model,
+        revision=args.revision,
+        endpoint=args.endpoint,
+        api_key_env=args.api_key_env,
+        dimensions=args.dimensions,
+    )
+    model = embed.load(embedder, offline=args.offline)
     vectors = model.embed([document.text() for document in documents])
     queries = sorted(set(args.query or []))
     query_rows = list(zip(queries, model.embed(queries))) if queries else []
@@ -42,7 +53,7 @@ def build(args) -> int:
     store.write(out, root.as_posix(), model, rows, query_rows, built_at=args.built_at)
     print(
         f"{out}: {len(rows)} cards, {len(query_rows)} queries, "
-        f"{model.dimensions} dimensions, {model.id}"
+        f"{model.dimensions} dimensions, {model.id} via {embedder.provider}"
     )
     return 0
 
@@ -67,12 +78,27 @@ def verify(args) -> int:
     for name in sorted(set(indexed) - set(documents)):
         problems.append(f"{name}: in the index and not in the vault")
     dimensions = index["model"][2]
+    metric, normalized = index["model"][3], index["model"][4]
+    if metric != store.METRIC:
+        problems.append(f"the index declares metric {metric!r}, and the reader computes cosine")
+    if not normalized:
+        problems.append(
+            "the index declares normalized = 0, and the reader scores with a dot "
+            "product, which is cosine only for unit-length vectors"
+        )
     for name, _, _, blob in index["cards"]:
         if len(blob) != dimensions * 4:
             problems.append(f"{name}: embedding is {len(blob)} bytes, not {dimensions * 4}")
+        elif not store.unit(store.unpack(blob)):
+            # The claim `normalized = 1` makes, checked against the vectors.
+            length = store.norm(store.unpack(blob))
+            problems.append(f"{name}: embedding has length {length:.6f}, not 1")
     for text, blob in index["queries"]:
         if len(blob) != dimensions * 4:
             problems.append(f"query {text!r}: embedding is the wrong length")
+        elif not store.unit(store.unpack(blob)):
+            length = store.norm(store.unpack(blob))
+            problems.append(f"query {text!r}: embedding has length {length:.6f}, not 1")
     for problem in problems:
         print(problem, file=sys.stderr)
     if problems:
@@ -108,8 +134,21 @@ def main(argv=None) -> int:
     builder = commands.add_parser("build", help="embed a vault into an index")
     builder.add_argument("--vault", required=True)
     builder.add_argument("--out", required=True)
-    builder.add_argument("--model", default=embed.DEFAULT_MODEL)
-    builder.add_argument("--revision", default=embed.DEFAULT_REVISION)
+    # Every embedder flag defaults to None so that "not given" stays
+    # distinguishable from "given the default", which is what lets the vault's
+    # `[semantics.embedder]` be overridden field by field.
+    builder.add_argument("--provider", choices=config.PROVIDERS, default=None,
+                         help="where the model runs; the vault's setting otherwise")
+    builder.add_argument("--model", default=None,
+                         help=f"default {embed.DEFAULT_MODEL} under `local`")
+    builder.add_argument("--revision", default=None,
+                         help="the pinned revision a score claims; required for `http`")
+    builder.add_argument("--endpoint", default=None,
+                         help="an OpenAI-shaped POST /v1/embeddings URL, for `http`")
+    builder.add_argument("--api-key-env", default=None, metavar="VAR",
+                         help="the environment variable holding the key, never the key")
+    builder.add_argument("--dimensions", type=int, default=None,
+                         help="the width to expect, checked against what arrives")
     builder.add_argument("--offline", action="store_true",
                          help="refuse the network; what CI uses")
     builder.add_argument("--query", action="append", default=[],
@@ -129,7 +168,12 @@ def main(argv=None) -> int:
     inspector.set_defaults(run=inspect)
 
     args = parser.parse_args(argv)
-    return args.run(args)
+    try:
+        return args.run(args)
+    except (config.ConfigError, embed.EmbedError, store.StoreError) as error:
+        # A refusal the operator can act on, not a traceback.
+        print(f"{error}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

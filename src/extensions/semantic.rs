@@ -34,6 +34,10 @@ pub const SCHEMA_VERSION: i64 = 1;
 const MAX_DIMENSIONS: i64 = 8192;
 /// The command that produces an index, named by every failure that needs one.
 const BUILD: &str = "hql-semantics build";
+/// The only metric this reader computes. `dot` over unit-length vectors is
+/// cosine similarity, and an index declaring anything else is refused rather
+/// than scored by an arithmetic it did not ask for.
+const METRIC: &str = "cosine";
 
 /// What a vault's `hql.toml` says about its index.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -237,16 +241,45 @@ impl Index {
             )));
         }
 
-        let (model, revision, dimensions, metric): (String, String, i64, String) = connection
-            .query_row(
-                "SELECT id, revision, dimensions, metric FROM model",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-            )
-            .map_err(|error| fail(format!("the index names no model: {error}")))?;
+        let (model, revision, dimensions, metric, normalized): (String, String, i64, String, i64) =
+            connection
+                .query_row(
+                    "SELECT id, revision, dimensions, metric, normalized FROM model",
+                    [],
+                    |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                        ))
+                    },
+                )
+                .map_err(|error| fail(format!("the index names no model: {error}")))?;
         if dimensions <= 0 || dimensions > MAX_DIMENSIONS {
             return Err(fail(format!(
                 "the index declares {dimensions} dimensions, and at most {MAX_DIMENSIONS} are read"
+            )));
+        }
+        // Scoring is `dot`, which is cosine only for unit-length vectors. With
+        // several embedders able to fill an index, the producer that normalises
+        // and the reader that relies on it are no longer one decision, so the
+        // precondition is checked rather than assumed. Normalising here instead
+        // would be this binary computing vectors, which it does not do.
+        if normalized == 0 {
+            return Err(fail(format!(
+                "the index declares its vectors are not normalized, and scoring is a \
+                 dot product, which is {METRIC} only at unit length: rebuild it with \
+                 `{BUILD}`"
+            )));
+        }
+        // Reporting one metric through `Retrieval` while computing another is
+        // the misdescribed evidence this extension exists to avoid.
+        if metric != METRIC {
+            return Err(fail(format!(
+                "the index declares the metric `{metric}` and this reader computes \
+                 `{METRIC}`"
             )));
         }
         let dimensions = usize::try_from(dimensions).unwrap_or_default();
@@ -391,6 +424,35 @@ mod tests {
         assert_eq!(floats(&[0, 0, 0, 0], 1), Some(vec![0.0]));
         assert_eq!(floats(&[0, 0, 0], 1), None);
         assert_eq!(floats(&[0, 0, 0, 0, 0], 1), None);
+    }
+
+    #[test]
+    fn an_embedder_a_vault_declares_is_read_by_the_producer_and_not_by_this_binary() {
+        // `[semantics.embedder]` says which model fills an index. This binary
+        // has no model to configure, and a `Retrieval` that quoted this table
+        // would describe what a vault claims rather than what ran — so the
+        // table is neither read nor refused, and only `index` is taken.
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        std::fs::write(
+            directory.path().join(crate::reporting::CONFIG_FILE),
+            "[semantics]\n\
+             index = \".hql/index.sqlite\"\n\
+             \n\
+             [semantics.embedder]\n\
+             provider = \"http\"\n\
+             model = \"text-embedding-3-small\"\n\
+             revision = \"2024-01-25\"\n\
+             endpoint = \"https://api.openai.com/v1/embeddings\"\n\
+             api_key_env = \"OPENAI_API_KEY\"\n\
+             dimensions = 1536\n",
+        )
+        .expect("the configuration");
+        assert_eq!(
+            Semantics::read(directory.path()),
+            Semantics {
+                index: Some(".hql/index.sqlite".to_owned())
+            }
+        );
     }
 
     #[test]

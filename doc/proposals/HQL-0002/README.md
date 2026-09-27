@@ -17,6 +17,14 @@ stored vectors, so `approximate` is `false`. A vault names its index in
 `hql.toml`; without one, `semantic` is an error naming the index and the command
 that builds it, and never falls back to `lexical`.
 
+Which model computes those embeddings is the vault's choice. An embedder is
+either `local` — a checkpoint loaded into the producer's own process — or `http`,
+an OpenAI-shaped `/v1/embeddings` endpoint, which covers a hosted provider and a
+model server on `localhost` equally. A vault declares one in `hql.toml`, and the
+choice reaches the producer only: the consumer still has no model, no network and
+no key, and reads what produced a score out of the index rather than out of
+configuration.
+
 ## Motivation
 
 `semantic` does not model semantics. It hashes words into 256 buckets with
@@ -63,7 +71,20 @@ step four.
   the implementation says so rather than implying `semantic` covers them.
 - **No write path.** No effects, no persistence from HQL.
 - **No embedding computed in the Rust binary.** The producer is Python; the
-  consumer is Rust.
+  consumer is Rust. This is what makes the `query` table necessary, and it is
+  therefore what limits `semantic` to the questions an index was built for.
+  Lifting that limit means giving the consumer an embedder — an HTTP client, a
+  key, a network failure mode and a score whose provenance no longer pins a
+  revision — and it stays deferred to a proposal of its own. Choosing the
+  embedder here changes *which* model fills an index, never *when* a vector is
+  computed.
+- **No embedder in the consumer's configuration.** `[semantics.embedder]` is
+  read by the producer alone. The binary MUST ignore it, because a `Retrieval`
+  that quoted configuration would be describing what a vault claims rather than
+  what ran, and the index already records what ran.
+- **No provider-specific scoring.** Every embedder normalises to unit length and
+  is compared by cosine. A provider that cannot is out of scope rather than a
+  second metric in the reader.
 
 ## Specification
 
@@ -100,6 +121,37 @@ index = ".hql/index.sqlite"
   missing configuration and `hql-semantics build`.
 - If `index_meta.vault` names a different vault than the one loaded, `semantic`
   MUST refuse rather than rank against a corpus it was not built for.
+
+A vault MAY also declare which embedder fills that index. The whole table is
+optional, and its absence means the `local` default.
+
+```toml
+[semantics.embedder]
+provider    = "http"                                  # local | http
+model       = "text-embedding-3-small"
+revision    = "2024-01-25"                            # required for `http`
+endpoint    = "https://api.openai.com/v1/embeddings"  # required for `http`
+api_key_env = "OPENAI_API_KEY"                        # the variable's NAME
+dimensions  = 1536                                    # optional declared width
+```
+
+- Both files stay as [issue 0011](../../issues/0011-wire-the-semantic-search-toolchain.md)
+  divides them: `.hmd/config.toml` is the namespace, `hql.toml` is the index —
+  and an embedder is how an index comes to exist, so it belongs here rather than
+  in a third file or in flags a contributor has to remember.
+- The producer reads this table; command-line flags override it, field by field.
+  Nothing else reads it, and the binary MUST tolerate it without understanding
+  it.
+- An unknown `provider`, or an unknown key in the table, MUST be refused by
+  name. A typo that silently selects a default is how a vault comes to be
+  indexed by a model nobody chose.
+- `api_key_env` names an environment variable. A key MUST NOT be writable into
+  this file: a literal `api_key` key MUST be refused and MUST name `api_key_env`
+  in the refusal. A vault's `hql.toml` is a committed file, and
+  `tests/fixtures/birds/hql.toml` already is.
+- `dimensions`, where declared, is an expectation the producer checks against
+  what arrives. A provider that quietly changes a model's width is otherwise a
+  rebuilt index that scores against a different geometry.
 
 ### 3. The index
 
@@ -181,6 +233,27 @@ every card in the corpus MUST pin the agreement.
 - `metric` — the metric computed
 - `approximate` — `false`, because scoring is exact brute force
 
+### 5a. What the scorer requires of a vector
+
+Scoring is a dot product. That is cosine similarity *only* for unit-length
+vectors, so the precondition MUST be checked rather than assumed — with several
+embedders writing indexes, the producer that normalises and the reader that
+relies on it are no longer the same decision.
+
+- The producer MUST L2-normalise every vector it stores, whatever the embedder
+  returned and whatever the embedder claims. Truncated embeddings are the case
+  that makes this concrete: asking a provider for fewer dimensions than its model
+  computes returns a prefix of a unit vector, which is not itself unit-length.
+- `model.normalized` MUST be `1`, and the reader MUST refuse an index declaring
+  `0`. Normalising at read time is the alternative and is worse: it is the
+  consumer computing vectors, and it would let an index whose geometry the
+  producer never established be scored as though it had been.
+- The reader MUST refuse a `metric` it does not compute. Reporting a metric
+  through `Retrieval` while computing another one is the misdescribed evidence
+  this proposal exists to remove.
+- `verify` MUST check that every stored vector is unit-length within tolerance,
+  for any index rather than only the committed fixture.
+
 ### 6. Staleness and coverage
 
 Both conditions are reported through the queue in `src/reporting.rs`; neither is
@@ -210,18 +283,61 @@ needs. `#![forbid(unsafe_code)]` binds this crate and is unaffected.
 it, and `cargo test` MUST NOT require it.
 
 ```text
-hql-semantics build   --vault DIR --out PATH [--model NAME] [--offline]
+hql-semantics build   --vault DIR --out PATH [--offline]
+                      [--provider local|http] [--model NAME] [--revision REV]
+                      [--endpoint URL] [--api-key-env VAR] [--dimensions N]
                       [--query TEXT]... [--built-at STAMP]
 hql-semantics verify  --vault DIR --index PATH    # exit 1 when stale
 hql-semantics inspect --index PATH
 ```
 
-- Default model `sentence-transformers/all-MiniLM-L6-v2`, `384` dimensions.
+- Default model `sentence-transformers/all-MiniLM-L6-v2`, `384` dimensions,
+  under the default `local` provider.
 - The model **revision** MUST be pinned, not only its name.
 - Vectors MUST be L2-normalised, and `model.normalized` MUST record it.
 - `--built-at` pins the build stamp, so rebuilding an unchanged vault produces a
   byte-identical file. A committed fixture that changes on every rebuild is a
   diff nobody can review.
+- Every flag above overrides the matching `[semantics.embedder]` field, so a
+  vault records the embedder it is indexed by and a one-off build need not edit
+  the vault to change it.
+
+#### Embedders
+
+Exactly two, because they are the two shapes a model can be reached in, not the
+two vendors anyone happens to use.
+
+| Provider | The model runs | Reached by | Needs |
+| --- | --- | --- | --- |
+| `local` | in the producer's process | `transformers` and `torch` | the checkpoint in the local cache |
+| `http` | anywhere else | an OpenAI-shaped `POST /v1/embeddings` | `endpoint`, `model`, `revision` |
+
+`http` speaks one wire format — `{"input": [...], "model": "..."}` answered with
+`{"data": [{"index": N, "embedding": [...]}]}` — which a hosted provider and a
+model server on `localhost` both implement. Naming the transport rather than the
+vendor is what keeps that one code path one code path.
+
+- `http` MUST use only the standard library to make the request. A hosted
+  embedder is not a reason for the producer to grow a dependency, and a
+  contributor indexing through `http` MUST NOT need `torch` installed at all.
+- `revision` MUST be supplied for `http`, and the producer MUST refuse without
+  it. A hosted endpoint offers nothing to derive it from, and `Retrieval.revision`
+  claims to pin the numbers a score is. Pushing that onto whoever configures the
+  vault is the honest placement: an unpinnable claim is better refused than
+  invented.
+- The response MUST be ordered by its `index` field rather than trusting arrival
+  order, MUST be refused if it holds a different number of vectors than were
+  asked for, and MUST be refused if a width disagrees with `dimensions` or with
+  the vectors already received.
+- There is no embeddings endpoint at Anthropic to configure: Claude models are
+  text-in, text-out. `http` covers OpenAI, Voyage, Cohere and a local
+  `llama.cpp`, `vLLM`, Ollama or text-embeddings-inference server.
+
+#### `--offline`
+
+`--offline` MUST refuse the network, and with `provider = "http"` the network is
+the whole mechanism, so the combination MUST be refused by name rather than
+attempted and failed. What CI builds, CI builds locally.
 
 ## Backwards Compatibility
 
@@ -237,6 +353,22 @@ it is untrusted input: the reader MUST bound `dimensions`, MUST check that each
 version it does not know rather than interpreting unknown columns. The path MUST
 resolve inside the vault root. The Python side reaches the network to fetch a
 model; `--offline` MUST make that impossible and MUST be what CI uses.
+
+A configurable embedder adds a credential, and a credential adds two rules.
+
+- **A key lives in the environment, never in the vault.** `hql.toml` is
+  committed. Configuration names the variable holding the key; the producer reads
+  `os.environ`. A literal `api_key` in `[semantics.embedder]` MUST be refused,
+  and the refusal MUST name `api_key_env`, because someone who wrote a key there
+  needs to be told where it goes, not merely that it is wrong.
+- **A missing variable MUST fail by name** before any card is read, so the
+  failure is the unset variable rather than an HTTP 401 a hundred requests later.
+- The key MUST NOT be written to stdout, stderr, or the index. `inspect` prints
+  what an index says about itself, and an index holds no credential.
+- An `http` embedder sends card text to whatever `endpoint` names. That is the
+  point of it, and it is a disclosure a vault's owner MUST be making knowingly —
+  which is a reason for the embedder to be declared in the vault, in a file that
+  is reviewed, rather than to be a flag somebody passes once.
 
 ## Deployment / Activation
 
@@ -316,6 +448,34 @@ Unit tests MUST include:
 - a query with no stored vector failing with the command that would add one
 - an index whose `index_meta.vault` names another corpus refused
 - a configured index path that climbs out of the vault refused
+- an index declaring `normalized = 0` refused, and one declaring a metric the
+  reader does not compute refused
+- `[semantics.embedder]` in a vault's `hql.toml` neither read nor refused by the
+  binary, and a `Retrieval` reporting the index's model rather than that table's
+
+The embedder's unit tests are unit tests: no network, no model download, and no
+`torch`. A fake transport answers the HTTP provider and a fake model answers the
+indexing path, so what is under test is the producer's own arithmetic and
+refusals rather than a provider's availability.
+
+- configuration parsed from `hql.toml`: an absent table meaning `local`, every
+  field read, unknown keys and unknown providers refused by name
+- a literal `api_key` refused, naming `api_key_env`
+- `http` without `revision`, and without `endpoint`, each refused
+- `--offline` with `provider = "http"` refused
+- an unset `api_key_env` variable refused, naming the variable, before any
+  request is made
+- flag-over-file precedence, field by field
+- the request a fake transport receives: the endpoint, the model, the batch, and
+  a bearer header present only when a key was configured
+- a response out of `index` order reordered; a short response, a wrong width, and
+  a width disagreeing with `dimensions` each refused
+- **the arithmetic**: a normalised pair whose dot product equals their cosine to
+  tolerance; a non-unit vector normalised to unit length; a truncated prefix of a
+  unit vector renormalised rather than stored short-of-unit; a zero vector
+  refused rather than divided by
+- an index built end to end from a fake model, read back, and every vector
+  unit-length — the same check `verify` applies
 
 Integration tests MUST include:
 
@@ -323,6 +483,8 @@ Integration tests MUST include:
 - `semantic` with no configured index failing with a name error naming
   `hql-semantics build`
 - `cargo test` passing on a machine with no Python
+- a vault carrying a full `[semantics.embedder]` table still answering, with its
+  provenance taken from the index
 
 ```bash
 cargo test --locked
@@ -348,3 +510,21 @@ cd contrib/semantics && pytest
   header is an ordinary authored entry and is embedded
 - 2026-09-19: what each side may depend on is written down. The producer may
   assume `hmd`; the consumer may assume only the index
+- 2026-09-27: the embedder becomes the vault's choice. `[semantics.embedder]`
+  declares one of two providers — `local`, a checkpoint in the producer's
+  process, or `http`, an OpenAI-shaped endpoint covering a hosted provider and a
+  local model server alike — with flags overriding it field by field, keys named
+  as environment variables rather than written into a committed file, and
+  `revision` required of `http` because a hosted endpoint offers nothing to
+  derive it from. The producer gains no dependency: `http` uses the standard
+  library, and indexing through it needs no `torch`. The consumer gains nothing
+  at all, which is the point — it still has no model, and query-time embedding
+  stays deferred
+- 2026-09-27: the scorer's precondition becomes a checked one. `dot` is cosine
+  only for unit-length vectors, and the reader was selecting neither
+  `model.normalized` nor comparing `metric` against what it computes — an
+  assumption that held only because one code path wrote every index. The reader
+  now refuses `normalized = 0` and a metric it does not compute, the producer
+  normalises whatever an embedder returns, and `verify` checks unit length for
+  any index. Truncated embeddings are why this could not stay implicit: a prefix
+  of a unit vector is not a unit vector
