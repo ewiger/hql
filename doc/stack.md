@@ -129,21 +129,33 @@ contrib/semantics && pytest` is the command.
 
 ## Release
 
-The version lives in `Cargo.toml` and nowhere else; the CLI reports it and the
-tag repeats it. `publish = false` — HQL is released as a tagged GitHub release
-with binaries, not on crates.io. Lifting that is a decision, not a detail.
+The version lives in `Cargo.toml` and nowhere else; the CLI reports it, the tag
+repeats it, and crates.io records it.
+
+A release has two halves. The tag is the first:
+[`release.yml`](../.github/workflows/release.yml) builds and tests
+`x86_64-unknown-linux-gnu` and `aarch64-apple-darwin`, cross-compiles
+`x86_64-apple-darwin` from the Apple silicon runner — no hosted runner runs
+Intel macOS any more, so that one is built and not test-executed — packages each
+as a `.tar.gz` with a `.sha256` beside it, and creates the GitHub release from
+the changelog section, failing if the section is missing rather than publishing
+empty notes. `cargo publish` is the second, so `cargo install hql` reaches the
+same version.
 
 Every release is cut from `main`, with `CHANGELOG.md` carrying a section named
-for the version and dated. Pushing the tag is the whole release:
-[`release.yml`](../.github/workflows/release.yml) builds and tests
-`x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and `x86_64-apple-darwin`,
-packages each as a `.tar.gz` with a `.sha256` beside it, and creates the release
-from the changelog section — failing if the section is missing rather than
-publishing empty notes.
+for the version and dated.
 
 ```sh
 # on main, worktree clean, CHANGELOG.md section written
 cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 git tag -a v0.1.0 -m 'HQL 0.1.0' && git push origin v0.1.0
+cargo publish            # --dry-run first; a published version is permanent
 ```
+
+**A published version cannot be withdrawn.** `cargo yank` stops new dependents
+resolving to it and leaves it downloadable for everyone who already has it, so
+the registry is append-only in practice: what goes out stays out. That is why
+the dry run is not optional and why `exclude` is worth reading before each
+release — a package is the crate, not the repository, and the knowledge base,
+the corpora, the Python producer and the agent instructions all stay behind.

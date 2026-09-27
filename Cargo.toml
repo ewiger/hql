@@ -3,7 +3,6 @@ name = "hql"
 version = "0.1.0"
 description = "HQL — Hyper Query Language: an experimental typed functional language"
 license = "MIT"
-publish = false
 edition = "2024"
 rust-version = "1.88"
 repository = "https://github.com/ewiger/hql"
@@ -11,7 +10,19 @@ homepage = "https://github.com/ewiger/hql"
 readme = "README.md"
 keywords = ["query-language", "knowledge-graph", "markdown", "interpreter"]
 categories = ["command-line-utilities", "text-processing"]
-exclude = ["/.github", "/.grem", "/contrib", "/doc", "/examples"]
+# A package is the crate, not the repository: the knowledge base, the corpora,
+# the Python producer, CI and the agent instructions all stay behind.
+exclude = [
+    "/.claude",
+    "/.github",
+    "/.grem",
+    "/contrib",
+    "/doc",
+    "/examples",
+    "/tests",
+    "AGENTS.md",
+    "CLAUDE.md",
+]
 
 [lib]
 name = "hql"

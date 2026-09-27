@@ -37,6 +37,7 @@ To build it yourself instead, with Rust 1.88 or newer from
 builds on it so the declared floor stays true:
 
 ```sh
+cargo install hql --locked                                   # the last release
 cargo install --git https://github.com/ewiger/hql --locked   # the latest commit
 cargo install --path . --locked                              # from a clone
 ```
