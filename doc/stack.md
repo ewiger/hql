@@ -132,30 +132,44 @@ contrib/semantics && pytest` is the command.
 The version lives in `Cargo.toml` and nowhere else; the CLI reports it, the tag
 repeats it, and crates.io records it.
 
-A release has two halves. The tag is the first:
-[`release.yml`](../.github/workflows/release.yml) builds and tests
-`x86_64-unknown-linux-gnu` and `aarch64-apple-darwin`, cross-compiles
-`x86_64-apple-darwin` from the Apple silicon runner — no hosted runner runs
-Intel macOS any more, so that one is built and not test-executed — packages each
-as a `.tar.gz` with a `.sha256` beside it, and creates the GitHub release from
-the changelog section, failing if the section is missing rather than publishing
-empty notes. `cargo publish` is the second, so `cargo install hql` reaches the
-same version.
+Pushing a tag releases. [`release.yml`](../.github/workflows/release.yml) does
+all of it, in three jobs that run in that order:
+
+- **build** — builds and tests `x86_64-unknown-linux-gnu` and
+  `aarch64-apple-darwin`, cross-compiles `x86_64-apple-darwin` from the Apple
+  silicon runner (no hosted runner runs Intel macOS any more, so that one is
+  built and not test-executed), and packages each as a `.tar.gz` with a
+  `.sha256` beside it.
+- **release** — creates the GitHub release from the changelog section, failing
+  if the section is missing rather than publishing empty notes.
+- **crates-io** — publishes the crate, so `cargo install hql` reaches the same
+  version. It runs last because it is the only step that cannot be undone, and
+  it refuses to run if the tag does not name the version in `Cargo.toml`.
+
+Nothing is published from a laptop, and no registry token is stored. The publish
+authenticates by [trusted publishing](https://crates.io/docs/trusted-publishing):
+GitHub mints a short-lived OIDC token, crates.io exchanges it for a publish
+token, and [`crates-io-auth-action`](https://github.com/rust-lang/crates-io-auth-action)
+revokes that token when the job ends. It works because the crate names this
+repository, this workflow file and the `crates-io` environment as its publisher
+on crates.io; renaming either the workflow file or the environment breaks
+publishing until the publisher is updated to match.
 
 Every release is cut from `main`, with `CHANGELOG.md` carrying a section named
 for the version and dated.
 
 ```sh
-# on main, worktree clean, CHANGELOG.md section written
+# on main, worktree clean, CHANGELOG.md section written, version bumped
 cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 git tag -a v0.1.0 -m 'HQL 0.1.0' && git push origin v0.1.0
-cargo publish            # --dry-run first; a published version is permanent
 ```
 
 **A published version cannot be withdrawn.** `cargo yank` stops new dependents
 resolving to it and leaves it downloadable for everyone who already has it, so
 the registry is append-only in practice: what goes out stays out. That is why
-the dry run is not optional and why `exclude` is worth reading before each
-release — a package is the crate, not the repository, and the knowledge base,
-the corpora, the Python producer and the agent instructions all stay behind.
+the publish runs after everything reversible has succeeded, and why `exclude` is
+worth reading before each release — a package is the crate, not the repository,
+and the knowledge base, the corpora, the Python producer and the agent
+instructions all stay behind. `cargo publish --dry-run --locked` locally is how
+to read what the package contains before a tag makes it permanent.
