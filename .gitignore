@@ -2,3 +2,9 @@
 # worktree, including untracked files, so an unignored target/ blocks upgrades.
 /target
 **/*.rs.bk
+
+# Python bytecode from `contrib/`. Same reasoning as `target/`: a regenerated
+# artifact that is not ignored blocks a `grem upgrade`, and it is noise in every
+# diff that follows a test run.
+__pycache__/
+*.py[cod]
