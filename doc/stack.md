@@ -112,3 +112,38 @@ Headers and annotations must be mappings. Non-string keys, custom tags,
 non-finite numbers, and integers outside `i64` are loader errors, not text.
 Invalid documents are skipped with a path-qualified warning. This replaces the
 former indentation and comma-splitting parser as part of issue 0011.
+
+## Continuous integration
+
+GitHub Actions runs what a contributor runs locally, and nothing else.
+[`ci.yml`](../.github/workflows/ci.yml) checks formatting, runs
+`cargo clippy -- -D warnings`, builds and tests on Linux and macOS, and builds
+once on the `rust-version` floor so the declared floor stays true.
+
+`contrib/` is not in CI. What CI proves is that the crate builds and tests with
+no Python installed at all, which is the property the producer/consumer split
+exists to have; running `contrib/`'s own suite there would prove something else.
+Its tests need neither a model nor a network — a fake transport and a fake model
+stand in for both — so they cost nothing to run locally, and `cd
+contrib/semantics && pytest` is the command.
+
+## Release
+
+The version lives in `Cargo.toml` and nowhere else; the CLI reports it and the
+tag repeats it. `publish = false` — HQL is released as a tagged GitHub release
+with binaries, not on crates.io. Lifting that is a decision, not a detail.
+
+Every release is cut from `main`, with `CHANGELOG.md` carrying a section named
+for the version and dated. Pushing the tag is the whole release:
+[`release.yml`](../.github/workflows/release.yml) builds and tests
+`x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and `x86_64-apple-darwin`,
+packages each as a `.tar.gz` with a `.sha256` beside it, and creates the release
+from the changelog section — failing if the section is missing rather than
+publishing empty notes.
+
+```sh
+# on main, worktree clean, CHANGELOG.md section written
+cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+git tag -a v0.1.0 -m 'HQL 0.1.0' && git push origin v0.1.0
+```

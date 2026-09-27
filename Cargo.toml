@@ -6,6 +6,12 @@ license = "MIT"
 publish = false
 edition = "2024"
 rust-version = "1.85"
+repository = "https://github.com/ewiger/hql"
+homepage = "https://github.com/ewiger/hql"
+readme = "README.md"
+keywords = ["query-language", "knowledge-graph", "markdown", "interpreter"]
+categories = ["command-line-utilities", "text-processing"]
+exclude = ["/.github", "/.grem", "/contrib", "/doc", "/examples"]
 
 [lib]
 name = "hql"

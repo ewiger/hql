@@ -1,5 +1,8 @@
 # HQL
 
+[![CI](https://github.com/ewiger/hql/actions/workflows/ci.yml/badge.svg)](https://github.com/ewiger/hql/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Hyper Query Language**
 
 A typed functional language for querying and computing over structured knowledge.
@@ -13,6 +16,33 @@ HQL is a separate language and repository.
 expression core, a vault of Markdown and HyperMarkDown documents, pipelines over
 its cards, semantic retrieval and graph traversal. Most of `doc/models/` is still
 design, and the implementation says so rather than faking it.
+
+## Install
+
+A release ships a binary for each supported target, with a checksum beside it.
+Download the pair from the [releases page](https://github.com/ewiger/hql/releases),
+check it, and put `hql` somewhere on your `PATH`:
+
+```sh
+shasum -a 256 -c hql-<version>-<target>.tar.gz.sha256   # sha256sum -c on Linux
+tar -xzf hql-<version>-<target>.tar.gz
+```
+
+The targets are `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and
+`x86_64-apple-darwin`. Verifying the checksum is the point of publishing it: an
+archive that does not match is not the one that was built.
+
+To build it yourself instead, with Rust from [rustup](https://rustup.rs):
+
+```sh
+cargo install --git https://github.com/ewiger/hql --locked   # the latest commit
+cargo install --path . --locked                              # from a clone
+```
+
+[CHANGELOG.md](CHANGELOG.md) records what changed in each release. While the
+major version is `0`, a minor bump may break a program that ran before — the
+language is still in design, and the changelog says so release by release rather
+than promising otherwise.
 
 ## Develop and run
 
@@ -29,12 +59,6 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo run -- eval '40 + 2'                       # 42
 cargo run -- --vault <dir> eval 'cards | count'
 cargo run -- builtins                            # the steps a pipeline may use
-```
-
-To install the `hql` command locally:
-
-```sh
-cargo install --path . --locked
 ```
 
 ### Querying a vault
