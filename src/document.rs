@@ -265,6 +265,9 @@ fn heading(body: &str) -> Option<String> {
 }
 
 /// Collect `[[target]]` references and the `{..}` annotations that follow them.
+///
+/// A reference may carry display text as `[[target|display text]]`, which names
+/// nothing: the target is what precedes the bar.
 fn references(body: &str) -> Result<Vec<Reference>, Error> {
     let mut found = Vec::new();
     let bytes = body.as_bytes();
@@ -274,7 +277,15 @@ fn references(body: &str) -> Result<Vec<Reference>, Error> {
         let Some(length) = body[open..].find("]]") else {
             break;
         };
-        let target = body[open..open + length].trim().to_owned();
+        // Display text declares nothing: `[[alice|Alice B.]]` references
+        // `alice`, and the rest is there so the sentence reads naturally. A
+        // later bar is display text too, so only the first one separates.
+        let written = &body[open..open + length];
+        let target = written
+            .split_once('|')
+            .map_or(written, |(target, _)| target)
+            .trim()
+            .to_owned();
         offset = open + length + 2;
         if target.is_empty() {
             continue;
@@ -408,6 +419,41 @@ mod tests {
             Some("parent")
         );
         assert_eq!(doc.references[1].data, Data::map());
+    }
+
+    #[test]
+    fn display_text_is_not_part_of_a_reference_target() {
+        let doc = document("see [[link-op|the link operator]] and [[alice | Alice B.]].\n");
+        let names: Vec<&str> = doc
+            .references
+            .iter()
+            .map(|reference| reference.target.as_str())
+            .collect();
+        assert_eq!(names, ["link-op", "alice"]);
+    }
+
+    #[test]
+    fn display_text_does_not_hide_an_annotation() {
+        let doc = document("[[bob|Bob]] {relation: parent}\n");
+        assert_eq!(doc.references[0].target, "bob");
+        assert_eq!(
+            doc.references[0]
+                .data
+                .path("relation")
+                .and_then(Data::as_str),
+            Some("parent")
+        );
+    }
+
+    #[test]
+    fn a_reference_that_is_only_display_text_names_nothing() {
+        let doc = document("[[|just words]] and [[alice]]\n");
+        let names: Vec<&str> = doc
+            .references
+            .iter()
+            .map(|reference| reference.target.as_str())
+            .collect();
+        assert_eq!(names, ["alice"]);
     }
 
     #[test]
