@@ -17,4 +17,4 @@ argued in [collections](../wiki/hql/collections.hmd). What is not settled is
 whether the vocabulary needs all four names.
 
 
-> TODO: this card needs compelte rewrite as soon as the type systems will be fully defined and mapped to propoer rust implementation.
+> TODO: this card needs compelte rewrite as soon as the type systems will be fully defined and mapped to proper rust implementation.

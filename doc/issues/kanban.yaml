@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 13 # to be incremented when adding a new issue card
+  last_id: 14 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0013"
@@ -36,6 +36,9 @@ board:
         title: "`cards` is a vault binding, not a keyword"
         file: 0008-cards-as-a-vault-binding.md
     todo:
+      - id: "0014"
+        title: "Next feature bundle: aggregation first, then the pipeline foundations"
+        file: 0014-next-feature-bundle.md
       - id: "0011"
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
