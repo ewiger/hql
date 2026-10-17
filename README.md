@@ -51,19 +51,13 @@ than promising otherwise.
 
 ## Develop and run
 
-Install Rust through rustup, then run from this repository:
+[DEVELOP.md](doc/DEVELOP.md) covers building, testing and linting. It also shows
+how to put the development build on your `PATH` as `hql`, linked to your clone
+so a rebuild updates it:
 
 ```sh
-cargo build --locked
-cargo test --locked
-cargo fmt --check
-cargo clippy --locked --all-targets -- -D warnings
-```
-
-```sh
-cargo run -- eval '40 + 2'                       # 42
-cargo run -- --vault <dir> eval 'cards | count'
-cargo run -- builtins                            # the steps a pipeline may use
+cargo build --release
+ln -sf "$PWD/target/release/hql" ~/.cargo/bin/hql   # or ~/.local/bin/hql
 ```
 
 ### Querying a vault
@@ -79,7 +73,6 @@ cards
 | semantic("night hunting birds")
 | take(3)
 | expand(depth = 1)
-| graph
 | table'
 ```
 

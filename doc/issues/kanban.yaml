@@ -17,9 +17,12 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 16 # to be incremented when adding a new issue card
+  last_id: 17 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0017"
+        title: "`graph` is two operations under one name"
+        file: 0017-graph-projection-and-view.md
       - id: "0016"
         title: "SQL parity analysis: relational operations, aggregation and schema"
         file: 0016-sql-parity-analysis.md

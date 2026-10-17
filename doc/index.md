@@ -11,7 +11,6 @@ cards
 | semantic("night hunting birds")
 | take(3)
 | expand(depth = 1)
-| graph
 | table
 ```
 

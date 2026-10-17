@@ -53,7 +53,8 @@ prefix is reproducible without the vault's file order ever being observable.
 ## Walking the graph
 
 `uplinks` and `downlinks` give the edges leaving and entering a card. `expand`
-traverses outwards, and `graph` projects a collection into a graph:
+traverses outwards and returns a graph, and `graph` projects a collection into
+one without traversing:
 
 ```hql
 import lexical
@@ -62,7 +63,6 @@ cards
 | lexical("owl")
 | take(2)
 | expand(depth = 1)
-| graph
 | table
 ```
 

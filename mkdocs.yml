@@ -115,6 +115,7 @@ nav:
       - Extensions: wiki/hql/extensions.md
       - hmd://wiki
   - Develop:
+      - Build and run: DEVELOP.md
       - Stack and conventions: stack.md
       - Roadmap: public/roadmap.md
 
