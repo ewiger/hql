@@ -16,3 +16,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0006](HQL-0006/README.md) | drafted | `Stream<T>` as a first-class pipeline type |
 | [HQL-0007](HQL-0007/README.md) | drafted | `collect` and `emit` are stream-shape operations |
 | [HQL-0008](HQL-0008/README.md) | drafted | Presentation is separate from computation |
+| [HQL-0009](HQL-0009/README.md) | drafted | Cells: identity, shared values and saved outputs |

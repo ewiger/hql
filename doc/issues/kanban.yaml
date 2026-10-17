@@ -21,7 +21,7 @@ board:
   items:
     backlog:
       - id: "0018"
-        title: "Operator synonymy: one name per abstraction level"
+        title: "Operator synonymy: one name, one signature"
         file: 0018-operator-synonymy-audit.md
       - id: "0017"
         title: "`graph` is two operations under one name"
