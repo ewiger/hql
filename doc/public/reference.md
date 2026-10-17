@@ -29,7 +29,7 @@ language or I/O failure `1`, a usage error `2`.
 
 ## The standard library
 
-The types HQL knows are declared in HQL itself, under
+HQL's types are declared in HQL itself, under
 [`std/`](https://github.com/ewiger/hql/tree/main/std): `core`, `collections`,
 `doc`, `graph`, `knowledge` and `retrieval`. The checker reads those
 declarations rather than assuming them.

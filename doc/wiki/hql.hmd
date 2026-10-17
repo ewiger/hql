@@ -6,11 +6,12 @@ nav:
 ---
 # HQL — Hyper Query Language
 
-HQL is a typed functional language for querying and computing over
-structured knowledge. Querying is one capability: the intended language can
-also construct values, evaluate functions, transform data, validate constraints,
-and return typed results. Its direction is closer to Rust, Kusto, Scala, Haskell, 
-or even Lean, rather than to SQL. The language cards live under
+HQL is a statically typed expression and query language. A program is
+type-checked before it is evaluated. Querying is one capability: the intended
+language also constructs values, evaluates functions, transforms data,
+validates constraints, and returns typed results. Its direction is closer to
+Rust, Kusto, Scala, Haskell, or even Lean, than to SQL; its operations take
+their inspiration from jq and SQL, among others. The language cards live under
 [doc/wiki/hql/](hql/).
 
 HQL operates on a typed model of docs, cards, metadata, document structure,

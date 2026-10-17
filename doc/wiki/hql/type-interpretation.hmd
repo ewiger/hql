@@ -1,0 +1,199 @@
+---
+tags: [hql, types, refinement, match, design]
+nav:
+  visibility: public
+---
+# Type interpretation
+
+[[type-system]] says what refinement is: a value's structure becomes better
+known and the value is never touched. This card says how a program asks, and
+what it may ask about: a tree someone authored, a document whose header is
+that tree, a card the vault built from a document, and any type a program
+declares over one of them. There are two ways to ask and one way to assert,
+and they share a single test.
+
+## The test
+
+Every value was built as something. A leaf read out of YAML was built as
+`Data`; a literal `1` as an `Int`; a document as a `Doc` or an `HmdDoc`; a card
+the vault checked at load as a `ConceptCard` or a `RelationCard`. Asking whether
+a value *is* a type `U` means:
+
+- for a declared value, that `U` is what it was built as or an ancestor of it,
+  by `:` — see [[type-system]];
+- for a `Data` value, that the tree has the shape `U` declares: every required
+  path is present and each leaf reads as the leaf type the schema names — see
+  [[fields]] for partial schemas.
+
+The first is nominal, the second structural, and which one applies follows from
+what the value is, not from a flag at the call site. The outcome is the same
+either way: the value is unchanged, and from that point the checker knows more
+about it. A `type:` entry in a header is never consulted; it is an author's
+claim, and interpretation establishes the type from the contract the claim
+points at — see [[card-type]].
+
+## What a program declares
+
+A type over a tree is a partial schema. It names the paths it knows and leaves
+the rest open:
+
+```hql
+type Book {
+    title  : String
+    pages  : Int
+    genre? : String
+}
+```
+
+A type over a document is the same thing one level up: a `Doc` whose header has
+a shape, declared the way [[fields]] declares `HmdDoc`:
+
+```hql
+type RecipeHeader {
+    servings    : Int
+    ingredients : List<String>
+}
+
+type Recipe : HmdDoc {
+    header : RecipeHeader
+}
+```
+
+A card's kinds are declared by the vault extension in exactly this way, and
+checked when the vault loads. Nothing about `ConceptCard` is special beyond
+that the interpretation already happened — see [[card-type]].
+
+## Asking about one value: `match`
+
+A type is a case, and [[match-op|match]] takes a value apart by its cases. An
+arm may name a type, and binds the value under that type. Over a `Data` tree
+the arm tests shape:
+
+```hql
+match [[dune]].metadata {
+    Book b => b.pages,
+    _      => 0,
+}
+```
+
+Over a document it tests the header's shape, since that is what `Recipe` adds
+to `HmdDoc`:
+
+```hql
+match [[bread]] {
+    Recipe r => r.header.servings,
+    HmdDoc _ => 1,
+}
+```
+
+Over a card it tests what the vault established:
+
+```hql
+match c {
+    RelationCard r => edge(r.source, r.target),
+    ConceptCard k  => node(k),
+    Card _         => none,
+}
+```
+
+In every case the arm fires because the shape or the contract holds, never
+because a header says `type: Book`. The match is exhaustive over the declared
+family, so forgetting the last arm is a type error, the same way a forgotten
+`none` is. A value that is not the type takes the other arm. Nothing has failed,
+and nothing is reported.
+
+## Asking about many values: `typed`
+
+`typed(U)` is the match above run over a collection, keeping the `U` arm and
+dropping the rest, the way `sum` is a `reduce` with the step fixed. The result
+has element type `U`, and keeps the shape of its input: a `Set` stays a `Set`,
+a `List` stays a `List`. `library` below is a supplied collection of documents.
+
+```hql
+cards | map(c => c.metadata) | typed(Book)        // List<Book>
+library | typed(Recipe)                           // the recipes
+cards | typed(RelationCard) | graph                // Set<RelationCard>
+[1, "owl", 2] | typed(Int)                        // [1, 2]
+```
+
+Dropping is the feature. A vault is usable while it is still being typed, and
+a tree that satisfies nothing beyond `Data` is still a tree. The checker
+refuses a `typed` only when nothing could pass it: `typed(Int)` on a
+`Set<Card>` selects nothing and is an error at check time.
+
+The first program is where the two tests meet. Each tree was built as `Data`,
+so the nominal test says none of them is a `Book`; the structural test says
+every tree with a `title` and an integer `pages` is. The structural test is the
+one `Data` gets, so the result holds those trees. Today the implementation
+applies the nominal test only and the result is empty, which is also why
+`map(c => c.metadata.pages) | typed(Int)` keeps nothing.
+
+## The longhand under `typed`
+
+`sum` is a pure shorthand. Same input, same output, nothing added:
+
+```hql
+xs | sum
+xs | reduce(0, (a, b) => a + b)
+```
+
+`typed` is a shorthand for a `match` *plus a collection step*, because `match`
+works on one value and `typed` works on many:
+
+```hql
+cards | typed(RelationCard)
+
+cards
+| map(c => match c {
+    RelationCard r => some(r),
+    _              => none,
+  })
+| somes                             // keep the somes, drop the nones
+```
+
+`somes` is an ordinary collection step, not part of interpretation: a
+collection of options becomes a collection of their values, `List<Option<T>>`
+to `List<T>`, keeping the shape of its input. It is as useful after a guarded
+`match` or an `and_then` as after a type test, which is why it has its own name
+rather than living inside `typed`. With it, `typed(U)` is `map(match …) | somes`
+exactly as `sum` is `reduce(0, +)`: the same pattern, a specific case of a
+general operation given a name of its own. The abstraction tree is whole:
+
+```text
+reduce  →  sum, min, max, size, count(x)
+match   →  typed, by way of somes
+```
+
+The rule that admits a shorthand is that its longhand can be typed. `somes` is
+designed and not yet implemented, beside the `match` type arm it serves.
+
+## Asserting: a binding
+
+A program may also state a type without asking:
+
+```hql
+b : Book = [[dune]].metadata
+```
+
+This is not interpretation. It is a claim for the checker to prove from what it
+already knows, and it fails at check time when it cannot. This is the "failed
+narrowing" [[type-system]] calls a type error: something was written that is
+not the type. Asking never produces that error, because asking always has
+somewhere for the other case to go.
+
+There is no `validate`, no `as`, and no single-value `typed`: each would be a
+second spelling of a `match` arm, or of a binding.
+
+## Where it sits
+
+```text
+match x { U u => … }        the primitive: one value, every case named
+typed(U)                     the selection: many values, the U case kept
+x : U = …                    the assertion: proven or refused by the checker
+```
+
+`match` with a type arm, and the structural test over `Data`, are designed and
+not yet implemented. `typed` over collections is implemented with the nominal
+test. See [[data-type]] for the tree being interpreted, [[doc-type]] for the
+document whose header it is, [[option-type]] for the `none` the card example
+returns, and [[hql/design-status]] for what remains undecided.

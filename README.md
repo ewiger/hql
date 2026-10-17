@@ -6,18 +6,31 @@
 **Hyper Query Language** — documentation at
 [hql.hypermarkdown.org](https://hql.hypermarkdown.org/)
 
-A typed functional language for querying and computing over structured knowledge.
+HQL is a statically typed expression and query language. A program is
+type-checked before it is evaluated. Values are transformed through pipelines
+of operations such as `filter`, `map`, `sort`, retrieval and graph traversal,
+over a vault of Markdown, HyperMarkDown, YAML and JSON documents.
 
-HQL is being developed alongside [HyperMarkDown](https://github.com/ewiger/hypermarkdown)
-and is intended to operate over its cards, document structure, metadata, and
-knowledge graph. HyperMarkDown remains the authored/storage representation;
-HQL is a separate language and repository.
+HyperMarkDown is the document format most HQL vaults are written in. HQL does
+not define or change that format; it reads
+[HyperMarkDown](https://github.com/ewiger/hypermarkdown), plain Markdown, YAML
+and JSON, and is a separate language in its own repository.
 
-**In development.** What runs today is a typed expression core, a vault of
-Markdown and HyperMarkDown documents, pipelines over its cards, semantic
-retrieval and graph traversal. Much of `doc/models/` specifies more language
-than the binary implements yet, and the implementation says so rather than
-faking it.
+**In development.** The binary implements a statically typed expression core,
+a vault of Markdown and HyperMarkDown documents, pipelines over its cards,
+`lexical` and `semantic` retrieval, and graph traversal. `doc/models/` contains
+both implemented semantics and design proposals; each document states its
+implementation status.
+
+Retrieval, graph traversal and presentation are extensions: providers of typed
+steps registered in the binary. The implemented extensions are `core`,
+`graph`, `present`, `lexical` and `semantic`. The design direction is
+extensions over further sources, so that one program queries across SQL
+databases such as Postgres, JSON and YAML documents, message queues such as
+Kafka, and REST APIs. HQL's operations take their inspiration from jq and SQL,
+among others; [the jq parity analysis](doc/issues/0015-jq-parity-analysis.md)
+and [the SQL parity analysis](doc/issues/0016-sql-parity-analysis.md) record
+which operations are adopted.
 
 ## Install
 
@@ -31,8 +44,8 @@ tar -xzf hql-<version>-<target>.tar.gz
 ```
 
 The targets are `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and
-`x86_64-apple-darwin`. Verifying the checksum is the point of publishing it: an
-archive that does not match is not the one that was built.
+`x86_64-apple-darwin`. Verify the archive against the published SHA-256
+checksum before extracting it.
 
 To build it yourself instead, with Rust 1.88 or newer from
 [rustup](https://rustup.rs) — the floor is `rust-version` in `Cargo.toml`, and CI
@@ -45,9 +58,8 @@ cargo install --path . --locked                              # from a clone
 ```
 
 [CHANGELOG.md](CHANGELOG.md) records what changed in each release. While the
-major version is `0`, a minor bump may break a program that ran before — the
-language is still in design, and the changelog says so release by release rather
-than promising otherwise.
+major version is `0`, a minor release may change the language incompatibly,
+and the changelog lists each such change by release.
 
 ## Develop and run
 
@@ -94,19 +106,18 @@ cards
 [mute-swan, passeriformes, alcedinidae]
 ```
 
-Two retrievals, each named for what it does. `lexical` matches shared spellings,
-offline and with nothing to build. `semantic` scores against vectors a language
-model computed ahead of time, which
-[`contrib/semantics/`](contrib/semantics/README.md) produces and the binary only
-reads — the model is not in here and will not be.
+`lexical(query)` ranks cards by textual match with the query and needs no
+index. `semantic(query)` ranks cards by embedding similarity against an index
+that [`contrib/semantics/`](contrib/semantics/README.md) builds ahead of time;
+the binary reads the index and never loads the model.
 
-Either way the answer keeps its evidence. Every hit carries the retrieval that
-produced it — query, index, model, model revision, metric, and whether the
-search was approximate — because a score is evidence rather than relevance.
-`take` needs elements that carry an order of their own, which a card does, so a
-prefix is reproducible without the vault's file order ever being observable.
-`expand` traverses outwards and records *why* each node is present, so a graph
-of three matches and their neighbours does not claim that all of them matched.
+Each hit carries its retrieval provenance: query, index, model, model revision,
+metric, and whether the search was approximate. `take` requires elements with
+an ordering key of their own, which a card has, so a prefix is reproducible
+independently of the vault's file order. `expand` returns a `Graph` whose
+nodes each store a presence: `retrieved` with a score, or `expanded from
+<seed> at depth <n>`, so a node that matched is distinguishable from a node
+that was reached.
 
 ### Commands
 

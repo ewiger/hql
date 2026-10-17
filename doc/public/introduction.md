@@ -1,12 +1,13 @@
 # Introduction
 
-HQL is a typed functional language for structured knowledge. A program is a
-sequence of bindings and expressions; its value is the last expression, and its
-type is known before it runs.
+HQL is a statically typed expression and query language. A program is a
+sequence of bindings and expressions; its value is the last expression, and
+its type is determined by type checking before evaluation.
 
-Querying is one thing it does. The language is meant to construct values,
-evaluate functions, transform data, validate constraints and return typed
-results — a direction closer to Kusto, Scala, Haskell or Lean than to SQL.
+Querying is one thing it does. The language constructs values, evaluates
+functions, transforms data, validates constraints and returns typed results, a
+direction closer to Kusto, Scala, Haskell or Lean than to SQL. Its operations
+take their inspiration from jq and SQL, among others.
 
 ## What it operates on
 
@@ -16,22 +17,33 @@ one piece of knowledge, whichever format it was written in, and `cards` is the
 set of cards in the vault the program runs against.
 
 A card carries a title, a name, metadata, sections and links. Links between
-cards form a graph, and HQL can traverse it in either direction.
+cards form a graph, and HQL traverses it in either direction.
+
+Retrieval, graph traversal and presentation are extensions: providers of typed
+steps registered in the binary. The implemented extensions are `core`,
+`graph`, `present`, `lexical` and `semantic`. The design direction is
+extensions over further sources, so that one program queries across SQL
+databases such as Postgres, JSON and YAML documents, message queues such as
+Kafka, and REST APIs.
 
 ## Design commitments
 
-- **Checked before evaluated.** A program is type-checked as a whole first. A
-  type error is reported with its location, and nothing runs.
+- **Static type checking.** The complete program is type-checked before
+  evaluation. A type error is reported with its byte range, and the program
+  is not evaluated.
 - **Pipelines of ordinary functions.** `xs | f(a)` is `f(xs, a)`. There are no
   SQL clauses: filtering, sorting and projection are functions like any other.
-- **Evidence, not relevance.** A retrieval returns hits that carry the query,
-  index, model and metric that produced them. A graph built from them records
-  why each node is present.
+  The output type of one stage must be accepted by the next.
+- **Retrieval provenance and node presence.** A hit carries the retrieval
+  that produced it: query, index, model, model revision, metric, and whether
+  the search was approximate. A graph built by `expand` stores, per node,
+  whether it was retrieved (with its score) or expanded from a seed at a
+  depth.
 - **Presentation is separate.** A program returns a typed value. Rendering it
   as a table, JSON or text is a final, separate step.
-- **Honest about what is built.** Where the design is ahead of the
-  implementation, the [design status](../wiki/hql/design-status.hmd) says so,
-  and a program that uses unbuilt language fails rather than pretending.
+- **Implementation status.** Each design card states whether the binary
+  implements it; the [design status](../wiki/hql/design-status.hmd) card
+  collects them. A program that uses unimplemented language fails to check.
 
 ## Where to go next
 

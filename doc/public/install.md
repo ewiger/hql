@@ -13,8 +13,8 @@ tar -xzf hql-<version>-<target>.tar.gz
 ```
 
 The targets are `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and
-`x86_64-apple-darwin`. An archive that does not match its checksum is not the
-one that was built.
+`x86_64-apple-darwin`. Verify the archive against the published SHA-256 checksum
+before extracting it.
 
 ## With Cargo
 
@@ -41,7 +41,7 @@ that provides it.
 
 !!! note "Versions"
 
-    While the major version is `0`, a minor release may break a program that
-    ran before. The
-    [changelog](https://github.com/ewiger/hql/blob/main/CHANGELOG.md) says so
-    release by release.
+    While the major version is `0`, a minor release may change the language
+    incompatibly. The
+    [changelog](https://github.com/ewiger/hql/blob/main/CHANGELOG.md) lists
+    each such change by release.

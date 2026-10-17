@@ -20,6 +20,7 @@ the design, the card says so.
 | [[card-type]] | `Card` and its two kinds, the vault, and the `cards` keyword |
 | [[data-type]] | `Data`, the tree type of headers and structured payloads |
 | [[type-system]] | `:`, generic parameters and progressive type refinement |
+| [[type-interpretation]] | Asking what a value is, from a `Data` tree to a card: `match` on a type, `typed` over a collection, and the binding that asserts |
 | [[fields]] | Optional `?` fields, partial schemas, and the two metadata layers |
 | [[link-op]] | Doc references and the `[[..]] -> [[..]] {..}` link operator |
 | [[graph-type]] | `Graph<N, E>`, `Edge<S, T>`, and the document and knowledge graphs |

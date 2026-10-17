@@ -10,7 +10,8 @@ beside them.
 
 ## Two retrievals
 
-`lexical` matches shared spellings, offline and with nothing to build:
+`lexical(query)` ranks cards by textual match with the query. It needs no
+index:
 
 ```hql
 import lexical
@@ -25,7 +26,8 @@ cards
 [mute-swan, passeriformes, alcedinidae]
 ```
 
-`semantic` scores against vectors a language model computed ahead of time:
+`semantic(query)` compares an embedding of the query with the embeddings in
+the vault's index and returns cards ranked by similarity:
 
 ```hql
 import semantic
@@ -36,21 +38,21 @@ cards
 ```
 
 That returns the owls, although not one of their articles contains the word
-"night". The model is not in the binary: the index is produced by
+"night". The index is built ahead of time by
 [`contrib/semantics/`](https://github.com/ewiger/hql/tree/main/contrib/semantics),
-and `hql` only reads it. The vault's `hql.toml` names the index and the
-embedder that filled it.
+and `hql` reads it; the binary never loads the model. The vault's `hql.toml`
+names the index and the embedder that filled it.
 
-## A hit keeps its evidence
+## Retrieval provenance
 
-A retrieval returns a `Ranking<Card>` of hits. Every hit carries the retrieval
-that produced it — query, index, model, model revision, metric, and whether the
-search was approximate — because a score is evidence, not relevance.
+A retrieval returns a `Ranking<Card>`. Each hit carries its card, its score,
+and the retrieval that produced it: query, index, model, model revision,
+metric, and whether the search was approximate.
 
-`take` needs elements that carry an order of their own. A card does, so a
-prefix is reproducible without the vault's file order ever being observable.
+`take` requires elements with an ordering key of their own. A card has one, so
+a prefix is reproducible independently of the vault's file order.
 
-## Walking the graph
+## Graph traversal and node presence
 
 `uplinks` and `downlinks` give the edges leaving and entering a card. `expand`
 traverses outwards and returns a graph, and `graph` projects a collection into
@@ -76,8 +78,10 @@ tawny-owl     retrieved 0.2483
 tytonidae     expanded from barn-owl-in-tytonidae at depth 1
 ```
 
-Each node records *why* it is present, so a graph of two matches and their
-neighbours does not claim that all of them matched.
+Each node stores a presence: `retrieved` with its score for a hit, `expanded
+from <seed> at depth <n>` for a node reached by traversal, and `member` for a
+node that `graph` projected from a collection. The presence distinguishes a
+node that matched the query from a node that was reached from one.
 
 See [semantic search](../wiki/hql/semantic-search.hmd) and
 [the graph type](../wiki/hql/types/graph-type.hmd) for the design.

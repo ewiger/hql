@@ -17,9 +17,12 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 17 # to be incremented when adding a new issue card
+  last_id: 20 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0018"
+        title: "Operator synonymy: one name per abstraction level"
+        file: 0018-operator-synonymy-audit.md
       - id: "0017"
         title: "`graph` is two operations under one name"
         file: 0017-graph-projection-and-view.md
@@ -45,13 +48,19 @@ board:
         title: "`cards` is a vault binding, not a keyword"
         file: 0008-cards-as-a-vault-binding.md
     todo:
+      - id: "0020"
+        title: "`hql render` compiles a document"
+        file: 0020-render-as-compilation.md
       - id: "0014"
         title: "Next feature bundle: aggregation first, then the pipeline foundations"
         file: 0014-next-feature-bundle.md
       - id: "0011"
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
-    doing: []
+    doing:
+      - id: "0019"
+        title: "Documentation states semantics, not intuition"
+        file: 0019-documentation-precision.md
     done:
       - id: "0004"
         title: Unify the collection-order vocabulary

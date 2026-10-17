@@ -147,6 +147,20 @@ tooling that the crate never depends on.
   `doc/issues/`, `doc/memory/` and `doc/status/` are excluded.
 - Every program on a `Learn` page is run against the current binary before it
   is published, and its printed output is copied from that run.
+- Prose on the site states semantics. A descriptive sentence names an
+  operation, the value it acts on, the phase it runs in, the types in and
+  out, or the behaviour that results; a sentence that names none is cut.
+  Introduce the technical term, then its observable behaviour, then at most
+  one line of intuition.
+- No anthropomorphic verbs for language mechanisms: not *knows*,
+  *understands*, *decides* or *figures out*. The checker *declares*,
+  *resolves*, *infers* and *checks*; retrieval *compares embeddings* or
+  *matches text*; a graph *stores a presence per node*. Provenance is never
+  *why*.
+- Headings name the term (`Static type checking`, `Node presence`), not the
+  slogan.
+- Anything the binary does not implement is written as design direction, in
+  those words.
 
 ```sh
 uv sync --locked                  # the site toolchain, into .venv

@@ -104,6 +104,22 @@ records that it is doing two jobs.
 - The corpus pins presentation results only over finite inputs, since an
   unbounded presentation has no final text to compare.
 
+### Presenting into a document
+
+`hql render` writes a cell's output into a Markdown or HyperMarkDown document
+as part of the document, not inside a fence. Issue
+[0020](../../issues/0020-render-as-compilation.md) carries the command.
+
+- A host that writes into a document MUST produce Markdown: the output is
+  spliced into the document as written.
+- In a document, `table` MUST render as a Markdown pipe table, with a header
+  row and a delimiter row.
+- A cell without a presentation MUST be presented with `markdown`.
+  [Knowledge](../../wiki/hql/knowledge.hmd) is still excluded from that default,
+  as the [presentation](../../wiki/hql/presentation.hmd) card requires.
+- A `Presentation` value whose text the query already chose MUST be written
+  unchanged.
+
 ## Backwards Compatibility
 
 `table`, `json` and `text` keep their names and output. `markdown` is new.
@@ -121,6 +137,8 @@ new operation. A pipeline that ends in `graph` is unaffected in what it shows.
   renamed projection
 - `src/types/display.rs` — Markdown rendering, and incremental rendering of a
   stream
+- `src/transclude.rs` — the document host writes Markdown output in place of,
+  or after, each cell
 - `doc/wiki/hql/presentation.hmd` — rewritten to state the rules above and drop
   the resolved open items
 
@@ -145,9 +163,11 @@ Unit tests MUST include:
   the card lists it as open.
 - Is `Presentation` one opaque type, or does each presentation return a named
   subtype (`Table`, `Markdown`)?
-- Does a cell without a presentation keep a host default chosen by result type,
-  as the card describes, and does a `Stream<T>` result default to `table`?
+- Outside a document, does a cell without a presentation keep a host default
+  chosen by result type, as the card describes, and does a `Stream<T>` result
+  default to `table`?
 
 ## Changelog
 
 - 2026-09-28: drafted
+- 2026-10-18: presenting into a document

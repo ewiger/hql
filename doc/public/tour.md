@@ -6,8 +6,8 @@ Every program on this page runs with the current release. Run one with
 
 ## Values
 
-Scalars are what you would expect. Each has a type, and `hql check` reports it
-without evaluating anything.
+The scalar types are `Int`, `Float`, `String` and `Bool`. `hql check` reports
+the type of a program without evaluating it.
 
 | Program | Value | Type |
 | --- | --- | --- |
@@ -16,8 +16,8 @@ without evaluating anything.
 | `"hello"` | `hello` | `String` |
 | `true` | `true` | `Bool` |
 
-A program is checked as a whole before it runs, so a mistake is reported with
-its place and nothing is evaluated:
+A program is type-checked as a whole before it runs. A type error is reported
+with its byte range, and nothing is evaluated:
 
 ```text
 $ hql eval '1 + true'
@@ -99,7 +99,8 @@ cards
 [Barn owl, Common raven, European robin]
 ```
 
-The type of that program is `List<String>`, known before it runs.
+The type of that program is `List<String>`, determined by type checking before
+evaluation.
 
 ## Presenting a result
 

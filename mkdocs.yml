@@ -1,5 +1,5 @@
 site_name: HQL
-site_description: Hyper Query Language — a typed functional language for querying and computing over structured knowledge.
+site_description: Hyper Query Language — a statically typed expression and query language over documents, cards and the graph their links form.
 
 # Served from GitHub Pages under a custom domain. The build does not need this —
 # MkDocs emits relative links — but canonical URLs and `sitemap.xml` are wrong
