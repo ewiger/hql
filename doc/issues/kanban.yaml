@@ -17,9 +17,12 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 12 # to be incremented when adding a new issue card
+  last_id: 13 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0013"
+        title: "Typed pipeline operations: streams, batching, aggregation, presentation"
+        file: 0013-typed-pipeline-operations.md
       - id: "0012"
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md

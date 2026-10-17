@@ -1,8 +1,10 @@
-# HQL-0004: MapReduce: pipeline stages and execution backends
+# HQL-0004: MapReduce: pipeline steps, stages and execution backends
 
 **Status**: drafted
 **Created**: 2026-09-20
 **Source**: [map/reduce for queries](../../models/behavior/map-reduce.md)
+**Amended by**: [HQL-0005](../HQL-0005/README.md) (a step is not a stage),
+[HQL-0007](../HQL-0007/README.md) (`collect` batches; materialization is `list`)
 
 ## Abstract
 
@@ -470,3 +472,5 @@ These MUST be resolved before this moves from drafted to accepted.
 ## Changelog
 
 - 2026-09-20: drafted
+- 2026-09-28: amended by HQL-0005 and HQL-0007; the reduce side moves to
+  issue 0013
