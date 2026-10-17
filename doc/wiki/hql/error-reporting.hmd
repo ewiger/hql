@@ -1,76 +1,180 @@
 ---
-tags: [hql, reporting, diagnostics, errors]
+tags: [hql, reporting, diagnostics, errors, logging]
 nav:
   visibility: public
 ---
-# Error reporting
+# Reporting
 
-A run produces a value **and** a queue of everything it had to say. The queue is
-not an alternative to the result: a program that warned still produced one, and
-the caller walks the queue afterwards. Which report stops a run is a policy, so
-it is configured rather than fixed by the language.
+A run produces a value **and** a structured log of everything it had to say.
+The log is not an alternative to the result: a program that warned still
+produced one, and the caller reads the log afterwards. It is what a logging
+system is in a general-purpose language — every entry has a severity, a message
+and context — except that the entries are data with a fixed shape, not lines
+printed to standard output.
 
-## Three severities
+Errors are one kind of entry. The language raises them; a program adds its own
+with [[debug-op|debug]]. Which entries are shown and which fail the run is a
+policy, so it is configured rather than fixed by the language.
 
-| Severity | Meaning | Example |
+## Severities
+
+| Severity | Meaning | Raised by |
 | --- | --- | --- |
-| `warning` | Work continued and the result stands | a reference that does not resolve |
-| `error` | The result is wrong, but more could still be examined | a type or name error |
+| `debug` | A value captured to look at | the program, with `debug` |
+| `info` | A value or a fact worth stating | the program, with `debug(level = "info")` |
+| `warning` | Work continued and the result stands | a reference that does not resolve; a skipped document |
+| `error` | The result is wrong, but more could still be examined | a type or name error; data of the wrong shape |
 | `failure` | Nothing further can be examined | the source did not parse; arithmetic overflowed |
 
-Severity is not the same question as "did it work". A warning never changes an
-exit status. An error or a failure makes the result absent and the status `1`.
+`warning`, `error` and `failure` are implemented; `debug` and `info` are
+designed with [[debug-op|debug]].
+
+Severity is not the same question as "did it work". Only an entry at or above
+the **fail level** — `error` by default — fails the run: the result is absent
+and the exit status is `1`. Everything below it is reported and the result
+stands.
 
 An unresolved [[link-op|doc reference]] is the warning that motivated the
 channel: a forward link to a document nobody has written yet is ordinary, so it
-yields absence and queues a warning rather than failing the run. See
+yields absence and logs a warning rather than failing the run. See
 [[option-type]].
 
-## Modes
+## An entry carries its context
 
-| Mode | When the run stops |
+A message and a span in the query are not enough to act on. When the problem is
+in the data, the reader needs to know **which document** holds the bad value,
+**where in it**, **what was expected** and **what was found**. Every entry is a
+record with these fields, and a field that does not apply is left out:
+
+| Field | What it holds |
 | --- | --- |
-| `strict` | at the first error — the default |
-| `collect` | only at a failure; every error findable is queued |
+| `severity` | one of the five above |
+| `code` | the kind of problem, by name: `shape-mismatch`, `unresolved-link`, `type-mismatch` |
+| `message` | one sentence for a person |
+| `stage` | `syntax`, `type`, `name`, `evaluation`, `load`, or `program` for `debug` |
+| `span` | where in the query |
+| `source` | where in the data: the document's path, the line, and the key path inside its header |
+| `expected` | the type the program asked for |
+| `found` | the value that was there |
+| `trace` | how evaluation got here: each step, its position in the pipeline, and the element it was working on |
+
+A code is a name, not a number, so a reader — or a configuration line — can
+refer to it without a table. The trace is the language's call stack: HQL has no
+deep call chains, so it is the path through the pipeline, not through frames.
+
+Take the mapreduce shelf, where `genre` is a string, and a query that reads it
+as a map:
+
+```hql
+cards
+| filter(c => c.metadata.category == "book")
+| map(c => c.metadata.genre.name)
+```
+
+```text
+error[shape-mismatch]: `name` needs a map, and this genre is a string
+ --> shelf.hql:3:12
+  |
+3 | | map(c => c.metadata.genre.name)
+  |            ^^^^^^^^^^^^^^^^^^^^^
+  = data:     wiki/a-room-of-ones-own.hmd:5  metadata.genre
+  = expected: Map<String, Data>
+  = found:    "essay"
+  = trace:    filter (step 1) → map (step 2), element a-room-of-ones-own
+```
+
+The same entry as data, with `--format json`:
+
+```json
+{
+  "severity": "error",
+  "code": "shape-mismatch",
+  "message": "`name` needs a map, and this genre is a string",
+  "stage": "evaluation",
+  "span": { "start": 62, "end": 83 },
+  "source": { "path": "wiki/a-room-of-ones-own.hmd", "line": 5, "key": "metadata.genre" },
+  "expected": "Map<String, Data>",
+  "found": "essay",
+  "trace": [
+    { "step": "filter", "position": 1 },
+    { "step": "map", "position": 2, "element": "a-room-of-ones-own" }
+  ]
+}
+```
+
+Today an entry carries `severity`, `stage`, `message` and `span`; `code`,
+`source`, `expected`, `found` and `trace` are designed.
+
+## Collect everything, then fail
+
+| Mode | What happens at an entry at the fail level |
+| --- | --- |
+| `strict` | the run stops there — the default |
+| `collect` | the run keeps going, logs everything findable, and fails at the end |
 
 `strict` is the default because a wrong answer that keeps going is harder to
-notice than one that stops. `collect` is for looking at a whole query at once:
-every statement is checked even after one fails, and a statement that failed
-still binds its name at the open [[data-type|Data]] type, so the statements
-after it are reported on their own faults rather than on a cascade from this one.
+notice than one that stops. `collect` is for seeing every problem at once: one
+malformed card is reported against that card, and evaluation goes on to find the
+next one instead of ending the query. A statement that failed still binds its
+name at the open [[data-type|Data]] type, so the statements after it are
+reported on their own faults rather than on a cascade from this one.
 
-A failure stops both modes, because collecting after an unparseable source has
-nothing to collect.
+Either way, **one error fails the run**. `collect` changes how many errors you
+see before it does, never whether it does. A `failure` stops both modes, because
+collecting after an unparseable source has nothing to collect.
 
-## Where a mode comes from
+Today `collect` continues through checking but stops at the first evaluation
+error; continuing through evaluation, element by element, is designed.
 
-The most specific layer that states one wins:
+## Configuring the log
 
-1. **the query** — `--report strict|collect`
-2. **the vault** — `hql.toml` at its root, `[report] mode = "collect"`
-3. **the user** — `HQL_REPORT` in the environment
-4. **the default** — `strict`
+Three settings, all with the same precedence:
 
-`hql config` prints the mode in force and which layer supplied it, so the
-precedence never has to be guessed.
+| Setting | Values | Default | Meaning |
+| --- | --- | --- | --- |
+| `mode` | `strict`, `collect` | `strict` | stop at the first failing entry, or collect them all |
+| `level` | `debug`, `info`, `warning`, `error` | `warning` | the lowest severity shown |
+| `fail` | `warning`, `error` | `error` | the lowest severity that fails the run |
 
-## Reports are spans, rendering is a separate step
+`fail = "warning"` is how a vault promotes warnings to errors — a vault that
+must have no unresolved links says so once. `level` only filters what is shown:
+a hidden `debug` entry was still captured, and `--format json` can ask for all
+of them.
 
-A report carries a zero-based, half-open UTF-8 byte range. That is the
+The most specific layer that states a setting wins:
+
+1. **the query** — `--report collect`, `--report-level debug`, `--fail-on warning`
+2. **the vault** — `hql.toml` at its root
+3. **the user** — `HQL_REPORT`, `HQL_REPORT_LEVEL`, `HQL_REPORT_FAIL` in the environment
+4. **the default**
+
+```toml
+# hql.toml at the vault root
+[report]
+mode  = "collect"   # see every problem in the vault, then fail
+level = "info"      # show info entries, hide debug
+fail  = "warning"   # an unresolved link fails the run here
+```
+
+`hql config` prints each setting in force and which layer supplied it, so the
+precedence never has to be guessed. `mode` is implemented; `level` and `fail`
+are designed.
+
+## Spans and rendering
+
+A span is a zero-based, half-open UTF-8 byte range. That is the
 machine-readable form and stays that way; turning it into a line, a column and a
 caret is a separate `render` step, which is why it is testable rather than
-something only the binary can do. `--format json` emits the same queue as data,
-with `severity`, `stage`, `message` and the byte span, for an editor or another
-host.
+something only the binary can do.
 
-## A failed mapping is a type error, not absence
+## A failed mapping is an error, not absence
 
 Mapping a region of [[data-type|Data]] onto a type can find three things: the
 value is missing, the value is there and is the type, or the value is there and
 is not. Only the first is absence, an `Option` the program handles — see
-[[fields]]. The third is reported: a `type` error in the queue, raised where the
-mapping was asked for, at that expression's span. Reading `book.pages.unit` when
-`pages` is a number is the case that exists today.
+[[fields]]. The third is logged as an error at the expression that asked for the
+mapping. Reading `book.pages.unit` when `pages` is a number is the case that
+exists today.
 
 Passing a wrong shape off as absence would make `database: 42` look like a
 document with no `database` at all, so malformed data would vanish silently from
@@ -78,11 +182,11 @@ every query that touched it.
 
 ## Open
 
-- Whether a warning may be promoted to an error by configuration.
-- Whether an extension may contribute its own severities or only the three.
-- How reports from a pushed-down source-side execution are attributed to spans
+- Whether an extension may contribute its own severities or only the five.
+- How entries from a pushed-down source-side execution are attributed to spans
   in the original query — see [[pipes]].
 
-See the [reporting model](../../models/behavior/reporting.md) for the host API
-and the rendered form, and [the command line](../../models/behavior/cli.md) for
-the flags.
+See [[debug-op]] for capturing values, [[match-op]] and [[option-type]] for
+problems a program handles itself, the [reporting model](../../models/behavior/reporting.md)
+for the host API, and [the command line](../../models/behavior/cli.md) for the
+flags.

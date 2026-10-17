@@ -26,8 +26,9 @@ the design, the card says so.
 | [[orderable]] | `Orderable`, the card's own key, and the `take` contract |
 | [[option-type]] | `Option<T>`, absence, and the optional-by-type doc reference |
 | [[match-op]] | `match` and `given … otherwise`: branching on values (designed) |
+| [[debug-op]] | `debug`: capturing a value into the structured log (designed) |
 | [[hql/presentation]] | Terminal presenters and the host default |
-| [[hql/error-reporting]] | Severities, the report queue, `strict` and `collect` |
+| [[hql/error-reporting]] | The structured log: severities, entry context, `strict` and `collect`, configuration |
 | [[hql/semantic-search]] | `semantic`, `Hit`, `Ranking` and the read path of memory |
 | [[hql/std-lib]] | Placeholder for the standard library; a bootstrap non-goal |
 

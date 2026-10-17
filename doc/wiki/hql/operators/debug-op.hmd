@@ -1,0 +1,118 @@
+---
+tags: [hql, operators, debug, reporting, logging]
+nav:
+  visibility: public
+---
+# `debug`
+
+`debug` captures a value into the run's [[error-reporting|structured log]] and
+passes it on unchanged. It is the language's data capture: what a `print` would
+be for, except that the value lands as a log entry with a severity, a label, a
+span and its context, beside the errors and warnings of the same run.
+
+```hql
+cards
+| filter(c => c.metadata.category == "book")
+| debug(label = "books")
+| map(c => c.metadata.pages)
+```
+
+The result is `[172, 412, 280, 95, 320, 310]`, exactly as without `debug`, and
+the log gains one entry:
+
+```text
+debug[books]: Set<Card>, 6 elements
+ --> shelf.hql:3:3
+  |
+3 | | debug(label = "books")
+  |   ^^^^^^^^^^^^^^^^^^^^^
+  = value: [a-room-of-ones-own, dune, frankenstein, leaves-of-grass, the-common-reader, the-hobbit]
+```
+
+## Two spellings, one operator
+
+Like every step, `debug` can be piped or called directly, and the two mean the
+same thing:
+
+```hql
+xs | debug(label = "xs")
+debug(xs, label = "xs")
+```
+
+The direct call is what makes it usable anywhere inside an expression, where it
+logs once per evaluation:
+
+```hql
+cards
+| filter(c => c.metadata.category == "book")
+| map(c => debug(c.metadata.pages, label = "pages"))
+```
+
+```text
+debug[pages]: 172   (map, element a-room-of-ones-own)
+debug[pages]: 412   (map, element dune)
+debug[pages]: 280   (map, element frankenstein)
+…
+```
+
+Each entry's trace names the step and the element it came from, so a value
+captured inside a lambda says which card produced it.
+
+## Arguments
+
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `label` | none | a name for the entry, shown in brackets and used to filter |
+| `level` | `"debug"` | `"debug"` or `"info"` |
+
+`level` stops at `info` on purpose. `debug` reports what a value *is*; it never
+says something went wrong. A failure the program can recover from is a
+`Result`, and an error the program cannot recover from is the language's to
+raise — see [optional fields and optional values](../../../models/behavior/options-in-types-and-fields.md)
+and [[error-reporting]].
+
+## The entry
+
+A `debug` entry has the same record shape as every other entry in the log:
+
+```json
+{
+  "severity": "debug",
+  "code": "debug",
+  "label": "books",
+  "message": "Set<Card>, 6 elements",
+  "stage": "program",
+  "span": { "start": 53, "end": 75 },
+  "type": "Set<Card>",
+  "found": ["a-room-of-ones-own", "dune", "frankenstein", "leaves-of-grass", "the-common-reader", "the-hobbit"],
+  "trace": [{ "step": "filter", "position": 1 }, { "step": "debug", "position": 2 }]
+}
+```
+
+`found` is the whole value as data; the rendered text shortens it, the JSON
+never does.
+
+## Rules
+
+**`debug` is the identity on values.** Its result is its input, at the same
+type. Removing every `debug` from a program cannot change what it returns, and
+the checker treats `debug(x)` as having exactly the type of `x`.
+
+**The program cannot read the log.** Capture flows one way, to the host. A
+program whose result depended on what it had logged would no longer be a
+function of its input, and every backend would have to agree on logging order to
+agree on answers.
+
+**Hidden is still captured.** The default shown level is `warning`, so `debug`
+entries are invisible until asked for — `--report-level debug`, or
+`level = "debug"` in the vault's `hql.toml`. Leaving a `debug` in a query costs
+nothing a reader sees, and `--format json` returns every entry regardless of the
+shown level.
+
+**Order is deterministic.** Entries are ordered by their trace — step position,
+then element — not by when a backend happened to evaluate them, so the log of a
+parallel run matches the log of a sequential one.
+
+Designed, not yet implemented. See [[error-reporting]] for severities, entry
+context and configuration, and [[match-op]] for branching on what a capture
+reveals.
