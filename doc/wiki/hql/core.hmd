@@ -1,5 +1,7 @@
 ---
 tags: [hql, language, design]
+nav:
+  visibility: public
 ---
 # HQL core
 

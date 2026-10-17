@@ -1,5 +1,7 @@
 ---
 tags: [hql, extensions, modules, design]
+nav:
+  visibility: public
 ---
 # HQL extensions and namespace initialization
 

@@ -1,5 +1,7 @@
 ---
 tags: [hql, type-system, data, schema, design]
+nav:
+  visibility: public
 ---
 # Fields
 

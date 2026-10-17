@@ -1,5 +1,7 @@
 ---
 tags: [hql, collections, design]
+nav:
+  visibility: public
 ---
 # HQL collections
 

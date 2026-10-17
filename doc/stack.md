@@ -127,6 +127,40 @@ Its tests need neither a model nor a network — a fake transport and a fake mod
 stand in for both — so they cost nothing to run locally, and `cd
 contrib/semantics && pytest` is the command.
 
+## Documentation site
+
+[hql.hypermarkdown.org](https://hql.hypermarkdown.org/) is `doc/` built by
+[MkDocs](https://www.mkdocs.org/) with the Material theme and the
+`hypermarkdown` plugin, the same arrangement as
+[hypermarkdown.org](https://hypermarkdown.org/). Like `contrib/`, it is Python
+tooling that the crate never depends on.
+
+- `mkdocs.yml` is the site. `pyproject.toml` exists only to install the
+  `hypermarkdown[mkdocs]` package with [uv](https://docs.astral.sh/uv/), and
+  `uv.lock` pins what the site is built with.
+- The plugin renders `doc/wiki/` as a namespace. A card is published only when
+  it says `nav: visibility: public` in its front matter; a card that says
+  nothing stays off the site.
+- `Learn` pages live in `doc/public/`, written for a reader new to HQL. The
+  `Reference` tab lists the behavior models a reader consults; the rest of
+  `doc/models/` and `doc/proposals/` build but stay out of the nav.
+  `doc/issues/`, `doc/memory/` and `doc/status/` are excluded.
+- Every program on a `Learn` page is run against the current binary before it
+  is published, and its printed output is copied from that run.
+
+```sh
+uv sync --locked                  # the site toolchain, into .venv
+uv run mkdocs serve               # http://127.0.0.1:8000, rebuilt on save
+uv run mkdocs build --strict      # what the deploy runs
+```
+
+[`pages.yml`](../.github/workflows/pages.yml) builds the site on every pull
+request that touches it and deploys from `main` as a Pages artifact; there is
+no `gh-pages` branch. Two settings live outside the repository: the
+repository's **Settings → Pages → Source** must be *GitHub Actions*, and the
+custom domain `hql.hypermarkdown.org` is set there too, backed by a DNS
+`CNAME` record from `hql.hypermarkdown.org` to `ewiger.github.io`.
+
 ## Release
 
 The version lives in `Cargo.toml` and nowhere else; the CLI reports it, the tag

@@ -1,5 +1,7 @@
 ---
 tags: [hql, cards, knowledge, type-system, hypermarkdown]
+nav:
+  visibility: public
 ---
 # Card
 

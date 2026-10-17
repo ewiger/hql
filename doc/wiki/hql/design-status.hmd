@@ -1,5 +1,7 @@
 ---
 tags: [hql, decisions, design]
+nav:
+  visibility: public
 ---
 # HQL design status
 

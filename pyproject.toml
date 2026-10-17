@@ -1,0 +1,20 @@
+# The documentation site's toolchain, and nothing else.
+#
+# HQL itself is Rust, and `Cargo.toml` is its only manifest. This file exists
+# so `uv sync` installs the one thing the site needs — the `hypermarkdown`
+# package with its `mkdocs` extra, which is MkDocs, Material, and the plugin
+# that renders `doc/wiki/` as a namespace — into a `.venv` beside the crate.
+# `package = false` because there is no Python distribution here to build.
+#
+# The crate does not depend on any of it: `cargo build` and `cargo test` run on
+# a machine with no Python installed, the same guarantee `contrib/` keeps.
+
+[project]
+name = "hql-site"
+version = "0.0.0"
+description = "The documentation site for HQL, built from doc/ by MkDocs."
+requires-python = ">=3.11"
+dependencies = ["hypermarkdown[mkdocs]>=0.3,<0.4"]
+
+[tool.uv]
+package = false

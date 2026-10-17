@@ -1,5 +1,8 @@
 ---
 tags: [hql, hypermarkdown, extensions, architecture]
+nav:
+  order: 30
+  visibility: public
 ---
 # HyperMarkDown as an extension
 

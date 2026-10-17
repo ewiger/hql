@@ -11,7 +11,8 @@ readme = "README.md"
 keywords = ["query-language", "knowledge-graph", "markdown", "interpreter"]
 categories = ["command-line-utilities", "text-processing"]
 # A package is the crate, not the repository: the knowledge base, the corpora,
-# the Python producer, CI and the agent instructions all stay behind.
+# the Python producer, the documentation site, CI and the agent instructions
+# all stay behind.
 exclude = [
     "/.claude",
     "/.github",
@@ -22,6 +23,9 @@ exclude = [
     "/tests",
     "AGENTS.md",
     "CLAUDE.md",
+    "mkdocs.yml",
+    "pyproject.toml",
+    "uv.lock",
 ]
 
 [lib]

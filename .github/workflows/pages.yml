@@ -1,0 +1,72 @@
+name: Pages
+
+# Publication, deliberately not a job inside `ci.yml`. A pull request builds
+# the site so a broken page is caught before merge; only `main` deploys.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "doc/**"
+      - "mkdocs.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+# What `deploy-pages` needs. `id-token` authenticates to the Pages API by OIDC
+# rather than with `GITHUB_TOKEN`.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one that has started — a half-uploaded
+# artifact is a broken site.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      # From the lockfile, so the published site is built from the versions
+      # that were built locally rather than whatever resolved this morning.
+      - name: Install
+        run: uv sync --locked
+
+      # Nothing is published that does not build clean.
+      - name: Build
+        run: uv run mkdocs build --strict
+
+      # The built tree never enters git. It is uploaded as a Pages artifact and
+      # served from the CDN, so there is no `gh-pages` branch and `site/` stays
+      # ignored.
+      - name: Upload
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: deploy
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

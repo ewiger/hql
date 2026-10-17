@@ -1,5 +1,8 @@
 ---
 tags: [hql, design]
+nav:
+  order: 20
+  visibility: public
 ---
 # Language direction and open questions
 

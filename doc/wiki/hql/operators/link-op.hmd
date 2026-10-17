@@ -1,5 +1,7 @@
 ---
 tags: [hql, operators, graph, cards, hypermarkdown]
+nav:
+  visibility: public
 ---
 # The link operator
 

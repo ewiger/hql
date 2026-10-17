@@ -3,7 +3,8 @@
 [![CI](https://github.com/ewiger/hql/actions/workflows/ci.yml/badge.svg)](https://github.com/ewiger/hql/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Hyper Query Language**
+**Hyper Query Language** — documentation at
+[hql.hypermarkdown.org](https://hql.hypermarkdown.org/)
 
 A typed functional language for querying and computing over structured knowledge.
 

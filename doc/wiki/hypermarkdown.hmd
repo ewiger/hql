@@ -1,3 +1,8 @@
+---
+nav:
+  order: 90
+  visibility: public
+---
 # Hyper-markdown
 
 > see [hypermarkdown.org](https://hypermarkdown.org)

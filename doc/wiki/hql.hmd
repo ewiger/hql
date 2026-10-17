@@ -1,5 +1,8 @@
 ---
 tags: [hql, language]
+nav:
+  order: 10
+  visibility: public
 ---
 # HQL — Hyper Query Language
 

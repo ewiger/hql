@@ -1,5 +1,7 @@
 ---
 tags: [hql, search, retrieval, knowledge, memory]
+nav:
+  visibility: public
 ---
 # Semantic search
 

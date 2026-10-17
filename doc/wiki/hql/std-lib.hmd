@@ -1,5 +1,7 @@
 ---
 tags: [hql, std-lib, types, design]
+nav:
+  visibility: public
 ---
 # Standard HQL library
 

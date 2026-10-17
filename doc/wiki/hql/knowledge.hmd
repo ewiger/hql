@@ -1,5 +1,7 @@
 ---
 tags: [hql, knowledge, design]
+nav:
+  visibility: public
 ---
 # HQL knowledge
 

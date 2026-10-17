@@ -1,5 +1,7 @@
 ---
 tags: [hql, graph, knowledge, type-system]
+nav:
+  visibility: public
 ---
 # Graph
 

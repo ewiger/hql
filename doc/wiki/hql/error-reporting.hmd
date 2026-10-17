@@ -1,5 +1,7 @@
 ---
 tags: [hql, reporting, diagnostics, errors]
+nav:
+  visibility: public
 ---
 # Error reporting
 

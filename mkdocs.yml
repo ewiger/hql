@@ -1,0 +1,167 @@
+site_name: HQL
+site_description: Hyper Query Language — a typed functional language for querying and computing over structured knowledge.
+
+# Served from GitHub Pages under a custom domain. The build does not need this —
+# MkDocs emits relative links — but canonical URLs and `sitemap.xml` are wrong
+# without it. The domain itself is a DNS record plus the repository's Pages
+# setting; see the documentation-site section of `doc/stack.md`.
+site_url: https://hql.hypermarkdown.org/
+
+repo_url: https://github.com/ewiger/hql
+repo_name: ewiger/hql
+edit_uri: edit/main/doc/
+
+# Everything in this repository is MIT, code and prose alike, so one string
+# states the whole claim and no footer template has to carry two.
+copyright: © 2026 Yauhen Yakimovich · <a href="https://github.com/ewiger/hql/blob/main/LICENSE">MIT</a>
+
+# The site is the documentation tree, while the `[[…]]` namespace is restricted
+# to `doc/wiki` by the plugin's `root` below. The book, the reference and the
+# wiki build together; only the wiki is a namespace.
+docs_dir: doc
+
+# The working memory of the project, not part of the published site: where the
+# work is argued, not what a reader is taught. `*.hmd` is excluded because the
+# plugin renders the cards under its root itself; MkDocs would otherwise
+# try to treat them as static files.
+exclude_docs: |
+  *.hmd
+  issues/
+  memory/
+  status/
+  proposals/TEMPLATE.md
+
+# A card and its folder note share one URL, so directory URLs are required.
+use_directory_urls: true
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
+
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+  icon:
+    repo: fontawesome/brands/github
+
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.tracking
+    - navigation.tabs
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+  # The sibling site's chrome — near-black with an amber accent — so the two
+  # read as one family. HQL's own mark sets it apart rather than a new palette.
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - hypermarkdown:
+      root: doc/wiki
+
+# The authored nav wins everywhere except where it asks for the wiki by name.
+# `hmd://wiki` is replaced by the section derived from the namespace tree.
+#
+# `Learn` is the prose read cold, in reading order. `Reference` is what is
+# consulted afterwards: the implemented grammar and host, led by what runs
+# today. `Wiki` is the design itself, card by card.
+nav:
+  - Home: index.md
+  - Learn:
+      - Introduction: public/introduction.md
+      - Install: public/install.md
+      - A tour of HQL: public/tour.md
+      - Queries in documents: public/documents.md
+      - Retrieval and graphs: public/retrieval.md
+      - Examples: public/examples.md
+  - Reference:
+      - Overview: public/reference.md
+      - Expressions: models/behavior/expressions.md
+      - Command line: models/behavior/cli.md
+      - Reporting: models/behavior/reporting.md
+      - Queries: models/behavior/queries.md
+      - Program values: models/behavior/program-values.md
+      - Design status: wiki/hql/design-status.md
+  - Wiki:
+      - Overview: wiki/README.md
+      # Listed by hand, not left to `hmd://wiki`: the plugin derives a folder's
+      # page from `index.hmd` only, so a card beside a folder of the same name
+      # (`hql.hmd` beside `hql/`, `extensions.hmd` beside `extensions/`)
+      # collides with that folder in the derived nav and the build fails. A
+      # page the authored nav claims is not derived.
+      - HQL: wiki/hql.md
+      - Extensions: wiki/hql/extensions.md
+      - hmd://wiki
+  - Develop:
+      - Stack and conventions: stack.md
+      - Roadmap: public/roadmap.md
+
+# The models and proposals are design records. The reference tab lists the few
+# a reader consults; the rest stay in the build because wiki cards link to them
+# with ordinary relative links, and excluding them would turn those links into
+# 404s. Unlisted and reachable costs nothing; `not_in_nav` tells MkDocs the
+# omission is deliberate.
+not_in_nav: |
+  models/
+  proposals/
+  wiki/hql/types/collections/
+
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ewiger/hql
+      name: HQL on GitHub
+    - icon: fontawesome/brands/rust
+      link: https://crates.io/crates/hql
+      name: HQL on crates.io
+
+extra_css:
+  - assets/hql.css
+
+# Cards and models link out to the repository — source, `contrib/`, `.grem/`
+# styles — with ordinary relative links. Those targets are real files but not
+# site pages, so a miss is reported rather than fatal. Wikilinks are checked by
+# `hmd lint`, not by MkDocs.
+validation:
+  links:
+    not_found: info
+    anchors: info
+
+markdown_extensions:
+  - admonition
+  - md_in_html
+  - attr_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde

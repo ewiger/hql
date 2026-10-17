@@ -1,5 +1,7 @@
 ---
 tags: [hql, extensions, retrieval]
+nav:
+  visibility: public
 ---
 # The lexical extension
 

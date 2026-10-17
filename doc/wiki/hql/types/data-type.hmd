@@ -1,5 +1,7 @@
 ---
 tags: [hql, data, type-system, yaml]
+nav:
+  visibility: public
 ---
 
 # Data

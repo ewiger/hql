@@ -1,5 +1,7 @@
 ---
 tags: [hql, presentation, rendering, pipes]
+nav:
+  visibility: public
 ---
 # Presentation
 

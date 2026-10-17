@@ -1,5 +1,7 @@
 ---
 tags: [hql, types, absence, option]
+nav:
+  visibility: public
 ---
 # `Option<T>` and absence
 

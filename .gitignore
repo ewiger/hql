@@ -8,3 +8,9 @@
 # diff that follows a test run.
 __pycache__/
 *.py[cod]
+
+# The documentation site: `uv sync` creates the environment and
+# `mkdocs build` the output. Neither is source, and the deploy uploads `site/`
+# as a Pages artifact rather than committing it.
+/.venv
+/site
