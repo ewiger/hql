@@ -79,6 +79,22 @@ Membership runs one way. Knowing a value is `Data` does not make it a `Scalar` o
 
 Viewing a value as `Data` never converts it. `tally` above is still the `Map<String, Int>` it was, and only what the checker knows about it has changed. This is the same rule refinement follows in the other direction.
 
+## Reading a tree
+
+Reading a key views a tree through its map alternative. `note.species` and `get(note, "species")` are the same read, and both have type `Option<Data>`: a key of an open tree is an optional field, and an optional field is exactly an [[option-type|Option]]. A path of several keys is still one `Option`, because absence propagates instead of nesting.
+
+The map view is confirmed when the value is read. A tree that turns out to be a leaf or a sequence is not missing a key; the program asked something of it that it is not, so the read fails as a type error and is reported — see [[error-reporting]]:
+
+```hql
+book = { genre: "novel", pages: 412 }
+
+book.genre           // "novel"
+book.isbn            // none
+book.pages.unit      // type error: `unit` needs a map here, not Data of shape int
+```
+
+Equality looks through `Option`, so `card.metadata.genre == "novel"` asks its question directly, and a card with no genre answers `false`.
+
 ## Scalars are the leaves
 
 ```hql

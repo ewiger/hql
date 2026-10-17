@@ -1,8 +1,10 @@
 # Optional fields and optional values
 
-Status: accepted design direction; **not implemented**. It settles several of
-the questions [fields](../../wiki/hql/fields.hmd) leaves open and does not
-expand the grammar in [expressions](expressions.md).
+Status: accepted design direction; **partly implemented**. Reading a `Data` key
+as `Option<Data>`, and a wrong shape reported as a type error rather than
+absence, are implemented; declared optional fields and refinement are not. It
+settles several of the questions [fields](../../wiki/hql/fields.hmd) leaves open
+and does not expand the grammar in [expressions](expressions.md).
 
 HQL can write optionality in two places — after the field name, or after the
 type:
@@ -361,7 +363,7 @@ belongs:
 
 ```hql
 people
-| filter(p => isAdult(p).or(false))
+| filter(p => isAdult(p).unwrap_or(false))
 ```
 
 Beyond that, a knowledge-query step could retain the three-valued result rather
@@ -369,6 +371,71 @@ than collapse it — `match`, `no-match`, `unknown` — so that the records a qu
 could not answer remain inspectable instead of silently dropped. Because the
 partiality is in the type, an editor can say *this predicate is partial because
 `born` is optional*, which is information SQL cannot give.
+
+## Combinators resolve partiality
+
+Absence is resolved by operations on `Option<T>` itself, not by syntax and not
+by an extension. They are core: declared beside `type Option<T>` in
+[`std/core.hql`](../../../std/core.hql) and always available, because `Option`
+is a core type and every program that reads an optional field needs them.
+
+The vocabulary is the established one for an option type, the set Rust's
+`Option` uses, taken whole rather than reinvented name by name:
+
+| Operation | Type | Meaning |
+| --- | --- | --- |
+| `is_some()`, `is_none()` | `Option<T> -> Bool` | which case it is |
+| `unwrap_or(default)` | `Option<T> -> T` | the value, or `default` when absent |
+| `unwrap_or_else(f)` | `Option<T> -> T` | the value, or `f()` when absent |
+| `or(other)` | `Option<T> -> Option<T>` | this, or `other` when absent |
+| `map(f)` | `Option<T> -> Option<U>` | apply `f` to a present value |
+| `and_then(f)` | `Option<T> -> Option<U>` | apply `f`, which may itself be absent |
+| `filter(p)` | `Option<T> -> Option<T>` | keep a present value `p` accepts |
+
+There is no `unwrap()`: a program that could fail on absence would turn
+`Option` back into the null it replaces. Every way out of an `Option` names what
+absence means.
+
+```hql
+people  | filter(p => isAdult(p).unwrap_or(false))      // undetermined → excluded
+cards   | map(c => c.metadata.genre.unwrap_or("unshelved"))
+born    = person.born.map(d => year(d))                 // Option<Int>
+```
+
+## `Result<T, E>` carries a failure the program may handle
+
+`Result<T, E>` is the second ordinary sum type beside `Option<T>`, built the
+same way: a core type, no special syntax, resolved by its own operations. A
+value is either `ok(value)` or `err(error)`. It carries what `Option` must
+not — a computation that may have failed — so `T?` keeps meaning *may be
+missing* and never *may have failed*.
+
+| Operation | Type | Meaning |
+| --- | --- | --- |
+| `is_ok()`, `is_err()` | `Result<T, E> -> Bool` | which case it is |
+| `ok()` | `Result<T, E> -> Option<T>` | the value, dropping the error |
+| `err()` | `Result<T, E> -> Option<E>` | the error, dropping the value |
+| `unwrap_or(default)` | `Result<T, E> -> T` | the value, or `default` on failure |
+| `unwrap_or_else(f)` | `Result<T, E> -> T` | the value, or `f(error)` on failure |
+| `map(f)` | `Result<T, E> -> Result<U, E>` | apply `f` to a success |
+| `map_err(f)` | `Result<T, E> -> Result<T, F>` | apply `f` to a failure |
+| `and_then(f)` | `Result<T, E> -> Result<U, E>` | apply `f`, which may itself fail |
+| `or_else(f)` | `Result<T, E> -> Result<T, F>` | recover from a failure, or fail again |
+
+As with `Option`, there is no `unwrap()`: leaving a `Result` means saying what a
+failure becomes. Both are also taken apart by an exhaustive `match` — see
+[match](../../wiki/hql/operators/match-op.hmd).
+
+```hql
+cards
+| map(c => c.metadata.pages.as<Int>())     // Result<Int?, SchemaError>, per card
+| filter(r => r.is_ok())                   // drop the cards whose pages are malformed
+```
+
+The three channels stay apart. **Absence** is `Option`, **a failure the program
+may recover from** is `Result`, and **an error the program has no business
+recovering from** — a type error, an unparseable source — is a report in the
+[report queue](../../wiki/hql/error-reporting.hmd), which no value ever holds.
 
 ## What this does not settle
 
@@ -406,12 +473,6 @@ exactly what partial schemas over open `Data` need.
 
 - **Whether a three-valued query step exists**, and what it is called, given
   that `filter` stays strict.
-- **What combinators resolve partiality** — `or`, `default`, a composition
-  operator — and where they live in the standard library.
-- **Whether `Result` is in the language at all yet**, or only the direction
-  named here; this document assumes the shape, not the implementation.
-- **How refinement errors are reported** at a pipeline boundary, which
-  [error-reporting](../../wiki/hql/error-reporting.hmd) owns.
 - **Whether subtyping rules change** if HQL ever gains mutable values.
 
 See [fields](../../wiki/hql/fields.hmd) for the field model this settles,

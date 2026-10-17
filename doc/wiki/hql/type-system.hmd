@@ -348,12 +348,15 @@ so both use `:`. The parser accepts type-declaration bounds such as
 `type SortedMap<K, V> : OrderedMap<K, V> where K : Orderable`; the function
 signatures above illustrate the same relation.
 
-**Variance is open.** `Card : Doc` does not by itself decide whether
-`Graph<Card, Link> : Graph<Doc, Edge>` holds, and a function written over
-`Graph<Doc, Edge>` is useless if it does not. Covariance is defensible while
-graphs are immutable values and unsound as soon as one can be extended in place,
-so the answer depends on decisions about construction that have not been made —
-see [[graph-type]].
+**Variance follows from immutability.** Values are never changed in place, so
+a parameter a type only *produces* is covariant: `List<Card> : List<Doc>`,
+`Option<Card> : Option<Doc>`, and a `Map` is covariant in its values. A
+parameter a type *consumes* is not — a `Map` is invariant in its keys, because
+lookup accepts them. Function types follow the same rule from both ends:
+`T -> U` is contravariant in `T` and covariant in `U`. A generic `Graph<N, E>` is
+covariant in both, so a function written over `Graph<Doc, Edge>` accepts a
+`Graph<Card, Link>` — see [[graph-type]]. A declaration states each parameter's
+variance once, and the checker applies it.
 
 ## Refinement establishes
 
@@ -443,7 +446,10 @@ rewrites it, and losing the refinement loses only knowledge, never data.
 author's claim, and `typed RelationCard` has to verify the contract. An unchecked
 narrowing would let any authored key mint a type, which is the same rule that
 stops `relation: parent` on an edge from making it a `Parent` — see
-[[card-type]] and [[graph-type]]. What a failed narrowing yields is open.
+[[card-type]] and [[graph-type]]. A failed narrowing is a type error in the
+[[error-reporting|report queue]], not an absence: absence means nothing was
+written, and a failed narrowing means something was written that is not the
+type. Only a value that is missing yields `Option` — see [[fields]].
 
 ## Cards, concepts and relations
 
@@ -572,12 +578,9 @@ language's central value cannot be the place where the rule is improvised.
 
 ## Open questions
 
-- Whether narrowing is nominal or structural, and what a failed narrowing yields
-  — an `Option`, a diagnostic, or a value carrying its failure.
+- Whether narrowing is nominal or structural.
 - The spelling of validation and refinement at the call site: `validate<Person>(card)`,
   a `where` clause, or a predicate that the checker records.
-- Variance of generic parameters, which depends on whether constructed values
-  are immutable.
 - How conflicting requirements from parents in a supertype set are diagnosed.
   Every declared parent must hold; the set notation and its normalization stay
   the same.
@@ -586,8 +589,7 @@ language's central value cannot be the place where the rule is improvised.
   not.
 - How much refinement survives a boundary: a value passed to an extension, a
   cell, or a host and back.
-- Whether a declared-optional field is exactly `Option<T>`, and whether a subtype
-  may change a field's optionality — tracked on [[fields]].
+- Whether a subtype may change a field's optionality — tracked on [[fields]].
 
 See [[data-type]] for the tree being refined, [[fields]] for optional fields and
 partial schemas, [[card-type]] for `Card` and its two kinds, [[doc-type]] for the

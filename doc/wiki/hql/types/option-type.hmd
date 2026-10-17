@@ -37,27 +37,47 @@ Absence lifts through a field access and through a stage:
 
 A stage applied to absence is a stage applied to nothing rather than a failure.
 
-**This lifting is a stopgap.** There is no `match` and no sum-type syntax yet,
-so implicit propagation is how absence is currently consumed. It is the one
-place the implementation is weaker than the design asks: absence is meant to be
-an ordinary sum type consumed by an exhaustive `match`, with no null check
-anywhere. Replacing the lifting with an explicit form is open.
+**This lifting is a stopgap.** Absence is meant to be an ordinary sum type
+consumed explicitly — by an exhaustive [[match-op|match]], by
+`given … otherwise`, or by the operations below — with no null check anywhere.
+Those are designed and not yet implemented, so implicit propagation is how
+absence is currently consumed.
 
 ## Optional fields
 
-`metadata? : Data` marks a *field* optional at the declaration; `born: Date?`
-marks a *type* optional. Whether those are the same claim, and whether a missing
-key in a `Data` tree stays distinguishable from a present key holding nothing,
-is open — see [[fields]].
+Reading an optional field is exactly an `Option`. `metadata? : Data` marks the
+*field* optional and `born: Date?` the *type*; they stay distinct claims about
+the schema, and both read as `Option<T>`. Reading a key of a
+[[data-type|Data]] tree is optional by type for the same reason, and equality
+looks through the `Option`, so `card.metadata.genre == "novel"` is `false` for a
+card with no genre — see [[fields]].
+
+Absence is not the answer to a wrong shape. A value that is present but is not
+the type it was read as fails as a type error in the
+[[error-reporting|report queue]].
+
+## Resolving absence
+
+`Option<T>` comes with the established option vocabulary, declared beside it in
+[`std/core.hql`](../../../../std/core.hql): `is_some`, `is_none`, `unwrap_or`,
+`unwrap_or_else`, `or`, `map`, `and_then` and `filter`. There is no `unwrap`;
+every way out of an `Option` says what absence means:
+
+```hql
+cards | map(c => c.metadata.genre.unwrap_or("unshelved"))
+```
+
+These are designed, not yet implemented — see
+[optional fields and optional values](../../../models/behavior/options-in-types-and-fields.md).
+
+`Option` is not the only sum type. A computation that may have *failed* is
+`Result<T, E>`, built the same way with the same kind of operations, so
+absence never stands in for failure.
 
 ## Open
 
-- The `match` form itself, and whether absence may ever be consumed implicitly
-  once it exists.
-- Whether `Option` is the only sum type or the first of several, and how a
-  failure carrier relates to it.
 - How an unresolved endpoint is carried by the [[link-op|link operator]], where
   the edge exists but one of its ends does not.
 
 Implemented in `src/evaluation.rs` and `src/checker.rs`; tests in
-`tests/vault.rs`. See [the grammar](../../../models/behavior/expressions.md).
+`tests/vault.rs` and `tests/data.rs`. See [the grammar](../../../models/behavior/expressions.md).

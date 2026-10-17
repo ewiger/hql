@@ -109,7 +109,7 @@ fn sort<T>(xs: Collection<T>, by: (T, T) -> Ordering) : List<T>
 
 The second form is what makes `Seq<Function>` sortable without `Function` being
 `Orderable` — the order arrives with the comparator. This is also why
-[[orderable|`Orderable`]] stays a supertype rather than becoming a capability: it
+[[orderable|Orderable]] stays a supertype rather than becoming a capability: it
 says the values *have* a key, and supplying one from outside is the other
 signature, not the same one narrowed.
 

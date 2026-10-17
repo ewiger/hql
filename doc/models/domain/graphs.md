@@ -198,12 +198,14 @@ The layering is core → graph → knowledge, with document sources beside it.
 An extension owns type knowledge and operations, not the data. This is the same
 boundary the [architecture](architecture.md) draws for documents.
 
+## Variance
+
+Graph construction is pure, so `Graph<N, E>` is covariant in both parameters and
+`Graph<Card, Link> : Graph<Doc, Edge>` holds. Extending a graph produces a new
+graph rather than changing one.
+
 ## Open questions
 
-- **Variance.** `Card : Doc`, so does `Graph<Card, Link> : Graph<Doc, Edge>`?
-  A function written over `Graph<Doc, Edge>` is useless if not. Covariance is
-  defensible while graphs are immutable values and unsound once one can be
-  extended in place, so the answer follows from whether construction is pure.
 - **Endpoints as values or references.** A forward link to a document that does
   not exist is permitted, which argues that an edge holds references the graph
   never resolves. What a reference yields when the target is missing is the open

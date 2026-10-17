@@ -277,13 +277,15 @@ fn eval_get(
     args: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    let Value::Map(map) = input else {
-        return Err(Diagnostic::runtime(span, "get needs a map"));
-    };
     let [argument] = args else {
         return Err(Diagnostic::runtime(span, "get needs a key"));
     };
-    Ok(map.get(&cx.evaluate(&argument.value)?))
+    let key = cx.evaluate(&argument.value)?;
+    match (input, key) {
+        (Value::Map(map), key) => Ok(map.get(&key)),
+        (Value::Data(data), Value::Str(key)) => crate::evaluation::data_key(&data, &key, &span),
+        _ => Err(Diagnostic::runtime(span, "get needs a map")),
+    }
 }
 
 fn eval_sort(

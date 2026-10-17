@@ -114,7 +114,6 @@ that quietly decides semantics leaves no record that a decision was made.
 - **Bound syntax.** `fn show<T, R>(x: T) where T : Renderable<R>` and the
   inlined `fn show<T : Renderable<R>, R>(x: T)` are both open; that the
   relation is spelled `:` in either is not.
-- **Variance**, which depends on whether constructed values stay immutable.
 
 See [type-system](../../wiki/hql/type-system.hmd) for generics and subtyping,
 [collections](../../wiki/hql/collections.hmd) for the collection vocabulary, and

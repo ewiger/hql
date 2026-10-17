@@ -131,6 +131,15 @@ impl TypePattern {
             Self::Collection(element) => actual
                 .element()
                 .is_some_and(|actual| element.accept(&actual, bindings)),
+            // An open tree is viewed by its map alternative where a map is
+            // asked for; whether this tree is one is confirmed at run time,
+            // and a tree that is not fails as a type error there.
+            Self::Apply(constructor, patterns)
+                if constructor == crate::types::collections::MAP && *actual == TypeRef::DATA =>
+            {
+                Self::Apply(constructor, patterns)
+                    .accept(&constructor.apply([TypeRef::STR, TypeRef::DATA]), bindings)
+            }
             Self::Apply(constructor, patterns) => {
                 let shape = constructor.apply(actual.args.clone());
                 actual.is(&shape)

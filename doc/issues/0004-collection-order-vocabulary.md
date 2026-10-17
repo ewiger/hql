@@ -1,9 +1,9 @@
 # 0004 — Unify the collection-order vocabulary
 
-Status: backlog
-Branch: `feat/collection-order`
+Status: done
 
-Four names now touch order, and it is not obvious that four are needed:
+Four names touch order. The question was whether all four are needed. They are,
+because they answer two different questions:
 
 | Name | What it says | Whose property |
 | --- | --- | --- |
@@ -12,9 +12,17 @@ Four names now touch order, and it is not obvious that four are needed:
 | `List<T> : Seq<T>` | the elements are held, not produced | the collection |
 | `Orderable` | the value carries an ordering key of its own | the **element** |
 
-`List<T> : Seq<T>` is declared in [`std/collections.hql`](../../std/collections.hql) and
-argued in [collections](../wiki/hql/collections.hmd). What is not settled is
-whether the vocabulary needs all four names.
+Position and order are independent: a `Seq<Bool>` has a first element and no
+order, and an `Orderable` element in a `Set` has an order and no position. No
+name can be folded into another.
 
+## Resolution
 
-> TODO: this card needs compelte rewrite as soon as the type systems will be fully defined and mapped to proper rust implementation.
+- The element side is stated on the
+  [orderable](../wiki/hql/types/orderable.hmd) card, which also fixes the red
+  `[[orderable]]` links across the wiki. The collection side stays on
+  [collections](../wiki/hql/collections.hmd).
+- [`std/doc.hql`](../../std/doc.hql) declares `Doc : Orderable`, matching the
+  built-in registry; every `Card` is orderable through `Doc`.
+- The checker already enforces the split: bare `sort` and `take` on a `Set`
+  require `Orderable` elements, and a sort key must return `Orderable`.

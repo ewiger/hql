@@ -221,10 +221,12 @@ impl Checker<'_> {
                 let left_type = self.expression(left)?;
                 let right_type = self.expression(right)?;
                 // An open tree's leaf may be compared with a literal: that is
-                // what asking a header a question looks like.
+                // what asking a header a question looks like. Equality looks
+                // through `Option`, so a key that may be missing still can.
+                let (left_type, right_type) = (left_type.present(), right_type.present());
                 let comparable = left_type == right_type
-                    || left_type == TypeRef::DATA
-                    || right_type == TypeRef::DATA;
+                    || *left_type == TypeRef::DATA
+                    || *right_type == TypeRef::DATA;
                 if !comparable {
                     return Err(Diagnostic::typing(
                         span,
@@ -546,8 +548,13 @@ pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
         .ok();
     }
     match receiver.constructor.0 {
-        "Option" => field_type(receiver.args.first()?, field).map(TypeRef::optional),
-        "Data" => Some(TypeRef::DATA),
+        // Absence nests no deeper than once: a field of a field that may be
+        // missing is one `Option`, not two.
+        "Option" => field_type(receiver.args.first()?, field)
+            .map(|found| TypeRef::optional(found.present().clone())),
+        // A key of an open tree may not be there, so reading one is optional
+        // by type: `field? : T` and `Option<T>` are the same claim.
+        "Data" => Some(TypeRef::optional(TypeRef::DATA)),
         "Doc" | "Card" | "ConceptCard" | "RelationCard" => {
             let card = receiver.is_card();
             match field {

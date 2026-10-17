@@ -17,9 +17,15 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 14 # to be incremented when adding a new issue card
+  last_id: 16 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0016"
+        title: "SQL parity analysis: relational operations, aggregation and schema"
+        file: 0016-sql-parity-analysis.md
+      - id: "0015"
+        title: "jq parity analysis: data formats, types and operations"
+        file: 0015-jq-parity-analysis.md
       - id: "0013"
         title: "Typed pipeline operations: streams, batching, aggregation, presentation"
         file: 0013-typed-pipeline-operations.md
@@ -42,11 +48,11 @@ board:
       - id: "0011"
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
+    doing: []
+    done:
       - id: "0004"
         title: Unify the collection-order vocabulary
         file: 0004-collection-order-vocabulary.md
-    doing: []
-    done:
       - id: "0011"
         title: Refactor checked execution, vault assembly, YAML, and extension contracts
         file: 0011-runtime-architecture-refactoring.md

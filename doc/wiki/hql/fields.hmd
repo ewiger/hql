@@ -57,11 +57,26 @@ nothing. HQL has no null, and absence is carried by `Option` — see [[option-ty
 a reader of an optional field gets something it must handle rather than
 something that might surprise it.
 
-Whether `metadata? : Data` is therefore exactly `metadata : Option<Data>`, or
-whether a missing key in a tree and a present key holding `None` stay
-distinguishable, is open. So is the relationship to the postfix spelling
-`born: Date?` used on [[card-type]]: one marks the *field* optional and the other
-marks the *type* optional, and they may or may not be the same claim.
+**Reading an optional field is exactly `Option<T>`.** `born? : Date` read is an
+`Option<Date>`, and a reader handles `some` and `none` — nothing else, and no
+null. As a *declaration*, `born? : Date` stays a different claim from
+`born : Date?`: the first says the key may be missing, the second that the key
+is there and its value may be `None`. Both read as `Option<Date>`; the schema
+keeps the difference — see
+[optional fields and optional values](../../models/behavior/options-in-types-and-fields.md).
+
+Reading a key of an undeclared [[data-type|Data]] region follows the same rule:
+it is optional by type, since nothing promised the key.
+
+### A present value of the wrong shape is reported
+
+Absence and a wrong shape are different answers. When a schema or a read maps a
+region of `Data` onto a type and the value is there but is not that type — a
+leaf where a map was asked for, a string where a schema declares `Int` — the
+mapping fails and the failure is a type error in the
+[[error-reporting|report queue]]. It is never passed off as absence: absence
+says the author wrote nothing, and a wrong shape says the author wrote something
+the program cannot use, which is the one a reader needs to hear about.
 
 ## Partial schemas over `Data`
 
@@ -139,14 +154,8 @@ and the card built from it has its own.
 
 ## Open questions
 
-- **Whether `field? : T` is exactly `field : Option<T>`**, and whether an absent
-  key stays distinguishable from a present key holding `None`.
-- **Whether `metadata? : Data` and `born: Date?` are one feature or two** — the
-  field marked optional versus the type marked optional.
 - **Whether a subtype may change optionality**, making a required field optional
   or an optional field required, and in which direction that is sound.
-- **What a partial schema does with a path that is present but ill-typed** — a
-  diagnostic, an absence, or a value carrying its failure.
 - **The precedence rules for Card metadata assembly**, which this card names and
   [[card-type]] owns. Which inputs may overwrite which, and whether an entry
   records the layer it came from, are not settled.

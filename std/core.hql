@@ -36,6 +36,23 @@ type Data = union {
 // Absence is an ordinary sum type. There is no null.
 type Option<T>
 
+// Resolving absence, always available:
+// is_some<T>(o: Option<T>) : Bool
+// is_none<T>(o: Option<T>) : Bool
+// unwrap_or<T>(o: Option<T>, default: T) : T
+// unwrap_or_else<T>(o: Option<T>, f: () -> T) : T
+// or<T>(o: Option<T>, other: Option<T>) : Option<T>
+// map<T, U>(o: Option<T>, f: T -> U) : Option<U>
+// and_then<T, U>(o: Option<T>, f: T -> Option<U>) : Option<U>
+// filter<T>(o: Option<T>, p: T -> Bool) : Option<T>
+// There is no unwrap: every way out of an Option says what absence means.
+
+// A computation that may have failed: ok(value) or err(error). Designed beside
+// Option and not yet built in, so it is not declared here until it is:
+// type Result<T, E>
+// is_ok, is_err, ok() : Option<T>, err() : Option<E>, unwrap_or,
+// unwrap_or_else(f: E -> T), map, map_err, and_then, or_else. No unwrap.
+
 // compare(a, b) returns Less, Equal, or Greater for one Orderable type.
 // Supplying a comparison to sort does not change the element's ancestry.
 type Ordering

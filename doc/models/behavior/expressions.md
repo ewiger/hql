@@ -62,6 +62,13 @@ Core operations can also be called directly: `size(xs)`, `count(xs, value)`,
 earlier cardinality meaning as an alias for `size(xs)`. Lookup returns
 `Option<V>` and preserves presence and absence at runtime.
 
+A `Data` tree is read through its map alternative: `tree.key` and
+`get(tree, "key")` are both `Option<Data>`, a missing key is absence, and a path
+of several keys is still one `Option`. A tree that is a leaf or a sequence where
+a map was read is a type error at evaluation, not absence. Equality looks
+through `Option`, so `card.metadata.genre == "novel"` is `false` for a card with
+no genre.
+
 Sorting consumes any collection and returns a materialized list. The checker
 infers its element and result types, so a set can be sorted directly without a
 `List` constructor or a binding annotation. Its `by` argument

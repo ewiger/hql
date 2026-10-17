@@ -25,6 +25,7 @@ the design, the card says so.
 | [[graph-type]] | `Graph<N, E>`, `Edge<S, T>`, and the document and knowledge graphs |
 | [[orderable]] | `Orderable`, the card's own key, and the `take` contract |
 | [[option-type]] | `Option<T>`, absence, and the optional-by-type doc reference |
+| [[match-op]] | `match` and `given … otherwise`: branching on values (designed) |
 | [[hql/presentation]] | Terminal presenters and the host default |
 | [[hql/error-reporting]] | Severities, the report queue, `strict` and `collect` |
 | [[hql/semantic-search]] | `semantic`, `Hit`, `Ranking` and the read path of memory |
@@ -73,11 +74,10 @@ recorded in [[type-system]] and fields in [[fields]].
 
 ## Decisions still needed
 
-- Function/declaration grammar, bound syntax, variance, inference and pipe
-  argument placement — see [[type-system]].
+- Function/declaration grammar, bound syntax, inference and pipe argument
+  placement — see [[type-system]].
 - Collection equality, Card identity, mapping duplicates and ordering contracts.
-- Document schemas and error carriers; an explicit `match` in place of the
-  implicit lifting of absence — see [[option-type]].
+- Document schemas.
 - Semantic constructors, derivation rules and constraint/satisfaction types.
 - The name and type boundary between graph projection and graph presentation —
   see [[hql/presentation]].

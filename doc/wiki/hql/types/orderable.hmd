@@ -1,0 +1,84 @@
+---
+tags: [hql, types, order, collections]
+nav:
+  visibility: public
+---
+# `Orderable`
+
+`Orderable` says a value carries an order of its own: for any two values of the
+type, which comes first can be decided without being told. It is a property of
+the **element**, never of a collection holding it.
+
+```hql
+abstract type Orderable
+
+type Int    : {Scalar, Orderable}
+type Float  : {Scalar, Orderable}
+type String : {Scalar, Orderable}
+type Date   : {Scalar, Orderable}
+
+abstract type Doc : Orderable { … }   // ordered by its name
+```
+
+It is an [[type-system|abstract type of law]], declared in
+[`std/core.hql`](../../../../std/core.hql). Sorting expects the order to be total.
+
+## Order is not position
+
+Four names touch order, and they answer two different questions:
+
+| Name | What it says | Whose property |
+| --- | --- | --- |
+| `Set<T>` | membership only; no first element | the collection |
+| `Seq<T>` | every element occupies a position | the collection |
+| `List<T> : Seq<T>` | the elements are held, not produced | the collection |
+| `Orderable` | the value has an ordering key of its own | the element |
+
+A `Seq<T>` has positions whether or not `T` is `Orderable`: a list of booleans
+has a first element, and booleans have no order. An `Orderable` element in a
+`Set` still has no position. The collection names are argued on
+[[hql/collections]]; this card owns the element side.
+
+## What carries an order
+
+| Type | Its key |
+| --- | --- |
+| `Int`, `Float` | the number |
+| `String` | the text |
+| `Doc`, and so every `Card` | its name |
+| `Hit<T>` | best score first, then the card's name |
+
+`Bool`, `Data` and `Map` carry none. `Data` is a union of leaves, sequences and
+maps, and a leaf `1` beside a leaf `"owl"` has no answer to which comes first.
+
+A card's key is its own name, not something an extension supplies, which is why
+`Card : Orderable` is ancestry rather than a capability — see [[type-system]].
+
+## What it buys: a reproducible prefix
+
+`cards` is a `Set<Card>`, because discovering files establishes no order. Taking
+a prefix of it is still reproducible, because each card brings its key:
+
+```hql
+cards | take(2) | map(c => c.name)   // the first two names, every run
+```
+
+`take` on a collection without positions requires `Orderable` elements, and so
+does `sort` without a `by` argument. Either is refused otherwise, at check time:
+
+```text
+type error: `take` needs elements with an order of their own, and Bool has none; sort with an explicit key first
+```
+
+Supplying an order from outside — `sort(by = c => c.title)` or a comparison
+`(a, b) => compare(…)` — is a different signature, not this one narrowed. The
+key a selector returns must be `Orderable`; the element need not be.
+
+## A ranking's tie rule
+
+A `Hit` orders by score, best first, and two equal scores fall back to the
+card's name. That is what makes a [[hql/semantic-search|ranking]]
+deterministic: the order comes from the hits themselves, so the same query over
+the same vault returns the same list.
+
+Implemented by `Value::order_key` in `src/types/value.rs`.

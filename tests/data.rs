@@ -266,3 +266,81 @@ fn a_union_needs_members_that_exist_and_are_not_itself() {
         Err(TypeError::AbstractType(tree))
     );
 }
+
+#[test]
+fn a_key_of_a_tree_is_optional_and_a_missing_one_is_absence() {
+    let tree = "tree = {genre: \"novel\", pages: 412, note: {}}\n";
+    // `field? : T` is exactly `Option<T>`: reading a key says it may be missing.
+    assert_eq!(
+        check(&format!("{tree}tree.genre")),
+        Ok(TypeRef::optional(TypeRef::DATA))
+    );
+    // One `Option`, however deep the path goes.
+    assert_eq!(
+        check(&format!("{tree}tree.note.author")),
+        Ok(TypeRef::optional(TypeRef::DATA))
+    );
+    assert_eq!(
+        eval(&format!("{tree}tree.genre")).unwrap().to_string(),
+        "\"novel\""
+    );
+    assert_eq!(
+        eval(&format!("{tree}tree.isbn")).unwrap().to_string(),
+        "none"
+    );
+    assert_eq!(
+        eval(&format!("{tree}tree.note.author"))
+            .unwrap()
+            .to_string(),
+        "none"
+    );
+    // Equality looks through the `Option`: absence equals nothing present.
+    assert_eq!(
+        eval(&format!("{tree}tree.genre == \"novel\""))
+            .unwrap()
+            .to_string(),
+        "true"
+    );
+    assert_eq!(
+        eval(&format!("{tree}tree.isbn == \"novel\""))
+            .unwrap()
+            .to_string(),
+        "false"
+    );
+}
+
+#[test]
+fn a_tree_is_read_through_its_map_alternative_and_a_leaf_is_no_map() {
+    let tree = "tree = {genre: \"novel\", pages: 412}\n";
+    assert_eq!(
+        check(&format!("{tree}get(tree, \"genre\")")),
+        Ok(TypeRef::optional(TypeRef::DATA))
+    );
+    assert_eq!(
+        eval(&format!("{tree}get(tree, \"genre\")"))
+            .unwrap()
+            .to_string(),
+        "\"novel\""
+    );
+    assert_eq!(
+        eval(&format!("{tree}get(tree, \"isbn\")"))
+            .unwrap()
+            .to_string(),
+        "none"
+    );
+    // A map key of a tree is a String.
+    assert!(check(&format!("{tree}get(tree, 3)")).is_err());
+    // A leaf viewed as a map is a failed mapping, reported as a type error
+    // rather than passed off as absence.
+    for source in [
+        format!("{tree}tree.pages.unit"),
+        format!("{tree}get(tree.pages, \"unit\")"),
+    ] {
+        let refusal = eval(&source).expect_err(&source);
+        assert_eq!(refusal.stage(), "type", "{source}");
+        assert!(
+            refusal.message().contains("not Data of shape int"),
+            "{refusal:?}"
+        );
+    }
+}

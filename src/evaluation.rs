@@ -120,10 +120,17 @@ impl Evaluator<'_> {
             } => {
                 let left = self.expression(left)?;
                 let right = self.expression(right)?;
-                let equal = if matches!(left, Value::Data(_)) || matches!(right, Value::Data(_)) {
-                    as_data(&left) == as_data(&right)
-                } else {
-                    left == right
+                // Equality looks through `Option`: absence equals absence and
+                // nothing present.
+                let equal = match (present(left), present(right)) {
+                    (None, None) => true,
+                    (Some(left), Some(right))
+                        if matches!(left, Value::Data(_)) || matches!(right, Value::Data(_)) =>
+                    {
+                        as_data(&left) == as_data(&right)
+                    }
+                    (Some(left), Some(right)) => left == right,
+                    _ => false,
                 };
                 Ok(Value::Bool(equal != *negated))
             }
@@ -240,20 +247,22 @@ impl Evaluator<'_> {
             )
         };
         match value {
-            Value::Present(value) => Self::field(value, field, result.present(), span)
-                .map(|value| Value::Present(Arc::new(value))),
+            Value::Present(value) => {
+                Self::field(value, field, result.present(), span).map(|found| match found {
+                    Value::Present(_) | Value::Absent(_) => found,
+                    other => Value::Present(Arc::new(other)),
+                })
+            }
             Value::Map(map) if matches!(field, Field::Keys) => Ok(map.keys()),
             // Absence propagates rather than becoming a failure, because the
             // reference that produced it was permitted.
             Value::Absent(_) => Ok(Value::Absent(result.present().clone())),
-            Value::Data(data) => Ok(data
-                .get(match field {
-                    Field::Key(key) => key,
-                    _ => return Err(missing()),
-                })
-                .map_or(Value::Absent(TypeRef::DATA), |found| {
-                    Value::Data(Arc::new(found.clone()))
-                })),
+            Value::Data(data) => {
+                let Field::Key(key) = field else {
+                    return Err(missing());
+                };
+                data_key(data, key, span)
+            }
             Value::Card(card) => match field {
                 Field::Name => Ok(text(card.name())),
                 Field::Title => Ok(text(card.document.title())),
@@ -398,6 +407,40 @@ impl EvalCx for Evaluator<'_> {
 
     fn warn(&mut self, warning: Warning) {
         self.warnings.push(warning);
+    }
+}
+
+/// Read one key of an open tree, as `Option<Data>`.
+///
+/// Nothing promised the key, so reading it is optional by type and a missing
+/// one is absence. A tree that is not a map at all is a different matter: the
+/// program viewed `Data` as its map alternative and the value is not one, so
+/// that view fails as a type error rather than passing for absence. An empty
+/// entry holds nothing, so nothing can be read out of it.
+pub(crate) fn data_key(data: &Data, key: &str, span: &Range<usize>) -> Result<Value, Diagnostic> {
+    match data {
+        Data::Map(entries) => Ok(entries
+            .get(key)
+            .map_or(Value::Absent(TypeRef::DATA), |found| {
+                Value::Present(Arc::new(Value::Data(Arc::new(found.clone()))))
+            })),
+        Data::Empty => Ok(Value::Absent(TypeRef::DATA)),
+        other => Err(Diagnostic::typing(
+            span.clone(),
+            format!(
+                "`{key}` needs a map here, not Data of shape {}",
+                other.shape()
+            ),
+        )),
+    }
+}
+
+/// The value under any number of `Option` layers, or `None` when it is absent.
+fn present(value: Value) -> Option<Value> {
+    match value {
+        Value::Absent(_) => None,
+        Value::Present(inner) => present(Arc::unwrap_or_clone(inner)),
+        other => Some(other),
     }
 }
 

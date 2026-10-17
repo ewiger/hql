@@ -7,8 +7,9 @@ abstract type Content
 
 // Where a document is and what it is called are facts about the file, so they
 // are fields of the document itself. Nothing in the header or the metadata can
-// contradict them, because they are not written there.
-abstract type Doc {
+// contradict them, because they are not written there. A document is ordered by
+// its name, so every Card is Orderable without declaring it.
+abstract type Doc : Orderable {
     name   : String   // its name in its namespace — the file stem for a file
     path   : String   // where it is, relative to the vault root
     format : String   // the dialect its body is written in

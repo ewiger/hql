@@ -1,0 +1,109 @@
+---
+tags: [hql, operators, match, option, result, design]
+nav:
+  visibility: public
+---
+# `match`, and `given … otherwise`
+
+HQL branches on values, never on control flow. There are two forms, both core
+operators and both expressions: `match` takes a value apart by its cases, and
+`given … otherwise` is the short form for a single condition.
+
+Neither borrows `if`/`else`. Those words belong to statement-oriented control
+flow, and HQL has no statements to steer — a branch is a value like any other.
+Keeping them unreserved also leaves them free for functions and future flow
+constructs.
+
+## `match`
+
+`match` takes a value and one arm per case. The first arm whose pattern fits
+produces the result:
+
+```hql
+match c.metadata.genre {
+    some(g) => g,
+    none    => "unshelved",
+}
+```
+
+It is how a sum type is consumed: [[option-type|Option]] by `some(v)` and
+`none`, `Result` by `ok(v)` and `err(e)`. A pattern may also be a literal or
+`_`, which fits anything:
+
+```hql
+match parse_pages(c) {
+    ok(n)  => n,
+    err(_) => 0,
+}
+
+match c.kind {
+    "ConceptCard"  => "node",
+    "RelationCard" => "edge",
+}
+```
+
+**`match` is exhaustive.** Every case of the type must be covered, or the
+checker rejects the match. A `match` over a `String` or an `Int` therefore needs
+`_`; one over an `Option` needs both `some` and `none`. This is what makes
+absence and failure safe to consume: a forgotten `none` is a type error, not a
+silent `false`.
+
+All arms produce one type, the common type of their results, and that is the
+type of the `match`.
+
+### Guards
+
+An arm can narrow its pattern with `given`, the same word as the short form:
+
+```hql
+match c.metadata.pages {
+    some(n) given n > 400 => "long",
+    some(_)               => "short",
+    none                  => "unknown",
+}
+```
+
+A guarded arm does not count toward exhaustiveness, because its condition may
+fail; an unguarded arm for the same case must follow it.
+
+## `given … otherwise`
+
+The short form reads as a sentence — this value, given a condition, otherwise
+that one:
+
+```hql
+"adult" given p.age >= 18 otherwise "minor"
+```
+
+It is exactly a two-arm `match` on a `Bool`, and the condition must be a
+`Bool`: an `Option<Bool>` is refused until it says what absence means, with
+`unwrap_or`.
+
+**Without `otherwise`, the result is an `Option`.** A value given a condition,
+and nothing otherwise, is a value that may be absent:
+
+```hql
+"long" given n > 400               // Option<String>
+"long" given n > 400 otherwise ""  // String
+```
+
+So `otherwise` is the same step as `unwrap_or` on that `Option`, and the short
+form composes with the rest of the option vocabulary instead of standing beside
+it:
+
+```hql
+cards | map(c => c.name given c.metadata.genre == "novel")   // List<Option<String>>
+```
+
+## Absence is consumed explicitly
+
+Today absence propagates implicitly through fields and steps — a stopgap the
+[[option-type]] card records. With `match`, `given` and the `Option`
+operations, every place absence is consumed can say what it means there. Whether
+the implicit lifting survives once they exist is decided by what the corpus
+still needs it for.
+
+Designed, not yet implemented. See [[option-type]] for absence,
+[optional fields and optional values](../../../models/behavior/options-in-types-and-fields.md)
+for `Option` and `Result` and their operations, and
+[[error-reporting]] for the errors that are not values at all.

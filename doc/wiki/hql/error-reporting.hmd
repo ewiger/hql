@@ -63,6 +63,19 @@ something only the binary can do. `--format json` emits the same queue as data,
 with `severity`, `stage`, `message` and the byte span, for an editor or another
 host.
 
+## A failed mapping is a type error, not absence
+
+Mapping a region of [[data-type|Data]] onto a type can find three things: the
+value is missing, the value is there and is the type, or the value is there and
+is not. Only the first is absence, an `Option` the program handles — see
+[[fields]]. The third is reported: a `type` error in the queue, raised where the
+mapping was asked for, at that expression's span. Reading `book.pages.unit` when
+`pages` is a number is the case that exists today.
+
+Passing a wrong shape off as absence would make `database: 42` look like a
+document with no `database` at all, so malformed data would vanish silently from
+every query that touched it.
+
 ## Open
 
 - Whether a warning may be promoted to an error by configuration.

@@ -173,13 +173,15 @@ naming — whether the projection and the view should share a name is still a
 decision, and `HmdGraph` currently reads as though it were a presentation type
 when it is a graph over cards.
 
+## Variance
+
+Graphs are immutable values, so `Graph<N, E>` is covariant in both parameters:
+`HmdGraph : Graph<Card, Link>`, `Card : Doc` and `Link : Edge`, so a function
+written over `Graph<Doc, Edge>` accepts the document graph. Extending a graph
+builds a new one, which is what keeps this sound — see [[type-system]].
+
 ## Open questions
 
-- Variance. `HmdGraph : Graph<Card, Link>`, and `Card : Doc`, so does
-  `Graph<Card, Link> : Graph<Doc, Edge>` hold? A function written over
-  `Graph<Doc, Edge>` is useless if it does not. Covariance is defensible while
-  graphs are immutable values, and unsound the moment a graph can be extended in
-  place, so this is a question about whether graph construction is pure.
 - Node identity. Two documents, two concepts, a document and the concept it
   describes: when are they the same node? `Set<N>` presumes an answer.
 - Whether nodes must be values in the graph at all, or whether an edge's
