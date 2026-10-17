@@ -1,6 +1,6 @@
 # 0020 — `hql render` compiles a document
 
-Status: todo
+Status: doing
 Decisions: [HQL-0008](../proposals/HQL-0008/README.md), its section
 "Presenting into a document"
 Related: [program values](../models/behavior/program-values.md), its section

@@ -8,6 +8,20 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Changed
+
+- `hql render` builds a Markdown document from its cells. `--emit replace`, the
+  default, writes each cell's output in its place; `--emit after` keeps the cell
+  and writes the output after it between `<!-- hql:output -->` markers.
+  `--write` takes the output path, and `--in-place` rewrites the source under
+  `--emit after`. The `hql#result` block is gone.
+- A table written into a document is a Markdown pipe table.
+
+### Added
+
+- The `markdown` presentation: a record as a table, a sequence as a list, a
+  document or card as its own body.
+
 ## [0.1.0] — 2026-09-27
 
 The first release: a typed expression core, a vault of Markdown and

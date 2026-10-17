@@ -18,6 +18,9 @@ pub struct Presentation {
     pub presenter: String,
     /// The rendered text.
     pub text: String,
+    /// The same presentation as Markdown, for a host that writes it into a
+    /// document.
+    pub markdown: String,
 }
 
 /// A result of evaluating an HQL expression.

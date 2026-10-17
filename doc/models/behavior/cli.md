@@ -18,7 +18,7 @@ binary can reach is logic that cannot be tested.
 | `hql check <file>` | print the type without evaluating |
 | `hql run <file>` | check and evaluate a file |
 | `hql repl` | read, evaluate and print, keeping bindings |
-| `hql render <file>` | run the HQL blocks in a document and transclude the answers |
+| `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps a pipeline may use, grouped by provider |
 | `hql config` | the reporting mode in force, and where it came from |
 
@@ -92,9 +92,24 @@ answers without evaluating, `:vault` says what the session runs against,
 ## Documents that carry queries
 
 `hql render` is the second host. A block fenced `hql`, `hql#eval` or `hql#query`
-is run against the vault and its answer written beneath it as an `hql#result`
-block, which is replaced rather than appended next time — so rendering twice
-leaves what rendering once did.
+is a cell. Rendering runs each cell against the vault and writes its output as
+Markdown, so the source document compiles to a built one.
+
+```
+hql render <FILE> [--write <OUT> | --in-place] [--emit replace|after]
+```
+
+- `--emit replace`, the default, writes each cell's output in the cell's place.
+  The built document has no cells left in it.
+- `--emit after` keeps each cell and writes its output immediately after it,
+  between `<!-- hql:output -->` and `<!-- /hql:output -->`. Markdown previews do
+  not display the markers. The next render replaces what is between them, so
+  rendering twice leaves what rendering once did.
+- A cell's info string may name its own mode: `` ```hql#eval after ``.
+- Without `--write` or `--in-place` the built document goes to standard output.
+  `--write <OUT>` writes it to `OUT`; `--in-place` writes it over `FILE` and is
+  a usage error, exit `2`, unless `--emit after` is given, since replacing the
+  cells would remove them from the source.
 
 ````markdown
 ```hql#eval
@@ -102,14 +117,23 @@ cards
 | filter(c => c.metadata.status == "todo")
 | sort(by = c => c.title)
 | map(c => c.title)
-| table
 ```
+<!-- hql:output -->
+- Bearer tokens
+- Session cookies
+<!-- /hql:output -->
 ````
 
-A to-do list is then a query rather than a list somebody maintains. A collection
-transcludes as a table, because a document wants the rows; a presenter the query
-chose is used as written. `--write` puts the rendered document back over the
-file.
+The output is Markdown, as [HQL-0008](../../proposals/HQL-0008/README.md)
+requires of a document host. A cell without a presentation is presented with
+`markdown`: a record becomes a pipe table, a sequence a bulleted list, a card a
+wikilink in that list. `table` becomes a pipe table, `json` a fenced `json`
+block, and `text` and `markdown` are written as they are.
+
+A cell that fails under `replace` is left as written and the build is not
+written anywhere; the exit code is `1`. Under `after` the error is written
+between the markers, as a notebook cell shows one, and the exit code is still
+`1`.
 
 This is the console implementation of the direction
 [program values](program-values.md) records for `hql#eval`, `hql#query` and

@@ -52,6 +52,19 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_text,
     },
+    Step {
+        name: "markdown",
+        spec: StepSpec {
+            parameters: &[],
+            input: P::Any,
+            arguments: &[],
+            output: O::Type(P::Type(crate::types::TypeConstructor("Presentation"))),
+        },
+        summary: "Render as Markdown: a record as a table, a sequence as a list. Terminal.",
+        purity: Purity::Pure,
+        check: None,
+        eval: eval_markdown,
+    },
 ];
 
 /// Every presenter accepts every value: presenting is where a type stops
@@ -62,7 +75,11 @@ fn eval_table(
     _: &[TypedArg],
     _: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    Ok(present("table", input.to_table()))
+    Ok(present(
+        "table",
+        input.to_table(),
+        input.to_markdown_table(),
+    ))
 }
 
 fn eval_json(
@@ -71,10 +88,9 @@ fn eval_json(
     _: &[TypedArg],
     _: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    Ok(present(
-        "json",
-        serde_json::to_string_pretty(&input.to_json()).unwrap_or_else(|_| "null".to_owned()),
-    ))
+    let json = serde_json::to_string_pretty(&input.to_json()).unwrap_or_else(|_| "null".to_owned());
+    let markdown = format!("```json\n{json}\n```");
+    Ok(present("json", json, markdown))
 }
 
 fn eval_text(
@@ -83,12 +99,26 @@ fn eval_text(
     _: &[TypedArg],
     _: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    Ok(present("text", input.to_string()))
+    let text = input.to_string();
+    Ok(present("text", text.clone(), text))
 }
 
-fn present(presenter: &str, rendered: String) -> Value {
+fn eval_markdown(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    _: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let markdown = input.to_markdown();
+    Ok(present("markdown", markdown.clone(), markdown))
+}
+
+/// A presentation carries its text and its document form, so a host that
+/// writes into a document need not re-render a value it no longer has.
+fn present(presenter: &str, text: String, markdown: String) -> Value {
     Value::Presentation(Arc::new(Presentation {
         presenter: presenter.to_owned(),
-        text: rendered,
+        text,
+        markdown,
     }))
 }

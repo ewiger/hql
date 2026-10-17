@@ -127,7 +127,7 @@ that was reached.
 | `hql check <file>` | print the type without evaluating |
 | `hql run <file>` | check and evaluate a file |
 | `hql repl` | read, evaluate and print, keeping bindings |
-| `hql render <file>` | run the HQL blocks in a document, transcluding the answers |
+| `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps |
 | `hql config` | the reporting mode in force, and where it came from |
 
@@ -144,13 +144,15 @@ cards
 | filter(c => c.metadata.status == "todo")
 | sort(by = c => c.title)
 | map(c => c.title)
-| table
 ```
 ````
 
-`hql render --write board.md` writes the answer beneath it as an `hql#result`
-block, replacing the previous one, so a to-do list is a query rather than a list
-somebody maintains.
+`hql render board.hmd --write board.md` replaces each cell with its output as
+plain Markdown, here a bulleted list, so a to-do list is a query rather than a
+list somebody maintains. `--emit after` keeps the cell and writes the output
+after it, between `<!-- hql:output -->` and `<!-- /hql:output -->`; with
+`--in-place` that rewrites the source, and the next render replaces the output
+between the markers.
 
 ### Reporting
 

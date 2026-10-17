@@ -65,13 +65,20 @@ enum Command {
     },
     /// Read, evaluate and print, one program at a time.
     Repl,
-    /// Run the HQL blocks in a document and transclude each answer.
+    /// Run the HQL cells in a document and write each one's output.
     Render {
-        /// A Markdown or HyperMarkDown document.
+        /// A Markdown or HyperMarkDown document, or `-` for standard input.
         file: String,
-        /// Write the rendered document back over the file.
+        /// Write the rendered document to this file instead of standard output.
+        #[arg(long, value_name = "OUT", conflicts_with = "in_place")]
+        write: Option<PathBuf>,
+        /// Write the rendered document over the input. Needs `--emit after`,
+        /// since `replace` would remove the cells from the source.
         #[arg(long)]
-        write: bool,
+        in_place: bool,
+        /// Where a cell's output goes: in the cell's place, or after it.
+        #[arg(long, value_enum, default_value_t = Emit::Replace)]
+        emit: Emit,
     },
     /// List the steps a pipeline may use.
     Builtins,
@@ -96,10 +103,45 @@ pub fn main(cli: Cli) -> u8 {
     }
 }
 
+/// Where `hql render` writes a cell's output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum Emit {
+    /// In the cell's place: the rendered document is a build of the source.
+    Replace,
+    /// After the cell, which stays: the document stays a source.
+    After,
+}
+
+impl From<Emit> for transclude::Emit {
+    fn from(emit: Emit) -> Self {
+        match emit {
+            Emit::Replace => Self::Replace,
+            Emit::After => Self::After,
+        }
+    }
+}
+
 /// Parse arguments from the process, for the binary.
+///
+/// A combination clap cannot express is still a usage error, exit `2`.
 #[must_use]
 pub fn parse() -> Cli {
-    Cli::parse()
+    let cli = Cli::parse();
+    if let Command::Render {
+        in_place: true,
+        emit: Emit::Replace,
+        ..
+    } = cli.command
+    {
+        use clap::CommandFactory;
+        Cli::command()
+            .error(
+                clap::error::ErrorKind::ArgumentConflict,
+                "--in-place needs --emit after: replacing the cells would remove them from the source",
+            )
+            .exit();
+    }
+    cli
 }
 
 fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, String> {
@@ -163,25 +205,42 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             let outcome = crate::check_reported(&source, &vault, settings.mode);
             emit(&outcome, &source, &origin, &cli.options, out, err)
         }
-        Command::Render { file, write } => {
+        Command::Render {
+            file,
+            write,
+            in_place,
+            emit,
+        } => {
             let (source, origin) = read(file)?;
-            let rendered = transclude::render(&source, &vault, settings.mode);
-            if *write {
-                if file == "-" {
-                    return Err("--write needs a file, not standard input".to_owned());
-                }
-                fs::write(file, &rendered.document).map_err(|error| format!("{file}: {error}"))?;
-                writeln!(
-                    out,
-                    "{file}: {} block{} rendered",
-                    rendered.blocks,
-                    if rendered.blocks == 1 { "" } else { "s" }
-                )
-                .map_err(|error| error.to_string())?;
-            } else {
-                write!(out, "{}", rendered.document).map_err(|error| error.to_string())?;
-            }
+            let rendered = transclude::render(&source, &vault, settings.mode, (*emit).into());
             report_all(&rendered.reports, &source, &origin, err)?;
+            // A build with a failed cell in it is not written anywhere.
+            if !rendered.complete {
+                return Ok(1);
+            }
+            let target = match (write, in_place) {
+                (Some(path), _) => Some(path.clone()),
+                (None, true) if file == "-" => {
+                    return Err("--in-place needs a file, not standard input".to_owned());
+                }
+                (None, true) => Some(PathBuf::from(file)),
+                (None, false) => None,
+            };
+            match target {
+                Some(path) => {
+                    fs::write(&path, &rendered.document)
+                        .map_err(|error| format!("{}: {error}", path.display()))?;
+                    writeln!(
+                        out,
+                        "{}: {} block{} rendered",
+                        path.display(),
+                        rendered.blocks,
+                        if rendered.blocks == 1 { "" } else { "s" }
+                    )
+                    .map_err(|error| error.to_string())?;
+                }
+                None => write!(out, "{}", rendered.document).map_err(|error| error.to_string())?,
+            }
             Ok(u8::from(rendered.reports.has_errors()))
         }
         Command::Repl => repl(&vault, settings.mode, &cli.options, out, err),

@@ -117,8 +117,9 @@ as part of the document, not inside a fence. Issue
 - A cell without a presentation MUST be presented with `markdown`.
   [Knowledge](../../wiki/hql/knowledge.hmd) is still excluded from that default,
   as the [presentation](../../wiki/hql/presentation.hmd) card requires.
-- A `Presentation` value whose text the query already chose MUST be written
-  unchanged.
+- A presentation the query chose MUST be written in its document form: `table`
+  as a pipe table, `json` as a fenced `json` block, and `text` and `markdown`
+  as they are.
 
 ## Backwards Compatibility
 

@@ -20,7 +20,7 @@ describes language the binary does not run yet, its status line says so.
 | `hql check <file>` | print the type without evaluating |
 | `hql run <file>` | check and evaluate a file |
 | `hql repl` | read, evaluate and print, keeping bindings |
-| `hql render <file>` | run the HQL blocks in a document, transcluding the answers |
+| `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps |
 | `hql config` | the reporting mode in force, and where it came from |
 

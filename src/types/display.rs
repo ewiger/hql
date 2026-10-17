@@ -154,14 +154,65 @@ impl Value {
     /// Render the value as a table, choosing columns by what the value is.
     #[must_use]
     pub fn to_table(&self) -> String {
-        table(self)
+        grids(self)
+            .iter()
+            .map(Grid::aligned)
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// Render the value as Markdown pipe tables, with the columns
+    /// [`to_table`](Self::to_table) chooses.
+    #[must_use]
+    pub fn to_markdown_table(&self) -> String {
+        grids(self)
+            .iter()
+            .map(Grid::piped)
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    }
+
+    /// Render the value as Markdown, for a document to carry as its own text.
+    ///
+    /// A record becomes a table, a sequence a list, and a document or card its
+    /// own body. A presentation is written in its document form.
+    #[must_use]
+    pub fn to_markdown(&self) -> String {
+        match self {
+            Self::Present(value) => value.to_markdown(),
+            Self::Presentation(presentation) => presentation.markdown.clone(),
+            Self::Doc(doc) => doc.body.trim().to_owned(),
+            Self::Card(card) => card.document.body.trim().to_owned(),
+            Self::Set(values, _) | Self::List(values, _) => values
+                .iter()
+                .map(|value| match value.as_card() {
+                    Some(card) => format!("- [[{}]]", card.name()),
+                    None => format!("- {}", value.to_string().replace('\n', " ")),
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            Self::Map(_) | Self::Ranking(_) | Self::Graph(_) => self.to_markdown_table(),
+            Self::Data(data) if matches!(data.as_ref(), Data::Map(_)) => self.to_markdown_table(),
+            Self::Unit => String::new(),
+            other => other.to_string(),
+        }
     }
 }
 
-fn table(value: &Value) -> String {
+/// Rows under named columns, before they are laid out.
+struct Grid {
+    headers: &'static [&'static str],
+    body: Vec<Vec<String>>,
+}
+
+fn grid(headers: &'static [&'static str], body: Vec<Vec<String>>) -> Vec<Grid> {
+    vec![Grid { headers, body }]
+}
+
+fn grids(value: &Value) -> Vec<Grid> {
     match value {
-        Value::Present(value) => table(value),
-        Value::Ranking(ranking) => rows(
+        Value::Present(value) => grids(value),
+        Value::Ranking(ranking) => grid(
             &["rank", "score", "card", "title"],
             ranking
                 .hits
@@ -178,7 +229,7 @@ fn table(value: &Value) -> String {
                 .collect(),
         ),
         Value::Graph(graph) => {
-            let nodes = rows(
+            let mut nodes = grid(
                 &["node", "presence"],
                 graph
                     .nodes
@@ -194,7 +245,7 @@ fn table(value: &Value) -> String {
                     })
                     .collect(),
             );
-            let edges = rows(
+            nodes.extend(grid(
                 &["source", "target", "data"],
                 graph
                     .induced()
@@ -207,12 +258,12 @@ fn table(value: &Value) -> String {
                         ]
                     })
                     .collect(),
-            );
-            format!("{nodes}\n{edges}")
+            ));
+            nodes
         }
         Value::Set(values, _) | Value::List(values, _) => {
             if values.iter().all(|value| value.as_card().is_some()) {
-                return rows(
+                return grid(
                     &["card", "kind", "title"],
                     values
                         .iter()
@@ -230,12 +281,12 @@ fn table(value: &Value) -> String {
                         .collect(),
                 );
             }
-            rows(
+            grid(
                 &["value"],
                 values.iter().map(|value| vec![value.to_string()]).collect(),
             )
         }
-        Value::Map(map) => rows(
+        Value::Map(map) => grid(
             &["key", "value"],
             map.entries()
                 .iter()
@@ -243,47 +294,99 @@ fn table(value: &Value) -> String {
                 .collect(),
         ),
         Value::Data(data) => match data.as_ref() {
-            Data::Map(entries) => rows(
+            Data::Map(entries) => grid(
                 &["key", "value"],
                 entries
                     .iter()
                     .map(|(key, value)| vec![key.clone(), value.to_string()])
                     .collect(),
             ),
-            other => rows(&["value"], vec![vec![other.to_string()]]),
+            other => grid(&["value"], vec![vec![other.to_string()]]),
         },
-        other => rows(&["value"], vec![vec![other.to_string()]]),
+        other => grid(&["value"], vec![vec![other.to_string()]]),
     }
 }
 
-fn rows(headers: &[&str], body: Vec<Vec<String>>) -> String {
-    let mut widths: Vec<usize> = headers
-        .iter()
-        .map(|header| header.chars().count())
-        .collect();
-    for row in &body {
-        for (index, cell) in row.iter().enumerate() {
-            if index < widths.len() {
-                widths[index] = widths[index].max(cell.chars().count());
+impl Grid {
+    fn widths(&self, cell: impl Fn(&str) -> String) -> Vec<usize> {
+        let mut widths: Vec<usize> = self
+            .headers
+            .iter()
+            .map(|header| header.chars().count())
+            .collect();
+        for row in &self.body {
+            for (index, text) in row.iter().enumerate() {
+                if index < widths.len() {
+                    widths[index] = widths[index].max(cell(text).chars().count());
+                }
             }
         }
+        widths
     }
-    let line = |cells: &[String]| {
-        cells
+
+    /// Columns padded with spaces and a dashed rule, for a terminal.
+    fn aligned(&self) -> String {
+        let widths = self.widths(str::to_owned);
+        let line = |cells: &[String]| {
+            cells
+                .iter()
+                .enumerate()
+                .map(|(index, cell)| {
+                    let width = widths.get(index).copied().unwrap_or(0);
+                    format!("{cell:<width$}")
+                })
+                .collect::<Vec<_>>()
+                .join("  ")
+                .trim_end()
+                .to_owned()
+        };
+        let head: Vec<String> = self
+            .headers
             .iter()
-            .enumerate()
-            .map(|(index, cell)| {
-                let width = widths.get(index).copied().unwrap_or(0);
-                format!("{cell:<width$}")
-            })
-            .collect::<Vec<_>>()
-            .join("  ")
-            .trim_end()
-            .to_owned()
-    };
-    let head: Vec<String> = headers.iter().map(|header| (*header).to_owned()).collect();
-    let rule: Vec<String> = widths.iter().map(|width| "-".repeat(*width)).collect();
-    let mut out = vec![line(&head), line(&rule)];
-    out.extend(body.iter().map(|row| line(row)));
-    out.join("\n")
+            .map(|header| (*header).to_owned())
+            .collect();
+        let rule: Vec<String> = widths.iter().map(|width| "-".repeat(*width)).collect();
+        let mut out = vec![line(&head), line(&rule)];
+        out.extend(self.body.iter().map(|row| line(row)));
+        out.join("\n")
+    }
+
+    /// A Markdown pipe table: a header row, a delimiter row, then the rows.
+    /// A pipe in a cell is escaped and a line break becomes a space, so a
+    /// cell cannot end its row early.
+    fn piped(&self) -> String {
+        let escape = |text: &str| text.replace('|', "\\|").replace('\n', " ");
+        let widths = self.widths(escape);
+        let line = |cells: Vec<String>| {
+            let cells: Vec<String> = cells
+                .into_iter()
+                .enumerate()
+                .map(|(index, cell)| {
+                    let width = widths.get(index).copied().unwrap_or(0).max(3);
+                    format!("{cell:<width$}")
+                })
+                .collect();
+            format!("| {} |", cells.join(" | "))
+        };
+        let mut out = vec![
+            line(
+                self.headers
+                    .iter()
+                    .map(|header| (*header).to_owned())
+                    .collect(),
+            ),
+            line(
+                widths
+                    .iter()
+                    .map(|width| "-".repeat((*width).max(3)))
+                    .collect(),
+            ),
+        ];
+        out.extend(
+            self.body
+                .iter()
+                .map(|row| line(row.iter().map(|cell| escape(cell)).collect())),
+        );
+        out.join("\n")
+    }
 }

@@ -207,23 +207,102 @@ fn a_warning_does_not_change_the_exit_status() {
 }
 
 #[test]
-fn render_transcludes_answers_and_write_is_idempotent() {
+fn render_builds_a_document_and_writes_it_where_asked() {
     let output = hql(&["--vault", VAULT, "render", "tests/fixtures/board.hmd"]);
     assert!(output.status.success(), "{}", stderr(&output));
-    assert!(stdout(&output).contains("```hql#result"));
+    assert!(!stdout(&output).contains("```"), "{}", stdout(&output));
+    assert!(stdout(&output).contains("- Session cookies"));
 
+    let directory = tempdir().unwrap();
+    let built = directory.path().join("built.md");
+    let write = hql(&[
+        "--vault",
+        VAULT,
+        "render",
+        "tests/fixtures/board.hmd",
+        "--write",
+        built.to_str().unwrap(),
+    ]);
+    assert!(write.status.success(), "{}", stderr(&write));
+    assert!(stdout(&write).contains("2 blocks rendered"));
+    assert_eq!(
+        std::fs::read_to_string(&built).unwrap(),
+        stdout(&output),
+        "--write writes what standard output shows"
+    );
+}
+
+#[test]
+fn render_in_place_after_is_idempotent() {
     let directory = tempdir().unwrap();
     let path = directory.path().join("board.hmd");
     std::fs::copy("tests/fixtures/board.hmd", &path).unwrap();
     let name = path.to_str().unwrap();
 
-    let first = hql(&["--vault", VAULT, "render", name, "--write"]);
+    let first = hql(&[
+        "--vault",
+        VAULT,
+        "render",
+        name,
+        "--in-place",
+        "--emit",
+        "after",
+    ]);
     assert!(first.status.success(), "{}", stderr(&first));
-    assert!(stdout(&first).contains("2 blocks rendered"));
     let once = std::fs::read_to_string(&path).unwrap();
+    assert!(once.contains("```hql#eval"));
+    assert!(once.contains("<!-- hql:output -->"));
 
-    hql(&["--vault", VAULT, "render", name, "--write"]);
+    hql(&[
+        "--vault",
+        VAULT,
+        "render",
+        name,
+        "--in-place",
+        "--emit",
+        "after",
+    ]);
     assert_eq!(std::fs::read_to_string(&path).unwrap(), once);
+}
+
+#[test]
+fn render_in_place_refuses_to_replace_the_cells() {
+    let directory = tempdir().unwrap();
+    let path = directory.path().join("board.hmd");
+    std::fs::copy("tests/fixtures/board.hmd", &path).unwrap();
+
+    let output = hql(&[
+        "--vault",
+        VAULT,
+        "render",
+        path.to_str().unwrap(),
+        "--in-place",
+    ]);
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        std::fs::read_to_string("tests/fixtures/board.hmd").unwrap()
+    );
+}
+
+#[test]
+fn render_writes_nothing_when_a_replaced_cell_fails() {
+    let directory = tempdir().unwrap();
+    let source = directory.path().join("broken.hmd");
+    let built = directory.path().join("built.md");
+    std::fs::write(&source, "```hql\ncards | nosuchstep\n```\n").unwrap();
+
+    let output = hql(&[
+        "--vault",
+        VAULT,
+        "render",
+        source.to_str().unwrap(),
+        "--write",
+        built.to_str().unwrap(),
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(stderr(&output).contains("error"));
+    assert!(!built.exists());
 }
 
 #[test]

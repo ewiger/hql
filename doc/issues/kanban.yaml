@@ -48,9 +48,6 @@ board:
         title: "`cards` is a vault binding, not a keyword"
         file: 0008-cards-as-a-vault-binding.md
     todo:
-      - id: "0020"
-        title: "`hql render` compiles a document"
-        file: 0020-render-as-compilation.md
       - id: "0014"
         title: "Next feature bundle: aggregation first, then the pipeline foundations"
         file: 0014-next-feature-bundle.md
@@ -58,6 +55,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0020"
+        title: "`hql render` compiles a document"
+        file: 0020-render-as-compilation.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md

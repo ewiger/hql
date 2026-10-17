@@ -7,14 +7,6 @@ cards
 | filter(c => c.metadata.status == "todo")
 | sort(by = c => c.title)
 | map(c => c.title)
-| table
-```
-
-```hql#result
-value
----------------
-Bearer tokens
-Session cookies
 ```
 
 ## Closest to bearer tokens
@@ -26,11 +18,4 @@ cards
 | lexical("bearer token authorization")
 | take(2)
 | table
-```
-
-```hql#result
-rank  score   card           title
-----  ------  -------------  -------------
-1     0.4861  oauth          OAuth 2.0
-2     0.4819  bearer-tokens  Bearer tokens
 ```
