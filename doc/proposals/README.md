@@ -17,5 +17,6 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0007](HQL-0007/README.md) | drafted | `collect` and `emit` are stream-shape operations |
 | [HQL-0008](HQL-0008/README.md) | drafted | Presentation is separate from computation |
 | [HQL-0009](HQL-0009/README.md) | drafted | Cells: identity, shared values and saved outputs |
+| [HQL-0010](HQL-0010/README.md) | drafted | `tee` branches a pipeline without ending it |
 | [HQL-0011](HQL-0011/README.md) | drafted | Names, their providers, and the naming lint |
 | [HQL-0012](HQL-0012/README.md) | drafted | Data sources |
