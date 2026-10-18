@@ -128,8 +128,8 @@ fn debug_is_the_identity_and_logs_one_entry() {
     assert_eq!(entry.severity, Severity::Debug);
     assert_eq!(entry.code.as_deref(), Some("debug"));
     assert_eq!(entry.label.as_deref(), Some("all"));
-    assert_eq!(entry.message, "Set<Card>, 6 elements");
-    assert_eq!(entry.ty.as_deref(), Some("Set<Card>"));
+    assert_eq!(entry.message, "Seq<Card>, 6 elements");
+    assert_eq!(entry.ty.as_deref(), Some("Seq<Card>"));
     // The span is the step, not the pipeline that feeds it.
     assert_eq!(entry.span, 8..28);
     // Below the warning level, so the run neither fails nor errs.

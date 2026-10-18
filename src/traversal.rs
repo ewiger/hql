@@ -32,6 +32,8 @@ pub(crate) enum Source {
         statements: Arc<Vec<BlockStmt>>,
         scope: HashMap<String, Value>,
     },
+    /// The vault's cards, in the order a sorted walk reaches them.
+    Cards,
     /// Each value of `input` passed through a function.
     Map {
         input: Arc<Traversal>,

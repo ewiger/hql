@@ -23,6 +23,7 @@ pub const MODULES: &[(&str, &str)] = &[
     ("knowledge", include_str!("../std/knowledge.hql")),
     ("retrieval", include_str!("../std/retrieval.hql")),
     ("format", include_str!("../std/format.hql")),
+    ("vault", include_str!("../std/vault.hql")),
 ];
 
 /// One declaration, kept for reading its fields.
@@ -51,6 +52,22 @@ pub fn source() -> String {
 /// binary rather than of any program.
 pub fn check() -> Result<(), Diagnostic> {
     load().map(drop)
+}
+
+/// The library's bindings, `cards = vault.cards` among them, in the order
+/// written. Each is checked and evaluated as its own program over `vault`.
+pub(crate) fn bindings() -> Vec<(String, crate::ast::Expr)> {
+    let Ok(program) = crate::parser::parse(&source()) else {
+        return Vec::new();
+    };
+    program
+        .statements
+        .into_iter()
+        .filter_map(|statement| match statement {
+            Stmt::Bind { name, value, .. } => Some((name, value)),
+            _ => None,
+        })
+        .collect()
 }
 
 fn records() -> Option<&'static HashMap<String, Record>> {

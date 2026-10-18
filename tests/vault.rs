@@ -82,14 +82,15 @@ fn a_filtered_card_pipeline_needs_no_annotations_or_conversions() {
     let vault = fixture();
     let binding = "open = cards | filter(c => c.metadata.status == \"todo\")\n";
     for (expression, expected) in [
-        ("open", TypeRef::set(TypeRef::CARD)),
+        // `cards` is a sequence, so sorting keeps it one.
+        ("open", TypeRef::seq(TypeRef::CARD)),
         (
             "open | sort(by = c => c.title)",
-            TypeRef::list(TypeRef::CARD),
+            TypeRef::seq(TypeRef::CARD),
         ),
         (
             "open | sort(by = c => c.title) | map(c => c.title)",
-            TypeRef::list(TypeRef::STR),
+            TypeRef::seq(TypeRef::STR),
         ),
         (
             "open | sort(by = c => c.title) | map(c => c.title) | markdown",
@@ -202,22 +203,22 @@ fn is_tests_a_type_and_a_filter_by_it_narrows_the_element_type() {
     let relation = TypeRef::RELATION_CARD;
     assert_eq!(
         hql::check_in("cards | filter(c => c | is(RelationCard))", &vault),
-        Ok(TypeRef::set(relation.clone()))
+        Ok(TypeRef::seq(relation.clone()))
     );
     assert_eq!(
         hql::check_in("cards | filter(c => is(c, RelationCard))", &vault),
-        Ok(TypeRef::set(relation.clone()))
+        Ok(TypeRef::seq(relation.clone()))
     );
     assert_eq!(
         hql::check_in("cards | filter(c => c.name == \"x\")", &vault),
-        Ok(TypeRef::set(TypeRef::CARD))
+        Ok(TypeRef::seq(TypeRef::CARD))
     );
     assert_eq!(
         hql::check_in("cards | of_type(RelationCard)", &vault),
-        Ok(TypeRef::set(relation))
+        Ok(TypeRef::seq(relation))
     );
     let narrowed = value("cards | filter(c => c | is(RelationCard))");
-    assert_eq!(narrowed.type_of(), TypeRef::set(TypeRef::RELATION_CARD));
+    assert!(narrowed.type_of().is(&TypeRef::seq(TypeRef::RELATION_CARD)));
     assert_eq!(
         text("cards | filter(c => c | is(RelationCard)) | count"),
         text("cards | of_type(RelationCard) | count")
@@ -358,4 +359,41 @@ fn scalar_operators_filter_cards() {
 
 fn search_name(hit: &hql::search::Hit) -> String {
     hit.name()
+}
+
+#[test]
+fn cards_is_the_vaults_cards_in_the_order_a_sorted_walk_reaches_them() {
+    let vault = fixture();
+    assert_eq!(
+        hql::check_in("cards", &vault),
+        Ok(TypeRef::seq(TypeRef::CARD))
+    );
+    // A directory's entries follow it in name order, depth first, so the
+    // card inside `protocols/` comes between `oauth` and `sessions`.
+    assert_eq!(
+        text("cards | map(c => c.name)"),
+        "[bearer-tokens, broken-relation, oauth-defines-bearer, oauth, http-headers, sessions]"
+    );
+    assert_eq!(
+        text("vault.cards | take(2) | map(c => c.name)"),
+        "[bearer-tokens, broken-relation]"
+    );
+    // `cards` is an ordinary binding: a program may shadow it.
+    assert_eq!(text("cards = [1, 2]\ncards | sum"), "3");
+}
+
+#[test]
+fn without_a_vault_there_is_no_vault_and_no_cards() {
+    let failure = hql::check("vault.cards").expect_err("no vault");
+    assert!(
+        failure.message().contains("`vault` is not bound"),
+        "{}",
+        failure.message()
+    );
+    let failure = hql::check("cards").expect_err("no vault");
+    assert!(
+        failure.message().contains("--vault"),
+        "{}",
+        failure.message()
+    );
 }

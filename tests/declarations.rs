@@ -49,14 +49,16 @@ fn every_file_in_the_standard_library_is_embedded_as_written() {
 fn every_module_of_the_standard_library_checks_after_the_ones_it_follows() {
     // Each module is checked with the modules before it, so a declaration
     // that contradicts the lattice is refused in the module that makes it.
+    // The library's bindings read `vault`, which a vault seeds.
+    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     let mut prefix = String::new();
     for (name, module) in library::MODULES {
         let source = format!("{prefix}{module}");
         assert_eq!(
-            check(&source),
+            hql::check_in(&source, &vault),
             Ok(TypeRef::UNIT),
             "{name}: {:?}",
-            check(&source)
+            hql::check_in(&source, &vault)
         );
         prefix.push_str(module);
         prefix.push('\n');

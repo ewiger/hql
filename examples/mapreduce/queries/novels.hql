@@ -3,7 +3,7 @@
 // implementation: implemented
 // environment: knowledge-v1
 // vault: mapreduce/wiki
-// expected-type: List<String>
+// expected-type: Seq<String>
 // expected: [Dune, Frankenstein, The Hobbit]
 
 // Three steps. Each `|` is a boundary the executor sees: filter and map are

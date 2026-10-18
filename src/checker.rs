@@ -74,14 +74,54 @@ pub(crate) fn check_collecting(
     }
 }
 
-/// The names a vault seeds into every program: `cards`, when there is a vault.
+/// The names every program over a vault starts with: `vault`, and the
+/// library's bindings over it, `cards` among them.
 fn globals(vault: &Vault) -> HashMap<String, TypeRef> {
-    let mut scope = HashMap::new();
-    if vault.is_present() {
-        scope.insert(CARDS.to_owned(), TypeRef::set(TypeRef::CARD));
+    let mut scope = base(vault);
+    for (name, library) in library(vault) {
+        scope.insert(name, library.result);
     }
     scope
 }
+
+/// What a host seeds before the library: `vault`, when there is one.
+fn base(vault: &Vault) -> HashMap<String, TypeRef> {
+    let mut scope = HashMap::new();
+    if vault.is_present() {
+        scope.insert(VAULT.to_owned(), TypeRef::VAULT);
+    }
+    scope
+}
+
+/// The standard library's bindings, each checked as its own program in a
+/// scope that holds only `vault`. Without a vault there are none.
+pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
+    if !vault.is_present() {
+        return Vec::new();
+    }
+    crate::library::bindings()
+        .into_iter()
+        .filter_map(|(name, value)| {
+            let program = Program {
+                statements: vec![Stmt::Expr(value)],
+            };
+            let typed = Checker {
+                vault,
+                scope: base(vault),
+                resolution: Resolution::new(&vault.extensions).ok()?,
+                declarations: Declarations::default(),
+                checked: Checked::default(),
+                variadic: HashMap::new(),
+            }
+            .program(&program)
+            .ok()?;
+            Some((name, typed))
+        })
+        .collect()
+}
+
+/// The current vault, seeded by the host.
+pub(crate) const VAULT: &str = "vault";
 
 /// The binding a vault seeds; a program may shadow it like any other.
 pub(crate) const CARDS: &str = "cards";

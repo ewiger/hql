@@ -27,19 +27,34 @@ pub(crate) fn evaluate(
     program: &Program,
     vault: &Vault,
 ) -> (Result<Value, Diagnostic>, Vec<Report>) {
+    let mut scope = base(vault);
+    // The library's bindings over `vault`, each its own program.
+    for (name, library) in crate::checker::library(vault) {
+        let (value, log) = evaluate_in(&library, vault, base(vault));
+        match value {
+            Ok(value) => {
+                scope.insert(name, value);
+            }
+            Err(diagnostic) => return (Err(diagnostic), log),
+        }
+    }
+    evaluate_in(program, vault, scope)
+}
+
+/// What a host seeds before the library: `vault`, when there is one.
+fn base(vault: &Vault) -> HashMap<String, Value> {
     let mut scope = HashMap::new();
     if vault.is_present() {
-        // Built once here, not on each mention of the name.
-        let cards = vault
-            .cards
-            .iter()
-            .map(|card| Value::Card(Arc::clone(card)))
-            .collect();
-        scope.insert(
-            crate::checker::CARDS.to_owned(),
-            Value::set(cards, TypeRef::CARD),
-        );
+        scope.insert(crate::checker::VAULT.to_owned(), Value::Vault);
     }
+    scope
+}
+
+fn evaluate_in(
+    program: &Program,
+    vault: &Vault,
+    scope: HashMap<String, Value>,
+) -> (Result<Value, Diagnostic>, Vec<Report>) {
     let mut evaluator = Evaluator {
         vault,
         scope,
@@ -521,6 +536,14 @@ impl Evaluator<'_> {
                 Field::Retrieval => Ok(Value::Data(Arc::new(retrieval_data(&hit.provenance)))),
                 _ => Err(missing()),
             },
+            Value::Vault => match field {
+                Field::Cards => Ok(Value::Traversal(Arc::new(Traversal::new(
+                    TypeRef::CARD,
+                    true,
+                    Source::Cards,
+                )))),
+                _ => Err(missing()),
+            },
             Value::Ranking(ranking) => match field {
                 Field::Hits => Ok(Value::list(
                     ranking
@@ -610,6 +633,18 @@ impl Evaluator<'_> {
                 let more = self.run_block(statements, sink);
                 self.scope = outer;
                 more
+            }
+            Source::Cards => {
+                // A sorted walk: path components compare one by one, so a
+                // directory's entries follow it in name order, depth first.
+                let mut walk: Vec<_> = self.vault.cards.iter().collect();
+                walk.sort_by(|left, right| left.document.path.cmp(&right.document.path));
+                for card in walk {
+                    if !sink(self, Value::Card(Arc::clone(card)))? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
             }
             Source::Map { input, by, span } => {
                 self.run_traversal(input, &mut |evaluator, value| {
