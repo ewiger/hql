@@ -63,7 +63,7 @@ longhand, `format(Markdown, limit = 50)`.
 
 ```hql
 cards
-| graph
+| Graph
 | format(Markdown, limit = 20)
 ```
 

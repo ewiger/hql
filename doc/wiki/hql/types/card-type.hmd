@@ -244,7 +244,7 @@ contains a card from another.
 ```hql
 cards
 | of_type(RelationCard)
-| graph
+| Graph
 ```
 
 A card named `cards` does not shadow it, because a card is reached by

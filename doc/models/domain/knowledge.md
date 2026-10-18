@@ -239,11 +239,11 @@ constraint checking is a pure function over knowledge or an effect are open.
 
 ```hql
 knowledge
-| graph
+| Graph
 ```
 
-A projection is a function from knowledge to some other value, and `graph` is
-one of them. Tables, lists, trees and diagrams are others, and none is the
+A projection is a function from knowledge to some other value, and the `Graph`
+constructor is one of them. Tables, lists, trees and diagrams are others, and none is the
 knowledge itself. A projection may lose information — a drawing keeps adjacency
 and drops rationale — which is acceptable exactly as long as it is not mistaken
 for a lossless view.
@@ -263,10 +263,9 @@ the result can still be interrogated as knowledge rather than only drawn. A bare
 needs a picture. See [type system](../../wiki/hql/type-system.hmd) for what the
 declaration demands and [graph model](graphs.md) for the structural half.
 
-Presenters (`table`, `json`, `graph`, `markdown`, `tree`, `text`, `value`,
-`empty`) produce renderable values and are terminal with respect to semantic
-processing. The host renders. A host may pick a default presenter by result
-type, but knowledge requires an explicit one, because its projections are
+Formatting writes a value as text of a presentation format — `Text`,
+`Markdown`, `Json`, `D2` and others — and changes no claim. A host may pick a
+default renderer by result type, but knowledge requires an explicit projection, because its projections are
 equally valid and choosing silently would be choosing a reading.
 
 ## Boundaries
@@ -294,7 +293,6 @@ Namespace visibility and the merge rules for imported knowledge are open, and
   precedence between its authored, system, extension and vault-state inputs.
 - Satisfaction and validation types, and what a failed narrowing yields.
 - Imported-knowledge merge policy and namespace visibility.
-- Whether the projection and the view may share the name `graph`.
 - Effects: constructing knowledge is pure, and contributing it to a store is
   not; the boundary has not been drawn.
 

@@ -7,7 +7,7 @@ use hql::reporting::Mode;
 fn every_catalogue_signature_is_generated_from_its_structural_contract() {
     let providers = catalogue(&Config::default());
     let count: usize = providers.iter().map(|provider| provider.steps.len()).sum();
-    assert_eq!(count, 33);
+    assert_eq!(count, 31);
     for provider in providers {
         for step in provider.steps {
             step.spec.validate().unwrap();
@@ -58,8 +58,8 @@ fn contracts_reject_unknown_duplicate_missing_and_mistyped_arguments() {
         "[1] | filter((a, b) => true)",
         "[1] | sort(wrong = n => n)",
         "[1] | sort((a, b) => true)",
-        "1 | table(unknown)",
-        "[[oauth]] | graph(unknown)",
+        "1 | markdown(unknown)",
+        "[[oauth]] | Graph(unknown)",
         "[[oauth]] | uplinks(unknown)",
         "[[oauth]] | downlinks(unknown)",
         "cards | expand(1, \"both\")",
@@ -92,10 +92,15 @@ fn every_registered_step_runs_at_its_declared_result_type() {
         "[[barn-owl]] | uplinks",
         "[[barn-owl]] | downlinks",
         "cards | expand(direction = \"both\", depth = 1)",
-        "cards | graph",
-        "[1] | table",
+        "cards | Graph",
+        "cards | Graph | format(Markdown, limit = 1)",
         "[1] | json",
         "[1] | text",
+        "[1] | yaml",
+        "[1] | csv",
+        "[1] | hmd",
+        "cards | Graph | d2",
+        "cards | Graph | mermaid",
         "import lexical\ncards | lexical(query = \"owl\")",
         "import semantic\ncards | semantic(\"night hunting birds\")",
         "import lexical\ncards | lexical(\"owl\") | filter(h => true)",

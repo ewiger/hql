@@ -159,19 +159,13 @@ freedom [[pipes]] reserves for collection steps.
 
 ```hql
 knowledge
-| graph
+| Graph
 ```
 
-`graph` here is an ordinary function from a knowledge value to a `Graph`, not a
-presentation keyword. The resulting value happens to have a renderer registered
-by the graph extension, which is what makes it appear in a host as a picture.
-
-That reading resolves the tension [[hql/knowledge]] records between `graph` as a
-projection and `graph` as a terminal presenter: the projection produces the
-value, and rendering is a capability of the value. It does not resolve the
-naming — whether the projection and the view should share a name is still a
-decision, and `HmdGraph` currently reads as though it were a presentation type
-when it is a graph over cards.
+`Graph` here is the constructor: it projects its input into a `Graph` value
+and draws nothing. Drawing is formatting, a separate step — `| d2`, `| mermaid`,
+`| format(Markdown)` — whose renderers are listed in [[hql/presentation]]. The
+projection produces the value; a renderer writes it.
 
 ## Variance
 

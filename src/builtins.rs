@@ -17,6 +17,26 @@ pub fn exists(name: &str) -> bool {
 /// Names that were steps and are not, with the step that replaces each.
 const RETIRED: &[(&str, &str)] = &[("typed", "of_type")];
 
+/// Names that were steps and have no single replacement, with what to write
+/// instead.
+const EXPLAINED: &[(&str, &str)] = &[(
+    "table",
+    "a table is the type `Table`, which arrives with record values; \
+     `text` and `markdown` lay a collection out in rows",
+)];
+
+/// The hint a diagnostic appends for a name that is not a step: what to write
+/// instead, or the closest name.
+#[must_use]
+pub fn hint(name: &str) -> String {
+    if let Some((_, explanation)) = EXPLAINED.iter().find(|(retired, _)| *retired == name) {
+        return format!("; {explanation}");
+    }
+    nearest(name)
+        .map(|near| format!("; did you mean `{near}`?"))
+        .unwrap_or_default()
+}
+
 /// The closest step name by edit distance, for a "did you mean" hint. A
 /// retired name suggests the step that replaced it.
 #[must_use]
@@ -65,7 +85,7 @@ mod tests {
 
     #[test]
     fn suggests_a_near_miss_and_stays_quiet_otherwise() {
-        assert_eq!(nearest("tabel"), Some("table"));
+        assert_eq!(nearest("tabel"), Some("take"));
         assert_eq!(nearest("lexicl"), Some("lexical"));
         assert_eq!(nearest("qwertyuiop"), None);
     }

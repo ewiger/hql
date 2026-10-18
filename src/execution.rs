@@ -506,7 +506,7 @@ mod tests {
     #[test]
     fn execution_owns_its_tree_and_never_resolves_imports_again() {
         let mut vault = crate::vault::Vault::empty();
-        let syntax = crate::parser::parse("[1, 2] | map(n => n + 1) | table").unwrap();
+        let syntax = crate::parser::parse("[1, 2] | map(n => n + 1) | markdown").unwrap();
         let program = crate::checker::check(&syntax, &vault).unwrap();
         drop(syntax);
         vault.extensions.prelude = false;

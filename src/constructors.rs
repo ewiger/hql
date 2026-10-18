@@ -1,4 +1,5 @@
-//! Checking and evaluating explicit construction of materialized collections.
+//! Checking and evaluating explicit construction of materialized collections,
+//! and of a graph projected from cards.
 
 use crate::ast::Arg;
 use crate::diagnostics::Diagnostic;
@@ -9,7 +10,7 @@ use std::sync::Arc;
 
 /// The types a program may name as constructors, abstract ones included so
 /// that naming one is refused with its concrete subtypes.
-const CONSTRUCTORS: [TypeConstructor; 8] = [
+const CONSTRUCTORS: [TypeConstructor; 9] = [
     collections::COLLECTION,
     collections::SEQ,
     collections::LIST,
@@ -18,7 +19,10 @@ const CONSTRUCTORS: [TypeConstructor; 8] = [
     collections::ORDERED_MAP,
     collections::SORTED_MAP,
     collections::ORDERABLE,
+    GRAPH,
 ];
+
+const GRAPH: TypeConstructor = TypeConstructor("Graph");
 
 pub(crate) fn named(name: &str) -> Option<TypeConstructor> {
     CONSTRUCTORS
@@ -33,6 +37,9 @@ pub(crate) fn check(
     expected: Option<&TypeRef>,
     span: Range<usize>,
 ) -> Result<TypeRef, Diagnostic> {
+    if constructor == GRAPH {
+        return check_graph(cx, args, span);
+    }
     let system =
         builtin::system().map_err(|error| Diagnostic::typing(span.clone(), error.to_string()))?;
     let definition = system
@@ -113,6 +120,42 @@ pub(crate) fn check(
         .map_err(|error| Diagnostic::typing(span, error.to_string()))
 }
 
+/// `Graph(xs)` projects cards, hits or a ranking into a graph, and a graph
+/// into itself.
+fn check_graph(
+    cx: &mut dyn CheckCx,
+    args: &[Arg],
+    span: Range<usize>,
+) -> Result<TypeRef, Diagnostic> {
+    let [argument] = args else {
+        return Err(Diagnostic::typing(
+            span,
+            "Graph expects one positional argument",
+        ));
+    };
+    if argument.name.is_some() {
+        return Err(Diagnostic::typing(
+            span,
+            "Graph expects one positional argument",
+        ));
+    }
+    // A link that may not resolve projects to the graph of what it reaches.
+    let inferred = cx.infer(&argument.value)?;
+    let input = inferred.present();
+    let card = |ty: &TypeRef| {
+        ty.is(&TypeRef::DOC)
+            || (ty.constructor.0 == "Hit"
+                && ty.args.first().is_some_and(|arg| arg.is(&TypeRef::DOC)))
+    };
+    if input.is(&TypeRef::GRAPH) || card(input) || input.element().is_some_and(|ty| card(&ty)) {
+        return Ok(TypeRef::GRAPH);
+    }
+    Err(Diagnostic::typing(
+        argument.value.span.clone(),
+        format!("a Graph is projected from cards, hits or a graph, not {input}"),
+    ))
+}
+
 pub(crate) fn evaluate(
     cx: &mut dyn EvalCx,
     args: &[crate::execution::Arg],
@@ -123,6 +166,12 @@ pub(crate) fn evaluate(
     let mut inputs = Vec::new();
     for argument in args {
         inputs.push(cx.evaluate(&argument.value)?);
+    }
+    if constructor == GRAPH {
+        let input = inputs
+            .pop()
+            .ok_or_else(|| Diagnostic::runtime(span.clone(), "Graph needs an argument"))?;
+        return crate::extensions::graph::construct(cx.vault(), input, &span);
     }
     let element = |index: usize| expected.args.get(index).cloned().unwrap_or(TypeRef::NEVER);
     let elements = |index: usize| {

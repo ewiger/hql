@@ -10,19 +10,6 @@ use crate::graph::{Edge, Graph};
 use crate::search::{Hit, Ranking};
 use std::sync::Arc;
 
-/// A renderable result. Terminal with respect to semantic processing: the
-/// host draws it, and nothing downstream asks it a question about knowledge.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Presentation {
-    /// Which presenter produced it, such as `table` or `json`.
-    pub presenter: String,
-    /// The rendered text.
-    pub text: String,
-    /// The same presentation as Markdown, for a host that writes it into a
-    /// document.
-    pub markdown: String,
-}
-
 /// A result of evaluating an HQL expression.
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -62,8 +49,6 @@ pub enum Value {
     Hit(Arc<Hit>),
     /// An ordered collection of hits.
     Ranking(Arc<Ranking>),
-    /// A rendered result.
-    Presentation(Arc<Presentation>),
     /// One partition of a `group`.
     Group(Arc<Group>),
     /// A function: parameters, a body, and the names it captured.
@@ -187,7 +172,6 @@ impl Value {
             Self::List(_, element) => TypeRef::list(element.clone()),
             Self::Hit(hit) => TypeRef::hit(hit.element.clone()),
             Self::Ranking(ranking) => TypeRef::ranking(ranking.element.clone()),
-            Self::Presentation(_) => TypeRef::PRESENTATION,
             Self::Function(function) => function.ty.clone(),
             Self::Formatted(formatted) => TypeRef::from(formatted.format),
             Self::Group(group) => {
@@ -364,7 +348,6 @@ impl PartialEq for Value {
             (Self::Ranking(a), Self::Ranking(b)) => {
                 Arc::ptr_eq(a, b) || self.to_json() == other.to_json()
             }
-            (Self::Presentation(left), Self::Presentation(right)) => left == right,
             // Two groups are equal iff their keys are.
             (Self::Group(left), Self::Group(right)) => left.key == right.key,
             // A function is equal only to itself: equal behaviour is undecidable.

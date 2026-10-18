@@ -1,4 +1,5 @@
-//! The `graph` extension: traversal and projection.
+//! The `graph` extension: traversal. The projection from cards to a graph is
+//! the `Graph` constructor, whose evaluation lives here beside traversal.
 //!
 //! Drawing a graph is not the core's business. The layering is core → graph →
 //! knowledge, and these steps are the graph layer's half of it.
@@ -117,29 +118,6 @@ pub(crate) static STEPS: &[Operation] = &[
         check: Some(check_expand),
         eval: eval_expand,
     },
-    Operation {
-        name: "graph",
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::OneOf(&[
-                P::Type(crate::types::TypeConstructor("Graph")),
-                P::Type(crate::types::TypeConstructor("Doc")),
-                P::Collection(&P::OneOf(&[
-                    P::Type(crate::types::TypeConstructor("Doc")),
-                    P::Apply(
-                        crate::types::TypeConstructor("Hit"),
-                        &[P::Type(crate::types::TypeConstructor("Card"))],
-                    ),
-                ])),
-            ]),
-            arguments: &[],
-            output: O::Type(P::Type(crate::types::TypeConstructor("Graph"))),
-        },
-        summary: "Project a collection of cards into a graph.",
-        purity: Purity::Pure,
-        check: None,
-        eval: eval_graph,
-    },
 ];
 
 fn eval_uplinks(
@@ -194,6 +172,12 @@ fn eval_expand(
 ) -> Result<Value, Diagnostic> {
     let depth = match named_or_first(arguments, "depth") {
         Some(argument) => match cx.evaluate(&argument.value)? {
+            Value::Int(0) => {
+                return Err(Diagnostic::runtime(
+                    argument.value.span.clone(),
+                    NO_TRAVERSAL,
+                ));
+            }
             Value::Int(value) => usize::try_from(value).map_err(|_| {
                 Diagnostic::runtime(argument.value.span.clone(), "a depth cannot be negative")
             })?,
@@ -223,23 +207,27 @@ fn eval_expand(
     ))))
 }
 
-fn eval_graph(
-    cx: &mut dyn EvalCx,
+/// `Graph(xs)`: the projection of cards, hits or a ranking into a graph.
+pub(crate) fn construct(
+    vault: &Vault,
     input: Value,
-    _: &[TypedArg],
-    span: Range<usize>,
+    span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    if let Value::Graph(_) = input {
+    match input {
         // Projecting a graph yields the graph: the traversal that built it
         // already produced the structure.
-        return Ok(input);
+        Value::Graph(_) => Ok(input),
+        Value::Present(held) => construct(vault, held.as_ref().clone(), span),
+        Value::Absent(_) => Ok(Value::Graph(Arc::new(Graph::new(
+            BTreeMap::new(),
+            Vec::new(),
+        )))),
+        _ => Ok(Value::Graph(Arc::new(project(vault, &input, span)?))),
     }
-    let projected = project(cx.vault(), &input, &span)?;
-    Ok(Value::Graph(Arc::new(projected)))
 }
 
 /// Project a collection of cards into a graph, recording why each node is
-/// present. A relation card contributes its edge and does not become a node;
+/// present. A relation card contributes its endpoints and does not become a node;
 /// its endpoints arrive as the nodes the edge needs.
 fn project(vault: &Vault, input: &Value, span: &Range<usize>) -> Result<Graph, Diagnostic> {
     if let Value::Graph(graph) = input {
@@ -266,13 +254,8 @@ fn project(vault: &Vault, input: &Value, span: &Range<usize>) -> Result<Graph, D
                     depth: 1,
                 });
             }
-            edges.extend(
-                vault
-                    .edges
-                    .iter()
-                    .filter(|edge| edge.source == source && edge.target == target)
-                    .cloned(),
-            );
+            // Its edge is among the vault's edges, which every projection
+            // carries below.
             continue;
         }
         presence.insert(card.name().to_owned(), how);
@@ -341,11 +324,26 @@ fn check_downlinks(
 }
 fn check_expand(
     cx: &dyn super::CheckCx,
-    _: &super::spec::CheckedCall<'_>,
+    call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
     if !cx.vault().is_present() {
         return Err(Diagnostic::name(span, "`expand` needs a vault to traverse"));
     }
+    let depth = call
+        .arguments
+        .iter()
+        .find(|argument| argument.name.as_deref().is_none_or(|name| name == "depth"));
+    if let Some(argument) = depth
+        && let crate::ast::Kind::Int(0) = argument.value.kind
+    {
+        return Err(Diagnostic::typing(
+            argument.value.span.clone(),
+            NO_TRAVERSAL,
+        ));
+    }
     Ok(())
 }
+
+const NO_TRAVERSAL: &str =
+    "`expand` traverses at least one step; `Graph(xs)` is the graph with no traversal";

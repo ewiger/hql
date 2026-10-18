@@ -157,10 +157,10 @@ is ordinary functions or a separate query surface is undecided.
 
 ```hql
 knowledge
-| graph
+| Graph
 ```
 
-`graph` is an ordinary function from a knowledge value to a graph, not a
+`Graph` is the constructor from a knowledge value to a graph, not a
 presentation keyword and not a magical pipeline step. The value it returns happens to
 have a renderer registered by the graph extension, which is what makes it appear
 in a host as a picture.
@@ -174,10 +174,9 @@ used to be is undecided.
 
 That separates the two readings that have been competing: the projection
 produces a value, and rendering is a capability *of* that value, supplied by an
-extension as `render(Graph) -> Html` rather than inherited through `:`. The
-naming is still unsettled — whether the projection and the view may share the
-name `graph`, and whether `HmdGraph` should be called that when it is a graph
-over cards rather than a presentation.
+extension as `render(Graph) -> Html` rather than inherited through `:`. Whether
+`HmdGraph` should be called that when it is a graph over cards rather than a
+presentation is unsettled.
 
 A projection must not silently turn an assertion into a truth or collapse
 distinct claims — which is exactly what a `KnowledgeGraph` is typed to prevent.

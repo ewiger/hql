@@ -145,8 +145,9 @@ cards
 The output is Markdown, as [HQL-0008](../../proposals/HQL-0008/README.md)
 requires of a document host. A cell without a presentation is presented with
 `markdown`: a record becomes a pipe table, a sequence a bulleted list, a card a
-wikilink in that list. `table` becomes a pipe table, `json` a fenced `json`
-block, and `text` and `markdown` are written as they are.
+wikilink in that list. `markdown` and `hmd` text is spliced in as it
+is, and text of another format is a fenced block with that format's info
+string.
 
 A cell that fails under `replace` is left as written and the build is not
 written anywhere; the exit code is `1`. Under `after` the error is written

@@ -284,7 +284,7 @@ module resolution — an import names an extension compiled into the binary,
 never a path or a package — so no extension is downloaded, and importing one
 twice is not an error.
 
-Collection steps are the core's and are never imported. `graph` and `present`
+Collection steps are the core's and are never imported. `graph` and `format`
 are the prelude, imported unless the vault declines them. Everything else is
 written out. A step name provided by two imported extensions fails at the
 `import` that completes the pair, naming both extensions and the colliding

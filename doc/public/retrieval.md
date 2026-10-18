@@ -55,7 +55,7 @@ a prefix is reproducible independently of the vault's file order.
 ## Graph traversal and node presence
 
 `uplinks` and `downlinks` give the edges leaving and entering a card. `expand`
-traverses outwards and returns a graph, and `graph` projects a collection into
+traverses outwards and returns a graph, and `Graph(xs)` projects a collection into
 one without traversing:
 
 ```hql
@@ -65,22 +65,27 @@ cards
 | lexical("owl")
 | take(2)
 | expand(depth = 1)
-| table
+| text
 ```
 
 ```text
-node          presence
-------------  ----------------------------------------------
-barn-owl      expanded from barn-owl-in-tytonidae at depth 1
-strigidae     expanded from tawny-owl at depth 1
-strigiformes  expanded from barn-owl at depth 1
-tawny-owl     retrieved 0.2483
-tytonidae     expanded from barn-owl-in-tytonidae at depth 1
+barn-owl  (expanded from barn-owl-in-tytonidae at depth 1)
+  -> strigiformes
+  -> tytonidae
+strigidae  (expanded from tawny-owl at depth 1)
+strigiformes  (expanded from barn-owl at depth 1)
+  -> strigidae
+  -> tytonidae
+tawny-owl  (retrieved 0.2483)
+  -> strigidae
+tytonidae  (expanded from barn-owl-in-tytonidae at depth 1)
+  -> barn-owl
+  -> strigiformes
 ```
 
 Each node stores a presence: `retrieved` with its score for a hit, `expanded
 from <seed> at depth <n>` for a node reached by traversal, and `member` for a
-node that `graph` projected from a collection. The presence distinguishes a
+node that `Graph` projected from a collection. The presence distinguishes a
 node that matched the query from a node that was reached from one.
 
 See [semantic search](../wiki/hql/semantic-search.hmd) and

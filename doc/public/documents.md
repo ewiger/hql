@@ -14,7 +14,7 @@ cards
 | filter(c => c.metadata.status == "todo")
 | sort(by = c => c.title)
 | map(c => c.title)
-| table
+| markdown
 ```
 ````
 
@@ -56,7 +56,8 @@ In the built document the cell is gone and a Markdown table is in its place:
 | species      | 3     |
 ```
 
-A record becomes a table, a sequence a bulleted list, and `| table` a table.
+A record becomes a table and a sequence a bulleted list;
+`format(Markdown, renderer = "pipe")` lays a collection out as a pipe table.
 
 ## Writing the result
 

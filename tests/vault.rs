@@ -92,8 +92,8 @@ fn a_filtered_card_pipeline_needs_no_annotations_or_conversions() {
             TypeRef::list(TypeRef::STR),
         ),
         (
-            "open | sort(by = c => c.title) | map(c => c.title) | table",
-            TypeRef::PRESENTATION,
+            "open | sort(by = c => c.title) | map(c => c.title) | markdown",
+            hql::types::builtin::named("Markdown", &[]).expect("Markdown is built in"),
         ),
     ] {
         assert_eq!(
@@ -264,7 +264,7 @@ fn the_whole_pipeline_runs_and_says_why_each_node_is_present() {
          | lexical(\"bearer token authorization\")\n\
          | take(2)\n\
          | expand(depth = 1)\n\
-         | graph",
+         | Graph",
     );
     let Value::Graph(graph) = &projected else {
         panic!("expected a graph, got {projected:?}")
@@ -284,7 +284,7 @@ fn the_whole_pipeline_runs_and_says_why_each_node_is_present() {
 
 #[test]
 fn a_relation_card_contributes_an_edge_without_becoming_a_node() {
-    let projected = value("cards | of_type(RelationCard) | graph");
+    let projected = value("cards | of_type(RelationCard) | Graph");
     let Value::Graph(graph) = &projected else {
         panic!("expected a graph")
     };
@@ -315,7 +315,7 @@ fn an_unresolved_reference_warns_and_yields_absence() {
 #[test]
 fn the_expansion_direction_is_stated_rather_than_assumed() {
     let outcome = run(
-        "[[http-headers]] | graph | expand(depth = 1, direction = \"uplinks\")",
+        "[[http-headers]] | Graph | expand(depth = 1, direction = \"uplinks\")",
         &fixture(),
         Mode::Strict,
     );
@@ -327,7 +327,7 @@ fn the_expansion_direction_is_stated_rather_than_assumed() {
     assert_eq!(graph.nodes, ["http-headers"]);
 
     let outcome = run(
-        "[[http-headers]] | graph | expand(depth = 1, direction = \"downlinks\")",
+        "[[http-headers]] | Graph | expand(depth = 1, direction = \"downlinks\")",
         &fixture(),
         Mode::Strict,
     );

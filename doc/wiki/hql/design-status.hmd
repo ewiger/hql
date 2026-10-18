@@ -43,7 +43,7 @@ what would be asked of it splits into ancestry (`:`), capability (an extension
 registers a function) and a partial schema over `Data` — see [[type-system]].
 Extensions supply external capabilities and may be written in Rust. That
 registration is now implemented: collection steps are the core's, `graph` and
-`present` are a prelude a vault may decline, and retrieval is imported where it
+`format` are a prelude a vault may decline, and retrieval is imported where it
 is used — see [[hql/extensions]]. Module resolution is not, so optional
 namespace `init.hql` files remain design.
 

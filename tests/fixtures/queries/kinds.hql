@@ -9,4 +9,4 @@
 
 cards
 | sort
-| table
+| text

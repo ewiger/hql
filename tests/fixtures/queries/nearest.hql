@@ -15,4 +15,4 @@ cards
 | lexical(question)
 | take(2)
 | expand(depth = 1)
-| table
+| text

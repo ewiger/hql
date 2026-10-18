@@ -55,7 +55,7 @@ document families therefore overlap without either being a kind of the other —
 see [[type-system]].
 
 ```hql
-cards | of_type(RelationCard) | graph
+cards | of_type(RelationCard) | Graph
 ```
 
 Distinct relation cards may express conflicting claims about the same endpoints.
@@ -68,14 +68,12 @@ requirement without proving its claim.
 
 ```hql
 knowledge
-| graph
+| Graph
 ```
 
-This is a preferred example, with an unresolved result contract. Graph is a
-structural projection of Knowledge; a graph presentation is a view consumed by
-the host. The earlier model uses `graph` for projection, while the newer presenter
-direction uses it for a terminal view. Whether to give these separate names
-remains open. Neither reading reduces Knowledge itself to Graph.
+This is a preferred example, with an unresolved result contract. `Graph` is a
+structural projection of Knowledge; drawing the graph is formatting it, a
+separate step. Neither reduces Knowledge itself to Graph.
 
 Formatting writes a value as text of a [[hql/presentation|presentation format]]
 — `Text`, `Markdown`, `Json`, `D2` and the rest — without changing the

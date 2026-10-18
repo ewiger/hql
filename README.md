@@ -24,7 +24,7 @@ implementation status.
 
 Retrieval, graph traversal and presentation are extensions: providers of typed
 steps registered in the binary. The implemented extensions are `core`,
-`graph`, `present`, `format`, `lexical` and `semantic`. The design direction is
+`graph`, `format`, `lexical` and `semantic`. The design direction is
 extensions over further sources, so that one program queries across SQL
 databases such as Postgres, JSON and YAML documents, message queues such as
 Kafka, and REST APIs. HQL's operations take their inspiration from jq and SQL,
@@ -85,7 +85,7 @@ cards
 | semantic("night hunting birds")
 | take(3)
 | expand(depth = 1)
-| table'
+| text'
 ```
 
 That returns the owls. Not one of their articles contains the word "night" —

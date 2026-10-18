@@ -22,7 +22,6 @@ pub(crate) mod collections;
 pub mod format;
 pub(crate) mod graph;
 pub mod lexical;
-pub(crate) mod present;
 pub mod semantic;
 pub mod spec;
 use spec::{CheckedCall, OperationSpec};
@@ -155,13 +154,6 @@ static GRAPH: Extension = Extension {
     metadata: None,
 };
 
-static PRESENT: Extension = Extension {
-    name: "present",
-    version: env!("CARGO_PKG_VERSION"),
-    steps: present::STEPS,
-    metadata: None,
-};
-
 static FORMAT: Extension = Extension {
     name: "format",
     version: env!("CARGO_PKG_VERSION"),
@@ -189,8 +181,7 @@ static SEMANTIC: Extension = Extension {
 /// `hql builtins` whether or not the program has imported the extension that
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
-pub(crate) static REGISTERED: &[&Extension] =
-    &[&CORE, &GRAPH, &PRESENT, &FORMAT, &LEXICAL, &SEMANTIC];
+pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &FORMAT, &LEXICAL, &SEMANTIC];
 
 impl Extension {
     /// The step of a name this extension provides.
@@ -201,10 +192,10 @@ impl Extension {
 
 /// The extensions imported unless a vault opts out.
 ///
-/// A prelude exists so that a program that only walks a graph and prints a
-/// table does not open with two lines of ceremony. It is a convenience, not a
+/// A prelude exists so that a program that only walks a graph and writes it
+/// as Markdown does not open with two lines of ceremony. It is a convenience, not a
 /// rule, which is why a vault can decline it.
-pub(crate) static PRELUDE: &[&str] = &["graph", "present", "format"];
+pub(crate) static PRELUDE: &[&str] = &["graph", "format"];
 
 /// The registered extension of a name.
 pub(crate) fn extension(name: &str) -> Option<&'static Extension> {
@@ -432,9 +423,7 @@ impl Resolution {
         let providers = providers(name);
         let message = match providers.as_slice() {
             [] => {
-                let hint = crate::builtins::nearest(name)
-                    .map(|near| format!("; did you mean `{near}`?"))
-                    .unwrap_or_default();
+                let hint = crate::builtins::hint(name);
                 format!("`{name}` is not a pipeline step{hint}")
             }
             [only] => format!(
@@ -580,8 +569,11 @@ mod tests {
         let listed = listing();
         let count = listed.iter().find(|entry| entry.name == "count").unwrap();
         assert_eq!(count.provider, "core");
-        let table = listed.iter().find(|entry| entry.name == "table").unwrap();
-        assert_eq!(table.provider, "present");
+        let markdown = listed
+            .iter()
+            .find(|entry| entry.name == "markdown")
+            .unwrap();
+        assert_eq!(markdown.provider, "format");
         assert_eq!(providers("count").len(), 1);
         assert!(providers("nonesuch").is_empty());
         assert!(extension("graph").is_some());
@@ -592,7 +584,7 @@ mod tests {
     fn the_core_resolves_without_an_import_and_retrieval_does_not() {
         let mut resolution = Resolution::bare(true);
         assert!(resolution.step("count", &(0..1)).is_ok());
-        assert!(resolution.step("table", &(0..1)).is_ok());
+        assert!(resolution.step("markdown", &(0..1)).is_ok());
 
         let missing = resolution.step("lexical", &(0..1)).unwrap_err();
         assert!(
@@ -610,9 +602,9 @@ mod tests {
     #[test]
     fn the_prelude_is_a_convenience_a_vault_may_decline() {
         let bare = Resolution::bare(false);
-        let missing = bare.step("table", &(0..1)).unwrap_err();
+        let missing = bare.step("markdown", &(0..1)).unwrap_err();
         assert!(
-            missing.message().contains("import present"),
+            missing.message().contains("import format"),
             "{}",
             missing.message()
         );
@@ -684,7 +676,7 @@ mod tests {
                 .availability
         };
         assert_eq!(by_name("core"), Availability::Core);
-        assert_eq!(by_name("present"), Availability::Absent);
+        assert_eq!(by_name("format"), Availability::Absent);
         assert_eq!(by_name("lexical"), Availability::Configured);
         assert_eq!(by_name("graph"), Availability::Absent);
 

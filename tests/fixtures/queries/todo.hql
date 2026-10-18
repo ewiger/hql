@@ -7,4 +7,4 @@ open = cards | filter(c => c.metadata.status == "todo")
 open
 | sort(by = c => c.title)
 | map(c => c.title)
-| table
+| text

@@ -77,10 +77,6 @@ impl Value {
                     "score": hit.score,
                 })).collect::<Vec<_>>(),
             }),
-            Self::Presentation(presentation) => json!({
-                "presenter": presentation.presenter,
-                "text": presentation.text,
-            }),
             Self::Function(function) => J::String(format!("<function {}>", function.ty)),
             Self::Formatted(formatted) => J::String(formatted.text.clone()),
             Self::Group(group) => json!({
@@ -150,7 +146,6 @@ impl fmt::Display for Value {
                     .collect();
                 write!(f, "[{}]", rendered.join(", "))
             }
-            Self::Presentation(presentation) => f.write_str(&presentation.text),
             Self::Formatted(formatted) => f.write_str(&formatted.text),
             Self::Function(function) => match &function.name {
                 Some(name) => write!(f, "<function {name} : {}>", function.ty),
@@ -232,7 +227,6 @@ impl Value {
     pub fn to_markdown(&self) -> String {
         match self {
             Self::Present(value) => value.to_markdown(),
-            Self::Presentation(presentation) => presentation.markdown.clone(),
             // Markdown is spliced in as it is; any other format is fenced
             // with its own language, and plain text stays plain.
             Self::Formatted(formatted) => match formatted.format.0 {

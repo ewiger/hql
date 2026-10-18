@@ -17,5 +17,5 @@ import lexical
 cards
 | lexical("bearer token authorization")
 | take(2)
-| table
+| markdown
 ```

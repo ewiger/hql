@@ -293,9 +293,29 @@ fn long_addition_chains_preserve_grouping_and_diagnostics() {
 
 #[test]
 fn a_near_miss_on_a_step_name_is_suggested() {
-    match check("1 | tabl") {
-        Err(Diagnostic::Name { message, .. }) => assert!(message.contains("`table`"), "{message}"),
+    match check("1 | mapp") {
+        Err(Diagnostic::Name { message, .. }) => assert!(message.contains("`map`"), "{message}"),
         other => panic!("expected a name error, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_retired_step_names_what_replaces_it() {
+    for (source, replacement) in [
+        ("[[oauth]] | graph", "`Graph`"),
+        ("1 | table", "`Table`"),
+        ("[1] | typed(Int)", "`of_type`"),
+    ] {
+        let failed = hql::check_in(
+            source,
+            &hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap(),
+        )
+        .expect_err(source);
+        assert!(
+            failed.message().contains(replacement),
+            "{source}: {}",
+            failed.message()
+        );
     }
 }
 

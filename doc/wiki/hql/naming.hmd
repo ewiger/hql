@@ -33,7 +33,7 @@ other keywords are recognized by position.
 | Step, operation, function | `snake_case` | `size`, `unwrap_or`, `and_then`, `downlinks` |
 | Binding, parameter, named argument | `snake_case` | `bird_cards`, `first_two`, `by`, `default` |
 | Declared field | `snake_case` | `metadata`, `provenance`, `approximate` |
-| Extension | one lowercase word | `graph`, `present`, `lexical`, `semantic` |
+| Extension | one lowercase word | `graph`, `format`, `lexical`, `semantic` |
 | Keyword | lowercase | `type`, `abstract`, `import`, `match`, `given` |
 
 An acronym inside a type name is written as a word: `HmdCard`, `IndexRef`,

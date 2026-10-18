@@ -153,7 +153,7 @@ fn the_whole_pipeline_runs_from_the_command_line() {
         "--vault",
         VAULT,
         "eval",
-        "import lexical\ncards\n| lexical(\"bearer token authorization\")\n| take(2)\n| expand(depth = 1)\n| table",
+        "import lexical\ncards\n| lexical(\"bearer token authorization\")\n| take(2)\n| expand(depth = 1)\n| text",
     ]);
     assert!(output.status.success(), "{}", stderr(&output));
     let table = stdout(&output);
@@ -347,7 +347,7 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
     for provider in [
         "core",
         "graph",
-        "present",
+        "format",
         "always available",
         "prelude",
         "imported where it is used",
@@ -356,7 +356,7 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
     }
     let configured = stdout(&hql(&["--vault", CONFIGURED, "builtins"]));
     assert!(configured.contains("lexical 0.1.0 (imported by this vault)"));
-    assert!(configured.contains("present 0.1.0 (imported where it is used)"));
+    assert!(configured.contains("format 0.1.0 (imported where it is used)"));
 
     let configured = hql(&["--vault", VAULT, "config"]);
     assert!(stdout(&configured).contains("strict"));
@@ -379,15 +379,15 @@ fn cli_surface_identifies_hql_and_usage_errors_exit_two() {
 
 #[test]
 fn a_vault_may_decline_the_prelude_and_import_for_every_program() {
-    // Declining the prelude is what makes `| table` need saying out loud.
-    let declined = hql(&["--vault", CONFIGURED, "eval", "1 | table"]);
+    // Declining the prelude is what makes `| markdown` need saying out loud.
+    let declined = hql(&["--vault", CONFIGURED, "eval", "1 | markdown"]);
     assert!(!declined.status.success());
     assert!(
-        stderr(&declined).contains("write `import present`"),
+        stderr(&declined).contains("write `import format`"),
         "{}",
         stderr(&declined)
     );
-    let written = hql(&["--vault", CONFIGURED, "eval", "import present\n1 | table"]);
+    let written = hql(&["--vault", CONFIGURED, "eval", "import format\n1 | markdown"]);
     assert!(written.status.success(), "{}", stderr(&written));
 
     // What the vault imports, a query does not have to.

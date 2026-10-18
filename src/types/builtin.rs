@@ -19,7 +19,7 @@ atoms! {
     NEVER => "Never", UNIT => "Unit", INT => "Int", FLOAT => "Float",
     BOOL => "Bool", STR => "String", DATA => "Data", DOC => "Doc", CARD => "Card",
     CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
-    GRAPH => "Graph", PRESENTATION => "Presentation", ORDERABLE => "Orderable",
+    GRAPH => "Graph", ORDERABLE => "Orderable",
     ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
 }
 
@@ -72,7 +72,6 @@ fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::RELATION_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
         (TypeRef::EDGE, TypeKind::Concrete, &[]),
         (TypeRef::GRAPH, TypeKind::Concrete, &[]),
-        (TypeRef::PRESENTATION, TypeKind::Concrete, &[]),
         (TypeRef::ORDERING, TypeKind::Concrete, &[]),
     ] {
         system.declare(TypeDefinition {

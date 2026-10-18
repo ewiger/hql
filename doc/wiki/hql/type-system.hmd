@@ -185,7 +185,7 @@ is an ordinary narrowing — see [[orderable]].
 **Representation is not ancestry.** A `RelationCard` represents a `Relation`; it
 is not one, and a `Relation` is not a `Card`. See below.
 
-**Projection is not ancestry.** `knowledge | graph` yields a graph, and
+**Projection is not ancestry.** `knowledge | Graph` yields a graph, and
 `Knowledge` is not thereby a supertype of `Graph`, nor `Graph` of `Knowledge`. A
 projection is a function — see [[graph-type]]. What a projection's *result* may
 do is declare both parents for itself, which is a claim about that one type and
@@ -705,7 +705,7 @@ and should be typed as one.
 supertypes, and `X` must satisfy both contracts. The set records those parents;
 it does not introduce a separate compound type.
 
-**Projection can then be lossless.** `knowledge | graph` has been described as a
+**Projection can then be lossless.** `knowledge | Graph` has been described as a
 view that keeps adjacency and drops rationale. If its result is a
 `KnowledgeGraph`, nothing is dropped, and a genuinely lossy `Graph<Concept,
 Relation>` stays available as the weaker result for hosts that only draw

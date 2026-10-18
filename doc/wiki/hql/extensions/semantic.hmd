@@ -16,7 +16,7 @@ import semantic
 cards
 | semantic("night hunting birds")
 | take(3)
-| table
+| text
 ```
 
 Against the birds corpus that returns the owls, none of which contains the word

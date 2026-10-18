@@ -15,7 +15,7 @@ implicit `map`.
 ```hql
 cards
 | of_type(RelationCard)
-| graph
+| Graph
 ```
 
 This selects relation cards and projects them into a graph. `cards` is the
@@ -77,10 +77,11 @@ text
 markdown
 ```
 
-`graph` is `expand` with no traversal and becomes the `Graph` constructor
-([HQL-0017](../../../proposals/HQL-0017/README.md)). `table`, `json`, `text`
-and `markdown` are presenters, each a rendering of its input; HQL-0017 makes
-the format-named ones shorthands of `format`. The rule and its list are owned
+`Graph` is the constructor that projects cards into a graph, written as a step
+the way any constructor is. `text`, `markdown`, `json` and the other
+format-named steps are shorthands of `format`, each writing its input in one
+[[hql/presentation|presentation format]]
+([HQL-0017](../../../proposals/HQL-0017/README.md)). The rule and its list are owned
 by [HQL-0015](../../../proposals/HQL-0015/README.md).
 
 ## Functions as steps

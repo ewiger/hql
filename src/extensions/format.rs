@@ -246,7 +246,9 @@ fn by_name(name: &str, value: &Value, format: TypeConstructor) -> Result<String,
 /// Plain text: a value that lays out as rows is aligned in columns, and
 /// anything else prints as itself.
 fn text(value: &Value) -> String {
+    // An empty collection has no rows to lay out, and no columns to name.
     match unwrapped(value) {
+        Value::Set(values, _) | Value::List(values, _) if values.is_empty() => value.to_string(),
         Value::Set(..) | Value::List(..) | Value::Ranking(_) | Value::Map(_) => value.to_table(),
         _ => value.to_string(),
     }
@@ -256,18 +258,37 @@ fn json(value: &Value) -> String {
     serde_json::to_string_pretty(&value.to_json()).unwrap_or_else(|_| "null".to_owned())
 }
 
+/// Each source and target joined by at least one edge, once, in edge order:
+/// a drawing that does not show an edge's kind shows two kinds as one line.
+fn pairs(graph: &crate::graph::Graph) -> Vec<(String, String)> {
+    let mut seen = std::collections::BTreeSet::new();
+    graph
+        .induced()
+        .iter()
+        .map(|edge| (edge.source.clone(), edge.target.clone()))
+        .filter(|pair| seen.insert(pair.clone()))
+        .collect()
+}
+
 fn adjacency(graph: &crate::graph::Graph) -> String {
-    let edges = graph.induced();
+    let edges = pairs(graph);
     graph
         .nodes
         .iter()
         .map(|node| {
-            let mut lines = vec![node.clone()];
+            // A node that was not simply a member says why it is present, so
+            // the drawing does not claim that every node matched.
+            let mut lines = vec![match graph.presence.get(node) {
+                Some(presence) if *presence != crate::graph::Presence::Member => {
+                    format!("{node}  ({})", presence.label())
+                }
+                _ => node.clone(),
+            }];
             lines.extend(
                 edges
                     .iter()
-                    .filter(|edge| &edge.source == node)
-                    .map(|edge| format!("  -> {}", edge.target)),
+                    .filter(|(source, _)| source == node)
+                    .map(|(_, target)| format!("  -> {target}")),
             );
             lines.join("\n")
         })
@@ -277,7 +298,10 @@ fn adjacency(graph: &crate::graph::Graph) -> String {
 
 fn node_link(graph: &crate::graph::Graph) -> String {
     let document = serde_json::json!({
-        "nodes": graph.nodes.iter().map(|node| serde_json::json!({"data": {"id": node}})).collect::<Vec<_>>(),
+        "nodes": graph.nodes.iter().map(|node| serde_json::json!({"data": {
+            "id": node,
+            "presence": graph.presence.get(node).map(crate::graph::Presence::label),
+        }})).collect::<Vec<_>>(),
         "edges": graph.induced().iter().map(|edge| serde_json::json!({
             "data": {"source": edge.source, "target": edge.target},
         })).collect::<Vec<_>>(),
@@ -286,21 +310,21 @@ fn node_link(graph: &crate::graph::Graph) -> String {
 }
 
 fn d2(graph: &crate::graph::Graph) -> String {
-    let edges = graph.induced();
+    let edges = pairs(graph);
     let mut lines: Vec<String> = graph
         .nodes
         .iter()
         .filter(|node| {
             !edges
                 .iter()
-                .any(|edge| &edge.source == *node || &edge.target == *node)
+                .any(|(source, target)| source == *node || target == *node)
         })
         .cloned()
         .collect();
     lines.extend(
         edges
             .iter()
-            .map(|edge| format!("{} -> {}", edge.source, edge.target)),
+            .map(|(source, target)| format!("{source} -> {target}")),
     );
     lines.join("\n")
 }
@@ -320,10 +344,8 @@ fn mermaid(graph: &crate::graph::Graph) -> String {
             .iter()
             .map(|node| format!("  {}[\"{}\"]", ids[node.as_str()], node.replace('"', "'"))),
     );
-    for edge in graph.induced() {
-        if let (Some(source), Some(target)) =
-            (ids.get(edge.source.as_str()), ids.get(edge.target.as_str()))
-        {
+    for (source, target) in pairs(graph) {
+        if let (Some(source), Some(target)) = (ids.get(source.as_str()), ids.get(target.as_str())) {
             lines.push(format!("  {source} --> {target}"));
         }
     }

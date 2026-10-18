@@ -499,9 +499,7 @@ impl Checker<'_> {
                         ),
                     )
                 } else {
-                    let hint = builtins::nearest(name)
-                        .map(|near| format!("; did you mean `{near}`?"))
-                        .unwrap_or_default();
+                    let hint = builtins::hint(name);
                     Diagnostic::name(span, format!("`{name}` is not bound{hint}"))
                 }
             }),
@@ -701,9 +699,7 @@ impl Checker<'_> {
                     return self.step(step, &input, arguments, span);
                 }
                 let _ = arguments;
-                let hint = builtins::nearest(name)
-                    .map(|near| format!("; did you mean `{near}`?"))
-                    .unwrap_or_default();
+                let hint = builtins::hint(name);
                 Err(Diagnostic::name(
                     span,
                     format!("`{name}` is not bound{hint}"),

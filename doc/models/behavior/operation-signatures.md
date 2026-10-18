@@ -51,9 +51,7 @@ max<T : Orderable>(xs: Collection<T>)                   : Option<T>
 uplinks(x: Doc | Hit<Card> | Collection<Doc | Hit<Card>>)              : List<Edge>
 downlinks(x: Doc | Hit<Card> | Collection<Doc | Hit<Card>>)            : List<Edge>
 expand(x: Graph | Doc | Collection<…>, depth?: Int, direction?: String) : Graph
-graph(x: Graph | Doc | Collection<…>)                                   : Graph
 
-table(x: Any) : Presentation
 format<F : String>(x: Any, as: Type<F>, limit?: Int, renderer?: String) : F
 text(x: Any)     : Text
 markdown(x: Any) : Markdown
@@ -121,7 +119,7 @@ These are the duplicates. Each has a decision already.
 | --- | --- |
 | `collect<T>(Seq<T>) : List<T>` (HQL-0004), `list<T>(Seq<T>) : List<T>` (HQL-0007) and the `List(xs)` constructor | the `List` constructor ([HQL-0016](../../proposals/HQL-0016/README.md)); HQL-0004's text still says `collect` |
 | `size<T>(Collection<T>) : Int` and `count<T>(Collection<T>) : Int` (the no-argument form) | kept as a declared alias, the only one; `std/collections.hql` says so |
-| `graph(x) : Graph` and `expand(x, depth = 0) : Graph` over the same input union | `graph(x)` is `expand` with no traversal; [HQL-0017](../../proposals/HQL-0017/README.md) replaces it with the `Graph` constructor and refuses `expand(depth = 0)` |
+| `graph(x) : Graph` and `expand(x, depth = 0) : Graph` over the same input union | the `Graph` constructor ([HQL-0017](../../proposals/HQL-0017/README.md)); `expand` refuses depth `0` |
 
 ### Same signature, different result: not duplicates
 

@@ -104,15 +104,15 @@ evaluation.
 
 ## Presenting a result
 
-A program returns a value. How it is shown is a last, separate step — `table`,
-`json` or `text`:
+A program returns a value. How it is shown is a last, separate step that writes
+it in a presentation format — `text`, `markdown`, `json` and others:
 
 ```hql
 cards
 | filter(c => c.metadata.category == "bird")
 | sort(by = c => c.name)
 | map(c => c.title)
-| table
+| text
 ```
 
 ```text

@@ -17,18 +17,18 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 23 # to be incremented when adding a new issue card
+  last_id: 24 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0024"
+        title: Partial application
+        file: 0024-partial-application.md
       - id: "0023"
         title: Built-in record fields from their declarations
         file: 0023-built-in-fields-from-declarations.md
       - id: "0022"
         title: Generic functions
         file: 0022-generic-functions.md
-      - id: "0017"
-        title: "`graph` is two operations under one name"
-        file: 0017-graph-projection-and-view.md
       - id: "0016"
         title: "SQL parity analysis: relational operations, aggregation and schema"
         file: 0016-sql-parity-analysis.md
@@ -42,7 +42,7 @@ board:
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
       - id: "0010"
-        title: "`yield` and `bind`: generated sequences as query sources"
+        title: "`yield`: generated sequences as query sources"
         file: 0010-yield-and-bind.md
     todo:
       - id: "0014"
@@ -59,6 +59,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0017"
+        title: "`graph` is two operations under one name"
+        file: 0017-graph-projection-and-view.md
       - id: "0009"
         title: A function type, and functions as values
         file: 0009-function-type-and-constructor.md

@@ -75,13 +75,13 @@ fn limit_keeps_the_first_elements_and_says_how_many_were_cut() {
 #[test]
 fn a_graph_has_a_default_renderer_in_every_graph_format() {
     let vault = fixture();
-    let (text, _) = written("cards | graph | mermaid", &vault);
+    let (text, _) = written("cards | Graph | mermaid", &vault);
     assert!(text.starts_with("graph LR"), "{text}");
-    let (text, _) = written("cards | graph | d2", &vault);
+    let (text, _) = written("cards | Graph | d2", &vault);
     assert!(text.contains(" -> "), "{text}");
-    let (text, _) = written("cards | graph | format(Markdown)", &vault);
+    let (text, _) = written("cards | Graph | format(Markdown)", &vault);
     assert!(text.starts_with("```d2\n"), "{text}");
-    let (text, _) = written("cards | graph | json", &vault);
+    let (text, _) = written("cards | Graph | json", &vault);
     assert!(text.contains("\"nodes\""), "{text}");
 }
 
@@ -89,7 +89,7 @@ fn a_graph_has_a_default_renderer_in_every_graph_format() {
 fn a_renderer_argument_overrides_the_default() {
     let vault = fixture();
     let (text, _) = written(
-        "cards | graph | format(Markdown, renderer = \"mermaid\")",
+        "cards | Graph | format(Markdown, renderer = \"mermaid\")",
         &vault,
     );
     assert!(text.starts_with("```mermaid\n"), "{text}");
@@ -115,8 +115,8 @@ fn a_type_no_renderer_writes_in_a_format_is_refused() {
 #[test]
 fn text_of_one_format_is_itself_plain_text_or_a_fence() {
     let vault = fixture();
-    let (d2, _) = written("cards | graph | d2", &vault);
-    let (fenced, format) = written("cards | graph | d2 | markdown", &vault);
+    let (d2, _) = written("cards | Graph | d2", &vault);
+    let (fenced, format) = written("cards | Graph | d2 | markdown", &vault);
     assert_eq!(fenced, format!("```d2\n{d2}\n```"));
     assert_eq!(format, "Markdown");
     let (markdown, _) = written("[1, 2] | markdown", &vault);
@@ -142,10 +142,10 @@ fn configured(toml: &str) -> std::io::Result<Vault> {
 #[test]
 fn a_vault_chooses_the_renderer_for_a_type_in_a_format() {
     let vault = configured("[format.Graph]\nmarkdown = \"mermaid\"\n").unwrap();
-    let (text, _) = written("cards | graph | markdown", &vault);
+    let (text, _) = written("cards | Graph | markdown", &vault);
     assert!(text.starts_with("```mermaid\n"), "{text}");
     // Other formats keep their defaults.
-    let (text, _) = written("cards | graph | d2", &vault);
+    let (text, _) = written("cards | Graph | d2", &vault);
     assert!(!text.contains("graph LR"), "{text}");
 }
 
@@ -167,4 +167,36 @@ fn a_configuration_naming_what_does_not_exist_is_refused_on_load() {
         let error = configured(toml).expect_err(toml);
         assert!(error.to_string().contains(message), "{toml}: {error}");
     }
+}
+
+#[test]
+fn graph_is_a_constructor_and_a_pipeline_step_of_that_name() {
+    let vault = fixture();
+    let (piped, _) = written("cards | Graph | json", &vault);
+    let (called, _) = written("Graph(cards) | json", &vault);
+    assert_eq!(piped, called);
+    for name in ["bearer-tokens", "oauth", "sessions"] {
+        assert!(piped.contains(&format!("\"id\": \"{name}\"")), "{piped}");
+    }
+    let (text, _) = written("cards | Graph | format(Markdown, limit = 2)", &vault);
+    assert!(text.ends_with("more not shown"), "{text}");
+    assert!(refused("[1, 2] | Graph", &vault).contains("projected from cards"));
+}
+
+#[test]
+fn expand_traverses_at_least_one_step() {
+    let vault = fixture();
+    assert!(refused("cards | expand(depth = 0)", &vault).contains("`Graph(xs)`"));
+    assert!(refused("cards | expand(0)", &vault).contains("`Graph(xs)`"));
+}
+
+#[test]
+fn a_graph_says_why_each_node_is_present() {
+    let vault = fixture();
+    let (text, _) = written(
+        "import lexical\ncards | lexical(\"bearer token authorization\") | take(2) | expand(depth = 1) | text",
+        &vault,
+    );
+    assert!(text.contains("(retrieved "), "{text}");
+    assert!(text.contains("(expanded from "), "{text}");
 }

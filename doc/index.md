@@ -13,7 +13,7 @@ cards
 | semantic("night hunting birds")
 | take(3)
 | expand(depth = 1)
-| table
+| text
 ```
 
 Each step consumes the previous step's value and returns a new typed value:
@@ -23,7 +23,7 @@ cards              : Set<Card>      the vault's cards
 semantic("…")      : Ranking<Card>  cards ranked by embedding similarity to the query
 take(3)            : Ranking<Card>  the three highest-ranked hits
 expand(depth = 1)  : Graph          those cards, every card one link away, and the edges between them
-table                               renders the graph as rows
+text               : Text           the graph as lines, each node with why it is present
 ```
 
 Each node of the graph stores a presence: `retrieved` with its score, or
@@ -61,7 +61,7 @@ that matched the query from a node that was reached by traversal.
 
 Retrieval, graph traversal and presentation are extensions: providers of typed
 steps registered in the binary. The implemented extensions are `core`,
-`graph`, `present`, `lexical` and `semantic`. The design direction is
+`graph`, `format`, `lexical` and `semantic`. The design direction is
 extensions over further sources, so that one program queries across SQL
 databases such as Postgres, JSON and YAML documents, message queues such as
 Kafka, and REST APIs. HQL's operations take their inspiration from jq and SQL,
