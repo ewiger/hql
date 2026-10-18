@@ -226,3 +226,54 @@ fn flat_map_is_map_then_emit() {
         eval("[1, 1, 2, 2]")
     );
 }
+
+#[test]
+fn formatting_a_stream_gives_a_stream_of_pieces() {
+    let stream = |format: &str| {
+        hql::types::collections::STREAM.apply([hql::types::builtin::named(format, &[]).unwrap()])
+    };
+    assert_eq!(
+        check(&format!("{NATURALS}naturals(1) | json")),
+        Ok(stream("Json"))
+    );
+    assert_eq!(
+        check(&format!("{NATURALS}naturals(1) | format(Csv)")),
+        Ok(stream("Csv"))
+    );
+    // A finite input is still written whole.
+    assert_eq!(
+        check("[1, 2] | json"),
+        Ok(hql::types::builtin::named("Json", &[]).unwrap())
+    );
+    assert_eq!(
+        eval(&format!("{NATURALS}naturals(1) | json | take(2)")),
+        eval("[\"1\", \"2\"]")
+    );
+    let pieces = format!("{NATURALS}naturals(1) | map(n => {{n: n}}) | csv | take(2)");
+    assert_eq!(eval(&pieces).to_string(), "[n\r\n1, 2]");
+    let whole = check(&format!("{NATURALS}naturals(1) | d2")).expect_err("D2 is a whole");
+    assert!(
+        whole.contains("describes a whole") && whole.contains("collect(n)"),
+        "{whole}"
+    );
+}
+
+#[test]
+fn a_host_writes_a_stream_as_it_arrives_and_stops_when_the_reader_does() {
+    let vault = hql::vault::Vault::empty();
+    let outcome = hql::run(
+        &format!("{NATURALS}naturals(1) | yaml"),
+        &vault,
+        hql::reporting::Mode::Strict,
+    );
+    let Some(Value::Traversal(traversal)) = outcome.value else {
+        panic!("a stream, not {:?}", outcome.value)
+    };
+    let mut written = Vec::new();
+    hql::stream(&traversal, &vault, |piece| {
+        written.push(piece.to_string());
+        written.len() < 3
+    })
+    .unwrap();
+    assert_eq!(written, ["---\n1", "---\n2", "---\n3"]);
+}

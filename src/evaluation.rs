@@ -41,6 +41,25 @@ pub(crate) fn evaluate(
     evaluate_in(program, vault, scope)
 }
 
+/// Drive a stream a program returned, handing each value to `sink` until the
+/// values run out or the sink stops: what a host does to write a stream as it
+/// arrives.
+pub(crate) fn traverse(
+    traversal: &Traversal,
+    vault: &Vault,
+    sink: &mut dyn FnMut(Value) -> bool,
+) -> Result<(), Diagnostic> {
+    let mut evaluator = Evaluator {
+        vault,
+        scope: base(vault),
+        log: Vec::new(),
+        frames: Vec::new(),
+    };
+    evaluator
+        .run_traversal(traversal, &mut |_, value| Ok(sink(value)))
+        .map(drop)
+}
+
 /// What a host seeds before the library: `vault`, when there is one.
 fn base(vault: &Vault) -> HashMap<String, Value> {
     let mut scope = HashMap::new();
@@ -727,6 +746,23 @@ impl Evaluator<'_> {
                 }
                 Ok(true)
             }),
+            Source::Format {
+                input,
+                format,
+                span,
+            } => {
+                let mut first = true;
+                self.run_traversal(input, &mut |evaluator, value| {
+                    let text = crate::extensions::format::piece(&value, *format, first)
+                        .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+                    first = false;
+                    let piece = Value::Formatted(Arc::new(crate::types::Formatted {
+                        text,
+                        format: *format,
+                    }));
+                    sink(evaluator, piece)
+                })
+            }
             // Kept values are always forced, and answered above.
             Source::Kept => Ok(true),
             Source::Drop { input, n } => {

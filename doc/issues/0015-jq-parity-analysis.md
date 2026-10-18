@@ -21,8 +21,9 @@ no code under `src/` changes here.
    ([0008](0008-cards-as-a-vault-binding.md)), and to write them back out.
    Today JSON is output only, through the `json` presentation step and
    `--envelope json`. The binary already depends on `serde_json` and
-   `serde_yaml_ng`. CSV output is a natural fit for a `table`, and CSV input
-   is a natural source of records.
+   `serde_yaml_ng`. CSV output is the `csv` presentation format, and CSV input
+   is a natural source of records. Reading standard input as a query source
+   carries HQL-0017's `--from <format>`, which names the format of that input.
    - **Pretty printing for free.** `jq .` is the identity program, yet it is
      the most common use of jq: any JSON fed in comes back indented and
      coloured. HQL's identity does the same over every input it understands,

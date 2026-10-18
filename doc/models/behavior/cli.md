@@ -80,6 +80,14 @@ A renderer or format this binary does not have, or a renderer named for a
 format or type it does not write, fails loading the vault, so the mistake is
 reported before any query reaches it.
 
+## Streams
+
+A result that is a stream that may not end is written piece by piece, each
+flushed as it arrives, in the presentation format the program or `--to`
+chose. `hql eval 'naturals(1) | json' | head -3` prints three lines and exits
+`0`: the reader stopping ends the stream. `--envelope json` refuses such a
+result, because a JSON envelope is one document.
+
 ## Exit status
 
 `0` succeeded, possibly with warnings. `1` is a language failure or an I/O one.

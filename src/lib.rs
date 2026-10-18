@@ -82,6 +82,20 @@ pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
     checker::check(&parser::parse(source)?, vault).map(|program| program.result)
 }
 
+/// Write a stream a program returned as it arrives: each value goes to
+/// `sink`, which answers whether it wants another.
+///
+/// # Errors
+///
+/// Returns the first failure producing a value.
+pub fn stream(
+    traversal: &traversal::Traversal,
+    vault: &Vault,
+    mut sink: impl FnMut(Value) -> bool,
+) -> Result<(), Diagnostic> {
+    evaluation::traverse(traversal, vault, &mut sink)
+}
+
 /// Parse, type-check, then evaluate a program with no vault.
 ///
 /// # Errors

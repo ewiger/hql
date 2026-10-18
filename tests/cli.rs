@@ -489,3 +489,25 @@ fn the_envelope_carries_the_value_and_the_reports() {
     let renamed = hql(&["--format", "json", "eval", "1"]);
     assert_eq!(renamed.status.code(), Some(2), "--format names nothing");
 }
+
+#[test]
+fn a_stream_is_written_line_by_line_as_it_arrives() {
+    use std::io::{BufRead, BufReader};
+    let program = "fn naturals(from: Int) : Stream<Int> {\n    yield from\n    for n in naturals(from + 1) {\n        yield n\n    }\n}\nnaturals(1) | json";
+    let mut child = Command::new(env!("CARGO_BIN_EXE_hql"))
+        .args(["eval", program])
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let lines: Vec<String> = BufReader::new(child.stdout.take().unwrap())
+        .lines()
+        .take(3)
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(lines, ["1", "2", "3"]);
+    // Closing the pipe ends the stream rather than leaving it running.
+    assert!(child.wait().unwrap().success());
+    let json = hql(&["--envelope", "json", "eval", program]);
+    assert_eq!(json.status.code(), Some(1));
+    assert!(stderr(&json).contains("may not end"), "{}", stderr(&json));
+}

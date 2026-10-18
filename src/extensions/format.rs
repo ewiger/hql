@@ -7,11 +7,13 @@
 //! over built-in defaults. See [HQL-0017](../../doc/proposals/HQL-0017/README.md).
 
 use super::spec::{
-    ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,
+    ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern,
+    TypePattern as P,
 };
 use super::{EvalCx, Operation, Purity, named};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
+use crate::traversal::{Source, Traversal};
 use crate::types::{Formatted, TypeConstructor, TypeRef, Value};
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -57,6 +59,17 @@ const GRAPH_RENDERERS: [&str; 4] = ["adjacency", "node-link", "d2", "mermaid"];
 /// Names the type and the format.
 pub fn writable(input: &TypeRef, format: &str) -> Result<(), String> {
     let input = input.present();
+    // A stream that may not end is written piece by piece, which a format
+    // that describes a whole cannot do.
+    if input.is_stream() && !input.is_collection() {
+        if matches!(format, "D2" | "Mermaid") {
+            return Err(format!(
+                "{format} describes a whole, and {input} may not end; bound it with `take(n)` \
+                 or batch it with `collect(n)`"
+            ));
+        }
+        return Ok(());
+    }
     let from = input.constructor.0;
     let refused = || Err(format!("no renderer writes {input} as {format}"));
     if FORMATS.iter().any(|(name, _)| *name == from) {
@@ -197,6 +210,38 @@ pub fn render(
         text.push_str(&cut_marker(format, cut));
     }
     Ok(text)
+}
+
+/// One value of a stream written as one piece of `format`: a line of text, a
+/// Markdown list item, a CSV row (the header with the first), a JSON value on
+/// one line, or a YAML document.
+///
+/// # Errors
+/// Names a format that describes a whole and so has no pieces.
+pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<String, String> {
+    if let Value::Formatted(_) = value {
+        return render(value, format, 0, None, &Renderers::default());
+    }
+    let one = Value::list(vec![value.clone()], value.type_of());
+    match format.0 {
+        "Text" | "String" => Ok(text(value)),
+        "Markdown" | "Hmd" => Ok(one.to_markdown()),
+        "Json" => serde_json::to_string(&value.to_json()).map_err(|error| error.to_string()),
+        "Yaml" => serde_yaml_ng::to_string(&value.to_json())
+            .map(|document| format!("---\n{}", document.trim_end()))
+            .map_err(|error| error.to_string()),
+        "Csv" => {
+            let rows = one.to_csv();
+            Ok(if first {
+                rows.trim_end().to_owned()
+            } else {
+                rows.lines().skip(1).collect::<Vec<_>>().join("\n")
+            })
+        }
+        other => Err(format!(
+            "{other} describes a whole, and a stream may not end; bound it with `take(n)`"
+        )),
+    }
 }
 
 /// The built-in choice for a type in a format.
@@ -428,21 +473,73 @@ pub(crate) static STEPS: &[Operation] = &[
                     ..ArgumentSpec::value("renderer", P::Type(TypeConstructor("String")))
                 },
             ],
-            output: O::Type(P::Var("F")),
+            output: O::Finite {
+                finite: P::Var("F"),
+                open: P::Apply(crate::types::collections::STREAM, &[P::Var("F")]),
+            },
         },
-        summary: "Write any value as text of a presentation format, chosen by its type.",
+        summary: "Write any value as text of a presentation format, chosen by its type; \
+                  a stream piece by piece.",
         purity: Purity::Pure,
         check: Some(check_format),
         eval: eval_format,
     },
-    shorthand("text", "Text", check_text, eval_text),
-    shorthand("markdown", "Markdown", check_markdown, eval_markdown),
-    shorthand("hmd", "Hmd", check_hmd, eval_hmd),
-    shorthand("json", "Json", check_json, eval_json),
-    shorthand("yaml", "Yaml", check_yaml, eval_yaml),
-    shorthand("csv", "Csv", check_csv, eval_csv),
-    shorthand("d2", "D2", check_d2, eval_d2),
-    shorthand("mermaid", "Mermaid", check_mermaid, eval_mermaid),
+    shorthand(
+        "text",
+        "Text",
+        &[P::Type(TypeConstructor("Text"))],
+        check_text,
+        eval_text,
+    ),
+    shorthand(
+        "markdown",
+        "Markdown",
+        &[P::Type(TypeConstructor("Markdown"))],
+        check_markdown,
+        eval_markdown,
+    ),
+    shorthand(
+        "hmd",
+        "Hmd",
+        &[P::Type(TypeConstructor("Hmd"))],
+        check_hmd,
+        eval_hmd,
+    ),
+    shorthand(
+        "json",
+        "Json",
+        &[P::Type(TypeConstructor("Json"))],
+        check_json,
+        eval_json,
+    ),
+    shorthand(
+        "yaml",
+        "Yaml",
+        &[P::Type(TypeConstructor("Yaml"))],
+        check_yaml,
+        eval_yaml,
+    ),
+    shorthand(
+        "csv",
+        "Csv",
+        &[P::Type(TypeConstructor("Csv"))],
+        check_csv,
+        eval_csv,
+    ),
+    shorthand(
+        "d2",
+        "D2",
+        &[P::Type(TypeConstructor("D2"))],
+        check_d2,
+        eval_d2,
+    ),
+    shorthand(
+        "mermaid",
+        "Mermaid",
+        &[P::Type(TypeConstructor("Mermaid"))],
+        check_mermaid,
+        eval_mermaid,
+    ),
 ];
 
 /// One check and one evaluation per shorthand, each with its format fixed.
@@ -503,6 +600,7 @@ fn unwrapped(value: &Value) -> &Value {
 const fn shorthand(
     name: &'static str,
     format: &'static str,
+    piece: &'static [TypePattern],
     check: super::Check,
     eval: super::Eval,
 ) -> Operation {
@@ -512,7 +610,10 @@ const fn shorthand(
             parameters: &[],
             input: P::Any,
             arguments: &[],
-            output: O::Type(P::Type(TypeConstructor(format))),
+            output: O::Finite {
+                finite: P::Type(TypeConstructor(format)),
+                open: P::Apply(crate::types::collections::STREAM, piece),
+            },
         },
         summary: "Shorthand for format with its format fixed.",
         purity: Purity::Pure,
@@ -557,6 +658,30 @@ fn written(
     renderer: Option<&str>,
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    if let Value::Traversal(traversal) = input
+        && traversal.forced().is_none()
+    {
+        // A stream that may not end is written piece by piece, as it is
+        // consumed; a finite one is produced and written whole.
+        if !traversal.finite {
+            return Ok(Value::Traversal(Arc::new(Traversal::new(
+                TypeRef::from(format),
+                false,
+                Source::Format {
+                    input: Arc::clone(traversal),
+                    format,
+                    span,
+                },
+            ))));
+        }
+        let mut values = Vec::new();
+        cx.traverse(traversal, &mut |_, value| {
+            values.push(value);
+            Ok(true)
+        })?;
+        let whole = Value::list(values, traversal.element.clone());
+        return written(cx, &whole, format, limit, renderer, span);
+    }
     let text = render(input, format, limit, renderer, &cx.vault().formats)
         .map_err(|message| Diagnostic::runtime(span, message))?;
     Ok(Value::Formatted(Arc::new(Formatted { text, format })))

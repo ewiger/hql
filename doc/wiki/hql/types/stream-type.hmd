@@ -37,6 +37,7 @@ part of the value. See [[collections]] for the collection family.
 | `emit` | `Stream<Seq<T>>` | `Stream<T>`: every member of every batch, in order |
 | `emit` | `Seq<Seq<T>>` | `List<T>` |
 | `flat_map(by)` | `Stream<T>`, `by : T -> Seq<U>` | `Stream<U>`, which is `map(by) \| emit` |
+| `format(F)`, `text`, `json`, … | `Stream<T>` | `Stream<F>`: one piece of text per value, see [[hql/presentation]] |
 
 `map`, `filter`, `take`, `drop`, `collect`, `emit` and `flat_map` consume one
 value at a time, so a pipeline of them over a stream runs only as far as its

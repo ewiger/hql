@@ -21,8 +21,9 @@ use crate::traversal::{Source, Traversal};
 
 /// The steps that consume a traversal one value at a time and so keep it
 /// lazy. Every other step receives a traversal's values, forced once.
-pub(crate) const LAZY: [&str; 7] = [
-    "map", "filter", "take", "drop", "collect", "emit", "flat_map",
+pub(crate) const LAZY: [&str; 16] = [
+    "map", "filter", "take", "drop", "collect", "emit", "flat_map", "format", "text", "markdown",
+    "hmd", "json", "yaml", "csv", "d2", "mermaid",
 ];
 
 /// A traversal that has not been forced, which a lazy step wraps.

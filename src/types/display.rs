@@ -279,12 +279,51 @@ impl Value {
 
 /// Rows under named columns, before they are laid out.
 struct Grid {
-    headers: &'static [&'static str],
+    headers: Vec<String>,
     body: Vec<Vec<String>>,
 }
 
-fn grid(headers: &'static [&'static str], body: Vec<Vec<String>>) -> Vec<Grid> {
-    vec![Grid { headers, body }]
+fn grid(headers: &[&str], body: Vec<Vec<String>>) -> Vec<Grid> {
+    vec![Grid {
+        headers: headers.iter().map(|header| (*header).to_owned()).collect(),
+        body,
+    }]
+}
+
+/// A list of records laid out with one column per key, in the order the keys
+/// first appear, and a record's text as written.
+fn records(values: &[Value]) -> Option<Vec<Grid>> {
+    let maps: Vec<&std::collections::BTreeMap<String, Data>> = values
+        .iter()
+        .map(|value| match value {
+            Value::Data(data) => match data.as_ref() {
+                Data::Map(entries) => Some(entries),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect::<Option<_>>()?;
+    if maps.is_empty() {
+        return None;
+    }
+    let mut headers: Vec<String> = Vec::new();
+    for map in &maps {
+        for key in map.keys() {
+            if !headers.contains(key) {
+                headers.push(key.clone());
+            }
+        }
+    }
+    let cell = |data: Option<&Data>| match data {
+        Some(Data::Str(text)) => text.clone(),
+        Some(other) => other.to_string(),
+        None => String::new(),
+    };
+    let body = maps
+        .iter()
+        .map(|map| headers.iter().map(|key| cell(map.get(key))).collect())
+        .collect();
+    Some(vec![Grid { headers, body }])
 }
 
 fn grids(value: &Value) -> Vec<Grid> {
@@ -365,6 +404,9 @@ fn grids(value: &Value) -> Vec<Grid> {
                         .collect(),
                 );
             }
+            if let Some(records) = records(values) {
+                return records;
+            }
             grid(
                 &["value"],
                 values.iter().map(|value| vec![value.to_string()]).collect(),
@@ -424,11 +466,7 @@ impl Grid {
                 .trim_end()
                 .to_owned()
         };
-        let head: Vec<String> = self
-            .headers
-            .iter()
-            .map(|header| (*header).to_owned())
-            .collect();
+        let head: Vec<String> = self.headers.clone();
         let rule: Vec<String> = widths.iter().map(|width| "-".repeat(*width)).collect();
         let mut out = vec![line(&head), line(&rule)];
         out.extend(self.body.iter().map(|row| line(row)));
@@ -453,12 +491,7 @@ impl Grid {
             format!("| {} |", cells.join(" | "))
         };
         let mut out = vec![
-            line(
-                self.headers
-                    .iter()
-                    .map(|header| (*header).to_owned())
-                    .collect(),
-            ),
+            line(self.headers.clone()),
             line(
                 widths
                     .iter()

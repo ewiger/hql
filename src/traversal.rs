@@ -54,6 +54,12 @@ pub(crate) enum Source {
     Collect { input: Arc<Traversal>, n: usize },
     /// The members of each sequence `input` produces, in order.
     Emit { input: Arc<Traversal> },
+    /// Each value of `input` written as one piece of text in `format`.
+    Format {
+        input: Arc<Traversal>,
+        format: crate::types::TypeConstructor,
+        span: Range<usize>,
+    },
     /// Values already produced, kept at a sequence type.
     Kept,
 }

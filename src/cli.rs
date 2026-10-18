@@ -380,6 +380,37 @@ fn presented(
     crate::extensions::format::render(value, format, 0, None, &vault.formats).map(Some)
 }
 
+/// Write a stream as it arrives, one piece per value, each flushed so a
+/// reader sees it at once. A reader that closes the pipe ends the stream.
+fn streamed(
+    traversal: &crate::traversal::Traversal,
+    to: Option<&Presentation>,
+    vault: &Vault,
+    out: &mut impl Write,
+) -> Result<(), String> {
+    let format = match to {
+        Some(Presentation::Format(format)) => *format,
+        _ => crate::types::TypeConstructor("Text"),
+    };
+    let (mut first, mut failed) = (true, None);
+    crate::stream(traversal, vault, |value| {
+        let text = match (&value, to) {
+            (Value::Formatted(formatted), None) => Ok(formatted.text.clone()),
+            _ => crate::extensions::format::piece(&value, format, first),
+        };
+        first = false;
+        match text {
+            Ok(text) => writeln!(out, "{text}").and_then(|()| out.flush()).is_ok(),
+            Err(message) => {
+                failed = Some(message);
+                false
+            }
+        }
+    })
+    .map_err(|diagnostic| diagnostic.message())?;
+    failed.map_or(Ok(()), Err)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn emit(
     outcome: &crate::Outcome,
@@ -392,6 +423,21 @@ fn emit(
     err: &mut impl Write,
 ) -> Result<u8, String> {
     let to = presentation(options.to.as_deref())?;
+    if let Some(Value::Traversal(traversal)) = &outcome.value
+        && !traversal.finite
+    {
+        if options.envelope == Shape::Json {
+            return Err(format!(
+                "--envelope json writes one document, and {} may not end; bound it with `take(n)`",
+                traversal.type_of()
+            ));
+        }
+        if !matches!(to, Some(Presentation::Nothing)) {
+            streamed(traversal, to.as_ref(), vault, out)?;
+        }
+        report_all(&outcome.reports.shown(shown), source, origin, err)?;
+        return Ok(u8::from(outcome.failed()));
+    }
     match options.envelope {
         Shape::Json => {
             // The value is data unless `--to` asked for a format.

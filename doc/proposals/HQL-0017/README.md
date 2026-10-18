@@ -225,11 +225,23 @@ match wins:
 
 ### 9. Streams
 
-- `format` over a `Stream<T>` MUST render incrementally where the format has a
-  streaming form: `Text` and `Markdown` one item or row at a time, `Csv` one
-  row at a time, `Json` one value per line, `Yaml` one document per `---`.
-- `D2`, `Mermaid` and `Hmd`'s components describe a whole; formatting a
-  `Stream` in them MUST be refused, naming `take` and `collect(n)`.
+```hql
+fn format<T, F : String>(xs: Stream<T>, as: Type<F>) : Stream<F>
+```
+
+- `format` over a `Stream<T>` that is not a `Seq<T>` MUST return a
+  `Stream<F>`: one piece of format `F` per value, produced as the value
+  arrives. A piece is a line in `Text`, a list item in `Markdown` and `Hmd`, a
+  row in `Csv` with the header in the first piece, one value on one line in
+  `Json`, and one document opening with `---` in `Yaml`. Over a `Seq<T>` the
+  result is one whole text, `F`.
+- `D2` and `Mermaid` describe a whole; formatting a `Stream` in them MUST be
+  refused, naming `take` and `collect(n)`.
+- A host MUST write a `Stream<F>` result piece by piece as the pieces arrive,
+  and a stream result that is not formatted in its presentation context the
+  same way. A reader that stops reading ends the stream. A JSON envelope is one
+  document, so `--envelope json` MUST refuse a stream that may not end, naming
+  `take`.
 
 ## Backwards Compatibility
 

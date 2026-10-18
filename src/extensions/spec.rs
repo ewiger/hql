@@ -496,11 +496,13 @@ impl OperationSpec {
                 let element = TypePattern::Var(parameter).instantiate(&bindings, span)?;
                 input.image(element)
             }
+            // Only a stream that may not end takes the open form; a finite
+            // collection and a single value take the finite one.
             Output::Finite { finite, open } => {
-                if input.is_collection() {
-                    finite.instantiate(&bindings, span)?
-                } else {
+                if input.is_stream() && !input.is_collection() {
                     open.instantiate(&bindings, span)?
+                } else {
+                    finite.instantiate(&bindings, span)?
                 }
             }
             Output::Fold { accumulator, .. } => {
