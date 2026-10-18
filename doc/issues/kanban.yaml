@@ -44,12 +44,9 @@ board:
       - id: "0009"
         title: A function type, and functions as values
         file: 0009-function-type-and-constructor.md
-      - id: "0008"
-        title: "`cards` is a vault binding, not a keyword"
-        file: 0008-cards-as-a-vault-binding.md
     todo:
       - id: "0014"
-        title: "Next feature bundle: aggregation first, then the pipeline foundations"
+        title: "Next feature bundle: signatures and aggregation first, then the pipeline foundations"
         file: 0014-next-feature-bundle.md
       - id: "0011"
         title: Wire the semantic-search toolchain together
@@ -62,6 +59,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0008"
+        title: "`cards` is a vault binding, not a keyword"
+        file: 0008-cards-as-a-vault-binding.md
       - id: "0004"
         title: Unify the collection-order vocabulary
         file: 0004-collection-order-vocabulary.md

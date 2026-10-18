@@ -39,8 +39,13 @@ pub struct TypeParameter {
     pub bound: Option<TypeRef>,
 }
 
-/// A declaration whose parents each receive the same arguments, or none when
-/// nongeneric.
+/// A declaration and what it narrows.
+///
+/// A parent in `parents` receives the declaration's own arguments, in order,
+/// or none when nongeneric. A parent in `applied` is written in terms of the
+/// parameters, as `Ranking<T> : Seq<Hit<T>>` is: a parameter appears as a
+/// nullary application of its name, and is substituted when the parent is
+/// viewed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeDefinition {
     /// The constructor introduced by this declaration.
@@ -52,6 +57,8 @@ pub struct TypeDefinition {
     /// Its immediate semantic ancestors. A supertype set declares several,
     /// and every one of them must hold.
     pub parents: Vec<TypeConstructor>,
+    /// Parents applied to types built from the parameters.
+    pub applied: Vec<TypeRef>,
 }
 
 /// A malformed declaration or type application.
@@ -183,6 +190,15 @@ impl TypeSystem {
                 });
             }
         }
+        for parent in &definition.applied {
+            let ancestor = self.definition(parent.constructor)?;
+            if parent.args.len() != ancestor.parameters.len() {
+                return Err(TypeError::IncompatibleParent {
+                    constructor,
+                    parent: parent.constructor,
+                });
+            }
+        }
         if let TypeKind::Union(members) = &definition.kind {
             if members.is_empty() {
                 return Err(TypeError::EmptyUnion(constructor));
@@ -251,8 +267,11 @@ impl TypeSystem {
         for argument in &reference.args {
             self.validate(argument)?;
         }
-        for definition in self.ancestors(reference.constructor) {
-            for (argument, parameter) in reference.args.iter().zip(&definition.parameters) {
+        for view in self.supertypes(reference) {
+            let Some(definition) = self.definitions.get(&view.constructor) else {
+                continue;
+            };
+            for (argument, parameter) in view.args.iter().zip(&definition.parameters) {
                 let Some(bound) = &parameter.bound else {
                     continue;
                 };
@@ -296,18 +315,14 @@ impl TypeSystem {
     ) -> Result<Option<TypeRef>, TypeError> {
         self.validate(reference)?;
         self.definition(constructor)?;
-        Ok(self
-            .ancestors(reference.constructor)
-            .find(|definition| definition.constructor == constructor)
-            .map(|definition| {
-                constructor.apply(
-                    reference
-                        .args
-                        .iter()
-                        .take(definition.parameters.len())
-                        .cloned(),
-                )
-            }))
+        Ok(self.view(reference, constructor))
+    }
+
+    /// A type viewed through one constructor in its ancestry, nearest first.
+    fn view(&self, reference: &TypeRef, constructor: TypeConstructor) -> Option<TypeRef> {
+        self.supertypes(reference)
+            .into_iter()
+            .find(|view| view.constructor == constructor)
     }
 
     /// Whether a valid source type satisfies a valid target type's contract.
@@ -326,11 +341,11 @@ impl TypeSystem {
             return true;
         }
         let declared = self
-            .ancestors(source.constructor)
-            .find(|definition| definition.constructor == target.constructor)
-            .is_some_and(|definition| {
+            .view(source, target.constructor)
+            .zip(self.definitions.get(&target.constructor))
+            .is_some_and(|(view, definition)| {
                 definition.parameters.len() == target.args.len()
-                    && source
+                    && view
                         .args
                         .iter()
                         .zip(&target.args)
@@ -359,22 +374,54 @@ impl TypeSystem {
         }
     }
 
-    /// A declaration and everything it narrows, nearest first, each once.
-    fn ancestors(&self, constructor: TypeConstructor) -> impl Iterator<Item = &TypeDefinition> {
+    /// A type and every supertype it narrows, with the arguments each
+    /// receives, nearest first, each constructor once.
+    fn supertypes(&self, reference: &TypeRef) -> Vec<TypeRef> {
         // Declarations are append-only and checked before insertion, so every
         // parent exists and the walk terminates at the roots.
-        let mut found: Vec<&TypeDefinition> = Vec::new();
-        let mut pending = VecDeque::from([constructor]);
+        let mut found: Vec<TypeRef> = Vec::new();
+        let mut pending = VecDeque::from([reference.clone()]);
         while let Some(next) = pending.pop_front() {
-            if found.iter().any(|seen| seen.constructor == next) {
+            if found
+                .iter()
+                .any(|seen| seen.constructor == next.constructor)
+            {
                 continue;
             }
-            let Some(definition) = self.definitions.get(&next) else {
+            let Some(definition) = self.definitions.get(&next.constructor) else {
                 continue;
             };
-            found.push(definition);
-            pending.extend(definition.parents.iter().copied());
+            for &parent in &definition.parents {
+                let arity = self
+                    .definitions
+                    .get(&parent)
+                    .map_or(0, |parent| parent.parameters.len());
+                pending.push_back(parent.apply(next.args.iter().take(arity).cloned()));
+            }
+            for parent in &definition.applied {
+                pending.push_back(substitute(parent, &definition.parameters, &next.args));
+            }
+            found.push(next);
         }
-        found.into_iter()
+        found
     }
+}
+
+/// Replace each parameter, written as a nullary application of its name, with
+/// the argument it receives.
+fn substitute(written: &TypeRef, parameters: &[TypeParameter], args: &[TypeRef]) -> TypeRef {
+    if written.args.is_empty()
+        && let Some(index) = parameters
+            .iter()
+            .position(|parameter| parameter.name == written.constructor.0)
+        && let Some(argument) = args.get(index)
+    {
+        return argument.clone();
+    }
+    written.constructor.apply(
+        written
+            .args
+            .iter()
+            .map(|argument| substitute(argument, parameters, args)),
+    )
 }

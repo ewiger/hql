@@ -19,14 +19,18 @@ binding     := ident (":" type)? "=" expression
 
 expression  := pipeline
 pipeline    := link ("|" link)*
-link        := equality ("->" equality data?)?
-equality    := addition (("==" | "!=") addition)?
-addition    := postfix ("+" postfix)*
+link        := or ("->" or data?)?
+or          := and ("or" and)*
+and         := not ("and" not)*
+not         := "not" not | comparison
+comparison  := addition (("==" | "!=" | "<" | "<=" | ">" | ">=") addition)?
+addition    := product (("+" | "-") product)*
+product     := postfix (("*" | "/" | "%") postfix)*
 postfix     := primary (("." ident) | call)*
 call        := "(" (argument ("," argument)*)? ")"
 argument    := (ident "=")? expression
 primary     := int | float | bool | string | docref | lambda
-             | ident | "cards" | "(" expression ")" | data | list | set
+             | ident | "(" expression ")" | data | list | set
              | type call
 lambda      := (ident | "(" ident ("," ident)* ")") "=>" expression
 data        := "{" (key ":" expression ("," key ":" expression)*)? "}"
@@ -76,11 +80,18 @@ accepts either a unary orderable key selector or a binary comparison returning
 `Ordering`, such as `(a, b) => compare(size(a), size(b))` for lists. Supplying a
 comparison does not make the element type intrinsically orderable.
 
-`-` belongs to a numeric literal and must touch its digits. There is no unary
-minus and no subtraction, so `- 1` and `1 - 2` are syntax errors. A float needs
-digits on both sides of the point and has no exponent. Integer literals fit
-`i64`; float literals are finite `f64`. At most 255 additions chain in one
-expression, and expressions nest at most 128 deep.
+A `-` that touches a digit is the sign of a numeric literal, unless it follows
+an operand, where it subtracts: `-2 + 3` adds a negative literal, and `n -2`
+and `n - 2` both subtract. There is no unary minus, so `- 1` is a syntax
+error. A float needs digits on both sides of the point and has no exponent.
+Integer literals fit `i64`; float literals are finite `f64`. At most 255
+arithmetic operators and connectives chain in one expression, and expressions
+nest at most 128 deep.
+
+`and`, `or` and `not` are reserved words, not names. `Name<…>(` opens a
+constructor only when the angle brackets hold type names alone and close
+directly before the argument list; otherwise `<` is the comparison, so
+`n < 3` compares.
 
 ## Values and types
 
@@ -94,13 +105,30 @@ expression, and expressions nest at most 128 deep.
 | `true`, `42`, `1.5`, `"text"` | also `Scalar`, and so also `Data` |
 | `[[name]]` | `Option<Card>` |
 | `[[a]] -> [[b]] {..}` | `Edge` |
-| `cards` | `Set<Card>` |
+| `cards` | `Set<Card>`, bound when a vault is present |
 
-Addition is homogeneous: two `Int` or two `Float`, never mixed, and `Int` never
-widens. Overflow — an `i64` that wraps or a sum that leaves the finite floats —
-is an evaluation failure rather than a wrapped or infinite value. `==` and `!=`
-compare scalars and do not chain; either side may be a `Data` leaf, which is
-what asking a header a question looks like.
+`cards` is an ordinary binding the host seeds from the vault, built once per
+program. A program may shadow it like any other name. Without a vault it is
+unbound, and the checker says that it needs `--vault` rather than that it does
+not exist.
+
+Arithmetic is homogeneous: `+`, `-`, `*`, `/` and `%` take two `Int` or two
+`Float`, never mixed, and `Int` never widens. `Int` division truncates toward
+zero and `%` keeps the dividend's sign, so `a == (a / b) * b + a % b`.
+Division or remainder by zero is an evaluation failure. Overflow — an `i64`
+that wraps, or a result that leaves the finite floats — is an evaluation
+failure rather than a wrapped or infinite value.
+
+`==` and `!=` compare scalars; either side may be a `Data` leaf, which is what
+asking a header a question looks like. `<`, `<=`, `>` and `>=` take two values
+of one `Orderable` type, as `compare` does, with no widening and no looking
+through `Option` or into `Data`. No comparison chains: `a < b < c` is a syntax
+error, and is written `a < b and b < c`.
+
+`and`, `or` and `not` take `Bool` operands and return `Bool`; an
+`Option<Bool>` is refused. `and` and `or` evaluate left to right and evaluate
+their right operand only when it can still change the result. `not` binds
+looser than a comparison, so `not a == b` is `not (a == b)`.
 
 A program returns the value of its last expression. Earlier unbound expressions
 are evaluated and discarded, and a binding retains its value. A program ending

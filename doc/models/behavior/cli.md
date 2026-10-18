@@ -20,7 +20,7 @@ binary can reach is logic that cannot be tested.
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps a pipeline may use, grouped by provider |
-| `hql config` | the reporting mode in force, and where it came from |
+| `hql config` | the reporting mode and shown level in force, and where each came from |
 
 `-` reads standard input wherever a file is taken, so `hql` composes in a
 pipeline.
@@ -31,6 +31,7 @@ pipeline.
 | --- | --- |
 | `--vault <DIR>` | the namespace `cards`, traversal and retrieval run against |
 | `--format text\|json` | a value for a person, or a document for a program |
+| `--report-level debug\|info\|warning\|error` | the lowest severity shown in `text`; see [reporting](reporting.md) |
 | `--report strict\|collect` | when the run stops; see [reporting](reporting.md) |
 
 Without `--vault`, `cards`, `downlinks` and `expand` say they need one rather
@@ -73,10 +74,14 @@ it came from `hql.toml`.
 ## Output
 
 In `text`, the value goes to stdout and the report queue to stderr, so a
-pipeline downstream reads the answer and a person reads the complaints. More
-than one report is followed by a count of each severity.
+pipeline downstream reads the answer and a person reads the complaints. Only
+entries at or above the shown level are written, `warning` by default, so a
+`debug` capture is silent until `--report-level debug` asks for it. More than
+one report is followed by a count of each severity.
 
-In `json`, one object carries everything:
+In `json`, the queue holds every entry whatever the shown level.
+
+One object carries everything:
 
 ```json
 { "origin": "<expression>", "type": "Int", "value": 42, "reports": [] }

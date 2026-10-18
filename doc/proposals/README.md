@@ -20,3 +20,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0010](HQL-0010/README.md) | drafted | `tee` branches a pipeline without ending it |
 | [HQL-0011](HQL-0011/README.md) | drafted | Names, their providers, and the naming lint |
 | [HQL-0012](HQL-0012/README.md) | drafted | Data sources |
+| [HQL-0013](HQL-0013/README.md) | drafted | Joins over named sides |

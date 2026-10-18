@@ -2,11 +2,14 @@
 
 Status: implemented.
 
-A run produces three streams, not one. Which of them stops it is a policy, not a
-property of the language, so it is configured rather than fixed.
+A run produces a structured log beside its value. Which entries stop it, and
+which are shown, is a policy, not a property of the language, so it is
+configured rather than fixed.
 
 | Severity | Meaning | Example |
 | --- | --- | --- |
+| `debug` | A value the program captured to look at | `xs \| debug(label = "xs")` |
+| `info` | A value or a fact the program states | `debug(x, level = "info")` |
 | `warning` | Work continued and the result stands | a reference that does not resolve |
 | `error` | The result is wrong, but more could still be examined | a type or name error |
 | `failure` | Nothing further can be examined | the source did not parse; arithmetic overflowed |
@@ -51,8 +54,25 @@ The most specific layer that states one wins:
 3. **the user** — `HQL_REPORT` in the environment
 4. **the default** — `strict`
 
-`hql config` prints the mode in force and which layer supplied it, so the
-precedence never has to be guessed.
+## The shown level
+
+`level` is the lowest severity a text host writes: `debug`, `info`, `warning` or
+`error`, and `warning` by default. It comes from the same layers as the mode:
+`--report-level`, then `[report] level` in the vault's `hql.toml`, then
+`HQL_REPORT_LEVEL`, then the default. Hiding an entry does not discard it:
+`Reports::shown(level)` filters a copy, and `--format json` carries every entry.
+
+`hql config` prints the mode and the level in force and which layer supplied
+each, so the precedence never has to be guessed.
+
+## Entries
+
+Every entry has `severity`, `stage`, `message` and `span`. An entry the program
+captured with [`debug`](../../wiki/hql/operators/debug-op.hmd) also has `code`
+(`debug`), `label` when one was given, `type`, `found` (the whole value as data)
+and `trace`: each step on the path evaluation took to it, its one-based position
+in its pipeline, and the element its function was applied to. The log survives
+an evaluation failure, so what was captured before it is still reported.
 
 ## Rendering
 
@@ -69,7 +89,7 @@ type error: addition requires two Int or two Float operands
   |   ^^^^
 ```
 
-`--format json` emits the same queue as data, with `severity`, `stage`,
-`message` and the byte span, for an editor or another host.
+`--format json` emits the same queue as data, with the fields above and the
+byte span, for an editor or another host.
 
 Tests: `tests/reporting.rs`, `tests/cli.rs`. See [the command line](cli.md).

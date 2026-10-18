@@ -262,3 +262,22 @@ fn the_expansion_direction_is_stated_rather_than_assumed() {
     };
     assert!(graph.nodes.contains(&"bearer-tokens".to_owned()));
 }
+
+#[test]
+fn cards_is_a_binding_a_program_may_shadow() {
+    assert_eq!(text("cards | count"), "6");
+    // Once the keyword is gone, the binding on the first line is what the
+    // second reads.
+    assert_eq!(text("cards = [1, 2]\ncards | count"), "2");
+    assert_eq!(text("all = cards\nall | count"), "6");
+}
+
+#[test]
+fn scalar_operators_filter_cards() {
+    assert_eq!(
+        text(
+            "cards | filter(c => c.name < \"h\" and not c.name == \"broken-relation\") | map(c => c.name)"
+        ),
+        "[bearer-tokens]"
+    );
+}

@@ -408,3 +408,35 @@ fn the_standard_library_checks_from_the_command_line() {
     assert_eq!(stdout(&checked).trim(), "Unit");
     assert_eq!(stderr(&checked), "");
 }
+
+#[test]
+fn debug_entries_are_hidden_by_default_and_shown_on_request() {
+    let source = "[1, 2] | debug(label = \"xs\") | size";
+    let quiet = hql(&["eval", source]);
+    assert_eq!(stdout(&quiet), "2\n");
+    assert!(stderr(&quiet).is_empty(), "{}", stderr(&quiet));
+
+    let shown = hql(&["--report-level", "debug", "eval", source]);
+    assert!(shown.status.success());
+    assert!(stderr(&shown).contains("debug[xs]: List<Int>, 2 elements"));
+    assert!(stderr(&shown).contains("= value: [1, 2]"));
+
+    // JSON carries every entry, whatever the shown level.
+    let json = hql(&["--format", "json", "eval", source]);
+    let document: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
+    assert_eq!(document["reports"][0]["label"], "xs");
+
+    let refused = hql(&["--report-level", "loud", "eval", "1"]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(stderr(&refused).contains("unknown report level"));
+}
+
+#[test]
+fn config_names_the_level_and_its_origin() {
+    let output = Command::new(env!("CARGO_BIN_EXE_hql"))
+        .args(["config"])
+        .env("HQL_REPORT_LEVEL", "info")
+        .output()
+        .unwrap();
+    assert!(stdout(&output).contains("report level: info (from $HQL_REPORT_LEVEL)"));
+}

@@ -91,21 +91,30 @@ pub(crate) enum Kind {
     Float(f64),
     Bool(bool),
     Str(String),
-    /// A bound name.
+    /// A bound name. `cards` is one, seeded from the vault.
     Ident(String),
-    /// The `cards` keyword: the current vault's cards.
-    Cards,
     /// `[[name]]` — a reference to a document in the current namespace.
     DocRef(String),
     /// `{ key: value, .. }` — an open tree.
     Data(Vec<(String, Expr)>),
-    Add(Box<Expr>, Box<Expr>),
+    /// `a + b`, `a - b`, `a * b`, `a / b` or `a % b`.
+    Arith(Arith, Box<Expr>, Box<Expr>),
     /// `a == b` or `a != b`.
     Compare {
         left: Box<Expr>,
         right: Box<Expr>,
         negated: bool,
     },
+    /// `a < b`, `a <= b`, `a > b` or `a >= b`.
+    Relate {
+        left: Box<Expr>,
+        right: Box<Expr>,
+        relation: Relation,
+    },
+    /// `a and b` or `a or b`.
+    Logic(Logic, Box<Expr>, Box<Expr>),
+    /// `not a`.
+    Not(Box<Expr>),
     /// `input | step`, where the step is a name or a call.
     Pipe(Box<Expr>, Box<Expr>),
     /// `[[a]] -> [[b]] { .. }` — the link operator.
@@ -124,4 +133,73 @@ pub(crate) enum Kind {
         parameters: Vec<String>,
         body: Box<Expr>,
     },
+}
+
+/// An arithmetic operator. Each is homogeneous: two `Int`s or two `Float`s.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Arith {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Rem,
+}
+
+impl Arith {
+    /// What the checker calls the operation in a diagnostic.
+    pub fn noun(self) -> &'static str {
+        match self {
+            Self::Add => "addition",
+            Self::Sub => "subtraction",
+            Self::Mul => "multiplication",
+            Self::Div => "division",
+            Self::Rem => "remainder",
+        }
+    }
+}
+
+/// An ordering relation between two values of one `Orderable` type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Relation {
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+}
+
+impl Relation {
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::Less => "<",
+            Self::LessEqual => "<=",
+            Self::Greater => ">",
+            Self::GreaterEqual => ">=",
+        }
+    }
+
+    /// Whether the relation holds of an ordering between its operands.
+    pub fn holds(self, ordering: std::cmp::Ordering) -> bool {
+        match self {
+            Self::Less => ordering.is_lt(),
+            Self::LessEqual => ordering.is_le(),
+            Self::Greater => ordering.is_gt(),
+            Self::GreaterEqual => ordering.is_ge(),
+        }
+    }
+}
+
+/// A boolean connective. Both short-circuit, left to right.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Logic {
+    And,
+    Or,
+}
+
+impl Logic {
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::And => "and",
+            Self::Or => "or",
+        }
+    }
 }

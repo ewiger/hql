@@ -1,0 +1,112 @@
+---
+tags: [hql, naming, extensions, std-lib, design]
+nav:
+  visibility: public
+---
+# Names and where they live
+
+An HQL identifier is a name for a type, a step, a binding, a parameter or a
+field. Each name has a **provider** — the core, an extension, the run context,
+or the program — and a **namespace** that resolves it. The spelling of a name
+follows one convention whichever provider supplies it, so a reader cannot tell a
+core step from an extension step from a program binding by its case; the
+provider is recorded where the name is bound, not in its spelling. The decision
+record is [HQL-0011](../../proposals/HQL-0011/README.md).
+
+## Lexical form
+
+An identifier begins with a letter or `_` and continues with letters, digits
+and `_`; letters are Unicode alphabetic. Names are case-sensitive: `Card` and
+`card` are different names. The grammar does not classify a name by its case —
+no rule reads an uppercase initial as a type or a constructor — so casing is a
+convention and never a syntax error. A checker warning for a departure is
+design direction, specified by HQL-0011. `true` and `false`
+are the only words the lexer reserves; `type`, `abstract`, `import` and the
+other keywords are recognized by position.
+
+## Casing
+
+| Kind of name | Convention | Examples |
+| --- | --- | --- |
+| Type, concrete or abstract | `PascalCase` | `Card`, `HmdCard`, `KnowledgeGraph`, `Seq` |
+| Type parameter | one uppercase letter, or `PascalCase` | `T`, `K`, `V`, `S`, `N`, `E` |
+| Step, operation, function | `snake_case` | `size`, `unwrap_or`, `and_then`, `downlinks` |
+| Binding, parameter, named argument | `snake_case` | `bird_cards`, `first_two`, `by`, `default` |
+| Declared field | `snake_case` | `metadata`, `provenance`, `approximate` |
+| Extension | one lowercase word | `graph`, `present`, `lexical`, `semantic` |
+| Keyword | lowercase | `type`, `abstract`, `import`, `match`, `given` |
+
+An acronym inside a type name is written as a word: `HmdCard`, `IndexRef`,
+`ModelRef`. A predicate step is named `is_<property>` — `is_some`, `is_none`.
+A function is named for the value it returns, without a `get_` prefix:
+`size(xs)`, `downlinks(card)`. The core step `get(map, key)` is lookup itself,
+not a prefix. Where this card is silent, HQL follows the Rust naming
+conventions of RFC 430.
+
+Three kinds of name are not HQL identifiers. The first two follow no HQL
+convention:
+
+- **Document names.** `[[alice]]` names a document in the vault namespace by
+  its file stem, which the author chose. A doc reference is not an identifier
+  and is never linted.
+- **`Data` keys.** The keys of a [[data-type|Data]] tree belong to whoever wrote
+  the header, so `header.created_at` and `header.createdAt` are both correct
+  readings of what is there. A data literal may quote a key that is not an
+  identifier: `{ "created-at": d }`. Only a field a type *declares* is an HQL
+  name — see [[fields]].
+- **Source ids and kinds.** A data source is named in the run context's
+  configuration, and a program reaches it with a string, `source("field_notes")`.
+  Ids and kind names (`vault`, `git_vault`, `postgres`) are `snake_case`, so a
+  binding can carry the id's name: `field_notes = source("field_notes")`. Data
+  sources are design direction, specified by
+  [HQL-0012](../../proposals/HQL-0012/README.md).
+
+The value constructors of the core's sum types are spelled two ways today:
+`some`, `none`, `ok` and `err` in lowercase, `Less`, `Equal` and `Greater` in
+`PascalCase`. One convention for constructors is not yet stated.
+
+## Providers
+
+**The core** provides the type lattice and the collection steps. The lattice is
+declared in [`std/`](../../../std/README.md), one file per module, and the core
+steps — `size`, `contains`, `get`, `count`, `sort`, `take`, `filter`, `map`,
+`typed` — are always in scope. See [[hql/std-lib]] and [[hql/core]].
+
+**An extension** provides steps, registered in the binary and bound by
+`import`. Today an extension names types the lattice already has and adds no
+case to it. Design direction in HQL-0012 widens this by one thing: an extension
+provides source kinds and their concrete types, such as `Vault` under the core's
+abstract `VaultSource`. See [[hql/extensions]].
+
+**The run context** — the configuration and host the binary runs in — provides
+context values before a program starts: `cards` and `knowledge` today, and by
+HQL-0012 the default source `vault` and every source named in configuration.
+
+**The program** provides bindings: `bird_cards = cards | filter(…)` introduces
+`bird_cards` for the statements after it. A lambda's parameter — `c` in
+`c => c.metadata.genre` — is a binding scoped to that lambda.
+
+Types are provided by the core or by an extension, never by a program. A
+program-defined function that acts as a pipeline step — an operation by
+[HQL-0005](../../proposals/HQL-0005/README.md) — is design direction: `fn`
+declarations are not in the grammar.
+
+## Namespaces
+
+| Namespace | Holds | Resolved by |
+| --- | --- | --- |
+| Types | every type name, one lattice | the `std/` declarations and the binary's registry |
+| Steps | step names, per extension | `import`; `extension.step(…)` qualifies one |
+| Bindings | program bindings and host-seeded context values | lexical scope: a binding is visible after the statement that makes it |
+| Fields | declared fields, per type | the type of the value the `.` path is read from |
+| Documents | file stems in the vault | the HyperMarkDown resolver — see [[hypermarkdown]] |
+| Sources | ids in the run context's configuration | `source(id)`, at check time and offline (design direction) |
+
+Two imported extensions that provide the same step name fail at the import,
+naming both; the qualified form `extension.step(…)` is how a program reaches
+one of them. The host seeds context values into the binding namespace before a
+program runs: `cards` and `knowledge`. By HQL-0012, `vault` joins them as a
+`VaultSource`, and `cards` becomes an ordinary binding to that source.
+
+See [[type-system]] for how a type name relates to another, and [[pipes]] for
+what a step is.

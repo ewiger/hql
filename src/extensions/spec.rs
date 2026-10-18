@@ -398,8 +398,10 @@ impl StepSpec {
             Output::WithElement(parameter) => {
                 input.with_element(TypePattern::Var(parameter).instantiate(&bindings, span)?)
             }
+            // A concrete sequence already has the order a prefix is taken
+            // in, so it keeps its type; anything else is materialized.
             Output::Prefix(parameter) => {
-                if input.constructor.0 == "Ranking" {
+                if input.is_sequence() && input.is_concrete() {
                     input.clone()
                 } else {
                     TypeRef::list(TypePattern::Var(parameter).instantiate(&bindings, span)?)
@@ -470,7 +472,9 @@ impl StepSpec {
             Output::Type(pattern) => pattern.to_string(),
             Output::Input => "Input".to_owned(),
             Output::WithElement(parameter) => format!("Input<{parameter}>"),
-            Output::Prefix(parameter) => format!("List<{parameter}> (Ranking input stays Ranking)"),
+            Output::Prefix(parameter) => {
+                format!("List<{parameter}> (a concrete Seq keeps its type)")
+            }
         };
         format!("{} | {name}{generics}({arguments}) -> {output}", self.input)
     }

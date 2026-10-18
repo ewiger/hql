@@ -201,6 +201,7 @@ fn an_ancestor_reached_along_two_paths_is_one_ancestor() {
         kind,
         parameters: vec![],
         parents: parents.iter().copied().map(TypeConstructor).collect(),
+        applied: vec![],
     };
     let mut system = TypeSystem::new();
     for definition in [
@@ -234,6 +235,7 @@ fn a_union_needs_members_that_exist_and_are_not_itself() {
         kind: TypeKind::Union(members),
         parameters: vec![],
         parents: vec![],
+        applied: vec![],
     };
     let mut system = collections::type_system().expect("the collection hierarchy");
     assert_eq!(
@@ -343,4 +345,42 @@ fn a_tree_is_read_through_its_map_alternative_and_a_leaf_is_no_map() {
             "{refusal:?}"
         );
     }
+}
+
+#[test]
+fn an_applied_parent_receives_transformed_arguments() {
+    // `Ranking<T> : Seq<Hit<T>>`: the parent's argument is built from the
+    // parameter rather than forwarded, and subtyping follows it.
+    let card = TypeRef::CARD;
+    let ranking = TypeRef::ranking(card.clone());
+    assert!(ranking.is(&TypeRef::seq(TypeRef::hit(card.clone()))));
+    assert!(ranking.is(&TypeRef::collection(TypeRef::hit(card.clone()))));
+    assert!(ranking.is(&TypeRef::seq(TypeRef::hit(TypeRef::DOC))));
+    assert!(!ranking.is(&TypeRef::seq(card.clone())));
+    assert!(!TypeRef::seq(TypeRef::hit(card.clone())).is(&ranking));
+    assert_eq!(ranking.element(), Some(TypeRef::hit(card.clone())));
+    assert!(ranking.is_sequence());
+    // Narrowing the elements cannot keep the ranking: its argument is the
+    // ranked value, not the hit.
+    assert_eq!(
+        ranking.with_element(TypeRef::hit(card.clone())),
+        TypeRef::list(TypeRef::hit(card.clone()))
+    );
+    assert_eq!(
+        TypeRef::set(TypeRef::INT).with_element(TypeRef::STR),
+        TypeRef::set(TypeRef::STR)
+    );
+
+    let mut system = collections::type_system().expect("the collection hierarchy");
+    let wrong_arity = TypeDefinition {
+        constructor: TypeConstructor("Pairs"),
+        kind: TypeKind::Concrete,
+        parameters: vec![],
+        parents: vec![],
+        applied: vec![collections::SEQ.apply([TypeRef::INT, TypeRef::INT])],
+    };
+    assert!(matches!(
+        system.declare(wrong_arity),
+        Err(TypeError::IncompatibleParent { .. })
+    ));
 }

@@ -1,6 +1,6 @@
 # Queries: traversal, sequences, generators, and bound sources
 
-Status: **proposed design; not implemented.** Nothing here is yet part of the grammar recorded in [expressions.md](expressions.md). The design depends on function types ([issue 0009](../../issues/0009-function-type-and-constructor.md)) and replaces the special `cards` keyword ([issue 0008](../../issues/0008-cards-as-a-vault-binding.md)) with an ordinary bound value.
+Status: **proposed design; not implemented.** Nothing here is yet part of the grammar recorded in [expressions.md](expressions.md). The design depends on function types ([issue 0009](../../issues/0009-function-type-and-constructor.md)) and builds on `cards` being an ordinary bound value ([issue 0008](../../issues/0008-cards-as-a-vault-binding.md), done).
 
 A query does not have one privileged source type. A pipeline receives a value, and each step states the weakest property it needs from that value.
 
@@ -325,7 +325,7 @@ A function whose body contains `yield` is an **iterating function**.
 For example:
 
 ```hql
-fn get_all_cards(v: Vault) : Seq<Card> {
+fn vault_cards(v: Vault) : Seq<Card> {
     for c in v.documents {
         yield c
     }
@@ -337,7 +337,7 @@ Each `yield` contributes one element to the traversal in the order it is reached
 Calling the function does not imply materialization. Evaluation advances only as far as its consumer demands:
 
 ```hql
-get_all_cards(vault)
+vault_cards(vault)
 | take(5)
 ```
 
@@ -502,7 +502,7 @@ A program running without a vault simply has no `vault` binding.
 A source function can consume it like any other value:
 
 ```hql
-fn get_all_cards(v: Vault) : Seq<Card> {
+fn vault_cards(v: Vault) : Seq<Card> {
     ...
 }
 ```
@@ -510,7 +510,7 @@ fn get_all_cards(v: Vault) : Seq<Card> {
 and the standard environment can define:
 
 ```hql
-cards = get_all_cards(vault)
+cards = vault_cards(vault)
 ```
 
 Because `Seq<T>` may be lazy, this assignment does not require eager enumeration.
@@ -526,7 +526,7 @@ Seq<Card>
 The previous design used:
 
 ```hql
-cards = bind(get_all_cards, vault)
+cards = bind(vault_cards, vault)
 ```
 
 to explain deferred execution.
@@ -536,13 +536,13 @@ That is unnecessary.
 If:
 
 ```hql
-get_all_cards(vault)
+vault_cards(vault)
 ```
 
 returns a lazy `Seq<Card>`, then:
 
 ```hql
-cards = get_all_cards(vault)
+cards = vault_cards(vault)
 ```
 
 already has the required behaviour.

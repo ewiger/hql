@@ -17,17 +17,18 @@ the design, the card says so.
 | [[hql/knowledge]] | Semantic universe, the card family and presentation |
 | [[hql/extensions]] | The extension registry, `import`, and the unbuilt module loader |
 | [[doc-type]] | `Doc`, the header, `format`, sections, links and embeds |
-| [[card-type]] | `Card` and its two kinds, the vault, and the `cards` keyword |
+| [[card-type]] | `Card` and its two kinds, the vault, and the `cards` binding |
 | [[data-type]] | `Data`, the tree type of headers and structured payloads |
 | [[type-system]] | `:`, generic parameters and progressive type refinement |
 | [[type-interpretation]] | Asking what a value is, from a `Data` tree to a card: `match` on a type, `typed` over a collection, and the binding that asserts |
 | [[fields]] | Optional `?` fields, partial schemas, and the two metadata layers |
+| [[hql/naming]] | Identifier casing, the provider of each kind of name, and its namespace |
 | [[link-op]] | Doc references and the `[[..]] -> [[..]] {..}` link operator |
 | [[graph-type]] | `Graph<N, E>`, `Edge<S, T>`, and the document and knowledge graphs |
 | [[orderable]] | `Orderable`, the card's own key, and the `take` contract |
 | [[option-type]] | `Option<T>`, absence, and the optional-by-type doc reference |
 | [[match-op]] | `match` and `given … otherwise`: branching on values (designed) |
-| [[debug-op]] | `debug`: capturing a value into the structured log (designed) |
+| [[debug-op]] | `debug`: capturing a value into the structured log |
 | [[hql/presentation]] | Terminal presenters and the host default |
 | [[hql/error-reporting]] | The structured log: severities, entry context, `strict` and `collect`, configuration |
 | [[hql/semantic-search]] | `semantic`, `Hit`, `Ranking` and the read path of memory |

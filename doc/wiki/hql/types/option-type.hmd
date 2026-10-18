@@ -60,7 +60,7 @@ the type it was read as fails as a type error in the
 
 `Option<T>` comes with the established option vocabulary, declared beside it in
 [`std/core.hql`](../../../../std/core.hql): `is_some`, `is_none`, `unwrap_or`,
-`unwrap_or_else`, `or`, `map`, `and_then` and `filter`. There is no `unwrap`;
+`unwrap_or_else`, `alternative`, `map`, `and_then` and `filter`. There is no `unwrap`;
 every way out of an `Option` says what absence means:
 
 ```hql

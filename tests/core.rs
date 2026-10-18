@@ -51,7 +51,11 @@ fn rejects_incomplete_or_unsupported_syntax() {
         "1 +",
         "1 2",
         "1;",
-        "1 - 2",
+        "1 -",
+        "1 * * 2",
+        "1 < 2 < 3",
+        "1 == 1 == true",
+        "not",
         "1.",
         ".5",
         "1.2.3",
@@ -338,4 +342,101 @@ fn a_binding_shadows_the_namespace_and_not_the_step() {
     );
     assert_eq!(check("present = 1\n1 | text"), Ok(TypeRef::PRESENTATION));
     assert_eq!(check("1 | present.text"), Ok(TypeRef::PRESENTATION));
+}
+
+#[test]
+fn arithmetic_has_precedence_and_truncates_integer_division() {
+    for (source, value) in [
+        ("10 - 3 - 2", Value::Int(5)),
+        ("1 -2", Value::Int(-1)),
+        ("2 + 3 * 4", Value::Int(14)),
+        ("(2 + 3) * 4", Value::Int(20)),
+        ("7 / 2", Value::Int(3)),
+        ("-7 / 2", Value::Int(-3)),
+        ("7 % 3", Value::Int(1)),
+        ("-7 % 3", Value::Int(-1)),
+        ("7.0 / 2.0", Value::Float(3.5)),
+        ("1.5 * 2.0 - 0.5", Value::Float(2.5)),
+    ] {
+        assert_eq!(eval(source), Ok(value), "{source}");
+    }
+    assert_eq!(type_error("7 / 2.0"), 4..7);
+    assert!(matches!(eval("1 / 0"), Err(Diagnostic::Runtime { .. })));
+    assert!(matches!(eval("1 % 0"), Err(Diagnostic::Runtime { .. })));
+    assert!(matches!(eval("1.0 / 0.0"), Err(Diagnostic::Runtime { .. })));
+    assert!(matches!(
+        eval("-9223372036854775808 / -1"),
+        Err(Diagnostic::Overflow { .. })
+    ));
+    assert!(matches!(
+        eval("9223372036854775807 * 2"),
+        Err(Diagnostic::Overflow { .. })
+    ));
+}
+
+#[test]
+fn ordering_relations_compare_one_orderable_type() {
+    for (source, value) in [
+        ("1 < 2", true),
+        ("2 <= 2", true),
+        ("3 > 4", false),
+        ("1.5 >= 1.5", true),
+        ("\"apple\" < \"banana\"", true),
+        ("1 + 1 < 3", true),
+    ] {
+        assert_eq!(check(source), Ok(TypeRef::BOOL), "{source}");
+        assert_eq!(eval(source), Ok(Value::Bool(value)), "{source}");
+    }
+    // No widening, and no comparing what has no order.
+    assert!(matches!(check("1 < 2.0"), Err(Diagnostic::Type { .. })));
+    assert!(matches!(
+        check("true < false"),
+        Err(Diagnostic::Type { .. })
+    ));
+    assert!(matches!(
+        check("{ a: 1 } < { a: 2 }"),
+        Err(Diagnostic::Type { .. })
+    ));
+}
+
+#[test]
+fn a_comparison_is_not_mistaken_for_a_constructor() {
+    assert_eq!(eval("n = 1\nn < 3"), Ok(Value::Bool(true)));
+    assert_eq!(eval("n = 5\nm = 3\nn > m"), Ok(Value::Bool(true)));
+    assert_eq!(check("List<Int>([1, 2])").unwrap().to_string(), "List<Int>");
+}
+
+#[test]
+fn connectives_take_bools_and_short_circuit() {
+    for (source, value) in [
+        ("true and false", false),
+        ("true or false", true),
+        ("not true", false),
+        ("not not true", true),
+        ("1 < 2 and 2 < 3", true),
+        ("false and true or true", true),
+        ("true or true and false", true),
+        ("not 1 == 2", true),
+        // The right operand is never evaluated, so it cannot fail.
+        ("false and 1 / 0 == 0", false),
+        ("true or 1 / 0 == 0", true),
+    ] {
+        assert_eq!(eval(source), Ok(Value::Bool(value)), "{source}");
+    }
+    assert_eq!(type_error("true and 1"), 9..10);
+    assert_eq!(type_error("not 1"), 4..5);
+    assert!(matches!(
+        check("[[alice]].metadata.done and true"),
+        Err(Diagnostic::Type { .. })
+    ));
+}
+
+#[test]
+fn connective_chains_are_bounded_like_arithmetic() {
+    let at_limit = vec!["true"; 256].join(" and ");
+    assert_eq!(eval(&at_limit), Ok(Value::Bool(true)));
+    assert!(matches!(
+        eval(&format!("{at_limit} and true")),
+        Err(Diagnostic::Syntax { .. })
+    ));
 }

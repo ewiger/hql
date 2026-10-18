@@ -1,6 +1,6 @@
 # 0008 — `cards` is a vault binding, not a keyword
 
-Status: backlog
+Status: done
 
 `cards` is currently a keyword with its own syntax tree node. The parser turns
 the identifier into `Kind::Cards` before anything can bind it, the checker gives

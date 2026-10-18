@@ -76,6 +76,7 @@ pub fn definitions() -> impl Iterator<Item = TypeDefinition> {
         kind,
         parameters,
         parents: parent.into_iter().collect(),
+        applied: Vec::new(),
     })
 }
 

@@ -19,7 +19,7 @@ use std::ops::Range;
 pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypedProgram, Diagnostic> {
     Checker {
         vault,
-        scope: HashMap::new(),
+        scope: globals(vault),
         resolution: Resolution::new(&vault.extensions)?,
         declarations: Declarations::default(),
         checked: Checked::default(),
@@ -44,7 +44,7 @@ pub(crate) fn check_collecting(
     };
     let mut checker = Checker {
         vault,
-        scope: HashMap::new(),
+        scope: globals(vault),
         resolution,
         declarations: Declarations::default(),
         checked: Checked::default(),
@@ -71,6 +71,18 @@ pub(crate) fn check_collecting(
         Err(diagnostic) => (None, vec![diagnostic]),
     }
 }
+
+/// The names a vault seeds into every program: `cards`, when there is a vault.
+fn globals(vault: &Vault) -> HashMap<String, TypeRef> {
+    let mut scope = HashMap::new();
+    if vault.is_present() {
+        scope.insert(CARDS.to_owned(), TypeRef::set(TypeRef::CARD));
+    }
+    scope
+}
+
+/// The binding a vault seeds; a program may shadow it like any other.
+pub(crate) const CARDS: &str = "cards";
 
 struct Checker<'a> {
     vault: &'a Vault,
@@ -191,18 +203,12 @@ impl Checker<'_> {
             // A reference may not resolve — a forward link to a document
             // nobody has written is ordinary — so it is optional by type.
             Kind::DocRef(_) => Ok(TypeRef::optional(TypeRef::CARD)),
-            Kind::Cards => {
-                if self.vault.is_present() {
-                    Ok(TypeRef::set(TypeRef::CARD))
-                } else {
-                    Err(Diagnostic::name(
-                        span,
-                        "`cards` needs a vault: pass --vault <directory>",
-                    ))
-                }
-            }
             Kind::Ident(name) => self.scope.get(name).cloned().ok_or_else(|| {
-                if builtins::exists(name) {
+                // Unbound only because no vault was given: say what to pass,
+                // rather than that the name does not exist.
+                if name == CARDS {
+                    Diagnostic::name(span, "`cards` needs a vault: pass --vault <directory>")
+                } else if builtins::exists(name) {
                     Diagnostic::typing(
                         span,
                         format!(
@@ -216,7 +222,44 @@ impl Checker<'_> {
                     Diagnostic::name(span, format!("`{name}` is not bound{hint}"))
                 }
             }),
-            Kind::Add(..) => self.addition(expression),
+            Kind::Arith(..) => self.arithmetic(expression),
+            Kind::Relate {
+                left,
+                right,
+                relation,
+            } => {
+                let left_type = self.expression(left)?;
+                let right_type = self.expression(right)?;
+                // The rule `compare` has: one Orderable type on both sides,
+                // with no widening and no looking through `Option`.
+                if left_type != right_type || !left_type.is_orderable() {
+                    return Err(Diagnostic::typing(
+                        span,
+                        format!(
+                            "`{}` requires two values of the same Orderable type, not {left_type} and {right_type}",
+                            relation.symbol()
+                        ),
+                    ));
+                }
+                Ok(TypeRef::BOOL)
+            }
+            Kind::Logic(connective, ..) => {
+                let mut operands = Vec::new();
+                let mut first = expression;
+                while let Kind::Logic(_, left, right) = &first.kind {
+                    operands.push(right.as_ref());
+                    first = left;
+                }
+                operands.push(first);
+                for operand in operands.into_iter().rev() {
+                    self.condition(operand, connective.symbol())?;
+                }
+                Ok(TypeRef::BOOL)
+            }
+            Kind::Not(operand) => {
+                self.condition(operand, "not")?;
+                Ok(TypeRef::BOOL)
+            }
             Kind::Compare { left, right, .. } => {
                 let left_type = self.expression(left)?;
                 let right_type = self.expression(right)?;
@@ -343,30 +386,37 @@ impl Checker<'_> {
         }
     }
 
-    /// Check a left-associated chain without consuming stack per addition.
-    fn addition(&mut self, mut expression: &Expr) -> Result<TypeRef, Diagnostic> {
+    /// Check a left-associated chain without consuming stack per operator.
+    fn arithmetic(&mut self, mut expression: &Expr) -> Result<TypeRef, Diagnostic> {
         let mut operands = Vec::new();
-        while let Kind::Add(left, right) = &expression.kind {
-            operands.push((left.as_ref(), right.as_ref()));
+        while let Kind::Arith(operator, left, right) = &expression.kind {
+            operands.push((*operator, left.as_ref(), right.as_ref()));
             expression = left;
         }
         let expected = self.expression(expression)?;
-        for (left, right) in operands.into_iter().rev() {
-            // Addition is homogeneous: there is no implicit widening.
+        for (operator, left, right) in operands.into_iter().rev() {
+            // Arithmetic is homogeneous: there is no implicit widening.
+            let refused = || format!("{} requires two Int or two Float operands", operator.noun());
             if !matches!(expected.constructor.0, "Int" | "Float") {
-                return Err(Diagnostic::typing(
-                    left.span.clone(),
-                    "addition requires two Int or two Float operands",
-                ));
+                return Err(Diagnostic::typing(left.span.clone(), refused()));
             }
             if self.expression(right)? != expected {
-                return Err(Diagnostic::typing(
-                    right.span.clone(),
-                    "addition requires two Int or two Float operands",
-                ));
+                return Err(Diagnostic::typing(right.span.clone(), refused()));
             }
         }
         Ok(expected)
+    }
+
+    /// Check an operand of a connective, which must be a plain `Bool`.
+    fn condition(&mut self, operand: &Expr, connective: &str) -> Result<(), Diagnostic> {
+        let ty = self.expression(operand)?;
+        if ty != TypeRef::BOOL {
+            return Err(Diagnostic::typing(
+                operand.span.clone(),
+                format!("`{connective}` requires a Bool operand, not {ty}"),
+            ));
+        }
+        Ok(())
     }
 
     /// Check a lambda argument with its parameter bound to an element type.
@@ -441,7 +491,11 @@ impl Checker<'_> {
     ) -> Result<TypeRef, Diagnostic> {
         // A step applied to absence is a step applied to nothing, not a
         // failure: the reference that produced the absence was permitted.
-        let input = input.present().clone();
+        let input = if step.keeps_input() {
+            input.clone()
+        } else {
+            input.present().clone()
+        };
         let (result, call) = step.spec.check(step.name, self, &input, arguments, &span)?;
         if let Some(check) = step.check {
             check(self, &call, span)?;

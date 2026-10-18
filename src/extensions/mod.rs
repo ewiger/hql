@@ -90,6 +90,10 @@ pub(crate) trait EvalCx: Send {
     ) -> Result<Value, Diagnostic>;
     /// Queue something worth saying that does not make the result impossible.
     fn warn(&mut self, warning: crate::warnings::Warning);
+    /// Add an entry to the run's log.
+    fn log(&mut self, entry: crate::reporting::Report);
+    /// How evaluation reached the step being evaluated.
+    fn trace(&self) -> Vec<crate::reporting::TraceStep>;
 }
 
 /// One name a pipeline may write.
@@ -107,6 +111,16 @@ pub struct Step {
     pub(crate) check: Option<Check>,
     /// What it does to a value.
     pub(crate) eval: Eval,
+}
+
+impl Step {
+    /// Whether the step returns its input as it is, at whatever type it has —
+    /// `debug`. Such a step sees an optional value unlifted, absence included,
+    /// because it neither consumes the value nor promises anything about it.
+    pub(crate) fn keeps_input(&self) -> bool {
+        self.spec.output == spec::Output::Input
+            && matches!(self.spec.input, spec::TypePattern::Var(_))
+    }
 }
 
 /// A named unit supplying pipeline steps.

@@ -1,12 +1,14 @@
 //! Parse tokens into a program: statements, bindings, pipelines and calls.
 
-use crate::ast::{Arg, Expr, Field, Kind, Program, Stmt, TypeAnn, TypeDecl};
+use crate::ast::{
+    Arg, Arith, Expr, Field, Kind, Logic, Program, Relation, Stmt, TypeAnn, TypeDecl,
+};
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
 use std::ops::Range;
 
-// Bound the left-deep addition chain, including its traversal and destruction.
-const MAX_ADDITIONS: usize = 255;
+// Bound the left-deep operator chains, including their traversal and destruction.
+const MAX_OPERATORS: usize = 255;
 // Bound recursion through parentheses, calls, data literals and lambdas.
 const MAX_DEPTH: usize = 128;
 
@@ -17,7 +19,7 @@ pub(crate) fn parse(source: &str) -> Result<Program, Diagnostic> {
         tokens,
         index: 0,
         nesting: 0,
-        additions: 0,
+        operators: 0,
         depth: 0,
     };
     parser.program()
@@ -28,7 +30,8 @@ struct Parser {
     index: usize,
     /// Bracket nesting; inside brackets a newline is not a statement end.
     nesting: usize,
-    additions: usize,
+    /// Infix arithmetic and connective operators seen so far.
+    operators: usize,
     depth: usize,
 }
 
@@ -414,12 +417,12 @@ impl Parser {
     }
 
     fn link(&mut self) -> Result<Expr, Diagnostic> {
-        let left = self.equality()?;
+        let left = self.disjunction()?;
         if !self.at_infix(&Token::Arrow) {
             return Ok(left);
         }
         self.continuation();
-        let target = self.equality()?;
+        let target = self.disjunction()?;
         let mut end = target.span.end;
         let data = if matches!(self.peek(), Token::OpenBrace) {
             let annotation = self.data_literal()?;
@@ -439,49 +442,137 @@ impl Parser {
         })
     }
 
-    /// Equality binds looser than addition, so `a + 1 == b` groups as
-    /// `(a + 1) == b`, and it does not chain.
-    fn equality(&mut self) -> Result<Expr, Diagnostic> {
+    /// Count one more chained operator against the bootstrap limit.
+    fn chained(&mut self) -> Result<(), Diagnostic> {
+        self.operators += 1;
+        if self.operators > MAX_OPERATORS {
+            return Err(Diagnostic::syntax(
+                self.peek_span(),
+                format!("bootstrap limit: at most {} operands", MAX_OPERATORS + 1),
+            ));
+        }
+        self.continuation();
+        Ok(())
+    }
+
+    fn disjunction(&mut self) -> Result<Expr, Diagnostic> {
+        let mut left = self.conjunction()?;
+        while self.at_infix(&Token::Or) {
+            self.chained()?;
+            let right = self.conjunction()?;
+            left = logic(Logic::Or, left, right);
+        }
+        Ok(left)
+    }
+
+    fn conjunction(&mut self) -> Result<Expr, Diagnostic> {
+        let mut left = self.negation()?;
+        while self.at_infix(&Token::And) {
+            self.chained()?;
+            let right = self.negation()?;
+            left = logic(Logic::And, left, right);
+        }
+        Ok(left)
+    }
+
+    /// `not` binds looser than a comparison, so `not a == b` is `not (a == b)`.
+    fn negation(&mut self) -> Result<Expr, Diagnostic> {
+        if !matches!(self.peek(), Token::Not) {
+            return self.comparison();
+        }
+        let start = self.advance().span.start;
+        let operand = self.nested(Self::negation)?;
+        let span = start..operand.span.end;
+        Ok(Expr {
+            kind: Kind::Not(Box::new(operand)),
+            span,
+        })
+    }
+
+    /// A comparison binds looser than arithmetic, so `a + 1 == b` groups as
+    /// `(a + 1) == b`, and it does not chain: `a < b < c` is refused.
+    fn comparison(&mut self) -> Result<Expr, Diagnostic> {
         let left = self.addition()?;
-        let negated = if self.at_infix(&Token::EqualEqual) {
-            false
+        let operator = if self.at_infix(&Token::EqualEqual) {
+            Comparison::Equal(false)
         } else if self.at_infix(&Token::BangEqual) {
-            true
+            Comparison::Equal(true)
+        } else if let Some(relation) = self.relation() {
+            Comparison::Order(relation)
         } else {
             return Ok(left);
         };
         self.continuation();
         let right = self.addition()?;
         let span = left.span.start..right.span.end;
-        Ok(Expr {
-            kind: Kind::Compare {
-                left: Box::new(left),
-                right: Box::new(right),
+        let (left, right) = (Box::new(left), Box::new(right));
+        let kind = match operator {
+            Comparison::Equal(negated) => Kind::Compare {
+                left,
+                right,
                 negated,
             },
-            span,
-        })
+            Comparison::Order(relation) => Kind::Relate {
+                left,
+                right,
+                relation,
+            },
+        };
+        if self.relation().is_some()
+            || self.at_infix(&Token::EqualEqual)
+            || self.at_infix(&Token::BangEqual)
+        {
+            return Err(Diagnostic::syntax(
+                span.end..self.tokens[self.index - 1].span.end,
+                "comparisons do not chain: combine them with `and`",
+            ));
+        }
+        Ok(Expr { kind, span })
+    }
+
+    fn relation(&mut self) -> Option<Relation> {
+        [
+            (Token::Less, Relation::Less),
+            (Token::LessEqual, Relation::LessEqual),
+            (Token::Greater, Relation::Greater),
+            (Token::GreaterEqual, Relation::GreaterEqual),
+        ]
+        .into_iter()
+        .find_map(|(token, relation)| self.at_infix(&token).then_some(relation))
     }
 
     fn addition(&mut self) -> Result<Expr, Diagnostic> {
-        let mut left = self.postfix()?;
-        while self.at_infix(&Token::Plus) {
-            self.additions += 1;
-            if self.additions > MAX_ADDITIONS {
-                return Err(Diagnostic::syntax(
-                    self.peek_span(),
-                    format!("bootstrap limit: at most {} literals", MAX_ADDITIONS + 1),
-                ));
-            }
-            self.continuation();
-            let right = self.postfix()?;
-            let span = left.span.start..right.span.end;
-            left = Expr {
-                kind: Kind::Add(Box::new(left), Box::new(right)),
-                span,
+        let mut left = self.multiplication()?;
+        loop {
+            let operator = if self.at_infix(&Token::Plus) {
+                Arith::Add
+            } else if self.at_infix(&Token::Minus) {
+                Arith::Sub
+            } else {
+                return Ok(left);
             };
+            self.chained()?;
+            let right = self.multiplication()?;
+            left = arith(operator, left, right);
         }
-        Ok(left)
+    }
+
+    fn multiplication(&mut self) -> Result<Expr, Diagnostic> {
+        let mut left = self.postfix()?;
+        loop {
+            let operator = if self.at_infix(&Token::Star) {
+                Arith::Mul
+            } else if self.at_infix(&Token::Slash) {
+                Arith::Div
+            } else if self.at_infix(&Token::Percent) {
+                Arith::Rem
+            } else {
+                return Ok(left);
+            };
+            self.chained()?;
+            let right = self.postfix()?;
+            left = arith(operator, left, right);
+        }
     }
 
     fn postfix(&mut self) -> Result<Expr, Diagnostic> {
@@ -618,9 +709,7 @@ impl Parser {
             }
             return self.data_literal();
         }
-        if matches!(self.peek(), Token::Ident(_))
-            && matches!(self.tokens[self.index + 1].token, Token::Less)
-        {
+        if matches!(self.peek(), Token::Ident(_)) && self.at_construction() {
             let annotation = self.type_annotation()?;
             let (arguments, end) = self.arguments()?;
             let span = annotation.span.start..end;
@@ -709,11 +798,7 @@ impl Parser {
                         span,
                     });
                 }
-                if name == "cards" {
-                    Kind::Cards
-                } else {
-                    Kind::Ident(name)
-                }
+                Kind::Ident(name)
             }
             other => {
                 return Err(Diagnostic::syntax(
@@ -726,6 +811,35 @@ impl Parser {
             kind,
             span: head.span,
         })
+    }
+
+    /// Whether the name ahead opens a constructor, `List<Int>(…)`, rather
+    /// than a comparison, `n < 3`: the angle brackets must hold only type
+    /// names and close directly before an argument list.
+    fn at_construction(&self) -> bool {
+        let mut index = self.index;
+        while matches!(self.tokens[index].token, Token::Newline) {
+            index += 1;
+        }
+        if !matches!(self.tokens[index + 1].token, Token::Less) {
+            return false;
+        }
+        let mut depth = 0usize;
+        for (offset, spanned) in self.tokens[index + 1..].iter().enumerate() {
+            match spanned.token {
+                Token::Less => depth += 1,
+                Token::Greater => {
+                    depth -= 1;
+                    if depth == 0 {
+                        let after = index + 1 + offset + 1;
+                        return matches!(self.tokens[after].token, Token::OpenParen);
+                    }
+                }
+                Token::Ident(_) | Token::Comma | Token::Newline => {}
+                _ => return false,
+            }
+        }
+        false
     }
 
     fn collection_literal(&mut self, set: bool) -> Result<Expr, Diagnostic> {
@@ -753,5 +867,27 @@ impl Parser {
             },
             span: open.span.start..end,
         })
+    }
+}
+
+/// Which comparison a `comparison` rule has read.
+enum Comparison {
+    Equal(bool),
+    Order(Relation),
+}
+
+fn arith(operator: Arith, left: Expr, right: Expr) -> Expr {
+    let span = left.span.start..right.span.end;
+    Expr {
+        kind: Kind::Arith(operator, Box::new(left), Box::new(right)),
+        span,
+    }
+}
+
+fn logic(connective: Logic, left: Expr, right: Expr) -> Expr {
+    let span = left.span.start..right.span.end;
+    Expr {
+        kind: Kind::Logic(connective, Box::new(left), Box::new(right)),
+        span,
     }
 }

@@ -12,6 +12,10 @@ pub(crate) enum Token {
     Ident(String),
     DocRef(String),
     Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
     Pipe,
     Arrow,
     FatArrow,
@@ -29,6 +33,13 @@ pub(crate) enum Token {
     CloseBracket,
     Less,
     Greater,
+    LessEqual,
+    GreaterEqual,
+    /// The connectives are words, as `given … otherwise` is, so they are
+    /// reserved rather than bound.
+    And,
+    Or,
+    Not,
     /// `?`, which marks a field optional.
     Question,
     Newline,
@@ -45,6 +56,10 @@ impl Token {
             Self::Ident(name) => format!("`{name}`"),
             Self::DocRef(name) => format!("`[[{name}]]`"),
             Self::Plus => "`+`".to_owned(),
+            Self::Minus => "`-`".to_owned(),
+            Self::Star => "`*`".to_owned(),
+            Self::Slash => "`/`".to_owned(),
+            Self::Percent => "`%`".to_owned(),
             Self::Pipe => "`|`".to_owned(),
             Self::Arrow => "`->`".to_owned(),
             Self::FatArrow => "`=>`".to_owned(),
@@ -62,6 +77,11 @@ impl Token {
             Self::CloseBracket => "`]`".to_owned(),
             Self::Less => "`<`".to_owned(),
             Self::Greater => "`>`".to_owned(),
+            Self::LessEqual => "`<=`".to_owned(),
+            Self::GreaterEqual => "`>=`".to_owned(),
+            Self::And => "`and`".to_owned(),
+            Self::Or => "`or`".to_owned(),
+            Self::Not => "`not`".to_owned(),
             Self::Question => "`?`".to_owned(),
             Self::Newline => "end of line".to_owned(),
             Self::End => "end of input".to_owned(),
@@ -127,8 +147,22 @@ impl Scanner<'_> {
                 continue;
             }
 
+            for (text, token) in [("<=", Token::LessEqual), (">=", Token::GreaterEqual)] {
+                if self.rest().starts_with(text) {
+                    self.offset += 2;
+                    self.push(token, start);
+                    break;
+                }
+            }
+            if self.offset != start {
+                continue;
+            }
+
             let simple = match character {
                 '+' => Some(Token::Plus),
+                '*' => Some(Token::Star),
+                '/' => Some(Token::Slash),
+                '%' => Some(Token::Percent),
                 '|' => Some(Token::Pipe),
                 '.' => Some(Token::Dot),
                 ',' => Some(Token::Comma),
@@ -195,14 +229,21 @@ impl Scanner<'_> {
                 self.string(start)?;
                 continue;
             }
-            // A minus belongs to a numeric literal; HQL has no unary minus and
-            // no subtraction, so `- 1` and `1 - 2` stay syntax errors.
+            // A minus directly before a digit is a literal's sign unless it
+            // follows an operand, where it subtracts: `-2 + 3`, `n -2`. HQL
+            // has no unary minus, so `- 1` stays a syntax error.
             if character.is_ascii_digit()
                 || (character == '-'
+                    && !self.after_operand()
                     && self.source[self.offset + 1..]
                         .starts_with(|next: char| next.is_ascii_digit()))
             {
                 self.number(start)?;
+                continue;
+            }
+            if character == '-' {
+                self.offset += 1;
+                self.push(Token::Minus, start);
                 continue;
             }
             if character.is_alphabetic() || character == '_' {
@@ -211,6 +252,24 @@ impl Scanner<'_> {
             }
             return Err(self.error("unexpected character"));
         }
+    }
+
+    /// Whether the last token can end an operand, so a minus after it is infix.
+    fn after_operand(&self) -> bool {
+        self.tokens.last().is_some_and(|last| {
+            matches!(
+                last.token,
+                Token::Int(_)
+                    | Token::Float(_)
+                    | Token::Bool(_)
+                    | Token::Str(_)
+                    | Token::Ident(_)
+                    | Token::DocRef(_)
+                    | Token::CloseParen
+                    | Token::CloseBracket
+                    | Token::CloseBrace
+            )
+        })
     }
 
     /// Skip spaces, tabs and `//` line comments, but never newlines.
@@ -239,6 +298,9 @@ impl Scanner<'_> {
         let token = match text {
             "true" => Token::Bool(true),
             "false" => Token::Bool(false),
+            "and" => Token::And,
+            "or" => Token::Or,
+            "not" => Token::Not,
             other => Token::Ident(other.to_owned()),
         };
         self.push(token, start);

@@ -29,7 +29,7 @@ count<T>(xs: Collection<T>, value?: T)                  : Int
 contains<T>(xs: Collection<T>, value: T)                : Bool
 get<K, V>(xs: Map<K, V>, key: K)                        : Option<V>
 sort<T>(xs: Collection<T>, by?: (T -> Orderable) | ((T, T) -> Ordering)) : List<T>
-take<T>(xs: Collection<T>, n: Int)                      : List<T>   // Ranking stays Ranking
+take<T>(xs: Collection<T>, n: Int)                      : List<T>   // a concrete Seq keeps its type
 filter<T>(xs: Collection<T>, by: T -> Bool)             : Input
 map<T, R>(xs: Collection<T>, by: T -> R)                : List<R>
 typed<T, U>(xs: Collection<T>, as: Type<U>)             : Input<U>
@@ -126,7 +126,7 @@ contract depending on which document is read.
 | `filter` | `: Input` (builtins, HQL-0004); `Seq<T> → Seq<T>` (queries) | agree in spirit; the model has no word for `Input` |
 | `count` | `(Collection<T>, value?: T)` (builtins); `(Collection<T>, x: T)` (queries) | the alias form appears in one and not the other |
 | `collect` | `Seq<T> → List<T>` (HQL-0004); `(Stream<T>, Int) → Stream<List<T>>` (HQL-0007) | the same word for materialization and for batching; HQL-0007 retires the first |
-| `take` on a `Ranking` | `Collection<T> → List<T>`, with "Ranking input stays Ranking" | an exception stated in prose, not in the signature |
+| `take` on a concrete `Seq` | `Collection<T> → List<T>`, with "a concrete Seq keeps its type" | a general rule now, but still stated in prose, not in the signature |
 
 The queries model states its rule plainly: a transformation should preserve
 every guarantee it can prove, and `Seq` is the weakest promise that is still
@@ -175,11 +175,11 @@ the queries model states, and one name is right.
 - **`Input` as a result type.** `filter` and `typed` return "the input's
   kind" in the registry, and the model spells each case out. The design has
   no written type for that promise.
-- **`take` on a `Ranking`.** The exception lives in a help string. Either
-  `Ranking<T>` is a `Collection<T>` and `take` on it returns `List<Hit<T>>`,
-  or `Ranking` has its own `take`, and the signature says which. This meets
-  the pending decision in `doc/memory/` on retiring the `Ranking`
-  constructor.
+- **`take` on a concrete `Seq`.** `Ranking<T>` is now a declared subtype of
+  `Seq<Hit<T>>`, and `take` keeps any concrete sequence's type — a `List` or
+  a `Ranking` — and materializes everything else. That is a rule rather than
+  a `Ranking` exception, but it is still written in the help string; it
+  becomes a signature with the written type for "the input's kind".
 - **HQL-0004's `collect`.** The proposal still declares
   `collect<T>(Seq<T>) : List<T>`; it reads `list` once 0013 reaches it.
 - **`somes` has no home.** Declared on the type interpretation card and in

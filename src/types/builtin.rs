@@ -80,12 +80,20 @@ fn build() -> Result<TypeSystem, TypeError> {
             constructor: reference.constructor,
             parameters: vec![],
             parents: parents.iter().map(|parent| parent.constructor).collect(),
+            applied: Vec::new(),
         })?;
     }
-    for (name, parent) in [
-        ("Option", None),
-        ("Hit", Some(collections::ORDERABLE)),
-        ("Ranking", None),
+    // A ranking is a sequence of hits that also states where its order came
+    // from: `type Ranking<T> : Seq<Hit<T>>` in `std/retrieval.hql`.
+    let parameter = TypeConstructor("T").apply([]);
+    for (name, parent, applied) in [
+        ("Option", None, None),
+        ("Hit", Some(collections::ORDERABLE), None),
+        (
+            "Ranking",
+            None,
+            Some(collections::SEQ.apply([TypeRef::hit(parameter)])),
+        ),
     ] {
         system.declare(TypeDefinition {
             constructor: TypeConstructor(name),
@@ -96,6 +104,7 @@ fn build() -> Result<TypeSystem, TypeError> {
                 bound: None,
             }],
             parents: parent.into_iter().collect(),
+            applied: applied.into_iter().collect(),
         })?;
     }
     Ok(system)
@@ -127,12 +136,6 @@ pub fn named(name: &str, args: &[TypeRef]) -> Option<TypeRef> {
 impl TypeRef {
     /// Whether this type satisfies the expected type's contract.
     pub fn is(&self, expected: &Self) -> bool {
-        if self.constructor.0 == "Ranking" && expected.constructor.0 != "Ranking" {
-            return self
-                .args
-                .first()
-                .is_some_and(|element| Self::seq(Self::hit(element.clone())).is(expected));
-        }
         system().is_ok_and(|system| system.is_subtype(self, expected).unwrap_or(false))
     }
 
@@ -153,9 +156,6 @@ impl TypeRef {
 
     /// The occurrence type of a collection, including a retrieval's hits.
     pub fn element(&self) -> Option<Self> {
-        if self.constructor.0 == "Ranking" {
-            return self.args.first().cloned().map(Self::hit);
-        }
         collections::element_type(system().ok()?, self).ok()
     }
 
@@ -171,23 +171,27 @@ impl TypeRef {
 
     /// Whether the collection preserves positions, independently of value order.
     pub fn is_sequence(&self) -> bool {
-        self.constructor.0 == "Ranking"
-            || system().is_ok_and(|system| {
-                system
-                    .as_supertype(self, collections::SEQ)
-                    .is_ok_and(|value| value.is_some())
-            })
+        system().is_ok_and(|system| {
+            system
+                .as_supertype(self, collections::SEQ)
+                .is_ok_and(|value| value.is_some())
+        })
     }
 
     /// Preserve a collection's shape while replacing its element type.
+    ///
+    /// Only a collection whose one argument is its element can be rebuilt
+    /// around another one: a ranking's argument is the ranked value, not the
+    /// hit it holds, so a ranking narrowed to other elements is a list.
     pub fn with_element(&self, element: Self) -> Self {
-        if self.constructor.0 == "Ranking" {
-            return Self::list(element);
+        let Some(current) = self.element() else {
+            return self.clone();
+        };
+        if self.args.as_slice() == [current] {
+            self.constructor.apply([element])
+        } else {
+            Self::list(element)
         }
-        if self.is_collection() {
-            return self.constructor.apply([element]);
-        }
-        self.clone()
     }
 
     /// Remove an optional wrapper when a lifted operation consumes a value.

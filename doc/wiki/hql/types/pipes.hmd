@@ -20,7 +20,7 @@ cards
 ```
 
 This preferred example selects relation cards and requests a graph of them.
-`cards` is the reserved keyword for the namespace vault's cards; see
+`cards` is the binding the host seeds with the namespace vault's cards; see
 [[card-type]]. `typed RelationCard` must check the contract, not the
 `metadata.knowledge.type` label alone; an authored entry does not establish
 conformance. The exact application syntax and the result type of `graph`

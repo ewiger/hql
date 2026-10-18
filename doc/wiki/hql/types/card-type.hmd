@@ -230,8 +230,8 @@ with an empty header, a card carrying a diagnostic, or no card at all.
 
 ## cards
 
-`cards` is a reserved keyword. It denotes every card in the current namespace
-vault:
+`cards` is a binding the host seeds from the vault. It denotes every card in the
+current namespace vault:
 
 ```hql
 cards : Set<Card>
@@ -247,12 +247,14 @@ cards
 | graph
 ```
 
-Being a keyword rather than a binding means a card cannot shadow it by being
-named `cards`, and that a program never has to state where the vault is. What
+A card named `cards` does not shadow it, because a card is reached by
+`[[cards]]`, never by a bare name; a program may rebind the name, as it may any
+other, and never has to state where the vault is. Without a vault the name is
+unbound, and the checker says that it needs `--vault`. What
 `cards` means inside a nested module — the whole vault, or the module subtree —
 still needs a decision, as does whether imported namespaces contribute to it.
 
-There is no matching keyword for documents, and there should not be. `cards` is
+There is no matching binding for documents, and there should not be. `cards` is
 bounded because a vault is bounded; documents in general are not a collection
 anything can enumerate.
 

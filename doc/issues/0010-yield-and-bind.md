@@ -11,7 +11,7 @@ as far as a consumer demands — and `cards` should be nothing more than one suc
 function partially applied to the vault:
 
 ```hql
-cards = bind(get_all_cards, vault)
+cards = bind(vault_cards, vault)
 cards | take(5)
 ```
 
@@ -61,7 +61,7 @@ of the two uses should move.
   steps — `map`, `filter`, `take` — wrap the sink instead of calling it.
 - Add `bind` as partial application over a function value, checked against the
   function type from 0009.
-- Expose the `Vault` trait to HQL as a type, with `get_all_cards` as its first
+- Expose the `Vault` trait to HQL as a type, with `vault_cards` as its first
   iterating function, and seed `vault` into the checker's and evaluator's scope
   from the host.
 - Define `cards` in the standard library as the bound source, so no program

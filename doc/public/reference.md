@@ -22,7 +22,7 @@ describes language the binary does not run yet, its status line says so.
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps |
-| `hql config` | the reporting mode in force, and where it came from |
+| `hql config` | the reporting mode and shown level in force, and where each came from |
 
 `-` reads standard input wherever a file is taken. Success is exit `0`, a
 language or I/O failure `1`, a usage error `2`.

@@ -50,6 +50,14 @@ makes the order meaningful — the query the order is relative to, and the rule
 that broke ties. A bare `Seq<Hit<T>>` is an ordered pile of scored things with
 no statement about where the order came from. See [[orderable]] for the tie rule.
 
+The parent is applied: `Seq<Hit<T>>` is built from the parameter rather than
+receiving it, and the type system declares it that way. So a ranking passes
+anywhere a `Seq<Hit<T>>` or a `Collection<Hit<T>>` is asked for, and its
+element is `Hit<T>`. `take` and `filter` keep a ranking a ranking, because a
+concrete sequence keeps its type through a prefix and a filter; `typed`, which
+changes the element, makes it a `List`. A ranking also has `query` and
+`retrieval` fields of its own, and `hits` for its elements as a `List`.
+
 ## A score is evidence, never relevance
 
 The knowledge domain rests on one rule: interpretation is a step, and the rule

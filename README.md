@@ -129,7 +129,7 @@ that was reached.
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps |
-| `hql config` | the reporting mode in force, and where it came from |
+| `hql config` | the reporting mode and shown level in force, and where each came from |
 
 `-` reads standard input wherever a file is taken. `--format json` emits the
 type, the value and the report queue for another program.
@@ -161,6 +161,9 @@ change nothing, errors that make a result wrong, failures that make one
 impossible. `--report strict` stops at the first error and is the default;
 `--report collect` reports every error findable. The mode comes from the query,
 then the vault's `hql.toml`, then `$HQL_REPORT`, then the default.
+`xs | debug(label = "xs")` captures a value into the same queue and passes it
+on unchanged; `--report-level debug` shows it, and `--format json` always
+carries it.
 
 Success is exit `0`, a language or I/O failure `1`, a usage error `2`.
 Diagnostics carry zero-based UTF-8 byte ranges and are rendered with a line, a

@@ -48,18 +48,45 @@ pub fn report(report: &Report, source: &str, origin: &str) -> String {
     let gutter = line.to_string();
     let pad = " ".repeat(gutter.len());
 
-    format!(
-        "{stage} {severity}: {message}\n\
+    // A capture is headed by its label, the way a coded entry is headed by
+    // its code; it has no stage worth naming, the program wrote it.
+    let heading = match (&report.code, &report.label) {
+        (Some(code), label) if code == "debug" => match label {
+            Some(label) => format!("{}[{label}]", report.severity.label()),
+            None => report.severity.label().to_owned(),
+        },
+        _ => format!("{} {}", report.stage, report.severity.label()),
+    };
+    let mut rendered = format!(
+        "{heading}: {message}\n\
          {pad}--> {origin}:{line}:{column}\n\
          {pad} |\n\
          {gutter} | {text}\n\
          {pad} | {caret_pad}{caret}",
-        stage = report.stage,
-        severity = report.severity.label(),
         message = report.message,
         caret_pad = " ".repeat(column - 1),
         caret = "^".repeat(width),
-    )
+    );
+    if let Some(shown) = &report.shown {
+        let value = crate::reporting::shorten(shown);
+        if value != report.message {
+            rendered.push_str(&format!("\n{pad} = value: {value}"));
+        }
+    }
+    if !report.trace.is_empty() {
+        let steps: Vec<String> = report
+            .trace
+            .iter()
+            .map(|step| match &step.element {
+                Some(element) => {
+                    format!("{} (step {}), element {element}", step.step, step.position)
+                }
+                None => format!("{} (step {})", step.step, step.position),
+            })
+            .collect();
+        rendered.push_str(&format!("\n{pad} = trace: {}", steps.join(" → ")));
+    }
+    rendered
 }
 
 #[cfg(test)]

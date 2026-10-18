@@ -113,6 +113,8 @@ shown level.
 then element — not by when a backend happened to evaluate them, so the log of a
 parallel run matches the log of a sequential one.
 
-Designed, not yet implemented. See [[error-reporting]] for severities, entry
+Implemented as a core step. The JSON form of an entry carries `type` and the
+whole value under `found`; the text form shows the value as it prints,
+shortened. See [[error-reporting]] for severities, entry
 context and configuration, and [[match-op]] for branching on what a capture
 reveals.

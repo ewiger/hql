@@ -88,7 +88,7 @@ pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
 pub fn eval(source: &str) -> Result<Value, Diagnostic> {
     let program = parser::parse(source)?;
     let program = checker::check(&program, &Vault::empty())?;
-    evaluation::evaluate(&program, &Vault::empty()).map(|(value, _)| value)
+    evaluation::evaluate(&program, &Vault::empty()).0
 }
 
 /// Type-check a program, reporting under a mode.
@@ -135,17 +135,16 @@ pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
         };
     };
     let inferred = program.result.clone();
-    match evaluation::evaluate(&program, vault) {
-        Ok((value, warnings)) => {
-            for warning in &warnings {
-                reports.push(Report::of_warning(warning));
-            }
-            Outcome {
-                value: Some(value),
-                inferred: Some(inferred),
-                reports,
-            }
-        }
+    let (value, log) = evaluation::evaluate(&program, vault);
+    for entry in log {
+        reports.push(entry);
+    }
+    match value {
+        Ok(value) => Outcome {
+            value: Some(value),
+            inferred: Some(inferred),
+            reports,
+        },
         Err(diagnostic) => {
             reports.push(Report::of(&diagnostic));
             Outcome {

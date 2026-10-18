@@ -387,7 +387,7 @@ The vocabulary is the established one for an option type, the set Rust's
 | `is_some()`, `is_none()` | `Option<T> -> Bool` | which case it is |
 | `unwrap_or(default)` | `Option<T> -> T` | the value, or `default` when absent |
 | `unwrap_or_else(f)` | `Option<T> -> T` | the value, or `f()` when absent |
-| `or(other)` | `Option<T> -> Option<T>` | this, or `other` when absent |
+| `alternative(other)` | `Option<T> -> Option<T>` | this, or `other` when absent |
 | `map(f)` | `Option<T> -> Option<U>` | apply `f` to a present value |
 | `and_then(f)` | `Option<T> -> Option<U>` | apply `f`, which may itself be absent |
 | `filter(p)` | `Option<T> -> Option<T>` | keep a present value `p` accepts |

@@ -41,7 +41,7 @@ signature and result is not.** `sum` is `reduce(0, +)`; `typed(U)` is
 | `sort` | `List<T>` in std and the registry, `Seq<T>` in the model |
 | `map` over a finite input | `Collection<T> → List<R>` in the registry, `Seq<T> → Seq<U>` in the model |
 | `filter`, `typed` | return "the input's kind", for which the design has no written type |
-| `take` on a `Ranking` | the exception is a help string, not a signature |
+| `take` on a concrete `Seq` | the rule is a help string, not a signature |
 | `count` | the alias form is in the registry and not in the model |
 
 The model's rule is that a step returns the least promise that is still true,
@@ -61,8 +61,9 @@ one name, as the model intends.
    into [queries](../models/behavior/queries.md), `std/collections.hql` and
    HQL-0006 so that `take`, `sort` and `map` read the same everywhere. State
    what `map` returns from a `Set`, give the "input's kind" result a written
-   type or spell each case out, and put the `Ranking` exception for `take`
-   into a signature or remove it.
+   type or spell each case out, and write the rule for `take` into a signature:
+   a concrete `Seq` keeps its type, which is what keeps a `Ranking` a ranking
+   (the `Ranking` feature of [0014](0014-next-feature-bundle.md)).
 2. **State the shorthand rule and the tree** on the
    [pipes](../wiki/hql/types/pipes.hmd) card: `reduce` over `sum`, `min`,
    `max`, `size`, `count(x)`; `match` over `typed` by way of `somes`;

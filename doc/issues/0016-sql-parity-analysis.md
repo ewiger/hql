@@ -57,7 +57,7 @@ flattening and the operators that predicates are written with.
 | `COUNT(a)` (non-absent) | `filter` then `size` | workaround | a test for absence (`match`, or `is_some`) |
 | `SUM`, `MIN`, `MAX` | — | supportable | `reduce` ([HQL-0004](../proposals/HQL-0004/README.md)); `sum`, `min`, `max` with executor-held combiners |
 | `AVG` | — | supportable | division; an `Int`-to-`Float` conversion, since `Int` never widens |
-| `GROUP BY` | — | supportable | `group` and `Group<K, T>` — feature 1 of [0014](0014-next-feature-bundle.md) |
+| `GROUP BY` | — | supportable | `group` and `Group<K, T>` — the `group` / `reduce` feature of [0014](0014-next-feature-bundle.md) |
 | `HAVING` | `filter` after `group` | supportable | `group` |
 | `ROLLUP`, `CUBE`, `GROUPING SETS` | several `group` calls | supportable | nothing beyond `group`; no dedicated form |
 
@@ -164,7 +164,9 @@ window frame is a different thing and needs a different name.
 
 Ranked by how many rows above each one unblocks.
 
-1. **Scalar operators.** Comparison, boolean and the rest of arithmetic. They
+1. **Scalar operators.** Comparison, boolean and the rest of arithmetic, done
+   by the scalar operators feature of [0014](0014-next-feature-bundle.md)
+   except the `Ordering` constants. They
    unblock `WHERE` beyond equality, `BETWEEN`, `NOT EXISTS`, `AVG`, `HAVING`
    with a threshold, and every window predicate. Grammar work in
    [the grammar](../models/behavior/expressions.md), plus `Ordering`
@@ -173,7 +175,7 @@ Ranked by how many rows above each one unblocks.
    schemaless tree as a declared type, in part or in full. Without it a
    metadata field cannot be summed, sorted or compared. Shared with roadblock 3
    of [0015](0015-jq-parity-analysis.md); detailed in the next section.
-3. **`group` and `reduce`.** Already feature 1 of
+3. **`group` and `reduce`.** Already the `group` / `reduce` feature of
    [0014](0014-next-feature-bundle.md); `sum`, `min`, `max` and `avg` follow
    with executor-held combiners.
 4. **Conditionals and absence.** `if` or `match`, and a default for
@@ -268,6 +270,6 @@ After `typed`, `m.pages` is an `Int` and `m.genre` a `String`, so `+`,
   program it becomes — with `status: proposed`, in a new `examples/sql/`
   folder over a small vault of rows.
 - Roadblocks 1, 2, 4, 5 and 6 each become a backlog issue or a step of an
-  existing one; 3 is already feature 1 of 0014.
+  existing one; 3 is already the `group` / `reduce` feature of 0014.
 - Where a roadblock is shared with [0015](0015-jq-parity-analysis.md), one
   issue serves both.

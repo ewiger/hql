@@ -1,11 +1,12 @@
 //! How much a program is allowed to say before it stops.
 //!
-//! A run produces three streams, not one: warnings that change nothing,
-//! errors that make a result wrong, and failures that make a result
-//! impossible. Which of those stops the run is a policy rather than a
-//! property of the language, so it is configured — by the user's environment,
-//! by the vault, and by the individual query, in that increasing order of
-//! specificity.
+//! A run produces a structured log beside its value. The program adds
+//! `debug` and `info` entries with the `debug` step; the language adds
+//! warnings that change nothing, errors that make a result wrong, and failures
+//! that make a result impossible. Which of those stops the run, and which are
+//! shown, is a policy rather than a property of the language, so it is
+//! configured — by the user's environment, by the vault, and by the individual
+//! query, in that increasing order of specificity.
 
 use crate::diagnostics::Diagnostic;
 use crate::warnings::Warning;
@@ -15,6 +16,10 @@ use std::{env, fs};
 /// How serious a report is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Severity {
+    /// A value the program captured to look at.
+    Debug,
+    /// A value or a fact the program states.
+    Info,
     /// Work continued and the result stands.
     Warning,
     /// The result is wrong, but more of the program could still be examined.
@@ -29,10 +34,46 @@ impl Severity {
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
+            Self::Debug => "debug",
+            Self::Info => "info",
             Self::Warning => "warning",
             Self::Error => "error",
             Self::Failure => "failure",
         }
+    }
+
+    /// Parse a configured level name. `failure` is not one: a failure is
+    /// always shown, so hiding everything below it is not a level.
+    #[must_use]
+    pub fn parse_level(name: &str) -> Option<Self> {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "debug" => Some(Self::Debug),
+            "info" => Some(Self::Info),
+            "warning" => Some(Self::Warning),
+            "error" => Some(Self::Error),
+            _ => None,
+        }
+    }
+}
+
+/// One step of the path evaluation took to an entry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraceStep {
+    /// The step's name.
+    pub step: String,
+    /// Its one-based position in its pipeline.
+    pub position: usize,
+    /// The element it was applying a function to, when it was.
+    pub element: Option<String>,
+}
+
+impl TraceStep {
+    fn to_json(&self) -> serde_json::Value {
+        let mut entry = serde_json::json!({ "step": self.step, "position": self.position });
+        if let Some(element) = &self.element {
+            entry["element"] = serde_json::Value::String(element.clone());
+        }
+        entry
     }
 }
 
@@ -79,6 +120,18 @@ pub struct Report {
     pub stage: String,
     /// The explanation.
     pub message: String,
+    /// The kind of entry, by name, where it has one.
+    pub code: Option<String>,
+    /// The name a program gave the entry.
+    pub label: Option<String>,
+    /// The type of the value the entry is about.
+    pub ty: Option<String>,
+    /// The whole value the entry is about, as data.
+    pub found: Option<serde_json::Value>,
+    /// The same value as it prints, for a person.
+    pub shown: Option<String>,
+    /// How evaluation reached the entry, outermost step first.
+    pub trace: Vec<TraceStep>,
 }
 
 impl Report {
@@ -98,6 +151,40 @@ impl Report {
             span: diagnostic.span(),
             stage: diagnostic.stage().to_owned(),
             message: diagnostic.message(),
+            ..Self::bare()
+        }
+    }
+
+    /// An entry with nothing but a severity, for the constructors to fill.
+    fn bare() -> Self {
+        Self {
+            severity: Severity::Warning,
+            span: 0..0,
+            stage: String::new(),
+            message: String::new(),
+            code: None,
+            label: None,
+            ty: None,
+            found: None,
+            shown: None,
+            trace: Vec::new(),
+        }
+    }
+
+    /// A value the program captured with `debug`.
+    #[must_use]
+    pub fn captured(capture: Capture) -> Self {
+        Self {
+            severity: capture.severity,
+            span: capture.span,
+            stage: "program".to_owned(),
+            message: capture.message,
+            code: Some("debug".to_owned()),
+            label: capture.label,
+            ty: Some(capture.ty),
+            found: Some(capture.found),
+            shown: Some(capture.shown),
+            trace: capture.trace,
         }
     }
 
@@ -109,19 +196,69 @@ impl Report {
             span: warning.span.clone(),
             stage: "evaluation".to_owned(),
             message: warning.message.clone(),
+            ..Self::bare()
         }
     }
 
-    /// The JSON projection of the report.
+    /// The JSON projection of the report; a field that does not apply is
+    /// left out.
     #[must_use]
     pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
+        let mut entry = serde_json::json!({
             "severity": self.severity.label(),
             "stage": self.stage,
             "message": self.message,
             "span": { "start": self.span.start, "end": self.span.end },
-        })
+        });
+        let text = |value: &Option<String>| value.clone().map(serde_json::Value::String);
+        for (key, value) in [
+            ("code", text(&self.code)),
+            ("label", text(&self.label)),
+            ("type", text(&self.ty)),
+            ("found", self.found.clone()),
+        ] {
+            if let Some(value) = value {
+                entry[key] = value;
+            }
+        }
+        if !self.trace.is_empty() {
+            entry["trace"] = self.trace.iter().map(TraceStep::to_json).collect();
+        }
+        entry
     }
+}
+
+/// Shorten a value's printed form for a line a person reads; the JSON
+/// projection of an entry always carries the whole value.
+#[must_use]
+pub fn shorten(text: &str) -> String {
+    const LIMIT: usize = 120;
+    if text.chars().count() <= LIMIT {
+        return text.to_owned();
+    }
+    let kept: String = text.chars().take(LIMIT).collect();
+    format!("{kept}…")
+}
+
+/// What a `debug` step captured, before it becomes an entry.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Capture {
+    /// `debug` or `info`.
+    pub severity: Severity,
+    /// The step's span.
+    pub span: std::ops::Range<usize>,
+    /// The program's name for the capture.
+    pub label: Option<String>,
+    /// A short description: the value, or a collection's type and size.
+    pub message: String,
+    /// The value's type.
+    pub ty: String,
+    /// The whole value.
+    pub found: serde_json::Value,
+    /// The value as it prints.
+    pub shown: String,
+    /// How evaluation reached the step.
+    pub trace: Vec<TraceStep>,
 }
 
 /// The queue of everything a run had to say, in the order it was said.
@@ -194,6 +331,17 @@ impl Reports {
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::Value::Array(self.items.iter().map(Report::to_json).collect())
     }
+
+    /// The reports at or above a shown level. Hiding one does not remove it:
+    /// it was still captured, and the JSON projection has every entry.
+    #[must_use]
+    pub fn shown(&self, level: Severity) -> Self {
+        self.items
+            .iter()
+            .filter(|report| report.severity >= level)
+            .cloned()
+            .collect()
+    }
 }
 
 impl FromIterator<Report> for Reports {
@@ -213,8 +361,55 @@ pub struct Settings {
     pub origin: String,
 }
 
+/// Which entries are shown, and where that came from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Level {
+    /// The lowest severity shown.
+    pub severity: Severity,
+    /// Which layer supplied it.
+    pub origin: String,
+}
+
+impl Level {
+    /// Resolve the shown level from the query, the vault and the environment,
+    /// with the same precedence as the mode.
+    #[must_use]
+    pub fn resolve(query: Option<Severity>, vault_root: Option<&Path>) -> Self {
+        if let Some(severity) = query {
+            return Self {
+                severity,
+                origin: "this query".to_owned(),
+            };
+        }
+        if let Some(root) = vault_root
+            && let Some(severity) = setting(&root.join(CONFIG_FILE), "level")
+                .and_then(|name| Severity::parse_level(&name))
+        {
+            return Self {
+                severity,
+                origin: format!("the vault's {CONFIG_FILE}"),
+            };
+        }
+        if let Some(severity) = env::var(LEVEL_ENVIRONMENT)
+            .ok()
+            .and_then(|value| Severity::parse_level(&value))
+        {
+            return Self {
+                severity,
+                origin: format!("${LEVEL_ENVIRONMENT}"),
+            };
+        }
+        Self {
+            severity: Severity::Warning,
+            origin: "the default".to_owned(),
+        }
+    }
+}
+
 /// The environment variable a user sets for their own default.
 pub const ENVIRONMENT: &str = "HQL_REPORT";
+/// The environment variable a user sets for their own shown level.
+pub const LEVEL_ENVIRONMENT: &str = "HQL_REPORT_LEVEL";
 /// The file a vault puts its own default in.
 pub const CONFIG_FILE: &str = "hql.toml";
 
@@ -257,10 +452,14 @@ impl Settings {
 
 /// Read `[report] mode = "…"` from a vault's configuration file.
 fn from_file(path: &Path) -> Option<Mode> {
+    Mode::parse(&setting(path, "mode")?)
+}
+
+/// Read one `[report]` setting from a vault's configuration file.
+fn setting(path: &Path, key: &str) -> Option<String> {
     let text = fs::read_to_string(path).ok()?;
     let parsed: toml::Value = toml::from_str(&text).ok()?;
-    let mode = parsed.get("report")?.get("mode")?.as_str()?;
-    Mode::parse(mode)
+    Some(parsed.get("report")?.get(key)?.as_str()?.to_owned())
 }
 
 #[cfg(test)]

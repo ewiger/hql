@@ -26,8 +26,7 @@ policy, so it is configured rather than fixed by the language.
 | `error` | The result is wrong, but more could still be examined | a type or name error; data of the wrong shape |
 | `failure` | Nothing further can be examined | the source did not parse; arithmetic overflowed |
 
-`warning`, `error` and `failure` are implemented; `debug` and `info` are
-designed with [[debug-op|debug]].
+All five are implemented; `debug` and `info` are logged with [[debug-op|debug]].
 
 Severity is not the same question as "did it work". Only an entry at or above
 the **fail level** — `error` by default — fails the run: the result is absent
@@ -102,8 +101,9 @@ The same entry as data, with `--format json`:
 }
 ```
 
-Today an entry carries `severity`, `stage`, `message` and `span`; `code`,
-`source`, `expected`, `found` and `trace` are designed.
+Every entry carries `severity`, `stage`, `message` and `span`. A `debug` entry
+also carries `code`, `label`, `type`, `found` and `trace`. `code`, `source`,
+`expected`, `found` and `trace` on the language's own errors are designed.
 
 ## Collect everything, then fail
 
@@ -157,8 +157,8 @@ fail  = "warning"   # an unresolved link fails the run here
 ```
 
 `hql config` prints each setting in force and which layer supplied it, so the
-precedence never has to be guessed. `mode` is implemented; `level` and `fail`
-are designed.
+precedence never has to be guessed. `mode` and `level` are implemented, with
+`--report-level` and `HQL_REPORT_LEVEL`; `fail` is designed.
 
 ## Spans and rendering
 

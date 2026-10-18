@@ -13,7 +13,6 @@ compose are being fixed first. Most of what follows depends on them.
 - **Aggregation** — `group` and `reduce` over finite inputs.
 - **Functions as values** — a function type, `T -> U`, and named functions that
   can be bound, passed and returned.
-- **`cards` as an ordinary binding** rather than a keyword.
 - **Streams** — `Stream<T>` as a type, so a pipeline can run over an unbounded
   source, with batching through `collect(n)` and `emit`.
 - **Generated sources** — `yield` and `bind`, so a query can start from a

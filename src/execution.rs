@@ -1,6 +1,6 @@
 //! Checked execution tree: resolved operations, result types, and source spans.
 
-use crate::ast;
+use crate::ast::{self, Arith, Logic, Relation};
 use crate::diagnostics::Diagnostic;
 use crate::extensions::Step;
 use crate::types::TypeRef;
@@ -43,23 +43,37 @@ pub(crate) enum Kind {
     Bool(bool),
     Str(String),
     Ident(String),
-    Cards,
     DocRef(String),
     Data(Vec<(String, Expr)>),
-    Add {
+    /// A left-deep chain, flattened so evaluation spends no stack per link.
+    /// Each link keeps the span of the partial result it produces.
+    Arith {
         first: Box<Expr>,
-        rest: Vec<(Expr, Range<usize>)>,
+        rest: Vec<(Arith, Expr, Range<usize>)>,
     },
     Compare {
         left: Box<Expr>,
         right: Box<Expr>,
         negated: bool,
     },
+    Relate {
+        left: Box<Expr>,
+        right: Box<Expr>,
+        relation: Relation,
+    },
+    /// A left-deep chain of connectives, flattened like `Arith`.
+    Logic {
+        first: Box<Expr>,
+        rest: Vec<(Logic, Expr)>,
+    },
+    Not(Box<Expr>),
     Order(Box<Expr>, Box<Expr>),
     Step {
         step: &'static Step,
         input: Box<Expr>,
         arguments: Vec<Arg>,
+        /// Where the step itself is written: `debug(…)` in `xs | debug(…)`.
+        at: Range<usize>,
     },
     Link {
         source: Box<Expr>,
@@ -232,7 +246,6 @@ impl Checked {
             A::Bool(value) => Kind::Bool(*value),
             A::Str(value) => Kind::Str(value.clone()),
             A::Ident(name) => Kind::Ident(name.clone()),
-            A::Cards => Kind::Cards,
             A::DocRef(name) => Kind::DocRef(name.clone()),
             A::Data(entries) => Kind::Data(
                 entries
@@ -240,19 +253,42 @@ impl Checked {
                     .map(|(key, value)| Ok((key.clone(), self.expression(value)?)))
                     .collect::<Result<_, Diagnostic>>()?,
             ),
-            A::Add(..) => {
+            A::Arith(..) => {
                 let mut first = expression;
                 let mut rest = Vec::new();
-                while let A::Add(left, right) = &first.kind {
-                    rest.push((self.expression(right)?, first.span.clone()));
+                while let A::Arith(operator, left, right) = &first.kind {
+                    rest.push((*operator, self.expression(right)?, first.span.clone()));
                     first = left;
                 }
                 rest.reverse();
-                Kind::Add {
+                Kind::Arith {
                     first: boxed(first)?,
                     rest,
                 }
             }
+            A::Relate {
+                left,
+                right,
+                relation,
+            } => Kind::Relate {
+                left: boxed(left)?,
+                right: boxed(right)?,
+                relation: *relation,
+            },
+            A::Logic(..) => {
+                let mut first = expression;
+                let mut rest = Vec::new();
+                while let A::Logic(connective, left, right) = &first.kind {
+                    rest.push((*connective, self.expression(right)?));
+                    first = left;
+                }
+                rest.reverse();
+                Kind::Logic {
+                    first: boxed(first)?,
+                    rest,
+                }
+            }
+            A::Not(operand) => Kind::Not(boxed(operand)?),
             A::Compare {
                 left,
                 right,
@@ -293,6 +329,7 @@ impl Checked {
                         step,
                         input: boxed(&input.value)?,
                         arguments: self.arguments(arguments)?,
+                        at: span.clone(),
                     }
                 } else if matches!(&callee.kind, A::Ident(name) if name == "compare") {
                     Kind::Order(boxed(&arguments[0].value)?, boxed(&arguments[1].value)?)
@@ -313,6 +350,7 @@ impl Checked {
                     step,
                     input: boxed(input)?,
                     arguments: self.arguments(arguments)?,
+                    at: written.span.clone(),
                 }
             }
         };
@@ -332,9 +370,9 @@ mod tests {
         drop(syntax);
         vault.extensions.prelude = false;
         vault.extensions.imports.push("unregistered".to_owned());
-        let (value, warnings) = crate::evaluation::evaluate(&program, &vault).unwrap();
-        assert_eq!(value.type_of(), program.result);
-        assert!(warnings.is_empty());
+        let (value, log) = crate::evaluation::evaluate(&program, &vault);
+        assert_eq!(value.unwrap().type_of(), program.result);
+        assert!(log.is_empty());
     }
 
     #[test]

@@ -41,7 +41,7 @@ type Option<T>
 // is_none<T>(o: Option<T>) : Bool
 // unwrap_or<T>(o: Option<T>, default: T) : T
 // unwrap_or_else<T>(o: Option<T>, f: () -> T) : T
-// or<T>(o: Option<T>, other: Option<T>) : Option<T>
+// alternative<T>(o: Option<T>, other: Option<T>) : Option<T>  (`or` is a connective)
 // map<T, U>(o: Option<T>, f: T -> U) : Option<U>
 // and_then<T, U>(o: Option<T>, f: T -> Option<U>) : Option<U>
 // filter<T>(o: Option<T>, p: T -> Bool) : Option<T>

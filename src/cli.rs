@@ -3,7 +3,7 @@
 //! Everything here is in the library rather than the binary, because logic
 //! only the binary can reach is logic that cannot be tested.
 
-use crate::reporting::{Mode, Reports, Settings, Severity};
+use crate::reporting::{Level, Mode, Reports, Settings, Severity};
 use crate::types::Value;
 use crate::vault::{self, Vault};
 use crate::{render, transclude};
@@ -43,6 +43,10 @@ pub struct Options {
     /// When to stop: `strict` at the first error, `collect` to report them all.
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
+    /// The lowest severity shown: `debug`, `info`, `warning` or `error`.
+    /// `--format json` carries every entry whatever this says.
+    #[arg(long, global = true, value_name = "LEVEL")]
+    pub report_level: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -82,7 +86,7 @@ enum Command {
     },
     /// List the steps a pipeline may use.
     Builtins,
-    /// Show the reporting mode in force, and where it came from.
+    /// Show the reporting settings in force, and where each came from.
     Config,
 }
 
@@ -153,6 +157,14 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         None => None,
     };
     let settings = Settings::resolve(requested, cli.options.vault.as_deref());
+    let level = match &cli.options.report_level {
+        Some(name) => Some(Severity::parse_level(name).ok_or_else(|| {
+            format!("unknown report level `{name}`; expected `debug`, `info`, `warning` or `error`")
+        })?),
+        None => None,
+    };
+    let level = Level::resolve(level, cli.options.vault.as_deref());
+    let shown = level.severity;
 
     match &cli.command {
         Command::Builtins => {
@@ -179,9 +191,11 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         Command::Config => {
             writeln!(
                 out,
-                "report mode: {} (from {})\nvault: {}",
+                "report mode: {} (from {})\nreport level: {} (from {})\nvault: {}",
                 settings.mode.label(),
                 settings.origin,
+                level.severity.label(),
+                level.origin,
                 if vault.is_present() {
                     format!("{} ({} cards)", vault.root.display(), vault.cards.len())
                 } else {
@@ -193,17 +207,25 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         }
         Command::Eval { expression } => {
             let outcome = crate::run(expression, &vault, settings.mode);
-            emit(&outcome, expression, "<expression>", &cli.options, out, err)
+            emit(
+                &outcome,
+                expression,
+                "<expression>",
+                &cli.options,
+                shown,
+                out,
+                err,
+            )
         }
         Command::Run { file } => {
             let (source, origin) = read(file)?;
             let outcome = crate::run(&source, &vault, settings.mode);
-            emit(&outcome, &source, &origin, &cli.options, out, err)
+            emit(&outcome, &source, &origin, &cli.options, shown, out, err)
         }
         Command::Check { file } => {
             let (source, origin) = read(file)?;
             let outcome = crate::check_reported(&source, &vault, settings.mode);
-            emit(&outcome, &source, &origin, &cli.options, out, err)
+            emit(&outcome, &source, &origin, &cli.options, shown, out, err)
         }
         Command::Render {
             file,
@@ -213,7 +235,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         } => {
             let (source, origin) = read(file)?;
             let rendered = transclude::render(&source, &vault, settings.mode, (*emit).into());
-            report_all(&rendered.reports, &source, &origin, err)?;
+            report_all(&rendered.reports.shown(shown), &source, &origin, err)?;
             // A build with a failed cell in it is not written anywhere.
             if !rendered.complete {
                 return Ok(1);
@@ -243,7 +265,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             }
             Ok(u8::from(rendered.reports.has_errors()))
         }
-        Command::Repl => repl(&vault, settings.mode, &cli.options, out, err),
+        Command::Repl => repl(&vault, settings.mode, shown, &cli.options, out, err),
     }
 }
 
@@ -276,6 +298,7 @@ fn emit(
     source: &str,
     origin: &str,
     options: &Options,
+    shown: Severity,
     out: &mut impl Write,
     err: &mut impl Write,
 ) -> Result<u8, String> {
@@ -304,7 +327,7 @@ fn emit(
                 // `check` has a type and no value; that is the whole answer.
                 writeln!(out, "{inferred}").map_err(|error| error.to_string())?;
             }
-            report_all(&outcome.reports, source, origin, err)?;
+            report_all(&outcome.reports.shown(shown), source, origin, err)?;
         }
     }
     Ok(u8::from(outcome.failed()))
@@ -322,16 +345,21 @@ fn report_all(
             .map_err(|error| error.to_string())?;
     }
     if reports.len() > 1 {
-        writeln!(
-            err,
+        let mut summary = format!(
             "{} report{}: {} failure, {} error, {} warning",
             reports.len(),
             if reports.len() == 1 { "" } else { "s" },
             reports.count(Severity::Failure),
             reports.count(Severity::Error),
             reports.count(Severity::Warning),
-        )
-        .map_err(|error| error.to_string())?;
+        );
+        for severity in [Severity::Info, Severity::Debug] {
+            let count = reports.count(severity);
+            if count > 0 {
+                summary.push_str(&format!(", {count} {}", severity.label()));
+            }
+        }
+        writeln!(err, "{summary}").map_err(|error| error.to_string())?;
     }
     Ok(())
 }
@@ -343,6 +371,7 @@ fn report_all(
 fn repl(
     vault: &Vault,
     mode: Mode,
+    shown: Severity,
     options: &Options,
     out: &mut impl Write,
     err: &mut impl Write,
@@ -418,7 +447,7 @@ fn repl(
         } else {
             crate::run(&source, vault, mode)
         };
-        emit(&outcome, &source, "<repl>", options, out, err)?;
+        emit(&outcome, &source, "<repl>", options, shown, out, err)?;
         // A binding that worked joins the session; an expression does not.
         if !outcome.failed() && !typing && is_binding(line) {
             prelude.push(line.to_owned());
