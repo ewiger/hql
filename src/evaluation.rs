@@ -27,6 +27,16 @@ pub(crate) fn evaluate(
     program: &Program,
     vault: &Vault,
 ) -> (Result<Value, Diagnostic>, Vec<Report>) {
+    evaluate_with(program, vault, Vec::new())
+}
+
+/// Evaluate a program with further names bound: the values of a document's
+/// other cells.
+pub(crate) fn evaluate_with(
+    program: &Program,
+    vault: &Vault,
+    bound: Vec<(String, Value)>,
+) -> (Result<Value, Diagnostic>, Vec<Report>) {
     let mut scope = base(vault);
     // The library's bindings over `vault`, each its own program.
     for (name, library) in crate::checker::library(vault) {
@@ -38,6 +48,7 @@ pub(crate) fn evaluate(
             Err(diagnostic) => return (Err(diagnostic), log),
         }
     }
+    scope.extend(bound);
     evaluate_in(program, vault, scope)
 }
 

@@ -251,7 +251,7 @@ fn render_in_place_after_is_idempotent() {
     assert!(first.status.success(), "{}", stderr(&first));
     let once = std::fs::read_to_string(&path).unwrap();
     assert!(once.contains("```hql#eval"));
-    assert!(once.contains("<!-- hql:output -->"));
+    assert!(once.contains("<!-- hql:output hash="));
 
     hql(&[
         "--vault",

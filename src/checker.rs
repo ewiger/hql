@@ -17,9 +17,25 @@ use std::ops::Range;
 ///
 /// Returns the first syntax, type or name failure.
 pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypedProgram, Diagnostic> {
+    check_with(program, vault, &[])
+}
+
+/// Check a program with further names in scope, each at its type: the values
+/// of a document's other cells.
+///
+/// # Errors
+///
+/// Returns the first syntax, type or name failure.
+pub(crate) fn check_with(
+    program: &Program,
+    vault: &Vault,
+    bound: &[(String, TypeRef)],
+) -> Result<TypedProgram, Diagnostic> {
+    let mut scope = globals(vault);
+    scope.extend(bound.iter().cloned());
     Checker {
         vault,
-        scope: globals(vault),
+        scope,
         resolution: Resolution::new(&vault.extensions)?,
         declarations: Declarations::default(),
         checked: Checked::default(),
@@ -38,6 +54,15 @@ pub(crate) fn check_collecting(
     program: &Program,
     vault: &Vault,
 ) -> (Option<TypedProgram>, Vec<Diagnostic>) {
+    check_collecting_with(program, vault, &[])
+}
+
+/// [`check_collecting`] with further names in scope.
+pub(crate) fn check_collecting_with(
+    program: &Program,
+    vault: &Vault,
+    bound: &[(String, TypeRef)],
+) -> (Option<TypedProgram>, Vec<Diagnostic>) {
     let resolution = match Resolution::new(&vault.extensions) {
         Ok(resolution) => resolution,
         // A vault that cannot resolve its own configuration has nothing to
@@ -46,7 +71,11 @@ pub(crate) fn check_collecting(
     };
     let mut checker = Checker {
         vault,
-        scope: globals(vault),
+        scope: {
+            let mut scope = globals(vault);
+            scope.extend(bound.iter().cloned());
+            scope
+        },
         resolution,
         declarations: Declarations::default(),
         checked: Checked::default(),

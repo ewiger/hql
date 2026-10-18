@@ -172,6 +172,41 @@ pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
     }
 }
 
+/// Check one cell of a document with the types of the cells it reads.
+pub(crate) fn check_cell(
+    source: &str,
+    vault: &Vault,
+    mode: Mode,
+    bound: &[(String, TypeRef)],
+) -> (Option<execution::Program>, Reports) {
+    let program = match parser::parse(source) {
+        Ok(program) => program,
+        Err(diagnostic) => return (None, std::iter::once(Report::of(&diagnostic)).collect()),
+    };
+    let (checked, found) = match mode {
+        Mode::Strict => match checker::check_with(&program, vault, bound) {
+            Ok(program) => (Some(program), Vec::new()),
+            Err(diagnostic) => (None, vec![diagnostic]),
+        },
+        Mode::Collect => checker::check_collecting_with(&program, vault, bound),
+    };
+    let reports: Reports = found.iter().map(Report::of).collect();
+    if reports.has_errors() {
+        return (None, reports);
+    }
+    (checked, reports)
+}
+
+/// Evaluate one checked cell with the values of the cells it reads.
+pub(crate) fn evaluate_cell(
+    program: &execution::Program,
+    vault: &Vault,
+    bound: Vec<(String, Value)>,
+) -> (Result<Value, Diagnostic>, Reports) {
+    let (value, log) = evaluation::evaluate_with(program, vault, bound);
+    (value, log.into_iter().collect())
+}
+
 fn infer(
     program: &ast::Program,
     vault: &Vault,

@@ -60,8 +60,15 @@ fn a_table_in_a_document_is_a_pipe_table() {
 fn after_keeps_the_cell_and_marks_its_output() {
     let rendered = transclude::render(&board(), &fixture(), Mode::Strict, Emit::After);
     assert!(rendered.document.contains("```hql#eval"));
+    assert!(
+        rendered
+            .document
+            .contains(&format!("```\n{OUTPUT_OPEN} hash=")),
+        "{}",
+        rendered.document
+    );
     assert!(rendered.document.contains(&format!(
-        "```\n{OUTPUT_OPEN}\n- Bearer tokens\n- Session cookies\n{OUTPUT_CLOSE}\n"
+        "status=ok -->\n- Bearer tokens\n- Session cookies\n{OUTPUT_CLOSE}\n"
     )));
     assert_eq!(rendered.document.matches(OUTPUT_OPEN).count(), 2);
 }
@@ -88,9 +95,12 @@ fn replacing_a_rendered_notebook_drops_its_old_output() {
 fn a_cell_may_name_its_own_mode() {
     let source = "```hql#eval after\n1 + 1\n```\n\n```hql\n2 + 2\n```\n";
     let rendered = transclude::render(source, &fixture(), Mode::Strict, Emit::Replace);
+    let hash = &rendered.cells[0].hash;
     assert_eq!(
         rendered.document,
-        format!("```hql#eval after\n1 + 1\n```\n{OUTPUT_OPEN}\n2\n{OUTPUT_CLOSE}\n\n4\n")
+        format!(
+            "```hql#eval after\n1 + 1\n```\n{OUTPUT_OPEN} hash={hash} status=ok -->\n2\n{OUTPUT_CLOSE}\n\n4\n"
+        )
     );
 }
 
@@ -112,9 +122,7 @@ fn a_failed_cell_under_after_shows_its_error_as_output() {
     assert!(rendered.reports.has_errors());
     assert!(rendered.complete);
     assert!(
-        rendered
-            .document
-            .contains(&format!("{OUTPUT_OPEN}\nerror:")),
+        rendered.document.contains("status=error -->\nerror:"),
         "{}",
         rendered.document
     );
@@ -164,4 +172,158 @@ fn the_birds_example_wiki_resolves_and_renders_every_query() {
         }
     }
     assert!(blocks >= 3, "the collection notebook's queries must run");
+}
+
+fn after(source: &str) -> transclude::Rendered {
+    transclude::render(source, &fixture(), Mode::Strict, Emit::After)
+}
+
+fn replaced(source: &str) -> transclude::Rendered {
+    transclude::render(source, &fixture(), Mode::Strict, Emit::Replace)
+}
+
+#[test]
+fn a_cell_reads_another_by_its_id_whatever_order_they_are_written_in() {
+    let source = "```hql\ntotal + 1\n```\n\n```hql id=total\n[1, 2, 3] | sum\n```\n";
+    let rendered = replaced(source);
+    assert!(rendered.complete, "{:?}", rendered.reports);
+    assert_eq!(rendered.document, "7\n\n6\n");
+    assert_eq!(rendered.cells[0].ty.as_deref(), Some("Int"));
+}
+
+#[test]
+fn a_cell_exports_its_value_and_keeps_its_bindings() {
+    let source = "```hql id=open\nhelper = 2\n[1, helper]\n```\n\n```hql\nhelper\n```\n";
+    let rendered = replaced(source);
+    assert!(!rendered.complete);
+    let message = format!("{:?}", rendered.reports);
+    assert!(message.contains("`helper` is not bound"), "{message}");
+    let shadowed = "```hql id=n\n1\n```\n\n```hql\nn = 5\nn + 1\n```\n";
+    assert_eq!(replaced(shadowed).document, "1\n\n6\n");
+}
+
+#[test]
+fn a_cycle_and_a_duplicate_id_are_check_errors_naming_the_cells() {
+    let cycle = replaced("```hql id=a\nb\n```\n\n```hql id=b\na\n```\n");
+    let message = format!("{:?}", cycle.reports);
+    assert!(
+        message.contains("`a`, `b` read each other in a cycle"),
+        "{message}"
+    );
+    assert_eq!(cycle.blocks, 0);
+    let twice = replaced("```hql id=a\n1\n```\n\n```hql id=a\n2\n```\n");
+    let message = format!("{:?}", twice.reports);
+    assert!(
+        message.contains("cells 0 and 1 both have the id `a`"),
+        "{message}"
+    );
+    assert!(!twice.complete);
+}
+
+#[test]
+fn a_type_error_anywhere_stops_the_document_before_any_cell_runs() {
+    let source = "```hql id=a\n[1] | debug\n```\n\n```hql\na | nosuchstep\n```\n";
+    let rendered = after(source);
+    assert_eq!(rendered.cells[0].status, transclude::Status::NotRun);
+    assert_eq!(rendered.cells[1].status, transclude::Status::Error);
+    assert!(
+        rendered
+            .reports
+            .iter()
+            .all(|report| report.code.as_deref() != Some("debug"))
+    );
+}
+
+#[test]
+fn a_cell_waiting_on_a_failed_one_is_skipped_and_the_rest_still_run() {
+    let source = "```hql id=a\n1 / 0\n```\n\n```hql id=b\na + 1\n```\n\n```hql\n2 + 2\n```\n";
+    let rendered = after(source);
+    let statuses: Vec<_> = rendered.cells.iter().map(|cell| cell.status).collect();
+    use transclude::Status::{Error, Ok, Skipped};
+    assert_eq!(statuses, [Error, Skipped, Ok]);
+    assert!(
+        rendered
+            .document
+            .contains("status=skipped -->\nskipped: a failed\n"),
+        "{}",
+        rendered.document
+    );
+    assert!(rendered.document.contains("status=ok -->\n4\n"));
+}
+
+#[test]
+fn a_hidden_cell_runs_and_writes_nothing() {
+    let source = "```hql id=base hidden\n10\n```\n\n```hql\nbase * 2\n```\n";
+    assert_eq!(replaced(source).document, "20\n");
+    let notebook = after(source);
+    assert_eq!(notebook.document.matches(OUTPUT_OPEN).count(), 1);
+}
+
+#[test]
+fn an_output_records_its_cell_and_the_hash_of_the_code_behind_it() {
+    let source = "```hql id=base\n10\n```\n\n```hql\nbase * 2\n```\n";
+    let rendered = after(source);
+    let base = &rendered.cells[0].hash;
+    assert_eq!(base.len(), 12);
+    assert!(
+        rendered
+            .document
+            .contains(&format!("{OUTPUT_OPEN} id=base hash={base} status=ok -->"))
+    );
+    // Editing a cell changes its hash and the hash of every cell reading it.
+    let edited = after(&source.replace("10", "11"));
+    assert_ne!(edited.cells[0].hash, rendered.cells[0].hash);
+    assert_ne!(edited.cells[1].hash, rendered.cells[1].hash);
+    // Trailing whitespace is not code.
+    let spaced = after(&source.replace("10\n", "10   \n"));
+    assert_eq!(spaced.cells[0].hash, rendered.cells[0].hash);
+}
+
+#[test]
+fn an_output_nobody_owns_is_removed_with_a_warning() {
+    let source = "Intro\n\n<!-- hql:output id=gone hash=000000000000 status=ok -->\nold\n<!-- /hql:output -->\n\n```hql\n1\n```\n";
+    let rendered = after(source);
+    assert!(!rendered.document.contains("old"), "{}", rendered.document);
+    let message = format!("{:?}", rendered.reports);
+    assert!(message.contains("no cell directly above it"), "{message}");
+}
+
+#[test]
+fn an_unknown_attribute_is_a_warning_and_ignored() {
+    let rendered = replaced("```hql id=x shiny\n1\n```\n");
+    assert_eq!(rendered.document, "1\n");
+    let message = format!("{:?}", rendered.reports);
+    assert!(
+        message.contains("`shiny` is not a cell attribute"),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_cells_report_points_into_the_document() {
+    let source = "# Title\n\n```hql\ncards | nosuchstep\n```\n";
+    let rendered = replaced(source);
+    let report = rendered
+        .reports
+        .iter()
+        .find(|report| report.message.contains("nosuchstep"))
+        .unwrap();
+    assert_eq!(&source[report.span.clone()], "nosuchstep");
+}
+
+#[test]
+fn one_cell_runs_with_what_it_reads_and_the_rest_is_left_as_written() {
+    let source = "```hql id=a\n1\n```\n<!-- hql:output id=a hash=000000000000 status=ok -->\nstale\n<!-- /hql:output -->\n\n```hql id=b\na + 1\n```\n\n```hql id=c\n99\n```\n<!-- hql:output id=c hash=000000000000 status=ok -->\nkept\n<!-- /hql:output -->\n";
+    let rendered =
+        transclude::render_cell(source, &fixture(), Mode::Strict, Emit::After, Some("b")).unwrap();
+    assert!(
+        rendered.document.contains("status=ok -->\n2\n"),
+        "{}",
+        rendered.document
+    );
+    assert!(rendered.document.contains("kept"));
+    assert_eq!(rendered.cells[2].status, transclude::Status::NotRun);
+    assert!(
+        transclude::render_cell(source, &fixture(), Mode::Strict, Emit::After, Some("zz")).is_err()
+    );
 }
