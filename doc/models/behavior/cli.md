@@ -57,7 +57,7 @@ A vault configures its own imports in `hql.toml`, beside
 ```toml
 [extensions]
 import  = ["semantic"]   # imported for every program this vault runs
-prelude = false          # optional; omits graph and present
+prelude = false          # optional; omits graph, present and format
 ```
 
 `import` here saves writing the same line at the head of every query in one
@@ -66,6 +66,18 @@ instead — see [the grammar](expressions.md). A configured import that names no
 registered extension, or that collides with something already imported, fails
 every program in the vault rather than failing quietly, and the diagnostic says
 it came from `hql.toml`.
+
+It also chooses, per type and [presentation format](../../wiki/hql/presentation.hmd),
+the renderer that writes it, over built-in defaults:
+
+```toml
+[format.Graph]
+markdown = "mermaid"     # a Graph written as Markdown is a Mermaid block
+```
+
+A renderer or format this binary does not have, or a renderer named for a
+format or type it does not write, fails loading the vault, so the mistake is
+reported before any query reaches it.
 
 ## Exit status
 

@@ -36,6 +36,13 @@ pub trait VaultSource: Send + Sync {
     fn semantics(&self) -> crate::extensions::semantic::Semantics {
         crate::extensions::semantic::Semantics::default()
     }
+    /// Renderer choices supplied by this source.
+    ///
+    /// # Errors
+    /// Names a configured renderer this binary does not have.
+    fn formats(&self) -> Result<crate::extensions::format::Renderers, String> {
+        Ok(crate::extensions::format::Renderers::default())
+    }
 }
 
 /// Markdown files under a directory, excluding hidden entries.
@@ -82,6 +89,10 @@ impl VaultSource for Filesystem {
 
     fn semantics(&self) -> crate::extensions::semantic::Semantics {
         crate::extensions::semantic::Semantics::read(&self.root)
+    }
+
+    fn formats(&self) -> Result<crate::extensions::format::Renderers, String> {
+        crate::extensions::format::Renderers::read(&self.root)
     }
 }
 

@@ -131,6 +131,25 @@ fn build() -> Result<TypeSystem, TypeError> {
             applied: Vec::new(),
         })?;
     }
+    // The presentation formats: text with a known syntax, each a `String`.
+    for (format, parent) in [
+        ("Text", "String"),
+        ("Markdown", "String"),
+        ("Hmd", "Markdown"),
+        ("Json", "String"),
+        ("Yaml", "String"),
+        ("Csv", "String"),
+        ("D2", "String"),
+        ("Mermaid", "String"),
+    ] {
+        system.declare(TypeDefinition {
+            constructor: TypeConstructor(format),
+            kind: TypeKind::Concrete,
+            parameters: Vec::new(),
+            parents: vec![TypeConstructor(parent)],
+            applied: Vec::new(),
+        })?;
+    }
     // One partition of a `group`: `type Group<K, T> { key: K, items: List<T> }`.
     system.declare(TypeDefinition {
         constructor: GROUP,

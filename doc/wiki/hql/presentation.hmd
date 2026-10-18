@@ -5,56 +5,107 @@ nav:
 ---
 # Presentation
 
-Presentation is separate from the value an expression returns. A presenter is a
-**terminal** step: it produces a renderable result rather than transforming the
-value semantically, and nothing pipes out of it.
+A value keeps its type until it is formatted. A **presentation format** is a
+type of text with a known syntax, a subtype of `String`; formatting writes a
+value as text of one format, and the result is ordinary text a later step may
+read. A **renderer** writes values of one type in one format. The design is
+[HQL-0017](../../proposals/HQL-0017/README.md).
 
-| Presenter | Result |
+## Presentation formats
+
+| Format | Supertype | Text |
+| --- | --- | --- |
+| `Text` | `String` | plain text |
+| `Markdown` | `String` | CommonMark |
+| `Hmd` | `Markdown` | HyperMarkDown |
+| `Json` | `String` | JSON |
+| `Yaml` | `String` | YAML |
+| `Csv` | `String` | RFC 4180 rows |
+| `D2` | `String` | D2 diagram source |
+| `Mermaid` | `String` | Mermaid diagram source |
+
+A value of a format type is text that parses in that format. The declarations
+are `std/format.hql`.
+
+## `format` and its shorthands
+
+```hql
+format<T, F : String>(x: T, as: Type<F>, limit: Int = 0, renderer: String = "") : F
+```
+
+`format` is pure and not terminal: its result type is the format, so a step
+after it is checked like any other.
+
+- `limit`, when positive, keeps the first `limit` top-level elements — items
+  of a list, hits of a ranking, nodes of a graph — and the text marks how many
+  were cut.
+- `renderer` names the renderer for this call, over the configured one.
+- A type and format no renderer writes is a check error naming both. `D2` and
+  `Mermaid` describe graphs, so only a `Graph` is written in them.
+- Over text already in a format `F`: `format(F)` and `format(Text)` are the
+  identity, `Markdown` and `Hmd` widen into each other and copy nothing, and
+  any other format written as `Markdown` or `Hmd` is a fenced block with that
+  format's info string. No other conversion between formats exists.
+
+Each shorthand fixes the format and nothing else; an option is written in the
+longhand, `format(Markdown, limit = 50)`.
+
+| Shorthand | Longhand |
 | --- | --- |
-| `table` | rows and columns |
-| `json` | structured data |
-| `graph` | a graph view |
-| `markdown` | document text |
-| `tree` | nested structure |
-| `text` | plain text |
-| `value` | the value's own rendering |
-| `empty` | nothing rendered |
+| `text` | `format(Text)` |
+| `markdown` | `format(Markdown)` |
+| `hmd` | `format(Hmd)` |
+| `json` | `format(Json)` |
+| `yaml` | `format(Yaml)` |
+| `csv` | `format(Csv)` |
+| `d2` | `format(D2)` |
+| `mermaid` | `format(Mermaid)` |
 
 ```hql
 cards
-| of_type(RelationCard)
-| table
+| graph
+| format(Markdown, limit = 20)
 ```
 
-## A cell without a presenter
+## Renderers
 
-A cell that ends without a presenter uses a host default chosen by the result
-type. [[hql/knowledge|Knowledge]] is excluded from that default, because its
-views are equally valid and picking one silently would make a presentation
-choice look like a property of the knowledge.
+| Renderer | Type | Formats | Writes |
+| --- | --- | --- | --- |
+| `adjacency` | `Graph` | `Text` | one line per node, its edges indented |
+| `node-link` | `Graph` | `Json` | the Cytoscape elements form: `nodes` and `edges`, each under `data` |
+| `d2` | `Graph` | `D2`, `Markdown`, `Hmd` | D2 source; in `Markdown`, fenced as `d2` |
+| `mermaid` | `Graph` | `Mermaid`, `Markdown`, `Hmd` | a Mermaid `graph` block; in `Markdown`, fenced as `mermaid` |
+| `aligned` | any | `Text` | space-aligned columns |
+| `pipe` | any | `Markdown`, `Hmd` | a pipe table with header and delimiter rows |
+| `rows` | any | `Csv` | rows, header first |
+| `records` | any | `Json` | the value's data |
+| `list` | any | `Markdown`, `Hmd` | the value's own Markdown rendering |
+
+A `Graph` defaults to `adjacency` in `Text`, `node-link` in `Json`, `d2` in
+`Markdown`, `Hmd` and `D2`, and `mermaid` in `Mermaid`. Any other value is
+written in `Text` and `Markdown` as its own rendering, in `Json` and `Yaml` as
+its data, and in `Csv` as rows.
+
+A vault chooses a renderer per type and format in `hql.toml`; a value whose
+type has no entry takes the entry of its nearest supertype, then the default:
+
+```toml
+[format.Graph]
+markdown = "mermaid"
+```
+
+A renderer or format the binary does not have, or a renderer named for a type
+or format it does not write, fails loading the vault.
+
+## A result that is not formatted
+
+A host writes a result that is not of a format type in a presentation context:
+a terminal writes it as `Text`. [[hql/knowledge|Knowledge]] has no default,
+because its views are equally valid and picking one silently would make a
+presentation choice look like a property of the knowledge.
 
 Rendering belongs to the host. Printing or saving is an explicit effect, and
 constructing an updated [[card-type|Card]] does not itself persist a document.
 
-## `graph` is doing two jobs
-
-`graph` appears both as the projection from knowledge to a graph and as a view
-of one. The projection is a function over values; the view is a presenter. They
-are currently the same name, and separating them — or deciding they are one
-thing — is unresolved. `expand` is traversal and stays distinct from both; see
-[[hql/semantic-search]].
-
-## Open
-
-- Presenter naming, and whether one opaque `Presentation` type or named subtypes.
-- Whether `graph` is the projection or the view.
-- Presenter arguments — columns for `table`, depth for `tree` — and whether a
-  presenter may be parameterized at all.
-- Conversion between presentations, and what `HmdGraph` is as a value.
-
 See [[pipes]] for the execution direction and [[hql/knowledge]] for the
 projection this separates itself from.
-
-## TODO
-
-Update after implementing HQL-0017

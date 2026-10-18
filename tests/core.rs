@@ -332,7 +332,7 @@ fn a_binding_shadows_the_namespace_and_not_the_step() {
     // The core's own steps show the rule without needing a vault: a value
     // bound to an extension's name hides the qualified form, and the bare
     // form goes on resolving, because a step is only ever read after `|`.
-    let shadowed = check("present = 1\n1 | present.text").expect_err("present is bound");
+    let shadowed = check("format = 1\n1 | format.text").expect_err("format is bound");
     assert!(
         shadowed
             .message()
@@ -340,8 +340,9 @@ fn a_binding_shadows_the_namespace_and_not_the_step() {
         "{}",
         shadowed.message()
     );
-    assert_eq!(check("present = 1\n1 | text"), Ok(TypeRef::PRESENTATION));
-    assert_eq!(check("1 | present.text"), Ok(TypeRef::PRESENTATION));
+    let text = hql::types::builtin::named("Text", &[]).expect("Text is built in");
+    assert_eq!(check("format = 1\n1 | text"), Ok(text.clone()));
+    assert_eq!(check("1 | format.text"), Ok(text));
 }
 
 #[test]

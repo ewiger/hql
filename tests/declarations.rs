@@ -171,7 +171,7 @@ fn a_union_lists_its_alternatives() {
         "type Id = union {\n    Int,\n    String\n}",
         "type Id = union {Int, String,}",
         // A member may apply the union itself: that is what makes a tree.
-        "type Json = union {Scalar, Seq<Json>, Map<String, Json>}",
+        "type Value = union {Scalar, Seq<Value>, Map<String, Value>}",
         "type Tree<T> = union {T, Seq<Tree<T>>}",
         "type Id = union {Int, String}\ntype Holder { id : Id }",
         // What `std/core.hql` says, and what the binary holds.

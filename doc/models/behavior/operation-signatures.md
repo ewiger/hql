@@ -54,8 +54,15 @@ expand(x: Graph | Doc | Collection<…>, depth?: Int, direction?: String) : Grap
 graph(x: Graph | Doc | Collection<…>)                                   : Graph
 
 table(x: Any) : Presentation
-json(x: Any)  : Presentation
-text(x: Any)  : Presentation
+format<F : String>(x: Any, as: Type<F>, limit?: Int, renderer?: String) : F
+text(x: Any)     : Text
+markdown(x: Any) : Markdown
+hmd(x: Any)      : Hmd
+json(x: Any)     : Json
+yaml(x: Any)     : Yaml
+csv(x: Any)      : Csv
+d2(x: Any)       : D2
+mermaid(x: Any)  : Mermaid
 
 lexical<T : Doc>(xs: Collection<T>, query: String)  : Ranking<Card>
 semantic<T : Doc>(xs: Collection<T>, query: String) : Ranking<Card>
@@ -124,7 +131,6 @@ The type alone cannot separate these. The value does.
 | --- | --- |
 | `lexical` and `semantic`, both `(Collection<T : Doc>, String) : Ranking<Card>` | two ranking functions over one type; the hits differ |
 | `uplinks` and `downlinks`, both `(…) : List<Edge>` | the edges leaving a card and the edges entering it |
-| `table`, `json`, `text`, all `Any : Presentation` | three renderings of one value |
 
 ### Same name, different signatures: one operation declared inconsistently
 

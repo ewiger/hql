@@ -39,7 +39,8 @@ Steps split by the layering core → graph → knowledge:
 | --- | --- | --- |
 | core | `size` `contains` `get` `count` `sort` `take` `filter` `map` `of_type` `is` `group` `reduce` `sum` `min` `max` `debug` | always |
 | `graph` | `uplinks` `downlinks` `expand` `graph` | the prelude |
-| `present` | `table` `json` `text` | the prelude |
+| `present` | `table` | the prelude |
+| `format` | `format` `text` `markdown` `hmd` `json` `yaml` `csv` `d2` `mermaid` | the prelude |
 | `lexical` | `lexical` | `import lexical` |
 | `semantic` | `semantic` | `import semantic` |
 

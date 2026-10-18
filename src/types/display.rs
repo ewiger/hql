@@ -82,6 +82,7 @@ impl Value {
                 "text": presentation.text,
             }),
             Self::Function(function) => J::String(format!("<function {}>", function.ty)),
+            Self::Formatted(formatted) => J::String(formatted.text.clone()),
             Self::Group(group) => json!({
                 "key": group.key.to_json(),
                 "items": group.items.iter().map(Self::to_json).collect::<Vec<_>>(),
@@ -150,6 +151,7 @@ impl fmt::Display for Value {
                 write!(f, "[{}]", rendered.join(", "))
             }
             Self::Presentation(presentation) => f.write_str(&presentation.text),
+            Self::Formatted(formatted) => f.write_str(&formatted.text),
             Self::Function(function) => match &function.name {
                 Some(name) => write!(f, "<function {name} : {}>", function.ty),
                 None => write!(f, "<function {}>", function.ty),
@@ -189,6 +191,39 @@ impl Value {
             .join("\n\n")
     }
 
+    /// Render the value as comma-separated rows, header first, quoted as RFC
+    /// 4180 requires.
+    #[must_use]
+    pub fn to_csv(&self) -> String {
+        let quote = |cell: &str| {
+            if cell.contains([',', '"', '\n', '\r']) {
+                format!("\"{}\"", cell.replace('"', "\"\""))
+            } else {
+                cell.to_owned()
+            }
+        };
+        grids(self)
+            .iter()
+            .map(|grid| {
+                std::iter::once(
+                    grid.headers
+                        .iter()
+                        .map(|header| quote(header))
+                        .collect::<Vec<_>>(),
+                )
+                .chain(
+                    grid.body
+                        .iter()
+                        .map(|row| row.iter().map(|cell| quote(cell)).collect()),
+                )
+                .map(|row| row.join(","))
+                .collect::<Vec<_>>()
+                .join("\r\n")
+            })
+            .collect::<Vec<_>>()
+            .join("\r\n\r\n")
+    }
+
     /// Render the value as Markdown, for a document to carry as its own text.
     ///
     /// A record becomes a table, a sequence a list, and a document or card its
@@ -198,6 +233,16 @@ impl Value {
         match self {
             Self::Present(value) => value.to_markdown(),
             Self::Presentation(presentation) => presentation.markdown.clone(),
+            // Markdown is spliced in as it is; any other format is fenced
+            // with its own language, and plain text stays plain.
+            Self::Formatted(formatted) => match formatted.format.0 {
+                "Markdown" | "Hmd" | "Text" | "String" => formatted.text.clone(),
+                other => format!(
+                    "```{}\n{}\n```",
+                    other.to_lowercase(),
+                    formatted.text.trim_end()
+                ),
+            },
             Self::Doc(doc) => doc.body.trim().to_owned(),
             Self::Card(card) => card.document.body.trim().to_owned(),
             Self::Set(values, _) | Self::List(values, _) => values

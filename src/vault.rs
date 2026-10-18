@@ -31,6 +31,8 @@ pub struct Vault {
     pub extensions: Config,
     /// What it says about its embedding index.
     pub semantics: Semantics,
+    /// Which renderer writes a type in a presentation format.
+    pub formats: crate::extensions::format::Renderers,
 }
 
 impl Vault {
@@ -45,6 +47,7 @@ impl Vault {
             warnings: Vec::new(),
             extensions: Config::default(),
             semantics: Semantics::default(),
+            formats: crate::extensions::format::Renderers::default(),
         }
     }
 
@@ -130,6 +133,9 @@ pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault
     Ok(Vault {
         extensions: source.extensions(),
         semantics: source.semantics(),
+        formats: source
+            .formats()
+            .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,
         root,
         cards,
         by_name,

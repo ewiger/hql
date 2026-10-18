@@ -63,6 +63,7 @@ where its steps will:
 | `core.hql` | the scalar, data, absence and value-order vocabulary the core owns |
 | `collections.hql` | membership, order and lookup |
 | `doc.hql` | documents |
+| `format.hql` | the presentation formats, arriving with [HQL-0017](../doc/proposals/HQL-0017/README.md) |
 | `graph.hql` | the graph domain |
 | `knowledge.hql` | the knowledge domain, including the card family |
 | `retrieval.hql` | ranking, arriving with [HQL-0002](../doc/proposals/HQL-0002/README.md) |

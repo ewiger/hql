@@ -19,6 +19,7 @@ use std::ops::Range;
 use std::path::Path;
 
 pub(crate) mod collections;
+pub mod format;
 pub(crate) mod graph;
 pub mod lexical;
 pub(crate) mod present;
@@ -161,6 +162,13 @@ static PRESENT: Extension = Extension {
     metadata: None,
 };
 
+static FORMAT: Extension = Extension {
+    name: "format",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: format::STEPS,
+    metadata: None,
+};
+
 static LEXICAL: Extension = Extension {
     name: "lexical",
     version: env!("CARGO_PKG_VERSION"),
@@ -181,7 +189,8 @@ static SEMANTIC: Extension = Extension {
 /// `hql builtins` whether or not the program has imported the extension that
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
-pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &PRESENT, &LEXICAL, &SEMANTIC];
+pub(crate) static REGISTERED: &[&Extension] =
+    &[&CORE, &GRAPH, &PRESENT, &FORMAT, &LEXICAL, &SEMANTIC];
 
 impl Extension {
     /// The step of a name this extension provides.
@@ -195,7 +204,7 @@ impl Extension {
 /// A prelude exists so that a program that only walks a graph and prints a
 /// table does not open with two lines of ceremony. It is a convenience, not a
 /// rule, which is why a vault can decline it.
-pub(crate) static PRELUDE: &[&str] = &["graph", "present"];
+pub(crate) static PRELUDE: &[&str] = &["graph", "present", "format"];
 
 /// The registered extension of a name.
 pub(crate) fn extension(name: &str) -> Option<&'static Extension> {

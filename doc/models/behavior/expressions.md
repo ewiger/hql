@@ -294,8 +294,8 @@ pipeline a reader happened to look at.
 `extension.step(…)` is always available for an imported extension, and is how a
 reader disambiguates by hand. A binding may carry an extension's name: a value
 and a step are read in different positions, so the binding never hides the step,
-and `present | text` goes on meaning the step. It does hide the namespace —
-while `present` is bound, `present.text` reads a field of that value.
+and `format | text` goes on meaning the step. It does hide the namespace —
+while `format` is bound, `format.text` reads a field of that value.
 
 `take` needs elements that carry an order of their own. A `Card` does — its
 name — so `cards | take(5)` is reproducible even though `cards` is a `Set` and

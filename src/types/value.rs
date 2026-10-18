@@ -68,6 +68,17 @@ pub enum Value {
     Group(Arc<Group>),
     /// A function: parameters, a body, and the names it captured.
     Function(Arc<Closure>),
+    /// Text in a presentation format, such as `Markdown` or `Json`.
+    Formatted(Arc<Formatted>),
+}
+
+/// Text of one presentation format: a `String` that also states its syntax.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Formatted {
+    /// The text.
+    pub text: String,
+    /// Its format type, a subtype of `String`.
+    pub format: super::TypeConstructor,
 }
 
 /// A function value: what it takes, what it evaluates, and the bindings in
@@ -178,6 +189,7 @@ impl Value {
             Self::Ranking(ranking) => TypeRef::ranking(ranking.element.clone()),
             Self::Presentation(_) => TypeRef::PRESENTATION,
             Self::Function(function) => function.ty.clone(),
+            Self::Formatted(formatted) => TypeRef::from(formatted.format),
             Self::Group(group) => {
                 super::builtin::GROUP.apply([group.key_type.clone(), group.item_type.clone()])
             }
@@ -221,6 +233,7 @@ impl Value {
             Self::Int(value) => Some(Key::Integer(*value)),
             Self::Float(value) => Some(Key::Number(if *value == 0.0 { 0.0 } else { *value })),
             Self::Str(text) => Some(Key::text(text)),
+            Self::Formatted(formatted) => Some(Key::text(&formatted.text)),
             Self::Doc(doc) => Some(Key::text(&doc.name)),
             Self::Card(card) => Some(Key::text(card.name())),
             // Best first, then the card's own key, so equal scores are stable.
@@ -321,6 +334,10 @@ impl PartialEq for Value {
             (Self::Float(left), Self::Float(right)) => left == right,
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::Str(left), Self::Str(right)) => left == right,
+            // Formatted text is a String, so it equals a String of the same text.
+            (Self::Formatted(left), Self::Formatted(right)) => left == right,
+            (Self::Formatted(formatted), Self::Str(text))
+            | (Self::Str(text), Self::Formatted(formatted)) => formatted.text == text.as_ref(),
             (Self::Absent(left), Self::Absent(right)) => left == right,
             (Self::Present(left), Self::Present(right)) => left == right,
             (Self::Data(left), Self::Data(right)) => left == right,

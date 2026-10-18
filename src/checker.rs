@@ -585,9 +585,11 @@ impl Checker<'_> {
                 let right_type = self.expression(right)?;
                 // An open tree's leaf may be compared with a literal: that is
                 // what asking a header a question looks like. Equality looks
-                // through `Option`, so a key that may be missing still can.
+                // through `Option`, so a key that may be missing still can,
+                // and through subtyping, so `Json` text compares with a string.
                 let (left_type, right_type) = (left_type.present(), right_type.present());
-                let comparable = left_type == right_type
+                let comparable = left_type.is(right_type)
+                    || right_type.is(left_type)
                     || *left_type == TypeRef::DATA
                     || *right_type == TypeRef::DATA;
                 if !comparable {
