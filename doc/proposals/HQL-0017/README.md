@@ -18,8 +18,7 @@ format, so a step after it is checked like any other. `markdown`, `json`, `yaml`
 `text` are its shorthands, each defined with `:=`
 ([HQL-0015](../HQL-0015/README.md)). **How a type is written in a format** is
 a **renderer**, chosen per type and format from configuration: a `Graph` in
-`Json` is node-link JSON, in `Markdown` a fenced D2 block, in `Hmd` an
-interactive Cytoscape component. All of it lives in the `format` extension,
+`Json` is node-link JSON, in `Markdown` and `Hmd` a fenced D2 block. All of it lives in the `format` extension,
 which replaces `present`. A result that is not yet formatted is formatted in
 the **presentation context**, which the query, the command line or the host
 sets. This record supersedes [HQL-0008](../HQL-0008/README.md), except its
@@ -46,8 +45,8 @@ context.
 
 ## Non-goals
 
-- **No new rendering engine.** D2, Mermaid and Cytoscape are emitted as their
-  own source text or component; HQL does not lay out or draw a graph.
+- **No new rendering engine.** D2 and Mermaid are emitted as their own source
+  text; HQL does not lay out or draw a graph.
 - **No record values.** `Table` needs them and waits for them; see
   "Shape types".
 - **No file effects.** Writing the formatted text to a file stays the host's,
@@ -166,7 +165,7 @@ format:
     text: adjacency
     json: node-link
     markdown: d2
-    hmd: cytoscape
+    hmd: d2
   Table:
     text: aligned
     markdown: pipe
@@ -178,9 +177,8 @@ format:
 | --- | --- | --- | --- |
 | `adjacency` | `Graph` | `Text` | one line per node, its edges indented |
 | `node-link` | `Graph` | `Json` | `{"nodes": [{"data": {"id": …}}], "edges": [{"data": {"source": …, "target": …}}]}`, the Cytoscape elements form |
-| `d2` | `Graph` | `D2`, `Markdown` | D2 source; in `Markdown`, fenced as `d2` |
-| `mermaid` | `Graph` | `Mermaid`, `Markdown` | a Mermaid `graph` block |
-| `cytoscape` | `Graph` | `Hmd` | the Cytoscape component, in the component syntax the [hyper-markdown](../../wiki/hypermarkdown.hmd) card defines |
+| `d2` | `Graph` | `D2`, `Markdown`, `Hmd` | D2 source; in `Markdown`, fenced as `d2` |
+| `mermaid` | `Graph` | `Mermaid`, `Markdown`, `Hmd` | a Mermaid `graph` block |
 | `aligned` | `Table` | `Text` | space-aligned columns |
 | `pipe` | `Table` | `Markdown` | a pipe table with header and delimiter rows |
 | `rows` | `Table` | `Csv` | RFC 4180 rows, header first |
@@ -281,7 +279,7 @@ Integration tests MUST include:
 
 - `hql run q.hql --to json` and `hql run q.hql` give node-link JSON and an edge
   list for the same graph query
-- `hql render card.hmd` writes a graph cell as the Cytoscape component and a
+- `hql render card.hmd` writes a graph cell as a fenced `d2` block and a
   `Markdown` result spliced in
 - `--to none` writes no value and exits `0`; `--envelope json` carries the
   value and the reports
