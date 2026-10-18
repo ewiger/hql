@@ -388,3 +388,51 @@ fn an_index_outside_the_vault_is_refused() {
     );
     assert!(said.contains("outside the vault"), "{said}");
 }
+
+#[test]
+fn doctor_walks_the_chain_and_reports_every_part_present() {
+    let checks = hql::extensions::semantic::doctor(&birds());
+    let parts: Vec<_> = checks.iter().map(|check| check.part).collect();
+    assert_eq!(
+        parts,
+        ["vault", "config", "index", "model", "queries", "cards"]
+    );
+    assert!(checks.iter().all(|check| check.ok), "{checks:?}");
+}
+
+#[test]
+fn doctor_stops_at_the_first_missing_part_and_names_the_next_command() {
+    let (_directory, root) = copied();
+    fs::remove_file(root.join(".hql/index.sqlite")).expect("the index removed");
+    let checks = hql::extensions::semantic::doctor(&vault::load(&root).expect("the vault"));
+    let last = checks.last().expect("a check");
+    assert_eq!(last.part, "index");
+    assert!(!last.ok);
+    assert!(
+        last.detail.contains("hql-semantics build"),
+        "{}",
+        last.detail
+    );
+
+    let (_directory, root) = copied();
+    spoil(&root, "DELETE FROM query");
+    let checks = hql::extensions::semantic::doctor(&vault::load(&root).expect("the vault"));
+    let last = checks.last().expect("a check");
+    assert_eq!((last.part, last.ok), ("queries", false));
+
+    let checks = hql::extensions::semantic::doctor(&vault::Vault::empty());
+    assert_eq!(checks.len(), 1);
+    assert_eq!((checks[0].part, checks[0].ok), ("vault", false));
+}
+
+#[test]
+fn doctor_counts_a_card_edited_since_the_build() {
+    let (_directory, root) = copied();
+    let path = root.join("barn-owl.hmd");
+    let edited = fs::read_to_string(&path).expect("the card") + "\nAn added sentence.\n";
+    fs::write(&path, edited).expect("the edit");
+    let checks = hql::extensions::semantic::doctor(&vault::load(&root).expect("the vault"));
+    let last = checks.last().expect("a check");
+    assert_eq!((last.part, last.ok), ("cards", false));
+    assert!(last.detail.starts_with("1 card has"), "{}", last.detail);
+}

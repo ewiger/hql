@@ -193,7 +193,7 @@ here when its issue or step is done.
 - [x] 10. Pipeline vocabulary rename
 - [x] 11. `tee`
 - [ ] 12. `Stream<T>`, `yield` and `bind`
-- [ ] 13. Semantic-search `doctor`
+- [x] 13. Semantic-search `doctor`
 - [ ] 14. `Ranking` as an ordinary declared subtype (subtyping done; carrier left)
 - [ ] 15. Constructors as pipeline steps
 - [ ] 16. `collect(n)`, `emit` and `xs | List`

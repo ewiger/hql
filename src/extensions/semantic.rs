@@ -160,6 +160,118 @@ fn eval_semantic(
     ))))
 }
 
+/// One link of the semantic-search chain, as `hql doctor` reports it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Check {
+    /// The part checked: `vault`, `config`, `index`, `model`, `queries` or `cards`.
+    pub part: &'static str,
+    /// Whether the part is there and usable.
+    pub ok: bool,
+    /// What was found, or what is missing and the command to run next.
+    pub detail: String,
+}
+
+/// Walk vault, configuration, index, model and query set in order, stopping
+/// at the first part that is missing, so the last check names what to do.
+///
+/// A card the index has no current vector for is reported after the chain
+/// holds: queries still answer, and the ranking says which cards it skipped.
+#[must_use]
+pub fn doctor(vault: &Vault) -> Vec<Check> {
+    let mut checks = Vec::new();
+    let mut check = |part, ok, detail: String| {
+        checks.push(Check { part, ok, detail });
+        ok
+    };
+    if !check(
+        "vault",
+        vault.is_present(),
+        if vault.is_present() {
+            format!("{} ({} cards)", vault.root.display(), vault.cards.len())
+        } else {
+            "no vault: pass --vault <directory>".to_owned()
+        },
+    ) {
+        return checks;
+    }
+    let config = vault.root.join(crate::reporting::CONFIG_FILE);
+    let path = match configured(vault, &(0..0)) {
+        Ok(path) => {
+            check(
+                "config",
+                true,
+                format!("{} names {}", config.display(), path.display()),
+            );
+            path
+        }
+        Err(error) => {
+            check("config", false, error.message());
+            return checks;
+        }
+    };
+    let index = match Index::open(&path, vault, &(0..0)) {
+        Ok(index) => {
+            check(
+                "index",
+                true,
+                format!("{} ({} card vectors)", path.display(), index.vectors.len()),
+            );
+            index
+        }
+        Err(error) => {
+            check("index", false, error.message());
+            return checks;
+        }
+    };
+    check(
+        "model",
+        true,
+        format!(
+            "{} at {}, {} dimensions, {}",
+            index.model, index.revision, index.dimensions, index.metric
+        ),
+    );
+    let queries: i64 = index
+        .connection
+        .query_row("SELECT count(*) FROM query", [], |row| row.get(0))
+        .unwrap_or(0);
+    if !check(
+        "queries",
+        queries > 0,
+        if queries > 0 {
+            format!("{queries} query vectors")
+        } else {
+            format!("the index holds no query vectors: rerun `{BUILD} --query \"…\"`")
+        },
+    ) {
+        return checks;
+    }
+    let missing = vault
+        .cards
+        .iter()
+        .filter(|card| {
+            index
+                .vectors
+                .get(card.name())
+                .is_none_or(|vector| vector.digest != digest(&card.document.text()))
+        })
+        .count();
+    check(
+        "cards",
+        missing == 0,
+        if missing == 0 {
+            "every card has a current vector".to_owned()
+        } else {
+            format!(
+                "{missing} card{} no current vector and rank{} as stale or not at all: rerun `{BUILD}`",
+                if missing == 1 { " has" } else { "s have" },
+                if missing == 1 { "s" } else { "" }
+            )
+        },
+    );
+    checks
+}
+
 /// The index path a vault configures, resolved inside the vault root.
 fn configured(vault: &Vault, span: &Range<usize>) -> Result<PathBuf, Diagnostic> {
     let named = vault.semantics.index.as_deref().ok_or_else(|| {

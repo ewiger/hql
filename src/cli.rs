@@ -88,6 +88,9 @@ enum Command {
     Builtins,
     /// Show the reporting settings in force, and where each came from.
     Config,
+    /// Check the semantic-search chain — vault, configuration, index, model,
+    /// query set — and name the first part that is missing.
+    Doctor,
 }
 
 /// Run the CLI, returning the process exit code.
@@ -189,6 +192,20 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                 }
             }
             Ok(0)
+        }
+        Command::Doctor => {
+            let checks = crate::extensions::semantic::doctor(&vault);
+            for check in &checks {
+                writeln!(
+                    out,
+                    "{:<8} {:<7} {}",
+                    check.part,
+                    if check.ok { "ok" } else { "missing" },
+                    check.detail
+                )
+                .map_err(|error| error.to_string())?;
+            }
+            Ok(u8::from(checks.iter().any(|check| !check.ok)))
         }
         Command::Config => {
             writeln!(

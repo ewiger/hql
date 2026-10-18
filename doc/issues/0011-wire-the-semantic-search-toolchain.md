@@ -51,7 +51,10 @@ a vault. Nothing checks that a vault is a vault, that the index it names in
    namespace, `hql.toml` is the index and the extension imports.
 4. Add a `doctor`-style check that walks the whole chain — vault, config, index,
    model, query set — and names the first part that is missing, so a failed
-   `semantic` query has one command to run next.
+   `semantic` query has one command to run next. Done as `hql doctor`
+   (feature 13 of [0014](0014-next-feature-bundle.md)), in the Rust binary,
+   which reads the index and so needs no Python; it also counts cards with no
+   current vector.
 5. Give `hmd`'s absence a diagnostic of its own. The Rust binary must keep
    needing neither Python nor `hmd`; this is the producer's dependency, not the
    consumer's, and `cargo test` still runs against the committed index.

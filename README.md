@@ -130,6 +130,7 @@ that was reached.
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps |
 | `hql config` | the reporting mode and shown level in force, and where each came from |
+| `hql doctor` | check the semantic-search chain — vault, `hql.toml`, index, model, query vectors, card coverage — and name the first missing part |
 
 `-` reads standard input wherever a file is taken. `--format json` emits the
 type, the value and the report queue for another program.

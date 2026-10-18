@@ -21,6 +21,7 @@ binary can reach is logic that cannot be tested.
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps a pipeline may use, grouped by provider |
 | `hql config` | the reporting mode and shown level in force, and where each came from |
+| `hql doctor` | check the semantic-search chain in order — vault, `hql.toml`, index, model, query vectors, card coverage — printing one line per part; it stops at the first missing part, names the command to run next, and exits `1` when any part is missing |
 
 `-` reads standard input wherever a file is taken, so `hql` composes in a
 pipeline.
