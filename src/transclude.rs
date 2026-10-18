@@ -111,7 +111,15 @@ pub fn render(source: &str, vault: &Vault, mode: Mode, emit: Emit) -> Rendered {
             reports.push(report.clone());
         }
         let output = match &outcome.value {
-            Some(value) => Ok(value.to_markdown()),
+            // A document host writes a result in the `hmd` context: Markdown
+            // spliced in, any other format fenced with its info string.
+            Some(value) => crate::extensions::format::render(
+                value,
+                crate::types::TypeConstructor("Hmd"),
+                0,
+                None,
+                &vault.formats,
+            ),
             None => Err(outcome
                 .reports
                 .iter()

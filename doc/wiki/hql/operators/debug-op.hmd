@@ -106,7 +106,7 @@ agree on answers.
 **Hidden is still captured.** The default shown level is `warning`, so `debug`
 entries are invisible until asked for — `--report-level debug`, or
 `level = "debug"` in the vault's `hql.toml`. Leaving a `debug` in a query costs
-nothing a reader sees, and `--format json` returns every entry regardless of the
+nothing a reader sees, and `--envelope json` returns every entry regardless of the
 shown level.
 
 **Order is deterministic.** Entries are ordered by their trace — step position,

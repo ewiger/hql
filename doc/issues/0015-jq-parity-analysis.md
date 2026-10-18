@@ -20,7 +20,7 @@ no code under `src/` changes here.
    a query source, from a file, from stdin, or as a binding beside `cards`
    ([0008](0008-cards-as-a-vault-binding.md)), and to write them back out.
    Today JSON is output only, through the `json` presentation step and
-   `--format json`. The binary already depends on `serde_json` and
+   `--envelope json`. The binary already depends on `serde_json` and
    `serde_yaml_ng`. CSV output is a natural fit for a `table`, and CSV input
    is a natural source of records.
    - **Pretty printing for free.** `jq .` is the identity program, yet it is

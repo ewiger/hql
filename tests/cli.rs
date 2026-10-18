@@ -122,13 +122,13 @@ fn run_evaluates_a_file_and_dash_reads_standard_input() {
 
 #[test]
 fn json_carries_the_type_the_value_and_the_queue() {
-    let output = hql(&["--format", "json", "eval", "40 + 2"]);
+    let output = hql(&["--envelope", "json", "eval", "40 + 2"]);
     let parsed: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
     assert_eq!(parsed["type"], "Int");
     assert_eq!(parsed["value"], 42);
     assert_eq!(parsed["reports"].as_array().unwrap().len(), 0);
 
-    let output = hql(&["--format", "json", "eval", "nosuchname"]);
+    let output = hql(&["--envelope", "json", "eval", "nosuchname"]);
     assert_eq!(output.status.code(), Some(1));
     let parsed: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
     assert!(parsed["value"].is_null());
@@ -422,7 +422,7 @@ fn debug_entries_are_hidden_by_default_and_shown_on_request() {
     assert!(stderr(&shown).contains("= value: [1, 2]"));
 
     // JSON carries every entry, whatever the shown level.
-    let json = hql(&["--format", "json", "eval", source]);
+    let json = hql(&["--envelope", "json", "eval", source]);
     let document: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
     assert_eq!(document["reports"][0]["label"], "xs");
 
@@ -439,4 +439,53 @@ fn config_names_the_level_and_its_origin() {
         .output()
         .unwrap();
     assert!(stdout(&output).contains("report level: info (from $HQL_REPORT_LEVEL)"));
+}
+
+#[test]
+fn to_names_the_format_a_result_is_written_in() {
+    let graph = "import lexical\ncards | lexical(\"bearer token authorization\") | take(2) | expand(depth = 1)";
+    let text = hql(&["--vault", VAULT, "eval", graph]);
+    assert!(stdout(&text).contains("(retrieved "), "{}", stdout(&text));
+    let json = hql(&["--vault", VAULT, "--to", "json", "eval", graph]);
+    assert!(stdout(&json).contains("\"nodes\""), "{}", stdout(&json));
+    let mermaid = hql(&["--vault", VAULT, "--to", "mermaid", "eval", graph]);
+    assert!(
+        stdout(&mermaid).starts_with("graph LR"),
+        "{}",
+        stdout(&mermaid)
+    );
+    // A result the program formatted is written as it is.
+    let formatted = hql(&["--to", "json", "eval", "[1, 2] | markdown"]);
+    assert!(
+        !formatted.status.success(),
+        "Markdown text has no JSON renderer"
+    );
+    let kept = hql(&["eval", "[1, 2] | json"]);
+    assert_eq!(stdout(&kept), "[\n  1,\n  2\n]\n");
+}
+
+#[test]
+fn to_none_evaluates_and_writes_no_value() {
+    let output = hql(&["--to", "none", "eval", "40 + 2"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(stdout(&output), "");
+    let failed = hql(&["--to", "none", "eval", "nosuchname"]);
+    assert_eq!(failed.status.code(), Some(1));
+    let unknown = hql(&["--to", "pdf", "eval", "1"]);
+    assert_eq!(unknown.status.code(), Some(1));
+    assert!(
+        stderr(&unknown).contains("unknown format `pdf`"),
+        "{}",
+        stderr(&unknown)
+    );
+}
+
+#[test]
+fn the_envelope_carries_the_value_and_the_reports() {
+    let output = hql(&["--envelope", "json", "--to", "markdown", "eval", "[1, 2]"]);
+    let document: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
+    assert_eq!(document["value"], "- 1\n- 2");
+    assert_eq!(document["type"], "List<Int>");
+    let renamed = hql(&["--format", "json", "eval", "1"]);
+    assert_eq!(renamed.status.code(), Some(2), "--format names nothing");
 }

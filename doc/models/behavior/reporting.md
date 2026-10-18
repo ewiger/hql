@@ -60,7 +60,7 @@ The most specific layer that states one wins:
 `error`, and `warning` by default. It comes from the same layers as the mode:
 `--report-level`, then `[report] level` in the vault's `hql.toml`, then
 `HQL_REPORT_LEVEL`, then the default. Hiding an entry does not discard it:
-`Reports::shown(level)` filters a copy, and `--format json` carries every entry.
+`Reports::shown(level)` filters a copy, and `--envelope json` carries every entry.
 
 `hql config` prints the mode and the level in force and which layer supplied
 each, so the precedence never has to be guessed.
@@ -89,7 +89,7 @@ type error: addition requires two Int or two Float operands
   |   ^^^^
 ```
 
-`--format json` emits the same queue as data, with the fields above and the
+`--envelope json` emits the same queue as data, with the fields above and the
 byte span, for an editor or another host.
 
 Tests: `tests/reporting.rs`, `tests/cli.rs`. See [the command line](cli.md).

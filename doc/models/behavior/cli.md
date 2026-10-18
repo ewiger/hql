@@ -31,7 +31,8 @@ pipeline.
 | Option | Effect |
 | --- | --- |
 | `--vault <DIR>` | the namespace `cards`, traversal and retrieval run against |
-| `--format text\|json` | a value for a person, or a document for a program |
+| `--envelope text\|json` | the CLI's output format: the value for a person, or one JSON document with the type, the value and the reports for a program |
+| `--to <format>` | the [presentation format](../../wiki/hql/presentation.hmd) a result is written in when the program did not format it: `text`, `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2`, `mermaid`; `none` evaluates and writes no value |
 | `--report-level debug\|info\|warning\|error` | the lowest severity shown in `text`; see [reporting](reporting.md) |
 | `--report strict\|collect` | when the run stops; see [reporting](reporting.md) |
 
@@ -143,11 +144,11 @@ cards
 ````
 
 The output is Markdown, as [HQL-0008](../../proposals/HQL-0008/README.md)
-requires of a document host. A cell without a presentation is presented with
-`markdown`: a record becomes a pipe table, a sequence a bulleted list, a card a
-wikilink in that list. `markdown` and `hmd` text is spliced in as it
-is, and text of another format is a fenced block with that format's info
-string.
+requires of a document host. A cell's result is written in the `hmd`
+presentation format: a record becomes a pipe table, a sequence a bulleted list,
+a card a wikilink in that list, and a graph a fenced `d2` block. `markdown` and
+`hmd` text is spliced in as it is, and text of another format is a fenced block
+with that format's info string.
 
 A cell that fails under `replace` is left as written and the build is not
 written anywhere; the exit code is `1`. Under `after` the error is written

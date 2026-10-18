@@ -99,8 +99,12 @@ or format it does not write, fails loading the vault.
 
 ## A result that is not formatted
 
-A host writes a result that is not of a format type in a presentation context:
-a terminal writes it as `Text`. [[hql/knowledge|Knowledge]] has no default,
+A host writes a result that is not of a format type in a presentation
+context, as if the program ended in `| format(<context>)`. The context is,
+first match wins, a final `format` step in the program, then `--to <format>` on
+the command line, then the host's own: `hmd` for `hql render`, `text` for a
+terminal. A result already of a format type is written as it is, and
+`--to none` evaluates the program and writes no value. [[hql/knowledge|Knowledge]] has no default,
 because its views are equally valid and picking one silently would make a
 presentation choice look like a property of the knowledge.
 

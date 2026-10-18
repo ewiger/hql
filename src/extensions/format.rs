@@ -243,15 +243,9 @@ fn by_name(name: &str, value: &Value, format: TypeConstructor) -> Result<String,
     }
 }
 
-/// Plain text: a value that lays out as rows is aligned in columns, and
-/// anything else prints as itself.
+/// Plain text: the value's own rendering.
 fn text(value: &Value) -> String {
-    // An empty collection has no rows to lay out, and no columns to name.
-    match unwrapped(value) {
-        Value::Set(values, _) | Value::List(values, _) if values.is_empty() => value.to_string(),
-        Value::Set(..) | Value::List(..) | Value::Ranking(_) | Value::Map(_) => value.to_table(),
-        _ => value.to_string(),
-    }
+    value.to_string()
 }
 
 fn json(value: &Value) -> String {

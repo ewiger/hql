@@ -82,7 +82,7 @@ error[shape-mismatch]: `name` needs a map, and this genre is a string
   = trace:    filter (step 1) → map (step 2), element a-room-of-ones-own
 ```
 
-The same entry as data, with `--format json`:
+The same entry as data, with `--envelope json`:
 
 ```json
 {
@@ -138,7 +138,7 @@ Three settings, all with the same precedence:
 
 `fail = "warning"` is how a vault promotes warnings to errors — a vault that
 must have no unresolved links says so once. `level` only filters what is shown:
-a hidden `debug` entry was still captured, and `--format json` can ask for all
+a hidden `debug` entry was still captured, and `--envelope json` can ask for all
 of them.
 
 The most specific layer that states a setting wins:

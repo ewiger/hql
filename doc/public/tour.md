@@ -116,15 +116,13 @@ cards
 ```
 
 ```text
-value
---------------
-Barn owl
-Common raven
-European robin
+[Barn owl, Common raven, European robin]
 ```
 
-Without one, the host chooses. `--format json` before the command emits the
-type, the value and the report queue for another program to read.
+Without one, the host writes the result in its own presentation format: text
+in a terminal, or the format `--to` names. `--envelope json` before the
+command emits the type, the value and the report queue for another program to
+read.
 
 ## Next
 

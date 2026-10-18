@@ -159,6 +159,16 @@ issues, proposals and cards; nothing here restates it.
 
 ## Roadblocks
 
+- **Three parts of feature 17 wait on something outside it.** Formatting a
+  `Stream` incrementally: `format` returns one text of format `F`, so writing
+  values as they arrive needs a host that writes a stream, which HQL-0017 does
+  not specify. `--from`: standard input is not yet a query source
+  ([0015](0015-jq-parity-analysis.md)). The `cytoscape` renderer for `Hmd`: the
+  [hyper-markdown](../wiki/hypermarkdown.hmd) card defines no component syntax,
+  so a graph in `Hmd` is written by the `d2` renderer. The rest of feature 17 —
+  the format types, `format` and its shorthands, renderers and their
+  configuration, `Graph`, `--to`, `--to none`, `--envelope` and the `hmd`
+  context of `hql render` — is built.
 - **HQL-0005 and HQL-0015 disagree on plain functions as steps.** HQL-0005
   says a plain `I -> O` function MUST NOT itself be a step; HQL-0015 pipes
   into `:=` functions, `cards | top(5)`. Feature 7 implements `x | f` for a
