@@ -230,11 +230,13 @@ with an empty header, a card carrying a diagnostic, or no card at all.
 
 ## cards
 
-`cards` is a binding the host seeds from the vault. It denotes every card in the
-current namespace vault:
+`cards` is the standard-library binding `cards = vault.cards`, declared in
+[`std/vault.hql`](../../../../std/vault.hql); the host seeds `vault`, of type
+`Vault`, when a vault is present. It denotes every card in the current namespace
+vault:
 
 ```hql
-cards : Set<Card>
+cards : Seq<Card>
 ```
 
 This is a context value, not a function call and not a filesystem sweep written
@@ -258,9 +260,10 @@ There is no matching binding for documents, and there should not be. `cards` is
 bounded because a vault is bounded; documents in general are not a collection
 anything can enumerate.
 
-`cards` is a `Set<Card>`: discovering files establishes no ordering guarantee.
-A reproducible prefix does not need one, because a card carries its own
-ordering key — see [[orderable]] and [[hql/collections]].
+`cards` is a lazy `Seq<Card>` — see [[stream-type]]. Its order is the sorted
+walk's: the entries of each directory sorted by name, depth first. The order is
+the walk's, never the filesystem's, so a prefix such as `cards | take(5)` is the
+same on every machine — see [[orderable]] and [[hql/collections]].
 
 ## Extensions extend the header
 

@@ -19,7 +19,8 @@ cards
 ```
 
 This selects relation cards and projects them into a graph. `cards` is the
-binding the host seeds with the namespace vault's cards; see [[card-type]].
+standard-library binding `cards = vault.cards`, the namespace vault's cards as a
+`Seq<Card>`; see [[card-type]].
 `of_type(RelationCard)` checks the contract, not the `metadata.knowledge.type`
 label alone; an authored entry does not establish conformance.
 

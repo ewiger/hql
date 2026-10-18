@@ -292,7 +292,7 @@ impl Evaluator<'_> {
                 arguments,
                 at,
             } => {
-                let value = self.expression(input)?;
+                let value = as_checked(self.expression(input)?, &input.ty);
                 self.frames.push(Frame {
                     step: step.name,
                     upstream: upstream(input),
@@ -674,6 +674,8 @@ impl Evaluator<'_> {
                 })?;
                 Ok(!stopped)
             }
+            // Kept values are always forced, and answered above.
+            Source::Kept => Ok(true),
             Source::Drop { input, n } => {
                 let mut skipped = 0;
                 self.run_traversal(input, &mut |evaluator, value| {
@@ -925,6 +927,18 @@ impl EvalCx for Evaluator<'_> {
             });
         }
         trace
+    }
+}
+
+/// A materialized list where checking established a sequence carries the
+/// sequence type, so a step reading the value's type, `debug` among them,
+/// sees the type the program has.
+fn as_checked(value: Value, checked: &TypeRef) -> Value {
+    match value {
+        Value::List(values, element) if checked.constructor == crate::types::collections::SEQ => {
+            Value::Traversal(Arc::new(Traversal::kept(element, values.as_ref().clone())))
+        }
+        other => other,
     }
 }
 

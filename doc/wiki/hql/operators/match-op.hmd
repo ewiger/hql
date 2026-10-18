@@ -92,7 +92,7 @@ form composes with the rest of the option vocabulary instead of standing beside
 it:
 
 ```hql
-cards | map(c => c.name given c.metadata.genre == "novel")   // List<Option<String>>
+cards | map(c => c.name given c.metadata.genre == "novel")   // Seq<Option<String>>
 ```
 
 ## Absence is consumed explicitly

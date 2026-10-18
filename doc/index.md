@@ -19,7 +19,7 @@ cards
 Each step consumes the previous step's value and returns a new typed value:
 
 ```text
-cards              : Set<Card>      the vault's cards
+cards              : Seq<Card>      the vault's cards, in sorted-walk order
 semantic("…")      : Ranking<Card>  cards ranked by embedding similarity to the query
 take(3)            : Ranking<Card>  the three highest-ranked hits
 expand(depth = 1)  : Graph          those cards, every card one link away, and the edges between them

@@ -139,9 +139,9 @@ reads: the result has element type `U`. The shape of the input is kept, a
 `Option<U>`. `library` below is a supplied collection of documents.
 
 ```hql
-cards | map(c => c.metadata) | of_type(Book)      // List<Book>
+cards | map(c => c.metadata) | of_type(Book)      // Seq<Book>
 library | of_type(Recipe)                         // the recipes
-cards | of_type(RelationCard) | Graph              // Set<RelationCard>
+cards | of_type(RelationCard) | Graph              // Seq<RelationCard>
 [1, "owl", 2] | of_type(Int)                      // [1, 2]
 some(doc) | of_type(Card)                         // Option<Card>
 ```

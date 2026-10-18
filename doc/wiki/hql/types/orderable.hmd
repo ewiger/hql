@@ -56,12 +56,15 @@ A card's key is its own name, not something an extension supplies, which is why
 
 ## What it buys: a reproducible prefix
 
-`cards` is a `Set<Card>`, because discovering files establishes no order. Taking
-a prefix of it is still reproducible, because each card brings its key:
+A `Set<Card>` has no positions. Taking a prefix of it is still reproducible,
+because each card brings its key:
 
 ```hql
-cards | take(2) | map(c => c.name)   // the first two names, every run
+Set(cards) | take(2) | map(c => c.name)   // the first two names, every run
 ```
+
+`cards` itself is a `Seq<Card>`, so `take` over it keeps the positions of the
+sorted walk and needs no `Orderable` element — see [[card-type]].
 
 `take` on a collection without positions requires `Orderable` elements, and so
 does `sort` without a `by` argument. Either is refused otherwise, at check time:

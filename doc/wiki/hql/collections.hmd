@@ -22,28 +22,31 @@ preserves key positions; `SortedMap` orders those positions by intrinsic key
 order. See the [collection model](types/collections/collection-types.md) for
 the hierarchy and contracts.
 
-## Cards are a set
+## Cards are a sequence
 
 ```hql
-cards : Set<Card>
+cards : Seq<Card>
 ```
 
 This is a type statement for the context value, not a proposed standalone
-declaration syntax. `cards` represents the current vault or namespace. Sorting
-can establish a sequence; merely discovering files must not establish a language
-ordering guarantee. Selecting a reproducible prefix requires a defined order,
-including how equal sort keys are handled.
+declaration syntax. `cards` represents the current vault or namespace. It is the
+standard-library binding `cards = vault.cards`, a lazy sequence — see
+[[stream-type]] — whose order is the sorted walk's: the entries of each
+directory sorted by name, depth first. The order is the walk's, never the
+filesystem's. Any other order is introduced by sorting, which requires a defined
+order, including how equal sort keys are handled.
 
-`cards` is inferred as `Set<Card>`. Sorting it produces `List<Card>`, which
-satisfies `Seq<Card>`, without an explicit conversion:
+`cards` is inferred as `Seq<Card>`. Sorting it keeps a `Seq<Card>` with its
+positions reordered, without an explicit conversion:
 
 ```hql
 open = cards | filter(c => c.metadata.status == "todo")
 open | sort(by = c => c.title) | map(c => c.title)
 ```
 
-A prefix of a set is reproducible when its elements carry their own ordering
-key — see [[orderable]].
+A prefix of `cards` is reproducible because the walk fixes its positions; a
+prefix of a set is reproducible when its elements carry their own ordering key —
+see [[orderable]].
 
 ## `List` narrows `Seq`
 
@@ -80,8 +83,8 @@ The load-bearing sentence:
 
 `Seq<Function>` is the case that proves it. It has a first, a second and a third
 element, and no two functions have a meaningful `<` between them. The positions
-come from the sequence, not from the values — which is the exact mirror of
-`cards : Set<Card>`, where the order comes from the values and not from the
+come from the sequence, not from the values — which is the exact mirror of a
+`Set<Card>`, where the order comes from the values and not from the
 collection.
 
 So the phrase "`Seq` is orderable" is wrong and should not appear. A `Seq` is
@@ -114,7 +117,8 @@ says the values *have* a key, and supplying one from outside is the other
 signature, not the same one narrowed.
 
 `Ordering` is declared in `std/core.hql`. `SortedSeq<T>` remains a design name;
-sorting currently returns `List<T>`. A key selector such as `by = c => c.title`
+sorting a `Seq` returns the same sequence type, and sorting any other collection
+returns `List<T>`. A key selector such as `by = c => c.title`
 uses the selected key's intrinsic order. Equal keys retain their relative
 positions in a sequence; unordered inputs have no prior positions to preserve.
 

@@ -106,8 +106,8 @@ declarations are not in the grammar.
 Two imported extensions that provide the same step name fail at the import,
 naming both; the qualified form `extension.step(…)` is how a program reaches
 one of them. The host seeds context values into the binding namespace before a
-program runs: `cards` and `knowledge`. By HQL-0012, `vault` joins them as a
-`VaultSource`, and `cards` becomes an ordinary binding to that source.
+program runs: `vault`, of type `Vault`, and `knowledge`. `cards` is the
+standard-library binding `cards = vault.cards` — see [[card-type]].
 
 See [[type-system]] for how a type name relates to another, and [[pipes]] for
 what a step is.

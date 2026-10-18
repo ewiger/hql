@@ -77,7 +77,7 @@ are the same program. `hql builtins` lists them all with their signatures.
 
 ## Cards
 
-Against a vault, `cards` is the set of its cards. The
+Against a vault, `cards` is the sequence of its cards, in sorted-walk order. The
 [birds example](https://github.com/ewiger/hql/tree/main/examples/birds) is a
 small one; pass it with `--vault`:
 
@@ -86,7 +86,7 @@ hql --vault examples/birds/wiki eval 'cards | count'    # 6
 ```
 
 A card's front matter is its `metadata`, and `filter` keeps the cards a
-predicate accepts. Filtering a set yields a set; sorting it yields a list:
+predicate accepts. Filtering a sequence yields a sequence, and so does sorting it:
 
 ```hql
 cards

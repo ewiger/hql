@@ -14,7 +14,7 @@ take their inspiration from jq and SQL, among others.
 HQL works over a **vault**: a directory of documents. A document may be
 Markdown, HyperMarkDown, YAML or JSON. A **card** is a document that represents
 one piece of knowledge, whichever format it was written in, and `cards` is the
-set of cards in the vault the program runs against.
+sequence of cards in the vault the program runs against.
 
 A card carries a title, a name, metadata, sections and links. Links between
 cards form a graph, and HQL traverses it in either direction.

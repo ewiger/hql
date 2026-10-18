@@ -145,10 +145,12 @@ directly before the argument list; otherwise `<` is the comparison, so
 | `true`, `42`, `1.5`, `"text"` | also `Scalar`, and so also `Data` |
 | `[[name]]` | `Option<Card>` |
 | `[[a]] -> [[b]] {..}` | `Edge` |
-| `cards` | `Set<Card>`, bound when a vault is present |
+| `cards` | `Seq<Card>`, bound when a vault is present |
 
-`cards` is an ordinary binding the host seeds from the vault, built once per
-program. A program may shadow it like any other name. Without a vault it is
+`cards` is the standard-library binding `cards = vault.cards`, declared in
+`std/vault.hql`; the host seeds `vault`, of type `Vault`, from the vault. Its
+cards arrive in sorted-walk order: the entries of each directory sorted by name,
+depth first. A program may shadow it like any other name. Without a vault it is
 unbound, and the checker says that it needs `--vault` rather than that it does
 not exist.
 
@@ -297,10 +299,12 @@ and a step are read in different positions, so the binding never hides the step,
 and `format | text` goes on meaning the step. It does hide the namespace —
 while `format` is bound, `format.text` reads a field of that value.
 
-`take` needs elements that carry an order of their own. A `Card` does — its
-name — so `cards | take(5)` is reproducible even though `cards` is a `Set` and
-the vault's discovery order is never observable. `take` over a `Seq` keeps the
-order the sequence already has, so a `sort` before it is not discarded.
+`take` over a `Seq` keeps the order the sequence already has, so a `sort`
+before it is not discarded, and `cards | take(5)` is reproducible because the
+sorted walk fixes the positions of `cards`; the filesystem's order is never
+observable. `take` over a collection without positions needs elements that
+carry an order of their own. A `Card` does — its name — so a prefix of a
+`Set<Card>` is reproducible too.
 
 ## Checking
 

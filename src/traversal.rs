@@ -50,6 +50,8 @@ pub(crate) enum Source {
     Take { input: Arc<Traversal>, n: usize },
     /// The values of `input` after the first `n`.
     Drop { input: Arc<Traversal>, n: usize },
+    /// Values already produced, kept at a sequence type.
+    Kept,
 }
 
 impl Traversal {
@@ -60,6 +62,13 @@ impl Traversal {
             source,
             forced: OnceLock::new(),
         }
+    }
+
+    /// A sequence of values already produced.
+    pub(crate) fn kept(element: TypeRef, values: Vec<Value>) -> Self {
+        let traversal = Self::new(element, true, Source::Kept);
+        traversal.keep(values);
+        traversal
     }
 
     /// `Seq<T>` when production ends, `Stream<T>` when it need not.

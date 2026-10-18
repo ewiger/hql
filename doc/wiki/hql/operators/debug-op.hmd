@@ -21,7 +21,7 @@ The result is `[172, 412, 280, 95, 320, 310]`, exactly as without `debug`, and
 the log gains one entry:
 
 ```text
-debug[books]: Set<Card>, 6 elements
+debug[books]: Seq<Card>, 6 elements
  --> shelf.hql:3:3
   |
 3 | | debug(label = "books")
@@ -80,10 +80,10 @@ A `debug` entry has the same record shape as every other entry in the log:
   "severity": "debug",
   "code": "debug",
   "label": "books",
-  "message": "Set<Card>, 6 elements",
+  "message": "Seq<Card>, 6 elements",
   "stage": "program",
   "span": { "start": 53, "end": 75 },
-  "type": "Set<Card>",
+  "type": "Seq<Card>",
   "found": ["a-room-of-ones-own", "dune", "frankenstein", "leaves-of-grass", "the-common-reader", "the-hobbit"],
   "trace": [{ "step": "filter", "position": 1 }, { "step": "debug", "position": 2 }]
 }

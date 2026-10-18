@@ -21,7 +21,7 @@ result. Rendering without `--write` prints the card with computed answers.
 
 | Query | What it shows | Result |
 | --- | --- | --- |
-| [catalog](queries/catalog.hql) | Inferred `Set<Card>` sorted into `List<Card>` | Barn owl, Common raven, European robin |
+| [catalog](queries/catalog.hql) | Inferred `Seq<Card>` filtered and sorted by name | Barn owl, Common raven, European robin |
 | [sightings](queries/sightings.hql) | `List` viewed as `Seq` and `Collection`, plus a distinct `Set` | Four observations, two owl occurrences, three species |
 | [map](queries/map.hql) | `Map<String, Int>`, set keys, optional lookup | Three keys, two owl observations, absent swallow |
 | [ordered map](queries/ordered-map.hql) | Stable construction positions | robin, owl, raven |

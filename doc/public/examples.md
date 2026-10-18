@@ -13,10 +13,10 @@ expected type and result in a header, and the test suite runs every one.
 
 ```hql
 // status: valid-now
-// feature: Bird cards as a set and a sorted list
+// feature: Bird cards filtered and sorted by name
 // implementation: implemented
 // vault: birds/wiki
-// expected-type: List<String>
+// expected-type: Seq<String>
 // expected: [Barn owl, Common raven, European robin]
 ```
 

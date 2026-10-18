@@ -33,7 +33,7 @@ cards
 | size
 ```
 
-reads as `Set<Card> → Set<Card> → List<String> → Int`, and also as three steps
+reads as `Seq<Card> → Seq<Card> → Seq<String> → Int`, and also as three steps
 with two boundaries.
 
 ## Steps have a shape

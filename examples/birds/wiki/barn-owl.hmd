@@ -6,7 +6,7 @@ metadata:
 # Barn owl
 
 The barn owl is the owl in this notebook. Its name is the key
-`barn-owl`; its card is a member of the wiki's `Set<Card>`.
+`barn-owl`; its card is an element of the wiki's `Seq<Card>`.
 
 [[field-notes]] records it twice. Both observations remain in the sightings
 list, while the set of species contains it once.
