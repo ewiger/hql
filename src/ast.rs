@@ -13,6 +13,8 @@ pub(crate) enum Stmt {
     /// `name = expr` or `name : Type = expr`.
     Bind {
         name: String,
+        /// Where the name is written.
+        name_span: Range<usize>,
         annotation: Option<TypeAnn>,
         value: Expr,
     },
@@ -59,6 +61,8 @@ pub(crate) enum BlockStmt {
 #[derive(Debug)]
 pub(crate) struct Param {
     pub name: String,
+    /// Where the name is written.
+    pub span: Range<usize>,
     pub annotation: TypeAnn,
     /// `xs: ...T`: the trailing arguments of a call, collected.
     pub variadic: bool,

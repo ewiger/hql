@@ -20,6 +20,7 @@ mod evaluation;
 mod execution;
 mod knowledge;
 mod lexer;
+pub mod naming;
 mod parser;
 
 pub mod builtins;
@@ -115,7 +116,12 @@ pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
         Err(diagnostic) => return failed(&diagnostic),
     };
     let (checked, found) = infer(&program, vault, mode);
-    let reports: Reports = found.iter().map(Report::of).collect();
+    let mut reports: Reports = found.iter().map(Report::of).collect();
+    if let Some(program) = &checked {
+        for warning in &program.warnings {
+            reports.push(Report::of_check_warning(warning));
+        }
+    }
     Outcome {
         value: None,
         inferred: checked.map(|program| program.result),
@@ -150,6 +156,9 @@ pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
             reports,
         };
     };
+    for warning in &program.warnings {
+        reports.push(Report::of_check_warning(warning));
+    }
     let inferred = program.result.clone();
     let (value, log) = evaluation::evaluate(&program, vault);
     for entry in log {
@@ -190,9 +199,14 @@ pub(crate) fn check_cell(
         },
         Mode::Collect => checker::check_collecting_with(&program, vault, bound),
     };
-    let reports: Reports = found.iter().map(Report::of).collect();
+    let mut reports: Reports = found.iter().map(Report::of).collect();
     if reports.has_errors() {
         return (None, reports);
+    }
+    if let Some(program) = &checked {
+        for warning in &program.warnings {
+            reports.push(Report::of_check_warning(warning));
+        }
     }
     (checked, reports)
 }

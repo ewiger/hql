@@ -188,6 +188,15 @@ impl Report {
         }
     }
 
+    /// A warning checking reported, before anything was evaluated.
+    #[must_use]
+    pub fn of_check_warning(warning: &Warning) -> Self {
+        Self {
+            stage: "type".to_owned(),
+            ..Self::of_warning(warning)
+        }
+    }
+
     /// A report for a warning.
     #[must_use]
     pub fn of_warning(warning: &Warning) -> Self {

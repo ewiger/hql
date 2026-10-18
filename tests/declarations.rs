@@ -400,3 +400,73 @@ fn a_function_called_with_the_wrong_number_of_arguments_is_refused() {
         .to_string();
     assert!(result.contains("declared to return String"), "{result}");
 }
+
+#[test]
+fn every_name_the_binary_provides_follows_its_kind() {
+    use hql::naming::{Kind, departure};
+    for extension in hql::extensions::catalogue(&hql::extensions::Config::default()) {
+        assert_eq!(departure(Kind::Extension, extension.name), None);
+        for step in extension.steps {
+            assert_eq!(
+                departure(Kind::Function, step.name),
+                None,
+                "step {}",
+                step.name
+            );
+        }
+    }
+    // Every name `std/` declares passes: checking it reports no warning.
+    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let outcome = hql::check_reported(&library::source(), &vault, hql::reporting::Mode::Strict);
+    let warnings: Vec<_> = outcome
+        .reports
+        .iter()
+        .map(|report| report.message.clone())
+        .collect();
+    assert!(warnings.is_empty(), "{warnings:?}");
+}
+
+#[test]
+fn a_name_off_its_kinds_convention_is_a_warning_at_the_name() {
+    let vault = hql::vault::Vault::empty();
+    for (source, name, message) in [
+        (
+            "birdCards = 1\nbirdCards",
+            "birdCards",
+            "a binding, written in snake_case",
+        ),
+        (
+            "fn get_size(xs: List<Int>) : Int = xs | size\n1",
+            "fn get_size",
+            "without a `get_` prefix",
+        ),
+        (
+            "type book { title : String }\n1",
+            "type book",
+            "a type, written in PascalCase",
+        ),
+        (
+            "type Book { Title : String }\n1",
+            "Title : String",
+            "a field, written in snake_case",
+        ),
+        (
+            "[1] | map(N => N)",
+            "N => N",
+            "a parameter, written in snake_case",
+        ),
+    ] {
+        let outcome = hql::run(source, &vault, hql::reporting::Mode::Strict);
+        assert!(!outcome.failed(), "{source}: a warning never fails");
+        let warning = outcome
+            .reports
+            .iter()
+            .find(|report| report.message.contains(message))
+            .unwrap_or_else(|| panic!("{source}: {:?}", outcome.reports));
+        assert!(
+            source[warning.span.clone()].starts_with(name),
+            "{source}: {:?}",
+            warning.span
+        );
+    }
+}

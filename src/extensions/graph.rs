@@ -310,7 +310,7 @@ fn expand(vault: &Vault, seeded: Graph, depth: usize, direction: &str) -> Graph 
 }
 
 fn check_downlinks(
-    cx: &dyn super::CheckCx,
+    cx: &mut dyn super::CheckCx,
     _: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -323,7 +323,7 @@ fn check_downlinks(
     Ok(())
 }
 fn check_expand(
-    cx: &dyn super::CheckCx,
+    cx: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {

@@ -233,6 +233,11 @@ x : U = …                    the assertion: proven or refused by the checker
 List(xs), Set(xs)            construction: a new container, the same elements
 ```
 
+A test that can never hold — `is(U)` where no value of the input type can be
+a `U` — is refused by the checker. A test that always holds, because every
+value of a declared input type is a `U`, is a warning. A `Data` value is asked
+at run time, so no test over it is either.
+
 `is`, the narrowing `filter`, `of_type` and the type arm of `match` are
 implemented, with the nominal test for declared values and the structural
 test for `Data` leaves and sequences of leaves. A record schema such as `Book`

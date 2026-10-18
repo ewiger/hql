@@ -514,7 +514,7 @@ pub(crate) fn digest(text: &str) -> String {
 }
 
 fn check_semantic(
-    cx: &dyn super::CheckCx,
+    cx: &mut dyn super::CheckCx,
     _: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {

@@ -213,7 +213,7 @@ impl Parser {
         if let Token::Ident(name) = self.peek().clone() {
             let follows = &self.tokens[self.index + 1].token;
             if matches!(follows, Token::Equals | Token::Colon) {
-                self.advance();
+                let name_span = self.advance().span;
                 let annotation = if self.eat(&Token::Colon) {
                     Some(self.type_annotation()?)
                 } else {
@@ -223,6 +223,7 @@ impl Parser {
                 self.continuation();
                 return Ok(Stmt::Bind {
                     name,
+                    name_span,
                     annotation,
                     value: self.expression()?,
                 });
@@ -587,6 +588,7 @@ impl Parser {
                 let annotation = self.type_annotation()?;
                 parameters.push(Param {
                     name: parameter,
+                    span: written.span,
                     annotation,
                     variadic,
                 });

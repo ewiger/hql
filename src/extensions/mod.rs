@@ -48,7 +48,8 @@ impl Purity {
 }
 
 /// What a step does to a type.
-pub(crate) type Check = fn(&dyn CheckCx, &CheckedCall<'_>, Range<usize>) -> Result<(), Diagnostic>;
+pub(crate) type Check =
+    fn(&mut dyn CheckCx, &CheckedCall<'_>, Range<usize>) -> Result<(), Diagnostic>;
 
 /// What a step does to a value.
 pub(crate) type Eval =
@@ -74,6 +75,8 @@ pub(crate) trait CheckCx: Send {
     /// How many parameters an argument takes, when it is written as a lambda
     /// or names a function value.
     fn function_arity(&mut self, argument: &Arg) -> Option<usize>;
+    /// Report something worth saying that does not make the program wrong.
+    fn warn(&mut self, warning: crate::warnings::Warning);
 }
 
 /// What evaluating a step may ask of the evaluator around it.

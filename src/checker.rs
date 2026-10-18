@@ -183,15 +183,30 @@ impl Checker<'_> {
         self.checked.program(program, last)
     }
 
+    /// Warn where a name is introduced that departs from its kind's casing.
+    fn lint(&mut self, kind: crate::naming::Kind, name: &str, span: &Range<usize>) {
+        // A name the language makes for itself, a hole's parameter, cannot be
+        // written and is nobody's to spell.
+        if name.starts_with('%') {
+            return;
+        }
+        if let Some(message) = crate::naming::departure(kind, name) {
+            self.checked
+                .warnings
+                .push(crate::warnings::Warning::new(span.clone(), message));
+        }
+    }
+
     fn statement(&mut self, statement: &Stmt) -> Result<TypeRef, Diagnostic> {
         Ok({
             match statement {
                 Stmt::Bind {
                     name,
+                    name_span,
                     annotation,
                     value,
-                    ..
                 } => {
+                    self.lint(crate::naming::Kind::Binding, name, name_span);
                     let expected = annotation
                         .as_ref()
                         .map(crate::declarations::annotation)
@@ -223,6 +238,14 @@ impl Checker<'_> {
                 // A declaration is checked and yields nothing to show. It
                 // introduces no value: constructing one is separate work.
                 Stmt::Type(declaration) => {
+                    use crate::naming::Kind as Name;
+                    self.lint(Name::Type, &declaration.name, &declaration.span);
+                    for parameter in &declaration.parameters {
+                        self.lint(Name::TypeParameter, parameter, &declaration.span);
+                    }
+                    for field in &declaration.fields {
+                        self.lint(Name::Field, &field.name, &field.span);
+                    }
                     self.declarations.declare(declaration)?;
                     TypeRef::UNIT
                 }
@@ -280,6 +303,9 @@ impl Checker<'_> {
                     expected.len()
                 ),
             ));
+        }
+        for name in parameters {
+            self.lint(crate::naming::Kind::Parameter, name, &expression.span);
         }
         let mut types = Vec::new();
         for (index, (name, annotation)) in parameters.iter().zip(annotations).enumerate() {
@@ -354,6 +380,25 @@ impl Checker<'_> {
     /// A declared function: bound before its body is checked, so it may call
     /// itself, and its body must have the declared result type.
     fn function(&mut self, declaration: &FnDecl) -> Result<(), Diagnostic> {
+        self.lint(
+            crate::naming::Kind::Function,
+            &declaration.name,
+            &declaration.span,
+        );
+        for parameter in &declaration.parameters {
+            self.lint(
+                crate::naming::Kind::Parameter,
+                &parameter.name,
+                &parameter.span,
+            );
+        }
+        for generic in &declaration.generics {
+            self.lint(
+                crate::naming::Kind::TypeParameter,
+                generic,
+                &declaration.span,
+            );
+        }
         if !declaration.generics.is_empty() {
             return Err(Diagnostic::typing(
                 declaration.span.clone(),
@@ -507,6 +552,7 @@ impl Checker<'_> {
             for statement in statements {
                 match statement {
                     BlockStmt::Bind { name, value } => {
+                        self.lint(crate::naming::Kind::Binding, name, &value.span);
                         let ty = self.expression(value)?;
                         self.scope.insert(name.clone(), ty);
                     }
@@ -532,6 +578,7 @@ impl Checker<'_> {
                                 format!("`for` traverses a collection or a stream, not {ty}"),
                             ));
                         };
+                        self.lint(crate::naming::Kind::Binding, name, &iterable.span);
                         let inner = self.scope.insert(name.clone(), item);
                         yields += self.block(function, body, element)?;
                         match inner {
@@ -1213,6 +1260,10 @@ impl CheckCx for Checker<'_> {
         self.vault
     }
 
+    fn warn(&mut self, warning: crate::warnings::Warning) {
+        self.checked.warnings.push(warning);
+    }
+
     fn function_arity(&mut self, argument: &Arg) -> Option<usize> {
         match &argument.value.kind {
             Kind::Lambda { parameters, .. } => Some(parameters.len()),
@@ -1233,6 +1284,14 @@ impl CheckCx for Checker<'_> {
         argument: &Arg,
         parameters: Vec<TypeRef>,
     ) -> Result<TypeRef, Diagnostic> {
+        if let Kind::Lambda {
+            parameters: names, ..
+        } = &argument.value.kind
+        {
+            for name in names {
+                self.lint(crate::naming::Kind::Parameter, name, &argument.value.span);
+            }
+        }
         self.lambda_type(argument, parameters)
     }
 

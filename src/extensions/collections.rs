@@ -559,7 +559,7 @@ pub(crate) static STEPS: &[Operation] = &[
 const DEBUG_LEVELS: [(&str, Severity); 2] = [("debug", Severity::Debug), ("info", Severity::Info)];
 
 fn check_debug(
-    _: &dyn super::CheckCx,
+    _: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     _: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -1133,7 +1133,7 @@ fn compare(left: &Option<Key>, right: &Option<Key>) -> Ordering {
 }
 
 fn check_sort(
-    _: &dyn super::CheckCx,
+    _: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -1143,7 +1143,7 @@ fn check_sort(
     Ok(())
 }
 fn check_take(
-    _: &dyn super::CheckCx,
+    _: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -1156,7 +1156,7 @@ fn check_take(
 
 /// A step that keeps positions needs an input that has them.
 fn check_ordered(
-    _: &dyn super::CheckCx,
+    _: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -1173,7 +1173,7 @@ fn check_ordered(
 }
 
 fn check_collect(
-    cx: &dyn super::CheckCx,
+    cx: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -1191,7 +1191,7 @@ fn check_collect(
 }
 
 fn check_emit(
-    cx: &dyn super::CheckCx,
+    cx: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -1211,7 +1211,7 @@ fn check_emit(
 }
 
 fn check_drop(
-    _: &dyn super::CheckCx,
+    _: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -1228,7 +1228,7 @@ fn check_drop(
     Ok(())
 }
 fn check_of_type(
-    _: &dyn super::CheckCx,
+    cx: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -1238,6 +1238,14 @@ fn check_of_type(
         return Err(Diagnostic::typing(
             span,
             format!("no {element} can be a {wanted}, so this is always false"),
+        ));
+    }
+    // An open tree is asked what it is at run time, so only a declared type
+    // can make the answer certain.
+    if element.is(wanted) && *element != TypeRef::NEVER && *element != TypeRef::DATA {
+        cx.warn(crate::warnings::Warning::new(
+            span,
+            format!("the test for {wanted} holds for every {element}, so it is always true"),
         ));
     }
     Ok(())
@@ -1281,7 +1289,7 @@ fn eval_group(
 }
 
 fn check_reduce(
-    _: &dyn super::CheckCx,
+    _: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -1334,7 +1342,7 @@ fn eval_reduce(
 }
 
 fn check_sum(
-    _: &dyn super::CheckCx,
+    _: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
@@ -1377,7 +1385,7 @@ fn eval_sum(
 }
 
 fn check_extreme(
-    _: &dyn super::CheckCx,
+    _: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {

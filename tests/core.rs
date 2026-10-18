@@ -487,3 +487,25 @@ fn a_call_with_a_hole_is_a_function_of_the_arguments_left_open() {
         bare.message()
     );
 }
+
+#[test]
+fn a_type_test_that_always_holds_is_a_warning() {
+    let vault = hql::vault::Vault::empty();
+    let outcome = hql::run(
+        "[1, 2] | of_type(Int)",
+        &vault,
+        hql::reporting::Mode::Strict,
+    );
+    assert!(!outcome.failed());
+    let warning = outcome.reports.iter().next().expect("a warning");
+    assert_eq!(warning.severity, hql::reporting::Severity::Warning);
+    assert_eq!(warning.stage, "type");
+    assert!(
+        warning.message.contains("always true"),
+        "{}",
+        warning.message
+    );
+    // An open tree is asked at run time, so it warns of nothing.
+    let open = hql::run("{a: 1}.a | is(Int)", &vault, hql::reporting::Mode::Strict);
+    assert!(open.reports.is_empty(), "{:?}", open.reports);
+}

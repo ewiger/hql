@@ -59,8 +59,8 @@ nothing here restates it.
 
 ## Progress
 
-- [ ] 1. Check-time warnings
-- [ ] 2. The naming lint
+- [x] 1. Check-time warnings
+- [x] 2. The naming lint
 - [ ] 3. Generic functions
 - [ ] 4. `:=` aliases
 - [ ] 5. The reduction vocabulary

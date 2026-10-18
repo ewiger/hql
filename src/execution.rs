@@ -13,6 +13,8 @@ pub(crate) type Arg = ast::Arg<Expr>;
 pub(crate) struct Program {
     pub statements: Vec<Stmt>,
     pub result: TypeRef,
+    /// The warnings checking reported.
+    pub warnings: Vec<crate::warnings::Warning>,
 }
 
 #[derive(Debug)]
@@ -229,6 +231,8 @@ pub(crate) struct Checked {
     /// arguments it takes before the trailing ones a variadic parameter
     /// collects, and their element type.
     pub applications: HashMap<Range<usize>, Option<(usize, TypeRef)>>,
+    /// What checking found worth saying that does not make the program wrong.
+    pub warnings: Vec<crate::warnings::Warning>,
 }
 
 impl Checked {
@@ -274,7 +278,11 @@ impl Checked {
                     })
                 })
                 .collect::<Result<_, Diagnostic>>()?;
-        Ok(Program { statements, result })
+        Ok(Program {
+            statements,
+            result,
+            warnings: self.warnings.clone(),
+        })
     }
 
     fn arguments(&self, arguments: &[ast::Arg]) -> Result<Vec<Arg>, Diagnostic> {

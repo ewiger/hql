@@ -546,7 +546,7 @@ pub(crate) static STEPS: &[Operation] = &[
 macro_rules! shorthands {
     ($($check:ident, $eval:ident => $format:literal),* $(,)?) => {
         $(fn $check(
-            _: &dyn super::CheckCx,
+            _: &mut dyn super::CheckCx,
             call: &super::spec::CheckedCall<'_>,
             span: Range<usize>,
         ) -> Result<(), Diagnostic> {
@@ -576,7 +576,7 @@ shorthands! {
 }
 
 fn check_format(
-    _: &dyn super::CheckCx,
+    _: &mut dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
