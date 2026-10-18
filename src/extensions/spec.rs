@@ -21,6 +21,8 @@ pub enum TypePattern {
     Apply(TypeConstructor, &'static [TypePattern]),
     /// Any collection, including retrieval carriers.
     Collection(&'static TypePattern),
+    /// Anything that can be traversed: a collection or a stream.
+    Iterable(&'static TypePattern),
     /// Any one of the alternatives.
     OneOf(&'static [TypePattern]),
 }
@@ -148,6 +150,9 @@ impl TypePattern {
             },
             Self::Collection(element) => actual
                 .element()
+                .is_some_and(|actual| element.accept(&actual, bindings)),
+            Self::Iterable(element) => actual
+                .iterated()
                 .is_some_and(|actual| element.accept(&actual, bindings)),
             // An open tree is viewed by its map alternative where a map is
             // asked for; whether this tree is one is confirmed at run time,
@@ -285,7 +290,9 @@ impl OperationSpec {
                     }
                     patterns.extend(arguments);
                 }
-                TypePattern::Collection(element) => patterns.push(*element),
+                TypePattern::Collection(element) | TypePattern::Iterable(element) => {
+                    patterns.push(*element)
+                }
                 TypePattern::OneOf(alternatives) => {
                     if alternatives.is_empty() {
                         return Err(SpecError("empty alternatives".into()));
@@ -307,6 +314,17 @@ impl OperationSpec {
     ) -> Result<(TypeRef, CheckedCall<'a>), Diagnostic> {
         let mut bindings = BTreeMap::new();
         if !self.input.accept(input, &mut bindings) {
+            // A whole-input operation over a stream fails for a reason a
+            // reader can act on: the input may not end.
+            if input.is_stream() && !input.is_collection() {
+                return Err(Diagnostic::typing(
+                    span.clone(),
+                    format!(
+                        "`{name}` needs a finite input, and {input} may not end; \
+                         bound it first with `take(n)`"
+                    ),
+                ));
+            }
             return Err(Diagnostic::typing(
                 span.clone(),
                 format!("`{name}` needs {}, not {input}", self.input),
@@ -634,7 +652,9 @@ impl OperationSpec {
     /// The element parameter of a collection input, for printing.
     fn element_name(&self) -> String {
         match self.input {
-            TypePattern::Collection(element) => element.to_string(),
+            TypePattern::Collection(element) | TypePattern::Iterable(element) => {
+                element.to_string()
+            }
             _ => "T".to_owned(),
         }
     }
@@ -655,6 +675,7 @@ impl fmt::Display for TypePattern {
                     .join(", ")
             ),
             Self::Collection(element) => write!(f, "Collection<{element}>"),
+            Self::Iterable(element) => write!(f, "Iterable<{element}>"),
             Self::OneOf(patterns) => write!(
                 f,
                 "({})",

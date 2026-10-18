@@ -251,6 +251,22 @@ impl TypeRef {
         collections::element_type(system().ok()?, self).ok()
     }
 
+    /// The element of anything that can be traversed, a stream included.
+    pub fn iterated(&self) -> Option<Self> {
+        let system = system().ok()?;
+        let iterable = system.as_supertype(self, collections::ITERABLE).ok()??;
+        iterable.args.first().cloned()
+    }
+
+    /// Whether values arrive in a stable succession, finite or not.
+    pub fn is_stream(&self) -> bool {
+        system().is_ok_and(|system| {
+            system
+                .as_supertype(self, collections::STREAM)
+                .is_ok_and(|value| value.is_some())
+        })
+    }
+
     /// Whether this is a collection of occurrences.
     pub fn is_collection(&self) -> bool {
         self.element().is_some()
@@ -276,7 +292,7 @@ impl TypeRef {
     /// around another one: a ranking's argument is the ranked value, not the
     /// hit it holds, so a ranking narrowed to other elements is a list.
     pub fn with_element(&self, element: Self) -> Self {
-        let Some(current) = self.element() else {
+        let Some(current) = self.iterated() else {
             return self.clone();
         };
         if self.args.as_slice() == [current] {
@@ -292,7 +308,7 @@ impl TypeRef {
     /// so a set maps to a set. A ranking's argument is the ranked value, not
     /// the hit it holds, so it maps as the sequence of hits it is.
     pub fn image(&self, element: Self) -> Self {
-        let Some(current) = self.element() else {
+        let Some(current) = self.iterated() else {
             return self.clone();
         };
         if self.args.as_slice() == [current] {

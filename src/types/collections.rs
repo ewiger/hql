@@ -19,9 +19,11 @@ use super::{
 pub const ORDERABLE: TypeConstructor = TypeConstructor("Orderable");
 /// Values that can be traversed, with no promise of finiteness or order.
 pub const ITERABLE: TypeConstructor = TypeConstructor("Iterable");
+/// Values produced in a stable order, with no promise that production ends.
+pub const STREAM: TypeConstructor = TypeConstructor("Stream");
 /// Finite occurrences, with membership, multiplicity, and cardinality.
 pub const COLLECTION: TypeConstructor = TypeConstructor("Collection");
-/// A collection whose occurrences have stable positions.
+/// A collection whose occurrences have stable positions: a stream that ends.
 pub const SEQ: TypeConstructor = TypeConstructor("Seq");
 /// A concrete materialized sequence.
 pub const LIST: TypeConstructor = TypeConstructor("List");
@@ -58,27 +60,28 @@ pub fn type_system() -> Result<TypeSystem, TypeError> {
 pub fn definitions() -> impl Iterator<Item = TypeDefinition> {
     use TypeKind::{Abstract, Concrete};
     [
-        (ORDERABLE, Abstract, None, vec![]),
-        (ITERABLE, Abstract, None, vec![element()]),
-        (COLLECTION, Abstract, Some(ITERABLE), vec![element()]),
-        (SEQ, Abstract, Some(COLLECTION), vec![element()]),
-        (LIST, Concrete, Some(SEQ), vec![element()]),
-        (SET, Concrete, Some(COLLECTION), vec![element()]),
-        (MAP, Concrete, None, map_parameters(None)),
-        (ORDERED_MAP, Concrete, Some(MAP), map_parameters(None)),
+        (ORDERABLE, Abstract, vec![], vec![]),
+        (ITERABLE, Abstract, vec![], vec![element()]),
+        (STREAM, Abstract, vec![ITERABLE], vec![element()]),
+        (COLLECTION, Abstract, vec![ITERABLE], vec![element()]),
+        (SEQ, Abstract, vec![COLLECTION, STREAM], vec![element()]),
+        (LIST, Concrete, vec![SEQ], vec![element()]),
+        (SET, Concrete, vec![COLLECTION], vec![element()]),
+        (MAP, Concrete, vec![], map_parameters(None)),
+        (ORDERED_MAP, Concrete, vec![MAP], map_parameters(None)),
         (
             SORTED_MAP,
             Concrete,
-            Some(ORDERED_MAP),
+            vec![ORDERED_MAP],
             map_parameters(Some(ORDERABLE.into())),
         ),
     ]
     .into_iter()
-    .map(|(constructor, kind, parent, parameters)| TypeDefinition {
+    .map(|(constructor, kind, parents, parameters)| TypeDefinition {
         constructor,
         kind,
         parameters,
-        parents: parent.into_iter().collect(),
+        parents,
         applied: Vec::new(),
     })
 }

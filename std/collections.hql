@@ -12,9 +12,15 @@ abstract type Iterable<T>
 // size(c) is the sum of count(c, x) over all distinct values occurring in c.
 abstract type Collection<T> : Iterable<T>
 
+// Values produced in a stable order: x0, x1, x2, ... Production need not end,
+// so a stream has no size, no membership and no global order: those need the
+// end. See doc/wiki/hql/types/stream-type.hmd.
+abstract type Stream<T> : Iterable<T>
+
 // Every occurrence occupies exactly one position in 0 .. size(c)-1.
-// Positional order does not require T : Orderable.
-abstract type Seq<T> : Collection<T>
+// Positional order does not require T : Orderable. A sequence is a stream
+// that ends.
+abstract type Seq<T> : {Collection<T>, Stream<T>}
 
 // Materialized occurrences; repeated traversal preserves positions.
 type List<T> : Seq<T>
@@ -53,12 +59,14 @@ type Group<K, T> {
 // count<T>(xs: Collection<T>, value: T) : Int
 // contains<T>(xs: Collection<T>, value: T) : Bool
 // get<K, V>(xs: Map<K, V>, key: K) : Option<V>
-// filter<S : Collection<T>, T>(xs: S, by: T -> Bool) : S
+// filter<S : Iterable<T>, T>(xs: S, by: T -> Bool) : S
 // filter<F<_> : Iterable<_>, T, U>(xs: F<T>, by: x => x | is(U)) : F<U>   narrows
 // of_type<F<_> : Iterable<_>, T, U>(xs: F<T>, type: Type<U>) : F<U>   filter(x => x | is(U))
 // is<T, U>(x: T, type: Type<U>) : Bool          refused when no T can be a U
 // map<F<_> : Iterable<_>, T, U>(xs: F<T>, by: T -> U) : F<U>
 // take<S : Seq<T>, T>(xs: S, n: Int) : S
+// take<T>(xs: Stream<T>, n: Int) : List<T>             a bounded prefix is finite
+// drop<S : Stream<T>, T>(xs: S, n: Int) : S
 // take<T : Orderable>(xs: Collection<T>, n: Int) : List<T>
 // sort<T>(xs: Ranking<T>, by: …) : Seq<Hit<T>>
 // sort<S : Seq<T>, T : Orderable>(xs: S) : S

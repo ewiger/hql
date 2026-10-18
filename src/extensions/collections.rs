@@ -133,7 +133,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 name: "T",
                 bound: None,
             }],
-            input: P::Collection(&P::Var("T")),
+            input: P::Iterable(&P::Var("T")),
             arguments: &[ArgumentSpec::value(
                 "n",
                 P::Type(crate::types::TypeConstructor("Int")),
@@ -146,13 +146,32 @@ pub(crate) static STEPS: &[Operation] = &[
         eval: eval_take,
     },
     Operation {
+        name: "drop",
+        spec: OperationSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Iterable(&P::Var("T")),
+            arguments: &[ArgumentSpec::value(
+                "n",
+                P::Type(crate::types::TypeConstructor("Int")),
+            )],
+            output: O::Input,
+        },
+        summary: "Everything after the first n elements, in the input's own order.",
+        purity: Purity::Pure,
+        check: Some(check_drop),
+        eval: eval_drop,
+    },
+    Operation {
         name: "filter",
         spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
             }],
-            input: P::Collection(&P::Var("T")),
+            input: P::Iterable(&P::Var("T")),
             arguments: &[ArgumentSpec {
                 name: "by",
                 kind: A::Lambda {
@@ -183,7 +202,7 @@ pub(crate) static STEPS: &[Operation] = &[
                     bound: None,
                 },
             ],
-            input: P::Collection(&P::Var("T")),
+            input: P::Iterable(&P::Var("T")),
             arguments: &[ArgumentSpec {
                 name: "by",
                 kind: A::Lambda {
@@ -641,6 +660,34 @@ fn eval_take(
     Ok(Value::list(elements, element_type(&input)))
 }
 
+fn eval_drop(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let argument =
+        named_or_first(arguments, "n").ok_or_else(|| wrong("drop", "a count: `drop(5)`", &span))?;
+    let Value::Int(count) = cx.evaluate(&argument.value)? else {
+        return Err(wrong("drop", "an Int count", &span));
+    };
+    let count = usize::try_from(count).map_err(|_| {
+        Diagnostic::runtime(argument.value.span.clone(), "a count cannot be negative")
+    })?;
+    if let Value::Ranking(ranking) = &input {
+        return Ok(Value::Ranking(Arc::new(Ranking {
+            hits: ranking.hits.iter().skip(count).cloned().collect(),
+            element: ranking.element.clone(),
+            retrieval: Arc::clone(&ranking.retrieval),
+        })));
+    }
+    let elements = elements(&input, "drop", &span)?;
+    Ok(Value::list(
+        elements.into_iter().skip(count).collect(),
+        element_type(&input),
+    ))
+}
+
 fn eval_filter(
     cx: &mut dyn EvalCx,
     input: Value,
@@ -869,8 +916,27 @@ fn check_take(
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
-    if !call.input.is_sequence() {
+    // A stream already has the order a prefix is taken in.
+    if !call.input.is_stream() {
         require_orderable(&call.bindings["T"], "take", &span)?;
+    }
+    Ok(())
+}
+
+fn check_drop(
+    _: &dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    // Skipping the first values needs an order they arrive in.
+    if !call.input.is_stream() {
+        return Err(Diagnostic::typing(
+            span,
+            format!(
+                "`drop` needs values in a stable order, and {} has none; sort it first",
+                call.input
+            ),
+        ));
     }
     Ok(())
 }
