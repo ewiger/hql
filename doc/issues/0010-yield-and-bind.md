@@ -44,9 +44,10 @@ of the same name is a critical error, not an override.
 
 ## Scope
 
-- Add `yield` to the grammar, and the loop or comprehension form it appears
-  inside — HQL has no statement-level loop today, which is an open question in
-  the model rather than a detail.
+- Add `yield` to the grammar. A `yield` is written only in the block body of
+  a user `fn` — `fn name(...) : Seq<T> { ... }` — directly or inside a
+  `for x in xs { ... }` loop. Block bodies and `for` exist only there: HQL has
+  no top-level loop, and a lambda body stays one expression.
 - Check an iterating function: the presence of `yield` and a `Seq<T>` result
   must agree, and a `yield` outside such a function is a diagnostic.
 - Add the lazy sequence carrier to `Value` as a **factory** — how to start a
@@ -83,7 +84,7 @@ of the same name is a critical error, not an override.
 - `bind` type-checks against arity and parameter types, and rejects a mismatch
   with a diagnostic naming the parameter.
 - Examples under `examples/` cover a generated source, a partially applied
-  step, early termination over a long generator, and an `invalid` case for
-  `yield` outside an iterating function — all passing through
+  step, early termination over a long generator, and `invalid` cases for
+  `yield` at the top level and inside a lambda — all passing through
   `tests/corpus.rs`.
 - No extension step traverses a sequence twice without materializing it first.

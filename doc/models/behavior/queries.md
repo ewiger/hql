@@ -334,6 +334,11 @@ fn vault_cards(v: Vault) : Seq<Card> {
 
 Each `yield` contributes one element to the traversal in the order it is reached.
 
+`yield` is written only in the block body of a user-declared `fn`, either
+directly or inside a `for` loop. Block bodies and `for` exist only in such a
+body: a program has no top-level loop, and a lambda body is one expression. A
+`yield` anywhere else is a diagnostic.
+
 Calling the function does not imply materialization. Evaluation advances only as far as its consumer demands:
 
 ```hql

@@ -156,17 +156,16 @@ issues, proposals and cards; nothing here restates it.
 
 ## Roadblocks
 
-- **`Stream<T>`, `yield` and `bind` (feature 12) wait on three design
-  decisions**, which the documents leave open or answer two ways:
-  1. the loop or comprehension a `yield` is written in, since HQL has no
-     statement blocks — the queries model sketches `for c in v.documents
-     { yield c }`, and [0010](0010-yield-and-bind.md) calls it open;
-  2. `bind` as one overload per arity ([0010](0010-yield-and-bind.md)) or no
+- **`Stream<T>`, `yield` and `bind` (feature 12) wait on two design
+  decisions**, which the documents answer two ways:
+  1. `bind` as one overload per arity ([0010](0010-yield-and-bind.md)) or no
      `bind` at all, with partial application left to the function design
      (the [queries](../models/behavior/queries.md) model);
-  3. `cards` as a lazy `Seq<Card>` in sorted-walk order, which changes the
+  2. `cards` as a lazy `Seq<Card>` in sorted-walk order, which changes the
      type of every `cards` program from today's `Set<Card>`.
 
+  `yield` is settled: it is written only in the block body of a user `fn`,
+  inside a `for` loop or directly, and nowhere else.
   Features 16 and the stream part of 17 need feature 12.
 - **HQL-0005 and HQL-0015 disagree on plain functions as steps.** HQL-0005
   says a plain `I -> O` function MUST NOT itself be a step; HQL-0015 pipes
