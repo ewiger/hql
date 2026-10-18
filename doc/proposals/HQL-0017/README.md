@@ -13,8 +13,8 @@ ordinary data types, built by their constructors, so the projection from cards
 to a graph is `Graph(xs)` and a table is `Table(xs)`. **Which syntax it is
 written in** is a **presentation format**, a subtype of `String` such as
 `Markdown`, `Json` or `D2`. The operation `format(x, F)` turns any value into
-text of format `F`; it is an ordinary operation, so `card | table | markdown |
-size` checks. `markdown`, `json`, `yaml`, `csv`, `d2`, `mermaid`, `hmd` and
+text of format `F`; it is an ordinary operation whose result type is the
+format, so a step after it is checked like any other. `markdown`, `json`, `yaml`, `csv`, `d2`, `mermaid`, `hmd` and
 `text` are its shorthands, each defined with `:=`
 ([HQL-0015](../HQL-0015/README.md)). **How a type is written in a format** is
 a **renderer**, chosen per type and format from configuration: a `Graph` in
@@ -263,7 +263,7 @@ then no program builds one.
 
 Unit tests MUST include:
 
-- `card | markdown` is a `Markdown`; `card | markdown | size` checks
+- `card | markdown` is a `Markdown`
 - `format(x, Markdown)` and `x | markdown` give the same text
 - `cards | Graph | format(Json)` writes the node-link form with every card as a
   node
