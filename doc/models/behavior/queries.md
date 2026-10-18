@@ -288,7 +288,7 @@ This avoids inventing a false subtype relationship just for structural symmetry.
 
 ## `cards` is a `Seq<Card>`
 
-The vault is finite, and card enumeration must be reproducible. Therefore the standard `cards` value should be:
+The vault is finite, and card enumeration must be reproducible. Therefore the standard `cards` value, the library binding `cards = vault.cards` declared in `std/vault.hql`, is a lazy sequence:
 
 ```hql
 cards : Seq<Card>
@@ -306,7 +306,7 @@ and not:
 Stream<Card>
 ```
 
-The sequence order must be part of the source contract. For the vault, ordering by canonical card name is sufficient and already aligns with the `Orderable` property used elsewhere.
+The sequence order is part of the source contract. For the vault it is the sorted walk's: the entries of each directory sorted by name, depth first. The order is the walk's, never the filesystem's.
 
 This makes:
 
@@ -528,42 +528,27 @@ Seq<Card>
 
 ## Partial application is not part of the source model
 
-The previous design used:
-
-```hql
-cards = bind(vault_cards, vault)
-```
-
-to explain deferred execution.
-
-That is unnecessary.
-
-If:
-
-```hql
-vault_cards(vault)
-```
-
-returns a lazy `Seq<Card>`, then:
+Deferred execution needs no partial application. `vault_cards(vault)` returns a
+lazy `Seq<Card>`, so
 
 ```hql
 cards = vault_cards(vault)
 ```
 
-already has the required behaviour.
+already defers: nothing is read until a step consumes `cards`.
 
-Partial application is still useful independently:
+Partial application is useful wherever a function value with some arguments
+fixed is passed on — a sort key, a predicate, a mapped function:
 
 ```hql
 cards
-| sort(by = partial(distance_to, here))
+| sort(by = c => distance_to(here, c))
 ```
 
-or whatever syntax the function design eventually chooses.
-
-But that is a function-language question, not a query-source question.
-
-It should therefore be resolved together with function types rather than making `bind` part of the sequence model. This also avoids the existing collision with "binding" generic type parameters.
+The function design writes it with a hole, `cards | sort(by =
+distance_to(here, _))`; the [type system](../../wiki/hql/type-system.hmd) card
+states it, section "Function types". It is never called binding, which names
+introducing a type parameter.
 
 ## Resulting model
 

@@ -24,6 +24,7 @@ pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypedProgram, Di
         declarations: Declarations::default(),
         checked: Checked::default(),
         variadic: HashMap::new(),
+        parameter_names: HashMap::new(),
     }
     .program(program)
 }
@@ -50,6 +51,7 @@ pub(crate) fn check_collecting(
         declarations: Declarations::default(),
         checked: Checked::default(),
         variadic: HashMap::new(),
+        parameter_names: HashMap::new(),
     };
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
@@ -112,6 +114,7 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 declarations: Declarations::default(),
                 checked: Checked::default(),
                 variadic: HashMap::new(),
+                parameter_names: HashMap::new(),
             }
             .program(&program)
             .ok()?;
@@ -137,6 +140,9 @@ struct Checker<'a> {
     /// Declared functions whose last parameter collects trailing arguments,
     /// with their parameter count.
     variadic: HashMap<String, usize>,
+    /// The parameter names of each declared function, for a diagnostic
+    /// that names the parameter an argument does not fit.
+    parameter_names: HashMap<String, Vec<String>>,
 }
 
 impl Checker<'_> {
@@ -262,6 +268,7 @@ impl Checker<'_> {
                 }
                 (Some(declared), _) => declared,
                 (None, Some(given)) => given,
+                (None, None) if name.starts_with(crate::parser::HOLE) => self.hole(name, body)?,
                 (None, None) => {
                     return Err(Diagnostic::typing(
                         expression.span.clone(),
@@ -352,6 +359,14 @@ impl Checker<'_> {
             self.variadic.remove(&declaration.name);
         }
         self.checked.functions.insert(declaration.span.clone(), ty);
+        self.parameter_names.insert(
+            declaration.name.clone(),
+            declaration
+                .parameters
+                .iter()
+                .map(|parameter| parameter.name.clone())
+                .collect(),
+        );
         let names = declaration
             .parameters
             .iter()
@@ -374,6 +389,38 @@ impl Checker<'_> {
             ));
         }
         Ok(())
+    }
+
+    /// A hole's type: the parameter it fills in the call it stands in.
+    fn hole(&mut self, name: &str, call: &Expr) -> Result<TypeRef, Diagnostic> {
+        let Kind::Call { callee, arguments } = &call.kind else {
+            return Err(Diagnostic::typing(
+                call.span.clone(),
+                "a hole stands in a call",
+            ));
+        };
+        let position = arguments
+            .iter()
+            .position(|argument| matches!(&argument.value.kind, Kind::Ident(held) if held == name))
+            .unwrap_or_default();
+        let untyped = || {
+            Diagnostic::typing(
+                call.span.clone(),
+                "a hole in this call takes its type from where the function is used; \
+                 pass it where a function is expected, or write a lambda with typed parameters",
+            )
+        };
+        if !self.names_function(callee) && matches!(callee.kind, Kind::Ident(_)) {
+            return Err(untyped());
+        }
+        let ty = self.expression(callee)?;
+        let (parameters, _) = ty.as_function().ok_or_else(untyped)?;
+        parameters.get(position).cloned().ok_or_else(|| {
+            Diagnostic::typing(
+                call.span.clone(),
+                format!("this call has more arguments than {ty} takes"),
+            )
+        })
     }
 
     /// The block body of an iterating function: what it yields must be the
@@ -548,11 +595,22 @@ impl Checker<'_> {
                 None
             }
         };
-        for ((actual, at), parameter) in supplied.iter().zip(&parameters) {
+        let names = match &callee.kind {
+            Kind::Ident(name) => self.parameter_names.get(name).cloned(),
+            _ => None,
+        };
+        for (index, ((actual, at), parameter)) in supplied.iter().zip(&parameters).enumerate() {
             if !actual.is(parameter) {
+                let which = names
+                    .as_ref()
+                    .and_then(|names| names.get(index))
+                    .map_or_else(
+                        || format!("parameter {}", index + 1),
+                        |name| format!("parameter `{name}`"),
+                    );
                 return Err(Diagnostic::typing(
                     at.clone(),
-                    format!("this argument is {actual}, and the parameter takes {parameter}"),
+                    format!("this argument is {actual}, and {which} takes {parameter}"),
                 ));
             }
         }
@@ -631,6 +689,10 @@ impl Checker<'_> {
             Kind::Ident(name) if name == NONE && !self.scope.contains_key(name) => {
                 Ok(TypeRef::optional(TypeRef::NEVER))
             }
+            Kind::Ident(name) if name == "_" => Err(Diagnostic::syntax(
+                span,
+                "`_` is a hole only as a whole argument of a call, `f(a, _)`",
+            )),
             Kind::Ident(name) => self.scope.get(name).cloned().ok_or_else(|| {
                 // Unbound only because no vault was given: say what to pass,
                 // rather than that the name does not exist.

@@ -461,3 +461,29 @@ fn connective_chains_are_bounded_like_arithmetic() {
         Err(Diagnostic::Syntax { .. })
     ));
 }
+
+#[test]
+fn a_call_with_a_hole_is_a_function_of_the_arguments_left_open() {
+    let add = "fn add(a: Int, b: Int) : Int = a + b\n";
+    let unary = TypeRef::function(vec![TypeRef::INT], TypeRef::INT).unwrap();
+    let binary = TypeRef::function(vec![TypeRef::INT, TypeRef::INT], TypeRef::INT).unwrap();
+    assert_eq!(check(&format!("{add}add(10, _)")), Ok(unary));
+    assert_eq!(check(&format!("{add}add(_, _)")), Ok(binary));
+    assert_eq!(eval(&format!("{add}add(_, 2)(5)")), Ok(Value::Int(7)));
+    assert_eq!(
+        eval(&format!("{add}[1, 2] | map(add(10, _))")),
+        eval("[11, 12]")
+    );
+    let refused = check(&format!("{add}add(\"x\", _)")).expect_err("a String is no Int");
+    assert!(
+        refused.message().contains("parameter `a`"),
+        "{}",
+        refused.message()
+    );
+    let bare = check("_").expect_err("a bare hole");
+    assert!(
+        bare.message().contains("whole argument"),
+        "{}",
+        bare.message()
+    );
+}

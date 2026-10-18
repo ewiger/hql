@@ -20,9 +20,6 @@ board:
   last_id: 24 # to be incremented when adding a new issue card
   items:
     backlog:
-      - id: "0024"
-        title: Partial application
-        file: 0024-partial-application.md
       - id: "0022"
         title: Generic functions
         file: 0022-generic-functions.md
@@ -53,6 +50,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0024"
+        title: Partial application
+        file: 0024-partial-application.md
       - id: "0010"
         title: "`yield`: generated sequences as query sources"
         file: 0010-yield-and-bind.md

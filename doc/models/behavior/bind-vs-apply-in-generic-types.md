@@ -31,6 +31,23 @@ fn map<F<_> : Iterable<_>, T, U>(xs: F<T>, f: T -> U) : F<U>   // bind a constru
 xs[0]                               // indexing
 ```
 
+## Binding and applying
+
+**Binding** a parameter introduces it, quantified over every type:
+`fn first<T>(xs: Seq<T>) : T?` reads "for every `T`, `first` takes a `Seq<T>`
+and returns a `T?`". Within one use `T` names one type in every position it
+occurs. Inside the body it is opaque: the body may rely only on what the
+parameter's bound states.
+
+**Applying** fills a parameter. `Seq<Concept>` applies a constructor to a type;
+a call `first(cards)` with `cards : Seq<Card>` instantiates `T` as `Card`, and
+the result is a `Card?`.
+
+"Bind" names only the first operation. Supplying some of a function's value
+arguments fills parameters, so it is application, and it is never called
+binding: partial application is written with a hole, `f(a, _)`
+([type system](../../wiki/hql/type-system.hmd), section "Function types").
+
 ## Binding a constructor
 
 A parameter written `F<_>` binds a type constructor of one argument, not a

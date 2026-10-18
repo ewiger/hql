@@ -1077,13 +1077,13 @@ impl Parser {
             if matches!(self.peek(), Token::OpenParen) {
                 let (arguments, end) = self.arguments()?;
                 let span = expression.span.start..end;
-                expression = Expr {
+                expression = holed(Expr {
                     kind: Kind::Call {
                         callee: Box::new(expression),
                         arguments,
                     },
                     span,
-                };
+                });
                 continue;
             }
             return Ok(expression);
@@ -1403,6 +1403,54 @@ fn logic(connective: Logic, left: Expr, right: Expr) -> Expr {
 /// constructor may be.
 fn is_type_name(name: &str) -> bool {
     name.starts_with(|c: char| c.is_uppercase())
+}
+
+/// The name a hole's parameter takes. It cannot be written, so it never
+/// meets a name in the program.
+pub(crate) const HOLE: &str = "%hole";
+
+/// A call with a hole, `f(a, _)`, is a function of its holes, in order:
+/// `(%hole0) => f(a, %hole0)`. A hole stands only as a whole argument.
+fn holed(call: Expr) -> Expr {
+    let Kind::Call { callee, arguments } = call.kind else {
+        return call;
+    };
+    let is_hole = |argument: &Arg| matches!(&argument.value.kind, Kind::Ident(name) if name == "_");
+    if !arguments.iter().any(is_hole) {
+        return Expr {
+            kind: Kind::Call { callee, arguments },
+            span: call.span,
+        };
+    }
+    let mut parameters = Vec::new();
+    let arguments = arguments
+        .into_iter()
+        .map(|argument| {
+            if !is_hole(&argument) {
+                return argument;
+            }
+            let name = format!("{HOLE}{}", parameters.len());
+            parameters.push(name.clone());
+            Arg {
+                name: argument.name,
+                value: Expr {
+                    kind: Kind::Ident(name),
+                    span: argument.value.span,
+                },
+            }
+        })
+        .collect();
+    Expr {
+        kind: Kind::Lambda {
+            annotations: vec![None; parameters.len()],
+            parameters,
+            body: Box::new(Expr {
+                kind: Kind::Call { callee, arguments },
+                span: call.span.clone(),
+            }),
+        },
+        span: call.span,
+    }
 }
 
 /// `left | right`, where a type name in step position is its constructor and
