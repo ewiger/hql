@@ -8,6 +8,11 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-19
+
+Cells: the HQL blocks of a document share values by id and run in dependency
+order, and each saved output records the code it came from.
+
 ### Added
 
 - **Cells.** A cell's info string takes `id=<name>`, `replace`, `after` and
@@ -205,6 +210,7 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ewiger/hql/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ewiger/hql/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ewiger/hql/releases/tag/v0.1.0
