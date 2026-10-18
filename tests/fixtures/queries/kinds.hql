@@ -8,5 +8,4 @@
 // rather than discarded.
 
 cards
-| sort
-| text
+| map(c => {name: c.name, kind: c.kind})
