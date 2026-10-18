@@ -44,8 +44,9 @@ steps the core does not yet have:
   group has a `key` and its `items`.
 - `reduce(initial, by = …)` folds a `Seq<T>` from the left. It refuses a `Set`,
   which has no positions to fold along; sort first.
-- `collect` materializes a `Seq<T>` into a `List<T>`. No query here needs it
-  yet, because nothing in the implemented slice is lazy.
+- The `List` constructor materializes a `Seq<T>` into a `List<T>`, as
+  `List(xs)` or `xs | List`. No query here needs it yet, because nothing in
+  the implemented slice is lazy.
 
 [Shelf](queries/shelf.hql) and [by genre](queries/by-genre.hql) compute the same
 answer, one with a filter per genre and one with `group`. The comparison is the

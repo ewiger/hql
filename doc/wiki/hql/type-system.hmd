@@ -282,9 +282,9 @@ and `Orderable` have no separate runtime value variant.
 
 Bindings infer their types from expressions. An annotation can request a
 broader view, such as `observations : Collection<String> = sightings`, but
-ordinary pipelines need none. Sorting accepts `Collection<T>` and produces
-`List<T>`, so `cards | sort(by = c => c.title)` directly orders the inferred
-card set. See the [collection model](types/collections/collection-types.md).
+ordinary pipelines need none. Sorting accepts any `Collection<T>`, keeps a
+sequence's type and orders anything else into a `List<T>`, so
+`cards | sort(by = c => c.title)` directly orders the inferred card set. See the [collection model](types/collections/collection-types.md).
 
 ## `<T>` abstracts
 
@@ -316,12 +316,52 @@ graph over concepts share one definition without a node union or a `kind` field.
 Functions abstract the same way:
 
 ```hql
-map<A, B>(f: A -> B) : Collection<A> -> Collection<B>
+size<T>(xs: Collection<T>) : Int
 ```
 
-Nothing here is inferred away by the reader: `map` has one body, and `A` and `B`
-are chosen by the call site. Users are not expected to write those parameters at
-a call — they are inferred — but they exist in the signature.
+Nothing here is inferred away by the reader: `size` has one body, and `T` is
+chosen by the call site. Users are not expected to write those parameters at a
+call — they are inferred — but they exist in the signature.
+
+### Input-type and constructor parameters
+
+An operation returns the type it was given. Two kinds of parameter write that
+promise in a signature.
+
+An **input-type parameter** binds the whole type of an argument, bounded by
+what the operation needs from it. The result names the same parameter, so the
+input's type passes through unchanged:
+
+```hql
+filter<S : Collection<T>, T>(xs: S, by: T -> Bool) : S
+take<S : Seq<T>, T>(xs: S, n: Int)                 : S
+```
+
+`S` is bound to `List<Int>`, `Set<Card>` or `Ranking<Card>` at each call, so a
+`List` stays a `List` and a `Ranking` a `Ranking`. `T` is the element type `S`
+supplies to its bound.
+
+A **constructor parameter**, written `F<_>`, binds a type constructor rather
+than a type. Its bound uses `_` for the argument: `F<_> : Iterable<_>` means
+`F<X> : Iterable<X>` for every `X`, so the constructor's one argument is its
+element type. An operation that changes the element type applies the bound
+constructor to the new one:
+
+```hql
+map<F<_> : Iterable<_>, T, U>(xs: F<T>, by: T -> U) : F<U>
+```
+
+`List`, `Seq`, `Set` and `Collection` satisfy the bound, so `map` over a
+`Set<T>` returns a `Set<U>`, the image of the input, which can hold fewer
+values. `Ranking<T> : Seq<Hit<T>>` does not: its argument is the ranked value,
+not its element. A ranking binds `F` through its parent and is mapped as the
+`Seq<Hit<T>>` it is, returning a `Seq<U>`.
+
+An operation that gains a guarantee its input lacks has a second overload
+whose result states it: `take` and `sort` over a `Collection<T>` that is not a
+`Seq` return a `List<T>`, because they supply the order. The checker binds
+both kinds of parameter from the input; a program never writes them at a
+call. `hql builtins` prints each overload on its own line.
 
 ### Function types
 

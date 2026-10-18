@@ -414,8 +414,9 @@ A source is used as the value of its contents. These rules state what a program
 observes; how the host fetches is not among them.
 
 **Order.** The contents of a finite source MUST be in the order the source
-states, and that order MUST be total. A vault orders by card name; a table by
-its configured order or its primary key. Without this, `table | take(5)`
+states, and that order MUST be total. A vault's cards come in the order of a
+sorted walk ([HQL-0020](../HQL-0020/README.md)); a table by its configured
+order or its primary key. Without this, `table | take(5)`
 answers differently on two machines, which is the determinism requirement of
 the [queries model](../../models/behavior/queries.md) applied to every source
 rather than to the vault alone.
@@ -466,9 +467,9 @@ The vault a program runs against is a source like any other.
   concrete type the run context supplies, `Vault` for a vault on the
   filesystem. Without one, `vault` is unbound, and using it is the ordinary
   unbound-name error.
-- The host MUST bind `cards` to `vault`. `cards` is an anchor: an ordinary
-  binding, used as the `Seq<Card>` a `VaultSource` is, and nothing about it is
-  a keyword. Because `vault` is
+- `cards` is `vault.cards`, a field of the vault and not the vault itself, as
+  [HQL-0020](../HQL-0020/README.md) specifies. `cards` is an anchor: an
+  ordinary binding, and nothing about it is a keyword. Because `vault` is
   typed by the contract, `cards` means the same on a filesystem vault, a pinned
   git revision and a remote vault.
 - `[sources.vault]` MUST NOT be declared; the id is the run context's.

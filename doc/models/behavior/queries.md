@@ -155,32 +155,29 @@ For example:
 ```hql
 fn first<T>(xs: Stream<T>) : Option<T>
 
-fn take<T>(xs: Stream<T>, n: Int) : Seq<T>
+fn take<T>(xs: Stream<T>, n: Int) : List<T>
 
-fn drop<T>(xs: Stream<T>, n: Int) : Stream<T>
+fn drop<S : Stream<T>, T>(xs: S, n: Int) : S
 ```
 
-`take` returns a `Seq<T>` because a bounded prefix is finite even when the input is not.
+`take` over a stream returns a `List<T>` because a bounded prefix is finite even when the input is not, and taking it consumes the stream's values.
 
-`drop` cannot make the same promise. Dropping five elements from an unbounded stream still produces an unbounded stream.
+`drop` cannot make the same promise. Dropping five elements from an unbounded stream still produces an unbounded stream, so `drop` returns the type it was given.
 
-When the stronger input type is known, operations may preserve it:
+An operation returns the type it was given, and gains a guarantee only where it supplies one. Where the input is already a sequence, `take` keeps its type:
 
 ```hql
-fn drop<T>(xs: Seq<T>, n: Int) : Seq<T>
+fn take<S : Seq<T>, T>(xs: S, n: Int) : S
 ```
 
-The same rule applies to transformations:
+The same rule applies to transformations. `filter` keeps the input's type; `map` keeps the input's constructor and applies it to the new element type:
 
 ```hql
-fn map<T, U>(xs: Stream<T>, f: T -> U) : Stream<U>
-fn map<T, U>(xs: Seq<T>,    f: T -> U) : Seq<U>
-
-fn filter<T>(xs: Stream<T>, f: T -> Bool) : Stream<T>
-fn filter<T>(xs: Seq<T>,    f: T -> Bool) : Seq<T>
+fn filter<S : Iterable<T>, T>(xs: S, f: T -> Bool) : S
+fn map<F<_> : Iterable<_>, T, U>(xs: F<T>, f: T -> U) : F<U>
 ```
 
-A transformation should preserve every guarantee it can prove.
+A stream maps to a stream, a sequence to a sequence, a set to its image. `S` binds the input's own type and `F<_>` its constructor; the [type system](../../wiki/hql/type-system.hmd) card states both.
 
 ## Finiteness belongs to `Collection<T>`
 
@@ -194,10 +191,11 @@ fn count<T>(xs: Collection<T>, x: T) : Int
 Likewise, global ordering requires a finite input:
 
 ```hql
-fn sort<T: Orderable>(xs: Collection<T>) : Seq<T>
+fn sort<S : Seq<T>, T : Orderable>(xs: S) : S
+fn sort<T : Orderable>(xs: Collection<T>) : List<T>
 ```
 
-This gives an unordered finite collection a deterministic order:
+A sequence keeps its type with its positions reordered. Anything else gains an order and becomes a `List<T>`; a `Ranking<T>` becomes a `Seq<Hit<T>>`, since the new order is not the retrieval's. This gives an unordered finite collection a deterministic order:
 
 ```hql
 names : Set<String>
@@ -213,10 +211,10 @@ stream | sort
 
 is a type error, because sorting an arbitrary stream would require seeing an end that may not exist.
 
-Materialization has the same boundary:
+Materialization has the same boundary. It is the `List` constructor:
 
 ```hql
-fn list<T>(xs: Seq<T>) : List<T>
+List<T>(xs: Seq<T>) : List<T>
 ```
 
 An arbitrary `Stream<T>` cannot be materialized safely without first introducing a finite bound:
@@ -224,7 +222,7 @@ An arbitrary `Stream<T>` cannot be materialized safely without first introducing
 ```hql
 stream
 | take(100)
-| list
+| List
 ```
 
 ## `Iterable<T>` is the common floor
@@ -251,23 +249,25 @@ An `Iterable<T>` may still participate in operations whose semantics do not depe
 
 This is particularly important for `Set<T>`. Its runtime representation obviously has to enumerate elements somehow, but that enumeration order is not part of the HQL value.
 
-A positional operation therefore cannot consume a bare set:
+A positional operation therefore cannot consume a bare set in its enumeration order. It takes the set's elements in their own value order, which `T : Orderable` supplies, or it is refused:
 
 ```hql
 xs : Set<Card>
+xs | take(5)       // the first five cards by name: Card is Orderable
 
-xs | take(5)       // error: Set<Card> is not Stream<Card>
+ys : Set<Data>
+ys | take(5)       // error: Data is not Orderable
 ```
 
-An order must first be introduced:
+Any other order must first be introduced:
 
 ```hql
-xs
-| sort(by = .name)
+ys
+| sort(by = d => d.title)
 | take(5)
 ```
 
-Now the prefix is reproducible.
+Either way the prefix is reproducible.
 
 ## `Map<K,V>` is separate
 
@@ -627,13 +627,13 @@ No one type has to stand for two of those ideas.
 
 `cards` becomes an ordinary `Seq<Card>` bound to the current `vault`.
 
-`take`, `drop`, and `first` operate on `Stream<T>` rather than requiring `Seq<T>`.
+`drop` and `first` operate on `Stream<T>` rather than requiring `Seq<T>`, and `take` accepts a stream as well as a sequence.
 
 `size` and `count` operate on `Collection<T>` rather than `Stream<T>`.
 
-`sort` converts a finite collection into a sequence.
+`sort` converts a finite collection into a `List`, and keeps a sequence's type.
 
-`take` converts an arbitrary ordered stream into a finite sequence.
+`take` converts an arbitrary ordered stream into a finite `List`, and keeps a sequence's type.
 
 A generated finite sequence and a materialized list share the same sequence semantics without pretending to have the same representation.
 

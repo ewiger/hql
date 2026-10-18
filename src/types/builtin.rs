@@ -194,6 +194,24 @@ impl TypeRef {
         }
     }
 
+    /// The type of a collection's image under a function to `element`.
+    ///
+    /// A collection whose one argument is its element keeps its constructor,
+    /// so a set maps to a set. A ranking's argument is the ranked value, not
+    /// the hit it holds, so it maps as the sequence of hits it is.
+    pub fn image(&self, element: Self) -> Self {
+        let Some(current) = self.element() else {
+            return self.clone();
+        };
+        if self.args.as_slice() == [current] {
+            self.constructor.apply([element])
+        } else if self.is_sequence() {
+            Self::seq(element)
+        } else {
+            Self::collection(element)
+        }
+    }
+
     /// Remove an optional wrapper when a lifted operation consumes a value.
     pub fn present(&self) -> &Self {
         if self.constructor.0 == "Option" {

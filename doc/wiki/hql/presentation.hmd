@@ -54,3 +54,7 @@ thing — is unresolved. `expand` is traversal and stays distinct from both; see
 
 See [[pipes]] for the execution direction and [[hql/knowledge]] for the
 projection this separates itself from.
+
+## TODO
+
+Update after implementing HQL-0017

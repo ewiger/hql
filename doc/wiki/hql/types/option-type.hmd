@@ -70,6 +70,24 @@ cards | map(c => c.metadata.genre.unwrap_or("unshelved"))
 These are designed, not yet implemented — see
 [optional fields and optional values](../../../models/behavior/options-in-types-and-fields.md).
 
+## The present values of a collection
+
+`somes` keeps the present values of a collection of options and drops the
+absent ones:
+
+```hql
+somes<F<_> : Iterable<_>, T>(xs: F<Option<T>>) : F<T>
+```
+
+```hql
+[some(1), none, some(3)] | somes     // [1, 3] : List<Int>
+```
+
+It returns the input's constructor applied to `T`, as `map` does, so a
+`List<Option<T>>` gives a `List<T>` and a `Set<Option<T>>` a `Set<T>`. It is
+the collection counterpart of `unwrap_or`: absence is dropped rather than
+replaced. `somes` is designed and is implemented with [[match-op|match]].
+
 `Option` is not the only sum type. A computation that may have *failed* is
 `Result<T, E>`, built the same way with the same kind of operations, so
 absence never stands in for failure.

@@ -5,26 +5,81 @@ nav:
 ---
 # HQL pipes
 
-The `|` operator is fundamental to HQL. A pipeline composes typed functions and
-should naturally support query and data-parallel execution. It remains a language
-design feature; the bootstrap parser does not accept pipelines yet.
-
-For a unary function, the intended reading of `x | f` is `f(x)`. A step consumes
-the previous value and returns the next. Input and output types must agree;
-piping a collection into a function expecting one Card is not implicitly a map.
+The `|` operator composes typed operations into a pipeline. `x | f` is
+`f(x)`, and `x | f(a)` is `f(x, a)`: the piped value is the operation's first
+argument. A step consumes the previous value and returns the next, and the
+checker types each step against the result of the one before. Piping a
+collection into an operation that expects one `Card` is a type error, not an
+implicit `map`.
 
 ```hql
 cards
-| typed RelationCard
+| typed(RelationCard)
 | graph
 ```
 
-This preferred example selects relation cards and requests a graph of them.
-`cards` is the binding the host seeds with the namespace vault's cards; see
-[[card-type]]. `typed RelationCard` must check the contract, not the
-`metadata.knowledge.type` label alone; an authored entry does not establish
-conformance. The exact application syntax and the result type of `graph`
-remain design questions.
+This selects relation cards and projects them into a graph. `cards` is the
+binding the host seeds with the namespace vault's cards; see [[card-type]].
+`typed(RelationCard)` checks the contract, not the `metadata.knowledge.type`
+label alone; an authored entry does not establish conformance.
+
+## One name, one signature
+
+An operation returns the type it was given. `filter`, `take` and `sort` bind
+the input's own type and return it; `map` binds the input's constructor and
+applies it to the new element type, so a `Set` maps to a `Set`. The
+[[type-system]] card states both kinds of parameter, and `hql builtins` prints
+each overload.
+
+A name is admitted under one rule: **a shorthand for a specific case of a
+general operation is admitted when its longhand can be written in HQL; a second
+name for the same signature and result is not.** Unary `count(xs)` for
+`size(xs)` is the one declared alias.
+
+Every operation sits in one tree. A child is a shorthand for its parent, with
+the longhand beside it; a root is a general operation. Operations marked
+*designed* are design direction and not implemented; the rest are in
+`hql builtins`.
+
+```text
+reduce                              designed (HQL-0014)
+├── sum                             reduce(0, +)               designed
+├── min, max                        reduce(min), reduce(max)   designed
+└── size                            map(x => 1) | reduce(0, +)
+    ├── count(xs)                   the declared alias of size
+    └── count(x)                    filter(y => y == x) | size
+        └── contains(x)             count(x) > 0
+map
+└── flat_map(f)                     map(f) | emit              designed (HQL-0007)
+emit                                designed (HQL-0007)
+somes                               designed (option-type card)
+filter
+└── of_type(U)                      filter(x => x | is(U))     designed; today `typed(U)`
+match                               designed
+├── is(U)                           match x { U _ => true, _ => false }   designed
+└── given … otherwise               match b { true => a, false => c }     designed
+sort
+take
+drop                                designed (HQL-0006)
+get
+debug
+uplinks
+downlinks
+expand
+└── graph                           expand(depth = 0)
+lexical
+semantic
+table
+json
+text
+markdown
+```
+
+`graph` is `expand` with no traversal and becomes the `Graph` constructor
+([HQL-0017](../../../proposals/HQL-0017/README.md)). `table`, `json`, `text`
+and `markdown` are presenters, each a rendering of its input; HQL-0017 makes
+the format-named ones shorthands of `format`. The rule and its list are owned
+by [HQL-0015](../../../proposals/HQL-0015/README.md).
 
 ## Functions as steps
 

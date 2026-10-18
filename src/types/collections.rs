@@ -17,6 +17,8 @@ use super::{
 
 /// The abstract contract of deterministic total ordering.
 pub const ORDERABLE: TypeConstructor = TypeConstructor("Orderable");
+/// Values that can be traversed, with no promise of finiteness or order.
+pub const ITERABLE: TypeConstructor = TypeConstructor("Iterable");
 /// Finite occurrences, with membership, multiplicity, and cardinality.
 pub const COLLECTION: TypeConstructor = TypeConstructor("Collection");
 /// A collection whose occurrences have stable positions.
@@ -57,7 +59,8 @@ pub fn definitions() -> impl Iterator<Item = TypeDefinition> {
     use TypeKind::{Abstract, Concrete};
     [
         (ORDERABLE, Abstract, None, vec![]),
-        (COLLECTION, Abstract, None, vec![element()]),
+        (ITERABLE, Abstract, None, vec![element()]),
+        (COLLECTION, Abstract, Some(ITERABLE), vec![element()]),
         (SEQ, Abstract, Some(COLLECTION), vec![element()]),
         (LIST, Concrete, Some(SEQ), vec![element()]),
         (SET, Concrete, Some(COLLECTION), vec![element()]),

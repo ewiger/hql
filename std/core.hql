@@ -45,6 +45,8 @@ type Option<T>
 // map<T, U>(o: Option<T>, f: T -> U) : Option<U>
 // and_then<T, U>(o: Option<T>, f: T -> Option<U>) : Option<U>
 // filter<T>(o: Option<T>, p: T -> Bool) : Option<T>
+// Over a collection of options:
+// somes<F<_> : Iterable<_>, T>(xs: F<Option<T>>) : F<T>   keeps the present values
 // There is no unwrap: every way out of an Option says what absence means.
 
 // A computation that may have failed: ok(value) or err(error). Designed beside

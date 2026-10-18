@@ -173,6 +173,30 @@ fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
 }
 
 #[test]
+fn a_new_order_is_not_the_retrieval_order_so_a_sorted_ranking_is_a_sequence() {
+    let query = "import lexical\nranked = cards | lexical(\"bearer token authorization\")\n";
+    let hits = TypeRef::hit(TypeRef::CARD);
+    assert_eq!(
+        hql::check_in(&format!("{query}ranked | take(1)"), &fixture()),
+        Ok(TypeRef::ranking(TypeRef::CARD))
+    );
+    assert_eq!(
+        hql::check_in(
+            &format!("{query}ranked | sort(by = h => h.card.name)"),
+            &fixture()
+        ),
+        Ok(TypeRef::seq(hits))
+    );
+    assert_eq!(
+        hql::check_in(
+            &format!("{query}ranked | map(h => h.card.name)"),
+            &fixture()
+        ),
+        Ok(TypeRef::seq(TypeRef::STR))
+    );
+}
+
+#[test]
 fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
     let ranked = value("import lexical\ncards | lexical(\"bearer token authorization\")");
     let Value::Ranking(ranking) = &ranked else {

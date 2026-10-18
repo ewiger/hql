@@ -87,8 +87,14 @@ pub enum Output {
     Input,
     /// Preserve the input collection with a narrowed element type.
     WithElement(&'static str),
-    /// Produce a list, retaining a ranking's provenance when the input is ranked.
+    /// Keep a sequence's type, since its positions are kept; anything else
+    /// gains an order and becomes a list.
     Prefix(&'static str),
+    /// Like a prefix, except that a sequence whose type states where its
+    /// order came from loses that type, since a new order is not that one.
+    Reorder(&'static str),
+    /// Apply the input's constructor to the result element type.
+    Image(&'static str),
 }
 
 /// The machine-readable signature used by both checking and help.
@@ -231,9 +237,10 @@ impl StepSpec {
         }
         match self.output {
             Output::Type(pattern) => patterns.push(pattern),
-            Output::WithElement(parameter) | Output::Prefix(parameter) => {
-                patterns.push(TypePattern::Var(parameter))
-            }
+            Output::WithElement(parameter)
+            | Output::Prefix(parameter)
+            | Output::Reorder(parameter)
+            | Output::Image(parameter) => patterns.push(TypePattern::Var(parameter)),
             Output::Input => {}
         }
         while let Some(pattern) = patterns.pop() {
@@ -398,14 +405,28 @@ impl StepSpec {
             Output::WithElement(parameter) => {
                 input.with_element(TypePattern::Var(parameter).instantiate(&bindings, span)?)
             }
-            // A concrete sequence already has the order a prefix is taken
-            // in, so it keeps its type; anything else is materialized.
+            // A sequence already has the order a prefix is taken in, so it
+            // keeps its type; anything else is materialized.
             Output::Prefix(parameter) => {
-                if input.is_sequence() && input.is_concrete() {
+                if input.is_sequence() {
                     input.clone()
                 } else {
                     TypeRef::list(TypePattern::Var(parameter).instantiate(&bindings, span)?)
                 }
+            }
+            Output::Reorder(parameter) => {
+                let element = TypePattern::Var(parameter).instantiate(&bindings, span)?;
+                if input.is_sequence() && input.args.as_slice() == [element.clone()] {
+                    input.clone()
+                } else if input.is_sequence() {
+                    TypeRef::seq(element)
+                } else {
+                    TypeRef::list(element)
+                }
+            }
+            Output::Image(parameter) => {
+                let element = TypePattern::Var(parameter).instantiate(&bindings, span)?;
+                input.image(element)
             }
         };
         Ok((
@@ -468,15 +489,54 @@ impl StepSpec {
             })
             .collect::<Vec<_>>()
             .join(", ");
-        let output = match self.output {
-            Output::Type(pattern) => pattern.to_string(),
-            Output::Input => "Input".to_owned(),
-            Output::WithElement(parameter) => format!("Input<{parameter}>"),
-            Output::Prefix(parameter) => {
-                format!("List<{parameter}> (a concrete Seq keeps its type)")
-            }
+        let call = |input: &str, generics: &str, output: &str| {
+            format!("{input} | {name}{generics}({arguments}) -> {output}")
         };
-        format!("{} | {name}{generics}({arguments}) -> {output}", self.input)
+        let with = |extra: &[&str]| {
+            let all = extra
+                .iter()
+                .map(|parameter| (*parameter).to_owned())
+                .chain(parameters.iter().cloned())
+                .collect::<Vec<_>>();
+            format!("<{}>", all.join(", "))
+        };
+        let input = self.input.to_string();
+        // One line per overload, most specific first, in the form issue 0018
+        // settles: `S` is the input's own type, `F<_>` its constructor.
+        let lines = match self.output {
+            Output::Type(pattern) => vec![call(&input, &generics, &pattern.to_string())],
+            Output::Input => match self.input {
+                TypePattern::Var(parameter) => vec![call(parameter, &generics, parameter)],
+                _ => vec![call(&format!("S : {input}"), &with(&["S"]), "S")],
+            },
+            Output::WithElement(parameter) | Output::Image(parameter) => vec![call(
+                &format!("F<{}> : {input}", self.element_name()),
+                &with(&["F<_>"]),
+                &format!("F<{parameter}>"),
+            )],
+            Output::Prefix(parameter) => vec![
+                call(&format!("S : Seq<{parameter}>"), &with(&["S"]), "S"),
+                call(&input, &generics, &format!("List<{parameter}>")),
+            ],
+            Output::Reorder(parameter) => vec![
+                call(
+                    &format!("Ranking<U> : Seq<{parameter}>"),
+                    &with(&["U"]),
+                    &format!("Seq<{parameter}>"),
+                ),
+                call(&format!("S : Seq<{parameter}>"), &with(&["S"]), "S"),
+                call(&input, &generics, &format!("List<{parameter}>")),
+            ],
+        };
+        lines.join("\n")
+    }
+
+    /// The element parameter of a collection input, for printing.
+    fn element_name(&self) -> String {
+        match self.input {
+            TypePattern::Collection(element) => element.to_string(),
+            _ => "T".to_owned(),
+        }
     }
 }
 

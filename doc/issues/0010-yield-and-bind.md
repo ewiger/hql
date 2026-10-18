@@ -7,13 +7,17 @@ the work that carries it into the grammar, the type system, and the runtime.
 
 A query should start from a sequence produced by an **iterating function** — a
 function whose body yields elements and whose result is `Seq<T>`, evaluated only
-as far as a consumer demands — and `cards` should be nothing more than one such
-function partially applied to the vault:
+as far as a consumer demands. `vault` is the current vault, and its field
+`cards` is such a sequence. `cards` is nothing more than a binding of that
+field, which the standard library makes:
 
 ```hql
-cards = bind(vault_cards, vault)
+cards = vault.cards
 cards | take(5)
 ```
+
+`graph = vault.graph` binds the vault's knowledge graph the same way
+([HQL-0019](../proposals/HQL-0019/README.md)).
 
 This depends on [0009](0009-function-type-and-constructor.md): without a
 function type there is nothing for `bind` to take or return. It supersedes the
@@ -59,11 +63,11 @@ of the same name is a critical error, not an override.
   function type from 0009. Since an operation generic over arity is not
   expressible, `bind` is one overload per arity, each fixing the first
   argument: `bind<A, B, R>(f: (A, B) -> R, a: A) : B -> R`.
-- Expose the `Vault` trait to HQL as a type, with `vault_cards` as its first
-  iterating function, and seed `vault` into the checker's and evaluator's scope
-  from the host.
-- Define `cards` in the standard library as the bound source, so no program
-  writes the binding itself.
+- Expose the `Vault` trait to HQL as a type whose field `cards` is a lazy
+  `Seq<Card>` in walk order, and seed `vault`, the current vault, into the
+  checker's and evaluator's scope from the host.
+- Define `cards = vault.cards` in the standard library, so no program writes
+  the binding itself.
 - Audit the extension steps for double traversal and for `size` calls that
   precede a real need. A step that works on a `List` and breaks on a generated
   input is the failure mode this change introduces.
@@ -74,8 +78,8 @@ of the same name is a critical error, not an override.
   unbounded generator terminates.
 - `cards | take(5)` returns the first five cards of the sorted walk,
   identically on two machines with different filesystem order.
-- `cards` is a library binding, not a keyword and not a special case in the
-  checker or the evaluator.
+- `cards` is the library binding `cards = vault.cards`, not a keyword and not
+  a special case in the checker or the evaluator.
 - `bind` type-checks against arity and parameter types, and rejects a mismatch
   with a diagnostic naming the parameter.
 - Examples under `examples/` cover a generated source, a partially applied

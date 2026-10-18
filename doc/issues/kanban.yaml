@@ -23,9 +23,6 @@ board:
       - id: "0021"
         title: "`of_type` replaces `typed`"
         file: 0021-of-type-replaces-typed.md
-      - id: "0018"
-        title: "Operator synonymy: one name, one signature"
-        file: 0018-operator-synonymy-audit.md
       - id: "0017"
         title: "`graph` is two operations under one name"
         file: 0017-graph-projection-and-view.md
@@ -55,6 +52,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0018"
+        title: "Operator synonymy: one name, one signature"
+        file: 0018-operator-synonymy-audit.md
       - id: "0020"
         title: "`hql render` compiles a document"
         file: 0020-render-as-compilation.md

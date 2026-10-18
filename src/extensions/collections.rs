@@ -117,7 +117,7 @@ pub(crate) static STEPS: &[Step] = &[
                 positional: true,
                 named: true,
             }],
-            output: O::Type(P::Apply(crate::types::collections::LIST, &[P::Var("T")])),
+            output: O::Reorder("T"),
         },
         summary: "Order a collection by its elements' own key, or by one you supply.",
         purity: Purity::Pure,
@@ -192,9 +192,9 @@ pub(crate) static STEPS: &[Step] = &[
                 positional: true,
                 named: true,
             }],
-            output: O::Type(P::Apply(crate::types::collections::LIST, &[P::Var("R")])),
+            output: O::Image("R"),
         },
-        summary: "Apply a function to every element, yielding a sequence.",
+        summary: "Apply a function to every element; the result keeps the input's collection type.",
         purity: Purity::Pure,
         check: None,
         eval: eval_map,
@@ -504,7 +504,11 @@ fn eval_map(
     for element in elements(&input, "map", &span)? {
         mapped.push(cx.apply_lambda(argument, element)?);
     }
-    Ok(Value::list(mapped, argument.value.ty.clone()))
+    // A set maps to its image, which collapses equal results.
+    Ok(match input {
+        Value::Set(..) => Value::set(mapped, argument.value.ty.clone()),
+        _ => Value::list(mapped, argument.value.ty.clone()),
+    })
 }
 
 fn eval_typed(

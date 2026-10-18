@@ -181,7 +181,9 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                     writeln!(
                         out,
                         "  {}\n    {}\n    {}",
-                        step.name, step.signature, step.summary
+                        step.name,
+                        step.signature.replace('\n', "\n    "),
+                        step.summary
                     )
                     .map_err(|error| error.to_string())?;
                 }

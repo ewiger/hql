@@ -19,20 +19,25 @@ is not evidence of anything.
 ## Inventory
 
 Signatures are written as the sources write them, with the pipe input as the
-first parameter. `Input` means the result keeps the input's collection kind.
+first parameter. `S` binds the input's own type and `F<_>` its constructor, as
+the [type system](../../wiki/hql/type-system.hmd) card states.
 
 ### Implemented (`hql builtins`)
 
 ```hql
 size<T>(xs: Collection<T>)                              : Int
-count<T>(xs: Collection<T>, value?: T)                  : Int
+count<T>(xs: Collection<T>)                             : Int   // the alias of size
+count<T>(xs: Collection<T>, value: T)                   : Int
 contains<T>(xs: Collection<T>, value: T)                : Bool
 get<K, V>(xs: Map<K, V>, key: K)                        : Option<V>
+sort<T, U>(xs: Ranking<U>, by?: …)                      : Seq<T>    // T = Hit<U>
+sort<S : Seq<T>, T>(xs: S, by?: …)                      : S
 sort<T>(xs: Collection<T>, by?: (T -> Orderable) | ((T, T) -> Ordering)) : List<T>
-take<T>(xs: Collection<T>, n: Int)                      : List<T>   // a concrete Seq keeps its type
-filter<T>(xs: Collection<T>, by: T -> Bool)             : Input
-map<T, R>(xs: Collection<T>, by: T -> R)                : List<R>
-typed<T, U>(xs: Collection<T>, as: Type<U>)             : Input<U>
+take<S : Seq<T>, T>(xs: S, n: Int)                      : S
+take<T : Orderable>(xs: Collection<T>, n: Int)          : List<T>
+filter<S : Collection<T>, T>(xs: S, by: T -> Bool)      : S
+map<F<_> : Iterable<_>, T, R>(xs: F<T>, by: T -> R)     : F<R>
+typed<F<_> : Iterable<_>, T, U>(xs: F<T>, as: Type<U>)  : F<U>
 
 uplinks(x: Doc | Hit<Card> | Collection<Doc | Hit<Card>>)              : List<Edge>
 downlinks(x: Doc | Hit<Card> | Collection<Doc | Hit<Card>>)            : List<Edge>
@@ -56,34 +61,35 @@ group<T, K>(xs: Collection<T>, by: T -> K)           : Set<Group<K, T>>
 collect<T>(xs: Seq<T>)                                : List<T>   // renamed by HQL-0007
 
 // HQL-0006
-map<T, U>(xs: Stream<T>, by: T -> U)    : Stream<U>
-filter<T>(xs: Stream<T>, by: T -> Bool) : Stream<T>
-take<T>(xs: Stream<T>, n: Int)          : List<T>
+map<F<_> : Iterable<_>, T, U>(xs: F<T>, by: T -> U) : F<U>
+filter<S : Iterable<T>, T>(xs: S, by: T -> Bool)    : S
+drop<S : Stream<T>, T>(xs: S, n: Int)               : S
+take<S : Seq<T>, T>(xs: S, n: Int)                  : S
+take<T>(xs: Stream<T>, n: Int)                      : List<T>
 
 // HQL-0007
 collect<T>(xs: Stream<T>, n: Int) : Stream<List<T>>
 collect<T>(xs: Seq<T>,    n: Int) : List<List<T>>
 emit<T>(xs: Stream<Seq<T>>)       : Stream<T>
 emit<T>(xs: Seq<Seq<T>>)          : List<T>
-list<T>(xs: Seq<T>)               : List<T>
+List<T>(xs: Seq<T>)               : List<T>   // HQL-0016 retires `list`
 
 // queries model
-first<T>(xs: Stream<T>)             : Option<T>
-take<T>(xs: Stream<T>, n: Int)      : Seq<T>
-drop<T>(xs: Stream<T>, n: Int)      : Stream<T>
-drop<T>(xs: Seq<T>, n: Int)         : Seq<T>
-map<T, U>(xs: Stream<T>, f: T -> U) : Stream<U>
-map<T, U>(xs: Seq<T>, f: T -> U)    : Seq<U>
-filter<T>(xs: Stream<T>, f: T -> Bool) : Stream<T>
-filter<T>(xs: Seq<T>, f: T -> Bool)    : Seq<T>
-size<T>(xs: Collection<T>)          : Int
-count<T>(xs: Collection<T>, x: T)   : Int
-sort<T : Orderable>(xs: Collection<T>) : Seq<T>
-list<T>(xs: Seq<T>)                 : List<T>
-next<T>(xs: Stream<T>)              : Option<(T, Stream<T>)>
+first<T>(xs: Stream<T>)                         : Option<T>
+take<T>(xs: Stream<T>, n: Int)                  : List<T>
+take<S : Seq<T>, T>(xs: S, n: Int)              : S
+drop<S : Stream<T>, T>(xs: S, n: Int)           : S
+map<F<_> : Iterable<_>, T, U>(xs: F<T>, f: T -> U) : F<U>
+filter<S : Iterable<T>, T>(xs: S, f: T -> Bool) : S
+size<T>(xs: Collection<T>)                      : Int
+count<T>(xs: Collection<T>, x: T)               : Int
+sort<S : Seq<T>, T : Orderable>(xs: S)          : S
+sort<T : Orderable>(xs: Collection<T>)          : List<T>
+List<T>(xs: Seq<T>)                             : List<T>
+next<T>(xs: Stream<T>)                          : Option<(T, Stream<T>)>
 
-// type interpretation card
-somes<T>(xs: List<Option<T>>) : List<T>
+// option-type card
+somes<F<_> : Iterable<_>, T>(xs: F<Option<T>>) : F<T>
 
 // core.hql, over a single Option
 map<T, U>(o: Option<T>, f: T -> U)          : Option<U>
@@ -99,9 +105,9 @@ These are the duplicates. Each has a decision already.
 
 | Signatures | Decision |
 | --- | --- |
-| `collect<T>(Seq<T>) : List<T>` (HQL-0004) and `list<T>(Seq<T>) : List<T>` (HQL-0007, queries) | HQL-0007 renames materialization to `list`; HQL-0004's text and `examples/mapreduce/README.md` still say `collect` |
+| `collect<T>(Seq<T>) : List<T>` (HQL-0004), `list<T>(Seq<T>) : List<T>` (HQL-0007) and the `List(xs)` constructor | the `List` constructor ([HQL-0016](../../proposals/HQL-0016/README.md)); HQL-0004's text still says `collect` |
 | `size<T>(Collection<T>) : Int` and `count<T>(Collection<T>) : Int` (the no-argument form) | kept as a declared alias, the only one; `std/collections.hql` says so |
-| `graph(x) : Graph` and `expand(x, depth = 0) : Graph` over the same input union | `graph(x)` is `expand` with no traversal; [issue 0017](../../issues/0017-graph-projection-and-view.md) makes `graph` the presentation and renames the projection |
+| `graph(x) : Graph` and `expand(x, depth = 0) : Graph` over the same input union | `graph(x)` is `expand` with no traversal; [HQL-0017](../../proposals/HQL-0017/README.md) replaces it with the `Graph` constructor and refuses `expand(depth = 0)` |
 
 ### Same signature, different result: not duplicates
 
@@ -115,28 +121,15 @@ The type alone cannot separate these. The value does.
 
 ### Same name, different signatures: one operation declared inconsistently
 
-These are not duplicates but disagreements. One name is given more than one
-contract depending on which document is read.
-
-| Name | Declarations | Difference |
-| --- | --- | --- |
-| `take` over a stream | `: List<T>` (HQL-0006); `: Seq<T>` (queries) | the model promises positions, the proposal and the implementation promise a materialized list |
-| `sort` | `: List<T>` (std, builtins); `: Seq<T>` (queries) | same |
-| `map` over a finite input | `Collection<T> → List<R>` (builtins); `Seq<T> → Seq<U>` (queries) | the model preserves the input kind, the implementation always materializes, even from a `Set` |
-| `filter` | `: Input` (builtins, HQL-0004); `Seq<T> → Seq<T>` (queries) | agree in spirit; the model has no word for `Input` |
-| `count` | `(Collection<T>, value?: T)` (builtins); `(Collection<T>, x: T)` (queries) | the alias form appears in one and not the other |
-| `collect` | `Seq<T> → List<T>` (HQL-0004); `(Stream<T>, Int) → Stream<List<T>>` (HQL-0007) | the same word for materialization and for batching; HQL-0007 retires the first |
-| `take` on a concrete `Seq` | `Collection<T> → List<T>`, with "a concrete Seq keeps its type" | a general rule now, but still stated in prose, not in the signature |
-
-The queries model states its rule plainly: a transformation should preserve
-every guarantee it can prove, and `Seq` is the weakest promise that is still
-true. The implementation returns `List`, which is stronger, and `List : Seq`,
-so no program that checks against the model fails against the implementation.
-The disagreement is in what is written down, and it has one visible effect:
-if `take` and `sort` already return `List<T>`, then `take(n) | list` and
-`sort | list` are identities and `list` has nothing left to materialize except
-the output of an operation that returns a bare `Seq<T>`, of which there is
-none in the implementation today.
+None. Every source above writes each name with one signature, in the form
+[issue 0018](../../issues/0018-operator-synonymy-audit.md) settles: an
+operation returns the type it was given. `filter`, `take`, `drop` and `sort`
+bind the input's type `S` and return it; `map` binds its constructor `F<_>`
+and returns `F<U>`. `take` over a stream and `take` or `sort` over a
+`Collection<T>` that is not a `Seq` gain a guarantee the input lacked, and
+return the `List<T>` that states it. A `Ranking<T>` sorted by another key
+becomes a `Seq<Hit<T>>`, since the new order is not the retrieval's. `List`
+after `take` or `sort` is an identity on a `List` and materializes a `Seq`.
 
 ### Different signatures: resemblance only
 
@@ -162,19 +155,6 @@ the queries model states, and one name is right.
 
 ## Open and unresolved
 
-- **`Seq` or `List`, `Input`, `map` from a `Set`, `take` on a concrete
-  `Seq`.** [Issue 0018](../../issues/0018-operator-synonymy-audit.md) settles
-  all four with one rule: the result keeps the input's type. `filter`,
-  `drop`, `take` and `sort` bind the input type, `S : Seq<T>` or a weaker
-  bound, and return `S`; `map` and `typed` bind its constructor,
-  `F<_> : Iterable<_>`, and return `F<U>`, so a `Set` maps to its image
-  `Set<U>` and a `Ranking` maps as the `Seq<Hit<T>>` it is. The signatures
-  are not yet written into the sources above, and constructor parameters are
-  not yet in the type system.
 - **HQL-0004's `collect`.** The proposal still declares
-  `collect<T>(Seq<T>) : List<T>`; it reads `list` once 0013 reaches it.
-- **`somes` has no home.** Declared on the type interpretation card and in
-  `doc/memory/`, and listed on no card that owns option operations.
-- **`drop` is model only.** The queries model declares it; no proposal and no
-  issue carries it, and [issue 0016](../../issues/0016-sql-parity-analysis.md)
-  needs it for `OFFSET`.
+  `collect<T>(Seq<T>) : List<T>`; it reads `List` once
+  [0013](../../issues/0013-typed-pipeline-operations.md) reaches it.

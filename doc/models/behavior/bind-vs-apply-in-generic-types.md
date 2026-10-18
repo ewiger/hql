@@ -22,13 +22,24 @@ Map<String, Data>
 Relation<Person, Project>
 Renderable<T>
 
-fn map<T, U>(xs: Seq<T>, f: T -> U) : Seq<U>    // bind parameters
+fn take<S : Seq<T>, T>(xs: S, n: Int) : S      // bind parameters
 fn resolve<T>(x: Ref<T>) : T?
+fn map<F<_> : Iterable<_>, T, U>(xs: F<T>, f: T -> U) : F<U>   // bind a constructor
 
 [alice, bob, charlie]               // a sequence value
 {alice, bob, charlie}               // a set value
 xs[0]                               // indexing
 ```
+
+## Binding a constructor
+
+A parameter written `F<_>` binds a type constructor of one argument, not a
+type. `_` stands for that argument and appears only in a binder and its bound:
+`F<_> : Iterable<_>` reads "for every `X`, `F<X> : Iterable<X>`". Inside the
+signature `F` is applied like any constructor, `F<T>` and `F<U>`. The angle
+brackets keep their one meaning, the type world; `_` marks the position a
+binder leaves open. The [type system](../../wiki/hql/type-system.hmd) card
+states what the two kinds of parameter promise.
 
 ## Why angle brackets
 

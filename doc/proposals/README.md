@@ -24,3 +24,7 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0014](HQL-0014/README.md) | drafted | `reduce` as the aggregation primitive, and `merge` as a combiner |
 | [HQL-0015](HQL-0015/README.md) | drafted | `:=` is function alias syntax sugar |
 | [HQL-0016](HQL-0016/README.md) | drafted | Type tests, narrowing, widening and conversion |
+| [HQL-0017](HQL-0017/README.md) | accepted | Presentation formats |
+| [HQL-0018](HQL-0018/README.md) | drafted | A type's constructor is an operation |
+| [HQL-0019](HQL-0019/README.md) | drafted | Graph construction |
+| [HQL-0020](HQL-0020/README.md) | drafted | The vault and its namespace |

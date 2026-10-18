@@ -87,15 +87,18 @@ abstract type Seq<T> : {Collection<T>, Stream<T>}
 
 ### Operations over a stream
 
-Each operation declares the weakest input it needs and preserves every
-guarantee it can prove.
+Each operation declares the weakest input it needs and returns the type it
+was given, in the form [issue 0018](../../issues/0018-operator-synonymy-audit.md)
+settles: `S` binds the input's own type, `F<_>` its constructor.
 
 ```text
-map<T, U>(xs: Stream<T>, by: T -> U)    : Stream<U>
-filter<T>(xs: Stream<T>, by: T -> Bool) : Stream<T>
-take<T>(xs: Stream<T>, n: Int)          : List<T>
-collect<T>(xs: Stream<T>, n: Int)       : Stream<List<T>>    -- HQL-0007
-emit<T>(xs: Stream<Seq<T>>)             : Stream<T>          -- HQL-0007
+map<F<_> : Iterable<_>, T, U>(xs: F<T>, by: T -> U)  : F<U>
+filter<S : Iterable<T>, T>(xs: S, by: T -> Bool)     : S
+drop<S : Stream<T>, T>(xs: S, n: Int)                : S
+take<S : Seq<T>, T>(xs: S, n: Int)                   : S
+take<T>(xs: Stream<T>, n: Int)                       : List<T>
+collect<T>(xs: Stream<T>, n: Int)                    : Stream<List<T>>    -- HQL-0007
+emit<T>(xs: Stream<Seq<T>>)                          : Stream<T>          -- HQL-0007
 ```
 
 - `map` MUST transform each value and MAY change its type.
@@ -106,11 +109,16 @@ emit<T>(xs: Stream<Seq<T>>)             : Stream<T>          -- HQL-0007
   type-preserving decision into a type change and back, and it would make
   `filter`'s guarantee — same element type — a property the checker has to
   rediscover.
-- When the input is known to be a `Seq<T>`, the existing collection signatures
-  MUST win over the stream ones, so every program that checks today keeps its
-  result type (`map` over a `Seq` still returns `List<R>`).
+- `map` over a `Stream<T>` MUST return a `Stream<U>`, over a `List<T>` a
+  `List<U>`, and over a `Set<T>` its image, a `Set<U>`. `filter` MUST return
+  its input's type.
+- `drop` MUST skip the first `n` values and return its input's type: a stream
+  without its first `n` values is still a stream that may not end, and a
+  sequence is still a sequence. `drop` is the `OFFSET` of
+  [issue 0016](../../issues/0016-sql-parity-analysis.md).
 - `take` MUST accept a `Stream<T>` and return a `List<T>`, because a bounded
-  prefix is finite whatever the input.
+  prefix is finite whatever the input. Over a `Seq<T>` it keeps the input's
+  type.
 
 ### Whole-input operations need a finite input
 
@@ -167,7 +175,7 @@ them.
   and the stream signatures as comments beside the collection ones
 - `src/types/` — `Stream` in the constructor table and the subtype relation
 - `src/extensions/collections.rs` — stream overloads for `map`, `filter`,
-  `take`; the finite-input diagnostic for whole-input operations
+  `take`, and `drop`; the finite-input diagnostic for whole-input operations
 - `src/evaluation.rs` — a traversal carrier that does not force its input,
   shared with [issue 0010](../../issues/0010-yield-and-bind.md)
 - `doc/wiki/hql/types/collections/` — a stream card, and `Seq<T>` described as
@@ -178,8 +186,11 @@ them.
 Unit tests MUST include:
 
 - `Seq<Int>` is a subtype of `Stream<Int>`; `Set<Int>` is not
-- `map` over `Stream<Int>` returns `Stream<U>`; over `List<Int>` it still
+- `map` over `Stream<Int>` returns `Stream<U>`; over `List<Int>` it
   returns `List<U>`
+- `drop(2)` over a `Stream<Int>` is a `Stream<Int>` and over a `List<Int>` a
+  `List<Int>`; over an unbounded test source followed by `take(3)` it
+  terminates
 - `filter` over `Stream<T>` returns `Stream<T>` with order preserved
 - `size`, `sort`, `group` and `reduce` over a `Stream<T>` are type errors whose
   message mentions `take` and `collect`

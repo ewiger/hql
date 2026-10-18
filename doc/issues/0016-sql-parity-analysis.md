@@ -38,15 +38,16 @@ The matrix was checked against `target/debug/hql` and `hql builtins` on
 | `DISTINCT` | `Set(xs)` | now | equality over cards and `Data` is not settled |
 | `IN (…)`, `IN (subquery)` | `filter(r => contains(xs, r.k))` | now | — |
 | `EXISTS`, `NOT EXISTS` (semi/anti join) | `filter(a => size(bs \| filter(…)) …)` | workaround | `NOT`, `>`; a `contains`-by-predicate (`any`) |
-| `CROSS JOIN` | `map(a => bs \| map(b => {…}))` | workaround | `flat_map` / `flatten`; today the result is nested |
-| `INNER JOIN … ON` | same, with a nested `filter` | workaround | a `join` step, or `flat_map`; a pair or record result type |
+| `CROSS JOIN` | `map(a => bs \| map(b => {…}))` | workaround | `emit` ([HQL-0007](../proposals/HQL-0007/README.md)), with `flat_map(f)` as the shorthand for `map(f) \| emit`; today the result is nested |
+| `INNER JOIN … ON` | same, with a nested `filter` | workaround | a `join` step, or `map` then `emit`; a pair or record result type |
 | `LEFT` / `RIGHT` / `FULL OUTER JOIN` | — | supportable | `join` whose absent side is `Option<T>`, not `NULL` |
 | `UNION`, `INTERSECT`, `EXCEPT` | — | supportable | set operations on `Set<T>`, `concat` on `Seq<T>` (`UNION ALL`) |
 | Relational division | — | supportable | follows from `group` and set operations |
 
 Nested pipelines inside a lambda, and lambdas that capture a binding, both
-work today, so correlated subqueries have a home. What is missing is
-flattening and the operators that predicates are written with.
+work today, so correlated subqueries have a home. What is missing is `emit`,
+which flattens a sequence of sequences, and the operators that predicates are
+written with.
 
 ## Aggregation
 
@@ -69,7 +70,7 @@ flattening and the operators that predicates are written with.
 | `ORDER BY a DESC, b` | `sort(by = (x, y) => …)` | workaround | `reverse`, and a way to chain comparisons |
 | `NULLS FIRST` / `LAST` | — | supportable | an order on `Option<T>` |
 | `LIMIT n` | `take(n)` | now | — |
-| `OFFSET n` | — | supportable | `drop` ([queries](../models/behavior/queries.md)) |
+| `OFFSET n` | — | supportable | `drop`, a stream overload of [HQL-0006](../proposals/HQL-0006/README.md) |
 | `FETCH … WITH TIES` | — | out | a reader writes it as `group` then `take` |
 
 ## Scalar expressions
@@ -185,8 +186,8 @@ Ranked by how many rows above each one unblocks.
    `Map` entries, and the `next` of [queries](../models/behavior/queries.md).
 6. **`flat_map`, `join` and set operations.** Needs 5, and needs collection
    equality to be decided for `UNION`, `INTERSECT` and `EXCEPT`.
-7. **Window steps.** `enumerate`, `scan`, `zip`, `drop`, `reverse`. Needs 3
-   and 5.
+7. **Window steps.** `enumerate`, `scan`, `zip`, `reverse`. Needs 3 and 5.
+   `drop` is carried by HQL-0006, with `Stream<T>`.
 8. **Other sources and writes.** Format input is [0015](0015-jq-parity-analysis.md);
    a live database and writing back to the vault each need a proposal.
 

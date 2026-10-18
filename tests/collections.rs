@@ -110,3 +110,38 @@ fn the_type_system_accepts_sorting_every_collection_view() {
         Ok(TypeRef::list(TypeRef::list(TypeRef::STR)))
     );
 }
+
+#[test]
+fn map_keeps_the_input_collection_type_and_a_set_maps_to_its_image() {
+    let source = "{1, 2, 3} | map(n => n % 2)";
+    assert_eq!(check(source), Ok(TypeRef::set(TypeRef::INT)));
+    let image = eval(source).unwrap();
+    assert_eq!(image.type_of(), TypeRef::set(TypeRef::INT));
+    assert_eq!(eval(&format!("{source} | size")), Ok(Value::Int(2)));
+
+    assert_eq!(
+        check("[1, 2] | map(n => n + 1)"),
+        Ok(TypeRef::list(TypeRef::INT))
+    );
+    assert_eq!(
+        check("open : Seq<Int> = [1, 2]\nopen | map(n => n + 1)"),
+        Ok(TypeRef::seq(TypeRef::INT))
+    );
+}
+
+#[test]
+fn take_and_sort_keep_a_sequence_type_and_order_anything_else_into_a_list() {
+    for source in [
+        "open : Seq<Int> = [3, 1, 2]\nopen | take(2)",
+        "open : Seq<Int> = [3, 1, 2]\nopen | sort",
+    ] {
+        assert_eq!(check(source), Ok(TypeRef::seq(TypeRef::INT)), "{source}");
+    }
+    for source in [
+        "{3, 1, 2} | take(2)",
+        "{3, 1, 2} | sort",
+        "[3, 1, 2] | sort",
+    ] {
+        assert_eq!(check(source), Ok(TypeRef::list(TypeRef::INT)), "{source}");
+    }
+}
