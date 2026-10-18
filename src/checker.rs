@@ -1,6 +1,6 @@
 //! Static checking: what a program's type is, before anything is evaluated.
 
-use crate::ast::{Arg, Arm, Expr, Kind, Pattern, Program, Stmt};
+use crate::ast::{Arg, Arm, Expr, FnDecl, Kind, Pattern, Program, Stmt};
 use crate::builtins;
 use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
@@ -23,6 +23,7 @@ pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypedProgram, Di
         resolution: Resolution::new(&vault.extensions)?,
         declarations: Declarations::default(),
         checked: Checked::default(),
+        variadic: HashMap::new(),
     }
     .program(program)
 }
@@ -48,6 +49,7 @@ pub(crate) fn check_collecting(
         resolution,
         declarations: Declarations::default(),
         checked: Checked::default(),
+        variadic: HashMap::new(),
     };
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
@@ -92,6 +94,9 @@ struct Checker<'a> {
     /// What this program has declared.
     declarations: Declarations,
     checked: Checked,
+    /// Declared functions whose last parameter collects trailing arguments,
+    /// with their parameter count.
+    variadic: HashMap<String, usize>,
 }
 
 impl Checker<'_> {
@@ -112,7 +117,11 @@ impl Checker<'_> {
                     value,
                     ..
                 } => {
-                    let inferred = self.expression(value)?;
+                    let expected = annotation
+                        .as_ref()
+                        .map(crate::declarations::annotation)
+                        .transpose()?;
+                    let inferred = self.expecting(value, expected.as_ref())?;
                     if let Some(annotation) = annotation {
                         let declared = crate::declarations::annotation(annotation)?;
                         if !inferred.is(&declared) {
@@ -142,9 +151,278 @@ impl Checker<'_> {
                     self.declarations.declare(declaration)?;
                     TypeRef::UNIT
                 }
+                Stmt::Fn(declaration) => {
+                    self.function(declaration)?;
+                    TypeRef::UNIT
+                }
                 Stmt::Expr(expression) => self.expression(expression)?,
             }
         })
+    }
+
+    /// Check an expression whose type is known in advance, so a lambda written
+    /// against a function type needs no annotations of its own.
+    fn expecting(
+        &mut self,
+        expression: &Expr,
+        expected: Option<&TypeRef>,
+    ) -> Result<TypeRef, Diagnostic> {
+        if let (Kind::Lambda { .. }, Some((parameters, _))) =
+            (&expression.kind, expected.and_then(TypeRef::as_function))
+        {
+            let ty = self.lambda_value(expression, Some(parameters))?;
+            self.checked
+                .types
+                .insert(expression.span.clone(), ty.clone());
+            return Ok(ty);
+        }
+        self.expression(expression)
+    }
+
+    /// A lambda as a value: its parameters are typed by their annotations or
+    /// by the function type it is checked against, and its type is a function.
+    fn lambda_value(
+        &mut self,
+        expression: &Expr,
+        expected: Option<&[TypeRef]>,
+    ) -> Result<TypeRef, Diagnostic> {
+        let Kind::Lambda {
+            parameters,
+            annotations,
+            body,
+        } = &expression.kind
+        else {
+            return self.expression(expression);
+        };
+        if let Some(expected) = expected
+            && expected.len() != parameters.len()
+        {
+            return Err(Diagnostic::typing(
+                expression.span.clone(),
+                format!(
+                    "this lambda takes {} parameters where a function of {} is expected",
+                    parameters.len(),
+                    expected.len()
+                ),
+            ));
+        }
+        let mut types = Vec::new();
+        for (index, (name, annotation)) in parameters.iter().zip(annotations).enumerate() {
+            let declared = annotation
+                .as_ref()
+                .map(crate::declarations::annotation)
+                .transpose()?;
+            let given = expected.map(|expected| expected[index].clone());
+            types.push(match (declared, given) {
+                (Some(declared), Some(given)) if !given.is(&declared) => {
+                    return Err(Diagnostic::typing(
+                        expression.span.clone(),
+                        format!("parameter `{name}` is declared {declared} but receives {given}"),
+                    ));
+                }
+                (Some(declared), _) => declared,
+                (None, Some(given)) => given,
+                (None, None) => {
+                    return Err(Diagnostic::typing(
+                        expression.span.clone(),
+                        format!(
+                            "a lambda written as a value types its parameters: `({name}: Type) => …`"
+                        ),
+                    ));
+                }
+            });
+        }
+        let result = self
+            .with_bindings(parameters.iter().cloned().zip(types.clone()), |checker| {
+                checker.expression(body)
+            })?;
+        let ty = TypeRef::function(types, result).ok_or_else(|| {
+            Diagnostic::typing(
+                expression.span.clone(),
+                "a function takes at most four parameters",
+            )
+        })?;
+        self.checked
+            .functions
+            .insert(expression.span.clone(), ty.clone());
+        Ok(ty)
+    }
+
+    /// Run `check` with names bound, restoring what they shadowed afterwards.
+    fn with_bindings<T>(
+        &mut self,
+        bindings: impl IntoIterator<Item = (String, TypeRef)>,
+        check: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,
+    ) -> Result<T, Diagnostic> {
+        let previous = bindings
+            .into_iter()
+            .map(|(name, ty)| {
+                let held = self.scope.insert(name.clone(), ty);
+                (name, held)
+            })
+            .collect::<Vec<_>>();
+        let result = check(self);
+        for (name, held) in previous.into_iter().rev() {
+            match held {
+                Some(held) => {
+                    self.scope.insert(name, held);
+                }
+                None => {
+                    self.scope.remove(&name);
+                }
+            }
+        }
+        result
+    }
+
+    /// A declared function: bound before its body is checked, so it may call
+    /// itself, and its body must have the declared result type.
+    fn function(&mut self, declaration: &FnDecl) -> Result<(), Diagnostic> {
+        if !declaration.generics.is_empty() {
+            return Err(Diagnostic::typing(
+                declaration.span.clone(),
+                "generic functions are not implemented yet; declare the parameter types",
+            ));
+        }
+        let mut parameters = Vec::new();
+        for parameter in &declaration.parameters {
+            let ty = crate::declarations::annotation(&parameter.annotation)?;
+            parameters.push(if parameter.variadic {
+                TypeRef::list(ty)
+            } else {
+                ty
+            });
+        }
+        let result = crate::declarations::annotation(&declaration.result)?;
+        let ty = TypeRef::function(parameters.clone(), result.clone()).ok_or_else(|| {
+            Diagnostic::typing(
+                declaration.span.clone(),
+                "a function takes at most four parameters",
+            )
+        })?;
+        self.scope.insert(declaration.name.clone(), ty.clone());
+        if declaration
+            .parameters
+            .last()
+            .is_some_and(|last| last.variadic)
+        {
+            self.variadic
+                .insert(declaration.name.clone(), declaration.parameters.len());
+        } else {
+            self.variadic.remove(&declaration.name);
+        }
+        self.checked.functions.insert(declaration.span.clone(), ty);
+        let names = declaration
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.clone());
+        let body = self.with_bindings(names.zip(parameters), |checker| {
+            checker.expecting(&declaration.body, Some(&result))
+        })?;
+        if !body.is(&result) {
+            return Err(Diagnostic::typing(
+                declaration.body.span.clone(),
+                format!(
+                    "`{}` is declared to return {result} but its body is {body}",
+                    declaration.name
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Apply a function value to arguments, the first of which may be a
+    /// piped input. A call by the name of a variadic function collects its
+    /// trailing arguments into the last parameter.
+    fn application(
+        &mut self,
+        callee: &Expr,
+        input: Option<&TypeRef>,
+        arguments: &[Arg],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        let ty = self.expression(callee)?;
+        let Some((parameters, result)) = ty.as_function() else {
+            return Err(Diagnostic::typing(
+                callee.span.clone(),
+                format!("only a function or a pipeline step can be called, and this is {ty}"),
+            ));
+        };
+        let (parameters, result) = (parameters.to_vec(), result.clone());
+        if let Some(argument) = arguments.iter().find(|argument| argument.name.is_some()) {
+            return Err(Diagnostic::typing(
+                argument.value.span.clone(),
+                "a function value takes its arguments by position",
+            ));
+        }
+        let variadic = match &callee.kind {
+            Kind::Ident(name) => self.variadic.get(name).copied(),
+            _ => None,
+        };
+        let mut supplied: Vec<(TypeRef, Range<usize>)> = Vec::new();
+        if let Some(input) = input {
+            supplied.push((input.clone(), span.clone()));
+        }
+        for (index, argument) in arguments.iter().enumerate() {
+            let position = index + usize::from(input.is_some());
+            let expected = match variadic {
+                Some(count) if position + 1 >= count => parameters[count - 1].element(),
+                _ => parameters.get(position).cloned(),
+            };
+            let actual = self.expecting(&argument.value, expected.as_ref())?;
+            supplied.push((actual, argument.value.span.clone()));
+        }
+        let pack = match variadic {
+            Some(count) => {
+                let fixed = count - 1;
+                if supplied.len() < fixed {
+                    return Err(Diagnostic::typing(
+                        span,
+                        format!("this function takes at least {fixed} arguments"),
+                    ));
+                }
+                let element = parameters[fixed].element().unwrap_or(TypeRef::DATA);
+                for (actual, at) in &supplied[fixed..] {
+                    if !actual.is(&element) {
+                        return Err(Diagnostic::typing(
+                            at.clone(),
+                            format!("a trailing argument here is {element}, not {actual}"),
+                        ));
+                    }
+                }
+                supplied.truncate(fixed);
+                Some((fixed, element))
+            }
+            None => {
+                if supplied.len() != parameters.len() {
+                    return Err(Diagnostic::typing(
+                        span,
+                        format!(
+                            "this function takes {} arguments, not {}",
+                            parameters.len(),
+                            supplied.len()
+                        ),
+                    ));
+                }
+                None
+            }
+        };
+        for ((actual, at), parameter) in supplied.iter().zip(&parameters) {
+            if !actual.is(parameter) {
+                return Err(Diagnostic::typing(
+                    at.clone(),
+                    format!("this argument is {actual}, and the parameter takes {parameter}"),
+                ));
+            }
+        }
+        self.checked.applications.insert(span, pack);
+        Ok(result)
+    }
+
+    /// Whether a name is bound to a function value.
+    fn names_function(&self, expression: &Expr) -> bool {
+        matches!(&expression.kind, Kind::Ident(name)
+            if self.scope.get(name).is_some_and(|ty| ty.as_function().is_some()))
     }
 
     fn expression(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic> {
@@ -354,16 +632,13 @@ impl Checker<'_> {
                 }
                 Ok(TypeRef::EDGE)
             }
-            Kind::Lambda { .. } => Err(Diagnostic::typing(
-                span,
-                "a lambda may only be written as an argument, such as `filter(c => …)`",
-            )),
+            Kind::Lambda { .. } => self.lambda_value(expression, None),
             Kind::Call { callee, arguments } => {
+                if self.names_function(callee) || !matches!(callee.kind, Kind::Ident(_)) {
+                    return self.application(callee, None, arguments, span);
+                }
                 let Kind::Ident(name) = &callee.kind else {
-                    return Err(Diagnostic::typing(
-                        span,
-                        "only a named pipeline step can be called",
-                    ));
+                    unreachable!("a callee that is not a name is applied above");
                 };
                 if let Some(constructor) = crate::constructors::named(name) {
                     return crate::constructors::check(self, constructor, arguments, None, span);
@@ -423,6 +698,16 @@ impl Checker<'_> {
             }
             Kind::Pipe(input, step) => {
                 let input_type = self.expression(input)?;
+                // `x | f` and `x | f(a)` apply a bound function to the input.
+                match &step.kind {
+                    Kind::Ident(_) if self.names_function(step) => {
+                        return self.application(step, Some(&input_type), &[], span);
+                    }
+                    Kind::Call { callee, arguments } if self.names_function(callee) => {
+                        return self.application(callee, Some(&input_type), arguments, span);
+                    }
+                    _ => {}
+                }
                 let reference = step_of(step)?;
                 let resolved = self.resolve(&reference, &step.span)?;
                 self.checked.steps.insert(span.clone(), resolved);
@@ -471,17 +756,56 @@ impl Checker<'_> {
 
     /// Check a lambda argument with its parameter bound to an element type.
     fn lambda_type(&mut self, argument: &Arg, types: Vec<TypeRef>) -> Result<TypeRef, Diagnostic> {
-        let Kind::Lambda { parameters, body } = &argument.value.kind else {
-            return Err(Diagnostic::typing(
-                argument.value.span.clone(),
-                "expected a lambda",
-            ));
+        let Kind::Lambda {
+            parameters,
+            annotations,
+            body,
+        } = &argument.value.kind
+        else {
+            // A function value where a lambda is written: it must accept what
+            // the step gives it, so its parameters may be wider.
+            let ty = self.expression(&argument.value)?;
+            let Some((declared, result)) = ty.as_function() else {
+                return Err(Diagnostic::typing(
+                    argument.value.span.clone(),
+                    format!("expected a lambda or a function, found {ty}"),
+                ));
+            };
+            if declared.len() != types.len() {
+                return Err(Diagnostic::typing(
+                    argument.value.span.clone(),
+                    format!(
+                        "expected a function of {} parameters, found {ty}",
+                        types.len()
+                    ),
+                ));
+            }
+            for (given, declared) in types.iter().zip(declared) {
+                if !given.is(declared) {
+                    return Err(Diagnostic::typing(
+                        argument.value.span.clone(),
+                        format!("this function takes {declared} and is given {given}"),
+                    ));
+                }
+            }
+            return Ok(result.clone());
         };
         if parameters.len() != types.len() {
             return Err(Diagnostic::typing(
                 argument.value.span.clone(),
                 format!("expected {} lambda parameters", types.len()),
             ));
+        }
+        for ((name, annotation), given) in parameters.iter().zip(annotations).zip(&types) {
+            if let Some(annotation) = annotation {
+                let declared = crate::declarations::annotation(annotation)?;
+                if !given.is(&declared) {
+                    return Err(Diagnostic::typing(
+                        argument.value.span.clone(),
+                        format!("parameter `{name}` is declared {declared} but receives {given}"),
+                    ));
+                }
+            }
         }
         let previous = parameters
             .iter()
@@ -632,6 +956,17 @@ impl Checker<'_> {
 impl CheckCx for Checker<'_> {
     fn vault(&self) -> &Vault {
         self.vault
+    }
+
+    fn function_arity(&mut self, argument: &Arg) -> Option<usize> {
+        match &argument.value.kind {
+            Kind::Lambda { parameters, .. } => Some(parameters.len()),
+            Kind::Ident(name) => self
+                .scope
+                .get(name)
+                .and_then(|ty| ty.as_function().map(|(parameters, _)| parameters.len())),
+            _ => None,
+        }
     }
 
     fn infer(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic> {

@@ -1,6 +1,6 @@
 # 0009 — A function type, and functions as values
 
-Status: backlog
+Status: done (feature 7 of [0014](0014-next-feature-bundle.md)); generic declarations moved to [0022](0022-generic-functions.md)
 
 HQL has lambdas but no functions. `c => c.title` parses into `Kind::Lambda` and
 works in an argument slot, and that is the whole of it: both the checker and the
@@ -104,3 +104,15 @@ record, and it currently cannot hold a design that is not yet built.
   `invalid` case.
 - Unit tests cover the contravariant substitution rule directly, independently
   of any program that exercises it.
+
+## Outcome
+
+Done, with these choices made where the issue left room:
+
+- A lambda bound to a name types its parameters, by annotation or from the
+  binding's function type: `f = c => c.title` is refused with a message to
+  write `(c: Card) => c.title`, since nothing else fixes `c`.
+- The function family is declared up to `Fn4`.
+- `fn` declarations are monomorphic. Generic ones are
+  [0022](0022-generic-functions.md).
+- The corpus cases are [`examples/functions/`](../../examples/functions/README.md).

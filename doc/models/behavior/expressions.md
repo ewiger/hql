@@ -6,7 +6,7 @@ design.
 
 ```text
 program     := statement (NEWLINE+ statement)*
-statement   := import | declaration | binding | expression
+statement   := import | declaration | function | binding | expression
 import      := "import" ident
 declaration := "abstract"? "type" ident params? (":" supertypes)? record? bounds?
              | "type" ident params? "=" "union" "{" type ("," type)* ","? "}" bounds?
@@ -16,6 +16,8 @@ supertypes  := type | "{" type ("," type)* "}"
 record      := "{" field ("," | NEWLINE)* "}"
 field       := ident "?"? ":" type
 binding     := ident (":" type)? "=" expression
+function    := "fn" ident "(" (param ("," param)*)? ")" ":" type "=" expression
+param       := ident ":" "..."? type
 
 expression  := given
 given       := pipeline ("given" pipeline ("otherwise" given)?)?
@@ -37,12 +39,13 @@ match       := "match" pipeline "{" arm (("," | NEWLINE) arm)* ","? "}"
 arm         := pattern ("given" pipeline)? "=>" expression
 pattern     := "_" | ident | int | float | string | bool
              | "some" "(" pattern ")" | "none" | type ("_" | ident)
-lambda      := (ident | "(" ident ("," ident)* ")") "=>" expression
+lambda      := (ident | "(" (ident (":" type)? ("," ident (":" type)?)*)? ")") "=>" expression
 data        := "{" (key ":" expression ("," key ":" expression)*)? "}"
 list        := "[" (expression ("," expression)* ","?)? "]"
 set         := "{" expression ("," expression)* ","? "}"
 docref      := "[[" name "]]"
-type        := ident ("<" type ("," type)* ">")?
+type        := simple ("->" type)? | "(" (type ("," type)*)? ")" "->" type
+simple      := ident ("<" type ("," type)* ">")?
 ```
 
 Whitespace separates tokens. A newline ends a statement **unless** the
@@ -95,6 +98,14 @@ nest at most 128 deep.
 
 `and`, `or`, `not`, `match`, `given` and `otherwise` are reserved words, not
 names.
+
+A function value is called by position, `f(a, b)`, and piped into, `x | f`
+and `x | f(a)`, which call `f(x)` and `f(x, a)`. It may be passed wherever a
+step takes a lambda; a function that takes a wider parameter than the step
+supplies is accepted, since parameter positions are contravariant. A call to a
+declared function by name fills a variadic last parameter, `xs: ...T`, with
+the trailing arguments as a `List<T>`. A function captures the bindings in
+scope where it is written.
 
 `some(x)` builds a present `Option`, and `none` is the absent one, at
 `Option<Never>`, so it is an `Option<T>` for every `T`. Both are names the core

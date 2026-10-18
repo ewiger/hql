@@ -81,6 +81,7 @@ impl Value {
                 "presenter": presentation.presenter,
                 "text": presentation.text,
             }),
+            Self::Function(function) => J::String(format!("<function {}>", function.ty)),
             Self::Group(group) => json!({
                 "key": group.key.to_json(),
                 "items": group.items.iter().map(Self::to_json).collect::<Vec<_>>(),
@@ -149,6 +150,10 @@ impl fmt::Display for Value {
                 write!(f, "[{}]", rendered.join(", "))
             }
             Self::Presentation(presentation) => f.write_str(&presentation.text),
+            Self::Function(function) => match &function.name {
+                Some(name) => write!(f, "<function {name} : {}>", function.ty),
+                None => write!(f, "<function {}>", function.ty),
+            },
             Self::Group(group) => {
                 let rendered: Vec<String> = group
                     .items

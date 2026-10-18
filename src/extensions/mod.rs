@@ -71,6 +71,9 @@ pub(crate) trait CheckCx: Send {
     ) -> Result<TypeRef, Diagnostic>;
     /// Resolve a type argument and retain its identity in the execution tree.
     fn type_argument(&mut self, argument: &Arg) -> Result<TypeRef, Diagnostic>;
+    /// How many parameters an argument takes, when it is written as a lambda
+    /// or names a function value.
+    fn function_arity(&mut self, argument: &Arg) -> Option<usize>;
 }
 
 /// What evaluating a step may ask of the evaluator around it.

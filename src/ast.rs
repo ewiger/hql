@@ -23,7 +23,30 @@ pub(crate) enum Stmt {
     },
     /// `type Name<P> : Parent { field : Type }`, or `type Name = union { A, B }`.
     Type(TypeDecl),
+    /// `fn name(p: T, ..) : R = body`.
+    Fn(FnDecl),
     Expr(Expr),
+}
+
+/// A declared function: a name, typed parameters, a result type and a body.
+#[derive(Debug)]
+pub(crate) struct FnDecl {
+    pub name: String,
+    /// Generic parameters, `T` in `fn first<T>(…)`.
+    pub generics: Vec<String>,
+    pub parameters: Vec<Param>,
+    pub result: TypeAnn,
+    pub body: Expr,
+    pub span: Range<usize>,
+}
+
+/// One parameter of a declared function.
+#[derive(Debug)]
+pub(crate) struct Param {
+    pub name: String,
+    pub annotation: TypeAnn,
+    /// `xs: ...T`: the trailing arguments of a call, collected.
+    pub variadic: bool,
 }
 
 /// A declared type: what it is called, what it narrows, and what it holds.
@@ -128,9 +151,10 @@ pub(crate) enum Kind {
         callee: Box<Expr>,
         arguments: Vec<Arg>,
     },
-    /// `p => p.title`.
+    /// `p => p.title`, or `(p: Card) => p.title` with its parameters typed.
     Lambda {
         parameters: Vec<String>,
+        annotations: Vec<Option<TypeAnn>>,
         body: Box<Expr>,
     },
     /// `match subject { pattern => result, .. }`.

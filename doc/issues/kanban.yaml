@@ -17,9 +17,12 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 21 # to be incremented when adding a new issue card
+  last_id: 22 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0022"
+        title: Generic functions
+        file: 0022-generic-functions.md
       - id: "0017"
         title: "`graph` is two operations under one name"
         file: 0017-graph-projection-and-view.md
@@ -38,9 +41,6 @@ board:
       - id: "0010"
         title: "`yield` and `bind`: generated sequences as query sources"
         file: 0010-yield-and-bind.md
-      - id: "0009"
-        title: A function type, and functions as values
-        file: 0009-function-type-and-constructor.md
     todo:
       - id: "0014"
         title: "Next feature bundle: signatures and aggregation first, then the pipeline foundations"
@@ -56,6 +56,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0009"
+        title: A function type, and functions as values
+        file: 0009-function-type-and-constructor.md
       - id: "0021"
         title: "`of_type` replaces `typed`"
         file: 0021-of-type-replaces-typed.md

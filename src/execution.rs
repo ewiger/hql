@@ -23,6 +23,13 @@ pub(crate) enum Stmt {
         value: Expr,
     },
     Expr(Expr),
+    /// A declared function, bound under its name.
+    Fn {
+        name: String,
+        parameters: Vec<String>,
+        body: std::sync::Arc<Expr>,
+        ty: TypeRef,
+    },
     Unit,
 }
 
@@ -83,9 +90,20 @@ pub(crate) enum Kind {
     Field(Box<Expr>, Field),
     Lambda {
         parameters: Vec<String>,
-        body: Box<Expr>,
+        body: std::sync::Arc<Expr>,
+        /// Its type, when it is written as a value rather than as a step's
+        /// argument.
+        function: Option<TypeRef>,
     },
     Type,
+    /// A function value applied to arguments. `pack` collects the arguments
+    /// past the first `n` into a list of the given element type, for a
+    /// variadic parameter.
+    Apply {
+        callee: Box<Expr>,
+        arguments: Vec<Expr>,
+        pack: Option<(usize, TypeRef)>,
+    },
     /// `some(value)`.
     Some(Box<Expr>),
     Match {
@@ -174,33 +192,57 @@ pub(crate) struct Checked {
     pub fields: HashMap<Range<usize>, Field>,
     pub views: HashMap<Range<usize>, TypeRef>,
     pub steps: HashMap<Range<usize>, &'static Step>,
+    /// A lambda written as a value, or a declared function, at its type.
+    pub functions: HashMap<Range<usize>, TypeRef>,
+    /// A call or pipe that applies a function value, with how many leading
+    /// arguments it takes before the trailing ones a variadic parameter
+    /// collects, and their element type.
+    pub applications: HashMap<Range<usize>, Option<(usize, TypeRef)>>,
 }
 
 impl Checked {
     pub fn program(&self, program: &ast::Program, result: TypeRef) -> Result<Program, Diagnostic> {
-        let statements = program
-            .statements
-            .iter()
-            .map(|statement| {
-                Ok(match statement {
-                    ast::Stmt::Bind { name, value, .. } => {
-                        let value = self.expression(value)?;
-                        let view = self
-                            .views
-                            .get(&value.span)
-                            .cloned()
-                            .unwrap_or_else(|| value.ty.clone());
-                        Stmt::Bind {
-                            name: name.clone(),
-                            view,
-                            value,
+        let statements =
+            program
+                .statements
+                .iter()
+                .map(|statement| {
+                    Ok(match statement {
+                        ast::Stmt::Bind { name, value, .. } => {
+                            let value = self.expression(value)?;
+                            let view = self
+                                .views
+                                .get(&value.span)
+                                .cloned()
+                                .unwrap_or_else(|| value.ty.clone());
+                            Stmt::Bind {
+                                name: name.clone(),
+                                view,
+                                value,
+                            }
                         }
-                    }
-                    ast::Stmt::Expr(value) => Stmt::Expr(self.expression(value)?),
-                    ast::Stmt::Import { .. } | ast::Stmt::Type(_) => Stmt::Unit,
+                        ast::Stmt::Expr(value) => Stmt::Expr(self.expression(value)?),
+                        ast::Stmt::Fn(declaration) => Stmt::Fn {
+                            name: declaration.name.clone(),
+                            parameters: declaration
+                                .parameters
+                                .iter()
+                                .map(|parameter| parameter.name.clone())
+                                .collect(),
+                            body: std::sync::Arc::new(self.expression(&declaration.body)?),
+                            ty: self.functions.get(&declaration.span).cloned().ok_or_else(
+                                || {
+                                    Diagnostic::typing(
+                                        declaration.span.clone(),
+                                        "function was not checked",
+                                    )
+                                },
+                            )?,
+                        },
+                        ast::Stmt::Import { .. } | ast::Stmt::Type(_) => Stmt::Unit,
+                    })
                 })
-            })
-            .collect::<Result<_, Diagnostic>>()?;
+                .collect::<Result<_, Diagnostic>>()?;
         Ok(Program { statements, result })
     }
 
@@ -243,7 +285,9 @@ impl Checked {
     fn expression(&self, expression: &ast::Expr) -> Result<Expr, Diagnostic> {
         use ast::Kind as A;
         let span = expression.span.clone();
-        let ty = if let A::Lambda { body, .. } = &expression.kind {
+        let ty = if let Some(function) = self.functions.get(&span) {
+            Some(function)
+        } else if let A::Lambda { body, .. } = &expression.kind {
             self.types.get(&body.span)
         } else {
             self.types.get(&span)
@@ -339,10 +383,36 @@ impl Checked {
                 target: boxed(target)?,
                 data: data.as_deref().map(boxed).transpose()?,
             },
-            A::Lambda { parameters, body } => Kind::Lambda {
+            A::Lambda {
+                parameters, body, ..
+            } => Kind::Lambda {
                 parameters: parameters.clone(),
-                body: boxed(body)?,
+                body: std::sync::Arc::new(self.expression(body)?),
+                function: self.functions.get(&span).cloned(),
             },
+            A::Call { callee, arguments } if self.applications.contains_key(&span) => Kind::Apply {
+                callee: boxed(callee)?,
+                arguments: arguments
+                    .iter()
+                    .map(|argument| self.expression(&argument.value))
+                    .collect::<Result<_, _>>()?,
+                pack: self.applications[&span].clone(),
+            },
+            A::Pipe(input, written) if self.applications.contains_key(&span) => {
+                let (callee, rest) = match &written.kind {
+                    A::Call { callee, arguments } => (callee.as_ref(), arguments.as_slice()),
+                    _ => (written.as_ref(), &[][..]),
+                };
+                let mut arguments = vec![self.expression(input)?];
+                for argument in rest {
+                    arguments.push(self.expression(&argument.value)?);
+                }
+                Kind::Apply {
+                    callee: boxed(callee)?,
+                    arguments,
+                    pack: self.applications[&span].clone(),
+                }
+            }
             A::Match { subject, arms } => Kind::Match {
                 subject: boxed(subject)?,
                 arms: arms

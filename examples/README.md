@@ -5,9 +5,10 @@ programs for collection types. It includes two intentional errors to show where
 sorted-key constraints and duplicate-key checks are enforced.
 
 The [mapreduce shelf](mapreduce/README.md) is six book cards to filter, group and
-reduce. Two of its queries run today and read a pipeline as a chain of stages;
-three are written ahead of `group`, `reduce` and `collect` and carry
-`status: proposed`, so the harness checks that they fail until the steps land.
+reduce, read as a chain of stages.
+
+The [functions](functions/README.md) cases declare, bind, pass and return
+functions, with one intentional error for a parameter type.
 
 Build the CLI from the repository root with `cargo build --locked`, then follow
 the commands in the example's README. Query headers record their expected type

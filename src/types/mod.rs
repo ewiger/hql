@@ -17,7 +17,7 @@ mod value;
 pub use builtin::named;
 pub use mapping::{CollectionError, MapKind, MapValue};
 pub use system::{TypeDefinition, TypeError, TypeKind, TypeParameter, TypeSystem, Variance};
-pub use value::{Group, Key, Presentation, Value};
+pub use value::{Closure, Group, Key, Presentation, Value};
 
 use std::fmt;
 
@@ -58,6 +58,22 @@ impl fmt::Display for TypeConstructor {
 
 impl fmt::Display for TypeRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // A function type is written with an arrow, never by its constructor.
+        if let Some((parameters, result)) = self.as_function() {
+            return match parameters {
+                [only] if only.as_function().is_none() => write!(f, "{only} -> {result}"),
+                _ => {
+                    f.write_str("(")?;
+                    for (index, parameter) in parameters.iter().enumerate() {
+                        if index != 0 {
+                            f.write_str(", ")?;
+                        }
+                        parameter.fmt(f)?;
+                    }
+                    write!(f, ") -> {result}")
+                }
+            };
+        }
         self.constructor.fmt(f)?;
         if !self.args.is_empty() {
             f.write_str("<")?;

@@ -569,8 +569,7 @@ fn eval_sort(
 ) -> Result<Value, Diagnostic> {
     let mut elements = elements(&input, "sort", &span)?;
     match named_or_first(arguments, "by") {
-        Some(argument) if matches!(&argument.value.kind, TypedKind::Lambda { parameters, .. } if parameters.len() == 2) =>
-        {
+        Some(argument) if function_arity(argument) == Some(2) => {
             // A fallible comparison must never be hidden inside an infallible
             // sorting callback. Insertion sort also preserves equal-key positions.
             for index in 1..elements.len() {
@@ -736,7 +735,10 @@ fn narrowed(input: &Value, kept: Vec<Value>, wanted: TypeRef) -> Value {
 pub(crate) fn narrowing(arguments: &[crate::ast::Arg]) -> Option<&str> {
     use crate::ast::Kind;
     let argument = named_or_first(arguments, "by")?;
-    let Kind::Lambda { parameters, body } = &argument.value.kind else {
+    let Kind::Lambda {
+        parameters, body, ..
+    } = &argument.value.kind
+    else {
         return None;
     };
     let [parameter] = parameters.as_slice() else {
@@ -768,7 +770,10 @@ pub(crate) fn narrowing(arguments: &[crate::ast::Arg]) -> Option<&str> {
 
 /// The same detection over the checked tree, for evaluation.
 fn narrowed_to(argument: &TypedArg) -> Option<TypeRef> {
-    let TypedKind::Lambda { parameters, body } = &argument.value.kind else {
+    let TypedKind::Lambda {
+        parameters, body, ..
+    } = &argument.value.kind
+    else {
         return None;
     };
     let TypedKind::Step {
@@ -947,13 +952,13 @@ fn eval_reduce(
         .or_else(|| {
             arguments
                 .iter()
-                .find(|argument| matches!(argument.value.kind, TypedKind::Lambda { .. }))
+                .find(|argument| argument.name.is_none() && function_arity(argument).is_some())
         })
         .ok_or_else(|| wrong("reduce", "a combining function", &span))?;
     let initial = super::named(arguments, "initial").or_else(|| {
-        arguments.iter().find(|argument| {
-            argument.name.is_none() && !matches!(argument.value.kind, TypedKind::Lambda { .. })
-        })
+        arguments
+            .iter()
+            .find(|argument| argument.name.is_none() && function_arity(argument).is_none())
     });
     let mut values = elements(&input, "reduce", &span)?.into_iter();
     let (mut accumulator, from_first) = match initial {
@@ -1078,4 +1083,17 @@ fn eval_somes(
         })
         .collect();
     Ok(narrowed(&input, kept, present))
+}
+
+/// How many parameters a checked argument takes, when it is a lambda or a
+/// function value.
+fn function_arity(argument: &TypedArg) -> Option<usize> {
+    match &argument.value.kind {
+        TypedKind::Lambda { parameters, .. } => Some(parameters.len()),
+        _ => argument
+            .value
+            .ty
+            .as_function()
+            .map(|(parameters, _)| parameters.len()),
+    }
 }

@@ -388,8 +388,13 @@ A variadic function is therefore an ordinary one-parameter function and needs no
 constructor of its own. An operation generic over arity itself, such as `curry`,
 is not expressible.
 
-Function types and variadic parameters are designed and not yet built — see
-[issue 0009](../../issues/0009-function-type-and-constructor.md).
+Function types, function values and variadic parameters are implemented, up
+to four parameters. A lambda written as a value types its parameters, by
+annotation, `(c: Card) => c.title`, or from the function type it is bound
+at, `f : Card -> String = c => c.title`. `fn name(p: T) : R = body` declares a
+function; its name is bound before the body is checked, so it may recurse. A
+declared function is not yet generic: `fn first<T>(…)` waits for type
+variables in the checker ([issue 0022](../../issues/0022-generic-functions.md)).
 
 ## Where the two cooperate: bounds
 

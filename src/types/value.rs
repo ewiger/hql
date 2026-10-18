@@ -66,6 +66,20 @@ pub enum Value {
     Presentation(Arc<Presentation>),
     /// One partition of a `group`.
     Group(Arc<Group>),
+    /// A function: parameters, a body, and the names it captured.
+    Function(Arc<Closure>),
+}
+
+/// A function value: what it takes, what it evaluates, and the bindings in
+/// scope where it was written, so its free names keep their values.
+#[derive(Debug)]
+pub struct Closure {
+    /// The name a declared function calls itself by.
+    pub(crate) name: Option<String>,
+    pub(crate) parameters: Vec<String>,
+    pub(crate) body: Arc<crate::execution::Expr>,
+    pub(crate) captured: std::collections::HashMap<String, Value>,
+    pub(crate) ty: TypeRef,
 }
 
 /// One partition of a `group`: a key and the occurrences that have it.
@@ -163,6 +177,7 @@ impl Value {
             Self::Hit(_) => TypeRef::hit(TypeRef::CARD),
             Self::Ranking(_) => TypeRef::ranking(TypeRef::CARD),
             Self::Presentation(_) => TypeRef::PRESENTATION,
+            Self::Function(function) => function.ty.clone(),
             Self::Group(group) => {
                 super::builtin::GROUP.apply([group.key_type.clone(), group.item_type.clone()])
             }
@@ -335,6 +350,8 @@ impl PartialEq for Value {
             (Self::Presentation(left), Self::Presentation(right)) => left == right,
             // Two groups are equal iff their keys are.
             (Self::Group(left), Self::Group(right)) => left.key == right.key,
+            // A function is equal only to itself: equal behaviour is undecidable.
+            (Self::Function(left), Self::Function(right)) => Arc::ptr_eq(left, right),
             _ => false,
         }
     }

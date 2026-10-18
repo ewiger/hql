@@ -305,3 +305,61 @@ fn the_standard_library_is_where_the_declarations_live() {
         check(&together)
     );
 }
+
+#[test]
+fn a_function_narrows_with_a_wider_parameter_and_a_narrower_result() {
+    use hql::types::TypeRef;
+    let function = |parameter: TypeRef, result: TypeRef| {
+        TypeRef::function(vec![parameter], result).expect("a declared arity")
+    };
+    // Accepts more and returns less: usable where Card -> Data is expected.
+    let wider = function(TypeRef::DOC, TypeRef::INT);
+    let expected = function(TypeRef::CARD, TypeRef::DATA);
+    assert!(wider.is(&expected));
+    assert!(!expected.is(&wider));
+    // A narrower parameter is the wrong direction.
+    assert!(!function(TypeRef::CARD, TypeRef::INT).is(&function(TypeRef::DOC, TypeRef::INT)));
+    // Different arities are different constructors.
+    let binary = TypeRef::function(vec![TypeRef::INT, TypeRef::INT], TypeRef::INT).unwrap();
+    assert!(!binary.is(&function(TypeRef::INT, TypeRef::INT)));
+}
+
+#[test]
+fn a_function_type_prints_with_an_arrow() {
+    use hql::types::TypeRef;
+    let unary = TypeRef::function(vec![TypeRef::CARD], TypeRef::STR).unwrap();
+    assert_eq!(unary.to_string(), "Card -> String");
+    let binary = TypeRef::function(vec![TypeRef::INT, TypeRef::INT], TypeRef::ORDERING).unwrap();
+    assert_eq!(binary.to_string(), "(Int, Int) -> Ordering");
+    assert_eq!(
+        TypeRef::function(vec![], TypeRef::INT).unwrap().to_string(),
+        "() -> Int"
+    );
+    assert_eq!(
+        hql::check("fn inc(n: Int) : Int = n + 1\ninc")
+            .unwrap()
+            .to_string(),
+        "Int -> Int"
+    );
+    let error = hql::check("fn inc(n: Int) : Int = n + 1\n[\"a\"] | map(inc)")
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("Int"), "{error}");
+}
+
+#[test]
+fn a_function_called_with_the_wrong_number_of_arguments_is_refused() {
+    let error = hql::check("fn inc(n: Int) : Int = n + 1\ninc(1, 2)")
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("takes 1 arguments"), "{error}");
+    let unannotated = hql::check("f = c => c").unwrap_err().to_string();
+    assert!(
+        unannotated.contains("types its parameters"),
+        "{unannotated}"
+    );
+    let result = hql::check("fn f(n: Int) : String = n")
+        .unwrap_err()
+        .to_string();
+    assert!(result.contains("declared to return String"), "{result}");
+}

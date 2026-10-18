@@ -26,6 +26,9 @@ pub enum Variance {
     Covariant,
     /// The argument must remain identical.
     Invariant,
+    /// The argument may widen as the enclosing type narrows: a function
+    /// accepting a wider parameter narrows one accepting a narrower one.
+    Contravariant,
 }
 
 /// A named argument and its optional upper bound.
@@ -180,8 +183,7 @@ impl TypeSystem {
                     .iter()
                     .zip(&ancestor.parameters)
                     .any(|(child, parent)| {
-                        parent.variance == Variance::Invariant
-                            && child.variance != Variance::Invariant
+                        parent.variance != Variance::Covariant && child.variance != parent.variance
                     })
             {
                 return Err(TypeError::IncompatibleParent {
@@ -353,6 +355,7 @@ impl TypeSystem {
                         .all(|((source, target), parameter)| match parameter.variance {
                             Variance::Covariant => self.narrows(source, target),
                             Variance::Invariant => source == target,
+                            Variance::Contravariant => self.narrows(target, source),
                         })
             });
         if declared {

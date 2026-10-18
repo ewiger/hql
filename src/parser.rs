@@ -1,7 +1,8 @@
 //! Parse tokens into a program: statements, bindings, pipelines and calls.
 
 use crate::ast::{
-    Arg, Arith, Arm, Expr, Field, Kind, Logic, Pattern, Program, Relation, Stmt, TypeAnn, TypeDecl,
+    Arg, Arith, Arm, Expr, Field, FnDecl, Kind, Logic, Param, Pattern, Program, Relation, Stmt,
+    TypeAnn, TypeDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -193,6 +194,12 @@ impl Parser {
             });
         }
         if let Token::Ident(keyword) = self.peek().clone()
+            && keyword == "fn"
+            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+        {
+            return Ok(Stmt::Fn(self.function()?));
+        }
+        if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "type"
             && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
         {
@@ -372,7 +379,52 @@ impl Parser {
         })
     }
 
+    /// A type, including a function type: `A -> R`, `(A, B) -> R`, `() -> R`.
+    /// The arrow groups to the right.
     fn type_annotation(&mut self) -> Result<TypeAnn, Diagnostic> {
+        let start = self.peek_span().start;
+        let parameters = if matches!(self.peek(), Token::OpenParen) {
+            self.advance();
+            self.nesting += 1;
+            let mut parameters = Vec::new();
+            if !matches!(self.peek(), Token::CloseParen) {
+                loop {
+                    parameters.push(self.nested(Self::type_annotation)?);
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                }
+            }
+            self.expect(&Token::CloseParen, "after parameter types")?;
+            self.nesting -= 1;
+            if !matches!(self.peek(), Token::Arrow) {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    "parenthesised types are the parameters of a function type: add `-> R`",
+                ));
+            }
+            parameters
+        } else {
+            let single = self.simple_type()?;
+            if !matches!(self.peek(), Token::Arrow) {
+                return Ok(single);
+            }
+            vec![single]
+        };
+        self.expect(&Token::Arrow, "in a function type")?;
+        let result = self.nested(Self::type_annotation)?;
+        let span = start..result.span.end;
+        let mut arguments = parameters;
+        let name = format!("Fn{}", arguments.len());
+        arguments.push(result);
+        Ok(TypeAnn {
+            name,
+            arguments,
+            span,
+        })
+    }
+
+    fn simple_type(&mut self) -> Result<TypeAnn, Diagnostic> {
         let head = self.advance();
         let Token::Ident(name) = head.token else {
             return Err(Diagnostic::syntax(head.span, "expected a type name"));
@@ -394,6 +446,94 @@ impl Parser {
         Ok(TypeAnn {
             name,
             arguments,
+            span,
+        })
+    }
+
+    /// `fn name<T>(p: Type, xs: ...Type) : Result = body`.
+    fn function(&mut self) -> Result<FnDecl, Diagnostic> {
+        let start = self.advance().span.start;
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(named.span, "expected a function name"));
+        };
+        let mut generics = Vec::new();
+        if self.eat(&Token::Less) {
+            loop {
+                let parameter = self.advance();
+                let Token::Ident(parameter) = parameter.token else {
+                    return Err(Diagnostic::syntax(
+                        parameter.span,
+                        "expected a type parameter",
+                    ));
+                };
+                generics.push(parameter);
+                if !self.eat(&Token::Comma) {
+                    break;
+                }
+            }
+            self.expect(&Token::Greater, "after type parameters")?;
+        }
+        self.expect(&Token::OpenParen, "to open the parameters")?;
+        self.nesting += 1;
+        let mut parameters: Vec<Param> = Vec::new();
+        if !matches!(self.peek(), Token::CloseParen) {
+            loop {
+                let written = self.advance();
+                let Token::Ident(parameter) = written.token else {
+                    return Err(Diagnostic::syntax(
+                        written.span,
+                        "expected a parameter name",
+                    ));
+                };
+                if parameters.iter().any(|seen| seen.name == parameter) {
+                    return Err(Diagnostic::syntax(
+                        written.span,
+                        "parameters must be distinct",
+                    ));
+                }
+                self.expect(
+                    &Token::Colon,
+                    "after a parameter name: every parameter is typed",
+                )?;
+                let variadic = self.eat(&Token::Dot);
+                if variadic {
+                    self.expect(&Token::Dot, "in `...`")?;
+                    self.expect(&Token::Dot, "in `...`")?;
+                }
+                let annotation = self.type_annotation()?;
+                parameters.push(Param {
+                    name: parameter,
+                    annotation,
+                    variadic,
+                });
+                if !self.eat(&Token::Comma) {
+                    break;
+                }
+            }
+        }
+        self.expect(&Token::CloseParen, "to close the parameters")?;
+        self.nesting -= 1;
+        if let Some(index) = parameters.iter().position(|parameter| parameter.variadic)
+            && index + 1 != parameters.len()
+        {
+            return Err(Diagnostic::syntax(
+                start..self.peek_span().end,
+                "a variadic parameter is the last one",
+            ));
+        }
+        self.expect(&Token::Colon, "before the result type")?;
+        let result = self.type_annotation()?;
+        self.expect(&Token::Equals, "before the function body")?;
+        self.continuation();
+        let body = self.expression()?;
+        let span = start..body.span.end;
+        Ok(FnDecl {
+            name,
+            generics,
+            parameters,
+            result,
+            body,
             span,
         })
     }
@@ -862,20 +1002,23 @@ impl Parser {
             });
         }
         if matches!(self.peek(), Token::OpenParen) {
+            // A parenthesised list followed by `=>` is a lambda's parameters.
             let mut look = self.index + 1;
-            while matches!(
-                self.tokens[look].token,
-                Token::Ident(_) | Token::Comma | Token::Newline
-            ) {
+            let mut depth = 1;
+            while depth > 0 && !matches!(self.tokens[look].token, Token::End) {
+                match self.tokens[look].token {
+                    Token::OpenParen => depth += 1,
+                    Token::CloseParen => depth -= 1,
+                    _ => {}
+                }
                 look += 1;
             }
-            if matches!(self.tokens[look].token, Token::CloseParen)
-                && matches!(self.tokens[look + 1].token, Token::FatArrow)
-            {
+            if depth == 0 && matches!(self.tokens[look].token, Token::FatArrow) {
                 let start = self.advance().span.start;
                 self.nesting += 1;
                 let mut parameters = Vec::new();
-                loop {
+                let mut annotations = Vec::new();
+                while !matches!(self.peek(), Token::CloseParen) {
                     let name = self.advance();
                     let Token::Ident(name) = name.token else {
                         return Err(Diagnostic::syntax(name.span, "expected a lambda parameter"));
@@ -887,6 +1030,11 @@ impl Parser {
                         ));
                     }
                     parameters.push(name);
+                    annotations.push(if self.eat(&Token::Colon) {
+                        Some(self.type_annotation()?)
+                    } else {
+                        None
+                    });
                     if !self.eat(&Token::Comma) {
                         break;
                     }
@@ -899,6 +1047,7 @@ impl Parser {
                 return Ok(Expr {
                     kind: Kind::Lambda {
                         parameters,
+                        annotations,
                         body: Box::new(body),
                     },
                     span,
@@ -934,6 +1083,7 @@ impl Parser {
                     return Ok(Expr {
                         kind: Kind::Lambda {
                             parameters: vec![name],
+                            annotations: vec![None],
                             body: Box::new(body),
                         },
                         span,

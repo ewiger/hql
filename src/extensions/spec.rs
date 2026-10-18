@@ -1,7 +1,7 @@
 //! Structural step contracts shared by elaboration and the builtin catalogue.
 
 use super::CheckCx;
-use crate::ast::{Arg, Kind};
+use crate::ast::Arg;
 use crate::diagnostics::Diagnostic;
 use crate::types::{TypeConstructor, TypeRef};
 use std::collections::BTreeMap;
@@ -328,7 +328,7 @@ impl StepSpec {
                 // A lambda is not a value, so written positionally it fills
                 // the next function slot and leaves the value slots before it
                 // unsupplied: `reduce((a, b) => …)` omits the initial value.
-                None if matches!(argument.value.kind, Kind::Lambda { .. }) => {
+                None if cx.function_arity(argument).is_some() => {
                     positions.find(|index| self.arguments[*index].kind.is_function())
                 }
                 None => positions.next(),
@@ -392,7 +392,7 @@ impl StepSpec {
                 }
                 ArgumentKind::Ordering(element) => {
                     let element = element.instantiate(&bindings, argument_span)?;
-                    let comparator = matches!(&argument.value.kind, Kind::Lambda { parameters, .. } if parameters.len() == 2);
+                    let comparator = cx.function_arity(argument) == Some(2);
                     let actual = cx.lambda_parameters(
                         argument,
                         if comparator {

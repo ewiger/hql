@@ -11,7 +11,7 @@ use crate::graph::Edge;
 use crate::reporting::{Report, TraceStep};
 use crate::search;
 use crate::types::TypeRef;
-use crate::types::Value;
+use crate::types::{Closure, Value};
 use crate::vault::Vault;
 use crate::warnings::Warning;
 use std::collections::HashMap;
@@ -77,6 +77,22 @@ impl Evaluator<'_> {
                     Value::Unit
                 }
                 Stmt::Unit => Value::Unit,
+                Stmt::Fn {
+                    name,
+                    parameters,
+                    body,
+                    ty,
+                } => {
+                    let function = Value::Function(Arc::new(Closure {
+                        name: Some(name.clone()),
+                        parameters: parameters.clone(),
+                        body: Arc::clone(body),
+                        captured: self.scope.clone(),
+                        ty: ty.clone(),
+                    }));
+                    self.scope.insert(name.clone(), function);
+                    Value::Unit
+                }
                 Stmt::Expr(expression) => self.expression(expression)?,
             };
         }
@@ -199,10 +215,33 @@ impl Evaluator<'_> {
                 };
                 Ok(Value::Edge(Arc::new(Edge::link(&from, &to, annotation))))
             }
-            Kind::Lambda { .. } => Err(Diagnostic::typing(
-                span,
-                "a lambda may only be written as an argument",
-            )),
+            Kind::Lambda {
+                parameters,
+                body,
+                function,
+            } => Ok(Value::Function(Arc::new(Closure {
+                name: None,
+                parameters: parameters.clone(),
+                body: Arc::clone(body),
+                captured: self.scope.clone(),
+                ty: function.clone().unwrap_or_else(|| expression.ty.clone()),
+            }))),
+            Kind::Apply {
+                callee,
+                arguments,
+                pack,
+            } => {
+                let callee = self.expression(callee)?;
+                let mut values = arguments
+                    .iter()
+                    .map(|argument| self.expression(argument))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if let Some((fixed, element)) = pack {
+                    let trailing = values.split_off((*fixed).min(values.len()));
+                    values.push(Value::list(trailing, element.clone()));
+                }
+                self.call(&callee, values, &span)
+            }
             Kind::Order(left, right) => {
                 let left = self.expression(left)?.order_key().ok_or_else(|| {
                     Diagnostic::runtime(span.clone(), "checked ordering value has no key")
@@ -480,13 +519,46 @@ impl Evaluator<'_> {
         }
     }
 
+    /// Call a function value: its body runs in the scope it captured, with
+    /// its parameters bound and, for a declared function, its own name.
+    fn call(
+        &mut self,
+        callee: &Value,
+        values: Vec<Value>,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        let Value::Function(function) = callee else {
+            return Err(Diagnostic::runtime(
+                span.clone(),
+                "only a function can be called",
+            ));
+        };
+        if function.parameters.len() != values.len() {
+            return Err(Diagnostic::runtime(
+                span.clone(),
+                "wrong number of arguments",
+            ));
+        }
+        let mut scope = function.captured.clone();
+        if let Some(name) = &function.name {
+            scope.insert(name.clone(), callee.clone());
+        }
+        scope.extend(function.parameters.iter().cloned().zip(values));
+        let outer = std::mem::replace(&mut self.scope, scope);
+        let result = self.expression(&function.body);
+        self.scope = outer;
+        result
+    }
+
     /// Evaluate a lambda argument once per element.
     fn apply(&mut self, argument: &Arg, values: Vec<Value>) -> Result<Value, Diagnostic> {
-        let Kind::Lambda { parameters, body } = &argument.value.kind else {
-            return Err(Diagnostic::typing(
-                argument.value.span.clone(),
-                "expected a lambda",
-            ));
+        let Kind::Lambda {
+            parameters, body, ..
+        } = &argument.value.kind
+        else {
+            // A function value where a lambda could be written.
+            let function = self.expression(&argument.value)?;
+            return self.call(&function, values, &argument.value.span);
         };
         if parameters.len() != values.len() {
             return Err(Diagnostic::runtime(

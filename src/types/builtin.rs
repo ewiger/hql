@@ -107,6 +107,30 @@ fn build() -> Result<TypeSystem, TypeError> {
             applied: applied.into_iter().collect(),
         })?;
     }
+    // The function types, one constructor per arity: every parameter
+    // position contravariant, the result covariant. Printed as arrows.
+    for (arity, constructor) in FUNCTIONS.iter().enumerate() {
+        let mut parameters = ARGUMENT_NAMES[..arity]
+            .iter()
+            .map(|name| TypeParameter {
+                name,
+                variance: Variance::Contravariant,
+                bound: None,
+            })
+            .collect::<Vec<_>>();
+        parameters.push(TypeParameter {
+            name: "R",
+            variance: Variance::Covariant,
+            bound: None,
+        });
+        system.declare(TypeDefinition {
+            constructor: *constructor,
+            kind: TypeKind::Concrete,
+            parameters,
+            parents: Vec::new(),
+            applied: Vec::new(),
+        })?;
+    }
     // One partition of a `group`: `type Group<K, T> { key: K, items: List<T> }`.
     system.declare(TypeDefinition {
         constructor: GROUP,
@@ -123,6 +147,38 @@ fn build() -> Result<TypeSystem, TypeError> {
         applied: Vec::new(),
     })?;
     Ok(system)
+}
+
+/// The function type constructors, indexed by arity.
+pub const FUNCTIONS: [TypeConstructor; 5] = [
+    TypeConstructor("Fn0"),
+    TypeConstructor("Fn1"),
+    TypeConstructor("Fn2"),
+    TypeConstructor("Fn3"),
+    TypeConstructor("Fn4"),
+];
+const ARGUMENT_NAMES: [&str; 4] = ["A", "B", "C", "D"];
+
+impl TypeRef {
+    /// The type of a function from `parameters` to `result`, or `None` past
+    /// the highest declared arity.
+    #[must_use]
+    pub fn function(parameters: Vec<Self>, result: Self) -> Option<Self> {
+        let constructor = FUNCTIONS.get(parameters.len())?;
+        let mut args = parameters;
+        args.push(result);
+        Some(constructor.apply(args))
+    }
+
+    /// A function type's parameters and result.
+    #[must_use]
+    pub fn as_function(&self) -> Option<(&[Self], &Self)> {
+        if !FUNCTIONS.contains(&self.constructor) {
+            return None;
+        }
+        let (result, parameters) = self.args.split_last()?;
+        Some((parameters, result))
+    }
 }
 
 /// The constructor of one `group` partition.
@@ -282,7 +338,9 @@ impl TypeRef {
                 .zip(&definition.parameters)
                 .map(|((left, right), parameter)| match parameter.variance {
                     Variance::Covariant => left.related(right, trees_are_data),
-                    Variance::Invariant => (left == right).then(|| left.clone()),
+                    Variance::Invariant | Variance::Contravariant => {
+                        (left == right).then(|| left.clone())
+                    }
                 })
                 .collect::<Option<Vec<_>>>();
             // `List<Int>` beside `List<String>` is a `List<Data>`, which says
