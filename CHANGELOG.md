@@ -16,11 +16,39 @@ The language continues to be in active development.
   `--write` takes the output path, and `--in-place` rewrites the source under
   `--emit after`. The `hql#result` block is gone.
 - A table written into a document is a Markdown pipe table.
+- `cards` is a binding seeded per vault, not a keyword, so a program may shadow
+  it; without a vault it is unbound and the error says a vault is needed.
+- `Ranking<T>` is a declared subtype of `Seq<Hit<T>>`. The type system takes
+  applied parents, a parent whose arguments are built from the child's, so
+  subtyping, element type and sequence tests go through the declaration rather
+  than a `Ranking` special case.
+- `take` keeps the type of any concrete sequence, a `List` or a `Ranking`, and
+  returns a `List` from everything else.
+- The `or` alternative over `Option` in `std/core.hql` is named `alternative`;
+  `or` is a reserved word.
 
 ### Added
 
 - The `markdown` presentation: a record as a table, a sequence as a list, a
   document or card as its own body.
+- Scalar operators: `<`, `<=`, `>`, `>=` over values of one orderable type;
+  `and`, `or`, `not` over `Bool`, short-circuiting; `-`, `*`, `/`, `%` over
+  `Int` or `Float`, with truncating `Int` division. Division by zero and `Int`
+  overflow are runtime errors. A comparison does not chain.
+- The `debug` step: an identity step that records its input, a label and its
+  trace in the report log at severity `debug` or `info`. `--report-level`, the
+  vault's `[report] level` and `$HQL_REPORT_LEVEL` set which reports the text
+  output shows; JSON output carries all of them. `hql config` prints the level
+  and where it came from.
+
+### Fixed
+
+- `cards = [1, 2]` followed by `cards` evaluated to the vault's cards and
+  ignored the binding without a report.
+- `1 - 2` was a syntax error: a minus after an operand is subtraction, and only
+  a minus before a digit with no operand ahead of it is a literal's sign.
+- A step written inside a pipeline reports its own span, not the whole
+  pipeline's.
 
 ## [0.1.0] — 2026-09-27
 
