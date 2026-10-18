@@ -1,6 +1,6 @@
 # 0023 — Built-in record fields from their declarations
 
-Status: backlog
+Status: done
 Source: the `Ranking` feature of [0014](0014-next-feature-bundle.md), which
 made the retrieval carrier generic and left this part
 
@@ -11,29 +11,31 @@ behaviour; the declarations are what the cards argue. Reading fields from the
 declarations is one change for all of them, once each disagreement is
 decided.
 
-## The disagreements
+## Resolution
 
-| Type | `std/` declares | The checker gives |
-| --- | --- | --- |
-| `Hit<T>` | `value : T`, `score : Score`, `provenance : Retrieval` | `value : T`, `score : Float`, `query : String`, `retrieval : Data` |
-| `Ranking<T>` | no fields | `hits : List<Hit<T>>`, `query : String`, `retrieval : Data` |
-| `Doc` | `name`, `path`, `format`, `header : Data`, `body : Content` | the same with `body : String`, and `title : String` |
-| `Card` | `metadata : Data` | `metadata : Data`, `kind : String` |
-| `Graph<N, E>` | no fields | `nodes : List<String>`, `edges : List<Edge>`; [HQL-0019](../proposals/HQL-0019/README.md) wants `Set<N>` and `Set<E>` |
+`std/` is embedded in the binary (`src/library.rs`), checked once as one
+program, and a field on a built-in record is read from its declaration, then
+from its parents, with the receiver's type arguments bound. Where `std/` and
+the checker disagreed, `std/` now states what programs already read:
 
-## Work
+| Type | Fields |
+| --- | --- |
+| `Hit<T>` | `value : T`, `score : Float`, `query : String`, `retrieval : Data` |
+| `Ranking<T> : Seq<Hit<T>>` | `hits : List<Hit<T>>`, `query : String`, `retrieval : Data` |
+| `Doc` | `name`, `title`, `path`, `format : String`, `header : Data`, `body : String` |
+| `Card` | `metadata : Data`, `kind : String` |
+| `Edge<S, T>` | `source : String`, `target : String`, `data : Data` |
+| `Graph<N, E>` | `nodes : List<String>`, `edges : List<Edge>` |
 
-1. Decide each row: `Score`, `Query` and `Retrieval` as declared types or as
-   `Float`, `String` and a record; `title` and `kind` declared or retired;
-   `Graph`'s fields per HQL-0019.
-2. Embed `std/` in the binary and read record fields from the parsed
-   declarations, so `field_type` holds no per-type table.
-3. Keep `tests/declarations.rs` checking that every declaration agrees with
-   the built-in lattice.
+`checker::field_type` keeps three arms that are not records: `Option` lifts a
+field read, `Data` is an open tree, and a map's `keys` depends on the map's
+kind. `tests/declarations.rs` checks that every module of `std/` is embedded as
+written, checks after the modules it follows, and gives every built-in field
+the type its declaration states.
 
-## Done when
+## Conflict
 
-- `checker::field_type` has no arm naming a built-in record type.
-- Every field a program reads on a built-in record is declared in `std/`.
-- `cargo test --locked`, `cargo clippy --locked --all-targets -- -D warnings`
-  and `cargo fmt --check` are clean.
+[HQL-0019](../proposals/HQL-0019/README.md) specifies `g.nodes : Set<N>` and
+`g.edges : Set<E>`. The declared and implemented fields are
+`List<String>` and `List<Edge>`, because the graph carriers are not generic;
+HQL-0019's fields arrive with generic carriers.

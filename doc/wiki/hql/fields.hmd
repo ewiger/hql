@@ -33,7 +33,7 @@ A field declared without `?` is **required** by that type. A field declared with
 ```hql
 type Doc {
     header : Data
-    body   : Content
+    body   : String
 }
 
 type HmdHeader {

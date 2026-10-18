@@ -15,6 +15,7 @@ type Relation<S, T> : Edge<S, T>
 // Its two kinds say what the document is about.
 abstract type Card : Doc {
     metadata : Data     // the knowledge attached to this card, assembled
+    kind     : String   // "ConceptCard" or "RelationCard"
 }
 
 type ConceptCard  : {Card, Concept} // its subject is a concept — a node
@@ -22,7 +23,7 @@ type RelationCard : Card           // its subject is a relation — an edge
 
 // Card is abstract in the other direction too: a concrete card is one whose
 // body is written in a given dialect, one subtype per `header.format`.
-type HmdCard : {Card, HmdDoc} // format is hmd, so the body is HmdContent
+type HmdCard : {Card, HmdDoc} // format is hmd
 type MdCard  : Card           // format is md, which no dialect type narrows
 
 // Both contracts at once, so the projection loses nothing: a knowledge graph is

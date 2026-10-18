@@ -6,11 +6,10 @@
 use hql::{
     check,
     diagnostics::Diagnostic,
-    eval,
+    eval, library,
     types::{TypeRef, Value},
 };
 use std::fs;
-use std::path::Path;
 
 fn refused(source: &str) -> String {
     match check(source) {
@@ -20,32 +19,49 @@ fn refused(source: &str) -> String {
 }
 
 #[test]
-fn every_file_in_the_standard_library_parses_and_checks() {
+fn every_file_in_the_standard_library_is_embedded_as_written() {
     // The folder is walked rather than listed, so a file added to `std/`
-    // cannot be silently left unchecked.
-    let mut checked = 0;
+    // cannot be left out of the binary, and the copy the binary reads its
+    // record fields from is the one on disk.
+    let mut found = 0;
     for entry in fs::read_dir("std").expect("the standard library") {
         let path = entry.expect("an entry").path();
         if path.extension().and_then(|name| name.to_str()) != Some("hql") {
             continue;
         }
-        let source = fs::read_to_string(&path).expect("a readable file");
-        // Knowledge declarations refer to the document dialect declarations.
-        let source = if path.file_name().and_then(|name| name.to_str()) == Some("knowledge.hql") {
-            format!("{}\n{source}", include_str!("../std/doc.hql"))
-        } else {
-            source
-        };
+        let stem = path.file_stem().and_then(|name| name.to_str()).unwrap();
+        let embedded = library::MODULES
+            .iter()
+            .find(|(name, _)| *name == stem)
+            .unwrap_or_else(|| panic!("{} is not embedded", path.display()));
+        assert_eq!(
+            embedded.1,
+            fs::read_to_string(&path).expect("a readable file"),
+            "{}",
+            path.display()
+        );
+        found += 1;
+    }
+    assert_eq!(found, library::MODULES.len());
+}
+
+#[test]
+fn every_module_of_the_standard_library_checks_after_the_ones_it_follows() {
+    // Each module is checked with the modules before it, so a declaration
+    // that contradicts the lattice is refused in the module that makes it.
+    let mut prefix = String::new();
+    for (name, module) in library::MODULES {
+        let source = format!("{prefix}{module}");
         assert_eq!(
             check(&source),
             Ok(TypeRef::UNIT),
-            "{}: {:?}",
-            path.display(),
+            "{name}: {:?}",
             check(&source)
         );
-        checked += 1;
+        prefix.push_str(module);
+        prefix.push('\n');
     }
-    assert!(checked >= 6, "only {checked} files were checked");
+    assert_eq!(library::check(), Ok(()));
 }
 
 #[test]
@@ -282,28 +298,47 @@ fn a_declaration_is_a_statement_and_not_an_expression() {
 }
 
 #[test]
-fn the_standard_library_is_where_the_declarations_live() {
-    // Loading every module together must also hold: the files are one library
-    // and a name declared twice across them would be a real collision.
-    let mut together = String::new();
-    for name in [
-        "core",
-        "collections",
-        "doc",
-        "graph",
-        "knowledge",
-        "retrieval",
+fn a_built_in_record_field_has_the_type_its_declaration_gives() {
+    // Fields are read from `std/`, so each one a program reads is pinned
+    // here at the type its declaration states.
+    for (receiver, field, declared) in [
+        ("Hit<Card>", "value", "Card"),
+        ("Hit<Card>", "score", "Float"),
+        ("Hit<Card>", "query", "String"),
+        ("Hit<Card>", "retrieval", "Data"),
+        ("Ranking<Int>", "hits", "List<Hit<Int>>"),
+        ("Ranking<Int>", "query", "String"),
+        ("Ranking<Int>", "retrieval", "Data"),
+        ("Doc", "name", "String"),
+        ("Doc", "title", "String"),
+        ("Doc", "path", "String"),
+        ("Doc", "format", "String"),
+        ("Doc", "header", "Data"),
+        ("Doc", "body", "String"),
+        ("Card", "title", "String"),
+        ("Card", "metadata", "Data"),
+        ("Card", "kind", "String"),
+        ("ConceptCard", "kind", "String"),
+        ("RelationCard", "metadata", "Data"),
+        ("Edge", "source", "String"),
+        ("Edge", "target", "String"),
+        ("Edge", "data", "Data"),
+        ("Graph", "nodes", "List<String>"),
+        ("Graph", "edges", "List<Edge>"),
+        ("Group<String, Int>", "key", "String"),
+        ("Group<String, Int>", "items", "List<Int>"),
+        ("Option<Card>", "kind", "Option<String>"),
     ] {
-        let path = Path::new("std").join(format!("{name}.hql"));
-        together.push_str(&fs::read_to_string(path).expect("a module"));
-        together.push('\n');
+        let source = format!("fn read(x: {receiver}) : {declared} = x.{field}\nread");
+        assert_eq!(
+            check(&source).map(|inferred| inferred.to_string()),
+            Ok(format!("{receiver} -> {declared}")),
+            "{source}"
+        );
     }
-    assert_eq!(
-        check(&together),
-        Ok(TypeRef::UNIT),
-        "{:?}",
-        check(&together)
-    );
+    // A field the declaration does not have is not there, inherited or not.
+    assert!(refused("fn read(d: Doc) : Data = d.metadata\nread").contains("no field `metadata`"));
+    assert!(refused("fn read(h: Hit<Int>) : Data = h.provenance\nread").contains("no field"));
 }
 
 #[test]

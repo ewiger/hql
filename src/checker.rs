@@ -1088,45 +1088,8 @@ pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
         // A key of an open tree may not be there, so reading one is optional
         // by type: `field? : T` and `Option<T>` are the same claim.
         "Data" => Some(TypeRef::optional(TypeRef::DATA)),
-        "Doc" | "Card" | "ConceptCard" | "RelationCard" => {
-            let card = receiver.is_card();
-            match field {
-                "name" | "title" | "path" | "format" | "body" => Some(TypeRef::STR),
-                "header" => Some(TypeRef::DATA),
-                "metadata" if card => Some(TypeRef::DATA),
-                "kind" if card => Some(TypeRef::STR),
-                _ => None,
-            }
-        }
-        "Edge" => match field {
-            "source" | "target" => Some(TypeRef::STR),
-            "data" => Some(TypeRef::DATA),
-            _ => None,
-        },
-        "Hit" => match field {
-            "value" => Some(receiver.args.first()?.clone()),
-            "score" => Some(TypeRef::FLOAT),
-            "query" => Some(TypeRef::STR),
-            "retrieval" => Some(TypeRef::DATA),
-            _ => None,
-        },
-        "Ranking" => match field {
-            "hits" => Some(TypeRef::list(TypeRef::hit(receiver.args.first()?.clone()))),
-            "query" => Some(TypeRef::STR),
-            "retrieval" => Some(TypeRef::DATA),
-            _ => None,
-        },
-        "Group" => match field {
-            "key" => Some(receiver.args.first()?.clone()),
-            "items" => Some(TypeRef::list(receiver.args.get(1)?.clone())),
-            _ => None,
-        },
-        "Graph" => match field {
-            "nodes" => Some(TypeRef::list(TypeRef::STR)),
-            "edges" => Some(TypeRef::list(TypeRef::EDGE)),
-            _ => None,
-        },
-        _ => None,
+        // A record's fields are what its declaration in `std/` says.
+        _ => crate::library::field_type(receiver, field),
     }
 }
 

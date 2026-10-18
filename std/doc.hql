@@ -2,24 +2,20 @@
 //
 // See doc/wiki/hql/types/doc-type.hmd and fields.hmd.
 
-// A document body before its dialect is established.
-abstract type Content
-
 // Where a document is and what it is called are facts about the file, so they
 // are fields of the document itself. Nothing in the header or the metadata can
 // contradict them, because they are not written there. A document is ordered by
 // its name, so every Card is Orderable without declaring it.
 abstract type Doc : Orderable {
     name   : String   // its name in its namespace — the file stem for a file
+    title  : String   // authored, else the first heading, else the name
     path   : String   // where it is, relative to the vault root
     format : String   // the dialect its body is written in
     header : Data     // everything the document says about itself
-    body   : Content
+    body   : String   // the text after the header, as written
 }
 
-// A dialect narrows the body and may declare a shape over part of the header.
-type HmdContent : Content
-
+// A dialect may declare a shape over part of the header.
 type HmdHeader {
     metadata? : Data
 }

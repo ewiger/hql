@@ -29,6 +29,7 @@ pub mod diagnostics;
 pub mod document;
 pub mod extensions;
 pub mod graph;
+pub mod library;
 pub mod render;
 pub mod reporting;
 pub mod search;

@@ -9,17 +9,19 @@ nav:
 body:
 
 ```hql
-abstract type Doc {
+abstract type Doc : Orderable {
     name   : String
+    title  : String
     path   : String
     format : String
     header : Data
-    body   : Content
+    body   : String
 }
 ```
 
-The body is what a person wrote. The header is everything the document says
-about itself. `name`, `path` and `format` are neither: they are facts about the
+The body is what a person wrote: the text after the header, as written. The
+header is everything the document says about itself. `title` is the authored
+title, else the first heading, else the name. `name`, `path` and `format` are neither: they are facts about the
 file, established by the host from the file itself, and they are fields so that
 nothing written inside the document can contradict them. An author who writes
 `name:` into a metadata block has written an ordinary authored entry about
@@ -141,8 +143,6 @@ whether a document can be reinterpreted under a different format.
 
 | Type | Role |
 | --- | --- |
-| `Content` | Parsed body content, whatever the dialect |
-| `HmdContent` | Parsed HyperMarkDown content; `HmdContent : Content` |
 | `Section` | A heading and the content beneath it |
 | `Block` | Anchored content addressable by name |
 | `Link` | A reference from this document to a target |
@@ -153,23 +153,14 @@ document's headings form a tree rather than a flat list. Whether `Doc` exposes
 that tree, a flat sequence, or both is open.
 
 ```hql
-doc.body      : Content
+doc.body      : String
 doc.sections  : Seq<Section>
 ```
 
-`Hmd` is not a type here. It names a *format* — the dialect `doc.format`
-reports — and a format is not the parsed value that results from reading a
-document in it. The parsed value is `HmdContent`, and `Content` is the type a
-document's body has before anything is known about which dialect produced it.
-Their relation is the usual narrowing: a body is `Content`, and establishing
-`doc.format` is `hmd` is what establishes it as `HmdContent`, with the
-addressing and embed operations below attached to that stronger type.
-
-Keeping content apart from `Doc` is also what lets an embedded fragment or a
-constructed body be a value without inventing a header for it.
-
-Whether `Content` is one type with narrowings per dialect, or a union, and what
-a body is before it has been parsed at all, are open.
+`doc.body` is text; `doc.format` names the dialect it is written in. Sections,
+blocks and links are structure read from that text, and the addressing and
+embed operations below act on that structure. What a parsed body is as a value,
+and whether it narrows per dialect, are open.
 
 ## Addressing
 

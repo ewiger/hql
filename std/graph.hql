@@ -5,13 +5,18 @@
 // There is no Node type. What a node is arrives as a type parameter, so a graph
 // over documents and a graph over concepts share one declaration.
 
+// The carriers are not yet generic: whatever S and T are, an endpoint is held
+// as the name of the node it is, and a graph's nodes as those names.
 type Edge<S, T> {
-    source: S
-    target: T
-    data:   Data
+    source : String
+    target : String
+    data   : Data
 }
 
-type Graph<N, E>
+type Graph<N, E> {
+    nodes : List<String>
+    edges : List<Edge>
+}
 
 // The document graph: authored links over cards.
 type Link<S, T> : Edge<S, T>

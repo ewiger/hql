@@ -205,8 +205,8 @@ spelling of a type, `list`, is not a step and names the constructor.
 a value of a declared record type is separate work, not implemented.
 
 ```hql
-type Content
-type HmdContent : Content
+type Markdown : String
+type Hmd : Markdown
 type Edge<S, T> { source : S, target : T, data : Data }
 type ConceptCard : {Card, Concept}
 type HmdHeader { metadata? : Data }

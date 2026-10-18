@@ -29,21 +29,22 @@ parent.
 
 ```hql
 type Hit<T> {
-    value      : T
-    score      : Score
-    provenance : Retrieval
+    value     : T
+    score     : Float
+    query     : String
+    retrieval : Data
 }
 
-type Retrieval {
-    query       : Query
-    index       : IndexRef
-    model       : ModelRef
-    metric      : Metric
-    approximate : Bool
+type Ranking<T> : Seq<Hit<T>> {
+    hits      : List<Hit<T>>
+    query     : String
+    retrieval : Data
 }
-
-type Ranking<T> : Seq<Hit<T>>
 ```
+
+`retrieval` is the record of how the hits were produced, an open tree with
+the keys `query`, `index`, `model`, `revision`, `metric` and `approximate`.
+The declarations are `std/retrieval.hql`.
 
 `Ranking` narrows `Seq` the way a `Relation` narrows an `Edge`: it adds what
 makes the order meaningful — the query the order is relative to, and the rule
@@ -58,8 +59,7 @@ concrete sequence keeps its type through a prefix and a filter. `of_type` and
 `map`, which change the element, make it a `Seq` of the new element, since a
 ranking's argument is the ranked value and not its element. `sort` by another
 key makes it a `Seq<Hit<T>>`, since the new order is not the retrieval's. A
-ranking also has `query` and `retrieval` fields of its own, and `hits` for its
-elements as a `List`. A ranking reports the element type it was built from:
+ranking's `hits` field holds its elements as a `List`. A ranking reports the element type it was built from:
 `lexical` and `semantic` build a `Ranking<Card>`, and a hit's `value` is what it
 retrieved, here the card.
 
@@ -77,7 +77,7 @@ Provenance    which index answered, and when
 ```
 
 A card scoring 0.91 is not more true than one scoring 0.42; it is more similar
-to a query under one model. That is why **`Retrieval` is not optional on
+to a query under one model. That is why **`retrieval` is not optional on
 `Hit`**: a hit that cannot say how it was produced is not evidence.
 
 ## An index contributes embeddings, never scores
@@ -121,13 +121,13 @@ Approximate nearest-neighbour search does not preserve observable values, so
 pushing `semantic | take` into a store is illegal under the [[pipes]] optimizer
 rule. The resolution is not to weaken that rule: **`semantic` declares itself
 approximate in its own contract**, so the difference is part of what the step
-means rather than a liberty the executor took. `approximate` is a field on
-`Retrieval` for the same reason — a consumer can see which answer it got.
+means rather than a liberty the executor took. `approximate` is a key of every
+hit's `retrieval` for the same reason — a consumer can see which answer it got.
 
 Purity follows the same line. The same query against a changed index gives
 different answers; pinning an index makes `semantic` reproducible, and without
 pinning it is an effect. What is pinned today is the model's revision, carried
-on every `Retrieval`, and a card whose text has drifted from its vector says so
+in every hit's `retrieval`, and a card whose text has drifted from its vector says so
 rather than scoring quietly.
 
 ## What is built
@@ -145,7 +145,7 @@ over stored vectors, so `approximate` is `false` here as well; an approximate
 index is step four and is not built.
 
 Replacing one retrieval with another changes the numbers, not the shape — which
-is the point of `Retrieval` travelling on every `Hit`, and why it carries the
+is the point of `retrieval` travelling on every `Hit`, and why it carries the
 model's `revision` as well as its name.
 
 `expand` and `Graph` stay apart. `expand(depth, direction)` traverses at least
@@ -155,10 +155,9 @@ unchanged.
 
 ## Open
 
-- **`Query` construction** and whether a bare string literal may stand for one.
 - **Chunking.** A card is not a retrieval unit; a passage is.
 - **Multiple indexes**, hybrid retrieval, and whether a fused score can still
-  carry an honest `Retrieval`.
+  carry an honest `retrieval`.
 - **Filtering before or after** — `cards | of_type(ConceptCard) | semantic(q)`
   versus filtering the ranking.
 - **The write path** — remembering, reconciliation, consolidation of
