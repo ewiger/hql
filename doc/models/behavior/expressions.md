@@ -21,7 +21,9 @@ param       := ident ":" "..."? type
 
 expression  := given
 given       := pipeline ("given" pipeline ("otherwise" given)?)?
-pipeline    := link ("|" link)*
+pipeline    := link ("|" (tee | link))*
+tee         := "tee" ident "=" link
+             | "tee" ident "=" NEWLINE link (NEWLINE "|" link)*   indented past the `|` before `tee`
 link        := or ("->" or data?)?
 or          := and ("or" and)*
 and         := not ("and" not)*
@@ -98,6 +100,13 @@ nest at most 128 deep.
 
 `and`, `or`, `not`, `match`, `given` and `otherwise` are reserved words, not
 names.
+
+`input | tee name = branch | next` evaluates `input` once, binds the result of
+`branch` applied to it to `name`, and passes `input` on to `next` unchanged.
+The name is visible to the steps after the `tee` and to later statements. On
+one line the branch is one step. After a line break it is every following line
+that opens with `|` indented past the `|` before `tee`; the first line back at
+that column resumes the main pipeline.
 
 A function value is called by position, `f(a, b)`, and piped into, `x | f`
 and `x | f(a)`, which call `f(x)` and `f(x, a)`. It may be passed wherever a

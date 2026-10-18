@@ -304,3 +304,29 @@ fn somes_keeps_the_present_values_in_the_input_collection_type() {
         "[1, 3]"
     );
 }
+
+#[test]
+fn tee_binds_a_branch_and_passes_its_input_on_unchanged() {
+    let source = "xs = [5, 3, 8, 1]\nmain = xs\n| tee total = sum\n| filter(n => n > 2)\n| size\n[main, total]";
+    assert_eq!(check(source), Ok(TypeRef::list(TypeRef::INT)));
+    assert_eq!(eval(source).unwrap().to_string(), "[3, 17]");
+    // A later step of the same pipeline reads the bound name.
+    assert_eq!(
+        eval("[1, 2] | tee n = size | map(x => x * n)")
+            .unwrap()
+            .to_string(),
+        "[2, 4]"
+    );
+    // On one line the branch is one step; the next `|` continues the main line.
+    assert_eq!(
+        eval("[1, 2, 3] | tee d = map(x => x * 2) | size"),
+        Ok(Value::Int(3))
+    );
+}
+
+#[test]
+fn an_indented_tee_branch_runs_until_the_main_line_resumes() {
+    let source = "[5, 3, 8, 1]\n| tee top =\n    sort\n    | take(2)\n| size\ntop";
+    assert_eq!(check(source), Ok(TypeRef::list(TypeRef::INT)));
+    assert_eq!(eval(source).unwrap().to_string(), "[1, 3]");
+}

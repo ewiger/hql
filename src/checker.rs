@@ -538,6 +538,10 @@ impl Checker<'_> {
                 }
             }
             Kind::Match { subject, arms } => self.match_expression(subject, arms, span),
+            Kind::Tee { .. } => Err(Diagnostic::syntax(
+                span,
+                "`tee` is a pipeline step: write `input | tee name = branch`",
+            )),
             Kind::Arith(..) => self.arithmetic(expression),
             Kind::Relate {
                 left,
@@ -698,6 +702,16 @@ impl Checker<'_> {
             }
             Kind::Pipe(input, step) => {
                 let input_type = self.expression(input)?;
+                // `x | tee name = branch`: the branch reads the input, its
+                // result is bound to `name`, and the input passes on.
+                if let Kind::Tee { name, branch } = &step.kind {
+                    let result = self.with_bindings(
+                        [(crate::ast::TEE_INPUT.to_owned(), input_type.clone())],
+                        |checker| checker.expression(branch),
+                    )?;
+                    self.scope.insert(name.clone(), result);
+                    return Ok(input_type);
+                }
                 // `x | f` and `x | f(a)` apply a bound function to the input.
                 match &step.kind {
                     Kind::Ident(_) if self.names_function(step) => {

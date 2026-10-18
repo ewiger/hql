@@ -29,6 +29,7 @@ result.
 | [total pages](queries/total-pages.hql) | `reduce` as a left fold over a sequence | runs | 1589 |
 | [by genre](queries/by-genre.hql) | The full package as one pipeline over card metadata | runs | poetry 1, essay 2, novel 3 |
 | [metadata pages](queries/metadata-pages.hql) | A metadata leaf read as an `Int` with `of_type`, then summed | runs | 1589 |
+| [tee summary](queries/tee-summary.hql) | `tee` binds side counts while the main line counts the novels | runs | 3 novels, 6 books, 2 short |
 
 Every `|` is a boundary the executor sees: `filter` and `map` are
 elementwise, `group` is a partition, `size` and `reduce` are reductions, `sort`

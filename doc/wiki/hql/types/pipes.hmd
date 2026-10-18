@@ -64,6 +64,7 @@ take
 drop                                designed (HQL-0006)
 get
 debug
+tee                                 binds a branch, passes the input on
 uplinks
 downlinks
 expand

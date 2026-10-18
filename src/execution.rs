@@ -106,6 +106,13 @@ pub(crate) enum Kind {
     },
     /// `some(value)`.
     Some(Box<Expr>),
+    /// `input | tee name = branch`: the input, evaluated once, is read by
+    /// the branch under [`crate::ast::TEE_INPUT`] and passed on.
+    Tee {
+        input: Box<Expr>,
+        name: String,
+        branch: Box<Expr>,
+    },
     Match {
         subject: Box<Expr>,
         arms: Vec<Arm>,
@@ -398,6 +405,19 @@ impl Checked {
                     .collect::<Result<_, _>>()?,
                 pack: self.applications[&span].clone(),
             },
+            A::Pipe(input, written) if matches!(written.kind, A::Tee { .. }) => {
+                let A::Tee { name, branch } = &written.kind else {
+                    unreachable!("matched above");
+                };
+                Kind::Tee {
+                    input: boxed(input)?,
+                    name: name.clone(),
+                    branch: boxed(branch)?,
+                }
+            }
+            A::Tee { .. } => {
+                return Err(Diagnostic::syntax(span, "`tee` is a pipeline step"));
+            }
             A::Pipe(input, written) if self.applications.contains_key(&span) => {
                 let (callee, rest) = match &written.kind {
                     A::Call { callee, arguments } => (callee.as_ref(), arguments.as_slice()),

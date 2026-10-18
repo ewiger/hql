@@ -162,6 +162,12 @@ pub(crate) enum Kind {
         subject: Box<Expr>,
         arms: Vec<Arm>,
     },
+    /// `tee name = branch` as a pipeline step: `branch` is a pipeline over
+    /// [`TEE_INPUT`], the value arriving at the step.
+    Tee {
+        name: String,
+        branch: Box<Expr>,
+    },
     /// `value given condition`, and `value given condition otherwise other`.
     Given {
         value: Box<Expr>,
@@ -169,6 +175,10 @@ pub(crate) enum Kind {
         otherwise: Option<Box<Expr>>,
     },
 }
+
+/// The name a `tee` branch reads its input by. It cannot be written in a
+/// program, so no binding can shadow it.
+pub(crate) const TEE_INPUT: &str = "%tee";
 
 /// One case of a `match`: the first arm whose pattern fits, and whose guard
 /// holds, produces the result.

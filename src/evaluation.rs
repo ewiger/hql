@@ -271,6 +271,25 @@ impl Evaluator<'_> {
             }
             Kind::Type => Err(Diagnostic::runtime(span, "a type argument is not a value")),
             Kind::Some(value) => Ok(Value::Present(Arc::new(self.expression(value)?))),
+            Kind::Tee {
+                input,
+                name,
+                branch,
+            } => {
+                let value = self.expression(input)?;
+                let previous = self
+                    .scope
+                    .insert(crate::ast::TEE_INPUT.to_owned(), value.clone());
+                let result = self.expression(branch);
+                match previous {
+                    Some(previous) => self
+                        .scope
+                        .insert(crate::ast::TEE_INPUT.to_owned(), previous),
+                    None => self.scope.remove(crate::ast::TEE_INPUT),
+                };
+                self.scope.insert(name.clone(), result?);
+                Ok(value)
+            }
             Kind::Given {
                 value,
                 condition,

@@ -2,7 +2,7 @@
 
 use crate::ast::{
     Arg, Arith, Arm, Expr, Field, FnDecl, Kind, Logic, Param, Pattern, Program, Relation, Stmt,
-    TypeAnn, TypeDecl,
+    TEE_INPUT, TypeAnn, TypeDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -22,6 +22,9 @@ pub(crate) fn parse(source: &str) -> Result<Program, Diagnostic> {
         nesting: 0,
         operators: 0,
         depth: 0,
+        line_starts: std::iter::once(0)
+            .chain(source.match_indices('\n').map(|(index, _)| index + 1))
+            .collect(),
     };
     parser.program()
 }
@@ -34,6 +37,8 @@ struct Parser {
     /// Infix arithmetic and connective operators seen so far.
     operators: usize,
     depth: usize,
+    /// Where each line of the source starts, for the columns `tee` reads.
+    line_starts: Vec<usize>,
 }
 
 impl Parser {
@@ -682,11 +687,87 @@ impl Parser {
         })
     }
 
+    /// The column a byte offset sits at.
+    fn column(&self, offset: usize) -> usize {
+        let line = self.line_starts.partition_point(|start| *start <= offset);
+        offset - self.line_starts[line.saturating_sub(1)]
+    }
+
+    /// Whether the next line continues a `tee` branch: it opens with `|`
+    /// indented past the column of the `|` that opened the `tee`.
+    fn branch_continues(&mut self, pipe_column: usize) -> bool {
+        let mut lookahead = self.index;
+        if !matches!(self.tokens[lookahead].token, Token::Newline) {
+            return false;
+        }
+        while matches!(self.tokens[lookahead].token, Token::Newline) {
+            lookahead += 1;
+        }
+        let next = &self.tokens[lookahead];
+        if next.token == Token::Pipe && self.column(next.span.start) > pipe_column {
+            self.index = lookahead + 1;
+            return true;
+        }
+        false
+    }
+
+    /// `tee name = branch`. On one line the branch is one step; after a line
+    /// break it is every step indented past the `|` that opened the `tee`.
+    fn tee(&mut self, pipe_column: usize) -> Result<Expr, Diagnostic> {
+        let keyword = self.advance();
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(
+                named.span,
+                "expected a name after `tee`",
+            ));
+        };
+        self.expect(&Token::Equals, "after the name a `tee` binds")?;
+        let multiline = matches!(self.peek(), Token::Newline);
+        self.continuation();
+        let input = Expr {
+            kind: Kind::Ident(TEE_INPUT.to_owned()),
+            span: keyword.span.clone(),
+        };
+        let first = self.link()?;
+        let mut branch = Expr {
+            span: keyword.span.start..first.span.end,
+            kind: Kind::Pipe(Box::new(input), Box::new(first)),
+        };
+        while multiline && self.branch_continues(pipe_column) {
+            self.continuation();
+            let next = self.link()?;
+            branch = Expr {
+                span: branch.span.start..next.span.end,
+                kind: Kind::Pipe(Box::new(branch), Box::new(next)),
+            };
+        }
+        let span = keyword.span.start..branch.span.end;
+        Ok(Expr {
+            kind: Kind::Tee {
+                name,
+                branch: Box::new(branch),
+            },
+            span,
+        })
+    }
+
+    fn at_tee(&self) -> bool {
+        matches!(self.peek(), Token::Ident(word) if word == "tee")
+            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+            && matches!(self.tokens[self.index + 2].token, Token::Equals)
+    }
+
     fn pipeline(&mut self) -> Result<Expr, Diagnostic> {
         let mut left = self.link()?;
         while self.at_infix(&Token::Pipe) {
+            let pipe_column = self.column(self.tokens[self.index - 1].span.start);
             self.continuation();
-            let right = self.link()?;
+            let right = if self.at_tee() {
+                self.tee(pipe_column)?
+            } else {
+                self.link()?
+            };
             let span = left.span.start..right.span.end;
             left = Expr {
                 kind: Kind::Pipe(Box::new(left), Box::new(right)),
