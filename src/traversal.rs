@@ -50,6 +50,10 @@ pub(crate) enum Source {
     Take { input: Arc<Traversal>, n: usize },
     /// The values of `input` after the first `n`.
     Drop { input: Arc<Traversal>, n: usize },
+    /// Consecutive values of `input` in lists of `n`.
+    Collect { input: Arc<Traversal>, n: usize },
+    /// The members of each sequence `input` produces, in order.
+    Emit { input: Arc<Traversal> },
     /// Values already produced, kept at a sequence type.
     Kept,
 }

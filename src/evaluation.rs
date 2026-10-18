@@ -674,6 +674,50 @@ impl Evaluator<'_> {
                 })?;
                 Ok(!stopped)
             }
+            Source::Collect { input, n } => {
+                let element = input.element.clone();
+                let mut batch = Vec::with_capacity(*n);
+                let mut stopped = false;
+                self.run_traversal(input, &mut |evaluator, value| {
+                    batch.push(value);
+                    if batch.len() < *n {
+                        return Ok(true);
+                    }
+                    let full = Value::list(std::mem::take(&mut batch), element.clone());
+                    let more = sink(evaluator, full)?;
+                    stopped = !more;
+                    Ok(more)
+                })?;
+                if stopped {
+                    return Ok(false);
+                }
+                // The last batch holds what remained, and an empty input makes
+                // no batch at all.
+                if batch.is_empty() {
+                    Ok(true)
+                } else {
+                    sink(self, Value::list(batch, element))
+                }
+            }
+            Source::Emit { input } => self.run_traversal(input, &mut |evaluator, batch| {
+                let members = match &batch {
+                    Value::Traversal(inner) => {
+                        let mut members = Vec::new();
+                        evaluator.run_traversal(inner, &mut |_, member| {
+                            members.push(member);
+                            Ok(true)
+                        })?;
+                        members
+                    }
+                    other => other.elements().unwrap_or_default(),
+                };
+                for member in members {
+                    if !sink(evaluator, member)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }),
             // Kept values are always forced, and answered above.
             Source::Kept => Ok(true),
             Source::Drop { input, n } => {

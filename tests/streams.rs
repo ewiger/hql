@@ -151,9 +151,78 @@ fn an_iterating_function_declares_what_it_yields() {
             "fn f() : Seq<Int> {\n    for x in 1 {\n        yield x\n    }\n}\n1",
             "`for` traverses",
         ),
-        (&format!("{NATURALS}List(naturals(1))"), "not Stream<Int>"),
+        (&format!("{NATURALS}List(naturals(1))"), "may not end"),
     ] {
         let failure = check(source).expect_err(source);
         assert!(failure.contains(message), "{source}: {failure}");
     }
+}
+
+#[test]
+fn collect_batches_by_position_and_emit_undoes_it() {
+    assert_eq!(
+        check("[1, 2, 3, 4, 5] | collect(2)"),
+        Ok(TypeRef::list(TypeRef::list(TypeRef::INT)))
+    );
+    assert_eq!(
+        eval("[1, 2, 3, 4, 5] | collect(2)"),
+        eval("[ [1, 2], [3, 4], [5] ]")
+    );
+    assert_eq!(
+        eval("[] | List<Int> | collect(2)"),
+        eval("[] | List<List<Int>>")
+    );
+    assert_eq!(eval("[1, 2, 3] | collect(2) | emit"), eval("[1, 2, 3]"));
+    let open = format!("{NATURALS}naturals(1) | collect(3)");
+    assert_eq!(
+        check(&open),
+        Ok(hql::types::collections::STREAM.apply([TypeRef::list(TypeRef::INT)]))
+    );
+    assert_eq!(
+        eval(&format!("{open} | map(b => b | sum) | take(2)")),
+        eval("[6, 15]")
+    );
+    assert_eq!(
+        eval(&format!("{open} | emit | drop(1) | take(3)")),
+        eval("[2, 3, 4]")
+    );
+}
+
+#[test]
+fn collect_and_emit_refuse_what_has_no_positions_or_no_batch() {
+    for (source, message) in [
+        ("[1, 2] | collect(0)", "at least one value"),
+        ("{1, 2} | collect(2)", "sort it first"),
+        ("[{1}, {2}] | emit", "sort each one first"),
+        ("{1, 2} | List", "`sort` it into one"),
+    ] {
+        let failure = check(source).expect_err(source);
+        assert!(failure.contains(message), "{source}: {failure}");
+    }
+    let flatten = check("[ [1] ] | flatten").expect_err("flatten is emit");
+    assert!(flatten.contains("`emit`"), "{flatten}");
+}
+
+#[test]
+fn flat_map_is_map_then_emit() {
+    let source = "fn upto(n: Int) : Seq<Int> {
+    for i in [1, 2, 3] | filter(i => i <= n) {
+        yield i
+    }
+}
+";
+    assert_eq!(
+        eval(&format!("{source}[1, 3] | flat_map(upto)")),
+        eval(&format!("{source}[1, 3] | map(upto) | emit"))
+    );
+    assert_eq!(
+        eval(&format!("{source}[1, 3] | flat_map(upto)")),
+        eval("[1, 1, 2, 3]")
+    );
+    assert_eq!(
+        eval(&format!(
+            "{NATURALS}naturals(1) | flat_map(n => [n, n]) | take(4)"
+        )),
+        eval("[1, 1, 2, 2]")
+    );
 }

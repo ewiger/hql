@@ -95,6 +95,12 @@ pub enum Output {
     Reorder(&'static str),
     /// Apply the input's constructor to the result element type.
     Image(&'static str),
+    /// One type over a finite input and another over a stream that may not
+    /// end: a sequence keeps every guarantee it can prove.
+    Finite {
+        finite: TypePattern,
+        open: TypePattern,
+    },
     /// A fold: the accumulator when the initial value is supplied, and
     /// otherwise an optional element, the accumulator then being the element.
     Fold {
@@ -266,6 +272,10 @@ impl OperationSpec {
                 patterns.push(TypePattern::Var(element));
             }
             Output::Input => {}
+            Output::Finite { finite, open } => {
+                patterns.push(finite);
+                patterns.push(open);
+            }
         }
         while let Some(pattern) = patterns.pop() {
             match pattern {
@@ -486,6 +496,13 @@ impl OperationSpec {
                 let element = TypePattern::Var(parameter).instantiate(&bindings, span)?;
                 input.image(element)
             }
+            Output::Finite { finite, open } => {
+                if input.is_collection() {
+                    finite.instantiate(&bindings, span)?
+                } else {
+                    open.instantiate(&bindings, span)?
+                }
+            }
             Output::Fold { accumulator, .. } => {
                 let result = TypePattern::Var(accumulator).instantiate(&bindings, span)?;
                 if folded_from_first {
@@ -585,6 +602,13 @@ impl OperationSpec {
                 &with(&["F<_>"]),
                 &format!("F<{parameter}>"),
             )],
+            Output::Finite { finite, open } => {
+                let element = self.element_name();
+                vec![
+                    call(&format!("Stream<{element}>"), &generics, &open.to_string()),
+                    call(&format!("Seq<{element}>"), &generics, &finite.to_string()),
+                ]
+            }
             Output::Prefix(parameter) => vec![
                 call(&format!("S : Seq<{parameter}>"), &with(&["S"]), "S"),
                 call(&input, &generics, &format!("List<{parameter}>")),

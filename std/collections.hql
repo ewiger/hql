@@ -67,6 +67,12 @@ type Group<K, T> {
 // take<S : Seq<T>, T>(xs: S, n: Int) : S
 // take<T>(xs: Stream<T>, n: Int) : List<T>             a bounded prefix is finite
 // drop<S : Stream<T>, T>(xs: S, n: Int) : S
+// collect<T>(xs: Stream<T>, n: Int) : Stream<List<T>>   batches of n, in order
+// collect<T>(xs: Seq<T>, n: Int) : List<List<T>>
+// emit<T>(xs: Stream<Seq<T>>) : Stream<T>               xs | collect(n) | emit = xs
+// emit<T>(xs: Seq<Seq<T>>) : List<T>
+// flat_map<T, U>(xs: Stream<T>, by: T -> Seq<U>) : Stream<U>   map(by) | emit
+// flat_map<T, U>(xs: Seq<T>, by: T -> Seq<U>) : List<U>
 // take<T : Orderable>(xs: Collection<T>, n: Int) : List<T>
 // sort<T>(xs: Ranking<T>, by: …) : Seq<Hit<T>>
 // sort<S : Seq<T>, T : Orderable>(xs: S) : S

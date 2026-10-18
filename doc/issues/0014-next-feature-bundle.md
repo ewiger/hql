@@ -215,7 +215,7 @@ here when its issue or step is done.
 - [x] 13. Semantic-search `doctor`
 - [x] 14. `Ranking` as an ordinary declared subtype (field table moved to 0023)
 - [x] 15. Constructors as pipeline steps
-- [ ] 16. `collect(n)`, `emit` and `xs | List`
+- [x] 16. `collect(n)`, `emit` and `xs | List`
 - [ ] 17. Presentation formats
 - [ ] 18. Cells
 

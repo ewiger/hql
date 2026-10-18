@@ -32,9 +32,21 @@ part of the value. See [[collections]] for the collection family.
 | `drop(n)` | `S : Stream<T>` | `S`, without its first `n` values |
 | `take(n)` | `Stream<T>` | `List<T>`: a bounded prefix is finite |
 | `take(n)` | `S : Seq<T>` | `S` |
+| `collect(n)` | `Stream<T>` | `Stream<List<T>>`: consecutive values in batches of `n` |
+| `collect(n)` | `Seq<T>` | `List<List<T>>` |
+| `emit` | `Stream<Seq<T>>` | `Stream<T>`: every member of every batch, in order |
+| `emit` | `Seq<Seq<T>>` | `List<T>` |
+| `flat_map(by)` | `Stream<T>`, `by : T -> Seq<U>` | `Stream<U>`, which is `map(by) \| emit` |
 
-`map`, `filter`, `take` and `drop` consume one value at a time, so a pipeline
-of them over a stream runs only as far as its consumer asks.
+`map`, `filter`, `take`, `drop`, `collect`, `emit` and `flat_map` consume one
+value at a time, so a pipeline of them over a stream runs only as far as its
+consumer asks. `collect(n)` holds at most `n` values: it passes on each batch
+when the batch is full, and the last, shorter one when its input ends, so
+`xs | collect(n) | emit` is `xs`. `n` is at least `1`. `emit` and `flat_map`
+need sequences as batches: a set's members have no positions to emit them in.
+
+`List(xs)`, or `xs | List`, materializes a `Seq<T>`. It refuses a stream that
+may not end, naming `take(n)` and `collect(n)`, and a set, naming `sort`.
 
 ## A whole-input operation needs a finite input
 

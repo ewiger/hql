@@ -21,7 +21,9 @@ use crate::traversal::{Source, Traversal};
 
 /// The steps that consume a traversal one value at a time and so keep it
 /// lazy. Every other step receives a traversal's values, forced once.
-pub(crate) const LAZY: [&str; 4] = ["map", "filter", "take", "drop"];
+pub(crate) const LAZY: [&str; 7] = [
+    "map", "filter", "take", "drop", "collect", "emit", "flat_map",
+];
 
 /// A traversal that has not been forced, which a lazy step wraps.
 fn pending(input: &Value) -> Option<&Arc<Traversal>> {
@@ -162,6 +164,90 @@ pub(crate) static STEPS: &[Operation] = &[
         purity: Purity::Pure,
         check: Some(check_take),
         eval: eval_take,
+    },
+    Operation {
+        name: "collect",
+        spec: OperationSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Iterable(&P::Var("T")),
+            arguments: &[ArgumentSpec::value(
+                "n",
+                P::Type(crate::types::TypeConstructor("Int")),
+            )],
+            output: O::Finite {
+                finite: P::Apply(
+                    crate::types::collections::LIST,
+                    &[P::Apply(crate::types::collections::LIST, &[P::Var("T")])],
+                ),
+                open: P::Apply(
+                    crate::types::collections::STREAM,
+                    &[P::Apply(crate::types::collections::LIST, &[P::Var("T")])],
+                ),
+            },
+        },
+        summary: "Consecutive values in batches of n, in order; the last batch may be shorter.",
+        purity: Purity::Pure,
+        check: Some(check_collect),
+        eval: eval_collect,
+    },
+    Operation {
+        name: "emit",
+        spec: OperationSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Iterable(&P::Apply(
+                crate::types::collections::COLLECTION,
+                &[P::Var("T")],
+            )),
+            arguments: &[],
+            output: O::Finite {
+                finite: P::Apply(crate::types::collections::LIST, &[P::Var("T")]),
+                open: P::Apply(crate::types::collections::STREAM, &[P::Var("T")]),
+            },
+        },
+        summary: "Every member of every sequence, in order: the inverse of collect.",
+        purity: Purity::Pure,
+        check: Some(check_emit),
+        eval: eval_emit,
+    },
+    Operation {
+        name: "flat_map",
+        spec: OperationSpec {
+            parameters: &[
+                TypeParameter {
+                    name: "T",
+                    bound: None,
+                },
+                TypeParameter {
+                    name: "U",
+                    bound: None,
+                },
+            ],
+            input: P::Iterable(&P::Var("T")),
+            arguments: &[ArgumentSpec {
+                name: "by",
+                kind: A::Lambda {
+                    parameters: &[P::Var("T")],
+                    result: P::Apply(crate::types::collections::SEQ, &[P::Var("U")]),
+                },
+                required: true,
+                positional: true,
+                named: true,
+            }],
+            output: O::Finite {
+                finite: P::Apply(crate::types::collections::LIST, &[P::Var("U")]),
+                open: P::Apply(crate::types::collections::STREAM, &[P::Var("U")]),
+            },
+        },
+        summary: "map then emit: each value to a sequence, and their members in order.",
+        purity: Purity::Pure,
+        check: Some(check_ordered),
+        eval: eval_flat_map,
     },
     Operation {
         name: "drop",
@@ -696,6 +782,88 @@ fn eval_take(
     Ok(Value::list(elements, element_type(&input)))
 }
 
+fn eval_collect(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let argument =
+        named_or_first(arguments, "n").ok_or_else(|| wrong("collect", "a batch size", &span))?;
+    let Value::Int(n) = cx.evaluate(&argument.value)? else {
+        return Err(wrong("collect", "an Int batch size", &span));
+    };
+    let n = usize::try_from(n).ok().filter(|n| *n > 0).ok_or_else(|| {
+        Diagnostic::runtime(
+            argument.value.span.clone(),
+            "a batch holds at least one value: `collect(n)` needs n of 1 or more",
+        )
+    })?;
+    if let Some(traversal) = pending(&input)
+        && !traversal.finite
+    {
+        let element = TypeRef::list(traversal.element.clone());
+        let source = Source::Collect {
+            input: Arc::clone(traversal),
+            n,
+        };
+        return Ok(wrapped(traversal, element, source));
+    }
+    let element = element_type(&input);
+    let batches = elements(&input, "collect", &span)?
+        .chunks(n)
+        .map(|batch| Value::list(batch.to_vec(), element.clone()))
+        .collect();
+    Ok(Value::list(batches, TypeRef::list(element)))
+}
+
+fn eval_emit(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    if let Some(traversal) = pending(&input)
+        && !traversal.finite
+    {
+        let element = traversal.element.iterated().unwrap_or(TypeRef::DATA);
+        let source = Source::Emit {
+            input: Arc::clone(traversal),
+        };
+        return Ok(wrapped(traversal, element, source));
+    }
+    emitted(cx, &input, &span)
+}
+
+/// Every member of every batch of a finite input, in order.
+fn emitted(cx: &mut dyn EvalCx, input: &Value, span: &Range<usize>) -> Result<Value, Diagnostic> {
+    let element = element_type(input).iterated().unwrap_or(TypeRef::DATA);
+    let mut members = Vec::new();
+    for batch in elements(input, "emit", span)? {
+        match &batch {
+            // A batch an iterating function produced is traversed in place.
+            Value::Traversal(inner) if inner.forced().is_none() => {
+                cx.traverse(inner, &mut |_, member| {
+                    members.push(member);
+                    Ok(true)
+                })?;
+            }
+            _ => members.extend(elements(&batch, "emit", span)?),
+        }
+    }
+    Ok(Value::list(members, element))
+}
+
+fn eval_flat_map(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let mapped = eval_map(cx, input, arguments, span.clone())?;
+    eval_emit(cx, mapped, &[], span)
+}
+
 fn eval_drop(
     cx: &mut dyn EvalCx,
     input: Value,
@@ -981,6 +1149,62 @@ fn check_take(
     // A stream already has the order a prefix is taken in.
     if !call.input.is_stream() {
         require_orderable(&call.bindings["T"], "take", &span)?;
+    }
+    Ok(())
+}
+
+/// A step that keeps positions needs an input that has them.
+fn check_ordered(
+    _: &dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    if !call.input.is_stream() {
+        return Err(Diagnostic::typing(
+            span,
+            format!(
+                "this step keeps positions, and {} has none; sort it first",
+                call.input
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn check_collect(
+    cx: &dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    check_ordered(cx, call, span)?;
+    if let Some(argument) = call.arguments.first()
+        && let crate::ast::Kind::Int(n) = argument.value.kind
+        && n < 1
+    {
+        return Err(Diagnostic::typing(
+            argument.value.span.clone(),
+            "a batch holds at least one value: `collect(n)` needs n of 1 or more",
+        ));
+    }
+    Ok(())
+}
+
+fn check_emit(
+    cx: &dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    check_ordered(cx, call, span.clone())?;
+    if let Some(batch) = call.input.iterated()
+        && !batch.is_sequence()
+    {
+        return Err(Diagnostic::typing(
+            span,
+            format!(
+                "`emit` gives members in their positions, and a {batch} has none; \
+                 sort each one first"
+            ),
+        ));
     }
     Ok(())
 }

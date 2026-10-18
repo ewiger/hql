@@ -88,6 +88,23 @@ pub(crate) fn check(
     let mut elements = Vec::new();
     for argument in args {
         let input = cx.infer(&argument.value)?;
+        if constructor == collections::LIST {
+            if input.is_stream() && !input.is_collection() {
+                return Err(Diagnostic::typing(
+                    argument.value.span.clone(),
+                    format!(
+                        "List needs a finite input, and {input} may not end; bound it with \
+                         `take(n)` or batch it with `collect(n)`"
+                    ),
+                ));
+            }
+            if input.is_collection() && !input.is_sequence() {
+                return Err(Diagnostic::typing(
+                    argument.value.span.clone(),
+                    format!("a List keeps positions, and a {input} has none; `sort` it into one"),
+                ));
+            }
+        }
         if arity == 2 && !input.is_sequence() {
             return Err(Diagnostic::typing(
                 argument.value.span.clone(),

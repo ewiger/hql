@@ -15,7 +15,7 @@ pub fn exists(name: &str) -> bool {
 }
 
 /// Names that were steps and are not, with the step that replaces each.
-const RETIRED: &[(&str, &str)] = &[("typed", "of_type")];
+const RETIRED: &[(&str, &str)] = &[("typed", "of_type"), ("flatten", "emit")];
 
 /// Names that were steps and have no single replacement, with what to write
 /// instead.
