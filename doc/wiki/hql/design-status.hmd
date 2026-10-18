@@ -13,6 +13,7 @@ the design, the card says so.
 | --- | --- |
 | [[hql/core]] | Small typed functional core and domain vocabulary |
 | [[hql/collections]] | Set, Seq, Map and `cards : Seq<Card>` |
+| [[stream-type]] | `Stream<T>`, iterating functions with `yield`, and batching with `collect(n)` and `emit` |
 | [[pipes]] | Ordinary functions, composition and data-parallel execution |
 | [[hql/knowledge]] | Semantic universe, the card family and presentation |
 | [[hql/extensions]] | The extension registry, `import`, and the unbuilt module loader |
@@ -29,10 +30,10 @@ the design, the card says so.
 | [[option-type]] | `Option<T>`, absence, and the optional-by-type doc reference |
 | [[match-op]] | `match` and `given … otherwise`: branching on values (implemented; `Result` arms wait for `Result`) |
 | [[debug-op]] | `debug`: capturing a value into the structured log |
-| [[hql/presentation]] | Terminal presenters and the host default |
+| [[hql/presentation]] | Presentation formats, `format` and its shorthands, renderers, and the presentation context |
 | [[hql/error-reporting]] | The structured log: severities, entry context, `strict` and `collect`, configuration |
 | [[hql/semantic-search]] | `semantic`, `Hit`, `Ranking` and the read path of memory |
-| [[hql/std-lib]] | Placeholder for the standard library; a bootstrap non-goal |
+| [[hql/std-lib]] | The standard library: `std/`, embedded in the binary, whose declarations give the built-in records their fields |
 
 ## Current direction
 

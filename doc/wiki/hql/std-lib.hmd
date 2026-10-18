@@ -6,8 +6,9 @@ nav:
 # Standard HQL library
 
 The declarations HQL ships with live in [`std/`](../../../std/README.md), written
-in HQL rather than described in prose. One file per module, mirroring the
-extension split: `core`, `doc`, `graph`, `knowledge`, `retrieval`.
+in HQL rather than described in prose, and embedded in the binary. One file
+per module, mirroring the extension split: `core`, `collections`, `doc`,
+`graph`, `knowledge`, `retrieval`, `format` and `vault`.
 
 These cards and those files say the same thing twice, which is a real cost worth
 naming. The division is that **the file is the declaration and the card is the
@@ -21,11 +22,19 @@ records what was considered and may keep a withdrawn spelling beside a current
 one; a standard library may not. There is one declaration of `Edge`, and it is
 the one that is true now.
 
-## Parsed and checked, not evaluated
+## Fields and bindings come from the library
+
+A field a program reads on a built-in record — `h.score` on a `Hit`, `c.kind`
+on a `Card`, `g.nodes` on a `Graph` — has the type its declaration in `std/`
+gives, looked up on the record and then on its parents. The library's bindings
+run before every program over a vault: `std/vault.hql` binds
+`cards = vault.cards`, so `cards` is an ordinary binding and no special case.
+
+## Declarations are checked, not evaluated
 
 The parser reads the `type` statement, and every file in `std/` checks:
-`hql check std/graph.hql` prints `Unit`, and a test walks the folder so a file
-added there cannot be silently left unchecked.
+`hql check std/graph.hql` prints `Unit`, and a test checks that every file is
+embedded as written, so a file added there cannot be silently left unchecked.
 
 Checking is not evaluating. A declaration yields `Unit` and introduces no value
 and no case in the implemented lattice; constructing a value of a declared

@@ -8,29 +8,83 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
-### Changed
+## [0.2.0] — 2026-10-19
 
-- `hql render` builds a Markdown document from its cells. `--emit replace`, the
-  default, writes each cell's output in its place; `--emit after` keeps the cell
-  and writes the output after it between `<!-- hql:output -->` markers.
-  `--write` takes the output path, and `--in-place` rewrites the source under
-  `--emit after`. The `hql#result` block is gone.
-- A table written into a document is a Markdown pipe table.
-- `cards` is a binding seeded per vault, not a keyword, so a program may shadow
-  it; without a vault it is unbound and the error says a vault is needed.
-- `Ranking<T>` is a declared subtype of `Seq<Hit<T>>`. The type system takes
-  applied parents, a parent whose arguments are built from the child's, so
-  subtyping, element type and sequence tests go through the declaration rather
-  than a `Ranking` special case.
-- `take` keeps the type of any concrete sequence, a `List` or a `Ranking`, and
-  returns a `List` from everything else.
-- The `or` alternative over `Option` in `std/core.hql` is named `alternative`;
-  `or` is a reserved word.
+Functions as values, streams and generated sources, aggregation, and
+presentation formats. `cards` becomes a lazy sequence, and presentation moves
+from terminal presenters to formats a program can keep computing with.
+
+### Changed — breaking
+
+- `cards` is the standard-library binding `cards = vault.cards`, a lazy
+  `Seq<Card>` in the order a sorted walk of the vault reaches each card: the
+  entries of each directory in name order, depth first. It was a `Set<Card>`.
+  A pipeline over `cards` is a sequence: `filter`, `sort` and `map` keep a
+  `Seq`. The host seeds `vault`, of type `Vault`; without a vault, neither
+  `vault` nor `cards` is bound.
+- The `present` extension, the `Presentation` type and the `table` step are
+  gone. `text`, `markdown` and `json` are shorthands of `format`, and their
+  results are text a later step reads. `table` is an unknown step whose
+  diagnostic names `Table`, which arrives with record values.
+- The `graph` step is the `Graph` constructor: `Graph(xs)` or `xs | Graph`.
+  `cards | graph` is refused naming `Graph`. `expand(depth = 0)` is refused.
+- `--format text|json` is `--envelope text|json`, the CLI's output format.
+- A hit's retrieved value is `h.value`; reading `h.card` names `value`.
+- `map` over a `Set` returns its image, a `Set`, so equal results collapse.
+- `typed` is `of_type`.
+- Plain text writes a value as its own rendering, `[a, b]`, not an aligned
+  table. `--to markdown` or `format(Markdown, renderer = "pipe")` gives a table.
+- A graph's fields are `nodes : Set<Card>` and `edges : Set<Edge>`.
+- `std/` states the fields the binary reads: `Hit` and `Ranking` hold
+  `score : Float`, `query : String` and `retrieval : Data`; `Doc` declares
+  `title` and `body : String`; `Card` declares `kind`. `Score`, `Query`,
+  `Retrieval`, `Content` and `HmdContent` are gone.
 
 ### Added
 
-- The `markdown` presentation: a record as a table, a sequence as a list, a
-  document or card as its own body.
+- **Function values.** Function types written with arrows, `Int -> Int`;
+  `fn` declarations, recursive and variadic (`xs: ...Int`); lambdas as values,
+  typed by annotation or by their binding; functions passed and returned.
+  Parameters are contravariant and results covariant.
+- **Partial application with a hole.** `add(10, _)` is `Int -> Int`: each hole
+  takes the type of the parameter it fills.
+- **Branching and absence.** `match` with value, type and `some`/`none` arms,
+  checked for exhaustiveness; `value given condition otherwise other`; `some`,
+  `none` and `somes`.
+- **Asking what a value is.** `is(T)` and `of_type(T)`; a `filter` by `is`
+  narrows the element type; a `Data` leaf reads as `Int`, `String` and the
+  rest, so a metadata field can be summed.
+- **Aggregation.** `group`, `reduce`, `sum`, `min` and `max` over finite
+  inputs. One signature per name, printed by `hql builtins` one line per
+  overload.
+- **`tee`**, which binds a side branch of a pipeline and passes its input on.
+- **Streams.** `Stream<T>` is a type, and `Seq<T>` a stream that ends.
+  `map`, `filter`, `take` and the new `drop` run lazily over a stream; a step
+  that needs its whole input refuses one, naming `take(n)`. `collect(n)`,
+  `emit` and `flat_map` batch and unbatch; `List(xs)` refuses a stream and a
+  set.
+- **Generated sources.** A `fn` with a block body yields its values, directly
+  or in a `for` loop, and returns `Seq<T>` or `Stream<T>`. Calling it runs
+  nothing; `take` ends a stream that would not end by itself.
+- **Constructors as pipeline steps.** `xs | Set` is `Set(xs)`.
+- **Presentation formats.** `Text`, `Markdown`, `Hmd`, `Json`, `Yaml`, `Csv`,
+  `D2` and `Mermaid` are subtypes of `String`. `format(x, F)` with `limit` and
+  `renderer`, and the shorthands `text`, `markdown`, `hmd`, `json`, `yaml`,
+  `csv`, `d2` and `mermaid`. Graph renderers write adjacency text, node-link
+  JSON, D2 and Mermaid, each node saying why it is present. A vault chooses
+  renderers under `[format.Type]` in `hql.toml`. Over a stream, `format` gives
+  a stream of pieces.
+- **The presentation context.** `--to <format>` writes a result the program did
+  not format; `--to none` evaluates and writes nothing. `hql render` writes
+  each cell as `hmd`. A stream result is written piece by piece as it arrives,
+  and ends when its reader stops reading.
+- `hql doctor` checks the semantic-search chain — vault, `hql.toml`, index,
+  model, query vectors, card coverage — and names the first missing part.
+- `hql render` builds a Markdown document from its cells. `--emit replace`, the
+  default, writes each cell's output in its place; `--emit after` keeps the
+  cell and writes the output after it between `<!-- hql:output -->` markers.
+  `--write` takes the output path, and `--in-place` rewrites the source under
+  `--emit after`.
 - Scalar operators: `<`, `<=`, `>`, `>=` over values of one orderable type;
   `and`, `or`, `not` over `Bool`, short-circuiting; `-`, `*`, `/`, `%` over
   `Int` or `Float`, with truncating `Int` division. Division by zero and `Int`
@@ -38,8 +92,12 @@ The language continues to be in active development.
 - The `debug` step: an identity step that records its input, a label and its
   trace in the report log at severity `debug` or `info`. `--report-level`, the
   vault's `[report] level` and `$HQL_REPORT_LEVEL` set which reports the text
-  output shows; JSON output carries all of them. `hql config` prints the level
-  and where it came from.
+  output shows; JSON output carries all of them.
+- `std/` is embedded in the binary, and a built-in record's fields are read
+  from its declaration.
+- `Ranking<T>` is a declared subtype of `Seq<Hit<T>>` over any element type.
+- Corpora: `examples/functions/`, `examples/streams/` and
+  `examples/mapreduce/`, every case checked by `tests/corpus.rs`.
 
 ### Fixed
 
@@ -49,6 +107,9 @@ The language continues to be in active development.
   a minus before a digit with no operand ahead of it is a literal's sign.
 - A step written inside a pipeline reports its own span, not the whole
   pipeline's.
+- A wikilink's display text is not part of its target.
+- Equality looks through subtyping, so `Json` text compares with a string.
+- CSV lays a list of records out in one column per key.
 
 ## [0.1.0] — 2026-09-27
 
@@ -127,5 +188,6 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ewiger/hql/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ewiger/hql/releases/tag/v0.1.0

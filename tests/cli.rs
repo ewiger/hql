@@ -355,8 +355,9 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
         assert!(stdout(&listed).contains(provider), "{provider}");
     }
     let configured = stdout(&hql(&["--vault", CONFIGURED, "builtins"]));
-    assert!(configured.contains("lexical 0.1.0 (imported by this vault)"));
-    assert!(configured.contains("format 0.1.0 (imported where it is used)"));
+    let version = env!("CARGO_PKG_VERSION");
+    assert!(configured.contains(&format!("lexical {version} (imported by this vault)")));
+    assert!(configured.contains(&format!("format {version} (imported where it is used)")));
 
     let configured = hql(&["--vault", VAULT, "config"]);
     assert!(stdout(&configured).contains("strict"));
@@ -368,7 +369,10 @@ fn cli_surface_identifies_hql_and_usage_errors_exit_two() {
     let help = hql(&["--help"]);
     assert!(help.status.success());
     assert!(stdout(&help).contains("Hyper Query Language"));
-    assert_eq!(hql(&["--version"]).stdout, b"hql 0.1.0\n");
+    assert_eq!(
+        hql(&["--version"]).stdout,
+        format!("hql {}\n", env!("CARGO_PKG_VERSION")).into_bytes()
+    );
     for args in [vec![], vec!["eval"], vec!["check"], vec!["unknown"]] {
         assert_eq!(hql(&args).status.code(), Some(2), "{args:?}");
     }
