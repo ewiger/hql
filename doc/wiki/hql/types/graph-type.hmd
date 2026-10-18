@@ -139,16 +139,18 @@ An edge is directed — it has a source and a target — and `uplinks` and
 `downlinks` are the two directions of traversal over one edge set, not two edge
 sets. A node can be its own source and target. See [[doc-type]].
 
-Whether `Graph` exposes its nodes and edges as collections, and which ones, is
-open:
+A graph exposes its nodes and edges as sets:
 
 ```hql
-graph.nodes : Set<N>
-graph.edges : Set<E>
+graph.nodes : Set<Card>
+graph.edges : Set<Edge>
 ```
 
-`Set` follows [[hql/collections]], since discovering edges must not establish an
-ordering guarantee.
+`Set` follows [[hql/collections]], since discovering a graph establishes no
+ordering guarantee. A graph is over the vault's cards, so its nodes are cards;
+a relation card is an edge between two of them, not a node. The fields are
+`Set<N>` and `Set<E>` once the graph value carries its node and edge types
+([HQL-0019](../../../proposals/HQL-0019/README.md)).
 
 What is less clear is whether a graph over a vault should be materialized at
 all, or whether it is a query that a source may execute — a graph store, a

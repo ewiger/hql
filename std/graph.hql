@@ -6,7 +6,9 @@
 // over documents and a graph over concepts share one declaration.
 
 // The carriers are not yet generic: whatever S and T are, an endpoint is held
-// as the name of the node it is, and a graph's nodes as those names.
+// as the name of the node it is. A graph is over the vault's cards, so its
+// nodes are cards and its edges the links among them. They are sets, because
+// discovering a graph does not order it.
 type Edge<S, T> {
     source : String
     target : String
@@ -14,8 +16,8 @@ type Edge<S, T> {
 }
 
 type Graph<N, E> {
-    nodes : List<String>
-    edges : List<Edge>
+    nodes : Set<Card>
+    edges : Set<Edge>
 }
 
 // The document graph: authored links over cards.

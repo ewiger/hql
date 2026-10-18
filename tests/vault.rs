@@ -397,3 +397,22 @@ fn without_a_vault_there_is_no_vault_and_no_cards() {
         failure.message()
     );
 }
+
+#[test]
+fn a_graph_exposes_its_nodes_as_cards_and_its_edges_as_sets() {
+    let vault = fixture();
+    assert_eq!(
+        hql::check_in("(cards | Graph).nodes", &vault),
+        Ok(TypeRef::set(TypeRef::CARD))
+    );
+    assert_eq!(
+        hql::check_in("(cards | Graph).edges", &vault),
+        Ok(TypeRef::set(TypeRef::EDGE))
+    );
+    // The relation card is an edge, not a node.
+    assert_eq!(text("g = cards | Graph\ng.nodes | size"), "5");
+    assert_eq!(
+        text("g = cards | Graph\ng.nodes | map(c => c.name) | sort"),
+        "[bearer-tokens, broken-relation, http-headers, oauth, sessions]"
+    );
+}

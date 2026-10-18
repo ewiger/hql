@@ -223,7 +223,7 @@ impl Evaluator<'_> {
             }
             Kind::Field(receiver, field) => {
                 let value = self.expression(receiver)?;
-                Self::field(&value, field, &expression.ty, &span)
+                self.field(&value, field, &expression.ty, &span)
             }
             Kind::Link {
                 source,
@@ -472,6 +472,7 @@ impl Evaluator<'_> {
     }
 
     fn field(
+        &self,
         value: &Value,
         field: &Field,
         result: &TypeRef,
@@ -485,10 +486,11 @@ impl Evaluator<'_> {
         };
         match value {
             Value::Present(value) => {
-                Self::field(value, field, result.present(), span).map(|found| match found {
-                    Value::Present(_) | Value::Absent(_) => found,
-                    other => Value::Present(Arc::new(other)),
-                })
+                self.field(value, field, result.present(), span)
+                    .map(|found| match found {
+                        Value::Present(_) | Value::Absent(_) => found,
+                        other => Value::Present(Arc::new(other)),
+                    })
             }
             Value::Map(map) if matches!(field, Field::Keys) => Ok(map.keys()),
             // Absence propagates rather than becoming a failure, because the
@@ -563,11 +565,18 @@ impl Evaluator<'_> {
                 _ => Err(missing()),
             },
             Value::Graph(graph) => match field {
-                Field::Nodes => Ok(Value::list(
-                    graph.nodes.iter().map(|name| text(name)).collect(),
-                    TypeRef::STR,
+                // A node is a card of the vault; a graph built over a vault
+                // never names one it does not hold.
+                Field::Nodes => Ok(Value::set(
+                    graph
+                        .nodes
+                        .iter()
+                        .filter_map(|name| self.vault.resolve(name))
+                        .map(Value::Card)
+                        .collect(),
+                    TypeRef::CARD,
                 )),
-                Field::Edges => Ok(Value::list(
+                Field::Edges => Ok(Value::set(
                     graph
                         .induced()
                         .into_iter()
