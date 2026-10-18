@@ -509,3 +509,45 @@ fn a_type_test_that_always_holds_is_a_warning() {
     let open = hql::run("{a: 1}.a | is(Int)", &vault, hql::reporting::Mode::Strict);
     assert!(open.reports.is_empty(), "{:?}", open.reports);
 }
+
+#[test]
+fn a_generic_function_takes_its_types_from_each_call() {
+    let first = "fn first<T>(xs: List<T>) : Option<T> = xs | reduce((a, b) => a)\n";
+    assert_eq!(
+        check(&format!("{first}first([1, 2])")),
+        Ok(TypeRef::optional(TypeRef::INT))
+    );
+    assert_eq!(
+        check(&format!("{first}first([\"a\"])")),
+        Ok(TypeRef::optional(TypeRef::STR))
+    );
+    assert_eq!(eval(&format!("{first}first([4, 5])")), eval("some(4)"));
+    // The signature is written with the parameter, not its variable.
+    let signature = check(&format!("{first}first")).unwrap().to_string();
+    assert_eq!(signature, "List<T> -> Option<T>");
+}
+
+#[test]
+fn a_generic_body_relies_only_on_what_its_parameter_promises() {
+    let concrete = check("fn bad<T>(x: T) : Int = x + 1\n1").expect_err("T is no Int");
+    assert!(
+        concrete.message().contains("addition"),
+        "{}",
+        concrete.message()
+    );
+    let ordered = "fn smallest<T : Orderable>(xs: List<T>) : Option<T> = xs | min\n";
+    assert_eq!(eval(&format!("{ordered}smallest([3, 1])")), eval("some(1)"));
+    let refused =
+        check(&format!("{ordered}smallest([{{1}}, {{2}}])")).expect_err("a set has no order");
+    assert!(
+        refused.message().contains("needs T : Orderable"),
+        "{}",
+        refused.message()
+    );
+    let named = check("fn f<Elem>(x: Elem) : Elem = x\n1").expect_err("one letter");
+    assert!(
+        named.message().contains("one capital letter"),
+        "{}",
+        named.message()
+    );
+}

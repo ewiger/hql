@@ -20,9 +20,6 @@ board:
   last_id: 25 # to be incremented when adding a new issue card
   items:
     backlog:
-      - id: "0022"
-        title: Generic functions
-        file: 0022-generic-functions.md
       - id: "0016"
         title: "SQL parity analysis: relational operations, aggregation and schema"
         file: 0016-sql-parity-analysis.md
@@ -47,6 +44,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0022"
+        title: Generic functions
+        file: 0022-generic-functions.md
       - id: "0014"
         title: "Next feature bundle: signatures and aggregation first, then the pipeline foundations"
         file: 0014-next-feature-bundle.md

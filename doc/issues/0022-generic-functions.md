@@ -1,6 +1,6 @@
 # 0022 — Generic functions
 
-Status: backlog
+Status: done
 Source: [0009](0009-function-type-and-constructor.md), which implemented
 monomorphic `fn` declarations
 

@@ -52,7 +52,11 @@ impl From<TypeConstructor> for TypeRef {
 
 impl fmt::Display for TypeConstructor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
+        // A type variable is written as the parameter it stands for.
+        match self.0.strip_prefix('%') {
+            Some(variable) => f.write_str(variable.trim_end_matches('~')),
+            None => f.write_str(self.0),
+        }
     }
 }
 

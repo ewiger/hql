@@ -61,7 +61,7 @@ nothing here restates it.
 
 - [x] 1. Check-time warnings
 - [x] 2. The naming lint
-- [ ] 3. Generic functions
+- [x] 3. Generic functions
 - [ ] 4. `:=` aliases
 - [ ] 5. The reduction vocabulary
 - [ ] 6. The open ends of type interpretation

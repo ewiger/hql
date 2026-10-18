@@ -419,9 +419,14 @@ Function types, function values and variadic parameters are implemented, up
 to four parameters. A lambda written as a value types its parameters, by
 annotation, `(c: Card) => c.title`, or from the function type it is bound
 at, `f : Card -> String = c => c.title`. `fn name(p: T) : R = body` declares a
-function; its name is bound before the body is checked, so it may recurse. A
-declared function is not yet generic: `fn first<T>(…)` waits for type
-variables in the checker ([issue 0022](../../issues/0022-generic-functions.md)).
+function; its name is bound before the body is checked, so it may recurse.
+
+A declared function may be generic, `fn first<T>(xs: List<T>) : Option<T>`.
+Inside the body `T` is a type of its own, a subtype only of itself, so the body
+relies only on what the parameter promises; `T : Orderable` promises an order,
+which lets the body sort and compare. At each call the arguments fill `T` —
+`first([1, 2])` is an `Option<Int>` — and a bound is checked there, naming the
+parameter. A type parameter is one capital letter.
 
 ## Where the two cooperate: bounds
 

@@ -41,6 +41,7 @@ pub(crate) fn check_with(
         checked: Checked::default(),
         variadic: HashMap::new(),
         parameter_names: HashMap::new(),
+        generic_functions: HashMap::new(),
     }
     .program(program)
 }
@@ -81,6 +82,7 @@ pub(crate) fn check_collecting_with(
         checked: Checked::default(),
         variadic: HashMap::new(),
         parameter_names: HashMap::new(),
+        generic_functions: HashMap::new(),
     };
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
@@ -103,6 +105,56 @@ pub(crate) fn check_collecting_with(
         Ok(program) => (Some(program), found),
         Err(diagnostic) => (None, vec![diagnostic]),
     }
+}
+
+/// Bind the type variables in `parameter` from the type an argument has:
+/// `Seq<T>` against `List<Int>` binds `T` to `Int`. A variable bound twice
+/// keeps the wider of the two.
+fn instantiate(
+    parameter: &TypeRef,
+    actual: &TypeRef,
+    bound: &mut HashMap<crate::types::TypeConstructor, TypeRef>,
+) {
+    if parameter.constructor.0.starts_with('%') {
+        match bound.get(&parameter.constructor) {
+            Some(held) if actual.is(held) => {}
+            Some(held) if held.is(actual) => {
+                bound.insert(parameter.constructor, actual.clone());
+            }
+            Some(_) => {}
+            None => {
+                bound.insert(parameter.constructor, actual.clone());
+            }
+        }
+        return;
+    }
+    if !parameter.has_variable() {
+        return;
+    }
+    let Some(view) = crate::types::builtin::system().ok().and_then(|system| {
+        system
+            .as_supertype(actual, parameter.constructor)
+            .ok()
+            .flatten()
+    }) else {
+        return;
+    };
+    for (inner, held) in parameter.args.iter().zip(&view.args) {
+        instantiate(inner, held, bound);
+    }
+}
+
+/// A type with its variables replaced by what a call bound them to; one the
+/// call left unbound is `Never`, as the element of an empty list is.
+fn substituted(ty: &TypeRef, bound: &HashMap<crate::types::TypeConstructor, TypeRef>) -> TypeRef {
+    if ty.constructor.0.starts_with('%') {
+        return bound
+            .get(&ty.constructor)
+            .cloned()
+            .unwrap_or(TypeRef::NEVER);
+    }
+    ty.constructor
+        .apply(ty.args.iter().map(|arg| substituted(arg, bound)))
 }
 
 /// The names every program over a vault starts with: `vault`, and the
@@ -144,6 +196,7 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 checked: Checked::default(),
                 variadic: HashMap::new(),
                 parameter_names: HashMap::new(),
+                generic_functions: HashMap::new(),
             }
             .program(&program)
             .ok()?;
@@ -172,6 +225,9 @@ struct Checker<'a> {
     /// The parameter names of each declared function, for a diagnostic
     /// that names the parameter an argument does not fit.
     parameter_names: HashMap<String, Vec<String>>,
+    /// Each generic function's type parameters: the name, its type variable
+    /// and its bound.
+    generic_functions: HashMap<String, Vec<(String, TypeRef, Option<TypeRef>)>>,
 }
 
 impl Checker<'_> {
@@ -399,11 +455,46 @@ impl Checker<'_> {
                 &declaration.span,
             );
         }
-        if !declaration.generics.is_empty() {
-            return Err(Diagnostic::typing(
-                declaration.span.clone(),
-                "generic functions are not implemented yet; declare the parameter types",
-            ));
+        // A generic parameter stands for its type variable while the
+        // declaration is checked; its bound is checked at each call.
+        let mut variables = Vec::new();
+        for name in &declaration.generics {
+            let bound = declaration
+                .bounds
+                .iter()
+                .find(|(bounded, _)| bounded == name)
+                .map(|(_, bound)| crate::declarations::annotation(bound))
+                .transpose()?;
+            let variable =
+                crate::types::builtin::type_variable(name, bound.as_ref()).ok_or_else(|| {
+                    Diagnostic::typing(
+                        declaration.span.clone(),
+                        format!(
+                            "a type parameter is one capital letter, such as `T`, not `{name}`"
+                        ),
+                    )
+                })?;
+            if variables
+                .iter()
+                .any(|(held, _, _): &(String, TypeRef, Option<TypeRef>)| held == name)
+            {
+                return Err(Diagnostic::typing(
+                    declaration.span.clone(),
+                    format!("the type parameter `{name}` is written twice"),
+                ));
+            }
+            variables.push((name.clone(), variable, bound));
+        }
+        let in_scope: Vec<(String, TypeRef)> = variables
+            .iter()
+            .map(|(name, variable, _)| (name.clone(), variable.clone()))
+            .collect();
+        let _variables = crate::declarations::TypeVariables::enter(&in_scope);
+        if variables.is_empty() {
+            self.generic_functions.remove(&declaration.name);
+        } else {
+            self.generic_functions
+                .insert(declaration.name.clone(), variables);
         }
         let mut parameters = Vec::new();
         for parameter in &declaration.parameters {
@@ -612,7 +703,11 @@ impl Checker<'_> {
                 format!("only a function or a pipeline step can be called, and this is {ty}"),
             ));
         };
-        let (parameters, result) = (parameters.to_vec(), result.clone());
+        let (mut parameters, mut result) = (parameters.to_vec(), result.clone());
+        let generic = match &callee.kind {
+            Kind::Ident(name) => self.generic_functions.get(name).cloned(),
+            _ => None,
+        };
         if let Some(argument) = arguments.iter().find(|argument| argument.name.is_some()) {
             return Err(Diagnostic::typing(
                 argument.value.span.clone(),
@@ -632,7 +727,10 @@ impl Checker<'_> {
             let expected = match variadic {
                 Some(count) if position + 1 >= count => parameters[count - 1].element(),
                 _ => parameters.get(position).cloned(),
-            };
+            }
+            // A parameter that holds a type variable is filled by the argument,
+            // not the other way round.
+            .filter(|expected| !expected.has_variable());
             let actual = self.expecting(&argument.value, expected.as_ref())?;
             supplied.push((actual, argument.value.span.clone()));
         }
@@ -671,6 +769,37 @@ impl Checker<'_> {
                 None
             }
         };
+        if let Some(variables) = &generic {
+            let callee_name = match &callee.kind {
+                Kind::Ident(name) => name.as_str(),
+                _ => "",
+            };
+            let mut bound = HashMap::new();
+            for ((actual, _), parameter) in supplied.iter().zip(&parameters) {
+                instantiate(parameter, actual, &mut bound);
+            }
+            for (name, variable, limit) in variables {
+                let filled = bound
+                    .get(&variable.constructor)
+                    .cloned()
+                    .unwrap_or(TypeRef::NEVER);
+                if let Some(limit) = limit
+                    && !filled.is(limit)
+                {
+                    return Err(Diagnostic::typing(
+                        span,
+                        format!(
+                            "`{callee_name}` needs {name} : {limit}, and {name} is {filled} here"
+                        ),
+                    ));
+                }
+            }
+            parameters = parameters
+                .iter()
+                .map(|parameter| substituted(parameter, &bound))
+                .collect();
+            result = substituted(&result, &bound);
+        }
         let names = match &callee.kind {
             Kind::Ident(name) => self.parameter_names.get(name).cloned(),
             _ => None,

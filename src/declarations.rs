@@ -29,6 +29,17 @@ fn lattice(written: &TypeAnn) -> Option<TypeRef> {
 
 /// Resolve a runtime annotation recursively and validate every supplied argument.
 pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
+    if written.arguments.is_empty()
+        && let Some(variable) = VARIABLES.with(|held| {
+            held.borrow()
+                .iter()
+                .rev()
+                .find(|(name, _)| *name == written.name)
+                .map(|(_, variable)| variable.clone())
+        })
+    {
+        return Ok(variable);
+    }
     let args = written
         .arguments
         .iter()
@@ -46,6 +57,32 @@ pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
         .apply(constructor, args)
         .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
     Ok(reference)
+}
+
+thread_local! {
+    /// The type parameters of the generic function being checked.
+    static VARIABLES: std::cell::RefCell<Vec<(String, TypeRef)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The type parameters of a generic function, in scope while it is checked:
+/// a written `T` is its type variable until the guard is dropped.
+pub(crate) struct TypeVariables(usize);
+
+impl TypeVariables {
+    pub(crate) fn enter(variables: &[(String, TypeRef)]) -> Self {
+        VARIABLES.with(|held| {
+            let mut held = held.borrow_mut();
+            let before = held.len();
+            held.extend(variables.iter().cloned());
+            Self(before)
+        })
+    }
+}
+
+impl Drop for TypeVariables {
+    fn drop(&mut self) {
+        VARIABLES.with(|held| held.borrow_mut().truncate(self.0));
+    }
 }
 
 /// What a program has declared so far.

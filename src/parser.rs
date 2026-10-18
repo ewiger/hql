@@ -542,6 +542,7 @@ impl Parser {
             return Err(Diagnostic::syntax(named.span, "expected a function name"));
         };
         let mut generics = Vec::new();
+        let mut bounds = Vec::new();
         if self.eat(&Token::Less) {
             loop {
                 let parameter = self.advance();
@@ -551,6 +552,9 @@ impl Parser {
                         "expected a type parameter",
                     ));
                 };
+                if self.eat(&Token::Colon) {
+                    bounds.push((parameter.clone(), self.simple_type()?));
+                }
                 generics.push(parameter);
                 if !self.eat(&Token::Comma) {
                     break;
@@ -626,6 +630,7 @@ impl Parser {
         Ok(FnDecl {
             name,
             generics,
+            bounds,
             parameters,
             result,
             body,

@@ -36,6 +36,44 @@ macro_rules! applications {
 
 applications! { list => "List", seq => "Seq", set => "Set", hit => "Hit", ranking => "Ranking", optional => "Option", collection => "Collection" }
 
+/// The type variables a generic function's parameters stand for, one per
+/// capital letter.
+pub const TYPE_VARIABLES: [&str; 26] = [
+    "%A", "%B", "%C", "%D", "%E", "%F", "%G", "%H", "%I", "%J", "%K", "%L", "%M", "%N", "%O", "%P",
+    "%Q", "%R", "%S", "%T", "%U", "%V", "%W", "%X", "%Y", "%Z",
+];
+
+/// The type variables of parameters bound by `Orderable`, which the body may
+/// sort, compare and take a prefix of.
+pub const ORDERABLE_VARIABLES: [&str; 26] = [
+    "%A~", "%B~", "%C~", "%D~", "%E~", "%F~", "%G~", "%H~", "%I~", "%J~", "%K~", "%L~", "%M~",
+    "%N~", "%O~", "%P~", "%Q~", "%R~", "%S~", "%T~", "%U~", "%V~", "%W~", "%X~", "%Y~", "%Z~",
+];
+
+/// The type variable a generic parameter written `name` stands for. A
+/// parameter bound by `Orderable` stands for one that is orderable inside the
+/// body; any other bound is checked at the call.
+#[must_use]
+pub fn type_variable(name: &str, bound: Option<&TypeRef>) -> Option<TypeRef> {
+    let family: &[&'static str] = if bound.is_some_and(|bound| *bound == TypeRef::ORDERABLE) {
+        &ORDERABLE_VARIABLES
+    } else {
+        &TYPE_VARIABLES
+    };
+    family
+        .iter()
+        .find(|variable| variable.trim_start_matches('%').trim_end_matches('~') == name)
+        .map(|variable| TypeConstructor(variable).apply([]))
+}
+
+impl TypeRef {
+    /// Whether this is a generic function's type variable, or holds one.
+    #[must_use]
+    pub fn has_variable(&self) -> bool {
+        self.constructor.0.starts_with('%') || self.args.iter().any(Self::has_variable)
+    }
+}
+
 /// The shared built-in declaration registry.
 pub fn system() -> Result<&'static TypeSystem, TypeError> {
     static SYSTEM: OnceLock<Result<TypeSystem, TypeError>> = OnceLock::new();
@@ -82,6 +120,22 @@ fn build() -> Result<TypeSystem, TypeError> {
             parents: parents.iter().map(|parent| parent.constructor).collect(),
             applied: Vec::new(),
         })?;
+    }
+    // The type variables of a generic function body: `T` in `fn first<T>` is
+    // checked as `%T`, a type no program can spell, a subtype only of itself.
+    for (family, parents) in [
+        (TYPE_VARIABLES, vec![]),
+        (ORDERABLE_VARIABLES, vec![collections::ORDERABLE]),
+    ] {
+        for variable in family {
+            system.declare(TypeDefinition {
+                kind: TypeKind::Abstract,
+                constructor: TypeConstructor(variable),
+                parameters: vec![],
+                parents: parents.clone(),
+                applied: Vec::new(),
+            })?;
+        }
     }
     // A ranking is a sequence of hits that also states where its order came
     // from: `type Ranking<T> : Seq<Hit<T>>` in `std/retrieval.hql`.

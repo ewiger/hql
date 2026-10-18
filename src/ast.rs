@@ -36,6 +36,8 @@ pub(crate) struct FnDecl {
     pub name: String,
     /// Generic parameters, `T` in `fn first<T>(…)`.
     pub generics: Vec<String>,
+    /// The bound a generic parameter is written with, `T : Orderable`.
+    pub bounds: Vec<(String, TypeAnn)>,
     pub parameters: Vec<Param>,
     pub result: TypeAnn,
     pub body: Expr,
