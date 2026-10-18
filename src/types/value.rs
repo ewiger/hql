@@ -55,6 +55,8 @@ pub enum Value {
     Function(Arc<Closure>),
     /// Text in a presentation format, such as `Markdown` or `Json`.
     Formatted(Arc<Formatted>),
+    /// A generated sequence or stream, produced on demand.
+    Traversal(Arc<crate::traversal::Traversal>),
 }
 
 /// Text of one presentation format: a `String` that also states its syntax.
@@ -151,6 +153,7 @@ impl Value {
     #[must_use]
     pub fn type_of(&self) -> TypeRef {
         match self {
+            Self::Traversal(traversal) => traversal.type_of(),
             Self::Unit => TypeRef::UNIT,
             Self::Ordering(_) => TypeRef::ORDERING,
             Self::Map(map) => map.type_of(),
@@ -185,6 +188,7 @@ impl Value {
     pub fn elements(&self) -> Option<Vec<Self>> {
         match self {
             Self::Set(values, _) | Self::List(values, _) => Some(values.as_ref().clone()),
+            Self::Traversal(traversal) => traversal.forced().map(<[Self]>::to_vec),
             Self::Ranking(ranking) => Some(
                 ranking
                     .hits
@@ -192,6 +196,17 @@ impl Value {
                     .map(|hit| Self::Hit(Arc::new(hit.clone())))
                     .collect(),
             ),
+            _ => None,
+        }
+    }
+
+    /// A traversal that has been forced, as the list of what it produced, so
+    /// it renders and compares as the values it holds.
+    pub(crate) fn settled(&self) -> Option<Self> {
+        match self {
+            Self::Traversal(traversal) => traversal
+                .forced()
+                .map(|values| Self::list(values.to_vec(), traversal.element.clone())),
             _ => None,
         }
     }
@@ -310,7 +325,14 @@ impl Key {
 
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
+        if let Some(settled) = self.settled() {
+            return settled == *other;
+        }
+        if let Some(settled) = other.settled() {
+            return *self == settled;
+        }
         match (self, other) {
+            (Self::Traversal(a), Self::Traversal(b)) => Arc::ptr_eq(a, b),
             (Self::Unit, Self::Unit) => true,
             (Self::Ordering(a), Self::Ordering(b)) => a == b,
             (Self::Map(a), Self::Map(b)) => a == b,

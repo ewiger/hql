@@ -33,6 +33,21 @@ pub(crate) enum Stmt {
     Unit,
 }
 
+/// One statement of an iterating function's body.
+#[derive(Debug)]
+pub(crate) enum BlockStmt {
+    Bind {
+        name: String,
+        value: Expr,
+    },
+    Yield(Expr),
+    For {
+        name: String,
+        iterable: Expr,
+        body: Vec<BlockStmt>,
+    },
+}
+
 #[derive(Debug)]
 pub(crate) struct Expr {
     pub kind: Kind,
@@ -96,6 +111,13 @@ pub(crate) enum Kind {
         function: Option<TypeRef>,
     },
     Type,
+    /// An iterating function's body: evaluating it makes a traversal and
+    /// runs nothing.
+    Generate {
+        statements: std::sync::Arc<Vec<BlockStmt>>,
+        element: TypeRef,
+        finite: bool,
+    },
     /// A function value applied to arguments. `pack` collects the arguments
     /// past the first `n` into a list of the given element type, for a
     /// variadic parameter.
@@ -289,6 +311,30 @@ impl Checked {
             .collect()
     }
 
+    fn block(&self, statements: &[ast::BlockStmt]) -> Result<Vec<BlockStmt>, Diagnostic> {
+        statements
+            .iter()
+            .map(|statement| {
+                Ok(match statement {
+                    ast::BlockStmt::Bind { name, value } => BlockStmt::Bind {
+                        name: name.clone(),
+                        value: self.expression(value)?,
+                    },
+                    ast::BlockStmt::Yield(value) => BlockStmt::Yield(self.expression(value)?),
+                    ast::BlockStmt::For {
+                        name,
+                        iterable,
+                        body,
+                    } => BlockStmt::For {
+                        name: name.clone(),
+                        iterable: self.expression(iterable)?,
+                        body: self.block(body)?,
+                    },
+                })
+            })
+            .collect()
+    }
+
     fn expression(&self, expression: &ast::Expr) -> Result<Expr, Diagnostic> {
         use ast::Kind as A;
         let span = expression.span.clone();
@@ -303,6 +349,11 @@ impl Checked {
         .ok_or_else(|| Diagnostic::typing(span.clone(), "argument was not checked"))?;
         let boxed = |value| self.expression(value).map(Box::new);
         let kind = match &expression.kind {
+            A::Block(statements) => Kind::Generate {
+                statements: std::sync::Arc::new(self.block(statements)?),
+                element: ty.args.first().cloned().unwrap_or(TypeRef::NEVER),
+                finite: ty.constructor == crate::types::collections::SEQ,
+            },
             A::List(values) | A::Set(values) => {
                 let values = values
                     .iter()

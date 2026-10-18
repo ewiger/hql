@@ -40,6 +40,21 @@ pub(crate) struct FnDecl {
     pub span: Range<usize>,
 }
 
+/// One statement of a function's block body.
+#[derive(Debug)]
+pub(crate) enum BlockStmt {
+    /// `name = expr`, visible to the statements after it.
+    Bind { name: String, value: Expr },
+    /// `yield expr`: one value of the traversal the function produces.
+    Yield(Expr),
+    /// `for name in iterable { ... }`: the body once per value, in order.
+    For {
+        name: String,
+        iterable: Expr,
+        body: Vec<BlockStmt>,
+    },
+}
+
 /// One parameter of a declared function.
 #[derive(Debug)]
 pub(crate) struct Param {
@@ -110,6 +125,8 @@ pub(crate) enum Kind {
         annotation: TypeAnn,
         arguments: Vec<Arg>,
     },
+    /// The block body of an iterating function. Written only as a `fn` body.
+    Block(Vec<BlockStmt>),
     Int(i64),
     Float(f64),
     Bool(bool),

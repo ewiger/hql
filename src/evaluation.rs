@@ -1,7 +1,8 @@
 //! Evaluation: pure over the values it is given, with the vault as its source.
 
 use crate::ast::{Arith, Logic};
-use crate::execution::{Arg, Expr, Field, Kind, Program, Stmt};
+use crate::execution::{Arg, BlockStmt, Expr, Field, Kind, Program, Stmt};
+use crate::traversal::{Source, Traversal};
 
 use crate::data::Data;
 use crate::diagnostics::Diagnostic;
@@ -45,7 +46,12 @@ pub(crate) fn evaluate(
         log: Vec::new(),
         frames: Vec::new(),
     };
-    let value = evaluator.program(program);
+    // A finite traversal is the values it produces, so the result holds them;
+    // a stream that may not end is left for the host to bound.
+    let value = match evaluator.program(program) {
+        Ok(Value::Traversal(traversal)) if traversal.finite => evaluator.force(&traversal, &(0..0)),
+        other => other,
+    };
     (value, evaluator.log)
 }
 
@@ -106,7 +112,8 @@ impl Evaluator<'_> {
                 let mut values = Vec::new();
                 let element = expression.ty.element().unwrap_or(TypeRef::NEVER);
                 for expression in expressions {
-                    values.push(self.expression(expression)?);
+                    let value = self.expression(expression)?;
+                    values.push(self.settled(value, &span)?);
                 }
                 Ok(if matches!(expression.kind, Kind::Set(_)) {
                     Value::set(values, element)
@@ -124,7 +131,8 @@ impl Evaluator<'_> {
             Kind::Data(entries) => {
                 let mut data = Data::map();
                 for (key, value) in entries {
-                    data.insert_path(key, as_data(&self.expression(value)?));
+                    let value = self.expression(value)?;
+                    data.insert_path(key, as_data(&self.settled(value, &span)?));
                 }
                 Ok(Value::Data(Arc::new(data)))
             }
@@ -215,6 +223,18 @@ impl Evaluator<'_> {
                 };
                 Ok(Value::Edge(Arc::new(Edge::link(&from, &to, annotation))))
             }
+            Kind::Generate {
+                statements,
+                element,
+                finite,
+            } => Ok(Value::Traversal(Arc::new(Traversal::new(
+                element.clone(),
+                *finite,
+                Source::Block {
+                    statements: Arc::clone(statements),
+                    scope: self.scope.clone(),
+                },
+            )))),
             Kind::Lambda {
                 parameters,
                 body,
@@ -569,6 +589,175 @@ impl Evaluator<'_> {
         result
     }
 
+    /// Drive a traversal, handing each value to `sink` until the values run
+    /// out or the sink stops. Answers whether the sink would take more.
+    fn run_traversal(
+        &mut self,
+        traversal: &Traversal,
+        sink: &mut dyn FnMut(&mut Self, Value) -> Result<bool, Diagnostic>,
+    ) -> Result<bool, Diagnostic> {
+        if let Some(values) = traversal.forced() {
+            for value in values {
+                if !sink(self, value.clone())? {
+                    return Ok(false);
+                }
+            }
+            return Ok(true);
+        }
+        match &traversal.source {
+            Source::Block { statements, scope } => {
+                let outer = std::mem::replace(&mut self.scope, scope.clone());
+                let more = self.run_block(statements, sink);
+                self.scope = outer;
+                more
+            }
+            Source::Map { input, by, span } => {
+                self.run_traversal(input, &mut |evaluator, value| {
+                    let mapped = evaluator.call(by, vec![value], span)?;
+                    sink(evaluator, mapped)
+                })
+            }
+            Source::Filter { input, by, span } => self.run_traversal(
+                input,
+                &mut |evaluator, value| match evaluator.call(by, vec![value.clone()], span)? {
+                    Value::Bool(true) => sink(evaluator, value),
+                    _ => Ok(true),
+                },
+            ),
+            Source::Take { input, n } => {
+                if *n == 0 {
+                    return Ok(true);
+                }
+                let (mut seen, mut stopped) = (0, false);
+                self.run_traversal(input, &mut |evaluator, value| {
+                    seen += 1;
+                    if !sink(evaluator, value)? {
+                        stopped = true;
+                        return Ok(false);
+                    }
+                    Ok(seen < *n)
+                })?;
+                Ok(!stopped)
+            }
+            Source::Drop { input, n } => {
+                let mut skipped = 0;
+                self.run_traversal(input, &mut |evaluator, value| {
+                    if skipped < *n {
+                        skipped += 1;
+                        return Ok(true);
+                    }
+                    sink(evaluator, value)
+                })
+            }
+        }
+    }
+
+    /// Run an iterating function's statements. A binding lasts to the end of
+    /// its block.
+    fn run_block(
+        &mut self,
+        statements: &[BlockStmt],
+        sink: &mut dyn FnMut(&mut Self, Value) -> Result<bool, Diagnostic>,
+    ) -> Result<bool, Diagnostic> {
+        let outer = self.scope.clone();
+        let more = self.run_statements(statements, sink);
+        self.scope = outer;
+        more
+    }
+
+    fn run_statements(
+        &mut self,
+        statements: &[BlockStmt],
+        sink: &mut dyn FnMut(&mut Self, Value) -> Result<bool, Diagnostic>,
+    ) -> Result<bool, Diagnostic> {
+        for statement in statements {
+            match statement {
+                BlockStmt::Bind { name, value } => {
+                    let value = self.expression(value)?;
+                    self.scope.insert(name.clone(), value);
+                }
+                BlockStmt::Yield(value) => {
+                    let value = self.expression(value)?;
+                    if !sink(self, value)? {
+                        return Ok(false);
+                    }
+                }
+                BlockStmt::For {
+                    name,
+                    iterable,
+                    body,
+                } => {
+                    let over = match self.expression(iterable)? {
+                        Value::Present(held) => held.as_ref().clone(),
+                        Value::Absent(_) => continue,
+                        other => other,
+                    };
+                    let more = if let Value::Traversal(traversal) = &over {
+                        self.run_traversal(traversal, &mut |evaluator, value| {
+                            evaluator.scope.insert(name.clone(), value);
+                            evaluator.run_block(body, sink)
+                        })?
+                    } else {
+                        let values = over.elements().ok_or_else(|| {
+                            Diagnostic::runtime(
+                                iterable.span.clone(),
+                                "`for` traverses a collection or a stream",
+                            )
+                        })?;
+                        let mut more = true;
+                        for value in values {
+                            self.scope.insert(name.clone(), value);
+                            if !self.run_block(body, sink)? {
+                                more = false;
+                                break;
+                            }
+                        }
+                        more
+                    };
+                    if !more {
+                        return Ok(false);
+                    }
+                }
+            }
+        }
+        Ok(true)
+    }
+
+    /// A value placed inside another holds its values, so a finite traversal
+    /// is forced there; a stream stays lazy.
+    fn settled(&mut self, value: Value, span: &Range<usize>) -> Result<Value, Diagnostic> {
+        match value {
+            Value::Traversal(traversal) if traversal.finite => self.force(&traversal, span),
+            other => Ok(other),
+        }
+    }
+
+    /// The whole of a finite traversal, produced once and kept.
+    fn force(
+        &mut self,
+        traversal: &Arc<Traversal>,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        if traversal.forced().is_none() {
+            if !traversal.finite {
+                return Err(Diagnostic::runtime(
+                    span.clone(),
+                    format!(
+                        "{} may not end, so it cannot be used whole; bound it with `take(n)`",
+                        traversal.type_of()
+                    ),
+                ));
+            }
+            let mut values = Vec::new();
+            self.run_traversal(traversal, &mut |_, value| {
+                values.push(value);
+                Ok(true)
+            })?;
+            traversal.keep(values);
+        }
+        Ok(Value::Traversal(Arc::clone(traversal)))
+    }
+
     /// Evaluate a lambda argument once per element.
     fn apply(&mut self, argument: &Arg, values: Vec<Value>) -> Result<Value, Diagnostic> {
         let Kind::Lambda {
@@ -633,6 +822,13 @@ impl Evaluator<'_> {
         let input = match input {
             Value::Present(value) => value.as_ref().clone(),
             Value::Absent(element) => Value::set(Vec::new(), element),
+            // A step that needs its whole input gets a traversal's values;
+            // the steps that consume one value at a time keep it lazy.
+            Value::Traversal(traversal)
+                if !crate::extensions::collections::LAZY.contains(&step.name) =>
+            {
+                self.force(&traversal, &span)?
+            }
             other => other,
         };
         (step.eval)(self, input, arguments, span)
@@ -642,6 +838,14 @@ impl Evaluator<'_> {
 impl EvalCx for Evaluator<'_> {
     fn vault(&self) -> &Vault {
         self.vault
+    }
+
+    fn traverse(
+        &mut self,
+        traversal: &Traversal,
+        sink: &mut dyn FnMut(&mut dyn EvalCx, Value) -> Result<bool, Diagnostic>,
+    ) -> Result<bool, Diagnostic> {
+        self.run_traversal(traversal, &mut |evaluator, value| sink(evaluator, value))
     }
 
     fn evaluate(&mut self, expression: &Expr) -> Result<Value, Diagnostic> {

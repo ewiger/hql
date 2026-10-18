@@ -67,3 +67,93 @@ fn a_list_passes_where_a_stream_is_asked_for() {
     let source = "fn first_two(xs: Stream<Int>) : List<Int> = xs | take(2)\nfirst_two([3, 1, 2])";
     assert_eq!(eval(source), eval("[3, 1]"));
 }
+
+const NATURALS: &str = "fn naturals(from: Int) : Stream<Int> {
+    yield from
+    for n in naturals(from + 1) {
+        yield n
+    }
+}
+";
+
+#[test]
+fn take_ends_a_traversal_that_would_not_end_by_itself() {
+    let source = format!("{NATURALS}naturals(1) | take(4)");
+    assert_eq!(check(&source), Ok(TypeRef::list(TypeRef::INT)));
+    assert_eq!(eval(&source), eval("[1, 2, 3, 4]"));
+}
+
+#[test]
+fn map_filter_and_drop_run_one_value_at_a_time() {
+    let source = format!(
+        "{NATURALS}naturals(1) | filter(n => n % 2 == 0) | map(n => n * n) | drop(1) | take(3)"
+    );
+    assert_eq!(eval(&source), eval("[16, 36, 64]"));
+}
+
+#[test]
+fn an_iterating_function_yields_in_the_order_it_reaches_each_yield() {
+    let source = "fn twice(xs: List<Int>) : Seq<Int> {
+    for x in xs {
+        doubled = x * 2
+        yield x
+        yield doubled
+    }
+}
+twice([1, 2, 3])";
+    assert_eq!(check(source), Ok(TypeRef::seq(TypeRef::INT)));
+    assert_eq!(eval(source), eval("[1, 2, 2, 4, 3, 6]"));
+    assert_eq!(eval(&format!("{source} | sum")), Value::Int(18));
+    let nested = source.replace("twice([1, 2, 3])", "[ twice([1, 2, 3]) ]");
+    assert_eq!(eval(&nested), eval("[ [1, 2, 2, 4, 3, 6] ]"));
+}
+
+#[test]
+fn two_uses_of_one_generated_sequence_see_the_same_values() {
+    let source = "fn three() : Seq<Int> {
+    yield 1
+    yield 2
+    yield 3
+}
+xs = three()
+[xs | sum, xs | take(2) | sum]";
+    assert_eq!(eval(source), eval("[6, 3]"));
+}
+
+#[test]
+fn yield_belongs_to_the_block_body_of_a_user_fn() {
+    for source in [
+        "yield 1",
+        "[1] | map(x => yield x)",
+        "for x in [1] { yield x }",
+    ] {
+        let message = check(source).expect_err(source);
+        assert!(
+            message.contains("block body of a user `fn`"),
+            "{source}: {message}"
+        );
+    }
+}
+
+#[test]
+fn an_iterating_function_declares_what_it_yields() {
+    for (source, message) in [
+        (
+            "fn f(xs: List<Int>) : List<Int> {\n    for x in xs {\n        yield x\n    }\n}\n1",
+            "returns Seq<T> or Stream<T>",
+        ),
+        (
+            "fn f(xs: List<Int>) : Seq<String> {\n    for x in xs {\n        yield x\n    }\n}\n1",
+            "yields String, and this is Int",
+        ),
+        ("fn f() : Seq<Int> {\n    x = 1\n}\n1", "never yields"),
+        (
+            "fn f() : Seq<Int> {\n    for x in 1 {\n        yield x\n    }\n}\n1",
+            "`for` traverses",
+        ),
+        (&format!("{NATURALS}List(naturals(1))"), "not Stream<Int>"),
+    ] {
+        let failure = check(source).expect_err(source);
+        assert!(failure.contains(message), "{source}: {failure}");
+    }
+}

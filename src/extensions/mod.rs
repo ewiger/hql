@@ -82,6 +82,13 @@ pub(crate) trait EvalCx: Send {
     fn vault(&self) -> &Vault;
     /// The value of an argument expression.
     fn evaluate(&mut self, expression: &TypedExpr) -> Result<Value, Diagnostic>;
+    /// Drive a traversal, handing each value to `sink` until the values run
+    /// out or the sink stops.
+    fn traverse(
+        &mut self,
+        traversal: &crate::traversal::Traversal,
+        sink: &mut dyn FnMut(&mut dyn EvalCx, Value) -> Result<bool, Diagnostic>,
+    ) -> Result<bool, Diagnostic>;
     /// A lambda argument applied to one element.
     fn apply_lambda(&mut self, argument: &TypedArg, element: Value) -> Result<Value, Diagnostic>;
     /// Apply a comparison to a pair of elements.

@@ -17,6 +17,24 @@ use std::cmp::Ordering;
 use std::ops::Range;
 use std::sync::Arc;
 
+use crate::traversal::{Source, Traversal};
+
+/// The steps that consume a traversal one value at a time and so keep it
+/// lazy. Every other step receives a traversal's values, forced once.
+pub(crate) const LAZY: [&str; 4] = ["map", "filter", "take", "drop"];
+
+/// A traversal that has not been forced, which a lazy step wraps.
+fn pending(input: &Value) -> Option<&Arc<Traversal>> {
+    match input {
+        Value::Traversal(traversal) if traversal.forced().is_none() => Some(traversal),
+        _ => None,
+    }
+}
+
+fn wrapped(input: &Arc<Traversal>, element: TypeRef, source: Source) -> Value {
+    Value::Traversal(Arc::new(Traversal::new(element, input.finite, source)))
+}
+
 const OPTION: crate::types::TypeConstructor = crate::types::TypeConstructor("Option");
 
 /// Every step the core provides, in the order help prints them.
@@ -641,6 +659,24 @@ fn eval_take(
     let count = usize::try_from(count).map_err(|_| {
         Diagnostic::runtime(argument.value.span.clone(), "a count cannot be negative")
     })?;
+    if let Some(traversal) = pending(&input) {
+        let source = Source::Take {
+            input: Arc::clone(traversal),
+            n: count,
+        };
+        let element = traversal.element.clone();
+        if traversal.finite {
+            return Ok(wrapped(traversal, element, source));
+        }
+        // A bounded prefix of a stream is finite, so it is materialized.
+        let prefix = Traversal::new(element.clone(), true, source);
+        let mut values = Vec::new();
+        cx.traverse(&prefix, &mut |_, value| {
+            values.push(value);
+            Ok(true)
+        })?;
+        return Ok(Value::list(values, element));
+    }
     if let Value::Ranking(ranking) = &input {
         // Already ordered by score, and that order is the point.
         return Ok(Value::Ranking(Arc::new(Ranking {
@@ -674,6 +710,13 @@ fn eval_drop(
     let count = usize::try_from(count).map_err(|_| {
         Diagnostic::runtime(argument.value.span.clone(), "a count cannot be negative")
     })?;
+    if let Some(traversal) = pending(&input) {
+        let source = Source::Drop {
+            input: Arc::clone(traversal),
+            n: count,
+        };
+        return Ok(wrapped(traversal, traversal.element.clone(), source));
+    }
     if let Value::Ranking(ranking) = &input {
         return Ok(Value::Ranking(Arc::new(Ranking {
             hits: ranking.hits.iter().skip(count).cloned().collect(),
@@ -696,6 +739,16 @@ fn eval_filter(
 ) -> Result<Value, Diagnostic> {
     let argument =
         named_or_first(arguments, "by").ok_or_else(|| wrong("filter", "a predicate", &span))?;
+    if let Some(traversal) = pending(&input) {
+        let by = cx.evaluate(&argument.value)?;
+        let element = narrowed_to(argument).unwrap_or_else(|| traversal.element.clone());
+        let source = Source::Filter {
+            input: Arc::clone(traversal),
+            by,
+            span: argument.value.span.clone(),
+        };
+        return Ok(wrapped(traversal, element, source));
+    }
     let mut kept = Vec::new();
     for element in elements(&input, "filter", &span)? {
         let verdict = cx.apply_lambda(argument, element.clone())?;
@@ -729,6 +782,15 @@ fn eval_map(
 ) -> Result<Value, Diagnostic> {
     let argument =
         named_or_first(arguments, "by").ok_or_else(|| wrong("map", "a function", &span))?;
+    if let Some(traversal) = pending(&input) {
+        let by = cx.evaluate(&argument.value)?;
+        let source = Source::Map {
+            input: Arc::clone(traversal),
+            by,
+            span: argument.value.span.clone(),
+        };
+        return Ok(wrapped(traversal, argument.value.ty.clone(), source));
+    }
     let mut mapped = Vec::new();
     for element in elements(&input, "map", &span)? {
         mapped.push(cx.apply_lambda(argument, element)?);

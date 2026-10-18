@@ -1,8 +1,8 @@
 //! Parse tokens into a program: statements, bindings, pipelines and calls.
 
 use crate::ast::{
-    Arg, Arith, Arm, Expr, Field, FnDecl, Kind, Logic, Param, Pattern, Program, Relation, Stmt,
-    TEE_INPUT, TypeAnn, TypeDecl,
+    Arg, Arith, Arm, BlockStmt, Expr, Field, FnDecl, Kind, Logic, Param, Pattern, Program,
+    Relation, Stmt, TEE_INPUT, TypeAnn, TypeDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -455,6 +455,84 @@ impl Parser {
         })
     }
 
+    /// `{ statement* }`, one statement per line: the block body of an
+    /// iterating function. Newlines separate statements here, as they do at
+    /// the top level, whatever brackets surround the declaration.
+    fn block(&mut self) -> Result<Vec<BlockStmt>, Diagnostic> {
+        let saved = std::mem::replace(&mut self.nesting, 0);
+        self.expect(&Token::OpenBrace, "to open the body")?;
+        let mut statements = Vec::new();
+        loop {
+            self.continuation();
+            if self.eat(&Token::CloseBrace) {
+                break;
+            }
+            if matches!(self.peek(), Token::End) {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    "expected `}` to close the body",
+                ));
+            }
+            statements.push(self.nested(Self::block_statement)?);
+            if !matches!(
+                self.tokens[self.index].token,
+                Token::Newline | Token::CloseBrace
+            ) {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    format!(
+                        "expected end of statement, found {}",
+                        self.peek().describe()
+                    ),
+                ));
+            }
+        }
+        self.nesting = saved;
+        Ok(statements)
+    }
+
+    fn block_statement(&mut self) -> Result<BlockStmt, Diagnostic> {
+        let head = self.peek().clone();
+        let next = self.tokens[self.index + 1].token.clone();
+        match head {
+            Token::Ident(keyword) if keyword == "yield" => {
+                self.advance();
+                Ok(BlockStmt::Yield(self.expression()?))
+            }
+            Token::Ident(keyword) if keyword == "for" => {
+                self.advance();
+                let named = self.advance();
+                let Token::Ident(name) = named.token else {
+                    return Err(Diagnostic::syntax(
+                        named.span,
+                        "expected a name after `for`",
+                    ));
+                };
+                self.expect(&Token::Ident("in".to_owned()), "after the loop variable")?;
+                let iterable = self.expression()?;
+                let body = self.block()?;
+                Ok(BlockStmt::For {
+                    name,
+                    iterable,
+                    body,
+                })
+            }
+            Token::Ident(name) if next == Token::Equals => {
+                self.advance();
+                self.advance();
+                self.continuation();
+                Ok(BlockStmt::Bind {
+                    name,
+                    value: self.expression()?,
+                })
+            }
+            _ => Err(Diagnostic::syntax(
+                self.peek_span(),
+                "a block body holds `yield`, `for` and bindings",
+            )),
+        }
+    }
+
     /// `fn name<T>(p: Type, xs: ...Type) : Result = body`.
     fn function(&mut self) -> Result<FnDecl, Diagnostic> {
         let start = self.advance().span.start;
@@ -529,9 +607,19 @@ impl Parser {
         }
         self.expect(&Token::Colon, "before the result type")?;
         let result = self.type_annotation()?;
-        self.expect(&Token::Equals, "before the function body")?;
-        self.continuation();
-        let body = self.expression()?;
+        let body = if matches!(self.peek(), Token::OpenBrace) {
+            let open = self.peek_span().start;
+            let statements = self.block()?;
+            let close = self.tokens[self.index.saturating_sub(1)].span.end;
+            Expr {
+                kind: Kind::Block(statements),
+                span: open..close,
+            }
+        } else {
+            self.expect(&Token::Equals, "before the function body")?;
+            self.continuation();
+            self.expression()?
+        };
         let span = start..body.span.end;
         Ok(FnDecl {
             name,
@@ -1079,6 +1167,18 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, Diagnostic> {
+        if let Token::Ident(keyword) = self.peek()
+            && matches!(keyword.as_str(), "yield" | "for")
+            && !matches!(
+                self.tokens[self.index + 1].token,
+                Token::Newline | Token::End | Token::Equals | Token::CloseParen | Token::Comma
+            )
+        {
+            return Err(Diagnostic::syntax(
+                self.peek_span(),
+                format!("`{keyword}` is written only in the block body of a user `fn`"),
+            ));
+        }
         if matches!(self.peek(), Token::OpenBracket) {
             return self.collection_literal(false);
         }

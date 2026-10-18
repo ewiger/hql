@@ -35,6 +35,7 @@ pub mod reporting;
 pub mod search;
 pub mod sources;
 pub mod transclude;
+pub mod traversal;
 pub mod types;
 pub mod vault;
 pub mod warnings;

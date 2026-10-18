@@ -13,8 +13,12 @@ impl Value {
     /// The JSON projection of the value.
     #[must_use]
     pub fn to_json(&self) -> serde_json::Value {
+        if let Some(settled) = self.settled() {
+            return settled.to_json();
+        }
         use serde_json::{Value as J, json};
         match self {
+            Self::Traversal(traversal) => J::String(format!("<{}>", traversal.type_of())),
             Self::Unit => J::Null,
             Self::Ordering(order) => J::String(format!("{order:?}")),
             Self::Map(map) => {
@@ -100,7 +104,11 @@ fn retrieval_json(retrieval: &crate::search::Retrieval) -> serde_json::Value {
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(settled) = self.settled() {
+            return settled.fmt(f);
+        }
         match self {
+            Self::Traversal(traversal) => write!(f, "<{}>", traversal.type_of()),
             Self::Unit => f.write_str("()"),
             Self::Ordering(order) => write!(f, "{order:?}"),
             Self::Map(map) => {
@@ -168,6 +176,9 @@ impl Value {
     /// Render the value as a table, choosing columns by what the value is.
     #[must_use]
     pub fn to_table(&self) -> String {
+        if let Some(settled) = self.settled() {
+            return settled.to_table();
+        }
         grids(self)
             .iter()
             .map(Grid::aligned)
@@ -179,6 +190,9 @@ impl Value {
     /// [`to_table`](Self::to_table) chooses.
     #[must_use]
     pub fn to_markdown_table(&self) -> String {
+        if let Some(settled) = self.settled() {
+            return settled.to_markdown_table();
+        }
         grids(self)
             .iter()
             .map(Grid::piped)
@@ -190,6 +204,9 @@ impl Value {
     /// 4180 requires.
     #[must_use]
     pub fn to_csv(&self) -> String {
+        if let Some(settled) = self.settled() {
+            return settled.to_csv();
+        }
         let quote = |cell: &str| {
             if cell.contains([',', '"', '\n', '\r']) {
                 format!("\"{}\"", cell.replace('"', "\"\""))
@@ -225,6 +242,9 @@ impl Value {
     /// own body. A presentation is written in its document form.
     #[must_use]
     pub fn to_markdown(&self) -> String {
+        if let Some(settled) = self.settled() {
+            return settled.to_markdown();
+        }
         match self {
             Self::Present(value) => value.to_markdown(),
             // Markdown is spliced in as it is; any other format is fenced

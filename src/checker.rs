@@ -6,7 +6,7 @@ use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
 use crate::execution::{Checked, Program as TypedProgram};
 use crate::extensions::{CheckCx, Operation, Resolution};
-use crate::types::TypeRef;
+use crate::types::{TypeRef, collections};
 use crate::vault::Vault;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -316,6 +316,11 @@ impl Checker<'_> {
             .parameters
             .iter()
             .map(|parameter| parameter.name.clone());
+        if let Kind::Block(statements) = &declaration.body.kind {
+            return self.with_bindings(names.zip(parameters), |checker| {
+                checker.iterating(declaration, statements, &result)
+            });
+        }
         let body = self.with_bindings(names.zip(parameters), |checker| {
             checker.expecting(&declaration.body, Some(&result))
         })?;
@@ -329,6 +334,102 @@ impl Checker<'_> {
             ));
         }
         Ok(())
+    }
+
+    /// The block body of an iterating function: what it yields must be the
+    /// element its declared `Seq<T>` or `Stream<T>` promises.
+    fn iterating(
+        &mut self,
+        declaration: &FnDecl,
+        statements: &[crate::ast::BlockStmt],
+        result: &TypeRef,
+    ) -> Result<(), Diagnostic> {
+        let element = match result.args.as_slice() {
+            [element] if matches!(result.constructor, collections::SEQ | collections::STREAM) => {
+                element.clone()
+            }
+            _ => {
+                return Err(Diagnostic::typing(
+                    declaration.result.span.clone(),
+                    format!(
+                        "`{}` has a block body, which yields, so it returns Seq<T> or \
+                         Stream<T>, not {result}",
+                        declaration.name
+                    ),
+                ));
+            }
+        };
+        let yields = self.block(&declaration.name, statements, &element)?;
+        if yields == 0 {
+            return Err(Diagnostic::typing(
+                declaration.body.span.clone(),
+                format!(
+                    "`{}` has a block body and never yields: a block body produces its \
+                     values with `yield`",
+                    declaration.name
+                ),
+            ));
+        }
+        self.checked
+            .types
+            .insert(declaration.body.span.clone(), result.clone());
+        Ok(())
+    }
+
+    /// Check a block's statements in order and count its `yield`s. A binding
+    /// is visible to the statements after it and not outside the block.
+    fn block(
+        &mut self,
+        function: &str,
+        statements: &[crate::ast::BlockStmt],
+        element: &TypeRef,
+    ) -> Result<usize, Diagnostic> {
+        use crate::ast::BlockStmt;
+        let outer = self.scope.clone();
+        let mut yields = 0;
+        let mut checked = || -> Result<(), Diagnostic> {
+            for statement in statements {
+                match statement {
+                    BlockStmt::Bind { name, value } => {
+                        let ty = self.expression(value)?;
+                        self.scope.insert(name.clone(), ty);
+                    }
+                    BlockStmt::Yield(value) => {
+                        let ty = self.expecting(value, Some(element))?;
+                        if !ty.is(element) {
+                            return Err(Diagnostic::typing(
+                                value.span.clone(),
+                                format!("`{function}` yields {element}, and this is {ty}"),
+                            ));
+                        }
+                        yields += 1;
+                    }
+                    BlockStmt::For {
+                        name,
+                        iterable,
+                        body,
+                    } => {
+                        let ty = self.expression(iterable)?;
+                        let Some(item) = ty.present().iterated() else {
+                            return Err(Diagnostic::typing(
+                                iterable.span.clone(),
+                                format!("`for` traverses a collection or a stream, not {ty}"),
+                            ));
+                        };
+                        let inner = self.scope.insert(name.clone(), item);
+                        yields += self.block(function, body, element)?;
+                        match inner {
+                            Some(held) => self.scope.insert(name.clone(), held),
+                            None => self.scope.remove(name),
+                        };
+                    }
+                }
+            }
+            Ok(())
+        };
+        let outcome = checked();
+        self.scope = outer;
+        outcome.map(|()| yields)
     }
 
     /// Apply a function value to arguments, the first of which may be a
@@ -436,6 +537,10 @@ impl Checker<'_> {
     fn infer_expression(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic> {
         let span = expression.span.clone();
         match &expression.kind {
+            Kind::Block(_) => Err(Diagnostic::syntax(
+                span,
+                "a block is written only as the body of a user `fn`",
+            )),
             Kind::List(values) | Kind::Set(values) => {
                 let mut element = TypeRef::NEVER;
                 for value in values {

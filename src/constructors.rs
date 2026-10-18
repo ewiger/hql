@@ -165,7 +165,19 @@ pub(crate) fn evaluate(
     let constructor = expected.constructor;
     let mut inputs = Vec::new();
     for argument in args {
-        inputs.push(cx.evaluate(&argument.value)?);
+        let input = cx.evaluate(&argument.value)?;
+        // A constructor materializes, so a traversal's values are produced.
+        inputs.push(match input {
+            Value::Traversal(traversal) if traversal.forced().is_none() => {
+                let mut values = Vec::new();
+                cx.traverse(&traversal, &mut |_, value| {
+                    values.push(value);
+                    Ok(true)
+                })?;
+                Value::list(values, traversal.element.clone())
+            }
+            other => other,
+        });
     }
     if constructor == GRAPH {
         let input = inputs
