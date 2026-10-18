@@ -637,6 +637,11 @@ pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
             "retrieval" => Some(TypeRef::DATA),
             _ => None,
         },
+        "Group" => match field {
+            "key" => Some(receiver.args.first()?.clone()),
+            "items" => Some(TypeRef::list(receiver.args.get(1)?.clone())),
+            _ => None,
+        },
         "Graph" => match field {
             "nodes" => Some(TypeRef::list(TypeRef::STR)),
             "edges" => Some(TypeRef::list(TypeRef::EDGE)),

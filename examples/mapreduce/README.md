@@ -13,6 +13,8 @@ From the repository root:
 cargo build --locked
 target/debug/hql --vault examples/mapreduce/wiki run examples/mapreduce/queries/novels.hql
 target/debug/hql --vault examples/mapreduce/wiki run examples/mapreduce/queries/shelf.hql
+target/debug/hql --vault examples/mapreduce/wiki run examples/mapreduce/queries/by-genre.hql
+target/debug/hql run examples/mapreduce/queries/word-count.hql
 target/debug/hql --vault examples/mapreduce/wiki render examples/mapreduce/wiki/library.hmd
 ```
 
@@ -23,30 +25,28 @@ result.
 | --- | --- | --- | --- |
 | [novels](queries/novels.hql) | Three stages — filter, sort, map — run in order | runs | Dune, Frankenstein, The Hobbit |
 | [shelf](queries/shelf.hql) | `size` as a reduction; one filter per genre, by hand | runs | 6 books: 3 novels, 2 essays, 1 poetry |
-| [word count](queries/word-count.hql) | `group` by identity, then `map` over the groups | proposed | owl 3, raven 1, robin 1 |
-| [total pages](queries/total-pages.hql) | `reduce` as a left fold over a sequence | proposed | 1589 |
-| [by genre](queries/by-genre.hql) | The full package as one pipeline over card metadata | proposed | poetry 1, essay 2, novel 3 |
+| [word count](queries/word-count.hql) | `group` by identity, then `map` over the groups | runs | owl 3, raven 1, robin 1 |
+| [total pages](queries/total-pages.hql) | `reduce` as a left fold over a sequence | runs | 1589 |
+| [by genre](queries/by-genre.hql) | The full package as one pipeline over card metadata | runs | poetry 1, essay 2, novel 3 |
 
-The two queries that run are ordinary today; what this example adds is the
-reading of them as **stages**. Every `|` is a boundary the executor sees:
-`filter` and `map` are elementwise, `size` is a reduction, `sort` is a barrier.
-Under `localhost` each stage runs to completion before the next, with no
-parallelism, and that sequential answer is the oracle every other backend has
-to match.
-
-The three proposed queries are written ahead of their implementation. Their
-headers pin the type and the result they are meant to produce, and the corpus
-harness checks that they *fail* to check today — a proposed case that starts
-passing has to be promoted to `valid-now` in the same commit. They need three
-steps the core does not yet have:
+Every `|` is a boundary the executor sees: `filter` and `map` are
+elementwise, `group` is a partition, `size` and `reduce` are reductions, `sort`
+is a barrier. Under `localhost` each stage runs to completion before the next,
+with no parallelism, and that sequential answer is the oracle every other
+backend has to match.
 
 - `group(by = …)` partitions a collection by key into a `Set<Group<K, T>>`; a
-  group has a `key` and its `items`.
-- `reduce(initial, by = …)` folds a `Seq<T>` from the left. It refuses a `Set`,
-  which has no positions to fold along; sort first.
+  group has a `key` and its `items`, a `List<T>` in input order. Two groups are
+  equal iff their keys are.
+- `reduce(initial, by)` folds a `Seq<T>` from the left; `reduce(by)` folds from
+  the first element and returns `Option<T>`, absent over an empty input. Both
+  refuse a `Set`, which has no positions to fold along; sort first.
+- `sum`, `min` and `max` are the shorthands `reduce(0, +)`, `reduce(min)` and
+  `reduce(max)`. They accept any collection, since their combiners do not
+  depend on order.
 - The `List` constructor materializes a `Seq<T>` into a `List<T>`, as
-  `List(xs)` or `xs | List`. No query here needs it yet, because nothing in
-  the implemented slice is lazy.
+  `List(xs)`. No query here needs it, because nothing in the implemented slice
+  is lazy.
 
 [Shelf](queries/shelf.hql) and [by genre](queries/by-genre.hql) compute the same
 answer, one with a filter per genre and one with `group`. The comparison is the

@@ -1,6 +1,6 @@
 # 0014 — Next feature bundle: signatures and aggregation first, then the pipeline foundations
 
-Status: todo
+Status: todo (work in progress on `feature/bundle-0014`)
 Branch: `feature/bundle-0014`
 Bundles: [0008](0008-cards-as-a-vault-binding.md),
 [0009](0009-function-type-and-constructor.md),
@@ -181,8 +181,8 @@ and tracks the order. A feature with no issue of its own (scalar operators,
 presentation formats) gets one when it starts. Tick a feature
 here when its issue or step is done.
 
-- [ ] 1. One signature per name
-- [ ] 2. `group` / `reduce` over finite inputs
+- [x] 1. One signature per name
+- [x] 2. `group` / `reduce` over finite inputs
 - [x] 3. Scalar operators (the `Ordering` constants left; nothing waits on them)
 - [ ] 4. `is` and `of_type`
 - [ ] 5. `match` and `given … otherwise`

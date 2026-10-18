@@ -81,6 +81,10 @@ impl Value {
                 "presenter": presentation.presenter,
                 "text": presentation.text,
             }),
+            Self::Group(group) => json!({
+                "key": group.key.to_json(),
+                "items": group.items.iter().map(Self::to_json).collect::<Vec<_>>(),
+            }),
         }
     }
 }
@@ -145,6 +149,14 @@ impl fmt::Display for Value {
                 write!(f, "[{}]", rendered.join(", "))
             }
             Self::Presentation(presentation) => f.write_str(&presentation.text),
+            Self::Group(group) => {
+                let rendered: Vec<String> = group
+                    .items
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect();
+                write!(f, "{}: [{}]", group.key, rendered.join(", "))
+            }
         }
     }
 }

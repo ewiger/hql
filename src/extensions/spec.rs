@@ -95,6 +95,20 @@ pub enum Output {
     Reorder(&'static str),
     /// Apply the input's constructor to the result element type.
     Image(&'static str),
+    /// A fold: the accumulator when the initial value is supplied, and
+    /// otherwise an optional element, the accumulator then being the element.
+    Fold {
+        initial: &'static str,
+        accumulator: &'static str,
+        element: &'static str,
+    },
+}
+
+impl ArgumentKind {
+    /// Whether the argument is written as a function.
+    fn is_function(self) -> bool {
+        matches!(self, Self::Lambda { .. } | Self::Ordering(_))
+    }
 }
 
 /// The machine-readable signature used by both checking and help.
@@ -241,6 +255,14 @@ impl StepSpec {
             | Output::Prefix(parameter)
             | Output::Reorder(parameter)
             | Output::Image(parameter) => patterns.push(TypePattern::Var(parameter)),
+            Output::Fold {
+                accumulator,
+                element,
+                ..
+            } => {
+                patterns.push(TypePattern::Var(accumulator));
+                patterns.push(TypePattern::Var(element));
+            }
             Output::Input => {}
         }
         while let Some(pattern) = patterns.pop() {
@@ -306,6 +328,12 @@ impl StepSpec {
                     .arguments
                     .iter()
                     .position(|spec| spec.named && spec.name == written),
+                // A lambda is not a value, so written positionally it fills
+                // the next function slot and leaves the value slots before it
+                // unsupplied: `reduce((a, b) => …)` omits the initial value.
+                None if matches!(argument.value.kind, Kind::Lambda { .. }) => {
+                    positions.find(|index| self.arguments[*index].kind.is_function())
+                }
                 None => positions.next(),
             }
             .ok_or_else(|| {
@@ -324,6 +352,24 @@ impl StepSpec {
                 ));
             }
         }
+        let folded_from_first = match self.output {
+            Output::Fold {
+                initial,
+                accumulator,
+                element,
+            } => {
+                let omitted = self
+                    .arguments
+                    .iter()
+                    .zip(&supplied)
+                    .any(|(spec, argument)| spec.name == initial && argument.is_none());
+                if omitted && let Some(bound) = bindings.get(element).cloned() {
+                    bindings.insert(accumulator, bound);
+                }
+                omitted
+            }
+            _ => false,
+        };
         for (spec, argument) in self.arguments.iter().zip(supplied) {
             let Some(argument) = argument else {
                 if spec.required {
@@ -428,6 +474,14 @@ impl StepSpec {
                 let element = TypePattern::Var(parameter).instantiate(&bindings, span)?;
                 input.image(element)
             }
+            Output::Fold { accumulator, .. } => {
+                let result = TypePattern::Var(accumulator).instantiate(&bindings, span)?;
+                if folded_from_first {
+                    TypeRef::optional(result)
+                } else {
+                    result
+                }
+            }
         };
         Ok((
             result,
@@ -455,42 +509,47 @@ impl StepSpec {
         } else {
             format!("<{}>", parameters.join(", "))
         };
+        let render = |argument: &ArgumentSpec, substitute: &dyn Fn(String) -> String| {
+            let kind = match argument.kind {
+                ArgumentKind::Value(pattern) => pattern.to_string(),
+                ArgumentKind::TypeName(parameter) => format!("Type<{parameter}>"),
+                ArgumentKind::Lambda { parameters, result } => format!(
+                    "({}) -> {result}",
+                    parameters
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                ArgumentKind::Ordering(element) => {
+                    format!("({element} -> Orderable) | (({element}, {element}) -> Ordering)")
+                }
+            };
+            format!(
+                "{}{}: {}{}",
+                argument.name,
+                if argument.required { "" } else { "?" },
+                substitute(kind),
+                if !argument.named {
+                    " (positional)"
+                } else if !argument.positional {
+                    " (named)"
+                } else {
+                    ""
+                }
+            )
+        };
         let arguments = self
             .arguments
             .iter()
-            .map(|argument| {
-                let kind = match argument.kind {
-                    ArgumentKind::Value(pattern) => pattern.to_string(),
-                    ArgumentKind::TypeName(parameter) => format!("Type<{parameter}>"),
-                    ArgumentKind::Lambda { parameters, result } => format!(
-                        "({}) -> {result}",
-                        parameters
-                            .iter()
-                            .map(ToString::to_string)
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
-                    ArgumentKind::Ordering(element) => {
-                        format!("({element} -> Orderable) | (({element}, {element}) -> Ordering)")
-                    }
-                };
-                format!(
-                    "{}{}: {kind}{}",
-                    argument.name,
-                    if argument.required { "" } else { "?" },
-                    if !argument.named {
-                        " (positional)"
-                    } else if !argument.positional {
-                        " (named)"
-                    } else {
-                        ""
-                    }
-                )
-            })
+            .map(|argument| render(argument, &|kind| kind))
             .collect::<Vec<_>>()
             .join(", ");
-        let call = |input: &str, generics: &str, output: &str| {
+        let call_with = |input: &str, generics: &str, arguments: &str, output: &str| {
             format!("{input} | {name}{generics}({arguments}) -> {output}")
+        };
+        let call = |input: &str, generics: &str, output: &str| {
+            call_with(input, generics, &arguments, output)
         };
         let with = |extra: &[&str]| {
             let all = extra
@@ -527,6 +586,53 @@ impl StepSpec {
                 call(&format!("S : Seq<{parameter}>"), &with(&["S"]), "S"),
                 call(&input, &generics, &format!("List<{parameter}>")),
             ],
+            // Without the initial value the accumulator is the element, so the
+            // second overload is written with one substituted for the other.
+            Output::Fold {
+                initial,
+                accumulator,
+                element,
+            } => {
+                let from_first = self
+                    .arguments
+                    .iter()
+                    .filter(|argument| argument.name != initial)
+                    .map(|argument| {
+                        render(argument, &|kind: String| kind.replace(accumulator, element))
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let generics_from_first = format!(
+                    "<{}>",
+                    parameters
+                        .iter()
+                        .filter(|parameter| parameter.as_str() != accumulator)
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                let with_initial = self
+                    .arguments
+                    .iter()
+                    .map(|argument| {
+                        let required = ArgumentSpec {
+                            required: true,
+                            ..*argument
+                        };
+                        render(&required, &|kind| kind)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                vec![
+                    call_with(&input, &generics, &with_initial, accumulator),
+                    call_with(
+                        &input,
+                        &generics_from_first,
+                        &from_first,
+                        &format!("Option<{element}>"),
+                    ),
+                ]
+            }
         };
         lines.join("\n")
     }

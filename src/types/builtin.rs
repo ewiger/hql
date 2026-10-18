@@ -107,8 +107,26 @@ fn build() -> Result<TypeSystem, TypeError> {
             applied: applied.into_iter().collect(),
         })?;
     }
+    // One partition of a `group`: `type Group<K, T> { key: K, items: List<T> }`.
+    system.declare(TypeDefinition {
+        constructor: GROUP,
+        kind: TypeKind::Concrete,
+        parameters: ["K", "T"]
+            .into_iter()
+            .map(|name| TypeParameter {
+                name,
+                variance: Variance::Covariant,
+                bound: None,
+            })
+            .collect(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     Ok(system)
 }
+
+/// The constructor of one `group` partition.
+pub const GROUP: TypeConstructor = TypeConstructor("Group");
 
 /// Resolve a constructor's spelling without instantiating its parameters.
 pub fn constructor(name: &str) -> Option<TypeConstructor> {

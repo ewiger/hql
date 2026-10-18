@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A fold with `reduce` over a sequence
-// implementation: pending
-// proposal: doc/proposals/HQL-0004/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: Int
 // expected: 1589

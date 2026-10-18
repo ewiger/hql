@@ -17,7 +17,7 @@ mod value;
 pub use builtin::named;
 pub use mapping::{CollectionError, MapKind, MapValue};
 pub use system::{TypeDefinition, TypeError, TypeKind, TypeParameter, TypeSystem, Variance};
-pub use value::{Key, Presentation, Value};
+pub use value::{Group, Key, Presentation, Value};
 
 use std::fmt;
 

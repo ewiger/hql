@@ -38,6 +38,13 @@ take<T : Orderable>(xs: Collection<T>, n: Int)          : List<T>
 filter<S : Collection<T>, T>(xs: S, by: T -> Bool)      : S
 map<F<_> : Iterable<_>, T, R>(xs: F<T>, by: T -> R)     : F<R>
 typed<F<_> : Iterable<_>, T, U>(xs: F<T>, as: Type<U>)  : F<U>
+group<T, K>(xs: Collection<T>, by: T -> K)              : Set<Group<K, T>>
+reduce<T, R>(xs: Seq<T>, initial: R, by: (R, T) -> R)   : R
+reduce<T>(xs: Seq<T>, by: (T, T) -> T)                  : Option<T>
+sum(xs: Collection<Int>)                                : Int
+sum(xs: Collection<Float>)                              : Float
+min<T : Orderable>(xs: Collection<T>)                   : Option<T>
+max<T : Orderable>(xs: Collection<T>)                   : Option<T>
 
 uplinks(x: Doc | Hit<Card> | Collection<Doc | Hit<Card>>)              : List<Edge>
 downlinks(x: Doc | Hit<Card> | Collection<Doc | Hit<Card>>)            : List<Edge>
@@ -55,9 +62,7 @@ semantic<T : Doc>(xs: Collection<T>, query: String) : Ranking<Card>
 ### Proposed
 
 ```hql
-// HQL-0004
-reduce<T, R>(xs: Seq<T>, initial: R, by: (R, T) -> R) : R
-group<T, K>(xs: Collection<T>, by: T -> K)           : Set<Group<K, T>>
+// HQL-0004 (reduce and group implemented, above)
 collect<T>(xs: Seq<T>)                                : List<T>   // renamed by HQL-0007
 
 // HQL-0006

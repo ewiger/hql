@@ -145,3 +145,69 @@ fn take_and_sort_keep_a_sequence_type_and_order_anything_else_into_a_list() {
         assert_eq!(check(source), Ok(TypeRef::list(TypeRef::INT)), "{source}");
     }
 }
+
+#[test]
+fn reduce_folds_from_an_initial_value_or_from_the_first_element() {
+    assert_eq!(
+        check("[1, 2, 3] | reduce(0, (t, n) => t + n)"),
+        Ok(TypeRef::INT)
+    );
+    assert_eq!(
+        eval("[1, 2, 3] | reduce(0, (t, n) => t + n)"),
+        Ok(Value::Int(6))
+    );
+    assert_eq!(
+        eval("[1, 2, 3] | reduce(initial = 10, by = (t, n) => t - n)"),
+        Ok(Value::Int(4))
+    );
+    let from_first = "[3, 9, 4] | reduce((a, b) => a + b)";
+    assert_eq!(check(from_first), Ok(TypeRef::optional(TypeRef::INT)));
+    assert_eq!(eval(from_first).unwrap().to_string(), "16");
+    let empty = "empty : List<Int> = []\nempty | reduce((a, b) => a + b)";
+    assert_eq!(eval(empty).unwrap().to_string(), "none");
+}
+
+#[test]
+fn reduce_refuses_a_set_because_it_has_no_positions() {
+    let error = check("{1, 2} | reduce(0, (t, n) => t + n)").unwrap_err();
+    assert!(error.to_string().contains("sort it first"), "{error}");
+}
+
+#[test]
+fn group_partitions_by_key_and_keeps_input_order_within_a_group() {
+    let source = "[\"owl\", \"raven\", \"owl\"] | group(by = w => w)";
+    assert_eq!(
+        check(source),
+        Ok(TypeRef::set(
+            builtin::GROUP.apply([TypeRef::STR, TypeRef::STR])
+        ))
+    );
+    assert_eq!(eval(&format!("{source} | size")), Ok(Value::Int(2)));
+    assert_eq!(
+        eval("[1, 2, 3, 4] | group(by = n => n % 2) | sort(by = g => g.key) | map(g => g.items)")
+            .unwrap()
+            .to_string(),
+        "[[2, 4], [1, 3]]"
+    );
+}
+
+#[test]
+fn sum_min_and_max_equal_their_folds_and_have_empty_results() {
+    assert_eq!(eval("[1, 2, 3] | sum"), Ok(Value::Int(6)));
+    assert_eq!(eval("{1.5, 2.5} | sum"), Ok(Value::Float(4.0)));
+    assert_eq!(
+        eval("empty : List<Int> = []\nempty | sum"),
+        Ok(Value::Int(0))
+    );
+    assert_eq!(check("[3, 1] | min"), Ok(TypeRef::optional(TypeRef::INT)));
+    assert_eq!(eval("{3, 1, 2} | min").unwrap().to_string(), "1");
+    assert_eq!(eval("[3, 1, 2] | max").unwrap().to_string(), "3");
+    assert_eq!(
+        eval("empty : List<Int> = []\nempty | max")
+            .unwrap()
+            .to_string(),
+        "none"
+    );
+    assert!(check("[true] | sum").is_err());
+    assert!(check("[true] | min").is_err());
+}

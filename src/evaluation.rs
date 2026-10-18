@@ -399,6 +399,11 @@ impl Evaluator<'_> {
                 Field::Retrieval => Ok(Value::Data(Arc::new(retrieval_data(&ranking.retrieval)))),
                 _ => Err(missing()),
             },
+            Value::Group(group) => match field {
+                Field::GroupKey => Ok(group.key.clone()),
+                Field::Items => Ok(Value::list(group.items.clone(), group.item_type.clone())),
+                _ => Err(missing()),
+            },
             Value::Graph(graph) => match field {
                 Field::Nodes => Ok(Value::list(
                     graph.nodes.iter().map(|name| text(name)).collect(),

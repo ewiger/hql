@@ -42,9 +42,9 @@ the longhand beside it; a root is a general operation. Operations marked
 `hql builtins`.
 
 ```text
-reduce                              designed (HQL-0014)
-├── sum                             reduce(0, +)               designed
-├── min, max                        reduce(min), reduce(max)   designed
+reduce
+├── sum                             reduce(0, +)
+├── min, max                        reduce(min), reduce(max)
 └── size                            map(x => 1) | reduce(0, +)
     ├── count(xs)                   the declared alias of size
     └── count(x)                    filter(y => y == x) | size
@@ -53,6 +53,7 @@ map
 └── flat_map(f)                     map(f) | emit              designed (HQL-0007)
 emit                                designed (HQL-0007)
 somes                               designed (option-type card)
+group
 filter
 └── of_type(U)                      filter(x => x | is(U))     designed; today `typed(U)`
 match                               designed

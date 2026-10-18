@@ -111,6 +111,8 @@ pub(crate) enum Field {
     Nodes,
     Edges,
     Keys,
+    GroupKey,
+    Items,
 }
 
 impl Field {
@@ -138,6 +140,8 @@ impl Field {
             "nodes" => Self::Nodes,
             "edges" => Self::Edges,
             "keys" => Self::Keys,
+            "key" => Self::GroupKey,
+            "items" => Self::Items,
             _ => return None,
         })
     }

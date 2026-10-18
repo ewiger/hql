@@ -52,9 +52,6 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
-      - id: "0018"
-        title: "Operator synonymy: one name, one signature"
-        file: 0018-operator-synonymy-audit.md
       - id: "0020"
         title: "`hql render` compiles a document"
         file: 0020-render-as-compilation.md
@@ -62,6 +59,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0018"
+        title: "Operator synonymy: one name, one signature"
+        file: 0018-operator-synonymy-audit.md
       - id: "0008"
         title: "`cards` is a vault binding, not a keyword"
         file: 0008-cards-as-a-vault-binding.md

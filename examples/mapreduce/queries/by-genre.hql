@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: The full package: filter, group, map and sort as one pipeline
-// implementation: pending
-// proposal: doc/proposals/HQL-0004/README.md
+// implementation: implemented
 // environment: knowledge-v1
 // vault: mapreduce/wiki
 // expected-type: List<Data>

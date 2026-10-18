@@ -1,6 +1,6 @@
 # 0018 — Operator synonymy: one name, one signature
 
-Status: doing (feature 1 of 0014)
+Status: done (feature 1 of 0014)
 Analysis: [operation signatures compared](../models/behavior/operation-signatures.md)
 Decisions: [HQL-0004](../proposals/HQL-0004/README.md),
 [HQL-0006](../proposals/HQL-0006/README.md),

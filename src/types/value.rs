@@ -64,6 +64,21 @@ pub enum Value {
     Ranking(Arc<Ranking>),
     /// A rendered result.
     Presentation(Arc<Presentation>),
+    /// One partition of a `group`.
+    Group(Arc<Group>),
+}
+
+/// One partition of a `group`: a key and the occurrences that have it.
+#[derive(Debug, Clone)]
+pub struct Group {
+    /// The value the key selector returned.
+    pub key: Value,
+    /// The occurrences with that key, in input order.
+    pub items: Vec<Value>,
+    /// The key's checked type.
+    pub key_type: TypeRef,
+    /// The occurrences' checked type.
+    pub item_type: TypeRef,
 }
 
 impl Value {
@@ -148,6 +163,9 @@ impl Value {
             Self::Hit(_) => TypeRef::hit(TypeRef::CARD),
             Self::Ranking(_) => TypeRef::ranking(TypeRef::CARD),
             Self::Presentation(_) => TypeRef::PRESENTATION,
+            Self::Group(group) => {
+                super::builtin::GROUP.apply([group.key_type.clone(), group.item_type.clone()])
+            }
         }
     }
 
@@ -282,6 +300,8 @@ impl PartialEq for Value {
                 Arc::ptr_eq(a, b) || self.to_json() == other.to_json()
             }
             (Self::Presentation(left), Self::Presentation(right)) => left == right,
+            // Two groups are equal iff their keys are.
+            (Self::Group(left), Self::Group(right)) => left.key == right.key,
             _ => false,
         }
     }

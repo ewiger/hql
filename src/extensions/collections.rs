@@ -17,6 +17,8 @@ use std::cmp::Ordering;
 use std::ops::Range;
 use std::sync::Arc;
 
+const OPTION: crate::types::TypeConstructor = crate::types::TypeConstructor("Option");
+
 /// Every step the core provides, in the order help prints them.
 pub(crate) static STEPS: &[Step] = &[
     Step {
@@ -226,6 +228,132 @@ pub(crate) static STEPS: &[Step] = &[
         purity: Purity::Pure,
         check: Some(check_typed),
         eval: eval_typed,
+    },
+    Step {
+        name: "group",
+        spec: StepSpec {
+            parameters: &[
+                TypeParameter {
+                    name: "T",
+                    bound: None,
+                },
+                TypeParameter {
+                    name: "K",
+                    bound: None,
+                },
+            ],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[ArgumentSpec {
+                name: "by",
+                kind: A::Lambda {
+                    parameters: &[P::Var("T")],
+                    result: P::Var("K"),
+                },
+                required: true,
+                positional: true,
+                named: true,
+            }],
+            output: O::Type(P::Apply(
+                crate::types::collections::SET,
+                &[P::Apply(
+                    crate::types::builtin::GROUP,
+                    &[P::Var("K"), P::Var("T")],
+                )],
+            )),
+        },
+        summary: "Partition occurrences by key into a set of groups, each a key and its items.",
+        purity: Purity::Pure,
+        check: None,
+        eval: eval_group,
+    },
+    Step {
+        name: "reduce",
+        spec: StepSpec {
+            parameters: &[
+                TypeParameter {
+                    name: "T",
+                    bound: None,
+                },
+                TypeParameter {
+                    name: "R",
+                    bound: None,
+                },
+            ],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[
+                ArgumentSpec {
+                    required: false,
+                    ..ArgumentSpec::value("initial", P::Var("R"))
+                },
+                ArgumentSpec {
+                    name: "by",
+                    kind: A::Lambda {
+                        parameters: &[P::Var("R"), P::Var("T")],
+                        result: P::Var("R"),
+                    },
+                    required: true,
+                    positional: true,
+                    named: true,
+                },
+            ],
+            output: O::Fold {
+                initial: "initial",
+                accumulator: "R",
+                element: "T",
+            },
+        },
+        summary: "Fold a sequence from the left, from an initial value or from its first element.",
+        purity: Purity::Pure,
+        check: Some(check_reduce),
+        eval: eval_reduce,
+    },
+    Step {
+        name: "sum",
+        spec: StepSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[],
+            output: O::Type(P::Var("T")),
+        },
+        summary: "Add every occurrence: reduce(0, +). An empty input sums to zero.",
+        purity: Purity::Pure,
+        check: Some(check_sum),
+        eval: eval_sum,
+    },
+    Step {
+        name: "min",
+        spec: StepSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[],
+            output: O::Type(P::Apply(OPTION, &[P::Var("T")])),
+        },
+        summary: "The least occurrence by value order: reduce(min). Absent over an empty input.",
+        purity: Purity::Pure,
+        check: Some(check_extreme),
+        eval: eval_min,
+    },
+    Step {
+        name: "max",
+        spec: StepSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[],
+            output: O::Type(P::Apply(OPTION, &[P::Var("T")])),
+        },
+        summary: "The greatest occurrence by value order: reduce(max). Absent over an empty input.",
+        purity: Purity::Pure,
+        check: Some(check_extreme),
+        eval: eval_max,
     },
     Step {
         name: "debug",
@@ -625,4 +753,184 @@ fn check_typed(
         ));
     }
     Ok(())
+}
+
+fn eval_group(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let argument =
+        named_or_first(arguments, "by").ok_or_else(|| wrong("group", "a key selector", &span))?;
+    let item_type = element_type(&input);
+    let key_type = argument.value.ty.clone();
+    // Groups keep the order their keys were first seen in, and items their
+    // input order; only the second is a promise, since the result is a set.
+    let mut groups: Vec<(Value, Vec<Value>)> = Vec::new();
+    for element in elements(&input, "group", &span)? {
+        let key = cx.apply_lambda(argument, element.clone())?;
+        match groups.iter_mut().find(|(seen, _)| *seen == key) {
+            Some((_, items)) => items.push(element),
+            None => groups.push((key, vec![element])),
+        }
+    }
+    let group_type = crate::types::builtin::GROUP.apply([key_type.clone(), item_type.clone()]);
+    Ok(Value::set(
+        groups
+            .into_iter()
+            .map(|(key, items)| {
+                Value::Group(Arc::new(crate::types::Group {
+                    key,
+                    items,
+                    key_type: key_type.clone(),
+                    item_type: item_type.clone(),
+                }))
+            })
+            .collect(),
+        group_type,
+    ))
+}
+
+fn check_reduce(
+    _: &dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    if call.input.is_sequence() {
+        return Ok(());
+    }
+    Err(Diagnostic::typing(
+        span,
+        format!(
+            "`reduce` folds positions in order, and {} has none; sort it first",
+            call.input
+        ),
+    ))
+}
+
+fn eval_reduce(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let by = super::named(arguments, "by")
+        .or_else(|| {
+            arguments
+                .iter()
+                .find(|argument| matches!(argument.value.kind, TypedKind::Lambda { .. }))
+        })
+        .ok_or_else(|| wrong("reduce", "a combining function", &span))?;
+    let initial = super::named(arguments, "initial").or_else(|| {
+        arguments.iter().find(|argument| {
+            argument.name.is_none() && !matches!(argument.value.kind, TypedKind::Lambda { .. })
+        })
+    });
+    let mut values = elements(&input, "reduce", &span)?.into_iter();
+    let (mut accumulator, from_first) = match initial {
+        Some(initial) => (cx.evaluate(&initial.value)?, false),
+        None => match values.next() {
+            Some(first) => (first, true),
+            None => return Ok(Value::Absent(element_type(&input))),
+        },
+    };
+    for value in values {
+        accumulator = cx.apply_comparator(by, accumulator, value)?;
+    }
+    Ok(if from_first {
+        Value::Present(Arc::new(accumulator))
+    } else {
+        accumulator
+    })
+}
+
+fn check_sum(
+    _: &dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    let element = &call.bindings["T"];
+    if *element == TypeRef::INT || *element == TypeRef::FLOAT {
+        return Ok(());
+    }
+    Err(Diagnostic::typing(
+        span,
+        format!("`sum` adds Int or Float occurrences, not {element}"),
+    ))
+}
+
+fn eval_sum(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let floats = element_type(&input) == TypeRef::FLOAT;
+    let mut whole: i64 = 0;
+    let mut real: f64 = 0.0;
+    // Added in input order, so a Float sum is the same on every run.
+    for value in elements(&input, "sum", &span)? {
+        match value {
+            Value::Int(n) => {
+                whole = whole
+                    .checked_add(n)
+                    .ok_or_else(|| Diagnostic::Overflow { span: span.clone() })?;
+            }
+            Value::Float(x) => real += x,
+            _ => return Err(wrong("sum", "Int or Float occurrences", &span)),
+        }
+    }
+    Ok(if floats {
+        Value::Float(real)
+    } else {
+        Value::Int(whole)
+    })
+}
+
+fn check_extreme(
+    _: &dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    require_orderable(&call.bindings["T"], "min` / `max", &span)
+}
+
+fn eval_min(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    extreme(cx, input, arguments, span, Ordering::Less)
+}
+
+fn eval_max(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    extreme(cx, input, arguments, span, Ordering::Greater)
+}
+
+/// The first occurrence that no later one beats in the wanted direction.
+fn extreme(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+    wanted: Ordering,
+) -> Result<Value, Diagnostic> {
+    let mut best: Option<Value> = None;
+    for value in elements(&input, "min", &span)? {
+        best = Some(match best {
+            Some(held) if compare(&value.order_key(), &held.order_key()) != wanted => held,
+            _ => value,
+        });
+    }
+    Ok(match best {
+        Some(value) => Value::Present(Arc::new(value)),
+        None => Value::Absent(element_type(&input)),
+    })
 }

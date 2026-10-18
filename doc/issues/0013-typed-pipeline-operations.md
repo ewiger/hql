@@ -48,7 +48,10 @@ Seven commits, in this order. The first changes no behaviour.
    window-shaped argument.
 5. **`group`, `reduce`** (HQL-0004's signatures), finite inputs only, with the
    finite-input diagnostic on a stream. `Group<K, T>` as a type. The three
-   `status: proposed` cases in `examples/mapreduce/` are promoted.
+   `status: proposed` cases in `examples/mapreduce/` are promoted. Done for
+   finite inputs, with `reduce`'s fold from the first element and `sum`, `min`
+   and `max` (feature 2 of [0014](0014-next-feature-bundle.md)); the
+   finite-input diagnostic lands with `Stream<T>`.
 6. **Presentation** (HQL-0008). The separate presentation table, the
    last-step check, `markdown`, incremental rendering of a stream, and the
    `graph` split.

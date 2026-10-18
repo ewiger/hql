@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: Word count, the MapReduce example, as group then map
-// implementation: pending
-// proposal: doc/proposals/HQL-0004/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Data>
 // expected-json: [{"count":3,"word":"owl"},{"count":1,"word":"raven"},{"count":1,"word":"robin"}]

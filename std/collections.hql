@@ -37,6 +37,13 @@ type OrderedMap<K, V> : Map<K, V>
 type SortedMap<K, V> : OrderedMap<K, V>
 where K : Orderable
 
+// One partition of a group: its key, and the occurrences with that key in
+// input order. Two groups are equal iff their keys are.
+type Group<K, T> {
+    key   : K
+    items : List<T>
+}
+
 // Core operations, callable directly or through a pipe. Each one returns the
 // type it was given: `S` is the input's own type and `F<_>` its constructor,
 // where `F<X> : Iterable<X>` for every `X`. An operation that gains a
@@ -62,3 +69,12 @@ where K : Orderable
 // returns a Seq<U>; `take` keeps it a Ranking; `sort` gives it a new order
 // that is not the retrieval's, so the result is a Seq<Hit<T>>.
 // Sorting supplies positions; its input need not already be a sequence.
+// group<T, K>(xs: Collection<T>, by: T -> K) : Set<Group<K, T>>
+// reduce<T, R>(xs: Seq<T>, initial: R, by: (R, T) -> R) : R
+// reduce<T>(xs: Seq<T>, by: (T, T) -> T) : Option<T>       none over []
+// sum(xs: Collection<Int>) : Int                           reduce(0, +)
+// sum(xs: Collection<Float>) : Float                       reduce(0.0, +)
+// min<T : Orderable>(xs: Collection<T>) : Option<T>        reduce(min)
+// max<T : Orderable>(xs: Collection<T>) : Option<T>        reduce(max)
+// A fold visits positions, so reduce refuses a Set; sum, min and max combine
+// in an order-independent way and accept any collection.
