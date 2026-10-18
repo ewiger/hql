@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 24 # to be incremented when adding a new issue card
+  last_id: 25 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0022"
@@ -40,6 +40,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0025"
+        title: "Next feature bundle: generics, aliases, reductions and the open ends of the proposals"
+        file: 0025-next-feature-bundle.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
