@@ -765,16 +765,51 @@ impl Parser {
             self.continuation();
             let right = if self.at_tee() {
                 self.tee(pipe_column)?
+            } else if self.at_type_step() {
+                // `xs | List<Int>`: a constructor with its type arguments and
+                // no argument list of its own.
+                let annotation = self.simple_type()?;
+                let span = annotation.span.clone();
+                Expr {
+                    kind: Kind::Construct {
+                        annotation,
+                        arguments: Vec::new(),
+                    },
+                    span,
+                }
             } else {
                 self.link()?
             };
-            let span = left.span.start..right.span.end;
-            left = Expr {
-                kind: Kind::Pipe(Box::new(left), Box::new(right)),
-                span,
-            };
+            left = piped(left, right);
         }
         Ok(left)
+    }
+
+    /// Whether the next step is a type name with type arguments and no
+    /// argument list: `List<Int>` ending the step.
+    fn at_type_step(&self) -> bool {
+        let Token::Ident(name) = self.peek() else {
+            return false;
+        };
+        if !is_type_name(name) || !matches!(self.tokens[self.index + 1].token, Token::Less) {
+            return false;
+        }
+        let mut depth = 0usize;
+        for (offset, spanned) in self.tokens[self.index + 1..].iter().enumerate() {
+            match spanned.token {
+                Token::Less => depth += 1,
+                Token::Greater => {
+                    depth -= 1;
+                    if depth == 0 {
+                        let after = self.index + 1 + offset + 1;
+                        return !matches!(self.tokens[after].token, Token::OpenParen);
+                    }
+                }
+                Token::Ident(_) | Token::Comma => {}
+                _ => return false,
+            }
+        }
+        false
     }
 
     fn link(&mut self) -> Result<Expr, Diagnostic> {
@@ -1262,4 +1297,55 @@ fn logic(connective: Logic, left: Expr, right: Expr) -> Expr {
         kind: Kind::Logic(connective, Box::new(left), Box::new(right)),
         span,
     }
+}
+
+/// Whether a name is written as a type: capitalised, as only a type and its
+/// constructor may be.
+fn is_type_name(name: &str) -> bool {
+    name.starts_with(|c: char| c.is_uppercase())
+}
+
+/// `left | right`, where a type name in step position is its constructor and
+/// the piped value its first argument: `x | T` is `T(x)` and `x | T(a)` is
+/// `T(x, a)`.
+fn piped(left: Expr, right: Expr) -> Expr {
+    let span = left.span.start..right.span.end;
+    let input = Arg {
+        name: None,
+        value: left,
+    };
+    let kind = match right.kind {
+        Kind::Ident(name) if is_type_name(&name) => Kind::Call {
+            callee: Box::new(Expr {
+                kind: Kind::Ident(name),
+                span: right.span,
+            }),
+            arguments: vec![input],
+        },
+        Kind::Call {
+            callee,
+            mut arguments,
+        } if matches!(&callee.kind, Kind::Ident(name) if is_type_name(name)) => {
+            arguments.insert(0, input);
+            Kind::Call { callee, arguments }
+        }
+        Kind::Construct {
+            annotation,
+            mut arguments,
+        } => {
+            arguments.insert(0, input);
+            Kind::Construct {
+                annotation,
+                arguments,
+            }
+        }
+        kind => Kind::Pipe(
+            Box::new(input.value),
+            Box::new(Expr {
+                kind,
+                span: right.span,
+            }),
+        ),
+    };
+    Expr { kind, span }
 }

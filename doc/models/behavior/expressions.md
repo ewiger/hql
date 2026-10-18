@@ -192,6 +192,13 @@ with `a`, applied to `x`". Writing a step without an input is an error that
 says so. The list is [`hql builtins`](cli.md), and it is ordinary functions
 rather than grammar.
 
+A capitalised name in step position is a type's constructor, and the piped
+value is its first argument: `x | T` is `T(x)`, `x | T(a)` is `T(x, a)`, and
+`x | T<A>` is `T<A>(x)`. So `[1, 2, 2] | Set` is `Set([1, 2, 2])` and
+`keys | Map(values)` is `Map(keys, values)`. Naming an abstract type is
+refused with its concrete subtypes, `[1] | Seq` naming `List`, and a lowercase
+spelling of a type, `list`, is not a step and names the constructor.
+
 ## Type declarations
 
 `type` declares a type. It yields `Unit` and introduces no value: constructing

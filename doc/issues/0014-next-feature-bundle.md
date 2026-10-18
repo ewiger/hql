@@ -196,7 +196,7 @@ here when its issue or step is done.
 - [ ] 12. `Stream<T>`, `yield` and `bind`
 - [x] 13. Semantic-search `doctor`
 - [x] 14. `Ranking` as an ordinary declared subtype (field table moved to 0023)
-- [ ] 15. Constructors as pipeline steps
+- [x] 15. Constructors as pipeline steps
 - [ ] 16. `collect(n)`, `emit` and `xs | List`
 - [ ] 17. Presentation formats
 - [ ] 18. Cells

@@ -240,7 +240,7 @@ waits for declared record types to be members of the lattice, the roadblock
 "record and pair values" of
 [issue 0016](../../issues/0016-sql-parity-analysis.md); until then a tree is
 read as a scalar, a `Seq` of scalars or `Data`. The
-constructors are implemented; `List` still accepts a `Set`, and a constructor
-is not yet a pipeline step. See [[data-type]] for the tree being interpreted, [[doc-type]] for the
+constructors are implemented, in both forms, `List(xs)` and `xs | List`;
+`List` still accepts a `Set`. See [[data-type]] for the tree being interpreted, [[doc-type]] for the
 document whose header it is, [[option-type]] for the `none` the card example
 returns, and [[hql/design-status]] for what remains undecided.

@@ -24,6 +24,14 @@ pub fn nearest(name: &str) -> Option<&'static str> {
     if let Some((_, replacement)) = RETIRED.iter().find(|(retired, _)| *retired == name) {
         return Some(replacement);
     }
+    // A lowercase spelling of a type names its constructor: `list` is `List`.
+    let mut letters = name.chars();
+    if let Some(first) = letters.next() {
+        let capitalised = first.to_uppercase().chain(letters).collect::<String>();
+        if let Some(constructor) = crate::constructors::named(&capitalised) {
+            return Some(constructor.0);
+        }
+    }
     extensions::names()
         .map(|step| (distance(name, step), step))
         .filter(|(distance, _)| *distance <= 2)

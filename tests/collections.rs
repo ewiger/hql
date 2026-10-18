@@ -330,3 +330,23 @@ fn an_indented_tee_branch_runs_until_the_main_line_resumes() {
     assert_eq!(check(source), Ok(TypeRef::list(TypeRef::INT)));
     assert_eq!(eval(source).unwrap().to_string(), "[1, 3]");
 }
+
+#[test]
+fn a_constructor_is_a_pipeline_step_with_the_piped_value_first() {
+    for (piped, called) in [
+        ("[1, 2, 2] | Set", "Set([1, 2, 2])"),
+        (
+            "[\"a\", \"b\"] | Map([1, 2])",
+            "Map([\"a\", \"b\"], [1, 2])",
+        ),
+        ("[] | List<Int>", "List<Int>([])"),
+        ("[3, 1] | sort | List", "List([3, 1] | sort)"),
+    ] {
+        assert_eq!(check(piped), check(called), "{piped}");
+        assert_eq!(eval(piped), eval(called), "{piped}");
+    }
+    let abstract_type = check("[1] | Seq").unwrap_err().to_string();
+    assert!(abstract_type.contains("`List`"), "{abstract_type}");
+    let lowercase = check("[1] | list").unwrap_err().to_string();
+    assert!(lowercase.contains("`List`"), "{lowercase}");
+}

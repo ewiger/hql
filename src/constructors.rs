@@ -7,19 +7,23 @@ use crate::types::{MapKind, MapValue, TypeConstructor, TypeRef, Value, builtin, 
 use std::ops::Range;
 use std::sync::Arc;
 
+/// The types a program may name as constructors, abstract ones included so
+/// that naming one is refused with its concrete subtypes.
+const CONSTRUCTORS: [TypeConstructor; 8] = [
+    collections::COLLECTION,
+    collections::SEQ,
+    collections::LIST,
+    collections::SET,
+    collections::MAP,
+    collections::ORDERED_MAP,
+    collections::SORTED_MAP,
+    collections::ORDERABLE,
+];
+
 pub(crate) fn named(name: &str) -> Option<TypeConstructor> {
-    [
-        collections::COLLECTION,
-        collections::SEQ,
-        collections::LIST,
-        collections::SET,
-        collections::MAP,
-        collections::ORDERED_MAP,
-        collections::SORTED_MAP,
-        collections::ORDERABLE,
-    ]
-    .into_iter()
-    .find(|constructor| constructor.0 == name)
+    CONSTRUCTORS
+        .into_iter()
+        .find(|constructor| constructor.0 == name)
 }
 
 pub(crate) fn check(
@@ -35,9 +39,32 @@ pub(crate) fn check(
         .definition(constructor)
         .map_err(|error| Diagnostic::typing(span.clone(), error.to_string()))?;
     if definition.kind != crate::types::TypeKind::Concrete {
+        let concrete = CONSTRUCTORS
+            .iter()
+            .filter(|candidate| {
+                system.definition(**candidate).is_ok_and(|found| {
+                    found.kind == crate::types::TypeKind::Concrete
+                        && found.parameters.len() == definition.parameters.len()
+                })
+            })
+            .filter(|candidate| {
+                let arguments = vec![TypeRef::DATA; definition.parameters.len()];
+                candidate
+                    .apply(arguments.clone())
+                    .is(&constructor.apply(arguments))
+            })
+            .map(|candidate| format!("`{candidate}`"))
+            .collect::<Vec<_>>();
         return Err(Diagnostic::typing(
             span,
-            format!("{constructor} is abstract; construct a concrete subtype"),
+            if concrete.is_empty() {
+                format!("{constructor} is abstract; construct a concrete subtype")
+            } else {
+                format!(
+                    "{constructor} is abstract; construct a concrete subtype: {}",
+                    concrete.join(" or ")
+                )
+            },
         ));
     }
     let arity = if MapKind::of(constructor).is_some() {
