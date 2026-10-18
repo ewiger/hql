@@ -27,7 +27,7 @@ the design, the card says so.
 | [[graph-type]] | `Graph<N, E>`, `Edge<S, T>`, and the document and knowledge graphs |
 | [[orderable]] | `Orderable`, the card's own key, and the `take` contract |
 | [[option-type]] | `Option<T>`, absence, and the optional-by-type doc reference |
-| [[match-op]] | `match` and `given … otherwise`: branching on values (designed) |
+| [[match-op]] | `match` and `given … otherwise`: branching on values (implemented; `Result` arms wait for `Result`) |
 | [[debug-op]] | `debug`: capturing a value into the structured log |
 | [[hql/presentation]] | Terminal presenters and the host default |
 | [[hql/error-reporting]] | The structured log: severities, entry context, `strict` and `collect`, configuration |

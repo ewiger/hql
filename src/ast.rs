@@ -133,6 +133,51 @@ pub(crate) enum Kind {
         parameters: Vec<String>,
         body: Box<Expr>,
     },
+    /// `match subject { pattern => result, .. }`.
+    Match {
+        subject: Box<Expr>,
+        arms: Vec<Arm>,
+    },
+    /// `value given condition`, and `value given condition otherwise other`.
+    Given {
+        value: Box<Expr>,
+        condition: Box<Expr>,
+        otherwise: Option<Box<Expr>>,
+    },
+}
+
+/// One case of a `match`: the first arm whose pattern fits, and whose guard
+/// holds, produces the result.
+#[derive(Debug)]
+pub(crate) struct Arm {
+    pub pattern: Pattern,
+    pub guard: Option<Expr>,
+    pub body: Expr,
+    pub span: Range<usize>,
+}
+
+/// What a `match` arm fits.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Pattern {
+    /// `_`: anything, binding nothing.
+    Wildcard,
+    /// A name: anything, bound to that name in the arm.
+    Bind(String),
+    Int(i64),
+    Float(f64),
+    Str(String),
+    Bool(bool),
+    /// `some(p)`: a present option whose value fits `p`.
+    Some(Box<Pattern>),
+    /// `none`: an absent option.
+    None,
+}
+
+impl Pattern {
+    /// Whether the pattern fits every value of the type it is checked at.
+    pub fn is_irrefutable(&self) -> bool {
+        matches!(self, Self::Wildcard | Self::Bind(_))
+    }
 }
 
 /// An arithmetic operator. Each is homogeneous: two `Int`s or two `Float`s.

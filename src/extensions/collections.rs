@@ -258,6 +258,22 @@ pub(crate) static STEPS: &[Step] = &[
         eval: eval_is,
     },
     Step {
+        name: "somes",
+        spec: StepSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Apply(OPTION, &[P::Var("T")])),
+            arguments: &[],
+            output: O::Image("T"),
+        },
+        summary: "Keep the present values of a collection of options, dropping the absent ones.",
+        purity: Purity::Pure,
+        check: None,
+        eval: eval_somes,
+    },
+    Step {
         name: "group",
         spec: StepSpec {
             parameters: &[
@@ -1038,4 +1054,21 @@ fn extreme(
         Some(value) => Value::Present(Arc::new(value)),
         None => Value::Absent(element_type(&input)),
     })
+}
+
+fn eval_somes(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let present = element_type(&input).present().clone();
+    let kept = elements(&input, "somes", &span)?
+        .into_iter()
+        .filter_map(|value| match value {
+            Value::Present(held) => Some(held.as_ref().clone()),
+            _ => None,
+        })
+        .collect();
+    Ok(narrowed(&input, kept, present))
 }

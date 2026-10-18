@@ -1,7 +1,7 @@
 //! Parse tokens into a program: statements, bindings, pipelines and calls.
 
 use crate::ast::{
-    Arg, Arith, Expr, Field, Kind, Logic, Program, Relation, Stmt, TypeAnn, TypeDecl,
+    Arg, Arith, Arm, Expr, Field, Kind, Logic, Pattern, Program, Relation, Stmt, TypeAnn, TypeDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -399,7 +399,133 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expr, Diagnostic> {
-        self.nested(Self::pipeline)
+        self.nested(Self::given)
+    }
+
+    /// `value given condition otherwise other` binds looser than a pipeline,
+    /// and `otherwise` groups to the right, so the short forms chain.
+    fn given(&mut self) -> Result<Expr, Diagnostic> {
+        let value = self.pipeline()?;
+        if !self.at_infix(&Token::Given) {
+            return Ok(value);
+        }
+        self.continuation();
+        let condition = self.pipeline()?;
+        let otherwise = if self.at_infix(&Token::Otherwise) {
+            self.continuation();
+            Some(Box::new(self.nested(Self::given)?))
+        } else {
+            None
+        };
+        let end = otherwise
+            .as_ref()
+            .map_or(condition.span.end, |other| other.span.end);
+        let span = value.span.start..end;
+        Ok(Expr {
+            kind: Kind::Given {
+                value: Box::new(value),
+                condition: Box::new(condition),
+                otherwise,
+            },
+            span,
+        })
+    }
+
+    /// `match subject { pattern [given guard] => result, .. }`.
+    fn match_expression(&mut self, start: usize) -> Result<Expr, Diagnostic> {
+        let subject = self.nested(Self::pipeline)?;
+        self.expect(&Token::OpenBrace, "to open the arms of a match")?;
+        self.nesting += 1;
+        let mut arms = Vec::new();
+        loop {
+            while self.eat(&Token::Newline) {}
+            if matches!(self.peek(), Token::CloseBrace) {
+                break;
+            }
+            let arm_start = self.peek_span().start;
+            let pattern = self.pattern()?;
+            let guard = if self.eat(&Token::Given) {
+                // A bare name before `=>` is the guard, not a lambda.
+                if let (Token::Ident(name), Token::FatArrow) =
+                    (self.peek().clone(), &self.tokens[self.index + 1].token)
+                {
+                    let span = self.advance().span;
+                    Some(Expr {
+                        kind: Kind::Ident(name),
+                        span,
+                    })
+                } else {
+                    Some(self.nested(Self::pipeline)?)
+                }
+            } else {
+                None
+            };
+            self.expect(&Token::FatArrow, "after a match pattern")?;
+            self.continuation();
+            let body = self.expression()?;
+            let span = arm_start..body.span.end;
+            arms.push(Arm {
+                pattern,
+                guard,
+                body,
+                span,
+            });
+            while self.eat(&Token::Newline) {}
+            if !self.eat(&Token::Comma) && !matches!(self.peek(), Token::CloseBrace) {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    format!(
+                        "expected `,` or `}}` after a match arm, found {}",
+                        self.peek().describe()
+                    ),
+                ));
+            }
+        }
+        let close = self.expect(&Token::CloseBrace, "to close a match")?;
+        self.nesting -= 1;
+        if arms.is_empty() {
+            return Err(Diagnostic::syntax(
+                start..close.span.end,
+                "a match needs at least one arm",
+            ));
+        }
+        Ok(Expr {
+            kind: Kind::Match {
+                subject: Box::new(subject),
+                arms,
+            },
+            span: start..close.span.end,
+        })
+    }
+
+    fn pattern(&mut self) -> Result<Pattern, Diagnostic> {
+        let head = self.advance();
+        Ok(match head.token {
+            Token::Int(value) => Pattern::Int(value),
+            Token::Float(value) => Pattern::Float(value),
+            Token::Bool(value) => Pattern::Bool(value),
+            Token::Str(text) => Pattern::Str(text),
+            Token::Minus => match self.advance().token {
+                Token::Int(value) => Pattern::Int(-value),
+                Token::Float(value) => Pattern::Float(-value),
+                _ => return Err(Diagnostic::syntax(head.span, "expected a number after `-`")),
+            },
+            Token::Ident(name) if name == "_" => Pattern::Wildcard,
+            Token::Ident(name) if name == "none" => Pattern::None,
+            Token::Ident(name) if name == "some" => {
+                self.expect(&Token::OpenParen, "after `some` in a pattern")?;
+                let inner = self.pattern()?;
+                self.expect(&Token::CloseParen, "to close `some(…)`")?;
+                Pattern::Some(Box::new(inner))
+            }
+            Token::Ident(name) => Pattern::Bind(name),
+            other => {
+                return Err(Diagnostic::syntax(
+                    head.span,
+                    format!("expected a match pattern, found {}", other.describe()),
+                ));
+            }
+        })
     }
 
     fn pipeline(&mut self) -> Result<Expr, Diagnostic> {
@@ -754,7 +880,7 @@ impl Parser {
                 self.expect(&Token::CloseParen, "after lambda parameters")?;
                 self.nesting -= 1;
                 self.expect(&Token::FatArrow, "before a lambda body")?;
-                let body = self.nested(Self::pipeline)?;
+                let body = self.nested(Self::given)?;
                 let span = start..body.span.end;
                 return Ok(Expr {
                     kind: Kind::Lambda {
@@ -766,7 +892,7 @@ impl Parser {
             }
             self.advance();
             self.nesting += 1;
-            let inner = self.nested(Self::pipeline)?;
+            let inner = self.nested(Self::given)?;
             self.expect(&Token::CloseParen, "to close a group")?;
             self.nesting -= 1;
             return Ok(inner);
@@ -784,11 +910,12 @@ impl Parser {
             Token::Bool(value) => Kind::Bool(value),
             Token::Str(text) => Kind::Str(text),
             Token::DocRef(name) => Kind::DocRef(name),
+            Token::Match => return self.match_expression(head.span.start),
             Token::Ident(name) => {
                 if matches!(self.peek(), Token::FatArrow) {
                     self.advance();
                     self.continuation();
-                    let body = self.nested(Self::pipeline)?;
+                    let body = self.nested(Self::given)?;
                     let span = head.span.start..body.span.end;
                     return Ok(Expr {
                         kind: Kind::Lambda {
@@ -852,7 +979,7 @@ impl Parser {
         self.nesting += 1;
         let mut elements = Vec::new();
         while self.peek() != &close {
-            elements.push(self.nested(Self::pipeline)?);
+            elements.push(self.nested(Self::given)?);
             if !self.eat(&Token::Comma) {
                 break;
             }

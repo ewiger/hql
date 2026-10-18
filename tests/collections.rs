@@ -219,3 +219,88 @@ fn of_type_selects_and_narrows_mixed_values() {
     assert_eq!(eval(source).unwrap().to_string(), "[1, 2]");
     assert_eq!(eval(source).unwrap().type_of(), TypeRef::list(TypeRef::INT));
 }
+
+#[test]
+fn match_consumes_an_option_and_a_literal_and_is_exhaustive() {
+    let source = "match some(3) { some(n) => n + 1, none => 0 }";
+    assert_eq!(check(source), Ok(TypeRef::INT));
+    assert_eq!(eval(source), Ok(Value::Int(4)));
+    assert_eq!(
+        eval("match none { some(n) => n, none => 0 }"),
+        Ok(Value::Int(0))
+    );
+    assert_eq!(
+        eval("match 3 { 1 => \"one\", _ => \"many\" }")
+            .unwrap()
+            .to_string(),
+        "many"
+    );
+    assert_eq!(
+        eval("match false { true => 1, false => 0 }"),
+        Ok(Value::Int(0))
+    );
+    for (source, needs) in [
+        ("match 3 { 1 => \"one\" }", "`_`"),
+        ("match some(1) { some(n) => n }", "`none`"),
+        ("match true { true => 1 }", "`false`"),
+    ] {
+        let error = check(source).unwrap_err().to_string();
+        assert!(error.contains(needs), "{source}: {error}");
+    }
+}
+
+#[test]
+fn a_guarded_arm_does_not_count_toward_exhaustiveness() {
+    let arms = "some(p) given p > 400 => \"long\", some(_) => \"short\", none => \"unknown\"";
+    assert_eq!(
+        eval(&format!("match some(500) {{ {arms} }}"))
+            .unwrap()
+            .to_string(),
+        "long"
+    );
+    assert_eq!(
+        eval(&format!("match some(5) {{ {arms} }}"))
+            .unwrap()
+            .to_string(),
+        "short"
+    );
+    assert!(check("match some(5) { some(p) given p > 4 => 1, none => 0 }").is_err());
+}
+
+#[test]
+fn given_without_otherwise_is_an_option() {
+    assert_eq!(
+        check("\"adult\" given 20 >= 18 otherwise \"minor\""),
+        Ok(TypeRef::STR)
+    );
+    assert_eq!(
+        check("\"long\" given 1 > 2"),
+        Ok(TypeRef::optional(TypeRef::STR))
+    );
+    assert_eq!(eval("\"long\" given 1 > 2").unwrap().to_string(), "none");
+    assert_eq!(
+        eval("1 given false otherwise 2 given true otherwise 3"),
+        Ok(Value::Int(2))
+    );
+    let error = check("1 given some(true) otherwise 2")
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("unwrap_or"), "{error}");
+}
+
+#[test]
+fn somes_keeps_the_present_values_in_the_input_collection_type() {
+    let source = "[some(1), none, some(3)] | somes";
+    assert_eq!(check(source), Ok(TypeRef::list(TypeRef::INT)));
+    assert_eq!(eval(source).unwrap().to_string(), "[1, 3]");
+    assert_eq!(
+        check("{some(1), none} | somes"),
+        Ok(TypeRef::set(TypeRef::INT))
+    );
+    assert_eq!(
+        eval("[1, 2, 3] | map(n => n given n % 2 == 1) | somes")
+            .unwrap()
+            .to_string(),
+        "[1, 3]"
+    );
+}

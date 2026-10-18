@@ -125,11 +125,11 @@ impl Evaluator<'_> {
                     Ok(Value::Absent(TypeRef::CARD))
                 }
             },
-            Kind::Ident(name) => self
-                .scope
-                .get(name)
-                .cloned()
-                .ok_or_else(|| Diagnostic::name(span, format!("`{name}` is not bound"))),
+            Kind::Ident(name) => match self.scope.get(name) {
+                Some(value) => Ok(value.clone()),
+                None if name == "none" => Ok(Value::Absent(TypeRef::NEVER)),
+                None => Err(Diagnostic::name(span, format!("`{name}` is not bound"))),
+            },
             Kind::Arith { first, rest } => self.arithmetic(first, rest),
             Kind::Relate {
                 left,
@@ -231,6 +231,63 @@ impl Evaluator<'_> {
                 result
             }
             Kind::Type => Err(Diagnostic::runtime(span, "a type argument is not a value")),
+            Kind::Some(value) => Ok(Value::Present(Arc::new(self.expression(value)?))),
+            Kind::Given {
+                value,
+                condition,
+                otherwise,
+            } => {
+                let holds = self.expression(condition)?.truth().ok_or_else(|| {
+                    Diagnostic::runtime(condition.span.clone(), "a condition is a Bool")
+                })?;
+                match (holds, otherwise) {
+                    (true, None) => Ok(Value::Present(Arc::new(self.expression(value)?))),
+                    (true, Some(_)) => self.expression(value),
+                    (false, None) => Ok(Value::Absent(value.ty.clone())),
+                    (false, Some(other)) => self.expression(other),
+                }
+            }
+            Kind::Match { subject, arms } => {
+                let subject = self.expression(subject)?;
+                for arm in arms {
+                    let mut bindings = Vec::new();
+                    if !fits(&arm.pattern, &subject, &mut bindings) {
+                        continue;
+                    }
+                    let previous = bindings
+                        .into_iter()
+                        .map(|(name, value)| {
+                            let held = self.scope.insert(name.clone(), value);
+                            (name, held)
+                        })
+                        .collect::<Vec<_>>();
+                    let outcome = (|| {
+                        if let Some(guard) = &arm.guard {
+                            let holds = self.expression(guard)?.truth().ok_or_else(|| {
+                                Diagnostic::runtime(guard.span.clone(), "a guard is a Bool")
+                            })?;
+                            if !holds {
+                                return Ok(None);
+                            }
+                        }
+                        self.expression(&arm.body).map(Some)
+                    })();
+                    for (name, held) in previous.into_iter().rev() {
+                        match held {
+                            Some(held) => {
+                                self.scope.insert(name, held);
+                            }
+                            None => {
+                                self.scope.remove(&name);
+                            }
+                        }
+                    }
+                    if let Some(result) = outcome? {
+                        return Ok(result);
+                    }
+                }
+                Err(Diagnostic::runtime(span, "no match arm fits this value"))
+            }
         }
     }
 
@@ -629,5 +686,38 @@ fn as_data(value: &Value) -> Data {
             Data::List(values.iter().map(as_data).collect())
         }
         other => Data::Str(other.to_string()),
+    }
+}
+
+/// Whether a value fits a pattern, collecting the names it binds.
+fn fits(pattern: &crate::ast::Pattern, value: &Value, bindings: &mut Vec<(String, Value)>) -> bool {
+    use crate::ast::Pattern;
+    match (pattern, value) {
+        (Pattern::Wildcard, _) => true,
+        (Pattern::Bind(name), _) => {
+            bindings.push((name.clone(), value.clone()));
+            true
+        }
+        (Pattern::Some(inner), Value::Present(held)) => fits(inner, held, bindings),
+        (Pattern::None, Value::Absent(_)) => true,
+        (Pattern::Int(expected), Value::Int(actual)) => expected == actual,
+        (Pattern::Float(expected), Value::Float(actual)) => expected == actual,
+        (Pattern::Str(expected), Value::Str(actual)) => expected.as_str() == actual.as_ref(),
+        (Pattern::Bool(expected), Value::Bool(actual)) => expected == actual,
+        // A tree leaf compares by its value, as equality does.
+        (
+            Pattern::Str(_) | Pattern::Int(_) | Pattern::Float(_) | Pattern::Bool(_),
+            Value::Data(_),
+        ) => {
+            let literal = match pattern {
+                Pattern::Str(text) => Value::Str(text.as_str().into()),
+                Pattern::Int(n) => Value::Int(*n),
+                Pattern::Float(x) => Value::Float(*x),
+                Pattern::Bool(b) => Value::Bool(*b),
+                _ => return false,
+            };
+            as_data(&literal) == as_data(value)
+        }
+        _ => false,
     }
 }

@@ -86,6 +86,25 @@ pub(crate) enum Kind {
         body: Box<Expr>,
     },
     Type,
+    /// `some(value)`.
+    Some(Box<Expr>),
+    Match {
+        subject: Box<Expr>,
+        arms: Vec<Arm>,
+    },
+    Given {
+        value: Box<Expr>,
+        condition: Box<Expr>,
+        otherwise: Option<Box<Expr>>,
+    },
+}
+
+/// A checked `match` arm.
+#[derive(Debug)]
+pub(crate) struct Arm {
+    pub pattern: crate::ast::Pattern,
+    pub guard: Option<Expr>,
+    pub body: Expr,
 }
 
 /// A record field selected during checking; only Data keeps open string keys.
@@ -324,6 +343,32 @@ impl Checked {
                 parameters: parameters.clone(),
                 body: boxed(body)?,
             },
+            A::Match { subject, arms } => Kind::Match {
+                subject: boxed(subject)?,
+                arms: arms
+                    .iter()
+                    .map(|arm| {
+                        Ok(Arm {
+                            pattern: arm.pattern.clone(),
+                            guard: arm
+                                .guard
+                                .as_ref()
+                                .map(|guard| self.expression(guard))
+                                .transpose()?,
+                            body: self.expression(&arm.body)?,
+                        })
+                    })
+                    .collect::<Result<_, Diagnostic>>()?,
+            },
+            A::Given {
+                value,
+                condition,
+                otherwise,
+            } => Kind::Given {
+                value: boxed(value)?,
+                condition: boxed(condition)?,
+                otherwise: otherwise.as_deref().map(boxed).transpose()?,
+            },
             A::Call { callee, arguments } => {
                 if let Some(step) = self.steps.get(&span) {
                     let (input, arguments) = arguments
@@ -335,6 +380,8 @@ impl Checked {
                         arguments: self.arguments(arguments)?,
                         at: span.clone(),
                     }
+                } else if matches!(&callee.kind, A::Ident(name) if name == "some") {
+                    Kind::Some(boxed(&arguments[0].value)?)
                 } else if matches!(&callee.kind, A::Ident(name) if name == "compare") {
                     Kind::Order(boxed(&arguments[0].value)?, boxed(&arguments[1].value)?)
                 } else {

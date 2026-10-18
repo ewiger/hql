@@ -37,11 +37,12 @@ Absence lifts through a field access and through a stage:
 
 A stage applied to absence is a stage applied to nothing rather than a failure.
 
-**This lifting is a stopgap.** Absence is meant to be an ordinary sum type
-consumed explicitly — by an exhaustive [[match-op|match]], by
-`given … otherwise`, or by the operations below — with no null check anywhere.
-Those are designed and not yet implemented, so implicit propagation is how
-absence is currently consumed.
+**This lifting is a stopgap.** Absence is an ordinary sum type consumed
+explicitly — by an exhaustive [[match-op|match]], by `given … otherwise`, by
+`somes`, or by the operations below — with no null check anywhere. `match`,
+`given` and `somes` are implemented; the lifting stays beside them until the
+corpus no longer needs it. `some(x)` builds a present option and `none` the
+absent one.
 
 ## Optional fields
 
@@ -86,7 +87,7 @@ somes<F<_> : Iterable<_>, T>(xs: F<Option<T>>) : F<T>
 It returns the input's constructor applied to `T`, as `map` does, so a
 `List<Option<T>>` gives a `List<T>` and a `Set<Option<T>>` a `Set<T>`. It is
 the collection counterpart of `unwrap_or`: absence is dropped rather than
-replaced. `somes` is designed and is implemented with [[match-op|match]].
+replaced. `somes` is implemented.
 
 `Option` is not the only sum type. A computation that may have *failed* is
 `Result<T, E>`, built the same way with the same kind of operations, so

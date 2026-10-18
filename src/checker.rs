@@ -1,6 +1,6 @@
 //! Static checking: what a program's type is, before anything is evaluated.
 
-use crate::ast::{Arg, Expr, Kind, Program, Stmt};
+use crate::ast::{Arg, Arm, Expr, Kind, Pattern, Program, Stmt};
 use crate::builtins;
 use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
@@ -203,6 +203,11 @@ impl Checker<'_> {
             // A reference may not resolve — a forward link to a document
             // nobody has written is ordinary — so it is optional by type.
             Kind::DocRef(_) => Ok(TypeRef::optional(TypeRef::CARD)),
+            // Absence of nothing in particular: an `Option<Never>`, which is
+            // an `Option<T>` for every `T`.
+            Kind::Ident(name) if name == NONE && !self.scope.contains_key(name) => {
+                Ok(TypeRef::optional(TypeRef::NEVER))
+            }
             Kind::Ident(name) => self.scope.get(name).cloned().ok_or_else(|| {
                 // Unbound only because no vault was given: say what to pass,
                 // rather than that the name does not exist.
@@ -222,6 +227,39 @@ impl Checker<'_> {
                     Diagnostic::name(span, format!("`{name}` is not bound{hint}"))
                 }
             }),
+            Kind::Given {
+                value,
+                condition,
+                otherwise,
+            } => {
+                let condition_type = self.expression(condition)?;
+                if condition_type != TypeRef::BOOL {
+                    return Err(Diagnostic::typing(
+                        condition.span.clone(),
+                        format!(
+                            "a `given` condition is a Bool, not {condition_type}; \
+                             an optional one says what absence means with `unwrap_or`"
+                        ),
+                    ));
+                }
+                let value_type = self.expression(value)?;
+                match otherwise {
+                    None => Ok(TypeRef::optional(value_type)),
+                    Some(other) => {
+                        let other_type = self.expression(other)?;
+                        value_type.common_type(&other_type).ok_or_else(|| {
+                            Diagnostic::typing(
+                                span,
+                                format!(
+                                    "`given` gives {value_type} and `otherwise` {other_type}, \
+                                     which have no common type"
+                                ),
+                            )
+                        })
+                    }
+                }
+            }
+            Kind::Match { subject, arms } => self.match_expression(subject, arms, span),
             Kind::Arith(..) => self.arithmetic(expression),
             Kind::Relate {
                 left,
@@ -329,6 +367,18 @@ impl Checker<'_> {
                 };
                 if let Some(constructor) = crate::constructors::named(name) {
                     return crate::constructors::check(self, constructor, arguments, None, span);
+                }
+                if name == SOME && !self.scope.contains_key(name) {
+                    let [argument] = arguments.as_slice() else {
+                        return Err(Diagnostic::typing(span, "`some` takes one value"));
+                    };
+                    if argument.name.is_some() {
+                        return Err(Diagnostic::typing(
+                            span,
+                            "`some` takes one positional value",
+                        ));
+                    }
+                    return Ok(TypeRef::optional(self.expression(&argument.value)?));
                 }
                 if name == "compare" {
                     if arguments.len() != 2 || arguments.iter().any(|arg| arg.name.is_some()) {
@@ -479,6 +529,74 @@ impl Checker<'_> {
                 self.resolution.qualified(extension, name, span)
             }
         }
+    }
+
+    /// Check every arm against the subject's type, require the unguarded arms
+    /// to cover every case, and type the match as the arms' common type.
+    fn match_expression(
+        &mut self,
+        subject: &Expr,
+        arms: &[Arm],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        let subject_type = self.expression(subject)?;
+        let mut result = TypeRef::NEVER;
+        for arm in arms {
+            let mut bindings = Vec::new();
+            pattern_bindings(&arm.pattern, &subject_type, &mut bindings)
+                .map_err(|message| Diagnostic::typing(arm.span.clone(), message))?;
+            let previous = bindings
+                .into_iter()
+                .map(|(name, ty)| {
+                    let held = self.scope.insert(name.clone(), ty);
+                    (name, held)
+                })
+                .collect::<Vec<_>>();
+            let checked = (|| {
+                if let Some(guard) = &arm.guard {
+                    let guard_type = self.expression(guard)?;
+                    if guard_type != TypeRef::BOOL {
+                        return Err(Diagnostic::typing(
+                            guard.span.clone(),
+                            format!("a guard is a Bool, not {guard_type}"),
+                        ));
+                    }
+                }
+                self.expression(&arm.body)
+            })();
+            for (name, held) in previous.into_iter().rev() {
+                match held {
+                    Some(held) => {
+                        self.scope.insert(name, held);
+                    }
+                    None => {
+                        self.scope.remove(&name);
+                    }
+                }
+            }
+            let body = checked?;
+            result = result.common_type(&body).ok_or_else(|| {
+                Diagnostic::typing(
+                    arm.body.span.clone(),
+                    format!("match arms give {result} and {body}, which have no common type"),
+                )
+            })?;
+        }
+        let unguarded = arms
+            .iter()
+            .filter(|arm| arm.guard.is_none())
+            .map(|arm| &arm.pattern)
+            .collect::<Vec<_>>();
+        if !exhaustive(&unguarded, &subject_type) {
+            return Err(Diagnostic::typing(
+                span,
+                format!(
+                    "this match does not cover every {subject_type}: {}",
+                    missing_cases(&subject_type)
+                ),
+            ));
+        }
+        Ok(result)
     }
 
     /// Dispatch a pipeline step to the extension that provides it.
@@ -655,5 +773,76 @@ pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
             _ => None,
         },
         _ => None,
+    }
+}
+
+/// The name an absent option is written with when nothing binds it.
+const NONE: &str = "none";
+/// The name a present option is built with when nothing binds it.
+const SOME: &str = "some";
+
+/// The names a pattern binds, at their types, or why it cannot fit `subject`.
+fn pattern_bindings(
+    pattern: &Pattern,
+    subject: &TypeRef,
+    bindings: &mut Vec<(String, TypeRef)>,
+) -> Result<(), String> {
+    let literal = |ty: TypeRef| {
+        if subject.declared_common_type(&ty).is_some() {
+            Ok(())
+        } else {
+            Err(format!("a {ty} pattern cannot fit a {subject}"))
+        }
+    };
+    match pattern {
+        Pattern::Wildcard => Ok(()),
+        Pattern::Bind(name) => {
+            bindings.push((name.clone(), subject.clone()));
+            Ok(())
+        }
+        Pattern::Int(_) => literal(TypeRef::INT),
+        Pattern::Float(_) => literal(TypeRef::FLOAT),
+        Pattern::Str(_) => literal(TypeRef::STR),
+        Pattern::Bool(_) => literal(TypeRef::BOOL),
+        Pattern::Some(inner) if subject.constructor.0 == "Option" => {
+            pattern_bindings(inner, subject.present(), bindings)
+        }
+        Pattern::None if subject.constructor.0 == "Option" => Ok(()),
+        Pattern::Some(_) | Pattern::None => Err(format!(
+            "`some` and `none` fit an Option, and this is a {subject}"
+        )),
+    }
+}
+
+/// Whether the unguarded patterns cover every value of `subject`.
+fn exhaustive(patterns: &[&Pattern], subject: &TypeRef) -> bool {
+    if patterns.iter().any(|pattern| pattern.is_irrefutable()) {
+        return true;
+    }
+    if subject.constructor.0 == "Option" {
+        let present = patterns
+            .iter()
+            .filter_map(|pattern| match pattern {
+                Pattern::Some(inner) => Some(inner.as_ref()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        return patterns.contains(&&Pattern::None) && exhaustive(&present, subject.present());
+    }
+    if *subject == TypeRef::BOOL {
+        return patterns.contains(&&Pattern::Bool(true))
+            && patterns.contains(&&Pattern::Bool(false));
+    }
+    false
+}
+
+/// What an exhaustive match over `subject` needs, for the diagnostic.
+fn missing_cases(subject: &TypeRef) -> &'static str {
+    if subject.constructor.0 == "Option" {
+        "cover both `some(…)` and `none`, or add `_`"
+    } else if *subject == TypeRef::BOOL {
+        "cover both `true` and `false`, or add `_`"
+    } else {
+        "add a `_` arm"
     }
 }

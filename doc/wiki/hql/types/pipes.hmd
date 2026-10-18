@@ -52,13 +52,13 @@ reduce
 map
 └── flat_map(f)                     map(f) | emit              designed (HQL-0007)
 emit                                designed (HQL-0007)
-somes                               designed (option-type card)
+somes
 group
 filter
 └── of_type(U)                      filter(x => x | is(U))
-match                               designed
+match
 ├── is(U)                           match x { U _ => true, _ => false }
-└── given … otherwise               match b { true => a, false => c }     designed
+└── given … otherwise               match b { true => a, false => c }
 sort
 take
 drop                                designed (HQL-0006)

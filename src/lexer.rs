@@ -40,6 +40,10 @@ pub(crate) enum Token {
     And,
     Or,
     Not,
+    /// `match`, `given` and `otherwise` are reserved for branching.
+    Match,
+    Given,
+    Otherwise,
     /// `?`, which marks a field optional.
     Question,
     Newline,
@@ -82,6 +86,9 @@ impl Token {
             Self::And => "`and`".to_owned(),
             Self::Or => "`or`".to_owned(),
             Self::Not => "`not`".to_owned(),
+            Self::Match => "`match`".to_owned(),
+            Self::Given => "`given`".to_owned(),
+            Self::Otherwise => "`otherwise`".to_owned(),
             Self::Question => "`?`".to_owned(),
             Self::Newline => "end of line".to_owned(),
             Self::End => "end of input".to_owned(),
@@ -301,6 +308,9 @@ impl Scanner<'_> {
             "and" => Token::And,
             "or" => Token::Or,
             "not" => Token::Not,
+            "match" => Token::Match,
+            "given" => Token::Given,
+            "otherwise" => Token::Otherwise,
             other => Token::Ident(other.to_owned()),
         };
         self.push(token, start);

@@ -17,7 +17,8 @@ record      := "{" field ("," | NEWLINE)* "}"
 field       := ident "?"? ":" type
 binding     := ident (":" type)? "=" expression
 
-expression  := pipeline
+expression  := given
+given       := pipeline ("given" pipeline ("otherwise" given)?)?
 pipeline    := link ("|" link)*
 link        := or ("->" or data?)?
 or          := and ("or" and)*
@@ -31,7 +32,11 @@ call        := "(" (argument ("," argument)*)? ")"
 argument    := (ident "=")? expression
 primary     := int | float | bool | string | docref | lambda
              | ident | "(" expression ")" | data | list | set
-             | type call
+             | type call | match
+match       := "match" pipeline "{" arm (("," | NEWLINE) arm)* ","? "}"
+arm         := pattern ("given" pipeline)? "=>" expression
+pattern     := "_" | ident | int | float | string | bool
+             | "some" "(" pattern ")" | "none"
 lambda      := (ident | "(" ident ("," ident)* ")") "=>" expression
 data        := "{" (key ":" expression ("," key ":" expression)*)? "}"
 list        := "[" (expression ("," expression)* ","?)? "]"
@@ -88,7 +93,20 @@ Integer literals fit `i64`; float literals are finite `f64`. At most 255
 arithmetic operators and connectives chain in one expression, and expressions
 nest at most 128 deep.
 
-`and`, `or` and `not` are reserved words, not names. `Name<…>(` opens a
+`and`, `or`, `not`, `match`, `given` and `otherwise` are reserved words, not
+names.
+
+`some(x)` builds a present `Option`, and `none` is the absent one, at
+`Option<Never>`, so it is an `Option<T>` for every `T`. Both are names the core
+supplies while nothing binds them. `match` tests its subject against each arm
+in order and evaluates the first arm whose pattern fits and whose guard, if
+any, holds. A pattern is `_`, a name that binds the value in the arm, a literal,
+or `some(p)` and `none` over an `Option`. The checker requires the unguarded
+arms to cover every value of the subject's type: `some` and `none` for an
+`Option`, `true` and `false` for a `Bool`, and `_` or a name for anything else.
+The match has the common type of its arms. `a given c otherwise b` is `a` when
+the `Bool` `c` holds and `b` otherwise; without `otherwise` it is `Option`, `a`
+present when `c` holds. `Name<…>(` opens a
 constructor only when the angle brackets hold type names alone and close
 directly before the argument list; otherwise `<` is the comparison, so
 `n < 3` compares.
@@ -142,8 +160,8 @@ and **warns**; the exit status does not change.
 
 Absence propagates through a field — `[[nowhere]].title` is `Option<String>` —
 and a pipeline step applied to absence is one applied to nothing rather than a
-failure. There is no `match` yet, so this lifting is how absence is currently
-consumed, and replacing it with an explicit form is open.
+failure. `match` and `given … otherwise` consume absence explicitly; the
+implicit lifting stays beside them until the corpus no longer needs it.
 
 ## Steps
 
