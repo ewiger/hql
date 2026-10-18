@@ -38,9 +38,6 @@ board:
       - id: "0012"
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
-      - id: "0010"
-        title: "`yield`: generated sequences as query sources"
-        file: 0010-yield-and-bind.md
     todo:
       - id: "0014"
         title: "Next feature bundle: signatures and aggregation first, then the pipeline foundations"
@@ -56,6 +53,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0010"
+        title: "`yield`: generated sequences as query sources"
+        file: 0010-yield-and-bind.md
       - id: "0023"
         title: Built-in record fields from their declarations
         file: 0023-built-in-fields-from-declarations.md

@@ -1,0 +1,82 @@
+---
+tags: [hql, types, stream, iteration]
+nav:
+  visibility: public
+---
+# `Stream<T>`
+
+`Stream<T>` is the abstract type of values produced in a stable order,
+`x0, x1, x2, …`, whose production need not end. A stream has no size, no
+membership and no global order, because each of those needs the end. The
+design is [HQL-0006](../../../proposals/HQL-0006/README.md); the declaration
+is `std/collections.hql`.
+
+```hql
+abstract type Iterable<T>
+abstract type Stream<T> : Iterable<T>
+abstract type Collection<T> : Iterable<T>
+abstract type Seq<T> : {Collection<T>, Stream<T>}
+```
+
+`Seq<T>` is where the two families meet: a sequence is a finite collection
+and a stream that ends, so a `List<T>` passes wherever a `Stream<T>` is
+asked for. A `Set<T>` is not a stream, because its enumeration order is not
+part of the value. See [[collections]] for the collection family.
+
+## Operations
+
+| Operation | Input | Result |
+| --- | --- | --- |
+| `map(by)` | `F<T>`, any iterable | `F<U>`: a stream maps to a stream |
+| `filter(by)` | `S`, any iterable | `S`, the input's own type |
+| `drop(n)` | `S : Stream<T>` | `S`, without its first `n` values |
+| `take(n)` | `Stream<T>` | `List<T>`: a bounded prefix is finite |
+| `take(n)` | `S : Seq<T>` | `S` |
+
+`map`, `filter`, `take` and `drop` consume one value at a time, so a pipeline
+of them over a stream runs only as far as its consumer asks.
+
+## A whole-input operation needs a finite input
+
+`size`, `count`, `contains`, `sort`, `group`, `reduce`, `sum`, `min` and `max`
+need the end of their input before they produce anything, so each requires a
+`Collection<T>`. Over a stream that is not also a collection, each is a check
+error naming `take(n)`:
+
+```hql
+naturals(1) | sum              // error: Stream<Int> may not end
+naturals(1) | take(100) | sum  // Int
+```
+
+## An iterating function produces a stream
+
+A user `fn` whose body is a block yields its values, and its declared result
+says whether production ends:
+
+```hql
+fn naturals(from: Int) : Stream<Int> {
+    yield from
+    for n in naturals(from + 1) {
+        yield n
+    }
+}
+
+naturals(1)
+| filter(n => n % 2 == 0)
+| take(3)                      // [2, 4, 6]
+```
+
+- A block body holds `yield expr`, `for name in iterable { … }` and bindings
+  `name = expr`, one per line. Each `yield` contributes one value, in the order
+  it is reached.
+- A block body is written only as the body of a user `fn`, whose result is
+  `Seq<T>` or `Stream<T>`; every yielded value is a `T`. `yield` and `for`
+  anywhere else are syntax errors.
+- Calling an iterating function evaluates nothing. Its value is a restartable
+  traversal: two uses of one binding see the same values.
+- A `Seq<T>` result promises that production ends. A step that needs the whole
+  input produces a finite traversal's values once and keeps them.
+
+`cards` is such a sequence: the library binding
+`cards = vault.cards`, a `Seq<Card>` in the order a sorted walk of the vault
+reaches each card.

@@ -1,6 +1,6 @@
 # 0010 — `yield`: generated sequences as query sources
 
-Status: backlog
+Status: done
 
 The design is [the queries model](../models/behavior/queries.md). This issue is
 the work that carries it into the grammar, the type system, and the runtime.

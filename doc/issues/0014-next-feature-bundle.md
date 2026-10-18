@@ -203,7 +203,7 @@ here when its issue or step is done.
 - [x] 9. The `debug` operator
 - [x] 10. Pipeline vocabulary rename
 - [x] 11. `tee`
-- [ ] 12. `Stream<T>` and `yield`
+- [x] 12. `Stream<T>` and `yield`
 - [x] 13. Semantic-search `doctor`
 - [x] 14. `Ranking` as an ordinary declared subtype (field table moved to 0023)
 - [x] 15. Constructors as pipeline steps
