@@ -1,6 +1,6 @@
 # 0014 — Next feature bundle: signatures and aggregation first, then the pipeline foundations
 
-Status: todo (work in progress on `feature/bundle-0014`)
+Status: done
 Branch: `feature/bundle-0014`
 Bundles: [0008](0008-cards-as-a-vault-binding.md),
 [0009](0009-function-type-and-constructor.md),
@@ -209,7 +209,7 @@ here when its issue or step is done.
 - [x] 15. Constructors as pipeline steps
 - [x] 16. `collect(n)`, `emit` and `xs | List`
 - [x] 17. Presentation formats (`--from` moved to 0015)
-- [ ] 18. Cells
+- [x] 18. Cells
 
 ## Done when
 

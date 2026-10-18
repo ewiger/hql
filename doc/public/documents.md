@@ -79,7 +79,7 @@ cards
 | filter(c => c.metadata.status == "todo")
 | map(c => c.title)
 ```
-<!-- hql:output -->
+<!-- hql:output hash=338061c564a2 status=ok -->
 - Bearer tokens
 - Session cookies
 <!-- /hql:output -->
@@ -92,3 +92,25 @@ replace the cells in the source with their output.
 
 A single cell can choose its own mode in its info string, such as
 `` ```hql#eval after `` in a document otherwise built with `replace`.
+
+## Cells that build on each other
+
+A cell named with `id=` gives its value to every other cell in the document:
+
+````markdown
+```hql#eval id=open
+cards | filter(c => c.metadata.status == "todo")
+```
+
+```hql#eval
+open | size
+```
+````
+
+The second cell reads `open`. Cells run in the order their reads require, not
+the order they are written in, and a binding inside a cell stays in that cell.
+`hidden` runs a cell and writes nothing, for a value other cells read. The
+output marker records the cell's id, a hash of its code and of the cells it
+reads, and whether it ran, so an editor can tell a current output from a stale
+one. `hql render notes.hmd --emit after --in-place --cell open` runs one cell
+and what it reads.

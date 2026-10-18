@@ -1,6 +1,6 @@
 # HQL-0009: Cells: identity, shared values and saved outputs
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-10-18
 **Source**: [program values](../../models/behavior/program-values.md), its
 section "HMD cell contexts"; issue
@@ -94,18 +94,15 @@ cell values.
 
 ### 3. The value of a cell
 
-- A cell's value is the value of its program: its last expression.
-- When the last step of a cell is a presentation, the cell's value is the
-  value presented, before the presentation. The presentation decides the
-  output only. This follows from [HQL-0008](../HQL-0008/README.md): nothing reads
-  a presentation, so a cell that ends in `| table` would otherwise export a
-  value nobody may use.
+- A cell's value is the value of its program: its last expression. A cell
+  that ends in a format, `| markdown`, exports that text, which is an ordinary
+  value ([HQL-0017](../HQL-0017/README.md)).
 - A cell's checked type is the type of its value, and that is the type its id
   has in other cells.
 
 ````markdown
 ```hql#eval id=todo
-cards | filter(c => c.metadata.status == "todo") | table
+cards | filter(c => c.metadata.status == "todo")
 ```
 
 ```hql#eval
@@ -113,7 +110,8 @@ size(todo)
 ```
 ````
 
-The first cell's output is a table, and `todo` is the `List<Card>` it shows.
+The first cell's output is the list of open cards, and `todo` is the
+`Seq<Card>` it shows.
 
 ### 4. Evaluation order
 
@@ -188,7 +186,7 @@ normalized(source) = source with trailing whitespace stripped from each line,
   rewrite only that cell's output. The other outputs are left as written. It
   is how an editor runs one cell. Under `--emit replace` it is a usage error,
   exit `2`, since a build is of the whole document.
-- `--format json` MUST print one JSON object instead of the document:
+- `--envelope json` MUST print one JSON object instead of the document:
 
 ```text
 {
@@ -211,7 +209,8 @@ normalized(source) = source with trailing whitespace stripped from each line,
 - `index` is the cell's position in document order, from `0`. `span` is the
   zero-based UTF-8 byte range of the cell's fences in the input, closing fence
   included, as every other range HQL reports. `reports` has the shape the
-  report queue already has in `--format json`.
+  report queue already has in `--envelope json`. The object also carries the
+  document-level `reports`.
 - The `cells` array MUST be in document order, whatever order evaluation took.
 
 ## Backwards Compatibility
@@ -276,3 +275,8 @@ cargo test --test transclude --test cli
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: implemented: ids, cell scope over the cell values, dependency
+  order, skipping, saved outputs with hashes, `--cell` and the JSON record.
+  The card environment a cell closes over, `this: Card` and card-level
+  bindings, is the [program values](../../models/behavior/program-values.md)
+  model's and is not built.

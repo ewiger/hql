@@ -157,9 +157,10 @@ cards
 `hql render board.hmd --write board.md` replaces each cell with its output as
 plain Markdown, here a bulleted list, so a to-do list is a query rather than a
 list somebody maintains. `--emit after` keeps the cell and writes the output
-after it, between `<!-- hql:output -->` and `<!-- /hql:output -->`; with
+after it, between `<!-- hql:output … -->` and `<!-- /hql:output -->`; with
 `--in-place` that rewrites the source, and the next render replaces the output
-between the markers.
+between the markers. A cell named `id=open` gives its value to every other
+cell, which reads it as `open`; cells run in the order their reads require.
 
 ### Reporting
 
@@ -169,7 +170,7 @@ impossible. `--report strict` stops at the first error and is the default;
 `--report collect` reports every error findable. The mode comes from the query,
 then the vault's `hql.toml`, then `$HQL_REPORT`, then the default.
 `xs | debug(label = "xs")` captures a value into the same queue and passes it
-on unchanged; `--report-level debug` shows it, and `--format json` always
+on unchanged; `--report-level debug` shows it, and `--envelope json` always
 carries it.
 
 Success is exit `0`, a language or I/O failure `1`, a usage error `2`.

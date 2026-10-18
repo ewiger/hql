@@ -89,6 +89,10 @@ enum Command {
         /// Where a cell's output goes: in the cell's place, or after it.
         #[arg(long, value_enum, default_value_t = Emit::Replace)]
         emit: Emit,
+        /// Run this cell and the cells it reads, and rewrite only its output.
+        /// Needs `--emit after`, since a build is of the whole document.
+        #[arg(long, value_name = "ID")]
+        cell: Option<String>,
     },
     /// List the steps a pipeline may use.
     Builtins,
@@ -141,18 +145,28 @@ impl From<Emit> for transclude::Emit {
 pub fn parse() -> Cli {
     let cli = Cli::parse();
     if let Command::Render {
-        in_place: true,
-        emit: Emit::Replace,
+        in_place,
+        emit,
+        cell,
         ..
-    } = cli.command
+    } = &cli.command
+        && *emit == Emit::Replace
     {
-        use clap::CommandFactory;
-        Cli::command()
-            .error(
-                clap::error::ErrorKind::ArgumentConflict,
+        let refused = if *in_place {
+            Some(
                 "--in-place needs --emit after: replacing the cells would remove them from the source",
             )
-            .exit();
+        } else if cell.is_some() {
+            Some("--cell needs --emit after: a build is of the whole document")
+        } else {
+            None
+        };
+        if let Some(message) = refused {
+            use clap::CommandFactory;
+            Cli::command()
+                .error(clap::error::ErrorKind::ArgumentConflict, message)
+                .exit();
+        }
     }
     cli
 }
@@ -276,9 +290,48 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             write,
             in_place,
             emit,
+            cell,
         } => {
             let (source, origin) = read(file)?;
-            let rendered = transclude::render(&source, &vault, settings.mode, (*emit).into());
+            let rendered = transclude::render_cell(
+                &source,
+                &vault,
+                settings.mode,
+                (*emit).into(),
+                cell.as_deref(),
+            )?;
+            if cli.options.envelope == Shape::Json {
+                let cells: Vec<_> = rendered
+                    .cells
+                    .iter()
+                    .map(|cell| {
+                        serde_json::json!({
+                            "id": cell.id,
+                            "index": cell.index,
+                            "span": [cell.span.start, cell.span.end],
+                            "hash": cell.hash,
+                            "type": cell.ty,
+                            "status": cell.status.label(),
+                            "markdown": cell.markdown,
+                            "reports": cell.reports.to_json(),
+                        })
+                    })
+                    .collect();
+                let document = serde_json::json!({
+                    "document": rendered.document,
+                    "cells": cells,
+                    "reports": rendered.reports.to_json(),
+                });
+                writeln!(
+                    out,
+                    "{}",
+                    serde_json::to_string_pretty(&document).unwrap_or_else(|_| "null".to_owned())
+                )
+                .map_err(|error| error.to_string())?;
+                return Ok(u8::from(
+                    rendered.reports.has_errors() || !rendered.complete,
+                ));
+            }
             report_all(&rendered.reports.shown(shown), &source, &origin, err)?;
             // A build with a failed cell in it is not written anywhere.
             if !rendered.complete {

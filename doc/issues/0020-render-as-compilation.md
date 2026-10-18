@@ -1,6 +1,6 @@
 # 0020 — `hql render` compiles a document
 
-Status: doing
+Status: done
 Decisions: [HQL-0008](../proposals/HQL-0008/README.md), its section
 "Presenting into a document"
 Related: [program values](../models/behavior/program-values.md), its section
@@ -57,9 +57,9 @@ A block's info string may override the mode for that block:
 
 ## Output
 
-The output of a cell is Markdown, as HQL-0008 specifies for a document host: a
-collection becomes a Markdown pipe table, a cell without a presentation uses
-`markdown`, and a `Presentation` the query chose is written as it is.
+The output of a cell is its value written in the `hmd` presentation format
+([HQL-0017](../proposals/HQL-0017/README.md)): Markdown text is spliced in, and
+text of another format is a fenced block with that format's info string.
 
 ## Failure
 

@@ -8,6 +8,23 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Added
+
+- **Cells.** A cell's info string takes `id=<name>`, `replace`, `after` and
+  `hidden`. A cell with an id exports its value to every other cell of the
+  document and keeps its own bindings. The document is checked as a whole and
+  evaluated in dependency order, document order breaking ties; a cycle and a
+  duplicate id are errors naming the cells, and a cell waiting on a failed one
+  is skipped. An output under `after` records the cell's id, a hash of its code
+  and of the cells it reads, and its status. `hql render --cell <id>` runs one
+  cell and what it reads; `--envelope json` prints the document and a record
+  per cell.
+
+### Fixed
+
+- A cell's reports point at its place in the document, not at a line of the
+  cell read as though it were the document.
+
 ## [0.2.0] — 2026-10-19
 
 Functions as values, streams and generated sources, aggregation, and

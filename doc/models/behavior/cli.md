@@ -123,16 +123,23 @@ is a cell. Rendering runs each cell against the vault and writes its output as
 Markdown, so the source document compiles to a built one.
 
 ```
-hql render <FILE> [--write <OUT> | --in-place] [--emit replace|after]
+hql render <FILE> [--write <OUT> | --in-place] [--emit replace|after] [--cell <ID>]
 ```
 
 - `--emit replace`, the default, writes each cell's output in the cell's place.
   The built document has no cells left in it.
 - `--emit after` keeps each cell and writes its output immediately after it,
-  between `<!-- hql:output -->` and `<!-- /hql:output -->`. Markdown previews do
-  not display the markers. The next render replaces what is between them, so
-  rendering twice leaves what rendering once did.
-- A cell's info string may name its own mode: `` ```hql#eval after ``.
+  between an opening marker, `<!-- hql:output id=… hash=… status=… -->`, and
+  `<!-- /hql:output -->`. Markdown previews do not display the markers. The
+  next render replaces what is between them, so rendering twice leaves what
+  rendering once did.
+- A cell's info string carries its attributes: `id=<name>`, which exports its
+  value to the document's other cells; `replace` or `after`, its own mode; and
+  `hidden`, which runs it and writes no output.
+- `--cell <ID>` runs that cell and the cells it reads, and rewrites only its
+  output. It needs `--emit after`. `--envelope json` prints one JSON object:
+  the rendered document and, per cell in document order, its id, index, span,
+  hash, type, status, output and reports.
 - Without `--write` or `--in-place` the built document goes to standard output.
   `--write <OUT>` writes it to `OUT`; `--in-place` writes it over `FILE` and is
   a usage error, exit `2`, unless `--emit after` is given, since replacing the
@@ -145,10 +152,32 @@ cards
 | sort(by = c => c.title)
 | map(c => c.title)
 ```
-<!-- hql:output -->
+<!-- hql:output hash=338061c564a2 status=ok -->
 - Bearer tokens
 - Session cookies
 <!-- /hql:output -->
+````
+
+### Cells share values
+
+A cell with an `id` exports its value under that name to every other cell of
+the document, and nothing else it binds. The cells form a dependency graph:
+they are checked as a whole, then evaluated so that each runs after the cells
+it reads, document order breaking ties. A cycle and a duplicate id are errors
+naming the cells, and a cell that reads a failed one is skipped, its output
+saying which cell it waited on. An output's `hash` covers the cell's code and
+the hashes of the cells it reads, so an output whose hash differs from the
+cell's is stale, which a host tells without running anything
+([HQL-0009](../../proposals/HQL-0009/README.md)).
+
+````markdown
+```hql#eval id=open
+cards | filter(c => c.metadata.status == "todo")
+```
+
+```hql#eval
+open | size
+```
 ````
 
 The output is Markdown, as [HQL-0008](../../proposals/HQL-0008/README.md)

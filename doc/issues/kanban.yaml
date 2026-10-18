@@ -36,20 +36,20 @@ board:
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
     todo:
-      - id: "0014"
-        title: "Next feature bundle: signatures and aggregation first, then the pipeline foundations"
-        file: 0014-next-feature-bundle.md
       - id: "0011"
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
-      - id: "0020"
-        title: "`hql render` compiles a document"
-        file: 0020-render-as-compilation.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0014"
+        title: "Next feature bundle: signatures and aggregation first, then the pipeline foundations"
+        file: 0014-next-feature-bundle.md
+      - id: "0020"
+        title: "`hql render` compiles a document"
+        file: 0020-render-as-compilation.md
       - id: "0024"
         title: Partial application
         file: 0024-partial-application.md

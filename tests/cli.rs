@@ -515,3 +515,45 @@ fn a_stream_is_written_line_by_line_as_it_arrives() {
     assert_eq!(json.status.code(), Some(1));
     assert!(stderr(&json).contains("may not end"), "{}", stderr(&json));
 }
+
+#[test]
+fn render_runs_one_cell_and_reports_every_cell_as_json() {
+    let directory = tempdir().unwrap();
+    let path = directory.path().join("notes.hmd");
+    std::fs::write(
+        &path,
+        "```hql id=base\n10\n```\n\n```hql id=double\nbase * 2\n```\n\n```hql id=other\n1 / 0\n```\n",
+    )
+    .unwrap();
+    let name = path.to_str().unwrap();
+
+    let replaced = hql(&["render", name, "--cell", "double"]);
+    assert_eq!(replaced.status.code(), Some(2), "--cell needs --emit after");
+
+    let one = hql(&[
+        "render",
+        name,
+        "--cell",
+        "double",
+        "--emit",
+        "after",
+        "--in-place",
+    ]);
+    assert!(one.status.success(), "{}", stderr(&one));
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(written.contains("id=double hash="), "{written}");
+    assert!(written.contains("status=ok -->\n20\n"), "{written}");
+    // The failing cell was not asked for, so it did not run.
+    assert!(!written.contains("status=error"), "{written}");
+
+    let json = hql(&["--envelope", "json", "render", name, "--emit", "after"]);
+    let record: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
+    let cells = record["cells"].as_array().unwrap();
+    assert_eq!(cells.len(), 3);
+    assert_eq!(cells[0]["id"], "base");
+    assert_eq!(cells[0]["type"], "Int");
+    assert_eq!(cells[1]["markdown"], "20");
+    assert_eq!(cells[2]["status"], "error");
+    assert_eq!(cells[0]["span"][0], 0);
+    assert_eq!(json.status.code(), Some(1));
+}
