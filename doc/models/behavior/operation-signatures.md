@@ -162,24 +162,15 @@ the queries model states, and one name is right.
 
 ## Open and unresolved
 
-- **`Seq` or `List` in the model.** Whether the queries model keeps `Seq` as
-  the least promise and the implementation is free to return `List`, or whether
-  the model's signatures are brought to what `std/collections.hql` and
-  `hql builtins` declare. The choice decides whether `list` is ever needed
-  after `take` or `sort`.
-- **`map` from a `Set`.** The implementation returns `List<R>` from any
-  `Collection<T>`; the model preserves the input kind. A `Set` mapped through
-  an injective function could stay a `Set`; through any other function it
-  cannot, because duplicates appear. Which contract `map` declares is not
-  written anywhere.
-- **`Input` as a result type.** `filter` and `typed` return "the input's
-  kind" in the registry, and the model spells each case out. The design has
-  no written type for that promise.
-- **`take` on a concrete `Seq`.** `Ranking<T>` is now a declared subtype of
-  `Seq<Hit<T>>`, and `take` keeps any concrete sequence's type — a `List` or
-  a `Ranking` — and materializes everything else. That is a rule rather than
-  a `Ranking` exception, but it is still written in the help string; it
-  becomes a signature with the written type for "the input's kind".
+- **`Seq` or `List`, `Input`, `map` from a `Set`, `take` on a concrete
+  `Seq`.** [Issue 0018](../../issues/0018-operator-synonymy-audit.md) settles
+  all four with one rule: the result keeps the input's type. `filter`,
+  `drop`, `take` and `sort` bind the input type, `S : Seq<T>` or a weaker
+  bound, and return `S`; `map` and `typed` bind its constructor,
+  `F<_> : Iterable<_>`, and return `F<U>`, so a `Set` maps to its image
+  `Set<U>` and a `Ranking` maps as the `Seq<Hit<T>>` it is. The signatures
+  are not yet written into the sources above, and constructor parameters are
+  not yet in the type system.
 - **HQL-0004's `collect`.** The proposal still declares
   `collect<T>(Seq<T>) : List<T>`; it reads `list` once 0013 reaches it.
 - **`somes` has no home.** Declared on the type interpretation card and in

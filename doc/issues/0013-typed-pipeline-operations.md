@@ -42,7 +42,8 @@ Seven commits, in this order. The first changes no behaviour.
 3. **Traversal carrier.** The push traversal described in
    [queries](../models/behavior/queries.md), so that a stream is not forced by
    the steps that consume it, plus an unbounded test-only source for the unit
-   tests. Coordinate with 0010, which needs the same carrier for `yield`.
+   tests. Steps 2 and 3 land together with 0010's `yield`, which runs over
+   the same carrier.
 4. **`collect(n)`, `emit`, `list`** (HQL-0007), with the `Batch` shape and the
    window-shaped argument.
 5. **`group`, `reduce`** (HQL-0004's signatures), finite inputs only, with the

@@ -200,8 +200,8 @@ join(rows: Seq<R>, sides: {m1: Seq<U1>, …},
   of `R`. The result row is `R` with the new fields after its own. `into` MAY be
   given, as in the head form.
 - The extending form is the head form with the input's rows as its first sides:
-  `rows | join({c: cs}, on)` MUST equal the head form over the same sides,
-  flattened. A query may be written in either form, and a planner sees one
+  `rows | join({c: cs}, on)` MUST equal the head form whose sides are the
+  input's sides followed by the new ones. A query may be written in either form, and a planner sees one
   operation.
 - What separates the forms is the argument's type. A sequence argument is the
   binary form; a record of sequences is the extending form; no positional

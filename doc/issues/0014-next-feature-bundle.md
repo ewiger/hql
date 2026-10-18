@@ -12,7 +12,7 @@ Bundles: [0008](0008-cards-as-a-vault-binding.md),
 [HQL-0009](../proposals/HQL-0009/README.md),
 [HQL-0010](../proposals/HQL-0010/README.md)
 
-Seventeen features, ranked by value per unit of work and ordered so that each
+Sixteen features, ranked by value per unit of work and ordered so that each
 one's prerequisites come before it. Each one is an existing issue, a step of
 one, or a designed card that has no issue yet; this card fixes the order and
 says what the bundle as a whole delivers. The design lives in the linked
@@ -77,10 +77,15 @@ issues, proposals and cards; nothing here restates it.
     unchanged. The `localhost` backend evaluates the shared input once. Needs
     the vocabulary rename, so the new step node is named in the new
     vocabulary.
-11. **`Stream<T>` as a type** — step 2 of 0013,
-    [HQL-0006](../proposals/HQL-0006/README.md): the declaration, stream
-    overloads of `map`, `filter`, `take` and `drop`, and the finite-input
-    diagnostic. `drop` is carried here, as step 6 of 0018 asks.
+11. **`Stream<T>`, `yield` and `bind`** — steps 2 and 3 of 0013,
+    [HQL-0006](../proposals/HQL-0006/README.md) and
+    [0010](0010-yield-and-bind.md), as one feature: the `Stream<T>`
+    declaration, stream overloads of `map`, `filter`, `take` and `drop`, the
+    finite-input diagnostic, the push traversal carrier, and generated
+    sequences as query sources. An iterating function declares `Seq<T>` or
+    `Stream<T>`, so the type and the first source that is genuinely unbounded
+    land together. `drop` is carried here, as step 6 of 0018 asks. Needs
+    function values.
 12. **Semantic-search `doctor`** —
     [0011](0011-wire-the-semantic-search-toolchain.md): one check that walks
     vault, config, index, model and query set, and names the first missing
@@ -102,19 +107,16 @@ issues, proposals and cards; nothing here restates it.
     - Left, and not a `Ranking` change: built-in record fields, those of
       `Ranking`, `Hit`, `Card` and `Graph` alike, are read from declarations
       rather than from the table in `checker::field_type`.
-14. **`yield` / `bind`** — [0010](0010-yield-and-bind.md): generated sequences
-    as query sources. Needs function values and the traversal carrier (step 3
-    of 0013).
-15. **`collect(n)`, `emit`, `list`** — step 4 of 0013,
+14. **`collect(n)`, `emit`, `list`** — step 4 of 0013,
     [HQL-0007](../proposals/HQL-0007/README.md). Needs `Stream<T>`.
-16. **Presentation separate from computation** — step 6 of 0013,
+15. **Presentation separate from computation** — step 6 of 0013,
     [HQL-0008](../proposals/HQL-0008/README.md). The document host part, the
     `markdown` presentation and the pipe-table form of `table`, is carried by
     [0020](0020-render-as-compilation.md). What remains is the last-step check,
     incremental rendering of a stream, and the `graph` split of
     [0017](0017-graph-projection-and-view.md): `graph` becomes the
     presentation and the projection gets its own name.
-17. **Cells** — [HQL-0009](../proposals/HQL-0009/README.md): cell `id`s,
+16. **Cells** — [HQL-0009](../proposals/HQL-0009/README.md): cell `id`s,
     values shared through the cell dependency graph, saved outputs with a
     source hash, `--cell` and the per-cell JSON record. Needs 0020 done.
 
@@ -148,13 +150,12 @@ here when its issue or step is done.
 - [x] 8. The `debug` operator
 - [ ] 9. Pipeline vocabulary rename
 - [ ] 10. `tee`
-- [ ] 11. `Stream<T>`
+- [ ] 11. `Stream<T>`, `yield` and `bind`
 - [ ] 12. Semantic-search `doctor`
 - [ ] 13. `Ranking` as an ordinary declared subtype (subtyping done; carrier left)
-- [ ] 14. `yield` / `bind`
-- [ ] 15. `collect(n)`, `emit`, `list`
-- [ ] 16. Presentation
-- [ ] 17. Cells
+- [ ] 14. `collect(n)`, `emit`, `list`
+- [ ] 15. Presentation
+- [ ] 16. Cells
 
 ## Done when
 

@@ -13,8 +13,9 @@ input. `emit` is its inverse: it takes a `Stream<Seq<T>>` and produces each
 member of each batch, in order, as a value of a `Stream<T>`. The argument list
 of `collect` is shaped as a window so that time bounds (`for = 5s`) can be
 added later without changing the step node. The name `collect` stops meaning
-materialization; the operation that turns a finite sequence into a `List` is
-named `list`, as [queries](../../models/behavior/queries.md) already names it.
+materialization; a finite sequence becomes a `List` by the `List`
+constructor, `xs | List`, as [HQL-0016](../HQL-0016/README.md) specifies.
+`flat_map(f)` is the shorthand for `map(f) | emit`.
 
 ## Motivation
 
@@ -102,20 +103,36 @@ as values. The operation is the second thing, and the name says so. A program
 that writes `flatten` MUST get an unknown-operation diagnostic that suggests
 `emit`.
 
-### Materialization is `list`
-
-The operation [HQL-0004](../HQL-0004/README.md) called `collect` is renamed.
+### `flat_map` is the shorthand for `map` then `emit`
 
 ```text
-list<T>(xs: Seq<T>) : List<T>
+flat_map<T, U>(xs: Stream<T>, f: T -> Seq<U>) : Stream<U>
+flat_map<T, U>(xs: Seq<T>,    f: T -> Seq<U>) : List<U>
+
+xs | flat_map(f)  =  xs | map(f) | emit
 ```
 
-- `list` MUST return the sequence's values at their positions; over a `List<T>`
-  it is the identity.
-- `list` MUST NOT accept a `Stream<T>` that is not a `Seq<T>`; the message
-  names `take(n)`.
+- `flat_map(f)` MUST equal `map(f) | emit` over every input, in values and in
+  order. The longhand is written in HQL, which is what admits the shorthand.
+- `f` MUST return a sequence, by the same rule as `emit`: a function returning a
+  `Set` is refused with a message saying to sort it.
+- `flatten` is not an alias of `flat_map` or of either signature of `emit`.
+
+### Materialization is the `List` constructor
+
+The operation [HQL-0004](../HQL-0004/README.md) called `collect` is the
+constructor of `List`, as [HQL-0016](../HQL-0016/README.md) specifies it.
+
+```text
+List<T>(xs: Seq<T>) : List<T>
+```
+
+- `xs | List` is `List(xs)`. It returns the sequence's values at their
+  positions; over a `List<T>` it is the identity.
+- It refuses a `Stream<T>` that is not a `Seq<T>`, naming `take(n)`, and a
+  `Set<T>`, naming `sort`.
 - This resolves the HQL-0004 open question "Is the materialization step
-  `collect` or `list`?" in favour of `list`.
+  `collect` or `list`?": neither; the step is `List`.
 
 ### Shape
 
@@ -125,7 +142,8 @@ The operations join the table in [HQL-0004](../HQL-0004/README.md).
 | --- | --- | --- | --- | --- |
 | `collect(n)` | pure | batch | `Stream<T>` | `Stream<List<T>>` |
 | `emit` | pure | elementwise | `Stream<Seq<T>>` | `Stream<T>` |
-| `list` | pure | barrier | `Seq<T>` | `List<T>` |
+| `flat_map(f)` | pure | elementwise | `Stream<T>` | `Stream<U>` |
+| `List` | pure | barrier | `Seq<T>` | `List<T>` |
 
 - **Batch** is a new shape. A batch step needs `n` consecutive values, not the
   whole input, before it produces output. A planner MAY split its input only on
@@ -157,7 +175,7 @@ The API leaves room for three forms; only the first is implemented.
 `collect` is not implemented today; the three `examples/mapreduce/` cases that
 are `status: proposed` do not use it. `HQL-0004` and
 [map/reduce for queries](../../models/behavior/map-reduce.md) change their
-`collect` to `list`. `emit` and `list` are new names, read only after `|` or
+`collect` to `List`. `emit` and `flat_map` are new names, read only after `|` or
 called directly, so they neither collide with nor shadow a binding.
 
 ## Security Considerations
@@ -168,7 +186,7 @@ exceeds a host limit. The limit is an open question.
 
 ## Reference Implementation
 
-- `src/extensions/collections.rs` — `collect`, `emit`, `list`, and the `Batch`
+- `src/extensions/collections.rs` — `collect`, `emit`, and the `Batch`
   shape
 - `src/extensions/spec.rs` — the window argument
 - `std/collections.hql` — the signature comments
@@ -185,6 +203,8 @@ Unit tests MUST include:
 - `collect(0)` is a check error
 - `xs | collect(n) | emit` equals `xs` for several `xs` and `n`
 - `emit` over a stream of sets is a type error mentioning `sort`
+- `xs | flat_map(f)` equals `xs | map(f) | emit` over a list and over an
+  unbounded test source
 - `flatten` is an unknown operation whose diagnostic suggests `emit`
 - over an unbounded test source, `collect(3) | take(2)` terminates with two
   batches of three
@@ -206,3 +226,6 @@ Unit tests MUST include:
 ## Changelog
 
 - 2026-09-28: drafted
+- 2026-10-18: `flat_map` added as the shorthand for `map(f) | emit`
+- 2026-10-18: materialization is the `List` constructor (HQL-0016); `list`
+  retired

@@ -17,9 +17,12 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 20 # to be incremented when adding a new issue card
+  last_id: 21 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0021"
+        title: "`of_type` replaces `typed`"
+        file: 0021-of-type-replaces-typed.md
       - id: "0018"
         title: "Operator synonymy: one name, one signature"
         file: 0018-operator-synonymy-audit.md

@@ -25,11 +25,19 @@ positions need a third case, and the substitution check needs to honour it.
 
 **A declaration's parameter list is fixed.** `TypeDefinition` carries a `Vec` of
 named parameters, one shape per constructor, but functions come in every arity.
-Two ways out, and the issue should pick one before any code: a variadic
-declaration whose last parameters are the argument positions, or a family of
-fixed-arity constructors with the arity in the name. The first keeps one name in
-diagnostics and complicates the checker; the second keeps the checker as it is
-and puts arity into every error message.
+The function type is therefore a family of fixed-arity constructors — `Fn0<R>`,
+`Fn1<A, R>`, `Fn2<A, B, R>`, and so on — each an ordinary declaration with its
+argument positions contravariant and its result covariant, so the checker's
+handling of declarations is unchanged. Each arity the language uses is
+declared; a higher one is one more declaration. The constructor names never
+reach a diagnostic: types print in the arrow spelling, `(Card, Card) -> Bool`,
+not `Fn2<Card, Card, Bool>`.
+
+A variadic parameter, `xs: ...T`, is a parameter of type `Seq<T>` that the call
+site fills from its trailing arguments: `coalesce<T>(os: ...Option<T>) :
+Option<T>` has type `Seq<Option<T>> -> Option<T>`, a `Fn1`. Variadic functions
+need no constructor of their own. An operation generic over arity itself, such
+as `curry`, is not expressible.
 
 **No carrier.** `Value` has no function variant. Since the evaluator's scope is a
 `HashMap<String, Value>`, a function value has to be a closure — parameters,
@@ -40,8 +48,11 @@ that silently lose their free names.
 
 - Add the contravariant case and honour it where a reference is checked against
   a target.
-- Declare the function constructor among the built-ins, with parameter positions
-  contravariant and the result covariant.
+- Declare the `Fn0`, `Fn1`, … family among the built-ins, with parameter
+  positions contravariant and the result covariant, and print each in the arrow
+  spelling.
+- Accept a variadic parameter `...T` as the last parameter of a declaration,
+  typed `Seq<T>`, and collect the trailing arguments of a call into it.
 - Add the closure carrier to `Value`, and report its type from `type_of`.
 - Lift the argument-position restriction in both the checker and the evaluator: a
   lambda becomes an expression that yields a function value, and `f = c =>
@@ -84,6 +95,8 @@ record, and it currently cannot hold a design that is not yet built.
   rejected.
 - A named function can be declared, bound, called, passed to a step, and
   returned from another function.
+- A function with a `...T` parameter accepts zero or more trailing arguments,
+  and a diagnostic for a function type shows the arrow spelling.
 - `f = c => c.title` checks and evaluates; the message about lambdas being
   argument-only is gone from both layers.
 - Examples under `examples/` cover each of the above and pass through

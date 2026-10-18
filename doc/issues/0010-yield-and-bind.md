@@ -20,27 +20,23 @@ function type there is nothing for `bind` to take or return. It supersedes the
 seeding proposed in [0008](0008-cards-as-a-vault-binding.md) — `cards` becomes a
 lazy `Seq<Card>` rather than an eager `Set<Card>`.
 
-## Decide before building
+`Stream<T>` lands with this issue, as one feature of
+[0014](0014-next-feature-bundle.md) together with steps 2 and 3 of
+[0013](0013-typed-pipeline-operations.md). An iterating function declares
+`Seq<T>` or `Stream<T>`, so the type and the first unbounded source arrive
+together, over one push traversal carrier.
 
-Two questions in the model have to be settled first, because the answers change
-the type system rather than the code around it.
+A vault yields its cards in the order a sorted walk reaches them: the entries
+of each directory sorted by name, depth-first, each card yielded as it is
+reached. `take(5)` makes that order observable, so it is defined by the walk
+and never by the filesystem, and the same query answers the same on every
+machine.
 
-**Whether `Stream` lands in this issue.** Laziness alone needs no new type: a
-restartable lazy sequence is observationally a `Seq`, so every existing step
-keeps working. `Stream<T>` is what expresses a source with *no finite size*, and
-no such source exists yet. The model recommends shipping lazy `Seq` here and
-adding `Stream<T>`, with `Seq<T> : {Stream<T>, Collection<T>}`, when something
-is genuinely unbounded.
-
-**The order a vault yields in.** `cards` is a `Set<Card>` today precisely so
-that discovery order stays unobservable. `take(5)` makes it observable, so the
-generator must yield in a defined order — by card name — or the same query
-answers differently on two machines. This is a correctness requirement, not a
-preference.
-
-**The name `bind`.** It already means binding a type parameter in
-[generic brackets](../models/behavior/bind-vs-apply-in-generic-types.md). One
-of the two uses should move.
+`bind` is the operation's name. Binding a type parameter, in
+[generic brackets](../models/behavior/bind-vs-apply-in-generic-types.md), is a
+term of the model and names nothing a program writes, so the two do not meet.
+A name is taken by the first declaration that claims it; a second declaration
+of the same name is a critical error, not an override.
 
 ## Scope
 
@@ -60,7 +56,9 @@ of the two uses should move.
   the single point where every step materializes its input today, and the lazy
   steps — `map`, `filter`, `take` — wrap the sink instead of calling it.
 - Add `bind` as partial application over a function value, checked against the
-  function type from 0009.
+  function type from 0009. Since an operation generic over arity is not
+  expressible, `bind` is one overload per arity, each fixing the first
+  argument: `bind<A, B, R>(f: (A, B) -> R, a: A) : B -> R`.
 - Expose the `Vault` trait to HQL as a type, with `vault_cards` as its first
   iterating function, and seed `vault` into the checker's and evaluator's scope
   from the host.
@@ -74,8 +72,8 @@ of the two uses should move.
 
 - An iterating function can be declared, called, and consumed; a `take` over an
   unbounded generator terminates.
-- `cards | take(5)` returns the first five cards by name, identically on two
-  machines with different filesystem order.
+- `cards | take(5)` returns the first five cards of the sorted walk,
+  identically on two machines with different filesystem order.
 - `cards` is a library binding, not a keyword and not a special case in the
   checker or the evaluator.
 - `bind` type-checks against arity and parameter types, and rejects a mismatch

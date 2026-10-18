@@ -148,10 +148,10 @@ separate API per source kind.
   sightings = source("sightings")
 
   notes | filter(c => c.metadata.genre == "field") | take(10)
-  sightings | typed(Sighting) | collect(100, for = 5s) | map(…) | emit
+  sightings | of_type(Sighting) | collect(100, for = 5s) | map(…) | emit
   ```
 
-  Typing and matching apply as they do to any value: `typed(Sighting)` narrows
+  Typing and matching apply as they do to any value: `of_type(Sighting)` narrows
   `Data` elements to a declared type, and `match` branches on them.
 - **Portions are ordinary operations.** The program writes the portion with
   operations that mean the same on every sequence — a slice, a `take`, a
@@ -245,11 +245,11 @@ Most of this vocabulary is already in the core or drafted:
 | `filter(p)` | key range, predicate | finite and stream | core |
 | `sort(by = …)` | the order a slice is taken in | finite | core |
 | `xs[i]` | one position | finite | core |
-| `typed(T)`, `match` | type | finite and stream | core, designed |
+| `of_type(T)`, `match` | type | finite and stream | [HQL-0016](../HQL-0016/README.md), designed |
 | `collect(n)` | count window | stream | [HQL-0007](../HQL-0007/README.md) |
 | `collect(n, for = 5s)` | count and time window | stream | HQL-0007, reserved |
 | `emit` | ends a window | stream | HQL-0007 |
-| `list` | materializes | finite | HQL-0007 |
+| `List` | materializes | finite | HQL-0007, HQL-0016 |
 
 Two pieces are missing. Slicing, `xs[a:b]`, extends the indexing that `xs[i]`
 already is; its handling of negative bounds and a step is for its own record.
@@ -392,7 +392,7 @@ start    = "earliest"
   error at configuration load, naming the extensions that provide kinds.
 - `element` MAY name the element type, a type the core or an extension provides.
   It defaults to the kind's own element type, which is `Data` for every kind
-  that reads untyped records. A program narrows further with `typed` or
+  that reads untyped records. A program narrows further with `of_type` or
   `match`, as [type interpretation](../../wiki/hql/type-interpretation.hmd)
   describes.
 - A finite kind with no intrinsic order MUST be configured with one, as

@@ -9,7 +9,7 @@ nav:
 known and the value is never touched. This card says how a program asks, and
 what it may ask about: a tree someone authored, a document whose header is
 that tree, a card the vault built from a document, and any type a program
-declares over one of them. There are two ways to ask and one way to assert,
+declares over one of them. There are three ways to ask and one way to assert,
 and they share a single test.
 
 ## The test
@@ -102,23 +102,56 @@ family, so forgetting the last arm is a type error, the same way a forgotten
 `none` is. A value that is not the type takes the other arm. Nothing has failed,
 and nothing is reported.
 
-## Asking about many values: `typed`
+## The test as a value: `is`
 
-`typed(U)` is the match above run over a collection, keeping the `U` arm and
-dropping the rest, the way `sum` is a `reduce` with the step fixed. The result
-has element type `U`, and keeps the shape of its input: a `Set` stays a `Set`,
-a `List` stays a `List`. `library` below is a supplied collection of documents.
+`is(U)` is the test itself, returned as a `Bool`: `true` when the value is a
+`U` by the test above, `false` otherwise. It is the two-arm `match` with the
+arms fixed, the way `sum` is a `reduce` with the step fixed:
 
 ```hql
-cards | map(c => c.metadata) | typed(Book)        // List<Book>
-library | typed(Recipe)                           // the recipes
-cards | typed(RelationCard) | graph                // Set<RelationCard>
-[1, "owl", 2] | typed(Int)                        // [1, 2]
+doc | is(Card)
+
+match doc {
+    Card _ => true,
+    _      => false,
+}
 ```
+
+`is` answers a question and narrows nothing: after `doc | is(Card)` the value
+is still a `Doc` to the checker. It belongs in a condition,
+`"card" given is(doc, Card) otherwise "document"`. The checker refuses an `is`
+that cannot be true, `1 | is(Card)`, and warns about one that cannot be false,
+`card | is(Doc)`.
+
+## Asking about many values: `of_type`
+
+`of_type(U)` keeps the values that pass the test and drops the rest. It is a
+`filter` whose predicate is the test:
+
+```hql
+of_type(U) := filter(x => x | is(U))
+```
+
+A `filter` keeps its input's element type for any other predicate. A
+predicate of exactly the form `x => x | is(U)` is the one case the checker
+reads: the result has element type `U`. The shape of the input is kept, a
+`Set` stays a `Set` and a `List` a `List`, and an `Option<T>` becomes an
+`Option<U>`. `library` below is a supplied collection of documents.
+
+```hql
+cards | map(c => c.metadata) | of_type(Book)      // List<Book>
+library | of_type(Recipe)                         // the recipes
+cards | of_type(RelationCard) | graph              // Set<RelationCard>
+[1, "owl", 2] | of_type(Int)                      // [1, 2]
+some(doc) | of_type(Card)                         // Option<Card>
+```
+
+The result is the collection itself, not a collection of options, so nothing
+is unwrapped after it.
 
 Dropping is the feature. A vault is usable while it is still being typed, and
 a tree that satisfies nothing beyond `Data` is still a tree. The checker
-refuses a `typed` only when nothing could pass it: `typed(Int)` on a
+refuses an `of_type` only when nothing could pass it: `of_type(Int)` on a
 `Set<Card>` selects nothing and is an error at check time.
 
 The first program is where the two tests meet. Each tree was built as `Data`,
@@ -126,46 +159,44 @@ so the nominal test says none of them is a `Book`; the structural test says
 every tree with a `title` and an integer `pages` is. The structural test is the
 one `Data` gets, so the result holds those trees. Today the implementation
 applies the nominal test only and the result is empty, which is also why
-`map(c => c.metadata.pages) | typed(Int)` keeps nothing.
+`map(c => c.metadata.pages) | of_type(Int)` keeps nothing.
 
-## The longhand under `typed`
+| | `is(U)` | `of_type(U)` |
+| --- | --- | --- |
+| Input | one value | a collection, or an `Option` |
+| Result | `Bool` | the input's container, holding the `U`s, at element type `U` |
+| Longhand | a two-arm `match` | `filter(x => x \| is(U))` |
+| Narrows | no | yes |
 
-`sum` is a pure shorthand. Same input, same output, nothing added:
-
-```hql
-xs | sum
-xs | reduce(0, (a, b) => a + b)
-```
-
-`typed` is a shorthand for a `match` *plus a collection step*, because `match`
-works on one value and `typed` works on many:
-
-```hql
-cards | typed(RelationCard)
-
-cards
-| map(c => match c {
-    RelationCard r => some(r),
-    _              => none,
-  })
-| somes                             // keep the somes, drop the nones
-```
-
-`somes` is an ordinary collection step, not part of interpretation: a
-collection of options becomes a collection of their values, `List<Option<T>>`
-to `List<T>`, keeping the shape of its input. It is as useful after a guarded
-`match` or an `and_then` as after a type test, which is why it has its own name
-rather than living inside `typed`. With it, `typed(U)` is `map(match …) | somes`
-exactly as `sum` is `reduce(0, +)`: the same pattern, a specific case of a
-general operation given a name of its own. The abstraction tree is whole:
+The abstraction tree is whole:
 
 ```text
-reduce  →  sum, min, max, size, count(x)
-match   →  typed, by way of somes
+match   →  is
+filter  →  of_type, by way of is
 ```
 
-The rule that admits a shorthand is that its longhand can be typed. `somes` is
-designed and not yet implemented, beside the `match` type arm it serves.
+The rule that admits a shorthand is that its longhand can be typed.
+
+## Building another container: a constructor
+
+Interpretation never builds a value. Building one is construction: the
+constructor of a concrete collection type takes the elements of its input.
+
+```hql
+List(xs)          // the positions of a Seq, materialized
+xs | Set          // the distinct values, Set(xs)
+```
+
+- `List` takes a `Seq<T>`. It refuses a `Set<T>`, whose iteration order is
+  unspecified, and names `sort`; and an open `Stream<T>`, which may not end,
+  and names `take`.
+- `Set` takes any `Collection<T>` and drops duplicates under HQL equality.
+- Over a value already of the type, each is an identity and copies nothing.
+- A constructor is a pipeline step: `x | C` is `C(x)`. There is no `list` or
+  `set` beside `List` and `Set`.
+
+Construction changes the container and keeps the elements. Turning a `String`
+into an `Int` is parsing, not construction.
 
 ## Asserting: a binding
 
@@ -181,19 +212,31 @@ narrowing" [[type-system]] calls a type error: something was written that is
 not the type. Asking never produces that error, because asking always has
 somewhere for the other case to go.
 
-There is no `validate`, no `as`, and no single-value `typed`: each would be a
-second spelling of a `match` arm, or of a binding.
+A binding to a supertype widens, and widening needs no step: a value of a
+subtype is usable wherever its supertype is expected, so
+`s : Seq<Hit<Card>> = ranking` is proven at once and the value is unchanged.
+A binding never converts: `xs : List<Card> = seq` is refused, and the program
+writes `List(seq)` where the list is built.
+
+There is no `validate`, no `as`, no cast and no single-value `of_type`: each
+would be a second spelling of a `match` arm, of a binding, or of a
+constructor.
 
 ## Where it sits
 
 ```text
 match x { U u => … }        the primitive: one value, every case named
-typed(U)                     the selection: many values, the U case kept
+x | is(U)                    the test: one value, a Bool
+xs | of_type(U)              the selection: many values, the U case kept
 x : U = …                    the assertion: proven or refused by the checker
+List(xs), Set(xs)            construction: a new container, the same elements
 ```
 
-`match` with a type arm, and the structural test over `Data`, are designed and
-not yet implemented. `typed` over collections is implemented with the nominal
-test. See [[data-type]] for the tree being interpreted, [[doc-type]] for the
+`match` with a type arm, `is`, the narrowing `filter`, and the structural test
+over `Data` are designed and not yet implemented. The selection is
+implemented with the nominal test under its former name `typed`, which
+[issue 0021](../../issues/0021-of-type-replaces-typed.md) replaces. The
+constructors are implemented; `List` still accepts a `Set`, and a constructor
+is not yet a pipeline step. See [[data-type]] for the tree being interpreted, [[doc-type]] for the
 document whose header it is, [[option-type]] for the `none` the card example
 returns, and [[hql/design-status]] for what remains undecided.

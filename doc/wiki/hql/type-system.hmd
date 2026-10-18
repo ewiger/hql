@@ -97,6 +97,12 @@ declaring `Card : Doc` makes a claim about `Card` alone. That is why narrowing
 composes freely — `Card : Doc` and `Person : Card` give `Person : Doc`
 without either declaration being consulted about the other.
 
+The relation is read in both directions by values. Toward the supertype a
+value goes freely: a `Card` is passed where a `Doc` is expected, with no step
+and no check at run time. Toward the subtype it goes only by a test,
+`is(Card)` for one value and `of_type(Card)` for many, which can fail and drop
+the value — see [[type-interpretation]].
+
 ### A type may narrow several at once
 
 ```hql
@@ -317,6 +323,34 @@ Nothing here is inferred away by the reader: `map` has one body, and `A` and `B`
 are chosen by the call site. Users are not expected to write those parameters at
 a call — they are inferred — but they exist in the signature.
 
+### Function types
+
+A function type is written with an arrow: `T -> U` for one parameter,
+`(T, T) -> Ordering` for two, `() -> T` for none. The arrow is the only
+spelling, in source and in diagnostics alike.
+
+Each arity is its own built-in type constructor — `Fn0<R>`, `Fn1<A, R>`,
+`Fn2<A, B, R>`, and so on — declared in Rust like the other built-ins, with
+every parameter position contravariant and the result covariant. These names
+are the checker's, not the language's: no program writes `Fn2<Card, Card,
+Bool>`, and no message prints it. Two function types of different arity are
+different constructors, so neither narrows the other.
+
+A **variadic parameter**, `xs: ...T`, is the last parameter of a declaration and
+has type `Seq<T>`; a call fills it from its trailing arguments, zero or more.
+
+```hql
+coalesce<T>(os: ...Option<T>) : Option<T>   // Seq<Option<T>> -> Option<T>
+coalesce(card.summary, card.description)
+```
+
+A variadic function is therefore an ordinary one-parameter function and needs no
+constructor of its own. An operation generic over arity itself, such as `curry`,
+is not expressible.
+
+Function types and variadic parameters are designed and not yet built — see
+[issue 0009](../../issues/0009-function-type-and-constructor.md).
+
 ## Where the two cooperate: bounds
 
 A bare parameter admits every type, which is usually more freedom than a function
@@ -355,8 +389,71 @@ parameter a type *consumes* is not — a `Map` is invariant in its keys, because
 lookup accepts them. Function types follow the same rule from both ends:
 `T -> U` is contravariant in `T` and covariant in `U`. A generic `Graph<N, E>` is
 covariant in both, so a function written over `Graph<Doc, Edge>` accepts a
-`Graph<Card, Link>` — see [[graph-type]]. A declaration states each parameter's
-variance once, and the checker applies it.
+`Graph<Card, Link>` — see [[graph-type]]. Each built-in declaration states its
+parameters' variance once, in Rust, and the checker applies it; a declaration in
+[`std/`](../../../std/README.md) has no variance marker, so `type Map<K, V>`
+names the shape and the built-in fixes `K` invariant and `V` covariant.
+
+## An operation returns the container it was given
+
+An operation over a container returns the same container: a `Set` in, a `Set`
+out; a `List` in, a `List` out; an `Option` in, an `Option` out. The element
+type may change. The container changes only when the operation adds a
+guarantee the input lacked.
+
+```hql
+cards | filter(c => c.name != "")         // Set<Card>  → Set<Card>
+[1, 2, 3] | filter(x => x > 1)            // List<Int>  → List<Int>
+some(3) | filter(x => x > 1)              // Option<Int> → Option<Int>: some(3)
+some(0) | filter(x => x > 1)              // none
+cards | of_type(RelationCard)             // Set<Card>  → Set<RelationCard>
+some(doc) | of_type(Card)                 // Option<Doc> → Option<Card>
+```
+
+`filter` returns an `Option` only when it is given one. Over an `Option` it
+keeps a present value the predicate accepts and gives `none` otherwise, so
+`of_type`, which is a `filter`, does the same: an `Option` from an `Option`,
+and a collection from a collection, never a collection of options — see
+[[type-interpretation]].
+
+Two kinds of parameter write the rule into a signature. An operation that
+keeps the element type binds the input's type itself, bounded by what the
+operation needs:
+
+```hql
+filter<S : Iterable<T>, T>(xs: S, by: T -> Bool) : S
+take<S : Seq<T>, T>(xs: S, n: Int)              : S
+```
+
+An operation that changes the element type binds the input's **type
+constructor**, written `F<_>`:
+
+```hql
+map<F<_> : Iterable<_>, T, U>(xs: F<T>, f: T -> U) : F<U>
+```
+
+`F<_> : Iterable<_>` admits a constructor whose argument is its element type,
+`F<X> : Iterable<X>` for every `X`. `List`, `Seq`, `Set` and `Stream` are
+such constructors. `Option` is not an `Iterable`; its `map` and `filter` are
+overloads of their own in [`std/core.hql`](../../../std/core.hql), with the
+same shape. `Ranking` is not one either: `Ranking<T> : Seq<Hit<T>>`
+has `Hit<T>` as its element type, so a `Ranking` is mapped as the
+`Seq<Hit<T>>` it is.
+
+The container changes where the operation adds or removes a guarantee, and
+each such case is a signature of its own:
+
+| Operation | Input | Result | Why |
+| --- | --- | --- | --- |
+| `sort` | `Set<T>` | `List<T>` | the result has an order the input lacks |
+| `sort` | `Ranking<T>` | `Seq<Hit<T>>` | a new order is not the retrieval's |
+| `take` | an open `Stream<T>` | `List<T>` | the result is finite |
+| `map` | `Ranking<T>` | `Seq<U>` | the elements are no longer hits |
+
+The rule is designed. Today `filter` and the selection keep the input's
+container, and `map` and `sort` return a `List` from every input; constructor
+parameters are not yet in the checker. The work is tracked by
+[issue 0018](../../issues/0018-operator-synonymy-audit.md).
 
 ## Refinement establishes
 
@@ -443,7 +540,7 @@ Two rules keep it honest.
 rewrites it, and losing the refinement loses only knowledge, never data.
 
 **Refinement must be checked.** A `type: WorksOn` entry in a header is an
-author's claim, and `typed RelationCard` has to verify the contract. An unchecked
+author's claim, and `of_type(RelationCard)` has to verify the contract. An unchecked
 narrowing would let any authored key mint a type, which is the same rule that
 stops `relation: parent` on an edge from making it a `Parent` — see
 [[card-type]] and [[graph-type]]. A failed narrowing is a type error in the
