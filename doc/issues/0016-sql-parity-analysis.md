@@ -178,7 +178,7 @@ Ranked by how many rows above each one unblocks.
    of [0015](0015-jq-parity-analysis.md); detailed in the next section. Done
    for leaves: `of_type(Int)` and a type arm read a leaf as its scalar, so a
    field can be summed, sorted and compared. A record schema waits for
-   roadblock 1.
+   roadblock 5, "Record and pair values".
 3. **`group` and `reduce`.** Done: the `group` / `reduce` feature of
    [0014](0014-next-feature-bundle.md), with `sum`, `min` and `max`; `avg`
    follows with executor-held combiners.
