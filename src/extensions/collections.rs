@@ -662,7 +662,14 @@ fn eval_filter(
         }
     }
     Ok(match narrowed_to(argument) {
-        Some(wanted) => narrowed(&input, kept, wanted),
+        // Kept because each is a `wanted`, so each reads as one.
+        Some(wanted) => {
+            let read = kept
+                .into_iter()
+                .map(|element| element.interpreted(&wanted).unwrap_or(element))
+                .collect();
+            narrowed(&input, read, wanted)
+        }
         None => rebuild(&input, kept),
     })
 }
@@ -699,7 +706,7 @@ fn eval_of_type(
     // never put a card in this result.
     let kept: Vec<Value> = elements(&input, "of_type", &span)?
         .into_iter()
-        .filter(|element| element.type_of().is(&wanted))
+        .filter_map(|element| element.interpreted(&wanted))
         .collect();
     Ok(narrowed(&input, kept, wanted))
 }
@@ -712,7 +719,7 @@ fn eval_is(
 ) -> Result<Value, Diagnostic> {
     let argument =
         named_or_first(arguments, "type").ok_or_else(|| wrong("is", "a type name", &span))?;
-    Ok(Value::Bool(input.type_of().is(&argument.value.ty)))
+    Ok(Value::Bool(input.interpreted(&argument.value.ty).is_some()))
 }
 
 /// The kept elements at the narrowed element type: a set stays a set, and

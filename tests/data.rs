@@ -384,3 +384,42 @@ fn an_applied_parent_receives_transformed_arguments() {
         Err(TypeError::IncompatibleParent { .. })
     ));
 }
+
+#[test]
+fn a_tree_leaf_is_read_by_its_shape_as_the_scalar_it_holds() {
+    use hql::types::TypeRef;
+    for (source, expected) in [
+        ("tree = {pages: 412}\ntree.pages | is(Int)", "true"),
+        ("tree = {pages: 412}\ntree.pages | is(String)", "false"),
+        (
+            "tree = {pages: 412, title: \"Dune\"}\n[tree.pages, tree.title] | somes | of_type(Int)",
+            "[412]",
+        ),
+        (
+            "tree = {pages: 412}\nmatch tree.pages { some(Int n) => n + 1, _ => 0 }",
+            "413",
+        ),
+        (
+            "tree = {title: \"Dune\"}\nmatch tree.title { some(Int n) => n, _ => 0 }",
+            "0",
+        ),
+    ] {
+        assert_eq!(hql::eval(source).unwrap().to_string(), expected, "{source}");
+    }
+    let read = "tree = {pages: 412}\n[tree.pages] | somes | of_type(Int)";
+    assert_eq!(hql::check(read), Ok(TypeRef::list(TypeRef::INT)));
+    assert_eq!(
+        hql::eval(read).unwrap().type_of(),
+        TypeRef::list(TypeRef::INT)
+    );
+}
+
+#[test]
+fn a_type_arm_covers_its_subject_and_refuses_a_type_that_cannot_fit() {
+    assert_eq!(
+        hql::eval("match 3 { Int n => n * 2 }").unwrap().to_string(),
+        "6"
+    );
+    let never = hql::check("match 3 { String s => 1, _ => 0 }").unwrap_err();
+    assert!(never.to_string().contains("never fits"), "{never}");
+}

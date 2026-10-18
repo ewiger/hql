@@ -699,6 +699,9 @@ fn fits(pattern: &crate::ast::Pattern, value: &Value, bindings: &mut Vec<(String
             true
         }
         (Pattern::Some(inner), Value::Present(held)) => fits(inner, held, bindings),
+        (Pattern::Type(name, inner), _) => crate::types::named(name, &[])
+            .and_then(|wanted| value.interpreted(&wanted))
+            .is_some_and(|interpreted| fits(inner, &interpreted, bindings)),
         (Pattern::None, Value::Absent(_)) => true,
         (Pattern::Int(expected), Value::Int(actual)) => expected == actual,
         (Pattern::Float(expected), Value::Float(actual)) => expected == actual,

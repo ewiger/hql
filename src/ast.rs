@@ -171,6 +171,8 @@ pub(crate) enum Pattern {
     Some(Box<Pattern>),
     /// `none`: an absent option.
     None,
+    /// `U name` or `U _`: a value that is a `U`, bound at that type.
+    Type(String, Box<Pattern>),
 }
 
 impl Pattern {

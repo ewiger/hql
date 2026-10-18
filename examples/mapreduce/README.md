@@ -28,6 +28,7 @@ result.
 | [word count](queries/word-count.hql) | `group` by identity, then `map` over the groups | runs | owl 3, raven 1, robin 1 |
 | [total pages](queries/total-pages.hql) | `reduce` as a left fold over a sequence | runs | 1589 |
 | [by genre](queries/by-genre.hql) | The full package as one pipeline over card metadata | runs | poetry 1, essay 2, novel 3 |
+| [metadata pages](queries/metadata-pages.hql) | A metadata leaf read as an `Int` with `of_type`, then summed | runs | 1589 |
 
 Every `|` is a boundary the executor sees: `filter` and `map` are
 elementwise, `group` is a partition, `size` and `reduce` are reductions, `sort`

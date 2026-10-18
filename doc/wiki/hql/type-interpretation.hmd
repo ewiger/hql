@@ -157,9 +157,10 @@ refuses an `of_type` only when nothing could pass it: `of_type(Int)` on a
 The first program is where the two tests meet. Each tree was built as `Data`,
 so the nominal test says none of them is a `Book`; the structural test says
 every tree with a `title` and an integer `pages` is. The structural test is the
-one `Data` gets, so the result holds those trees. Today the implementation
-applies the nominal test only and the result is empty, which is also why
-`map(c => c.metadata.pages) | of_type(Int)` keeps nothing.
+one `Data` gets, so the result holds those trees. A leaf is tested the same
+way and read as the scalar it holds, so
+`cards | map(c => c.metadata.pages) | somes | of_type(Int)` is the page counts
+as a `List<Int>`, ready to sum.
 
 | | `is(U)` | `of_type(U)` |
 | --- | --- | --- |
@@ -232,9 +233,13 @@ x : U = …                    the assertion: proven or refused by the checker
 List(xs), Set(xs)            construction: a new container, the same elements
 ```
 
-`is`, the narrowing `filter` and `of_type` are implemented with the nominal
-test: a value is kept by the type it was built with. `match` with a type arm
-and the structural test over `Data` are designed and not yet implemented. The
+`is`, the narrowing `filter`, `of_type` and the type arm of `match` are
+implemented, with the nominal test for declared values and the structural
+test for `Data` leaves and sequences of leaves. A record schema such as `Book`
+waits for declared record types to be members of the lattice, the roadblock
+"record and pair values" of
+[issue 0016](../../issues/0016-sql-parity-analysis.md); until then a tree is
+read as a scalar, a `Seq` of scalars or `Data`. The
 constructors are implemented; `List` still accepts a `Set`, and a constructor
 is not yet a pipeline step. See [[data-type]] for the tree being interpreted, [[doc-type]] for the
 document whose header it is, [[option-type]] for the `none` the card example

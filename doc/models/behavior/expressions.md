@@ -36,7 +36,7 @@ primary     := int | float | bool | string | docref | lambda
 match       := "match" pipeline "{" arm (("," | NEWLINE) arm)* ","? "}"
 arm         := pattern ("given" pipeline)? "=>" expression
 pattern     := "_" | ident | int | float | string | bool
-             | "some" "(" pattern ")" | "none"
+             | "some" "(" pattern ")" | "none" | type ("_" | ident)
 lambda      := (ident | "(" ident ("," ident)* ")") "=>" expression
 data        := "{" (key ":" expression ("," key ":" expression)*)? "}"
 list        := "[" (expression ("," expression)* ","?)? "]"
@@ -101,7 +101,9 @@ names.
 supplies while nothing binds them. `match` tests its subject against each arm
 in order and evaluates the first arm whose pattern fits and whose guard, if
 any, holds. A pattern is `_`, a name that binds the value in the arm, a literal,
-or `some(p)` and `none` over an `Option`. The checker requires the unguarded
+`some(p)` and `none` over an `Option`, or a type arm `U name`, which fits a
+value that is a `U` and binds it at that type. A type arm over a `Data` leaf
+tests its shape: the leaf `412` is an `Int` and is bound as one. The checker requires the unguarded
 arms to cover every value of the subject's type: `some` and `none` for an
 `Option`, `true` and `false` for a `Bool`, and `_` or a name for anything else.
 The match has the common type of its arms. `a given c otherwise b` is `a` when

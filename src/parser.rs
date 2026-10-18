@@ -518,6 +518,20 @@ impl Parser {
                 self.expect(&Token::CloseParen, "to close `some(…)`")?;
                 Pattern::Some(Box::new(inner))
             }
+            // `U name`: a type name, capitalised, followed by what it binds.
+            Token::Ident(name)
+                if name.starts_with(|c: char| c.is_uppercase())
+                    && matches!(self.peek(), Token::Ident(_)) =>
+            {
+                let inner = self.pattern()?;
+                if !inner.is_irrefutable() {
+                    return Err(Diagnostic::syntax(
+                        head.span,
+                        "a type pattern binds a name or `_`",
+                    ));
+                }
+                Pattern::Type(name, Box::new(inner))
+            }
             Token::Ident(name) => Pattern::Bind(name),
             other => {
                 return Err(Diagnostic::syntax(

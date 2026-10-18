@@ -214,6 +214,39 @@ impl Value {
         }
     }
 
+    /// The value read as `wanted`, when it is one.
+    ///
+    /// A declared value is a `wanted` when it was built as one or as a
+    /// subtype: the nominal test. A tree is tested by its shape instead, and
+    /// a leaf is read as the scalar it holds, so the integer leaf of a header
+    /// is an `Int` and comes back as one.
+    #[must_use]
+    pub fn interpreted(&self, wanted: &TypeRef) -> Option<Self> {
+        if self.type_of().is(wanted) {
+            return Some(self.clone());
+        }
+        let Self::Data(tree) = self else {
+            return None;
+        };
+        let read = match tree.as_ref() {
+            Data::Bool(value) => Self::Bool(*value),
+            Data::Int(value) => Self::Int(*value),
+            Data::Float(value) => Self::Float(*value),
+            Data::Str(text) => Self::Str(Arc::from(text.as_str())),
+            Data::List(items) => {
+                let element = wanted.element()?;
+                let read = items
+                    .iter()
+                    .map(|item| Self::Data(Arc::new(item.clone())).interpreted(&element))
+                    .collect::<Option<Vec<_>>>()?;
+                let list = Self::list(read, element);
+                return list.type_of().is(wanted).then_some(list);
+            }
+            Data::Map(_) | Data::Empty => return None,
+        };
+        read.type_of().is(wanted).then_some(read)
+    }
+
     /// Whether the value counts as true where a condition is expected.
     #[must_use]
     pub fn truth(&self) -> Option<bool> {

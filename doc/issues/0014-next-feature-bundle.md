@@ -186,7 +186,7 @@ here when its issue or step is done.
 - [x] 3. Scalar operators (the `Ordering` constants left; nothing waits on them)
 - [x] 4. `is` and `of_type`
 - [x] 5. `match` and `given … otherwise`
-- [ ] 6. Interpreting `Data`
+- [x] 6. Interpreting `Data` (leaves and sequences; record schemas wait for 0016's record values)
 - [ ] 7. Function values
 - [x] 8. `cards` as a vault binding
 - [x] 9. The `debug` operator

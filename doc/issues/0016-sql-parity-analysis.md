@@ -175,12 +175,15 @@ Ranked by how many rows above each one unblocks.
 2. **Interpreting `Data` under a schema.** One checked operation that reads a
    schemaless tree as a declared type, in part or in full. Without it a
    metadata field cannot be summed, sorted or compared. Shared with roadblock 3
-   of [0015](0015-jq-parity-analysis.md); detailed in the next section.
-3. **`group` and `reduce`.** Already the `group` / `reduce` feature of
-   [0014](0014-next-feature-bundle.md); `sum`, `min`, `max` and `avg` follow
-   with executor-held combiners.
-4. **Conditionals and absence.** `if` or `match`, and a default for
-   `Option<T>`. Unblocks `CASE`, `COALESCE`, `COUNT(a)` and outer joins.
+   of [0015](0015-jq-parity-analysis.md); detailed in the next section. Done
+   for leaves: `of_type(Int)` and a type arm read a leaf as its scalar, so a
+   field can be summed, sorted and compared. A record schema waits for
+   roadblock 1.
+3. **`group` and `reduce`.** Done: the `group` / `reduce` feature of
+   [0014](0014-next-feature-bundle.md), with `sum`, `min` and `max`; `avg`
+   follows with executor-held combiners.
+4. **Conditionals and absence.** Done: `match`, `given … otherwise` and
+   `somes`. Unblocks `CASE`, `COALESCE`, `COUNT(a)` and outer joins.
 5. **Record and pair values.** A constructor for declared records, and a pair
    or entry type. Unblocks typed projection, `join` results, `enumerate` and
    `Map` entries, and the `next` of [queries](../models/behavior/queries.md).

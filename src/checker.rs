@@ -811,12 +811,28 @@ fn pattern_bindings(
         Pattern::Some(_) | Pattern::None => Err(format!(
             "`some` and `none` fit an Option, and this is a {subject}"
         )),
+        Pattern::Type(name, inner) => {
+            let wanted =
+                crate::types::named(name, &[]).ok_or_else(|| format!("unknown type `{name}`"))?;
+            if !wanted.is(subject) && !subject.is(&wanted) {
+                return Err(format!(
+                    "no {subject} can be a {wanted}, so this arm never fits"
+                ));
+            }
+            pattern_bindings(inner, &wanted, bindings)
+        }
     }
 }
 
 /// Whether the unguarded patterns cover every value of `subject`.
 fn exhaustive(patterns: &[&Pattern], subject: &TypeRef) -> bool {
-    if patterns.iter().any(|pattern| pattern.is_irrefutable()) {
+    let covers = |pattern: &&Pattern| match pattern {
+        Pattern::Type(name, _) => {
+            crate::types::named(name, &[]).is_some_and(|wanted| subject.is(&wanted))
+        }
+        other => other.is_irrefutable(),
+    };
+    if patterns.iter().any(covers) {
         return true;
     }
     if subject.constructor.0 == "Option" {
