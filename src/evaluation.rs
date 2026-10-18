@@ -495,7 +495,7 @@ impl Evaluator<'_> {
                 _ => Err(missing()),
             },
             Value::Hit(hit) => match field {
-                Field::Card => Ok(Value::Card(Arc::clone(&hit.card))),
+                Field::Value => Ok(hit.value.clone()),
                 Field::Score => Ok(Value::Float(hit.score)),
                 Field::Query => Ok(text(&hit.provenance.query)),
                 Field::Retrieval => Ok(Value::Data(Arc::new(retrieval_data(&hit.provenance)))),
@@ -508,7 +508,7 @@ impl Evaluator<'_> {
                         .iter()
                         .map(|hit| Value::Hit(Arc::new(hit.clone())))
                         .collect(),
-                    TypeRef::hit(TypeRef::CARD),
+                    TypeRef::hit(ranking.element.clone()),
                 )),
                 Field::Query => Ok(text(&ranking.retrieval.query)),
                 Field::Retrieval => Ok(Value::Data(Arc::new(retrieval_data(&ranking.retrieval)))),
@@ -709,7 +709,7 @@ fn element_name(value: &Value) -> String {
     match value {
         Value::Card(card) => card.name().to_owned(),
         Value::Doc(doc) => doc.name.clone(),
-        Value::Hit(hit) => hit.card.name().to_owned(),
+        Value::Hit(hit) => hit.name(),
         Value::Present(inner) => element_name(inner),
         other => crate::reporting::shorten(&other.to_string()),
     }

@@ -601,9 +601,16 @@ impl Checker<'_> {
             Kind::Field(receiver, field) => {
                 let receiver_type = self.expression(receiver)?;
                 let ty = field_type(&receiver_type, field).ok_or_else(|| {
+                    // A hit holds any value, so what it retrieved is `value`.
+                    let hint = if receiver_type.present().constructor.0 == "Hit" && field == "card"
+                    {
+                        "; the retrieved value is `value`"
+                    } else {
+                        ""
+                    };
                     Diagnostic::name(
                         span.clone(),
-                        format!("{receiver_type} has no field `{field}`"),
+                        format!("{receiver_type} has no field `{field}`{hint}"),
                     )
                 })?;
                 let resolved =
@@ -1099,7 +1106,7 @@ pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
             _ => None,
         },
         "Hit" => match field {
-            "card" => Some(receiver.args.first()?.clone()),
+            "value" => Some(receiver.args.first()?.clone()),
             "score" => Some(TypeRef::FLOAT),
             "query" => Some(TypeRef::STR),
             "retrieval" => Some(TypeRef::DATA),

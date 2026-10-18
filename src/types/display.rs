@@ -65,15 +65,15 @@ impl Value {
                 J::Array(values.iter().map(Self::to_json).collect())
             }
             Self::Hit(hit) => json!({
-                "card": hit.card.name(),
+                "value": hit.name(),
                 "score": hit.score,
                 "retrieval": retrieval_json(&hit.provenance),
             }),
             Self::Ranking(ranking) => json!({
                 "retrieval": retrieval_json(&ranking.retrieval),
                 "hits": ranking.hits.iter().map(|hit| json!({
-                    "card": hit.card.name(),
-                    "title": hit.card.document.title(),
+                    "value": hit.name(),
+                    "title": hit.card().map(|card| card.document.title()),
                     "score": hit.score,
                 })).collect::<Vec<_>>(),
             }),
@@ -140,12 +140,12 @@ impl fmt::Display for Value {
                     .collect();
                 write!(f, "[{}]", rendered.join(", "))
             }
-            Self::Hit(hit) => write!(f, "{} ({:.4})", hit.card.name(), hit.score),
+            Self::Hit(hit) => write!(f, "{} ({:.4})", hit.name(), hit.score),
             Self::Ranking(ranking) => {
                 let rendered: Vec<String> = ranking
                     .hits
                     .iter()
-                    .map(|hit| format!("{} ({:.4})", hit.card.name(), hit.score))
+                    .map(|hit| format!("{} ({:.4})", hit.name(), hit.score))
                     .collect();
                 write!(f, "[{}]", rendered.join(", "))
             }
@@ -230,7 +230,11 @@ fn grids(value: &Value) -> Vec<Grid> {
     match value {
         Value::Present(value) => grids(value),
         Value::Ranking(ranking) => grid(
-            &["rank", "score", "card", "title"],
+            if ranking.element.is_card() {
+                &["rank", "score", "card", "title"]
+            } else {
+                &["rank", "score", "value", "title"]
+            },
             ranking
                 .hits
                 .iter()
@@ -239,8 +243,10 @@ fn grids(value: &Value) -> Vec<Grid> {
                     vec![
                         (index + 1).to_string(),
                         format!("{:.4}", hit.score),
-                        hit.card.name().to_owned(),
-                        hit.card.document.title().to_owned(),
+                        hit.name(),
+                        hit.card()
+                            .map(|card| card.document.title().to_owned())
+                            .unwrap_or_default(),
                     ]
                 })
                 .collect(),

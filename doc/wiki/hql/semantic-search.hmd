@@ -57,8 +57,11 @@ element is `Hit<T>`. `take` and `filter` keep a ranking a ranking, because a
 concrete sequence keeps its type through a prefix and a filter. `of_type` and
 `map`, which change the element, make it a `Seq` of the new element, since a
 ranking's argument is the ranked value and not its element. `sort` by another
-key makes it a `Seq<Hit<T>>`, since the new order is not the retrieval's. A ranking also has `query` and
-`retrieval` fields of its own, and `hits` for its elements as a `List`.
+key makes it a `Seq<Hit<T>>`, since the new order is not the retrieval's. A
+ranking also has `query` and `retrieval` fields of its own, and `hits` for its
+elements as a `List`. A ranking reports the element type it was built from:
+`lexical` and `semantic` build a `Ranking<Card>`, and a hit's `value` is what it
+retrieved, here the card.
 
 ## A score is evidence, never relevance
 

@@ -62,7 +62,7 @@ fn birds() -> vault::Vault {
 
 fn top_three(step: &str, query: &str, vault: &vault::Vault) -> Vec<String> {
     let source =
-        format!("import {step}\ncards | {step}(\"{query}\") | take(3) | map(h => h.card.name)");
+        format!("import {step}\ncards | {step}(\"{query}\") | take(3) | map(h => h.value.name)");
     let outcome = run(&source, vault, Mode::Collect);
     let value = outcome
         .value

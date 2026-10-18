@@ -7,6 +7,7 @@
 //! index's to decide.
 
 use crate::document::Card;
+use crate::types::{TypeRef, Value};
 use std::sync::Arc;
 
 /// The rule a ranking was produced by, retained so a score stays evidence.
@@ -27,15 +28,38 @@ pub struct Retrieval {
     pub approximate: bool,
 }
 
-/// A card, its score, and the retrieval behind both.
+/// A retrieved value, its score, and the retrieval behind both.
 #[derive(Debug, Clone)]
 pub struct Hit {
     /// What was retrieved.
-    pub card: Arc<Card>,
+    pub value: Value,
+    /// The type the retrieval ranked, `T` in `Hit<T>`.
+    pub element: TypeRef,
     /// The metric result, relative to one query.
     pub score: f64,
     /// The retained rule.
     pub provenance: Arc<Retrieval>,
+}
+
+impl Hit {
+    /// The card retrieved, when the value is one.
+    #[must_use]
+    pub fn card(&self) -> Option<&Arc<Card>> {
+        match &self.value {
+            Value::Card(card) => Some(card),
+            _ => None,
+        }
+    }
+
+    /// How the hit is named in output: a card by its name, anything else as
+    /// it prints.
+    #[must_use]
+    pub fn name(&self) -> String {
+        match &self.value {
+            Value::Card(card) => card.name().to_owned(),
+            other => other.to_string(),
+        }
+    }
 }
 
 /// An ordered collection of hits, with the query its order is relative to.
@@ -43,23 +67,26 @@ pub struct Hit {
 pub struct Ranking {
     /// The hits, best first.
     pub hits: Vec<Hit>,
+    /// The type ranked, `T` in `Ranking<T>`.
+    pub element: TypeRef,
     /// The retained rule, shared by every hit.
     pub retrieval: Arc<Retrieval>,
 }
 
-/// Assemble scored cards into a ranking.
+/// Assemble scored values of one type into a ranking.
 ///
-/// A card scoring nothing at all is dropped: zero similarity is not a weak
-/// answer, it is the absence of one. Ties break on the card's own ordering
-/// key, so a prefix never depends on the order a vault happened to load in.
+/// A value scoring nothing at all is dropped: zero similarity is not a weak
+/// answer, it is the absence of one. Ties break on the value's own name, so a
+/// prefix never depends on the order a vault happened to load in.
 #[must_use]
-pub fn rank(scored: Vec<(Arc<Card>, f64)>, retrieval: Retrieval) -> Ranking {
+pub fn rank(scored: Vec<(Value, f64)>, element: TypeRef, retrieval: Retrieval) -> Ranking {
     let retrieval = Arc::new(retrieval);
     let mut hits: Vec<Hit> = scored
         .into_iter()
         .filter(|(_, score)| *score > 0.0)
-        .map(|(card, score)| Hit {
-            card,
+        .map(|(value, score)| Hit {
+            value,
+            element: element.clone(),
             score,
             provenance: Arc::clone(&retrieval),
         })
@@ -68,7 +95,11 @@ pub fn rank(scored: Vec<(Arc<Card>, f64)>, retrieval: Retrieval) -> Ranking {
         right
             .score
             .total_cmp(&left.score)
-            .then_with(|| left.card.name().cmp(right.card.name()))
+            .then_with(|| left.name().cmp(&right.name()))
     });
-    Ranking { hits, retrieval }
+    Ranking {
+        hits,
+        element,
+        retrieval,
+    }
 }

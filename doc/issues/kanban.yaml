@@ -17,9 +17,12 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 22 # to be incremented when adding a new issue card
+  last_id: 23 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0023"
+        title: Built-in record fields from their declarations
+        file: 0023-built-in-fields-from-declarations.md
       - id: "0022"
         title: Generic functions
         file: 0022-generic-functions.md

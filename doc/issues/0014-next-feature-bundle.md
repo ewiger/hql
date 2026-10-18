@@ -124,12 +124,13 @@ issues, proposals and cards; nothing here restates it.
     - Done: `take` keeps any concrete sequence's type, which is what keeps a
       ranking a ranking; the `Ranking` exception is gone. Writing that rule as
       a signature waits for the signature feature.
-    - Left: the carrier is generic over its element, so `Value::type_of`
+    - Done: the carrier is generic over its element, so `Value::type_of`
       reports the element a ranking was built from and `Ranking<Concept>`,
-      which `recall` needs, can exist.
-    - Left, and not a `Ranking` change: built-in record fields, those of
-      `Ranking`, `Hit`, `Card` and `Graph` alike, are read from declarations
-      rather than from the table in `checker::field_type`.
+      which `recall` needs, can exist. A hit's retrieved value is `h.value`,
+      as `Hit<T>` declares; `h.card` is refused naming `value`.
+    - Moved to [0023](0023-built-in-fields-from-declarations.md), and not a
+      `Ranking` change: built-in record fields read from declarations, which
+      first needs the declarations and the checker's table reconciled.
 15. **Constructors as pipeline steps** — section "Two forms of one call" of
     [HQL-0018](../proposals/HQL-0018/README.md): `x | T(a)` is `T(x, a)`,
     and a bare type name in step position is its constructor. A dependency:
@@ -194,7 +195,7 @@ here when its issue or step is done.
 - [x] 11. `tee`
 - [ ] 12. `Stream<T>`, `yield` and `bind`
 - [x] 13. Semantic-search `doctor`
-- [ ] 14. `Ranking` as an ordinary declared subtype (subtyping done; carrier left)
+- [x] 14. `Ranking` as an ordinary declared subtype (field table moved to 0023)
 - [ ] 15. Constructors as pipeline steps
 - [ ] 16. `collect(n)`, `emit` and `xs | List`
 - [ ] 17. Presentation formats

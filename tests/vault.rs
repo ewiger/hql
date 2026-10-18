@@ -156,7 +156,7 @@ fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
     // `oauth` writes every word of the query and `bearer-tokens` writes two
     // of them, so the order is decided by the articles rather than by the
     // filenames: an index sees what a document says, not where it sits.
-    assert_eq!(ranking.hits[0].card.name(), "oauth");
+    assert_eq!(ranking.hits[0].name(), "oauth");
     assert!(ranking.hits[0].score > ranking.hits[1].score);
     // A score is evidence, so it travels with the rule that produced it.
     assert_eq!(ranking.retrieval.model, hql::extensions::lexical::MODEL);
@@ -166,7 +166,7 @@ fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
 
     assert_eq!(
         text(
-            "import lexical\ncards | lexical(\"bearer token authorization\") | take(1) | map(h => h.card.name)"
+            "import lexical\ncards | lexical(\"bearer token authorization\") | take(1) | map(h => h.value.name)"
         ),
         "[oauth]"
     );
@@ -182,14 +182,14 @@ fn a_new_order_is_not_the_retrieval_order_so_a_sorted_ranking_is_a_sequence() {
     );
     assert_eq!(
         hql::check_in(
-            &format!("{query}ranked | sort(by = h => h.card.name)"),
+            &format!("{query}ranked | sort(by = h => h.value.name)"),
             &fixture()
         ),
         Ok(TypeRef::seq(hits))
     );
     assert_eq!(
         hql::check_in(
-            &format!("{query}ranked | map(h => h.card.name)"),
+            &format!("{query}ranked | map(h => h.value.name)"),
             &fixture()
         ),
         Ok(TypeRef::seq(TypeRef::STR))
@@ -236,6 +236,12 @@ fn a_test_no_value_can_pass_and_the_retired_name_are_refused() {
         always_false.to_string().contains("always false"),
         "{always_false}"
     );
+    let renamed = hql::check_in(
+        "import lexical\ncards | lexical(\"owl\") | map(h => h.card)",
+        &vault,
+    )
+    .unwrap_err();
+    assert!(renamed.to_string().contains("`value`"), "{renamed}");
     let retired = hql::check_in("cards | typed(RelationCard)", &vault).unwrap_err();
     assert!(retired.to_string().contains("of_type"), "{retired}");
 }
@@ -246,8 +252,8 @@ fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
     let Value::Ranking(ranking) = &ranked else {
         panic!("expected a ranking")
     };
-    let names: Vec<&str> = ranking.hits.iter().map(|hit| hit.card.name()).collect();
-    assert!(!names.contains(&"sessions"), "{names:?}");
+    let names: Vec<String> = ranking.hits.iter().map(search_name).collect();
+    assert!(!names.iter().any(|name| name == "sessions"), "{names:?}");
 }
 
 #[test]
@@ -348,4 +354,8 @@ fn scalar_operators_filter_cards() {
         ),
         "[bearer-tokens]"
     );
+}
+
+fn search_name(hit: &hql::search::Hit) -> String {
+    hit.name()
 }

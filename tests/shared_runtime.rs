@@ -43,15 +43,16 @@ fn concurrent_queries_share_a_vault_and_retrieval_provenance() {
                     };
                     for hit in &ranking.hits {
                         assert!(std::sync::Arc::ptr_eq(&hit.provenance, &ranking.retrieval));
+                        let card = hit.card().expect("a card hit");
                         assert!(std::sync::Arc::ptr_eq(
-                            &hit.card,
-                            &vault.resolve(hit.card.name()).unwrap()
+                            card,
+                            &vault.resolve(card.name()).unwrap()
                         ));
                     }
                     ranking
                         .hits
                         .iter()
-                        .map(|hit| (hit.card.name().to_owned(), hit.score))
+                        .map(|hit| (hit.name(), hit.score))
                         .collect::<Vec<_>>()
                 })
             })

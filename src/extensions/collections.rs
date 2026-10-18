@@ -626,6 +626,7 @@ fn eval_take(
         // Already ordered by score, and that order is the point.
         return Ok(Value::Ranking(Arc::new(Ranking {
             hits: ranking.hits.iter().take(count).cloned().collect(),
+            element: ranking.element.clone(),
             retrieval: Arc::clone(&ranking.retrieval),
         })));
     }
@@ -839,6 +840,7 @@ fn rebuild(input: &Value, kept: Vec<Value>) -> Value {
                     _ => None,
                 })
                 .collect(),
+            element: ranking.element.clone(),
             retrieval: Arc::clone(&ranking.retrieval),
         })),
         _ => Value::list(kept, element_type(input)),

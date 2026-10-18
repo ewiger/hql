@@ -125,11 +125,12 @@ fn eval_lexical(
         .into_iter()
         .map(|card| {
             let score = asked.similarity(&Embedding::of(&card.document.text()));
-            (card, score)
+            (Value::Card(card), score)
         })
         .collect();
     Ok(Value::Ranking(Arc::new(search::rank(
         scored,
+        crate::types::TypeRef::CARD,
         Retrieval {
             query: query.to_string(),
             index: cx.vault().index_name(),

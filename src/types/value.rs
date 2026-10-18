@@ -174,8 +174,8 @@ impl Value {
             Self::Graph(_) => TypeRef::GRAPH,
             Self::Set(_, element) => TypeRef::set(element.clone()),
             Self::List(_, element) => TypeRef::list(element.clone()),
-            Self::Hit(_) => TypeRef::hit(TypeRef::CARD),
-            Self::Ranking(_) => TypeRef::ranking(TypeRef::CARD),
+            Self::Hit(hit) => TypeRef::hit(hit.element.clone()),
+            Self::Ranking(ranking) => TypeRef::ranking(ranking.element.clone()),
             Self::Presentation(_) => TypeRef::PRESENTATION,
             Self::Function(function) => function.ty.clone(),
             Self::Group(group) => {
@@ -206,7 +206,7 @@ impl Value {
         match self {
             Self::Card(card) => Some(Arc::clone(card)),
             Self::Present(value) => value.as_card(),
-            Self::Hit(hit) => Some(Arc::clone(&hit.card)),
+            Self::Hit(hit) => hit.card().cloned(),
             _ => None,
         }
     }
@@ -224,7 +224,7 @@ impl Value {
             Self::Doc(doc) => Some(Key::text(&doc.name)),
             Self::Card(card) => Some(Key::text(card.name())),
             // Best first, then the card's own key, so equal scores are stable.
-            Self::Hit(hit) => Some(Key::Scored(-hit.score, hit.card.name().to_owned())),
+            Self::Hit(hit) => Some(Key::Scored(-hit.score, hit.name())),
             _ => None,
         }
     }
@@ -340,7 +340,7 @@ impl PartialEq for Value {
             (Self::Graph(a), Self::Graph(b)) => Arc::ptr_eq(a, b),
             (Self::Hit(a), Self::Hit(b)) => {
                 Arc::ptr_eq(a, b)
-                    || (a.card.document.path == b.card.document.path
+                    || (a.value == b.value
                         && a.score == b.score
                         && self.to_json() == other.to_json())
             }

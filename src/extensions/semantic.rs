@@ -134,7 +134,7 @@ fn eval_semantic(
             ));
         }
         let score = dot(&asked, &vector.values);
-        scored.push((card, score));
+        scored.push((Value::Card(card), score));
     }
     if skipped > 0 {
         cx.warn(Warning::new(
@@ -148,6 +148,7 @@ fn eval_semantic(
 
     Ok(Value::Ranking(Arc::new(search::rank(
         scored,
+        crate::types::TypeRef::CARD,
         Retrieval {
             query: query.to_string(),
             index: path.display().to_string(),

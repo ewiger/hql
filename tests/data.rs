@@ -423,3 +423,32 @@ fn a_type_arm_covers_its_subject_and_refuses_a_type_that_cannot_fit() {
     let never = hql::check("match 3 { String s => 1, _ => 0 }").unwrap_err();
     assert!(never.to_string().contains("never fits"), "{never}");
 }
+
+#[test]
+fn a_ranking_reports_the_element_type_it_was_built_from() {
+    use hql::search::{Retrieval, rank};
+    use hql::types::{TypeRef, Value};
+    let retrieval = Retrieval {
+        query: "q".to_owned(),
+        index: "i".to_owned(),
+        model: "m".to_owned(),
+        revision: "r".to_owned(),
+        metric: "cosine".to_owned(),
+        approximate: false,
+    };
+    let ranking = rank(
+        vec![
+            (Value::Int(7), 0.5),
+            (Value::Int(3), 0.9),
+            (Value::Int(1), 0.0),
+        ],
+        TypeRef::INT,
+        retrieval,
+    );
+    assert_eq!(ranking.hits.len(), 2, "a zero score is no answer");
+    assert_eq!(ranking.hits[0].value, Value::Int(3));
+    let value = Value::Ranking(std::sync::Arc::new(ranking));
+    assert_eq!(value.type_of(), TypeRef::ranking(TypeRef::INT));
+    let first = value.elements().unwrap().remove(0);
+    assert_eq!(first.type_of(), TypeRef::hit(TypeRef::INT));
+}

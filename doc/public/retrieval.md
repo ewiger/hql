@@ -19,7 +19,7 @@ import lexical
 cards
 | lexical("night hunting birds")
 | take(3)
-| map(h => h.card.name)
+| map(h => h.value.name)
 ```
 
 ```text

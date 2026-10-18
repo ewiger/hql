@@ -1,16 +1,15 @@
 # Remaining retrieval type decisions
 
-`Ranking<T> : Seq<Hit<T>>` is declared in the type system as an applied parent,
-and the semantic-search card states it. Two parts of making it an ordinary
-type remain:
+The `Ranking` carrier is generic: a hit holds any value at the element type its
+ranking was built from, and `h.value` reads it. One part of making built-in
+records ordinary types remains, and it is a decision, not a refactoring:
 
-- **The carrier is monomorphic.** `Hit` holds a `Card`, so `Value::type_of`
-  reports `Hit<Card>` and `Ranking<Card>` for every retrieval. `Ranking<Concept>`,
-  which `recall` needs, requires a hit that holds any value.
-- **Built-in fields are a hand-written table.** `checker::field_type` lists
-  `query`, `retrieval` and `hits` for `Ranking`, as it lists the fields of
-  `Hit`, `Card` and `Graph`. Reading built-in fields from declarations is one
-  change for all of them, not a `Ranking` change.
+- **Built-in fields are a hand-written table** in `checker::field_type`, and
+  the declarations in `std/` disagree with it: `Hit` declares `score : Score`
+  and `provenance : Retrieval` where the checker gives `score : Float`,
+  `query : String` and `retrieval : Data`; `Doc` declares `body : Content`
+  where the checker gives `String`, and no `title` or `kind`; `Graph` declares
+  no fields where the checker gives `nodes` and `edges`. Reading fields from
+  declarations means choosing, field by field, which side is right.
 
-Home when digested: the semantic-search card, by the `Ranking` feature of issue
-0014.
+Home when digested: issue [0023](../issues/0023-built-in-fields-from-declarations.md).
