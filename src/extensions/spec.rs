@@ -111,7 +111,7 @@ impl ArgumentKind {
 
 /// The machine-readable signature used by both checking and help.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StepSpec {
+pub struct OperationSpec {
     /// Generic parameters introduced by this signature.
     pub parameters: &'static [TypeParameter],
     /// The input before the pipe.
@@ -205,7 +205,7 @@ impl TypePattern {
     }
 }
 
-impl StepSpec {
+impl OperationSpec {
     /// Verify that names, generic references, and type constructors are coherent.
     ///
     /// # Errors

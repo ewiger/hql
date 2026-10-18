@@ -11,8 +11,8 @@
 //! every vector.
 
 use super::collections::{elements, wrong};
-use super::spec::{ArgumentSpec, Output as O, StepSpec, TypeParameter, TypePattern as P};
-use super::{EvalCx, Purity, Step, named_or_first};
+use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P};
+use super::{EvalCx, Operation, Purity, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::document::Card;
 use crate::execution::Arg as TypedArg;
@@ -67,9 +67,9 @@ impl Semantics {
 }
 
 /// Every step the `semantic` extension provides.
-pub(crate) static STEPS: &[Step] = &[Step {
+pub(crate) static STEPS: &[Operation] = &[Operation {
     name: "semantic",
-    spec: StepSpec {
+    spec: OperationSpec {
         parameters: &[TypeParameter {
             name: "T",
             bound: Some(crate::types::TypeConstructor("Doc")),

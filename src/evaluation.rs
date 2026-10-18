@@ -6,7 +6,7 @@ use crate::execution::{Arg, Expr, Field, Kind, Program, Stmt};
 use crate::data::Data;
 use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
-use crate::extensions::{EvalCx, Step};
+use crate::extensions::{EvalCx, Operation};
 use crate::graph::Edge;
 use crate::reporting::{Report, TraceStep};
 use crate::search;
@@ -601,7 +601,7 @@ impl Evaluator<'_> {
     /// Dispatch a pipeline step to the extension that provides it.
     fn step(
         &mut self,
-        step: &'static Step,
+        step: &'static Operation,
         input: Value,
         arguments: &[Arg],
         span: Range<usize>,

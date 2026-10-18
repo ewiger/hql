@@ -190,7 +190,7 @@ here when its issue or step is done.
 - [x] 7. Function values (generic declarations moved to 0022)
 - [x] 8. `cards` as a vault binding
 - [x] 9. The `debug` operator
-- [ ] 10. Pipeline vocabulary rename
+- [x] 10. Pipeline vocabulary rename
 - [ ] 11. `tee`
 - [ ] 12. `Stream<T>`, `yield` and `bind`
 - [ ] 13. Semantic-search `doctor`

@@ -3,7 +3,7 @@
 use hql::{
     data::Data,
     document::Card,
-    extensions::{Extension, Step},
+    extensions::{Extension, Operation},
     graph::Graph,
     search::{Hit, Ranking, Retrieval},
     types::Value,
@@ -21,7 +21,7 @@ fn runtime_and_extension_boundaries_are_send_and_sync() {
     shared::<Ranking>();
     shared::<Retrieval>();
     shared::<Vault>();
-    shared::<Step>();
+    shared::<Operation>();
     shared::<Extension>();
 }
 

@@ -19,8 +19,8 @@ fn every_catalogue_signature_is_generated_from_its_structural_contract() {
 
 #[test]
 fn invalid_structural_signatures_are_rejected_before_use() {
-    use hql::extensions::spec::{Output, StepSpec, TypePattern};
-    let spec = StepSpec {
+    use hql::extensions::spec::{OperationSpec, Output, TypePattern};
+    let spec = OperationSpec {
         parameters: &[],
         input: TypePattern::Any,
         arguments: &[],
@@ -32,7 +32,7 @@ fn invalid_structural_signatures_are_rejected_before_use() {
             .to_string()
             .contains("undeclared")
     );
-    let spec = StepSpec {
+    let spec = OperationSpec {
         output: Output::Type(TypePattern::Apply(hql::types::collections::LIST, &[])),
         ..spec
     };

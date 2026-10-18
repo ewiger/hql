@@ -4,9 +4,9 @@
 //! operate on the core's own collection types and mention nothing above them.
 
 use super::spec::{
-    ArgumentKind as A, ArgumentSpec, Output as O, StepSpec, TypeParameter, TypePattern as P,
+    ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,
 };
-use super::{EvalCx, Purity, Step, named_or_first};
+use super::{EvalCx, Operation, Purity, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::execution::{Arg as TypedArg, Kind as TypedKind};
 use crate::reporting::Severity;
@@ -20,10 +20,10 @@ use std::sync::Arc;
 const OPTION: crate::types::TypeConstructor = crate::types::TypeConstructor("Option");
 
 /// Every step the core provides, in the order help prints them.
-pub(crate) static STEPS: &[Step] = &[
-    Step {
+pub(crate) static STEPS: &[Operation] = &[
+    Operation {
         name: "size",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -37,9 +37,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_size,
     },
-    Step {
+    Operation {
         name: "contains",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -56,9 +56,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_contains,
     },
-    Step {
+    Operation {
         name: "get",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "K",
@@ -84,9 +84,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_get,
     },
-    Step {
+    Operation {
         name: "count",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -104,9 +104,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_count,
     },
-    Step {
+    Operation {
         name: "sort",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -126,9 +126,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: Some(check_sort),
         eval: eval_sort,
     },
-    Step {
+    Operation {
         name: "take",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -145,9 +145,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: Some(check_take),
         eval: eval_take,
     },
-    Step {
+    Operation {
         name: "filter",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -170,9 +170,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_filter,
     },
-    Step {
+    Operation {
         name: "map",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -201,9 +201,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_map,
     },
-    Step {
+    Operation {
         name: "of_type",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -229,9 +229,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: Some(check_of_type),
         eval: eval_of_type,
     },
-    Step {
+    Operation {
         name: "is",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -257,9 +257,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: Some(check_of_type),
         eval: eval_is,
     },
-    Step {
+    Operation {
         name: "somes",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -273,9 +273,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_somes,
     },
-    Step {
+    Operation {
         name: "group",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -310,9 +310,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_group,
     },
-    Step {
+    Operation {
         name: "reduce",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -351,9 +351,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: Some(check_reduce),
         eval: eval_reduce,
     },
-    Step {
+    Operation {
         name: "sum",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -367,9 +367,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: Some(check_sum),
         eval: eval_sum,
     },
-    Step {
+    Operation {
         name: "min",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -383,9 +383,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: Some(check_extreme),
         eval: eval_min,
     },
-    Step {
+    Operation {
         name: "max",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -399,9 +399,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: Some(check_extreme),
         eval: eval_max,
     },
-    Step {
+    Operation {
         name: "debug",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,

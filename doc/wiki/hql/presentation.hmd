@@ -6,7 +6,7 @@ nav:
 # Presentation
 
 Presentation is separate from the value an expression returns. A presenter is a
-**terminal** stage: it produces a renderable result rather than transforming the
+**terminal** step: it produces a renderable result rather than transforming the
 value semantically, and nothing pipes out of it.
 
 | Presenter | Result |

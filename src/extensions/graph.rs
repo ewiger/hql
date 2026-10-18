@@ -4,8 +4,8 @@
 //! knowledge, and these steps are the graph layer's half of it.
 
 use super::collections::wrong;
-use super::spec::{ArgumentSpec, Output as O, StepSpec, TypePattern as P};
-use super::{EvalCx, Purity, Step, named, named_or_first};
+use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypePattern as P};
+use super::{EvalCx, Operation, Purity, named, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
 use crate::execution::Arg as TypedArg;
@@ -18,10 +18,10 @@ use std::ops::Range;
 use std::sync::Arc;
 
 /// Every step the `graph` extension provides.
-pub(crate) static STEPS: &[Step] = &[
-    Step {
+pub(crate) static STEPS: &[Operation] = &[
+    Operation {
         name: "uplinks",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[],
             input: P::OneOf(&[
                 P::OneOf(&[
@@ -50,9 +50,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_uplinks,
     },
-    Step {
+    Operation {
         name: "downlinks",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[],
             input: P::OneOf(&[
                 P::OneOf(&[
@@ -81,9 +81,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: Some(check_downlinks),
         eval: eval_downlinks,
     },
-    Step {
+    Operation {
         name: "expand",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[],
             input: P::OneOf(&[
                 P::Type(crate::types::TypeConstructor("Graph")),
@@ -117,9 +117,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: Some(check_expand),
         eval: eval_expand,
     },
-    Step {
+    Operation {
         name: "graph",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[],
             input: P::OneOf(&[
                 P::Type(crate::types::TypeConstructor("Graph")),

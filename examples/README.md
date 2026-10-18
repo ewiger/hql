@@ -5,7 +5,7 @@ programs for collection types. It includes two intentional errors to show where
 sorted-key constraints and duplicate-key checks are enforced.
 
 The [mapreduce shelf](mapreduce/README.md) is six book cards to filter, group and
-reduce, read as a chain of stages.
+reduce, read as a chain of steps.
 
 The [functions](functions/README.md) cases declare, bind, pass and return
 functions, with one intentional error for a parameter type.

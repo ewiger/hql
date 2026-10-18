@@ -2,7 +2,7 @@
 
 use crate::ast::{self, Arith, Logic, Relation};
 use crate::diagnostics::Diagnostic;
-use crate::extensions::Step;
+use crate::extensions::Operation;
 use crate::types::TypeRef;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -76,7 +76,7 @@ pub(crate) enum Kind {
     Not(Box<Expr>),
     Order(Box<Expr>, Box<Expr>),
     Step {
-        step: &'static Step,
+        step: &'static Operation,
         input: Box<Expr>,
         arguments: Vec<Arg>,
         /// Where the step itself is written: `debug(…)` in `xs | debug(…)`.
@@ -191,7 +191,7 @@ pub(crate) struct Checked {
     pub type_arguments: HashSet<Range<usize>>,
     pub fields: HashMap<Range<usize>, Field>,
     pub views: HashMap<Range<usize>, TypeRef>,
-    pub steps: HashMap<Range<usize>, &'static Step>,
+    pub steps: HashMap<Range<usize>, &'static Operation>,
     /// A lambda written as a value, or a declared function, at its type.
     pub functions: HashMap<Range<usize>, TypeRef>,
     /// A call or pipe that applies a function value, with how many leading

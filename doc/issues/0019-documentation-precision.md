@@ -47,9 +47,9 @@ Each term is defined as the implementation has it.
 - **Static type checking.** The complete program is type-checked before
   evaluation. A type error is reported with its byte range and the program
   is not evaluated.
-- **Pipeline stage.** `xs | f(a)` is `f(xs, a)`. A stage consumes the
-  previous stage's value and returns a new typed value; the output type of
-  one stage must be accepted by the next.
+- **Pipeline step.** `xs | f(a)` is `f(xs, a)`. A step consumes the
+  previous step's value and returns a new typed value; the output type of
+  one step must be accepted by the next.
 - **Lexical retrieval.** `lexical(query)` ranks cards by textual match with
   the query. It needs no index.
 - **Semantic retrieval.** `semantic(query)` compares an embedding of the

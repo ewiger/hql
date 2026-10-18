@@ -3,8 +3,8 @@
 //! Rendering is terminal — nothing downstream reads a presentation — and it is
 //! not the core's business either, so it lives here beside the graph layer.
 
-use super::spec::{Output as O, StepSpec, TypePattern as P};
-use super::{EvalCx, Purity, Step};
+use super::spec::{OperationSpec, Output as O, TypePattern as P};
+use super::{EvalCx, Operation, Purity};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
 use crate::types::{Presentation, Value};
@@ -12,10 +12,10 @@ use std::ops::Range;
 use std::sync::Arc;
 
 /// Every step the `present` extension provides.
-pub(crate) static STEPS: &[Step] = &[
-    Step {
+pub(crate) static STEPS: &[Operation] = &[
+    Operation {
         name: "table",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[],
             input: P::Any,
             arguments: &[],
@@ -26,9 +26,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_table,
     },
-    Step {
+    Operation {
         name: "json",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[],
             input: P::Any,
             arguments: &[],
@@ -39,9 +39,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_json,
     },
-    Step {
+    Operation {
         name: "text",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[],
             input: P::Any,
             arguments: &[],
@@ -52,9 +52,9 @@ pub(crate) static STEPS: &[Step] = &[
         check: None,
         eval: eval_text,
     },
-    Step {
+    Operation {
         name: "markdown",
-        spec: StepSpec {
+        spec: OperationSpec {
             parameters: &[],
             input: P::Any,
             arguments: &[],

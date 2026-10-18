@@ -28,14 +28,14 @@ ordinary, which is why it is a warning rather than an error — see
 
 ## Absence propagates
 
-Absence lifts through a field access and through a stage:
+Absence lifts through a field access and through a step:
 
 ```hql
 [[nowhere]].title              // Option<String>
-[[nowhere]] | downlinks        // a stage applied to nothing, not a failure
+[[nowhere]] | downlinks        // a step applied to nothing, not a failure
 ```
 
-A stage applied to absence is a stage applied to nothing rather than a failure.
+A step applied to absence is a step applied to nothing rather than a failure.
 
 **This lifting is a stopgap.** Absence is an ordinary sum type consumed
 explicitly — by an exhaustive [[match-op|match]], by `given … otherwise`, by

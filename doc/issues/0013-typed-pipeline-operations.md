@@ -34,7 +34,10 @@ Seven commits, in this order. The first changes no behaviour.
 1. **Vocabulary** (HQL-0005). Rename the registry entry `Step` to `Operation`
    and `StepSpec` to `OperationSpec`. Rewrite "stage" to "step" wherever it names
    an occurrence, across `doc/`, `examples/` comments and `src/` doc comments.
-   The suite passes with no test edited.
+   The suite passes with no test edited. Done (feature 10 of
+   [0014](0014-next-feature-bundle.md)): two tests that name the registry
+   type were renamed with it. The report schema's `stage` field names a
+   checking phase, not a pipeline occurrence, and keeps its name.
 2. **`Stream<T>`** (HQL-0006). The abstract type in `std/collections.hql`,
    `Seq<T> : {Collection<T>, Stream<T>}`, the stream overloads of `map`,
    `filter` and `take`, and the finite-input diagnostic on `size`, `count`,

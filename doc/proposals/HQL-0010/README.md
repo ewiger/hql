@@ -6,7 +6,7 @@
 
 ## Abstract
 
-`tee` is a pipeline stage. `input | tee x = branch | next` evaluates `branch`
+`tee` is a pipeline step. `input | tee x = branch | next` evaluates `branch`
 on the current pipeline value, binds the result to `x`, and passes the input
 value to `next` unchanged. Its type is `T -> T`; the branch has its own type
 `T -> R`, and `R` never affects the type that flows through. `tee` fixes query
@@ -23,7 +23,7 @@ the main pipeline stays an explicit operation.
   full filtered set.
 - Variables already express this, but they split one logical query into
   several statements and do not say that a computation is a side branch of one
-  particular stage:
+  particular step:
 
   ```hql
   filtered = cards | filter(_.year > 2020)
@@ -38,7 +38,7 @@ the main pipeline stays an explicit operation.
 
 ## Goals
 
-- a stage that names a side computation at the point in the pipeline it
+- a step that names a side computation at the point in the pipeline it
   derives from
 - a contract independent of execution strategy, so that a backend keeps the
   freedom described in [HQL-0004](../HQL-0004/README.md)
@@ -55,7 +55,7 @@ the main pipeline stays an explicit operation.
 
 ### 1. Name
 
-The stage is named `tee`, after the Unix `tee` command and the plumbing
+The step is named `tee`, after the Unix `tee` command and the plumbing
 T-junction that command is named for: one incoming flow is sent into a side
 branch while the original flow continues.
 
@@ -76,8 +76,8 @@ cards
 | related(Mentions)
 ```
 
-- A branch is a pipeline whose first stage receives the `tee` input.
-- A multi-stage branch MAY be written over several lines after `=`:
+- A branch is a pipeline whose first step receives the `tee` input.
+- A multi-step branch MAY be written over several lines after `=`:
 
   ```hql
   cards
@@ -249,7 +249,7 @@ kept.
 
 ## Backwards Compatibility
 
-`tee` is a new reserved stage name. No existing program changes meaning; a
+`tee` is a new reserved step name. No existing program changes meaning; a
 program that uses `tee` as an identifier would have to rename it.
 
 ## Reference Implementation
@@ -269,7 +269,7 @@ Unit tests MUST include:
 
 - a `tee` whose branch changes type (`size`) leaves the pipeline type unchanged
 - the bound name is visible after the pipeline and holds the branch result
-- the main pipeline's result equals the same pipeline with the `tee` stage
+- the main pipeline's result equals the same pipeline with the `tee` step
   removed
 
 Integration tests MUST include:
@@ -281,7 +281,7 @@ Integration tests MUST include:
 
 - Does `tee` require a named binding, or is an unbound side-effecting branch
   allowed?
-- What is the syntax for multi-stage branch bodies?
+- What is the syntax for multi-step branch bodies?
 - What are the lifetime and scope of a binding introduced by `tee`?
 - How does `tee` behave when the branch is asynchronous or long-running?
 - How do failures propagate between the branch and the main pipeline?
@@ -289,7 +289,7 @@ Integration tests MUST include:
 - Should one `tee` expression support several branches?
 
 None of these changes the core contract: `tee` evaluates a branch from the
-current pipeline value while passing that value unchanged to the next stage.
+current pipeline value while passing that value unchanged to the next step.
 
 ## Changelog
 

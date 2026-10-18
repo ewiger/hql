@@ -12,7 +12,7 @@ is poetry. Three genres of three, two and one books, so a count per genre is
 never a tie.
 
 The shelf exists to be grouped and reduced. A query over it is a pipeline of
-stages — filter, map, group, reduce — and the vault is small enough that every
+steps — filter, map, group, reduce — and the vault is small enough that every
 result can be checked by hand, which is what makes it a fair oracle for any
 execution backend.
 

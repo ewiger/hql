@@ -33,7 +33,7 @@ Kafka, and REST APIs.
   is not evaluated.
 - **Pipelines of ordinary functions.** `xs | f(a)` is `f(xs, a)`. There are no
   SQL clauses: filtering, sorting and projection are functions like any other.
-  The output type of one stage must be accepted by the next.
+  The output type of one step must be accepted by the next.
 - **Retrieval provenance and node presence.** A hit carries the retrieval
   that produced it: query, index, model, model revision, metric, and whether
   the search was approximate. A graph built by `expand` stores, per node,

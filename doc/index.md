@@ -16,7 +16,7 @@ cards
 | table
 ```
 
-Each stage consumes the previous stage's value and returns a new typed value:
+Each step consumes the previous step's value and returns a new typed value:
 
 ```text
 cards              : Set<Card>      the vault's cards

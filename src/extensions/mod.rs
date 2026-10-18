@@ -24,7 +24,7 @@ pub mod lexical;
 pub(crate) mod present;
 pub mod semantic;
 pub mod spec;
-use spec::{CheckedCall, StepSpec};
+use spec::{CheckedCall, OperationSpec};
 
 /// Whether the executor may move a step around.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,11 +101,11 @@ pub(crate) trait EvalCx: Send {
 
 /// One name a pipeline may write.
 #[derive(Debug)]
-pub struct Step {
+pub struct Operation {
     /// How it is written.
     pub(crate) name: &'static str,
     /// Structural signature used for checking and help.
-    pub(crate) spec: StepSpec,
+    pub(crate) spec: OperationSpec,
     /// One sentence about what it does.
     pub(crate) summary: &'static str,
     /// Whether the executor may move it.
@@ -116,7 +116,7 @@ pub struct Step {
     pub(crate) eval: Eval,
 }
 
-impl Step {
+impl Operation {
     /// Whether the step returns its input as it is, at whatever type it has —
     /// `debug`. Such a step sees an optional value unlifted, absence included,
     /// because it neither consumes the value nor promises anything about it.
@@ -134,7 +134,7 @@ pub struct Extension {
     /// The version this extension reports.
     pub(crate) version: &'static str,
     /// What it supplies.
-    pub(crate) steps: &'static [Step],
+    pub(crate) steps: &'static [Operation],
     pub(crate) metadata: Option<fn(&mut crate::document::Card)>,
 }
 
@@ -185,7 +185,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &PRESENT, &LEXICA
 
 impl Extension {
     /// The step of a name this extension provides.
-    pub(crate) fn step(&'static self, name: &str) -> Option<&'static Step> {
+    pub(crate) fn step(&'static self, name: &str) -> Option<&'static Operation> {
         self.steps.iter().find(|step| step.name == name)
     }
 }
@@ -390,7 +390,7 @@ impl Resolution {
         &self,
         name: &str,
         span: &Range<usize>,
-    ) -> Result<&'static Step, Diagnostic> {
+    ) -> Result<&'static Operation, Diagnostic> {
         if let Some(step) = self.imported.iter().find_map(|held| held.step(name)) {
             return Ok(step);
         }
@@ -404,7 +404,7 @@ impl Resolution {
         extension: &str,
         name: &str,
         span: &Range<usize>,
-    ) -> Result<&'static Step, Diagnostic> {
+    ) -> Result<&'static Operation, Diagnostic> {
         let held = self
             .imported
             .iter()
@@ -463,7 +463,7 @@ pub struct Listing {
     /// How it is called.
     pub signature: String,
     /// The structural contract behind the rendered signature.
-    pub spec: &'static StepSpec,
+    pub spec: &'static OperationSpec,
     /// One sentence about what it does.
     pub summary: &'static str,
     /// Whether the executor may move it.
@@ -616,9 +616,9 @@ mod tests {
         name: "probe",
         version: "0",
         metadata: None,
-        steps: &[Step {
+        steps: &[Operation {
             name: "count",
-            spec: StepSpec {
+            spec: OperationSpec {
                 parameters: &[],
                 input: spec::TypePattern::Any,
                 arguments: &[],

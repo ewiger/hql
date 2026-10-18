@@ -5,7 +5,7 @@ use crate::builtins;
 use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
 use crate::execution::{Checked, Program as TypedProgram};
-use crate::extensions::{CheckCx, Resolution, Step};
+use crate::extensions::{CheckCx, Operation, Resolution};
 use crate::types::TypeRef;
 use crate::vault::Vault;
 use std::collections::HashMap;
@@ -835,7 +835,7 @@ impl Checker<'_> {
         &self,
         reference: &StepRef<'_>,
         span: &Range<usize>,
-    ) -> Result<&'static Step, Diagnostic> {
+    ) -> Result<&'static Operation, Diagnostic> {
         match reference {
             StepRef::Bare { name, .. } => self.resolution.step(name, span),
             StepRef::Qualified {
@@ -926,7 +926,7 @@ impl Checker<'_> {
     /// Dispatch a pipeline step to the extension that provides it.
     fn step(
         &mut self,
-        step: &'static Step,
+        step: &'static Operation,
         input: &TypeRef,
         arguments: &[Arg],
         span: Range<usize>,

@@ -13,12 +13,12 @@ pipes is a region in which the executor may treat the program as a graph of
 transformations and reductions rather than as nested function calls, as long as
 the typed semantics are preserved.
 
-## The pipe is a stage boundary
+## The pipe is a step boundary
 
 `x | f(a)` is typed exactly as `f(x, a)`, and every boundary checks one thing:
 
 ```text
-output type of the left stage  :  input type of the right stage
+output type of the left step  :  input type of the right step
 ```
 
 The generics belong to the functions being piped and are inferred; `|` carries
@@ -33,10 +33,10 @@ cards
 | size
 ```
 
-reads as `Set<Card> → Set<Card> → List<String> → Int`, and also as three stages
+reads as `Set<Card> → Set<Card> → List<String> → Int`, and also as three steps
 with two boundaries.
 
-## Stages have a shape
+## Steps have a shape
 
 Purity says whether a step may move. Shape says whether it may be split, and it
 is the whole of what an executor may assume:
@@ -83,18 +83,18 @@ words
 ## Backends
 
 A checked program is handed to a backend. `localhost` is the standard one: the
-in-memory evaluator, each stage run to completion before the next, with no
+in-memory evaluator, each step run to completion before the next, with no
 parallelism. It is always registered, it is the default, and it is the oracle —
 every other backend must produce its value, at its type, with its positions and
 its diagnostic. Selection is configuration (`[execution] backend` in `hql.toml`,
 `--backend`, `HQL_BACKEND`), never syntax, because the answer does not depend on
 it.
 
-Within a region a backend may fuse adjacent elementwise stages, split a run of
-elementwise stages and one reduction across partitions, repartition at a group
-and run what follows per group, and must assemble everything at a barrier.
-`localhost` takes none of these permissions. That is what lets a vault of fifty
-cards and a vault of a million run the same program.
+Within a region a backend may fuse adjacent elementwise steps into one stage,
+split a run of elementwise steps and one reduction across partitions,
+repartition at a group and run what follows per group, and must assemble
+everything at a barrier. `localhost` takes none of these permissions. That is
+what lets a vault of fifty cards and a vault of a million run the same program.
 
 See [queries](queries.md) for the collection hierarchy that says which
 reductions are legal — `size` needs finiteness, `take` needs order — and

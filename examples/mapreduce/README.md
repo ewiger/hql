@@ -23,7 +23,7 @@ result.
 
 | Query | What it shows | Status | Result |
 | --- | --- | --- | --- |
-| [novels](queries/novels.hql) | Three stages — filter, sort, map — run in order | runs | Dune, Frankenstein, The Hobbit |
+| [novels](queries/novels.hql) | Three steps — filter, sort, map — run in order | runs | Dune, Frankenstein, The Hobbit |
 | [shelf](queries/shelf.hql) | `size` as a reduction; one filter per genre, by hand | runs | 6 books: 3 novels, 2 essays, 1 poetry |
 | [word count](queries/word-count.hql) | `group` by identity, then `map` over the groups | runs | owl 3, raven 1, robin 1 |
 | [total pages](queries/total-pages.hql) | `reduce` as a left fold over a sequence | runs | 1589 |
@@ -32,7 +32,7 @@ result.
 
 Every `|` is a boundary the executor sees: `filter` and `map` are
 elementwise, `group` is a partition, `size` and `reduce` are reductions, `sort`
-is a barrier. Under `localhost` each stage runs to completion before the next,
+is a barrier. Under `localhost` each step runs to completion before the next,
 with no parallelism, and that sequential answer is the oracle every other
 backend has to match.
 
@@ -51,10 +51,10 @@ backend has to match.
 
 [Shelf](queries/shelf.hql) and [by genre](queries/by-genre.hql) compute the same
 answer, one with a filter per genre and one with `group`. The comparison is the
-point: `group` is not a convenience but the stage at which a backend may
+point: `group` is not a convenience but the step at which a backend may
 repartition, and the sorted result is deliberately ordered by an explicit
 comparison of group sizes because a genre read from metadata is a `Data` leaf,
 which is not `Orderable`.
 
-The stage vocabulary, the backend contract, and the three steps are specified
+The step vocabulary, the backend contract, and the three steps are specified
 in [HQL-0004](../../doc/proposals/HQL-0004/README.md).

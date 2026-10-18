@@ -145,7 +145,7 @@ Replacing one retrieval with another changes the numbers, not the shape — whic
 is the point of `Retrieval` travelling on every `Hit`, and why it carries the
 model's `revision` as well as its name.
 
-`expand` and `graph` stay two stages. `expand(depth, direction)` traverses and
+`expand` and `graph` stay two steps. `expand(depth, direction)` traverses and
 produces a graph carrying why each node is present; `graph` projects a
 collection, and projecting a graph yields it unchanged.
 
