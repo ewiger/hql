@@ -77,7 +77,7 @@ issues, proposals and cards; nothing here restates it.
    After it, a metadata field can be summed, sorted and compared once it has
    been read as a declared type.
 7. **Function values and the `T -> U` type** —
-   [0009](0009-function-type-and-constructor.md). Unblocks `yield` / `bind`,
+   [0009](0009-function-type-and-constructor.md). Unblocks `yield`,
    named functions passed to operations, and the batch-processing examples of
    0013. Reconcile its function type with [0010](0010-yield-and-bind.md)
    before starting, and its `fn` declaration with the `UpperCamelCase`
@@ -100,12 +100,15 @@ issues, proposals and cards; nothing here restates it.
     unchanged. The `localhost` backend evaluates the shared input once. Needs
     the vocabulary rename, so the new step node is named in the new
     vocabulary.
-12. **`Stream<T>`, `yield` and `bind`** — steps 2 and 3 of 0013,
+12. **`Stream<T>` and `yield`** — steps 2 and 3 of 0013,
     [HQL-0006](../proposals/HQL-0006/README.md) and
     [0010](0010-yield-and-bind.md), as one feature: the `Stream<T>`
     declaration, stream overloads of `map`, `filter`, `take` and `drop`, the
-    finite-input diagnostic, the push traversal carrier, and generated
-    sequences as query sources. An iterating function declares `Seq<T>` or
+    finite-input diagnostic, the push traversal carrier, generated sequences
+    as query sources, and `cards` as a lazy `Seq<Card>` in sorted-walk order,
+    which changes the type of every `cards` program from `Set<Card>`. `bind`
+    is not part of it: partial application belongs to the function design.
+    An iterating function declares `Seq<T>` or
     `Stream<T>`, so the type and the first source that is genuinely unbounded
     land together. `drop` is carried here, as step 6 of 0018 asks. Needs
     function values.
@@ -156,17 +159,6 @@ issues, proposals and cards; nothing here restates it.
 
 ## Roadblocks
 
-- **`Stream<T>`, `yield` and `bind` (feature 12) wait on two design
-  decisions**, which the documents answer two ways:
-  1. `bind` as one overload per arity ([0010](0010-yield-and-bind.md)) or no
-     `bind` at all, with partial application left to the function design
-     (the [queries](../models/behavior/queries.md) model);
-  2. `cards` as a lazy `Seq<Card>` in sorted-walk order, which changes the
-     type of every `cards` program from today's `Set<Card>`.
-
-  `yield` is settled: it is written only in the block body of a user `fn`,
-  inside a `for` loop or directly, and nowhere else.
-  Features 16 and the stream part of 17 need feature 12.
 - **HQL-0005 and HQL-0015 disagree on plain functions as steps.** HQL-0005
   says a plain `I -> O` function MUST NOT itself be a step; HQL-0015 pipes
   into `:=` functions, `cards | top(5)`. Feature 7 implements `x | f` for a
@@ -211,7 +203,7 @@ here when its issue or step is done.
 - [x] 9. The `debug` operator
 - [x] 10. Pipeline vocabulary rename
 - [x] 11. `tee`
-- [ ] 12. `Stream<T>`, `yield` and `bind`
+- [ ] 12. `Stream<T>` and `yield`
 - [x] 13. Semantic-search `doctor`
 - [x] 14. `Ranking` as an ordinary declared subtype (field table moved to 0023)
 - [x] 15. Constructors as pipeline steps

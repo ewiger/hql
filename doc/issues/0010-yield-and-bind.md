@@ -1,4 +1,4 @@
-# 0010 — `yield` and `bind`: generated sequences as query sources
+# 0010 — `yield`: generated sequences as query sources
 
 Status: backlog
 
@@ -19,10 +19,11 @@ cards | take(5)
 `graph = vault.graph` binds the vault's knowledge graph the same way
 ([HQL-0019](../proposals/HQL-0019/README.md)).
 
-This depends on [0009](0009-function-type-and-constructor.md): without a
-function type there is nothing for `bind` to take or return. It supersedes the
-seeding proposed in [0008](0008-cards-as-a-vault-binding.md) — `cards` becomes a
-lazy `Seq<Card>` rather than an eager `Set<Card>`.
+This depends on [0009](0009-function-type-and-constructor.md): an iterating
+function is a user `fn`. It supersedes the seeding done in
+[0008](0008-cards-as-a-vault-binding.md): `cards` becomes a lazy `Seq<Card>`
+in place of an eager `Set<Card>`, which changes the type of every `cards`
+program.
 
 `Stream<T>` lands with this issue, as one feature of
 [0014](0014-next-feature-bundle.md) together with steps 2 and 3 of
@@ -36,11 +37,10 @@ reached. `take(5)` makes that order observable, so it is defined by the walk
 and never by the filesystem, and the same query answers the same on every
 machine.
 
-`bind` is the operation's name. Binding a type parameter, in
-[generic brackets](../models/behavior/bind-vs-apply-in-generic-types.md), is a
-term of the model and names nothing a program writes, so the two do not meet.
-A name is taken by the first declaration that claims it; a second declaration
-of the same name is a critical error, not an override.
+Partial application is not part of this issue; it is
+[0024](0024-partial-application.md). It is a question for the
+function design, not for query sources, as the
+[queries model](../models/behavior/queries.md) states.
 
 ## Scope
 
@@ -60,10 +60,6 @@ of the same name is a critical error, not an override.
 - Rewrite the eight `elements` call sites so forcing is explicit. That helper is
   the single point where every step materializes its input today, and the lazy
   steps — `map`, `filter`, `take` — wrap the sink instead of calling it.
-- Add `bind` as partial application over a function value, checked against the
-  function type from 0009. Since an operation generic over arity is not
-  expressible, `bind` is one overload per arity, each fixing the first
-  argument: `bind<A, B, R>(f: (A, B) -> R, a: A) : B -> R`.
 - Expose the `Vault` trait to HQL as a type whose field `cards` is a lazy
   `Seq<Card>` in walk order, and seed `vault`, the current vault, into the
   checker's and evaluator's scope from the host.
@@ -81,10 +77,10 @@ of the same name is a critical error, not an override.
   identically on two machines with different filesystem order.
 - `cards` is the library binding `cards = vault.cards`, not a keyword and not
   a special case in the checker or the evaluator.
-- `bind` type-checks against arity and parameter types, and rejects a mismatch
-  with a diagnostic naming the parameter.
-- Examples under `examples/` cover a generated source, a partially applied
-  step, early termination over a long generator, and `invalid` cases for
+- `cards` is a `Seq<Card>`, and the existing `cards` examples check and pass
+  at that type.
+- Examples under `examples/` cover a generated source, early termination over
+  a long generator, and `invalid` cases for
   `yield` at the top level and inside a lambda — all passing through
   `tests/corpus.rs`.
 - No extension step traverses a sequence twice without materializing it first.
