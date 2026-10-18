@@ -202,7 +202,7 @@ pub(crate) static STEPS: &[Step] = &[
         eval: eval_map,
     },
     Step {
-        name: "typed",
+        name: "of_type",
         spec: StepSpec {
             parameters: &[
                 TypeParameter {
@@ -216,18 +216,46 @@ pub(crate) static STEPS: &[Step] = &[
             ],
             input: P::Collection(&P::Var("T")),
             arguments: &[ArgumentSpec {
-                name: "as",
+                name: "type",
                 kind: A::TypeName("U"),
                 required: true,
                 positional: true,
                 named: true,
             }],
-            output: O::WithElement("U"),
+            output: O::Image("U"),
         },
-        summary: "Keep the elements that are of a type, checked rather than trusted.",
+        summary: "Keep the elements of a type, narrowing the element type: filter(x => x | is(U)).",
         purity: Purity::Pure,
-        check: Some(check_typed),
-        eval: eval_typed,
+        check: Some(check_of_type),
+        eval: eval_of_type,
+    },
+    Step {
+        name: "is",
+        spec: StepSpec {
+            parameters: &[
+                TypeParameter {
+                    name: "T",
+                    bound: None,
+                },
+                TypeParameter {
+                    name: "U",
+                    bound: None,
+                },
+            ],
+            input: P::Var("T"),
+            arguments: &[ArgumentSpec {
+                name: "type",
+                kind: A::TypeName("U"),
+                required: true,
+                positional: true,
+                named: true,
+            }],
+            output: O::Type(P::Type(crate::types::TypeConstructor("Bool"))),
+        },
+        summary: "Whether a value's runtime type is a type or one of its subtypes.",
+        purity: Purity::Pure,
+        check: Some(check_of_type),
+        eval: eval_is,
     },
     Step {
         name: "group",
@@ -617,7 +645,10 @@ fn eval_filter(
             kept.push(element);
         }
     }
-    Ok(rebuild(&input, kept))
+    Ok(match narrowed_to(argument) {
+        Some(wanted) => narrowed(&input, kept, wanted),
+        None => rebuild(&input, kept),
+    })
 }
 
 fn eval_map(
@@ -639,25 +670,99 @@ fn eval_map(
     })
 }
 
-fn eval_typed(
+fn eval_of_type(
     _: &mut dyn EvalCx,
     input: Value,
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let argument =
-        named_or_first(arguments, "as").ok_or_else(|| wrong("typed", "a type name", &span))?;
+        named_or_first(arguments, "type").ok_or_else(|| wrong("of_type", "a type name", &span))?;
     let wanted = argument.value.ty.clone();
     // The kind was checked when the vault loaded; an authored entry alone
     // never put a card in this result.
-    let kept: Vec<Value> = elements(&input, "typed", &span)?
+    let kept: Vec<Value> = elements(&input, "of_type", &span)?
         .into_iter()
         .filter(|element| element.type_of().is(&wanted))
         .collect();
-    Ok(match input {
+    Ok(narrowed(&input, kept, wanted))
+}
+
+fn eval_is(
+    _: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let argument =
+        named_or_first(arguments, "type").ok_or_else(|| wrong("is", "a type name", &span))?;
+    Ok(Value::Bool(input.type_of().is(&argument.value.ty)))
+}
+
+/// The kept elements at the narrowed element type: a set stays a set, and
+/// anything else is the sequence of its kept elements.
+fn narrowed(input: &Value, kept: Vec<Value>, wanted: TypeRef) -> Value {
+    match input {
         Value::Set(..) => Value::set(kept, wanted),
-        _ => rebuild(&input, kept).viewed_as(&input.type_of().with_element(wanted)),
-    })
+        _ => Value::list(kept, wanted),
+    }
+}
+
+/// The type a `filter` predicate narrows its elements to: the `U` of a lambda
+/// whose body is `x | is(U)` or `is(x, U)` on its own parameter.
+pub(crate) fn narrowing(arguments: &[crate::ast::Arg]) -> Option<&str> {
+    use crate::ast::Kind;
+    let argument = named_or_first(arguments, "by")?;
+    let Kind::Lambda { parameters, body } = &argument.value.kind else {
+        return None;
+    };
+    let [parameter] = parameters.as_slice() else {
+        return None;
+    };
+    let (subject, written) = match &body.kind {
+        Kind::Pipe(subject, call) => match &call.kind {
+            Kind::Call { callee, arguments } => (subject.as_ref(), (callee, arguments.as_slice())),
+            _ => return None,
+        },
+        Kind::Call { callee, arguments } => match arguments.split_first() {
+            Some((first, rest)) => (&first.value, (callee, rest)),
+            None => return None,
+        },
+        _ => return None,
+    };
+    let (callee, [ty]) = written else {
+        return None;
+    };
+    match (&subject.kind, &callee.kind, &ty.value.kind) {
+        (Kind::Ident(name), Kind::Ident(is), Kind::Ident(ty))
+            if name == parameter && is == "is" =>
+        {
+            Some(ty)
+        }
+        _ => None,
+    }
+}
+
+/// The same detection over the checked tree, for evaluation.
+fn narrowed_to(argument: &TypedArg) -> Option<TypeRef> {
+    let TypedKind::Lambda { parameters, body } = &argument.value.kind else {
+        return None;
+    };
+    let TypedKind::Step {
+        step,
+        input,
+        arguments,
+        ..
+    } = &body.kind
+    else {
+        return None;
+    };
+    match (&input.kind, parameters.as_slice(), arguments.as_slice()) {
+        (TypedKind::Ident(name), [parameter], [ty]) if step.name == "is" && name == parameter => {
+            Some(ty.value.ty.clone())
+        }
+        _ => None,
+    }
 }
 
 fn require_orderable(element: &TypeRef, name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
@@ -739,7 +844,7 @@ fn check_take(
     }
     Ok(())
 }
-fn check_typed(
+fn check_of_type(
     _: &dyn super::CheckCx,
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
@@ -749,7 +854,7 @@ fn check_typed(
     if !wanted.is(element) && !element.is(wanted) {
         return Err(Diagnostic::typing(
             span,
-            format!("no {element} can be a {wanted}, so this selects nothing"),
+            format!("no {element} can be a {wanted}, so this is always false"),
         ));
     }
     Ok(())

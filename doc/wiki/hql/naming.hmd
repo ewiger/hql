@@ -70,7 +70,8 @@ The value constructors of the core's sum types are spelled two ways today:
 **The core** provides the type lattice and the collection steps. The lattice is
 declared in [`std/`](../../../std/README.md), one file per module, and the core
 steps — `size`, `contains`, `get`, `count`, `sort`, `take`, `filter`, `map`,
-`typed` — are always in scope. See [[hql/std-lib]] and [[hql/core]].
+`of_type`, `is`, `group`, `reduce`, `sum`, `min`, `max`, `debug` — are always in
+scope. See [[hql/std-lib]] and [[hql/core]].
 
 **An extension** provides steps, registered in the binary and bound by
 `import`. Today an extension names types the lattice already has and adds no

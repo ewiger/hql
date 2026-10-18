@@ -20,9 +20,6 @@ board:
   last_id: 21 # to be incremented when adding a new issue card
   items:
     backlog:
-      - id: "0021"
-        title: "`of_type` replaces `typed`"
-        file: 0021-of-type-replaces-typed.md
       - id: "0017"
         title: "`graph` is two operations under one name"
         file: 0017-graph-projection-and-view.md
@@ -59,6 +56,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0021"
+        title: "`of_type` replaces `typed`"
+        file: 0021-of-type-replaces-typed.md
       - id: "0018"
         title: "Operator synonymy: one name, one signature"
         file: 0018-operator-synonymy-audit.md

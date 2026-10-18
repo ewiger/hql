@@ -41,7 +41,7 @@ keeps every vocabulary a vault invents out of the language — see [[link-op]] f
 the `[[..]] -> [[..]] {..}` form that writes one.
 
 **Carrying data is not being typed.** An edge annotated `relation: parent` is not
-thereby a `Parent` edge. `typed RelationCard` has to check a contract; a key in
+thereby a `Parent` edge. `of_type(RelationCard)` has to check a contract; a key in
 a tree is an author's claim. This is the same rule that keeps a
 `metadata.knowledge.type` entry from minting a type by itself — see
 [[card-type]].

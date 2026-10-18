@@ -33,7 +33,7 @@ returns its last expression; rendering and explicit output are separate.
 Cells close over explicit card environments, with isolated local bindings.
 See [program values](../models/behavior/program-values.md).
 
-Significant relationships are relation cards. `cards | typed RelationCard | graph`
+Significant relationships are relation cards. `cards | of_type(RelationCard) | graph`
 is a core example. Knowledge includes evidence, provenance and conflicting
 claims; Graph is one projection and HmdGraph is a presentation value. See the
 [knowledge model](../models/domain/knowledge.md).

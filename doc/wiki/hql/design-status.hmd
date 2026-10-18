@@ -20,7 +20,7 @@ the design, the card says so.
 | [[card-type]] | `Card` and its two kinds, the vault, and the `cards` binding |
 | [[data-type]] | `Data`, the tree type of headers and structured payloads |
 | [[type-system]] | `:`, generic parameters and progressive type refinement |
-| [[type-interpretation]] | Asking what a value is, from a `Data` tree to a card: `match` on a type, `typed` over a collection, and the binding that asserts |
+| [[type-interpretation]] | Asking what a value is, from a `Data` tree to a card: `match` on a type, `is` and `of_type` over a collection, and the binding that asserts |
 | [[fields]] | Optional `?` fields, partial schemas, and the two metadata layers |
 | [[hql/naming]] | Identifier casing, the provider of each kind of name, and its namespace |
 | [[link-op]] | Doc references and the `[[..]] -> [[..]] {..}` link operator |

@@ -37,7 +37,9 @@ take<S : Seq<T>, T>(xs: S, n: Int)                      : S
 take<T : Orderable>(xs: Collection<T>, n: Int)          : List<T>
 filter<S : Collection<T>, T>(xs: S, by: T -> Bool)      : S
 map<F<_> : Iterable<_>, T, R>(xs: F<T>, by: T -> R)     : F<R>
-typed<F<_> : Iterable<_>, T, U>(xs: F<T>, as: Type<U>)  : F<U>
+of_type<F<_> : Iterable<_>, T, U>(xs: F<T>, type: Type<U>) : F<U>
+is<T, U>(x: T, type: Type<U>)                           : Bool
+filter<F<_> : Iterable<_>, T, U>(xs: F<T>, by: x => x | is(U)) : F<U>   // narrowing
 group<T, K>(xs: Collection<T>, by: T -> K)              : Set<Group<K, T>>
 reduce<T, R>(xs: Seq<T>, initial: R, by: (R, T) -> R)   : R
 reduce<T>(xs: Seq<T>, by: (T, T) -> T)                  : Option<T>
@@ -147,7 +149,7 @@ signatures show different operations.
 | `take(n)` and `collect(n)` | `Stream<T> → List<T>`; `Stream<T> → Stream<List<T>>` | one closes the stream with a prefix, the other keeps it open in batches |
 | `first` and `take(1)` | `Stream<T> → Option<T>`; `Stream<T> → List<T>` | absence against a list of at most one |
 | `uplinks` and `expand(depth = 1, direction = "out")` | `→ List<Edge>`; `→ Graph` | edges against a graph that keeps why each node is present |
-| `filter(by)` and `typed(as)` | `(T -> Bool) → Input`; `Type<U> → Input<U>` | `typed` narrows the element type; `filter` cannot |
+| `filter(by)` and `of_type(U)` | `(T -> Bool) → S`; `Type<U> → F<U>` | `of_type(U)` is the shorthand for the narrowing `filter(x => x \| is(U))`; any other predicate keeps the element type |
 | `reduce` and `group` | `Seq<T> → R`; `Collection<T> → Set<Group<K, T>>` | a fold against a partition |
 
 ### One name over several input types: overloads, not duplicates

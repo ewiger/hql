@@ -1,6 +1,6 @@
 # 0021 — `of_type` replaces `typed`
 
-Status: backlog
+Status: done (feature 4 of [0014](0014-next-feature-bundle.md))
 Decisions: [HQL-0016](../proposals/HQL-0016/README.md), its sections "`is(U)`
 tests a type", "`filter` narrows, and `of_type(U)` is its shorthand" and
 "`typed` is removed"
@@ -54,3 +54,12 @@ documents that describe today's behaviour still read `typed`.
   `cards | of_type(RelationCard) | count` gives the counts `typed` gave.
 - `cargo test --locked`, `cargo clippy --locked --all-targets -- -D warnings`
   and `cargo fmt --check` are clean.
+
+## Outcome
+
+Done. Two items are left where they belong: the always-true warning on `is`
+waits for check-time warnings, which the checker does not yet emit; `filter`
+over a single `Option<T>` waits for the option operations of `std/core.hql`.
+Record interpretation over `Data` is the structural test, feature 6 of 0014.
+Issue and accepted-proposal records that describe the former name as history
+keep it.

@@ -85,8 +85,6 @@ pub enum Output {
     Type(TypePattern),
     /// Preserve the input's type.
     Input,
-    /// Preserve the input collection with a narrowed element type.
-    WithElement(&'static str),
     /// Keep a sequence's type, since its positions are kept; anything else
     /// gains an order and becomes a list.
     Prefix(&'static str),
@@ -251,10 +249,9 @@ impl StepSpec {
         }
         match self.output {
             Output::Type(pattern) => patterns.push(pattern),
-            Output::WithElement(parameter)
-            | Output::Prefix(parameter)
-            | Output::Reorder(parameter)
-            | Output::Image(parameter) => patterns.push(TypePattern::Var(parameter)),
+            Output::Prefix(parameter) | Output::Reorder(parameter) | Output::Image(parameter) => {
+                patterns.push(TypePattern::Var(parameter))
+            }
             Output::Fold {
                 accumulator,
                 element,
@@ -448,9 +445,6 @@ impl StepSpec {
         let result = match self.output {
             Output::Type(pattern) => pattern.instantiate(&bindings, span)?,
             Output::Input => input.clone(),
-            Output::WithElement(parameter) => {
-                input.with_element(TypePattern::Var(parameter).instantiate(&bindings, span)?)
-            }
             // A sequence already has the order a prefix is taken in, so it
             // keeps its type; anything else is materialized.
             Output::Prefix(parameter) => {
@@ -568,7 +562,7 @@ impl StepSpec {
                 TypePattern::Var(parameter) => vec![call(parameter, &generics, parameter)],
                 _ => vec![call(&format!("S : {input}"), &with(&["S"]), "S")],
             },
-            Output::WithElement(parameter) | Output::Image(parameter) => vec![call(
+            Output::Image(parameter) => vec![call(
                 &format!("F<{}> : {input}", self.element_name()),
                 &with(&["F<_>"]),
                 &format!("F<{parameter}>"),

@@ -339,7 +339,7 @@ fn the_repl_keeps_bindings_and_answers_type_questions() {
 fn builtins_and_config_explain_the_surface_and_the_settings() {
     let listed = hql(&["builtins"]);
     assert!(listed.status.success());
-    for name in ["lexical", "expand", "graph", "take", "typed"] {
+    for name in ["lexical", "expand", "graph", "take", "of_type"] {
         assert!(stdout(&listed).contains(name), "{name}");
     }
     // A flat list stops being true once a name can come from two places, so

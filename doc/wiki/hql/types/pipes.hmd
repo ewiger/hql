@@ -14,13 +14,13 @@ implicit `map`.
 
 ```hql
 cards
-| typed(RelationCard)
+| of_type(RelationCard)
 | graph
 ```
 
 This selects relation cards and projects them into a graph. `cards` is the
 binding the host seeds with the namespace vault's cards; see [[card-type]].
-`typed(RelationCard)` checks the contract, not the `metadata.knowledge.type`
+`of_type(RelationCard)` checks the contract, not the `metadata.knowledge.type`
 label alone; an authored entry does not establish conformance.
 
 ## One name, one signature
@@ -55,9 +55,9 @@ emit                                designed (HQL-0007)
 somes                               designed (option-type card)
 group
 filter
-└── of_type(U)                      filter(x => x | is(U))     designed; today `typed(U)`
+└── of_type(U)                      filter(x => x | is(U))
 match                               designed
-├── is(U)                           match x { U _ => true, _ => false }   designed
+├── is(U)                           match x { U _ => true, _ => false }
 └── given … otherwise               match b { true => a, false => c }     designed
 sort
 take

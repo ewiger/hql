@@ -68,11 +68,11 @@ fn a_declared_relation_is_checked_rather_than_trusted() {
 }
 
 #[test]
-fn typed_selects_the_kind_the_checker_established() {
-    assert_eq!(text("cards | typed(RelationCard) | count"), "1");
-    assert_eq!(text("cards | typed(ConceptCard) | count"), "5");
+fn of_type_selects_the_kind_the_checker_established() {
+    assert_eq!(text("cards | of_type(RelationCard) | count"), "1");
+    assert_eq!(text("cards | of_type(ConceptCard) | count"), "5");
     assert_eq!(
-        text("cards | typed(RelationCard) | map(c => c.name)"),
+        text("cards | of_type(RelationCard) | map(c => c.name)"),
         "[oauth-defines-bearer]"
     );
 }
@@ -197,6 +197,50 @@ fn a_new_order_is_not_the_retrieval_order_so_a_sorted_ranking_is_a_sequence() {
 }
 
 #[test]
+fn is_tests_a_type_and_a_filter_by_it_narrows_the_element_type() {
+    let vault = fixture();
+    let relation = TypeRef::RELATION_CARD;
+    assert_eq!(
+        hql::check_in("cards | filter(c => c | is(RelationCard))", &vault),
+        Ok(TypeRef::set(relation.clone()))
+    );
+    assert_eq!(
+        hql::check_in("cards | filter(c => is(c, RelationCard))", &vault),
+        Ok(TypeRef::set(relation.clone()))
+    );
+    assert_eq!(
+        hql::check_in("cards | filter(c => c.name == \"x\")", &vault),
+        Ok(TypeRef::set(TypeRef::CARD))
+    );
+    assert_eq!(
+        hql::check_in("cards | of_type(RelationCard)", &vault),
+        Ok(TypeRef::set(relation))
+    );
+    let narrowed = value("cards | filter(c => c | is(RelationCard))");
+    assert_eq!(narrowed.type_of(), TypeRef::set(TypeRef::RELATION_CARD));
+    assert_eq!(
+        text("cards | filter(c => c | is(RelationCard)) | count"),
+        text("cards | of_type(RelationCard) | count")
+    );
+    assert_eq!(
+        text("cards | sort | map(c => c | is(ConceptCard)) | count(true)"),
+        "5"
+    );
+}
+
+#[test]
+fn a_test_no_value_can_pass_and_the_retired_name_are_refused() {
+    let vault = fixture();
+    let always_false = hql::check_in("1 | is(Card)", &vault).unwrap_err();
+    assert!(
+        always_false.to_string().contains("always false"),
+        "{always_false}"
+    );
+    let retired = hql::check_in("cards | typed(RelationCard)", &vault).unwrap_err();
+    assert!(retired.to_string().contains("of_type"), "{retired}");
+}
+
+#[test]
 fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
     let ranked = value("import lexical\ncards | lexical(\"bearer token authorization\")");
     let Value::Ranking(ranking) = &ranked else {
@@ -234,7 +278,7 @@ fn the_whole_pipeline_runs_and_says_why_each_node_is_present() {
 
 #[test]
 fn a_relation_card_contributes_an_edge_without_becoming_a_node() {
-    let projected = value("cards | typed(RelationCard) | graph");
+    let projected = value("cards | of_type(RelationCard) | graph");
     let Value::Graph(graph) = &projected else {
         panic!("expected a graph")
     };

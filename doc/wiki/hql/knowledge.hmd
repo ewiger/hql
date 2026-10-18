@@ -55,7 +55,7 @@ document families therefore overlap without either being a kind of the other —
 see [[type-system]].
 
 ```hql
-cards | typed RelationCard | graph
+cards | of_type(RelationCard) | graph
 ```
 
 Distinct relation cards may express conflicting claims about the same endpoints.

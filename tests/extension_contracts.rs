@@ -7,7 +7,7 @@ use hql::reporting::Mode;
 fn every_catalogue_signature_is_generated_from_its_structural_contract() {
     let providers = catalogue(&Config::default());
     let count: usize = providers.iter().map(|provider| provider.steps.len()).sum();
-    assert_eq!(count, 25);
+    assert_eq!(count, 26);
     for provider in providers {
         for step in provider.steps {
             step.spec.validate().unwrap();
@@ -88,7 +88,7 @@ fn every_registered_step_runs_at_its_declared_result_type() {
         "[1, 2] | take(n = 1)",
         "[1, 2] | filter(n => n == 1)",
         "[1, 2] | map(n => n + 1)",
-        "[1, 2] | typed(Int)",
+        "[1, 2] | of_type(Int)",
         "[[barn-owl]] | uplinks",
         "[[barn-owl]] | downlinks",
         "cards | expand(direction = \"both\", depth = 1)",

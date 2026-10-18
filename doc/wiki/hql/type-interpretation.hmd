@@ -232,10 +232,9 @@ x : U = …                    the assertion: proven or refused by the checker
 List(xs), Set(xs)            construction: a new container, the same elements
 ```
 
-`match` with a type arm, `is`, the narrowing `filter`, and the structural test
-over `Data` are designed and not yet implemented. The selection is
-implemented with the nominal test under its former name `typed`, which
-[issue 0021](../../issues/0021-of-type-replaces-typed.md) replaces. The
+`is`, the narrowing `filter` and `of_type` are implemented with the nominal
+test: a value is kept by the type it was built with. `match` with a type arm
+and the structural test over `Data` are designed and not yet implemented. The
 constructors are implemented; `List` still accepts a `Set`, and a constructor
 is not yet a pipeline step. See [[data-type]] for the tree being interpreted, [[doc-type]] for the
 document whose header it is, [[option-type]] for the `none` the card example

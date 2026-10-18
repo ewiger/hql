@@ -54,8 +54,10 @@ The parent is applied: `Seq<Hit<T>>` is built from the parameter rather than
 receiving it, and the type system declares it that way. So a ranking passes
 anywhere a `Seq<Hit<T>>` or a `Collection<Hit<T>>` is asked for, and its
 element is `Hit<T>`. `take` and `filter` keep a ranking a ranking, because a
-concrete sequence keeps its type through a prefix and a filter; `typed`, which
-changes the element, makes it a `List`. A ranking also has `query` and
+concrete sequence keeps its type through a prefix and a filter. `of_type` and
+`map`, which change the element, make it a `Seq` of the new element, since a
+ranking's argument is the ranked value and not its element. `sort` by another
+key makes it a `Seq<Hit<T>>`, since the new order is not the retrieval's. A ranking also has `query` and
 `retrieval` fields of its own, and `hits` for its elements as a `List`.
 
 ## A score is evidence, never relevance
@@ -153,7 +155,7 @@ collection, and projecting a graph yields it unchanged.
 - **Chunking.** A card is not a retrieval unit; a passage is.
 - **Multiple indexes**, hybrid retrieval, and whether a fused score can still
   carry an honest `Retrieval`.
-- **Filtering before or after** — `cards | typed ConceptCard | semantic(q)`
+- **Filtering before or after** — `cards | of_type(ConceptCard) | semantic(q)`
   versus filtering the ranking.
 - **The write path** — remembering, reconciliation, consolidation of
   co-retrieval into derived relations, and eviction. A score may *propose* that

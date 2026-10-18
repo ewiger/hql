@@ -243,7 +243,7 @@ contains a card from another.
 
 ```hql
 cards
-| typed RelationCard
+| of_type(RelationCard)
 | graph
 ```
 
@@ -354,7 +354,7 @@ That is refinement, reached the same way as any other metadata — see
 significant relationships are preferably given cards.
 
 Narrowing has to be checked. A `knowledge.type: Relation` entry in the metadata
-is an author's claim, and `typed RelationCard` must verify the contract rather
+is an author's claim, and `of_type(RelationCard)` must verify the contract rather
 than trust the label — an unchecked `as` would let any YAML key mint a type. The result of a failed
 narrowing, the spelling of validation and refinement, and whether narrowing is
 nominal or structural remain open.

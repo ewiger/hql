@@ -500,6 +500,13 @@ impl Checker<'_> {
         if let Some(check) = step.check {
             check(self, &call, span)?;
         }
+        // A predicate that tests the element's type narrows the result to it.
+        if step.name == "filter"
+            && let Some(narrowed) = crate::extensions::collections::narrowing(arguments)
+                .and_then(|name| crate::types::named(name, &[]))
+        {
+            return Ok(input.image(narrowed));
+        }
         Ok(result)
     }
 }

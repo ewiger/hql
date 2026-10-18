@@ -14,9 +14,16 @@ pub fn exists(name: &str) -> bool {
     extensions::names().any(|step| step == name)
 }
 
-/// The closest step name by edit distance, for a "did you mean" hint.
+/// Names that were steps and are not, with the step that replaces each.
+const RETIRED: &[(&str, &str)] = &[("typed", "of_type")];
+
+/// The closest step name by edit distance, for a "did you mean" hint. A
+/// retired name suggests the step that replaced it.
 #[must_use]
 pub fn nearest(name: &str) -> Option<&'static str> {
+    if let Some((_, replacement)) = RETIRED.iter().find(|(retired, _)| *retired == name) {
+        return Some(replacement);
+    }
     extensions::names()
         .map(|step| (distance(name, step), step))
         .filter(|(distance, _)| *distance <= 2)

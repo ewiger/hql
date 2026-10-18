@@ -211,3 +211,11 @@ fn sum_min_and_max_equal_their_folds_and_have_empty_results() {
     assert!(check("[true] | sum").is_err());
     assert!(check("[true] | min").is_err());
 }
+
+#[test]
+fn of_type_selects_and_narrows_mixed_values() {
+    let source = "[1, \"owl\", 2] | of_type(Int)";
+    assert_eq!(check(source), Ok(TypeRef::list(TypeRef::INT)));
+    assert_eq!(eval(source).unwrap().to_string(), "[1, 2]");
+    assert_eq!(eval(source).unwrap().type_of(), TypeRef::list(TypeRef::INT));
+}

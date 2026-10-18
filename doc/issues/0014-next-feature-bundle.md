@@ -184,7 +184,7 @@ here when its issue or step is done.
 - [x] 1. One signature per name
 - [x] 2. `group` / `reduce` over finite inputs
 - [x] 3. Scalar operators (the `Ordering` constants left; nothing waits on them)
-- [ ] 4. `is` and `of_type`
+- [x] 4. `is` and `of_type`
 - [ ] 5. `match` and `given … otherwise`
 - [ ] 6. Interpreting `Data`
 - [ ] 7. Function values

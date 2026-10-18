@@ -54,7 +54,7 @@ no code under `src/` changes here.
    - `null` against `Empty` against `Option<T>`; non-finite floats; integers
      beyond `i64`.
    - Typing a heterogeneous array, and checking a document against a declared
-     schema (`typed(as: …)` over records).
+     schema (`of_type(…)` over records).
 4. **Operations and operators.** Which jq features map onto HQL, which need
    a new form, and which do not belong. At least:
    - Path access: `.a.b`, `.[0]`, slices, optional access `.a?`, and

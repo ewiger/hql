@@ -66,7 +66,7 @@ written with.
 
 | SQL | HQL | Status | Missing piece |
 | --- | --- | --- | --- |
-| `ORDER BY a` | `sort(by = r => r.a)` | now for typed fields | a metadata field needs a schema first: `typed(as = …)` over records |
+| `ORDER BY a` | `sort(by = r => r.a)` | now for typed fields | a metadata field needs a schema first: `of_type(…)` over records |
 | `ORDER BY a DESC, b` | `sort(by = (x, y) => …)` | workaround | `reverse`, and a way to chain comparisons |
 | `NULLS FIRST` / `LAST` | — | supportable | an order on `Option<T>` |
 | `LIMIT n` | `take(n)` | now | — |
@@ -82,7 +82,7 @@ written with.
 | `\|\|`, `CONCAT`, `LIKE`, `UPPER`, `SUBSTRING`, `LENGTH` | — | supportable | string functions; `+` refuses strings |
 | `CASE WHEN` | — | supportable | `if` or `match`; `match` is open in [option-type](../wiki/hql/types/option-type.hmd) |
 | `COALESCE`, `IFNULL` | absence lifts through a field | workaround | a default for `Option<T>` |
-| `CAST` | `typed(as = …)` over a collection | workaround | `typed` on a single value, and on leaves read out of `Data` |
+| `CAST` | `of_type(…)` over a collection | workaround | `is` and `match` on a single value, and the structural test on leaves read out of `Data` |
 | Date and time functions | — | supportable | a `Date` literal and its arithmetic; `Date` is declared but nothing produces one |
 | Arithmetic on a metadata field | — | supportable | a schema: `{a: 1}.a + 1` is refused, correctly, until `a` is interpreted as `Int` |
 
@@ -120,7 +120,7 @@ window frame is a different thing and needs a different name.
 | `PRIMARY KEY`, `UNIQUE` | card name; `Map` keys are distinct | now for cards and maps | a declared key on a record collection |
 | `FOREIGN KEY` | `[[name]]` is `Option<Card>` | now, deliberately weaker | a forward link is a warning, not a violation |
 | `CHECK` | — | supportable | constraint types, still design |
-| Validating rows against a schema | `typed(as = …)` | now for built-in element types | partial and complete record schemas over `Data` |
+| Validating rows against a schema | `of_type(…)` | now for built-in element types | partial and complete record schemas over `Data` |
 | `ALTER`, `DROP` | — | out | a schema is a declaration in a program, not stored state |
 | Indexes | the semantic index | out of the language | an executor concern; pushdown belongs to a backend ([HQL-0004](../proposals/HQL-0004/README.md)) |
 
@@ -215,10 +215,10 @@ the like:
 | `[[dune]].metadata.pages` | `412`, checked as `Option<Data>` — the runtime value keeps its YAML integer |
 | `filter(r => r.a == 1)` | works — `==` accepts a `Data` leaf on either side |
 | `c.metadata.pages + 1` | refused, correctly: the field has no schema |
-| `[1, "owl", 2] \| typed(as = Int)` | `[1, 2]` |
-| `cards \| map(c => c.metadata.pages) \| typed(as = Int)` | `[]` |
+| `[1, "owl", 2] \| of_type(Int)` | `[1, 2]` |
+| `cards \| map(c => c.metadata.pages) \| of_type(Int)` | `[]` |
 
-`typed` is the one checked narrowing there is, and it works over collections
+`of_type` is the one checked narrowing there is, and it works over collections
 only. It keeps an element by the type it was built with. A literal `1` is
 built as an `Int`, and a leaf read out of a header is built as `Data`, so the
 last row keeps nothing even though every leaf it sees is an integer. That
@@ -228,7 +228,7 @@ as a record.
 ### Proposed
 
 One operation, checked rather than trusted, that takes a `Data` value and a
-declared type and returns the value at that type. It extends `typed(as = …)`
+declared type and returns the value at that type. It extends `of_type(…)`
 from collections to single values and from built-in types to declared
 records:
 
@@ -237,11 +237,11 @@ type BookMetadata { pages : Int, genre : String }
 
 cards
 | map(c => c.metadata)
-| typed(as = BookMetadata)
+| of_type(BookMetadata)
 | sort(by = m => m.pages)
 ```
 
-After `typed`, `m.pages` is an `Int` and `m.genre` a `String`, so `+`,
+After `of_type`, `m.pages` is an `Int` and `m.genre` a `String`, so `+`,
 `sort`, `compare` and every aggregation apply.
 
 - **Partial interpretation.** A schema names only the fields it cares about.
@@ -257,9 +257,9 @@ After `typed`, `m.pages` is an `Int` and `m.genre` a `String`, so `+`,
   [type-system](../wiki/hql/type-system.hmd) requires of refinement.
 - **Failure.** A named field that is missing is absence, or a failure when
   the schema marks it required. A field present with the wrong shape is a
-  refinement error at the `typed` step. That split is what HQL has where SQL
+  refinement error at the `of_type` step. That split is what HQL has where SQL
   has `NULL` and a type error.
-- **Cards too.** The same operation over cards — `typed(as = Book)` with
+- **Cards too.** The same operation over cards — `of_type(Book)` with
   `type Book : HmdCard { metadata : BookMetadata }` — keeps the card and
   types its metadata, so `c.metadata.pages` is an `Int` with no per-use step.
 

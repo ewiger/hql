@@ -22,7 +22,7 @@ value semantically, and nothing pipes out of it.
 
 ```hql
 cards
-| typed RelationCard
+| of_type(RelationCard)
 | table
 ```
 

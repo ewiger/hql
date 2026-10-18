@@ -143,7 +143,7 @@ Shape
 - A step MUST declare exactly one shape. It is a static property of the step,
   not of the input type; `map` is elementwise over a `Set` and over a `Seq`.
 - `Elementwise` permits running the step over any split of the input and
-  recombining in the input's order. `filter`, `map` and `typed` are elementwise.
+  recombining in the input's order. `filter`, `map` and `of_type` are elementwise.
 - `Partition` permits routing each element to a partition by key and running
   the partitions independently. `group` is the one partition step.
 - `Reduction` permits reducing each split and combining the results, and only
@@ -164,7 +164,7 @@ The core steps, after this proposal:
 | --- | --- | --- | --- | --- |
 | `filter` | pure | elementwise | `Collection<T>` | same collection |
 | `map` | pure | elementwise | `Collection<T>` | `List<R>` |
-| `typed` | pure | elementwise | `Collection<T>` | same collection, narrowed |
+| `of_type` | pure | elementwise | `Collection<T>` | same collection, narrowed |
 | `group` | pure | partition | `Collection<T>` | `Set<Group<K, T>>` |
 | `size` | pure | reduction | `Collection<T>` | `Int` |
 | `count` | pure | reduction | `Collection<T>` | `Int` |

@@ -54,6 +54,9 @@ type Group<K, T> {
 // contains<T>(xs: Collection<T>, value: T) : Bool
 // get<K, V>(xs: Map<K, V>, key: K) : Option<V>
 // filter<S : Collection<T>, T>(xs: S, by: T -> Bool) : S
+// filter<F<_> : Iterable<_>, T, U>(xs: F<T>, by: x => x | is(U)) : F<U>   narrows
+// of_type<F<_> : Iterable<_>, T, U>(xs: F<T>, type: Type<U>) : F<U>   filter(x => x | is(U))
+// is<T, U>(x: T, type: Type<U>) : Bool          refused when no T can be a U
 // map<F<_> : Iterable<_>, T, U>(xs: F<T>, by: T -> U) : F<U>
 // take<S : Seq<T>, T>(xs: S, n: Int) : S
 // take<T : Orderable>(xs: Collection<T>, n: Int) : List<T>
