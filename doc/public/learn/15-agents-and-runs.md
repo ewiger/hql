@@ -39,7 +39,7 @@ answer the question.
 
 <!-- run: skip -->
 ```hql
-librarian = [[librarian]] | Agent
+librarian = @[[librarian]] | Agent
 librarian.tools
 ```
 
@@ -158,7 +158,7 @@ import ai
 fn books_by(author: String) : List<String> =
     cards | filter(c => c.metadata.author == author) | map(c => c.title) | List
 
-librarian = [[librarian]] | Agent
+librarian = @[[librarian]] | Agent
 
 pick =
     cards
@@ -281,7 +281,7 @@ fn books_by(author: String) : List<String> =
 cards
 | filter(c => c.metadata.status == "todo")
 | Context("unread")
-| run([[librarian]] | Agent, tools = [Tool(books_by, "The titles on the shelf by one author")])
+| run(@[[librarian]] | Agent, tools = [Tool(books_by, "The titles on the shelf by one author")])
 ```
 ````
 

@@ -160,7 +160,7 @@ problems, and HQL writes them as dataflow:
 ```hql
 import ai
 
-librarian = [[librarian]] | Agent
+librarian = @[[librarian]] | Agent
 
 cards
 | semantic("books about reading")
