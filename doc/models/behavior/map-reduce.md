@@ -38,7 +38,7 @@ with two boundaries.
 
 ## Steps have a shape
 
-Purity says whether a step may move. Shape says whether it may be split, and it
+[Purity](pure-vs-effectful.md) says whether a step may move. Shape says whether it may be split, and it
 is the whole of what an executor may assume:
 
 ```text
