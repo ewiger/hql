@@ -1131,7 +1131,7 @@ pub(crate) fn narrowing(arguments: &[crate::ast::Arg]) -> Option<&str> {
 }
 
 /// The same detection over the checked tree, for evaluation.
-fn narrowed_to(argument: &TypedArg) -> Option<TypeRef> {
+pub(crate) fn narrowed_to(argument: &TypedArg) -> Option<TypeRef> {
     let TypedKind::Lambda {
         parameters, body, ..
     } = &argument.value.kind

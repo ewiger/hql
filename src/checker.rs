@@ -146,6 +146,28 @@ fn instantiate(
     }
 }
 
+/// What a refused annotation could have written instead: a binding never
+/// converts, so a different container is constructed and narrower elements
+/// are selected.
+fn conversion(inferred: &TypeRef, declared: &TypeRef) -> String {
+    let (Some(has), Some(wants)) = (inferred.element(), declared.element()) else {
+        return String::new();
+    };
+    if has.is(&wants) && declared.is_sequence() && !inferred.is_sequence() {
+        return "; a set has no order to keep, so sort it: `| sort`".to_owned();
+    }
+    if has.is(&wants) && declared.is_concrete() {
+        return format!(
+            "; a binding never converts, so construct it: `{}(…)`",
+            declared.constructor
+        );
+    }
+    if wants.is(&has) {
+        return format!("; to keep only the {wants} elements, select them with `of_type({wants})`");
+    }
+    String::new()
+}
+
 /// The type two values combined by a combiner have.
 fn combined(combiner: &str, left: &TypeRef, right: &TypeRef) -> Result<TypeRef, String> {
     let joined = if left.is(right) {
@@ -331,7 +353,9 @@ impl Checker<'_> {
                             return Err(Diagnostic::typing(
                                 value.span.clone(),
                                 format!(
-                                    "`{name}` is declared {declared} but its value is {inferred}"
+                                    "`{name}` is declared {declared} but its value is \
+                                     {inferred}{}",
+                                    conversion(&inferred, &declared)
                                 ),
                             ));
                         }
@@ -1191,8 +1215,16 @@ impl Checker<'_> {
                 let left_type = self.expression(left)?;
                 let right_type = self.expression(right)?;
                 // The rule `compare` has: one Orderable type on both sides,
-                // with no widening and no looking through `Option`.
-                if left_type != right_type || !left_type.is_orderable() {
+                // with no widening and no looking through `Option`. `Never`,
+                // the element of nothing, has no value to compare and so
+                // stands beside any one.
+                let never = left_type == TypeRef::NEVER || right_type == TypeRef::NEVER;
+                let ordered = if left_type == TypeRef::NEVER {
+                    right_type.is_orderable()
+                } else {
+                    left_type.is_orderable()
+                };
+                if (!never && left_type != right_type) || !ordered {
                     return Err(Diagnostic::typing(
                         span,
                         format!(
@@ -1607,6 +1639,23 @@ impl Checker<'_> {
         arguments: &[Arg],
         span: Range<usize>,
     ) -> Result<TypeRef, Diagnostic> {
+        // `filter` over one optional value keeps it or makes it absent, and
+        // a narrowing predicate narrows it: `Option<Doc> -> Option<Card>`.
+        if step.name == "filter"
+            && input.constructor.0 == "Option"
+            && input.present().iterated().is_none()
+        {
+            let held = TypeRef::list(input.present().clone());
+            let (result, call) = step.spec.check(step.name, self, &held, arguments, &span)?;
+            if let Some(check) = step.check {
+                check(self, &call, span)?;
+            }
+            let element = crate::extensions::collections::narrowing(arguments)
+                .and_then(|name| crate::types::named(name, &[]))
+                .or_else(|| result.element())
+                .unwrap_or_else(|| input.present().clone());
+            return Ok(TypeRef::optional(element));
+        }
         // A step applied to absence is a step applied to nothing, not a
         // failure: the reference that produced the absence was permitted.
         let input = if step.keeps_input() {
@@ -1690,12 +1739,25 @@ impl CheckCx for Checker<'_> {
                 "expected a type name",
             ));
         };
-        let ty = crate::types::named(name, &[]).ok_or_else(|| {
-            Diagnostic::name(
-                argument.value.span.clone(),
-                format!("unknown type `{name}`"),
-            )
-        })?;
+        // A constructor written bare, `is(List)`, asks for the constructor
+        // whatever its arguments are.
+        let ty = crate::types::named(name, &[])
+            .or_else(|| {
+                let constructor = crate::types::builtin::constructor(name)?;
+                let arity = crate::types::builtin::system()
+                    .ok()?
+                    .definition(constructor)
+                    .ok()?
+                    .parameters
+                    .len();
+                (arity > 0).then(|| constructor.apply(vec![TypeRef::DATA; arity]))
+            })
+            .ok_or_else(|| {
+                Diagnostic::name(
+                    argument.value.span.clone(),
+                    format!("unknown type `{name}`"),
+                )
+            })?;
         self.checked
             .types
             .insert(argument.value.span.clone(), ty.clone());

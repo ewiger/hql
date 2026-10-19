@@ -64,7 +64,7 @@ nothing here restates it.
 - [x] 3. Generic functions
 - [x] 4. `:=` aliases (the core's shorthands stay host steps; their longhands are stated in `std/collections.hql`)
 - [x] 5. The reduction vocabulary (combiner properties in `hql builtins` and fold shapes wait on the planner, HQL-0004)
-- [ ] 6. The open ends of type interpretation
+- [x] 6. The open ends of type interpretation
 - [ ] 7. Constructors as operations
 - [ ] 8. Graph construction
 - [ ] 9. The vault's fields

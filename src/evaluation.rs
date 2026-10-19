@@ -965,6 +965,28 @@ impl Evaluator<'_> {
         if step.keeps_input() {
             return (step.eval)(self, input, arguments, span);
         }
+        // `filter` over one optional value: absent stays absent, and a present
+        // value is kept or made absent.
+        if step.name == "filter" && matches!(&input, Value::Absent(_) | Value::Present(_)) {
+            let held = match &input {
+                Value::Present(held) => held.as_ref().clone(),
+                _ => return Ok(input),
+            };
+            if held.elements().is_none() && !matches!(held, Value::Traversal(_)) {
+                let by = crate::extensions::named_or_first(arguments, "by").ok_or_else(|| {
+                    Diagnostic::runtime(span.clone(), "`filter` needs a predicate")
+                })?;
+                let kept = matches!(self.apply(by, vec![held.clone()])?, Value::Bool(true));
+                return Ok(if kept {
+                    let narrowed = crate::extensions::collections::narrowed_to(by)
+                        .and_then(|wanted| held.interpreted(&wanted))
+                        .unwrap_or(held);
+                    Value::Present(Arc::new(narrowed))
+                } else {
+                    Value::Absent(held.type_of())
+                });
+            }
+        }
         // Absence is the empty collection here, so every step sees a
         // collection and none of them has to know about it.
         let input = match input {

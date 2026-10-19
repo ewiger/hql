@@ -234,7 +234,13 @@ List(xs), Set(xs)            construction: a new container, the same elements
 ```
 
 A test that can never hold — `is(U)` where no value of the input type can be
-a `U` — is refused by the checker. A test that always holds, because every
+a `U` — is refused by the checker. A bare constructor is tested whatever its
+arguments are: `x | is(List)` holds for any list. `filter` over one optional
+value keeps it or makes it absent, and a narrowing predicate narrows it:
+`[[name]] | filter(c => c | is(RelationCard))` is an `Option<RelationCard>`.
+A refused annotation says what to write instead — `of_type(U)` to select
+narrower elements, the constructor to build another container, `sort` to give
+a set an order. A test that always holds, because every
 value of a declared input type is a `U`, is a warning. A `Data` value is asked
 at run time, so no test over it is either.
 

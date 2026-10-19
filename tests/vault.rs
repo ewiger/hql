@@ -416,3 +416,51 @@ fn a_graph_exposes_its_nodes_as_cards_and_its_edges_as_sets() {
         "[bearer-tokens, broken-relation, http-headers, oauth, sessions]"
     );
 }
+
+#[test]
+fn filter_over_one_optional_value_keeps_it_or_makes_it_absent() {
+    let vault = fixture();
+    for (source, expected) in [
+        ("some(1) | filter(x => x > 0)", "1"),
+        ("some(0) | filter(x => x > 0)", "none"),
+        ("none | filter(x => x > 0)", "none"),
+    ] {
+        assert_eq!(text(source), expected, "{source}");
+    }
+    assert_eq!(
+        hql::check_in("some(1) | filter(x => x > 0)", &vault),
+        Ok(TypeRef::optional(TypeRef::INT))
+    );
+    // A narrowing predicate narrows the optional value.
+    assert_eq!(
+        hql::check_in(
+            "[[oauth-defines-bearer]] | filter(c => c | is(RelationCard))",
+            &vault
+        ),
+        Ok(TypeRef::optional(TypeRef::RELATION_CARD))
+    );
+}
+
+#[test]
+fn a_bare_constructor_is_tested_whatever_its_arguments_are() {
+    assert_eq!(text("[1] | is(List)"), "true");
+    let refused = hql::check("{1} | is(List)").expect_err("a set is never a list");
+    assert!(
+        refused.message().contains("always false"),
+        "{}",
+        refused.message()
+    );
+}
+
+#[test]
+fn a_refused_annotation_says_what_to_write_instead() {
+    let vault = fixture();
+    let set = hql::check("xs : List<Int> = {1, 2}\nxs").expect_err("no conversion");
+    assert!(set.message().contains("sort it"), "{}", set.message());
+    let narrower = hql::check_in("r : Seq<RelationCard> = cards\nr", &vault).expect_err("narrower");
+    assert!(
+        narrower.message().contains("of_type(RelationCard)"),
+        "{}",
+        narrower.message()
+    );
+}
