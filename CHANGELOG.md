@@ -8,6 +8,10 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-10-19
+
+HQL output that reads back as HQL, and a build floor that holds.
+
 ### Added
 
 - **An `Hql` presentation format**, with the shorthand `hql` and `--to hql`: a
@@ -19,11 +23,9 @@ The language continues to be in active development.
 - `hql eval` and the REPL write an unformatted result as `Hql`, so
   `hql eval '"Dune"'` prints `"Dune"`. `hql run` still writes plain text, and
   `--to text` gives a bare string anywhere.
-
-### Fixed
-
-- HQL builds on its declared `rust-version`, 1.88, again: the line editor is
-  held at rustyline 17.
+- **Rust 1.95 or newer is required to build HQL.** The line editor,
+  rustyline 19, needs it, so `rust-version` is now 1.95; 0.4.1 declared 1.88
+  and did not build on it.
 
 ## [0.4.1] — 2026-10-19
 
@@ -305,7 +307,8 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/ewiger/hql/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/ewiger/hql/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/ewiger/hql/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ewiger/hql/compare/v0.2.0...v0.3.0

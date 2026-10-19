@@ -55,7 +55,7 @@ The targets are `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and
 `x86_64-apple-darwin`. Verify the archive against the published SHA-256
 checksum before extracting it.
 
-To build it yourself instead, with Rust 1.88 or newer from
+To build it yourself instead, with Rust 1.95 or newer from
 [rustup](https://rustup.rs) — the floor is `rust-version` in `Cargo.toml`, and CI
 builds on it so the declared floor stays true:
 

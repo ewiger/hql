@@ -18,7 +18,7 @@ before extracting it.
 
 ## With Cargo
 
-With Rust 1.88 or newer from [rustup](https://rustup.rs):
+With Rust 1.95 or newer from [rustup](https://rustup.rs):
 
 ```sh
 cargo install hql --locked                                   # the last release
