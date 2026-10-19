@@ -340,7 +340,7 @@ impl OperationSpec {
                     span.clone(),
                     format!(
                         "`{name}` needs a finite input, and {input} may not end; \
-                         bound it first with `take(n)`"
+                         bound it first with `take(n)`, or batch it with `collect(n)`"
                     ),
                 ));
             }

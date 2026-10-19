@@ -277,3 +277,19 @@ fn a_host_writes_a_stream_as_it_arrives_and_stops_when_the_reader_does() {
     .unwrap();
     assert_eq!(written, ["---\n1", "---\n2", "---\n3"]);
 }
+
+#[test]
+fn the_small_diagnostics_name_what_to_write() {
+    let finite = check(&format!("{NATURALS}naturals(1) | sum")).expect_err("a stream");
+    assert!(
+        finite.contains("take(n)") && finite.contains("collect(n)"),
+        "{finite}"
+    );
+    let window = check("[1, 2] | collect(for = 5)").expect_err("no time windows");
+    assert!(window.contains("not implemented yet"), "{window}");
+    let renderer = check("[1] | format(Markdown, renderer = \"shiny\")").expect_err("unknown");
+    assert!(
+        renderer.contains("no renderer is named `shiny`"),
+        "{renderer}"
+    );
+}

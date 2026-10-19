@@ -174,10 +174,19 @@ pub(crate) static STEPS: &[Operation] = &[
                 bound: None,
             }],
             input: P::Iterable(&P::Var("T")),
-            arguments: &[ArgumentSpec::value(
-                "n",
-                P::Type(crate::types::TypeConstructor("Int")),
-            )],
+            arguments: &[
+                ArgumentSpec {
+                    required: false,
+                    ..ArgumentSpec::value("n", P::Type(crate::types::TypeConstructor("Int")))
+                },
+                // Reserved for a time window, which closes a batch after a
+                // duration; it is not implemented.
+                ArgumentSpec {
+                    required: false,
+                    positional: false,
+                    ..ArgumentSpec::value("for", P::Any)
+                },
+            ],
             output: O::Finite {
                 finite: P::Apply(
                     crate::types::collections::LIST,
@@ -1260,7 +1269,27 @@ fn check_collect(
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
-    check_ordered(cx, call, span)?;
+    check_ordered(cx, call, span.clone())?;
+    if let Some(window) = call
+        .arguments
+        .iter()
+        .find(|argument| argument.name.as_deref() == Some("for"))
+    {
+        return Err(Diagnostic::typing(
+            window.value.span.clone(),
+            "a time window, `collect(for = …)`, is not implemented yet; batch by count, `collect(n)`",
+        ));
+    }
+    if !call
+        .arguments
+        .iter()
+        .any(|argument| argument.name.as_deref().is_none_or(|name| name == "n"))
+    {
+        return Err(Diagnostic::typing(
+            span,
+            "`collect` needs a batch size: `collect(n)`",
+        ));
+    }
     if let Some(argument) = call.arguments.first()
         && let crate::ast::Kind::Int(n) = argument.value.kind
         && n < 1

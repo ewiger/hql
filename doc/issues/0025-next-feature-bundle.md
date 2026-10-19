@@ -68,7 +68,7 @@ nothing here restates it.
 - [x] 7. Constructors as operations
 - [x] 8. Graph construction
 - [x] 9. The vault's fields
-- [ ] 10. Small diagnostics
+- [x] 10. Small diagnostics
 - [ ] 11. The proposals state what is true
 
 ## Done when

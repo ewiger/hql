@@ -584,6 +584,36 @@ fn check_format(
         .bindings
         .get("F")
         .map_or("", |format| format.constructor.0);
+    // A renderer named in the program is known before it runs.
+    if let Some(argument) = call
+        .arguments
+        .iter()
+        .find(|argument| argument.name.as_deref() == Some("renderer"))
+        && let crate::ast::Kind::Str(renderer) = &argument.value.kind
+    {
+        match RENDERERS.iter().find(|(name, _)| name == renderer) {
+            None => {
+                return Err(Diagnostic::typing(
+                    argument.value.span.clone(),
+                    format!(
+                        "no renderer is named `{renderer}`; the renderers are {}",
+                        RENDERERS
+                            .iter()
+                            .map(|(name, _)| format!("`{name}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                ));
+            }
+            Some((_, writes)) if !format.is_empty() && !writes.contains(&format) => {
+                return Err(Diagnostic::typing(
+                    argument.value.span.clone(),
+                    format!("the renderer `{renderer}` does not write {format}"),
+                ));
+            }
+            Some(_) => {}
+        }
+    }
     writable(call.input, format).map_err(|message| Diagnostic::typing(span, message))
 }
 
