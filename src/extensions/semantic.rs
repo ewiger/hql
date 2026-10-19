@@ -532,6 +532,7 @@ impl Index {
             api_key_env: embedder.api_key_env.clone(),
             max_tokens: 0,
             temperature: None,
+            session: None,
         };
         let body = serde_json::json!({"input": [text], "model": embedder.model});
         let response = crate::extensions::ai::transport::send(

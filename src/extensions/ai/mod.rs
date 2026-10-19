@@ -7,6 +7,7 @@
 //! written, and only as the host's mode allows. A run is never collapsed into
 //! its answer; the answer is one field of the `Run` the harness returns.
 
+pub(crate) mod session;
 pub mod transport;
 pub(crate) mod wire;
 
@@ -935,6 +936,28 @@ fn execute(cx: &mut dyn EvalCx, start: Start, span: &Range<usize>) -> Result<Val
         }
     }
     let delegates: Vec<String> = start.agent.list("agents").iter().map(string_of).collect();
+    // A session has its host's tools; HQL tools reach it once `hql mcp` does.
+    let session = model.api == transport::Api::ClaudeCode;
+    if session && (!start.tools.is_empty() || !delegates.is_empty()) {
+        return Err(runtime(
+            span,
+            format!(
+                "`{}` runs as a claude-code session, which is offered no HQL tools or agents yet",
+                start.agent.text("name")
+            ),
+        ));
+    }
+    // A continuation resumes the session it continues, as a fork.
+    let resume = match (&start.parent, start.origin) {
+        (Some(Value::Record(parent)), "ask") if session => match parent.get("model") {
+            Some(Value::Data(model)) => model
+                .get("session")
+                .and_then(Data::as_str)
+                .map(str::to_owned),
+            _ => None,
+        },
+        _ => None,
+    };
     let mut specs: Vec<ToolSpec> = start
         .tools
         .iter()
@@ -982,7 +1005,12 @@ fn execute(cx: &mut dyn EvalCx, start: Start, span: &Range<usize>) -> Result<Val
         _ => 8,
     };
     for _ in 0..max_turns {
-        body = wire::request(&model, &system, &messages, &specs);
+        body = match (&resume, messages.last()) {
+            (Some(session_id), Some(Message::User(prompt))) => {
+                session::request(&model, &system, prompt, Some(session_id))
+            }
+            _ => wire::request(&model, &system, &messages, &specs),
+        };
         let key = transport::key(&body);
         if log.id.is_empty() {
             log.id.clone_from(&key);
@@ -997,6 +1025,9 @@ fn execute(cx: &mut dyn EvalCx, start: Start, span: &Range<usize>) -> Result<Val
         let reply = wire::reply(model.api, &response).map_err(|message| runtime(span, message))?;
         reported =
             json!({"api": model.api.name(), "endpoint": model.endpoint, "model": reply.model});
+        if let (J::Object(reported), J::Object(extra)) = (&mut reported, &reply.extra) {
+            reported.extend(extra.clone());
+        }
         add_usage(&mut usage, &reply.usage);
         log.event(
             "response",
@@ -1012,13 +1043,15 @@ fn execute(cx: &mut dyn EvalCx, start: Start, span: &Range<usize>) -> Result<Val
                 stop = "refused";
                 break;
             }
-            Stop::End | Stop::MaxTokens if reply.calls.is_empty() => {
-                stop = if reply.stop == Stop::End {
-                    "end"
-                } else {
-                    "max_tokens"
+            Stop::End | Stop::MaxTokens | Stop::Turns if reply.calls.is_empty() => {
+                stop = match reply.stop {
+                    Stop::End => "end",
+                    Stop::Turns => "max_turns",
+                    _ => "max_tokens",
                 };
-                result = Some(reply.text);
+                if reply.stop != Stop::Turns || !reply.text.is_empty() {
+                    result = Some(reply.text);
+                }
                 break;
             }
             _ => {}

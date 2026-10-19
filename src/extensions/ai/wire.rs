@@ -54,6 +54,8 @@ pub(crate) enum Stop {
     MaxTokens,
     /// The provider declined to answer.
     Refused,
+    /// A session host ran out of its own turns.
+    Turns,
 }
 
 /// A response, read out of either format.
@@ -65,6 +67,8 @@ pub(crate) struct Reply {
     /// The model id the response reports.
     pub model: String,
     pub usage: J,
+    /// What else the answerer reports about itself: a session's id and cost.
+    pub extra: J,
 }
 
 /// The request body for a conversation.
@@ -73,6 +77,13 @@ pub(crate) fn request(model: &Model, system: &str, messages: &[Message], tools: 
         Api::Messages => messages_request(model, system, messages, tools),
         // A model entry never names embeddings; the shape is the nearest one.
         Api::ChatCompletions | Api::Embeddings => chat_request(model, system, messages, tools),
+        Api::ClaudeCode => {
+            let prompt = match messages.last() {
+                Some(Message::User(text)) => text.as_str(),
+                _ => "",
+            };
+            super::session::request(model, system, prompt, None)
+        }
     };
     if let (Some(temperature), J::Object(map)) = (model.temperature, &mut body) {
         map.insert("temperature".to_owned(), json!(temperature));
@@ -187,6 +198,7 @@ pub(crate) fn reply(api: Api, response: &J) -> Result<Reply, String> {
         Api::Messages => messages_reply(response),
         Api::ChatCompletions => chat_reply(response),
         Api::Embeddings => Err("an embeddings endpoint answers no conversation".to_owned()),
+        Api::ClaudeCode => Ok(session_reply(response)),
     }
 }
 
@@ -221,6 +233,7 @@ fn messages_reply(response: &J) -> Result<Reply, String> {
         stop,
         model: string(response, "model"),
         usage: response.get("usage").cloned().unwrap_or(json!({})),
+        extra: json!({}),
     })
 }
 
@@ -266,7 +279,34 @@ fn chat_reply(response: &J) -> Result<Reply, String> {
         stop,
         model: string(response, "model"),
         usage: response.get("usage").cloned().unwrap_or(json!({})),
+        extra: json!({}),
     })
+}
+
+/// A session's JSON result: its answer, why it stopped, and the session.
+fn session_reply(response: &J) -> Reply {
+    let stop = match response.get("subtype").and_then(J::as_str) {
+        Some("error_max_turns") => Stop::Turns,
+        _ => Stop::End,
+    };
+    // The models a session used are the keys of what it reports per model.
+    let model = response
+        .get("modelUsage")
+        .and_then(J::as_object)
+        .and_then(|models| models.keys().next().cloned())
+        .unwrap_or_default();
+    Reply {
+        text: string(response, "result"),
+        calls: Vec::new(),
+        stop,
+        model,
+        usage: response.get("usage").cloned().unwrap_or(json!({})),
+        extra: json!({
+            "session": response.get("session_id"),
+            "cost_usd": response.get("total_cost_usd"),
+            "turns": response.get("num_turns"),
+        }),
+    }
 }
 
 fn string(value: &J, key: &str) -> String {
@@ -289,6 +329,7 @@ mod tests {
             api_key_env: None,
             max_tokens: 64,
             temperature: Some(0.0),
+            session: None,
         }
     }
 

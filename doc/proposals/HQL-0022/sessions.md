@@ -1,6 +1,6 @@
 # HQL-0022 companion: agent sessions in the editor
 
-**Status**: drafted
+**Status**: drafted; the HQL side is implemented
 **Created**: 2026-10-19
 **Part of**: [HQL-0022](README.md)
 
@@ -132,7 +132,8 @@ ask:             claude -p --output-format json --resume <session> --fork-sessio
   flag for it, and a session is filed under the directory it runs in, which
   is what places it beside the user's own chats.
 - The first request of a run MUST name its session with `--session-id`,
-  derived from the run's id as a version 5 UUID. The session is then known
+  derived from the request as a version 8 UUID: the first 128 bits of a
+  sha256, with the version and variant RFC 9562 sets. The session is then known
   before the process starts, and a replayed run names the same session as the
   recorded one. Each later request of the run MUST resume that session.
 - `ask` MUST resume with `--fork-session`. The user may have opened the
@@ -179,10 +180,17 @@ hql render --ai host --emit after --envelope json   < card.hmd
 - The envelope MUST list each pending request beside the cell that made it:
   its key, the agent's name, the system text, the conversation as plain
   turns, and the tools offered with their schemas.
-- `hql ai answer <key> <file>` writes the answer in `<file>` as the recording
-  `<key>.json`, with `"answered_by": "host"`, and removes the pending file. It
-  MUST refuse a key with no pending request, and an answer that is not a valid
-  response of the entry's `api`. The answer may request tool calls like any
+- `hql ai pending` lists the waiting requests as JSON, each with its `key`,
+  its `api` and its `request`.
+- `hql ai answer <key> <file>` writes the answer in `<file>`, or `-` for
+  standard input, as the recording `<key>.json`, with
+  `"answered_by": "host"`, and removes the pending file. `--text <answer>` in
+  place of a file writes a final answer in the request's format. It MUST refuse
+  a key with no pending request, and an answer that is not a valid response of
+  the entry's `api`.
+- Under `host`, a query embedding is not something a chat can answer. A
+  `semantic` query with no recording therefore fails as it does under
+  `replay`. The answer may request tool calls like any
   response, and the next render then evaluates them and leaves the next
   request pending.
 - A render in `host` mode is therefore a loop the chat drives. Render, answer
@@ -261,10 +269,11 @@ entry and a host that never passes `--ai host` sees no change.
   `--bare`, `claude -p` loads `.claude/settings.json` hooks and `.mcp.json`
   servers from the vault with no trust dialog, so a cloned vault's hooks run
   when one of its cards is rendered under `record`. `--bare` skips them but
-  requires an API key, which this transport exists to avoid. The transport
-  MUST therefore refuse to start a session in a workspace the editor does not
-  trust, and the documentation MUST say that `record` under `claude-code`
-  runs the vault's hooks.
+  requires an API key, which this transport exists to avoid. `hql` has no
+  notion of workspace trust, so the host that does MUST enforce it: the editor
+  extension passes only `replay` in an untrusted workspace, and the
+  documentation MUST say that `record` under `claude-code` runs the vault's
+  hooks.
 - **Pending requests are untrusted text.** A pending request holds context
   read from cards, and so may hold text written to redirect the agent that
   answers it. The skill MUST tell the agent to treat a request's content as
@@ -283,7 +292,8 @@ entry and a host that never passes `--ai host` sees no change.
 - `src/transclude.rs`: the `pending` cell status and the pending requests in
   the envelope
 - `src/cli.rs`: `hql ai answer`
-- `contrib/skills/hmd-run/SKILL.md`: the skill
+- `contrib/skills/hmd-run/SKILL.md`: the skill, with
+  `contrib/skills/README.md`
 - the extension: `hyperMarkdown.hql.ai`, the `pending` cell state, and the
   action that opens the chat
 
@@ -324,3 +334,13 @@ Code: the [CLI reference](https://code.claude.com/docs/en/cli-reference),
 leave unstated is not relied on: the complete schema of the JSON result, the
 panel listing headless sessions or refreshing while another process writes,
 and any way for an outside process to reach an open panel.
+
+## Changelog
+
+- 2026-10-19: drafted
+- 2026-10-20: the HQL side implemented: the `claude-code` transport, `--ai
+  host`, the `pending` cell status and the envelope's `pending` requests,
+  `hql ai pending` and `hql ai answer`, `answered_by` on every recording, and
+  the `hmd-run` skill. Settled while building: a session id is a version 8
+  UUID from the request's hash, `--text` answers in plain text, a query
+  embedding is never pending, and workspace trust is the editor's to enforce

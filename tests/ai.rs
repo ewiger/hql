@@ -377,3 +377,179 @@ fn a_cell_reads_its_card_as_this_and_its_section_as_the_prompts_instructions() {
         "{reports}"
     );
 }
+
+fn render(card: &str, vault: &vault::Vault) -> hql::transclude::Rendered {
+    hql::transclude::render_document(
+        card,
+        Some(Path::new("review.hmd")),
+        vault,
+        Report::Strict,
+        hql::transclude::Emit::After,
+        None,
+    )
+    .unwrap()
+}
+
+fn statuses(rendered: &hql::transclude::Rendered) -> Vec<&'static str> {
+    rendered
+        .cells
+        .iter()
+        .map(|cell| cell.status.label())
+        .collect()
+}
+
+#[test]
+fn under_host_a_request_waits_for_the_chat_and_its_answers_replay() {
+    use hql::extensions::ai::transport;
+    let directory = tempfile::tempdir().unwrap();
+    let mut vault = vault_on(directory.path(), 9);
+    vault.ai.mode = Mode::Host;
+    let card = "# Review\n\nIs the owl nocturnal?\n\n```hql#eval id=answer\nimport ai\ncards | filter(c => c.name == \"owl\") | Context(\"evidence\") | run([[checker]] | Agent)\n```\n\n```hql#eval id=why\nimport ai\nanswer | ask(\"Why?\")\n```\n\n```hql#eval id=title\nthis.title\n```\n";
+    // First pass: the first question waits, what reads it is skipped, and
+    // what does not read it runs.
+    let first = render(card, &vault);
+    assert_eq!(statuses(&first), ["pending", "skipped", "ok"]);
+    let waiting = transport::pending(directory.path(), &vault.ai);
+    assert_eq!(waiting.len(), 1);
+    assert_eq!(
+        waiting[0].request["messages"][0]["content"],
+        "# Review\n\nIs the owl nocturnal?\n\n## evidence\n\nSource: owl\n\n# Owl\n\nOwls hunt after dark."
+    );
+    assert_eq!(
+        first.cells[0].pending.as_deref(),
+        Some(waiting[0].key.as_str())
+    );
+    // A key nothing waits under, and an answer in the wrong shape, are refused.
+    assert!(transport::answer(directory.path(), &vault.ai, "nothing", &json!({})).is_err());
+    assert!(
+        transport::answer(
+            directory.path(),
+            &vault.ai,
+            &waiting[0].key,
+            &json!({"text": "Yes."})
+        )
+        .is_err()
+    );
+    transport::answer(
+        directory.path(),
+        &vault.ai,
+        &waiting[0].key,
+        &transport::wrapped(&waiting[0].api, "Yes, it hunts after dark."),
+    )
+    .unwrap();
+    // Second pass: the answer is a recording, and the follow-up now waits.
+    let second = render(&first.document, &vault);
+    assert_eq!(statuses(&second), ["ok", "pending", "ok"]);
+    let waiting = transport::pending(directory.path(), &vault.ai);
+    assert_eq!(waiting.len(), 1);
+    transport::answer(
+        directory.path(),
+        &vault.ai,
+        &waiting[0].key,
+        &transport::wrapped(&waiting[0].api, "The card says so."),
+    )
+    .unwrap();
+    let third = render(&second.document, &vault);
+    assert_eq!(statuses(&third), ["ok", "ok", "ok"]);
+    assert!(transport::pending(directory.path(), &vault.ai).is_empty());
+    // Every answer is now a recording, so replay renders the same document.
+    vault.ai.mode = Mode::Replay;
+    assert_eq!(render(&third.document, &vault).document, third.document);
+    let recorded = std::fs::read_dir(directory.path().join(".hql/runs"))
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "json"))
+        .map(|entry| {
+            serde_json::from_str::<J>(&std::fs::read_to_string(entry.path()).unwrap()).unwrap()
+                ["answered_by"]
+                .clone()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(recorded, [json!("host"), json!("host")]);
+}
+
+/// A stand-in for `claude`: it records its arguments, working directory and
+/// prompt, and prints a fixed result.
+fn fake_claude(root: &Path, session: &str) -> std::path::PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let script = root.join("fake-claude.sh");
+    let log = root.join("calls.log");
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\n{{ echo \"cwd=$(pwd)\"; echo \"args=$*\"; echo \"prompt=$(cat)\"; }} >> '{}'\n\
+             printf '%s' '{{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"result\":\"Owls hunt at night.\",\"session_id\":\"{session}\",\"total_cost_usd\":0.01,\"num_turns\":2,\"usage\":{{\"input_tokens\":7}},\"modelUsage\":{{\"claude-test\":{{}}}}}}'\n",
+            log.display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    script
+}
+
+fn session_vault(root: &Path, permission: &str) -> vault::Vault {
+    let script = fake_claude(root, "s-1");
+    vault_on(root, 9);
+    write(
+        root,
+        "hql.toml",
+        &format!(
+            "[ai.models.default]\napi = \"claude-code\"\ncommand = \"{}\"\npermission = \"{permission}\"\n\
+             tools = [\"Read\", \"Grep\"]\nmax_turns = 3\n",
+            script.display()
+        ),
+    );
+    vault::load(root).unwrap()
+}
+
+#[test]
+fn a_claude_code_session_runs_in_the_vault_and_a_continuation_forks_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut vault = session_vault(directory.path(), "plan");
+    vault.ai.mode = Mode::Record;
+    let source = "import ai\nreview = cards | filter(c => c.name == \"owl\") | Context(\"evidence\") | run([[checker]] | Agent)\nwhy = review | ask(\"Why?\")";
+    assert_eq!(
+        field(source, &vault, "review.result"),
+        "Owls hunt at night."
+    );
+    assert_eq!(field(source, &vault, "review.model.session"), r#""s-1""#);
+    assert_eq!(
+        field(source, &vault, "review.model.model"),
+        r#""claude-test""#
+    );
+    let log = std::fs::read_to_string(directory.path().join("calls.log")).unwrap();
+    let root = directory.path().canonicalize().unwrap();
+    assert!(log.contains(&format!("cwd={}", root.display())), "{log}");
+    assert!(log.contains("--permission-mode plan"), "{log}");
+    assert!(log.contains("--allowedTools Read,Grep"), "{log}");
+    assert!(log.contains("--max-turns 3"), "{log}");
+    assert!(log.contains("--append-system-prompt # Checker"), "{log}");
+    assert!(log.contains("--session-id "), "{log}");
+    assert!(log.contains("prompt=## evidence"), "{log}");
+    // The continuation resumes the recorded session as a fork.
+    assert_eq!(field(source, &vault, "why.origin"), "ask");
+    let log = std::fs::read_to_string(directory.path().join("calls.log")).unwrap();
+    assert!(log.contains("--resume s-1 --fork-session"), "{log}");
+    assert!(log.contains("prompt=Why?"), "{log}");
+    // Recorded: replay needs no command at all.
+    std::fs::remove_file(directory.path().join("fake-claude.sh")).unwrap();
+    vault.ai.mode = Mode::Replay;
+    assert_eq!(field(source, &vault, "why.result"), "Owls hunt at night.");
+}
+
+#[test]
+fn a_session_that_acts_without_approval_is_refused() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut vault = session_vault(directory.path(), "bypassPermissions");
+    vault.ai.mode = Mode::Record;
+    let reports = failure(
+        "import ai\ncards | Context | run([[checker]] | Agent)",
+        &vault,
+    );
+    assert!(reports.contains("acts without approval"), "{reports}");
+    let reports = failure(
+        "import ai\nfn count_named(name: String) : Int = 1\ncards | Context | run([[reviewer]] | Agent, tools = [Tool(count_named, \"x\")])",
+        &session_vault(directory.path(), "plan"),
+    );
+    assert!(reports.contains("offered no HQL tools"), "{reports}");
+}

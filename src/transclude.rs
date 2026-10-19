@@ -51,6 +51,9 @@ pub enum Status {
     /// It was not asked to run: another cell was, or the document did not
     /// check. Its output is left as written.
     NotRun,
+    /// It asked a model a question nobody has answered yet: under `--ai host`
+    /// the request waits for whoever drives the render.
+    Pending,
 }
 
 impl Status {
@@ -62,6 +65,7 @@ impl Status {
             Self::Error => "error",
             Self::Skipped => "skipped",
             Self::NotRun => "not-run",
+            Self::Pending => "pending",
         }
     }
 }
@@ -85,6 +89,8 @@ pub struct Cell {
     pub markdown: String,
     /// What it had to say, with spans into the document.
     pub reports: Reports,
+    /// The key of the model request it waits on, when it is pending.
+    pub pending: Option<String>,
 }
 
 /// What rendering a document produced.
@@ -245,6 +251,7 @@ pub fn render_document(
             status: Status::NotRun,
             markdown: String::new(),
             reports: Reports::new(),
+            pending: None,
         })
         .collect();
 
@@ -256,7 +263,8 @@ pub fn render_document(
     let mut blocks = 0;
     for &index in &order {
         if let Some(waited) = failed_read(&cells[index], &results) {
-            skip(&mut results[index], &cells, waited);
+            let pending = results[waited].status == Status::Pending;
+            skip(&mut results[index], &cells, waited, pending);
             continue;
         }
         let mut bound: Vec<_> = cells[index]
@@ -288,7 +296,8 @@ pub fn render_document(
     if !broken {
         for &index in &order {
             if let Some(waited) = failed_read(&cells[index], &results) {
-                skip(&mut results[index], &cells, waited);
+                let pending = results[waited].status == Status::Pending;
+                skip(&mut results[index], &cells, waited, pending);
                 continue;
             }
             let Some(program) = &programs[index] else {
@@ -333,6 +342,20 @@ pub fn render_document(
                 Ok(markdown) => {
                     results[index].status = Status::Ok;
                     results[index].markdown = markdown;
+                }
+                Err(message) if message.starts_with(crate::extensions::ai::transport::PENDING) => {
+                    // Not a failure: a question waiting for its answer.
+                    let key = message
+                        .trim_start_matches(crate::extensions::ai::transport::PENDING)
+                        .split(':')
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned();
+                    results[index].status = Status::Pending;
+                    results[index].reports = Reports::new();
+                    results[index].markdown =
+                        format!("pending: waiting for an answer to request {key}");
+                    results[index].pending = Some(key);
                 }
                 Err(message) => {
                     results[index].status = Status::Error;
@@ -700,19 +723,25 @@ fn normalized(source: &str) -> String {
 
 /// The first cell a cell reads that failed or was skipped.
 fn failed_read(cell: &Source, results: &[Cell]) -> Option<usize> {
-    cell.reads
-        .iter()
-        .copied()
-        .find(|&read| matches!(results[read].status, Status::Error | Status::Skipped))
+    cell.reads.iter().copied().find(|&read| {
+        matches!(
+            results[read].status,
+            Status::Error | Status::Skipped | Status::Pending
+        )
+    })
 }
 
-fn skip(result: &mut Cell, cells: &[Source], waited: usize) {
+fn skip(result: &mut Cell, cells: &[Source], waited: usize, pending: bool) {
     let name = cells[waited]
         .id
         .clone()
         .unwrap_or_else(|| waited.to_string());
     result.status = Status::Skipped;
-    result.markdown = format!("skipped: {name} failed");
+    result.markdown = if pending {
+        format!("skipped: {name} is pending")
+    } else {
+        format!("skipped: {name} failed")
+    };
 }
 
 /// The document with every cell's output written, and whether it is a

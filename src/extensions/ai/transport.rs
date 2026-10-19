@@ -24,6 +24,9 @@ pub enum Mode {
     Record,
     /// Always send, never record.
     Live,
+    /// Answer from a recording when one exists; otherwise leave the request
+    /// pending for whoever drives the program to answer.
+    Host,
 }
 
 impl Mode {
@@ -36,8 +39,9 @@ impl Mode {
             "replay" => Ok(Self::Replay),
             "record" => Ok(Self::Record),
             "live" => Ok(Self::Live),
+            "host" => Ok(Self::Host),
             other => Err(format!(
-                "unknown --ai mode `{other}`; expected replay, record or live"
+                "unknown --ai mode `{other}`; expected replay, record, live or host"
             )),
         }
     }
@@ -58,6 +62,8 @@ pub enum Api {
     ChatCompletions,
     /// An OpenAI-shaped `/v1/embeddings`, for a query the index lacks.
     Embeddings,
+    /// A headless Claude Code session, `claude -p`.
+    ClaudeCode,
 }
 
 impl Api {
@@ -68,6 +74,7 @@ impl Api {
             Self::Messages => "messages",
             Self::ChatCompletions => "chat-completions",
             Self::Embeddings => "embeddings",
+            Self::ClaudeCode => "claude-code",
         }
     }
 }
@@ -87,6 +94,21 @@ pub struct Model {
     pub max_tokens: i64,
     /// Sampling temperature, when the vault fixes one.
     pub temperature: Option<f64>,
+    /// The session host, for `claude-code`.
+    pub session: Option<SessionHost>,
+}
+
+/// How a `claude-code` entry starts a session.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionHost {
+    /// The command, resolved on `PATH` unless absolute.
+    pub command: String,
+    /// The session's `--permission-mode`.
+    pub permission: String,
+    /// The host tools the session may use without asking, as allow rules.
+    pub tools: Vec<String>,
+    /// The most agentic turns one invocation may take.
+    pub max_turns: i64,
 }
 
 /// What a vault's `hql.toml` says under `[ai]`, and the mode the host chose.
@@ -187,6 +209,9 @@ fn parse_model(name: &str, table: &toml::Table) -> Result<Model, String> {
             .and_then(toml::Value::as_str)
             .map(str::to_owned)
     };
+    if text("api").as_deref() == Some("claude-code") {
+        return parse_session(name, table);
+    }
     for key in table.keys() {
         match key.as_str() {
             "api" | "endpoint" | "model" | "api_key_env" | "max_tokens" | "temperature" => {}
@@ -204,7 +229,8 @@ fn parse_model(name: &str, table: &toml::Table) -> Result<Model, String> {
         Some("chat-completions") => Api::ChatCompletions,
         Some(other) => {
             return Err(format!(
-                "unknown api `{other}` in [ai.models.{name}]; expected messages or chat-completions"
+                "unknown api `{other}` in [ai.models.{name}]; expected messages, \
+                 chat-completions or claude-code"
             ));
         }
         None => return Err(format!("[ai.models.{name}] needs `api`")),
@@ -222,6 +248,64 @@ fn parse_model(name: &str, table: &toml::Table) -> Result<Model, String> {
             value
                 .as_float()
                 .or_else(|| value.as_integer().map(|n| n as f64))
+        }),
+        session: None,
+    })
+}
+
+/// The permission modes a session may not be started in: each lets a model
+/// act without anyone approving it.
+const UNAPPROVED: [&str; 2] = ["bypassPermissions", "dontAsk"];
+
+fn parse_session(name: &str, table: &toml::Table) -> Result<Model, String> {
+    for key in table.keys() {
+        match key.as_str() {
+            "api" | "command" | "permission" | "tools" | "max_turns" | "model" => {}
+            other => return Err(format!("unknown key `{other}` in [ai.models.{name}]")),
+        }
+    }
+    let text = |key: &str| {
+        table
+            .get(key)
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned)
+    };
+    // What a session may do is the vault owner's decision, so it is written
+    // down rather than defaulted.
+    let permission = text("permission").ok_or_else(|| {
+        format!("[ai.models.{name}] needs `permission`, the session's permission mode")
+    })?;
+    if UNAPPROVED.contains(&permission.as_str()) {
+        return Err(format!(
+            "[ai.models.{name}] may not start a session in `{permission}`, which acts \
+             without approval"
+        ));
+    }
+    let tools = table
+        .get("tools")
+        .and_then(toml::Value::as_array)
+        .ok_or_else(|| {
+            format!("[ai.models.{name}] needs `tools`, the host tools the session may use")
+        })?
+        .iter()
+        .map(|tool| tool.as_str().map(str::to_owned))
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| format!("[ai.models.{name}] `tools` lists names"))?;
+    Ok(Model {
+        api: Api::ClaudeCode,
+        endpoint: String::new(),
+        model: text("model").unwrap_or_default(),
+        api_key_env: None,
+        max_tokens: 0,
+        temperature: None,
+        session: Some(SessionHost {
+            command: text("command").unwrap_or_else(|| "claude".to_owned()),
+            permission,
+            tools,
+            max_turns: table
+                .get("max_turns")
+                .and_then(toml::Value::as_integer)
+                .unwrap_or(8),
         }),
     })
 }
@@ -274,21 +358,147 @@ pub fn send(root: &Path, settings: &Settings, model: &Model, body: &J) -> Result
     {
         return Ok(recorded);
     }
-    if settings.mode == Mode::Replay {
+    // A chat answers a conversation; an embedding is not something to ask it.
+    if settings.mode == Mode::Replay
+        || (settings.mode == Mode::Host && model.api == Api::Embeddings)
+    {
         return Err(format!(
             "no recording for this request ({key}); run with --ai record"
         ));
     }
-    let response = post(model, body)?;
-    if settings.mode == Mode::Record {
-        std::fs::create_dir_all(&directory)
-            .map_err(|error| format!("{}: {error}", directory.display()))?;
-        let recording = serde_json::json!({ "request": body, "response": response });
-        let text = serde_json::to_string_pretty(&recording).map_err(|error| error.to_string())?;
+    if settings.mode == Mode::Host {
+        let pending = directory.join(PENDING_DIRECTORY);
+        std::fs::create_dir_all(&pending)
+            .map_err(|error| format!("{}: {error}", pending.display()))?;
+        let request = serde_json::json!({ "api": model.api.name(), "request": body });
+        let text = serde_json::to_string_pretty(&request).map_err(|error| error.to_string())?;
+        let path = pending.join(format!("{key}.json"));
         std::fs::write(&path, text + "\n")
             .map_err(|error| format!("{}: {error}", path.display()))?;
+        return Err(format!(
+            "{PENDING}{key}: no answer yet; answer it with `hql ai answer {key}`"
+        ));
+    }
+    let (response, answered_by) = match model.api {
+        Api::ClaudeCode => (super::session::invoke(root, model, body)?, "session"),
+        _ => (post(model, body)?, "provider"),
+    };
+    if settings.mode == Mode::Record {
+        write_recording(&directory, &key, body, &response, answered_by)?;
     }
     Ok(response)
+}
+
+/// Where requests wait for a host to answer them, inside the recordings.
+pub const PENDING_DIRECTORY: &str = "pending";
+/// How a failure that is a pending request begins.
+pub const PENDING: &str = "pending request ";
+
+/// One request waiting for an answer: its key, its API and its body.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Pending {
+    /// The recording it will become.
+    pub key: String,
+    /// The wire format the answer must be in.
+    pub api: String,
+    /// The request body.
+    pub request: J,
+}
+
+/// Every request waiting for an answer, by key.
+#[must_use]
+pub fn pending(root: &Path, settings: &Settings) -> Vec<Pending> {
+    let directory = root.join(&settings.recordings).join(PENDING_DIRECTORY);
+    let Ok(entries) = std::fs::read_dir(&directory) else {
+        return Vec::new();
+    };
+    let mut found: Vec<Pending> = entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            let key = path.file_stem()?.to_str()?.to_owned();
+            let held: J = serde_json::from_str(&std::fs::read_to_string(&path).ok()?).ok()?;
+            Some(Pending {
+                key,
+                api: held.get("api")?.as_str()?.to_owned(),
+                request: held.get("request")?.clone(),
+            })
+        })
+        .collect();
+    found.sort_by(|left, right| left.key.cmp(&right.key));
+    found
+}
+
+/// The final answer `text` in an API's wire format.
+#[must_use]
+pub fn wrapped(api: &str, text: &str) -> J {
+    match api {
+        "chat-completions" => serde_json::json!({
+            "model": "host",
+            "choices": [{"finish_reason": "stop", "message": {"content": text}}],
+        }),
+        "claude-code" => serde_json::json!({
+            "type": "result", "subtype": "success", "result": text, "is_error": false,
+        }),
+        _ => serde_json::json!({
+            "model": "host",
+            "stop_reason": "end_turn",
+            "content": [{"type": "text", "text": text}],
+        }),
+    }
+}
+
+/// Answer a pending request: the response becomes its recording, answered
+/// by the host, and the request stops waiting.
+///
+/// # Errors
+/// No request is pending under the key, or the response is not one of its
+/// API's wire format.
+pub fn answer(root: &Path, settings: &Settings, key: &str, response: &J) -> Result<(), String> {
+    let waiting = pending(root, settings)
+        .into_iter()
+        .find(|held| held.key == key)
+        .ok_or_else(|| format!("no request is pending under `{key}`"))?;
+    let api = match waiting.api.as_str() {
+        "messages" => Api::Messages,
+        "chat-completions" => Api::ChatCompletions,
+        "claude-code" => Api::ClaudeCode,
+        other => return Err(format!("a pending request names the unknown api `{other}`")),
+    };
+    if api == Api::ClaudeCode && response.get("result").and_then(J::as_str).is_none() {
+        return Err("a claude-code answer holds a `result`".to_owned());
+    }
+    super::wire::reply(api, response)
+        .map_err(|reason| format!("the answer is not a {} response: {reason}", waiting.api))?;
+    let directory = root.join(&settings.recordings);
+    write_recording(&directory, key, &waiting.request, response, "host")?;
+    let path = directory
+        .join(PENDING_DIRECTORY)
+        .join(format!("{key}.json"));
+    std::fs::remove_file(&path).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+/// Write a recording, saying who answered it.
+///
+/// # Errors
+/// The directory or the file cannot be written.
+pub fn write_recording(
+    directory: &Path,
+    key: &str,
+    request: &J,
+    response: &J,
+    answered_by: &str,
+) -> Result<(), String> {
+    std::fs::create_dir_all(directory)
+        .map_err(|error| format!("{}: {error}", directory.display()))?;
+    let recording = serde_json::json!({
+        "request": request,
+        "response": response,
+        "answered_by": answered_by,
+    });
+    let text = serde_json::to_string_pretty(&recording).map_err(|error| error.to_string())?;
+    let path = directory.join(format!("{key}.json"));
+    std::fs::write(&path, text + "\n").map_err(|error| format!("{}: {error}", path.display()))
 }
 
 fn recorded(path: &Path, key: &str) -> Result<Option<J>, String> {
@@ -335,6 +545,9 @@ fn post(model: &Model, body: &J) -> Result<J, String> {
             request.set("authorization", &format!("Bearer {key}"))
         }
         (Api::ChatCompletions | Api::Embeddings, None) => request,
+        (Api::ClaudeCode, _) => {
+            return Err("a claude-code session is not reached over HTTP".to_owned());
+        }
     };
     match request.send_json(body) {
         Ok(response) => response
@@ -419,6 +632,7 @@ mod tests {
             api_key_env: None,
             max_tokens: 1,
             temperature: None,
+            session: None,
         };
         let failure =
             send(directory.path(), &settings, &model, &serde_json::json!({})).unwrap_err();
