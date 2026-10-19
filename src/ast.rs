@@ -205,6 +205,8 @@ pub(crate) enum Kind {
         data: Option<Box<Expr>>,
     },
     Field(Box<Expr>, String),
+    /// `xs[i]` — the element at a position of a sequence, or of a tree.
+    Index(Box<Expr>, Box<Expr>),
     Call {
         callee: Box<Expr>,
         arguments: Vec<Arg>,

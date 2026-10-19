@@ -30,6 +30,9 @@ The language continues to be in active development.
   `--log-level` overrides every threshold. A level is a type, tested with
   `e.level | is(Error)`. `hql render` binds `cell.logs`, a cell's own channel,
   and never saves it into the document.
+- Indexing: `xs[i]` reads position `i` of a sequence, counting from `0`, as
+  an `Option`; past either end it is `none`. A `Data` tree that is a sequence
+  is indexed too, and a `Set`, a `Map` or an unbounded stream is refused.
 - `hql '<program>'` is `hql eval '<program>'`.
 - `--compact` writes each JSON document on one line, as `jq -c` does.
 

@@ -107,6 +107,8 @@ pub(crate) enum Kind {
         data: Option<Box<Expr>>,
     },
     Field(Box<Expr>, Field),
+    /// `xs[i]`: the element at a position, or its absence.
+    Index(Box<Expr>, Box<Expr>),
     Lambda {
         parameters: Vec<String>,
         body: std::sync::Arc<Expr>,
@@ -496,6 +498,7 @@ impl Checked {
                 right: boxed(right)?,
                 negated: *negated,
             },
+            A::Index(receiver, index) => Kind::Index(boxed(receiver)?, boxed(index)?),
             A::Field(receiver, _) => {
                 let receiver = boxed(receiver)?;
                 let field = self

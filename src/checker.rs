@@ -1330,6 +1330,17 @@ impl Checker<'_> {
                 self.checked.fields.insert(span, resolved);
                 Ok(ty)
             }
+            Kind::Index(receiver, index) => {
+                let receiver_type = self.expression(receiver)?;
+                let index_type = self.expression(index)?;
+                if index_type != TypeRef::INT {
+                    return Err(Diagnostic::typing(
+                        index.span.clone(),
+                        format!("a position is an Int, not {index_type}"),
+                    ));
+                }
+                indexed(&receiver_type).map_err(|message| Diagnostic::typing(span, message))
+            }
             Kind::Link {
                 source,
                 target,
@@ -1897,6 +1908,41 @@ pub(crate) fn step_of(step: &Expr) -> Result<StepRef<'_>, Diagnostic> {
         },
         _ => Err(not_a_step()),
     }
+}
+
+/// The type of `xs[i]`: the element at a position, or its absence.
+///
+/// Only a sequence has positions. An optional receiver nests no deeper: an
+/// element of a sequence that may be missing is one `Option`.
+fn indexed(receiver: &TypeRef) -> Result<TypeRef, String> {
+    if receiver.constructor.0 == "Option" {
+        return indexed(receiver.present());
+    }
+    if *receiver == TypeRef::DATA {
+        return Ok(TypeRef::optional(TypeRef::DATA));
+    }
+    if receiver.is_sequence() {
+        let element = receiver
+            .element()
+            .ok_or_else(|| format!("{receiver} has no element type"))?;
+        return Ok(TypeRef::optional(element));
+    }
+    if receiver.is_stream() && !receiver.is_collection() {
+        return Err(format!(
+            "{receiver} may not end, so a position in it is not known; bound it with `take(n)`"
+        ));
+    }
+    if crate::types::MapKind::of(receiver.constructor).is_some() {
+        return Err(format!(
+            "{receiver} has keys, not positions; read a value with `get`"
+        ));
+    }
+    if receiver.is_collection() {
+        return Err(format!(
+            "{receiver} has no positions, so it is not indexed; `sort` it into one"
+        ));
+    }
+    Err(format!("{receiver} is not indexed; a sequence is"))
 }
 
 /// The type of a field on a value of a type.

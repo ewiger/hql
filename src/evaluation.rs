@@ -256,6 +256,14 @@ impl Evaluator<'_> {
                 let value = self.expression(receiver)?;
                 self.field(&value, field, &expression.ty, &span)
             }
+            Kind::Index(receiver, index) => {
+                let value = self.expression(receiver)?;
+                let value = self.settled(value, &span)?;
+                let Value::Int(position) = self.expression(index)? else {
+                    return Err(Diagnostic::runtime(span, "a position is an Int"));
+                };
+                at_position(value, position, expression.ty.present(), &span)
+            }
             Kind::Link {
                 source,
                 target,
@@ -1169,6 +1177,49 @@ fn as_checked(value: Value, checked: &TypeRef) -> Value {
             Value::Traversal(Arc::new(Traversal::kept(element, values.as_ref().clone())))
         }
         other => other,
+    }
+}
+
+/// The element at a position, or absence past either end. A tree reads its
+/// members when it is a sequence, and is the wrong shape otherwise.
+fn at_position(
+    value: Value,
+    position: i64,
+    element: &TypeRef,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let absent = || Value::Absent(element.clone());
+    let index = usize::try_from(position).ok();
+    match value {
+        Value::Absent(_) => Ok(absent()),
+        Value::Present(inner) => at_position(inner.as_ref().clone(), position, element, span),
+        Value::Data(data) => match data.as_ref() {
+            Data::List(items) => Ok(index
+                .and_then(|index| items.get(index))
+                .map_or_else(absent, |item| {
+                    Value::Present(Arc::new(Value::Data(Arc::new(item.clone()))))
+                })),
+            // An empty entry holds nothing, so nothing is at any position.
+            Data::Empty => Ok(absent()),
+            other => Err(Diagnostic::typing(
+                span.clone(),
+                format!(
+                    "a position needs a sequence here, not Data of shape {}",
+                    other.shape()
+                ),
+            )),
+        },
+        other => {
+            let elements = other.elements().ok_or_else(|| {
+                Diagnostic::runtime(
+                    span.clone(),
+                    format!("a {} is not indexed", other.type_of()),
+                )
+            })?;
+            Ok(index
+                .and_then(|index| elements.into_iter().nth(index))
+                .map_or_else(absent, |item| Value::Present(Arc::new(item))))
+        }
     }
 }
 

@@ -248,7 +248,7 @@ fn source<S>(id: String) : S   // HQL-0012, unchanged
   is a `LiveSource<Message<T>>`.
 - `source` over a replayable endpoint MUST give a `FiniteSource<T>`: every
   document, in order, as a `Seq<T>`. An ordinary JSON file is therefore a
-  sequence of one document.
+  sequence of one document, `source(file("birds.json"))[0]`.
 - `source` over a live endpoint MUST give a `LiveSource<T>`, which stands as a
   `Stream<T>`. Each document MUST be produced as soon as it has been read, so
   `source(stdin, Json) | filter(…)` over a pipe that stays open writes results

@@ -1190,6 +1190,23 @@ impl Parser {
                 };
                 continue;
             }
+            // `xs[i]`: a bracket touching the value indexes it; one after a
+            // space or a line break opens a list of its own.
+            if matches!(self.peek(), Token::OpenBracket)
+                && self.tokens[self.index].span.start == expression.span.end
+            {
+                self.advance();
+                self.nesting += 1;
+                let index = self.expression()?;
+                self.nesting -= 1;
+                let close = self.expect(&Token::CloseBracket, "after an index")?;
+                let span = expression.span.start..close.span.end;
+                expression = Expr {
+                    kind: Kind::Index(Box::new(expression), Box::new(index)),
+                    span,
+                };
+                continue;
+            }
             if matches!(self.peek(), Token::OpenParen) {
                 let (arguments, end) = self.arguments()?;
                 let span = expression.span.start..end;

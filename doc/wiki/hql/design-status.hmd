@@ -48,8 +48,8 @@ is used — see [[hql/extensions]]. Module resolution is not, so optional
 namespace `init.hql` files remain design.
 
 Generic types are written with angle brackets — `Set<Card>`, `fn first<T>(xs:
-Seq<T>) : T?` — and square brackets are reserved for sequence values and
-indexing. `cards` is a `Seq<Card>` in the current vault or namespace, in
+Seq<T>) : T?` — and square brackets are sequence values and indexing,
+`xs[0] : Option<T>`. `cards` is a `Seq<Card>` in the current vault or namespace, in
 sorted-walk order, and a prefix of it is reproducible because the walk fixes its
 positions — see [[card-type]]. `knowledge` comprises
 concepts, relations, propositions and evidence. Knowledge retains conflicting
