@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 25 # to be incremented when adding a new issue card
+  last_id: 26 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -41,6 +41,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0026"
+        title: The REPL edits lines and reads multi-line input
+        file: 0026-repl-line-editing.md
       - id: "0025"
         title: "Next feature bundle: generics, aliases, reductions and the open ends of the proposals"
         file: 0025-next-feature-bundle.md

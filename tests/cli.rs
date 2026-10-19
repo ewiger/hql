@@ -336,6 +336,34 @@ fn the_repl_keeps_bindings_and_answers_type_questions() {
 }
 
 #[test]
+fn the_repl_continues_an_input_while_a_bracket_is_open() {
+    let session = "xs = [\n    40,\n    2,\n]\nxs | sum\n";
+    let output = piped(&["repl"], session);
+    let printed = stdout(&output);
+    assert!(printed.contains("42"), "{printed}");
+    assert!(output.status.success());
+}
+
+#[test]
+fn the_repl_continues_a_pipeline_written_one_step_per_line() {
+    // As the book writes them: a line opening with `|` continues the input.
+    let session =
+        "shelf = [\n  {t: \"a\"},\n  {t: \"b\"},\n]\nr = shelf\n| map(b => b.t)\n| take(1)\nr\n";
+    let output = piped(&["repl"], session);
+    assert!(stdout(&output).contains("[\"a\"]"), "{}", stdout(&output));
+    // Typed by hand, the `|` line arrives on its own and joins the one before.
+    let typed = piped(&["repl"], "xs = [3, 1, 2]\n\n| sort\nxs\n");
+    assert!(stdout(&typed).contains("[1, 2, 3]"), "{}", stdout(&typed));
+}
+
+#[test]
+fn the_repl_keeps_every_declaration_and_no_expression() {
+    let session = "fn twice(n: Int) : Int = n * 2\ntop(n) := sort | take(n)\nxs : List<Int> = [3, 1, 2] | map(n => n)\nxs | top(2) | map(twice)\n";
+    let output = piped(&["repl"], session);
+    assert!(stdout(&output).contains("[2, 4]"), "{}", stdout(&output));
+}
+
+#[test]
 fn builtins_and_config_explain_the_surface_and_the_settings() {
     let listed = hql(&["builtins"]);
     assert!(listed.status.success());

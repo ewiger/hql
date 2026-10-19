@@ -22,8 +22,11 @@ the messages `hql` writes when a program is wrong.
 
 ## The REPL
 
-`hql repl` keeps its bindings from one line to the next. `:type` asks for a
-type, and `:quit` leaves:
+`hql repl` keeps its bindings from one input to the next. The arrow keys edit a
+line and recall earlier inputs, from a history kept between sessions. An input
+goes on over several lines while a bracket is open, or while the next line
+opens with `|`, so every program in this book can be pasted in as it is
+written. `:type` asks for a type, and `:quit` leaves:
 
 ```text
 $ hql repl

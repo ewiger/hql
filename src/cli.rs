@@ -3,11 +3,19 @@
 //! Everything here is in the library rather than the binary, because logic
 //! only the binary can reach is logic that cannot be tested.
 
+use crate::lexer::Token;
 use crate::reporting::{Level, Mode, Reports, Settings, Severity};
 use crate::types::Value;
 use crate::vault::{self, Vault};
 use crate::{render, transclude};
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use rustyline::completion::Completer;
+use rustyline::error::ReadlineError;
+use rustyline::highlight::Highlighter;
+use rustyline::hint::Hinter;
+use rustyline::history::FileHistory;
+use rustyline::validate::{ValidationContext, ValidationResult, Validator};
+use rustyline::{Editor, Helper};
 use std::io::{BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -591,27 +599,28 @@ fn repl(
         .map_err(|error| error.to_string())?;
     }
     let mut prelude: Vec<String> = Vec::new();
-    let stdin = io::stdin();
+    // The last input that ran, so a line opening with `|` continues it, and
+    // whether it was a binding the session kept.
+    let mut last: Option<(String, bool)> = None;
+    let mut input = if interactive {
+        Input::terminal()?
+    } else {
+        Input::Piped(io::stdin().lock())
+    };
     loop {
-        if interactive {
-            write!(out, "hql> ").map_err(|error| error.to_string())?;
-            out.flush().map_err(|error| error.to_string())?;
-        }
-        let mut line = String::new();
-        if stdin
-            .lock()
-            .read_line(&mut line)
-            .map_err(|error| error.to_string())?
-            == 0
-        {
+        let Some(line) = input.next()? else {
+            input.close();
             return Ok(0);
-        }
+        };
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
         match line {
-            ":quit" | ":q" => return Ok(0),
+            ":quit" | ":q" => {
+                input.close();
+                return Ok(0);
+            }
             ":help" | ":h" => {
                 writeln!(
                     out,
@@ -643,6 +652,20 @@ fn repl(
             _ => {}
         }
 
+        // A line opening with `|` continues the pipeline before it: the
+        // two run as one input, and a binding is made again with both.
+        let mut replaced = None;
+        let continued;
+        let line = match (line.starts_with('|'), &last) {
+            (true, Some((previous, kept))) => {
+                if *kept {
+                    replaced = prelude.pop();
+                }
+                continued = format!("{previous}\n{line}");
+                continued.as_str()
+            }
+            _ => line,
+        };
         let (source, typing) = match line.strip_prefix(":type ") {
             Some(rest) => (join(&prelude, rest), true),
             None => (join(&prelude, line), false),
@@ -654,10 +677,133 @@ fn repl(
         };
         emit(&outcome, &source, "<repl>", options, vault, shown, out, err)?;
         // A binding that worked joins the session; an expression does not.
-        if !outcome.failed() && !typing && is_binding(line) {
+        // A continuation that failed leaves the binding it continued.
+        let kept = !outcome.failed() && !typing && is_binding(line);
+        if kept {
             prelude.push(line.to_owned());
+        } else if let Some(held) = replaced {
+            prelude.push(held);
+        }
+        if !typing && !outcome.failed() {
+            last = Some((line.to_owned(), kept));
         }
     }
+}
+
+/// Where the REPL reads its inputs: a line editor on a terminal, or plain
+/// lines from a pipe.
+enum Input {
+    Terminal(Box<Editor<Continuation, FileHistory>>, Option<PathBuf>),
+    Piped(io::StdinLock<'static>),
+}
+
+impl Input {
+    fn terminal() -> Result<Self, String> {
+        let mut editor =
+            Editor::<Continuation, FileHistory>::new().map_err(|error| error.to_string())?;
+        editor.set_helper(Some(Continuation));
+        let history = std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".hql_history"));
+        if let Some(path) = &history {
+            // A first session has no history yet; that is not a failure.
+            let _ = editor.load_history(path);
+        }
+        Ok(Self::Terminal(Box::new(editor), history))
+    }
+
+    /// The next whole input, which spans lines while a bracket is open, or
+    /// `None` at the end of input.
+    fn next(&mut self) -> Result<Option<String>, String> {
+        match self {
+            Self::Terminal(editor, _) => match editor.readline("hql> ") {
+                Ok(text) => {
+                    if !text.trim().is_empty() {
+                        let _ = editor.add_history_entry(text.as_str());
+                    }
+                    Ok(Some(text))
+                }
+                // Ctrl-C abandons the input being typed, not the session.
+                Err(ReadlineError::Interrupted) => Ok(Some(String::new())),
+                Err(ReadlineError::Eof) => Ok(None),
+                Err(error) => Err(error.to_string()),
+            },
+            Self::Piped(stdin) => {
+                let mut text = String::new();
+                loop {
+                    let read = stdin
+                        .read_line(&mut text)
+                        .map_err(|error| error.to_string())?;
+                    if read == 0 {
+                        return Ok((!text.is_empty()).then_some(text));
+                    }
+                    // A pipeline written one step per line, `| sort`, goes on
+                    // while the next line opens with `|`.
+                    if !is_open(&text) && !continues(stdin) {
+                        return Ok(Some(text));
+                    }
+                }
+            }
+        }
+    }
+
+    fn close(&mut self) {
+        if let Self::Terminal(editor, Some(path)) = self {
+            // Losing the history must not turn a clean exit into a failure.
+            let _ = editor.save_history(path);
+        }
+    }
+}
+
+/// The line editor's helper: it holds an input open while a bracket is.
+struct Continuation;
+
+impl Validator for Continuation {
+    fn validate(&self, context: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
+        Ok(if is_open(context.input()) {
+            ValidationResult::Incomplete
+        } else {
+            ValidationResult::Valid(None)
+        })
+    }
+}
+
+impl Completer for Continuation {
+    type Candidate = String;
+}
+
+impl Hinter for Continuation {
+    type Hint = String;
+}
+
+impl Highlighter for Continuation {}
+
+impl Helper for Continuation {}
+
+/// Whether the next piped line opens with `|`, continuing the input before it.
+fn continues(stdin: &mut io::StdinLock<'static>) -> bool {
+    stdin.fill_buf().is_ok_and(|ahead| {
+        ahead
+            .iter()
+            .find(|byte| !matches!(byte, b' ' | b'\t'))
+            .is_some_and(|byte| *byte == b'|')
+    })
+}
+
+/// Whether an input leaves a bracket open, and so continues on the next line.
+///
+/// A string literal cannot span lines, so brackets alone decide; input that
+/// does not scan is complete, and its diagnostic is reported when it runs.
+fn is_open(source: &str) -> bool {
+    let Ok(tokens) = crate::lexer::scan(source) else {
+        return false;
+    };
+    let depth = tokens
+        .iter()
+        .fold(0_i64, |depth, spanned| match spanned.token {
+            Token::OpenParen | Token::OpenBracket | Token::OpenBrace => depth + 1,
+            Token::CloseParen | Token::CloseBracket | Token::CloseBrace => depth - 1,
+            _ => depth,
+        });
+    depth > 0
 }
 
 fn join(prelude: &[String], line: &str) -> String {
@@ -671,10 +817,12 @@ fn join(prelude: &[String], line: &str) -> String {
 
 /// Whether a line binds a name, and so belongs to the session.
 fn is_binding(line: &str) -> bool {
-    let Some((head, _)) = line.split_once('=') else {
-        return false;
-    };
-    let head =
-        head.trim_end_matches(|c: char| c == ':' || c.is_whitespace() || c.is_alphanumeric());
-    head.is_empty() && !line.starts_with('=') && !line.contains("=>")
+    // An input the session keeps declares and evaluates nothing of its own:
+    // bindings, `fn`, aliases, `type` and `import`, but no expression.
+    crate::parser::parse(line).is_ok_and(|program| {
+        program
+            .statements
+            .iter()
+            .all(|statement| !matches!(statement, crate::ast::Stmt::Expr(_)))
+    })
 }

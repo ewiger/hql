@@ -116,6 +116,17 @@ session a program rather than a sequence of unrelated runs. `:type <expression>`
 answers without evaluating, `:vault` says what the session runs against,
 `:reset` forgets the bindings, and `:quit` leaves.
 
+An input continues on the next line while one of its brackets — `(`, `[` or
+`{` — is open, and is evaluated whole once they close; a string literal cannot
+span lines, so brackets alone decide. A line opening with `|` continues the
+input before it, so a pipeline written one step per line runs as one input:
+piped input reads ahead for it, and a line typed at the prompt is joined to the
+input before it and run again with it. A session keeps every input that
+declares — a binding, `fn`, alias, `type` or `import` — and no expression. On a
+terminal the line editor recalls earlier inputs, a multi-line one whole, from a
+history kept in `~/.hql_history`; Ctrl-C abandons the input being typed and
+Ctrl-D on an empty line leaves.
+
 ## Documents that carry queries
 
 `hql render` is the second host. A block fenced `hql`, `hql#eval` or `hql#query`
