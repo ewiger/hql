@@ -38,6 +38,9 @@ The language continues to be in active development.
   separated as their format separates them. `hql render` refuses every
   network endpoint at check time, and `file("https://…")` is refused, naming
   `http`.
+- A function whose body uses an effectful operation, or calls an effectful
+  function, is effectful, and `hql check` reports it with what it uses:
+  `load is Effectful: it uses \`source\``.
 - Indexing: `xs[i]` reads position `i` of a sequence, counting from `0`, as
   an `Option`; past either end it is `none`. A `Data` tree that is a sequence
   is indexed too, and a `Set`, a `Map` or an unbounded stream is refused.

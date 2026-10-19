@@ -639,7 +639,7 @@ fn emit(
                 for signature in outcome
                     .reports
                     .iter()
-                    .filter(|report| report.code.as_deref() == Some("signature"))
+                    .filter(|report| matches!(report.code.as_deref(), Some("signature" | "effect")))
                 {
                     writeln!(out, "{}", signature.message).map_err(|error| error.to_string())?;
                 }

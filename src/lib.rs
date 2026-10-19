@@ -138,6 +138,17 @@ pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
                 ..Report::of_check_warning(&warnings::Warning::new(0..0, ""))
             });
         }
+        // So is every function that reads or writes outside its result.
+        for (name, uses) in &program.effects {
+            let uses: Vec<String> = uses.iter().map(|used| format!("`{used}`")).collect();
+            reports.push(Report {
+                severity: reporting::Severity::Info,
+                stage: "type".to_owned(),
+                message: format!("{name} is Effectful: it uses {}", uses.join(", ")),
+                code: Some("effect".to_owned()),
+                ..Report::of_check_warning(&warnings::Warning::new(0..0, ""))
+            });
+        }
     }
     Outcome {
         value: None,

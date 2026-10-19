@@ -466,3 +466,32 @@ fn a_document_may_write_its_own_channels() {
     .unwrap();
     assert!(ok(&hql_in(dir.path(), &["render", "doc.md"])).contains('2'));
 }
+
+#[test]
+fn a_function_that_reads_or_logs_is_effectful() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("q.hql"),
+        "import logging\n\
+         fn load(p: String) : Seq<Data> = source(file(p), Json)\n\
+         fn total(p: String) : Int = load(p) | size\n\
+         fn next(x: Int) : Int = x + 1\n\
+         note(log: Logger) := log | info(\"noted\")\n\
+         1\n",
+    )
+    .unwrap();
+    let checked = ok(&hql_in(dir.path(), &["check", "q.hql"]));
+    assert!(
+        checked.contains("load is Effectful: it uses `source`"),
+        "{checked}"
+    );
+    assert!(
+        checked.contains("total is Effectful: it uses `load`"),
+        "{checked}"
+    );
+    assert!(
+        checked.contains("note is Effectful: it uses `info`"),
+        "{checked}"
+    );
+    assert!(!checked.contains("next is"), "{checked}");
+}

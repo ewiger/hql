@@ -5,9 +5,9 @@ purity, and a test pins which steps are effectful. The rules come from
 [HQL-0001](../../proposals/HQL-0001/README.md) (the declaration),
 [HQL-0004](../../proposals/HQL-0004/README.md) (what a backend may do with it)
 and [HQL-0021](../../proposals/HQL-0021/README.md) (the first effectful steps).
-The checker does not yet carry purity through functions; `localhost` runs
-every step once and in program order, so the ordering rules hold there without
-being consulted.
+The checker carries purity through functions, and `hql check` reports each
+effectful one. `localhost` runs every step once and in program order, so the
+ordering rules hold there without being consulted.
 
 Purity is a property of an operation. It says whether evaluating the operation
 does anything other than produce its result.
@@ -65,9 +65,14 @@ evaluation, however many times the binding is used.
 
 ## Effects are known before evaluation
 
-- A function whose body uses an effectful operation is itself effectful
-  (HQL-0021; not yet implemented). The checker can then list every effect a
-  program may perform without running it.
+- A function whose body uses an effectful operation, or calls an effectful
+  function, is itself effectful. `hql check` reports each one with what it
+  uses:
+
+  ```text
+  load is Effectful: it uses `source`
+  total is Effectful: it uses `load`
+  ```
 - The host checks each endpoint use against its policy before evaluation and
   refuses one it does not grant with a check error naming the endpoint.
   `hql render` grants reading files beside the document and writing channels.

@@ -17,6 +17,9 @@ pub(crate) struct Program {
     pub warnings: Vec<crate::warnings::Warning>,
     /// Each alias the program defines, with the signature the checker wrote.
     pub signatures: Vec<(String, TypeRef)>,
+    /// Each function the program defines whose body is effectful, with the
+    /// effectful operations it uses.
+    pub effects: Vec<(String, Vec<String>)>,
 }
 
 #[derive(Debug)]
@@ -274,6 +277,8 @@ pub(crate) struct Checked {
     pub warnings: Vec<crate::warnings::Warning>,
     /// Each alias the program defines, with the signature the checker wrote.
     pub signatures: Vec<(String, TypeRef)>,
+    /// Each effectful function, with the effectful operations it uses.
+    pub effects: Vec<(String, Vec<String>)>,
 }
 
 impl Checked {
@@ -336,6 +341,7 @@ impl Checked {
             result,
             warnings: self.warnings.clone(),
             signatures: self.signatures.clone(),
+            effects: self.effects.clone(),
         })
     }
 

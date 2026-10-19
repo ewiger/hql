@@ -5,7 +5,7 @@ use crate::builtins;
 use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
 use crate::execution::{Checked, Program as TypedProgram};
-use crate::extensions::{CheckCx, Operation, Resolution};
+use crate::extensions::{CheckCx, Operation, Purity, Resolution};
 use crate::types::{TypeRef, collections};
 use crate::vault::Vault;
 use std::collections::HashMap;
@@ -43,6 +43,8 @@ pub(crate) fn check_with(
         parameter_names: HashMap::new(),
         generic_functions: HashMap::new(),
         placeholders: HashMap::new(),
+        uses: Vec::new(),
+        effectful: HashMap::new(),
     }
     .program(program)
 }
@@ -85,6 +87,8 @@ pub(crate) fn check_collecting_with(
         parameter_names: HashMap::new(),
         generic_functions: HashMap::new(),
         placeholders: HashMap::new(),
+        uses: Vec::new(),
+        effectful: HashMap::new(),
     };
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
@@ -295,6 +299,8 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 parameter_names: HashMap::new(),
                 generic_functions: HashMap::new(),
                 placeholders: HashMap::new(),
+                uses: Vec::new(),
+                effectful: HashMap::new(),
             }
             .program(&program)
             .ok()?;
@@ -329,6 +335,11 @@ struct Checker<'a> {
     /// The types an alias's unannotated parameters took, while its body is
     /// checked.
     placeholders: HashMap<crate::types::TypeConstructor, TypeRef>,
+    /// The effectful operations the body being checked uses, in the order
+    /// first written.
+    uses: Vec<String>,
+    /// Each declared function whose body is effectful, with what it uses.
+    effectful: HashMap<String, Vec<String>>,
 }
 
 impl Checker<'_> {
@@ -338,6 +349,34 @@ impl Checker<'_> {
             last = self.statement(statement)?;
         }
         self.checked.program(program, last)
+    }
+
+    /// Check a function declaration, and record it as effectful when its body
+    /// uses an effectful operation, directly or through another function.
+    fn declaring(
+        &mut self,
+        name: &str,
+        declare: impl FnOnce(&mut Self) -> Result<(), Diagnostic>,
+    ) -> Result<(), Diagnostic> {
+        let outer = std::mem::take(&mut self.uses);
+        let declared = declare(self);
+        let used = std::mem::replace(&mut self.uses, outer);
+        declared?;
+        if used.is_empty() {
+            self.effectful.remove(name);
+        } else {
+            self.effectful.insert(name.to_owned(), used.clone());
+            self.checked.effects.push((name.to_owned(), used));
+        }
+        Ok(())
+    }
+
+    /// Note that the body being checked uses an operation, when it is
+    /// effectful: a step declared so, or a function whose body is.
+    fn using(&mut self, name: &str, effectful: bool) {
+        if effectful && !self.uses.iter().any(|held| held == name) {
+            self.uses.push(name.to_owned());
+        }
     }
 
     /// Warn where a name is introduced that departs from its kind's casing.
@@ -409,11 +448,11 @@ impl Checker<'_> {
                     TypeRef::UNIT
                 }
                 Stmt::Fn(declaration) => {
-                    self.function(declaration)?;
+                    self.declaring(&declaration.name, |checker| checker.function(declaration))?;
                     TypeRef::UNIT
                 }
                 Stmt::Alias(alias) => {
-                    self.alias(alias)?;
+                    self.declaring(&alias.name, |checker| checker.alias(alias))?;
                     TypeRef::UNIT
                 }
                 Stmt::Expr(expression) => self.expression(expression)?,
@@ -975,6 +1014,10 @@ impl Checker<'_> {
         span: Range<usize>,
     ) -> Result<TypeRef, Diagnostic> {
         let ty = self.expression(callee)?;
+        if let Kind::Ident(name) = &callee.kind {
+            let effectful = self.effectful.contains_key(name);
+            self.using(name, effectful);
+        }
         let Some((parameters, result)) = ty.as_function() else {
             return Err(Diagnostic::typing(
                 callee.span.clone(),
@@ -1430,6 +1473,7 @@ impl Checker<'_> {
                     let input = self.expression(written)?;
                     let step = self.resolution.step(name, &span)?;
                     self.checked.steps.insert(span.clone(), step);
+                    self.using(step.name, step.purity == Purity::Effectful);
                     return self.step(step, &input, Some(written), arguments, span);
                 }
                 let _ = arguments;
@@ -1464,6 +1508,7 @@ impl Checker<'_> {
                 let reference = step_of(step)?;
                 let resolved = self.resolve(&reference, &step.span)?;
                 self.checked.steps.insert(span.clone(), resolved);
+                self.using(resolved.name, resolved.purity == Purity::Effectful);
                 self.step(
                     resolved,
                     &input_type,
