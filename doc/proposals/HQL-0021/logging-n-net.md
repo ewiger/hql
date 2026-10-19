@@ -1,16 +1,7 @@
 # Logging and In-Memory Channels in HQL
 
 > Companion note of [HQL-0021](README.md), which states the decision. The
-> examples here are written in the record's spelling where it differs:
->
-> | Here | In HQL-0021 |
-> | --- | --- |
-> | `Io.net.http(…)`, `use Io.logging.Logger` | `import net` then `http(…)`; `import logging` |
-> | `channel<LogEvent>("logs")` | `Channel<LogEvent>("logs")`, a type's constructor |
-> | `Logger(sink(stderr, Text), name = …)` | `Logger(stderr, Text, name = …)` |
-> | `sink(file("run.log"), Json)` for a log kept across runs | `file("run.log").end`, which appends |
-> | `log.info("…")` | `log \| info("…")`, or `info(log, "…")` |
-> | `enum LogLevel`, `e.level == Error` | five subtypes of `LogLevel`, `e.level \| is(Error)` |
+> examples are written as the record and the implementation spell them.
 
 ## Context
 
@@ -40,15 +31,14 @@ tap("events")
 The I/O extension namespace should be structured by concern:
 
 ```text
-Io
+io                  the prelude: std/io/init.hql
 
-Io.net
+io.net              import net: std/io/net.hql
     http
     socket
     websocket
-    ...
 
-Io.logging
+io.logging          import logging: std/io/logging.hql
     Logger
     LogEvent
     LogLevel
@@ -89,13 +79,12 @@ type LogEvent {
 with:
 
 ```hql
-enum LogLevel {
-    Trace,
-    Debug,
-    Info,
-    Warn,
-    Error,
-}
+abstract type LogLevel
+type Trace : LogLevel
+type Debug : LogLevel
+type Info  : LogLevel
+type Warn  : LogLevel
+type Error : LogLevel
 ```
 
 A logger produces:
@@ -125,7 +114,7 @@ The canonical form is:
 ```hql
 log =
     Logger(
-        sink(stderr, Text),
+        stderr, Text,
         name = "hql"
     )
 ```
@@ -139,7 +128,7 @@ Examples:
 ```hql
 query_log =
     Logger(
-        sink(stderr, Text),
+        stderr, Text,
         name = "query"
     )
 ```
@@ -149,7 +138,7 @@ Structured file logging:
 ```hql
 query_log =
     Logger(
-        sink(file("query.log"), Json),
+        file("query.log"), Json,
         name = "query"
     )
 ```
@@ -159,13 +148,13 @@ Network logging:
 ```hql
 audit_log =
     Logger(
-        sink(
-            Io.net.http(
+        
+            http(
                 "https://logs.example.com/events",
                 {method: "POST"}
             ),
             Json
-        ),
+        ,
         name = "audit"
     )
 ```
@@ -179,17 +168,17 @@ The logger is therefore independent of transport.
 The initial API should expose the conventional operations:
 
 ```hql
-log.trace("...")
-log.debug("...")
-log.info("...")
-log.warn("...")
-log.error("...")
+log | trace("...")
+log | debug("...")
+log | info("...")
+log | warn("...")
+log | error("...")
 ```
 
 Structured context can be supplied as a second argument:
 
 ```hql
-log.info(
+log | info(
     "indexed cards",
     {
         count: cards | count,
@@ -217,7 +206,7 @@ Logging is an `Effectful` operation.
 The call:
 
 ```hql
-log.info(...)
+log | info(...)
 ```
 
 returns:
@@ -249,7 +238,7 @@ A logger may therefore be created as:
 ```hql
 log =
     Logger(
-        sink(stderr, Text),
+        stderr, Text,
         name = "hql.query.typecheck"
     )
 ```
@@ -274,7 +263,7 @@ without changing the language model.
 HQL introduces one general I/O primitive:
 
 ```hql
-channel<T>(name)
+Channel<T>(name)
 ```
 
 A channel is an in-memory typed endpoint.
@@ -283,7 +272,7 @@ For example:
 
 ```hql
 events =
-    channel<LogEvent>("cell.logs")
+    Channel<LogEvent>("cell.logs")
 ```
 
 Unlike files, stdout, HTTP, or sockets, a channel does not encode values into bytes.
@@ -338,7 +327,7 @@ The default channel is ordered FIFO:
 
 ```hql
 logs =
-    channel<LogEvent>("cell.logs")
+    Channel<LogEvent>("cell.logs")
 ```
 
 is equivalent conceptually to:
@@ -354,7 +343,7 @@ This is the only channel ordering required for the first implementation.
 LIFO and other queue disciplines may be introduced later, for example:
 
 ```hql
-channel<Data>("work", order = Lifo)
+Channel<Data>("work", order = Lifo)
 ```
 
 but they should not be part of the logging MVP.
@@ -369,11 +358,11 @@ A cell-local logger can therefore be defined as:
 
 ```hql
 cell_logs =
-    channel<LogEvent>("cell.logs")
+    Channel<LogEvent>("cell.logs")
 
 log =
     Logger(
-        sink(cell_logs),
+        cell_logs,
         name = "analysis"
     )
 ```
@@ -381,13 +370,13 @@ log =
 Then:
 
 ```hql
-log.info("starting analysis")
+log | info("starting analysis")
 
 result =
     cards
     | filter(c => c.metadata.category == "bird")
 
-log.info(
+log | info(
     "analysis completed",
     {count: result | count}
 )
@@ -404,8 +393,8 @@ result
 while `cell_logs` contains:
 
 ```text
-Info  analysis  starting analysis
-Info  analysis  analysis completed  {count: ...}
+INFO analysis starting analysis
+INFO analysis analysis completed {count: 3}
 ```
 
 The two outputs are separate by construction.
@@ -461,7 +450,7 @@ For example:
 
 ```hql
 tap(cell_logs)
-| filter(e => e.level == Error)
+| filter(e => e.level | is(Error))
 | sink(stderr, Text)
 ```
 
@@ -638,7 +627,7 @@ This prevents documents from accumulating stale execution noise.
 For the most common cell use case, the document should not need boilerplate such as:
 
 ```hql
-cell_logs = channel<LogEvent>("cell.logs")
+cell_logs = Channel<LogEvent>("cell.logs")
 ```
 
 The execution host may pre-bind named channels.
@@ -656,7 +645,7 @@ Then the program only needs:
 ```hql
 log =
     Logger(
-        sink(cell.logs),
+        cell.logs,
         name = "analysis"
     )
 ```
@@ -676,14 +665,14 @@ Portable HQL code should be free to create its own channel:
 
 ```hql
 logs =
-    channel<LogEvent>("logs")
+    Channel<LogEvent>("logs")
 ```
 
 ---
 
 # 15. Default logger destination
 
-`Io.logging` should not introduce an invisible global logger.
+`io.logging` should not introduce an invisible global logger.
 
 This should not happen:
 
@@ -698,7 +687,7 @@ Explicit logger construction is preferred:
 ```hql
 log =
     Logger(
-        sink(stderr, Text),
+        stderr, Text,
         name = "app"
     )
 ```
@@ -708,7 +697,7 @@ or, in a cell:
 ```hql
 log =
     Logger(
-        sink(cell.logs),
+        cell.logs,
         name = "analysis"
     )
 ```
@@ -716,7 +705,7 @@ log =
 A host may provide a logger binding if desired:
 
 ```hql
-log.info("...")
+log | info("...")
 ```
 
 but that is a host binding, not language magic.
@@ -731,7 +720,7 @@ A byte-oriented sink requires a format:
 
 ```hql
 Logger(
-    sink(stderr, Text),
+    stderr, Text,
     name = "query"
 )
 ```
@@ -740,7 +729,7 @@ or:
 
 ```hql
 Logger(
-    sink(file("query.jsonl"), Json),
+    file("query.jsonl"), Json,
     name = "query"
 )
 ```
@@ -758,7 +747,7 @@ A channel is typed and therefore requires no serialization:
 
 ```hql
 Logger(
-    sink(cell.logs),
+    cell.logs,
     name = "query"
 )
 ```
@@ -810,7 +799,7 @@ For example:
 
 ```hql
 Logger(
-    sink(stderr, Text),
+    stderr, Text,
     name = "query",
     level = Info
 )
@@ -819,7 +808,7 @@ Logger(
 means that:
 
 ```hql
-log.debug(...)
+log | debug(...)
 ```
 
 does not reach the sink.
@@ -845,16 +834,16 @@ Logger level is therefore configuration, not part of `LogEvent`.
 Constructing an endpoint is pure:
 
 ```hql
-channel<LogEvent>("logs")
+Channel<LogEvent>("logs")
 file("hql.log")
-Io.net.http("https://...")
+http("https://...")
 ```
 
 Constructing a logger is also pure:
 
 ```hql
 Logger(
-    sink(cell.logs),
+    cell.logs,
     name = "query"
 )
 ```
@@ -864,7 +853,7 @@ until it is used.
 Emitting a log event is effectful:
 
 ```hql
-log.info("...")
+log | info("...")
 ```
 
 because it causes a value to enter the associated sink.
@@ -874,25 +863,25 @@ The effect capability derives from the sink.
 For example:
 
 ```hql
-Logger(sink(cell.logs), ...)
+Logger(cell.logs, ...)
 ```
 
 requires only in-memory channel output.
 
 ```hql
-Logger(sink(stderr, Text), ...)
+Logger(stderr, Text, ...)
 ```
 
 requires host stderr output.
 
 ```hql
-Logger(sink(file("hql.log"), Json), ...)
+Logger(file("hql.log"), Json, ...)
 ```
 
 requires filesystem write permission.
 
 ```hql
-Logger(sink(Io.net.http(...), Json), ...)
+Logger(http(...), Json, ...)
 ```
 
 requires network output permission.
@@ -911,7 +900,7 @@ A trusted cell may be allowed:
 
 ```hql
 Logger(
-    sink(cell.logs),
+    cell.logs,
     name = "analysis"
 )
 ```
@@ -920,7 +909,7 @@ while still being denied:
 
 ```hql
 Logger(
-    sink(file("somewhere.log"), Text),
+    file("somewhere.log"), Text,
     name = "analysis"
 )
 ```
@@ -929,7 +918,7 @@ and:
 
 ```hql
 Logger(
-    sink(Io.net.http("https://..."), Json),
+    http("https://..."), Json,
     name = "analysis"
 )
 ```
@@ -951,20 +940,20 @@ A logging API does not become a way around the normal HQL capability rules.
 The proposed namespace structure is:
 
 ```text
-Io
+io                    std/io/init.hql, the prelude
 ├── source
 ├── target
 ├── tap
 ├── sink
 ├── file
-├── channel
+├── Channel
 │
-├── net
+├── net               std/io/net.hql, import net
 │   ├── http
 │   ├── websocket
 │   └── socket
 │
-└── logging
+└── logging           std/io/logging.hql, import logging
     ├── Logger
     ├── LogEvent
     └── LogLevel
@@ -972,32 +961,32 @@ Io
 
 This separation is intentional.
 
-`Io.net` introduces transports.
+`io.net` introduces transports.
 
-`Io.logging` introduces structured producers of events.
+`io.logging` introduces structured producers of events.
 
-`channel` stays in `Io` itself because it is a generic endpoint useful far beyond logging.
+`Channel` stays in `io` itself because it is a generic endpoint useful far beyond logging.
 
 ---
 
 # 22. Example: CLI logging
 
 ```hql
-use Io.logging.Logger
+import logging
 
 log =
     Logger(
-        sink(stderr, Text),
+        stderr, Text,
         name = "birds"
     )
 
-log.info("loading input")
+log | info("loading input")
 
 birds =
     source(stdin, Json)
-    | filter(b => b.count > 2)
+    | filter(b => match b.count { some(Int n) => n > 2, _ => false })
 
-log.info("filter completed")
+log | info("filter completed")
 
 birds
 | sink(stdout, Json)
@@ -1012,8 +1001,8 @@ cat birds.jsonl | hql run birds.hql
 stdout:
 
 ```json
-{"species":"owl","count":4}
-{"species":"eagle","count":7}
+{"count":4,"species":"owl"}
+{"count":7,"species":"eagle"}
 ```
 
 stderr:
@@ -1030,13 +1019,17 @@ The data pipeline and diagnostics are completely separate.
 # 23. Example: structured logging to a file
 
 ```hql
+import logging
+
+fn normalize(row: Data) : Data = {species: row.species, count: row.count}
+
 log =
     Logger(
-        sink(file("./run.log"), Json),
+        file("./run.log"), Json,
         name = "import"
     )
 
-log.info(
+log | info(
     "import started",
     {source: "birds.csv"}
 )
@@ -1045,7 +1038,7 @@ result =
     source(file("birds.csv"), Csv)
     | map(normalize)
 
-log.info(
+log | info(
     "import completed",
     {rows: result | count}
 )
@@ -1062,19 +1055,22 @@ result
 A cell can use a host-provided channel:
 
 ```hql
+import logging
+
 log =
     Logger(
-        sink(cell.logs),
-        name = "bird-report"
+        cell.logs,
+        name = "bird-report",
+        level = Debug
     )
 
-log.info("query started")
+log | info("query started")
 
 birds =
     cards
     | filter(c => c.metadata.category == "bird")
 
-log.debug(
+log | debug(
     "cards selected",
     {count: birds | count}
 )
@@ -1086,9 +1082,9 @@ birds
 The primary result is:
 
 ```text
-Barn Owl
-Golden Eagle
-Robin
+- Barn owl
+- Common raven
+- European robin
 ```
 
 while `cell.logs` contains structured diagnostic entries.
@@ -1103,18 +1099,28 @@ Because the channel contains ordinary typed HQL values, logging output can itsel
 
 ```hql
 source(cell.logs)
-| filter(e => e.level == Error)
+| filter(e => e.level | is(Error))
 | map(e => {
     logger: e.logger,
     message: e.message,
 })
 ```
 
-Or observed live:
+Or followed as it is written, by a program a host lets write standard error,
+`hql run`; a document writes nothing but its channels:
 
 ```hql
-tap(cell.logs)
-| filter(e => e.level == Error)
+import logging
+
+logs = Channel<LogEvent>("logs")
+errors = tap(logs)
+log = Logger(logs, name = "import")
+
+log | info("started")
+log | error("a row did not parse")
+
+errors
+| filter(e => e.level | is(Error))
 | sink(stderr, Text)
 ```
 
@@ -1137,7 +1143,7 @@ The model creates the following clean relationships:
                            │
           ┌────────────────┼────────────────┐
           │                │                │
-        file             net.*           channel<T>
+        file             net.*           Channel<T>
           │                │                │
         bytes            bytes           typed values
           │                │                │
@@ -1161,8 +1167,8 @@ sink
    │
    ├── stderr
    ├── file
-   ├── Io.net.*
-   └── channel<LogEvent>
+   ├── io.net endpoints
+   └── Channel<LogEvent>
 ```
 
 There is no logging-specific writer infrastructure.
@@ -1179,7 +1185,7 @@ Rejected:
 Logger.file("run.log")
 ```
 
-This duplicates `Io.file` and bypasses the endpoint model.
+This duplicates `file` and bypasses the endpoint model.
 
 ---
 
@@ -1194,7 +1200,7 @@ Logger.http(...)
 Networking belongs in:
 
 ```text
-Io.net
+io.net
 ```
 
 ---
@@ -1242,16 +1248,11 @@ The current requirement is an in-memory typed output buffer and observable event
 The first implementation should include only:
 
 ```text
-Io.channel<T>
+Channel<T>
 
-Io.logging.Logger
-Io.logging.LogEvent
-Io.logging.LogLevel
+io.logging: Logger, LogEvent, LogLevel
 
-Logger.info
-Logger.warn
-Logger.error
-Logger.debug
+trace, debug, info, warn, error
 ```
 
 and interoperability with:
@@ -1305,7 +1306,7 @@ values.
 An in-memory:
 
 ```hql
-channel<LogEvent>("...")
+Channel<LogEvent>("...")
 ```
 
 is a generic HQL endpoint that can be written through `target`/`sink` and observed through `source`/`tap`.
