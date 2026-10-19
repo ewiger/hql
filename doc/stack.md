@@ -97,6 +97,8 @@ Reach for these before introducing an alternative:
 | YAML headers and reference annotations | serde_yaml_ng, then fallible conversion to Data |
 | SQLite | rusqlite (`bundled`) |
 | Hashing | sha2 |
+| HTTP client (`import net`) | ureq 2 (`tls`, rustls) |
+| WebSocket client (`import net`) | tungstenite (`rustls-tls-webpki-roots`) |
 | Config files | toml |
 | Errors | thiserror (library), anyhow (binary) |
 | Logging | tracing |

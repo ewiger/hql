@@ -30,6 +30,7 @@ result. Rendering without `--write` prints the card with computed answers.
 | [sorting](queries/sorting.hql) | An explicit comparison of lists by size | One-observation groups before the two-observation group |
 | [empty collections](queries/empty.hql) | Empty lists and explicitly typed constructors | Zero occurrences and no membership |
 | [tree](queries/tree.hql) | `Data` as a union: leaves, a list, a string-keyed map, and a tree literal held together | A `List<Data>` of six trees, each still the value it was |
+| [indexing](queries/indexing.hql) | `xs[i]` on a `List` and on a tree, as `Option<T>` | The first and last sighting, `none` past the end, and a count inside a tree |
 
 Binding types are inferred from their expressions. Annotations are optional;
 the examples use them when illustrating an abstract view or typing an empty
@@ -45,6 +46,9 @@ positions. `OrderedMap` retains that key sequence. `SortedMap` reorders the
 associations by intrinsic key order and requires `K : Orderable`. The ordinary
 `Map` contract gives no key-order guarantee. Use `get(map, key)` for lookup;
 its result is `Option<V>`.
+
+A [set has no positions](queries/invalid-set-position.hql), so indexing one is
+refused when the program is checked; `sort` gives it positions.
 
 The two intentional failures,
 [invalid sorted keys](queries/invalid-sorted-keys.hql) and

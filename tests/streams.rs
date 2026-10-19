@@ -250,7 +250,8 @@ fn formatting_a_stream_gives_a_stream_of_pieces() {
         eval("[\"1\", \"2\"]")
     );
     let pieces = format!("{NATURALS}naturals(1) | map(n => {{n: n}}) | csv | take(2)");
-    assert_eq!(eval(&pieces).to_string(), "[n\r\n1, 2]");
+    // Every piece ends its lines the same way, the header's included.
+    assert_eq!(eval(&pieces).to_string(), "[n\n1, 2]");
     let whole = check(&format!("{NATURALS}naturals(1) | d2")).expect_err("D2 is a whole");
     assert!(
         whole.contains("describes a whole") && whole.contains("collect(n)"),

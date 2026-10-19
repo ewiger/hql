@@ -88,7 +88,7 @@ Each kind of identifier has one convention.
 
 Two kinds of name are chosen by authors outside HQL and carry no convention.
 
-- A document name, written `[[alice]]`, is a file stem resolved in the vault
+- A document name, written `@[[alice]]`, is a file stem resolved in the vault
   namespace. It MUST NOT be linted.
 - A key of a `Data` tree, read through a path or written in a data literal, is
   the author's. It MUST NOT be linted, quoted or not. A field becomes an HQL

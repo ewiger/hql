@@ -50,7 +50,7 @@ fn a_syntax_failure_stops_even_in_collect_mode() {
 #[test]
 fn a_value_and_a_queue_come_back_together() {
     let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
-    let outcome = run("[[nowhere]]\n1 + 1", &vault, Mode::Strict);
+    let outcome = run("@[[nowhere]]\n1 + 1", &vault, Mode::Strict);
     // The warning did not stop the program, and the result is still there.
     assert!(outcome.value.is_some());
     assert!(!outcome.failed());
@@ -61,7 +61,7 @@ fn a_value_and_a_queue_come_back_together() {
 fn the_queue_is_walked_oldest_first() {
     let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     let outcome = run(
-        "[[first-missing]]\n[[second-missing]]\n1",
+        "@[[first-missing]]\n@[[second-missing]]\n1",
         &vault,
         Mode::Strict,
     );
@@ -108,81 +108,21 @@ fn a_vault_without_a_configuration_file_falls_through() {
     assert_eq!(settings.mode, Mode::Strict);
 }
 
-fn fixture() -> Vault {
-    hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap()
-}
-
-#[test]
-fn debug_is_the_identity_and_logs_one_entry() {
-    let vault = fixture();
-    let with = run(
-        "cards | debug(label = \"all\") | count",
-        &vault,
-        Mode::Strict,
-    );
-    let without = run("cards | count", &vault, Mode::Strict);
-    assert_eq!(with.value, without.value);
-    assert_eq!(with.inferred, without.inferred);
-    assert_eq!(with.reports.len(), 1);
-    let entry = with.reports.iter().next().unwrap();
-    assert_eq!(entry.severity, Severity::Debug);
-    assert_eq!(entry.code.as_deref(), Some("debug"));
-    assert_eq!(entry.label.as_deref(), Some("all"));
-    assert_eq!(entry.message, "Seq<Card>, 6 elements");
-    assert_eq!(entry.ty.as_deref(), Some("Seq<Card>"));
-    // The span is the step, not the pipeline that feeds it.
-    assert_eq!(entry.span, 8..28);
-    // Below the warning level, so the run neither fails nor errs.
-    assert!(!with.failed());
-}
-
-#[test]
-fn debug_inside_a_lambda_logs_once_per_element_with_its_trace() {
-    let outcome = run(
-        "[3, 1, 2] | map(n => debug(n + 1, level = \"info\"))",
-        &Vault::empty(),
-        Mode::Strict,
-    );
-    assert_eq!(outcome.value.unwrap().to_string(), "[4, 2, 3]");
-    let entries: Vec<_> = outcome.reports.iter().collect();
-    assert_eq!(entries.len(), 3);
-    assert!(entries.iter().all(|entry| entry.severity == Severity::Info));
-    let messages: Vec<&str> = entries.iter().map(|entry| entry.message.as_str()).collect();
-    assert_eq!(messages, ["4", "2", "3"]);
-    let trace = &entries[0].trace;
-    assert_eq!(trace[0].step, "map");
-    assert_eq!(trace[0].element.as_deref(), Some("3"));
-    assert_eq!(trace[1].step, "debug");
-    let json = outcome.reports.to_json();
-    assert_eq!(json[0]["found"], 4);
-    assert_eq!(json[0]["trace"][0]["element"], "3");
-}
-
-#[test]
-fn debug_keeps_absence_and_refuses_a_level_that_reports_a_problem() {
-    let outcome = run("[[nowhere]] | debug", &Vault::empty(), Mode::Strict);
-    assert_eq!(outcome.inferred.unwrap().to_string(), "Option<Card>");
-    assert_eq!(outcome.value.unwrap().to_string(), "none");
-    for source in ["1 | debug(level = \"warning\")", "1 | debug(label = 2)"] {
-        let refused = check_reported(source, &Vault::empty(), Mode::Strict);
-        assert_eq!(refused.reports.worst(), Some(Severity::Error), "{source}");
-    }
-}
-
 #[test]
 fn entries_captured_before_a_failure_survive_it() {
-    let outcome = run("x = 1 | debug\n1 / 0", &Vault::empty(), Mode::Strict);
+    let outcome = run("x = @[[nowhere]]\n1 / 0", &Vault::empty(), Mode::Strict);
     assert!(outcome.failed());
-    assert_eq!(outcome.reports.count(Severity::Debug), 1);
+    assert_eq!(outcome.reports.count(Severity::Warning), 1);
     assert_eq!(outcome.reports.count(Severity::Failure), 1);
 }
 
 #[test]
 fn the_shown_level_filters_without_discarding() {
-    let outcome = run("[[nowhere]] | debug", &Vault::empty(), Mode::Strict);
-    assert_eq!(outcome.reports.len(), 2);
+    let outcome = run("@[[nowhere]]", &Vault::empty(), Mode::Strict);
+    assert_eq!(outcome.reports.len(), 1);
     assert_eq!(outcome.reports.shown(Severity::Warning).len(), 1);
-    assert_eq!(outcome.reports.shown(Severity::Debug).len(), 2);
+    // Hidden at a higher level, and still held.
+    assert_eq!(outcome.reports.shown(Severity::Error).len(), 0);
     assert_eq!(Severity::parse_level("Info"), Some(Severity::Info));
     assert_eq!(Severity::parse_level("failure"), None);
     assert!(Severity::Debug < Severity::Info && Severity::Info < Severity::Warning);

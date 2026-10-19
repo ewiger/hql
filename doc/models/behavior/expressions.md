@@ -51,7 +51,7 @@ lambda      ::= (ident | "(" (ident (":" type)? ("," ident (":" type)?)*)? ")") 
 data        ::= "{" (key ":" expression ("," key ":" expression)*)? "}"
 list        ::= "[" (expression ("," expression)* ","?)? "]"
 set         ::= "{" expression ("," expression)* ","? "}"
-docref      ::= "[[" name "]]"
+docref      ::= "@[[" name "]]"
 type        ::= simple ("->" type)? | "(" (type ("," type)*)? ")" "->" type
 simple      ::= ident ("<" type ("," type)* ">")?
 ```
@@ -60,6 +60,11 @@ Whitespace separates tokens. A newline ends a statement **unless** the
 expression is incomplete or the next line opens with an infix operator, so a
 pipeline may be written one step per line with a leading `|`, and `1 +\n2` is
 one expression. `//` begins a comment that runs to the end of the line.
+
+`@[[` is one token: `@` directly followed by a wikilink opens a document
+reference, and its name runs to the first `]]`, trimmed. `[[` on its own is two
+brackets, so `[[1, 2], [3]]` is a `List<List<Int>>`. A bare `@` is a syntax
+error.
 
 Generics are written with angle brackets, so an angle bracket always means the
 type world. A square bracket stays value-level: `[1, 2, 1]` materializes a
@@ -149,8 +154,8 @@ directly before the argument list; otherwise `<` is the comparison, so
 | `"text"` | `String` |
 | `{ key: value }` | `Data` |
 | `true`, `42`, `1.5`, `"text"` | also `Scalar`, and so also `Data` |
-| `[[name]]` | `Option<Card>` |
-| `[[a]] -> [[b]] {..}` | `Edge` |
+| `@[[name]]` | `Option<Card>` |
+| `@[[a]] -> @[[b]] {..}` | `Edge` |
 | `cards` | `Seq<Card>`, bound when a vault is present |
 
 `cards` is the standard-library binding `cards = vault.cards`, declared in
@@ -184,11 +189,11 @@ in a binding returns `Unit`.
 
 ## A document reference is optional by type
 
-`[[name]]` is `Option<Card>`, because a forward link to a document nobody has
+`@[[name]]` is `Option<Card>`, because a forward link to a document nobody has
 written yet is permitted. When it does not resolve, evaluation yields absence
 and **warns**; the exit status does not change.
 
-Absence propagates through a field — `[[nowhere]].title` is `Option<String>` —
+Absence propagates through a field — `@[[nowhere]].title` is `Option<String>` —
 and a pipeline step applied to absence is one applied to nothing rather than a
 failure. `match` and `given … otherwise` consume absence explicitly; the
 implicit lifting stays beside them until the corpus no longer needs it.
@@ -251,7 +256,7 @@ Elements of a collection literal are held at their **common type**:
 ancestry is tried first, so `[1, 2]` is a `List<Int>`. Where it relates nothing
 and both elements are trees, they are held as `Data`: `[1, "owl"]` and
 `[1, 2.5]` are `List<Data>`, wherever in the list the elements stand, and
-`[ [1], ["owl"] ]` is a `List<List<Data>>`. Any JSON array can therefore be
+`[[1], ["owl"]]` is a `List<List<Data>>`. Any JSON array can therefore be
 written as a literal. What is not a tree still shares nothing with one, so
 `[1, {2}]` is refused. Mixing leaves by accident is no longer caught at the
 literal; it surfaces at the step that needed more than a tree, as

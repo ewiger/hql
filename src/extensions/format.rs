@@ -238,8 +238,9 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
             .map_err(|error| error.to_string()),
         "Csv" => {
             let rows = one.to_csv();
+            // One line ending throughout: the header's piece and every row's.
             Ok(if first {
-                rows.trim_end().to_owned()
+                rows.lines().collect::<Vec<_>>().join("\n")
             } else {
                 rows.lines().skip(1).collect::<Vec<_>>().join("\n")
             })
@@ -297,7 +298,15 @@ fn by_name(name: &str, value: &Value, format: TypeConstructor) -> Result<String,
 
 /// Plain text: the value's own rendering.
 fn text(value: &Value) -> String {
-    value.to_string()
+    // A tree that is one string is that text, as a String is: the line
+    // `Text` reads back is the line it wrote.
+    match unwrapped(value) {
+        Value::Data(data) => match data.as_ref() {
+            crate::data::Data::Str(text) => text.clone(),
+            _ => value.to_string(),
+        },
+        _ => value.to_string(),
+    }
 }
 
 fn json(value: &Value) -> String {

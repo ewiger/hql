@@ -7,7 +7,7 @@ use hql::reporting::Mode;
 fn every_catalogue_signature_is_generated_from_its_structural_contract() {
     let providers = catalogue(&Config::default());
     let count: usize = providers.iter().map(|provider| provider.steps.len()).sum();
-    assert_eq!(count, 41);
+    assert_eq!(count, 54);
     for provider in providers {
         for step in provider.steps {
             step.spec.validate().unwrap();
@@ -59,9 +59,9 @@ fn contracts_reject_unknown_duplicate_missing_and_mistyped_arguments() {
         "[1] | sort(wrong = n => n)",
         "[1] | sort((a, b) => true)",
         "1 | markdown(unknown)",
-        "[[oauth]] | Graph(unknown)",
-        "[[oauth]] | uplinks(unknown)",
-        "[[oauth]] | downlinks(unknown)",
+        "@[[oauth]] | Graph(unknown)",
+        "@[[oauth]] | uplinks(unknown)",
+        "@[[oauth]] | downlinks(unknown)",
         "cards | expand(1, \"both\")",
         "cards | expand(depth = 1, 2)",
         "import lexical\ncards | lexical(query = 1)",
@@ -90,8 +90,8 @@ fn every_registered_step_runs_at_its_declared_result_type() {
         "[1, 2] | filter(n => n == 1)",
         "[1, 2] | map(n => n + 1)",
         "[1, 2] | of_type(Int)",
-        "[[barn-owl]] | uplinks",
-        "[[barn-owl]] | downlinks",
+        "@[[barn-owl]] | uplinks",
+        "@[[barn-owl]] | downlinks",
         "cards | expand(direction = \"both\", depth = 1)",
         "cards | Graph",
         "cards | Graph | format(Markdown, limit = 1)",

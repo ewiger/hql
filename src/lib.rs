@@ -21,6 +21,7 @@ mod execution;
 mod knowledge;
 mod lexer;
 pub mod naming;
+mod net;
 mod parser;
 
 pub mod builtins;
@@ -30,6 +31,7 @@ pub mod diagnostics;
 pub mod document;
 pub mod extensions;
 pub mod graph;
+pub mod io;
 pub mod library;
 pub mod render;
 pub mod reporting;
@@ -133,6 +135,17 @@ pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
                     _ => format!("{name} : {signature}"),
                 },
                 code: Some("signature".to_owned()),
+                ..Report::of_check_warning(&warnings::Warning::new(0..0, ""))
+            });
+        }
+        // So is every function that reads or writes outside its result.
+        for (name, uses) in &program.effects {
+            let uses: Vec<String> = uses.iter().map(|used| format!("`{used}`")).collect();
+            reports.push(Report {
+                severity: reporting::Severity::Info,
+                stage: "type".to_owned(),
+                message: format!("{name} is Effectful: it uses {}", uses.join(", ")),
+                code: Some("effect".to_owned()),
                 ..Report::of_check_warning(&warnings::Warning::new(0..0, ""))
             });
         }

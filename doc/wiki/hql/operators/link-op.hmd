@@ -8,25 +8,27 @@ nav:
 The link operator is the three-part form
 
 ```hql
-[[alice]] -> [[bob]] {
+@[[alice]] -> @[[bob]] {
     relation: parent
     confidence: 0.9
 }
 ```
 
-`->` constructs an edge, the brackets on either side name its endpoints, and
-`{..}` is the data carried on it. A bracket pair on its own is not this operator:
-`[[bob]]` is a **doc reference** and asserts nothing.
+`->` constructs an edge, the references on either side name its endpoints, and
+`{..}` is the data carried on it. A reference on its own is not this operator:
+`@[[bob]]` is a **doc reference** and asserts nothing.
 
-## `[[..]]` is a doc reference
+## `@[[..]]` is a doc reference
 
-`[[..]]` written around a name references a document in the current namespace:
+In HQL source, `@` directly followed by a wikilink references a document in
+the current namespace. `@[[` is one token, so `[[1, 2], [3]]` stays a list of
+lists, and what sits between the brackets is HMD's wikilink grammar:
 
 ```hql
-[[alice]]              // a name in this namespace
-[[people/alice]]       // a name qualified by module
-[[alice#Bio]]          // a heading fragment
-[[alice#^claim]]       // an anchored block
+@[[alice]]             // a name in this namespace
+@[[people/alice]]      // a name qualified by module
+@[[alice#Bio]]         // a heading fragment
+@[[alice#^claim]]      // an anchored block
 ```
 
 The referenced document can be in any format the vault holds — Markdown, HMD,
@@ -38,16 +40,17 @@ a document is and [[card-type]] for the vault that resolves the name in it.
 
 Inside the brackets is a name, not an expression: the operator has no variable
 form, and addressing a target whose name is computed at runtime needs its own
-spelling. Display text is HMD's, not HQL's — `[[alice|Alice B.]]` references the
-same document as `[[alice]]`, and whether HQL source accepts the pipe form at all
-is open, since `|` is the pipe operator (see [[pipes]]).
+spelling. Display text is HMD's, not HQL's — in a body, `[[alice|Alice B.]]`
+links the same document as `[[alice]]`, and whether HQL source accepts the pipe
+form at all is open, since `|` is the pipe operator (see [[pipes]]).
 
 ## An authored link has an implicit source
 
-In a document body, a bare reference *is* an edge, because the document it sits
-in supplies the missing endpoint. Written in `alice`:
+In a document body, a bare link *is* an edge, because the document it sits in
+supplies the missing endpoint. A body writes links in HMD's spelling, without
+`@`. Written in `alice`:
 
-```hql
+```hmd
 [[bob]] {
     color: red
     relation: parent
@@ -57,17 +60,19 @@ in supplies the missing endpoint. Written in `alice`:
 means
 
 ```hql
-[[alice]] -> [[bob]] {
+@[[alice]] -> @[[bob]] {
     color: red
     relation: parent
 }
 ```
 
-`[[this]]` is the source, and `[[this]]` in `alice` is `[[alice]]`. This is what
-gives a reference two readings without giving it two meanings. As a value,
-`x = [[bob]]` is the reference. As an authored link, `[[bob]]` is that edge, and
-`[[bob]]` with no braces is the same edge with empty data. Uplinks and downlinks
-are the two directions of traversal over exactly these edges — see [[doc-type]].
+The source is `@[[this]]`, and `@[[this]]` in `alice` is `@[[alice]]`. This is
+what gives a reference two readings without giving it two meanings. As a value,
+`x = @[[bob]]` is the reference. As an authored link, `[[bob]]` in a body is that
+edge, and `[[bob]]` with no braces is the same edge with empty data. A link
+inside a fenced code block or an inline code span is shown to the reader and
+authors no edge. Uplinks and downlinks are the two directions of traversal over
+exactly these edges — see [[doc-type]].
 
 ## Authoring one adds it to the vault graph
 
@@ -79,7 +84,7 @@ If the edge is already there, the write is an update rather than a second edge:
 the data in the braces is merged into the annotation the edge already carries.
 So the two links
 
-```hql
+```hmd
 [[bob]] { relation: parent }
 [[bob]] { confidence: 0.9 }
 ```
@@ -108,7 +113,7 @@ which is the same objection that makes `cards` ordering a live question — see
 keeping conflicting claims, and that argues the conflict should surface rather
 than resolve silently.
 
-Also open: whether `[[this]]` is a keyword a program may write, and whether an
+Also open: whether `@[[this]]` is a keyword a program may write, and whether an
 edge constructed in an HQL cell asserts into the graph the way an authored one
 does. Constructing a value does not persist a document, so a cell that wrote
 edges into the vault would be performing an effect, and that has to be explicit.
@@ -120,8 +125,8 @@ edge, and the keys in them are the author's:
 
 ```hql
 Edge {
-    source: [[alice]]
-    target: [[bob]]
+    source: @[[alice]]
+    target: @[[bob]]
     data: {
         relation: parent
         confidence: 0.9
@@ -159,7 +164,7 @@ type Relation<S, T> : Edge<S, T>
 type KnowledgeGraph : {Knowledge, Graph<Concept, Relation>}
 ```
 
-That separation is the point. `[[alice]] -> [[project-x]]` is an edge in the
+That separation is the point. `@[[alice]] -> @[[project-x]]` is an edge in the
 document graph; a semantic claim such as `WorksOn(alice, project_x)` is an edge
 in a knowledge graph. Both render through the same graph machinery without being
 treated as the same object. The layering is core → graph → knowledge, and HMD

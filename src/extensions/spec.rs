@@ -110,6 +110,10 @@ pub enum Output {
         accumulator: &'static str,
         element: &'static str,
     },
+    /// A type the providing extension computes from the call, named by the
+    /// result written in help: what `source` reads depends on its endpoint
+    /// and its format.
+    Computed(&'static str),
 }
 
 impl ArgumentKind {
@@ -140,6 +144,8 @@ pub struct SpecError(String);
 /// Facts available to a dependent checking hook, after signature checking.
 pub(crate) struct CheckedCall<'a> {
     pub input: &'a TypeRef,
+    /// The input as written, when it was: `file("x.json")` before `| source`.
+    pub input_expr: Option<&'a crate::ast::Expr>,
     pub arguments: &'a [Arg],
     pub bindings: BTreeMap<&'static str, TypeRef>,
 }
@@ -280,7 +286,7 @@ impl OperationSpec {
                 patterns.push(TypePattern::Var(accumulator));
                 patterns.push(TypePattern::Var(element));
             }
-            Output::Input => {}
+            Output::Input | Output::Computed(_) => {}
             Output::Finite { finite, open } => {
                 patterns.push(finite);
                 patterns.push(open);
@@ -328,6 +334,7 @@ impl OperationSpec {
         name: &str,
         cx: &mut dyn CheckCx,
         input: &'a TypeRef,
+        input_expr: Option<&'a crate::ast::Expr>,
         arguments: &'a [Arg],
         span: &Range<usize>,
     ) -> Result<(TypeRef, CheckedCall<'a>), Diagnostic> {
@@ -490,7 +497,10 @@ impl OperationSpec {
             }
         }
         for parameter in self.parameters {
-            if let Some(bound) = parameter.bound {
+            // A parameter only an omitted argument would bind stays unbound.
+            if let Some(bound) = parameter.bound
+                && bindings.contains_key(parameter.name)
+            {
                 let actual = TypePattern::Var(parameter.name).instantiate(&bindings, span)?;
                 if !actual.is(&TypeRef::from(bound)) {
                     return Err(Diagnostic::typing(
@@ -554,15 +564,20 @@ impl OperationSpec {
                     result
                 }
             }
+            Output::Computed(_) => TypeRef::UNIT,
         };
-        Ok((
-            result,
-            CheckedCall {
-                input,
-                arguments,
-                bindings,
-            },
-        ))
+        let call = CheckedCall {
+            input,
+            input_expr,
+            arguments,
+            bindings,
+        };
+        let result = match self.output {
+            Output::Computed(_) => super::io::result(name, &call)
+                .map_err(|message| Diagnostic::typing(span.clone(), message))?,
+            _ => result,
+        };
+        Ok((result, call))
     }
 
     /// Render the same contract the checker consumes.
@@ -636,6 +651,7 @@ impl OperationSpec {
         // settles: `S` is the input's own type, `F<_>` its constructor.
         let lines = match self.output {
             Output::Type(pattern) => vec![call(&input, &generics, &pattern.to_string())],
+            Output::Computed(written) => vec![call(&input, &generics, written)],
             Output::Number(parameter) => vec![call(&input, &generics, parameter)],
             Output::Input => match self.input {
                 TypePattern::Var(parameter) => vec![call(parameter, &generics, parameter)],

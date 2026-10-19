@@ -8,8 +8,8 @@ configured rather than fixed.
 
 | Severity | Meaning | Example |
 | --- | --- | --- |
-| `debug` | A value the program captured to look at | `xs \| debug(label = "xs")` |
-| `info` | A value or a fact the program states | `debug(x, level = "info")` |
+| `debug` | A detail the host states while it runs | — |
+| `info` | A fact the host states | — |
 | `warning` | Work continued and the result stands | a reference that does not resolve |
 | `error` | The result is wrong, but more could still be examined | a type or name error |
 | `failure` | Nothing further can be examined | the source did not parse; arithmetic overflowed |
@@ -67,12 +67,10 @@ each, so the precedence never has to be guessed.
 
 ## Entries
 
-Every entry has `severity`, `stage`, `message` and `span`. An entry the program
-captured with [`debug`](../../wiki/hql/operators/debug-op.hmd) also has `code`
-(`debug`), `label` when one was given, `type`, `found` (the whole value as data)
-and `trace`: each step on the path evaluation took to it, its one-based position
-in its pipeline, and the element its function was applied to. The log survives
-an evaluation failure, so what was captured before it is still reported.
+Every entry has `severity`, `stage`, `message` and `span`. The log survives an
+evaluation failure, so what was reported before it is still reported. A
+program's own diagnostics are not entries: it writes log events through a
+`Logger` to an endpoint ([HQL-0021](../../proposals/HQL-0021/README.md)).
 
 ## Rendering
 

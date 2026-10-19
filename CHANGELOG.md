@@ -10,11 +10,73 @@ The language continues to be in active development.
 
 ### Added
 
+- Endpoints, from [HQL-0021](doc/proposals/HQL-0021/README.md): `stdin`,
+  `stdout` and `stderr`, `file(path)`, and a file's `.end`. `source(e, F)`
+  reads an endpoint's documents in a format, as a `Seq` from a file and as a
+  `Stream` from standard input; `tap` reads them one at a time, and at a
+  file's `.end` follows what is appended. `target` writes one completed value
+  and `sink` one document per value; a file is replaced, atomically for
+  `target`, and its `.end` appended to. A literal path's extension implies the
+  format. `hql render` reads files beside the document and refuses every
+  write.
+- Channels: `Channel<T>(name)` is an endpoint of values held in memory for one
+  evaluation. `target` and `sink` append to it, `source` gives what it holds
+  now without removing it, and `tap` what is written from then on. A document
+  may write its own channels.
+- Logging, with `import logging`: `Logger(endpoint, Format, name = …, level =
+  …)` writes `LogEvent`s as `sink` would, one document per event, or the
+  events themselves to a `Channel<LogEvent>`. `trace`, `debug`, `info`, `warn`
+  and `error` write one event when its level reaches the threshold, and
+  `--log-level` overrides every threshold. A level is a type, tested with
+  `e.level | is(Error)`. `hql render` binds `cell.logs`, a cell's own channel,
+  and never saves it into the document.
+- Network endpoints, with `import net`: `http(url, method = …, headers =
+  …)`, `websocket(url)` and `socket(host, port)`. `source` over `http` sends
+  one `GET` per evaluation and reads the body as a `Seq`; a write sends one
+  request per document and fails on a status that is not a success, naming
+  the URL. A WebSocket message is one document, and a socket's documents are
+  separated as their format separates them. `hql render` refuses every
+  network endpoint at check time, and `file("https://…")` is refused, naming
+  `http`.
+- A function whose body uses an effectful operation, or calls an effectful
+  function, is effectful, and `hql check` reports it with what it uses:
+  ``load is Effectful: it uses `source` ``.
+- `hql run -` refuses `source(stdin, …)` and `tap(stdin, …)` at check time:
+  standard input holds the program.
+- A channel holds at most a million values in one scope; one more ends the
+  evaluation, naming the channel.
+- Indexing: `xs[i]` reads position `i` of a sequence, counting from `0`, as
+  an `Option`; past either end it is `none`. A `Data` tree that is a sequence
+  is indexed too, and a `Set`, a `Map` or an unbounded stream is refused.
+- `hql '<program>'` is `hql eval '<program>'`.
+- `--compact` writes each JSON document on one line, as `jq -c` does.
+- In HQL source a document reference is written `@[[name]]`, from
+  [HQL-0023](doc/proposals/HQL-0023/README.md): `@` directly before a
+  wikilink. `[[` is two brackets, so `[[1, 2], [3]]` is a list of lists. A
+  bare `@` is refused, and `[[alice]]` with `alice` unbound is refused,
+  naming `@[[alice]]`. Document bodies keep writing `[[name]]`, and a link
+  inside a fenced code block or an inline code span authors no edge.
 - Without `--vault`, `hql` finds the vault itself: the nearest directory at or
   above the current one that holds `.hmd/` or `hql.toml`. `--vault` still
   overrides it, and outside every vault a program runs with no vault.
 
+### Removed
+
+- The core `debug` step, which captured a value into the run's report queue.
+  `debug` is now the logging operation; a program reports on itself through a
+  `Logger`.
+
 ### Changed
+
+- A stream written with `--to json` pretty-prints each document, as `jq .`
+  does; concatenated, they read back as the same stream.
+- A result of type `Unit` prints nothing, so a program that ends in a write
+  is silent.
+- A first argument that names no command is a program, not a usage error.
+- Every streamed CSV piece ends its lines with `\n`, the header's included.
+
+- A `Data` tree that is one string is written as its bare text in `Text`, as
+  a `String` is, so `map(e => e.message) | sink(stdout, Text)` writes lines.
 
 - `hql run` writes an unformatted result as `Hql` too, so every command that
   evaluates writes the same text for the same value. `--to text` gives a bare

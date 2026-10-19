@@ -37,9 +37,12 @@ Steps split by the layering core → graph → knowledge:
 
 | Provider | Steps | How a program gets it |
 | --- | --- | --- |
-| core | `size` `contains` `get` `count` `sort` `take` `filter` `map` `of_type` `is` `group` `reduce` `sum` `min` `max` `debug` | always |
+| core | `size` `contains` `get` `count` `sort` `take` `filter` `map` `of_type` `is` `group` `reduce` `sum` `min` `max` | always |
 | `graph` | `uplinks` `downlinks` `expand` | the prelude |
 | `format` | `format` `text` `markdown` `hmd` `json` `yaml` `csv` `d2` `mermaid` | the prelude |
+| `io` | `file` `source` `tap` `target` `sink` | the prelude |
+| `net` | `http` `websocket` `socket` | `import net` |
+| `logging` | `Logger` `trace` `debug` `info` `warn` `error` | `import logging` |
 | `lexical` | `lexical` | `import lexical` |
 | `semantic` | `semantic` | `import semantic` |
 

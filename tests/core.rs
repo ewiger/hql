@@ -67,7 +67,7 @@ fn rejects_incomplete_or_unsupported_syntax() {
         "9223372036854775808",
         "-9223372036854775809",
         "\u{1f600}",
-        "[[unterminated",
+        "@[[unterminated",
         "\"unterminated",
     ] {
         assert!(
@@ -81,9 +81,9 @@ fn rejects_incomplete_or_unsupported_syntax() {
 #[test]
 fn an_unknown_name_is_a_name_error_rather_than_a_syntax_one() {
     // These parse now that the grammar has identifiers and calls, so the
-    // failure moved from the scanner to the checker. `resolve([[alice]])` is
+    // failure moved from the scanner to the checker. `resolve(@[[alice]])` is
     // the withdrawn spelling, and it still fails — for the right reason.
-    for source in ["trueish", "resolve([[alice]])", "nosuchthing"] {
+    for source in ["trueish", "resolve(@[[alice]])", "nosuchthing"] {
         assert!(
             matches!(check(source), Err(Diagnostic::Name { .. })),
             "{source}: {:?}",
@@ -196,18 +196,60 @@ fn strings_and_data_literals() {
 
 #[test]
 fn the_link_operator_builds_an_edge() {
-    assert_eq!(check("[[alice]] -> [[bob]]"), Ok(TypeRef::EDGE));
+    assert_eq!(check("@[[alice]] -> @[[bob]]"), Ok(TypeRef::EDGE));
     assert_eq!(
-        check("[[alice]] -> [[bob]] { relation: \"parent\" }"),
+        check("@[[alice]] -> @[[bob]] { relation: \"parent\" }"),
         Ok(TypeRef::EDGE)
     );
-    match eval("[[alice]] -> [[bob]]") {
+    match eval("@[[alice]] -> @[[bob]]") {
         Ok(Value::Edge(edge)) => {
             assert_eq!(edge.source, "alice");
             assert_eq!(edge.target, "bob");
         }
         other => panic!("expected an edge, got {other:?}"),
     }
+}
+
+#[test]
+fn a_document_reference_is_written_with_an_at_sign() {
+    for (source, target) in [
+        ("@[[alice]]", "alice"),
+        ("@[[people/alice]]", "people/alice"),
+        ("@[[alice#Bio]]", "alice#Bio"),
+        ("@[[ A Room of One's Own ]]", "A Room of One's Own"),
+    ] {
+        assert_eq!(check(source).unwrap().to_string(), "Option<Card>");
+        match eval(&format!("{source} -> @[[x]]")) {
+            Ok(Value::Edge(edge)) => assert_eq!(edge.source, target),
+            other => panic!("{source}: expected an edge, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn two_brackets_are_a_list_of_lists() {
+    assert_eq!(
+        check("[[1, 2], [3]]").unwrap().to_string(),
+        "List<List<Int>>"
+    );
+    assert!(check("[[]]").unwrap().to_string().starts_with("List<List<"));
+    assert_eq!(eval("[[1, 2], [3]] | emit | sum"), Ok(Value::Int(6)));
+}
+
+#[test]
+fn a_reference_is_refused_with_what_it_lacks() {
+    let message = |source: &str| check(source).unwrap_err().message().to_owned();
+    assert_eq!(message("@[[]]"), "a document reference needs a name");
+    assert_eq!(
+        message("@[[alice"),
+        "unterminated document reference: expected `]]`"
+    );
+    assert_eq!(
+        message("@alice"),
+        "`@` opens a document reference: `@[[name]]`"
+    );
+    assert!(message("[[alice]]").contains("`@[[alice]]`"));
+    assert!(message("1 -> @[[bob]]").contains("a link endpoint is a document reference"));
 }
 
 #[test]
@@ -224,13 +266,13 @@ fn cards_and_traversal_say_they_need_a_vault_rather_than_finding_nothing() {
 fn generics_are_written_with_angle_brackets() {
     // An angle bracket always means the type world; a square bracket stays
     // value-level. See doc/models/behavior/bind-vs-apply-in-generic-types.md.
-    assert_eq!(check("[[alice]]").unwrap().to_string(), "Option<Card>");
+    assert_eq!(check("@[[alice]]").unwrap().to_string(), "Option<Card>");
     assert_eq!(
-        check("[[alice]].header").unwrap().to_string(),
+        check("@[[alice]].header").unwrap().to_string(),
         "Option<Data>"
     );
     assert_eq!(
-        check("x : Option<Card> = [[alice]]\nx")
+        check("x : Option<Card> = @[[alice]]\nx")
             .unwrap()
             .to_string(),
         "Option<Card>"
@@ -302,7 +344,7 @@ fn a_near_miss_on_a_step_name_is_suggested() {
 #[test]
 fn a_retired_step_names_what_replaces_it() {
     for (source, replacement) in [
-        ("[[oauth]] | graph", "`Graph`"),
+        ("@[[oauth]] | graph", "`Graph`"),
         ("1 | table", "`Table`"),
         ("[1] | typed(Int)", "`of_type`"),
     ] {
@@ -447,7 +489,7 @@ fn connectives_take_bools_and_short_circuit() {
     assert_eq!(type_error("true and 1"), 9..10);
     assert_eq!(type_error("not 1"), 4..5);
     assert!(matches!(
-        check("[[alice]].metadata.done and true"),
+        check("@[[alice]].metadata.done and true"),
         Err(Diagnostic::Type { .. })
     ));
 }

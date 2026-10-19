@@ -9,7 +9,7 @@ use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
 use crate::extensions::{EvalCx, Operation};
 use crate::graph::Edge;
-use crate::reporting::{Report, TraceStep};
+use crate::reporting::Report;
 use crate::search;
 use crate::types::TypeRef;
 use crate::types::{Closure, Value};
@@ -64,7 +64,6 @@ pub(crate) fn traverse(
         vault,
         scope: base(vault),
         log: Vec::new(),
-        frames: Vec::new(),
     };
     evaluator
         .run_traversal(traversal, &mut |_, value| Ok(sink(value)))
@@ -73,7 +72,18 @@ pub(crate) fn traverse(
 
 /// What a host seeds before the library: `vault`, when there is one.
 fn base(vault: &Vault) -> HashMap<String, Value> {
-    let mut scope = HashMap::new();
+    let mut scope: HashMap<String, Value> = crate::extensions::io::BINDINGS
+        .iter()
+        .map(|(name, endpoint)| {
+            (
+                (*name).to_owned(),
+                Value::Endpoint(Arc::new(endpoint.clone())),
+            )
+        })
+        .collect();
+    if matches!(crate::io::policy(), crate::io::Policy::Document { .. }) {
+        scope.insert("cell".to_owned(), Value::Cell);
+    }
     if vault.is_present() {
         scope.insert(crate::checker::VAULT.to_owned(), Value::Vault);
     }
@@ -85,11 +95,11 @@ fn evaluate_in(
     vault: &Vault,
     scope: HashMap<String, Value>,
 ) -> (Result<Value, Diagnostic>, Vec<Report>) {
+    crate::io::begin();
     let mut evaluator = Evaluator {
         vault,
         scope,
         log: Vec::new(),
-        frames: Vec::new(),
     };
     // A finite traversal is the values it produces, so the result holds them;
     // a stream that may not end is left for the host to bound.
@@ -106,15 +116,6 @@ struct Evaluator<'a> {
     /// Entries in the order evaluation produced them, which on this
     /// sequential evaluator is the order of their traces.
     log: Vec<Report>,
-    /// The steps being evaluated, outermost first.
-    frames: Vec<Frame>,
-}
-
-/// A step under evaluation, and the pipeline steps that fed it.
-struct Frame {
-    step: &'static str,
-    upstream: Vec<&'static str>,
-    element: Option<String>,
 }
 
 impl Evaluator<'_> {
@@ -189,7 +190,7 @@ impl Evaluator<'_> {
                     // mistake for a match.
                     self.warn(Warning::new(
                         span,
-                        format!("`[[{name}]]` does not resolve in this vault"),
+                        format!("`@[[{name}]]` does not resolve in this vault"),
                     ));
                     Ok(Value::Absent(TypeRef::CARD))
                 }
@@ -254,6 +255,14 @@ impl Evaluator<'_> {
             Kind::Field(receiver, field) => {
                 let value = self.expression(receiver)?;
                 self.field(&value, field, &expression.ty, &span)
+            }
+            Kind::Index(receiver, index) => {
+                let value = self.expression(receiver)?;
+                let value = self.settled(value, &span)?;
+                let Value::Int(position) = self.expression(index)? else {
+                    return Err(Diagnostic::runtime(span, "a position is an Int"));
+                };
+                at_position(value, position, expression.ty.present(), &span)
             }
             Kind::Link {
                 source,
@@ -334,16 +343,9 @@ impl Evaluator<'_> {
                 at,
             } => {
                 let value = as_checked(self.expression(input)?, &input.ty);
-                self.frames.push(Frame {
-                    step: step.name,
-                    upstream: upstream(input),
-                    element: None,
-                });
                 // A step's own reports point at the step, not at the whole
                 // pipeline that feeds it.
-                let result = self.step(step, value, arguments, at.clone());
-                self.frames.pop();
-                result
+                self.step(step, value, arguments, at.clone())
             }
             Kind::Type => Err(Diagnostic::runtime(span, "a type argument is not a value")),
             Kind::Some(value) => Ok(Value::Present(Arc::new(self.expression(value)?))),
@@ -579,6 +581,51 @@ impl Evaluator<'_> {
                 Field::Retrieval => Ok(Value::Data(Arc::new(retrieval_data(&hit.provenance)))),
                 _ => Err(missing()),
             },
+            Value::Endpoint(endpoint) => match (field, endpoint.as_ref()) {
+                (
+                    Field::Path,
+                    crate::io::Endpoint::File(path) | crate::io::Endpoint::FileEnd(path),
+                ) => Ok(text(&path.display().to_string())),
+                (Field::End, crate::io::Endpoint::File(path)) => Ok(Value::Endpoint(Arc::new(
+                    crate::io::Endpoint::FileEnd(path.clone()),
+                ))),
+                (
+                    Field::Url,
+                    crate::io::Endpoint::Http { url, .. } | crate::io::Endpoint::WebSocket(url),
+                ) => Ok(text(url)),
+                (Field::Method, crate::io::Endpoint::Http { method, .. }) => Ok(text(method)),
+                (Field::Headers, crate::io::Endpoint::Http { headers, .. }) => {
+                    Ok(Value::Data(Arc::new(crate::data::Data::Map(
+                        headers
+                            .iter()
+                            .map(|(name, value)| {
+                                (name.clone(), crate::data::Data::Str(value.clone()))
+                            })
+                            .collect(),
+                    ))))
+                }
+                (Field::Host, crate::io::Endpoint::Socket(host, _)) => Ok(text(host)),
+                (Field::Port, crate::io::Endpoint::Socket(_, port)) => {
+                    Ok(Value::Int(i64::from(*port)))
+                }
+                _ => Err(missing()),
+            },
+            Value::Log(event) => match field {
+                Field::Level => Ok(Value::Level(event.level)),
+                Field::Logger => Ok(text(&event.logger)),
+                Field::Message => Ok(text(&event.message)),
+                Field::Data => Ok(Value::Data(Arc::new(event.data.clone()))),
+                _ => Err(missing()),
+            },
+            Value::Logger(logger) => match field {
+                Field::Name => Ok(text(&logger.name)),
+                Field::Level => Ok(Value::Level(logger.level)),
+                _ => Err(missing()),
+            },
+            Value::Cell => match field {
+                Field::Logs => Ok(Value::Endpoint(Arc::new(crate::io::cell_logs()))),
+                _ => Err(missing()),
+            },
             Value::Vault => match field {
                 Field::Cards => Ok(Value::Traversal(Arc::new(Traversal::new(
                     TypeRef::CARD,
@@ -809,6 +856,10 @@ impl Evaluator<'_> {
             }
             // Kept values are always forced, and answered above.
             Source::Kept => Ok(true),
+            Source::Read { reading, span } => reading
+                .drive(&mut |value| sink(self, value), |message| {
+                    Diagnostic::runtime(span.clone(), message)
+                }),
             Source::Drop { input, n } => {
                 let mut skipped = 0;
                 self.run_traversal(input, &mut |evaluator, value| {
@@ -944,25 +995,12 @@ impl Evaluator<'_> {
                 "wrong lambda arity",
             ));
         }
-        // The element a step is applying its function to joins the trace,
-        // so an entry logged inside the lambda says which element it was.
-        let element = match values.as_slice() {
-            [value] => Some(element_name(value)),
-            _ => None,
-        };
-        let outer = self
-            .frames
-            .last_mut()
-            .map(|frame| std::mem::replace(&mut frame.element, element));
         let previous = parameters
             .iter()
             .zip(values)
             .map(|(name, value)| (name, self.scope.insert(name.clone(), value)))
             .collect::<Vec<_>>();
         let result = self.expression(body);
-        if let (Some(frame), Some(outer)) = (self.frames.last_mut(), outer) {
-            frame.element = outer;
-        }
         for (name, value) in previous.into_iter().rev() {
             match value {
                 Some(value) => {
@@ -1059,29 +1097,6 @@ impl EvalCx for Evaluator<'_> {
 
     fn warn(&mut self, warning: Warning) {
         self.log.push(Report::of_warning(&warning));
-    }
-
-    fn log(&mut self, entry: Report) {
-        self.log.push(entry);
-    }
-
-    fn trace(&self) -> Vec<TraceStep> {
-        let mut trace = Vec::new();
-        for frame in &self.frames {
-            for (index, step) in frame.upstream.iter().enumerate() {
-                trace.push(TraceStep {
-                    step: (*step).to_owned(),
-                    position: index + 1,
-                    element: None,
-                });
-            }
-            trace.push(TraceStep {
-                step: frame.step.to_owned(),
-                position: frame.upstream.len() + 1,
-                element: frame.element.clone(),
-            });
-        }
-        trace
     }
 }
 
@@ -1184,29 +1199,46 @@ fn as_checked(value: Value, checked: &TypeRef) -> Value {
     }
 }
 
-/// The steps a pipeline ran before the one whose input this is, first first.
-fn upstream(mut input: &Expr) -> Vec<&'static str> {
-    let mut steps = Vec::new();
-    while let Kind::Step {
-        step, input: inner, ..
-    } = &input.kind
-    {
-        steps.push(step.name);
-        input = inner;
-    }
-    steps.reverse();
-    steps
-}
-
-/// How a trace names an element: a document by its name, anything else as
-/// it prints, shortened.
-fn element_name(value: &Value) -> String {
+/// The element at a position, or absence past either end. A tree reads its
+/// members when it is a sequence, and is the wrong shape otherwise.
+fn at_position(
+    value: Value,
+    position: i64,
+    element: &TypeRef,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let absent = || Value::Absent(element.clone());
+    let index = usize::try_from(position).ok();
     match value {
-        Value::Card(card) => card.name().to_owned(),
-        Value::Doc(doc) => doc.name.clone(),
-        Value::Hit(hit) => hit.name(),
-        Value::Present(inner) => element_name(inner),
-        other => crate::reporting::shorten(&other.to_string()),
+        Value::Absent(_) => Ok(absent()),
+        Value::Present(inner) => at_position(inner.as_ref().clone(), position, element, span),
+        Value::Data(data) => match data.as_ref() {
+            Data::List(items) => Ok(index
+                .and_then(|index| items.get(index))
+                .map_or_else(absent, |item| {
+                    Value::Present(Arc::new(Value::Data(Arc::new(item.clone()))))
+                })),
+            // An empty entry holds nothing, so nothing is at any position.
+            Data::Empty => Ok(absent()),
+            other => Err(Diagnostic::typing(
+                span.clone(),
+                format!(
+                    "a position needs a sequence here, not Data of shape {}",
+                    other.shape()
+                ),
+            )),
+        },
+        other => {
+            let elements = other.elements().ok_or_else(|| {
+                Diagnostic::runtime(
+                    span.clone(),
+                    format!("a {} is not indexed", other.type_of()),
+                )
+            })?;
+            Ok(index
+                .and_then(|index| elements.into_iter().nth(index))
+                .map_or_else(absent, |item| Value::Present(Arc::new(item))))
+        }
     }
 }
 

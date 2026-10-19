@@ -222,16 +222,10 @@ fn a_cycle_and_a_duplicate_id_are_check_errors_naming_the_cells() {
 
 #[test]
 fn a_type_error_anywhere_stops_the_document_before_any_cell_runs() {
-    let source = "```hql id=a\n[1] | debug\n```\n\n```hql\na | nosuchstep\n```\n";
+    let source = "```hql id=a\n[1] | size\n```\n\n```hql\na | nosuchstep\n```\n";
     let rendered = after(source);
     assert_eq!(rendered.cells[0].status, transclude::Status::NotRun);
     assert_eq!(rendered.cells[1].status, transclude::Status::Error);
-    assert!(
-        rendered
-            .reports
-            .iter()
-            .all(|report| report.code.as_deref() != Some("debug"))
-    );
 }
 
 #[test]

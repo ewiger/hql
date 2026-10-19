@@ -29,8 +29,13 @@ without adopting SQL clauses or Rust-like trait machinery.
 
 These are the current design names. Generic types are written with angle
 brackets, `Set<T>` and `Edge<S, T>`, everywhere, and square brackets stay
-value-level: `[alice, bob]` is a sequence and `xs[0]` is indexing. Subtyping,
-generic parameters and progressive refinement are [[type-system]]'s subject.
+value-level: `[alice, bob]` is a sequence and `xs[0]` is indexing. Indexing
+reads a position of a `Seq<T>`, counting from `0`, as an `Option<T>`: a
+position past either end is absence, as a missing key is. A `Data` tree that is
+a sequence is indexed the same way. A `Set` or a `Map` has no positions, and a
+stream that may not end is bounded with `take(n)` first. The bracket must touch
+the value: one after a space or a line break opens a list. Subtyping, generic
+parameters and progressive refinement are [[type-system]]'s subject.
 Precise schemas, declarations, polymorphism, optional/error types and Date
 operations remain open.
 This vocabulary does not require each type to be a primitive in the evaluator.
@@ -38,16 +43,16 @@ This vocabulary does not require each type to be a primitive in the evaluator.
 ## Bindings and values
 
 ```hql
-alice : Doc = [[alice]]
+alice : Doc = @[[alice]]
 ```
 
-`[[alice]]` is a doc reference: it names a document in the current namespace and
+`@[[alice]]` is a doc reference: it names a document in the current namespace and
 nothing more, and the `->` form built from it is the link operator — see
 [[link-op]]. The binding names the referenced document; a filename does not
 implicitly introduce a variable. Inferred binding is also preferred:
 
 ```hql
-alice = [[alice]]
+alice = @[[alice]]
 ```
 
 A document is not yet a card. Card-ness is established by a checked narrowing,

@@ -62,6 +62,11 @@ pub(crate) enum Source {
     },
     /// Values already produced, kept at a sequence type.
     Kept,
+    /// Documents read from an endpoint as they arrive.
+    Read {
+        reading: Arc<crate::io::Reading>,
+        span: Range<usize>,
+    },
 }
 
 impl Traversal {

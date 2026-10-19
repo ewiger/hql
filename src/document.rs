@@ -264,11 +264,91 @@ fn heading(body: &str) -> Option<String> {
         .map(|text| text.trim().to_owned())
 }
 
-/// Collect `[[target]]` references and the `{..}` annotations that follow them.
+/// The body with every fenced code block and inline code span blanked out,
+/// byte for byte, so offsets still point into the body. Code is shown to the
+/// reader, not authored as links.
+fn prose(body: &str) -> String {
+    let mut bytes = body.as_bytes().to_vec();
+    let mut fence: Option<(u8, usize)> = None;
+    let mut start = 0;
+    for line in body.split_inclusive('\n') {
+        let end = start + line.len();
+        let trimmed = line.trim_start_matches(' ');
+        let indent = line.len() - trimmed.len();
+        let run = |c: u8| trimmed.bytes().take_while(|b| *b == c).count();
+        let opens = (*b"`~")
+            .into_iter()
+            .map(|c| (c, run(c)))
+            .find(|(_, length)| *length >= 3)
+            .filter(|_| indent <= 3);
+        match (fence, opens) {
+            (Some((c, length)), Some((closing, found)))
+                if closing == c && found >= length && trimmed[found..].trim().is_empty() =>
+            {
+                fence = None;
+                blank(&mut bytes[start..end]);
+            }
+            (Some(_), _) => blank(&mut bytes[start..end]),
+            (None, Some(opened)) => {
+                fence = Some(opened);
+                blank(&mut bytes[start..end]);
+            }
+            (None, None) => blank_spans(&mut bytes[start..end]),
+        }
+        start = end;
+    }
+    String::from_utf8(bytes).unwrap_or_default()
+}
+
+/// Blank every byte but line breaks.
+fn blank(bytes: &mut [u8]) {
+    for byte in bytes.iter_mut().filter(|byte| **byte != b'\n') {
+        *byte = b' ';
+    }
+}
+
+/// Blank the inline code spans of a line: a run of backticks to the next run
+/// of the same length.
+fn blank_spans(line: &mut [u8]) {
+    let mut at = 0;
+    while at < line.len() {
+        if line[at] != b'`' {
+            at += 1;
+            continue;
+        }
+        let length = line[at..].iter().take_while(|b| **b == b'`').count();
+        let mut probe = at + length;
+        let mut close = None;
+        while probe < line.len() {
+            if line[probe] == b'`' {
+                let found = line[probe..].iter().take_while(|b| **b == b'`').count();
+                if found == length {
+                    close = Some(probe + found);
+                    break;
+                }
+                probe += found;
+            } else {
+                probe += 1;
+            }
+        }
+        match close {
+            Some(end) => {
+                blank(&mut line[at..end]);
+                at = end;
+            }
+            // An unmatched run is literal backticks.
+            None => at += length,
+        }
+    }
+}
+
+/// Collect `[[target]]` references and the `{..}` annotations that follow them,
+/// outside code.
 ///
 /// A reference may carry display text as `[[target|display text]]`, which names
 /// nothing: the target is what precedes the bar.
 fn references(body: &str) -> Result<Vec<Reference>, Error> {
+    let body = &prose(body);
     let mut found = Vec::new();
     let bytes = body.as_bytes();
     let mut offset = 0;
@@ -454,6 +534,20 @@ mod tests {
             .map(|reference| reference.target.as_str())
             .collect();
         assert_eq!(names, ["alice"]);
+    }
+
+    #[test]
+    fn code_is_shown_not_linked() {
+        let doc = document(
+            "see [[bob]].\n\n```hql\n@[[alice]] -> [[carol]]\n```\n\n~~~\n[[dan]]\n~~~\n\
+             and `[[erin]]` or ``a ` [[fay]]``, but `unclosed [[gus]]\n",
+        );
+        let names: Vec<&str> = doc
+            .references
+            .iter()
+            .map(|reference| reference.target.as_str())
+            .collect();
+        assert_eq!(names, ["bob", "gus"]);
     }
 
     #[test]

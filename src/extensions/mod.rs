@@ -21,7 +21,10 @@ use std::path::Path;
 pub(crate) mod collections;
 pub mod format;
 pub(crate) mod graph;
+pub(crate) mod io;
 pub mod lexical;
+pub mod logging;
+pub mod net;
 pub mod semantic;
 pub mod spec;
 use spec::{CheckedCall, OperationSpec};
@@ -106,10 +109,6 @@ pub(crate) trait EvalCx: Send {
     ) -> Result<Value, Diagnostic>;
     /// Queue something worth saying that does not make the result impossible.
     fn warn(&mut self, warning: crate::warnings::Warning);
-    /// Add an entry to the run's log.
-    fn log(&mut self, entry: crate::reporting::Report);
-    /// How evaluation reached the step being evaluated.
-    fn trace(&self) -> Vec<crate::reporting::TraceStep>;
 }
 
 /// One name a pipeline may write.
@@ -174,6 +173,27 @@ static FORMAT: Extension = Extension {
     metadata: None,
 };
 
+static IO: Extension = Extension {
+    name: "io",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: io::STEPS,
+    metadata: None,
+};
+
+static LOGGING: Extension = Extension {
+    name: "logging",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: logging::STEPS,
+    metadata: None,
+};
+
+static NET: Extension = Extension {
+    name: "net",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: net::STEPS,
+    metadata: None,
+};
+
 static LEXICAL: Extension = Extension {
     name: "lexical",
     version: env!("CARGO_PKG_VERSION"),
@@ -194,7 +214,9 @@ static SEMANTIC: Extension = Extension {
 /// `hql builtins` whether or not the program has imported the extension that
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
-pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &FORMAT, &LEXICAL, &SEMANTIC];
+pub(crate) static REGISTERED: &[&Extension] = &[
+    &CORE, &GRAPH, &FORMAT, &IO, &NET, &LOGGING, &LEXICAL, &SEMANTIC,
+];
 
 impl Extension {
     /// The step of a name this extension provides.
@@ -208,7 +230,7 @@ impl Extension {
 /// A prelude exists so that a program that only walks a graph and writes it
 /// as Markdown does not open with two lines of ceremony. It is a convenience, not a
 /// rule, which is why a vault can decline it.
-pub(crate) static PRELUDE: &[&str] = &["graph", "format"];
+pub(crate) static PRELUDE: &[&str] = &["graph", "format", "io"];
 
 /// The registered extension of a name.
 pub(crate) fn extension(name: &str) -> Option<&'static Extension> {
@@ -569,8 +591,18 @@ mod tests {
     fn every_registered_step_declares_a_purity_and_a_provider() {
         let listed = listing();
         assert!(!listed.is_empty());
+        // Reading and writing an endpoint, and logging, are the effects;
+        // every other step, constructing an endpoint or a logger included, is
+        // a function of its input.
         for entry in &listed {
-            assert_eq!(entry.purity, Purity::Pure, "{}", entry.name);
+            let effectful = (entry.provider == "io" && entry.name != "file")
+                || (entry.provider == "logging" && entry.name != "Logger");
+            let expected = if effectful {
+                Purity::Effectful
+            } else {
+                Purity::Pure
+            };
+            assert_eq!(entry.purity, expected, "{}", entry.name);
             assert!(!entry.provider.is_empty());
             assert!(!entry.signature.is_empty());
             assert!(!entry.summary.is_empty());

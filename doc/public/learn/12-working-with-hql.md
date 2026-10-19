@@ -112,24 +112,23 @@ type warning: `bookCount` is a binding, written in snake_case
   | ^^^^^^^^^
 ```
 
-## Looking inside a pipeline
+## Logging from a program
 
-`debug` is a step that passes its input on unchanged and records it in the
-report queue, with a label and the steps that led to it. `--report-level
-debug` shows it:
+A program reports on itself with a logger. `import logging` provides one; it
+writes structured events to an endpoint of its choosing, apart from the result:
 
 ```text
-$ hql --vault examples/tutorial --report-level debug eval \
-    'cards | filter(c => c.metadata.category == "book") | debug(label = "books") | size'
+$ hql --vault examples/tutorial 'import logging
+log = Logger(stderr, Text, name = "books")
+books = cards | filter(c => c.metadata.category == "book")
+log | info("selected", {category: "book"})
+books | size'
+INFO books selected {category: "book"}
 7
-debug[books]: Seq<Card>, 7 elements
- --> <expression>:1:54
-  |
-1 | cards | filter(c => c.metadata.category == "book") | debug(label = "books") | size
-  |                                                      ^^^^^^^^^^^^^^^^^^^^^^
-  = value: [a-room-of-ones-own, dune, frankenstein, leaves-of-grass, mrs-dalloway, the-common-reader, the-hobbit]
-  = trace: filter (step 1) → debug (step 2)
 ```
+
+`--log-level debug` lowers every logger's threshold, and `--log-level warn`
+raises it, without changing the program.
 
 `--envelope json` carries every report, whatever the level, as data.
 

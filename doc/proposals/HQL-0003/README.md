@@ -152,12 +152,12 @@ above; exact values are fixed against the vault when it is written.
 
 | Query | What it shows | Type |
 | --- | --- | --- |
-| `uplinks` | the edges leaving one card, addressed by `[[name]]` | `List<Edge>` |
+| `uplinks` | the edges leaving one card, addressed by `@[[name]]` | `List<Edge>` |
 | `downlinks` | the edges entering a card, which needs a vault | `List<Edge>` |
 | `expand` | a seed plus its neighbours, each node labelled with why it is present | `Graph` |
 | `graph` | a filtered collection of cards projected whole | `Graph` |
 | `kinds` | the relation card that resolves beside the one that does not | a collection of cards |
-| `link` | `[[a]] -> [[b]] { .. }` as a value | `Edge` |
+| `link` | `@[[a]] -> @[[b]] { .. }` as a value | `Edge` |
 
 - The `link` case MUST declare `environment: pure` and MUST NOT declare a
   `vault`, which the harness enforces as an exclusive pair. The operator

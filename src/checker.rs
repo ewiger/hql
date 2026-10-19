@@ -5,7 +5,7 @@ use crate::builtins;
 use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
 use crate::execution::{Checked, Program as TypedProgram};
-use crate::extensions::{CheckCx, Operation, Resolution};
+use crate::extensions::{CheckCx, Operation, Purity, Resolution};
 use crate::types::{TypeRef, collections};
 use crate::vault::Vault;
 use std::collections::HashMap;
@@ -43,6 +43,8 @@ pub(crate) fn check_with(
         parameter_names: HashMap::new(),
         generic_functions: HashMap::new(),
         placeholders: HashMap::new(),
+        uses: Vec::new(),
+        effectful: HashMap::new(),
     }
     .program(program)
 }
@@ -85,6 +87,8 @@ pub(crate) fn check_collecting_with(
         parameter_names: HashMap::new(),
         generic_functions: HashMap::new(),
         placeholders: HashMap::new(),
+        uses: Vec::new(),
+        effectful: HashMap::new(),
     };
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
@@ -259,7 +263,14 @@ fn globals(vault: &Vault) -> HashMap<String, TypeRef> {
 
 /// What a host seeds before the library: `vault`, when there is one.
 fn base(vault: &Vault) -> HashMap<String, TypeRef> {
-    let mut scope = HashMap::new();
+    let mut scope: HashMap<String, TypeRef> = crate::extensions::io::BINDINGS
+        .iter()
+        .map(|(name, endpoint)| ((*name).to_owned(), endpoint.type_of()))
+        .collect();
+    // A document's cell is the one `hql render` is running.
+    if matches!(crate::io::policy(), crate::io::Policy::Document { .. }) {
+        scope.insert("cell".to_owned(), TypeRef::CELL);
+    }
     if vault.is_present() {
         scope.insert(VAULT.to_owned(), TypeRef::VAULT);
     }
@@ -288,6 +299,8 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 parameter_names: HashMap::new(),
                 generic_functions: HashMap::new(),
                 placeholders: HashMap::new(),
+                uses: Vec::new(),
+                effectful: HashMap::new(),
             }
             .program(&program)
             .ok()?;
@@ -322,6 +335,11 @@ struct Checker<'a> {
     /// The types an alias's unannotated parameters took, while its body is
     /// checked.
     placeholders: HashMap<crate::types::TypeConstructor, TypeRef>,
+    /// The effectful operations the body being checked uses, in the order
+    /// first written.
+    uses: Vec<String>,
+    /// Each declared function whose body is effectful, with what it uses.
+    effectful: HashMap<String, Vec<String>>,
 }
 
 impl Checker<'_> {
@@ -331,6 +349,34 @@ impl Checker<'_> {
             last = self.statement(statement)?;
         }
         self.checked.program(program, last)
+    }
+
+    /// Check a function declaration, and record it as effectful when its body
+    /// uses an effectful operation, directly or through another function.
+    fn declaring(
+        &mut self,
+        name: &str,
+        declare: impl FnOnce(&mut Self) -> Result<(), Diagnostic>,
+    ) -> Result<(), Diagnostic> {
+        let outer = std::mem::take(&mut self.uses);
+        let declared = declare(self);
+        let used = std::mem::replace(&mut self.uses, outer);
+        declared?;
+        if used.is_empty() {
+            self.effectful.remove(name);
+        } else {
+            self.effectful.insert(name.to_owned(), used.clone());
+            self.checked.effects.push((name.to_owned(), used));
+        }
+        Ok(())
+    }
+
+    /// Note that the body being checked uses an operation, when it is
+    /// effectful: a step declared so, or a function whose body is.
+    fn using(&mut self, name: &str, effectful: bool) {
+        if effectful && !self.uses.iter().any(|held| held == name) {
+            self.uses.push(name.to_owned());
+        }
     }
 
     /// Warn where a name is introduced that departs from its kind's casing.
@@ -402,11 +448,11 @@ impl Checker<'_> {
                     TypeRef::UNIT
                 }
                 Stmt::Fn(declaration) => {
-                    self.function(declaration)?;
+                    self.declaring(&declaration.name, |checker| checker.function(declaration))?;
                     TypeRef::UNIT
                 }
                 Stmt::Alias(alias) => {
-                    self.alias(alias)?;
+                    self.declaring(&alias.name, |checker| checker.alias(alias))?;
                     TypeRef::UNIT
                 }
                 Stmt::Expr(expression) => self.expression(expression)?,
@@ -968,6 +1014,10 @@ impl Checker<'_> {
         span: Range<usize>,
     ) -> Result<TypeRef, Diagnostic> {
         let ty = self.expression(callee)?;
+        if let Kind::Ident(name) = &callee.kind {
+            let effectful = self.effectful.contains_key(name);
+            self.using(name, effectful);
+        }
         let Some((parameters, result)) = ty.as_function() else {
             return Err(Diagnostic::typing(
                 callee.span.clone(),
@@ -1116,6 +1166,22 @@ impl Checker<'_> {
                 "a block is written only as the body of a user `fn`",
             )),
             Kind::List(values) | Kind::Set(values) => {
+                // `[[alice]]` with `alice` unbound is a reference in the old
+                // spelling: name the one it now has.
+                if let (Kind::List(_), [only]) = (&expression.kind, values.as_slice())
+                    && let Kind::List(inner) = &only.kind
+                    && let [element] = inner.as_slice()
+                    && let Kind::Ident(name) = &element.kind
+                    && !self.scope.contains_key(name)
+                    && !builtins::exists(name)
+                {
+                    return Err(Diagnostic::name(
+                        element.span.clone(),
+                        format!(
+                            "`{name}` is not bound; a document reference is written `@[[{name}]]`"
+                        ),
+                    ));
+                }
                 let mut element = TypeRef::NEVER;
                 for value in values {
                     let actual = self.expression(value)?;
@@ -1325,6 +1391,17 @@ impl Checker<'_> {
                 self.checked.fields.insert(span, resolved);
                 Ok(ty)
             }
+            Kind::Index(receiver, index) => {
+                let receiver_type = self.expression(receiver)?;
+                let index_type = self.expression(index)?;
+                if index_type != TypeRef::INT {
+                    return Err(Diagnostic::typing(
+                        index.span.clone(),
+                        format!("a position is an Int, not {index_type}"),
+                    ));
+                }
+                indexed(&receiver_type).map_err(|message| Diagnostic::typing(span, message))
+            }
             Kind::Link {
                 source,
                 target,
@@ -1339,7 +1416,9 @@ impl Checker<'_> {
                     if !resolved.is(&TypeRef::DOC) && resolved != TypeRef::STR {
                         return Err(Diagnostic::typing(
                             end.span.clone(),
-                            format!("a link endpoint is a document reference, not {end_type}"),
+                            format!(
+                                "a link endpoint is a document reference, `@[[name]]`, not {end_type}"
+                            ),
                         ));
                     }
                 }
@@ -1410,10 +1489,12 @@ impl Checker<'_> {
                             "the input must be positional",
                         ));
                     }
-                    let input = self.expression(&input.value)?;
+                    let written = &input.value;
+                    let input = self.expression(written)?;
                     let step = self.resolution.step(name, &span)?;
                     self.checked.steps.insert(span.clone(), step);
-                    return self.step(step, &input, arguments, span);
+                    self.using(step.name, step.purity == Purity::Effectful);
+                    return self.step(step, &input, Some(written), arguments, span);
                 }
                 let _ = arguments;
                 let hint = builtins::hint(name);
@@ -1447,9 +1528,11 @@ impl Checker<'_> {
                 let reference = step_of(step)?;
                 let resolved = self.resolve(&reference, &step.span)?;
                 self.checked.steps.insert(span.clone(), resolved);
+                self.using(resolved.name, resolved.purity == Purity::Effectful);
                 self.step(
                     resolved,
                     &input_type,
+                    Some(input),
                     reference.arguments(),
                     step.span.clone(),
                 )
@@ -1664,6 +1747,7 @@ impl Checker<'_> {
         &mut self,
         step: &'static Operation,
         input: &TypeRef,
+        input_expr: Option<&Expr>,
         arguments: &[Arg],
         span: Range<usize>,
     ) -> Result<TypeRef, Diagnostic> {
@@ -1674,7 +1758,9 @@ impl Checker<'_> {
             && input.present().iterated().is_none()
         {
             let held = TypeRef::list(input.present().clone());
-            let (result, call) = step.spec.check(step.name, self, &held, arguments, &span)?;
+            let (result, call) = step
+                .spec
+                .check(step.name, self, &held, input_expr, arguments, &span)?;
             if let Some(check) = step.check {
                 check(self, &call, span)?;
             }
@@ -1691,7 +1777,9 @@ impl Checker<'_> {
         } else {
             input.present().clone()
         };
-        let (result, call) = step.spec.check(step.name, self, &input, arguments, &span)?;
+        let (result, call) = step
+            .spec
+            .check(step.name, self, &input, input_expr, arguments, &span)?;
         if let Some(check) = step.check {
             check(self, &call, span)?;
         }
@@ -1885,6 +1973,41 @@ pub(crate) fn step_of(step: &Expr) -> Result<StepRef<'_>, Diagnostic> {
         },
         _ => Err(not_a_step()),
     }
+}
+
+/// The type of `xs[i]`: the element at a position, or its absence.
+///
+/// Only a sequence has positions. An optional receiver nests no deeper: an
+/// element of a sequence that may be missing is one `Option`.
+fn indexed(receiver: &TypeRef) -> Result<TypeRef, String> {
+    if receiver.constructor.0 == "Option" {
+        return indexed(receiver.present());
+    }
+    if *receiver == TypeRef::DATA {
+        return Ok(TypeRef::optional(TypeRef::DATA));
+    }
+    if receiver.is_sequence() {
+        let element = receiver
+            .element()
+            .ok_or_else(|| format!("{receiver} has no element type"))?;
+        return Ok(TypeRef::optional(element));
+    }
+    if receiver.is_stream() && !receiver.is_collection() {
+        return Err(format!(
+            "{receiver} may not end, so a position in it is not known; bound it with `take(n)`"
+        ));
+    }
+    if crate::types::MapKind::of(receiver.constructor).is_some() {
+        return Err(format!(
+            "{receiver} has keys, not positions; read a value with `get`"
+        ));
+    }
+    if receiver.is_collection() {
+        return Err(format!(
+            "{receiver} has no positions, so it is not indexed; `sort` it into one"
+        ));
+    }
+    Err(format!("{receiver} is not indexed; a sequence is"))
 }
 
 /// The type of a field on a value of a type.

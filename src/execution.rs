@@ -17,6 +17,9 @@ pub(crate) struct Program {
     pub warnings: Vec<crate::warnings::Warning>,
     /// Each alias the program defines, with the signature the checker wrote.
     pub signatures: Vec<(String, TypeRef)>,
+    /// Each function the program defines whose body is effectful, with the
+    /// effectful operations it uses.
+    pub effects: Vec<(String, Vec<String>)>,
 }
 
 #[derive(Debug)]
@@ -107,6 +110,8 @@ pub(crate) enum Kind {
         data: Option<Box<Expr>>,
     },
     Field(Box<Expr>, Field),
+    /// `xs[i]`: the element at a position, or its absence.
+    Index(Box<Expr>, Box<Expr>),
     Lambda {
         parameters: Vec<String>,
         body: std::sync::Arc<Expr>,
@@ -192,6 +197,16 @@ pub(crate) enum Field {
     Cards,
     Root,
     Graph,
+    End,
+    Level,
+    Logger,
+    Message,
+    Logs,
+    Url,
+    Method,
+    Headers,
+    Host,
+    Port,
 }
 
 impl Field {
@@ -224,6 +239,16 @@ impl Field {
             "cards" => Self::Cards,
             "root" => Self::Root,
             "graph" => Self::Graph,
+            "end" => Self::End,
+            "level" => Self::Level,
+            "logger" => Self::Logger,
+            "message" => Self::Message,
+            "logs" => Self::Logs,
+            "url" => Self::Url,
+            "method" => Self::Method,
+            "headers" => Self::Headers,
+            "host" => Self::Host,
+            "port" => Self::Port,
             _ => return None,
         })
     }
@@ -252,6 +277,8 @@ pub(crate) struct Checked {
     pub warnings: Vec<crate::warnings::Warning>,
     /// Each alias the program defines, with the signature the checker wrote.
     pub signatures: Vec<(String, TypeRef)>,
+    /// Each effectful function, with the effectful operations it uses.
+    pub effects: Vec<(String, Vec<String>)>,
 }
 
 impl Checked {
@@ -314,6 +341,7 @@ impl Checked {
             result,
             warnings: self.warnings.clone(),
             signatures: self.signatures.clone(),
+            effects: self.effects.clone(),
         })
     }
 
@@ -486,6 +514,7 @@ impl Checked {
                 right: boxed(right)?,
                 negated: *negated,
             },
+            A::Index(receiver, index) => Kind::Index(boxed(receiver)?, boxed(index)?),
             A::Field(receiver, _) => {
                 let receiver = boxed(receiver)?;
                 let field = self

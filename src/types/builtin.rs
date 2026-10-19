@@ -21,6 +21,13 @@ atoms! {
     CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
     ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
+    ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
+    WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
+    FILE => "File", FILE_END => "FileEnd",
+    HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
+    LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
+    WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
+    CELL => "Cell",
 }
 
 macro_rules! applications {
@@ -128,6 +135,56 @@ fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::GRAPH, TypeKind::Concrete, &[]),
         (TypeRef::VAULT, TypeKind::Concrete, &[]),
         (TypeRef::ORDERING, TypeKind::Concrete, &[]),
+        // Where values come from and go to: `std/io/init.hql`. A capability
+        // is a supertype, so the checker reads it off the endpoint's type.
+        (TypeRef::ENDPOINT, TypeKind::Abstract, &[]),
+        (TypeRef::READABLE, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
+        (
+            TypeRef::REPLAYABLE,
+            TypeKind::Abstract,
+            &[TypeRef::READABLE],
+        ),
+        (TypeRef::WRITABLE, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
+        (TypeRef::STDIN, TypeKind::Concrete, &[TypeRef::READABLE]),
+        (TypeRef::STDOUT, TypeKind::Concrete, &[TypeRef::WRITABLE]),
+        (TypeRef::STDERR, TypeKind::Concrete, &[TypeRef::WRITABLE]),
+        (
+            TypeRef::FILE_END,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE, TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::FILE,
+            TypeKind::Concrete,
+            &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
+        ),
+        // Transports: `std/io/net.hql`.
+        (
+            TypeRef::HTTP,
+            TypeKind::Concrete,
+            &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::WEB_SOCKET,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE, TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::SOCKET,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE, TypeRef::WRITABLE],
+        ),
+        // Logging: `std/io/logging.hql`. A level is a type, so a threshold is
+        // passed as one and an event's level is tested with `is`.
+        (TypeRef::LOG_LEVEL, TypeKind::Abstract, &[]),
+        (TypeRef::TRACE, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::DEBUG, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::INFO, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::WARN, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::ERROR, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::LOG_EVENT, TypeKind::Concrete, &[]),
+        (TypeRef::LOGGER, TypeKind::Concrete, &[]),
+        (TypeRef::CELL, TypeKind::Concrete, &[]),
     ] {
         system.declare(TypeDefinition {
             kind,
@@ -222,6 +279,19 @@ fn build() -> Result<TypeSystem, TypeError> {
             applied: Vec::new(),
         })?;
     }
+    // An endpoint of values held in memory: `type Channel<T> : {Readable,
+    // Writable}`. It is written and read at `T`, so `T` is invariant.
+    system.declare(TypeDefinition {
+        constructor: CHANNEL,
+        kind: TypeKind::Concrete,
+        parameters: vec![TypeParameter {
+            name: "T",
+            variance: Variance::Invariant,
+            bound: None,
+        }],
+        parents: vec![TypeRef::READABLE.constructor, TypeRef::WRITABLE.constructor],
+        applied: Vec::new(),
+    })?;
     // One partition of a `group`: `type Group<K, T> { key: K, items: List<T> }`.
     system.declare(TypeDefinition {
         constructor: GROUP,
@@ -271,6 +341,9 @@ impl TypeRef {
         Some((parameters, result))
     }
 }
+
+/// The constructor of an in-memory channel.
+pub const CHANNEL: TypeConstructor = TypeConstructor("Channel");
 
 /// The constructor of one `group` partition.
 pub const GROUP: TypeConstructor = TypeConstructor("Group");

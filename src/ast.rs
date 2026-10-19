@@ -174,7 +174,7 @@ pub(crate) enum Kind {
     Str(String),
     /// A bound name. `cards` is one, seeded from the vault.
     Ident(String),
-    /// `[[name]]` — a reference to a document in the current namespace.
+    /// `@[[name]]` — a reference to a document in the current namespace.
     DocRef(String),
     /// `{ key: value, .. }` — an open tree.
     Data(Vec<(String, Expr)>),
@@ -198,13 +198,15 @@ pub(crate) enum Kind {
     Not(Box<Expr>),
     /// `input | step`, where the step is a name or a call.
     Pipe(Box<Expr>, Box<Expr>),
-    /// `[[a]] -> [[b]] { .. }` — the link operator.
+    /// `@[[a]] -> @[[b]] { .. }` — the link operator.
     Link {
         source: Box<Expr>,
         target: Box<Expr>,
         data: Option<Box<Expr>>,
     },
     Field(Box<Expr>, String),
+    /// `xs[i]` — the element at a position of a sequence, or of a tree.
+    Index(Box<Expr>, Box<Expr>),
     Call {
         callee: Box<Expr>,
         arguments: Vec<Arg>,

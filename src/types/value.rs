@@ -59,6 +59,16 @@ pub enum Value {
     Vault,
     /// A generated sequence or stream, produced on demand.
     Traversal(Arc<crate::traversal::Traversal>),
+    /// Where values come from or go to: `stdin`, `file("x.json")`.
+    Endpoint(Arc<crate::io::Endpoint>),
+    /// How severe a log event is: a value of `Info`, or another level.
+    Level(crate::extensions::logging::Level),
+    /// One structured log event.
+    Log(Arc<crate::extensions::logging::Event>),
+    /// A producer of log events, and where it writes them.
+    Logger(Arc<crate::extensions::logging::Logger>),
+    /// The cell `hql render` is running.
+    Cell,
 }
 
 /// Text of one presentation format: a `String` that also states its syntax.
@@ -157,6 +167,11 @@ impl Value {
         match self {
             Self::Traversal(traversal) => traversal.type_of(),
             Self::Vault => TypeRef::VAULT,
+            Self::Endpoint(endpoint) => endpoint.type_of(),
+            Self::Level(level) => level.type_of(),
+            Self::Log(_) => TypeRef::LOG_EVENT,
+            Self::Logger(_) => TypeRef::LOGGER,
+            Self::Cell => TypeRef::CELL,
             Self::Unit => TypeRef::UNIT,
             Self::Ordering(_) => TypeRef::ORDERING,
             Self::Map(map) => map.type_of(),
