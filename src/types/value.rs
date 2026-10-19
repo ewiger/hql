@@ -59,6 +59,74 @@ pub enum Value {
     Vault,
     /// A generated sequence or stream, produced on demand.
     Traversal(Arc<crate::traversal::Traversal>),
+    /// A value of a record type the standard library declares.
+    Record(Arc<Record>),
+}
+
+/// A value of a declared record type: the type, and the fields it holds in
+/// declaration order. An optional field that is absent is not held, so
+/// reading it gives absence rather than a stored `none`.
+#[derive(Debug, Clone)]
+pub struct Record {
+    /// The record's type.
+    pub ty: TypeRef,
+    /// Its fields, by name.
+    pub fields: Vec<(String, Value)>,
+}
+
+impl Record {
+    /// A record of a type, from its fields.
+    #[must_use]
+    pub fn new(ty: TypeRef, fields: Vec<(&str, Value)>) -> Self {
+        Self {
+            ty,
+            fields: fields
+                .into_iter()
+                .map(|(name, value)| (name.to_owned(), value))
+                .collect(),
+        }
+    }
+
+    /// The value of a field, when the record holds it.
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<&Value> {
+        self.fields
+            .iter()
+            .find(|(held, _)| held == name)
+            .map(|(_, value)| value)
+    }
+
+    /// The text of a `String` field, or empty when it is absent.
+    #[must_use]
+    pub fn text(&self, name: &str) -> String {
+        match self.get(name) {
+            Some(Value::Str(text)) => text.to_string(),
+            Some(Value::Formatted(formatted)) => formatted.text.clone(),
+            _ => String::new(),
+        }
+    }
+
+    /// The elements of a list field, or none when it is absent.
+    #[must_use]
+    pub fn list(&self, name: &str) -> Vec<Value> {
+        self.get(name).and_then(Value::elements).unwrap_or_default()
+    }
+
+    /// A context of items, in order.
+    #[must_use]
+    pub fn context(items: Vec<Value>) -> Value {
+        let item = TypeRef::from(super::TypeConstructor("ContextItem"));
+        Value::Record(Arc::new(Self::new(
+            TypeRef::from(super::TypeConstructor("Context")),
+            vec![("items", Value::list(items, item))],
+        )))
+    }
+
+    /// Whether the record is of the named type.
+    #[must_use]
+    pub fn is(&self, name: &str) -> bool {
+        self.ty.constructor.0 == name
+    }
 }
 
 /// Text of one presentation format: a `String` that also states its syntax.
@@ -183,6 +251,7 @@ impl Value {
             Self::Group(group) => {
                 super::builtin::GROUP.apply([group.key_type.clone(), group.item_type.clone()])
             }
+            Self::Record(record) => record.ty.clone(),
         }
     }
 
@@ -199,6 +268,8 @@ impl Value {
                     .map(|hit| Self::Hit(Arc::new(hit.clone())))
                     .collect(),
             ),
+            // A context is the sequence of its items.
+            Self::Record(record) if record.is("Context") => Some(record.list("items")),
             _ => None,
         }
     }
@@ -378,6 +449,9 @@ impl PartialEq for Value {
             (Self::Group(left), Self::Group(right)) => left.key == right.key,
             // A function is equal only to itself: equal behaviour is undecidable.
             (Self::Function(left), Self::Function(right)) => Arc::ptr_eq(left, right),
+            (Self::Record(left), Self::Record(right)) => {
+                Arc::ptr_eq(left, right) || (left.ty == right.ty && left.fields == right.fields)
+            }
             _ => false,
         }
     }

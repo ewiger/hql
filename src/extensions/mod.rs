@@ -18,6 +18,7 @@ use crate::vault::Vault;
 use std::ops::Range;
 use std::path::Path;
 
+pub mod ai;
 pub(crate) mod collections;
 pub mod format;
 pub(crate) mod graph;
@@ -103,6 +104,13 @@ pub(crate) trait EvalCx: Send {
         argument: &TypedArg,
         left: Value,
         right: Value,
+    ) -> Result<Value, Diagnostic>;
+    /// A function value applied to arguments.
+    fn call_function(
+        &mut self,
+        function: &Value,
+        arguments: Vec<Value>,
+        span: &Range<usize>,
     ) -> Result<Value, Diagnostic>;
     /// Queue something worth saying that does not make the result impossible.
     fn warn(&mut self, warning: crate::warnings::Warning);
@@ -194,7 +202,14 @@ static SEMANTIC: Extension = Extension {
 /// `hql builtins` whether or not the program has imported the extension that
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
-pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &FORMAT, &LEXICAL, &SEMANTIC];
+pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &FORMAT, &LEXICAL, &SEMANTIC, &AI];
+
+static AI: Extension = Extension {
+    name: "ai",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: ai::STEPS,
+    metadata: None,
+};
 
 impl Extension {
     /// The step of a name this extension provides.
@@ -569,8 +584,17 @@ mod tests {
     fn every_registered_step_declares_a_purity_and_a_provider() {
         let listed = listing();
         assert!(!listed.is_empty());
+        // The `ai` extension's model calls and memory writes are the only
+        // effects; everything else may be moved by the executor.
         for entry in &listed {
-            assert_eq!(entry.purity, Purity::Pure, "{}", entry.name);
+            let effectful = entry.provider == "ai"
+                && matches!(entry.name, "run" | "ask" | "delegate" | "remember");
+            let expected = if effectful {
+                Purity::Effectful
+            } else {
+                Purity::Pure
+            };
+            assert_eq!(entry.purity, expected, "{}", entry.name);
             assert!(!entry.provider.is_empty());
             assert!(!entry.signature.is_empty());
             assert!(!entry.summary.is_empty());

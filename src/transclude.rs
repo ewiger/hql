@@ -51,6 +51,9 @@ pub enum Status {
     /// It was not asked to run: another cell was, or the document did not
     /// check. Its output is left as written.
     NotRun,
+    /// It asked a model a question nobody has answered yet: under `--ai host`
+    /// the request waits for whoever drives the render.
+    Pending,
 }
 
 impl Status {
@@ -62,6 +65,7 @@ impl Status {
             Self::Error => "error",
             Self::Skipped => "skipped",
             Self::NotRun => "not-run",
+            Self::Pending => "pending",
         }
     }
 }
@@ -85,6 +89,8 @@ pub struct Cell {
     pub markdown: String,
     /// What it had to say, with spans into the document.
     pub reports: Reports,
+    /// The key of the model request it waits on, when it is pending.
+    pub pending: Option<String>,
 }
 
 /// What rendering a document produced.
@@ -154,8 +160,31 @@ pub fn render_cell(
     emit: Emit,
     only: Option<&str>,
 ) -> Result<Rendered, String> {
+    render_document(source, None, vault, mode, emit, only)
+}
+
+/// [`render_cell`] for a document at a path in the vault, which names the
+/// card `this` is.
+///
+/// # Errors
+///
+/// Names a cell id the document does not have.
+pub fn render_document(
+    source: &str,
+    path: Option<&std::path::Path>,
+    vault: &Vault,
+    mode: Mode,
+    emit: Emit,
+    only: Option<&str>,
+) -> Result<Rendered, String> {
     let mut reports = Reports::new();
     let (segments, mut cells) = scan(source, emit, &mut reports);
+    let sections = sections(&segments, cells.len());
+    // A cell closes over the card it is written in. A cell id of the same
+    // name is the document's own choice, and wins.
+    let this = vault
+        .card_of(path.unwrap_or(std::path::Path::new("this.hmd")), source)
+        .filter(|_| !cells.iter().any(|cell| cell.id.as_deref() == Some(THIS)));
 
     // Ids name values, so two cells may not share one.
     let mut ids: BTreeMap<String, usize> = BTreeMap::new();
@@ -222,6 +251,7 @@ pub fn render_cell(
             status: Status::NotRun,
             markdown: String::new(),
             reports: Reports::new(),
+            pending: None,
         })
         .collect();
 
@@ -233,14 +263,18 @@ pub fn render_cell(
     let mut blocks = 0;
     for &index in &order {
         if let Some(waited) = failed_read(&cells[index], &results) {
-            skip(&mut results[index], &cells, waited);
+            let pending = results[waited].status == Status::Pending;
+            skip(&mut results[index], &cells, waited, pending);
             continue;
         }
-        let bound: Vec<_> = cells[index]
+        let mut bound: Vec<_> = cells[index]
             .reads
             .iter()
             .filter_map(|&read| Some((cells[read].id.clone()?, types[read].clone()?)))
             .collect();
+        if this.is_some() {
+            bound.push((THIS.to_owned(), crate::types::TypeRef::CARD));
+        }
         blocks += 1;
         let (program, found) = crate::check_cell(&cells[index].body, vault, mode, &bound);
         results[index].reports = shifted(found, cells[index].body_at);
@@ -262,18 +296,27 @@ pub fn render_cell(
     if !broken {
         for &index in &order {
             if let Some(waited) = failed_read(&cells[index], &results) {
-                skip(&mut results[index], &cells, waited);
+                let pending = results[waited].status == Status::Pending;
+                skip(&mut results[index], &cells, waited, pending);
                 continue;
             }
             let Some(program) = &programs[index] else {
                 continue;
             };
-            let bound: Vec<_> = cells[index]
+            let mut bound: Vec<_> = cells[index]
                 .reads
                 .iter()
                 .filter_map(|&read| Some((cells[read].id.clone()?, values[read].clone()?)))
                 .collect();
-            let (value, log) = crate::evaluate_cell(program, vault, bound);
+            if let Some(card) = &this {
+                bound.push((
+                    THIS.to_owned(),
+                    crate::types::Value::Card(std::sync::Arc::new(card.clone())),
+                ));
+            }
+            let (value, log) = crate::extensions::ai::within_section(&sections[index], || {
+                crate::evaluate_cell(program, vault, bound)
+            });
             for entry in shifted(log, cells[index].body_at).iter() {
                 results[index].reports.push(entry.clone());
             }
@@ -299,6 +342,20 @@ pub fn render_cell(
                 Ok(markdown) => {
                     results[index].status = Status::Ok;
                     results[index].markdown = markdown;
+                }
+                Err(message) if message.starts_with(crate::extensions::ai::transport::PENDING) => {
+                    // Not a failure: a question waiting for its answer.
+                    let key = message
+                        .trim_start_matches(crate::extensions::ai::transport::PENDING)
+                        .split(':')
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned();
+                    results[index].status = Status::Pending;
+                    results[index].reports = Reports::new();
+                    results[index].markdown =
+                        format!("pending: waiting for an answer to request {key}");
+                    results[index].pending = Some(key);
                 }
                 Err(message) => {
                     results[index].status = Status::Error;
@@ -328,6 +385,50 @@ pub fn render_cell(
         reports,
         cells: results,
     })
+}
+
+/// The name a cell reads the card it is written in by.
+const THIS: &str = "this";
+
+/// Each cell's section: the prose from the nearest heading above it to the
+/// cell, without other cells, their outputs or the front matter. This is what
+/// a cell's surrounding text asks, and a prompt's default instructions.
+fn sections(segments: &[Segment], count: usize) -> Vec<String> {
+    let mut sections = vec![String::new(); count];
+    let mut current: Vec<&str> = Vec::new();
+    let mut front = false;
+    let mut fenced = false;
+    for (position, segment) in segments.iter().enumerate() {
+        match segment {
+            Segment::Line(line) => {
+                if position == 0 && line.trim_end() == "---" {
+                    front = true;
+                    continue;
+                }
+                if front {
+                    front = line.trim_end() != "---";
+                    continue;
+                }
+                if line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~") {
+                    fenced = !fenced;
+                }
+                if !fenced && line.starts_with('#') {
+                    current.clear();
+                }
+                // A removed cell leaves the blank lines on both its sides.
+                let blank = line.trim().is_empty();
+                if !(blank && current.last().is_some_and(|last| last.trim().is_empty())) {
+                    current.push(line);
+                }
+            }
+            Segment::Cell(index) => {
+                if let Some(section) = sections.get_mut(*index) {
+                    *section = current.join("\n").trim().to_owned();
+                }
+            }
+        }
+    }
+    sections
 }
 
 /// Split a document into lines and cells, attaching to each cell the output a
@@ -622,19 +723,25 @@ fn normalized(source: &str) -> String {
 
 /// The first cell a cell reads that failed or was skipped.
 fn failed_read(cell: &Source, results: &[Cell]) -> Option<usize> {
-    cell.reads
-        .iter()
-        .copied()
-        .find(|&read| matches!(results[read].status, Status::Error | Status::Skipped))
+    cell.reads.iter().copied().find(|&read| {
+        matches!(
+            results[read].status,
+            Status::Error | Status::Skipped | Status::Pending
+        )
+    })
 }
 
-fn skip(result: &mut Cell, cells: &[Source], waited: usize) {
+fn skip(result: &mut Cell, cells: &[Source], waited: usize, pending: bool) {
     let name = cells[waited]
         .id
         .clone()
         .unwrap_or_else(|| waited.to_string());
     result.status = Status::Skipped;
-    result.markdown = format!("skipped: {name} failed");
+    result.markdown = if pending {
+        format!("skipped: {name} is pending")
+    } else {
+        format!("skipped: {name} failed")
+    };
 }
 
 /// The document with every cell's output written, and whether it is a

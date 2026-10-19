@@ -1,10 +1,11 @@
 //! The `semantic` extension: ranking against vectors a language model made.
 //!
-//! The model is not in this binary and never will be. `contrib/semantics/`
-//! embeds a vault ahead of time into an SQLite index, and this module reads it.
-//! That is why a query must be in the index too: a consumer that cannot embed a
-//! document cannot embed a question either, and inventing a vector for one
-//! would be the silent wrongness the whole split exists to avoid.
+//! The model is not in this binary. `contrib/semantics/` embeds a vault ahead
+//! of time into an SQLite index, and this module reads it. A query is read
+//! from the index too. One the index lacks may be embedded by the index's own
+//! `http` embedder, as HQL-0022 allows, through the AI harness's recordings,
+//! and never by any other model: inventing a vector would be the silent
+//! wrongness the whole split exists to avoid.
 //!
 //! The index is untrusted input. Everything read from it is checked: the schema
 //! version, the vault it was built for, the dimension count, and the length of
@@ -44,6 +45,23 @@ const METRIC: &str = "cosine";
 pub struct Semantics {
     /// The index path, relative to the vault root.
     pub index: Option<String>,
+    /// The `http` embedder that filled it, which may also embed a query the
+    /// index holds no vector for.
+    pub embedder: Option<Embedder>,
+}
+
+/// An `http` embedder from `[semantics.embedder]`: an OpenAI-shaped
+/// `/v1/embeddings` endpoint.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Embedder {
+    /// The model id sent, which must be the index's.
+    pub model: String,
+    /// Its pinned revision, which must be the index's.
+    pub revision: String,
+    /// Where requests are sent.
+    pub endpoint: String,
+    /// The NAME of the variable holding the key.
+    pub api_key_env: Option<String>,
 }
 
 impl Semantics {
@@ -56,12 +74,28 @@ impl Semantics {
         let Ok(parsed) = toml::from_str::<toml::Value>(&text) else {
             return Self::default();
         };
+        let section = parsed.get("semantics");
+        let table = section.and_then(|section| section.get("embedder"));
+        let text = |key: &str| {
+            table
+                .and_then(|table| table.get(key))
+                .and_then(toml::Value::as_str)
+                .map(str::to_owned)
+        };
+        // Only an `http` embedder can run here: a `local` one is a checkpoint
+        // in the producer's process.
+        let embedder = (text("provider").as_deref() == Some("http")).then(|| Embedder {
+            model: text("model").unwrap_or_default(),
+            revision: text("revision").unwrap_or_default(),
+            endpoint: text("endpoint").unwrap_or_default(),
+            api_key_env: text("api_key_env"),
+        });
         Self {
-            index: parsed
-                .get("semantics")
+            index: section
                 .and_then(|section| section.get("index"))
                 .and_then(toml::Value::as_str)
                 .map(str::to_owned),
+            embedder,
         }
     }
 }
@@ -109,7 +143,13 @@ fn eval_semantic(
 
     let path = configured(cx.vault(), &span)?;
     let index = Index::open(&path, cx.vault(), &span)?;
-    let asked = index.query(&query, &span)?;
+    let asked = match index.query(&query, &span) {
+        Ok(asked) => asked,
+        Err(missing) => match &cx.vault().semantics.embedder {
+            Some(embedder) => index.embed(cx.vault(), embedder, &query, &span)?,
+            None => return Err(missing),
+        },
+    };
 
     let mut scored = Vec::new();
     let mut skipped = 0_usize;
@@ -465,6 +505,72 @@ impl Index {
     }
 }
 
+impl Index {
+    /// Embed a query the index holds no vector for, with the embedder that
+    /// built it, through the harness's recordings and mode.
+    fn embed(
+        &self,
+        vault: &Vault,
+        embedder: &Embedder,
+        text: &str,
+        span: &Range<usize>,
+    ) -> Result<Vec<f32>, Diagnostic> {
+        let fail = |message: String| Diagnostic::runtime(span.clone(), message);
+        // A vector from another model lies in another geometry, and its dot
+        // product with these is a number that means nothing.
+        if embedder.model != self.model || embedder.revision != self.revision {
+            return Err(fail(format!(
+                "the index was built by `{}` at `{}`, and [semantics.embedder] names `{}` at \
+                 `{}`: a query embedded by another model cannot be scored against it",
+                self.model, self.revision, embedder.model, embedder.revision
+            )));
+        }
+        let model = crate::extensions::ai::transport::Model {
+            api: crate::extensions::ai::transport::Api::Embeddings,
+            endpoint: embedder.endpoint.clone(),
+            model: embedder.model.clone(),
+            api_key_env: embedder.api_key_env.clone(),
+            max_tokens: 0,
+            temperature: None,
+            session: None,
+        };
+        let body = serde_json::json!({"input": [text], "model": embedder.model});
+        let response = crate::extensions::ai::transport::send(
+            &vault.root,
+            &vault.ai,
+            &model,
+            &body,
+        )
+        .map_err(|message| {
+            fail(format!(
+                "the index holds no vector for `{text}`, and embedding it failed: {message}; \
+                     or rerun `{BUILD} --query \"{text}\"`"
+            ))
+        })?;
+        let values: Vec<f32> = response
+            .pointer("/data/0/embedding")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| fail("the embeddings response holds no `data[0].embedding`".to_owned()))?
+            .iter()
+            .map(|value| value.as_f64().map(|number| number as f32))
+            .collect::<Option<_>>()
+            .ok_or_else(|| fail("an embedding holds a value that is not a number".to_owned()))?;
+        if values.len() != self.dimensions {
+            return Err(fail(format!(
+                "the embedder returned {} dimensions and the index holds {}",
+                values.len(),
+                self.dimensions
+            )));
+        }
+        // Scoring is a dot product, which is cosine only at unit length.
+        let norm = values.iter().map(|value| value * value).sum::<f32>().sqrt();
+        if norm == 0.0 {
+            return Err(fail("the embedder returned a zero vector".to_owned()));
+        }
+        Ok(values.into_iter().map(|value| value / norm).collect())
+    }
+}
+
 /// An index built for a vault names it as the producer was given it, which may
 /// be spelled differently from the path this run was given.
 fn same_vault(built_for: &str, root: &Path) -> bool {
@@ -545,11 +651,10 @@ mod tests {
     }
 
     #[test]
-    fn an_embedder_a_vault_declares_is_read_by_the_producer_and_not_by_this_binary() {
+    fn an_http_embedder_is_read_for_the_queries_the_index_lacks() {
         // `[semantics.embedder]` says which model fills an index. This binary
-        // has no model to configure, and a `Retrieval` that quoted this table
-        // would describe what a vault claims rather than what ran — so the
-        // table is neither read nor refused, and only `index` is taken.
+        // reads an `http` one only to embed a query the index lacks; what a
+        // score reports still comes from the index, never from this table.
         let directory = tempfile::tempdir().expect("a temporary directory");
         std::fs::write(
             directory.path().join(crate::reporting::CONFIG_FILE),
@@ -568,7 +673,13 @@ mod tests {
         assert_eq!(
             Semantics::read(directory.path()),
             Semantics {
-                index: Some(".hql/index.sqlite".to_owned())
+                index: Some(".hql/index.sqlite".to_owned()),
+                embedder: Some(Embedder {
+                    model: "text-embedding-3-small".to_owned(),
+                    revision: "2024-01-25".to_owned(),
+                    endpoint: "https://api.openai.com/v1/embeddings".to_owned(),
+                    api_key_env: Some("OPENAI_API_KEY".to_owned()),
+                }),
             }
         );
     }

@@ -59,6 +59,11 @@ pub struct Options {
     /// When to stop: `strict` at the first error, `collect` to report them all.
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
+    /// Whether a model may be reached: `replay` (the default) answers from
+    /// recordings only, `record` sends what is not recorded and records it,
+    /// `live` always sends. Never read from `hql.toml`.
+    #[arg(long, global = true, value_name = "MODE")]
+    pub ai: Option<String>,
     /// The lowest severity shown: `debug`, `info`, `warning` or `error`.
     /// `--envelope json` carries every entry whatever this says.
     #[arg(long, global = true, value_name = "LEVEL")]
@@ -111,6 +116,31 @@ enum Command {
     /// Check the semantic-search chain — vault, configuration, index, model,
     /// query set — and name the first part that is missing.
     Doctor,
+    /// The AI harness's requests: list those waiting under `--ai host`, and
+    /// answer one.
+    Ai {
+        #[command(subcommand)]
+        action: AiAction,
+    },
+}
+
+/// What `hql ai` does.
+#[derive(Debug, Subcommand)]
+enum AiAction {
+    /// List the requests waiting for an answer, as JSON.
+    Pending,
+    /// Answer a pending request, which becomes its recording.
+    Answer {
+        /// The request's key.
+        key: String,
+        /// A response in the request's wire format, as a JSON file, or `-`
+        /// for standard input.
+        #[arg(conflicts_with = "text", required_unless_present = "text")]
+        file: Option<String>,
+        /// The final answer as plain text, written in the request's format.
+        #[arg(long)]
+        text: Option<String>,
+    },
 }
 
 /// Run the CLI, returning the process exit code.
@@ -182,7 +212,10 @@ pub fn parse() -> Cli {
 }
 
 fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, String> {
-    let vault = load_vault(cli.options.vault.as_deref())?;
+    let mut vault = load_vault(cli.options.vault.as_deref())?;
+    if let Some(mode) = &cli.options.ai {
+        vault.ai.mode = crate::extensions::ai::transport::Mode::parse(mode)?;
+    }
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
             format!("unknown report mode `{name}`; expected `strict` or `collect`")
@@ -219,6 +252,49 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                         step.summary
                     )
                     .map_err(|error| error.to_string())?;
+                }
+            }
+            Ok(0)
+        }
+        Command::Ai { action } => {
+            use crate::extensions::ai::transport;
+            if !vault.is_present() {
+                return Err(
+                    "`hql ai` needs --vault: requests live in a vault's recordings".to_owned(),
+                );
+            }
+            match action {
+                AiAction::Pending => {
+                    let waiting: Vec<_> = transport::pending(&vault.root, &vault.ai)
+                        .into_iter()
+                        .map(|held| {
+                            serde_json::json!({"key": held.key, "api": held.api, "request": held.request})
+                        })
+                        .collect();
+                    writeln!(
+                        out,
+                        "{}",
+                        serde_json::to_string_pretty(&waiting).unwrap_or_default()
+                    )
+                    .map_err(|error| error.to_string())?;
+                }
+                AiAction::Answer { key, file, text } => {
+                    let api = transport::pending(&vault.root, &vault.ai)
+                        .into_iter()
+                        .find(|held| held.key == *key)
+                        .map(|held| held.api)
+                        .ok_or_else(|| format!("no request is pending under `{key}`"))?;
+                    let response = match (text, file) {
+                        (Some(text), _) => transport::wrapped(&api, text),
+                        (None, Some(file)) => {
+                            let (source, origin) = read(file)?;
+                            serde_json::from_str(&source)
+                                .map_err(|error| format!("{origin}: {error}"))?
+                        }
+                        (None, None) => return Err("an answer needs a file or --text".to_owned()),
+                    };
+                    transport::answer(&vault.root, &vault.ai, key, &response)?;
+                    writeln!(out, "answered {key}").map_err(|error| error.to_string())?;
                 }
             }
             Ok(0)
@@ -306,8 +382,12 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             cell,
         } => {
             let (source, origin) = read(file)?;
-            let rendered = transclude::render_cell(
+            let path = (file != "-")
+                .then(|| std::path::Path::new(file))
+                .map(|path| path.strip_prefix(&vault.root).unwrap_or(path).to_owned());
+            let rendered = transclude::render_document(
                 &source,
+                path.as_deref(),
                 &vault,
                 settings.mode,
                 (*emit).into(),
@@ -327,12 +407,27 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                             "status": cell.status.label(),
                             "markdown": cell.markdown,
                             "reports": cell.reports.to_json(),
+                            "pending": cell.pending,
                         })
+                    })
+                    .collect();
+                // What each pending cell asked, so whoever answers sees it.
+                let waiting = crate::extensions::ai::transport::pending(&vault.root, &vault.ai);
+                let pending: Vec<_> = rendered
+                    .cells
+                    .iter()
+                    .filter_map(|cell| {
+                        let key = cell.pending.as_ref()?;
+                        let held = waiting.iter().find(|held| held.key == *key)?;
+                        Some(serde_json::json!({
+                            "key": key, "cell": cell.index, "api": held.api, "request": held.request,
+                        }))
                     })
                     .collect();
                 let document = serde_json::json!({
                     "document": rendered.document,
                     "cells": cells,
+                    "pending": pending,
                     "reports": rendered.reports.to_json(),
                 });
                 writeln!(

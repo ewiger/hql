@@ -23,13 +23,23 @@ fn every_file_in_the_standard_library_is_embedded_as_written() {
     // The folder is walked rather than listed, so a file added to `std/`
     // cannot be left out of the binary, and the copy the binary reads its
     // record fields from is the one on disk.
+    // A module is a file, named by its stem, or a directory, named by itself,
+    // whose entry file is `init.hql`.
     let mut found = 0;
     for entry in fs::read_dir("std").expect("the standard library") {
-        let path = entry.expect("an entry").path();
-        if path.extension().and_then(|name| name.to_str()) != Some("hql") {
+        let mut path = entry.expect("an entry").path();
+        let stem = path
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap()
+            .to_owned();
+        if path.is_dir() {
+            path = path.join("init.hql");
+            assert!(path.is_file(), "{} has no init.hql", path.display());
+        } else if path.extension().and_then(|name| name.to_str()) != Some("hql") {
             continue;
         }
-        let stem = path.file_stem().and_then(|name| name.to_str()).unwrap();
+        let stem = stem.as_str();
         let embedded = library::MODULES
             .iter()
             .find(|(name, _)| *name == stem)

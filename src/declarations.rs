@@ -194,23 +194,26 @@ impl Declarations {
         self.agrees_with_the_lattice(declaration, &parents)?;
         Self::parents_are_jointly_inhabitable(&parents)?;
 
-        let mut seen: Vec<&str> = Vec::new();
-        for field in &declaration.fields {
-            if seen.contains(&field.name.as_str()) {
-                return Err(Diagnostic::typing(
-                    field.span.clone(),
-                    format!(
-                        "`{}` declares `{}` twice, and a record holds one entry per key",
-                        declaration.name, field.name
-                    ),
-                ));
-            }
-            seen.push(&field.name);
-            self.resolve(&field.annotation, &scope)?;
-            if field.optional {
-                self.field_stays_required(declaration, &field.name, &field.span)?;
-            }
+        // A field may name the record being declared — a run's `parent` is a
+        // run — so the name resolves while the fields are read, and is
+        // withdrawn again if they do not hold.
+        let provisional = !self.known.contains_key(&declaration.name);
+        if provisional {
+            self.known.insert(
+                declaration.name.clone(),
+                Declared {
+                    parameters: declaration.parameters.len(),
+                    parents: Vec::new(),
+                    fields: Vec::new(),
+                    span: declaration.span.clone(),
+                },
+            );
         }
+        let fields = self.fields_hold(declaration, &scope);
+        if fields.is_err() && provisional {
+            self.known.remove(&declaration.name);
+        }
+        fields?;
 
         self.known.insert(
             declaration.name.clone(),
@@ -229,6 +232,32 @@ impl Declarations {
                 span: declaration.span.clone(),
             },
         );
+        Ok(())
+    }
+
+    /// Each field of a record names a type and appears once.
+    fn fields_hold(
+        &self,
+        declaration: &TypeDecl,
+        scope: &HashMap<String, TypeRef>,
+    ) -> Result<(), Diagnostic> {
+        let mut seen: Vec<&str> = Vec::new();
+        for field in &declaration.fields {
+            if seen.contains(&field.name.as_str()) {
+                return Err(Diagnostic::typing(
+                    field.span.clone(),
+                    format!(
+                        "`{}` declares `{}` twice, and a record holds one entry per key",
+                        declaration.name, field.name
+                    ),
+                ));
+            }
+            seen.push(&field.name);
+            self.resolve(&field.annotation, scope)?;
+            if field.optional {
+                self.field_stays_required(declaration, &field.name, &field.span)?;
+            }
+        }
         Ok(())
     }
 

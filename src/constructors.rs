@@ -27,6 +27,7 @@ const GRAPH: TypeConstructor = TypeConstructor("Graph");
 pub(crate) fn named(name: &str) -> Option<TypeConstructor> {
     CONSTRUCTORS
         .into_iter()
+        .chain(crate::extensions::ai::CONSTRUCTORS.map(TypeConstructor))
         .find(|constructor| constructor.0 == name)
 }
 
@@ -39,6 +40,9 @@ pub(crate) fn check(
 ) -> Result<TypeRef, Diagnostic> {
     if constructor == GRAPH {
         return check_graph(cx, args, span);
+    }
+    if crate::extensions::ai::CONSTRUCTORS.contains(&constructor.0) {
+        return crate::extensions::ai::check_constructor(cx, constructor.0, args, span);
     }
     let system =
         builtin::system().map_err(|error| Diagnostic::typing(span.clone(), error.to_string()))?;
@@ -203,6 +207,9 @@ pub(crate) fn evaluate(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let constructor = expected.constructor;
+    if crate::extensions::ai::CONSTRUCTORS.contains(&constructor.0) {
+        return crate::extensions::ai::construct(cx, constructor.0, args, span);
+    }
     let mut inputs = Vec::new();
     for argument in args {
         let input = cx.evaluate(&argument.value)?;

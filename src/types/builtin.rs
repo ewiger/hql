@@ -222,6 +222,21 @@ fn build() -> Result<TypeSystem, TypeError> {
             applied: Vec::new(),
         })?;
     }
+    // The AI harness's records, declared in `std/ai/init.hql`. A context is a
+    // sequence of its items, as a ranking is of its hits.
+    for name in AI_RECORDS {
+        system.declare(TypeDefinition {
+            constructor: TypeConstructor(name),
+            kind: TypeKind::Concrete,
+            parameters: Vec::new(),
+            parents: Vec::new(),
+            applied: if name == "Context" {
+                vec![collections::SEQ.apply([TypeConstructor("ContextItem").apply([])])]
+            } else {
+                Vec::new()
+            },
+        })?;
+    }
     // One partition of a `group`: `type Group<K, T> { key: K, items: List<T> }`.
     system.declare(TypeDefinition {
         constructor: GROUP,
@@ -239,6 +254,20 @@ fn build() -> Result<TypeSystem, TypeError> {
     })?;
     Ok(system)
 }
+
+/// The records of the `ai` module, in the order `std/ai/init.hql` declares
+/// them; each is built by the `ai` extension and read through its fields.
+pub const AI_RECORDS: [&str; 9] = [
+    "Agent",
+    "ContextItem",
+    "Context",
+    "Prompt",
+    "Turn",
+    "Tool",
+    "ToolCall",
+    "Event",
+    "Run",
+];
 
 /// The function type constructors, indexed by arity.
 pub const FUNCTIONS: [TypeConstructor; 5] = [

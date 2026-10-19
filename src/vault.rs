@@ -33,6 +33,9 @@ pub struct Vault {
     pub semantics: Semantics,
     /// Which renderer writes a type in a presentation format.
     pub formats: crate::extensions::format::Renderers,
+    /// What it says about models, recordings and memory, and the mode the
+    /// host chose.
+    pub ai: crate::extensions::ai::transport::Settings,
 }
 
 impl Vault {
@@ -48,6 +51,7 @@ impl Vault {
             extensions: Config::default(),
             semantics: Semantics::default(),
             formats: crate::extensions::format::Renderers::default(),
+            ai: crate::extensions::ai::transport::Settings::default(),
         }
     }
 
@@ -71,6 +75,28 @@ impl Vault {
     #[must_use]
     pub fn resolve(&self, name: &str) -> Option<Arc<Card>> {
         self.by_name.get(name).map(Arc::clone)
+    }
+
+    /// A card read from text at a path in this vault, as loading would read
+    /// it, with links resolved against the vault's names and its own.
+    #[must_use]
+    pub fn card_of(&self, path: &Path, text: &str) -> Option<Card> {
+        let snapshot = crate::sources::Snapshot {
+            root: self.root.clone(),
+            documents: vec![crate::sources::SourceDocument {
+                path: path.to_owned(),
+                format: crate::document::Format::of(path).unwrap_or(crate::document::Format::Hmd),
+                text: Ok(text.to_owned()),
+            }],
+        };
+        let store = crate::document::DocumentStore::from_source(snapshot);
+        let document = store.documents.into_iter().next()?;
+        let mut names: std::collections::BTreeSet<String> = self.by_name.keys().cloned().collect();
+        names.insert(document.name.clone());
+        let mut warnings = Vec::new();
+        let mut card = crate::knowledge::build_card(document, &names, &mut warnings);
+        crate::extensions::contribute_metadata(&mut card);
+        Some(card)
     }
 
     /// The edges leaving a node.
@@ -133,6 +159,7 @@ pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault
     Ok(Vault {
         extensions: source.extensions(),
         semantics: source.semantics(),
+        ai: source.ai(),
         formats: source
             .formats()
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,

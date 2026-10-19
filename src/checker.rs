@@ -213,6 +213,8 @@ fn combined(combiner: &str, left: &TypeRef, right: &TypeRef) -> Result<TypeRef, 
         return Err(format!("`{combiner}` combines {wanted}, not {joined}"));
     }
     Ok(match combiner {
+        // Two contexts are one context; any other two sequences, a list.
+        "concat" if joined.constructor.0 == "Context" => joined,
         "concat" => TypeRef::list(joined.element().unwrap_or(TypeRef::NEVER)),
         _ => joined,
     })
