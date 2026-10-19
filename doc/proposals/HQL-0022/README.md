@@ -91,9 +91,6 @@ and an agent graph is the `parent` and `children` fields of runs.
   collide with [HQL-0002](../HQL-0002/README.md)'s step at import, and a
   ranking is already a `Ranking<Card>` of `Hit`s, so no `SemanticMatch` type is
   added.
-- **No query-time embedding.** `semantic` still answers only the queries its
-  index was built for. A query computed from a run's result is written with
-  `lexical` until a proposal gives the consumer an embedder.
 - **No effectful tools.** A tool cannot write, reach the network or run a
   process. `git_diff` and shell access are deferred, because a tool is how text
   from a model chooses what executes.
@@ -429,7 +426,30 @@ Whether an effect happens is the host's decision, never the vault's.
   byte-identical cell outputs, so a document of runs reviews the way a document
   of queries does under [HQL-0009](../HQL-0009/README.md).
 
-### 12. A literate harness
+### 12. Query-time embedding
+
+A query the index holds no vector for is embedded by the embedder that built
+the index, under the same modes and recordings as a model request.
+
+- When the index's `query` table has no vector for a query and the vault
+  declares `[semantics.embedder]` with `provider = "http"`, `semantic` MUST
+  send `{"input": [query], "model": model}` to its `endpoint`, through the
+  recordings and `--ai` mode of the execution modes section. Under `replay`
+  with no recording, the failure MUST name both `--ai record` and
+  `hql-semantics build --query`.
+- The embedder's `model` and `revision` MUST equal the index's. A query vector
+  from another model lies in another geometry, and its dot product with the
+  index's vectors means nothing.
+- The returned vector MUST have the index's `dimensions`, MUST be refused when
+  it is zero, and MUST be normalised to unit length before scoring, because
+  scoring is a dot product.
+- Provenance is unchanged. `Retrieval` names the index's model and revision,
+  which this rule has made equal to what embedded the query.
+- A `local` embedder is a checkpoint in the producer's process, and stays the
+  producer's. A vault indexed by one answers only the queries its index was
+  built for.
+
+### 13. A literate harness
 
 Prose states the task, cells compute the values, and cell ids pass them on.
 
@@ -590,3 +610,7 @@ cargo clippy --locked --all-targets -- -D warnings
   with `max_tokens`, a run keeps its `tools`, and a child takes its parent's
   tools by name. A cell's section as default instructions waits on
   `this: Card`
+- 2026-10-19: a cell binds `this: Card`, and its section is the default
+  instructions of a prompt. Query-time embedding, a new section, amends
+  [HQL-0002](../HQL-0002/README.md): a query the index lacks is embedded by
+  the index's own `http` embedder, through the recordings

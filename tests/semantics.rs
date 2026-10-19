@@ -436,3 +436,127 @@ fn doctor_counts_a_card_edited_since_the_build() {
     assert_eq!((last.part, last.ok), ("cards", false));
     assert!(last.detail.starts_with("1 card has"), "{}", last.detail);
 }
+
+/// Answer each request with the next body, as an embeddings endpoint would.
+fn embedder(replies: Vec<serde_json::Value>) -> u16 {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");
+    let port = listener.local_addr().expect("an address").port();
+    std::thread::spawn(move || {
+        for reply in replies {
+            let (stream, _) = listener.accept().expect("a request");
+            let mut reader = BufReader::new(stream);
+            let mut length = 0;
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).expect("a header");
+                if line == "\r\n" || line.is_empty() {
+                    break;
+                }
+                if let Some(value) = line.to_lowercase().strip_prefix("content-length:") {
+                    length = value.trim().parse().expect("a length");
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).expect("a body");
+            let text = reply.to_string();
+            write!(
+                reader.into_inner(),
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}",
+                text.len()
+            )
+            .expect("a response");
+        }
+    });
+    port
+}
+
+/// The index's model, its revision, and the stored vector of one query.
+fn stored(root: &Path, query: &str) -> (String, String, Vec<f32>) {
+    let connection =
+        rusqlite::Connection::open(root.join(".hql/index.sqlite")).expect("the copied index");
+    let (model, revision): (String, String) = connection
+        .query_row("SELECT id, revision FROM model", [], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })
+        .expect("a model");
+    let blob: Vec<u8> = connection
+        .query_row(
+            "SELECT embedding FROM query WHERE text = ?1",
+            [query],
+            |row| row.get(0),
+        )
+        .expect("a stored query");
+    let vector = blob
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|bytes| f32::from_le_bytes(*bytes))
+        .collect();
+    (model, revision, vector)
+}
+
+fn ranked(vault: &vault::Vault, query: &str) -> Vec<String> {
+    let outcome = run(
+        &format!("import semantic\ncards | semantic(\"{query}\") | take(5)"),
+        vault,
+        Mode::Strict,
+    );
+    let Some(Value::Ranking(ranking)) = &outcome.value else {
+        panic!("expected a ranking, got {:?}", outcome.reports)
+    };
+    ranking
+        .hits
+        .iter()
+        .map(|hit| hit.card().expect("a card").name().to_owned())
+        .collect()
+}
+
+#[test]
+fn a_query_the_index_lacks_is_embedded_by_its_embedder_then_replayed() {
+    let (_directory, root) = copied();
+    let (model, revision, vector) = stored(&root, "night hunting birds");
+    let port = embedder(vec![
+        serde_json::json!({"data": [{"index": 0, "embedding": vector}]}),
+    ]);
+    fs::write(
+        root.join("hql.toml"),
+        format!(
+            "[semantics]\nindex = \".hql/index.sqlite\"\n\n[semantics.embedder]\n\
+             provider = \"http\"\nmodel = \"{model}\"\nrevision = \"{revision}\"\n\
+             endpoint = \"http://127.0.0.1:{port}/v1/embeddings\"\n"
+        ),
+    )
+    .expect("the configuration");
+    let mut vault = vault::load(&root).expect("the copied vault loads");
+    let expected = ranked(&vault, "night hunting birds");
+    // Under replay nothing is embedded, and the failure names both ways on.
+    let said = failure(
+        &root,
+        "import semantic\ncards | semantic(\"birds of the dark\")",
+    );
+    assert!(said.contains("--ai record"), "{said}");
+    assert!(said.contains("hql-semantics build --query"), "{said}");
+    vault.ai.mode = hql::extensions::ai::transport::Mode::Record;
+    assert_eq!(ranked(&vault, "birds of the dark"), expected);
+    // Recorded: the server is gone, and the query answers the same.
+    vault.ai.mode = hql::extensions::ai::transport::Mode::Replay;
+    assert_eq!(ranked(&vault, "birds of the dark"), expected);
+}
+
+#[test]
+fn a_query_embedded_by_another_model_than_the_index_is_refused() {
+    let (_directory, root) = copied();
+    fs::write(
+        root.join("hql.toml"),
+        "[semantics]\nindex = \".hql/index.sqlite\"\n\n[semantics.embedder]\n\
+         provider = \"http\"\nmodel = \"text-embedding-3-small\"\nrevision = \"2024-01-25\"\n\
+         endpoint = \"http://127.0.0.1:9/v1/embeddings\"\n",
+    )
+    .expect("the configuration");
+    let said = failure(
+        &root,
+        "import semantic\ncards | semantic(\"birds of the dark\")",
+    );
+    assert!(said.contains("cannot be scored against it"), "{said}");
+}

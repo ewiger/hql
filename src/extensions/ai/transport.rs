@@ -56,6 +56,8 @@ pub enum Api {
     Messages,
     /// An OpenAI-shaped `/v1/chat/completions`.
     ChatCompletions,
+    /// An OpenAI-shaped `/v1/embeddings`, for a query the index lacks.
+    Embeddings,
 }
 
 impl Api {
@@ -65,6 +67,7 @@ impl Api {
         match self {
             Self::Messages => "messages",
             Self::ChatCompletions => "chat-completions",
+            Self::Embeddings => "embeddings",
         }
     }
 }
@@ -328,8 +331,10 @@ fn post(model: &Model, body: &J) -> Result<J, String> {
             .set("x-api-key", key)
             .set("anthropic-version", "2023-06-01"),
         (Api::Messages, None) => request.set("anthropic-version", "2023-06-01"),
-        (Api::ChatCompletions, Some(key)) => request.set("authorization", &format!("Bearer {key}")),
-        (Api::ChatCompletions, None) => request,
+        (Api::ChatCompletions | Api::Embeddings, Some(key)) => {
+            request.set("authorization", &format!("Bearer {key}"))
+        }
+        (Api::ChatCompletions | Api::Embeddings, None) => request,
     };
     match request.send_json(body) {
         Ok(response) => response

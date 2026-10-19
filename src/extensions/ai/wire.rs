@@ -71,7 +71,8 @@ pub(crate) struct Reply {
 pub(crate) fn request(model: &Model, system: &str, messages: &[Message], tools: &[ToolSpec]) -> J {
     let mut body = match model.api {
         Api::Messages => messages_request(model, system, messages, tools),
-        Api::ChatCompletions => chat_request(model, system, messages, tools),
+        // A model entry never names embeddings; the shape is the nearest one.
+        Api::ChatCompletions | Api::Embeddings => chat_request(model, system, messages, tools),
     };
     if let (Some(temperature), J::Object(map)) = (model.temperature, &mut body) {
         map.insert("temperature".to_owned(), json!(temperature));
@@ -185,6 +186,7 @@ pub(crate) fn reply(api: Api, response: &J) -> Result<Reply, String> {
     match api {
         Api::Messages => messages_reply(response),
         Api::ChatCompletions => chat_reply(response),
+        Api::Embeddings => Err("an embeddings endpoint answers no conversation".to_owned()),
     }
 }
 

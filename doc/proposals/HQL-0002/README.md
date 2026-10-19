@@ -77,7 +77,9 @@ step four.
   key, a network failure mode and a score whose provenance no longer pins a
   revision — and it stays deferred to a proposal of its own. Choosing the
   embedder here changes *which* model fills an index, never *when* a vector is
-  computed.
+  computed. [HQL-0022](../HQL-0022/README.md), in its section on query-time
+  embedding, amends this for queries: the index's own `http` embedder may
+  embed a query the index lacks, through recordings.
 - **No embedder in the consumer's configuration.** `[semantics.embedder]` is
   read by the producer alone. The binary MUST ignore it, because a `Retrieval`
   that quoted configuration would be describing what a vault claims rather than
@@ -530,3 +532,8 @@ cd contrib/semantics && pytest
   of a unit vector is not a unit vector
 - 2026-10-19: implemented; the `lexical` and `semantic` extensions, the SQLite
   index reader and the `contrib/semantics/` producer are built as specified
+- 2026-10-19: amended by [HQL-0022](../HQL-0022/README.md). A query the index
+  holds no vector for may be embedded at query time by `[semantics.embedder]`
+  when it is `http` and names the index's model and revision. The request goes
+  through the AI harness's recordings and `--ai` mode, so `replay` stays
+  offline. Card vectors are still the producer's alone
