@@ -131,7 +131,7 @@ pages = 412
 ```
 
 ```text
-long
+"long"
 ```
 
 `match` compares one value against patterns, in order, and the first that fits
@@ -147,7 +147,7 @@ match status {
 ```
 
 ```text
-on the nightstand
+"on the nightstand"
 ```
 
 A `match` that does not cover every case is refused before it runs; `_` is the

@@ -16,6 +16,7 @@ read. A **renderer** writes values of one type in one format. The design is
 | Format | Supertype | Text |
 | --- | --- | --- |
 | `Text` | `String` | plain text |
+| `Hql` | `String` | HQL literals |
 | `Markdown` | `String` | CommonMark |
 | `Hmd` | `Markdown` | HyperMarkDown |
 | `Json` | `String` | JSON |
@@ -53,6 +54,7 @@ longhand, `format(Markdown, limit = 50)`.
 | Shorthand | Longhand |
 | --- | --- |
 | `text` | `format(Text)` |
+| `hql` | `format(Hql)` |
 | `markdown` | `format(Markdown)` |
 | `hmd` | `format(Hmd)` |
 | `json` | `format(Json)` |
@@ -86,11 +88,12 @@ A `Graph` defaults to `adjacency` in `Text`, `node-link` in `Json`, `d2` in
 written in `Text` and `Markdown` as its own rendering, in `Json` and `Yaml` as
 its data, and in `Csv` as rows.
 
-A value's own rendering in `Text` is the literal that writes it, with one
-exception: a string standing alone is written bare. Inside a collection a
-string keeps its quotes, a list is written in square brackets, and a set in
-braces — `{"novel", "essay"}`, or `Set<Int>([])` when it is empty, since `{}`
-is an empty record.
+A value in `Hql` is the literal that writes it, so the text reads back as the
+same value: a string in quotes, a list in square brackets, a set in braces —
+`{"novel", "essay"}`, or `Set<Int>([])` when it is empty, since `{}` is an
+empty record. A cut is marked with a `//` comment. Text of another format
+written as `Hql` is a string literal. A value's own rendering in `Text` is the
+same with one exception: a string standing alone is written bare.
 
 A vault chooses a renderer per type and format in `hql.toml`; a value whose
 type has no entry takes the entry of its nearest supertype, then the default:
@@ -114,8 +117,8 @@ refused there until `take(n)` or `collect(n)` bounds it.
 A host writes a result that is not of a format type in a presentation
 context, as if the program ended in `| format(<context>)`. The context is,
 first match wins, a final `format` step in the program, then `--to <format>` on
-the command line, then the host's own: `hmd` for `hql render`, `text` for a
-terminal. A result already of a format type is written as it is, and
+the command line, then the host's own: `hmd` for `hql render`, `hql` for
+`hql eval` and the REPL, `text` for `hql run`. A result already of a format type is written as it is, and
 `--to none` evaluates the program and writes no value. A stream result is
 written piece by piece as it arrives, and ends when its reader stops reading. [[hql/knowledge|Knowledge]] has no default,
 because its views are equally valid and picking one silently would make a

@@ -1,14 +1,14 @@
 # 10. Writing results out
 
 A program's value is computed first, and written second. How it is written is
-a **presentation format** — plain text, Markdown, JSON, YAML, CSV, or a diagram
+a **presentation format** — plain text, HQL, Markdown, JSON, YAML, CSV, or a diagram
 — and the format is a type, so a program that formats a value knows what kind
 of text it holds.
 
 ## Formats are types
 
-Each format is a subtype of `String`: `Text`, `Markdown`, `Hmd`, `Json`, `Yaml`,
-`Csv`, `D2` and `Mermaid`. A step named for a format writes any value in it:
+Each format is a subtype of `String`: `Text`, `Hql`, `Markdown`, `Hmd`, `Json`,
+`Yaml`, `Csv`, `D2` and `Mermaid`. A step named for a format writes any value in it:
 
 ```hql
 cards | filter(c => c.metadata.status == "todo") | map(c => c.title) | markdown
@@ -109,8 +109,10 @@ type error: no renderer writes Int as D2
 
 ## Choosing the format from outside
 
-A program that does not format its result is written in plain text. `--to`
-names another format without changing the program:
+A program that does not format its result is written as HQL by `hql eval` and
+the REPL — the literal you would type to get the value back, a string in quotes
+— and as plain text by `hql run`, where a string stands bare. `--to` names
+another format without changing the program:
 
 <!-- run: --vault examples/tutorial --to markdown -->
 ```hql
@@ -141,7 +143,8 @@ cards | filter(c => c.metadata.status == "todo") | size
 ```
 
 The order is fixed: a `format` step in the program wins, then `--to`, then the
-host's own — Markdown for a document, plain text for a terminal.
+host's own — Markdown for a document, HQL for `eval` and the REPL, plain text
+for `run`.
 
 ## A vault chooses its renderers
 

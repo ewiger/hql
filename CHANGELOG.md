@@ -8,6 +8,23 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Added
+
+- **An `Hql` presentation format**, with the shorthand `hql` and `--to hql`: a
+  value written as the literal that writes it, so the text reads back as the
+  same value. A string is quoted even when it stands alone.
+
+### Changed
+
+- `hql eval` and the REPL write an unformatted result as `Hql`, so
+  `hql eval '"Dune"'` prints `"Dune"`. `hql run` still writes plain text, and
+  `--to text` gives a bare string anywhere.
+
+### Fixed
+
+- HQL builds on its declared `rust-version`, 1.88, again: the line editor is
+  held at rustyline 17.
+
 ## [0.4.1] — 2026-10-19
 
 A REPL that works on a terminal, and the HQL book.

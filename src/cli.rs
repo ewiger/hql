@@ -5,7 +5,7 @@
 
 use crate::lexer::Token;
 use crate::reporting::{Level, Mode, Reports, Settings, Severity};
-use crate::types::Value;
+use crate::types::{TypeConstructor, Value};
 use crate::vault::{self, Vault};
 use crate::{render, transclude};
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -23,9 +23,10 @@ use std::{fs, io};
 /// How results are written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Shape {
-    /// For a person: the value on stdout, reports on stderr.
+    /// The value alone on stdout, written in the `--to` format; reports on
+    /// stderr.
     Text,
-    /// For a program: one JSON object carrying the value and the queue.
+    /// One JSON object carrying the type, the value and the reports.
     Json,
 }
 
@@ -45,13 +46,15 @@ pub struct Options {
     /// The vault to run against; `cards` and traversal need one.
     #[arg(long, global = true, value_name = "DIR")]
     pub vault: Option<PathBuf>,
-    /// The envelope of the answer: the value for a person, or one JSON
-    /// document carrying the type, the value and the reports.
+    /// What the answer is wrapped in: the value alone, or one JSON document
+    /// carrying the type, the value and the reports. How the value itself is
+    /// written is `--to`.
     #[arg(long, global = true, value_enum, default_value_t = Shape::Text)]
     pub envelope: Shape,
     /// The presentation format a result is written in when the program did
-    /// not format it: `text`, `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2`
-    /// or `mermaid`; `none` evaluates and writes no value.
+    /// not format it: `hql` (the default for `eval` and the REPL), `text`
+    /// (for `run`), `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2` or
+    /// `mermaid`; `none` evaluates and writes no value.
     #[arg(long, global = true, value_name = "FORMAT")]
     pub to: Option<String>,
     /// When to stop: `strict` at the first error, `collect` to report them all.
@@ -258,6 +261,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                 &outcome,
                 expression,
                 "<expression>",
+                HQL,
                 &cli.options,
                 &vault,
                 shown,
@@ -272,6 +276,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                 &outcome,
                 &source,
                 &origin,
+                TEXT,
                 &cli.options,
                 &vault,
                 shown,
@@ -286,6 +291,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                 &outcome,
                 &source,
                 &origin,
+                TEXT,
                 &cli.options,
                 &vault,
                 shown,
@@ -398,6 +404,12 @@ fn read(file: &str) -> Result<(String, String), String> {
     Ok((source, file.to_owned()))
 }
 
+/// The format a result is written in when neither the program nor `--to`
+/// chose one: HQL literals where a person writes HQL back, `eval` and the
+/// REPL, and plain text for a program file.
+const HQL: TypeConstructor = TypeConstructor("Hql");
+const TEXT: TypeConstructor = TypeConstructor("Text");
+
 /// What `--to` asks for: no value at all, or a presentation format.
 enum Presentation {
     Nothing,
@@ -428,6 +440,7 @@ fn presentation(to: Option<&str>) -> Result<Option<Presentation>, String> {
 fn presented(
     value: &Value,
     to: Option<&Presentation>,
+    host: TypeConstructor,
     vault: &Vault,
 ) -> Result<Option<String>, String> {
     let format = match to {
@@ -435,7 +448,7 @@ fn presented(
         Some(Presentation::Format(format)) => *format,
         None => match value {
             Value::Formatted(formatted) => return Ok(Some(formatted.text.clone())),
-            _ => crate::types::TypeConstructor("Text"),
+            _ => host,
         },
     };
     crate::extensions::format::render(value, format, 0, None, &vault.formats).map(Some)
@@ -446,12 +459,13 @@ fn presented(
 fn streamed(
     traversal: &crate::traversal::Traversal,
     to: Option<&Presentation>,
+    host: TypeConstructor,
     vault: &Vault,
     out: &mut impl Write,
 ) -> Result<(), String> {
     let format = match to {
         Some(Presentation::Format(format)) => *format,
-        _ => crate::types::TypeConstructor("Text"),
+        _ => host,
     };
     let (mut first, mut failed) = (true, None);
     crate::stream(traversal, vault, |value| {
@@ -477,6 +491,7 @@ fn emit(
     outcome: &crate::Outcome,
     source: &str,
     origin: &str,
+    host: TypeConstructor,
     options: &Options,
     vault: &Vault,
     shown: Severity,
@@ -494,7 +509,7 @@ fn emit(
             ));
         }
         if !matches!(to, Some(Presentation::Nothing)) {
-            streamed(traversal, to.as_ref(), vault, out)?;
+            streamed(traversal, to.as_ref(), host, vault, out)?;
         }
         report_all(&outcome.reports.shown(shown), source, origin, err)?;
         return Ok(u8::from(outcome.failed()));
@@ -504,7 +519,7 @@ fn emit(
             // The value is data unless `--to` asked for a format.
             let value = match (&outcome.value, &to) {
                 (Some(_), Some(Presentation::Nothing)) | (None, _) => serde_json::Value::Null,
-                (Some(value), Some(_)) => presented(value, to.as_ref(), vault)?
+                (Some(value), Some(_)) => presented(value, to.as_ref(), host, vault)?
                     .map_or(serde_json::Value::Null, serde_json::Value::String),
                 (Some(value), None) => value.to_json(),
             };
@@ -523,7 +538,7 @@ fn emit(
         }
         Shape::Text => {
             if let Some(value) = &outcome.value {
-                if let Some(text) = presented(value, to.as_ref(), vault)? {
+                if let Some(text) = presented(value, to.as_ref(), host, vault)? {
                     writeln!(out, "{text}").map_err(|error| error.to_string())?;
                 }
             } else if outcome.value.is_none()
@@ -675,7 +690,9 @@ fn repl(
         } else {
             crate::run(&source, vault, mode)
         };
-        emit(&outcome, &source, "<repl>", options, vault, shown, out, err)?;
+        emit(
+            &outcome, &source, "<repl>", HQL, options, vault, shown, out, err,
+        )?;
         // A binding that worked joins the session; an expression does not.
         // A continuation that failed leaves the binding it continued.
         let kept = !outcome.failed() && !typing && is_binding(line);

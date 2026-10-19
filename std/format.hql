@@ -4,6 +4,8 @@
 // See doc/proposals/HQL-0017/README.md and doc/wiki/hql/presentation.hmd.
 
 type Text     : String
+// HQL's own literals: the text a program writes to produce the value.
+type Hql      : String
 type Markdown : String
 // Every HyperMarkDown text is Markdown.
 type Hmd      : Markdown
@@ -17,6 +19,7 @@ type Mermaid  : String
 // format<T, F : String>(x: T, as: Type<F>, limit: Int = 0, renderer: String = "") : F
 // Each shorthand fixes the format and nothing else:
 // text     := format(Text)
+// hql      := format(Hql)
 // markdown := format(Markdown)
 // hmd      := format(Hmd)
 // json     := format(Json)

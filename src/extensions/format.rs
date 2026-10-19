@@ -22,8 +22,9 @@ use std::sync::Arc;
 
 /// The presentation formats, each a subtype of `String`, with the name a
 /// configuration and `--to` write it in.
-pub const FORMATS: [(&str, &str); 8] = [
+pub const FORMATS: [(&str, &str); 9] = [
     ("Text", "text"),
+    ("Hql", "hql"),
     ("Markdown", "markdown"),
     ("Hmd", "hmd"),
     ("Json", "json"),
@@ -75,7 +76,7 @@ pub fn writable(input: &TypeRef, format: &str) -> Result<(), String> {
     if FORMATS.iter().any(|(name, _)| *name == from) {
         return match (from, format) {
             (from, to) if from == to => Ok(()),
-            (_, "Text" | "Markdown" | "Hmd") => Ok(()),
+            (_, "Text" | "Hql" | "Markdown" | "Hmd") => Ok(()),
             _ => refused(),
         };
     }
@@ -197,6 +198,8 @@ pub fn render(
     if let Value::Formatted(formatted) = &value {
         return Ok(match (formatted.format.0, format.0) {
             ("Markdown" | "Hmd", "Markdown" | "Hmd") | (_, "Text") => formatted.text.clone(),
+            // Text of another format is, to HQL, a string.
+            (from, "Hql") if from != "Hql" => format!("{:?}", formatted.text),
             (from, to) if from == to => formatted.text.clone(),
             _ => value.to_markdown(),
         });
@@ -227,6 +230,7 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
     let one = Value::list(vec![value.clone()], value.type_of());
     match format.0 {
         "Text" | "String" => Ok(text(value)),
+        "Hql" => Ok(value.to_literal()),
         "Markdown" | "Hmd" => Ok(one.to_markdown()),
         "Json" => serde_json::to_string(&value.to_json()).map_err(|error| error.to_string()),
         "Yaml" => serde_yaml_ng::to_string(&value.to_json())
@@ -250,11 +254,12 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
 fn default(value: &Value, format: TypeConstructor) -> Result<String, String> {
     let graph = matches!(unwrapped(value), Value::Graph(_));
     match format.0 {
-        "Text" | "String" if graph => by_name("adjacency", value, format),
+        "Text" | "String" | "Hql" if graph => by_name("adjacency", value, format),
         "Json" if graph => by_name("node-link", value, format),
         "Markdown" | "Hmd" | "D2" if graph => by_name("d2", value, format),
         "Mermaid" if graph => by_name("mermaid", value, format),
         "Text" | "String" => Ok(text(value)),
+        "Hql" => Ok(value.to_literal()),
         "Markdown" | "Hmd" => Ok(value.to_markdown()),
         "Json" => Ok(json(value)),
         "Yaml" => serde_yaml_ng::to_string(&value.to_json()).map_err(|error| error.to_string()),
@@ -441,6 +446,7 @@ fn cut_marker(format: TypeConstructor, cut: usize) -> String {
     match format.0 {
         "Json" | "Csv" => String::new(),
         "Yaml" | "D2" | "Mermaid" => format!("\n# {cut} more not shown"),
+        "Hql" => format!("\n// {cut} more not shown"),
         _ => format!("\n… {cut} more not shown"),
     }
 }
@@ -492,6 +498,13 @@ pub(crate) static STEPS: &[Operation] = &[
         &[P::Type(TypeConstructor("Text"))],
         check_text,
         eval_text,
+    ),
+    shorthand(
+        "hql",
+        "Hql",
+        &[P::Type(TypeConstructor("Hql"))],
+        check_hql,
+        eval_hql,
     ),
     shorthand(
         "markdown",
@@ -568,6 +581,7 @@ macro_rules! shorthands {
 
 shorthands! {
     check_text, eval_text => "Text",
+    check_hql, eval_hql => "Hql",
     check_markdown, eval_markdown => "Markdown",
     check_hmd, eval_hmd => "Hmd",
     check_json, eval_json => "Json",

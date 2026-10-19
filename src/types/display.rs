@@ -165,6 +165,15 @@ impl fmt::Display for Value {
     }
 }
 
+impl Value {
+    /// The value as the HQL literal that writes it, a string quoted even when
+    /// it stands alone.
+    #[must_use]
+    pub fn to_literal(&self) -> String {
+        Nested(self).to_string()
+    }
+}
+
 /// A value inside a collection, printed as the literal that writes it: only a
 /// value standing alone prints a string bare, so `["a, b"]` stays one element.
 struct Nested<'a>(&'a Value);

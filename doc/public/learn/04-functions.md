@@ -91,7 +91,7 @@ first(["Dune", "Emma"])
 ```
 
 ```text
-Dune
+"Dune"
 ```
 
 The same function over a list of numbers gives an `Option<Int>`:

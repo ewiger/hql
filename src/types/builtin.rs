@@ -205,6 +205,7 @@ fn build() -> Result<TypeSystem, TypeError> {
     // The presentation formats: text with a known syntax, each a `String`.
     for (format, parent) in [
         ("Text", "String"),
+        ("Hql", "String"),
         ("Markdown", "String"),
         ("Hmd", "Markdown"),
         ("Json", "String"),

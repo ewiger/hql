@@ -91,7 +91,7 @@ and reading a field through it reads through the option:
 ```
 
 ```text
-Dune
+"Dune"
 ```
 
 ```hql
