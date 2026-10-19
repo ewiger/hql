@@ -495,3 +495,10 @@ fn a_function_that_reads_or_logs_is_effectful() {
     );
     assert!(!checked.contains("next is"), "{checked}");
 }
+
+#[test]
+fn a_program_read_from_standard_input_reads_no_data_there() {
+    let dir = tempdir().unwrap();
+    let output = piped_in(dir.path(), &["run", "-"], "source(stdin, Json)\n");
+    refused(&output, "read from standard input");
+}

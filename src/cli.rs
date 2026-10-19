@@ -339,6 +339,9 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         Command::Run { file } => {
             let (source, origin) = read(file)?;
             crate::io::set_host(crate::io::Policy::Open, directory_of(file));
+            if file == "-" {
+                crate::io::set_program_on_stdin();
+            }
             let outcome = crate::run(&source, &vault, settings.mode);
             emit(
                 &outcome,

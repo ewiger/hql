@@ -178,8 +178,7 @@ impl Logger {
         }
         let value = Value::Log(Arc::new(event));
         if let Endpoint::Channel(name, _) = &self.to {
-            io::push(name, value);
-            return Ok(());
+            return io::push(name, value);
         }
         let format = self.format.unwrap_or(TypeConstructor("Text"));
         let mut out = self

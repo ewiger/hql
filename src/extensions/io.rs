@@ -253,6 +253,12 @@ fn check_read(
             "a document reads no standard input; read a file beside it",
         ));
     }
+    if io::program_on_stdin() && call.input.is(&TypeRef::STDIN) {
+        return Err(Diagnostic::typing(
+            span,
+            "this program was read from standard input, so standard input holds no data; run it from a file",
+        ));
+    }
     Ok(())
 }
 
@@ -519,7 +525,8 @@ fn eval_target(
 ) -> Result<Value, Diagnostic> {
     let endpoint = written_to(cx, arguments, &span)?;
     if let Endpoint::Channel(name, _) = endpoint.as_ref() {
-        io::push(name, settled(cx, input)?);
+        io::push(name, settled(cx, input)?)
+            .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
         return Ok(Value::Unit);
     }
     let format = evaluated_format(arguments, &endpoint, &span)?;
@@ -559,13 +566,15 @@ fn eval_sink(
         match &input {
             Value::Traversal(traversal) => {
                 cx.traverse(traversal, &mut |_, value| {
-                    io::push(name, value);
+                    io::push(name, value)
+                        .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
                     Ok(true)
                 })?;
             }
             other => {
                 for value in other.elements().unwrap_or_default() {
-                    io::push(name, value);
+                    io::push(name, value)
+                        .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
                 }
             }
         }

@@ -40,7 +40,11 @@ The language continues to be in active development.
   `http`.
 - A function whose body uses an effectful operation, or calls an effectful
   function, is effectful, and `hql check` reports it with what it uses:
-  `load is Effectful: it uses \`source\``.
+  ``load is Effectful: it uses `source` ``.
+- `hql run -` refuses `source(stdin, …)` and `tap(stdin, …)` at check time:
+  standard input holds the program.
+- A channel holds at most a million values in one scope; one more ends the
+  evaluation, naming the channel.
 - Indexing: `xs[i]` reads position `i` of a sequence, counting from `0`, as
   an `Option`; past either end it is `none`. A `Data` tree that is a sequence
   is indexed too, and a `Set`, a `Map` or an unbounded stream is refused.

@@ -155,6 +155,9 @@ struct Host {
     log_level: Option<String>,
     /// Each HTTP body read this evaluation, by URL: a resource is fetched once.
     fetched: HashMap<String, Arc<Vec<u8>>>,
+    /// Whether the program itself was read from standard input, which then
+    /// holds no data.
+    program_on_stdin: bool,
 }
 
 thread_local! {
@@ -165,6 +168,7 @@ thread_local! {
         channels: BTreeMap::new(),
         log_level: None,
         fetched: HashMap::new(),
+        program_on_stdin: false,
     });
 }
 
@@ -175,8 +179,24 @@ pub fn set_host(policy: Policy, base: PathBuf) {
         let mut host = host.borrow_mut();
         host.policy = policy;
         host.base = base;
+        host.program_on_stdin = false;
     });
 }
+
+/// Say that the program was read from standard input, so `source(stdin, …)`
+/// in it is refused.
+pub fn set_program_on_stdin() {
+    HOST.with(|host| host.borrow_mut().program_on_stdin = true);
+}
+
+/// Whether the program was read from standard input.
+#[must_use]
+pub fn program_on_stdin() -> bool {
+    HOST.with(|host| host.borrow().program_on_stdin)
+}
+
+/// The most values one channel holds in a scope.
+const CHANNEL_BOUND: usize = 1_000_000;
 
 /// Override every logger's threshold: `trace`, `debug`, `info`, `warn` or
 /// `error`.
@@ -229,12 +249,21 @@ pub(crate) fn open_channel(name: &str, element: &TypeRef) -> Result<(), String> 
 }
 
 /// Append a value to a channel.
-pub(crate) fn push(name: &str, value: Value) {
+///
+/// # Errors
+/// Names the channel when it already holds as many values as a scope allows.
+pub(crate) fn push(name: &str, value: Value) -> Result<(), String> {
     HOST.with(|host| {
         if let Some((_, values)) = host.borrow_mut().channels.get_mut(name) {
+            if values.len() >= CHANNEL_BOUND {
+                return Err(format!(
+                    "the channel {name:?} holds {CHANNEL_BOUND} values, as many as one scope keeps"
+                ));
+            }
             values.push(value);
         }
-    });
+        Ok(())
+    })
 }
 
 /// What a channel holds now, in write order.
