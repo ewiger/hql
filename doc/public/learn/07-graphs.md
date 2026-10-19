@@ -11,7 +11,7 @@ names, its `target`. `uplinks` gives the edges leaving a card, and `downlinks`
 the edges arriving at it:
 
 ```hql
-[[mrs-dalloway]] | uplinks
+@[[mrs-dalloway]] | uplinks
 ```
 
 ```text
@@ -19,7 +19,7 @@ the edges arriving at it:
 ```
 
 ```hql
-[[virginia-woolf]] | downlinks | map(e => e.source)
+@[[virginia-woolf]] | downlinks | map(e => e.source)
 ```
 
 ```text
@@ -70,7 +70,7 @@ edges together, `Graph(nodes, edges)`. Its nodes are the cards given and every
 edge's endpoints:
 
 ```hql
-[[virginia-woolf]] | downlinks | Graph | text
+@[[virginia-woolf]] | downlinks | Graph | text
 ```
 
 ```text
@@ -90,7 +90,7 @@ steps, in both directions. Every node it reaches records **why it is
 present** — which card it was reached from, and how far away:
 
 ```hql
-[[mrs-dalloway]] | expand(depth = 1) | text
+@[[mrs-dalloway]] | expand(depth = 1) | text
 ```
 
 ```text

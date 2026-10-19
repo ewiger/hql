@@ -126,24 +126,27 @@ fn a_prefix_comes_from_the_cards_own_order_not_the_order_they_were_found() {
 
 #[test]
 fn fields_reach_both_metadata_layers() {
-    assert_eq!(text("[[bearer-tokens]].title"), "Bearer tokens");
-    assert_eq!(text("[[bearer-tokens]].kind"), "ConceptCard");
+    assert_eq!(text("@[[bearer-tokens]].title"), "Bearer tokens");
+    assert_eq!(text("@[[bearer-tokens]].kind"), "ConceptCard");
     // The authored block and the assembled layer are different fields.
-    assert_eq!(text("[[bearer-tokens]].header.metadata.status"), "\"todo\"");
-    assert_eq!(text("[[bearer-tokens]].metadata.status"), "\"todo\"");
+    assert_eq!(
+        text("@[[bearer-tokens]].header.metadata.status"),
+        "\"todo\""
+    );
+    assert_eq!(text("@[[bearer-tokens]].metadata.status"), "\"todo\"");
     // An extension contributes under a key it owns, so nothing collides.
     assert_eq!(
-        text("[[bearer-tokens]].metadata.lexical.model"),
+        text("@[[bearer-tokens]].metadata.lexical.model"),
         "\"hql.hashbag.v1\""
     );
 }
 
 #[test]
 fn uplinks_and_downlinks_traverse_one_edge_set_in_two_directions() {
-    assert_eq!(text("[[bearer-tokens]] | uplinks | count"), "2");
-    assert_eq!(text("[[bearer-tokens]] | downlinks | count"), "2");
+    assert_eq!(text("@[[bearer-tokens]] | uplinks | count"), "2");
+    assert_eq!(text("@[[bearer-tokens]] | downlinks | count"), "2");
     assert_eq!(
-        text("[[http-headers]] | downlinks | map(e => e.source)"),
+        text("@[[http-headers]] | downlinks | map(e => e.source)"),
         "[\"bearer-tokens\"]"
     );
 }
@@ -300,7 +303,7 @@ fn a_relation_card_contributes_an_edge_without_becoming_a_node() {
 
 #[test]
 fn an_unresolved_reference_warns_and_yields_absence() {
-    let outcome = run("[[nowhere]]", &fixture(), Mode::Strict);
+    let outcome = run("@[[nowhere]]", &fixture(), Mode::Strict);
     assert_eq!(outcome.value, Some(Value::Absent(TypeRef::CARD)));
     assert!(!outcome.failed(), "a forward link is permitted");
     assert_eq!(outcome.reports.len(), 1);
@@ -309,14 +312,14 @@ fn an_unresolved_reference_warns_and_yields_absence() {
     assert!(report.message.contains("nowhere"));
 
     // Absence propagates through a field rather than becoming a failure.
-    let outcome = run("[[nowhere]].title", &fixture(), Mode::Strict);
+    let outcome = run("@[[nowhere]].title", &fixture(), Mode::Strict);
     assert_eq!(outcome.value, Some(Value::Absent(TypeRef::STR)));
 }
 
 #[test]
 fn the_expansion_direction_is_stated_rather_than_assumed() {
     let outcome = run(
-        "[[http-headers]] | Graph | expand(depth = 1, direction = \"uplinks\")",
+        "@[[http-headers]] | Graph | expand(depth = 1, direction = \"uplinks\")",
         &fixture(),
         Mode::Strict,
     );
@@ -328,7 +331,7 @@ fn the_expansion_direction_is_stated_rather_than_assumed() {
     assert_eq!(graph.nodes, ["http-headers"]);
 
     let outcome = run(
-        "[[http-headers]] | Graph | expand(depth = 1, direction = \"downlinks\")",
+        "@[[http-headers]] | Graph | expand(depth = 1, direction = \"downlinks\")",
         &fixture(),
         Mode::Strict,
     );
@@ -434,7 +437,7 @@ fn filter_over_one_optional_value_keeps_it_or_makes_it_absent() {
     // A narrowing predicate narrows the optional value.
     assert_eq!(
         hql::check_in(
-            "[[oauth-defines-bearer]] | filter(c => c | is(RelationCard))",
+            "@[[oauth-defines-bearer]] | filter(c => c | is(RelationCard))",
             &vault
         ),
         Ok(TypeRef::optional(TypeRef::RELATION_CARD))
@@ -469,16 +472,16 @@ fn a_refused_annotation_says_what_to_write_instead() {
 fn a_graph_is_built_from_cards_from_edges_or_from_both() {
     let vault = fixture();
     assert_eq!(
-        hql::check_in("[[oauth]] | uplinks | Graph", &vault),
+        hql::check_in("@[[oauth]] | uplinks | Graph", &vault),
         Ok(TypeRef::GRAPH)
     );
     assert_eq!(
-        text("([[oauth]] | uplinks | Graph).nodes | map(c => c.name) | sort"),
+        text("(@[[oauth]] | uplinks | Graph).nodes | map(c => c.name) | sort"),
         "[\"bearer-tokens\", \"oauth\"]"
     );
     assert_eq!(
         text(
-            "Graph(cards | filter(c => c.name == \"sessions\"), [[oauth]] | uplinks).nodes | map(c => c.name) | sort"
+            "Graph(cards | filter(c => c.name == \"sessions\"), @[[oauth]] | uplinks).nodes | map(c => c.name) | sort"
         ),
         "[\"bearer-tokens\", \"oauth\", \"sessions\"]"
     );

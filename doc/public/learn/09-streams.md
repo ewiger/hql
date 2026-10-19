@@ -93,11 +93,10 @@ naturals(1)
 ```
 
 `emit` is the inverse of `collect`: it passes on every member of every batch,
-in order. `flat_map(f)` is `map(f) | emit`. Note the spaces in a list of lists:
-`[[` opens a link to a card, so `[ [1, 2], [3] ]` is written with a space.
+in order. `flat_map(f)` is `map(f) | emit`.
 
 ```hql
-[ [1, 2], [3] ] | emit
+[[1, 2], [3]] | emit
 ```
 
 ```text

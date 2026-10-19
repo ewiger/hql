@@ -72,7 +72,7 @@ fn the_corpus_is_large_enough_and_holds_every_card_kind() {
 
 #[test]
 fn a_forward_link_to_a_document_nobody_wrote_warns_rather_than_failing() {
-    let outcome = run("[[andean-condor]]", &birds(), Mode::Strict);
+    let outcome = run("@[[andean-condor]]", &birds(), Mode::Strict);
     assert_eq!(
         outcome.value,
         Some(Value::Absent(hql::types::TypeRef::CARD))
@@ -152,6 +152,6 @@ fn the_three_query_groups_share_no_words_with_the_queries_they_answer() {
 fn the_corpus_answers_its_queries_through_links_rather_than_isolated_cards() {
     // Every group card is reachable from its order or family, so a retrieval
     // that finds one card and expands can reach the rest.
-    assert!(text_of("[[barn-owl]] | uplinks | count").trim() != "0");
-    assert_eq!(text_of("[[tytonidae]] | downlinks | count").trim(), "3");
+    assert!(text_of("@[[barn-owl]] | uplinks | count").trim() != "0");
+    assert_eq!(text_of("@[[tytonidae]] | downlinks | count").trim(), "3");
 }

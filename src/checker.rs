@@ -1166,6 +1166,22 @@ impl Checker<'_> {
                 "a block is written only as the body of a user `fn`",
             )),
             Kind::List(values) | Kind::Set(values) => {
+                // `[[alice]]` with `alice` unbound is a reference in the old
+                // spelling: name the one it now has.
+                if let (Kind::List(_), [only]) = (&expression.kind, values.as_slice())
+                    && let Kind::List(inner) = &only.kind
+                    && let [element] = inner.as_slice()
+                    && let Kind::Ident(name) = &element.kind
+                    && !self.scope.contains_key(name)
+                    && !builtins::exists(name)
+                {
+                    return Err(Diagnostic::name(
+                        element.span.clone(),
+                        format!(
+                            "`{name}` is not bound; a document reference is written `@[[{name}]]`"
+                        ),
+                    ));
+                }
                 let mut element = TypeRef::NEVER;
                 for value in values {
                     let actual = self.expression(value)?;
@@ -1398,7 +1414,9 @@ impl Checker<'_> {
                     if !resolved.is(&TypeRef::DOC) && resolved != TypeRef::STR {
                         return Err(Diagnostic::typing(
                             end.span.clone(),
-                            format!("a link endpoint is a document reference, not {end_type}"),
+                            format!(
+                                "a link endpoint is a document reference, `@[[name]]`, not {end_type}"
+                            ),
                         ));
                     }
                 }

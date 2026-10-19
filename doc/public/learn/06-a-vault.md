@@ -82,12 +82,13 @@ A card has the fields of a document: its `name` (the file stem), `title`,
 
 ## A link is an optional card
 
-`[[name]]` refers to a card by name, the way a link in a document does. A link
+`@[[name]]` refers to a card by name: `@` followed by the link a document
+writes, `[[name]]`. A link
 may point at a document nobody has written yet, so its type is `Option<Card>`,
 and reading a field through it reads through the option:
 
 ```hql
-[[dune]].title
+@[[dune]].title
 ```
 
 ```text
@@ -95,7 +96,7 @@ and reading a field through it reads through the option:
 ```
 
 ```hql
-[[nowhere]].title
+@[[nowhere]].title
 ```
 
 ```text

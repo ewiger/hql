@@ -50,7 +50,7 @@ fn a_syntax_failure_stops_even_in_collect_mode() {
 #[test]
 fn a_value_and_a_queue_come_back_together() {
     let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
-    let outcome = run("[[nowhere]]\n1 + 1", &vault, Mode::Strict);
+    let outcome = run("@[[nowhere]]\n1 + 1", &vault, Mode::Strict);
     // The warning did not stop the program, and the result is still there.
     assert!(outcome.value.is_some());
     assert!(!outcome.failed());
@@ -61,7 +61,7 @@ fn a_value_and_a_queue_come_back_together() {
 fn the_queue_is_walked_oldest_first() {
     let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     let outcome = run(
-        "[[first-missing]]\n[[second-missing]]\n1",
+        "@[[first-missing]]\n@[[second-missing]]\n1",
         &vault,
         Mode::Strict,
     );
@@ -110,7 +110,7 @@ fn a_vault_without_a_configuration_file_falls_through() {
 
 #[test]
 fn entries_captured_before_a_failure_survive_it() {
-    let outcome = run("x = [[nowhere]]\n1 / 0", &Vault::empty(), Mode::Strict);
+    let outcome = run("x = @[[nowhere]]\n1 / 0", &Vault::empty(), Mode::Strict);
     assert!(outcome.failed());
     assert_eq!(outcome.reports.count(Severity::Warning), 1);
     assert_eq!(outcome.reports.count(Severity::Failure), 1);
@@ -118,7 +118,7 @@ fn entries_captured_before_a_failure_survive_it() {
 
 #[test]
 fn the_shown_level_filters_without_discarding() {
-    let outcome = run("[[nowhere]]", &Vault::empty(), Mode::Strict);
+    let outcome = run("@[[nowhere]]", &Vault::empty(), Mode::Strict);
     assert_eq!(outcome.reports.len(), 1);
     assert_eq!(outcome.reports.shown(Severity::Warning).len(), 1);
     // Hidden at a higher level, and still held.

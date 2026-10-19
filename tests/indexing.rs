@@ -42,8 +42,7 @@ fn a_tree_is_indexed_when_it_is_a_sequence() {
 
 #[test]
 fn an_optional_receiver_nests_no_deeper() {
-    // `[ [` with a space: `[[` opens a document reference.
-    let nested = "xs = [ [1, 2] ]\n";
+    let nested = "xs = [[1, 2]]\n";
     assert_eq!(
         check(&format!("{nested}xs[0][1]")).unwrap().to_string(),
         "Option<Int>"

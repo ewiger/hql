@@ -190,7 +190,7 @@ impl Evaluator<'_> {
                     // mistake for a match.
                     self.warn(Warning::new(
                         span,
-                        format!("`[[{name}]]` does not resolve in this vault"),
+                        format!("`@[[{name}]]` does not resolve in this vault"),
                     ));
                     Ok(Value::Absent(TypeRef::CARD))
                 }

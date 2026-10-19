@@ -58,7 +58,7 @@ impl Token {
             Self::Bool(value) => format!("`{value}`"),
             Self::Str(_) => "a string".to_owned(),
             Self::Ident(name) => format!("`{name}`"),
-            Self::DocRef(name) => format!("`[[{name}]]`"),
+            Self::DocRef(name) => format!("`@[[{name}]]`"),
             Self::Plus => "`+`".to_owned(),
             Self::Minus => "`-`".to_owned(),
             Self::Star => "`*`".to_owned(),
@@ -218,9 +218,15 @@ impl Scanner<'_> {
                 self.push(Token::Equals, start);
                 continue;
             }
-            if self.rest().starts_with("[[") {
+            if self.rest().starts_with("@[[") {
                 self.doc_reference(start)?;
                 continue;
+            }
+            if character == '@' {
+                return Err(Diagnostic::syntax(
+                    start..start + 1,
+                    "`@` opens a document reference: `@[[name]]`",
+                ));
             }
             if character == '[' {
                 self.offset += 1;
@@ -317,7 +323,7 @@ impl Scanner<'_> {
     }
 
     fn doc_reference(&mut self, start: usize) -> Result<(), Diagnostic> {
-        self.offset += 2;
+        self.offset += 3;
         let Some(end) = self.rest().find("]]") else {
             return Err(Diagnostic::syntax(
                 start..self.source.len(),

@@ -200,7 +200,7 @@ fn the_environment_supplies_a_default_mode_and_the_flag_outranks_it() {
 
 #[test]
 fn a_warning_does_not_change_the_exit_status() {
-    let output = hql(&["--vault", VAULT, "eval", "[[nowhere]]"]);
+    let output = hql(&["--vault", VAULT, "eval", "@[[nowhere]]"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(stdout(&output), "none\n");
     assert!(stderr(&output).contains("warning:"));

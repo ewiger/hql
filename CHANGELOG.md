@@ -51,6 +51,13 @@ The language continues to be in active development.
 - `hql '<program>'` is `hql eval '<program>'`.
 - `--compact` writes each JSON document on one line, as `jq -c` does.
 
+- In HQL source a document reference is written `@[[name]]`, from
+  [HQL-0023](doc/proposals/HQL-0023/README.md): `@` directly before a
+  wikilink. `[[` is two brackets, so `[[1, 2], [3]]` is a list of lists. A
+  bare `@` is refused, and `[[alice]]` with `alice` unbound is refused,
+  naming `@[[alice]]`. Document bodies keep writing `[[name]]`, and a link
+  inside a fenced code block or an inline code span authors no edge.
+
 ### Removed
 
 - The core `debug` step, which captured a value into the run's report queue.

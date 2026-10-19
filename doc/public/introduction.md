@@ -90,7 +90,7 @@ links of a vault form a graph that a program walks in either direction, grows
 outward from a few cards, and draws as a D2 or Mermaid diagram:
 
 ```hql
-[[virginia-woolf]] | downlinks | map(e => e.source)
+@[[virginia-woolf]] | downlinks | map(e => e.source)
 ```
 
 ```text
