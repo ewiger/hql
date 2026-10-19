@@ -1,5 +1,5 @@
 site_name: HQL
-site_description: Hyper Query Language — a statically typed expression and query language over documents, cards and the graph their links form.
+site_description: Hyper Query Language — a statically typed language for querying, transforming, connecting and computing over data, knowledge and AI workflows.
 
 # Served from GitHub Pages under a custom domain. The build does not need this —
 # MkDocs emits relative links — but canonical URLs and `sitemap.xml` are wrong
@@ -106,6 +106,9 @@ nav:
           - 10. Writing results out: public/learn/10-output.md
           - 11. Queries inside documents: public/learn/11-documents.md
           - 12. Working with hql: public/learn/12-working-with-hql.md
+          - 13. Reading and writing data: public/learn/13-reading-and-writing.md
+          - 14. Channels and logs: public/learn/14-channels-and-logs.md
+          - 15. Agents and runs: public/learn/15-agents-and-runs.md
       - Examples: public/examples.md
   - Reference:
       - Overview: public/reference.md

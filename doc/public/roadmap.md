@@ -1,7 +1,7 @@
 # Roadmap
 
-HQL is in language design, and the order of work is chosen so that the type
-system settles before the features that lean on it.
+The order of work is chosen so that the type system settles before the
+features that lean on it.
 
 ## Built
 
@@ -27,12 +27,24 @@ system settles before the features that lean on it.
   its kind's casing, and `hql doctor`, which names the first missing part of
   the retrieval chain.
 
+## In the next release
+
+- **I/O** — endpoints (`stdin`, `stdout`, `stderr`, `file`), and `source`,
+  `tap`, `target` and `sink` over JSON, YAML, CSV and text; channels of typed
+  values; a capability policy for documents. See
+  [Reading and writing data](learn/13-reading-and-writing.md).
+- **Logging** — loggers over any endpoint, levels as types, and `--log-level`.
+  See [Channels and logs](learn/14-channels-and-logs.md).
+- **AI** — agents as cards, `Context`, `Prompt` and `Tool`, runs kept as
+  values, delegation, memory as cards, and recordings that replay offline. See
+  [Agents and runs](learn/15-agents-and-runs.md).
+
 ## Next
 
-- **Record values** — records, the `Table` shape type, and the joins that read
-  them.
-- **Data sources** — JSON, YAML and CSV read as query sources, with
-  `--from <format>`.
+- **Record values** — records, the `Table` shape type, typed decoding of a
+  source, and the joins that read them.
+- **The network** — `http`, `websocket` and `socket` endpoints, and configured
+  sources and targets by id.
 - **Execution backends** — operation shapes, a planner and backends beyond
   the local one.
 - **Generic graphs** — `Graph<N, E>` beyond the vault's cards.
