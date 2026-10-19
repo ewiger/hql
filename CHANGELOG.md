@@ -50,13 +50,15 @@ The language continues to be in active development.
   is indexed too, and a `Set`, a `Map` or an unbounded stream is refused.
 - `hql '<program>'` is `hql eval '<program>'`.
 - `--compact` writes each JSON document on one line, as `jq -c` does.
-
 - In HQL source a document reference is written `@[[name]]`, from
   [HQL-0023](doc/proposals/HQL-0023/README.md): `@` directly before a
   wikilink. `[[` is two brackets, so `[[1, 2], [3]]` is a list of lists. A
   bare `@` is refused, and `[[alice]]` with `alice` unbound is refused,
   naming `@[[alice]]`. Document bodies keep writing `[[name]]`, and a link
   inside a fenced code block or an inline code span authors no edge.
+- Without `--vault`, `hql` finds the vault itself: the nearest directory at or
+  above the current one that holds `.hmd/` or `hql.toml`. `--vault` still
+  overrides it, and outside every vault a program runs with no vault.
 
 ### Removed
 

@@ -242,7 +242,8 @@ cards : Seq<Card>
 A `Vault` also holds `name`, its directory's name, `root`, where it is, and
 `graph`, every card as a node with the links among them; `graph = vault.graph`
 is a library binding beside `cards`. Without a vault, `vault`, `cards` and
-`graph` are unbound, and naming one says to pass `--vault`.
+`graph` are unbound, and naming one says to run inside a vault or pass
+`--vault`.
 
 This is a context value, not a function call and not a filesystem sweep written
 by the user. It has the same horizon a wikilink does: `cards` in one vault never
@@ -257,7 +258,7 @@ cards
 A card named `cards` does not shadow it, because a card is reached by
 `@[[cards]]`, never by a bare name; a program may rebind the name, as it may any
 other, and never has to state where the vault is. Without a vault the name is
-unbound, and the checker says that it needs `--vault`. What
+unbound, and the checker says that it needs a vault. What
 `cards` means inside a nested module — the whole vault, or the module subtree —
 still needs a decision, as does whether imported namespaces contribute to it.
 

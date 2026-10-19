@@ -43,7 +43,9 @@ pub struct Cli {
 /// Options every subcommand accepts.
 #[derive(Debug, Clone, Args)]
 pub struct Options {
-    /// The vault to run against; `cards` and traversal need one.
+    /// The vault to run against; `cards` and traversal need one. Without it,
+    /// the nearest directory at or above this one holding `.hmd/` or
+    /// `hql.toml` is the vault.
     #[arg(long, global = true, value_name = "DIR")]
     pub vault: Option<PathBuf>,
     /// What the answer is wrapped in: the value alone, or one JSON document
@@ -241,7 +243,6 @@ pub fn parse() -> Cli {
 }
 
 fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, String> {
-    let vault = load_vault(cli.options.vault.as_deref())?;
     if let Some(level) = &cli.options.log_level
         && crate::extensions::logging::Level::parse(level).is_none()
     {
@@ -250,20 +251,26 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         ));
     }
     crate::io::set_log_level(cli.options.log_level.clone());
+    let root = cli.options.vault.clone().or_else(|| {
+        std::env::current_dir()
+            .ok()
+            .and_then(|here| vault::discover(&here))
+    });
+    let vault = load_vault(root.as_deref())?;
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
             format!("unknown report mode `{name}`; expected `strict` or `collect`")
         })?),
         None => None,
     };
-    let settings = Settings::resolve(requested, cli.options.vault.as_deref());
+    let settings = Settings::resolve(requested, root.as_deref());
     let level = match &cli.options.report_level {
         Some(name) => Some(Severity::parse_level(name).ok_or_else(|| {
             format!("unknown report level `{name}`; expected `debug`, `info`, `warning` or `error`")
         })?),
         None => None,
     };
-    let level = Level::resolve(level, cli.options.vault.as_deref());
+    let level = Level::resolve(level, root.as_deref());
     let shown = level.severity;
 
     match &cli.command {

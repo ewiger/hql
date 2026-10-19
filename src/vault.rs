@@ -36,7 +36,7 @@ pub struct Vault {
 }
 
 impl Vault {
-    /// An empty vault, which is what a program without `--vault` gets.
+    /// An empty vault, which is what a program outside every vault gets.
     #[must_use]
     pub fn empty() -> Self {
         Self {
@@ -90,6 +90,24 @@ impl Vault {
             .filter(|edge| edge.target == name)
             .collect()
     }
+}
+
+/// The nearest directory at or above `start` that is a vault root, if any.
+///
+/// The walk is HyperMarkDown's: it stops at the first directory holding
+/// `.hmd/`, or `hql.toml` for a vault that only HQL configures.
+#[must_use]
+pub fn discover(start: &Path) -> Option<PathBuf> {
+    start
+        .ancestors()
+        .find(|dir| is_root(dir))
+        .map(Path::to_path_buf)
+}
+
+/// Whether a directory marks a vault root.
+#[must_use]
+pub fn is_root(dir: &Path) -> bool {
+    dir.join(".hmd").is_dir() || dir.join(crate::reporting::CONFIG_FILE).is_file()
 }
 
 /// Load every Markdown and HyperMarkDown document under a directory.

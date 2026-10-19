@@ -500,3 +500,20 @@ fn the_vault_is_a_value_with_its_name_its_root_and_its_graph() {
     assert_eq!(text("graph.nodes | size"), "5");
     assert_eq!(text("vault.graph.edges | size"), text("graph.edges | size"));
 }
+
+#[test]
+fn discovery_stops_at_the_nearest_marked_directory() {
+    let outer = tempfile::tempdir().unwrap();
+    let root = outer.path().join("vault");
+    let deep = root.join("notes/2026");
+    std::fs::create_dir_all(&deep).unwrap();
+    assert_eq!(vault::discover(&deep), None);
+
+    std::fs::create_dir(root.join(".hmd")).unwrap();
+    assert_eq!(vault::discover(&deep), Some(root.clone()));
+    assert_eq!(vault::discover(&root), Some(root.clone()));
+
+    let nested = root.join("notes");
+    std::fs::write(nested.join("hql.toml"), "").unwrap();
+    assert_eq!(vault::discover(&deep), Some(nested));
+}
