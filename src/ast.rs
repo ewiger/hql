@@ -27,6 +27,8 @@ pub(crate) enum Stmt {
     Type(TypeDecl),
     /// `fn name(p: T, ..) : R = body`.
     Fn(FnDecl),
+    /// `name(p, ..) := body`: a function whose types the checker writes.
+    Alias(AliasDecl),
     Expr(Expr),
 }
 
@@ -58,6 +60,29 @@ pub(crate) enum BlockStmt {
         body: Vec<BlockStmt>,
     },
 }
+
+/// `name(p, ..) := body`. With a fragment body the input is implicit and
+/// named [`ALIAS_INPUT`]; with an expression body the first parameter is the
+/// input and is annotated.
+#[derive(Debug)]
+pub(crate) struct AliasDecl {
+    pub name: String,
+    /// The input first, then the written parameters.
+    pub parameters: Vec<AliasParam>,
+    pub body: Expr,
+    pub span: Range<usize>,
+}
+
+/// One parameter of an alias: its type when written.
+#[derive(Debug)]
+pub(crate) struct AliasParam {
+    pub name: String,
+    pub annotation: Option<TypeAnn>,
+    pub span: Range<usize>,
+}
+
+/// The name a fragment alias's implicit input takes. It cannot be written.
+pub(crate) const ALIAS_INPUT: &str = "%input";
 
 /// One parameter of a declared function.
 #[derive(Debug)]

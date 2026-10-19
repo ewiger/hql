@@ -62,7 +62,7 @@ nothing here restates it.
 - [x] 1. Check-time warnings
 - [x] 2. The naming lint
 - [x] 3. Generic functions
-- [ ] 4. `:=` aliases
+- [x] 4. `:=` aliases (the core's shorthands stay host steps; their longhands are stated in `std/collections.hql`)
 - [ ] 5. The reduction vocabulary
 - [ ] 6. The open ends of type interpretation
 - [ ] 7. Constructors as operations

@@ -50,6 +50,10 @@ pub const ORDERABLE_VARIABLES: [&str; 26] = [
     "%N~", "%O~", "%P~", "%Q~", "%R~", "%S~", "%T~", "%U~", "%V~", "%W~", "%X~", "%Y~", "%Z~",
 ];
 
+/// The types an alias's unannotated parameters hold while its body is
+/// checked: the first step argument each is passed to fixes its type.
+pub const PLACEHOLDERS: [&str; 4] = ["%?1", "%?2", "%?3", "%?4"];
+
 /// The type variable a generic parameter written `name` stands for. A
 /// parameter bound by `Orderable` stands for one that is orderable inside the
 /// body; any other bound is checked at the call.
@@ -67,6 +71,18 @@ pub fn type_variable(name: &str, bound: Option<&TypeRef>) -> Option<TypeRef> {
 }
 
 impl TypeRef {
+    /// Whether this is an alias parameter's placeholder, or holds one.
+    #[must_use]
+    pub fn has_placeholder(&self) -> bool {
+        self.constructor.0.starts_with("%?") || self.args.iter().any(Self::has_placeholder)
+    }
+
+    /// Whether `part` occurs anywhere in this type.
+    #[must_use]
+    pub fn mentions(&self, part: &Self) -> bool {
+        self == part || self.args.iter().any(|arg| arg.mentions(part))
+    }
+
     /// Whether this is a generic function's type variable, or holds one.
     #[must_use]
     pub fn has_variable(&self) -> bool {
@@ -124,10 +140,11 @@ fn build() -> Result<TypeSystem, TypeError> {
     // The type variables of a generic function body: `T` in `fn first<T>` is
     // checked as `%T`, a type no program can spell, a subtype only of itself.
     for (family, parents) in [
-        (TYPE_VARIABLES, vec![]),
-        (ORDERABLE_VARIABLES, vec![collections::ORDERABLE]),
+        (&TYPE_VARIABLES[..], vec![]),
+        (&ORDERABLE_VARIABLES[..], vec![collections::ORDERABLE]),
+        (&PLACEHOLDERS[..], vec![]),
     ] {
-        for variable in family {
+        for &variable in family {
             system.declare(TypeDefinition {
                 kind: TypeKind::Abstract,
                 constructor: TypeConstructor(variable),

@@ -428,6 +428,15 @@ which lets the body sort and compare. At each call the arguments fill `T` —
 `first([1, 2])` is an `Option<Int>` — and a bound is checked there, naming the
 parameter. A type parameter is one capital letter.
 
+`name(p, ..) := body` defines a function whose types the checker writes
+([HQL-0015](../../proposals/HQL-0015/README.md)). A body that opens with a step
+is a fragment over an implicit input: `top(n) := sort | take(n)` is
+`top : (Collection<T>, Int) -> List<T> where T : Orderable`, the most general
+input the body accepts, with `n` an `Int` because `take` requires one. Any
+other body names its input as an annotated first parameter. A body that fixes
+no type for a parameter or an element is refused, saying to annotate or write
+`fn`, and `hql check` prints every signature it wrote.
+
 ## Where the two cooperate: bounds
 
 A bare parameter admits every type, which is usually more freedom than a function

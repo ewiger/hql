@@ -522,6 +522,13 @@ fn emit(
                 && !outcome.failed()
                 && let Some(inferred) = &outcome.inferred
             {
+                for signature in outcome
+                    .reports
+                    .iter()
+                    .filter(|report| report.code.as_deref() == Some("signature"))
+                {
+                    writeln!(out, "{}", signature.message).map_err(|error| error.to_string())?;
+                }
                 // `check` has a type and no value; that is the whole answer.
                 writeln!(out, "{inferred}").map_err(|error| error.to_string())?;
             }

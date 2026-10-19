@@ -15,6 +15,7 @@ target/debug/hql run examples/functions/queries/named-function.hql
 | [variadic](queries/variadic.hql) | `xs: ...Int` collects zero or more trailing arguments | `[0, 3, 10]` |
 | [wider parameter](queries/wider-parameter.hql) | A `Data -> Int` function where an `Int -> …` one is expected | `[1, 1]` |
 | [generic function](queries/generic-function.hql) | `fn first<T>` takes its types from each call; `T : Orderable` is checked there | `[1, 3]` |
+| [alias](queries/alias.hql) | `top(n) := sort \| take(n)`: the checker writes the signature | `[1, 2]` |
 | [partial application](queries/partial-application.hql) | `add(10, _)` is a function of the argument left open | `[19, 17]` |
 | [invalid parameter type](queries/invalid-parameter-type.hql) | A `String` given to an `Int` parameter is refused at check time | type error |
 | [invalid hole in expression](queries/invalid-hole-in-expression.hql) | `_ + 1` is not a whole argument, so it is no hole | syntax error |

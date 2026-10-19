@@ -5,49 +5,55 @@ design. Everything in `doc/models/domain/` that this does not mention is still
 design.
 
 ```text
-program     := statement (NEWLINE+ statement)*
-statement   := import | declaration | function | binding | expression
-import      := "import" ident
-declaration := "abstract"? "type" ident params? (":" supertypes)? record? bounds?
-             | "type" ident params? "=" "union" "{" type ("," type)* ","? "}" bounds?
-bounds      := "where" ident ":" type ("," ident ":" type)*
-params      := "<" ident ("," ident)* ">"
-supertypes  := type | "{" type ("," type)* "}"
-record      := "{" field ("," | NEWLINE)* "}"
-field       := ident "?"? ":" type
-binding     := ident (":" type)? "=" expression
-function    := "fn" ident "(" (param ("," param)*)? ")" ":" type "=" expression
-param       := ident ":" "..."? type
+program     ::= statement (NEWLINE+ statement)*
+statement   ::= import | declaration | function | alias | binding | expression
+import      ::= "import" ident
+declaration ::= "abstract"? "type" ident params? (":" supertypes)? record? bounds?
+              | "type" ident params? "=" "union" "{" type ("," type)* ","? "}" bounds?
+bounds      ::= "where" ident ":" type ("," ident ":" type)*
+params      ::= "<" ident ("," ident)* ">"
+supertypes  ::= type | "{" type ("," type)* "}"
+record      ::= "{" field ("," | NEWLINE)* "}"
+field       ::= ident "?"? ":" type
+binding     ::= ident (":" type)? "=" expression
+function    ::= "fn" ident generics? "(" (param ("," param)*)? ")" ":" type ("=" expression | block)
+generics    ::= "<" generic ("," generic)* ">"
+generic     ::= letter (":" simple)?                                one capital letter, optionally bounded
+param       ::= ident ":" "..."? type
+block       ::= "{" (inner NEWLINE+)* "}"                           the body of an iterating function
+inner       ::= "yield" expression | "for" ident "in" expression block | ident "=" expression
+alias       ::= ident ("(" aliased ("," aliased)* ")")? ":=" expression
+aliased     ::= ident (":" type)?
 
-expression  := given
-given       := pipeline ("given" pipeline ("otherwise" given)?)?
-pipeline    := link ("|" (tee | link))*
-tee         := "tee" ident "=" link
-             | "tee" ident "=" NEWLINE link (NEWLINE "|" link)*   indented past the `|` before `tee`
-link        := or ("->" or data?)?
-or          := and ("or" and)*
-and         := not ("and" not)*
-not         := "not" not | comparison
-comparison  := addition (("==" | "!=" | "<" | "<=" | ">" | ">=") addition)?
-addition    := product (("+" | "-") product)*
-product     := postfix (("*" | "/" | "%") postfix)*
-postfix     := primary (("." ident) | call)*
-call        := "(" (argument ("," argument)*)? ")"
-argument    := (ident "=")? expression
-primary     := int | float | bool | string | docref | lambda
-             | ident | "(" expression ")" | data | list | set
-             | type call | match
-match       := "match" pipeline "{" arm (("," | NEWLINE) arm)* ","? "}"
-arm         := pattern ("given" pipeline)? "=>" expression
-pattern     := "_" | ident | int | float | string | bool
-             | "some" "(" pattern ")" | "none" | type ("_" | ident)
-lambda      := (ident | "(" (ident (":" type)? ("," ident (":" type)?)*)? ")") "=>" expression
-data        := "{" (key ":" expression ("," key ":" expression)*)? "}"
-list        := "[" (expression ("," expression)* ","?)? "]"
-set         := "{" expression ("," expression)* ","? "}"
-docref      := "[[" name "]]"
-type        := simple ("->" type)? | "(" (type ("," type)*)? ")" "->" type
-simple      := ident ("<" type ("," type)* ">")?
+expression  ::= given
+given       ::= pipeline ("given" pipeline ("otherwise" given)?)?
+pipeline    ::= link ("|" (tee | link))*
+tee         ::= "tee" ident "=" link
+              | "tee" ident "=" NEWLINE link (NEWLINE "|" link)*   indented past the `|` before `tee`
+link        ::= or ("->" or data?)?
+or          ::= and ("or" and)*
+and         ::= not ("and" not)*
+not         ::= "not" not | comparison
+comparison  ::= addition (("==" | "!=" | "<" | "<=" | ">" | ">=") addition)?
+addition    ::= product (("+" | "-") product)*
+product     ::= postfix (("*" | "/" | "%") postfix)*
+postfix     ::= primary (("." ident) | call)*
+call        ::= "(" (argument ("," argument)*)? ")"
+argument    ::= (ident "=")? (expression | "_")                      `_` is a hole: the call is a function of its holes
+primary     ::= int | float | bool | string | docref | lambda
+              | ident | "(" expression ")" | data | list | set
+              | type call | match
+match       ::= "match" pipeline "{" arm (("," | NEWLINE) arm)* ","? "}"
+arm         ::= pattern ("given" pipeline)? "=>" expression
+pattern     ::= "_" | ident | int | float | string | bool
+              | "some" "(" pattern ")" | "none" | type ("_" | ident)
+lambda      ::= (ident | "(" (ident (":" type)? ("," ident (":" type)?)*)? ")") "=>" expression
+data        ::= "{" (key ":" expression ("," key ":" expression)*)? "}"
+list        ::= "[" (expression ("," expression)* ","?)? "]"
+set         ::= "{" expression ("," expression)* ","? "}"
+docref      ::= "[[" name "]]"
+type        ::= simple ("->" type)? | "(" (type ("," type)*)? ")" "->" type
+simple      ::= ident ("<" type ("," type)* ">")?
 ```
 
 Whitespace separates tokens. A newline ends a statement **unless** the

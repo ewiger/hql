@@ -77,6 +77,9 @@ pub(crate) trait CheckCx: Send {
     fn function_arity(&mut self, argument: &Arg) -> Option<usize>;
     /// Report something worth saying that does not make the program wrong.
     fn warn(&mut self, warning: crate::warnings::Warning);
+    /// Fix an alias parameter's type to what a step argument requires;
+    /// answers whether `actual` was such a parameter.
+    fn placeholder(&mut self, actual: &TypeRef, expected: Option<TypeRef>) -> bool;
 }
 
 /// What evaluating a step may ask of the evaluator around it.

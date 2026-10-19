@@ -42,6 +42,7 @@ pub(crate) fn check_with(
         variadic: HashMap::new(),
         parameter_names: HashMap::new(),
         generic_functions: HashMap::new(),
+        placeholders: HashMap::new(),
     }
     .program(program)
 }
@@ -83,6 +84,7 @@ pub(crate) fn check_collecting_with(
         variadic: HashMap::new(),
         parameter_names: HashMap::new(),
         generic_functions: HashMap::new(),
+        placeholders: HashMap::new(),
     };
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
@@ -144,6 +146,22 @@ fn instantiate(
     }
 }
 
+/// A type with an alias's parameter placeholders replaced by the types they
+/// took.
+fn substituted_placeholders(
+    ty: &TypeRef,
+    fixed: &HashMap<crate::types::TypeConstructor, TypeRef>,
+) -> TypeRef {
+    if let Some(held) = fixed.get(&ty.constructor) {
+        return held.clone();
+    }
+    ty.constructor.apply(
+        ty.args
+            .iter()
+            .map(|arg| substituted_placeholders(arg, fixed)),
+    )
+}
+
 /// A type with its variables replaced by what a call bound them to; one the
 /// call left unbound is `Never`, as the element of an empty list is.
 fn substituted(ty: &TypeRef, bound: &HashMap<crate::types::TypeConstructor, TypeRef>) -> TypeRef {
@@ -197,6 +215,7 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 variadic: HashMap::new(),
                 parameter_names: HashMap::new(),
                 generic_functions: HashMap::new(),
+                placeholders: HashMap::new(),
             }
             .program(&program)
             .ok()?;
@@ -228,6 +247,9 @@ struct Checker<'a> {
     /// Each generic function's type parameters: the name, its type variable
     /// and its bound.
     generic_functions: HashMap<String, Vec<(String, TypeRef, Option<TypeRef>)>>,
+    /// The types an alias's unannotated parameters took, while its body is
+    /// checked.
+    placeholders: HashMap<crate::types::TypeConstructor, TypeRef>,
 }
 
 impl Checker<'_> {
@@ -307,6 +329,10 @@ impl Checker<'_> {
                 }
                 Stmt::Fn(declaration) => {
                     self.function(declaration)?;
+                    TypeRef::UNIT
+                }
+                Stmt::Alias(alias) => {
+                    self.alias(alias)?;
                     TypeRef::UNIT
                 }
                 Stmt::Expr(expression) => self.expression(expression)?,
@@ -586,6 +612,175 @@ impl Checker<'_> {
                 format!("this call has more arguments than {ty} takes"),
             )
         })
+    }
+
+    /// `name(p, ..) := body`: a function whose types the checker writes. The
+    /// input of a fragment takes the most general type the body accepts, an
+    /// unannotated parameter the type of the first step argument it is
+    /// passed to, and the result whatever the body returns.
+    fn alias(&mut self, alias: &crate::ast::AliasDecl) -> Result<(), Diagnostic> {
+        use crate::types::builtin::{PLACEHOLDERS, type_variable};
+        self.lint(crate::naming::Kind::Function, &alias.name, &alias.span);
+        if builtins::exists(&alias.name) {
+            self.checked.warnings.push(crate::warnings::Warning::new(
+                alias.span.clone(),
+                format!("`{}` shadows the step of the same name", alias.name),
+            ));
+        }
+        let implicit = alias
+            .parameters
+            .first()
+            .is_some_and(|input| input.name == crate::ast::ALIAS_INPUT);
+        for parameter in alias.parameters.iter().skip(usize::from(implicit)) {
+            self.lint(
+                crate::naming::Kind::Parameter,
+                &parameter.name,
+                &parameter.span,
+            );
+        }
+        if alias.parameters.len() > 4 {
+            return Err(Diagnostic::typing(
+                alias.span.clone(),
+                "a function takes at most four parameters",
+            ));
+        }
+        let candidates: Vec<TypeRef> = if implicit {
+            let elements = [
+                type_variable("T", None),
+                type_variable("T", Some(&TypeRef::ORDERABLE)),
+                Some(TypeRef::INT),
+                Some(TypeRef::FLOAT),
+                Some(TypeRef::STR),
+            ];
+            elements
+                .into_iter()
+                .flatten()
+                .flat_map(|element| {
+                    [
+                        collections::ITERABLE,
+                        collections::STREAM,
+                        collections::COLLECTION,
+                        collections::SEQ,
+                    ]
+                    .map(|shape| shape.apply([element.clone()]))
+                })
+                .collect()
+        } else {
+            let input = alias.parameters.first().ok_or_else(|| {
+                Diagnostic::typing(
+                    alias.span.clone(),
+                    "an alias whose body is not a pipeline fragment names its input as its \
+                     first parameter",
+                )
+            })?;
+            let annotation = input.annotation.as_ref().ok_or_else(|| {
+                Diagnostic::typing(
+                    input.span.clone(),
+                    format!(
+                        "the input `{}` of an expression body is annotated: `{}: Type`",
+                        input.name, input.name
+                    ),
+                )
+            })?;
+            vec![crate::declarations::annotation(annotation)?]
+        };
+        let mut first_failure = None;
+        for input in candidates {
+            let warnings = self.checked.warnings.len();
+            self.placeholders.clear();
+            let mut held = Vec::new();
+            let mut slots = PLACEHOLDERS.iter();
+            for (index, parameter) in alias.parameters.iter().enumerate() {
+                let ty = if index == 0 {
+                    input.clone()
+                } else if let Some(annotation) = &parameter.annotation {
+                    crate::declarations::annotation(annotation)?
+                } else {
+                    let slot = slots.next().ok_or_else(|| {
+                        Diagnostic::typing(alias.span.clone(), "too many parameters to infer")
+                    })?;
+                    crate::types::TypeConstructor(slot).apply([])
+                };
+                held.push((parameter.name.clone(), ty));
+            }
+            let body = self.with_bindings(held.clone(), |checker| checker.expression(&alias.body));
+            let body = match body {
+                Ok(body) => body,
+                Err(failure) => {
+                    self.checked.warnings.truncate(warnings);
+                    // The candidate that got furthest into the body names
+                    // the expression whose type is unknown.
+                    let further = first_failure
+                        .as_ref()
+                        .is_none_or(|held: &Diagnostic| failure.span().start > held.span().start);
+                    if further {
+                        first_failure = Some(failure);
+                    }
+                    continue;
+                }
+            };
+            let fixed = |ty: &TypeRef| substituted_placeholders(ty, &self.placeholders);
+            let mut parameters = Vec::new();
+            for (name, ty) in &held {
+                let ty = fixed(ty);
+                if ty.has_placeholder() {
+                    return Err(Diagnostic::typing(
+                        alias.span.clone(),
+                        format!(
+                            "the body of `{}` does not fix the type of `{name}`; annotate it, \
+                             `{name}: Type`, or write `fn`",
+                            alias.name
+                        ),
+                    ));
+                }
+                parameters.push(ty);
+            }
+            let result = fixed(&body);
+            let ty = TypeRef::function(parameters.clone(), result).ok_or_else(|| {
+                Diagnostic::typing(
+                    alias.span.clone(),
+                    "a function takes at most four parameters",
+                )
+            })?;
+            let variables: Vec<(String, TypeRef, Option<TypeRef>)> = [false, true]
+                .into_iter()
+                .filter_map(|orderable| {
+                    let bound = orderable.then_some(TypeRef::ORDERABLE);
+                    let variable = type_variable("T", bound.as_ref())?;
+                    parameters
+                        .iter()
+                        .any(|parameter| parameter.mentions(&variable))
+                        .then(|| ("T".to_owned(), variable, bound))
+                })
+                .collect();
+            if variables.is_empty() {
+                self.generic_functions.remove(&alias.name);
+            } else {
+                self.generic_functions.insert(alias.name.clone(), variables);
+            }
+            self.parameter_names.insert(
+                alias.name.clone(),
+                held.iter()
+                    .map(|(name, _)| name.trim_start_matches('%').to_owned())
+                    .collect(),
+            );
+            self.scope.insert(alias.name.clone(), ty.clone());
+            self.checked
+                .functions
+                .insert(alias.span.clone(), ty.clone());
+            self.checked.signatures.push((alias.name.clone(), ty));
+            return Ok(());
+        }
+        let failure = first_failure
+            .unwrap_or_else(|| Diagnostic::typing(alias.span.clone(), "the body did not check"));
+        Err(Diagnostic::typing(
+            failure.span().clone(),
+            format!(
+                "{}; annotate the input of `{}`, or write `fn`",
+                failure.message(),
+                alias.name
+            ),
+        ))
     }
 
     /// The block body of an iterating function: what it yields must be the
@@ -1391,6 +1586,20 @@ impl CheckCx for Checker<'_> {
 
     fn warn(&mut self, warning: crate::warnings::Warning) {
         self.checked.warnings.push(warning);
+    }
+
+    fn placeholder(&mut self, actual: &TypeRef, expected: Option<TypeRef>) -> bool {
+        let Some(expected) = expected.filter(|expected| !expected.constructor.0.starts_with("%?"))
+        else {
+            return false;
+        };
+        match self.placeholders.get(&actual.constructor) {
+            Some(held) => held.is(&expected) || expected.is(held),
+            None => {
+                self.placeholders.insert(actual.constructor, expected);
+                true
+            }
+        }
     }
 
     fn function_arity(&mut self, argument: &Arg) -> Option<usize> {

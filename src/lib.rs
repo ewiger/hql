@@ -121,6 +121,21 @@ pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
         for warning in &program.warnings {
             reports.push(Report::of_check_warning(warning));
         }
+        // Every alias's signature is visible, since the checker wrote it.
+        for (name, signature) in &program.signatures {
+            reports.push(Report {
+                severity: reporting::Severity::Info,
+                stage: "type".to_owned(),
+                message: match types::builtin::type_variable("T", Some(&TypeRef::ORDERABLE)) {
+                    Some(ordered) if signature.mentions(&ordered) => {
+                        format!("{name} : {signature} where T : Orderable")
+                    }
+                    _ => format!("{name} : {signature}"),
+                },
+                code: Some("signature".to_owned()),
+                ..Report::of_check_warning(&warnings::Warning::new(0..0, ""))
+            });
+        }
     }
     Outcome {
         value: None,

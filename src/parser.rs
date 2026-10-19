@@ -1,8 +1,8 @@
 //! Parse tokens into a program: statements, bindings, pipelines and calls.
 
 use crate::ast::{
-    Arg, Arith, Arm, BlockStmt, Expr, Field, FnDecl, Kind, Logic, Param, Pattern, Program,
-    Relation, Stmt, TEE_INPUT, TypeAnn, TypeDecl,
+    ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, Field, FnDecl, Kind,
+    Logic, Param, Pattern, Program, Relation, Stmt, TEE_INPUT, TypeAnn, TypeDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -197,6 +197,9 @@ impl Parser {
                 name,
                 span: head.span.start..named.span.end,
             });
+        }
+        if let Some(alias) = self.alias()? {
+            return Ok(Stmt::Alias(alias));
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "fn"
@@ -532,6 +535,112 @@ impl Parser {
                 "a block body holds `yield`, `for` and bindings",
             )),
         }
+    }
+
+    /// `name(p, ..) := body`, when the statement is one: a name, optional
+    /// parameters, then `:` and `=` side by side.
+    fn alias(&mut self) -> Result<Option<AliasDecl>, Diagnostic> {
+        let Token::Ident(name) = self.peek().clone() else {
+            return Ok(None);
+        };
+        let mut after = self.index + 1;
+        if matches!(self.tokens[after].token, Token::OpenParen) {
+            let mut depth = 0;
+            while after < self.tokens.len() {
+                match self.tokens[after].token {
+                    Token::OpenParen => depth += 1,
+                    Token::CloseParen => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    Token::End | Token::Newline if depth == 0 => return Ok(None),
+                    _ => {}
+                }
+                after += 1;
+            }
+            after += 1;
+        }
+        let (Some(colon), Some(equals)) = (self.tokens.get(after), self.tokens.get(after + 1))
+        else {
+            return Ok(None);
+        };
+        if !(colon.token == Token::Colon
+            && equals.token == Token::Equals
+            && colon.span.end == equals.span.start)
+        {
+            return Ok(None);
+        }
+        let start = self.advance().span.start;
+        let mut parameters = Vec::new();
+        if self.eat(&Token::OpenParen) {
+            self.nesting += 1;
+            if !matches!(self.peek(), Token::CloseParen) {
+                loop {
+                    let written = self.advance();
+                    let Token::Ident(parameter) = written.token else {
+                        return Err(Diagnostic::syntax(
+                            written.span,
+                            "expected a parameter name",
+                        ));
+                    };
+                    let annotation = if self.eat(&Token::Colon) {
+                        Some(self.type_annotation()?)
+                    } else {
+                        None
+                    };
+                    parameters.push(AliasParam {
+                        name: parameter,
+                        annotation,
+                        span: written.span,
+                    });
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                }
+            }
+            self.expect(&Token::CloseParen, "to close the parameters")?;
+            self.nesting -= 1;
+        }
+        self.expect(&Token::Colon, "in `:=`")?;
+        self.expect(&Token::Equals, "in `:=`")?;
+        self.continuation();
+        let body = self.expression()?;
+        // A body that opens with a step is a fragment over an implicit
+        // input; any other body is an expression over the first parameter.
+        let opening = leftmost(&body);
+        let step = match &opening.kind {
+            Kind::Ident(step) => Some(step.as_str()),
+            Kind::Call { callee, .. } => match &callee.kind {
+                Kind::Ident(step) => Some(step.as_str()),
+                _ => None,
+            },
+            _ => None,
+        };
+        let fragment = step.is_some_and(|step| {
+            crate::builtins::exists(step) && !parameters.iter().any(|held| held.name == step)
+        });
+        let body = if fragment {
+            parameters.insert(
+                0,
+                AliasParam {
+                    name: ALIAS_INPUT.to_owned(),
+                    annotation: None,
+                    span: body.span.start..body.span.start,
+                },
+            );
+            with_input(body)
+        } else {
+            body
+        };
+        let span = start..body.span.end;
+        Ok(Some(AliasDecl {
+            name,
+            parameters,
+            body,
+            span,
+        }))
     }
 
     /// `fn name<T>(p: Type, xs: ...Type) : Result = body`.
@@ -1457,6 +1566,34 @@ fn holed(call: Expr) -> Expr {
             }),
         },
         span: call.span,
+    }
+}
+
+/// The first step of a pipeline, or the whole expression when it is none.
+fn leftmost(expression: &Expr) -> &Expr {
+    match &expression.kind {
+        Kind::Pipe(left, _) => leftmost(left),
+        _ => expression,
+    }
+}
+
+/// A fragment with the alias's implicit input piped into its first step.
+fn with_input(fragment: Expr) -> Expr {
+    match fragment.kind {
+        Kind::Pipe(left, right) => {
+            let span = fragment.span;
+            Expr {
+                kind: Kind::Pipe(Box::new(with_input(*left)), right),
+                span,
+            }
+        }
+        _ => {
+            let input = Expr {
+                kind: Kind::Ident(ALIAS_INPUT.to_owned()),
+                span: fragment.span.start..fragment.span.start,
+            };
+            piped(input, fragment)
+        }
     }
 }
 

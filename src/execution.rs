@@ -15,6 +15,8 @@ pub(crate) struct Program {
     pub result: TypeRef,
     /// The warnings checking reported.
     pub warnings: Vec<crate::warnings::Warning>,
+    /// Each alias the program defines, with the signature the checker wrote.
+    pub signatures: Vec<(String, TypeRef)>,
 }
 
 #[derive(Debug)]
@@ -233,6 +235,8 @@ pub(crate) struct Checked {
     pub applications: HashMap<Range<usize>, Option<(usize, TypeRef)>>,
     /// What checking found worth saying that does not make the program wrong.
     pub warnings: Vec<crate::warnings::Warning>,
+    /// Each alias the program defines, with the signature the checker wrote.
+    pub signatures: Vec<(String, TypeRef)>,
 }
 
 impl Checked {
@@ -257,6 +261,18 @@ impl Checked {
                             }
                         }
                         ast::Stmt::Expr(value) => Stmt::Expr(self.expression(value)?),
+                        ast::Stmt::Alias(alias) => Stmt::Fn {
+                            name: alias.name.clone(),
+                            parameters: alias
+                                .parameters
+                                .iter()
+                                .map(|parameter| parameter.name.clone())
+                                .collect(),
+                            body: std::sync::Arc::new(self.expression(&alias.body)?),
+                            ty: self.functions.get(&alias.span).cloned().ok_or_else(|| {
+                                Diagnostic::typing(alias.span.clone(), "alias was not checked")
+                            })?,
+                        },
                         ast::Stmt::Fn(declaration) => Stmt::Fn {
                             name: declaration.name.clone(),
                             parameters: declaration
@@ -282,6 +298,7 @@ impl Checked {
             statements,
             result,
             warnings: self.warnings.clone(),
+            signatures: self.signatures.clone(),
         })
     }
 

@@ -551,3 +551,62 @@ fn a_generic_body_relies_only_on_what_its_parameter_promises() {
         named.message()
     );
 }
+
+#[test]
+fn an_alias_is_a_function_whose_types_the_checker_writes() {
+    let vault = hql::vault::Vault::empty();
+    let signature = |source: &str| {
+        let outcome = hql::check_reported(source, &vault, hql::reporting::Mode::Strict);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        outcome
+            .reports
+            .iter()
+            .find(|report| report.code.as_deref() == Some("signature"))
+            .map(|report| report.message.clone())
+            .unwrap()
+    };
+    assert_eq!(
+        signature("first := take(1)\n1"),
+        "first : Stream<T> -> List<T>"
+    );
+    assert_eq!(
+        signature("top(n) := sort | take(n)\n1"),
+        "top : (Collection<T>, Int) -> List<T> where T : Orderable"
+    );
+    assert_eq!(
+        signature("pick(xs: List<Int>, n) := xs | take(n)\n1"),
+        "pick : (List<Int>, Int) -> List<Int>"
+    );
+    assert_eq!(
+        eval("top(n) := sort | take(n)\n[3, 1, 2] | top(2)"),
+        eval("[1, 2]")
+    );
+    assert_eq!(
+        eval("top(n) := sort | take(n)\ntop([3, 1, 2], 1)"),
+        eval("[1]")
+    );
+}
+
+#[test]
+fn an_alias_whose_body_fixes_no_type_is_refused() {
+    let unknown = check("by_name(n) := sort(by = c => c.name) | take(n)\n1").expect_err("c.name");
+    assert!(
+        unknown.message().contains("no field `name`") && unknown.message().contains("write `fn`"),
+        "{}",
+        unknown.message()
+    );
+    let input = check("double(x) := x * 2\n1").expect_err("an expression needs its input typed");
+    assert!(input.message().contains("annotated"), "{}", input.message());
+    let vault = hql::vault::Vault::empty();
+    let shadow = hql::run(
+        "sum := take(1)\n[1] | sum",
+        &vault,
+        hql::reporting::Mode::Strict,
+    );
+    assert!(
+        shadow
+            .reports
+            .iter()
+            .any(|report| report.message.contains("shadows the step"))
+    );
+}

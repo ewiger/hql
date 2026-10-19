@@ -446,6 +446,14 @@ impl OperationSpec {
                     continue;
                 }
             };
+            // An alias parameter whose type no annotation gave takes the
+            // type this argument requires.
+            if actual.constructor.0.starts_with("%?") {
+                let expected = pattern.instantiate(&bindings, argument_span).ok();
+                if cx.placeholder(&actual, expected) {
+                    continue;
+                }
+            }
             if !pattern.accept(&actual, &mut bindings) {
                 return Err(Diagnostic::typing(
                     argument_span.clone(),
