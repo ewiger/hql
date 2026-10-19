@@ -77,6 +77,28 @@ impl Vault {
         self.by_name.get(name).map(Arc::clone)
     }
 
+    /// A card read from text at a path in this vault, as loading would read
+    /// it, with links resolved against the vault's names and its own.
+    #[must_use]
+    pub fn card_of(&self, path: &Path, text: &str) -> Option<Card> {
+        let snapshot = crate::sources::Snapshot {
+            root: self.root.clone(),
+            documents: vec![crate::sources::SourceDocument {
+                path: path.to_owned(),
+                format: crate::document::Format::of(path).unwrap_or(crate::document::Format::Hmd),
+                text: Ok(text.to_owned()),
+            }],
+        };
+        let store = crate::document::DocumentStore::from_source(snapshot);
+        let document = store.documents.into_iter().next()?;
+        let mut names: std::collections::BTreeSet<String> = self.by_name.keys().cloned().collect();
+        names.insert(document.name.clone());
+        let mut warnings = Vec::new();
+        let mut card = crate::knowledge::build_card(document, &names, &mut warnings);
+        crate::extensions::contribute_metadata(&mut card);
+        Some(card)
+    }
+
     /// The edges leaving a node.
     #[must_use]
     pub fn uplinks(&self, name: &str) -> Vec<&Edge> {

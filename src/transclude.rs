@@ -154,8 +154,31 @@ pub fn render_cell(
     emit: Emit,
     only: Option<&str>,
 ) -> Result<Rendered, String> {
+    render_document(source, None, vault, mode, emit, only)
+}
+
+/// [`render_cell`] for a document at a path in the vault, which names the
+/// card `this` is.
+///
+/// # Errors
+///
+/// Names a cell id the document does not have.
+pub fn render_document(
+    source: &str,
+    path: Option<&std::path::Path>,
+    vault: &Vault,
+    mode: Mode,
+    emit: Emit,
+    only: Option<&str>,
+) -> Result<Rendered, String> {
     let mut reports = Reports::new();
     let (segments, mut cells) = scan(source, emit, &mut reports);
+    let sections = sections(&segments, cells.len());
+    // A cell closes over the card it is written in. A cell id of the same
+    // name is the document's own choice, and wins.
+    let this = vault
+        .card_of(path.unwrap_or(std::path::Path::new("this.hmd")), source)
+        .filter(|_| !cells.iter().any(|cell| cell.id.as_deref() == Some(THIS)));
 
     // Ids name values, so two cells may not share one.
     let mut ids: BTreeMap<String, usize> = BTreeMap::new();
@@ -236,11 +259,14 @@ pub fn render_cell(
             skip(&mut results[index], &cells, waited);
             continue;
         }
-        let bound: Vec<_> = cells[index]
+        let mut bound: Vec<_> = cells[index]
             .reads
             .iter()
             .filter_map(|&read| Some((cells[read].id.clone()?, types[read].clone()?)))
             .collect();
+        if this.is_some() {
+            bound.push((THIS.to_owned(), crate::types::TypeRef::CARD));
+        }
         blocks += 1;
         let (program, found) = crate::check_cell(&cells[index].body, vault, mode, &bound);
         results[index].reports = shifted(found, cells[index].body_at);
@@ -268,12 +294,20 @@ pub fn render_cell(
             let Some(program) = &programs[index] else {
                 continue;
             };
-            let bound: Vec<_> = cells[index]
+            let mut bound: Vec<_> = cells[index]
                 .reads
                 .iter()
                 .filter_map(|&read| Some((cells[read].id.clone()?, values[read].clone()?)))
                 .collect();
-            let (value, log) = crate::evaluate_cell(program, vault, bound);
+            if let Some(card) = &this {
+                bound.push((
+                    THIS.to_owned(),
+                    crate::types::Value::Card(std::sync::Arc::new(card.clone())),
+                ));
+            }
+            let (value, log) = crate::extensions::ai::within_section(&sections[index], || {
+                crate::evaluate_cell(program, vault, bound)
+            });
             for entry in shifted(log, cells[index].body_at).iter() {
                 results[index].reports.push(entry.clone());
             }
@@ -328,6 +362,50 @@ pub fn render_cell(
         reports,
         cells: results,
     })
+}
+
+/// The name a cell reads the card it is written in by.
+const THIS: &str = "this";
+
+/// Each cell's section: the prose from the nearest heading above it to the
+/// cell, without other cells, their outputs or the front matter. This is what
+/// a cell's surrounding text asks, and a prompt's default instructions.
+fn sections(segments: &[Segment], count: usize) -> Vec<String> {
+    let mut sections = vec![String::new(); count];
+    let mut current: Vec<&str> = Vec::new();
+    let mut front = false;
+    let mut fenced = false;
+    for (position, segment) in segments.iter().enumerate() {
+        match segment {
+            Segment::Line(line) => {
+                if position == 0 && line.trim_end() == "---" {
+                    front = true;
+                    continue;
+                }
+                if front {
+                    front = line.trim_end() != "---";
+                    continue;
+                }
+                if line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~") {
+                    fenced = !fenced;
+                }
+                if !fenced && line.starts_with('#') {
+                    current.clear();
+                }
+                // A removed cell leaves the blank lines on both its sides.
+                let blank = line.trim().is_empty();
+                if !(blank && current.last().is_some_and(|last| last.trim().is_empty())) {
+                    current.push(line);
+                }
+            }
+            Segment::Cell(index) => {
+                if let Some(section) = sections.get_mut(*index) {
+                    *section = current.join("\n").trim().to_owned();
+                }
+            }
+        }
+    }
+    sections
 }
 
 /// Split a document into lines and cells, attaching to each cell the output a

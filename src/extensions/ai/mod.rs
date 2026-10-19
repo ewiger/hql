@@ -38,6 +38,23 @@ thread_local! {
     /// Whether a tool's function is being evaluated: a tool is pure, so
     /// nothing a model asks for may reach an effect.
     static IN_TOOL: Cell<bool> = const { Cell::new(false) };
+    /// The prose of the section the cell being evaluated sits in: the
+    /// instructions a prompt is given when none are written.
+    static SECTION: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Evaluate with `section` as the default instructions of every prompt built
+/// meanwhile: what a cell's surrounding prose asks.
+pub(crate) fn within_section<R>(section: &str, evaluate: impl FnOnce() -> R) -> R {
+    let previous = SECTION.with(|held| held.replace(Some(section.to_owned())));
+    let result = evaluate();
+    SECTION.with(|held| *held.borrow_mut() = previous);
+    result
+}
+
+/// The instructions a prompt takes when none are written: the cell's section.
+fn section() -> Option<String> {
+    SECTION.with(|held| held.borrow().clone())
 }
 
 const fn ty(name: &'static str) -> P {
@@ -183,7 +200,8 @@ pub(crate) fn check_constructor(
                     "a Prompt is built from a Context, not {first_type}"
                 ));
             }
-            text("instructions", true)?;
+            // Inside a cell, the cell's section is the default.
+            text("instructions", false)?;
         }
         "Tool" => {
             if !first_type.constructor.0.starts_with("Fn") {
@@ -231,7 +249,16 @@ pub(crate) fn construct(
             context(cx, first, &label, &span)
         }
         "Prompt" => {
-            let instructions = text("instructions")?.unwrap_or_default();
+            let instructions = match text("instructions")? {
+                Some(instructions) => instructions,
+                None => section().ok_or_else(|| {
+                    runtime(
+                        &span,
+                        "a Prompt outside a cell needs `instructions`; inside one, the cell's \
+                         section is the default",
+                    )
+                })?,
+            };
             Ok(prompt(first, &instructions))
         }
         "Tool" => {
@@ -688,7 +715,7 @@ fn eval_run(
     let tools = tools_argument(cx, arguments, &span)?;
     let prompt = match &input {
         Value::Record(record) if record.is("Prompt") => input.clone(),
-        _ => prompt(input, ""),
+        _ => prompt(input, &section().unwrap_or_default()),
     };
     let rendered = match &prompt {
         Value::Record(record) => record.text("rendered"),
@@ -1297,24 +1324,9 @@ fn eval_remember(
             std::fs::write(&path, &content).map_err(|error| runtime(&span, error.to_string()))?;
         }
     }
-    let snapshot = crate::sources::Snapshot {
-        root: vault.root.clone(),
-        documents: vec![crate::sources::SourceDocument {
-            path: relative,
-            format: crate::document::Format::Hmd,
-            text: Ok(content),
-        }],
-    };
-    let mut names: std::collections::BTreeSet<String> = vault.by_name.keys().cloned().collect();
-    names.insert(name);
-    let store = crate::document::DocumentStore::from_source(snapshot);
-    let mut warnings = Vec::new();
-    let document = store
-        .documents
-        .into_iter()
-        .next()
+    let card = vault
+        .card_of(&relative, &content)
         .ok_or_else(|| runtime(&span, "the memory card could not be read back"))?;
-    let card = crate::knowledge::build_card(document, &names, &mut warnings);
     Ok(Value::Card(Arc::new(card)))
 }
 

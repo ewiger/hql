@@ -343,3 +343,37 @@ fn checking_a_run_reaches_no_model() {
     assert!(hql::check_in(PROGRAM, &vault).is_ok());
     assert!(!directory.path().join(".hql").exists());
 }
+
+#[test]
+fn a_cell_reads_its_card_as_this_and_its_section_as_the_prompts_instructions() {
+    use hql::transclude::{Emit, render_document};
+    let directory = tempfile::tempdir().unwrap();
+    let vault = vault_on(directory.path(), 9);
+    let card = "---\ntags: [birds]\n---\n# Intro\n\nNot this.\n\n## Review\n\nWhich birds hunt after dark?\n\n```hql#eval id=title\nthis.title\n```\n\nAnswer from the evidence.\n\n```hql#eval id=p\nimport ai\ncards | filter(c => c.name == \"owl\") | Context(\"evidence\") | Prompt\n```\n";
+    let rendered = render_document(
+        card,
+        Some(Path::new("review.hmd")),
+        &vault,
+        Report::Strict,
+        Emit::After,
+        None,
+    )
+    .unwrap();
+    let outputs: Vec<&str> = rendered
+        .cells
+        .iter()
+        .map(|cell| cell.markdown.as_str())
+        .collect();
+    assert_eq!(outputs[0], "Intro");
+    // From the section's heading to the cell, without the other cell.
+    assert_eq!(
+        outputs[1],
+        "## Review\n\nWhich birds hunt after dark?\n\nAnswer from the evidence.\n\n## evidence\n\nSource: owl\n\n# Owl\n\nOwls hunt after dark."
+    );
+    // Outside a cell there is no section, and the instructions are required.
+    let reports = failure("import ai\ncards | Context | Prompt", &vault);
+    assert!(
+        reports.contains("outside a cell needs `instructions`"),
+        "{reports}"
+    );
+}

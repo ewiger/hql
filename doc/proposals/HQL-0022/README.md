@@ -207,10 +207,12 @@ ctx = concat(sources | Context("evidence"), notes | Context("memory"))
 A prompt is the model input before it is written in a provider's wire format.
 
 - `Prompt(ctx: Context, instructions: String) : Prompt`. Inside a cell,
-  `instructions` is required. Once `this: Card` is built (see
-  [program values](../../models/behavior/program-values.md)), a cell's
-  default is the prose of its section of `this`, from the section's heading
-  to the cell, excluding other cells and their outputs.
+  Inside a cell, `instructions` defaults to the prose of the cell's section of
+  `this`, the card the cell is written in (see
+  [program values](../../models/behavior/program-values.md)). The section runs
+  from the nearest heading above the cell to the cell. It excludes the front
+  matter, other cells and their outputs, and a run of blank lines reads as
+  one. Outside a cell the argument is required.
 - `rendered` MUST be laid out exactly as follows, with `\n` line ends:
 
 ```text
@@ -222,10 +224,9 @@ rendered = instructions
              text
 ```
 
-- A `run` given a `Context` builds `Prompt(ctx, "")` until a cell's section is
-  reachable, and then `Prompt(ctx, <the cell's section>)`. Passing a `Prompt`
-  is the explicit form, and both forms MUST produce the same `rendered` text
-  for the same inputs.
+- A `run` given a `Context` builds `Prompt(ctx, <the cell's section>)`, and
+  outside a cell `Prompt(ctx, "")`. Passing a `Prompt` is the explicit form,
+  and both forms MUST produce the same `rendered` text for the same inputs.
 - The agent's `instructions` are the system message and MUST NOT be part of
   `rendered`. `rendered` is the first user turn.
 

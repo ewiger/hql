@@ -314,8 +314,12 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             cell,
         } => {
             let (source, origin) = read(file)?;
-            let rendered = transclude::render_cell(
+            let path = (file != "-")
+                .then(|| std::path::Path::new(file))
+                .map(|path| path.strip_prefix(&vault.root).unwrap_or(path).to_owned());
+            let rendered = transclude::render_document(
                 &source,
+                path.as_deref(),
                 &vault,
                 settings.mode,
                 (*emit).into(),
