@@ -4,7 +4,7 @@
 // environment: knowledge-v1
 // vault: birds/wiki
 // expected-type: Seq<String>
-// expected: [Barn owl, Common raven, European robin]
+// expected: ["Barn owl", "Common raven", "European robin"]
 
 bird_cards = cards
 | filter(c => c.metadata.category == "bird")

@@ -119,7 +119,7 @@ titles() | take(3)
 ```
 
 ```text
-[A Room of One's Own, Dune, Frankenstein]
+["A Room of One's Own", "Dune", "Frankenstein"]
 ```
 
 `cards` itself is such a sequence: the vault's cards, produced as the walk of

@@ -23,7 +23,7 @@ the edges arriving at it:
 ```
 
 ```text
-[a-room-of-ones-own, mrs-dalloway, the-common-reader]
+["a-room-of-ones-own", "mrs-dalloway", "the-common-reader"]
 ```
 
 A link in a body may carry data of its own, written after it in braces:

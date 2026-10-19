@@ -74,7 +74,7 @@ cards | take(4) | map(c => c.name)
 ```
 
 ```text
-[frank-herbert, jrr-tolkien, mary-shelley, virginia-woolf]
+["frank-herbert", "jrr-tolkien", "mary-shelley", "virginia-woolf"]
 ```
 
 A card has the fields of a document: its `name` (the file stem), `title`,
@@ -114,7 +114,7 @@ cards
 ```
 
 ```text
-[A Room of One's Own, Dune, Frankenstein, Leaves of Grass, Mrs Dalloway, The Common Reader, The Hobbit]
+["A Room of One's Own", "Dune", "Frankenstein", "Leaves of Grass", "Mrs Dalloway", "The Common Reader", "The Hobbit"]
 ```
 
 ## The reading list
@@ -129,7 +129,7 @@ cards
 ```
 
 ```text
-[Leaves of Grass, The Common Reader, The Hobbit]
+["Leaves of Grass", "The Common Reader", "The Hobbit"]
 ```
 
 Read it as three steps, each consuming the one before. `filter` decides each
@@ -154,7 +154,7 @@ cards
 ```
 
 ```text
-[{books: ["A Room of One's Own", "Frankenstein"], status: "done"}, {books: ["Dune", "Mrs Dalloway"], status: "reading"}, {books: ["Leaves of Grass", "The Common Reader", "The Hobbit"], status: "todo"}]
+{{books: ["A Room of One's Own", "Frankenstein"], status: "done"}, {books: ["Dune", "Mrs Dalloway"], status: "reading"}, {books: ["Leaves of Grass", "The Common Reader", "The Hobbit"], status: "todo"}}
 ```
 
 A typed view of a card works as the views of chapter 5 did, and the pages per
@@ -170,7 +170,7 @@ cards
 ```
 
 ```text
-[{author: "Virginia Woolf", pages: 610}, {author: "Frank Herbert", pages: 412}, {author: "Mary Shelley", pages: 280}, {author: "Walt Whitman", pages: 145}, {author: "J. R. R. Tolkien", pages: 310}]
+{{author: "Virginia Woolf", pages: 610}, {author: "Frank Herbert", pages: 412}, {author: "Mary Shelley", pages: 280}, {author: "Walt Whitman", pages: 145}, {author: "J. R. R. Tolkien", pages: 310}}
 ```
 
 ## Kinds of card
@@ -184,7 +184,7 @@ cards | of_type(RelationCard) | map(c => c.title)
 ```
 
 ```text
-[Frankenstein inspires Dune]
+["Frankenstein inspires Dune"]
 ```
 
 [Chapter 7](07-graphs.md) is about what that relation means: cards and the
@@ -200,7 +200,7 @@ links between them form a graph.
 ```
 
 ```text
-[tutorial, 14]
+["tutorial", 14]
 ```
 
 Without `--vault` there is no vault, and naming one says so:

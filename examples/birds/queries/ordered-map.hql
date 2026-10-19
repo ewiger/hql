@@ -3,7 +3,7 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Seq<String>
-// expected: [european-robin, barn-owl, common-raven]
+// expected: ["european-robin", "barn-owl", "common-raven"]
 
 route = OrderedMap(
     ["european-robin", "barn-owl", "common-raven"],

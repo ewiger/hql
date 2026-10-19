@@ -67,7 +67,7 @@ cards
 ```
 
 ```text
-[A Room of One's Own, Dune, Frankenstein]
+["A Room of One's Own", "Dune", "Frankenstein"]
 … 4 more not shown
 ```
 

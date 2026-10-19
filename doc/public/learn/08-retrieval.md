@@ -117,7 +117,7 @@ cards | semantic("night hunting birds") | take(3) | map(h => h.value.title)
 ```
 
 ```text
-[Great horned owl, Barn owl, Strigidae]
+["Great horned owl", "Barn owl", "Strigidae"]
 ```
 
 The same question, by spelling:
@@ -129,7 +129,7 @@ cards | lexical("night hunting birds") | take(3) | map(h => h.value.title)
 ```
 
 ```text
-[Mute swan, Passeriformes, Alcedinidae]
+["Mute swan", "Passeriformes", "Alcedinidae"]
 ```
 
 The binary never loads a model: [`contrib/semantics/`](https://github.com/ewiger/hql/tree/main/contrib/semantics)

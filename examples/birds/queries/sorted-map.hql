@@ -3,7 +3,7 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Seq<String>
-// expected: [barn-owl, common-raven, european-robin]
+// expected: ["barn-owl", "common-raven", "european-robin"]
 
 counts = SortedMap(
     ["european-robin", "barn-owl", "common-raven"],

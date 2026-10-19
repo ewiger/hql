@@ -24,11 +24,12 @@ values, rather than fields, write one:
 ```
 
 ```text
-[novel, essay, poetry]
+{"novel", "essay", "poetry"}
 ```
 
-`hql check` writes a program's type without running it, which tells the two
-apart where their printing does not:
+A value prints as the literal that writes it, so a set prints in braces and a
+string inside a collection keeps its quotes. `hql check` writes a program's
+type without running it:
 
 <!-- run: check -->
 ```hql
@@ -80,7 +81,7 @@ list. And because a set keeps each value once, mapping it can make it smaller:
 ```
 
 ```text
-[0]
+{0}
 ```
 
 ```hql

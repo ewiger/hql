@@ -86,6 +86,12 @@ A `Graph` defaults to `adjacency` in `Text`, `node-link` in `Json`, `d2` in
 written in `Text` and `Markdown` as its own rendering, in `Json` and `Yaml` as
 its data, and in `Csv` as rows.
 
+A value's own rendering in `Text` is the literal that writes it, with one
+exception: a string standing alone is written bare. Inside a collection a
+string keeps its quotes, a list is written in square brackets, and a set in
+braces — `{"novel", "essay"}`, or `Set<Int>([])` when it is empty, since `{}`
+is an empty record.
+
 A vault chooses a renderer per type and format in `hql.toml`; a value whose
 type has no entry takes the entry of its nearest supertype, then the default:
 

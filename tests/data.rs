@@ -122,7 +122,7 @@ fn a_tree_beside_leaves_makes_a_sequence_of_trees() {
     assert_eq!(check(source), Ok(TypeRef::list(TypeRef::DATA)));
     assert_eq!(
         eval(source).unwrap().to_string(),
-        "[{species: \"owl\"}, owl, 3]"
+        "[{species: \"owl\"}, \"owl\", 3]"
     );
 }
 
@@ -190,7 +190,7 @@ fn a_list_checked_through_a_view_also_evaluates() {
     let source = "count : Scalar = 3\ntree : Data = [\"dusk\"]\n[count, \"owl\", true, tree]";
     assert_eq!(check(source), Ok(TypeRef::list(TypeRef::DATA)));
     let value = eval(source).expect("a checked program evaluates");
-    assert_eq!(value.to_string(), "[3, owl, true, [dusk]]");
+    assert_eq!(value.to_string(), "[3, \"owl\", true, [\"dusk\"]]");
     assert_eq!(value.type_of(), TypeRef::list(TypeRef::DATA));
 }
 
@@ -464,6 +464,6 @@ fn a_record_may_open_a_line_inside_a_list() {
     // A set still opens a line the same way.
     assert_eq!(
         hql::eval("[\n    {1, 2},\n]").unwrap().to_string(),
-        "[[1, 2]]"
+        "[{1, 2}]"
     );
 }

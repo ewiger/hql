@@ -3,7 +3,7 @@
 // implementation: implemented
 // environment: pure
 // expected-type: List<List<String>>
-// expected: [[european-robin], [common-raven], [barn-owl, barn-owl]]
+// expected: [["european-robin"], ["common-raven"], ["barn-owl", "barn-owl"]]
 
 groups = [
     ["barn-owl", "barn-owl"],

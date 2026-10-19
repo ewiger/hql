@@ -25,6 +25,10 @@ A REPL that works on a terminal, and the HQL book.
   as a set.
 - `format(…, limit = n)` ignored its limit over a sequence the vault produced,
   such as `cards | map(…)`.
+- A collection printed as text wrote its strings without quotes, so
+  `["a, b"]` read as two elements, and wrote a set in square brackets like a
+  list. A value now prints as the literal that writes it: `["a, b"]`,
+  `{1, 3, 2}`. Only a string standing alone prints bare.
 
 ### Added
 

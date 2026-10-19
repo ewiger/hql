@@ -21,7 +21,7 @@ expected type and result in a header, and the test suite runs every one.
 // implementation: implemented
 // vault: birds/wiki
 // expected-type: Seq<String>
-// expected: [Barn owl, Common raven, European robin]
+// expected: ["Barn owl", "Common raven", "European robin"]
 ```
 
 A header may instead say `status: proposed` with `implementation: pending` and

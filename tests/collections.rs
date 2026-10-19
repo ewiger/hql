@@ -58,7 +58,10 @@ fn a_set_can_be_sorted_by_an_inferred_key_or_comparison() {
             check(&source),
             Ok(TypeRef::list(TypeRef::list(TypeRef::STR)))
         );
-        assert_eq!(eval(&source).unwrap().to_string(), "[[robin], [owl, owl]]");
+        assert_eq!(
+            eval(&source).unwrap().to_string(),
+            "[[\"robin\"], [\"owl\", \"owl\"]]"
+        );
     }
 }
 
@@ -68,7 +71,7 @@ fn sorting_preserves_occurrences_and_equal_key_positions_in_a_list() {
                   groups | sort(by = group => size(group))";
     assert_eq!(
         eval(source).unwrap().to_string(),
-        "[[robin], [raven], [robin], [owl, owl]]"
+        "[[\"robin\"], [\"raven\"], [\"robin\"], [\"owl\", \"owl\"]]"
     );
 }
 
@@ -401,7 +404,7 @@ fn the_named_aggregations_equal_their_folds_even_over_nothing() {
 fn a_constructor_is_a_function_value_where_one_is_expected() {
     assert_eq!(
         hql::eval("[ [1, 1], [2] ] | map(Set)").unwrap().to_string(),
-        "[[1], [2]]"
+        "[{1}, {2}]"
     );
     assert_eq!(
         hql::check("[ [1, 1], [2] ] | map(Set)")

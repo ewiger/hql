@@ -85,7 +85,7 @@ shelf
 ```
 
 ```text
-[Frankenstein, Leaves of Grass, The Common Reader]
+["Frankenstein", "Leaves of Grass", "The Common Reader"]
 ```
 
 <!-- run: with shelf,views -->
@@ -110,7 +110,7 @@ shelf | map(b => b.genre) | Set
 ```
 
 ```text
-["novel", "poetry", "essay"]
+{"novel", "poetry", "essay"}
 ```
 
 ## Aggregates
@@ -156,7 +156,7 @@ shelf
 ```
 
 ```text
-[{books: 4, genre: "novel", pages: 1196}, {books: 1, genre: "poetry", pages: 145}, {books: 2, genre: "essay", pages: 416}]
+{{books: 4, genre: "novel", pages: 1196}, {books: 1, genre: "poetry", pages: 145}, {books: 2, genre: "essay", pages: 416}}
 ```
 
 `HAVING` is a `filter` after the `group`:
@@ -170,7 +170,7 @@ shelf
 ```
 
 ```text
-["Virginia Woolf"]
+{"Virginia Woolf"}
 ```
 
 ## Several answers in one pass

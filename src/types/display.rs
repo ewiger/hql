@@ -119,7 +119,7 @@ impl fmt::Display for Value {
                     if index > 0 {
                         f.write_str(", ")?;
                     }
-                    write!(f, "{key}: {value}")?;
+                    write!(f, "{}: {}", Nested(key), Nested(value))?;
                 }
                 f.write_str("}")
             }
@@ -140,13 +140,10 @@ impl fmt::Display for Value {
                 graph.nodes.len(),
                 graph.induced().len()
             ),
-            Self::Set(values, _) | Self::List(values, _) => {
-                let rendered: Vec<String> = values
-                    .iter()
-                    .map(std::string::ToString::to_string)
-                    .collect();
-                write!(f, "[{}]", rendered.join(", "))
-            }
+            // `{}` is an empty record, so an empty set names its type.
+            Self::Set(values, element) if values.is_empty() => write!(f, "Set<{element}>([])"),
+            Self::Set(values, _) => write!(f, "{{{}}}", nested(values)),
+            Self::List(values, _) => write!(f, "[{}]", nested(values)),
             Self::Hit(hit) => write!(f, "{} ({:.4})", hit.name(), hit.score),
             Self::Ranking(ranking) => {
                 let rendered: Vec<String> = ranking
@@ -162,15 +159,35 @@ impl fmt::Display for Value {
                 None => write!(f, "<function {}>", function.ty),
             },
             Self::Group(group) => {
-                let rendered: Vec<String> = group
-                    .items
-                    .iter()
-                    .map(std::string::ToString::to_string)
-                    .collect();
-                write!(f, "{}: [{}]", group.key, rendered.join(", "))
+                write!(f, "{}: [{}]", Nested(&group.key), nested(&group.items))
             }
         }
     }
+}
+
+/// A value inside a collection, printed as the literal that writes it: only a
+/// value standing alone prints a string bare, so `["a, b"]` stays one element.
+struct Nested<'a>(&'a Value);
+
+impl fmt::Display for Nested<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(settled) = self.0.settled() {
+            return Nested(&settled).fmt(f);
+        }
+        match self.0 {
+            Value::Str(text) => write!(f, "{text:?}"),
+            Value::Present(value) => Nested(value).fmt(f),
+            other => other.fmt(f),
+        }
+    }
+}
+
+fn nested(values: &[Value]) -> String {
+    values
+        .iter()
+        .map(|value| Nested(value).to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Render a value as a table, choosing columns by what the value is.

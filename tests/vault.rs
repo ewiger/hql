@@ -73,7 +73,7 @@ fn of_type_selects_the_kind_the_checker_established() {
     assert_eq!(text("cards | of_type(ConceptCard) | count"), "5");
     assert_eq!(
         text("cards | of_type(RelationCard) | map(c => c.name)"),
-        "[oauth-defines-bearer]"
+        "[\"oauth-defines-bearer\"]"
     );
 }
 
@@ -106,7 +106,7 @@ fn a_filtered_card_pipeline_needs_no_annotations_or_conversions() {
         text(&format!(
             "{binding}open | sort(by = c => c.title) | map(c => c.title)"
         )),
-        "[Bearer tokens, Session cookies]"
+        "[\"Bearer tokens\", \"Session cookies\"]"
     );
 }
 
@@ -116,11 +116,11 @@ fn a_prefix_comes_from_the_cards_own_order_not_the_order_they_were_found() {
     // reproducible without the vault's discovery order being observable.
     assert_eq!(
         text("cards | take(2) | map(c => c.name)"),
-        "[bearer-tokens, broken-relation]"
+        "[\"bearer-tokens\", \"broken-relation\"]"
     );
     assert_eq!(
         text("cards | sort(by = c => c.title) | take(1) | map(c => c.title)"),
-        "[A relation whose endpoints are missing]"
+        "[\"A relation whose endpoints are missing\"]"
     );
 }
 
@@ -144,7 +144,7 @@ fn uplinks_and_downlinks_traverse_one_edge_set_in_two_directions() {
     assert_eq!(text("[[bearer-tokens]] | downlinks | count"), "2");
     assert_eq!(
         text("[[http-headers]] | downlinks | map(e => e.source)"),
-        "[bearer-tokens]"
+        "[\"bearer-tokens\"]"
     );
 }
 
@@ -169,7 +169,7 @@ fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
         text(
             "import lexical\ncards | lexical(\"bearer token authorization\") | take(1) | map(h => h.value.name)"
         ),
-        "[oauth]"
+        "[\"oauth\"]"
     );
 }
 
@@ -353,7 +353,7 @@ fn scalar_operators_filter_cards() {
         text(
             "cards | filter(c => c.name < \"h\" and not c.name == \"broken-relation\") | map(c => c.name)"
         ),
-        "[bearer-tokens]"
+        "[\"bearer-tokens\"]"
     );
 }
 
@@ -372,11 +372,11 @@ fn cards_is_the_vaults_cards_in_the_order_a_sorted_walk_reaches_them() {
     // card inside `protocols/` comes between `oauth` and `sessions`.
     assert_eq!(
         text("cards | map(c => c.name)"),
-        "[bearer-tokens, broken-relation, oauth-defines-bearer, oauth, http-headers, sessions]"
+        "[\"bearer-tokens\", \"broken-relation\", \"oauth-defines-bearer\", \"oauth\", \"http-headers\", \"sessions\"]"
     );
     assert_eq!(
         text("vault.cards | take(2) | map(c => c.name)"),
-        "[bearer-tokens, broken-relation]"
+        "[\"bearer-tokens\", \"broken-relation\"]"
     );
     // `cards` is an ordinary binding: a program may shadow it.
     assert_eq!(text("cards = [1, 2]\ncards | sum"), "3");
@@ -413,7 +413,7 @@ fn a_graph_exposes_its_nodes_as_cards_and_its_edges_as_sets() {
     assert_eq!(text("g = cards | Graph\ng.nodes | size"), "5");
     assert_eq!(
         text("g = cards | Graph\ng.nodes | map(c => c.name) | sort"),
-        "[bearer-tokens, broken-relation, http-headers, oauth, sessions]"
+        "[\"bearer-tokens\", \"broken-relation\", \"http-headers\", \"oauth\", \"sessions\"]"
     );
 }
 
@@ -474,13 +474,13 @@ fn a_graph_is_built_from_cards_from_edges_or_from_both() {
     );
     assert_eq!(
         text("([[oauth]] | uplinks | Graph).nodes | map(c => c.name) | sort"),
-        "[bearer-tokens, oauth]"
+        "[\"bearer-tokens\", \"oauth\"]"
     );
     assert_eq!(
         text(
             "Graph(cards | filter(c => c.name == \"sessions\"), [[oauth]] | uplinks).nodes | map(c => c.name) | sort"
         ),
-        "[bearer-tokens, oauth, sessions]"
+        "[\"bearer-tokens\", \"oauth\", \"sessions\"]"
     );
     let wrong = hql::check_in("Graph(cards, [1])", &vault).expect_err("not edges");
     assert!(

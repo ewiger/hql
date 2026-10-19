@@ -357,6 +357,19 @@ fn the_repl_continues_a_pipeline_written_one_step_per_line() {
 }
 
 #[test]
+fn a_collection_prints_its_elements_as_literals() {
+    // Only a string standing alone prints bare; inside a collection it is quoted.
+    assert_eq!(stdout(&hql(&["eval", "\"a, b\""])), "a, b\n");
+    assert_eq!(
+        stdout(&hql(&["eval", "[\"foo \", \"a, b\"]"])),
+        "[\"foo \", \"a, b\"]\n"
+    );
+    assert_eq!(stdout(&hql(&["eval", "{1, 3, 2, 3}"])), "{1, 3, 2}\n");
+    // `{}` is an empty record, so an empty set names its type.
+    assert_eq!(stdout(&hql(&["eval", "Set<Int>([])"])), "Set<Int>([])\n");
+}
+
+#[test]
 fn the_repl_keeps_every_declaration_and_no_expression() {
     let session = "fn twice(n: Int) : Int = n * 2\ntop(n) := sort | take(n)\nxs : List<Int> = [3, 1, 2] | map(n => n)\nxs | top(2) | map(twice)\n";
     let output = piped(&["repl"], session);
