@@ -111,14 +111,6 @@ step can still read. A stream is written piece by piece as it arrives.
 writes each answer in its place; cells share values by name, and every saved
 answer records the code that produced it.
 
-## Status
-
-The language is still being designed, and this documentation describes the
-part the binary implements. A program that uses language the binary does not
-have fails to check rather than running wrong. Record values, joins, sources
-beyond the vault and pluggable execution backends are what comes next; the
-[roadmap](roadmap.md) keeps that list.
-
 ## Where to go next
 
 [Install](install.md) the binary, then read [the HQL book](learn/index.md): it
