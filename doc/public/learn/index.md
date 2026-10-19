@@ -1,14 +1,18 @@
 # Learn HQL
 
 This is a book about HQL, read from the first page to the last. It starts with
-a number and ends with a document that computes itself, and every chapter
-builds on the ones before it. Every program in it runs with the current
-release, and prints what the book shows.
+a number and ends with an agent whose run is a value, and every chapter builds
+on the ones before it. Every program in it prints what the book shows.
+Chapters 1 to 12 run with the current release; chapters 13 to 15 cover the
+`io`, `logging` and `ai` extensions, which ship in the next one.
 
-HQL is a statically typed expression and query language. A program is checked
-before it runs, and values flow through pipelines of typed steps: over records
-and lists, as `jq` works over JSON; over tables, as SQL does; and over a vault
-of Markdown documents, their links and their meaning.
+HQL is a statically typed language for querying, transforming, connecting and
+computing over data, knowledge and AI workflows. A program is checked before it
+runs, and values flow through pipelines of typed steps: over records and lists,
+as `jq` works over JSON; over tables, as SQL does; over files, standard input
+and streams that do not end; over a vault of Markdown documents, their links
+and their meaning; and through the context, prompts and runs of a language
+model.
 
 ## Following along
 
@@ -50,3 +54,9 @@ and one claim about which book inspired which.
     from them.
 12. [Working with `hql`](12-working-with-hql.md) — the commands, the reports,
     and what to do when something is wrong.
+13. [Reading and writing data](13-reading-and-writing.md) — endpoints,
+    `source`, `tap`, `target` and `sink`, and `hql` as a command-line data tool.
+14. [Channels and logs](14-channels-and-logs.md) — values passed through
+    channels, and structured logging.
+15. [Agents and runs](15-agents-and-runs.md) — agents as cards, context and
+    prompts, tools, and runs kept as values.
