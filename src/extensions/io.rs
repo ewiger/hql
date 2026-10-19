@@ -58,7 +58,7 @@ pub(crate) static STEPS: &[Operation] = &[
         summary: "The file at a path, as an endpoint: read whole, written by replacing it; \
                   its `.end` is appended to and followed.",
         purity: Purity::Pure,
-        check: None,
+        check: Some(check_file),
         eval: eval_file,
     },
     Operation {
@@ -342,6 +342,23 @@ fn check_sink(
     Ok(())
 }
 
+fn url_refused(path: &str) -> String {
+    format!("{path:?} is a URL, not a file; a network resource is read with `http`")
+}
+
+fn check_file(
+    _: &mut dyn CheckCx,
+    call: &CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    match call.input_expr.map(|input| &input.kind) {
+        Some(Kind::Str(path)) if path.contains("://") => {
+            Err(Diagnostic::typing(span, url_refused(path)))
+        }
+        _ => Ok(()),
+    }
+}
+
 fn eval_file(
     _: &mut dyn EvalCx,
     input: Value,
@@ -352,10 +369,7 @@ fn eval_file(
         return Err(Diagnostic::runtime(span, "`file` takes a path"));
     };
     if path.contains("://") {
-        return Err(Diagnostic::runtime(
-            span,
-            format!("{path:?} is a URL, not a file; a network resource is read with `http`"),
-        ));
+        return Err(Diagnostic::runtime(span, url_refused(&path)));
     }
     Ok(Value::Endpoint(Arc::new(Endpoint::File(PathBuf::from(
         path.as_ref(),
@@ -405,12 +419,16 @@ fn eval_source(
     let element =
         io::document_type(format).map_err(|message| Diagnostic::runtime(span.clone(), message))?;
     match endpoint.as_ref() {
-        Endpoint::File(_) => {
+        Endpoint::File(_) | Endpoint::Http { .. } => {
             let values = io::read_all(&endpoint, format)
                 .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
             Ok(Value::Traversal(Arc::new(Traversal::kept(element, values))))
         }
-        Endpoint::Stdin => Ok(live(Reading::stdin(format), element, span)),
+        Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) => {
+            let reading = Reading::live(&endpoint, format)
+                .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+            Ok(live(reading, element, span))
+        }
         other => Err(Diagnostic::runtime(
             span,
             format!("{} is not read by `source`", other.describe()),
@@ -436,7 +454,15 @@ fn eval_tap(
     let element =
         io::document_type(format).map_err(|message| Diagnostic::runtime(span.clone(), message))?;
     let reading = match endpoint.as_ref() {
-        Endpoint::Stdin => Reading::stdin(format),
+        Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) => {
+            Reading::live(&endpoint, format)
+                .map_err(|message| Diagnostic::runtime(span.clone(), message))?
+        }
+        Endpoint::Http { url, headers, .. } => Reading::Http {
+            url: url.clone(),
+            headers: headers.clone(),
+            format,
+        },
         Endpoint::File(path) => Reading::File {
             path: path.clone(),
             format,

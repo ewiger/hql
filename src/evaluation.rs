@@ -589,6 +589,25 @@ impl Evaluator<'_> {
                 (Field::End, crate::io::Endpoint::File(path)) => Ok(Value::Endpoint(Arc::new(
                     crate::io::Endpoint::FileEnd(path.clone()),
                 ))),
+                (
+                    Field::Url,
+                    crate::io::Endpoint::Http { url, .. } | crate::io::Endpoint::WebSocket(url),
+                ) => Ok(text(url)),
+                (Field::Method, crate::io::Endpoint::Http { method, .. }) => Ok(text(method)),
+                (Field::Headers, crate::io::Endpoint::Http { headers, .. }) => {
+                    Ok(Value::Data(Arc::new(crate::data::Data::Map(
+                        headers
+                            .iter()
+                            .map(|(name, value)| {
+                                (name.clone(), crate::data::Data::Str(value.clone()))
+                            })
+                            .collect(),
+                    ))))
+                }
+                (Field::Host, crate::io::Endpoint::Socket(host, _)) => Ok(text(host)),
+                (Field::Port, crate::io::Endpoint::Socket(_, port)) => {
+                    Ok(Value::Int(i64::from(*port)))
+                }
                 _ => Err(missing()),
             },
             Value::Log(event) => match field {

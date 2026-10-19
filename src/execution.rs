@@ -199,6 +199,11 @@ pub(crate) enum Field {
     Logger,
     Message,
     Logs,
+    Url,
+    Method,
+    Headers,
+    Host,
+    Port,
 }
 
 impl Field {
@@ -236,6 +241,11 @@ impl Field {
             "logger" => Self::Logger,
             "message" => Self::Message,
             "logs" => Self::Logs,
+            "url" => Self::Url,
+            "method" => Self::Method,
+            "headers" => Self::Headers,
+            "host" => Self::Host,
+            "port" => Self::Port,
             _ => return None,
         })
     }

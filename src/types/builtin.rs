@@ -24,6 +24,7 @@ atoms! {
     ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
     FILE => "File", FILE_END => "FileEnd",
+    HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
     CELL => "Cell",
@@ -156,6 +157,22 @@ fn build() -> Result<TypeSystem, TypeError> {
             TypeRef::FILE,
             TypeKind::Concrete,
             &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
+        ),
+        // Transports: `std/io/net.hql`.
+        (
+            TypeRef::HTTP,
+            TypeKind::Concrete,
+            &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::WEB_SOCKET,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE, TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::SOCKET,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE, TypeRef::WRITABLE],
         ),
         // Logging: `std/io/logging.hql`. A level is a type, so a threshold is
         // passed as one and an event's level is tested with `is`.

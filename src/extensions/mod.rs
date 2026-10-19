@@ -24,6 +24,7 @@ pub(crate) mod graph;
 pub(crate) mod io;
 pub mod lexical;
 pub mod logging;
+pub mod net;
 pub mod semantic;
 pub mod spec;
 use spec::{CheckedCall, OperationSpec};
@@ -186,6 +187,13 @@ static LOGGING: Extension = Extension {
     metadata: None,
 };
 
+static NET: Extension = Extension {
+    name: "net",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: net::STEPS,
+    metadata: None,
+};
+
 static LEXICAL: Extension = Extension {
     name: "lexical",
     version: env!("CARGO_PKG_VERSION"),
@@ -206,8 +214,9 @@ static SEMANTIC: Extension = Extension {
 /// `hql builtins` whether or not the program has imported the extension that
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
-pub(crate) static REGISTERED: &[&Extension] =
-    &[&CORE, &GRAPH, &FORMAT, &IO, &LOGGING, &LEXICAL, &SEMANTIC];
+pub(crate) static REGISTERED: &[&Extension] = &[
+    &CORE, &GRAPH, &FORMAT, &IO, &NET, &LOGGING, &LEXICAL, &SEMANTIC,
+];
 
 impl Extension {
     /// The step of a name this extension provides.

@@ -21,6 +21,7 @@ mod execution;
 mod knowledge;
 mod lexer;
 pub mod naming;
+mod net;
 mod parser;
 
 pub mod builtins;

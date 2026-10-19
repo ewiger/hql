@@ -32,6 +32,20 @@ pub enum Endpoint {
     FileEnd(PathBuf),
     /// A channel: values of one type, held in memory for one execution scope.
     Channel(String, TypeRef),
+    /// An HTTP resource: read by a `GET` once per evaluation, written by one
+    /// request per document.
+    Http {
+        /// The resource.
+        url: String,
+        /// The method a write sends.
+        method: String,
+        /// Header names and their values, sent with every request.
+        headers: BTreeMap<String, String>,
+    },
+    /// A WebSocket connection: one document per message.
+    WebSocket(String),
+    /// A TCP connection, carrying documents as their format separates them.
+    Socket(String, u16),
 }
 
 impl Endpoint {
@@ -45,6 +59,9 @@ impl Endpoint {
             Self::File(_) => TypeRef::FILE,
             Self::FileEnd(_) => TypeRef::FILE_END,
             Self::Channel(_, element) => crate::types::builtin::CHANNEL.apply([element.clone()]),
+            Self::Http { .. } => TypeRef::HTTP,
+            Self::WebSocket(_) => TypeRef::WEB_SOCKET,
+            Self::Socket(..) => TypeRef::SOCKET,
         }
     }
 
@@ -66,6 +83,8 @@ impl Endpoint {
             Self::Stderr => "<stderr>".to_owned(),
             Self::File(path) | Self::FileEnd(path) => path.display().to_string(),
             Self::Channel(name, _) => format!("channel {name:?}"),
+            Self::Http { url, .. } | Self::WebSocket(url) => url.clone(),
+            Self::Socket(host, port) => format!("{host}:{port}"),
         }
     }
 }
@@ -80,6 +99,26 @@ impl fmt::Display for Endpoint {
             Self::File(path) => write!(f, "file({:?})", path.display().to_string()),
             Self::FileEnd(path) => write!(f, "file({:?}).end", path.display().to_string()),
             Self::Channel(name, element) => write!(f, "Channel<{element}>({name:?})"),
+            Self::Http {
+                url,
+                method,
+                headers,
+            } => {
+                write!(f, "http({url:?}")?;
+                if method != "GET" {
+                    write!(f, ", method = {method:?}")?;
+                }
+                if !headers.is_empty() {
+                    let entries: Vec<String> = headers
+                        .iter()
+                        .map(|(name, value)| format!("{name:?}: {value:?}"))
+                        .collect();
+                    write!(f, ", headers = {{{}}}", entries.join(", "))?;
+                }
+                f.write_str(")")
+            }
+            Self::WebSocket(url) => write!(f, "websocket({url:?})"),
+            Self::Socket(host, port) => write!(f, "socket({host:?}, {port})"),
         }
     }
 }
@@ -114,6 +153,8 @@ struct Host {
     channels: BTreeMap<String, (TypeRef, Vec<Value>)>,
     /// Every logger's threshold, when the host overrides it.
     log_level: Option<String>,
+    /// Each HTTP body read this evaluation, by URL: a resource is fetched once.
+    fetched: HashMap<String, Arc<Vec<u8>>>,
 }
 
 thread_local! {
@@ -123,6 +164,7 @@ thread_local! {
         written: HashMap::new(),
         channels: BTreeMap::new(),
         log_level: None,
+        fetched: HashMap::new(),
     });
 }
 
@@ -161,6 +203,7 @@ pub(crate) fn begin() {
         let mut host = host.borrow_mut();
         host.written.clear();
         host.channels.clear();
+        host.fetched.clear();
     });
 }
 
@@ -491,12 +534,103 @@ fn whole(text: &str, format: TypeConstructor) -> Result<Vec<Result<Value, String
 /// # Errors
 /// Names the file, and the place in it, when it cannot be read or decoded.
 pub(crate) fn read_all(endpoint: &Endpoint, format: TypeConstructor) -> Result<Vec<Value>, String> {
-    let Endpoint::File(path) = endpoint else {
-        return Err(format!("{} is not read as a whole", endpoint.describe()));
-    };
-    let full = readable(path)?;
-    let file = fs::File::open(&full).map_err(|error| format!("{}: {error}", path.display()))?;
-    pieces(Box::new(file), format, path.display().to_string()).collect()
+    match endpoint {
+        Endpoint::File(path) => {
+            let full = readable(path)?;
+            let file =
+                fs::File::open(&full).map_err(|error| format!("{}: {error}", path.display()))?;
+            pieces(Box::new(file), format, path.display().to_string()).collect()
+        }
+        Endpoint::Http { url, headers, .. } => {
+            let body = fetched(url, headers)?;
+            pieces(
+                Box::new(std::io::Cursor::new(body.as_ref().clone())),
+                format,
+                url.clone(),
+            )
+            .collect()
+        }
+        other => Err(format!("{} is not read as a whole", other.describe())),
+    }
+}
+
+/// The body of an HTTP resource, fetched once per evaluation.
+fn fetched(url: &str, headers: &BTreeMap<String, String>) -> Result<Arc<Vec<u8>>, String> {
+    if let Policy::Document { .. } = policy() {
+        return Err(format!("{url}: a document reads nothing from the network"));
+    }
+    if let Some(body) = HOST.with(|host| host.borrow().fetched.get(url).cloned()) {
+        return Ok(body);
+    }
+    let body = Arc::new(crate::net::fetch(url, headers)?);
+    HOST.with(|host| {
+        host.borrow_mut()
+            .fetched
+            .insert(url.to_owned(), Arc::clone(&body));
+    });
+    Ok(body)
+}
+
+/// A connection not yet made.
+type Connect = Box<dyn FnOnce() -> Result<Box<dyn Read + Send>, String> + Send>;
+
+/// A reader that connects when it is first read, so a stream that is never
+/// traversed opens nothing.
+struct Lazy {
+    connect: Option<Connect>,
+    inner: Option<Box<dyn Read + Send>>,
+}
+
+impl Read for Lazy {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        if let Some(connect) = self.connect.take() {
+            self.inner = Some(connect().map_err(std::io::Error::other)?);
+        }
+        match self.inner.as_mut() {
+            Some(inner) => inner.read(buffer),
+            None => Ok(0),
+        }
+    }
+}
+
+/// The messages of a WebSocket, each decoded as the documents it holds.
+fn messages(url: String, format: TypeConstructor) -> Pieces {
+    let mut connection: Option<crate::net::Connection> = None;
+    let mut ready: std::collections::VecDeque<Result<Value, String>> =
+        std::collections::VecDeque::new();
+    let mut ended = false;
+    Box::new(std::iter::from_fn(move || {
+        loop {
+            if let Some(document) = ready.pop_front() {
+                return Some(document);
+            }
+            if ended {
+                return None;
+            }
+            if connection.is_none() {
+                match crate::net::websocket(&url) {
+                    Ok(opened) => connection = Some(opened),
+                    Err(error) => {
+                        ended = true;
+                        return Some(Err(error));
+                    }
+                }
+            }
+            let open = connection.as_mut()?;
+            match crate::net::message(open, &url) {
+                None => ended = true,
+                Some(Err(error)) => {
+                    ended = true;
+                    return Some(Err(error));
+                }
+                Some(Ok(text)) => ready.extend(pieces(
+                    Box::new(std::io::Cursor::new(text.into_bytes())),
+                    format,
+                    url.clone(),
+                )),
+            }
+        }
+    }))
 }
 
 /// Where a stream of documents comes from.
@@ -517,6 +651,12 @@ pub(crate) enum Reading {
     },
     /// A channel's values written from a position on.
     Channel { name: String, from: usize },
+    /// An HTTP resource's body, fetched once and read one document at a time.
+    Http {
+        url: String,
+        headers: BTreeMap<String, String>,
+        format: TypeConstructor,
+    },
 }
 
 /// What standard input has given so far.
@@ -536,6 +676,7 @@ impl fmt::Debug for Reading {
                 write!(f, "Reading::Follow({}, {})", path.display(), format.0)
             }
             Self::Channel { name, from } => write!(f, "Reading::Channel({name:?}, {from})"),
+            Self::Http { url, format, .. } => write!(f, "Reading::Http({url}, {})", format.0),
         }
     }
 }
@@ -543,13 +684,51 @@ impl fmt::Debug for Reading {
 impl Reading {
     /// Standard input in a format, read when a traversal first asks.
     pub(crate) fn stdin(format: TypeConstructor) -> Self {
+        Self::shared(pieces(
+            Box::new(std::io::stdin()),
+            format,
+            "<stdin>".to_owned(),
+        ))
+    }
+
+    /// A live endpoint other than standard input, connected when a traversal
+    /// first asks, and read once however often the stream is traversed.
+    ///
+    /// # Errors
+    /// Names an endpoint that is not live.
+    pub(crate) fn live(endpoint: &Endpoint, format: TypeConstructor) -> Result<Self, String> {
+        if let Policy::Document { .. } = policy() {
+            return Err(format!(
+                "{}: a document reads nothing from the network",
+                endpoint.describe()
+            ));
+        }
+        match endpoint {
+            Endpoint::Stdin => Ok(Self::stdin(format)),
+            Endpoint::Socket(host, port) => {
+                let (host, port) = (host.clone(), *port);
+                let reader = Lazy {
+                    connect: Some(Box::new(move || {
+                        crate::net::socket(&host, port)
+                            .map(|stream| Box::new(stream) as Box<dyn Read + Send>)
+                    })),
+                    inner: None,
+                };
+                Ok(Self::shared(pieces(
+                    Box::new(reader),
+                    format,
+                    endpoint.describe(),
+                )))
+            }
+            Endpoint::WebSocket(url) => Ok(Self::shared(messages(url.clone(), format))),
+            other => Err(format!("{} is not read as it arrives", other.describe())),
+        }
+    }
+
+    fn shared(rest: Pieces) -> Self {
         Self::Shared(Mutex::new(Shared {
             seen: Vec::new(),
-            rest: Some(pieces(
-                Box::new(std::io::stdin()),
-                format,
-                "<stdin>".to_owned(),
-            )),
+            rest: Some(rest),
         }))
     }
 
@@ -609,6 +788,20 @@ impl Reading {
                 Ok(true)
             }
             Self::Follow { path, format } => follow(path, *format, sink, failed),
+            Self::Http {
+                url,
+                headers,
+                format,
+            } => {
+                let body = fetched(url, headers).map_err(&failed)?;
+                let reader = std::io::Cursor::new(body.as_ref().clone());
+                for document in pieces(Box::new(reader), *format, url.clone()) {
+                    if !sink(document.map_err(&failed)?)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
             // The scope runs one evaluation at a time, so what has not been
             // written when the reader catches up is not written while it waits.
             Self::Channel { name, from } => {
@@ -760,6 +953,16 @@ pub(crate) enum Destination {
     File(fs::File),
     /// A channel takes values, not text.
     Channel(String),
+    /// One request per document.
+    Http {
+        url: String,
+        method: String,
+        headers: BTreeMap<String, String>,
+    },
+    /// One line per document, as the format separates them.
+    Socket(std::net::TcpStream),
+    /// One message per document.
+    WebSocket(String, Box<crate::net::Connection>),
 }
 
 impl Destination {
@@ -790,6 +993,25 @@ impl Destination {
                     .map_err(|error| format!("{}: {error}", path.display()))?;
                 Ok((Self::File(file), false))
             }
+            Endpoint::Http {
+                url,
+                method,
+                headers,
+            } => Ok((
+                Self::Http {
+                    url: url.clone(),
+                    method: method.clone(),
+                    headers: headers.clone(),
+                },
+                false,
+            )),
+            Endpoint::Socket(host, port) => {
+                Ok((Self::Socket(crate::net::socket(host, *port)?), false))
+            }
+            Endpoint::WebSocket(url) => Ok((
+                Self::WebSocket(url.clone(), Box::new(crate::net::websocket(url)?)),
+                false,
+            )),
             Endpoint::FileEnd(path) => {
                 let full = record(path, Written::Appended)?;
                 let file = fs::OpenOptions::new()
@@ -821,6 +1043,13 @@ impl Destination {
             Self::Channel(name) => {
                 return Err(format!("the channel {name:?} takes values, not text"));
             }
+            Self::Http {
+                url,
+                method,
+                headers,
+            } => return crate::net::send(url, method, headers, text),
+            Self::Socket(stream) => return crate::net::line(stream, text),
+            Self::WebSocket(url, connection) => return crate::net::post(connection, url, text),
         };
         result.map_err(|error| error.to_string())
     }

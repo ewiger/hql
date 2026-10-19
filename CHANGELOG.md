@@ -30,6 +30,14 @@ The language continues to be in active development.
   `--log-level` overrides every threshold. A level is a type, tested with
   `e.level | is(Error)`. `hql render` binds `cell.logs`, a cell's own channel,
   and never saves it into the document.
+- Network endpoints, with `import net`: `http(url, method = …, headers =
+  …)`, `websocket(url)` and `socket(host, port)`. `source` over `http` sends
+  one `GET` per evaluation and reads the body as a `Seq`; a write sends one
+  request per document and fails on a status that is not a success, naming
+  the URL. A WebSocket message is one document, and a socket's documents are
+  separated as their format separates them. `hql render` refuses every
+  network endpoint at check time, and `file("https://…")` is refused, naming
+  `http`.
 - Indexing: `xs[i]` reads position `i` of a sequence, counting from `0`, as
   an `Option`; past either end it is `none`. A `Data` tree that is a sequence
   is indexed too, and a `Set`, a `Map` or an unbounded stream is refused.
