@@ -52,9 +52,8 @@ pub struct Options {
     #[arg(long, global = true, value_enum, default_value_t = Shape::Text)]
     pub envelope: Shape,
     /// The presentation format a result is written in when the program did
-    /// not format it: `hql` (the default for `eval` and the REPL), `text`
-    /// (for `run`), `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2` or
-    /// `mermaid`; `none` evaluates and writes no value.
+    /// not format it: `hql` (the default), `text`, `markdown`, `hmd`, `json`,
+    /// `yaml`, `csv`, `d2` or `mermaid`; `none` evaluates and writes no value.
     #[arg(long, global = true, value_name = "FORMAT")]
     pub to: Option<String>,
     /// When to stop: `strict` at the first error, `collect` to report them all.
@@ -276,7 +275,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                 &outcome,
                 &source,
                 &origin,
-                TEXT,
+                HQL,
                 &cli.options,
                 &vault,
                 shown,
@@ -405,8 +404,8 @@ fn read(file: &str) -> Result<(String, String), String> {
 }
 
 /// The format a result is written in when neither the program nor `--to`
-/// chose one: HQL literals where a person writes HQL back, `eval` and the
-/// REPL, and plain text for a program file.
+/// chose one: HQL literals for a value, plain text for what `check` writes,
+/// a type.
 const HQL: TypeConstructor = TypeConstructor("Hql");
 const TEXT: TypeConstructor = TypeConstructor("Text");
 

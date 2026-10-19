@@ -109,10 +109,10 @@ type error: no renderer writes Int as D2
 
 ## Choosing the format from outside
 
-A program that does not format its result is written as HQL by `hql eval` and
-the REPL — the literal you would type to get the value back, a string in quotes
-— and as plain text by `hql run`, where a string stands bare. `--to` names
-another format without changing the program:
+A program that does not format its result is written as HQL — the literal you
+would type to get the value back, a string in quotes. `--to text` writes a
+string bare instead, and `--to` names any other format without changing the
+program:
 
 <!-- run: --vault examples/tutorial --to markdown -->
 ```hql
@@ -143,8 +143,7 @@ cards | filter(c => c.metadata.status == "todo") | size
 ```
 
 The order is fixed: a `format` step in the program wins, then `--to`, then the
-host's own — Markdown for a document, HQL for `eval` and the REPL, plain text
-for `run`.
+host's own — Markdown for a document, HQL for a terminal.
 
 ## A vault chooses its renderers
 

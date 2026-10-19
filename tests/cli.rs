@@ -358,14 +358,14 @@ fn the_repl_continues_a_pipeline_written_one_step_per_line() {
 
 #[test]
 fn a_collection_prints_its_elements_as_literals() {
-    // `eval` writes HQL, so even a string standing alone is quoted; as text
-    // it prints bare, and inside a collection it is quoted there too.
+    // A result is written as HQL, so even a string standing alone is quoted;
+    // as text it prints bare, and inside a collection it is quoted there too.
     assert_eq!(stdout(&hql(&["eval", "\"a, b\""])), "\"a, b\"\n");
+    assert_eq!(stdout(&piped(&["run", "-"], "\"a, b\"\n")), "\"a, b\"\n");
     assert_eq!(
         stdout(&hql(&["--to", "text", "eval", "\"a, b\""])),
         "a, b\n"
     );
-    assert_eq!(stdout(&piped(&["run", "-"], "\"a, b\"\n")), "a, b\n");
     assert_eq!(
         stdout(&hql(&["eval", "[\"foo \", \"a, b\"]"])),
         "[\"foo \", \"a, b\"]\n"

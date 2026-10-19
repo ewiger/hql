@@ -8,6 +8,12 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Changed
+
+- `hql run` writes an unformatted result as `Hql` too, so every command that
+  evaluates writes the same text for the same value. `--to text` gives a bare
+  string.
+
 ## [0.4.2] — 2026-10-19
 
 HQL output that reads back as HQL, and a build floor that holds.
