@@ -8,6 +8,53 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-19
+
+Generic functions and aliases, the reduction vocabulary, graph
+construction, a naming lint, and the open ends of the proposals.
+
+### Changed — breaking
+
+- A `fn` or alias named in `UpperCamelCase` is refused: that casing names a
+  type's constructor, which only the module declaring the type provides.
+- `graph` is bound to the vault's graph, `vault.graph`, beside `cards`.
+- The grammar notation in the expressions model is `::=`, since `:=` is now
+  HQL syntax.
+
+### Added
+
+- **Generic functions.** `fn first<T>(xs: List<T>) : Option<T>`; inside the
+  body `T` is a type of its own, and `T : Orderable` lets the body order. Each
+  call binds `T` from its arguments and checks the bound, naming the parameter.
+- **Aliases.** `name(p, ..) := body` defines a function whose types the
+  checker writes: a fragment body takes the most general input it accepts, a
+  parameter the type of the step argument it fills. `hql check` prints each
+  signature.
+- **Combiners and aggregations.** `min(a, b)`, `max(a, b)`, `merge`, `union`
+  and `concat`; `reduce(0, +)`, `reduce(max)` and `reduce({}, merge)`, a fold
+  whose combiner ignores order accepting any collection; `product`, `average`,
+  `merge_all`, `union_all` and `concat_all`.
+- **Graph construction.** `Graph(edges)` and `Graph(nodes, edges)`; a vault's
+  `name`, `root` and `graph`.
+- **Constructors as values.** `groups | map(Set)`.
+- **Check-time warnings and the naming lint.** A name off its kind's casing is
+  a warning at the name; a type test that always holds is a warning.
+- **Type interpretation.** `is(List)` over a bare constructor; `filter` over an
+  `Option`, narrowing it; a refused annotation names `of_type`, the constructor
+  or `sort`.
+- **Diagnostics.** A whole-input step over a stream names `take(n)` and
+  `collect(n)`; `collect(for = …)` says time windows are not implemented; an
+  unknown renderer is refused before the program runs; a bare `vault`, `cards`
+  or `graph` without a vault names `--vault`.
+
+### Fixed
+
+- `[] | sum` is the `Int` `0`.
+- A type parameter first bound narrower, as by an empty list in
+  `reduce([], concat)`, widens to what it meets later.
+- A comparison with `Never`, the element of nothing, checks against any
+  orderable side, so `none | filter(x => x > 0)` checks.
+
 ## [0.3.0] — 2026-10-19
 
 Cells: the HQL blocks of a document share values by id and run in dependency
@@ -210,7 +257,8 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ewiger/hql/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ewiger/hql/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ewiger/hql/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ewiger/hql/releases/tag/v0.1.0

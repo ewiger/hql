@@ -1,6 +1,6 @@
 [package]
 name = "hql"
-version = "0.3.0"
+version = "0.4.0"
 description = "HQL — Hyper Query Language: a typed functional language for structured knowledge"
 license = "MIT"
 edition = "2024"
