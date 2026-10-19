@@ -8,6 +8,24 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-10-19
+
+A REPL that works on a terminal, and the HQL book.
+
+### Fixed
+
+- **The REPL.** A terminal session edits the line and recalls earlier inputs
+  with the arrow keys, from a history kept in `~/.hql_history`. An input goes
+  on over several lines while a bracket is open, or while the next line opens
+  with `|`, so a multi-line literal or a pipeline written one step per line
+  runs as one input, typed or piped. Ctrl-C abandons the input being typed;
+  Ctrl-D leaves. A session keeps every declaration — a binding with a lambda in
+  it, an annotated binding, `fn`, an alias — where it used to drop some.
+- A record literal opening a line inside a list, `[\n {title: …}]`, was read
+  as a set.
+- `format(…, limit = n)` ignored its limit over a sequence the vault produced,
+  such as `cards | map(…)`.
+
 ### Added
 
 - **The HQL book.** `doc/public/learn/` teaches the whole language in twelve
@@ -16,13 +34,6 @@ The language continues to be in active development.
   documents built from their cells. Every program in it runs against the new
   tutorial vault, `examples/tutorial/`, and `tests/tutorial.rs` checks that
   each writes what the book shows.
-
-### Fixed
-
-- A record literal opening a line inside a list, `[\n {title: …}]`, was read
-  as a set.
-- `format(…, limit = n)` ignored its limit over a sequence the vault produced,
-  such as `cards | map(…)`.
 
 ## [0.4.0] — 2026-10-19
 
@@ -273,7 +284,8 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/ewiger/hql/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/ewiger/hql/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ewiger/hql/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ewiger/hql/compare/v0.1.0...v0.2.0
