@@ -230,10 +230,14 @@ The [extension's HQL cells](https://hypermarkdown.org/tools/vscode/) run
 
 - A setting, `hyperMarkdown.hql.ai`, MUST pass `--ai` through, with the values
   `replay` (the default), `record`, `live` and `host`. The default keeps
-  **Run** what it is today: an action that never reaches a network.
-- A cell whose status is `pending` MUST be shown as waiting for an answer,
-  with the agent's name, and with an action that opens the chat and asks it to
-  answer the card's pending requests through the skill.
+  **Run** what it is today: an action that never reaches a network. `replay`
+  is `hql`'s own default and is not written, so an `hql` from before this
+  proposal keeps running cells.
+- A cell whose status is `pending` MUST be shown as waiting for an answer, and
+  **Run** MUST offer an action that hands the chat a request to answer the
+  card's pending requests through the skill. No documented interface lets one
+  extension post into another's chat, so the request is copied for the user to
+  paste.
 - A run that reaches a model is not a keystroke-time operation. The
   extension's 30-second ceiling MUST NOT apply under `record` or `live`, which
   MUST be cancellable instead. `host` returns as soon as every reachable cell
@@ -344,3 +348,6 @@ and any way for an outside process to reach an open panel.
   the `hmd-run` skill. Settled while building: a session id is a version 8
   UUID from the request's hash, `--text` answers in plain text, a query
   embedding is never pending, and workspace trust is the editor's to enforce
+- 2026-10-20: the extension side implemented in `hypermarkdown`, on its
+  `feat/ai-sessions` branch: the setting, the `pending` state in the core, the
+  preview and the lens, cancellable runs, and the request copied for the chat
