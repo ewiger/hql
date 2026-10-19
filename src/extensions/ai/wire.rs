@@ -289,11 +289,19 @@ fn session_reply(response: &J) -> Reply {
         Some("error_max_turns") => Stop::Turns,
         _ => Stop::End,
     };
-    // The models a session used are the keys of what it reports per model.
-    let model = response
-        .get("modelUsage")
-        .and_then(J::as_object)
-        .and_then(|models| models.keys().next().cloned())
+    // A session may use several models, a small one for its own chores. The
+    // one that answered is the one that wrote the most; every one is listed.
+    let used = response.get("modelUsage").and_then(J::as_object);
+    let model = used
+        .and_then(|models| {
+            models
+                .iter()
+                .max_by_key(|(_, usage)| usage.get("outputTokens").and_then(J::as_i64).unwrap_or(0))
+                .map(|(name, _)| name.clone())
+        })
+        .unwrap_or_default();
+    let models: Vec<&String> = used
+        .map(|models| models.keys().collect())
         .unwrap_or_default();
     Reply {
         text: string(response, "result"),
@@ -305,6 +313,7 @@ fn session_reply(response: &J) -> Reply {
             "session": response.get("session_id"),
             "cost_usd": response.get("total_cost_usd"),
             "turns": response.get("num_turns"),
+            "models": models,
         }),
     }
 }
@@ -404,6 +413,11 @@ mod tests {
             (read.stop, read.text.as_str(), read.model.as_str()),
             (Stop::End, "Owls.", "m-2")
         );
+        let session = json!({"subtype": "success", "result": "Owls.", "session_id": "s",
+            "modelUsage": {"helper": {"outputTokens": 12}, "main": {"outputTokens": 83}}});
+        let read = reply(Api::ClaudeCode, &session).unwrap();
+        assert_eq!((read.model.as_str(), read.text.as_str()), ("main", "Owls."));
+        assert_eq!(read.extra["models"], json!(["helper", "main"]));
         let refused = json!({"model": "m", "stop_reason": "refusal", "content": []});
         assert_eq!(reply(Api::Messages, &refused).unwrap().stop, Stop::Refused);
     }
