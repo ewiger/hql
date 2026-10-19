@@ -13,6 +13,11 @@
   retrieval, assembly, execution and observability.
 - [`std/ai/init.hql`](../../../std/ai/init.hql): the declarations this record
   specifies, written in HQL.
+- [`sessions.md`](sessions.md): agent sessions in the editor. It covers the
+  `claude-code` transport, which runs an agent through a headless Claude Code
+  session the user can open in the chat panel. It also covers the `--ai host`
+  mode, in which the agent the user is chatting with answers a document's
+  pending requests through a skill.
 
 ## Abstract
 
