@@ -1,0 +1,22 @@
+# The club's reading list
+
+Built from the vault with `hql --vault examples/tutorial render`.
+
+```hql id=books hidden
+cards | filter(c => c.metadata.category == "book")
+```
+
+## Still to read
+
+```hql id=todo
+books
+| filter(c => c.metadata.status == "todo")
+| sort(by = c => c.title)
+| map(c => c.title)
+```
+
+## How far along
+
+```hql
+{books: books | size, to_read: todo | size}
+```

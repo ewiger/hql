@@ -6,6 +6,9 @@
 **Hyper Query Language** — documentation at
 [hql.hypermarkdown.org](https://hql.hypermarkdown.org/)
 
+New to HQL? [The HQL book](https://hql.hypermarkdown.org/public/learn/) teaches
+the whole language, from a first value to documents that compute themselves.
+
 HQL is a statically typed expression and query language. A program is
 type-checked before it is evaluated. Values are transformed through pipelines
 of operations such as `filter`, `map`, `sort`, retrieval and graph traversal,

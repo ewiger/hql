@@ -46,12 +46,10 @@ that matched the query from a node that was reached by traversal.
 - **[Introduction](public/introduction.md)** — what HQL is, what it operates
   on, and what it does not do.
 - **[Install](public/install.md)** — a release binary or `cargo install hql`.
-- **[A tour of HQL](public/tour.md)** — values, collections, lambdas and
-  pipelines, one runnable program at a time.
-- **[Queries in documents](public/documents.md)** — a card that carries a query
-  and renders its own answer.
-- **[Retrieval and graphs](public/retrieval.md)** — `lexical`, `semantic`,
-  `expand`, and the presence each node stores.
+- **[Learn HQL](public/learn/index.md)** — the book: from a first value to
+  records and lists, SQL-style questions, a vault of documents, graphs,
+  retrieval, streams, and documents that compute themselves, one runnable
+  program at a time.
 - **[Reference](public/reference.md)** — the implemented grammar, the command
   line, and reporting.
 

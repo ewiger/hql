@@ -8,6 +8,22 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Added
+
+- **The HQL book.** `doc/public/learn/` teaches the whole language in twelve
+  chapters, from a first value through records and lists, SQL-style
+  questions, a vault of documents, graphs, retrieval, streams and formats, to
+  documents built from their cells. Every program in it runs against the new
+  tutorial vault, `examples/tutorial/`, and `tests/tutorial.rs` checks that
+  each writes what the book shows.
+
+### Fixed
+
+- A record literal opening a line inside a list, `[\n {title: …}]`, was read
+  as a set.
+- `format(…, limit = n)` ignored its limit over a sequence the vault produced,
+  such as `cards | map(…)`.
+
 ## [0.4.0] — 2026-10-19
 
 Generic functions and aliases, the reduction vocabulary, graph

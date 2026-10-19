@@ -47,4 +47,5 @@ Kafka, and REST APIs.
 
 ## Where to go next
 
-[Install](install.md) the binary, then take [the tour](tour.md).
+[Install](install.md) the binary, then read [the HQL book](learn/index.md),
+which teaches the whole language, chapter by chapter.
