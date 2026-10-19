@@ -239,6 +239,11 @@ vault:
 cards : Seq<Card>
 ```
 
+A `Vault` also holds `name`, its directory's name, `root`, where it is, and
+`graph`, every card as a node with the links among them; `graph = vault.graph`
+is a library binding beside `cards`. Without a vault, `vault`, `cards` and
+`graph` are unbound, and naming one says to pass `--vault`.
+
 This is a context value, not a function call and not a filesystem sweep written
 by the user. It has the same horizon a wikilink does: `cards` in one vault never
 contains a card from another.

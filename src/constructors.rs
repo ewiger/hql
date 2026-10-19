@@ -144,18 +144,37 @@ fn check_graph(
     args: &[Arg],
     span: Range<usize>,
 ) -> Result<TypeRef, Diagnostic> {
-    let [argument] = args else {
+    if args.iter().any(|argument| argument.name.is_some()) || args.is_empty() || args.len() > 2 {
         return Err(Diagnostic::typing(
             span,
-            "Graph expects one positional argument",
-        ));
-    };
-    if argument.name.is_some() {
-        return Err(Diagnostic::typing(
-            span,
-            "Graph expects one positional argument",
+            "Graph takes its nodes and edges, or one collection, by position",
         ));
     }
+    let edges_of = |ty: &TypeRef| {
+        ty.element()
+            .is_some_and(|element| element.is(&TypeRef::EDGE))
+    };
+    if let [nodes, edges] = args {
+        let nodes_type = cx.infer(&nodes.value)?;
+        let edges_type = cx.infer(&edges.value)?;
+        if !nodes_type
+            .element()
+            .is_some_and(|element| element.is(&TypeRef::CARD))
+        {
+            return Err(Diagnostic::typing(
+                nodes.value.span.clone(),
+                format!("a graph's nodes are cards, not {nodes_type}"),
+            ));
+        }
+        if !edges_of(&edges_type) {
+            return Err(Diagnostic::typing(
+                edges.value.span.clone(),
+                format!("a graph's edges are edges, not {edges_type}"),
+            ));
+        }
+        return Ok(TypeRef::GRAPH);
+    }
+    let argument = &args[0];
     // A link that may not resolve projects to the graph of what it reaches.
     let inferred = cx.infer(&argument.value)?;
     let input = inferred.present();
@@ -164,12 +183,16 @@ fn check_graph(
             || (ty.constructor.0 == "Hit"
                 && ty.args.first().is_some_and(|arg| arg.is(&TypeRef::DOC)))
     };
-    if input.is(&TypeRef::GRAPH) || card(input) || input.element().is_some_and(|ty| card(&ty)) {
+    if input.is(&TypeRef::GRAPH)
+        || card(input)
+        || input.element().is_some_and(|ty| card(&ty))
+        || edges_of(input)
+    {
         return Ok(TypeRef::GRAPH);
     }
     Err(Diagnostic::typing(
         argument.value.span.clone(),
-        format!("a Graph is projected from cards, hits or a graph, not {input}"),
+        format!("a Graph is projected from cards, hits, edges or a graph, not {input}"),
     ))
 }
 
@@ -197,6 +220,9 @@ pub(crate) fn evaluate(
         });
     }
     if constructor == GRAPH {
+        if let [nodes, edges] = inputs.as_slice() {
+            return crate::extensions::graph::from_edges(Some(nodes), edges, &span);
+        }
         let input = inputs
             .pop()
             .ok_or_else(|| Diagnostic::runtime(span.clone(), "Graph needs an argument"))?;

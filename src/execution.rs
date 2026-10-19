@@ -190,6 +190,8 @@ pub(crate) enum Field {
     GroupKey,
     Items,
     Cards,
+    Root,
+    Graph,
 }
 
 impl Field {
@@ -220,6 +222,8 @@ impl Field {
             "key" => Self::GroupKey,
             "items" => Self::Items,
             "cards" => Self::Cards,
+            "root" => Self::Root,
+            "graph" => Self::Graph,
             _ => return None,
         })
     }

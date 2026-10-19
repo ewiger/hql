@@ -139,6 +139,18 @@ An edge is directed — it has a source and a target — and `uplinks` and
 `downlinks` are the two directions of traversal over one edge set, not two edge
 sets. A node can be its own source and target. See [[doc-type]].
 
+A graph is built by its constructor ([HQL-0019](../../../proposals/HQL-0019/README.md)):
+
+- `Graph(cards)` projects cards, hits or a ranking: the cards as nodes and the
+  vault's links among them as edges.
+- `Graph(edges)`, or `[[oauth]] | uplinks | Graph`, is a graph from edges
+  alone: every edge's source and target are its nodes.
+- `Graph(nodes, edges)` takes both: its nodes are the given cards together with
+  every edge's endpoints.
+
+The vault's whole graph is `vault.graph`, and the standard library binds it as
+`graph = vault.graph`.
+
 A graph exposes its nodes and edges as sets:
 
 ```hql

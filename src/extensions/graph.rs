@@ -222,8 +222,46 @@ pub(crate) fn construct(
             BTreeMap::new(),
             Vec::new(),
         )))),
+        _ if input.elements().is_some_and(|edges| {
+            !edges.is_empty() && edges.iter().all(|edge| matches!(edge, Value::Edge(_)))
+        }) =>
+        {
+            from_edges(None, &input, span)
+        }
         _ => Ok(Value::Graph(Arc::new(project(vault, &input, span)?))),
     }
+}
+
+/// `Graph(nodes, edges)` and `Graph(edges)`: the nodes given, together with
+/// the source and target of every edge, and the edges as given.
+pub(crate) fn from_edges(
+    nodes: Option<&Value>,
+    edges: &Value,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let mut presence: BTreeMap<String, Presence> = BTreeMap::new();
+    if let Some(nodes) = nodes {
+        for node in nodes.elements().unwrap_or_default() {
+            let card = node
+                .as_card()
+                .ok_or_else(|| Diagnostic::typing(span.clone(), "a graph's nodes are cards"))?;
+            presence.insert(card.name().to_owned(), Presence::Member);
+        }
+    }
+    let mut kept = Vec::new();
+    for edge in edges.elements().unwrap_or_default() {
+        let Value::Edge(edge) = edge else {
+            return Err(Diagnostic::typing(
+                span.clone(),
+                "a graph's edges are edges",
+            ));
+        };
+        for end in [&edge.source, &edge.target] {
+            presence.entry(end.clone()).or_insert(Presence::Member);
+        }
+        kept.push(edge.as_ref().clone());
+    }
+    Ok(Value::Graph(Arc::new(Graph::new(presence, kept))))
 }
 
 /// Project a collection of cards into a graph, recording why each node is

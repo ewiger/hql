@@ -302,9 +302,6 @@ pub(crate) const CONSTRUCTED: &str = "%constructed";
 /// The current vault, seeded by the host.
 pub(crate) const VAULT: &str = "vault";
 
-/// The binding a vault seeds; a program may shadow it like any other.
-pub(crate) const CARDS: &str = "cards";
-
 struct Checker<'a> {
     vault: &'a Vault,
     scope: HashMap<String, TypeRef>,
@@ -1175,8 +1172,17 @@ impl Checker<'_> {
             Kind::Ident(name) => self.scope.get(name).cloned().ok_or_else(|| {
                 // Unbound only because no vault was given: say what to pass,
                 // rather than that the name does not exist.
-                if name == CARDS {
-                    Diagnostic::name(span, "`cards` needs a vault: pass --vault <directory>")
+                // `vault` and the library's bindings over it exist only when
+                // a vault is given.
+                if name == VAULT
+                    || crate::library::bindings()
+                        .iter()
+                        .any(|(bound, _)| bound == name)
+                {
+                    Diagnostic::name(
+                        span,
+                        format!("`{name}` needs a vault: pass --vault <directory>"),
+                    )
                 } else if builtins::exists(name) {
                     Diagnostic::typing(
                         span,

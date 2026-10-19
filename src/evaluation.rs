@@ -585,6 +585,28 @@ impl Evaluator<'_> {
                     true,
                     Source::Cards,
                 )))),
+                Field::Name => Ok(text(
+                    &self
+                        .vault
+                        .root
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                )),
+                Field::Root => Ok(text(&self.vault.root.display().to_string())),
+                Field::Graph => {
+                    let cards = self
+                        .vault
+                        .cards
+                        .iter()
+                        .map(|card| Value::Card(Arc::clone(card)))
+                        .collect();
+                    crate::extensions::graph::construct(
+                        self.vault,
+                        Value::list(cards, TypeRef::CARD),
+                        span,
+                    )
+                }
                 _ => Err(missing()),
             },
             Value::Ranking(ranking) => match field {

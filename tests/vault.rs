@@ -386,7 +386,7 @@ fn cards_is_the_vaults_cards_in_the_order_a_sorted_walk_reaches_them() {
 fn without_a_vault_there_is_no_vault_and_no_cards() {
     let failure = hql::check("vault.cards").expect_err("no vault");
     assert!(
-        failure.message().contains("`vault` is not bound"),
+        failure.message().contains("`vault` needs a vault"),
         "{}",
         failure.message()
     );
@@ -463,4 +463,37 @@ fn a_refused_annotation_says_what_to_write_instead() {
         "{}",
         narrower.message()
     );
+}
+
+#[test]
+fn a_graph_is_built_from_cards_from_edges_or_from_both() {
+    let vault = fixture();
+    assert_eq!(
+        hql::check_in("[[oauth]] | uplinks | Graph", &vault),
+        Ok(TypeRef::GRAPH)
+    );
+    assert_eq!(
+        text("([[oauth]] | uplinks | Graph).nodes | map(c => c.name) | sort"),
+        "[bearer-tokens, oauth]"
+    );
+    assert_eq!(
+        text(
+            "Graph(cards | filter(c => c.name == \"sessions\"), [[oauth]] | uplinks).nodes | map(c => c.name) | sort"
+        ),
+        "[bearer-tokens, oauth, sessions]"
+    );
+    let wrong = hql::check_in("Graph(cards, [1])", &vault).expect_err("not edges");
+    assert!(
+        wrong.message().contains("edges are edges"),
+        "{}",
+        wrong.message()
+    );
+}
+
+#[test]
+fn the_vault_is_a_value_with_its_name_its_root_and_its_graph() {
+    assert_eq!(text("vault.name"), "vault");
+    assert!(text("vault.root").ends_with("tests/fixtures/vault"));
+    assert_eq!(text("graph.nodes | size"), "5");
+    assert_eq!(text("vault.graph.edges | size"), text("graph.edges | size"));
 }

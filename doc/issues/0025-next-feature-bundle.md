@@ -66,8 +66,8 @@ nothing here restates it.
 - [x] 5. The reduction vocabulary (combiner properties in `hql builtins` and fold shapes wait on the planner, HQL-0004)
 - [x] 6. The open ends of type interpretation
 - [x] 7. Constructors as operations
-- [ ] 8. Graph construction
-- [ ] 9. The vault's fields
+- [x] 8. Graph construction
+- [x] 9. The vault's fields
 - [ ] 10. Small diagnostics
 - [ ] 11. The proposals state what is true
 
