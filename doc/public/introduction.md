@@ -113,6 +113,38 @@ answer records the code that produced it.
 
 ## Where to go next
 
-[Install](install.md) the binary, then read [the HQL book](learn/index.md): it
-starts from a number and ends with a document that builds itself, and every
-program in it runs as printed.
+- **Try it in five minutes.** [Install](install.md) the binary — one download,
+  or `cargo install hql` — clone the repository for the tutorial vault, and run
+  the reading-list program above:
+
+  ```sh
+  git clone https://github.com/ewiger/hql && cd hql
+  hql --vault examples/tutorial eval 'cards | filter(c => c.metadata.status == "todo") | map(c => c.title)'
+  ```
+
+  `hql repl` keeps a session open, with history and multi-line input, and
+  `hql builtins` lists every step with its signature.
+
+- **Learn the language.** [The HQL book](learn/index.md) is twelve chapters
+  read in order, from a first value to a document that builds itself. If you
+  know `jq`, start at [Data](learn/02-data.md); if you know SQL, at
+  [Asking questions](learn/05-questions.md); if you keep notes in a vault, at
+  [A vault of documents](learn/06-a-vault.md). Every program in it runs as
+  printed.
+
+- **Point it at your own notes.** A vault is any folder of Markdown or
+  HyperMarkDown files with a header of metadata and `[[links]]` between them;
+  `hql --vault <folder> eval 'cards | size'` is the first question to ask it.
+  [Queries inside documents](learn/11-documents.md) shows how to put the
+  answers back into the notes.
+
+- **Look something up.** The [reference](reference.md) states the grammar, the
+  commands and the reporting rules precisely, and the [examples](examples.md)
+  are small vaults with runnable queries, each pinned by a test.
+
+- **See what is coming.** The [roadmap](roadmap.md) lists what is next:
+  record values and joins, sources beyond the vault, execution backends.
+
+- **Build or contribute.** [Build and run](../DEVELOP.md) covers building from
+  a clone, the tests and the lints; the source is at
+  [github.com/ewiger/hql](https://github.com/ewiger/hql).
