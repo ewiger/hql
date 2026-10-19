@@ -17,8 +17,8 @@ not consulted to decide what the expression's type is, and a reference that does
 resolve has the same type as one that does not.
 
 ```hql
-alice   = [[alice]]      // Option<Card>
-nowhere = [[nowhere]]    // Option<Card>, and absent
+alice   = @[[alice]]     // Option<Card>
+nowhere = @[[nowhere]]   // Option<Card>, and absent
 ```
 
 Evaluating an unresolved reference yields absence and queues a warning; the exit
@@ -31,8 +31,8 @@ ordinary, which is why it is a warning rather than an error — see
 Absence lifts through a field access and through a step:
 
 ```hql
-[[nowhere]].title              // Option<String>
-[[nowhere]] | downlinks        // a step applied to nothing, not a failure
+@[[nowhere]].title             // Option<String>
+@[[nowhere]] | downlinks       // a step applied to nothing, not a failure
 ```
 
 A step applied to absence is a step applied to nothing rather than a failure.

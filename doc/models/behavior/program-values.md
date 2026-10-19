@@ -9,7 +9,7 @@ bindings retain values. A declaration yields a no-visible-result value, called
 Unit in the corpus; Unit versus Void spelling remains unresolved.
 
 ```hql
-alice : Doc = [[alice]]
+alice : Doc = @[[alice]]
 
 title : String = alice.title
 header = alice.header
@@ -19,8 +19,8 @@ alice.body
 
 The program result is the body value. It does not implicitly print title,
 header and body. Preferred typed and inferred bindings do not require `let`.
-The doc reference `[[alice]]`, expression ascription `[[alice]] : Doc` and typed
-binding `alice : Doc = [[alice]]` are distinct constructs.
+The doc reference `@[[alice]]`, expression ascription `@[[alice]] : Doc` and typed
+binding `alice : Doc = @[[alice]]` are distinct constructs.
 
 The execution context consumes the returned value. The standalone CLI currently
 chooses to print its one expression result. Future hosts can instead retain it,

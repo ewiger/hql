@@ -38,7 +38,7 @@ position.
 **The payload is [[data-type|Data]].** An edge carries a tree, and the keys in it
 are the author's. `relation: parent` is an entry, not grammar, which is what
 keeps every vocabulary a vault invents out of the language — see [[link-op]] for
-the `[[..]] -> [[..]] {..}` form that writes one.
+the `@[[..]] -> @[[..]] {..}` form that writes one.
 
 **Carrying data is not being typed.** An edge annotated `relation: parent` is not
 thereby a `Parent` edge. `of_type(RelationCard)` has to check a contract; a key in
@@ -74,7 +74,7 @@ That second parent is what makes the projection able to be lossless, and it is
 the case that forces the supertype set to be a real intersection rather than a
 list of parents — see [[type-system]].
 
-`[[alice]] -> [[project-x]]` is an edge in the first. `WorksOn(alice, project_x)`
+`@[[alice]] -> @[[project-x]]` is an edge in the first. `WorksOn(alice, project_x)`
 is an edge in the second. They render through the same machinery without being
 the same object, and that is the point of parameterizing `Graph` rather than
 declaring one graph type with a `kind` field. A document graph is discovered; a
@@ -143,7 +143,7 @@ A graph is built by its constructor ([HQL-0019](../../../proposals/HQL-0019/READ
 
 - `Graph(cards)` projects cards, hits or a ranking: the cards as nodes and the
   vault's links among them as edges.
-- `Graph(edges)`, or `[[oauth]] | uplinks | Graph`, is a graph from edges
+- `Graph(edges)`, or `@[[oauth]] | uplinks | Graph`, is a graph from edges
   alone: every edge's source and target are its nodes.
 - `Graph(nodes, edges)` takes both: its nodes are the given cards together with
   every edge's endpoints.

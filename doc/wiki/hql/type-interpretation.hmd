@@ -70,7 +70,7 @@ arm may name a type, and binds the value under that type. Over a `Data` tree
 the arm tests shape:
 
 ```hql
-match [[dune]].metadata {
+match @[[dune]].metadata {
     Book b => b.pages,
     _      => 0,
 }
@@ -80,7 +80,7 @@ Over a document it tests the header's shape, since that is what `Recipe` adds
 to `HmdDoc`:
 
 ```hql
-match [[bread]] {
+match @[[bread]] {
     Recipe r => r.header.servings,
     HmdDoc _ => 1,
 }
@@ -204,7 +204,7 @@ into an `Int` is parsing, not construction.
 A program may also state a type without asking:
 
 ```hql
-b : Book = [[dune]].metadata
+b : Book = @[[dune]].metadata
 ```
 
 This is not interpretation. It is a claim for the checker to prove from what it
@@ -237,7 +237,7 @@ A test that can never hold — `is(U)` where no value of the input type can be
 a `U` — is refused by the checker. A bare constructor is tested whatever its
 arguments are: `x | is(List)` holds for any list. `filter` over one optional
 value keeps it or makes it absent, and a narrowing predicate narrows it:
-`[[name]] | filter(c => c | is(RelationCard))` is an `Option<RelationCard>`.
+`@[[name]] | filter(c => c | is(RelationCard))` is an `Option<RelationCard>`.
 A refused annotation says what to write instead — `of_type(U)` to select
 narrower elements, the constructor to build another container, `sort` to give
 a set an order. A test that always holds, because every

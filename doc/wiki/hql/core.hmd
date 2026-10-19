@@ -43,16 +43,16 @@ This vocabulary does not require each type to be a primitive in the evaluator.
 ## Bindings and values
 
 ```hql
-alice : Doc = [[alice]]
+alice : Doc = @[[alice]]
 ```
 
-`[[alice]]` is a doc reference: it names a document in the current namespace and
+`@[[alice]]` is a doc reference: it names a document in the current namespace and
 nothing more, and the `->` form built from it is the link operator — see
 [[link-op]]. The binding names the referenced document; a filename does not
 implicitly introduce a variable. Inferred binding is also preferred:
 
 ```hql
-alice = [[alice]]
+alice = @[[alice]]
 ```
 
 A document is not yet a card. Card-ness is established by a checked narrowing,

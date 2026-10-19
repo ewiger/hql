@@ -53,7 +53,7 @@ and every name in `std/` follows the convention, which a test enforces
 Three kinds of name are not HQL identifiers. The first two follow no HQL
 convention:
 
-- **Document names.** `[[alice]]` names a document in the vault namespace by
+- **Document names.** `@[[alice]]` names a document in the vault namespace by
   its file stem, which the author chose. A doc reference is not an identifier
   and is never linted.
 - **`Data` keys.** The keys of a [[data-type|Data]] tree belong to whoever wrote

@@ -63,6 +63,11 @@ and the search is what the next section describes.
 **Forward links are fine.** Linking a concept that has no card yet marks it as
 worth writing later; an unresolved link is a warning (`HMD001`), not an error.
 
+**Code is not scanned.** HQL collects references and their annotations from a
+card's prose only. A `[[ ]]` inside a fenced code block, opened by ```` ``` ````
+or `~~~`, or inside an inline code span is shown to the reader and authors no
+edge. In HQL source a reference is written `@[[target]]` — see [[link-op]].
+
 ## How an unqualified reference resolves
 
 Four phases, in order, first match wins:

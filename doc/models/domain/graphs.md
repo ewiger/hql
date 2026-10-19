@@ -92,10 +92,10 @@ imported, derived or read from a store with no document anywhere; a
 writes one:
 
 ```hql
-[[alice]] -> [[bob]] { relation: parent }
+@[[alice]] -> @[[bob]] { relation: parent }
 ```
 
-Inside `alice`, the short form `[[bob]] { ... }` means the same thing, because
+Inside the body of `alice`, the short form `[[bob]] { ... }` means the same thing, because
 the containing document supplies the source. Authoring it adds the edge to the
 vault's graph; authoring it again updates the annotation rather than adding a
 second edge.
