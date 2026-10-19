@@ -15,6 +15,15 @@ fn hql(args: &[&str]) -> Output {
         .unwrap()
 }
 
+/// Run `hql` from a working directory, so the vault it finds is that one's.
+fn hql_in(dir: &std::path::Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_hql"))
+        .current_dir(dir)
+        .args(args)
+        .output()
+        .unwrap()
+}
+
 fn piped(args: &[&str], input: &str) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_hql"))
         .args(args)
@@ -139,11 +148,41 @@ fn json_carries_the_type_the_value_and_the_queue() {
 
 #[test]
 fn the_vault_is_supplied_from_outside_and_its_absence_is_said_out_loud() {
-    let output = hql(&["eval", "cards | count"]);
+    let outside = tempdir().unwrap();
+    let output = hql_in(outside.path(), &["eval", "cards | count"]);
     assert_eq!(output.status.code(), Some(1));
     assert!(stderr(&output).contains("--vault"), "{}", stderr(&output));
 
+    let output = hql_in(outside.path(), &["eval", "1 + 1"]);
+    assert_eq!(stdout(&output), "2\n");
+
     let output = hql(&["--vault", VAULT, "eval", "cards | count"]);
+    assert_eq!(stdout(&output), "6\n");
+}
+
+#[test]
+fn without_the_flag_the_vault_is_the_nearest_marked_directory_above() {
+    let root = tempdir().unwrap();
+    std::fs::create_dir(root.path().join(".hmd")).unwrap();
+    std::fs::write(root.path().join("one.md"), "# One\n").unwrap();
+    let deep = root.path().join("notes/deeper");
+    std::fs::create_dir_all(&deep).unwrap();
+    std::fs::write(deep.join("two.md"), "# Two\n").unwrap();
+
+    let output = hql_in(&deep, &["eval", "cards | count"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "2\n");
+
+    let fixture = std::env::current_dir().unwrap().join(VAULT);
+    let output = hql_in(
+        &deep,
+        &[
+            "--vault",
+            fixture.to_str().unwrap(),
+            "eval",
+            "cards | count",
+        ],
+    );
     assert_eq!(stdout(&output), "6\n");
 }
 

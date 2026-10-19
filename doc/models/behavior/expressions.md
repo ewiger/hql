@@ -157,7 +157,7 @@ directly before the argument list; otherwise `<` is the comparison, so
 `std/vault.hql`; the host seeds `vault`, of type `Vault`, from the vault. Its
 cards arrive in sorted-walk order: the entries of each directory sorted by name,
 depth first. A program may shadow it like any other name. Without a vault it is
-unbound, and the checker says that it needs `--vault` rather than that it does
+unbound, and the checker says that it needs a vault rather than that it does
 not exist.
 
 Arithmetic is homogeneous: `+`, `-`, `*`, `/` and `%` take two `Int` or two

@@ -146,10 +146,8 @@ report level: warning (from the default)
 vault: examples/tutorial (14 cards)
 ```
 
-## Where to go from here
+## What is next
 
-You have met the whole language as it stands today: values and data,
-collections and functions, questions in the style of SQL, a vault of
-documents, graphs, retrieval, streams, formats and documents that compute
-themselves. The [reference](../reference.md) states each part precisely, and
-the [roadmap](../roadmap.md) says what comes next.
+So far every program read a vault or its own values.
+[Chapter 13](13-reading-and-writing.md) reads files and standard input, and
+writes files and standard output.

@@ -1,10 +1,12 @@
 # HQL { .hql-hero }
 
-HQL, the Hyper Query Language, is a statically typed expression and query
-language. A program is type-checked before it is evaluated; a type error
-prevents evaluation. Values are transformed through pipelines of operations
-such as `filter`, `map`, `sort`, `group`, retrieval and graph traversal — over
-records and lists, and over a vault of Markdown and HyperMarkDown documents.
+HQL, the Hyper Query Language, is a statically typed language for querying,
+transforming, connecting and computing over data, knowledge and AI workflows.
+A program is type-checked before it is evaluated; a type error prevents
+evaluation. Values flow through pipelines of typed steps — `filter`, `map`,
+`group`, streams and batches, sources and sinks, retrieval, graph traversal,
+agent runs — over records and lists, files and standard streams, and a vault
+of Markdown and HyperMarkDown documents.
 
 ```hql
 import semantic
@@ -30,27 +32,33 @@ Each node of the graph stores a presence: `retrieved` with its score, or
 `expanded from <seed> at depth <n>`. A reader of the output can tell a node
 that matched the query from a node that was reached by traversal.
 
-!!! warning "In development"
+<div class="grid cards" markdown>
 
-    HQL is a language in design. The binary implements a statically typed
-    core with generic functions, aliases and `match`; records, collections and
-    streams; a vault of Markdown and HyperMarkDown documents and the graph of
-    their links; `lexical` and `semantic` retrieval; presentation formats; and
-    documents built from their cells. The [wiki](wiki/README.md)
-    specifies more language than the binary implements, and each card states
-    its implementation status.
+- **Typed functional core** — expressions, generic functions, pattern
+  matching and collections, checked before execution.
+- **Dataflow** — finite data, `Stream<T>` and batches in one pipeline model.
+- **Sources, targets and sinks** — files, standard streams and channels, read
+  and written through typed endpoints.
+- **Knowledge** — a vault of documents, the graph of their links, and lexical
+  and semantic retrieval with provenance.
+- **AI workflows** — agents as cards, context and prompts as values, and runs
+  that replay from recordings.
+- **Executable Markdown** — HQL cells rendered from the CLI and run in VS Code.
+
+</div>
 
 ## Start here
 
 <div class="grid cards" markdown>
 
-- **[Introduction](public/introduction.md)** — what HQL is, what it operates
-  on, and what it does not do.
+- **[Introduction](public/introduction.md)** — HQL through its views: a typed
+  functional language, a dataflow language, a data tool, a knowledge language
+  and an AI harness.
 - **[Install](public/install.md)** — a release binary or `cargo install hql`.
 - **[Learn HQL](public/learn/index.md)** — the book: from a first value to
   records and lists, SQL-style questions, a vault of documents, graphs,
-  retrieval, streams, and documents that compute themselves, one runnable
-  program at a time.
+  retrieval, streams, documents that compute themselves, reading and writing
+  data, logging, and agents, one runnable program at a time.
 - **[Reference](public/reference.md)** — the implemented grammar, the command
   line, and reporting.
 
@@ -58,12 +66,12 @@ that matched the query from a node that was reached by traversal.
 
 ## Extensions and sources
 
-Retrieval, graph traversal and presentation are extensions: providers of typed
-steps registered in the binary. The implemented extensions are `core`,
-`graph`, `format`, `lexical` and `semantic`. The design direction is
-extensions over further sources, so that one program queries across SQL
-databases such as Postgres, JSON and YAML documents, message queues such as
-Kafka, and REST APIs. HQL's operations take their inspiration from jq and SQL,
+Retrieval, graph traversal, presentation, I/O, logging and AI are extensions:
+providers of typed steps registered in the binary — `core`, `graph`, `format`,
+`lexical` and `semantic` today, with `io`, `logging` and `ai` in the next
+release. The same mechanism carries HQL to further sources, so that one program
+queries and moves data across SQL databases such as Postgres, JSON and YAML
+documents, message queues such as Kafka, and REST APIs. HQL's operations take their inspiration from jq and SQL,
 among others; see [extensions](wiki/hql/extensions.md).
 
 ## HQL and HyperMarkDown
