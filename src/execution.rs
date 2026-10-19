@@ -115,6 +115,12 @@ pub(crate) enum Kind {
         function: Option<TypeRef>,
     },
     Type,
+    /// Two values combined: `min(a, b)`, `merge(m, n)`, `union`, `concat`.
+    Combine {
+        combiner: &'static str,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
     /// An iterating function's body: evaluating it makes a traversal and
     /// runs nothing.
     Generate {
@@ -233,6 +239,8 @@ pub(crate) struct Checked {
     /// arguments it takes before the trailing ones a variadic parameter
     /// collects, and their element type.
     pub applications: HashMap<Range<usize>, Option<(usize, TypeRef)>>,
+    /// The calls that combine two values, by the combiner they name.
+    pub combiners: HashMap<Range<usize>, &'static str>,
     /// What checking found worth saying that does not make the program wrong.
     pub warnings: Vec<crate::warnings::Warning>,
     /// Each alias the program defines, with the signature the checker wrote.
@@ -474,6 +482,11 @@ impl Checked {
                 parameters: parameters.clone(),
                 body: std::sync::Arc::new(self.expression(body)?),
                 function: self.functions.get(&span).cloned(),
+            },
+            A::Call { arguments, .. } if self.combiners.contains_key(&span) => Kind::Combine {
+                combiner: self.combiners[&span],
+                left: Box::new(self.expression(&arguments[0].value)?),
+                right: Box::new(self.expression(&arguments[1].value)?),
             },
             A::Call { callee, arguments } if self.applications.contains_key(&span) => Kind::Apply {
                 callee: boxed(callee)?,

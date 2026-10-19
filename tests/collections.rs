@@ -350,3 +350,49 @@ fn a_constructor_is_a_pipeline_step_with_the_piped_value_first() {
     let lowercase = check("[1] | list").unwrap_err().to_string();
     assert!(lowercase.contains("`List`"), "{lowercase}");
 }
+
+#[test]
+fn a_combiner_names_how_two_values_become_one() {
+    for (source, expected) in [
+        ("min(3, 5)", "3"),
+        ("max(\"a\", \"b\")", "b"),
+        ("concat([1], [2, 3])", "[1, 2, 3]"),
+        ("merge({a: 1, b: 2}, {b: 3, c: 4})", "{a: 1, b: 3, c: 4}"),
+        ("[1, 2, 3] | reduce(0, +)", "6"),
+        ("[2, 3, 4] | reduce(*)", "24"),
+        ("[4, 9, 2] | reduce(max)", "9"),
+        ("[ [1], [2] ] | reduce([], concat)", "[1, 2]"),
+        ("[{a: 1}, {b: 2}] | reduce({}, merge)", "{a: 1, b: 2}"),
+        // A combiner that ignores order folds a set; one that does not, a sequence.
+        ("{3, 1, 2} | reduce(0, +)", "6"),
+    ] {
+        let value = hql::eval(source).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+        assert_eq!(value.to_string(), expected, "{source}");
+    }
+    let ordered =
+        hql::check("{ {a: 1} } | reduce({}, merge)").expect_err("merge cares about order");
+    assert!(
+        ordered.message().contains("sort it first"),
+        "{}",
+        ordered.message()
+    );
+    let mixed = hql::check("min(1, \"a\")").expect_err("two types");
+    assert!(mixed.message().contains("one type"), "{}", mixed.message());
+}
+
+#[test]
+fn the_named_aggregations_equal_their_folds_even_over_nothing() {
+    for (source, expected) in [
+        ("[] | sum", "0"),
+        ("[2, 3, 4] | product", "24"),
+        ("[] | product", "1"),
+        ("[1, 2] | average", "1.5"),
+        ("[] | List<Int> | average", "none"),
+        ("[{a: 1}, {a: 2, b: 3}] | merge_all", "{a: 2, b: 3}"),
+        ("[ [1], [2, 3] ] | concat_all", "[1, 2, 3]"),
+    ] {
+        let value = hql::eval(source).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+        assert_eq!(value.to_string(), expected, "{source}");
+    }
+    assert_eq!(hql::check("[] | sum"), Ok(hql::types::TypeRef::INT));
+}

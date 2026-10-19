@@ -81,6 +81,16 @@ pub(crate) struct AliasParam {
     pub span: Range<usize>,
 }
 
+/// The combiners a host provides, by name, and whether each is commutative:
+/// an order-independent fold over one may visit any collection.
+pub(crate) const COMBINERS: [(&str, bool); 5] = [
+    ("min", true),
+    ("max", true),
+    ("union", true),
+    ("merge", false),
+    ("concat", false),
+];
+
 /// The name a fragment alias's implicit input takes. It cannot be written.
 pub(crate) const ALIAS_INPUT: &str = "%input";
 

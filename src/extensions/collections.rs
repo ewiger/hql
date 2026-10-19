@@ -484,12 +484,95 @@ pub(crate) static STEPS: &[Operation] = &[
             }],
             input: P::Collection(&P::Var("T")),
             arguments: &[],
-            output: O::Type(P::Var("T")),
+            output: O::Number("T"),
         },
         summary: "Add every occurrence: reduce(0, +). An empty input sums to zero.",
         purity: Purity::Pure,
         check: Some(check_sum),
         eval: eval_sum,
+    },
+    Operation {
+        name: "product",
+        spec: OperationSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[],
+            output: O::Number("T"),
+        },
+        summary: "Multiply every occurrence: reduce(1, *). An empty input multiplies to one.",
+        purity: Purity::Pure,
+        check: Some(check_sum),
+        eval: eval_product,
+    },
+    Operation {
+        name: "average",
+        spec: OperationSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[],
+            output: O::Type(P::Apply(
+                OPTION,
+                &[P::Type(crate::types::TypeConstructor("Float"))],
+            )),
+        },
+        summary: "The mean of the occurrences, as a Float. Absent over an empty input.",
+        purity: Purity::Pure,
+        check: Some(check_sum),
+        eval: eval_average,
+    },
+    Operation {
+        name: "merge_all",
+        spec: OperationSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[],
+            output: O::Type(P::Var("T")),
+        },
+        summary: "Merge every map in order, a later key winning: reduce({}, merge).",
+        purity: Purity::Pure,
+        check: Some(check_all),
+        eval: eval_merge_all,
+    },
+    Operation {
+        name: "union_all",
+        spec: OperationSpec {
+            parameters: &[TypeParameter {
+                name: "T",
+                bound: None,
+            }],
+            input: P::Collection(&P::Var("T")),
+            arguments: &[],
+            output: O::Type(P::Var("T")),
+        },
+        summary: "Every member of every set: reduce(Set([]), union).",
+        purity: Purity::Pure,
+        check: Some(check_all),
+        eval: eval_union_all,
+    },
+    Operation {
+        name: "concat_all",
+        spec: OperationSpec {
+            parameters: &[TypeParameter {
+                name: "U",
+                bound: None,
+            }],
+            input: P::Collection(&P::Apply(crate::types::collections::SEQ, &[P::Var("U")])),
+            arguments: &[],
+            output: O::Type(P::Apply(crate::types::collections::LIST, &[P::Var("U")])),
+        },
+        summary: "Every member of every sequence, in order: reduce([], concat).",
+        purity: Purity::Pure,
+        check: Some(check_ordered),
+        eval: eval_concat_all,
     },
     Operation {
         name: "min",
@@ -1296,6 +1379,15 @@ fn check_reduce(
     if call.input.is_sequence() {
         return Ok(());
     }
+    // A fold whose combiner does not care about order may visit any
+    // collection: its result is the same in every order.
+    let commutative = call.arguments.iter().any(|argument| {
+        matches!(&argument.value.kind, crate::ast::Kind::Lambda { parameters, .. }
+            if parameters.first().is_some_and(|name| name == "%commuted_left"))
+    });
+    if commutative {
+        return Ok(());
+    }
     Err(Diagnostic::typing(
         span,
         format!(
@@ -1347,13 +1439,140 @@ fn check_sum(
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
     let element = &call.bindings["T"];
-    if *element == TypeRef::INT || *element == TypeRef::FLOAT {
+    if *element == TypeRef::INT || *element == TypeRef::FLOAT || *element == TypeRef::NEVER {
         return Ok(());
     }
     Err(Diagnostic::typing(
         span,
-        format!("`sum` adds Int or Float occurrences, not {element}"),
+        format!("this aggregation takes Int or Float occurrences, not {element}"),
     ))
+}
+
+/// `merge_all` folds maps, which is order-sensitive; `union_all` folds sets,
+/// which is not.
+fn check_all(
+    cx: &mut dyn super::CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    let element = &call.bindings["T"];
+    if *element == TypeRef::NEVER {
+        return Ok(());
+    }
+    if element.constructor == crate::types::collections::SET {
+        return Ok(());
+    }
+    if crate::types::MapKind::of(element.constructor).is_some() || *element == TypeRef::DATA {
+        return check_ordered(cx, call, span);
+    }
+    Err(Diagnostic::typing(
+        span,
+        format!("this aggregation combines maps or sets, not {element}"),
+    ))
+}
+
+/// Fold a finite input with a combiner, from a first element.
+fn folded(
+    combiner: &str,
+    input: &Value,
+    name: &str,
+    span: &Range<usize>,
+) -> Result<Option<Value>, Diagnostic> {
+    let ty = element_type(input);
+    let mut values = elements(input, name, span)?.into_iter();
+    let Some(mut held) = values.next() else {
+        return Ok(None);
+    };
+    for value in values {
+        held = crate::evaluation::combine(combiner, held, value, &ty, span)?;
+    }
+    Ok(Some(held))
+}
+
+fn eval_merge_all(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    Ok(folded("merge", &input, "merge_all", &span)?
+        .unwrap_or_else(|| Value::Data(Arc::new(crate::data::Data::map()))))
+}
+
+fn eval_union_all(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let element = element_type(&input).element().unwrap_or(TypeRef::NEVER);
+    Ok(folded("union", &input, "union_all", &span)?
+        .unwrap_or_else(|| Value::set(Vec::new(), element)))
+}
+
+fn eval_concat_all(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let element = element_type(&input).element().unwrap_or(TypeRef::NEVER);
+    let mut members = Vec::new();
+    for batch in elements(&input, "concat_all", &span)? {
+        members.extend(elements(&batch, "concat_all", &span)?);
+    }
+    Ok(Value::list(members, element))
+}
+
+fn eval_product(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let floats = element_type(&input) == TypeRef::FLOAT;
+    let mut whole: i64 = 1;
+    let mut real: f64 = 1.0;
+    for value in elements(&input, "product", &span)? {
+        match value {
+            Value::Int(n) => {
+                whole = whole
+                    .checked_mul(n)
+                    .ok_or_else(|| Diagnostic::Overflow { span: span.clone() })?;
+            }
+            Value::Float(x) => real *= x,
+            _ => return Err(wrong("product", "Int or Float occurrences", &span)),
+        }
+    }
+    Ok(if floats {
+        Value::Float(real)
+    } else {
+        Value::Int(whole)
+    })
+}
+
+fn eval_average(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let values = elements(&input, "average", &span)?;
+    if values.is_empty() {
+        return Ok(Value::Absent(TypeRef::FLOAT));
+    }
+    let mut total = 0.0;
+    for value in &values {
+        total += match value {
+            #[allow(clippy::cast_precision_loss)]
+            Value::Int(n) => *n as f64,
+            Value::Float(x) => *x,
+            _ => return Err(wrong("average", "Int or Float occurrences", &span)),
+        };
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let mean = total / values.len() as f64;
+    Ok(Value::Present(Arc::new(Value::Float(mean))))
 }
 
 fn eval_sum(

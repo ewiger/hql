@@ -268,6 +268,17 @@ impl Evaluator<'_> {
                 };
                 Ok(Value::Edge(Arc::new(Edge::link(&from, &to, annotation))))
             }
+            Kind::Combine {
+                combiner,
+                left,
+                right,
+            } => {
+                let left = self.expression(left)?;
+                let left = self.settled(left, &span)?;
+                let right = self.expression(right)?;
+                let right = self.settled(right, &span)?;
+                combine(combiner, left, right, &expression.ty, &span)
+            }
             Kind::Generate {
                 statements,
                 element,
@@ -1027,6 +1038,93 @@ impl EvalCx for Evaluator<'_> {
             });
         }
         trace
+    }
+}
+
+/// Two values combined by a combiner the checker accepted for them.
+pub(crate) fn combine(
+    combiner: &str,
+    left: Value,
+    right: Value,
+    ty: &TypeRef,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let failed = || Diagnostic::runtime(span.clone(), format!("`{combiner}` cannot combine these"));
+    match combiner {
+        "min" | "max" => {
+            let order = left
+                .order_key()
+                .zip(right.order_key())
+                .map(|(l, r)| l.compare(&r));
+            let keep_left = match order {
+                Some(order) if combiner == "min" => order != std::cmp::Ordering::Greater,
+                Some(order) => order != std::cmp::Ordering::Less,
+                None => true,
+            };
+            Ok(if keep_left { left } else { right })
+        }
+        "union" => {
+            let mut values = left.elements().ok_or_else(failed)?;
+            values.extend(right.elements().ok_or_else(failed)?);
+            Ok(Value::set(values, ty.element().unwrap_or(TypeRef::NEVER)))
+        }
+        "concat" => {
+            let mut values = left.elements().ok_or_else(failed)?;
+            values.extend(right.elements().ok_or_else(failed)?);
+            Ok(Value::list(values, ty.element().unwrap_or(TypeRef::NEVER)))
+        }
+        "merge" => merged(left, right, span),
+        _ => Err(failed()),
+    }
+}
+
+/// Every key of either map; a key in both takes the right value, at the
+/// left key's position.
+fn merged(left: Value, right: Value, span: &Range<usize>) -> Result<Value, Diagnostic> {
+    match (&left, &right) {
+        (Value::Map(l), Value::Map(r)) => {
+            let mut entries: Vec<(Value, Value)> = l.entries().to_vec();
+            for (key, value) in r.entries() {
+                match entries.iter_mut().find(|(held, _)| held == key) {
+                    Some(entry) => entry.1 = value.clone(),
+                    None => entries.push((key.clone(), value.clone())),
+                }
+            }
+            let ty = l.type_of();
+            let kind = crate::types::MapKind::of(ty.constructor)
+                .ok_or_else(|| Diagnostic::runtime(span.clone(), "`merge` combines two maps"))?;
+            let (keys, values) = entries.into_iter().unzip();
+            let map = crate::types::MapValue::new(
+                kind,
+                keys,
+                values,
+                ty.args.first().cloned().unwrap_or(TypeRef::DATA),
+                ty.args.get(1).cloned().unwrap_or(TypeRef::DATA),
+            )
+            .map_err(|error| Diagnostic::runtime(span.clone(), error.to_string()))?;
+            Ok(Value::Map(Arc::new(map)))
+        }
+        (Value::Data(l), Value::Data(r)) => match (l.as_ref(), r.as_ref()) {
+            (Data::Map(l), Data::Map(r)) => {
+                let mut entries = l.clone();
+                entries.extend(r.iter().map(|(key, value)| (key.clone(), value.clone())));
+                Ok(Value::Data(Arc::new(Data::Map(entries))))
+            }
+            (l, r) => {
+                let other = if matches!(l, Data::Map(_)) { r } else { l };
+                Err(Diagnostic::runtime(
+                    span.clone(),
+                    format!(
+                        "`merge` combines two maps, not Data of shape {}",
+                        other.shape()
+                    ),
+                ))
+            }
+        },
+        _ => Err(Diagnostic::runtime(
+            span.clone(),
+            "`merge` combines two maps",
+        )),
     }
 }
 

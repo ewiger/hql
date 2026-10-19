@@ -95,6 +95,8 @@ pub enum Output {
     Reorder(&'static str),
     /// Apply the input's constructor to the result element type.
     Image(&'static str),
+    /// A number of the element's type; the sum of nothing is the `Int` zero.
+    Number(&'static str),
     /// One type over a finite input and another over a stream that may not
     /// end: a sequence keeps every guarantee it can prove.
     Finite {
@@ -147,8 +149,14 @@ impl TypePattern {
         match self {
             Self::Any => true,
             Self::Type(constructor) => actual.is(&TypeRef::from(constructor)),
-            Self::Var(name) => match bindings.get(name) {
-                Some(expected) => *expected == TypeRef::NEVER || actual.is(expected),
+            Self::Var(name) => match bindings.get(name).cloned() {
+                // A parameter first bound by something narrower, such as an
+                // empty list's `List<Never>`, widens to what it meets later.
+                Some(expected) if expected.is(actual) && !actual.is(&expected) => {
+                    bindings.insert(name, actual.clone());
+                    true
+                }
+                Some(expected) => expected == TypeRef::NEVER || actual.is(&expected),
                 None => {
                     bindings.insert(name, actual.clone());
                     true
@@ -260,9 +268,10 @@ impl OperationSpec {
         }
         match self.output {
             Output::Type(pattern) => patterns.push(pattern),
-            Output::Prefix(parameter) | Output::Reorder(parameter) | Output::Image(parameter) => {
-                patterns.push(TypePattern::Var(parameter))
-            }
+            Output::Prefix(parameter)
+            | Output::Reorder(parameter)
+            | Output::Image(parameter)
+            | Output::Number(parameter) => patterns.push(TypePattern::Var(parameter)),
             Output::Fold {
                 accumulator,
                 element,
@@ -504,6 +513,14 @@ impl OperationSpec {
                 let element = TypePattern::Var(parameter).instantiate(&bindings, span)?;
                 input.image(element)
             }
+            Output::Number(parameter) => {
+                let element = TypePattern::Var(parameter).instantiate(&bindings, span)?;
+                if element == TypeRef::NEVER {
+                    TypeRef::INT
+                } else {
+                    element
+                }
+            }
             // Only a stream that may not end takes the open form; a finite
             // collection and a single value take the finite one.
             Output::Finite { finite, open } => {
@@ -603,6 +620,7 @@ impl OperationSpec {
         // settles: `S` is the input's own type, `F<_>` its constructor.
         let lines = match self.output {
             Output::Type(pattern) => vec![call(&input, &generics, &pattern.to_string())],
+            Output::Number(parameter) => vec![call(&input, &generics, parameter)],
             Output::Input => match self.input {
                 TypePattern::Var(parameter) => vec![call(parameter, &generics, parameter)],
                 _ => vec![call(&format!("S : {input}"), &with(&["S"]), "S")],

@@ -1224,6 +1224,12 @@ impl Parser {
     }
 
     fn argument(&mut self) -> Result<Arg, Diagnostic> {
+        if let Some(combiner) = self.combiner()? {
+            return Ok(Arg {
+                name: None,
+                value: combiner,
+            });
+        }
         if let Token::Ident(name) = self.peek().clone() {
             let mut lookahead = self.index;
             while matches!(self.tokens[lookahead].token, Token::Newline) {
@@ -1243,6 +1249,75 @@ impl Parser {
             name: None,
             value: self.expression()?,
         })
+    }
+
+    /// A combiner named as a whole argument — `+`, `*`, `min`, `max`,
+    /// `merge`, `union` or `concat` in `reduce(0, +)` — is the function that
+    /// combines two values with it. Its parameters say whether the result
+    /// depends on their order.
+    fn combiner(&mut self) -> Result<Option<Expr>, Diagnostic> {
+        let mut at = self.index;
+        while self.nesting > 0 && matches!(self.tokens[at].token, Token::Newline) {
+            at += 1;
+        }
+        let (head, next) = (&self.tokens[at], &self.tokens[at + 1]);
+        if !matches!(next.token, Token::CloseParen | Token::Comma) {
+            return Ok(None);
+        }
+        let (name, commutative) = match &head.token {
+            Token::Plus => ("+", true),
+            Token::Star => ("*", true),
+            Token::Ident(name) => match crate::ast::COMBINERS
+                .iter()
+                .find(|(combiner, _)| combiner == name)
+            {
+                Some((combiner, commutative)) => (*combiner, *commutative),
+                None => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+        let span = head.span.clone();
+        self.index = at + 1;
+        let (left, right) = if commutative {
+            ("%commuted_left", "%commuted_right")
+        } else {
+            ("%left", "%right")
+        };
+        let operand = |name: &str| Expr {
+            kind: Kind::Ident(name.to_owned()),
+            span: span.clone(),
+        };
+        let body = match name {
+            "+" | "*" => Kind::Arith(
+                if name == "+" { Arith::Add } else { Arith::Mul },
+                Box::new(operand(left)),
+                Box::new(operand(right)),
+            ),
+            _ => Kind::Call {
+                callee: Box::new(operand(name)),
+                arguments: vec![
+                    Arg {
+                        name: None,
+                        value: operand(left),
+                    },
+                    Arg {
+                        name: None,
+                        value: operand(right),
+                    },
+                ],
+            },
+        };
+        Ok(Some(Expr {
+            kind: Kind::Lambda {
+                parameters: vec![left.to_owned(), right.to_owned()],
+                annotations: vec![None, None],
+                body: Box::new(Expr {
+                    kind: body,
+                    span: span.clone(),
+                }),
+            },
+            span,
+        }))
     }
 
     fn data_literal(&mut self) -> Result<Expr, Diagnostic> {

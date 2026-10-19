@@ -146,6 +146,41 @@ fn instantiate(
     }
 }
 
+/// The type two values combined by a combiner have.
+fn combined(combiner: &str, left: &TypeRef, right: &TypeRef) -> Result<TypeRef, String> {
+    let joined = if left.is(right) {
+        right.clone()
+    } else if right.is(left) {
+        left.clone()
+    } else {
+        return Err(format!(
+            "`{combiner}` combines two values of one type, not {left} and {right}"
+        ));
+    };
+    let fits = match combiner {
+        "min" | "max" => joined.is_orderable(),
+        "union" => joined.constructor == collections::SET || joined == TypeRef::NEVER,
+        "merge" => {
+            crate::types::MapKind::of(joined.constructor).is_some() || joined == TypeRef::DATA
+        }
+        "concat" => joined.is_sequence(),
+        _ => false,
+    };
+    if !fits {
+        let wanted = match combiner {
+            "min" | "max" => "two values of one Orderable type",
+            "union" => "two sets",
+            "merge" => "two maps",
+            _ => "two sequences",
+        };
+        return Err(format!("`{combiner}` combines {wanted}, not {joined}"));
+    }
+    Ok(match combiner {
+        "concat" => TypeRef::list(joined.element().unwrap_or(TypeRef::NEVER)),
+        _ => joined,
+    })
+}
+
 /// A type with an alias's parameter placeholders replaced by the types they
 /// took.
 fn substituted_placeholders(
@@ -1289,6 +1324,21 @@ impl Checker<'_> {
                         ));
                     }
                     return Ok(TypeRef::ORDERING);
+                }
+                // Two values combined, `min(a, b)` or `merge(m, n)`: the
+                // combiner, where one value is the step of the same name.
+                if let Some(&(combiner, _)) =
+                    crate::ast::COMBINERS.iter().find(|(held, _)| held == name)
+                    && arguments.len() == 2
+                    && arguments.iter().all(|argument| argument.name.is_none())
+                    && !self.scope.contains_key(name)
+                {
+                    let left = self.expression(&arguments[0].value)?;
+                    let right = self.expression(&arguments[1].value)?;
+                    let ty = combined(combiner, &left, &right)
+                        .map_err(|message| Diagnostic::typing(span.clone(), message))?;
+                    self.checked.combiners.insert(span.clone(), combiner);
+                    return Ok(ty);
                 }
                 if builtins::exists(name) {
                     let Some((input, arguments)) = arguments.split_first() else {

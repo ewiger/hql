@@ -89,7 +89,16 @@ type Group<K, T> {
 // group<T, K>(xs: Collection<T>, by: T -> K) : Set<Group<K, T>>
 // reduce<T, R>(xs: Seq<T>, initial: R, by: (R, T) -> R) : R
 // reduce<T>(xs: Seq<T>, by: (T, T) -> T) : Option<T>       none over []
-// sum(xs: Collection<Int>) : Int                           reduce(0, +)
+// sum(xs: Collection<Int>) : Int                           reduce(0, +); [] | sum is 0
+// product(xs: Collection<Int>) : Int                       reduce(1, *)
+// average<T>(xs: Collection<T>) : Option<Float>            none over []
+// merge_all<M>(xs: Seq<M>) : M                             reduce({}, merge), a later key winning
+// union_all<T>(xs: Collection<Set<T>>) : Set<T>            reduce(Set([]), union)
+// concat_all<T>(xs: Seq<Seq<T>>) : List<T>                 reduce([], concat)
+// The combiners: min(a, b), max(a, b), merge(m, n), union(s, t), concat(xs, ys).
+// Named as a whole argument, a combiner or `+` / `*` is the function that
+// combines two values with it: `reduce(0, +)`. A fold whose combiner ignores
+// order (+, *, min, max, union) accepts any collection.
 // sum(xs: Collection<Float>) : Float                       reduce(0.0, +)
 // min<T : Orderable>(xs: Collection<T>) : Option<T>        reduce(min)
 // max<T : Orderable>(xs: Collection<T>) : Option<T>        reduce(max)
