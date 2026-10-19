@@ -12,7 +12,8 @@ the whole language, from a first value to documents that compute themselves.
 HQL is a statically typed expression and query language. A program is
 type-checked before it is evaluated. Values are transformed through pipelines
 of operations such as `filter`, `map`, `sort`, retrieval and graph traversal,
-over a vault of Markdown, HyperMarkDown, YAML and JSON documents.
+over records and lists, and over a vault of Markdown and HyperMarkDown
+documents.
 
 HyperMarkDown is the document format most HQL vaults are written in. HQL does
 not define or change that format; it reads

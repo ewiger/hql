@@ -3,8 +3,8 @@
 HQL, the Hyper Query Language, is a statically typed expression and query
 language. A program is type-checked before it is evaluated; a type error
 prevents evaluation. Values are transformed through pipelines of operations
-such as `filter`, `map`, `sort`, retrieval and graph traversal, over a vault
-of Markdown, HyperMarkDown, YAML and JSON documents.
+such as `filter`, `map`, `sort`, `group`, retrieval and graph traversal — over
+records and lists, and over a vault of Markdown and HyperMarkDown documents.
 
 ```hql
 import semantic
@@ -33,9 +33,10 @@ that matched the query from a node that was reached by traversal.
 !!! warning "In development"
 
     HQL is a language in design. The binary implements a statically typed
-    expression core, a vault of Markdown and HyperMarkDown documents,
-    pipelines over its cards, `lexical` and `semantic` retrieval, and graph
-    traversal (`uplinks`, `downlinks`, `expand`). The [wiki](wiki/README.md)
+    core with generic functions, aliases and `match`; records, collections and
+    streams; a vault of Markdown and HyperMarkDown documents and the graph of
+    their links; `lexical` and `semantic` retrieval; presentation formats; and
+    documents built from their cells. The [wiki](wiki/README.md)
     specifies more language than the binary implements, and each card states
     its implementation status.
 
