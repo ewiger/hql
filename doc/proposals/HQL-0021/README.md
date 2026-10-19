@@ -248,7 +248,7 @@ fn source<S>(id: String) : S   // HQL-0012, unchanged
   is a `LiveSource<Message<T>>`.
 - `source` over a replayable endpoint MUST give a `FiniteSource<T>`: every
   document, in order, as a `Seq<T>`. An ordinary JSON file is therefore a
-  sequence of one document, `source(file("birds.json"))[0]`.
+  sequence of one document.
 - `source` over a live endpoint MUST give a `LiveSource<T>`, which stands as a
   `Stream<T>`. Each document MUST be produced as soon as it has been read, so
   `source(stdin, Json) | filter(…)` over a pipe that stays open writes results
@@ -302,7 +302,7 @@ fn sink<T>(xs: Stream<T>, channel: Channel<T>) : Unit
   format it ([HQL-0017](../HQL-0017/README.md)). A `Seq<Bird>` written by
   `target` in `Json` is one JSON array.
 - `target` over a `Stream<T>` that is not a `Seq<T>` MUST be a check error
-  naming `sink` and `collect`. A stream may not end, so it has no completed
+  naming `sink` and `take(n)`. A stream may not end, so it has no completed
   value to write.
 - `sink` MUST write each value of `xs` as one document, as the value arrives.
   A `Seq<Bird>` written by `sink` in `Json` is JSON Lines. Because a `Seq` is
@@ -349,15 +349,11 @@ sequence, and a sequence has more.
 | the result, by `--to` | one whole text | one piece per value, as it arrives |
 | `size`, `sort`, `xs[i]`, `contains` | accepted | refused |
 | `filter`, `map`, `take`, `drop`, `tee` | accepted | accepted, one value at a time |
-| `collect` | gives a `List<T>` | gives a `List<T>`, waiting for the end |
 | `collect(n)` | gives `List<List<T>>` | gives `Stream<List<T>>`, in batches |
 
 - An operation that needs the end of its input MUST refuse a stream that is
-  not a sequence, naming `collect` and `take(n)`. These are the only ways to
-  end a stream, and the program says which it means.
-- `collect` over a stream from a live endpoint MUST wait for that endpoint to
-  end. Over `stdin` that is end of file; over a stream that never ends it
-  never returns, which is what the program asked for.
+  not a sequence, naming `take(n)` and `collect(n)`. A bounded prefix ends,
+  and a batch is finite, so the program says which it means.
 - Between them, `source` and `tap` choose how a replayable endpoint is held:
   `source` holds every document, so the result is a `Seq`; `tap` holds one,
   so it is a `Stream`. A live endpoint has no such choice.
@@ -525,8 +521,8 @@ import logging
 log = Logger(stderr, Text, name = "birds")
 
 log | info("loading input")
-birds = source(stdin, Json) | filter(b => b.count > 2)
-log | info("filter completed", {kept: birds | collect | size})
+birds = source(stdin, Json) | filter(b => b.species == "owl")
+log | info("filter ready", {species: "owl"})
 birds | sink(stdout, Json)
 ```
 
@@ -650,7 +646,7 @@ hql 'source(stdin, Json)' --to json --compact < log.jsonl  # jq -c .
 hql 'source(stdin, Json)' --to yaml < birds.json          # JSON in, YAML out
 hql 'source(stdin, Json) | map(b => b.sightings | size)' < birds.json
 tail -f events.jsonl | hql 'source(stdin, Json) | filter(e => e.level == "error")'
-hql 'source(file("birds.json"))[0].sightings | target(file("sightings.csv"))'
+hql 'source(file("birds.json")) | map(b => b.sightings) | target(file("sightings.csv"))'
 hql 'tap(file("events.jsonl")) | filter(e => e.ok) | sink(file("ok.jsonl"))'
 hql run --log-level debug birds.hql < birds.jsonl 2> run.log
 ```
@@ -750,8 +746,8 @@ Unit tests MUST include:
 - `source(stdout, Json)` and `42 | target(stdin, Json)` refused, naming the
   capability
 - `target` over a stream that is not a `Seq` refused, naming `sink` and
-  `collect`; `sink` over a `Seq` accepted
-- `size` over `source(stdin, Json)` refused, naming `collect` and `take(n)`;
+  `take(n)`; `sink` over a `Seq` accepted
+- `size` over `source(stdin, Json)` refused, naming `take(n)` and `collect(n)`;
   over `source(file(p), Json)` accepted
 - `Seq<Data>` written by `target` in `Json` is one array, and by `sink` is
   JSON Lines

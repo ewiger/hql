@@ -8,7 +8,28 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Added
+
+- Endpoints, from [HQL-0021](doc/proposals/HQL-0021/README.md): `stdin`,
+  `stdout` and `stderr`, `file(path)`, and a file's `.end`. `source(e, F)`
+  reads an endpoint's documents in a format, as a `Seq` from a file and as a
+  `Stream` from standard input; `tap` reads them one at a time, and at a
+  file's `.end` follows what is appended. `target` writes one completed value
+  and `sink` one document per value; a file is replaced, atomically for
+  `target`, and its `.end` appended to. A literal path's extension implies the
+  format. `hql render` reads files beside the document and refuses every
+  write.
+- `hql '<program>'` is `hql eval '<program>'`.
+- `--compact` writes each JSON document on one line, as `jq -c` does.
+
 ### Changed
+
+- A stream written with `--to json` pretty-prints each document, as `jq .`
+  does; concatenated, they read back as the same stream.
+- A result of type `Unit` prints nothing, so a program that ends in a write
+  is silent.
+- A first argument that names no command is a program, not a usage error.
+- Every streamed CSV piece ends its lines with `\n`, the header's included.
 
 - `hql run` writes an unformatted result as `Hql` too, so every command that
   evaluates writes the same text for the same value. `--to text` gives a bare

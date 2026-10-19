@@ -30,6 +30,7 @@ pub mod diagnostics;
 pub mod document;
 pub mod extensions;
 pub mod graph;
+pub mod io;
 pub mod library;
 pub mod render;
 pub mod reporting;

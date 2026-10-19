@@ -73,7 +73,15 @@ pub(crate) fn traverse(
 
 /// What a host seeds before the library: `vault`, when there is one.
 fn base(vault: &Vault) -> HashMap<String, Value> {
-    let mut scope = HashMap::new();
+    let mut scope: HashMap<String, Value> = crate::extensions::io::BINDINGS
+        .iter()
+        .map(|(name, endpoint)| {
+            (
+                (*name).to_owned(),
+                Value::Endpoint(Arc::new(endpoint.clone())),
+            )
+        })
+        .collect();
     if vault.is_present() {
         scope.insert(crate::checker::VAULT.to_owned(), Value::Vault);
     }
@@ -85,6 +93,7 @@ fn evaluate_in(
     vault: &Vault,
     scope: HashMap<String, Value>,
 ) -> (Result<Value, Diagnostic>, Vec<Report>) {
+    crate::io::begin();
     let mut evaluator = Evaluator {
         vault,
         scope,
@@ -579,6 +588,16 @@ impl Evaluator<'_> {
                 Field::Retrieval => Ok(Value::Data(Arc::new(retrieval_data(&hit.provenance)))),
                 _ => Err(missing()),
             },
+            Value::Endpoint(endpoint) => match (field, endpoint.as_ref()) {
+                (
+                    Field::Path,
+                    crate::io::Endpoint::File(path) | crate::io::Endpoint::FileEnd(path),
+                ) => Ok(text(&path.display().to_string())),
+                (Field::End, crate::io::Endpoint::File(path)) => Ok(Value::Endpoint(Arc::new(
+                    crate::io::Endpoint::FileEnd(path.clone()),
+                ))),
+                _ => Err(missing()),
+            },
             Value::Vault => match field {
                 Field::Cards => Ok(Value::Traversal(Arc::new(Traversal::new(
                     TypeRef::CARD,
@@ -809,6 +828,10 @@ impl Evaluator<'_> {
             }
             // Kept values are always forced, and answered above.
             Source::Kept => Ok(true),
+            Source::Read { reading, span } => reading
+                .drive(&mut |value| sink(self, value), |message| {
+                    Diagnostic::runtime(span.clone(), message)
+                }),
             Source::Drop { input, n } => {
                 let mut skipped = 0;
                 self.run_traversal(input, &mut |evaluator, value| {

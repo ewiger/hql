@@ -420,9 +420,18 @@ fn cli_surface_identifies_hql_and_usage_errors_exit_two() {
         hql(&["--version"]).stdout,
         format!("hql {}\n", env!("CARGO_PKG_VERSION")).into_bytes()
     );
-    for args in [vec![], vec!["eval"], vec!["check"], vec!["unknown"]] {
+    for args in [vec![], vec!["eval"], vec!["check"]] {
         assert_eq!(hql(&args).status.code(), Some(2), "{args:?}");
     }
+    // A first word that names no command is a program: `hql '<program>'`.
+    let program = hql(&["unknown"]);
+    assert_eq!(program.status.code(), Some(1));
+    assert!(
+        stderr(&program).contains("`unknown` is not bound"),
+        "{}",
+        stderr(&program)
+    );
+    assert_eq!(stdout(&hql(&["1 + 2"])), "3\n");
     let missing = hql(&["--vault", "tests/fixtures/nowhere", "eval", "1"]);
     assert_eq!(missing.status.code(), Some(1));
     assert!(stderr(&missing).contains("not a directory"));

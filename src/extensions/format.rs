@@ -238,8 +238,9 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
             .map_err(|error| error.to_string()),
         "Csv" => {
             let rows = one.to_csv();
+            // One line ending throughout: the header's piece and every row's.
             Ok(if first {
-                rows.trim_end().to_owned()
+                rows.lines().collect::<Vec<_>>().join("\n")
             } else {
                 rows.lines().skip(1).collect::<Vec<_>>().join("\n")
             })

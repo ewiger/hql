@@ -56,6 +56,10 @@ pub struct Options {
     /// `yaml`, `csv`, `d2` or `mermaid`; `none` evaluates and writes no value.
     #[arg(long, global = true, value_name = "FORMAT")]
     pub to: Option<String>,
+    /// Write each JSON document of a result on one line, as `jq -c` does; a
+    /// stream is then JSON Lines.
+    #[arg(long, global = true)]
+    pub compact: bool,
     /// When to stop: `strict` at the first error, `collect` to report them all.
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
@@ -148,12 +152,62 @@ impl From<Emit> for transclude::Emit {
     }
 }
 
+/// The directory a source unit's relative paths resolve against: the file's
+/// own, or the working directory for standard input.
+fn directory_of(file: &str) -> PathBuf {
+    if file == "-" {
+        return PathBuf::from(".");
+    }
+    Path::new(file)
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+}
+
+/// The commands a first argument may name; anything else is a program.
+const COMMANDS: [&str; 9] = [
+    "eval", "check", "run", "repl", "render", "builtins", "config", "doctor", "help",
+];
+
+/// Options that take a value, so the word after one is not the program.
+const VALUED: [&str; 5] = [
+    "--vault",
+    "--envelope",
+    "--to",
+    "--report",
+    "--report-level",
+];
+
+/// `hql '<program>'` is `hql eval '<program>'`: insert `eval` before a first
+/// word that names no command.
+#[must_use]
+pub fn with_default_command(arguments: Vec<String>) -> Vec<String> {
+    let mut index = 1;
+    while let Some(argument) = arguments.get(index) {
+        if VALUED.contains(&argument.as_str()) {
+            index += 2;
+            continue;
+        }
+        if argument.starts_with("--") || (argument.starts_with('-') && argument.len() > 1) {
+            index += 1;
+            continue;
+        }
+        if COMMANDS.contains(&argument.as_str()) {
+            return arguments;
+        }
+        let mut arguments = arguments;
+        arguments.insert(index, "eval".to_owned());
+        return arguments;
+    }
+    arguments
+}
+
 /// Parse arguments from the process, for the binary.
 ///
 /// A combination clap cannot express is still a usage error, exit `2`.
 #[must_use]
 pub fn parse() -> Cli {
-    let cli = Cli::parse();
+    let cli = Cli::parse_from(with_default_command(std::env::args().collect()));
     if let Command::Render {
         in_place,
         emit,
@@ -255,6 +309,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             Ok(0)
         }
         Command::Eval { expression } => {
+            crate::io::set_host(crate::io::Policy::Open, PathBuf::from("."));
             let outcome = crate::run(expression, &vault, settings.mode);
             emit(
                 &outcome,
@@ -270,6 +325,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         }
         Command::Run { file } => {
             let (source, origin) = read(file)?;
+            crate::io::set_host(crate::io::Policy::Open, directory_of(file));
             let outcome = crate::run(&source, &vault, settings.mode);
             emit(
                 &outcome,
@@ -306,6 +362,9 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             cell,
         } => {
             let (source, origin) = read(file)?;
+            // A document reads beside itself and writes nothing outside.
+            let root = directory_of(file);
+            crate::io::set_host(crate::io::Policy::Document { root: root.clone() }, root);
             let rendered = transclude::render_cell(
                 &source,
                 &vault,
@@ -441,7 +500,12 @@ fn presented(
     to: Option<&Presentation>,
     host: TypeConstructor,
     vault: &Vault,
+    compact: bool,
 ) -> Result<Option<String>, String> {
+    // A program that ends in a write has said everything it had to.
+    if matches!(value, Value::Unit) {
+        return Ok(None);
+    }
     let format = match to {
         Some(Presentation::Nothing) => return Ok(None),
         Some(Presentation::Format(format)) => *format,
@@ -450,6 +514,13 @@ fn presented(
             _ => host,
         },
     };
+    if compact && format.0 == "Json" {
+        let settled = value.settled();
+        let json = settled.as_ref().unwrap_or(value).to_json();
+        return serde_json::to_string(&json)
+            .map(Some)
+            .map_err(|error| error.to_string());
+    }
     crate::extensions::format::render(value, format, 0, None, &vault.formats).map(Some)
 }
 
@@ -460,6 +531,7 @@ fn streamed(
     to: Option<&Presentation>,
     host: TypeConstructor,
     vault: &Vault,
+    compact: bool,
     out: &mut impl Write,
 ) -> Result<(), String> {
     let format = match to {
@@ -470,6 +542,11 @@ fn streamed(
     crate::stream(traversal, vault, |value| {
         let text = match (&value, to) {
             (Value::Formatted(formatted), None) => Ok(formatted.text.clone()),
+            // Each document pretty-printed, one after another, as `jq .`
+            // writes them; concatenated JSON reads back as the same stream.
+            _ if format.0 == "Json" && !compact => {
+                serde_json::to_string_pretty(&value.to_json()).map_err(|error| error.to_string())
+            }
             _ => crate::extensions::format::piece(&value, format, first),
         };
         first = false;
@@ -508,7 +585,7 @@ fn emit(
             ));
         }
         if !matches!(to, Some(Presentation::Nothing)) {
-            streamed(traversal, to.as_ref(), host, vault, out)?;
+            streamed(traversal, to.as_ref(), host, vault, options.compact, out)?;
         }
         report_all(&outcome.reports.shown(shown), source, origin, err)?;
         return Ok(u8::from(outcome.failed()));
@@ -518,8 +595,10 @@ fn emit(
             // The value is data unless `--to` asked for a format.
             let value = match (&outcome.value, &to) {
                 (Some(_), Some(Presentation::Nothing)) | (None, _) => serde_json::Value::Null,
-                (Some(value), Some(_)) => presented(value, to.as_ref(), host, vault)?
-                    .map_or(serde_json::Value::Null, serde_json::Value::String),
+                (Some(value), Some(_)) => {
+                    presented(value, to.as_ref(), host, vault, options.compact)?
+                        .map_or(serde_json::Value::Null, serde_json::Value::String)
+                }
                 (Some(value), None) => value.to_json(),
             };
             let document = serde_json::json!({
@@ -537,7 +616,7 @@ fn emit(
         }
         Shape::Text => {
             if let Some(value) = &outcome.value {
-                if let Some(text) = presented(value, to.as_ref(), host, vault)? {
+                if let Some(text) = presented(value, to.as_ref(), host, vault, options.compact)? {
                     writeln!(out, "{text}").map_err(|error| error.to_string())?;
                 }
             } else if outcome.value.is_none()

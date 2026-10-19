@@ -20,6 +20,7 @@ impl Value {
         match self {
             Self::Traversal(traversal) => J::String(format!("<{}>", traversal.type_of())),
             Self::Vault => J::String("<vault>".to_owned()),
+            Self::Endpoint(endpoint) => J::String(endpoint.to_string()),
             Self::Unit => J::Null,
             Self::Ordering(order) => J::String(format!("{order:?}")),
             Self::Map(map) => {
@@ -111,6 +112,7 @@ impl fmt::Display for Value {
         match self {
             Self::Traversal(traversal) => write!(f, "<{}>", traversal.type_of()),
             Self::Vault => f.write_str("<vault>"),
+            Self::Endpoint(endpoint) => write!(f, "{endpoint}"),
             Self::Unit => f.write_str("()"),
             Self::Ordering(order) => write!(f, "{order:?}"),
             Self::Map(map) => {

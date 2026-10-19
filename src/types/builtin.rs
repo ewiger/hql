@@ -21,6 +21,9 @@ atoms! {
     CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
     ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
+    ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
+    WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
+    FILE => "File", FILE_END => "FileEnd",
 }
 
 macro_rules! applications {
@@ -128,6 +131,29 @@ fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::GRAPH, TypeKind::Concrete, &[]),
         (TypeRef::VAULT, TypeKind::Concrete, &[]),
         (TypeRef::ORDERING, TypeKind::Concrete, &[]),
+        // Where values come from and go to: `std/io/init.hql`. A capability
+        // is a supertype, so the checker reads it off the endpoint's type.
+        (TypeRef::ENDPOINT, TypeKind::Abstract, &[]),
+        (TypeRef::READABLE, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
+        (
+            TypeRef::REPLAYABLE,
+            TypeKind::Abstract,
+            &[TypeRef::READABLE],
+        ),
+        (TypeRef::WRITABLE, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
+        (TypeRef::STDIN, TypeKind::Concrete, &[TypeRef::READABLE]),
+        (TypeRef::STDOUT, TypeKind::Concrete, &[TypeRef::WRITABLE]),
+        (TypeRef::STDERR, TypeKind::Concrete, &[TypeRef::WRITABLE]),
+        (
+            TypeRef::FILE_END,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE, TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::FILE,
+            TypeKind::Concrete,
+            &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
+        ),
     ] {
         system.declare(TypeDefinition {
             kind,

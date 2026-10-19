@@ -192,6 +192,7 @@ pub(crate) enum Field {
     Cards,
     Root,
     Graph,
+    End,
 }
 
 impl Field {
@@ -224,6 +225,7 @@ impl Field {
             "cards" => Self::Cards,
             "root" => Self::Root,
             "graph" => Self::Graph,
+            "end" => Self::End,
             _ => return None,
         })
     }

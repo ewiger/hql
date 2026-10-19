@@ -259,7 +259,10 @@ fn globals(vault: &Vault) -> HashMap<String, TypeRef> {
 
 /// What a host seeds before the library: `vault`, when there is one.
 fn base(vault: &Vault) -> HashMap<String, TypeRef> {
-    let mut scope = HashMap::new();
+    let mut scope: HashMap<String, TypeRef> = crate::extensions::io::BINDINGS
+        .iter()
+        .map(|(name, endpoint)| ((*name).to_owned(), endpoint.type_of()))
+        .collect();
     if vault.is_present() {
         scope.insert(VAULT.to_owned(), TypeRef::VAULT);
     }
@@ -1408,10 +1411,11 @@ impl Checker<'_> {
                             "the input must be positional",
                         ));
                     }
-                    let input = self.expression(&input.value)?;
+                    let written = &input.value;
+                    let input = self.expression(written)?;
                     let step = self.resolution.step(name, &span)?;
                     self.checked.steps.insert(span.clone(), step);
-                    return self.step(step, &input, arguments, span);
+                    return self.step(step, &input, Some(written), arguments, span);
                 }
                 let _ = arguments;
                 let hint = builtins::hint(name);
@@ -1448,6 +1452,7 @@ impl Checker<'_> {
                 self.step(
                     resolved,
                     &input_type,
+                    Some(input),
                     reference.arguments(),
                     step.span.clone(),
                 )
@@ -1662,6 +1667,7 @@ impl Checker<'_> {
         &mut self,
         step: &'static Operation,
         input: &TypeRef,
+        input_expr: Option<&Expr>,
         arguments: &[Arg],
         span: Range<usize>,
     ) -> Result<TypeRef, Diagnostic> {
@@ -1672,7 +1678,9 @@ impl Checker<'_> {
             && input.present().iterated().is_none()
         {
             let held = TypeRef::list(input.present().clone());
-            let (result, call) = step.spec.check(step.name, self, &held, arguments, &span)?;
+            let (result, call) = step
+                .spec
+                .check(step.name, self, &held, input_expr, arguments, &span)?;
             if let Some(check) = step.check {
                 check(self, &call, span)?;
             }
@@ -1689,7 +1697,9 @@ impl Checker<'_> {
         } else {
             input.present().clone()
         };
-        let (result, call) = step.spec.check(step.name, self, &input, arguments, &span)?;
+        let (result, call) = step
+            .spec
+            .check(step.name, self, &input, input_expr, arguments, &span)?;
         if let Some(check) = step.check {
             check(self, &call, span)?;
         }

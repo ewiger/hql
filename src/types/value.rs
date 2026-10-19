@@ -59,6 +59,8 @@ pub enum Value {
     Vault,
     /// A generated sequence or stream, produced on demand.
     Traversal(Arc<crate::traversal::Traversal>),
+    /// Where values come from or go to: `stdin`, `file("x.json")`.
+    Endpoint(Arc<crate::io::Endpoint>),
 }
 
 /// Text of one presentation format: a `String` that also states its syntax.
@@ -157,6 +159,7 @@ impl Value {
         match self {
             Self::Traversal(traversal) => traversal.type_of(),
             Self::Vault => TypeRef::VAULT,
+            Self::Endpoint(endpoint) => endpoint.type_of(),
             Self::Unit => TypeRef::UNIT,
             Self::Ordering(_) => TypeRef::ORDERING,
             Self::Map(map) => map.type_of(),
