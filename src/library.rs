@@ -12,7 +12,9 @@ use crate::types::{self, TypeRef};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-/// Every module of the standard library, by file stem, in loading order.
+/// Every module of the standard library, by name, in loading order: the path
+/// below `std/` with folders joined by `.`, and a folder's `init.hql` named for
+/// the folder.
 ///
 /// A module may refer only to what an earlier one declares.
 pub const MODULES: &[(&str, &str)] = &[
@@ -23,6 +25,9 @@ pub const MODULES: &[(&str, &str)] = &[
     ("knowledge", include_str!("../std/knowledge.hql")),
     ("retrieval", include_str!("../std/retrieval.hql")),
     ("format", include_str!("../std/format.hql")),
+    ("io", include_str!("../std/io/init.hql")),
+    ("io.net", include_str!("../std/io/net.hql")),
+    ("io.logging", include_str!("../std/io/logging.hql")),
     ("vault", include_str!("../std/vault.hql")),
 ];
 

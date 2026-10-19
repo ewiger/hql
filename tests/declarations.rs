@@ -18,31 +18,59 @@ fn refused(source: &str) -> String {
     }
 }
 
+/// Every `.hql` file under `dir`, with the module name it is embedded as: the
+/// path below `std/` without its extension, folders joined by `.`, and a
+/// folder's `init.hql` named for the folder.
+fn modules_under(
+    dir: &std::path::Path,
+    prefix: &str,
+    found: &mut Vec<(String, std::path::PathBuf)>,
+) {
+    for entry in fs::read_dir(dir).expect("the standard library") {
+        let path = entry.expect("an entry").path();
+        let stem = path
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap()
+            .to_owned();
+        let name = if prefix.is_empty() {
+            stem.clone()
+        } else {
+            format!("{prefix}.{stem}")
+        };
+        if path.is_dir() {
+            modules_under(&path, &name, found);
+        } else if path.extension().and_then(|name| name.to_str()) == Some("hql") {
+            let name = if stem == "init" {
+                prefix.to_owned()
+            } else {
+                name
+            };
+            found.push((name, path));
+        }
+    }
+}
+
 #[test]
 fn every_file_in_the_standard_library_is_embedded_as_written() {
-    // The folder is walked rather than listed, so a file added to `std/`
-    // cannot be left out of the binary, and the copy the binary reads its
-    // record fields from is the one on disk.
-    let mut found = 0;
-    for entry in fs::read_dir("std").expect("the standard library") {
-        let path = entry.expect("an entry").path();
-        if path.extension().and_then(|name| name.to_str()) != Some("hql") {
-            continue;
-        }
-        let stem = path.file_stem().and_then(|name| name.to_str()).unwrap();
+    // The folder is walked rather than listed, subfolders included, so a file
+    // added to `std/` cannot be left out of the binary, and the copy the
+    // binary reads its record fields from is the one on disk.
+    let mut found = Vec::new();
+    modules_under(std::path::Path::new("std"), "", &mut found);
+    for (name, path) in &found {
         let embedded = library::MODULES
             .iter()
-            .find(|(name, _)| *name == stem)
-            .unwrap_or_else(|| panic!("{} is not embedded", path.display()));
+            .find(|(module, _)| module == name)
+            .unwrap_or_else(|| panic!("{} is not embedded as {name}", path.display()));
         assert_eq!(
             embedded.1,
-            fs::read_to_string(&path).expect("a readable file"),
+            fs::read_to_string(path).expect("a readable file"),
             "{}",
             path.display()
         );
-        found += 1;
     }
-    assert_eq!(found, library::MODULES.len());
+    assert_eq!(found.len(), library::MODULES.len());
 }
 
 #[test]

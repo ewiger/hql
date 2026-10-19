@@ -54,7 +54,8 @@ is what gets fixed.
 
 ## Layout
 
-One file per module, mirroring the extension split in
+One file per module, a folder for a module with submodules (`io/init.hql` is
+`io`, `io/net.hql` is `io.net`), mirroring the extension split in
 [HQL-0001](../doc/proposals/HQL-0001/README.md), so a module's declarations sit
 where its steps will:
 
@@ -65,6 +66,9 @@ where its steps will:
 | `doc.hql` | documents |
 | `format.hql` | the presentation formats, arriving with [HQL-0017](../doc/proposals/HQL-0017/README.md) |
 | `graph.hql` | the graph domain |
+| `io/init.hql` | endpoints, channels, data sources and data targets, arriving with [HQL-0021](../doc/proposals/HQL-0021/README.md) |
+| `io/net.hql` | network endpoints, arriving with HQL-0021 |
+| `io/logging.hql` | loggers and log events, arriving with HQL-0021 |
 | `knowledge.hql` | the knowledge domain, including the card family |
 | `retrieval.hql` | ranking, arriving with [HQL-0002](../doc/proposals/HQL-0002/README.md) |
 
