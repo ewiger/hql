@@ -1,6 +1,6 @@
 # HQL-0007: `collect` and `emit` are stream-shape operations
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-09-28
 **Source**: [typed pipeline operations](../../issues/0013-typed-pipeline-operations.md)
 
@@ -90,8 +90,8 @@ emit<T>(xs: Seq<Seq<T>>)    : List<T>
 - An empty inner sequence contributes nothing.
 - For every stream `xs` and positive `n`,
   `xs | collect(n) | emit` MUST equal `xs`.
-- `emit` MUST accept only sequences as elements. A `Stream<Set<T>>` is refused,
-  with a message saying to sort the sets first, because a set's members have no
+- `emit` MUST accept only sequences as elements: every batch is a `Seq<T>`. A
+  `Stream<Set<T>>` is refused, with a message saying to sort the sets first, because a set's members have no
   order and emitting them would invent one. Generalizing the element to
   `Collection<T>` is an open question.
 
@@ -168,14 +168,14 @@ The API leaves room for three forms; only the first is implemented.
   whichever bound is reached first.
 - Until durations exist, the duration field is always absent, and writing the
   named argument MUST be an error that says time windows are not implemented
-  yet.
+  yet and names `collect(n)`.
 
 ## Backwards Compatibility
 
-`collect` is not implemented today; the three `examples/mapreduce/` cases that
-are `status: proposed` do not use it. `HQL-0004` and
-[map/reduce for queries](../../models/behavior/map-reduce.md) change their
-`collect` to `List`. `emit` and `flat_map` are new names, read only after `|` or
+No `examples/mapreduce/` case used `collect` as materialization.
+[HQL-0004](../HQL-0004/README.md) and
+[map/reduce for queries](../../models/behavior/map-reduce.md) write `List` for
+it. `emit` and `flat_map` are new names, read only after `|` or
 called directly, so they neither collide with nor shadow a binding.
 
 ## Security Considerations
@@ -186,9 +186,9 @@ exceeds a host limit. The limit is an open question.
 
 ## Reference Implementation
 
-- `src/extensions/collections.rs` — `collect`, `emit`, and the `Batch`
-  shape
-- `src/extensions/spec.rs` — the window argument
+- `src/extensions/collections.rs` — `collect`, `emit`, `flat_map`, and the
+  reserved `for` argument; the `Batch` shape arrives with HQL-0004's shape
+  metadata
 - `std/collections.hql` — the signature comments
 - `examples/pipelines/` — the batching queries listed in
   [issue 0013](../../issues/0013-typed-pipeline-operations.md)
@@ -213,8 +213,7 @@ Unit tests MUST include:
 ## Open Questions
 
 - Should `emit` generalize to `Stream<Collection<T>>`? It would have to drop to
-  an unordered result type for set elements, and HQL has no such stream type
-  until `Iterable<T>` exists.
+  an unordered result type, `Iterable<T>`, for set elements.
 - What is the named argument for a duration? `for` reads well but is the
   iteration keyword in [queries](../../models/behavior/queries.md); `within` and
   `every` avoid the collision.
@@ -229,3 +228,6 @@ Unit tests MUST include:
 - 2026-10-18: `flat_map` added as the shorthand for `map(f) | emit`
 - 2026-10-18: materialization is the `List` constructor (HQL-0016); `list`
   retired
+- 2026-10-19: implemented; `collect(n)`, `emit` over sequences, `flat_map` and
+  materialization by `List` are built, `collect(for = …)` is refused as not
+  implemented yet, and the `Batch` shape waits on HQL-0004's shape metadata

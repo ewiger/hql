@@ -1,8 +1,12 @@
 # HQL-0008: Presentation is separate from computation
 
-**Status**: drafted
+**Status**: superseded by [HQL-0017](../HQL-0017/README.md)
 **Created**: 2026-09-28
 **Source**: [presentation](../../wiki/hql/presentation.hmd)
+
+[HQL-0017](../HQL-0017/README.md) supersedes this record: presentation is the
+`format` operation over format types, and the section "Presenting into a
+document" is carried by `hql render` and HQL-0017's `hmd` presentation context.
 
 ## Abstract
 
@@ -172,3 +176,6 @@ Unit tests MUST include:
 
 - 2026-09-28: drafted
 - 2026-10-18: presenting into a document
+- 2026-10-19: superseded by HQL-0017, which implements presentation as the
+  `format` operation and carries "Presenting into a document" as `hql render`
+  in the `hmd` presentation context

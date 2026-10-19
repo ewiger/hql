@@ -15,8 +15,8 @@ written in** is a **presentation format**, a subtype of `String` such as
 `Markdown`, `Json` or `D2`. The operation `format(x, F)` turns any value into
 text of format `F`; it is an ordinary operation whose result type is the
 format, so a step after it is checked like any other. `markdown`, `json`, `yaml`, `csv`, `d2`, `mermaid`, `hmd` and
-`text` are its shorthands, each defined with `:=`
-([HQL-0015](../HQL-0015/README.md)). **How a type is written in a format** is
+`text` are its shorthands, each a host step whose longhand `std/format.hql`
+states as a `:=` line ([HQL-0015](../HQL-0015/README.md)). **How a type is written in a format** is
 a **renderer**, chosen per type and format from configuration: a `Graph` in
 `Json` is node-link JSON, in `Markdown` and `Hmd` a fenced D2 block. All of it lives in the `format` extension,
 which replaces `present`. A result that is not yet formatted is formatted in
@@ -305,3 +305,7 @@ cargo clippy --locked --all-targets -- -D warnings
 
 - 2026-10-18: drafted
 - 2026-10-18: accepted
+- 2026-10-19: the format types, `format` and its shorthands, the renderers and
+  their configuration, the presentation context, `--to`, `--envelope` and
+  streams are implemented; `--from`, `Table`, `Tree` and parsing by
+  construction (`s | Data`) are not yet

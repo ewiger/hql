@@ -1,6 +1,6 @@
 # HQL-0014: `reduce` as the aggregation primitive, and `merge` as a combiner
 
-- **Status**: drafted
+- **Status**: accepted
 - **Created**: 2026-10-18
 - **Source**: [MapReduce: pipeline steps, stages and execution backends](../HQL-0004/README.md)
 
@@ -92,7 +92,7 @@ values | reduce(initial = 0, by = (acc, x) => acc + x * x)
   is a name error listing the nearest combiner.
 - An operator names its combiner: `+` in `reduce(0, +)` is the addition
   combiner.
-- A known fold whose combiner is order-independent (section 5) accepts any
+- A known fold whose combiner is order-independent (*Combiner properties*) accepts any
   `Collection<T>`, because its result does not depend on the order it visits
   elements. Every other fold accepts only a `Seq<T>`, and over a `Set` the
   checker refuses it with a message saying to sort first, by HQL-0004's rule.
@@ -265,9 +265,9 @@ reduce     N -> 1
 
 Additive. `reduce` without `initial`, the combiners `+`, `*`, `min`, `max`,
 `merge`, `union` and `concat` in the `by` position, and the aliases of
-section 3 are new. `reduce(initial, by)` with a lambda keeps HQL-0004's meaning
-and shape. `size`, `count` and `contains` keep their results. The aliases of
-section 3 are among the shorthands [HQL-0015](../HQL-0015/README.md) lists.
+*Named aggregations are aliases* are new. `reduce(initial, by)` with a lambda
+keeps HQL-0004's meaning and shape. `size`, `count` and `contains` keep their
+results. Those aliases are among the shorthands [HQL-0015](../HQL-0015/README.md) lists.
 
 ## Security Considerations
 
@@ -286,14 +286,15 @@ and exceeding one is an error, never a truncated result.
    combiner.
 4. Combiner properties in `hql builtins`, and the `Reduction` shape for known
    folds.
-5. `union`, `concat`, `average`, then the aggregations of section 7, each with
+5. `union`, `concat`, `average`, then the aggregations of *Aggregations whose
+   accumulator differs*, each with
    its own tests.
 
 ## Reference Implementation
 
-- `src/extensions/mapreduce.rs` — `reduce` without `initial`, the combiner
-  registry and its properties, beside HQL-0004's `reduce` and `group`
-- `src/extensions/collections.rs` — `merge`, and the alias steps
+- `src/extensions/collections.rs` — `reduce` without `initial`, the combiners
+  and their properties, and the alias steps, beside HQL-0004's `reduce` and
+  `group`
 - `src/builtins.rs` — the combiner property columns
 - `std/collections.hql` — the signatures beside the existing core operations
 - `examples/mapreduce/` — `total-pages` with `sum`, and a `merge` of two layers
@@ -307,7 +308,7 @@ Unit tests MUST include:
 - each declared law — associativity, commutativity, identity — over generated
   inputs, for every combiner that declares it
 - `merge` with a conflicting key taking the right value, and `OrderedMap` key
-  order as section 4 states
+  order as *`merge` combines two maps* states
 - a split fold with a non-identity `initial`, `reduce(10, +)`, giving the
   sequential result
 - `reduce({}, merge)` and `reduce([], concat)` over a `Set`, refused with the
@@ -335,3 +336,8 @@ None.
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: accepted; `reduce` with a combiner in `by`, binary `min` and
+  `max`, `merge`, `union` and `concat` with their `_all` folds, and `sum`,
+  `product` and `average` (`[] | sum` is `0`) are implemented, and combiner
+  properties in `hql builtins` and the `Reduction` shape of known folds are not
+  yet

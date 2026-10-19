@@ -1,6 +1,6 @@
 # HQL-0006: `Stream<T>` as a first-class pipeline type
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-09-28
 **Source**: [queries](../../models/behavior/queries.md)
 
@@ -20,13 +20,13 @@ assumption.
 ## Motivation
 
 - HQL pipelines are meant to describe long-running computations over event
-  sources, not only queries over a vault that already sits in memory. Today
-  every collection type in `std/collections.hql` is finite, so such a source
-  has no type.
+  sources, not only queries over a vault that already sits in memory. Before
+  this record every collection type in `std/collections.hql` was finite, so
+  such a source had no type.
 - [Queries](../../models/behavior/queries.md) already designs the hierarchy
   this needs — `Iterable`, `Collection`, `Stream`, `Seq`, and a lazy traversal
-  carrier — but it is a proposed model, not a decision, and nothing in the core
-  depends on it.
+  carrier — but it was a proposed model, not a decision, and nothing in the
+  core depended on it.
 - [HQL-0007](../HQL-0007/README.md) (`collect` and `emit`) and
   [HQL-0004](../HQL-0004/README.md) (`group`, `reduce`) both need to say what
   they do to a stream. Without the type they can only be specified over
@@ -41,9 +41,6 @@ assumption.
 
 ## Non-goals
 
-- **No `Iterable<T>`.** The unordered, possibly unbounded floor that
-  [queries](../../models/behavior/queries.md) describes is not added until an
-  operation needs it.
 - **No live sources.** How an external event source binds into a program is an
   open question below. This record types streams; it does not connect one.
 - **No pull.** `next` stays outside the design, as queries already argues.
@@ -59,10 +56,16 @@ assumption.
 ```hql
 // Values produced in a stable order; production need not end.
 // No size, no membership, no global order: those need the end.
-abstract type Stream<T>
+abstract type Stream<T> : Iterable<T>
 
 abstract type Seq<T> : {Collection<T>, Stream<T>}
 ```
+
+`Iterable<T>` is the floor [queries](../../models/behavior/queries.md)
+describes: values that can be traversed, with no promise of finiteness, order
+or uniqueness. Both `Collection<T>` and `Stream<T>` are `Iterable<T>`, and it is
+the bound an operation states when it needs only to visit each value, as `map`
+and `filter` do.
 
 - A `Stream<T>` MUST guarantee a stable succession of values `x0, x1, x2, ...`.
 - A `Stream<T>` MUST NOT be assumed finite. Neither its cardinality nor when
@@ -130,7 +133,7 @@ size, count, contains    : Collection<T>
 sort                     : Collection<T>
 group                    : Collection<T>      -- HQL-0004
 reduce                   : Seq<T>             -- HQL-0004
-list (materialization)   : Seq<T>             -- HQL-0007
+List (materialization)   : Seq<T>             -- HQL-0007, HQL-0018
 ```
 
 - Applying one of these to a `Stream<T>` that is not also a `Collection<T>`
@@ -222,3 +225,6 @@ Unit tests MUST include:
 ## Changelog
 
 - 2026-09-28: drafted
+- 2026-10-19: implemented; `Stream<T>` and `Iterable<T>` are in the core, `map`,
+  `filter`, `take` and `drop` take streams, and a whole-input operation over a
+  stream is refused naming `take(n)` and `collect(n)`

@@ -232,13 +232,12 @@ by the same limits as one program of the same total size.
 ## Reference Implementation
 
 - `src/transclude.rs`: the info-string attributes, attaching outputs across
-  blank lines, the marker attributes, removing ownerless outputs, and `--cell`
-- `src/cells.rs` (new): the cell graph, cycle detection, topological order, the
-  hash, and the scope that binds each id
+  blank lines, the marker attributes, removing ownerless outputs, `--cell`, the
+  cell graph, cycle detection, dependency order, the hash, and the scope that
+  binds each id
 - `src/checker` and `src/execution`: checking and evaluating a cell in an
-  environment extended with typed cell values, and stripping a final
-  presentation to get the cell's value
-- `src/cli.rs`: `--cell`, and the JSON record under `--format json`
+  environment extended with typed cell values
+- `src/cli.rs`: `--cell`, and the JSON record under `--envelope json`
 - `doc/models/behavior/program-values.md`: the section "HMD cell contexts"
   states the scope and order rules and drops them from what it lists as open
 
@@ -248,7 +247,7 @@ Unit tests MUST include:
 
 - a cell reads an earlier cell's value by id, and a later one's
 - a binding inside a cell is not visible to another cell
-- a cell ending in `| table` exports the presented value, with its type
+- a cell ending in `| markdown` exports that text, at type `Markdown`
 - two cells that read each other are one check error naming both
 - a duplicate id is a check error naming both cells
 - a failed cell skips its dependents and not the cells beside them
@@ -264,7 +263,7 @@ Integration tests MUST include:
   duplicated
 - an output with no cell above it is removed with a warning
 - `--cell` rewrites one output and leaves the others byte-identical
-- `--format json` lists every cell in document order with its id, hash, type
+- `--envelope json` lists every cell in document order with its id, hash, type
   and status
 - `--cell todo --emit replace` exits `2`
 
@@ -280,3 +279,6 @@ cargo test --test transclude --test cli
   The card environment a cell closes over, `this: Card` and card-level
   bindings, is the [program values](../../models/behavior/program-values.md)
   model's and is not built.
+- 2026-10-19: the reference implementation and test plan name
+  `src/transclude.rs` and `--envelope json`, where the cell graph and the JSON
+  record are built

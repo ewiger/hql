@@ -210,10 +210,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 name: "T",
                 bound: None,
             }],
-            input: P::Iterable(&P::Apply(
-                crate::types::collections::COLLECTION,
-                &[P::Var("T")],
-            )),
+            input: P::Iterable(&P::Apply(crate::types::collections::SEQ, &[P::Var("T")])),
             arguments: &[],
             output: O::Finite {
                 finite: P::Apply(crate::types::collections::LIST, &[P::Var("T")]),

@@ -1,6 +1,6 @@
 # HQL-0016: Type tests, narrowing, widening and conversion
 
-- **Status**: drafted
+- **Status**: accepted
 - **Created**: 2026-10-18
 - **Source**: [issue 0018](../../issues/0018-operator-synonymy-audit.md)
 
@@ -174,7 +174,7 @@ x | C(a)       ≡  C(x, a)
 
 - `list` MUST be an unknown operation, and its diagnostic MUST name `List`.
 - HQL-0007's materialization step is `List(xs)`, or `xs | List` in a
-  pipeline, with the refusals of section 5.
+  pipeline, with the refusals of *Conversion is construction*.
 - No shorthand replaces it: `List` is already as short, and two names for one
   signature are not admitted.
 
@@ -194,8 +194,9 @@ Breaking. `typed` is removed with no alias; its uses in `tests/`, in the
 [type interpretation](../../wiki/hql/type-interpretation.hmd) card, in
 HQL-0012, HQL-0014 and HQL-0015, and in issues 0015, 0016 and 0018 change to
 `of_type`. `List(set)` stops checking, and a program sorts the set instead.
-`list` and the pipeline form of constructors are not implemented today, so
-retiring `list` breaks no program. `is` and `of_type` are new names.
+`list` is refused naming `List`, and a constructor is a pipeline step, so a
+program that wrote `xs | list` writes `xs | List`. `is` and `of_type` are new
+names.
 
 ## Reference Implementation
 
@@ -218,8 +219,8 @@ retiring `list` breaks no program. `is` and `of_type` are new names.
 
 - `card | is(Card)` is `true` with a warning; `doc | is(Card)` is `true` for a
   card and `false` for another doc; `1 | is(Card)` refused as always false
-- `cards | filter(c => c | is(RelationCard))` is a `Set<RelationCard>`, and
-  `cards | filter(c => c.name == "x")` a `Set<Card>`
+- `cards | filter(c => c | is(RelationCard))` is a `Seq<RelationCard>`, and
+  `cards | filter(c => c.name == "x")` a `Seq<Card>`
 - `cards | of_type(RelationCard) | count` equal to the count `typed` gave in
   `tests/vault.rs`
 - `[1, "owl", 2] | of_type(Int)` is `[1, 2]` at `List<Int>`
@@ -237,3 +238,8 @@ retiring `list` breaks no program. `is` and `of_type` are new names.
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: accepted; `is`, `of_type`, the narrowing `filter` including over
+  an `Option`, `is` over a bare constructor, the always-true warning, the `List`
+  and `Set` constructors with their refusals, and conversion hints on a refused
+  annotation are implemented, and record values and the conversions that need
+  them are not yet

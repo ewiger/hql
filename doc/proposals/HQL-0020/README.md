@@ -1,6 +1,6 @@
 # HQL-0020: The vault and its namespace
 
-- **Status**: drafted
+- **Status**: accepted
 - **Created**: 2026-10-18
 - **Source**: [issue 0010](../../issues/0010-yield-and-bind.md),
   [HQL-0012](../HQL-0012/README.md), [card type](../../wiki/hql/types/card-type.hmd)
@@ -24,12 +24,12 @@ own, and is never merged into `cards`. This replaces HQL-0012's binding of
 ## Motivation
 
 - A vault has more than one thing to offer a program: its cards, its knowledge
-  graph, its name and root. HQL-0012 makes the vault the sequence of its cards,
-  which leaves nowhere to put the rest. `vault.graph` needs a vault with fields.
+  graph, its name and root. HQL-0012 first made the vault the sequence of its
+  cards, which left nowhere to put the rest. `vault.graph` needs a vault with fields.
 - [Issue 0010](../../issues/0010-yield-and-bind.md) decides that a vault yields
   cards in the order a sorted walk reaches them, so that a lazy source can
-  stream them. HQL-0012 orders a vault by card name, which a lazy source cannot
-  do without reading every card first.
+  stream them. HQL-0012 first ordered a vault by card name, which a lazy source
+  cannot do without reading every card first.
 - The [card type](../../wiki/hql/types/card-type.hmd) card leaves two questions
   on `cards`: what it means inside a nested module, and whether imported
   namespaces contribute to it.
@@ -88,8 +88,8 @@ graph     = vault.graph
   for `hql render`, the vault containing the document. Without one, `vault` is
   unbound, and the checker says that it needs `--vault`.
 - The standard library MUST make the three bindings above. The host seeds
-  `vault` alone; `cards` and `knowledge`, which it seeds today, become library
-  bindings. They are ordinary
+  `vault` alone; `cards` and `graph` are bindings in `std/vault.hql`, and
+  `knowledge` joins them with `vault.knowledge`. They are ordinary
   bindings, not keywords: a program reads `cards` and `graph` as it reads any
   name, and both are unbound when `vault` is.
 - A binding records how to start traversing its value, never a position
@@ -139,17 +139,18 @@ field_notes.graph
 
 Breaking against HQL-0012, which is drafted and not implemented: `cards` is
 `vault.cards`, not `vault`, and a vault's order is the sorted walk, not card
-name. Against today's binary, `cards` changes from `Set<Card>` to a keyed
-`Seq<Card>` in walk order, which [issue 0010](../../issues/0010-yield-and-bind.md)
-already carries. `knowledge` keeps its name and becomes a library binding.
-`vault`, `graph` and the vault fields are new names.
+name. `cards` was a `Set<Card>` the host seeded; it is `vault.cards`, a lazy
+`Seq<Card>` in walk order, as [issue 0010](../../issues/0010-yield-and-bind.md)
+carries. `knowledge` is not bound until `vault.knowledge` exists. `vault`,
+`graph` and the vault fields are new names.
 
 ## Reference Implementation
 
 - `std/sources.hql` — `VaultSource` with its fields
-- `std/prelude.hql` or the host seeding — `cards = vault.cards`,
-  `knowledge = vault.knowledge` and `graph = vault.graph`
-- `src/sources.rs` — the sorted walk, yielding cards lazily
+- `std/vault.hql` — `Vault` with its fields, and the bindings
+  `cards = vault.cards`, `knowledge = vault.knowledge` and `graph = vault.graph`
+- `src/traversal.rs`, `src/evaluation.rs` — the sorted walk, yielding cards
+  lazily
 - `src/vault.rs` — `name`, `root`, `cards` and `graph` read from the loaded
   vault
 - `src/checker.rs` — the vault fields
@@ -183,3 +184,8 @@ cargo clippy --locked --all-targets -- -D warnings
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: accepted; `vault : Vault` with `name`, `root`, `graph` and
+  `cards`, `cards = vault.cards` as a lazy `Seq<Card>` in sorted-walk order,
+  `graph = vault.graph` and a missing vault naming `--vault` are implemented,
+  and keyed `vault.cards`, the `knowledge` binding and other vaults as sources
+  are not yet

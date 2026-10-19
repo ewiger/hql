@@ -1,6 +1,6 @@
 # HQL-0001: The extension mechanism
 
-**Status**: accepted
+**Status**: implemented
 **Created**: 2026-09-18
 **Source**: [extensions](../../wiki/hql/extensions.hmd)
 
@@ -12,8 +12,8 @@ step supplies a checking function and an evaluating function, and declares
 whether it is pure. Steps are written bare — `cards | semantic("…")` — with a
 qualified form `semantic.rank(…)` always available; a name provided by two
 imported extensions is an error at import rather than at use. The fourteen names
-currently hard-wired into `src/builtins.rs` are split: collection operations stay
-in the core, `graph` and `present` become extensions in a default prelude, and
+once hard-wired into `src/builtins.rs` are split: collection operations stay
+in the core, `graph` and `format` are extensions in a default prelude, and
 anything else MUST be imported. Extensions are compiled into the binary and
 registered in one table; no dynamic loading is introduced.
 
@@ -71,7 +71,7 @@ An extension is a named unit supplying pipeline steps.
 - An extension MUST NOT define syntax, add operators, or add cases to the type
   lattice. It may only name types the lattice already has.
 - Two extensions MAY declare the same step name. Resolving that is import-time
-  work, specified in section 3.
+  work, specified under *Resolution and import*.
 
 The Rust `Extension` trait is a **host mechanism** and MUST NOT appear in HQL's
 surface, per [type system](../../wiki/hql/type-system.hmd). HQL programs see typed
@@ -153,15 +153,15 @@ core → graph → knowledge.
 
 | Provider | Steps | Imported |
 | --- | --- | --- |
-| core | `count` `sort` `take` `filter` `map` `typed` | always |
-| `graph` | `uplinks` `downlinks` `expand` `graph` | prelude |
-| `present` | `table` `json` `text` | prelude |
+| core | the collection operations: `count` `sort` `take` `drop` `filter` `map` `flat_map` `of_type` `is` `group` `reduce` and the rest `hql builtins` lists under `core` | always |
+| `graph` | `uplinks` `downlinks` `expand` | prelude |
+| `format` | `format` and its shorthands `text` `markdown` `hmd` `json` `yaml` `csv` `d2` `mermaid` | prelude |
 | `lexical` | `lexical` | explicitly |
 | `semantic` | `semantic` | explicitly |
 
 - Collection operations stay in the **core** because they operate on the core's
   own collection types and mention nothing above them.
-- The **prelude** is `graph` and `present`, imported unless a vault opts out. A
+- The **prelude** is `graph` and `format`, imported unless a vault opts out. A
   prelude exists so that today's programs keep working, and so that the common
   case does not open with two lines of ceremony.
 - A vault MAY opt out with `prelude = false`. The prelude is a compatibility
@@ -173,7 +173,7 @@ core → graph → knowledge.
 ```toml
 [extensions]
 import  = ["semantic"]
-prelude = false          # optional; omits graph and present
+prelude = false          # optional; omits graph and format
 ```
 
 ### 5. Diagnostics and help
@@ -217,10 +217,11 @@ first observably a no-op.
 ## Reference Implementation
 
 - `src/extensions/mod.rs` — the `Extension` and `Step` types and the registry
-- `src/extensions/graph.rs`, `src/extensions/present.rs` — moved from `builtins`
+- `src/extensions/collections.rs` — the core collection steps
+- `src/extensions/graph.rs`, `src/extensions/format.rs` — the prelude extensions
 - `src/checker.rs`, `src/evaluation.rs` — `step()` in each delegates to the
   registry instead of matching on a name
-- `src/builtins.rs` — becomes the core collection steps and the suggestion index
+- `src/builtins.rs` — the suggestion index
 - `src/parser.rs`, `src/ast.rs` — the `import` statement
 - `src/cli.rs` — `hql builtins` grouped by provider; `[extensions]` in `hql.toml`
 
@@ -237,8 +238,8 @@ Integration tests MUST include:
 
 - every existing query in `tests/fixtures/queries/` passing unchanged
 - `hql builtins` naming the provider of each step
-- a vault with `prelude = false` failing on `| table` with a name error that
-  names the `present` extension
+- a vault with `prelude = false` failing on `| json` with a name error that
+  names the `format` extension
 
 ```bash
 cargo test --locked
@@ -254,3 +255,6 @@ cargo clippy --locked --all-targets -- -D warnings
 - 2026-09-18: accepted; the four open questions settled into the specification —
   a binding shadows the namespace and not the step, `prelude = false` stays,
   `import` is a statement, and `hql builtins` lists every registered extension
+- 2026-10-19: implemented; the prelude is `graph` and `format` ([HQL-0017](../HQL-0017/README.md)), whose
+  shorthands replace the former `table`, `json` and `text` steps, the Graph
+  constructor replaces the `graph` step, and `of_type` replaces `typed`

@@ -26,7 +26,7 @@ whether a match exists. Which modes a join admits follows from its sides'
 types: finite sides admit every mode; a stream side may be joined to finite
 sides it is matched against, but not to another stream, and never in a mode
 that must wait for the stream's end; a stream made finite with `take` and
-`list` joins as a batch.
+materialized by `List` joins as a batch.
 
 ## Motivation
 
@@ -134,7 +134,7 @@ right_join<T, U, K, R>(…, into: (Option<T>, U) -> R)         : Seq<R>
 full_join<T, U, K, R>(…, into: (Option<T>, Option<U>) -> R)  : Seq<R>
 ```
 
-The condition is the keys, `on`, or both, per section 2.
+The condition is the keys, `on`, or both, per the section "Conditions".
 
 - `into` MUST be given. It is what keeps this form free of a pair or record
   type: the program builds the value it wants from each matching pair, a
@@ -144,7 +144,7 @@ The condition is the keys, `on`, or both, per section 2.
   produces one result, with `none` for the right. `right_join` keeps every
   element of `other` the same way, and `full_join` keeps both.
 - Over a stream input, `xs` MAY be a `Stream<T>` when `other` is finite
-  (section 9).
+  (the section "Joining across kinds of source").
 
 ### 4. The head form
 
@@ -170,13 +170,13 @@ join(sides: {n1: Seq<T1>, …, nk: Seq<Tk>},
 - A record of sides MUST have at least two fields, and every field MUST be a
   `Seq`. A `Set` side is refused, with a message saying to `sort` it, because a
   set's members have no positions and results are ordered by positions
-  (section 7).
+  (the section "Order").
 - A side MAY be any expression of a sequence type, including a pipeline:
   `{b: birds | filter(…), s: sightings}`.
 - The field names are the program's and follow
   [naming](../../wiki/hql/naming.hmd): `snake_case`, distinct within the record.
 - `on` receives a whole row and names each side as a field of it; `r.b.name` is
-  field access. Keys are stated inside it, as equality conjuncts (section 2).
+  field access. Keys are stated inside it, as equality conjuncts (the section "Conditions").
 - `into` MAY be given and takes the row; without it the result is the rows
   themselves. `join(on = p, into = f)` MUST equal `join(on = p) | map(f)`.
 
@@ -265,8 +265,8 @@ birds | semi_join(sightings, left = b => b.name, right = s => s.species)  // see
 birds | anti_join(sightings, left = b => b.name, right = s => s.species)  // never seen
 ```
 
-- `cross_join` takes no condition. Its order is section 7's.
-- `semi_join` and `anti_join` take a condition by section 2 and no `into`. Each
+- `cross_join` takes no condition. Its order is the one the section "Order" states.
+- `semi_join` and `anti_join` take a condition by the section "Conditions" and no `into`. Each
   MUST keep an element of `xs` at most once, in its position, whether it
   matches one element of `other` or many.
 
@@ -298,7 +298,7 @@ Three rules produce the table.
   known only when the stream ends, and an unbounded stream does not. So
   `right_join` keeping the table, and `full_join`, are refused over a stream.
 - **If any side is a stream, the result is a `Stream`, in that side's order; if
-  any side is live, the join is `Effectful`.** Section 7's order applies with
+  any side is live, the join is `Effectful`.** The order of the section "Order" applies with
   the stream side first.
 
 A stream-to-stream join — messages that arrive within 5 seconds of each other —
@@ -317,7 +317,7 @@ What makes a stream act as a batch is taking a finite part of it and
 materializing that part:
 
 ```hql
-batch = source("sightings_queue") | take(500) | list   // List<Message<Data>>
+batch = source("sightings_queue") | take(500) | List   // List<Message<Data>>
 
 {m: batch, t: species}
 | join(on = r => r.m.value.species == r.t.name)
@@ -391,7 +391,7 @@ issue 0016 keep working and keep their nested results.
 A join's cost is the product of its sides in the worst case. The run-context
 bounds of [HQL-0012](../HQL-0012/README.md) apply to what a join holds, and
 exceeding one is an error naming the join, never a truncated result. The
-warning of section 2 exists so that an unkeyed join over two large sources is
+warning of the section "Conditions" exists so that an unkeyed join over two large sources is
 noticed before it runs.
 
 ## Deployment / Activation
@@ -404,7 +404,7 @@ noticed before it runs.
 4. The head and extending forms, with optional sides, checked to agree with
    each other.
 5. Equality-key recognition in `on`, and a hash join that keeps the order of
-   section 7.
+   the section "Order".
 6. Pushdown into a source, with HQL-0012's first database kind.
 
 ## Reference Implementation
@@ -421,7 +421,7 @@ noticed before it runs.
 Unit tests MUST include:
 
 - each mode over two small lists with duplicates on both sides, against
-  hand-written expected results in the order of section 7
+  hand-written expected results in the order of the section "Order"
 - keys alone, `on` alone, and both, giving the results their definitions do
 - an unmatched element of an optional side appearing exactly once, with the
   other side `none`
@@ -438,7 +438,7 @@ Integration tests MUST include:
 - a `Set` side, refused with the message naming `sort`
 - two `Stream` sides, refused, and a `full_join` of a stream to a table,
   refused with a message saying the unmatched rows need the stream's end
-- a fixture queue taken as `take(5) | list` and joined twice, both joins seeing
+- a fixture queue taken as `take(5) | List` and joined twice, both joins seeing
   the same five messages
 - a stream joined to a table batch by batch through `collect` and `emit`, equal
   to the per-message join
@@ -455,3 +455,5 @@ None.
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: materialization is written with the `List` constructor, since
+  `list` is retired; no join is implemented yet

@@ -344,9 +344,19 @@ impl OperationSpec {
                     ),
                 ));
             }
+            // Sequences asked for and sets given: a set's members have no
+            // positions until something orders them.
+            let unordered = input
+                .iterated()
+                .is_some_and(|element| element.is_collection() && !element.is_sequence());
+            let hint = if unordered && self.input.to_string().contains("Seq<") {
+                "; a set has no positions, so sort each one first"
+            } else {
+                ""
+            };
             return Err(Diagnostic::typing(
                 span.clone(),
-                format!("`{name}` needs {}, not {input}", self.input),
+                format!("`{name}` needs {}, not {input}{hint}", self.input),
             ));
         }
         let mut supplied = vec![None; self.arguments.len()];

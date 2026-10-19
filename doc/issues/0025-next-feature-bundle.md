@@ -1,6 +1,6 @@
 # 0025 — Next feature bundle: generics, aliases, reductions and the open ends of the proposals
 
-Status: doing (on `feature/0025-next-bundle`)
+Status: done
 
 The parts of the proposals that are specified, unbuilt, and need no decision,
 taken in dependency order. Each feature names the record that specifies it;
@@ -69,7 +69,7 @@ nothing here restates it.
 - [x] 8. Graph construction
 - [x] 9. The vault's fields
 - [x] 10. Small diagnostics
-- [ ] 11. The proposals state what is true
+- [x] 11. The proposals state what is true
 
 ## Done when
 

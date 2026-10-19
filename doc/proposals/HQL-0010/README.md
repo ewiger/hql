@@ -1,6 +1,6 @@
 # HQL-0010: `tee` branches a pipeline without ending it
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-10-18
 **Source**: [HQL pipes](../../wiki/hql/types/pipes.hmd)
 
@@ -26,9 +26,9 @@ the main pipeline stays an explicit operation.
   particular step:
 
   ```hql
-  filtered = cards | filter(_.year > 2020)
+  filtered = cards | filter(c => c.metadata.status == "active")
   first    = filtered | take(3)
-  result   = filtered | related(Mentions)
+  result   = filtered | uplinks
   ```
 
 - A pipeline may be a finite collection, a lazy query, a
@@ -71,9 +71,9 @@ The single-expression form binds a name to a branch:
 
 ```hql
 cards
-| filter(_.active)
+| filter(c => c.metadata.status == "active")
 | tee sample = take(3)
-| related(Mentions)
+| uplinks
 ```
 
 - A branch is a pipeline whose first step receives the `tee` input.
@@ -83,8 +83,8 @@ cards
   cards
   | tee sample =
       take(3)
-      | map({title: _.title})
-  | related(Mentions)
+      | map(c => c.title)
+  | uplinks
   ```
 
 - A block form MAY be added for long branches; its exact syntax is decided
@@ -93,10 +93,10 @@ cards
   ```hql
   cards
   | tee stats {
-      group(_.author)
+      group(by = c => c.metadata.author)
       | size
   }
-  | related(Mentions)
+  | uplinks
   ```
 
 ### 3. Semantics
@@ -130,17 +130,18 @@ output = next(input)
   ```hql
   cards
   | tee total = size
-  | related(Mentions)
+  | uplinks
   ```
 
-  the main pipeline is `Stream<Card>` and `total` is `Int`.
+  the value `tee` passes on is the `Seq<Card>` it received, and `total` is
+  `Int`.
 
-The example in the Abstract is therefore equivalent to:
+The example under *Syntax* is therefore equivalent to:
 
 ```hql
-filtered = cards | filter(_.year > 2020)
-first    = filtered | take(3)
-result   = filtered | related(Mentions)
+filtered = cards | filter(c => c.metadata.status == "active")
+sample   = filtered | take(3)
+result   = filtered | uplinks
 ```
 
 ### 4. Execution
@@ -223,13 +224,13 @@ operator.
 
 ```hql
 cards
-| filter(_.year >= 2025)
+| filter(c => c.metadata.status == "active")
 | tee sample =
     take(3)
-    | map({title: _.title})
+    | map(c => c.title)
 | tee total = size
-| related(Mentions)
-| group(_.concept)
+| uplinks
+| group(by = e => e.target)
 | size
 ```
 
@@ -239,7 +240,7 @@ Three computations read the filtered cards:
 filtered cards
     ├── take(3) -> map(...)       -> sample
     ├── size                      -> total
-    └── related(Mentions)
+    └── uplinks
         -> group(...)
         -> size                   -> main result
 ```
@@ -254,9 +255,9 @@ program that uses `tee` as an identifier would have to rename it.
 
 ## Reference Implementation
 
-- the pipeline grammar, once the bootstrap parser accepts pipelines (see
-  [HQL pipes](../../wiki/hql/types/pipes.hmd))
-- a `tee` step node carrying the binding name and the branch region
+- `src/parser.rs` — `tee name = branch`, the branch one step on the same line
+  or every step indented past the `|` that opened the `tee`
+- a `tee` step node carrying the binding name and the branch pipeline
 - the checker: the step's output type is its input type, and the binding takes
   the branch's result type
 - the `localhost` backend: evaluate the shared input once, then the branch and
@@ -281,7 +282,6 @@ Integration tests MUST include:
 
 - Does `tee` require a named binding, or is an unbound side-effecting branch
   allowed?
-- What is the syntax for multi-step branch bodies?
 - What are the lifetime and scope of a binding introduced by `tee`?
 - How does `tee` behave when the branch is asynchronous or long-running?
 - How do failures propagate between the branch and the main pipeline?
@@ -294,3 +294,6 @@ current pipeline value while passing that value unchanged to the next step.
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: implemented; `tee name = branch` with a one-line or indented
+  multi-step branch is built, the block form is not, and the examples use
+  steps that exist

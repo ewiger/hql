@@ -1,6 +1,6 @@
 # HQL-0015: `:=` is function alias syntax sugar
 
-- **Status**: drafted
+- **Status**: implemented
 - **Created**: 2026-10-18
 - **Source**: [`reduce` as the aggregation primitive](../HQL-0014/README.md)
 
@@ -130,8 +130,9 @@ checker did.
 An operation may have a shorter name for one specific case of it.
 
 - A shorthand MUST have a longhand written in HQL, and the relationship MUST be
-  stated where the operations are owned — as a definition in `std/` when the
-  longhand is a fragment.
+  stated where the operations are owned, in `std/`. A core shorthand stays a
+  host step, and its longhand is written beside its signature in
+  `std/collections.hql`.
 - Two names at the same level of generality, where neither is a case of the
   other, are not a shorthand and MUST NOT both be admitted. Unary `count(xs)`
   for `size(xs)` is the one kept alias.
@@ -152,31 +153,31 @@ match x { U _ => true, _ => false }     x | is(U)
 match b { true => a, false => c }       a given b otherwise c
 ```
 
-The first six are functions `std/` defines with `:=`; `of_type` takes a type
-argument, as [HQL-0016](../HQL-0016/README.md) specifies. `contains`, `is` and
+The first six are host steps whose longhands `std/collections.hql` states
+beside their signatures; `of_type` takes a type argument, as [HQL-0016](../HQL-0016/README.md) specifies. `contains`, `is` and
 `given … otherwise` are shorthands of an expression rather than of a
 fragment, so they are stated beside their operations instead.
 
 ## Backwards Compatibility
 
-Additive. `:=` is new syntax and no program uses it. The grammar notation in
-[the grammar](../../models/behavior/expressions.md) currently writes its rules
-with `:=`; it moves to `::=` so the notation and the language do not share a
-symbol.
+Additive. `:=` is new syntax and no earlier program uses it. The grammar
+notation in [the grammar](../../models/behavior/expressions.md) writes its
+rules with `::=`, so the notation and the language do not share a symbol.
 
 ## Reference Implementation
 
 - `src/lexer.rs`, `src/parser.rs` — the `:=` token and the sugared definition
 - `src/checker.rs` — desugaring to the `fn` declaration of issue 0009, the
-  signature inference of section 2, and its report
+  signature inference of *Which types the checker writes*, and its report
 - `src/builtins.rs` — the full signatures of `std/`'s sugared functions
-- `std/collections.hql` — the shorthands of section 5
+- `std/collections.hql` — the longhands of the core shorthands of *Which
+  shorthands are admitted*, beside their signatures
 - `doc/models/behavior/expressions.md` — the sugar rule, and `::=` for the
   notation
 
 ## Test Plan
 
-- each row of section 2's table defining the function it states, and
+- each row of the table in *Which types the checker writes* defining the function it states, and
   `hql check` reporting that signature
 - `xs | sum` and `xs | reduce(0, +)` giving the same value
 - `top(5)` equal to `sort | take(5)`; `top()` and `top(5, 6)` refused naming
@@ -190,3 +191,6 @@ symbol.
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: implemented; `:=` definitions, their inferred signatures reported
+  by `hql check`, and `x | f` over a bound function are built, and the core
+  shorthands are host steps whose longhands `std/collections.hql` states

@@ -1,6 +1,6 @@
 # HQL-0011: Names, their providers, and the naming lint
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-10-18
 **Source**: [Names and where they live](../../wiki/hql/naming.hmd)
 
@@ -141,7 +141,7 @@ with a `camelCase` binding keeps its result and gains one warning.
 
 ## Reference Implementation
 
-- `src/naming.rs` — the per-kind rules of section 5, as one function from a
+- `src/naming.rs` — the per-kind rules of *The naming lint*, as one function from a
   name and its kind to an optional warning message
 - `src/checker.rs` — lint bindings and lambda parameters where they enter scope
 - `src/declarations.rs` — lint type names, type parameters and declared fields
@@ -153,7 +153,7 @@ with a `camelCase` binding keeps its result and gains one warning.
 
 Unit tests MUST include:
 
-- each rule of section 5 accepting a conforming name and rejecting a departure,
+- each rule of *The naming lint* accepting a conforming name and rejecting a departure,
   including `HMDCard` accepted (it starts uppercase and has no `_`) and
   `Hmd_Card` warned
 - a name in a script without case passing every rule
@@ -180,3 +180,6 @@ cargo test --test corpus
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: implemented; the per-kind casing rules warn on a departing name
+  where it is introduced, and every registered step name and `std/` declaration
+  passes them

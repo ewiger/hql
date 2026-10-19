@@ -235,7 +235,7 @@ pub(crate) fn providers(step: &str) -> Vec<&'static Extension> {
 pub struct Config {
     /// Extensions imported for every program this vault runs.
     pub imports: Vec<String>,
-    /// Whether `graph` and `present` arrive without being asked for.
+    /// Whether `graph` and `format` arrive without being asked for.
     pub prelude: bool,
 }
 

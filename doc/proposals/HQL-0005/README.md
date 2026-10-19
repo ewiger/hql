@@ -72,7 +72,7 @@ The terms are normative across `doc/`, `src/`, `std/` and `examples/`.
 Pipeline      ordered logical program: a maximal chain of steps joined by |
 Step          one occurrence, at one position, in a pipeline
 Operation     the semantics a step invokes: map, filter, collect, emit, group, reduce, ...
-Presentation  consumer-facing rendering a step may invoke instead: table, graph, markdown, ...
+Presentation  consumer-facing rendering a step may invoke instead: format, markdown, json, ...
 Operator      syntax: |  +  :  ->  and the rest of the operator table
 Stage         physical, planned execution unit; one or more steps
 Backend       the mechanism that executes stages
@@ -131,9 +131,9 @@ Operation<I, O>
 - A **user operation** is a named function or a lambda whose type is one of the
   reserved types. It MAY appear as a step wherever a standard operation may,
   under the same typing rule: `x | f(a)` is typed as `f(x, a)`.
-- A function whose type is a plain `I -> O` is still callable from a step's
-  arguments (`map(b => summarize(b))`) but MUST NOT itself be a step. A planner
-  knows nothing about its shape and so could not place it.
+- A bound function whose type is a plain `I -> O` is a step: `x | f` and
+  `x | f(a)` apply it to the input. [HQL-0015](../HQL-0015/README.md)
+  supersedes the rule that such a function MUST NOT be a step.
 - The checker MUST verify a declared shape it can verify: a function declared
   `Elementwise` whose body reads anything but its one element is a type error.
   A shape the checker cannot verify, such as an associative `Reduction`, is the
@@ -241,14 +241,14 @@ events                                streaming stage
 
 The registry names what it holds.
 
-- The registry entry currently named `Step` SHOULD be renamed `Operation`, and
-  `StepSpec` SHOULD become `OperationSpec`. The entry declares an operation; a
-  step is the execution-tree node that invokes it.
-- Presentations SHOULD be registered separately from operations, as
-  [HQL-0008](../HQL-0008/README.md) specifies, so that the host type says which
-  one a step invokes.
-- `hql builtins` SHOULD list operations and presentations under separate
-  headings.
+- The registry entry is named `Operation`, and its declaration
+  `OperationSpec`. The entry declares an operation; a step is the
+  execution-tree node that invokes it.
+- Presentations are not registered separately from operations.
+  [HQL-0017](../HQL-0017/README.md) supersedes that rule, which came from
+  [HQL-0008](../HQL-0008/README.md): `format` and its shorthands are ordinary
+  operations of the `format` extension, and `hql builtins` lists them under
+  their provider.
 - A host operation and a user operation SHOULD reach the step node through the
   same operation type, so that the planner has one code path for both.
 - Stage annotations SHOULD be a field of the step node, empty until the planner
@@ -261,7 +261,7 @@ No program changes meaning. A program that already declares a type named
 checking; the corpus has none. The rename touches Rust identifiers that are
 `pub(crate)` or are `pub` only within the `hql` crate's extension module; a
 public re-export, if any, is kept as a deprecated alias for one release. The
-`--format json` diagnostic field `stage` is a separate use of the word (the
+`--envelope json` diagnostic field `stage` is a separate use of the word (the
 processing phase that reported the diagnostic), and renaming it is a wire
 change; see Open Questions.
 
@@ -269,10 +269,9 @@ change; see Open Questions.
 
 - `src/extensions/mod.rs`, `src/extensions/spec.rs` — `Step` to `Operation`,
   `StepSpec` to `OperationSpec`, and every call site
-- `src/builtins.rs` — separate headings for operations and presentations
 - `std/core.hql` — declares the reserved operation types
-- the checker — accepts a user function of an operation type as a step, rejects
-  a plain function type there, and verifies an `Elementwise` body
+- the checker — accepts a user function of an operation type as a step, and
+  verifies an `Elementwise` body
 - the step node — gains a stage annotation; the `localhost` planner puts every
   step in one stage, and the backend refuses an unannotated pipeline
 - `doc/wiki/hql/types/pipes.hmd` — states the six terms and the sentence in the
@@ -288,11 +287,8 @@ change; see Open Questions.
 
 Unit tests MUST include:
 
-- `hql builtins` output lists operations and presentations under distinct
-  headings, and every registered entry appears under exactly one
 - a named function and a lambda of type `Elementwise<T, U>` each run as a step
   and produce the same value as the equivalent `map`
-- a function of plain type `T -> U` used as a step is a type error
 - a function declared `Elementwise` whose body reads beyond its element is a
   type error
 - declaring a type named `Operation` is a type error
@@ -310,16 +306,13 @@ separate uses listed under Open Questions.
 
 ## Open Questions
 
-- Does the diagnostic field `stage` in `--format json`
+- Does the diagnostic field `stage` in `--envelope json`
   ([reporting](../../models/behavior/reporting.md)) become `phase`? It names
   parse/check/evaluate, not a planner unit; keeping it leaves a third meaning of
   the word in a public format, and renaming it is a wire change.
 - Does vault assembly, which [architecture](../../models/domain/architecture.md)
   describes as coordinated "stages", adopt "phases" as well, so that the
   reservation holds across the whole knowledge base?
-- Is "presentation" the name of both the category and the registry entry, or
-  does the entry get a separate noun (`Presenter`, as the
-  [presentation](../../wiki/hql/presentation.hmd) card currently says)?
 - Is purity part of the reserved operation type (`Elementwise<I, O>` versus an
   impure variant), or always inferred from the body?
 - Do stream operations from [HQL-0006](../HQL-0006/README.md) and
@@ -327,8 +320,13 @@ separate uses listed under Open Questions.
   four, or does `Barrier` cover a batch boundary?
 - Which fields of a stage annotation are fixed by the language, and which are
   left to each backend?
+
 ## Changelog
 
 - 2026-09-28: drafted
 - 2026-10-17: operations as a reserved function type; stages as step
   annotations
+- 2026-10-19: the registry entry is `Operation`, a bound function is a step
+  ([HQL-0015](../HQL-0015/README.md)) and presentations are ordinary operations
+  ([HQL-0017](../HQL-0017/README.md)); the reserved operation types, stage
+  annotations and the planner are not yet implemented

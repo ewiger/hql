@@ -1,6 +1,6 @@
 # HQL-0019: Graph construction
 
-- **Status**: drafted
+- **Status**: accepted
 - **Created**: 2026-10-18
 - **Source**: [graph](../../wiki/hql/types/graph-type.hmd),
   [HQL-0017](../HQL-0017/README.md), [HQL-0018](../HQL-0018/README.md)
@@ -32,13 +32,13 @@ knowledge graph.
   `graph` handled: a collection of cards.
 - Graphs come from more places than a vault's links. A join of birds to
   habitats, a table of flights, a similarity threshold between cards: each
-  states a relation that a program wants to see as a graph, and today none of
-  them can become one.
+  states a relation that a program wants to see as a graph, and before this
+  record none of them could become one.
 - The [graph](../../wiki/hql/types/graph-type.hmd) card leaves open whether a
   graph's nodes and edges are readable. A graph that cannot be read can only be
   rendered.
-- Today's projection keeps every edge of the vault whatever cards it was
-  given, so `cards | filter(…) | graph` draws links to cards the filter
+- The former `graph` projection kept every edge of the vault whatever cards it
+  was given, so `cards | filter(…) | graph` drew links to cards the filter
   removed.
 
 ## Non-goals
@@ -167,8 +167,8 @@ g.edges : Set<E>
   HQL-0018: `KnowledgeGraph(cards)` reads concept cards as nodes and relation
   cards as relations, keeping each relation's identity, provenance and
   evidence.
-- A `KnowledgeGraph` is a `Graph<Concept, Relation>`, so sections 5 and 6
-  apply to it, and a program MAY build a plain `Graph` from its nodes and
+- A `KnowledgeGraph` is a `Graph<Concept, Relation>`, so *Traversal grows a
+  graph* and *Reading a graph* apply to it, and a program MAY build a plain `Graph` from its nodes and
   edges, which drops the knowledge contract and keeps the structure.
 
 ### 8. The vault's own graph
@@ -235,3 +235,8 @@ cargo clippy --locked --all-targets -- -D warnings
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: accepted; `Graph(cards)`, `Graph(edges)`, `Graph(nodes, edges)`,
+  `g.nodes : Set<Card>`, `g.edges : Set<Edge>`, `expand` refusing depth `0` and
+  `graph = vault.graph` are implemented, and the generic `Graph<N, E>`, the
+  join and predicate forms and `KnowledgeGraph` are not yet, so `vault.graph`
+  is a `Graph` over the vault's cards

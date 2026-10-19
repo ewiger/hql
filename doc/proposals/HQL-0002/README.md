@@ -1,6 +1,6 @@
 # HQL-0002: Semantic retrieval over a precomputed embedding index
 
-**Status**: accepted
+**Status**: implemented
 **Created**: 2026-09-18
 **Source**: [semantic-search requirements](../../models/requirements/semantic-search.md)
 
@@ -528,3 +528,5 @@ cd contrib/semantics && pytest
   normalises whatever an embedder returns, and `verify` checks unit length for
   any index. Truncated embeddings are why this could not stay implicit: a prefix
   of a unit vector is not a unit vector
+- 2026-10-19: implemented; the `lexical` and `semantic` extensions, the SQLite
+  index reader and the `contrib/semantics/` producer are built as specified

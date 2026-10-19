@@ -1,6 +1,6 @@
 # HQL-0018: A type's constructor is an operation
 
-- **Status**: drafted
+- **Status**: accepted
 - **Created**: 2026-10-18
 - **Source**: [HQL-0016](../HQL-0016/README.md), its section "Conversion is
   construction"; [HQL-0017](../HQL-0017/README.md)
@@ -93,8 +93,8 @@ T<A>(x, …)    ≡  x | T<A>(…)
 
 ### 4. A constructor as a function value
 
-Once function values exist ([issue 0009](../../issues/0009-function-type-and-constructor.md)),
-a constructor is a function value with its signature:
+A constructor is a function value with its signature
+([issue 0009](../../issues/0009-function-type-and-constructor.md)):
 
 ```hql
 groups | map(Set)        // each List<T> to a Set<T>
@@ -127,8 +127,7 @@ texts  | map(Json)       // each String checked as JSON
 
 Breaking where a lowercase constructor alias exists. `table` becomes an
 unknown operation and `graph` a value; `list` is retired by HQL-0016. The collection and
-map constructors keep their call form, and their pipeline form, which is not
-implemented today, is new. `UpperCamelCase` function names were not accepted
+map constructors keep their call form and gain the pipeline form. `UpperCamelCase` function names were not accepted
 before, so restricting them to constructors breaks no program.
 
 ## Reference Implementation
@@ -157,7 +156,7 @@ Unit tests MUST include:
 - `fn Total(xs: List<Int>) : Int` refused: `Total` names no type
 - `table` and `list` refused, each naming its constructor; `cards | graph`
   refused naming `Graph`
-- `groups | map(Set)` checks once function values exist; a type with two
+- `groups | map(Set)` checks; a type with two
   constructors passed where the expected parameter type does not pick one is
   refused, naming both
 
@@ -169,3 +168,8 @@ cargo clippy --locked --all-targets -- -D warnings
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: accepted; the pipeline form of constructors, the refusal of an
+  abstract type, constructors as function values (`map(Set)`) and
+  `UpperCamelCase` reserved for constructors are implemented, and constructors
+  declared in `std/`, overloads by first argument, record constructors and
+  `Json(s)` are not yet

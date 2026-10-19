@@ -23,7 +23,8 @@ configuration of the run context, which holds every connection detail and
 secret. A portion of a source is taken with the operations every sequence and
 stream already has — `take`, `filter`, slicing, `collect` and `emit` — and how
 the host fetches it is not part of the language. The vault a program runs
-against is the source `vault`, and `cards` is that source.
+against is the source `vault`, and `cards` is `vault.cards`, its cards in the
+order of a sorted walk.
 
 ## Companion notes
 
@@ -37,8 +38,8 @@ against is the source `vault`, and `cards` is that source.
   and the [index page](../../index.md) names message queues such as Kafka and
   REST APIs beside them. None of them has a type, so there is nothing for a
   program to hold, check or pass to a step.
-- `cards` is the only source HQL has, and it is special: the host seeds it, no
-  declaration says what it is, and no second vault can sit beside it. The
+- The vault is the only source HQL has, and it is special: no source contract
+  says what it is, and no second vault can sit beside it. The
   [queries model](../../models/behavior/queries.md) tries to make it ordinary by
   writing a function over a `vault` value. A source is not a function a program
   writes; it is a value the run context supplies, and the operations over it
@@ -65,8 +66,8 @@ against is the source `vault`, and `cards` is that source.
   an effect. Effectful steps over sources are a later proposal; this one reads.
 - **No native query strings in the core.** A `filter` over a table is
   HQL, and pushing it into SQL is the planner's work under HQL-0004. An
-  extension MAY offer an escape hatch, which section 7 bounds.
-- **No implementation of any network source.** Every kind in section 8 except
+  extension MAY offer an escape hatch, which the section "Native queries" bounds.
+- **No implementation of any network source.** Every kind in the section "Source kinds" except
   the filesystem vault is design direction.
 - **No dynamic sources.** A program cannot create a source at evaluation time
   from a computed string.
@@ -99,7 +100,7 @@ here. A stream is bounded — this many, or for this long, whichever comes first
 - **Keyset, or seek.** "After key `k`, take 50." Each page starts where the
   last one ended in the source's total order, so cost is constant and an insert
   shifts nothing. It cannot jump to page 40 without walking there, and it needs
-  a total order on a key — which section 5 already requires of every finite
+  a total order on a key — which the section "Using a source" already requires of every finite
   source.
 - **Opaque cursors.** A continuation token the source mints and the client
   hands back, as most REST and GraphQL APIs do. It is the source's keyset or
@@ -325,13 +326,13 @@ type Position : Orderable
   `StreamSource`, `LiveSource` or `Catalog`. The contract fixes what the
   source's contents are, so it is not optional.
 - `VaultSource` is the one domain contract the core declares, because `cards`
-  is defined over it (section 6). It is abstract, so it has no runtime
+  is defined over it (the section "The default source and the `cards` anchor"). It is abstract, so it has no runtime
   constructor: every vault value is of a concrete type an extension provides,
   and a program written against `VaultSource` runs unchanged on each of them.
   It is a contract in the sense of an abstract type, not a trait; HQL has no
   traits, per the [type system](../../wiki/hql/type-system.hmd).
 - `Message<T>` carries `position` and `time` because a program filters on them
-  to choose where a stream starts (section 5).
+  to choose where a stream starts (the section "Using a source").
 - `StreamSource` and `LiveSource` depend on `Stream<T>`, which
   [HQL-0006](../HQL-0006/README.md) adds to the lattice.
 
@@ -397,7 +398,7 @@ start    = "earliest"
   describes.
 - A finite kind with no intrinsic order MUST be configured with one, as
   `order = ["id"]`; a finite source whose order is unstated is an error at
-  configuration load. Section 5 states why.
+  configuration load. The section "Using a source" states why.
 - How a stream is treated is configuration, never program text. A
   `StreamSource` MUST be configured with `start`: `"earliest"`, the oldest
   retained message; `"latest"`, the newest; a position in the log's own terms;
@@ -406,7 +407,7 @@ start    = "earliest"
   `LiveSource` has no `start`, because it has nothing to start from but now.
   The same program runs over the full history or only the newest messages by a
   change of configuration alone; within one configuration, a program can only
-  narrow where it starts, by the filter of section 5.
+  narrow where it starts, by the filter of the section "Using a source".
 
 ### 5. Using a source
 
@@ -426,7 +427,7 @@ the same contents. Two pipelines over `warehouse` in one program see one table,
 even while it is being written to.
 
 **Where a stream starts.** A stream source's contents begin where its
-configuration's `start` says (section 4). A program narrows that with an ordinary filter on `position` or `time`,
+configuration's `start` says (the section "Configuration"). A program narrows that with an ordinary filter on `position` or `time`,
 `sightings | filter(m => m.time >= d)`, and a source MAY carry such a filter
 out as a seek. The messages are the same either way.
 
@@ -504,9 +505,9 @@ reader. Only `vault` is implemented; every other row is design direction.
 
 | Kind | HQL type | Contract | Element | Order |
 | --- | --- | --- | --- | --- |
-| `vault` | `Vault` | `VaultSource` | `Card` | card name, from a filesystem |
-| `git_vault` | `GitVault` | `VaultSource` | `Card` | card name, at a pinned revision |
-| `remote_vault` | `RemoteVault` | `VaultSource` | `Card` | card name, over HTTP or WebDAV |
+| `vault` | `Vault` | `VaultSource` | `Card` | sorted walk, from a filesystem |
+| `git_vault` | `GitVault` | `VaultSource` | `Card` | sorted walk, at a pinned revision |
+| `remote_vault` | `RemoteVault` | `VaultSource` | `Card` | sorted walk, over HTTP or WebDAV |
 | `bucket` | `ObjectBucket` | `KeyedSource<String, Data>` | object metadata and body | object key |
 
 A `git_vault` pins a revision in configuration, which makes it the one document
@@ -618,9 +619,9 @@ MUST NOT appear to the program as fewer elements.
 
 ## Backwards Compatibility
 
-- `cards` keeps its name and its contents. Its type becomes `Seq<Card>` as
-  [issue 0010](../../issues/0010-yield-and-bind.md) already plans, and it
-  becomes the source `vault` rather than a value the host assembles.
+- `cards` keeps its name and its contents. It is `vault.cards`, a lazy
+  `Seq<Card>` in sorted-walk order ([HQL-0020](../HQL-0020/README.md)); this
+  record makes `vault` a source and leaves `cards` as it is.
 - `source`, `member` and `vault` are new names, and `get` gains keyed sources. A
   program binding one of them shadows it as any binding does.
 - [HQL-0001](../HQL-0001/README.md) excludes extension-defined types and
@@ -631,7 +632,7 @@ MUST NOT appear to the program as fewer elements.
 ## Security Considerations
 
 - **Secrets.** Program text never contains a credential: ids are the only way to
-  a source, and section 4 refuses literal secrets in configuration. A query can
+  a source, and the section "Configuration" refuses literal secrets in configuration. A query can
   therefore be shared, committed and logged.
 - **Reach.** A program can read every source its run context configures and no
   other. Configuration is the access-control boundary, and the run context — not
@@ -640,7 +641,7 @@ MUST NOT appear to the program as fewer elements.
   program reveals nothing about the network it would run on.
 - **Read-only.** No operation here writes; native query steps run in read-only
   transactions.
-- **Resource bounds.** Section 9 bounds what an evaluation holds of every source, so
+- **Resource bounds.** The section "Run-context bounds" bounds what an evaluation holds of every source, so
   a source cannot make an evaluation unbounded except through a `Stream` a
   consumer chose not to stop.
 - **Provenance in output.** A `Message` carries `headers`, which can hold
@@ -649,7 +650,8 @@ MUST NOT appear to the program as fewer elements.
 ## Deployment / Activation
 
 1. Declare `std/sources.hql`, and expose the filesystem vault as
-   `vault : VaultSource`, with `cards` bound to it; no configuration change.
+   `vault : VaultSource`, with `cards` bound to `vault.cards`; no
+   configuration change.
 2. Add `[sources.<id>]` and `source(id)` with a second `vault` kind source, so
    two vaults can be read side by side.
 3. Amend HQL-0001 so an extension may provide source kinds.
@@ -659,17 +661,17 @@ MUST NOT appear to the program as fewer elements.
 
 ## Reference Implementation
 
-- `std/sources.hql` — the declarations of section 2
+- `std/sources.hql` — the declarations of the section "The abstract types"
 - `src/sources.rs` — configuration loading, id validation, the secret-key
-  refusal and the bounds of section 9
+  refusal and the bounds of the section "Run-context bounds"
 - `src/checker.rs` — typing `source(id)` from configuration
 - `src/extensions/mod.rs` — a source-kind registration beside step
   registration
 - `src/vault.rs` — the `Vault` struct stays the filesystem vault, and becomes
   one implementation of a host-side interface that every `VaultSource` kind
   implements; that interface, like every Rust trait, stays off HQL's surface
-- `doc/models/behavior/queries.md` and issue 0010 — `cards` bound to the
-  source `vault`
+- `doc/models/behavior/queries.md` and issue 0010 — `cards` bound to
+  `vault.cards` of the source `vault`
 
 ## Test Plan
 
@@ -707,3 +709,6 @@ None.
 ## Changelog
 
 - 2026-10-18: drafted
+- 2026-10-19: `cards` is stated as `vault.cards` in sorted-walk order
+  (HQL-0020); no part of this record is implemented yet beyond the filesystem
+  vault
