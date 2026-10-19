@@ -48,7 +48,9 @@ metadata:
 A novel by [[frank-herbert]]. A desert planet, a spice, and a family that inherits both.
 ```
 
-`--vault <directory>` names the vault a program runs against:
+A program run inside a vault runs against it: `hql` takes the nearest
+directory at or above the current one that holds `.hmd/` or `hql.toml`.
+`--vault <directory>` names one instead:
 
 ```sh
 hql --vault examples/tutorial eval 'cards | size'
@@ -203,7 +205,8 @@ links between them form a graph.
 ["tutorial", 14]
 ```
 
-Without `--vault` there is no vault, and naming one says so:
+Outside every vault and without `--vault` there is no vault, and naming one
+says so:
 
 <!-- run: novault -->
 ```hql
@@ -211,7 +214,7 @@ cards | size
 ```
 
 ```text
-name error: `cards` needs a vault: pass --vault <directory>
+name error: `cards` needs a vault: run inside one or pass --vault <directory>
  --> <expression>:1:1
   |
 1 | cards | size

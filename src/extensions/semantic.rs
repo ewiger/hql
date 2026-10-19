@@ -190,7 +190,7 @@ pub fn doctor(vault: &Vault) -> Vec<Check> {
         if vault.is_present() {
             format!("{} ({} cards)", vault.root.display(), vault.cards.len())
         } else {
-            "no vault: pass --vault <directory>".to_owned()
+            "no vault: run inside one or pass --vault <directory>".to_owned()
         },
     ) {
         return checks;

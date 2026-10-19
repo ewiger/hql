@@ -1181,7 +1181,9 @@ impl Checker<'_> {
                 {
                     Diagnostic::name(
                         span,
-                        format!("`{name}` needs a vault: pass --vault <directory>"),
+                        format!(
+                            "`{name}` needs a vault: run inside one or pass --vault <directory>"
+                        ),
                     )
                 } else if builtins::exists(name) {
                     Diagnostic::typing(

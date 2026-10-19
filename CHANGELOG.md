@@ -8,6 +8,12 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Added
+
+- Without `--vault`, `hql` finds the vault itself: the nearest directory at or
+  above the current one that holds `.hmd/` or `hql.toml`. `--vault` still
+  overrides it, and outside every vault a program runs with no vault.
+
 ### Changed
 
 - `hql run` writes an unformatted result as `Hql` too, so every command that

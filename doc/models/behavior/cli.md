@@ -30,16 +30,21 @@ pipeline.
 
 | Option | Effect |
 | --- | --- |
-| `--vault <DIR>` | the namespace `cards`, traversal and retrieval run against |
+| `--vault <DIR>` | the namespace `cards`, traversal and retrieval run against; without it, the nearest directory at or above the current one that holds `.hmd/` or `hql.toml` |
 | `--envelope text\|json` | what the answer is wrapped in: the value alone on stdout, written in the `--to` format, or one JSON document with the type, the value and the reports |
 | `--to <format>` | the [presentation format](../../wiki/hql/presentation.hmd) a result is written in when the program did not format it: `hql` (the default), `text`, `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2`, `mermaid`; `none` evaluates and writes no value |
 | `--report-level debug\|info\|warning\|error` | the lowest severity shown in `text`; see [reporting](reporting.md) |
 | `--report strict\|collect` | when the run stops; see [reporting](reporting.md) |
 
-Without `--vault`, `cards`, `downlinks` and `expand` say they need one rather
-than quietly finding nothing. The language requires one too: card-ness is a
-place in a namespace, and a vault is a directory with `.hmd/` in it — the config
-file inside is optional and defaults for it are assumed, the directory is not.
+The vault is found the way `hmd` finds a project: walking up from the current
+directory, the first directory holding `.hmd/` — or `hql.toml`, for a vault
+only HQL configures — is the root. `--vault` overrides the walk. Outside every
+vault there is no vault, and a program that does not name one still runs, so
+`hql eval '1 + 1'` needs none. `cards`, `downlinks` and `expand` say they need
+one rather than quietly finding nothing. The language requires one too:
+card-ness is a place in a namespace, and a vault is a directory marked as one by
+`.hmd/` or `hql.toml`. The config file inside `.hmd/` is optional and defaults
+for it are assumed.
 See [Card](../../wiki/hql/types/card-type.hmd) and
 [the semantic-search requirements](../requirements/semantic-search.md).
 
