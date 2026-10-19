@@ -19,6 +19,10 @@ The language continues to be in active development.
   `target`, and its `.end` appended to. A literal path's extension implies the
   format. `hql render` reads files beside the document and refuses every
   write.
+- Channels: `Channel<T>(name)` is an endpoint of values held in memory for one
+  evaluation. `target` and `sink` append to it, `source` gives what it holds
+  now without removing it, and `tap` what is written from then on. A document
+  may write its own channels.
 - `hql '<program>'` is `hql eval '<program>'`.
 - `--compact` writes each JSON document on one line, as `jq -c` does.
 

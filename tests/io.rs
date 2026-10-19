@@ -416,3 +416,53 @@ fn tapping_the_end_of_a_file_follows_what_is_appended() {
     let output = child.wait_with_output().unwrap();
     assert_eq!(String::from_utf8(output.stdout).unwrap(), "[\"new\"]\n");
 }
+
+#[test]
+fn a_channel_holds_values_in_the_order_they_were_written() {
+    let dir = tempdir().unwrap();
+    let held = hql_in(
+        dir.path(),
+        &["c = Channel<Int>(\"nums\")\n1 | target(c)\n[2, 3] | sink(c)\nsource(c)"],
+    );
+    assert_eq!(ok(&held), "[1, 2, 3]\n");
+    // Reading a channel does not consume it.
+    let twice = hql_in(
+        dir.path(),
+        &[
+            "c = Channel<Int>(\"n\")\n[1] | sink(c)\na = source(c)\nb = source(c)\n[size(a), size(b)]",
+        ],
+    );
+    assert_eq!(ok(&twice), "[1, 1]\n");
+    // A tap sees what is written after it begins.
+    let tapped = hql_in(
+        dir.path(),
+        &["c = Channel<Int>(\"n\")\n[1] | sink(c)\nt = tap(c)\n[2] | sink(c)\nt | take(5)"],
+    );
+    assert_eq!(ok(&tapped), "[2]\n");
+    refused(
+        &hql_in(dir.path(), &["c = Channel<Int>(\"n\")\nsource(c, Json)"]),
+        "takes no format",
+    );
+    refused(
+        &hql_in(dir.path(), &["c = Channel<Int>(\"n\")\n\"x\" | target(c)"]),
+        "holds Int, not String",
+    );
+    refused(
+        &hql_in(
+            dir.path(),
+            &["c = Channel<Int>(\"n\")\nd = Channel<String>(\"n\")\n1"],
+        ),
+        "not also a Channel<String>",
+    );
+}
+
+#[test]
+fn a_document_may_write_its_own_channels() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("doc.md"),
+        "```hql\nc = Channel<Int>(\"cell\")\n[1, 2] | sink(c)\nsource(c) | size\n```\n",
+    )
+    .unwrap();
+    assert!(ok(&hql_in(dir.path(), &["render", "doc.md"])).contains('2'));
+}

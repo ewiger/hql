@@ -248,6 +248,19 @@ fn build() -> Result<TypeSystem, TypeError> {
             applied: Vec::new(),
         })?;
     }
+    // An endpoint of values held in memory: `type Channel<T> : {Readable,
+    // Writable}`. It is written and read at `T`, so `T` is invariant.
+    system.declare(TypeDefinition {
+        constructor: CHANNEL,
+        kind: TypeKind::Concrete,
+        parameters: vec![TypeParameter {
+            name: "T",
+            variance: Variance::Invariant,
+            bound: None,
+        }],
+        parents: vec![TypeRef::READABLE.constructor, TypeRef::WRITABLE.constructor],
+        applied: Vec::new(),
+    })?;
     // One partition of a `group`: `type Group<K, T> { key: K, items: List<T> }`.
     system.declare(TypeDefinition {
         constructor: GROUP,
@@ -297,6 +310,9 @@ impl TypeRef {
         Some((parameters, result))
     }
 }
+
+/// The constructor of an in-memory channel.
+pub const CHANNEL: TypeConstructor = TypeConstructor("Channel");
 
 /// The constructor of one `group` partition.
 pub const GROUP: TypeConstructor = TypeConstructor("Group");

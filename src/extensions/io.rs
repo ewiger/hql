@@ -195,8 +195,29 @@ fn checked_format(
     }
 }
 
+/// The element a channel type holds, when it is one.
+fn channel_element(ty: &TypeRef) -> Option<&TypeRef> {
+    (ty.constructor == crate::types::builtin::CHANNEL)
+        .then(|| ty.args.first())
+        .flatten()
+}
+
+const NO_FORMAT: &str = "a channel holds values, not bytes, so it takes no format";
+
 /// The type `source` or `tap` gives.
 pub(crate) fn result(name: &str, call: &CheckedCall<'_>) -> Result<TypeRef, String> {
+    // A channel's values are what it holds now to `source`, and what is
+    // written from now on to `tap`.
+    if let Some(element) = channel_element(call.input) {
+        if call.bindings.contains_key("F") {
+            return Err(NO_FORMAT.to_owned());
+        }
+        return Ok(if name == "tap" {
+            crate::types::collections::STREAM.apply([element.clone()])
+        } else {
+            TypeRef::seq(element.clone())
+        });
+    }
     let format = checked_format(call, call.input_expr, name)?;
     let element = io::document_type(format)?;
     if name == "tap" {
@@ -245,12 +266,43 @@ fn refuse_in_documents(span: &Range<usize>) -> Result<(), Diagnostic> {
     Ok(())
 }
 
+/// A write to a channel: no format, and values of the channel's type. A
+/// channel is the one endpoint a document may write. Answers whether the
+/// endpoint is a channel.
+fn check_channel_write(
+    cx: &mut dyn CheckCx,
+    call: &CheckedCall<'_>,
+    written: &TypeRef,
+    span: &Range<usize>,
+) -> Result<bool, Diagnostic> {
+    let Some(endpoint) = written_endpoint(call) else {
+        return Ok(false);
+    };
+    let ty = cx.infer(endpoint)?;
+    let Some(element) = channel_element(&ty) else {
+        refuse_in_documents(span)?;
+        return Ok(false);
+    };
+    if call.bindings.contains_key("F") {
+        return Err(Diagnostic::typing(span.clone(), NO_FORMAT));
+    }
+    if !written.is(element) {
+        return Err(Diagnostic::typing(
+            span.clone(),
+            format!("{ty} holds {element}, not {written}"),
+        ));
+    }
+    Ok(true)
+}
+
 fn check_target(
-    _: &mut dyn CheckCx,
+    cx: &mut dyn CheckCx,
     call: &CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
-    refuse_in_documents(&span)?;
+    if check_channel_write(cx, call, call.input, &span)? {
+        return Ok(());
+    }
     if call.input.is_stream() && !call.input.is_collection() {
         return Err(Diagnostic::typing(
             span,
@@ -268,11 +320,14 @@ fn check_target(
 }
 
 fn check_sink(
-    _: &mut dyn CheckCx,
+    cx: &mut dyn CheckCx,
     call: &CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
-    refuse_in_documents(&span)?;
+    let element = call.input.iterated().unwrap_or(TypeRef::NEVER);
+    if check_channel_write(cx, call, &element, &span)? {
+        return Ok(());
+    }
     let format = checked_format(call, written_endpoint(call), "sink")
         .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     if matches!(format.0, "D2" | "Mermaid") {
@@ -343,6 +398,9 @@ fn eval_source(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let endpoint = endpoint(&input, &span)?;
+    if let Endpoint::Channel(name, element) = endpoint.as_ref() {
+        return Ok(Value::list(io::held(name), element.clone()));
+    }
     let format = evaluated_format(arguments, &endpoint, &span)?;
     let element =
         io::document_type(format).map_err(|message| Diagnostic::runtime(span.clone(), message))?;
@@ -367,6 +425,13 @@ fn eval_tap(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let endpoint = endpoint(&input, &span)?;
+    if let Endpoint::Channel(name, element) = endpoint.as_ref() {
+        let reading = Reading::Channel {
+            name: name.clone(),
+            from: io::held(name).len(),
+        };
+        return Ok(live(reading, element.clone(), span));
+    }
     let format = evaluated_format(arguments, &endpoint, &span)?;
     let element =
         io::document_type(format).map_err(|message| Diagnostic::runtime(span.clone(), message))?;
@@ -427,6 +492,10 @@ fn eval_target(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let endpoint = written_to(cx, arguments, &span)?;
+    if let Endpoint::Channel(name, _) = endpoint.as_ref() {
+        io::push(name, settled(cx, input)?);
+        return Ok(Value::Unit);
+    }
     let format = evaluated_format(arguments, &endpoint, &span)?;
     let whole = match &input {
         Value::Traversal(traversal) if traversal.forced().is_none() => {
@@ -460,6 +529,22 @@ fn eval_sink(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let endpoint = written_to(cx, arguments, &span)?;
+    if let Endpoint::Channel(name, _) = endpoint.as_ref() {
+        match &input {
+            Value::Traversal(traversal) => {
+                cx.traverse(traversal, &mut |_, value| {
+                    io::push(name, value);
+                    Ok(true)
+                })?;
+            }
+            other => {
+                for value in other.elements().unwrap_or_default() {
+                    io::push(name, value);
+                }
+            }
+        }
+        return Ok(Value::Unit);
+    }
     let format = evaluated_format(arguments, &endpoint, &span)?;
     let (mut destination, held) = Destination::open(&endpoint)
         .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
@@ -485,4 +570,19 @@ fn eval_sink(
         }
     }
     Ok(Value::Unit)
+}
+
+/// A value as it is held: a finite traversal's values produced.
+fn settled(cx: &mut dyn EvalCx, value: Value) -> Result<Value, Diagnostic> {
+    match &value {
+        Value::Traversal(traversal) if traversal.finite && traversal.forced().is_none() => {
+            let mut values = Vec::new();
+            cx.traverse(traversal, &mut |_, value| {
+                values.push(value);
+                Ok(true)
+            })?;
+            Ok(Value::list(values, traversal.element.clone()))
+        }
+        _ => Ok(value),
+    }
 }

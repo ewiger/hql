@@ -428,7 +428,8 @@ tap(events)                      // Stream<LogEvent>: each value as it is writte
   each as it is written. It ends when the scope does.
 - A channel MUST live for its execution scope: a program run, or one cell of
   a document. Within a scope one name MUST be one channel, and constructing a
-  name twice with different `T` MUST be a check error naming both.
+  name a second time with a different `T` MUST be an evaluation error naming
+  both.
 - Writing a channel MUST be `Effectful`, so writes happen in program order and
   a `source` after them sees them.
 - At the end of a scope the host MAY read every channel, by name, as part of

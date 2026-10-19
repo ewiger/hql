@@ -30,6 +30,8 @@ pub enum Endpoint {
     File(PathBuf),
     /// The end of a file: where an append goes and a follower waits.
     FileEnd(PathBuf),
+    /// A channel: values of one type, held in memory for one execution scope.
+    Channel(String, TypeRef),
 }
 
 impl Endpoint {
@@ -42,6 +44,7 @@ impl Endpoint {
             Self::Stderr => TypeRef::STDERR,
             Self::File(_) => TypeRef::FILE,
             Self::FileEnd(_) => TypeRef::FILE_END,
+            Self::Channel(_, element) => crate::types::builtin::CHANNEL.apply([element.clone()]),
         }
     }
 
@@ -62,6 +65,7 @@ impl Endpoint {
             Self::Stdout => "<stdout>".to_owned(),
             Self::Stderr => "<stderr>".to_owned(),
             Self::File(path) | Self::FileEnd(path) => path.display().to_string(),
+            Self::Channel(name, _) => format!("channel {name:?}"),
         }
     }
 }
@@ -75,6 +79,7 @@ impl fmt::Display for Endpoint {
             Self::Stderr => f.write_str("stderr"),
             Self::File(path) => write!(f, "file({:?})", path.display().to_string()),
             Self::FileEnd(path) => write!(f, "file({:?}).end", path.display().to_string()),
+            Self::Channel(name, element) => write!(f, "Channel<{element}>({name:?})"),
         }
     }
 }
@@ -104,6 +109,9 @@ struct Host {
     policy: Policy,
     base: PathBuf,
     written: HashMap<PathBuf, Written>,
+    /// Each channel of the scope, by name: its element type and its values in
+    /// the order they were written.
+    channels: BTreeMap<String, (TypeRef, Vec<Value>)>,
 }
 
 thread_local! {
@@ -111,6 +119,7 @@ thread_local! {
         policy: Policy::Open,
         base: PathBuf::from("."),
         written: HashMap::new(),
+        channels: BTreeMap::new(),
     });
 }
 
@@ -130,9 +139,78 @@ pub fn policy() -> Policy {
     HOST.with(|host| host.borrow().policy.clone())
 }
 
-/// Start an evaluation: nothing has been written yet.
+/// Start an evaluation: nothing has been written yet, and every channel is
+/// empty.
 pub(crate) fn begin() {
-    HOST.with(|host| host.borrow_mut().written.clear());
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        host.written.clear();
+        host.channels.clear();
+    });
+}
+
+/// Open a channel by name, refusing a name the scope holds at another type.
+///
+/// # Errors
+/// Names both element types.
+pub(crate) fn open_channel(name: &str, element: &TypeRef) -> Result<(), String> {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        match host.channels.get(name) {
+            Some((held, _)) if held != element => Err(format!(
+                "the channel {name:?} holds {held}, so it is not also a Channel<{element}>"
+            )),
+            Some(_) => Ok(()),
+            None => {
+                host.channels
+                    .insert(name.to_owned(), (element.clone(), Vec::new()));
+                Ok(())
+            }
+        }
+    })
+}
+
+/// Append a value to a channel.
+pub(crate) fn push(name: &str, value: Value) {
+    HOST.with(|host| {
+        if let Some((_, values)) = host.borrow_mut().channels.get_mut(name) {
+            values.push(value);
+        }
+    });
+}
+
+/// What a channel holds now, in write order.
+pub(crate) fn held(name: &str) -> Vec<Value> {
+    HOST.with(|host| {
+        host.borrow()
+            .channels
+            .get(name)
+            .map(|(_, values)| values.clone())
+            .unwrap_or_default()
+    })
+}
+
+/// The value a channel holds at a position, if one has been written there.
+fn held_at(name: &str, index: usize) -> Option<Value> {
+    HOST.with(|host| {
+        host.borrow()
+            .channels
+            .get(name)
+            .and_then(|(_, values)| values.get(index).cloned())
+    })
+}
+
+/// Every channel the scope wrote, by name, for the host to show beside the
+/// result.
+#[must_use]
+pub fn channels() -> Vec<(String, Vec<Value>)> {
+    HOST.with(|host| {
+        host.borrow()
+            .channels
+            .iter()
+            .map(|(name, (_, values))| (name.clone(), values.clone()))
+            .collect()
+    })
 }
 
 /// A path as the host reads it: relative to the source unit.
@@ -412,6 +490,8 @@ pub(crate) enum Reading {
         path: PathBuf,
         format: TypeConstructor,
     },
+    /// A channel's values written from a position on.
+    Channel { name: String, from: usize },
 }
 
 /// What standard input has given so far.
@@ -430,6 +510,7 @@ impl fmt::Debug for Reading {
             Self::Follow { path, format } => {
                 write!(f, "Reading::Follow({}, {})", path.display(), format.0)
             }
+            Self::Channel { name, from } => write!(f, "Reading::Channel({name:?}, {from})"),
         }
     }
 }
@@ -503,6 +584,18 @@ impl Reading {
                 Ok(true)
             }
             Self::Follow { path, format } => follow(path, *format, sink, failed),
+            // The scope runs one evaluation at a time, so what has not been
+            // written when the reader catches up is not written while it waits.
+            Self::Channel { name, from } => {
+                let mut index = *from;
+                while let Some(value) = held_at(name, index) {
+                    index += 1;
+                    if !sink(value)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
         }
     }
 }
@@ -640,6 +733,8 @@ pub(crate) enum Destination {
     Stdout,
     Stderr,
     File(fs::File),
+    /// A channel takes values, not text.
+    Channel(String),
 }
 
 impl Destination {
@@ -650,6 +745,9 @@ impl Destination {
     /// # Errors
     /// Names the endpoint when the host refuses it or it cannot be opened.
     pub(crate) fn open(endpoint: &Endpoint) -> Result<(Self, bool), String> {
+        if let Endpoint::Channel(name, _) = endpoint {
+            return Ok((Self::Channel(name.clone()), false));
+        }
         if let Policy::Document { .. } = policy() {
             return Err(format!(
                 "{}: a document writes nothing outside itself",
@@ -660,6 +758,7 @@ impl Destination {
             Endpoint::Stdout => Ok((Self::Stdout, false)),
             Endpoint::Stderr => Ok((Self::Stderr, false)),
             Endpoint::Stdin => Err("standard input is not written".to_owned()),
+            Endpoint::Channel(name, _) => Ok((Self::Channel(name.clone()), false)),
             Endpoint::File(path) => {
                 let full = record(path, Written::Replaced)?;
                 let file = fs::File::create(&full)
@@ -694,6 +793,9 @@ impl Destination {
                 writeln!(err, "{text}").and_then(|()| err.flush())
             }
             Self::File(file) => writeln!(file, "{text}").and_then(|()| file.flush()),
+            Self::Channel(name) => {
+                return Err(format!("the channel {name:?} takes values, not text"));
+            }
         };
         result.map_err(|error| error.to_string())
     }

@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 /// The types a program may name as constructors, abstract ones included so
 /// that naming one is refused with its concrete subtypes.
-const CONSTRUCTORS: [TypeConstructor; 9] = [
+const CONSTRUCTORS: [TypeConstructor; 10] = [
     collections::COLLECTION,
     collections::SEQ,
     collections::LIST,
@@ -20,6 +20,7 @@ const CONSTRUCTORS: [TypeConstructor; 9] = [
     collections::SORTED_MAP,
     collections::ORDERABLE,
     GRAPH,
+    builtin::CHANNEL,
 ];
 
 const GRAPH: TypeConstructor = TypeConstructor("Graph");
@@ -39,6 +40,9 @@ pub(crate) fn check(
 ) -> Result<TypeRef, Diagnostic> {
     if constructor == GRAPH {
         return check_graph(cx, args, span);
+    }
+    if constructor == builtin::CHANNEL {
+        return check_channel(cx, args, expected, span);
     }
     let system =
         builtin::system().map_err(|error| Diagnostic::typing(span.clone(), error.to_string()))?;
@@ -137,6 +141,33 @@ pub(crate) fn check(
         .map_err(|error| Diagnostic::typing(span, error.to_string()))
 }
 
+/// `Channel<T>(name)`: a name, and the element type written out, since
+/// nothing written to the channel yet can say it.
+fn check_channel(
+    cx: &mut dyn CheckCx,
+    args: &[Arg],
+    expected: Option<&TypeRef>,
+    span: Range<usize>,
+) -> Result<TypeRef, Diagnostic> {
+    let Some(expected) = expected.filter(|expected| expected.args.len() == 1) else {
+        return Err(Diagnostic::typing(
+            span,
+            "a channel is constructed with its element type: `Channel<LogEvent>(\"logs\")`",
+        ));
+    };
+    let [name] = args else {
+        return Err(Diagnostic::typing(span, "`Channel<T>` takes one name"));
+    };
+    let ty = cx.infer(&name.value)?;
+    if name.name.is_some() || !ty.is(&TypeRef::STR) {
+        return Err(Diagnostic::typing(
+            name.value.span.clone(),
+            format!("a channel's name is a String, not {ty}"),
+        ));
+    }
+    Ok(expected.clone())
+}
+
 /// `Graph(xs)` projects cards, hits or a ranking into a graph, and a graph
 /// into itself.
 fn check_graph(
@@ -218,6 +249,18 @@ pub(crate) fn evaluate(
             }
             other => other,
         });
+    }
+    if constructor == builtin::CHANNEL {
+        let (Some(Value::Str(name)), Some(element)) = (inputs.first(), expected.args.first())
+        else {
+            return Err(Diagnostic::runtime(span, "a channel needs a name"));
+        };
+        crate::io::open_channel(name, element)
+            .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+        return Ok(Value::Endpoint(Arc::new(crate::io::Endpoint::Channel(
+            name.to_string(),
+            element.clone(),
+        ))));
     }
     if constructor == GRAPH {
         if let [nodes, edges] = inputs.as_slice() {
