@@ -151,6 +151,5 @@ vault: examples/tutorial (14 cards)
 You have met the whole language as it stands today: values and data,
 collections and functions, questions in the style of SQL, a vault of
 documents, graphs, retrieval, streams, formats and documents that compute
-themselves. The [reference](../reference.md) states each part precisely, the
-[design status](../../wiki/hql/design-status.md) says what is built, and the
-[roadmap](../roadmap.md) says what comes next.
+themselves. The [reference](../reference.md) states each part precisely, and
+the [roadmap](../roadmap.md) says what comes next.
