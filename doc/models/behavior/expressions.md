@@ -207,6 +207,12 @@ value is its first argument: `x | T` is `T(x)`, `x | T(a)` is `T(x, a)`, and
 refused with its concrete subtypes, `[1] | Seq` naming `List`, and a lowercase
 spelling of a type, `list`, is not a step and names the constructor.
 
+A constructor passed where a function is expected is that function:
+`groups | map(Set)` builds a set from each group. A `fn` or alias named in
+`UpperCamelCase` is refused, since that casing is a type's constructor's, which
+only the module declaring the type provides
+([HQL-0018](../../proposals/HQL-0018/README.md)).
+
 ## Type declarations
 
 `type` declares a type. It yields `Unit` and introduces no value: constructing

@@ -239,6 +239,9 @@ pub(crate) struct Checked {
     /// arguments it takes before the trailing ones a variadic parameter
     /// collects, and their element type.
     pub applications: HashMap<Range<usize>, Option<(usize, TypeRef)>>,
+    /// Each constructor passed as a function, with the type it takes and the
+    /// type it builds.
+    pub constructor_values: HashMap<Range<usize>, (TypeRef, TypeRef)>,
     /// The calls that combine two values, by the combiner they name.
     pub combiners: HashMap<Range<usize>, &'static str>,
     /// What checking found worth saying that does not make the program wrong.
@@ -405,6 +408,27 @@ impl Checked {
             A::Float(value) => Kind::Float(*value),
             A::Bool(value) => Kind::Bool(*value),
             A::Str(value) => Kind::Str(value.clone()),
+            A::Ident(name) if self.constructor_values.contains_key(&span) => {
+                let (parameter, built) = self.constructor_values[&span].clone();
+                let held = Expr {
+                    kind: Kind::Ident(crate::checker::CONSTRUCTED.to_owned()),
+                    ty: parameter.clone(),
+                    span: span.clone(),
+                };
+                let _ = name;
+                Kind::Lambda {
+                    parameters: vec![crate::checker::CONSTRUCTED.to_owned()],
+                    body: std::sync::Arc::new(Expr {
+                        kind: Kind::Construct(vec![Arg {
+                            name: None,
+                            value: held,
+                        }]),
+                        ty: built.clone(),
+                        span: span.clone(),
+                    }),
+                    function: TypeRef::function(vec![parameter], built),
+                }
+            }
             A::Ident(name) => Kind::Ident(name.clone()),
             A::DocRef(name) => Kind::DocRef(name.clone()),
             A::Data(entries) => Kind::Data(

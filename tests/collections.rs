@@ -396,3 +396,29 @@ fn the_named_aggregations_equal_their_folds_even_over_nothing() {
     }
     assert_eq!(hql::check("[] | sum"), Ok(hql::types::TypeRef::INT));
 }
+
+#[test]
+fn a_constructor_is_a_function_value_where_one_is_expected() {
+    assert_eq!(
+        hql::eval("[ [1, 1], [2] ] | map(Set)").unwrap().to_string(),
+        "[[1], [2]]"
+    );
+    assert_eq!(
+        hql::check("[ [1, 1], [2] ] | map(Set)")
+            .unwrap()
+            .to_string(),
+        "List<Set<Int>>"
+    );
+    let bare = hql::check("f = Set\n1").expect_err("not a value on its own");
+    assert!(
+        bare.message().contains("is a constructor: call it"),
+        "{}",
+        bare.message()
+    );
+    let named = hql::check("fn Total(x: Int) : Int = x\n1").expect_err("constructor casing");
+    assert!(
+        named.message().contains("snake_case"),
+        "{}",
+        named.message()
+    );
+}

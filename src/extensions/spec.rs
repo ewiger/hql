@@ -365,7 +365,13 @@ impl OperationSpec {
                 // A lambda is not a value, so written positionally it fills
                 // the next function slot and leaves the value slots before it
                 // unsupplied: `reduce((a, b) => …)` omits the initial value.
-                None if cx.function_arity(argument).is_some() => {
+                // A constructor's name is a function and a type at once; where
+                // the next slot takes a type, it is the type.
+                None if cx.function_arity(argument).is_some()
+                    && !positions.clone().next().is_some_and(|index| {
+                        matches!(self.arguments[index].kind, ArgumentKind::TypeName(_))
+                    }) =>
+                {
                     positions.find(|index| self.arguments[*index].kind.is_function())
                 }
                 None => positions.next(),

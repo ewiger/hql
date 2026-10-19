@@ -146,6 +146,21 @@ fn instantiate(
     }
 }
 
+/// A function named in `UpperCamelCase` is a type's constructor, which only
+/// the module declaring the type provides.
+fn constructor_name(name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
+    if name.chars().next().is_some_and(char::is_uppercase) {
+        return Err(Diagnostic::typing(
+            span.clone(),
+            format!(
+                "`{name}` is named like a type's constructor, which only the module declaring \
+                 the type provides; name the function in snake_case"
+            ),
+        ));
+    }
+    Ok(())
+}
+
 /// What a refused annotation could have written instead: a binding never
 /// converts, so a different container is constructed and narrower elements
 /// are selected.
@@ -280,6 +295,9 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
         })
         .collect()
 }
+
+/// The parameter a constructor passed as a function takes its value by.
+pub(crate) const CONSTRUCTED: &str = "%constructed";
 
 /// The current vault, seeded by the host.
 pub(crate) const VAULT: &str = "vault";
@@ -521,6 +539,7 @@ impl Checker<'_> {
     /// A declared function: bound before its body is checked, so it may call
     /// itself, and its body must have the declared result type.
     fn function(&mut self, declaration: &FnDecl) -> Result<(), Diagnostic> {
+        constructor_name(&declaration.name, &declaration.span)?;
         self.lint(
             crate::naming::Kind::Function,
             &declaration.name,
@@ -678,6 +697,7 @@ impl Checker<'_> {
     /// unannotated parameter the type of the first step argument it is
     /// passed to, and the result whatever the body returns.
     fn alias(&mut self, alias: &crate::ast::AliasDecl) -> Result<(), Diagnostic> {
+        constructor_name(&alias.name, &alias.span)?;
         use crate::types::builtin::{PLACEHOLDERS, type_variable};
         self.lint(crate::naming::Kind::Function, &alias.name, &alias.span);
         if builtins::exists(&alias.name) {
@@ -1704,6 +1724,11 @@ impl CheckCx for Checker<'_> {
     fn function_arity(&mut self, argument: &Arg) -> Option<usize> {
         match &argument.value.kind {
             Kind::Lambda { parameters, .. } => Some(parameters.len()),
+            Kind::Ident(name)
+                if crate::constructors::named(name).is_some() && !self.scope.contains_key(name) =>
+            {
+                Some(1)
+            }
             Kind::Ident(name) => self
                 .scope
                 .get(name)
@@ -1721,6 +1746,44 @@ impl CheckCx for Checker<'_> {
         argument: &Arg,
         parameters: Vec<TypeRef>,
     ) -> Result<TypeRef, Diagnostic> {
+        // A constructor passed where a function is: `map(Set)` builds a set
+        // from each value it is given.
+        if let Kind::Ident(name) = &argument.value.kind
+            && let Some(constructor) = crate::constructors::named(name)
+            && !self.scope.contains_key(name)
+        {
+            let span = argument.value.span.clone();
+            let [parameter] = parameters.as_slice() else {
+                return Err(Diagnostic::typing(
+                    span,
+                    format!(
+                        "`{name}` builds a value from one argument, and a function of {} is expected",
+                        parameters.len()
+                    ),
+                ));
+            };
+            let held = Arg {
+                name: None,
+                value: Expr {
+                    kind: Kind::Ident(CONSTRUCTED.to_owned()),
+                    span: span.clone(),
+                },
+            };
+            let result =
+                self.with_bindings([(CONSTRUCTED.to_owned(), parameter.clone())], |checker| {
+                    crate::constructors::check(
+                        checker,
+                        constructor,
+                        std::slice::from_ref(&held),
+                        None,
+                        span.clone(),
+                    )
+                })?;
+            self.checked
+                .constructor_values
+                .insert(span, (parameter.clone(), result.clone()));
+            return Ok(result);
+        }
         if let Kind::Lambda {
             parameters: names, ..
         } = &argument.value.kind

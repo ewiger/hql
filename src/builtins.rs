@@ -32,6 +32,12 @@ pub fn hint(name: &str) -> String {
     if let Some((_, explanation)) = EXPLAINED.iter().find(|(retired, _)| *retired == name) {
         return format!("; {explanation}");
     }
+    if crate::constructors::named(name).is_some() {
+        return format!(
+            "; `{name}` is a constructor: call it, `{name}(xs)`, or pass it to a step that takes \
+             a function, `map({name})`"
+        );
+    }
     nearest(name)
         .map(|near| format!("; did you mean `{near}`?"))
         .unwrap_or_default()
