@@ -452,3 +452,18 @@ fn a_ranking_reports_the_element_type_it_was_built_from() {
     let first = value.elements().unwrap().remove(0);
     assert_eq!(first.type_of(), TypeRef::hit(TypeRef::INT));
 }
+
+#[test]
+fn a_record_may_open_a_line_inside_a_list() {
+    let value =
+        hql::eval("[\n    {title: \"Dune\", pages: 412},\n    {title: \"Emma\"},\n]").unwrap();
+    assert_eq!(
+        value.to_string(),
+        "[{pages: 412, title: \"Dune\"}, {title: \"Emma\"}]"
+    );
+    // A set still opens a line the same way.
+    assert_eq!(
+        hql::eval("[\n    {1, 2},\n]").unwrap().to_string(),
+        "[[1, 2]]"
+    );
+}

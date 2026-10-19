@@ -1374,7 +1374,13 @@ impl Parser {
             return self.collection_literal(false);
         }
         if matches!(self.peek(), Token::OpenBrace) {
-            let mut next = self.index + 1;
+            // Inside brackets the brace may follow a line break, which peek
+            // skips; the lookahead starts after the brace itself.
+            let mut brace = self.index;
+            while matches!(self.tokens[brace].token, Token::Newline) {
+                brace += 1;
+            }
+            let mut next = brace + 1;
             while matches!(self.tokens[next].token, Token::Newline) {
                 next += 1;
             }

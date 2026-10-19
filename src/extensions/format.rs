@@ -188,7 +188,9 @@ pub fn render(
     renderer: Option<&str>,
     renderers: &Renderers,
 ) -> Result<String, String> {
-    let (value, cut) = capped(value, limit);
+    // A sequence already produced is written as the values it holds.
+    let settled = value.settled();
+    let (value, cut) = capped(settled.as_ref().unwrap_or(value), limit);
     writable(&value.type_of(), format.0)?;
     // A value already in a format: the identity, a widening, plain text, or a
     // fence.

@@ -200,3 +200,10 @@ fn a_graph_says_why_each_node_is_present() {
     assert!(text.contains("(retrieved "), "{text}");
     assert!(text.contains("(expanded from "), "{text}");
 }
+
+#[test]
+fn limit_applies_to_a_sequence_the_vault_produced() {
+    let vault = fixture();
+    let (text, _) = written("cards | map(c => c.name) | format(Text, limit = 2)", &vault);
+    assert!(text.ends_with("more not shown"), "{text}");
+}
