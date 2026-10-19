@@ -502,3 +502,30 @@ fn a_program_read_from_standard_input_reads_no_data_there() {
     let output = piped_in(dir.path(), &["run", "-"], "source(stdin, Json)\n");
     refused(&output, "read from standard input");
 }
+
+#[test]
+fn each_tee_branch_writes_its_own_output() {
+    let dir = tempdir().unwrap();
+    let program = "source(stdin, Json)\n\
+                   | tee archive = sink(file(\"events.jsonl\"))\n\
+                   | filter(e => e.level == \"error\")\n\
+                   | tee errors = sink(file(\"errors.jsonl\"))\n\
+                   | map(e => e.message)\n\
+                   | sink(stdout, Text)";
+    let input = "{\"level\":\"error\",\"message\":\"a\"}\n{\"level\":\"info\",\"message\":\"b\"}\n";
+    assert_eq!(ok(&piped_in(dir.path(), &[program], input)), "a\n");
+    assert_eq!(
+        fs::read_to_string(dir.path().join("events.jsonl")).unwrap(),
+        input
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("errors.jsonl")).unwrap(),
+        "{\"level\":\"error\",\"message\":\"a\"}\n"
+    );
+    let failed = piped_in(
+        dir.path(),
+        &["source(stdin, Json) | tee x = sink(file(\"no/x.jsonl\")) | sink(stdout, Json)"],
+        input,
+    );
+    refused(&failed, "no/x.jsonl");
+}

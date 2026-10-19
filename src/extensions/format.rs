@@ -298,7 +298,15 @@ fn by_name(name: &str, value: &Value, format: TypeConstructor) -> Result<String,
 
 /// Plain text: the value's own rendering.
 fn text(value: &Value) -> String {
-    value.to_string()
+    // A tree that is one string is that text, as a String is: the line
+    // `Text` reads back is the line it wrote.
+    match unwrapped(value) {
+        Value::Data(data) => match data.as_ref() {
+            crate::data::Data::Str(text) => text.clone(),
+            _ => value.to_string(),
+        },
+        _ => value.to_string(),
+    }
 }
 
 fn json(value: &Value) -> String {

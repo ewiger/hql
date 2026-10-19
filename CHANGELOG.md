@@ -66,6 +66,9 @@ The language continues to be in active development.
 - A first argument that names no command is a program, not a usage error.
 - Every streamed CSV piece ends its lines with `\n`, the header's included.
 
+- A `Data` tree that is one string is written as its bare text in `Text`, as
+  a `String` is, so `map(e => e.message) | sink(stdout, Text)` writes lines.
+
 - `hql run` writes an unformatted result as `Hql` too, so every command that
   evaluates writes the same text for the same value. `--to text` gives a bare
   string.
