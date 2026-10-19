@@ -60,6 +60,10 @@ pub struct Options {
     /// stream is then JSON Lines.
     #[arg(long, global = true)]
     pub compact: bool,
+    /// Every logger's threshold, overriding the one it was constructed with:
+    /// `trace`, `debug`, `info`, `warn` or `error`.
+    #[arg(long, global = true, value_name = "LEVEL")]
+    pub log_level: Option<String>,
     /// When to stop: `strict` at the first error, `collect` to report them all.
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
@@ -170,12 +174,13 @@ const COMMANDS: [&str; 9] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 5] = [
+const VALUED: [&str; 6] = [
     "--vault",
     "--envelope",
     "--to",
     "--report",
     "--report-level",
+    "--log-level",
 ];
 
 /// `hql '<program>'` is `hql eval '<program>'`: insert `eval` before a first
@@ -237,6 +242,14 @@ pub fn parse() -> Cli {
 
 fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, String> {
     let vault = load_vault(cli.options.vault.as_deref())?;
+    if let Some(level) = &cli.options.log_level
+        && crate::extensions::logging::Level::parse(level).is_none()
+    {
+        return Err(format!(
+            "unknown log level `{level}`; expected `trace`, `debug`, `info`, `warn` or `error`"
+        ));
+    }
+    crate::io::set_log_level(cli.options.log_level.clone());
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
             format!("unknown report mode `{name}`; expected `strict` or `collect`")

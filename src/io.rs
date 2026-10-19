@@ -112,6 +112,8 @@ struct Host {
     /// Each channel of the scope, by name: its element type and its values in
     /// the order they were written.
     channels: BTreeMap<String, (TypeRef, Vec<Value>)>,
+    /// Every logger's threshold, when the host overrides it.
+    log_level: Option<String>,
 }
 
 thread_local! {
@@ -120,6 +122,7 @@ thread_local! {
         base: PathBuf::from("."),
         written: HashMap::new(),
         channels: BTreeMap::new(),
+        log_level: None,
     });
 }
 
@@ -131,6 +134,18 @@ pub fn set_host(policy: Policy, base: PathBuf) {
         host.policy = policy;
         host.base = base;
     });
+}
+
+/// Override every logger's threshold: `trace`, `debug`, `info`, `warn` or
+/// `error`.
+pub fn set_log_level(level: Option<String>) {
+    HOST.with(|host| host.borrow_mut().log_level = level);
+}
+
+/// The threshold the host imposes on every logger, if any.
+#[must_use]
+pub fn log_level() -> Option<String> {
+    HOST.with(|host| host.borrow().log_level.clone())
 }
 
 /// What the host grants.
@@ -199,6 +214,16 @@ fn held_at(name: &str, index: usize) -> Option<Value> {
             .and_then(|(_, values)| values.get(index).cloned())
     })
 }
+
+/// The channel a cell's logs are written to, opened for the scope.
+#[must_use]
+pub fn cell_logs() -> Endpoint {
+    let _ = open_channel(CELL_LOGS, &TypeRef::LOG_EVENT);
+    Endpoint::Channel(CELL_LOGS.to_owned(), TypeRef::LOG_EVENT)
+}
+
+/// The name of a cell's logs channel.
+pub const CELL_LOGS: &str = "cell.logs";
 
 /// Every channel the scope wrote, by name, for the host to show beside the
 /// result.

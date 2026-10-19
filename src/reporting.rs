@@ -171,23 +171,6 @@ impl Report {
         }
     }
 
-    /// A value the program captured with `debug`.
-    #[must_use]
-    pub fn captured(capture: Capture) -> Self {
-        Self {
-            severity: capture.severity,
-            span: capture.span,
-            stage: "program".to_owned(),
-            message: capture.message,
-            code: Some("debug".to_owned()),
-            label: capture.label,
-            ty: Some(capture.ty),
-            found: Some(capture.found),
-            shown: Some(capture.shown),
-            trace: capture.trace,
-        }
-    }
-
     /// A warning checking reported, before anything was evaluated.
     #[must_use]
     pub fn of_check_warning(warning: &Warning) -> Self {
@@ -247,27 +230,6 @@ pub fn shorten(text: &str) -> String {
     }
     let kept: String = text.chars().take(LIMIT).collect();
     format!("{kept}…")
-}
-
-/// What a `debug` step captured, before it becomes an entry.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Capture {
-    /// `debug` or `info`.
-    pub severity: Severity,
-    /// The step's span.
-    pub span: std::ops::Range<usize>,
-    /// The program's name for the capture.
-    pub label: Option<String>,
-    /// A short description: the value, or a collection's type and size.
-    pub message: String,
-    /// The value's type.
-    pub ty: String,
-    /// The whole value.
-    pub found: serde_json::Value,
-    /// The value as it prints.
-    pub shown: String,
-    /// How evaluation reached the step.
-    pub trace: Vec<TraceStep>,
 }
 
 /// The queue of everything a run had to say, in the order it was said.

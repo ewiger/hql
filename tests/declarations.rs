@@ -435,12 +435,14 @@ fn every_name_the_binary_provides_follows_its_kind() {
     for extension in hql::extensions::catalogue(&hql::extensions::Config::default()) {
         assert_eq!(departure(Kind::Extension, extension.name), None);
         for step in extension.steps {
-            assert_eq!(
-                departure(Kind::Function, step.name),
-                None,
-                "step {}",
-                step.name
-            );
+            // A step named for a type is that type's constructor, so it is
+            // named as the type is: `Logger(stderr, Text, name = "q")`.
+            let kind = if hql::types::named(step.name, &[]).is_some() {
+                Kind::Type
+            } else {
+                Kind::Function
+            };
+            assert_eq!(departure(kind, step.name), None, "step {}", step.name);
         }
     }
     // Every name `std/` declares passes: checking it reports no warning.

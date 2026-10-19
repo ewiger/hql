@@ -24,6 +24,9 @@ atoms! {
     ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
     FILE => "File", FILE_END => "FileEnd",
+    LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
+    WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
+    CELL => "Cell",
 }
 
 macro_rules! applications {
@@ -154,6 +157,17 @@ fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Concrete,
             &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
         ),
+        // Logging: `std/io/logging.hql`. A level is a type, so a threshold is
+        // passed as one and an event's level is tested with `is`.
+        (TypeRef::LOG_LEVEL, TypeKind::Abstract, &[]),
+        (TypeRef::TRACE, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::DEBUG, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::INFO, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::WARN, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::ERROR, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::LOG_EVENT, TypeKind::Concrete, &[]),
+        (TypeRef::LOGGER, TypeKind::Concrete, &[]),
+        (TypeRef::CELL, TypeKind::Concrete, &[]),
     ] {
         system.declare(TypeDefinition {
             kind,

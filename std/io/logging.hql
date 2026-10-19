@@ -49,7 +49,9 @@ type Logger {
 // info(log: Logger, message: String, data: Data = {}) : Unit
 // warn(log: Logger, message: String, data: Data = {}) : Unit
 // error(log: Logger, message: String, data: Data = {}) : Unit
-//
-// Bound by `hql render` for each cell, as `vault` is:
-// cell : Cell, whose `logs : Channel<LogEvent>` the host shows beside the
-// cell's result and never saves into the document.
+
+// The cell `hql render` is running, bound as `cell` as `vault` is. Its logs
+// are shown beside the cell's result and never saved into the document.
+type Cell {
+    logs : Channel<LogEvent>
+}

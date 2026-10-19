@@ -263,6 +263,10 @@ fn base(vault: &Vault) -> HashMap<String, TypeRef> {
         .iter()
         .map(|(name, endpoint)| ((*name).to_owned(), endpoint.type_of()))
         .collect();
+    // A document's cell is the one `hql render` is running.
+    if matches!(crate::io::policy(), crate::io::Policy::Document { .. }) {
+        scope.insert("cell".to_owned(), TypeRef::CELL);
+    }
     if vault.is_present() {
         scope.insert(VAULT.to_owned(), TypeRef::VAULT);
     }

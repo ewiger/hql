@@ -21,6 +21,10 @@ impl Value {
             Self::Traversal(traversal) => J::String(format!("<{}>", traversal.type_of())),
             Self::Vault => J::String("<vault>".to_owned()),
             Self::Endpoint(endpoint) => J::String(endpoint.to_string()),
+            Self::Level(level) => J::String(level.name().to_owned()),
+            Self::Log(event) => event.to_json(),
+            Self::Logger(logger) => J::String(logger.describe()),
+            Self::Cell => J::String("<cell>".to_owned()),
             Self::Unit => J::Null,
             Self::Ordering(order) => J::String(format!("{order:?}")),
             Self::Map(map) => {
@@ -113,6 +117,10 @@ impl fmt::Display for Value {
             Self::Traversal(traversal) => write!(f, "<{}>", traversal.type_of()),
             Self::Vault => f.write_str("<vault>"),
             Self::Endpoint(endpoint) => write!(f, "{endpoint}"),
+            Self::Level(level) => f.write_str(level.name()),
+            Self::Log(event) => write!(f, "{event}"),
+            Self::Logger(logger) => f.write_str(&logger.describe()),
+            Self::Cell => f.write_str("<cell>"),
             Self::Unit => f.write_str("()"),
             Self::Ordering(order) => write!(f, "{order:?}"),
             Self::Map(map) => {

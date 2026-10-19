@@ -680,6 +680,9 @@ hql run --log-level debug birds.hql < birds.jsonl 2> run.log
 - A first argument that is not a command name was a usage error and is now a
   program. Every existing invocation keeps its meaning.
 - A `Unit` result printed `()` and now prints nothing.
+- The core `debug` step, which captured a value into the run's report queue,
+  is removed; `debug` is the logging operation of `import logging`, and a
+  program reports on itself through a `Logger`.
 - The standard library's module names now follow folders, and
   `tests/declarations.rs` walks `std/` recursively.
 

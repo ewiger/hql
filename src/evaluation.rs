@@ -9,7 +9,7 @@ use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
 use crate::extensions::{EvalCx, Operation};
 use crate::graph::Edge;
-use crate::reporting::{Report, TraceStep};
+use crate::reporting::Report;
 use crate::search;
 use crate::types::TypeRef;
 use crate::types::{Closure, Value};
@@ -64,7 +64,6 @@ pub(crate) fn traverse(
         vault,
         scope: base(vault),
         log: Vec::new(),
-        frames: Vec::new(),
     };
     evaluator
         .run_traversal(traversal, &mut |_, value| Ok(sink(value)))
@@ -82,6 +81,9 @@ fn base(vault: &Vault) -> HashMap<String, Value> {
             )
         })
         .collect();
+    if matches!(crate::io::policy(), crate::io::Policy::Document { .. }) {
+        scope.insert("cell".to_owned(), Value::Cell);
+    }
     if vault.is_present() {
         scope.insert(crate::checker::VAULT.to_owned(), Value::Vault);
     }
@@ -98,7 +100,6 @@ fn evaluate_in(
         vault,
         scope,
         log: Vec::new(),
-        frames: Vec::new(),
     };
     // A finite traversal is the values it produces, so the result holds them;
     // a stream that may not end is left for the host to bound.
@@ -115,15 +116,6 @@ struct Evaluator<'a> {
     /// Entries in the order evaluation produced them, which on this
     /// sequential evaluator is the order of their traces.
     log: Vec<Report>,
-    /// The steps being evaluated, outermost first.
-    frames: Vec<Frame>,
-}
-
-/// A step under evaluation, and the pipeline steps that fed it.
-struct Frame {
-    step: &'static str,
-    upstream: Vec<&'static str>,
-    element: Option<String>,
 }
 
 impl Evaluator<'_> {
@@ -343,16 +335,9 @@ impl Evaluator<'_> {
                 at,
             } => {
                 let value = as_checked(self.expression(input)?, &input.ty);
-                self.frames.push(Frame {
-                    step: step.name,
-                    upstream: upstream(input),
-                    element: None,
-                });
                 // A step's own reports point at the step, not at the whole
                 // pipeline that feeds it.
-                let result = self.step(step, value, arguments, at.clone());
-                self.frames.pop();
-                result
+                self.step(step, value, arguments, at.clone())
             }
             Kind::Type => Err(Diagnostic::runtime(span, "a type argument is not a value")),
             Kind::Some(value) => Ok(Value::Present(Arc::new(self.expression(value)?))),
@@ -596,6 +581,22 @@ impl Evaluator<'_> {
                 (Field::End, crate::io::Endpoint::File(path)) => Ok(Value::Endpoint(Arc::new(
                     crate::io::Endpoint::FileEnd(path.clone()),
                 ))),
+                _ => Err(missing()),
+            },
+            Value::Log(event) => match field {
+                Field::Level => Ok(Value::Level(event.level)),
+                Field::Logger => Ok(text(&event.logger)),
+                Field::Message => Ok(text(&event.message)),
+                Field::Data => Ok(Value::Data(Arc::new(event.data.clone()))),
+                _ => Err(missing()),
+            },
+            Value::Logger(logger) => match field {
+                Field::Name => Ok(text(&logger.name)),
+                Field::Level => Ok(Value::Level(logger.level)),
+                _ => Err(missing()),
+            },
+            Value::Cell => match field {
+                Field::Logs => Ok(Value::Endpoint(Arc::new(crate::io::cell_logs()))),
                 _ => Err(missing()),
             },
             Value::Vault => match field {
@@ -967,25 +968,12 @@ impl Evaluator<'_> {
                 "wrong lambda arity",
             ));
         }
-        // The element a step is applying its function to joins the trace,
-        // so an entry logged inside the lambda says which element it was.
-        let element = match values.as_slice() {
-            [value] => Some(element_name(value)),
-            _ => None,
-        };
-        let outer = self
-            .frames
-            .last_mut()
-            .map(|frame| std::mem::replace(&mut frame.element, element));
         let previous = parameters
             .iter()
             .zip(values)
             .map(|(name, value)| (name, self.scope.insert(name.clone(), value)))
             .collect::<Vec<_>>();
         let result = self.expression(body);
-        if let (Some(frame), Some(outer)) = (self.frames.last_mut(), outer) {
-            frame.element = outer;
-        }
         for (name, value) in previous.into_iter().rev() {
             match value {
                 Some(value) => {
@@ -1082,29 +1070,6 @@ impl EvalCx for Evaluator<'_> {
 
     fn warn(&mut self, warning: Warning) {
         self.log.push(Report::of_warning(&warning));
-    }
-
-    fn log(&mut self, entry: Report) {
-        self.log.push(entry);
-    }
-
-    fn trace(&self) -> Vec<TraceStep> {
-        let mut trace = Vec::new();
-        for frame in &self.frames {
-            for (index, step) in frame.upstream.iter().enumerate() {
-                trace.push(TraceStep {
-                    step: (*step).to_owned(),
-                    position: index + 1,
-                    element: None,
-                });
-            }
-            trace.push(TraceStep {
-                step: frame.step.to_owned(),
-                position: frame.upstream.len() + 1,
-                element: frame.element.clone(),
-            });
-        }
-        trace
     }
 }
 
@@ -1204,32 +1169,6 @@ fn as_checked(value: Value, checked: &TypeRef) -> Value {
             Value::Traversal(Arc::new(Traversal::kept(element, values.as_ref().clone())))
         }
         other => other,
-    }
-}
-
-/// The steps a pipeline ran before the one whose input this is, first first.
-fn upstream(mut input: &Expr) -> Vec<&'static str> {
-    let mut steps = Vec::new();
-    while let Kind::Step {
-        step, input: inner, ..
-    } = &input.kind
-    {
-        steps.push(step.name);
-        input = inner;
-    }
-    steps.reverse();
-    steps
-}
-
-/// How a trace names an element: a document by its name, anything else as
-/// it prints, shortened.
-fn element_name(value: &Value) -> String {
-    match value {
-        Value::Card(card) => card.name().to_owned(),
-        Value::Doc(doc) => doc.name.clone(),
-        Value::Hit(hit) => hit.name(),
-        Value::Present(inner) => element_name(inner),
-        other => crate::reporting::shorten(&other.to_string()),
     }
 }
 

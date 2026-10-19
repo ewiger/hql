@@ -23,8 +23,21 @@ The language continues to be in active development.
   evaluation. `target` and `sink` append to it, `source` gives what it holds
   now without removing it, and `tap` what is written from then on. A document
   may write its own channels.
+- Logging, with `import logging`: `Logger(endpoint, Format, name = …, level =
+  …)` writes `LogEvent`s as `sink` would, one document per event, or the
+  events themselves to a `Channel<LogEvent>`. `trace`, `debug`, `info`, `warn`
+  and `error` write one event when its level reaches the threshold, and
+  `--log-level` overrides every threshold. A level is a type, tested with
+  `e.level | is(Error)`. `hql render` binds `cell.logs`, a cell's own channel,
+  and never saves it into the document.
 - `hql '<program>'` is `hql eval '<program>'`.
 - `--compact` writes each JSON document on one line, as `jq -c` does.
+
+### Removed
+
+- The core `debug` step, which captured a value into the run's report queue.
+  `debug` is now the logging operation; a program reports on itself through a
+  `Logger`.
 
 ### Changed
 

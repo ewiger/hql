@@ -193,6 +193,10 @@ pub(crate) enum Field {
     Root,
     Graph,
     End,
+    Level,
+    Logger,
+    Message,
+    Logs,
 }
 
 impl Field {
@@ -226,6 +230,10 @@ impl Field {
             "root" => Self::Root,
             "graph" => Self::Graph,
             "end" => Self::End,
+            "level" => Self::Level,
+            "logger" => Self::Logger,
+            "message" => Self::Message,
+            "logs" => Self::Logs,
             _ => return None,
         })
     }

@@ -168,7 +168,7 @@ fn written_endpoint<'a>(call: &CheckedCall<'a>) -> Option<&'a Expr> {
 
 /// The format a call reads or writes in: the one it names, or the one a
 /// literal path's extension implies.
-fn checked_format(
+pub(crate) fn checked_format(
     call: &CheckedCall<'_>,
     endpoint: Option<&Expr>,
     verb: &str,

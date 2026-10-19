@@ -470,22 +470,23 @@ fn the_standard_library_checks_from_the_command_line() {
 }
 
 #[test]
-fn debug_entries_are_hidden_by_default_and_shown_on_request() {
-    let source = "[1, 2] | debug(label = \"xs\") | size";
+fn a_logger_writes_beside_the_result_and_the_host_sets_its_threshold() {
+    let source = "import logging\nlog = Logger(stderr, Text, name = \"xs\")\n\
+                  log | debug(\"hidden\")\nlog | info(\"counted\", {n: 2})\n[1, 2] | size";
     let quiet = hql(&["eval", source]);
     assert_eq!(stdout(&quiet), "2\n");
-    assert!(stderr(&quiet).is_empty(), "{}", stderr(&quiet));
+    assert_eq!(stderr(&quiet), "INFO xs counted {n: 2}\n");
 
-    let shown = hql(&["--report-level", "debug", "eval", source]);
-    assert!(shown.status.success());
-    assert!(stderr(&shown).contains("debug[xs]: List<Int>, 2 elements"));
-    assert!(stderr(&shown).contains("= value: [1, 2]"));
+    let loud = hql(&["--log-level", "debug", "eval", source]);
+    assert_eq!(stderr(&loud), "DEBUG xs hidden\nINFO xs counted {n: 2}\n");
+    let quieter = hql(&["--log-level", "warn", "eval", source]);
+    assert!(stderr(&quieter).is_empty(), "{}", stderr(&quieter));
+    let unknown = hql(&["--log-level", "loud", "eval", "1"]);
+    assert_eq!(unknown.status.code(), Some(1));
+}
 
-    // JSON carries every entry, whatever the shown level.
-    let json = hql(&["--envelope", "json", "eval", source]);
-    let document: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
-    assert_eq!(document["reports"][0]["label"], "xs");
-
+#[test]
+fn the_report_level_is_named_from_a_known_set() {
     let refused = hql(&["--report-level", "loud", "eval", "1"]);
     assert_eq!(refused.status.code(), Some(1));
     assert!(stderr(&refused).contains("unknown report level"));

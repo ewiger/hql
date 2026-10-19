@@ -23,6 +23,7 @@ pub mod format;
 pub(crate) mod graph;
 pub(crate) mod io;
 pub mod lexical;
+pub mod logging;
 pub mod semantic;
 pub mod spec;
 use spec::{CheckedCall, OperationSpec};
@@ -107,10 +108,6 @@ pub(crate) trait EvalCx: Send {
     ) -> Result<Value, Diagnostic>;
     /// Queue something worth saying that does not make the result impossible.
     fn warn(&mut self, warning: crate::warnings::Warning);
-    /// Add an entry to the run's log.
-    fn log(&mut self, entry: crate::reporting::Report);
-    /// How evaluation reached the step being evaluated.
-    fn trace(&self) -> Vec<crate::reporting::TraceStep>;
 }
 
 /// One name a pipeline may write.
@@ -182,6 +179,13 @@ static IO: Extension = Extension {
     metadata: None,
 };
 
+static LOGGING: Extension = Extension {
+    name: "logging",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: logging::STEPS,
+    metadata: None,
+};
+
 static LEXICAL: Extension = Extension {
     name: "lexical",
     version: env!("CARGO_PKG_VERSION"),
@@ -202,7 +206,8 @@ static SEMANTIC: Extension = Extension {
 /// `hql builtins` whether or not the program has imported the extension that
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
-pub(crate) static REGISTERED: &[&Extension] = &[&CORE, &GRAPH, &FORMAT, &IO, &LEXICAL, &SEMANTIC];
+pub(crate) static REGISTERED: &[&Extension] =
+    &[&CORE, &GRAPH, &FORMAT, &IO, &LOGGING, &LEXICAL, &SEMANTIC];
 
 impl Extension {
     /// The step of a name this extension provides.
@@ -577,10 +582,12 @@ mod tests {
     fn every_registered_step_declares_a_purity_and_a_provider() {
         let listed = listing();
         assert!(!listed.is_empty());
-        // Reading and writing an endpoint are the effects; every other step,
-        // constructing an endpoint included, is a function of its input.
+        // Reading and writing an endpoint, and logging, are the effects;
+        // every other step, constructing an endpoint or a logger included, is
+        // a function of its input.
         for entry in &listed {
-            let effectful = entry.provider == "io" && entry.name != "file";
+            let effectful = (entry.provider == "io" && entry.name != "file")
+                || (entry.provider == "logging" && entry.name != "Logger");
             let expected = if effectful {
                 Purity::Effectful
             } else {

@@ -12,21 +12,25 @@ system is in a general-purpose language — every entry has a severity, a messag
 and context — except that the entries are data with a fixed shape, not lines
 printed to standard output.
 
-Errors are one kind of entry. The language raises them; a program adds its own
-with [[debug-op|debug]]. Which entries are shown and which fail the run is a
-policy, so it is configured rather than fixed by the language.
+Errors are one kind of entry, and the language raises them. What a program
+reports about itself is not an entry: it writes log events through a `Logger`
+to an endpoint of its own, apart from both the result and this log
+([HQL-0021](../../proposals/HQL-0021/README.md)). Which entries are shown and
+which fail the run is a policy, so it is configured rather than fixed by the
+language.
 
 ## Severities
 
 | Severity | Meaning | Raised by |
 | --- | --- | --- |
-| `debug` | A value captured to look at | the program, with `debug` |
-| `info` | A value or a fact worth stating | the program, with `debug(level = "info")` |
+| `debug` | A detail a host states while it runs | the host |
+| `info` | A fact worth stating | the host |
 | `warning` | Work continued and the result stands | a reference that does not resolve; a skipped document |
 | `error` | The result is wrong, but more could still be examined | a type or name error; data of the wrong shape |
 | `failure` | Nothing further can be examined | the source did not parse; arithmetic overflowed |
 
-All five are implemented; `debug` and `info` are logged with [[debug-op|debug]].
+All five are implemented. No program construct raises `debug` or `info`; a
+program's own diagnostics are log events, with their own levels.
 
 Severity is not the same question as "did it work". Only an entry at or above
 the **fail level** — `error` by default — fails the run: the result is absent
@@ -101,9 +105,9 @@ The same entry as data, with `--envelope json`:
 }
 ```
 
-Every entry carries `severity`, `stage`, `message` and `span`. A `debug` entry
-also carries `code`, `label`, `type`, `found` and `trace`. `code`, `source`,
-`expected`, `found` and `trace` on the language's own errors are designed.
+Every entry carries `severity`, `stage`, `message` and `span`. `code`,
+`source`, `expected`, `found` and `trace` on the language's own errors are
+designed.
 
 ## Collect everything, then fail
 
@@ -186,7 +190,7 @@ every query that touched it.
 - How entries from a pushed-down source-side execution are attributed to spans
   in the original query — see [[pipes]].
 
-See [[debug-op]] for capturing values, [[match-op]] and [[option-type]] for
+See [HQL-0021](../../proposals/HQL-0021/README.md) for logging, [[match-op]] and [[option-type]] for
 problems a program handles itself, the [reporting model](../../models/behavior/reporting.md)
 for the host API, and [the command line](../../models/behavior/cli.md) for the
 flags.

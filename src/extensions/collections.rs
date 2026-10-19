@@ -9,7 +9,6 @@ use super::spec::{
 use super::{EvalCx, Operation, Purity, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::execution::{Arg as TypedArg, Kind as TypedKind};
-use crate::reporting::Severity;
 use crate::search::Ranking;
 use crate::types::TypeRef;
 use crate::types::{Key, Value};
@@ -612,107 +611,7 @@ pub(crate) static STEPS: &[Operation] = &[
         check: Some(check_extreme),
         eval: eval_max,
     },
-    Operation {
-        name: "debug",
-        spec: OperationSpec {
-            parameters: &[TypeParameter {
-                name: "T",
-                bound: None,
-            }],
-            input: P::Var("T"),
-            arguments: &[
-                ArgumentSpec {
-                    required: false,
-                    positional: false,
-                    ..ArgumentSpec::value("label", P::Type(crate::types::TypeConstructor("String")))
-                },
-                ArgumentSpec {
-                    required: false,
-                    positional: false,
-                    ..ArgumentSpec::value("level", P::Type(crate::types::TypeConstructor("String")))
-                },
-            ],
-            output: O::Input,
-        },
-        // Pure on values: the program cannot read what it logged, so
-        // removing every `debug` cannot change a result.
-        summary: "Capture a value into the run's log and pass it on unchanged.",
-        purity: Purity::Pure,
-        check: Some(check_debug),
-        eval: eval_debug,
-    },
 ];
-
-/// The severities `debug` may log at: what a value is, never that something
-/// went wrong.
-const DEBUG_LEVELS: [(&str, Severity); 2] = [("debug", Severity::Debug), ("info", Severity::Info)];
-
-fn check_debug(
-    _: &mut dyn super::CheckCx,
-    call: &super::spec::CheckedCall<'_>,
-    _: Range<usize>,
-) -> Result<(), Diagnostic> {
-    let Some(level) = super::named(call.arguments, "level") else {
-        return Ok(());
-    };
-    match &level.value.kind {
-        crate::ast::Kind::Str(name) if DEBUG_LEVELS.iter().any(|(known, _)| known == name) => {
-            Ok(())
-        }
-        _ => Err(Diagnostic::typing(
-            level.value.span.clone(),
-            "`level` is the literal \"debug\" or \"info\"",
-        )),
-    }
-}
-
-fn eval_debug(
-    cx: &mut dyn EvalCx,
-    input: Value,
-    args: &[TypedArg],
-    span: Range<usize>,
-) -> Result<Value, Diagnostic> {
-    let text = |cx: &mut dyn EvalCx, name: &str| -> Result<Option<String>, Diagnostic> {
-        super::named(args, name)
-            .map(|argument| match cx.evaluate(&argument.value)? {
-                Value::Str(text) => Ok(text.to_string()),
-                other => Err(Diagnostic::runtime(
-                    argument.value.span.clone(),
-                    format!("`{name}` is a String, not {}", other.type_of()),
-                )),
-            })
-            .transpose()
-    };
-    let label = text(cx, "label")?;
-    let severity = match text(cx, "level")? {
-        None => Severity::Debug,
-        Some(name) => DEBUG_LEVELS
-            .iter()
-            .find_map(|(known, severity)| (*known == name).then_some(*severity))
-            .ok_or_else(|| Diagnostic::runtime(span.clone(), "checked level is unknown"))?,
-    };
-    let ty = input.type_of();
-    let message = if ty.is_collection() {
-        let count = elements(&input, "debug", &span)?.len();
-        format!("{ty}, {count} element{}", if count == 1 { "" } else { "s" })
-    } else {
-        crate::reporting::shorten(&input.to_string())
-    };
-    let trace = cx.trace();
-    cx.log(crate::reporting::Report::captured(
-        crate::reporting::Capture {
-            severity,
-            span,
-            label,
-            message,
-            ty: ty.to_string(),
-            found: input.to_json(),
-            shown: input.to_string(),
-            trace,
-        },
-    ));
-    Ok(input)
-}
 
 fn eval_count(
     cx: &mut dyn EvalCx,
