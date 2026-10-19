@@ -88,6 +88,15 @@ impl Value {
                 "key": group.key.to_json(),
                 "items": group.items.iter().map(Self::to_json).collect::<Vec<_>>(),
             }),
+            // A tool's function is how the harness calls it, not a field.
+            Self::Record(record) => J::Object(
+                record
+                    .fields
+                    .iter()
+                    .filter(|(_, value)| !matches!(value, Self::Function(_)))
+                    .map(|(name, value)| (name.clone(), value.to_json()))
+                    .collect(),
+            ),
         }
     }
 }
@@ -160,6 +169,20 @@ impl fmt::Display for Value {
             },
             Self::Group(group) => {
                 write!(f, "{}: [{}]", Nested(&group.key), nested(&group.items))
+            }
+            Self::Record(record) => {
+                write!(f, "{} {{", record.ty)?;
+                let shown = record
+                    .fields
+                    .iter()
+                    .filter(|(_, value)| !matches!(value, Self::Function(_)));
+                for (index, (name, value)) in shown.enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{name}: {}", Nested(value))?;
+                }
+                f.write_str("}")
             }
         }
     }
@@ -286,6 +309,13 @@ impl Value {
                 ),
             },
             Self::Doc(doc) => doc.body.trim().to_owned(),
+            // A harness record reads as the text it stands for: a run as its
+            // answer, a prompt as what was sent, an item as its text.
+            Self::Record(record) if record.is("Run") => record.text("result"),
+            Self::Record(record) if record.is("Prompt") => record.text("rendered"),
+            Self::Record(record) if record.is("ContextItem") || record.is("Turn") => {
+                record.text("text")
+            }
             Self::Card(card) => card.document.body.trim().to_owned(),
             Self::Set(values, _) | Self::List(values, _) => values
                 .iter()

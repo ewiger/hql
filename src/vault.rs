@@ -33,6 +33,9 @@ pub struct Vault {
     pub semantics: Semantics,
     /// Which renderer writes a type in a presentation format.
     pub formats: crate::extensions::format::Renderers,
+    /// What it says about models, recordings and memory, and the mode the
+    /// host chose.
+    pub ai: crate::extensions::ai::transport::Settings,
 }
 
 impl Vault {
@@ -48,6 +51,7 @@ impl Vault {
             extensions: Config::default(),
             semantics: Semantics::default(),
             formats: crate::extensions::format::Renderers::default(),
+            ai: crate::extensions::ai::transport::Settings::default(),
         }
     }
 
@@ -133,6 +137,7 @@ pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault
     Ok(Vault {
         extensions: source.extensions(),
         semantics: source.semantics(),
+        ai: source.ai(),
         formats: source
             .formats()
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,

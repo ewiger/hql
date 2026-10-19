@@ -165,10 +165,12 @@ reviewer = [[architecture_reviewer]] | Agent
   defaults to `8` and MUST be between `1` and `64`.
 - An unknown key in the `agent` table MUST be refused by name, so that a
   misspelt `max_turn` does not silently select the default.
-- `[[name]]` is `Option<Card>`. `run` and `delegate` accept an `Option<Agent>`
-  for their agent, and an absent agent MUST fail the call, naming the link.
-  Unlike a query over nothing, running nothing has no empty answer. A model
-  call that did not happen must not read as an answer that is missing.
+- `[[name]]` is `Option<Card>`, and `Agent` accepts one. Over an absent card
+  it MUST fail, saying that the link did not resolve. Unlike a query over
+  nothing, an agent built from nothing has no empty answer, and a model call
+  that did not happen must not read as an answer that is missing.
+- The constructors need no `import ai`: they are pure and build values of
+  library types. The steps that reach a model or write a file do.
 
 ### 3. Context
 
@@ -200,11 +202,10 @@ ctx = concat(sources | Context("evidence"), notes | Context("memory"))
 A prompt is the model input before it is written in a provider's wire format.
 
 - `Prompt(ctx: Context, instructions: String) : Prompt`. Inside a cell,
-  `instructions` defaults to the prose of the cell's section of `this`, which
-  runs from the section's heading to the cell and excludes other cells and
-  their outputs. Outside a cell, or until `this: Card` is built (see
-  [program values](../../models/behavior/program-values.md)), the argument is
-  required.
+  `instructions` is required. Once `this: Card` is built (see
+  [program values](../../models/behavior/program-values.md)), a cell's
+  default is the prose of its section of `this`, from the section's heading
+  to the cell, excluding other cells and their outputs.
 - `rendered` MUST be laid out exactly as follows, with `\n` line ends:
 
 ```text
@@ -216,9 +217,10 @@ rendered = instructions
              text
 ```
 
-- A `run` given a `Context` builds `Prompt(ctx, instructions)` with the cell's
-  section, exactly as above. Passing a `Prompt` is the explicit form, and both
-  forms MUST produce the same `rendered` text for the same inputs.
+- A `run` given a `Context` builds `Prompt(ctx, "")` until a cell's section is
+  reachable, and then `Prompt(ctx, <the cell's section>)`. Passing a `Prompt`
+  is the explicit form, and both forms MUST produce the same `rendered` text
+  for the same inputs.
 - The agent's `instructions` are the system message and MUST NOT be part of
   `rendered`. `rendered` is the first user turn.
 
@@ -240,7 +242,8 @@ run(input, agent, tools):
         response = request(system = agent.instructions, turns, tools ∪ agent tools)
         append assistant turn
         if response requests no tool call:
-            stop = "end", result = the response's text; return
+            stop = "end", or "max_tokens" when the response was cut;
+            result = the response's text; return
         if the provider reports a refusal:
             stop = "refused"; return
         for each requested call, in the order the response lists them:
@@ -249,7 +252,7 @@ run(input, agent, tools):
 ```
 
 - A `Run` MUST be returned whenever the provider answered, including for
-  `max_turns` and `refused`. A transport failure, an authentication failure or
+  `max_tokens`, `max_turns` and `refused`. A transport failure, an authentication failure or
   a recording miss MUST be a diagnostic rather than a `Run`, because no
   execution exists to describe.
 - `request` MUST be the body of the last request sent, without credentials,
@@ -282,8 +285,10 @@ Bool → boolean   Int → integer   Float → number   String → string
 List<T> → array of T   Map<String, T> → object of T   Data → {}   Option<T> → T, not required
 ```
 
-- A tool MUST be pure. A function that names an `Effectful` step anywhere in
-  its body MUST be refused at `Tool`.
+- A tool MUST be pure. While a tool's function is evaluated, every
+  `Effectful` step MUST refuse, and the call is recorded `failed` with that
+  refusal. The guard sits where the effect would happen, so no path through
+  the function, however indirect, reaches one.
 - The tools a run receives MUST be exactly the agent's `tools` names, by
   function name, plus one tool per name in `agents` (see Delegation). A missing
   or an extra tool MUST be refused before the first request. The card is where
@@ -319,6 +324,10 @@ check  = review | delegate(code_reviewer, "Verify these claims against src/.")
   of that name, taking one parameter, `task : String`. A call to it is a
   delegation the harness performs: it returns the child's `result` as the
   call's output and appends the child to `children` with `origin = "tool"`.
+- The child is given the tools of its parent that its card lists. A call to
+  a child whose card lists a tool its parent was not given is `refused`.
+- A run keeps the tools it was given as `tools`, so `ask` continues with the
+  same ones.
 - Delegation through tools MUST stop at depth `3` below the outermost run.
   Deeper calls are `refused`, so that two agents naming each other end.
 
@@ -531,8 +540,8 @@ Unit tests MUST include:
   two contexts keeping both labels in order
 - the `rendered` layout pinned byte for byte, with the same text from a
   `Context` and from an explicit `Prompt`
-- `Tool` refusing a lambda, an unmappable parameter, and a function that calls
-  an effectful step
+- `Tool` refusing a lambda and an unmappable parameter, and a tool whose
+  function reaches an effectful step recorded `failed`
 - a missing and an extra tool refused before any request
 - a schema violation recorded as `refused` without running the function, and
   an oversized result recorded as `failed`
@@ -549,8 +558,8 @@ Integration tests MUST include:
 
 - the literate harness above, rendered twice from recordings with
   byte-identical output
-- a recording miss under `replay` failing with the exact reason
-  `no recording for this request; run with --ai record`
+- a recording miss under `replay` failing with a reason that names the
+  request's key and ends `run with --ai record`
 - `hql check` of that document with no credentials set and no network
 
 ```bash
@@ -565,3 +574,13 @@ cargo clippy --locked --all-targets -- -D warnings
   `recall` are reconciled with HQL-0001, HQL-0002, HQL-0012 and HQL-0018 as
   `import ai`, `run`, `Context`, `Prompt`, `Tool`, `Hit`, `Turn` and ordinary
   card queries
+- 2026-10-19: first implementation. The checker accepts a record that names
+  itself, `std/ai` is embedded as module `ai`, a declared record is one
+  runtime value whose fields are read by name, and `Context` keeps its type
+  through `filter`, `take`, `drop` and `concat`. The constructors, `run`,
+  `ask`, `delegate`, `remember` and `trace`, both wire formats, recordings,
+  and `--ai` are built. Settled while building: `Agent` fails over an absent
+  card, purity is guarded where the effect would happen, a cut response stops
+  with `max_tokens`, a run keeps its `tools`, and a child takes its parent's
+  tools by name. A cell's section as default instructions waits on
+  `this: Card`

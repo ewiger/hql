@@ -36,6 +36,10 @@ pub trait VaultSource: Send + Sync {
     fn semantics(&self) -> crate::extensions::semantic::Semantics {
         crate::extensions::semantic::Semantics::default()
     }
+    /// Model, recording and memory configuration supplied by this source.
+    fn ai(&self) -> crate::extensions::ai::transport::Settings {
+        crate::extensions::ai::transport::Settings::default()
+    }
     /// Renderer choices supplied by this source.
     ///
     /// # Errors
@@ -93,6 +97,10 @@ impl VaultSource for Filesystem {
 
     fn formats(&self) -> Result<crate::extensions::format::Renderers, String> {
         crate::extensions::format::Renderers::read(&self.root)
+    }
+
+    fn ai(&self) -> crate::extensions::ai::transport::Settings {
+        crate::extensions::ai::transport::Settings::read(&self.root)
     }
 }
 

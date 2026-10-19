@@ -199,6 +199,10 @@ impl Field {
         if *receiver.present() == TypeRef::DATA {
             return Some(Self::Key(name.to_owned()));
         }
+        // A declared record's fields are read by name, whatever they are called.
+        if crate::types::builtin::AI_RECORDS.contains(&receiver.present().constructor.0) {
+            return Some(Self::Key(name.to_owned()));
+        }
         Some(match name {
             "name" => Self::Name,
             "title" => Self::Title,

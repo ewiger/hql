@@ -59,6 +59,11 @@ pub struct Options {
     /// When to stop: `strict` at the first error, `collect` to report them all.
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
+    /// Whether a model may be reached: `replay` (the default) answers from
+    /// recordings only, `record` sends what is not recorded and records it,
+    /// `live` always sends. Never read from `hql.toml`.
+    #[arg(long, global = true, value_name = "MODE")]
+    pub ai: Option<String>,
     /// The lowest severity shown: `debug`, `info`, `warning` or `error`.
     /// `--envelope json` carries every entry whatever this says.
     #[arg(long, global = true, value_name = "LEVEL")]
@@ -182,7 +187,10 @@ pub fn parse() -> Cli {
 }
 
 fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, String> {
-    let vault = load_vault(cli.options.vault.as_deref())?;
+    let mut vault = load_vault(cli.options.vault.as_deref())?;
+    if let Some(mode) = &cli.options.ai {
+        vault.ai.mode = crate::extensions::ai::transport::Mode::parse(mode)?;
+    }
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
             format!("unknown report mode `{name}`; expected `strict` or `collect`")

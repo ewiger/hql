@@ -1,8 +1,7 @@
 // The AI harness: agents, the context and prompt they are given, and the runs
 // that execute them, each a value a program can read.
 //
-// See doc/proposals/HQL-0022/README.md. Drafted: this module is checked after
-// the modules in std/ and is not yet embedded in the binary.
+// See doc/proposals/HQL-0022/README.md. Embedded as module `ai`, after format.
 //
 // Every stage of a run is a value rather than runtime state, so what reached a
 // model, what it called and what it answered are read the way a card is read.
@@ -85,11 +84,12 @@ type Run {
     calls    : List<ToolCall>
     children : List<Run>    // the runs it started itself, through an agent tool
     result?  : String       // the last assistant text; absent when it stopped without one
-    stop     : String       // "end", "max_turns" or "refused"
+    stop     : String       // "end", "max_tokens", "max_turns" or "refused"
     model    : Data         // provider, api, model id and revision, as the response reports them
     usage    : Data         // the tokens the provider reports
     request  : Json         // the last request body sent, without credentials
     events   : List<Event>
+    tools    : List<Tool>   // the tools it was given, which a continuation keeps
 }
 
 // Construction is pure; running is not.

@@ -543,6 +543,19 @@ impl Evaluator<'_> {
                 };
                 data_key(data, key, span)
             }
+            Value::Record(record) => {
+                let Field::Key(key) = field else {
+                    return Err(missing());
+                };
+                // An optional field is read as an option: present when held.
+                let optional = result.constructor.0 == "Option";
+                match record.get(key) {
+                    Some(found) if optional => Ok(Value::Present(Arc::new(found.clone()))),
+                    Some(found) => Ok(found.clone()),
+                    None if optional => Ok(Value::Absent(result.present().clone())),
+                    None => Err(missing()),
+                }
+            }
             Value::Card(card) => match field {
                 Field::Name => Ok(text(card.name())),
                 Field::Title => Ok(text(card.document.title())),
@@ -1048,6 +1061,15 @@ impl EvalCx for Evaluator<'_> {
         self.apply(argument, vec![element])
     }
 
+    fn call_function(
+        &mut self,
+        function: &Value,
+        arguments: Vec<Value>,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        self.call(function, arguments, span)
+    }
+
     fn apply_comparator(
         &mut self,
         argument: &Arg,
@@ -1115,6 +1137,9 @@ pub(crate) fn combine(
         "concat" => {
             let mut values = left.elements().ok_or_else(failed)?;
             values.extend(right.elements().ok_or_else(failed)?);
+            if ty.constructor.0 == "Context" {
+                return Ok(crate::types::Record::context(values));
+            }
             Ok(Value::list(values, ty.element().unwrap_or(TypeRef::NEVER)))
         }
         "merge" => merged(left, right, span),

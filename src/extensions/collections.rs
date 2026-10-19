@@ -12,7 +12,7 @@ use crate::execution::{Arg as TypedArg, Kind as TypedKind};
 use crate::reporting::Severity;
 use crate::search::Ranking;
 use crate::types::TypeRef;
-use crate::types::{Key, Value};
+use crate::types::{Key, Record, Value};
 use std::cmp::Ordering;
 use std::ops::Range;
 use std::sync::Arc;
@@ -861,6 +861,13 @@ fn eval_take(
             retrieval: Arc::clone(&ranking.retrieval),
         })));
     }
+    if let Value::Record(record) = &input
+        && record.is("Context")
+    {
+        return Ok(Record::context(
+            record.list("items").into_iter().take(count).collect(),
+        ));
+    }
     let mut elements = elements(&input, "take", &span)?;
     // A set has no order, so the prefix comes from the elements' own. A
     // sequence already has one, and imposing another here would discard the
@@ -981,6 +988,13 @@ fn eval_drop(
             element: ranking.element.clone(),
             retrieval: Arc::clone(&ranking.retrieval),
         })));
+    }
+    if let Value::Record(record) = &input
+        && record.is("Context")
+    {
+        return Ok(Record::context(
+            record.list("items").into_iter().skip(count).collect(),
+        ));
     }
     let elements = elements(&input, "drop", &span)?;
     Ok(Value::list(
@@ -1210,6 +1224,7 @@ fn rebuild(input: &Value, kept: Vec<Value>) -> Value {
             element: ranking.element.clone(),
             retrieval: Arc::clone(&ranking.retrieval),
         })),
+        Value::Record(record) if record.is("Context") => Record::context(kept),
         _ => Value::list(kept, element_type(input)),
     }
 }

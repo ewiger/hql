@@ -45,6 +45,7 @@ serde_yaml_ng = "0.10.0"
 sha2 = "0.11.0"
 thiserror = "2"
 toml = "1.1.6"
+ureq = { version = "2", features = ["json"] }
 
 [dev-dependencies]
 rusqlite = { version = "0.40.2", features = ["bundled"] }

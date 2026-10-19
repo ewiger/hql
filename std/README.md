@@ -67,7 +67,7 @@ where its steps will:
 | `graph.hql` | the graph domain |
 | `knowledge.hql` | the knowledge domain, including the card family |
 | `retrieval.hql` | ranking, arriving with [HQL-0002](../doc/proposals/HQL-0002/README.md) |
-| `ai/init.hql` | agents, contexts, prompts and runs, drafted in [HQL-0022](../doc/proposals/HQL-0022/README.md); not yet embedded, and it checks only once a record may name itself in a field |
+| `ai/init.hql` | agents, contexts, prompts and runs, from [HQL-0022](../doc/proposals/HQL-0022/README.md); a module directory, whose entry file is `init.hql` |
 
 ## Conventions
 
