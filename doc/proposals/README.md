@@ -30,4 +30,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0020](HQL-0020/README.md) | accepted | The vault and its namespace |
 | [HQL-0021](HQL-0021/README.md) | drafted | I/O: endpoints, channels, the network and logging |
 | [HQL-0023](HQL-0023/README.md) | drafted | A document reference is written `@[[..]]` |
-| HQL-0024 | reserved | A complete HQL type system, and the language features it carries |
+| [HQL-0024](HQL-0024/README.md) | drafted | A complete HQL type system, and the language features it carries |
