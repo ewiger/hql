@@ -255,6 +255,7 @@ pub(crate) static STEPS: &[Operation] = &{
                         required: false,
                         positional: true,
                         named: true,
+                        variadic: false,
                     },
                     ArgumentSpec {
                         positional: false,
@@ -266,6 +267,7 @@ pub(crate) static STEPS: &[Operation] = &{
                         required: false,
                         positional: false,
                         named: true,
+                        variadic: false,
                     },
                 ],
                 output: O::Type(P::Type(TypeConstructor("Logger"))),

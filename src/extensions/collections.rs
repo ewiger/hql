@@ -20,13 +20,29 @@ use crate::traversal::{Source, Traversal};
 
 /// The steps that consume a traversal one value at a time and so keep it
 /// lazy. Every other step receives a traversal's values, forced once.
-pub(crate) const LAZY: [&str; 17] = [
-    "map", "filter", "take", "drop", "collect", "emit", "flat_map", "format", "text", "markdown",
-    "hmd", "json", "yaml", "csv", "d2", "mermaid", "sink",
+pub(crate) const LAZY: [&str; 18] = [
+    "map",
+    "filter",
+    "take",
+    "take_while",
+    "drop",
+    "collect",
+    "emit",
+    "flat_map",
+    "format",
+    "text",
+    "markdown",
+    "hmd",
+    "json",
+    "yaml",
+    "csv",
+    "d2",
+    "mermaid",
+    "sink",
 ];
 
 /// A traversal that has not been forced, which a lazy step wraps.
-fn pending(input: &Value) -> Option<&Arc<Traversal>> {
+pub(crate) fn pending(input: &Value) -> Option<&Arc<Traversal>> {
     match input {
         Value::Traversal(traversal) if traversal.forced().is_none() => Some(traversal),
         _ => None,
@@ -138,6 +154,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 required: false,
                 positional: true,
                 named: true,
+                variadic: false,
             }],
             output: O::Reorder("T"),
         },
@@ -244,6 +261,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 required: true,
                 positional: true,
                 named: true,
+                variadic: false,
             }],
             output: O::Finite {
                 finite: P::Apply(crate::types::collections::LIST, &[P::Var("U")]),
@@ -291,6 +309,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 required: true,
                 positional: true,
                 named: true,
+                variadic: false,
             }],
             output: O::Input,
         },
@@ -322,6 +341,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 required: true,
                 positional: true,
                 named: true,
+                variadic: false,
             }],
             output: O::Image("R"),
         },
@@ -350,6 +370,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 required: true,
                 positional: true,
                 named: true,
+                variadic: false,
             }],
             output: O::Image("U"),
         },
@@ -378,6 +399,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 required: true,
                 positional: true,
                 named: true,
+                variadic: false,
             }],
             output: O::Type(P::Type(crate::types::TypeConstructor("Bool"))),
         },
@@ -425,6 +447,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 required: true,
                 positional: true,
                 named: true,
+                variadic: false,
             }],
             output: O::Type(P::Apply(
                 crate::types::collections::SET,
@@ -467,6 +490,7 @@ pub(crate) static STEPS: &[Operation] = &[
                     required: true,
                     positional: true,
                     named: true,
+                    variadic: false,
                 },
             ],
             output: O::Fold {
@@ -1604,6 +1628,10 @@ fn eval_somes(
 
 /// How many parameters a checked argument takes, when it is a lambda or a
 /// function value.
+pub(crate) fn arity_of(argument: &TypedArg) -> Option<usize> {
+    function_arity(argument)
+}
+
 fn function_arity(argument: &TypedArg) -> Option<usize> {
     match &argument.value.kind {
         TypedKind::Lambda { parameters, .. } => Some(parameters.len()),

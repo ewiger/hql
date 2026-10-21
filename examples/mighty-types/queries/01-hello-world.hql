@@ -1,6 +1,5 @@
-// status: proposed
-// implementation: pending
-// proposal: doc/proposals/HQL-0024/README.md
+// status: valid-now
+// implementation: implemented
 // environment: pure
 // feature: A formatted greeting, the first program of every textbook
 // expected-type: String

@@ -58,3 +58,11 @@ type Option<T>
 // compare(a, b) returns Less, Equal, or Greater for one Orderable type.
 // Supplying a comparison to sort does not change the element's ancestry.
 type Ordering
+
+// Two values held together, each at its own type: what zip, enumerate,
+// entries and join produce, and what a program builds with
+// Pair(first = a, second = b).
+type Pair<A, B> {
+    first  : A
+    second : B
+}

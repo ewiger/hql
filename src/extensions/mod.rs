@@ -24,9 +24,13 @@ pub(crate) mod graph;
 pub(crate) mod io;
 pub mod lexical;
 pub mod logging;
+pub(crate) mod math;
 pub mod net;
+pub(crate) mod option;
 pub mod semantic;
+pub(crate) mod seq;
 pub mod spec;
+pub(crate) mod string;
 use spec::{CheckedCall, OperationSpec};
 
 /// Whether the executor may move a step around.
@@ -100,6 +104,12 @@ pub(crate) trait EvalCx: Send {
     ) -> Result<bool, Diagnostic>;
     /// A lambda argument applied to one element.
     fn apply_lambda(&mut self, argument: &TypedArg, element: Value) -> Result<Value, Diagnostic>;
+    /// A function argument applied to any number of values, none included.
+    fn apply_function(
+        &mut self,
+        argument: &TypedArg,
+        values: Vec<Value>,
+    ) -> Result<Value, Diagnostic>;
     /// Apply a comparison to a pair of elements.
     fn apply_comparator(
         &mut self,
@@ -135,6 +145,15 @@ impl Operation {
     pub(crate) fn keeps_input(&self) -> bool {
         self.spec.output == spec::Output::Input
             && matches!(self.spec.input, spec::TypePattern::Var(_))
+    }
+
+    /// Whether the step receives an optional input as it is, absence
+    /// included: a step that keeps its input, one declared over `Option<T>`,
+    /// and `str`, whose text is of the whole value.
+    pub(crate) fn takes_raw_input(&self) -> bool {
+        self.keeps_input()
+            || self.name == "str"
+            || matches!(self.spec.input, spec::TypePattern::Apply(constructor, _) if constructor.0 == "Option")
     }
 }
 
@@ -208,6 +227,34 @@ static SEMANTIC: Extension = Extension {
     metadata: None,
 };
 
+static STRING: Extension = Extension {
+    name: "string",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: string::STEPS,
+    metadata: None,
+};
+
+static SEQ: Extension = Extension {
+    name: "seq",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: seq::STEPS,
+    metadata: None,
+};
+
+static MATH: Extension = Extension {
+    name: "math",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: math::STEPS,
+    metadata: None,
+};
+
+static OPTION: Extension = Extension {
+    name: "option",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: option::STEPS,
+    metadata: None,
+};
+
 /// Every extension compiled into this binary, core first.
 ///
 /// Registration is not import: a step here is known to diagnostics and to
@@ -215,7 +262,7 @@ static SEMANTIC: Extension = Extension {
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
 pub(crate) static REGISTERED: &[&Extension] = &[
-    &CORE, &GRAPH, &FORMAT, &IO, &NET, &LOGGING, &LEXICAL, &SEMANTIC,
+    &CORE, &STRING, &SEQ, &MATH, &OPTION, &GRAPH, &FORMAT, &IO, &NET, &LOGGING, &LEXICAL, &SEMANTIC,
 ];
 
 impl Extension {
@@ -225,12 +272,23 @@ impl Extension {
     }
 }
 
-/// The extensions imported unless a vault opts out.
+/// The modules imported unless a vault opts out: the imports written in
+/// `std/prelude.hql`, which is the standard library's implicit import list
+/// and not a module of its own.
 ///
-/// A prelude exists so that a program that only walks a graph and writes it
-/// as Markdown does not open with two lines of ceremony. It is a convenience, not a
-/// rule, which is why a vault can decline it.
-pub(crate) static PRELUDE: &[&str] = &["graph", "format", "io"];
+/// A prelude exists so that a program that trims a string or walks a graph
+/// does not open with lines of ceremony. It is a convenience, not a rule,
+/// which is why a vault can decline it.
+pub(crate) fn prelude() -> &'static [&'static str] {
+    static PRELUDE: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    PRELUDE.get_or_init(|| {
+        crate::library::PRELUDE
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("import "))
+            .map(|name| name.split_whitespace().next().unwrap_or(name))
+            .collect()
+    })
+}
 
 /// The registered extension of a name.
 pub(crate) fn extension(name: &str) -> Option<&'static Extension> {
@@ -344,7 +402,13 @@ impl Resolution {
     pub(crate) fn bare(prelude: bool) -> Self {
         let mut imported = vec![&CORE];
         if prelude {
-            imported.extend(PRELUDE.iter().filter_map(|name| extension(name)));
+            for name in self::prelude() {
+                if let Some(found) = extension(name)
+                    && !imported.iter().any(|held| held.name == found.name)
+                {
+                    imported.push(found);
+                }
+            }
         }
         Self { imported }
     }
@@ -398,29 +462,86 @@ impl Resolution {
         wanted: &'static Extension,
         span: &Range<usize>,
     ) -> Result<(), Diagnostic> {
+        let _ = span;
         if self.imported.iter().any(|held| held.name == wanted.name) {
             return Ok(());
         }
-        for step in wanted.steps {
-            if let Some(held) = self
-                .imported
-                .iter()
-                .find(|held| held.step(step.name).is_some())
-            {
-                return Err(Diagnostic::name(
-                    span.clone(),
-                    format!(
-                        "`{}` and `{}` both provide `{}`, so importing both leaves it ambiguous",
-                        held.name, wanted.name, step.name
-                    ),
-                ));
-            }
-        }
+        // Two modules may declare one name: `contains` of a String and of a
+        // collection are two declarations, told apart at the call by the
+        // input, and a call that fits both is refused there.
         self.imported.push(wanted);
         Ok(())
     }
 
-    /// The step a bare name resolves to.
+    /// Whether a module of this name is visible.
+    pub(crate) fn has(&self, name: &str) -> bool {
+        self.imported.iter().any(|held| held.name == name)
+    }
+
+    /// The step a name resolves to for an input of a type, among every
+    /// visible module declaring the name: the one whose input the type fits,
+    /// told apart from the others by that and by how many positional
+    /// arguments are written. Several that fit are an ambiguity, naming
+    /// each provider so the call can be qualified.
+    pub(crate) fn step_for(
+        &self,
+        name: &str,
+        input: &TypeRef,
+        positional: usize,
+        span: &Range<usize>,
+    ) -> Result<&'static Operation, Diagnostic> {
+        let candidates: Vec<(&'static Extension, &'static Operation)> = self
+            .imported
+            .iter()
+            .filter_map(|held| held.step(name).map(|step| (*held, step)))
+            .collect();
+        match candidates.as_slice() {
+            [] => Err(self.unresolved(name, span)),
+            [(_, only)] => Ok(only),
+            many => {
+                let input = input.present();
+                let fitting: Vec<_> = many
+                    .iter()
+                    .filter(|(_, step)| {
+                        step.spec.input.accepts(input)
+                            || (input.constructor.0 == "Option"
+                                && step.spec.input.accepts(input.present()))
+                    })
+                    .collect();
+                let by_arity: Vec<_> = fitting
+                    .iter()
+                    .filter(|(_, step)| {
+                        let specs = step.spec.arguments;
+                        let required = specs.iter().filter(|spec| spec.required).count();
+                        let variadic = specs.iter().any(|spec| spec.variadic);
+                        positional >= required && (variadic || positional <= specs.len())
+                    })
+                    .collect();
+                match (by_arity.as_slice(), fitting.as_slice()) {
+                    ([(_, step)], _) => Ok(step),
+                    ([], [(_, step)]) => Ok(step),
+                    ([], []) => Ok(many[0].1),
+                    (several, _) => Err(Diagnostic::name(
+                        span.clone(),
+                        format!(
+                            "`{name}` over {input} is declared by {}, so the call is \
+                             ambiguous; qualify it, `{}.{name}(…)`",
+                            several
+                                .iter()
+                                .map(|(extension, _)| format!("`{}`", extension.name))
+                                .collect::<Vec<_>>()
+                                .join(" and "),
+                            several[0].0.name
+                        ),
+                    )),
+                }
+            }
+        }
+    }
+
+    /// The step a bare name resolves to, whatever its input: the first
+    /// visible module declaring it.
+    #[cfg(test)]
     pub(crate) fn step(
         &self,
         name: &str,
@@ -531,7 +652,7 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
             version: extension.version,
             availability: if extension.name == CORE.name {
                 Availability::Core
-            } else if config.prelude && PRELUDE.contains(&extension.name) {
+            } else if config.prelude && prelude().contains(&extension.name) {
                 Availability::Prelude
             } else if config.imports.iter().any(|held| held == extension.name) {
                 Availability::Configured
@@ -680,17 +801,27 @@ mod tests {
     };
 
     #[test]
-    fn two_extensions_providing_one_name_collide_at_the_import() {
+    fn two_modules_declaring_one_name_are_told_apart_at_the_call() {
         let mut resolution = Resolution::bare(true);
-        let collision = resolution.bind(&PROBE, &(0..1)).unwrap_err();
+        resolution.bind(&PROBE, &(0..1)).unwrap();
+        // A collection fits the core's `count` and the probe's `Any`, with
+        // no arity to tell them apart: the call is ambiguous and says so.
+        let both = resolution
+            .step_for("count", &TypeRef::list(TypeRef::INT), 0, &(0..1))
+            .unwrap_err();
         assert!(
-            collision
-                .message()
-                .contains("`core` and `probe` both provide `count`"),
+            both.message().contains("`core` and `probe`"),
             "{}",
-            collision.message()
+            both.message()
         );
-        // The failed import changed nothing: `count` is still the core's.
+        // An Int fits only the probe's.
+        let probe = resolution
+            .step_for("count", &TypeRef::INT, 0, &(0..1))
+            .unwrap();
+        assert_eq!(
+            probe.summary,
+            "A second `count`, so the collision has two sides."
+        );
         assert!(resolution.step("count", &(0..1)).is_ok());
     }
 

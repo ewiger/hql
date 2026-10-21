@@ -1,6 +1,5 @@
-// status: proposed
-// implementation: pending
-// proposal: doc/proposals/HQL-0024/README.md
+// status: valid-now
+// implementation: implemented
 // environment: pure
 // feature: fmt with several placeholders, and str for any value's text
 // expected-type: List<String>

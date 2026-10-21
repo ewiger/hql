@@ -1230,7 +1230,8 @@ impl Parser {
         if !matches!(self.peek(), Token::CloseParen) {
             loop {
                 arguments.push(self.argument()?);
-                if !self.eat(&Token::Comma) {
+                // A trailing comma closes a list written one argument per line.
+                if !self.eat(&Token::Comma) || matches!(self.peek(), Token::CloseParen) {
                     break;
                 }
             }

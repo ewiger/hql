@@ -65,6 +65,9 @@ pub struct ArgumentSpec {
     pub positional: bool,
     /// Whether it can be supplied by name.
     pub named: bool,
+    /// Whether every further positional argument is one more of it: the
+    /// values `fmt` writes into its template.
+    pub variadic: bool,
 }
 
 impl ArgumentSpec {
@@ -76,6 +79,7 @@ impl ArgumentSpec {
             required: true,
             positional: true,
             named: true,
+            variadic: false,
         }
     }
 }
@@ -151,6 +155,11 @@ pub(crate) struct CheckedCall<'a> {
 }
 
 impl TypePattern {
+    /// Whether a type fits the pattern, with nothing bound.
+    pub(crate) fn accepts(self, actual: &TypeRef) -> bool {
+        self.accept(actual, &mut BTreeMap::new())
+    }
+
     fn accept(self, actual: &TypeRef, bindings: &mut BTreeMap<&'static str, TypeRef>) -> bool {
         match self {
             Self::Any => true,
@@ -254,6 +263,16 @@ impl OperationSpec {
         }
         let mut patterns = vec![self.input];
         let mut names = std::collections::BTreeSet::new();
+        if let Some(position) = self.arguments.iter().position(|argument| argument.variadic)
+            && (position + 1 != self.arguments.len()
+                || !self.arguments[position].positional
+                || !matches!(self.arguments[position].kind, ArgumentKind::Value(_)))
+        {
+            return Err(SpecError(format!(
+                "variadic argument `{}` must be the last, positional, and a value",
+                self.arguments[position].name
+            )));
+        }
         for argument in self.arguments {
             if !names.insert(argument.name) || (!argument.positional && !argument.named) {
                 return Err(SpecError(format!(
@@ -373,7 +392,18 @@ impl OperationSpec {
             .enumerate()
             .filter(|(_, arg)| arg.positional)
             .map(|(index, _)| index);
+        let variadic = self.arguments.iter().position(|argument| argument.variadic);
+        let mut trailing: Vec<&Arg> = Vec::new();
         for argument in arguments {
+            // Past the last declared position, every further positional
+            // argument is one more of the variadic one.
+            if let Some(variadic) = variadic
+                && argument.name.is_none()
+                && supplied[variadic].is_some()
+            {
+                trailing.push(argument);
+                continue;
+            }
             let index = match argument.name.as_deref() {
                 Some(written) => self
                     .arguments
@@ -496,6 +526,23 @@ impl OperationSpec {
                 ));
             }
         }
+        if let Some(variadic) = variadic {
+            let ArgumentKind::Value(pattern) = self.arguments[variadic].kind else {
+                unreachable!("validated as a value");
+            };
+            for argument in trailing {
+                let actual = cx.infer(&argument.value)?;
+                if !pattern.accept(&actual, &mut bindings) {
+                    return Err(Diagnostic::typing(
+                        argument.value.span.clone(),
+                        format!(
+                            "`{name}` argument `{}` needs {pattern}, not {actual}",
+                            self.arguments[variadic].name
+                        ),
+                    ));
+                }
+            }
+        }
         for parameter in self.parameters {
             // A parameter only an omitted argument would bind stays unbound.
             if let Some(bound) = parameter.bound
@@ -613,7 +660,8 @@ impl OperationSpec {
                 }
             };
             format!(
-                "{}{}: {}{}",
+                "{}{}: {}{}{}",
+                if argument.variadic { "..." } else { "" },
                 argument.name,
                 if argument.required { "" } else { "?" },
                 substitute(kind),

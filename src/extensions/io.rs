@@ -35,6 +35,7 @@ const FORMAT: ArgumentSpec = ArgumentSpec {
     required: false,
     positional: true,
     named: true,
+    variadic: false,
 };
 
 const FORMAT_PARAMETER: TypeParameter = TypeParameter {

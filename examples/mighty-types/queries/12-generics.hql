@@ -1,6 +1,5 @@
-// status: proposed
-// implementation: pending
-// proposal: doc/proposals/HQL-0024/README.md
+// status: valid-now
+// implementation: implemented
 // environment: pure
 // feature: Generic records and functions, with the parameters taken from each use
 // expected-type: List<String>

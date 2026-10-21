@@ -294,6 +294,22 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         parents: vec![TypeRef::READABLE.constructor, TypeRef::WRITABLE.constructor],
         applied: Vec::new(),
     })?;
+    // Two values held together: `type Pair<A, B> { first : A, second : B }`,
+    // the element of `zip`, `enumerate`, `entries` and `join`.
+    system.declare(TypeDefinition {
+        constructor: crate::extensions::seq::PAIR,
+        kind: TypeKind::Concrete,
+        parameters: ["A", "B"]
+            .into_iter()
+            .map(|name| TypeParameter {
+                name,
+                variance: Variance::Covariant,
+                bound: None,
+            })
+            .collect(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     // One partition of a `group`: `type Group<K, T> { key: K, items: List<T> }`.
     system.declare(TypeDefinition {
         constructor: GROUP,

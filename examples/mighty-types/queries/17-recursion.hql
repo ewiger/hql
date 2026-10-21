@@ -1,6 +1,5 @@
-// status: proposed
-// implementation: pending
-// proposal: doc/proposals/HQL-0024/README.md
+// status: valid-now
+// implementation: implemented
 // environment: pure
 // feature: Recursive algorithms: factorial, gcd, quicksort, primes, Collatz
 // expected-type: List<Int>

@@ -1,6 +1,5 @@
-// status: proposed
-// implementation: pending
-// proposal: doc/proposals/HQL-0024/README.md
+// status: valid-now
+// implementation: implemented
 // environment: pure
 // feature: Integer arithmetic, conversions and the math module
 // expected-type: List<Int>

@@ -478,6 +478,7 @@ pub(crate) static STEPS: &[Operation] = &[
                     required: true,
                     positional: true,
                     named: true,
+                    variadic: false,
                 },
                 ArgumentSpec {
                     required: false,

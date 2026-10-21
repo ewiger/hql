@@ -18,6 +18,7 @@ use std::sync::OnceLock;
 ///
 /// A module may refer only to what an earlier one declares.
 pub const MODULES: &[(&str, &str)] = &[
+    ("prelude", PRELUDE),
     ("core", include_str!("../std/core.hql")),
     ("collections", include_str!("../std/collections.hql")),
     ("doc", include_str!("../std/doc.hql")),
@@ -30,6 +31,11 @@ pub const MODULES: &[(&str, &str)] = &[
     ("io.logging", include_str!("../std/io/logging.hql")),
     ("vault", include_str!("../std/vault.hql")),
 ];
+
+/// The standard library's implicit import list, `std/prelude.hql`: not a
+/// module, but the imports every source unit starts with unless the vault
+/// declines them.
+pub const PRELUDE: &str = include_str!("../std/prelude.hql");
 
 /// One declaration, kept for reading its fields.
 #[derive(Debug)]

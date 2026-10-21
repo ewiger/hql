@@ -1228,6 +1228,86 @@ impl Checker<'_> {
         Ok(result)
     }
 
+    /// `receiver.f(args)`: a call with the receiver as its first argument,
+    /// or `module.f(args)` where the receiver names a visible module and no
+    /// binding. A receiver call resolves, in order, a combiner or `compare`
+    /// over the receiver, and a step of a visible module whose input the
+    /// receiver's type fits.
+    fn dot_call(
+        &mut self,
+        receiver: &Expr,
+        name: &str,
+        arguments: &[Arg],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        let positional = arguments
+            .iter()
+            .filter(|argument| argument.name.is_none())
+            .count();
+        // `string.trim(s)`: the module qualifies the function, and the first
+        // argument is its input.
+        if let Kind::Ident(module) = &receiver.kind
+            && !self.scope.contains_key(module)
+            && self.resolution.has(module)
+        {
+            let step = self.resolution.qualified(module, name, &span)?;
+            let Some((input, rest)) = arguments.split_first() else {
+                return Err(Diagnostic::typing(
+                    span,
+                    format!("`{module}.{name}` needs its input as the first argument"),
+                ));
+            };
+            if input.name.is_some() {
+                return Err(Diagnostic::typing(
+                    input.value.span.clone(),
+                    "the input must be positional",
+                ));
+            }
+            let input_type = self.expression(&input.value)?;
+            self.checked.steps.insert(span.clone(), step);
+            self.using(step.name, step.purity == Purity::Effectful);
+            return self.step(step, &input_type, Some(&input.value), rest, span);
+        }
+        let receiver_type = self.expression(receiver)?;
+        if let Some(&(combiner, _)) = crate::ast::COMBINERS.iter().find(|(held, _)| held == &name)
+            && positional == 1
+            && arguments.len() == 1
+            && !self.scope.contains_key(name)
+        {
+            let right = self.expression(&arguments[0].value)?;
+            let ty = combined(combiner, &receiver_type, &right)
+                .map_err(|message| Diagnostic::typing(span.clone(), message))?;
+            self.checked.combiners.insert(span.clone(), combiner);
+            self.checked.receiver_calls.insert(span);
+            return Ok(ty);
+        }
+        if name == "compare" && arguments.len() == 1 && arguments[0].name.is_none() {
+            let right = self.expression(&arguments[0].value)?;
+            if receiver_type != right || !receiver_type.is_orderable() {
+                return Err(Diagnostic::typing(
+                    span,
+                    "compare requires two values of the same Orderable type",
+                ));
+            }
+            self.checked.receiver_calls.insert(span);
+            return Ok(TypeRef::ORDERING);
+        }
+        if builtins::exists(name) {
+            let step = self
+                .resolution
+                .step_for(name, &receiver_type, positional, &span)?;
+            self.checked.steps.insert(span.clone(), step);
+            self.checked.receiver_calls.insert(span.clone());
+            self.using(step.name, step.purity == Purity::Effectful);
+            return self.step(step, &receiver_type, Some(receiver), arguments, span);
+        }
+        let hint = builtins::hint(name);
+        Err(Diagnostic::name(
+            span,
+            format!("{receiver_type} has no function `{name}`{hint}"),
+        ))
+    }
+
     /// `Point(x = 1, y = 2)`: a record built from its fields, by name or in
     /// declaration order, with the record's parameters taken from the values.
     fn construct_record(
@@ -1608,6 +1688,9 @@ impl Checker<'_> {
             }
             Kind::Lambda { .. } => self.lambda_value(expression, None),
             Kind::Call { callee, arguments } => {
+                if let Kind::Field(receiver, name) = &callee.kind {
+                    return self.dot_call(receiver, name, arguments, span);
+                }
                 if self.names_function(callee) || !matches!(callee.kind, Kind::Ident(_)) {
                     return self.application(callee, None, arguments, span);
                 }
@@ -1678,7 +1761,11 @@ impl Checker<'_> {
                     }
                     let written = &input.value;
                     let input = self.expression(written)?;
-                    let step = self.resolution.step(name, &span)?;
+                    let positional = arguments
+                        .iter()
+                        .filter(|argument| argument.name.is_none())
+                        .count();
+                    let step = self.resolution.step_for(name, &input, positional, &span)?;
                     self.checked.steps.insert(span.clone(), step);
                     self.using(step.name, step.purity == Purity::Effectful);
                     return self.step(step, &input, Some(written), arguments, span);
@@ -1713,7 +1800,7 @@ impl Checker<'_> {
                     _ => {}
                 }
                 let reference = step_of(step)?;
-                let resolved = self.resolve(&reference, &step.span)?;
+                let resolved = self.resolve(&reference, &input_type, &step.span)?;
                 self.checked.steps.insert(span.clone(), resolved);
                 self.using(resolved.name, resolved.purity == Purity::Effectful);
                 self.step(
@@ -1840,10 +1927,17 @@ impl Checker<'_> {
     fn resolve(
         &self,
         reference: &StepRef<'_>,
+        input: &TypeRef,
         span: &Range<usize>,
     ) -> Result<&'static Operation, Diagnostic> {
         match reference {
-            StepRef::Bare { name, .. } => self.resolution.step(name, span),
+            StepRef::Bare { name, arguments } => {
+                let positional = arguments
+                    .iter()
+                    .filter(|argument| argument.name.is_none())
+                    .count();
+                self.resolution.step_for(name, input, positional, span)
+            }
             StepRef::Qualified {
                 extension, name, ..
             } => {
@@ -1957,9 +2051,24 @@ impl Checker<'_> {
                 .unwrap_or_else(|| input.present().clone());
             return Ok(TypeRef::optional(element));
         }
+        // `map` over one optional value maps what is present and keeps
+        // absence: `Option<T> -> Option<U>`.
+        if step.name == "map"
+            && input.constructor.0 == "Option"
+            && input.present().iterated().is_none()
+            && *input.present() != TypeRef::DATA
+        {
+            let by = crate::extensions::named_or_first(arguments, "by")
+                .ok_or_else(|| Diagnostic::typing(span.clone(), "`map` needs a function"))?;
+            if arguments.len() != 1 {
+                return Err(Diagnostic::typing(span, "`map` takes one function"));
+            }
+            let produced = self.lambda_parameters(by, vec![input.present().clone()])?;
+            return Ok(TypeRef::optional(produced.present().clone()));
+        }
         // A step applied to absence is a step applied to nothing, not a
         // failure: the reference that produced the absence was permitted.
-        let input = if step.keeps_input() {
+        let input = if step.takes_raw_input() {
             input.clone()
         } else {
             input.present().clone()
@@ -2008,7 +2117,8 @@ impl CheckCx for Checker<'_> {
         match &argument.value.kind {
             Kind::Lambda { parameters, .. } => Some(parameters.len()),
             Kind::Ident(name)
-                if crate::constructors::named(name).is_some() && !self.scope.contains_key(name) =>
+                if (crate::constructors::named(name).is_some() || builtins::exists(name))
+                    && !self.scope.contains_key(name) =>
             {
                 Some(1)
             }
@@ -2066,6 +2176,33 @@ impl CheckCx for Checker<'_> {
                 .constructor_values
                 .insert(span, (parameter.clone(), result.clone()));
             return Ok(result);
+        }
+        // A step named where a function is: `map(str)` applies the step to
+        // each value it is given.
+        if let Kind::Ident(name) = &argument.value.kind
+            && builtins::exists(name)
+            && !self.scope.contains_key(name)
+        {
+            let span = argument.value.span.clone();
+            let [parameter] = parameters.as_slice() else {
+                return Err(Diagnostic::typing(
+                    span,
+                    format!(
+                        "`{name}` takes one input, and a function of {} is expected",
+                        parameters.len()
+                    ),
+                ));
+            };
+            let step = self.resolution.step_for(name, parameter, 0, &span)?;
+            self.using(step.name, step.purity == Purity::Effectful);
+            let produced = self.step(step, parameter, None, &[], span.clone())?;
+            if let Some(function) = TypeRef::function(vec![parameter.clone()], produced.clone()) {
+                self.checked.types.insert(span.clone(), function);
+            }
+            self.checked
+                .step_values
+                .insert(span, (step, parameter.clone(), produced.clone()));
+            return Ok(produced);
         }
         if let Kind::Lambda {
             parameters: names, ..

@@ -286,6 +286,11 @@ pub(crate) struct Checked {
     pub combiners: HashMap<Range<usize>, &'static str>,
     /// The calls that construct a record, at the type they build.
     pub records: HashMap<Range<usize>, TypeRef>,
+    /// The calls written `receiver.f(…)`, whose receiver is the input.
+    pub receiver_calls: HashSet<Range<usize>>,
+    /// Each step named as a function value, `map(str)`, with the type it
+    /// takes and the type it produces.
+    pub step_values: HashMap<Range<usize>, (&'static Operation, TypeRef, TypeRef)>,
     /// What checking found worth saying that does not make the program wrong.
     pub warnings: Vec<crate::warnings::Warning>,
     /// Each alias the program defines, with the signature the checker wrote.
@@ -476,6 +481,28 @@ impl Checked {
                     function: TypeRef::function(vec![parameter], built),
                 }
             }
+            A::Ident(_) if self.step_values.contains_key(&span) => {
+                let (step, parameter, produced) = self.step_values[&span].clone();
+                let held = Expr {
+                    kind: Kind::Ident(crate::checker::CONSTRUCTED.to_owned()),
+                    ty: parameter.clone(),
+                    span: span.clone(),
+                };
+                Kind::Lambda {
+                    parameters: vec![crate::checker::CONSTRUCTED.to_owned()],
+                    body: std::sync::Arc::new(Expr {
+                        kind: Kind::Step {
+                            step,
+                            input: Box::new(held),
+                            arguments: Vec::new(),
+                            at: span.clone(),
+                        },
+                        ty: produced.clone(),
+                        span: span.clone(),
+                    }),
+                    function: TypeRef::function(vec![parameter], produced),
+                }
+            }
             A::Ident(name) => Kind::Ident(name.clone()),
             A::DocRef(name) => Kind::DocRef(name.clone()),
             A::Data(entries) => Kind::Data(
@@ -555,6 +582,30 @@ impl Checked {
                 body: std::sync::Arc::new(self.expression(body)?),
                 function: self.functions.get(&span).cloned(),
             },
+            A::Call { callee, arguments } if self.receiver_calls.contains(&span) => {
+                let A::Field(receiver, _) = &callee.kind else {
+                    return Err(Diagnostic::typing(span, "a receiver call reads a receiver"));
+                };
+                if let Some(combiner) = self.combiners.get(&span) {
+                    Kind::Combine {
+                        combiner,
+                        left: boxed(receiver)?,
+                        right: Box::new(self.expression(&arguments[0].value)?),
+                    }
+                } else if let Some(step) = self.steps.get(&span) {
+                    Kind::Step {
+                        step,
+                        input: boxed(receiver)?,
+                        arguments: self.arguments(arguments)?,
+                        at: span.clone(),
+                    }
+                } else {
+                    Kind::Order(
+                        boxed(receiver)?,
+                        Box::new(self.expression(&arguments[0].value)?),
+                    )
+                }
+            }
             A::Call { arguments, .. } if self.combiners.contains_key(&span) => Kind::Combine {
                 combiner: self.combiners[&span],
                 left: Box::new(self.expression(&arguments[0].value)?),

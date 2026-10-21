@@ -1057,8 +1057,27 @@ impl Evaluator<'_> {
         arguments: &[Arg],
         span: Range<usize>,
     ) -> Result<Value, Diagnostic> {
-        if step.keeps_input() {
+        if step.takes_raw_input() {
             return (step.eval)(self, input, arguments, span);
+        }
+        // `map` over one optional value: absent stays absent, at the function's
+        // result type, and a present value is mapped and stays present.
+        if step.name == "map" && matches!(&input, Value::Absent(_) | Value::Present(_)) {
+            let held = match &input {
+                Value::Present(held) => held.as_ref().clone(),
+                _ => Value::Unit,
+            };
+            if held.elements().is_none() && !matches!(held, Value::Traversal(_) | Value::Data(_)) {
+                let by = crate::extensions::named_or_first(arguments, "by")
+                    .ok_or_else(|| Diagnostic::runtime(span.clone(), "`map` needs a function"))?;
+                let produced = crate::extensions::collections::produced(by);
+                return Ok(match input {
+                    Value::Present(held) => {
+                        Value::Present(Arc::new(self.apply(by, vec![held.as_ref().clone()])?))
+                    }
+                    _ => Value::Absent(produced),
+                });
+            }
         }
         // `filter` over one optional value: absent stays absent, and a present
         // value is kept or made absent.
@@ -1119,6 +1138,10 @@ impl EvalCx for Evaluator<'_> {
 
     fn apply_lambda(&mut self, argument: &Arg, element: Value) -> Result<Value, Diagnostic> {
         self.apply(argument, vec![element])
+    }
+
+    fn apply_function(&mut self, argument: &Arg, values: Vec<Value>) -> Result<Value, Diagnostic> {
+        self.apply(argument, values)
     }
 
     fn apply_comparator(
