@@ -48,6 +48,11 @@ pub struct Options {
     /// `hql.toml` is the vault.
     #[arg(long, global = true, value_name = "DIR")]
     pub vault: Option<PathBuf>,
+    /// A module root: a directory whose `.hql` files are the modules a program
+    /// imports by their position, `lib/a/b.hql` as `import a.b`. May be
+    /// repeated, and adds to the roots the vault's `hql.toml` names.
+    #[arg(long, global = true, value_name = "DIR")]
+    pub modules: Vec<PathBuf>,
     /// What the answer is wrapped in: the value alone, or one JSON document
     /// carrying the type, the value and the reports. How the value itself is
     /// written is `--to`.
@@ -256,7 +261,11 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             .ok()
             .and_then(|here| vault::discover(&here))
     });
-    let vault = load_vault(root.as_deref())?;
+    let mut vault = load_vault(root.as_deref())?;
+    vault
+        .extensions
+        .module_roots
+        .extend(cli.options.modules.iter().cloned());
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
             format!("unknown report mode `{name}`; expected `strict` or `collect`")

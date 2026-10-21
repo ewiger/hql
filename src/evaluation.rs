@@ -107,7 +107,10 @@ fn evaluate_in(
     };
     // A finite traversal is the values it produces, so the result holds them;
     // a stream that may not end is left for the host to bound.
-    let value = match evaluator.program(program) {
+    let value = match evaluator
+        .load_modules(program)
+        .and_then(|()| evaluator.program(program))
+    {
         Ok(Value::Traversal(traversal)) if traversal.finite => evaluator.force(&traversal, &(0..0)),
         other => other,
     };
@@ -188,6 +191,31 @@ impl Evaluator<'_> {
             };
         }
         Ok(last)
+    }
+
+    /// Evaluate each workspace module the program imported, in its own scope,
+    /// and bind its functions here under `local.name`. A module's own imports
+    /// are loaded into its scope first; its implementations join the
+    /// program's.
+    fn load_modules(&mut self, program: &Program) -> Result<(), Diagnostic> {
+        for module in &program.modules {
+            let outer = std::mem::replace(&mut self.scope, base(self.vault));
+            let loaded = self
+                .load_modules(&module.program)
+                .and_then(|()| self.program(&module.program));
+            let inner = std::mem::replace(&mut self.scope, outer);
+            loaded?;
+            for statement in &module.program.statements {
+                let (Stmt::Fn { name, .. } | Stmt::Bind { name, .. }) = statement else {
+                    continue;
+                };
+                if let Some(value) = inner.get(name) {
+                    self.scope
+                        .insert(format!("{}.{name}", module.local), value.clone());
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Call a trait's function on a receiver: the implementation for the

@@ -53,6 +53,13 @@ pub(crate) fn check_with<'a>(
         impls: Vec::new(),
         trait_bounds: Vec::new(),
         trait_bounded: HashMap::new(),
+        modules: Vec::new(),
+        module_cache: ModuleCache::default(),
+        loading: std::sync::Arc::default(),
+        module_file: false,
+        receiver: None,
+        pattern_variables: None,
+        seen_body: false,
     }
     .program(program)
 }
@@ -103,6 +110,13 @@ pub(crate) fn check_collecting_with<'a>(
         impls: Vec::new(),
         trait_bounds: Vec::new(),
         trait_bounded: HashMap::new(),
+        modules: Vec::new(),
+        module_cache: ModuleCache::default(),
+        loading: std::sync::Arc::default(),
+        module_file: false,
+        receiver: None,
+        pattern_variables: None,
+        seen_body: false,
     };
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
@@ -162,6 +176,19 @@ fn instantiate(
     for (inner, held) in parameter.args.iter().zip(&view.args) {
         instantiate(inner, held, bound);
     }
+}
+
+/// The type variables a receiver pattern holds, with the names they were
+/// written under: `T` in `Seq<T>`.
+fn pattern_variables(pattern: &TypeRef) -> Vec<(String, TypeRef)> {
+    let mut found = Vec::new();
+    if pattern.constructor.0.starts_with('%') {
+        found.push((pattern.constructor.to_string(), pattern.clone()));
+    }
+    for arg in &pattern.args {
+        found.extend(pattern_variables(arg));
+    }
+    found
 }
 
 /// Bind a record's parameters from the type a field's value has: `List<T>`
@@ -370,6 +397,13 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 impls: Vec::new(),
                 trait_bounds: Vec::new(),
                 trait_bounded: HashMap::new(),
+                modules: Vec::new(),
+                module_cache: ModuleCache::default(),
+                loading: std::sync::Arc::default(),
+                module_file: false,
+                receiver: None,
+                pattern_variables: None,
+                seen_body: false,
             }
             .program(&program)
             .ok()?;
@@ -422,7 +456,28 @@ struct Checker<'a> {
     /// Each generic function's trait bounds: the parameter name, its type
     /// variable and the trait, checked at every call.
     trait_bounded: HashMap<String, Vec<(String, TypeRef, String)>>,
+    /// The workspace modules this unit imported, each under its local name.
+    modules: Vec<(String, std::sync::Arc<crate::modules::WorkspaceModule>)>,
+    /// Every workspace module loaded for the program, by canonical name,
+    /// shared with the checkers of the modules it loads.
+    module_cache: ModuleCache,
+    /// The modules being loaded, outermost first, for the cycle diagnostic.
+    loading: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    /// Whether this unit is a module file: declarations only, and a receiver
+    /// pattern allowed.
+    module_file: bool,
+    /// The receiver pattern of a `module for T` file.
+    receiver: Option<TypeRef>,
+    /// The pattern's type variables, in scope for the whole module file.
+    pattern_variables: Option<crate::declarations::TypeVariables>,
+    /// Whether a declaration or an expression has been seen, after which an
+    /// import is out of place.
+    seen_body: bool,
 }
+
+type ModuleCache = std::sync::Arc<
+    std::sync::Mutex<HashMap<String, std::sync::Arc<crate::modules::WorkspaceModule>>>,
+>;
 
 /// A trait's contract: its functions, with `Self` standing for the
 /// implementing type.
@@ -442,10 +497,10 @@ pub(crate) struct MethodSig {
 
 /// One implementation of a trait for a type.
 #[derive(Debug, Clone)]
-struct ImplInfo {
-    trait_name: String,
-    target: TypeRef,
-    span: Range<usize>,
+pub(crate) struct ImplInfo {
+    pub trait_name: String,
+    pub target: TypeRef,
+    pub span: Range<usize>,
 }
 
 /// The type `Self` stands for inside a trait, before an implementation
@@ -551,6 +606,18 @@ impl<'a> Checker<'a> {
     }
 
     fn statement(&mut self, statement: &'a Stmt) -> Result<TypeRef, Diagnostic> {
+        if !matches!(statement, Stmt::Import { .. } | Stmt::ModuleFor { .. }) {
+            self.seen_body = true;
+        }
+        if self.module_file && matches!(statement, Stmt::Expr(_)) {
+            let Stmt::Expr(expression) = statement else {
+                unreachable!("matched an expression");
+            };
+            return Err(Diagnostic::typing(
+                expression.span.clone(),
+                "a module declares functions and types; it has no expression to evaluate",
+            ));
+        }
         Ok({
             match statement {
                 Stmt::Bind {
@@ -586,8 +653,67 @@ impl<'a> Checker<'a> {
                     }
                     TypeRef::UNIT
                 }
-                Stmt::Import { name, span } => {
-                    self.resolution.import(name, span)?;
+                Stmt::Import { path, alias, span } => {
+                    if self.seen_body {
+                        return Err(Diagnostic::syntax(
+                            span.clone(),
+                            "an import sits at the head of a source unit, before its declarations \
+                             and expressions",
+                        ));
+                    }
+                    let dotted = path.join(".");
+                    let local = alias
+                        .clone()
+                        .unwrap_or_else(|| path.last().cloned().unwrap_or_default());
+                    if let Some((held, module)) =
+                        self.modules.iter().find(|(held, _)| *held == local)
+                        && module.name != dotted
+                    {
+                        return Err(Diagnostic::name(
+                            span.clone(),
+                            format!(
+                                "`{held}` already names the module `{}` here; import `{dotted}` \
+                                 under another name with `as`",
+                                module.name
+                            ),
+                        ));
+                    }
+                    if !self.resolution.import(&dotted, alias.as_deref(), span)? {
+                        self.import_module(&dotted, &local, span)?;
+                    }
+                    TypeRef::UNIT
+                }
+                Stmt::ModuleFor { pattern, span } => {
+                    if !self.module_file {
+                        return Err(Diagnostic::syntax(
+                            span.clone(),
+                            "`module for` opens a module file; a program has no receiver",
+                        ));
+                    }
+                    if self.seen_body || self.receiver.is_some() {
+                        return Err(Diagnostic::syntax(
+                            span.clone(),
+                            "`module for` is the first statement of a module file, written once",
+                        ));
+                    }
+                    // A one-letter argument that names no type is a pattern
+                    // variable, bound per call: `Seq<T>`.
+                    let variables: Vec<(String, TypeRef)> = pattern
+                        .arguments
+                        .iter()
+                        .filter(|argument| {
+                            argument.arguments.is_empty()
+                                && argument.name.len() == 1
+                                && crate::types::builtin::constructor(&argument.name).is_none()
+                        })
+                        .filter_map(|argument| {
+                            crate::types::builtin::type_variable(&argument.name, None)
+                                .map(|variable| (argument.name.clone(), variable))
+                        })
+                        .collect();
+                    self.pattern_variables =
+                        Some(crate::declarations::TypeVariables::enter(&variables));
+                    self.receiver = Some(crate::declarations::annotation(pattern)?);
                     TypeRef::UNIT
                 }
                 // A declaration is checked and yields nothing to show. It
@@ -874,6 +1000,27 @@ impl<'a> Checker<'a> {
     /// variables and trait bounds in force.
     fn function_body(&mut self, declaration: &FnDecl) -> Result<(), Diagnostic> {
         let mut parameters = Vec::new();
+        let mut names: Vec<String> = Vec::new();
+        if declaration.has_self {
+            let Some(receiver) = self.receiver.clone() else {
+                return Err(Diagnostic::typing(
+                    declaration.span.clone(),
+                    format!(
+                        "`{}` takes `self`, which only a receiver module declares: open the \
+                         module file with `module for T`",
+                        declaration.name
+                    ),
+                ));
+            };
+            parameters.push(receiver);
+            names.push("self".to_owned());
+        }
+        names.extend(
+            declaration
+                .parameters
+                .iter()
+                .map(|parameter| parameter.name.clone()),
+        );
         for parameter in &declaration.parameters {
             let ty = crate::declarations::annotation(&parameter.annotation)?;
             parameters.push(if parameter.variadic {
@@ -896,23 +1043,14 @@ impl<'a> Checker<'a> {
             .is_some_and(|last| last.variadic)
         {
             self.variadic
-                .insert(declaration.name.clone(), declaration.parameters.len());
+                .insert(declaration.name.clone(), parameters.len());
         } else {
             self.variadic.remove(&declaration.name);
         }
         self.checked.functions.insert(declaration.span.clone(), ty);
-        self.parameter_names.insert(
-            declaration.name.clone(),
-            declaration
-                .parameters
-                .iter()
-                .map(|parameter| parameter.name.clone())
-                .collect(),
-        );
-        let names = declaration
-            .parameters
-            .iter()
-            .map(|parameter| parameter.name.clone());
+        self.parameter_names
+            .insert(declaration.name.clone(), names.clone());
+        let names = names.into_iter();
         if let Kind::Block(statements) = &declaration.body.kind {
             return self.with_bindings(names.zip(parameters), |checker| {
                 checker.iterating(declaration, statements, &result)
@@ -1244,31 +1382,66 @@ impl<'a> Checker<'a> {
         span: Range<usize>,
     ) -> Result<TypeRef, Diagnostic> {
         let ty = self.expression(callee)?;
-        if let Kind::Ident(name) = &callee.kind {
+        let key = self.callee_key(callee);
+        self.apply_key(
+            key.as_deref(),
+            &ty,
+            callee.span.clone(),
+            input,
+            arguments,
+            span,
+        )
+    }
+
+    /// The name a callee is known by, when it has one: a bound name, or a
+    /// module's function as `module.name`.
+    fn callee_key(&self, callee: &Expr) -> Option<String> {
+        match &callee.kind {
+            Kind::Ident(name) => Some(name.clone()),
+            Kind::Field(receiver, field) => match &receiver.kind {
+                Kind::Ident(module) if self.is_module(module) => Some(format!("{module}.{field}")),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Whether a name is a workspace module imported here and not a binding.
+    fn is_module(&self, name: &str) -> bool {
+        !self.scope.contains_key(name) && self.modules.iter().any(|(held, _)| held == name)
+    }
+
+    /// Apply a function of a known type, known by `key` when it is a named
+    /// function whose generics, variadic parameter and parameter names are
+    /// on record.
+    fn apply_key(
+        &mut self,
+        key: Option<&str>,
+        ty: &TypeRef,
+        callee_span: Range<usize>,
+        input: Option<&TypeRef>,
+        arguments: &[Arg],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        if let Some(name) = key {
             let effectful = self.effectful.contains_key(name);
             self.using(name, effectful);
         }
         let Some((parameters, result)) = ty.as_function() else {
             return Err(Diagnostic::typing(
-                callee.span.clone(),
+                callee_span,
                 format!("only a function or a pipeline step can be called, and this is {ty}"),
             ));
         };
         let (mut parameters, mut result) = (parameters.to_vec(), result.clone());
-        let generic = match &callee.kind {
-            Kind::Ident(name) => self.generic_functions.get(name).cloned(),
-            _ => None,
-        };
+        let generic = key.and_then(|name| self.generic_functions.get(name).cloned());
         if let Some(argument) = arguments.iter().find(|argument| argument.name.is_some()) {
             return Err(Diagnostic::typing(
                 argument.value.span.clone(),
                 "a function value takes its arguments by position",
             ));
         }
-        let variadic = match &callee.kind {
-            Kind::Ident(name) => self.variadic.get(name).copied(),
-            _ => None,
-        };
+        let variadic = key.and_then(|name| self.variadic.get(name).copied());
         let mut supplied: Vec<(TypeRef, Range<usize>)> = Vec::new();
         if let Some(input) = input {
             supplied.push((input.clone(), span.clone()));
@@ -1321,10 +1494,7 @@ impl<'a> Checker<'a> {
             }
         };
         if let Some(variables) = &generic {
-            let callee_name = match &callee.kind {
-                Kind::Ident(name) => name.as_str(),
-                _ => "",
-            };
+            let callee_name = key.unwrap_or("");
             let mut bound = HashMap::new();
             for ((actual, _), parameter) in supplied.iter().zip(&parameters) {
                 instantiate(parameter, actual, &mut bound);
@@ -1368,10 +1538,7 @@ impl<'a> Checker<'a> {
                 .collect();
             result = substituted(&result, &bound);
         }
-        let names = match &callee.kind {
-            Kind::Ident(name) => self.parameter_names.get(name).cloned(),
-            _ => None,
-        };
+        let names = key.and_then(|name| self.parameter_names.get(name).cloned());
         for (index, ((actual, at), parameter)) in supplied.iter().zip(&parameters).enumerate() {
             if !actual.is(parameter) {
                 let which = names
@@ -1398,6 +1565,7 @@ impl<'a> Checker<'a> {
     /// receiver's type fits.
     fn dot_call(
         &mut self,
+        callee: &Expr,
         receiver: &Expr,
         name: &str,
         arguments: &[Arg],
@@ -1407,6 +1575,12 @@ impl<'a> Checker<'a> {
             .iter()
             .filter(|argument| argument.name.is_none())
             .count();
+        // `geo.area(c)`: a function of a workspace module, applied.
+        if let Kind::Ident(module) = &receiver.kind
+            && self.is_module(module)
+        {
+            return self.application(callee, None, arguments, span);
+        }
         // `string.trim(s)`: the module qualifies the function, and the first
         // argument is its input.
         if let Kind::Ident(module) = &receiver.kind
@@ -1432,6 +1606,21 @@ impl<'a> Checker<'a> {
             return self.step(step, &input_type, Some(&input.value), rest, span);
         }
         let receiver_type = self.expression(receiver)?;
+        // A function of a receiver module whose pattern the receiver's type
+        // fits: `"hi".shout()` once `mighty.text` is imported.
+        if let Some((key, ty)) = self.receiver_function(&receiver_type, name, &span)? {
+            self.checked
+                .module_calls
+                .insert(span.clone(), (key.clone(), ty.clone()));
+            return self.apply_key(
+                Some(&key),
+                &ty,
+                receiver.span.clone(),
+                Some(&receiver_type),
+                arguments,
+                span,
+            );
+        }
         // A trait's function, implemented for the receiver's type or
         // promised by a bound on it.
         if let Some((trait_name, signature)) = self.method_for(&receiver_type, name, &span)? {
@@ -1508,6 +1697,283 @@ impl<'a> Checker<'a> {
             span,
             format!("{receiver_type} has no function `{name}`{hint}"),
         ))
+    }
+
+    /// `import a.b [as c]` of a workspace module: load it once, and bind its
+    /// functions, traits and implementations under the local name.
+    fn import_module(
+        &mut self,
+        name: &str,
+        local: &str,
+        span: &Range<usize>,
+    ) -> Result<(), Diagnostic> {
+        if self.resolution.names_module(local) {
+            return Err(Diagnostic::name(
+                span.clone(),
+                format!(
+                    "`{local}` already names a standard module here; import `{name}` under \
+                     another name with `as`"
+                ),
+            ));
+        }
+        let module = self.load_module(name, span)?;
+        for function in &module.functions {
+            let key = format!("{local}.{}", function.name);
+            self.scope.insert(key.clone(), function.ty.clone());
+            if let Some(count) = function.variadic {
+                self.variadic.insert(key.clone(), count);
+            }
+            self.parameter_names
+                .insert(key.clone(), function.parameter_names.clone());
+            if let Some(generics) = &function.generics {
+                self.generic_functions.insert(key.clone(), generics.clone());
+            }
+            if let Some(bounds) = &function.trait_bounds {
+                self.trait_bounded.insert(key.clone(), bounds.clone());
+            }
+            if let Some(uses) = &function.effectful {
+                self.effectful.insert(key, uses.clone());
+            }
+        }
+        for (trait_name, info) in &module.traits {
+            self.traits
+                .entry(trait_name.clone())
+                .or_insert_with(|| info.clone());
+        }
+        for held in &module.impls {
+            if !self.impls.iter().any(|known| {
+                known.trait_name == held.trait_name
+                    && known.target.constructor == held.target.constructor
+            }) {
+                self.impls.push(held.clone());
+                if held.trait_name == "Ord" {
+                    crate::types::program::adopt_parent(
+                        held.target.constructor,
+                        TypeRef::ORDERABLE.constructor,
+                    )
+                    .map_err(|error| Diagnostic::typing(span.clone(), error.to_string()))?;
+                }
+            }
+        }
+        self.checked.modules.push(crate::execution::LoadedModule {
+            local: local.to_owned(),
+            program: std::sync::Arc::clone(&module.program),
+        });
+        self.modules.push((local.to_owned(), module));
+        Ok(())
+    }
+
+    /// Find, parse and check a workspace module, once per program.
+    fn load_module(
+        &mut self,
+        name: &str,
+        span: &Range<usize>,
+    ) -> Result<std::sync::Arc<crate::modules::WorkspaceModule>, Diagnostic> {
+        if let Some(module) = self
+            .module_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(name)
+        {
+            return Ok(std::sync::Arc::clone(module));
+        }
+        let roots = &self.vault.extensions.module_roots;
+        let located = crate::modules::locate(roots, name)
+            .map_err(|message| Diagnostic::name(span.clone(), message))?;
+        let Some(path) = located else {
+            let hint = if roots.is_empty() {
+                "; no module root is configured: pass `--modules <dir>` or set `[modules] \
+                 roots` in hql.toml"
+                    .to_owned()
+            } else {
+                format!(
+                    " under {}",
+                    roots
+                        .iter()
+                        .map(|root| root.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
+            return Err(Diagnostic::name(
+                span.clone(),
+                format!("no module named `{name}`{hint}"),
+            ));
+        };
+        {
+            let loading = self
+                .loading
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(position) = loading.iter().position(|held| held == name) {
+                let cycle: Vec<&str> = loading[position..]
+                    .iter()
+                    .map(String::as_str)
+                    .chain(std::iter::once(name))
+                    .collect();
+                return Err(Diagnostic::name(
+                    span.clone(),
+                    format!(
+                        "importing `{name}` is circular: {}",
+                        cycle.join(" imports ")
+                    ),
+                ));
+            }
+        }
+        let source = std::fs::read_to_string(&path).map_err(|error| {
+            Diagnostic::name(
+                span.clone(),
+                format!("module `{name}` at {}: {error}", path.display()),
+            )
+        })?;
+        let inside = |diagnostic: Diagnostic| {
+            Diagnostic::name(
+                span.clone(),
+                format!(
+                    "in module `{name}` ({}), at byte {}: {}",
+                    path.display(),
+                    diagnostic.span().start,
+                    diagnostic.message()
+                ),
+            )
+        };
+        let program = crate::parser::parse(&source).map_err(inside)?;
+        self.loading
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(name.to_owned());
+        let mut checker = Checker {
+            vault: self.vault,
+            scope: globals(self.vault),
+            resolution: Resolution::new(&self.vault.extensions)?,
+            declarations: Declarations::default(),
+            checked: Checked::default(),
+            variadic: HashMap::new(),
+            parameter_names: HashMap::new(),
+            generic_functions: HashMap::new(),
+            placeholders: HashMap::new(),
+            uses: Vec::new(),
+            effectful: HashMap::new(),
+            traits: core_traits(),
+            trait_decls: HashMap::new(),
+            impls: Vec::new(),
+            trait_bounds: Vec::new(),
+            trait_bounded: HashMap::new(),
+            modules: Vec::new(),
+            module_cache: std::sync::Arc::clone(&self.module_cache),
+            loading: std::sync::Arc::clone(&self.loading),
+            module_file: true,
+            receiver: None,
+            pattern_variables: None,
+            seen_body: false,
+        };
+        let checked = checker.program(&program);
+        self.loading
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .pop();
+        let typed = checked.map_err(inside)?;
+        let mut functions = Vec::new();
+        for statement in &program.statements {
+            let Stmt::Fn(declaration) = statement else {
+                continue;
+            };
+            let Some(ty) = checker.scope.get(&declaration.name).cloned() else {
+                continue;
+            };
+            let mut generics = checker.generic_functions.get(&declaration.name).cloned();
+            // The receiver pattern's variables are the function's own.
+            if declaration.has_self
+                && let Some(receiver) = &checker.receiver
+                && receiver.has_variable()
+            {
+                let held = generics.get_or_insert_with(Vec::new);
+                for (written, variable) in pattern_variables(receiver) {
+                    if !held.iter().any(|(name, _, _)| *name == written) {
+                        held.push((written, variable, None));
+                    }
+                }
+            }
+            functions.push(crate::modules::ModuleFunction {
+                name: declaration.name.clone(),
+                ty,
+                has_self: declaration.has_self,
+                variadic: checker.variadic.get(&declaration.name).copied(),
+                parameter_names: checker
+                    .parameter_names
+                    .get(&declaration.name)
+                    .cloned()
+                    .unwrap_or_default(),
+                generics,
+                trait_bounds: checker.trait_bounded.get(&declaration.name).cloned(),
+                effectful: checker.effectful.get(&declaration.name).cloned(),
+            });
+        }
+        let core = core_traits();
+        let traits = checker
+            .traits
+            .iter()
+            .filter(|(name, _)| !core.contains_key(*name))
+            .map(|(name, info)| (name.clone(), info.clone()))
+            .collect();
+        let module = std::sync::Arc::new(crate::modules::WorkspaceModule {
+            name: name.to_owned(),
+            receiver: checker.receiver.clone(),
+            functions,
+            program: std::sync::Arc::new(typed),
+            traits,
+            impls: checker.impls.clone(),
+        });
+        self.module_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(name.to_owned(), std::sync::Arc::clone(&module));
+        Ok(module)
+    }
+
+    /// The function a receiver module provides for a receiver of a type: the
+    /// modules whose pattern the type fits, and among them the one declaring
+    /// `name` with `self`. Two such modules are an ambiguity.
+    fn receiver_function(
+        &self,
+        receiver: &TypeRef,
+        name: &str,
+        span: &Range<usize>,
+    ) -> Result<Option<(String, TypeRef)>, Diagnostic> {
+        let mut found: Vec<(String, TypeRef)> = Vec::new();
+        for (local, module) in &self.modules {
+            let Some(pattern) = &module.receiver else {
+                continue;
+            };
+            let mut bound = HashMap::new();
+            instantiate(pattern, receiver, &mut bound);
+            if !receiver.is(&substituted(pattern, &bound)) {
+                continue;
+            }
+            if let Some(function) = module
+                .functions
+                .iter()
+                .find(|function| function.has_self && function.name == name)
+            {
+                found.push((format!("{local}.{name}"), function.ty.clone()));
+            }
+        }
+        match found.len() {
+            0 => Ok(None),
+            1 => Ok(found.pop()),
+            _ => Err(Diagnostic::name(
+                span.clone(),
+                format!(
+                    "`{name}` over {receiver} is declared by {}, so the call is ambiguous; \
+                     qualify it",
+                    found
+                        .iter()
+                        .map(|(key, _)| format!("`{key}`"))
+                        .collect::<Vec<_>>()
+                        .join(" and ")
+                ),
+            )),
+        }
     }
 
     /// `trait Name { … }`: a contract the program may implement. A core
@@ -1932,8 +2398,16 @@ impl<'a> Checker<'a> {
 
     /// Whether a name is bound to a function value.
     fn names_function(&self, expression: &Expr) -> bool {
-        matches!(&expression.kind, Kind::Ident(name)
-            if self.scope.get(name).is_some_and(|ty| ty.as_function().is_some()))
+        match &expression.kind {
+            Kind::Ident(name) => self
+                .scope
+                .get(name)
+                .is_some_and(|ty| ty.as_function().is_some()),
+            Kind::Field(..) => self
+                .callee_key(expression)
+                .is_some_and(|key| self.scope.contains_key(&key)),
+            _ => false,
+        }
     }
 
     fn expression(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic> {
@@ -2172,6 +2646,21 @@ impl<'a> Checker<'a> {
                 }
                 Ok(TypeRef::BOOL)
             }
+            Kind::Field(receiver, field) if matches!(&receiver.kind, Kind::Ident(module) if self.is_module(module)) =>
+            {
+                let Kind::Ident(module) = &receiver.kind else {
+                    unreachable!("matched a module name");
+                };
+                let key = format!("{module}.{field}");
+                let ty = self.scope.get(&key).cloned().ok_or_else(|| {
+                    Diagnostic::name(
+                        span.clone(),
+                        format!("the module `{module}` has no function `{field}`"),
+                    )
+                })?;
+                self.checked.module_refs.insert(span, key);
+                Ok(ty)
+            }
             Kind::Field(receiver, field) => {
                 let receiver_type = self.expression(receiver)?;
                 let ty = field_type(&receiver_type, field).ok_or_else(|| {
@@ -2233,7 +2722,7 @@ impl<'a> Checker<'a> {
             Kind::Lambda { .. } => self.lambda_value(expression, None),
             Kind::Call { callee, arguments } => {
                 if let Kind::Field(receiver, name) = &callee.kind {
-                    return self.dot_call(receiver, name, arguments, span);
+                    return self.dot_call(callee, receiver, name, arguments, span);
                 }
                 if self.names_function(callee) || !matches!(callee.kind, Kind::Ident(_)) {
                     return self.application(callee, None, arguments, span);

@@ -13,7 +13,17 @@ struct Case {
 impl Case {
     fn vault(&self) -> vault::Vault {
         match self.metadata["environment"].as_str() {
-            "pure" => vault::Vault::empty(),
+            "pure" => {
+                let mut vault = vault::Vault::empty();
+                if let Some(modules) = self.metadata.get("modules") {
+                    vault.extensions.module_roots.push(
+                        Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join("examples")
+                            .join(modules),
+                    );
+                }
+                vault
+            }
             "knowledge-v1" => {
                 let path = Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("examples")

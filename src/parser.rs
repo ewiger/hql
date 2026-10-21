@@ -187,17 +187,56 @@ impl Parser {
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "import"
-            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
         {
             let head = self.advance();
-            let named = self.advance();
-            let Token::Ident(name) = named.token else {
-                return Err(Diagnostic::syntax(named.span, "expected an extension name"));
+            if matches!(self.peek(), Token::Str(_)) {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    "an import names a module, `import io.file`, never a file",
+                ));
+            }
+            let mut path = Vec::new();
+            let mut end;
+            loop {
+                let named = self.advance();
+                let Token::Ident(name) = named.token else {
+                    return Err(Diagnostic::syntax(named.span, "expected a module name"));
+                };
+                end = named.span.end;
+                path.push(name);
+                if !self.eat(&Token::Dot) {
+                    break;
+                }
+            }
+            let alias = if matches!(self.peek(), Token::Ident(word) if word == "as") {
+                self.advance();
+                let named = self.advance();
+                let Token::Ident(name) = named.token else {
+                    return Err(Diagnostic::syntax(
+                        named.span,
+                        "expected a local name after `as`",
+                    ));
+                };
+                end = named.span.end;
+                Some(name)
+            } else {
+                None
             };
             return Ok(Stmt::Import {
-                name,
-                span: head.span.start..named.span.end,
+                path,
+                alias,
+                span: head.span.start..end,
             });
+        }
+        if let Token::Ident(keyword) = self.peek().clone()
+            && keyword == "module"
+            && matches!(&self.tokens[self.index + 1].token, Token::Ident(word) if word == "for")
+        {
+            let head = self.advance();
+            self.advance();
+            let pattern = self.simple_type()?;
+            let span = head.span.start..pattern.span.end;
+            return Ok(Stmt::ModuleFor { pattern, span });
         }
         if let Some(alias) = self.alias()? {
             return Ok(Stmt::Alias(alias));
@@ -837,6 +876,7 @@ impl Parser {
         self.expect(&Token::OpenParen, "to open the parameters")?;
         self.nesting += 1;
         let mut parameters: Vec<Param> = Vec::new();
+        let mut has_self = false;
         if !matches!(self.peek(), Token::CloseParen) {
             loop {
                 let written = self.advance();
@@ -846,6 +886,15 @@ impl Parser {
                         "expected a parameter name",
                     ));
                 };
+                // `self` opens a receiver function, untyped: its type is the
+                // module's receiver pattern.
+                if parameter == "self" && parameters.is_empty() && !has_self {
+                    has_self = true;
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                    continue;
+                }
                 if parameters.iter().any(|seen| seen.name == parameter) {
                     return Err(Diagnostic::syntax(
                         written.span,
@@ -901,6 +950,7 @@ impl Parser {
         let span = start..body.span.end;
         Ok(FnDecl {
             name,
+            has_self,
             generics,
             bounds,
             parameters,

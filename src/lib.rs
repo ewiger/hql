@@ -20,6 +20,7 @@ mod evaluation;
 mod execution;
 mod knowledge;
 mod lexer;
+pub mod modules;
 pub mod naming;
 mod net;
 mod parser;

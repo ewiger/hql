@@ -18,9 +18,16 @@ pub(crate) enum Stmt {
         annotation: Option<TypeAnn>,
         value: Expr,
     },
-    /// `import <extension>` — bind an extension's steps into the program.
+    /// `import a.b [as c]` — make one module visible under a local name:
+    /// its last segment, or the alias.
     Import {
-        name: String,
+        path: Vec<String>,
+        alias: Option<String>,
+        span: Range<usize>,
+    },
+    /// `module for T` — the receiver pattern a module file opens with.
+    ModuleFor {
+        pattern: TypeAnn,
         span: Range<usize>,
     },
     /// `type Name<P> : Parent { field : Type }`, or `type Name = union { A, B }`.
@@ -74,6 +81,9 @@ pub(crate) struct MethodDecl {
 #[derive(Debug)]
 pub(crate) struct FnDecl {
     pub name: String,
+    /// Whether the first parameter is `self`: a receiver function of the
+    /// module the declaration is in, reached as `value.name(…)`.
+    pub has_self: bool,
     /// Generic parameters, `T` in `fn first<T>(…)`.
     pub generics: Vec<String>,
     /// The bound a generic parameter is written with, `T : Orderable`.

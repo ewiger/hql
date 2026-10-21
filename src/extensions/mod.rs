@@ -332,8 +332,12 @@ pub(crate) fn providers(step: &str) -> Vec<&'static Extension> {
 pub struct Config {
     /// Extensions imported for every program this vault runs.
     pub imports: Vec<String>,
-    /// Whether `graph` and `format` arrive without being asked for.
+    /// Whether the prelude's modules arrive without being asked for.
     pub prelude: bool,
+    /// The module roots workspace modules are discovered under: `[modules]
+    /// roots` in `hql.toml`, resolved against the vault, and `--modules` on
+    /// the command line.
+    pub module_roots: Vec<std::path::PathBuf>,
 }
 
 impl Default for Config {
@@ -341,6 +345,7 @@ impl Default for Config {
         Self {
             imports: Vec::new(),
             prelude: true,
+            module_roots: Vec::new(),
         }
     }
 }
@@ -360,6 +365,17 @@ impl Config {
         let Ok(parsed) = toml::from_str::<toml::Value>(&text) else {
             return config;
         };
+        if let Some(roots) = parsed
+            .get("modules")
+            .and_then(|section| section.get("roots"))
+            .and_then(toml::Value::as_array)
+        {
+            config.module_roots = roots
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(|path| root.join(path))
+                .collect();
+        }
         let Some(section) = parsed.get("extensions") else {
             return config;
         };
@@ -411,19 +427,50 @@ impl Availability {
 /// guessing at a misspelling.
 #[derive(Debug, Clone)]
 pub(crate) struct Resolution {
-    imported: Vec<&'static Extension>,
+    /// Each visible builtin module, under the local name it is bound to.
+    imported: Vec<Imported>,
+}
+
+/// A builtin module bound into a source unit under a local name: its last
+/// segment, or an alias.
+#[derive(Debug, Clone, Copy)]
+struct Imported {
+    local: &'static str,
+    extension: &'static Extension,
+}
+
+/// The canonical module names a builtin extension answers to, beyond its own
+/// one-word name: the `io` family is reached through `io.net` and
+/// `io.logging` as `std/io/` lays it out.
+const CANONICAL: &[(&str, &str)] = &[("io.net", "net"), ("io.logging", "logging")];
+
+/// The builtin module a dotted path names, if any.
+pub(crate) fn builtin_module(path: &str) -> Option<&'static Extension> {
+    let name = CANONICAL
+        .iter()
+        .find(|(canonical, _)| *canonical == path)
+        .map_or(path, |(_, name)| name);
+    extension(name)
 }
 
 impl Resolution {
     /// The core, plus the prelude unless the vault declines it.
     pub(crate) fn bare(prelude: bool) -> Self {
-        let mut imported = vec![&CORE];
+        let mut imported = vec![Imported {
+            local: CORE.name,
+            extension: &CORE,
+        }];
         if prelude {
             for name in self::prelude() {
-                if let Some(found) = extension(name)
-                    && !imported.iter().any(|held| held.name == found.name)
+                if let Some(found) = builtin_module(name)
+                    && !imported
+                        .iter()
+                        .any(|held| held.extension.name == found.name)
                 {
-                    imported.push(found);
+                    imported.push(Imported {
+                        local: found.name,
+                        extension: found,
+                    });
                 }
             }
         }
@@ -445,16 +492,20 @@ impl Resolution {
         }
         let mut resolution = Self::bare(config.prelude);
         for name in &config.imports {
-            resolution.import(name, &(0..0)).map_err(|failed| {
+            let configured = |message: String| {
                 Diagnostic::name(
                     0..0,
-                    format!(
-                        "the vault's {}: {}",
-                        crate::reporting::CONFIG_FILE,
-                        failed.message()
-                    ),
+                    format!("the vault's {}: {message}", crate::reporting::CONFIG_FILE),
                 )
-            })?;
+            };
+            // A vault's import list names standard modules; a workspace
+            // module is imported where it is used.
+            let bound = resolution
+                .import(name, None, &(0..0))
+                .map_err(|failed| configured(failed.message()))?;
+            if !bound {
+                return Err(configured(format!("no standard module named `{name}`")));
+            }
         }
         Ok(resolution)
     }
@@ -463,36 +514,62 @@ impl Resolution {
     ///
     /// A collision is reported here rather than at the use site, where the
     /// failure would depend on which pipeline a reader happened to look at.
-    pub(crate) fn import(&mut self, name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
-        let wanted = extension(name).ok_or_else(|| {
-            Diagnostic::name(
-                span.clone(),
-                format!("no extension named `{name}` is registered"),
-            )
-        })?;
-        self.bind(wanted, span)
+    pub(crate) fn import(
+        &mut self,
+        path: &str,
+        alias: Option<&str>,
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        let Some(wanted) = builtin_module(path) else {
+            return Ok(false);
+        };
+        let local = match alias {
+            Some(alias) => crate::types::program::intern(alias),
+            None => crate::types::program::intern(path.rsplit('.').next().unwrap_or(path)),
+        };
+        self.bind_as(local, wanted, span)?;
+        Ok(true)
     }
 
-    /// Bind an extension whose identity is already known.
-    pub(crate) fn bind(
+    /// Bind an extension under a local name. One extension may be bound
+    /// under several names; one name may not stand for two extensions.
+    pub(crate) fn bind_as(
         &mut self,
+        local: &'static str,
         wanted: &'static Extension,
         span: &Range<usize>,
     ) -> Result<(), Diagnostic> {
-        let _ = span;
-        if self.imported.iter().any(|held| held.name == wanted.name) {
-            return Ok(());
+        if let Some(held) = self.imported.iter().find(|held| held.local == local) {
+            if held.extension.name == wanted.name {
+                return Ok(());
+            }
+            return Err(Diagnostic::name(
+                span.clone(),
+                format!(
+                    "`{local}` already names the module `{}` here; import `{}` under another \
+                     name with `as`",
+                    held.extension.name, wanted.name
+                ),
+            ));
         }
-        // Two modules may declare one name: `contains` of a String and of a
-        // collection are two declarations, told apart at the call by the
-        // input, and a call that fits both is refused there.
-        self.imported.push(wanted);
+        // Two modules may declare one function name: `contains` of a String
+        // and of a collection are two declarations, told apart at the call by
+        // the input, and a call that fits both is refused there.
+        self.imported.push(Imported {
+            local,
+            extension: wanted,
+        });
         Ok(())
     }
 
-    /// Whether a module of this name is visible.
+    /// Whether a builtin module is visible under this local name.
     pub(crate) fn has(&self, name: &str) -> bool {
-        self.imported.iter().any(|held| held.name == name)
+        self.imported.iter().any(|held| held.local == name)
+    }
+
+    /// Whether a local name is taken by a visible builtin module.
+    pub(crate) fn names_module(&self, name: &str) -> bool {
+        self.has(name)
     }
 
     /// The step a name resolves to for an input of a type, among every
@@ -507,11 +584,16 @@ impl Resolution {
         positional: usize,
         span: &Range<usize>,
     ) -> Result<&'static Operation, Diagnostic> {
-        let candidates: Vec<(&'static Extension, &'static Operation)> = self
-            .imported
-            .iter()
-            .filter_map(|held| held.step(name).map(|step| (*held, step)))
-            .collect();
+        let mut candidates: Vec<(&'static Extension, &'static Operation)> = Vec::new();
+        for held in &self.imported {
+            if let Some(step) = held.extension.step(name)
+                && !candidates
+                    .iter()
+                    .any(|(extension, _)| extension.name == held.extension.name)
+            {
+                candidates.push((held.extension, step));
+            }
+        }
         match candidates.as_slice() {
             [] => Err(self.unresolved(name, span)),
             [(_, only)] => Ok(only),
@@ -564,7 +646,11 @@ impl Resolution {
         name: &str,
         span: &Range<usize>,
     ) -> Result<&'static Operation, Diagnostic> {
-        if let Some(step) = self.imported.iter().find_map(|held| held.step(name)) {
+        if let Some(step) = self
+            .imported
+            .iter()
+            .find_map(|held| held.extension.step(name))
+        {
             return Ok(step);
         }
         Err(self.unresolved(name, span))
@@ -581,12 +667,12 @@ impl Resolution {
         let held = self
             .imported
             .iter()
-            .find(|held| held.name == extension)
+            .find(|held| held.local == extension)
             .ok_or_else(|| self.unresolved(extension, span))?;
-        held.step(name).ok_or_else(|| {
+        held.extension.step(name).ok_or_else(|| {
             Diagnostic::name(
                 span.clone(),
-                format!("the `{extension}` extension provides no step `{name}`"),
+                format!("the `{extension}` module provides no function `{name}`"),
             )
         })
     }
@@ -776,7 +862,7 @@ mod tests {
             missing.message()
         );
 
-        resolution.import("lexical", &(0..1)).unwrap();
+        resolution.import("lexical", None, &(0..1)).unwrap();
         assert!(resolution.step("lexical", &(0..1)).is_ok());
         assert!(resolution.qualified("lexical", "lexical", &(0..1)).is_ok());
         assert!(resolution.qualified("lexical", "rank", &(0..1)).is_err());
@@ -820,7 +906,7 @@ mod tests {
     #[test]
     fn two_modules_declaring_one_name_are_told_apart_at_the_call() {
         let mut resolution = Resolution::bare(true);
-        resolution.bind(&PROBE, &(0..1)).unwrap();
+        resolution.bind_as(PROBE.name, &PROBE, &(0..1)).unwrap();
         // A collection fits the core's `count` and the probe's `Any`, with
         // no arity to tell them apart: the call is ambiguous and says so.
         let both = resolution
@@ -845,8 +931,8 @@ mod tests {
     #[test]
     fn importing_the_same_extension_twice_is_not_a_collision() {
         let mut resolution = Resolution::bare(true);
-        resolution.import("lexical", &(0..1)).unwrap();
-        resolution.import("lexical", &(0..1)).unwrap();
+        resolution.import("lexical", None, &(0..1)).unwrap();
+        resolution.import("lexical", None, &(0..1)).unwrap();
         assert!(resolution.step("lexical", &(0..1)).is_ok());
     }
 
@@ -855,6 +941,7 @@ mod tests {
         let config = Config {
             imports: vec!["lexical".to_owned()],
             prelude: false,
+            module_roots: Vec::new(),
         };
         let resolution = Resolution::new(&config).expect("the configuration resolves");
         assert!(resolution.step("lexical", &(0..1)).is_ok());
@@ -886,6 +973,7 @@ mod tests {
         let config = Config {
             imports: vec!["nonesuch".to_owned()],
             prelude: true,
+            module_roots: Vec::new(),
         };
         let failed = Resolution::new(&config).unwrap_err();
         assert!(
@@ -896,13 +984,10 @@ mod tests {
     }
 
     #[test]
-    fn importing_an_extension_that_is_not_registered_says_so() {
+    fn importing_a_name_no_builtin_module_has_binds_nothing() {
         let mut resolution = Resolution::bare(true);
-        let failed = resolution.import("nonesuch", &(0..1)).unwrap_err();
-        assert!(
-            failed.message().contains("no extension named `nonesuch`"),
-            "{}",
-            failed.message()
-        );
+        assert!(!resolution.import("nonesuch", None, &(0..1)).unwrap());
+        assert!(resolution.import("io.net", None, &(0..1)).unwrap());
+        assert!(resolution.has("net"));
     }
 }

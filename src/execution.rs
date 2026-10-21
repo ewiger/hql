@@ -23,6 +23,16 @@ pub(crate) struct Program {
     /// The lattice the program was checked under: the built-in types and the
     /// ones it declared, which evaluation reads its values against.
     pub lattice: std::sync::Arc<crate::types::program::Lattice>,
+    /// The workspace modules the program imported, in import order, each
+    /// evaluated before the program for the functions it binds.
+    pub modules: Vec<LoadedModule>,
+}
+
+/// A workspace module bound into a program under a local name.
+#[derive(Debug, Clone)]
+pub(crate) struct LoadedModule {
+    pub local: String,
+    pub program: std::sync::Arc<Program>,
 }
 
 #[derive(Debug)]
@@ -335,6 +345,14 @@ pub(crate) struct Checked {
     pub operator_calls: HashMap<Range<usize>, &'static str>,
     /// Each implementation, by the span of its declaration.
     pub impls: HashMap<Range<usize>, ImplLowering>,
+    /// Each reference to a workspace module's function, `geo.area`, by the
+    /// name it is bound under.
+    pub module_refs: HashMap<Range<usize>, String>,
+    /// Each receiver call of a workspace module's function, `"hi".shout()`,
+    /// by the name it is bound under and its type.
+    pub module_calls: HashMap<Range<usize>, (String, TypeRef)>,
+    /// The workspace modules imported, in order.
+    pub modules: Vec<LoadedModule>,
     /// What checking found worth saying that does not make the program wrong.
     pub warnings: Vec<crate::warnings::Warning>,
     /// Each alias the program defines, with the signature the checker wrote.
@@ -380,9 +398,15 @@ impl Checked {
                         Stmt::Fn {
                             name: declaration.name.clone(),
                             parameters: declaration
-                                .parameters
-                                .iter()
-                                .map(|parameter| parameter.name.clone())
+                                .has_self
+                                .then(|| "self".to_owned())
+                                .into_iter()
+                                .chain(
+                                    declaration
+                                        .parameters
+                                        .iter()
+                                        .map(|parameter| parameter.name.clone()),
+                                )
                                 .collect(),
                             body: std::sync::Arc::new(self.expression(&declaration.body)?),
                             ty: self.functions.get(&declaration.span).cloned().ok_or_else(
@@ -395,9 +419,10 @@ impl Checked {
                             )?,
                         }
                     }
-                    ast::Stmt::Import { .. } | ast::Stmt::Type(_) | ast::Stmt::Trait(_) => {
-                        Stmt::Unit
-                    }
+                    ast::Stmt::Import { .. }
+                    | ast::Stmt::ModuleFor { .. }
+                    | ast::Stmt::Type(_)
+                    | ast::Stmt::Trait(_) => Stmt::Unit,
                     ast::Stmt::Impl(declaration) => {
                         let lowering = self.impls.get(&declaration.span).ok_or_else(|| {
                             Diagnostic::typing(
@@ -457,6 +482,7 @@ impl Checked {
             effects: self.effects.clone(),
             lattice: crate::types::program::current()
                 .map_err(|error| Diagnostic::typing(0..0, error.to_string()))?,
+            modules: self.modules.clone(),
         })
     }
 
@@ -688,6 +714,9 @@ impl Checked {
                 negated: *negated,
             },
             A::Index(receiver, index) => Kind::Index(boxed(receiver)?, boxed(index)?),
+            A::Field(_, _) if self.module_refs.contains_key(&span) => {
+                Kind::Ident(self.module_refs[&span].clone())
+            }
             A::Field(receiver, _) => {
                 let receiver = boxed(receiver)?;
                 let field = self
@@ -713,6 +742,25 @@ impl Checked {
                 body: std::sync::Arc::new(self.expression(body)?),
                 function: self.functions.get(&span).cloned(),
             },
+            A::Call { callee, arguments } if self.module_calls.contains_key(&span) => {
+                let A::Field(receiver, _) = &callee.kind else {
+                    return Err(Diagnostic::typing(span, "a receiver call reads a receiver"));
+                };
+                let (key, function) = self.module_calls[&span].clone();
+                let mut values = vec![self.expression(receiver)?];
+                for argument in arguments {
+                    values.push(self.expression(&argument.value)?);
+                }
+                Kind::Apply {
+                    callee: Box::new(Expr {
+                        kind: Kind::Ident(key),
+                        ty: function,
+                        span: callee.span.clone(),
+                    }),
+                    arguments: values,
+                    pack: self.applications.get(&span).cloned().flatten(),
+                }
+            }
             A::Call { callee, arguments } if self.method_calls.contains_key(&span) => {
                 let A::Field(receiver, _) = &callee.kind else {
                     return Err(Diagnostic::typing(span, "a method call reads a receiver"));

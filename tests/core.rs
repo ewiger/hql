@@ -380,9 +380,9 @@ fn an_unimported_step_reports_the_import_rather_than_a_misspelling() {
 
 #[test]
 fn an_import_names_a_registered_extension() {
-    let failed = check("import nonesuch\n1").expect_err("no such extension");
+    let failed = check("import nonesuch\n1").expect_err("no such module");
     assert!(
-        failed.message().contains("no extension named `nonesuch`"),
+        failed.message().contains("no module named `nonesuch`"),
         "{}",
         failed.message()
     );
