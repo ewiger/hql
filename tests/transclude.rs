@@ -174,6 +174,36 @@ fn the_birds_example_wiki_resolves_and_renders_every_query() {
     assert!(blocks >= 3, "the collection notebook's queries must run");
 }
 
+#[test]
+fn the_todo_example_board_renders_its_lists() {
+    let vault = vault::load(Path::new("examples/todo/wiki")).expect("the example wiki");
+    assert!(vault.warnings.is_empty(), "{:?}", vault.warnings);
+    let source = std::fs::read_to_string("examples/todo/wiki/todo.hmd").unwrap();
+    let built = transclude::render(&source, &vault, Mode::Strict, Emit::Replace);
+    assert!(built.complete, "{:?}", built.reports);
+    assert_eq!(built.blocks, 2);
+    assert!(
+        built.document.contains(
+            "## Still to do\n\n\
+             - Fix broken backlinks\n\
+             - Write HQL documentation\n\
+             - Publish HyperMarkdown 0.4.2 announcement\n"
+        ),
+        "{}",
+        built.document
+    );
+    assert!(
+        built.document.contains(
+            "## Architecture decisions\n\n\
+             - {date: \"2026-10-10\", status: \"accepted\", title: \"Event execution model\"}\n\
+             - {date: \"2026-10-18\", status: \"accepted\", title: \"Reduce and merge\"}\n\
+             - {date: \"2026-10-19\", status: \"proposed\", title: \"Stream IO model\"}\n"
+        ),
+        "{}",
+        built.document
+    );
+}
+
 fn after(source: &str) -> transclude::Rendered {
     transclude::render(source, &fixture(), Mode::Strict, Emit::After)
 }

@@ -13,6 +13,9 @@ functions, with one intentional error for a parameter type.
 The [streams](streams/README.md) cases generate values with `yield`, end an
 unbounded stream with `take`, and refuse `yield` outside a `fn` block body.
 
+The [todo board](todo/README.md) lists open tasks and architecture decisions
+with `hql#eval` cells, reading typed sort keys out of card metadata.
+
 Build the CLI from the repository root with `cargo build --locked`, then follow
 the commands in the example's README. Query headers record their expected type
 or diagnostic; the cards form the vault those queries read. A header may also
