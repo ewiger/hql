@@ -102,7 +102,7 @@ fn a_renderer_argument_overrides_the_default() {
 fn a_type_no_renderer_writes_in_a_format_is_refused() {
     let vault = fixture();
     assert!(refused("1 | format(D2)", &vault).contains("no renderer writes Int as D2"));
-    assert!(refused("1 | format(Int)", &vault).contains("String"));
+    assert!(refused("1 | format(Int)", &vault).contains("Format"));
     // Refused before the program runs, so nothing is evaluated.
     let refusal = hql::check_in("1 | mermaid", &vault).expect_err("checked");
     assert!(
@@ -127,8 +127,12 @@ fn text_of_one_format_is_itself_plain_text_or_a_fence() {
     assert_eq!(written("[1, 2] | hmd | markdown", &vault).0, markdown);
     let (json, _) = written("[1, 2] | json", &vault);
     assert_eq!(written("[1, 2] | json | text", &vault).0, json);
-    assert!(refused("[1, 2] | json | d2", &vault).contains("no renderer writes Json as D2"));
-    assert!(refused("[1, 2] | json | csv", &vault).contains("no renderer writes Json as Csv"));
+    // Encoded text is a String, whatever it was encoded in.
+    assert!(refused("[1, 2] | json | d2", &vault).contains("no renderer writes String as D2"));
+    // Encoded again in another format, the text is one String value.
+    let (again, format) = written("[1, 2] | markdown | json", &vault);
+    assert_eq!(again, "\"- 1\\n- 2\"");
+    assert_eq!(format, "Json");
 }
 
 fn configured(toml: &str) -> std::io::Result<Vault> {

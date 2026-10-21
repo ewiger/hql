@@ -554,12 +554,10 @@ fn to_names_the_format_a_result_is_written_in() {
         "{}",
         stdout(&mermaid)
     );
-    // A result the program formatted is written as it is.
+    // A result the program formatted is text; asked for in another format,
+    // it is that String encoded again.
     let formatted = hql(&["--to", "json", "eval", "[1, 2] | markdown"]);
-    assert!(
-        !formatted.status.success(),
-        "Markdown text has no JSON renderer"
-    );
+    assert_eq!(stdout(&formatted), "\"- 1\\n- 2\"\n");
     let kept = hql(&["eval", "[1, 2] | json"]);
     assert_eq!(stdout(&kept), "[\n  1,\n  2\n]\n");
 }

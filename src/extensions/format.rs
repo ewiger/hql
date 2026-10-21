@@ -7,8 +7,7 @@
 //! over built-in defaults. See [HQL-0017](../../doc/proposals/HQL-0017/README.md).
 
 use super::spec::{
-    ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern,
-    TypePattern as P,
+    ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,
 };
 use super::{EvalCx, Operation, Purity, named};
 use crate::diagnostics::Diagnostic;
@@ -22,12 +21,14 @@ use std::sync::Arc;
 
 /// The presentation formats, each a subtype of `String`, with the name a
 /// configuration and `--to` write it in.
-pub const FORMATS: [(&str, &str); 9] = [
+pub const FORMATS: [(&str, &str); 11] = [
     ("Text", "text"),
+    ("Lines", "lines"),
     ("Hql", "hql"),
     ("Markdown", "markdown"),
     ("Hmd", "hmd"),
     ("Json", "json"),
+    ("JsonLines", "jsonlines"),
     ("Yaml", "yaml"),
     ("Csv", "csv"),
     ("D2", "d2"),
@@ -71,17 +72,8 @@ pub fn writable(input: &TypeRef, format: &str) -> Result<(), String> {
         }
         return Ok(());
     }
-    let from = input.constructor.0;
-    let refused = || Err(format!("no renderer writes {input} as {format}"));
-    if FORMATS.iter().any(|(name, _)| *name == from) {
-        return match (from, format) {
-            (from, to) if from == to => Ok(()),
-            (_, "Text" | "Hql" | "Markdown" | "Hmd") => Ok(()),
-            _ => refused(),
-        };
-    }
     if matches!(format, "D2" | "Mermaid") && !input.is(&TypeRef::GRAPH) && *input != TypeRef::DATA {
-        return refused();
+        return Err(format!("no renderer writes {input} as {format}"));
     }
     Ok(())
 }
@@ -193,16 +185,20 @@ pub fn render(
     let settled = value.settled();
     let (value, cut) = capped(settled.as_ref().unwrap_or(value), limit);
     writable(&value.type_of(), format.0)?;
-    // A value already in a format: the identity, a widening, plain text, or a
-    // fence.
+    // Text already encoded in a format: the identity in its own format and
+    // as plain text, a fence in Markdown, and otherwise the String it is,
+    // encoded again, `markdown | json` being a JSON string.
     if let Value::Formatted(formatted) = &value {
-        return Ok(match (formatted.format.0, format.0) {
-            ("Markdown" | "Hmd", "Markdown" | "Hmd") | (_, "Text") => formatted.text.clone(),
-            // Text of another format is, to HQL, a string.
-            (from, "Hql") if from != "Hql" => format!("{:?}", formatted.text),
-            (from, to) if from == to => formatted.text.clone(),
-            _ => value.to_markdown(),
-        });
+        match (formatted.format.0, format.0) {
+            ("Markdown" | "Hmd", "Markdown" | "Hmd") | (_, "Text" | "Lines") => {
+                return Ok(formatted.text.clone());
+            }
+            (from, to) if from == to => return Ok(formatted.text.clone()),
+            (_, "Markdown" | "Hmd") => return Ok(value.to_markdown()),
+            _ => {}
+        }
+        let plain = Value::Str(formatted.text.as_str().into());
+        return render(&plain, format, limit, renderer, renderers);
     }
     let chosen = renderer
         .map(str::to_owned)
@@ -229,10 +225,12 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
     }
     let one = Value::list(vec![value.clone()], value.type_of());
     match format.0 {
-        "Text" | "String" => Ok(text(value)),
+        "Text" | "Lines" | "String" => Ok(text(value)),
         "Hql" => Ok(value.to_literal()),
         "Markdown" | "Hmd" => Ok(one.to_markdown()),
-        "Json" => serde_json::to_string(&value.to_json()).map_err(|error| error.to_string()),
+        "Json" | "JsonLines" => {
+            serde_json::to_string(&value.to_json()).map_err(|error| error.to_string())
+        }
         "Yaml" => serde_yaml_ng::to_string(&value.to_json())
             .map(|document| format!("---\n{}", document.trim_end()))
             .map_err(|error| error.to_string()),
@@ -260,6 +258,23 @@ fn default(value: &Value, format: TypeConstructor) -> Result<String, String> {
         "Markdown" | "Hmd" | "D2" if graph => by_name("d2", value, format),
         "Mermaid" if graph => by_name("mermaid", value, format),
         "Text" | "String" => Ok(text(value)),
+        // Line framing: one record per line, each a value's text or its
+        // compact JSON; a value that is not a collection is one record.
+        "Lines" => Ok(value
+            .elements()
+            .unwrap_or_else(|| vec![value.clone()])
+            .iter()
+            .map(text)
+            .collect::<Vec<_>>()
+            .join("\n")),
+        "JsonLines" => value
+            .elements()
+            .unwrap_or_else(|| vec![value.clone()])
+            .iter()
+            .map(|record| serde_json::to_string(&record.to_json()))
+            .collect::<Result<Vec<_>, _>>()
+            .map(|lines| lines.join("\n"))
+            .map_err(|error| error.to_string()),
         "Hql" => Ok(value.to_literal()),
         "Markdown" | "Hmd" => Ok(value.to_markdown()),
         "Json" => Ok(json(value)),
@@ -468,7 +483,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: OperationSpec {
             parameters: &[TypeParameter {
                 name: "F",
-                bound: Some(TypeConstructor("String")),
+                bound: Some(crate::types::builtin::FORMAT),
             }],
             input: P::Any,
             arguments: &[
@@ -492,79 +507,28 @@ pub(crate) static STEPS: &[Operation] = &[
                 },
             ],
             output: O::Finite {
-                finite: P::Var("F"),
-                open: P::Apply(crate::types::collections::STREAM, &[P::Var("F")]),
+                finite: P::Type(TypeConstructor("String")),
+                open: P::Apply(
+                    crate::types::collections::STREAM,
+                    &[P::Type(TypeConstructor("String"))],
+                ),
             },
         },
-        summary: "Write any value as text of a presentation format, chosen by its type; \
-                  a stream piece by piece.",
+        summary: "Encode any value as text in a format, chosen by its type; a stream \
+                  piece by piece.",
         purity: Purity::Pure,
         check: Some(check_format),
         eval: eval_format,
     },
-    shorthand(
-        "text",
-        "Text",
-        &[P::Type(TypeConstructor("Text"))],
-        check_text,
-        eval_text,
-    ),
-    shorthand(
-        "hql",
-        "Hql",
-        &[P::Type(TypeConstructor("Hql"))],
-        check_hql,
-        eval_hql,
-    ),
-    shorthand(
-        "markdown",
-        "Markdown",
-        &[P::Type(TypeConstructor("Markdown"))],
-        check_markdown,
-        eval_markdown,
-    ),
-    shorthand(
-        "hmd",
-        "Hmd",
-        &[P::Type(TypeConstructor("Hmd"))],
-        check_hmd,
-        eval_hmd,
-    ),
-    shorthand(
-        "json",
-        "Json",
-        &[P::Type(TypeConstructor("Json"))],
-        check_json,
-        eval_json,
-    ),
-    shorthand(
-        "yaml",
-        "Yaml",
-        &[P::Type(TypeConstructor("Yaml"))],
-        check_yaml,
-        eval_yaml,
-    ),
-    shorthand(
-        "csv",
-        "Csv",
-        &[P::Type(TypeConstructor("Csv"))],
-        check_csv,
-        eval_csv,
-    ),
-    shorthand(
-        "d2",
-        "D2",
-        &[P::Type(TypeConstructor("D2"))],
-        check_d2,
-        eval_d2,
-    ),
-    shorthand(
-        "mermaid",
-        "Mermaid",
-        &[P::Type(TypeConstructor("Mermaid"))],
-        check_mermaid,
-        eval_mermaid,
-    ),
+    shorthand("text", check_text, eval_text),
+    shorthand("hql", check_hql, eval_hql),
+    shorthand("markdown", check_markdown, eval_markdown),
+    shorthand("hmd", check_hmd, eval_hmd),
+    shorthand("json", check_json, eval_json),
+    shorthand("yaml", check_yaml, eval_yaml),
+    shorthand("csv", check_csv, eval_csv),
+    shorthand("d2", check_d2, eval_d2),
+    shorthand("mermaid", check_mermaid, eval_mermaid),
 ];
 
 /// One check and one evaluation per shorthand, each with its format fixed.
@@ -653,22 +617,20 @@ fn unwrapped(value: &Value) -> &Value {
 }
 
 /// `name := format(Format)`: fixes the format and nothing else.
-const fn shorthand(
-    name: &'static str,
-    format: &'static str,
-    piece: &'static [TypePattern],
-    check: super::Check,
-    eval: super::Eval,
-) -> Operation {
+const fn shorthand(name: &'static str, check: super::Check, eval: super::Eval) -> Operation {
     Operation {
         name,
         spec: OperationSpec {
             parameters: &[],
             input: P::Any,
             arguments: &[],
+            // Encoded text is a String, whatever the format.
             output: O::Finite {
-                finite: P::Type(TypeConstructor(format)),
-                open: P::Apply(crate::types::collections::STREAM, piece),
+                finite: P::Type(TypeConstructor("String")),
+                open: P::Apply(
+                    crate::types::collections::STREAM,
+                    &[P::Type(TypeConstructor("String"))],
+                ),
             },
         },
         summary: "Shorthand for format with its format fixed.",

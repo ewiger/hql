@@ -372,7 +372,8 @@ fn record(path: &Path, how: Written) -> Result<PathBuf, String> {
 pub fn format_of_extension(path: &Path) -> Option<TypeConstructor> {
     let extension = path.extension()?.to_str()?;
     let format = match extension {
-        "json" | "jsonl" | "ndjson" => "Json",
+        "json" => "Json",
+        "jsonl" | "ndjson" => "JsonLines",
         "yaml" | "yml" => "Yaml",
         "csv" => "Csv",
         "txt" | "log" => "Text",
@@ -392,16 +393,19 @@ pub fn format_of_extension(path: &Path) -> Option<TypeConstructor> {
 /// Names a format that describes a whole picture and is written only.
 pub fn document_type(format: TypeConstructor) -> Result<TypeRef, String> {
     match format.0 {
-        "Json" | "Yaml" | "Csv" => Ok(TypeRef::DATA),
-        "Text" => Ok(TypeRef::STR),
-        "Markdown" | "Hmd" | "Hql" => Ok(TypeRef::from(format)),
+        "Json" | "JsonLines" | "Yaml" | "Csv" => Ok(TypeRef::DATA),
+        // Text is a String; a document in a text format is its text.
+        "Text" | "Lines" | "Markdown" | "Hmd" | "Hql" => Ok(TypeRef::STR),
         other => Err(format!("{other} is written, not read")),
     }
 }
 
 /// Whether a format's documents can be separated, so read one at a time.
 fn separable(format: TypeConstructor) -> bool {
-    matches!(format.0, "Json" | "Yaml" | "Csv" | "Text")
+    matches!(
+        format.0,
+        "Json" | "JsonLines" | "Yaml" | "Csv" | "Text" | "Lines"
+    )
 }
 
 /// A tree read from JSON or YAML.
@@ -499,10 +503,26 @@ fn pieces(reader: Box<dyn Read + Send>, format: TypeConstructor, origin: String)
                     })
                 }),
         ),
-        "Text" => Box::new(BufReader::new(reader).lines().map(move |line| {
+        "Text" | "Lines" => Box::new(BufReader::new(reader).lines().map(move |line| {
             line.map(|line| Value::Str(line.into()))
                 .map_err(|error| located(error.to_string()))
         })),
+        // One JSON document per line: the line is the frame.
+        "JsonLines" => Box::new(BufReader::new(reader).lines().enumerate().filter_map(
+            move |(index, line)| {
+                match line {
+                    Err(error) => Some(Err(located(error.to_string()))),
+                    Ok(line) if line.trim().is_empty() => None,
+                    Ok(line) => Some(
+                        serde_json::from_str::<serde_json::Value>(&line)
+                            .map(tree)
+                            .map_err(|error| {
+                                located(format!("not JSON at line {}: {error}", index + 1))
+                            }),
+                    ),
+                }
+            },
+        )),
         "Csv" => {
             let mut lines = BufReader::new(reader).lines();
             let header = csv_record(&mut lines);
@@ -930,7 +950,7 @@ fn complete(
 ) -> Result<Vec<Value>, String> {
     let mut values = Vec::new();
     match format.0 {
-        "Json" => {
+        "Json" | "JsonLines" => {
             let mut stream =
                 serde_json::Deserializer::from_str(pending).into_iter::<serde_json::Value>();
             let mut consumed = 0;

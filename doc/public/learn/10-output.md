@@ -5,10 +5,12 @@ a **presentation format** — plain text, HQL, Markdown, JSON, YAML, CSV, or a d
 — and the format is a type, so a program that formats a value knows what kind
 of text it holds.
 
-## Formats are types
+## Formats are a category of their own
 
-Each format is a subtype of `String`: `Text`, `Hql`, `Markdown`, `Hmd`, `Json`,
-`Yaml`, `Csv`, `D2` and `Mermaid`. A step named for a format writes any value in it:
+Each format is a `Format`: `Text`, `Lines`, `Hql`, `Markdown`, `Hmd`, `Json`,
+`JsonLines`, `Yaml`, `Csv`, `D2` and `Mermaid`. A format describes how values
+are written, not the text itself: a step named for a format encodes any value
+in it, and what comes out is a `String`:
 
 ```hql
 cards | filter(c => c.metadata.status == "todo") | map(c => c.title) | markdown
@@ -26,11 +28,12 @@ cards | filter(c => c.metadata.status == "todo") | map(c => c.title) | markdown
 ```
 
 ```text
-Markdown
+String
 ```
 
-A formatted value is still a value. A later step may read it, and comparing it
-with a string compares the text:
+A formatted value is a string that remembers its format, so a host prints it
+as it is. A later step may read it, and comparing it with a string compares
+the text:
 
 ```hql
 ([1, 2] | json) == "[\n  1,\n  2\n]"

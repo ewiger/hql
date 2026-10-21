@@ -261,17 +261,28 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             applied: Vec::new(),
         })?;
     }
-    // The presentation formats: text with a known syntax, each a `String`.
+    // The formats: a category of its own, `std/format.hql`. A format
+    // describes an external representation and its framing; it is not the
+    // text it encodes, so none narrows `String`.
+    system.declare(TypeDefinition {
+        constructor: FORMAT,
+        kind: TypeKind::Abstract,
+        parameters: Vec::new(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     for (format, parent) in [
-        ("Text", "String"),
-        ("Hql", "String"),
-        ("Markdown", "String"),
+        ("Text", "Format"),
+        ("Lines", "Format"),
+        ("Hql", "Format"),
+        ("Markdown", "Format"),
         ("Hmd", "Markdown"),
-        ("Json", "String"),
-        ("Yaml", "String"),
-        ("Csv", "String"),
-        ("D2", "String"),
-        ("Mermaid", "String"),
+        ("Json", "Format"),
+        ("JsonLines", "Format"),
+        ("Yaml", "Format"),
+        ("Csv", "Format"),
+        ("D2", "Format"),
+        ("Mermaid", "Format"),
     ] {
         system.declare(TypeDefinition {
             constructor: TypeConstructor(format),
@@ -388,6 +399,9 @@ pub const GROUP: TypeConstructor = TypeConstructor("Group");
 
 /// The constructor of a computation that may have failed.
 pub const RESULT: TypeConstructor = TypeConstructor("Result");
+
+/// The category every format narrows.
+pub const FORMAT: TypeConstructor = TypeConstructor("Format");
 
 impl TypeRef {
     /// `Result<T, E>`.

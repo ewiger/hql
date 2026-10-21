@@ -402,9 +402,9 @@ fn a_binding_shadows_the_namespace_and_not_the_step() {
         "{}",
         shadowed.message()
     );
-    let text = hql::types::builtin::named("Text", &[]).expect("Text is built in");
-    assert_eq!(check("format = 1\n1 | text"), Ok(text.clone()));
-    assert_eq!(check("1 | format.text"), Ok(text));
+    // Encoded text is a String, whatever the format.
+    assert_eq!(check("format = 1\n1 | text"), Ok(TypeRef::STR));
+    assert_eq!(check("1 | format.text"), Ok(TypeRef::STR));
 }
 
 #[test]

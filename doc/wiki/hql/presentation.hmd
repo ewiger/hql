@@ -5,28 +5,38 @@ nav:
 ---
 # Presentation
 
-A value keeps its type until it is formatted. A **presentation format** is a
-type of text with a known syntax, a subtype of `String`; formatting writes a
-value as text of one format, and the result is ordinary text a later step may
-read. A **renderer** writes values of one type in one format. The design is
-[HQL-0017](../../proposals/HQL-0017/README.md).
+A value keeps its type until it is formatted. A **format** is a value of
+`Format`, a category of its own: it describes an external representation and
+its framing, and is not the text it encodes. Formatting applies the encoder for
+the value's type in one format, and the result is a `String` a later step may
+read, which keeps its format for presentation. A **renderer** is the encoder
+for one type in one format. The design is
+[HQL-0017](../../proposals/HQL-0017/README.md) with the format model of
+[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md).
 
 ## Presentation formats
 
-| Format | Supertype | Text |
+| Format | Supertype | Representation |
 | --- | --- | --- |
-| `Text` | `String` | plain text |
-| `Hql` | `String` | HQL literals |
-| `Markdown` | `String` | CommonMark |
+| `Text` | `Format` | plain text |
+| `Lines` | `Format` | text framed one record per line |
+| `Hql` | `Format` | HQL literals |
+| `Markdown` | `Format` | CommonMark |
 | `Hmd` | `Markdown` | HyperMarkDown |
-| `Json` | `String` | JSON |
-| `Yaml` | `String` | YAML |
-| `Csv` | `String` | RFC 4180 rows |
-| `D2` | `String` | D2 diagram source |
-| `Mermaid` | `String` | Mermaid diagram source |
+| `Json` | `Format` | one JSON document |
+| `JsonLines` | `Format` | one JSON document per line |
+| `Yaml` | `Format` | YAML |
+| `Csv` | `Format` | RFC 4180 rows |
+| `D2` | `Format` | D2 diagram source |
+| `Mermaid` | `Format` | Mermaid diagram source |
 
-A value of a format type is text that parses in that format. The declarations
-are `std/format.hql`.
+A format is a value of `Format`, a category of its own: it describes an
+external representation and its framing, and is neither the text it encodes
+nor a `String` subtype. `format(x, F)` applies the encoder for `x`'s type in
+`F` and gives the encoded text as a `String`, which keeps its format at run
+time for a host to print as it is. `source(e, F)` applies the decoder.
+The contracts are `Decoder<F, T>` and `Encoder<T, F>` in `std/format.hql`, and
+the model is [HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md).
 
 ## `format` and its shorthands
 

@@ -243,7 +243,7 @@ pub(crate) static STEPS: &[Operation] = &{
                 parameters: &[
                     TypeParameter {
                         name: "F",
-                        bound: Some(TypeConstructor("String")),
+                        bound: Some(crate::types::builtin::FORMAT),
                     },
                     LEVEL_PARAMETER,
                 ],

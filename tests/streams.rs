@@ -234,17 +234,14 @@ fn formatting_a_stream_gives_a_stream_of_pieces() {
     };
     assert_eq!(
         check(&format!("{NATURALS}naturals(1) | json")),
-        Ok(stream("Json"))
+        Ok(stream("String"))
     );
     assert_eq!(
         check(&format!("{NATURALS}naturals(1) | format(Csv)")),
-        Ok(stream("Csv"))
+        Ok(stream("String"))
     );
     // A finite input is still written whole.
-    assert_eq!(
-        check("[1, 2] | json"),
-        Ok(hql::types::builtin::named("Json", &[]).unwrap())
-    );
+    assert_eq!(check("[1, 2] | json"), Ok(TypeRef::STR));
     assert_eq!(
         eval(&format!("{NATURALS}naturals(1) | json | take(2)")),
         eval("[\"1\", \"2\"]")

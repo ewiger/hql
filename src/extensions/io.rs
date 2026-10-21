@@ -40,7 +40,7 @@ const FORMAT: ArgumentSpec = ArgumentSpec {
 
 const FORMAT_PARAMETER: TypeParameter = TypeParameter {
     name: "F",
-    bound: Some(TypeConstructor("String")),
+    bound: Some(crate::types::builtin::FORMAT),
 };
 
 const ENDPOINT: ArgumentSpec =

@@ -10,6 +10,59 @@ The language continues to be in active development.
 
 ### Added
 
+- A complete type system and the language model around it, from
+  [HQL-0024](doc/proposals/HQL-0024/README.md), shown program by program in
+  the [Mighty Types corpus](examples/mighty-types/README.md):
+  - Records: `type Point { x : Int, y : Int }` is a type of the program,
+    constructed as `Point(x = 1, y = 2)` or `Point(1, 2)`, read with `p.x`,
+    generic over its fields, `Stack(items = [1])` being a `Stack<Int>`, and
+    matched by type inside a union, which a `match` must cover.
+  - Receiver calls: `value.f(args)` calls `f` with the value first, resolved
+    among the visible modules by the receiver's type; `module.f(x)` qualifies
+    one. Two modules may declare one name, `contains` of a String and of a
+    collection, told apart at the call.
+  - The `string`, `seq`, `math`, `option` and `result` modules of the
+    prelude, which is the import list of `std/prelude.hql`: `str`, `fmt`,
+    `trim`, `split`, `join`, `first`, `last`, `zip`, `enumerate`, `range`,
+    `any`, `all`, `find`, `take_while`, `window`, `distinct`, `to_map`,
+    `with`, `entries`, `join` of two collections, `sqrt`, `pow`, `int`,
+    `float`, `unwrap_or`, `and_then` and the rest; `Pair<A, B>`; a step as a
+    function value, `map(str)`.
+  - `Result<T, E>`: `ok(v)` and `err(e)` as values and patterns, with
+    `is_ok`, `map_err`, `and_then` and the ways out beside `Option`'s.
+  - Traits: `trait Shape { fn area(self) : Float }` with default bodies,
+    `impl Shape for Circle { … }` once per trait and type, `T : Shape` bounds
+    checked at every call, dispatch on the value's own type; the operators
+    resolve through `Add`, `Sub`, `Mul`, `Div`, `Rem` and `Eq`, and a type
+    implementing `Ord` is `Orderable` for `<`, `sort`, `min` and `max`.
+  - Modules: `import a.b as c` binds one module under a local name, builtin
+    (`io.net`) or a workspace module found by its position under a module
+    root, `hql.toml` `[modules] roots` or `--modules`; a module file declares
+    functions, types, traits and implementations, may open with `module for
+    T` to make its `self` functions receiver functions, and imports for
+    itself. Imports sit at the head of a unit.
+  - The `regex` module, imported where it is used: `is_match`, `find`,
+    `find_all`, `captures`, `replace` and `split`.
+  - Function types reach eight parameters; an argument list takes a trailing
+    comma; an integer literal takes a call, `7.max(3)`.
+
+### Changed
+
+- A format is a `Format`, a category of its own, not a `String` subtype
+  ([HQL-0024 part 7](doc/proposals/HQL-0024/parts/07-formats-and-codecs.md),
+  from [encode, decode and format](doc/proposals/HQL-0024/encode-decode-format.md)).
+  `format(x, Json)` and its shorthands give a `String` that keeps its format
+  for presentation, so `xs | json` is a `String` and encoding it again in
+  another format encodes that text. `Lines` and `JsonLines` are framing
+  formats: `source(file(p), Lines)` is a `Seq<String>` and `source(stdin,
+  JsonLines)` a `Stream<Data>`; `.jsonl` and `.ndjson` imply `JsonLines`.
+  `std/format.hql` declares the codec contracts `Decoder<F, T>` and
+  `Encoder<T, F>`.
+- `import` names a module, not an extension; `import nonesuch` is refused as
+  "no module named".
+- The binary runs on a thread with a large stack, so a program may recurse
+  thousands of calls deep.
+
 - Endpoints, from [HQL-0021](doc/proposals/HQL-0021/README.md): `stdin`,
   `stdout` and `stderr`, `file(path)`, and a file's `.end`. `source(e, F)`
   reads an endpoint's documents in a format, as a `Seq` from a file and as a

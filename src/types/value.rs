@@ -79,12 +79,13 @@ pub enum Value {
     Cell,
 }
 
-/// Text of one presentation format: a `String` that also states its syntax.
+/// Text in one format: a `String` value that also carries the format it was
+/// encoded in, for presentation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Formatted {
     /// The text.
     pub text: String,
-    /// Its format type, a subtype of `String`.
+    /// The format it was encoded in.
     pub format: super::TypeConstructor,
 }
 
@@ -223,7 +224,9 @@ impl Value {
             Self::Hit(hit) => TypeRef::hit(hit.element.clone()),
             Self::Ranking(ranking) => TypeRef::ranking(ranking.element.clone()),
             Self::Function(function) => function.ty.clone(),
-            Self::Formatted(formatted) => TypeRef::from(formatted.format),
+            // Encoded text is a String; the format it is in rides along for a
+            // host to print it as it is.
+            Self::Formatted(_) => TypeRef::STR,
             Self::Group(group) => {
                 super::builtin::GROUP.apply([group.key_type.clone(), group.item_type.clone()])
             }

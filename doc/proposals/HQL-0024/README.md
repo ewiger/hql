@@ -1,6 +1,6 @@
 # HQL-0024: A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions
 
-- **Status**: drafted
+- **Status**: accepted, implemented in part (see [issue 0028](../../issues/0028-complete-type-system-implementation.md))
 - **Created**: 2026-10-21
 - **Source**: [design draft 1](draft/design-draft-1.md),
   [notes on the implementation half of a module](parts/01a-modules.md), the
@@ -68,7 +68,7 @@ order is the dependency order.
 | 4 | [Receiver modules](parts/04-receiver-modules.md) | `module for Seq<T>` associates a module with a type pattern; functions with explicit `self` resolve as `xs.first()` by receiver type matching among visible modules, and an ambiguity is an error | new; `.` gains a call form |
 | 5 | [Traits and implementations](parts/05-traits.md) | A trait is a compile-time contract, `T : Eq` is a bound, `impl Add for Int` provides it, and one implementation per trait and type is enforced by ownership | reverses "there are no traits" for capabilities; `abstract type` stays |
 | 6 | [Operator contracts](parts/06-operators.md) | Arithmetic and comparison resolve through `Add`, `Eq`, `Ord` and their kin; `\|`, `and`, `or` and binding are language-defined; no pseudo-desugaring is part of the definition | mechanism changes, builtin behavior does not |
-| 7 | [Formats and codecs](parts/07-formats-and-codecs.md) | A format describes representation and framing, is not a `String`, is not `Format<T>`, and codec contracts connect it to values | contradicts [HQL-0017](../HQL-0017/README.md); a decision is pending |
+| 7 | [Formats and codecs](parts/07-formats-and-codecs.md) | `Format` is a category of its own: a format describes representation and framing, is not a `String`, is not `Format<T>`, and `Decoder<F, T>` and `Encoder<T, F>` connect it to values; `Lines` and `JsonLines` are formats and `format(x, F)` gives a `String` | adopted from [encode, decode and format](encode-decode-format.md); supersedes the one rule of [HQL-0017](../HQL-0017/README.md) that a format is a `String` |
 | 8 | [Pipelines and expressions](parts/08-pipelines-and-expressions.md) | `.` is local evaluation and `\|` is planner-visible dataflow; a step is not a stage | aligned with HQL-0004 and HQL-0005 |
 | 9 | [Packages and extensions](parts/09-packages-and-extensions.md) | A package distributes, an extension implements, a module is what a program imports; an extension registry of descriptors and implementations is the second input of binding, built in three stages from today's static table; an extension loads as a whole, and loading runs its `prelude.hql` once as its constructor | registration gains descriptors; the registry is planned in stages; loading gains a constructor |
 | 10 | [The host boundary](parts/10-host-boundary.md) | Configuration and providers come from an execution context; HyperMarkdown is one host that seeds bindings; module names and host bindings are different origins | an execution-context record is to be reserved |
@@ -103,8 +103,9 @@ record stands until this proposal is accepted.
   working through the modules those extensions declare; dotted names are added,
   the one-word form is kept where the module is top level.
 - `std/io/init.hql` is renamed; no program names it.
-- Programs that call `format(x, Json)` and read the result as a `String` break
-  if part 7 is adopted as drafted. Part 7 states the alternative.
+- Programs that call `format(x, Json)` read a `String`, as before; a program
+  that named `Json` as the type of a value, `xs : List<Json>`, now writes
+  `List<String>`. The run-time value keeps its format for presentation.
 - Every other change is additive: dot calls, `module for`, `trait`, `impl`,
   `self` and `as` are recognized by position, like `type` and `import`, and no
   current program uses them as names in those positions.
@@ -130,8 +131,8 @@ keeps its recorded types and diagnostics.
   wanted and they are now one proposal with eleven separable parts.
 - Eight parts are new design or aligned with accepted records. Three disagree
   with the cards: traits exist (part 5), formats are not strings (part 7), and
-  generic receivers return their pattern (part 4). The first two are decisions
-  for this proposal to make; the third is resolved by writing receiver
+  generic receivers return their pattern (part 4). The first two are decided
+  here, both in the draft's favour; the third is resolved by writing receiver
   signatures with the container rule the card already has.
 - The implementation half is the one thing the draft left implicit and the
   companion notes make explicit: a standard module and a package module are
@@ -153,3 +154,5 @@ keeps its recorded types and diagnostics.
 - 2026-10-21: the module model gains its implementation half: contracts,
   extension descriptors, binding and resolved modules, from the companion
   notes
+- 2026-10-22: part 7 adopted from [encode, decode and format](encode-decode-format.md);
+  parts 1 to 6, 8 and 11 implemented as issue 0028 records
