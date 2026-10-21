@@ -27,6 +27,7 @@ pub mod logging;
 pub(crate) mod math;
 pub mod net;
 pub(crate) mod option;
+pub(crate) mod regex;
 pub(crate) mod result;
 pub mod semantic;
 pub(crate) mod seq;
@@ -271,6 +272,13 @@ static RESULT: Extension = Extension {
     metadata: None,
 };
 
+static REGEX: Extension = Extension {
+    name: "regex",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: regex::STEPS,
+    metadata: None,
+};
+
 /// Every extension compiled into this binary, core first.
 ///
 /// Registration is not import: a step here is known to diagnostics and to
@@ -279,7 +287,7 @@ static RESULT: Extension = Extension {
 /// misspelling.
 pub(crate) static REGISTERED: &[&Extension] = &[
     &CORE, &STRING, &SEQ, &MATH, &OPTION, &RESULT, &GRAPH, &FORMAT, &IO, &NET, &LOGGING, &LEXICAL,
-    &SEMANTIC,
+    &SEMANTIC, &REGEX,
 ];
 
 impl Extension {

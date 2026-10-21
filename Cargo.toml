@@ -38,6 +38,7 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+regex = "1.13.1"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 rustyline = { version = "19.0.0", default-features = false, features = ["with-file-history"] }
 serde = "1.0.229"
