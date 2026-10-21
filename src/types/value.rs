@@ -51,6 +51,8 @@ pub enum Value {
     Ranking(Arc<Ranking>),
     /// One partition of a `group`.
     Group(Arc<Group>),
+    /// A value of a declared record type: its fields, in declaration order.
+    Record(Arc<Record>),
     /// A function: parameters, a body, and the names it captured.
     Function(Arc<Closure>),
     /// Text in a presentation format, such as `Markdown` or `Json`.
@@ -90,6 +92,27 @@ pub struct Closure {
     pub(crate) body: Arc<crate::execution::Expr>,
     pub(crate) captured: std::collections::HashMap<String, Value>,
     pub(crate) ty: TypeRef,
+}
+
+/// A value of a declared record type.
+#[derive(Debug, Clone)]
+pub struct Record {
+    /// The record's type, with its arguments as checked at construction.
+    pub ty: TypeRef,
+    /// Each field's value, in declaration order. An optional field holds an
+    /// `Option` value: present, or absent at the field's type.
+    pub fields: Vec<(String, Value)>,
+}
+
+impl Record {
+    /// The value of a field, when the record has one of that name.
+    #[must_use]
+    pub fn field(&self, name: &str) -> Option<&Value> {
+        self.fields
+            .iter()
+            .find(|(held, _)| held == name)
+            .map(|(_, value)| value)
+    }
 }
 
 /// One partition of a `group`: a key and the occurrences that have it.
@@ -198,6 +221,7 @@ impl Value {
             Self::Group(group) => {
                 super::builtin::GROUP.apply([group.key_type.clone(), group.item_type.clone()])
             }
+            Self::Record(record) => record.ty.clone(),
         }
     }
 
@@ -391,6 +415,11 @@ impl PartialEq for Value {
             }
             // Two groups are equal iff their keys are.
             (Self::Group(left), Self::Group(right)) => left.key == right.key,
+            // Two records are equal when they are of one type and agree
+            // field by field.
+            (Self::Record(left), Self::Record(right)) => {
+                left.ty.constructor == right.ty.constructor && left.fields == right.fields
+            }
             // A function is equal only to itself: equal behaviour is undecidable.
             (Self::Function(left), Self::Function(right)) => Arc::ptr_eq(left, right),
             _ => false,

@@ -93,6 +93,13 @@ impl Value {
                 "key": group.key.to_json(),
                 "items": group.items.iter().map(Self::to_json).collect::<Vec<_>>(),
             }),
+            Self::Record(record) => J::Object(
+                record
+                    .fields
+                    .iter()
+                    .map(|(name, value)| (name.clone(), value.to_json()))
+                    .collect(),
+            ),
         }
     }
 }
@@ -170,6 +177,17 @@ impl fmt::Display for Value {
             },
             Self::Group(group) => {
                 write!(f, "{}: [{}]", Nested(&group.key), nested(&group.items))
+            }
+            // A record prints as the call that constructs it.
+            Self::Record(record) => {
+                write!(f, "{}(", record.ty.constructor)?;
+                for (index, (name, value)) in record.fields.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{name} = {}", Nested(value))?;
+                }
+                f.write_str(")")
             }
         }
     }

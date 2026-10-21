@@ -392,10 +392,16 @@ impl Scanner<'_> {
             self.offset += 1;
             self.digits();
         }
-        // A trailing point, or an exponent, is not part of the literal grammar.
-        if self
-            .rest()
-            .starts_with(|c: char| c == '.' || c.is_alphanumeric())
+        // A point followed by a name ends the literal: `7.max(3)` calls
+        // `max` on `7`. A trailing point, or an exponent, is not part of the
+        // literal grammar.
+        let receiver_call = self.rest().starts_with('.')
+            && self.source[self.offset + 1..]
+                .starts_with(|next: char| next.is_alphabetic() || next == '_');
+        if !receiver_call
+            && self
+                .rest()
+                .starts_with(|c: char| c == '.' || c.is_alphanumeric())
         {
             self.offset += self.rest().chars().next().map_or(0, char::len_utf8);
             return Err(Diagnostic::syntax(

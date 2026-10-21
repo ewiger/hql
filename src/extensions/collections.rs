@@ -946,7 +946,7 @@ fn eval_map(
             by,
             span: argument.value.span.clone(),
         };
-        return Ok(wrapped(traversal, argument.value.ty.clone(), source));
+        return Ok(wrapped(traversal, produced(argument), source));
     }
     let mut mapped = Vec::new();
     for element in elements(&input, "map", &span)? {
@@ -954,8 +954,8 @@ fn eval_map(
     }
     // A set maps to its image, which collapses equal results.
     Ok(match input {
-        Value::Set(..) => Value::set(mapped, argument.value.ty.clone()),
-        _ => Value::list(mapped, argument.value.ty.clone()),
+        Value::Set(..) => Value::set(mapped, produced(argument)),
+        _ => Value::list(mapped, produced(argument)),
     })
 }
 
@@ -1092,6 +1092,16 @@ pub(crate) fn wrong(name: &str, what: &str, span: &Range<usize>) -> Diagnostic {
 /// The element type a collection value carries.
 pub(crate) fn element_type(input: &Value) -> TypeRef {
     input.type_of().element().unwrap_or(TypeRef::DATA)
+}
+
+/// The type a function argument produces per element: a lambda written in
+/// place carries its body's type, and a named function its function type,
+/// whose result is what each application yields.
+pub(crate) fn produced(argument: &TypedArg) -> TypeRef {
+    match argument.value.ty.as_function() {
+        Some((_, result)) => result.clone(),
+        None => argument.value.ty.clone(),
+    }
 }
 
 /// Keep a filtered collection in the shape it came in.
@@ -1268,7 +1278,7 @@ fn eval_group(
     let argument =
         named_or_first(arguments, "by").ok_or_else(|| wrong("group", "a key selector", &span))?;
     let item_type = element_type(&input);
-    let key_type = argument.value.ty.clone();
+    let key_type = produced(argument);
     // Groups keep the order their keys were first seen in, and items their
     // input order; only the second is a promise, since the result is a set.
     let mut groups: Vec<(Value, Vec<Value>)> = Vec::new();

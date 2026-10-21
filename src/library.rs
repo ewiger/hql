@@ -101,6 +101,50 @@ fn load() -> Result<HashMap<String, Record>, Diagnostic> {
     Ok(records)
 }
 
+/// The shape of a record the library declares, with its parameters standing
+/// as nullary applications of their names, as
+/// [`program`](crate::types::program) reads one.
+pub(crate) fn shape(name: &str) -> Option<crate::types::program::RecordShape> {
+    use crate::types::program::{RecordField, RecordShape, intern};
+    let record = records()?.get(name)?;
+    let parameters: Vec<&'static str> = record
+        .parameters
+        .iter()
+        .map(|parameter| intern(parameter))
+        .collect();
+    let structural = |written: &TypeAnn| structural(written, &parameters);
+    Some(RecordShape {
+        parents: record.parents.iter().filter_map(structural).collect(),
+        fields: record
+            .fields
+            .iter()
+            .map(|field| {
+                Some(RecordField {
+                    name: field.name.clone(),
+                    ty: structural(&field.annotation)?,
+                    optional: field.optional,
+                })
+            })
+            .collect::<Option<Vec<_>>>()?,
+        parameters,
+    })
+}
+
+/// A written type as a reference built from names alone: a parameter stays a
+/// nullary application of itself, and nothing is validated, since the record's
+/// arguments are bound later.
+fn structural(written: &TypeAnn, parameters: &[&'static str]) -> Option<TypeRef> {
+    if let Some(parameter) = parameters.iter().find(|held| **held == written.name) {
+        return Some(crate::types::TypeConstructor(parameter).apply([]));
+    }
+    let args = written
+        .arguments
+        .iter()
+        .map(|argument| structural(argument, parameters))
+        .collect::<Option<Vec<_>>>()?;
+    Some(crate::types::builtin::constructor(&written.name)?.apply(args))
+}
+
 /// The type of `field` on a value of `receiver`'s type, as the library
 /// declares it: on the type itself, or inherited from a parent.
 pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {

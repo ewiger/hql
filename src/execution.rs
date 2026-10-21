@@ -20,6 +20,9 @@ pub(crate) struct Program {
     /// Each function the program defines whose body is effectful, with the
     /// effectful operations it uses.
     pub effects: Vec<(String, Vec<String>)>,
+    /// The lattice the program was checked under: the built-in types and the
+    /// ones it declared, which evaluation reads its values against.
+    pub lattice: std::sync::Arc<crate::types::program::Lattice>,
 }
 
 #[derive(Debug)]
@@ -143,6 +146,9 @@ pub(crate) enum Kind {
     },
     /// `some(value)`.
     Some(Box<Expr>),
+    /// `Point(x = 1, y = 2)`: a record of the expression's type, from the
+    /// fields written, each by name.
+    Record(Vec<(String, Expr)>),
     /// `input | tee name = branch`: the input, evaluated once, is read by
     /// the branch under [`crate::ast::TEE_INPUT`] and passed on.
     Tee {
@@ -173,6 +179,8 @@ pub(crate) struct Arm {
 #[derive(Debug, Clone)]
 pub(crate) enum Field {
     Key(String),
+    /// A field of a declared record, by name.
+    Record(String),
     Name,
     Title,
     Path,
@@ -213,6 +221,9 @@ impl Field {
     pub fn resolve(receiver: &TypeRef, name: &str) -> Option<Self> {
         if *receiver.present() == TypeRef::DATA {
             return Some(Self::Key(name.to_owned()));
+        }
+        if crate::types::program::is_record_valued(receiver.present().constructor.0) {
+            return Some(Self::Record(name.to_owned()));
         }
         Some(match name {
             "name" => Self::Name,
@@ -273,6 +284,8 @@ pub(crate) struct Checked {
     pub constructor_values: HashMap<Range<usize>, (TypeRef, TypeRef)>,
     /// The calls that combine two values, by the combiner they name.
     pub combiners: HashMap<Range<usize>, &'static str>,
+    /// The calls that construct a record, at the type they build.
+    pub records: HashMap<Range<usize>, TypeRef>,
     /// What checking found worth saying that does not make the program wrong.
     pub warnings: Vec<crate::warnings::Warning>,
     /// Each alias the program defines, with the signature the checker wrote.
@@ -342,6 +355,8 @@ impl Checked {
             warnings: self.warnings.clone(),
             signatures: self.signatures.clone(),
             effects: self.effects.clone(),
+            lattice: crate::types::program::current()
+                .map_err(|error| Diagnostic::typing(0..0, error.to_string()))?,
         })
     }
 
@@ -545,6 +560,25 @@ impl Checked {
                 left: Box::new(self.expression(&arguments[0].value)?),
                 right: Box::new(self.expression(&arguments[1].value)?),
             },
+            A::Call { arguments, .. } if self.records.contains_key(&span) => {
+                let shape = crate::types::program::record(self.records[&span].constructor.0)
+                    .ok_or_else(|| Diagnostic::typing(span.clone(), "record was not declared"))?;
+                let mut fields = Vec::new();
+                for (index, argument) in arguments.iter().enumerate() {
+                    let name = match &argument.name {
+                        Some(name) => name.clone(),
+                        None => shape
+                            .fields
+                            .get(index)
+                            .map(|field| field.name.clone())
+                            .ok_or_else(|| {
+                                Diagnostic::typing(span.clone(), "field out of range")
+                            })?,
+                    };
+                    fields.push((name, self.expression(&argument.value)?));
+                }
+                Kind::Record(fields)
+            }
             A::Call { callee, arguments } if self.applications.contains_key(&span) => Kind::Apply {
                 callee: boxed(callee)?,
                 arguments: arguments

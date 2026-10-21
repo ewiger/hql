@@ -11,13 +11,14 @@ pub mod builtin;
 pub mod collections;
 pub mod display;
 mod mapping;
+pub mod program;
 mod system;
 mod value;
 
 pub use builtin::named;
 pub use mapping::{CollectionError, MapKind, MapValue};
 pub use system::{TypeDefinition, TypeError, TypeKind, TypeParameter, TypeSystem, Variance};
-pub use value::{Closure, Formatted, Group, Key, Value};
+pub use value::{Closure, Formatted, Group, Key, Record, Value};
 
 use std::fmt;
 

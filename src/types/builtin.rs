@@ -4,7 +4,7 @@ use super::{
     TypeConstructor, TypeDefinition, TypeError, TypeKind, TypeParameter, TypeRef, TypeSystem,
     Variance, collections,
 };
-use std::sync::OnceLock;
+use std::sync::Arc;
 
 macro_rules! atoms {
     ($($constant:ident => $name:literal),* $(,)?) => {
@@ -97,13 +97,15 @@ impl TypeRef {
     }
 }
 
-/// The shared built-in declaration registry.
-pub fn system() -> Result<&'static TypeSystem, TypeError> {
-    static SYSTEM: OnceLock<Result<TypeSystem, TypeError>> = OnceLock::new();
-    SYSTEM.get_or_init(build).as_ref().map_err(Clone::clone)
+/// The declaration registry in force: the built-in lattice, plus whatever
+/// the program being checked or run has declared
+/// ([`program`](super::program)).
+pub fn system() -> Result<Arc<TypeSystem>, TypeError> {
+    super::program::current().map(|lattice| Arc::clone(&lattice.system))
 }
 
-fn build() -> Result<TypeSystem, TypeError> {
+/// Build the built-in lattice alone.
+pub(crate) fn build() -> Result<TypeSystem, TypeError> {
     let mut system = collections::type_system()?;
     // A leaf of a tree: a value with no parts of its own. `Bool` is one and is
     // not `Orderable`, which is why the two contracts are separate parents.
@@ -311,14 +313,18 @@ fn build() -> Result<TypeSystem, TypeError> {
 }
 
 /// The function type constructors, indexed by arity.
-pub const FUNCTIONS: [TypeConstructor; 5] = [
+pub const FUNCTIONS: [TypeConstructor; 9] = [
     TypeConstructor("Fn0"),
     TypeConstructor("Fn1"),
     TypeConstructor("Fn2"),
     TypeConstructor("Fn3"),
     TypeConstructor("Fn4"),
+    TypeConstructor("Fn5"),
+    TypeConstructor("Fn6"),
+    TypeConstructor("Fn7"),
+    TypeConstructor("Fn8"),
 ];
-const ARGUMENT_NAMES: [&str; 4] = ["A", "B", "C", "D"];
+const ARGUMENT_NAMES: [&str; 8] = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
 impl TypeRef {
     /// The type of a function from `parameters` to `result`, or `None` past
@@ -394,7 +400,8 @@ impl TypeRef {
 
     /// The occurrence type of a collection, including a retrieval's hits.
     pub fn element(&self) -> Option<Self> {
-        collections::element_type(system().ok()?, self).ok()
+        let system = system().ok()?;
+        collections::element_type(&system, self).ok()
     }
 
     /// The element of anything that can be traversed, a stream included.
@@ -510,7 +517,8 @@ impl TypeRef {
             return Some(Self::CARD);
         }
         if self.constructor == other.constructor && self.args.len() == other.args.len() {
-            let definition = system().ok()?.definition(self.constructor).ok()?;
+            let system = system().ok()?;
+            let definition = system.definition(self.constructor).ok()?;
             let args = self
                 .args
                 .iter()

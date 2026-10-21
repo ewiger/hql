@@ -37,6 +37,8 @@ pub(crate) fn evaluate_with(
     vault: &Vault,
     bound: Vec<(String, Value)>,
 ) -> (Result<Value, Diagnostic>, Vec<Report>) {
+    // Values are read against the declarations they were checked under.
+    crate::types::program::install(std::sync::Arc::clone(&program.lattice));
     let mut scope = base(vault);
     // The library's bindings over `vault`, each its own program.
     for (name, library) in crate::checker::library(vault) {
@@ -348,6 +350,35 @@ impl Evaluator<'_> {
                 self.step(step, value, arguments, at.clone())
             }
             Kind::Type => Err(Diagnostic::runtime(span, "a type argument is not a value")),
+            Kind::Record(fields) => {
+                let ty = &expression.ty;
+                let shape = crate::types::program::record(ty.constructor.0).ok_or_else(|| {
+                    Diagnostic::runtime(span.clone(), format!("{ty} is not a declared record"))
+                })?;
+                let mut built = Vec::with_capacity(shape.fields.len());
+                for field in &shape.fields {
+                    let written = fields.iter().find(|(name, _)| *name == field.name);
+                    let value = match written {
+                        Some((_, value)) => {
+                            let value = self.expression(value)?;
+                            let value = self.settled(value, &span)?;
+                            if field.optional
+                                && !matches!(value, Value::Present(_) | Value::Absent(_))
+                            {
+                                Value::Present(Arc::new(value))
+                            } else {
+                                value
+                            }
+                        }
+                        None => Value::Absent(shape.bound(&field.ty, &ty.args)),
+                    };
+                    built.push((field.name.clone(), value));
+                }
+                Ok(Value::Record(Arc::new(crate::types::Record {
+                    ty: ty.clone(),
+                    fields: built,
+                })))
+            }
             Kind::Some(value) => Ok(Value::Present(Arc::new(self.expression(value)?))),
             Kind::Tee {
                 input,
@@ -536,6 +567,10 @@ impl Evaluator<'_> {
                     })
             }
             Value::Map(map) if matches!(field, Field::Keys) => Ok(map.keys()),
+            Value::Record(record) => match field {
+                Field::Record(name) => record.field(name).cloned().ok_or_else(missing),
+                _ => Err(missing()),
+            },
             // Absence propagates rather than becoming a failure, because the
             // reference that produced it was permitted.
             Value::Absent(_) => Ok(Value::Absent(result.present().clone())),

@@ -17,6 +17,9 @@ use std::ops::Range;
 ///
 /// Returns the first syntax, type or name failure.
 pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypedProgram, Diagnostic> {
+    // A whole program starts from the built-in lattice; a cell of a document
+    // keeps what the cells before it declared.
+    crate::types::program::reset();
     check_with(program, vault, &[])
 }
 
@@ -58,6 +61,7 @@ pub(crate) fn check_collecting(
     program: &Program,
     vault: &Vault,
 ) -> (Option<TypedProgram>, Vec<Diagnostic>) {
+    crate::types::program::reset();
     check_collecting_with(program, vault, &[])
 }
 
@@ -148,6 +152,56 @@ fn instantiate(
     for (inner, held) in parameter.args.iter().zip(&view.args) {
         instantiate(inner, held, bound);
     }
+}
+
+/// Bind a record's parameters from the type a field's value has: `List<T>`
+/// against `List<Int>` binds `T` to `Int`. A parameter met twice keeps the
+/// wider type; a shape that does not match answers `false`.
+fn unify(
+    declared: &TypeRef,
+    actual: &TypeRef,
+    parameters: &[&'static str],
+    bound: &mut HashMap<&'static str, TypeRef>,
+) -> bool {
+    if declared.args.is_empty()
+        && let Some(parameter) = parameters
+            .iter()
+            .find(|parameter| **parameter == declared.constructor.0)
+    {
+        match bound.get(parameter) {
+            Some(held) if actual.is(held) => {}
+            Some(held) if held.is(actual) => {
+                bound.insert(parameter, actual.clone());
+            }
+            Some(held) => {
+                let Some(common) = held.common_type(actual) else {
+                    return false;
+                };
+                bound.insert(parameter, common);
+            }
+            None => {
+                bound.insert(parameter, actual.clone());
+            }
+        }
+        return true;
+    }
+    if !crate::declarations::mentions_parameter(declared, parameters) {
+        return actual.is(declared);
+    }
+    let Some(view) = crate::types::builtin::system().ok().and_then(|system| {
+        system
+            .as_supertype(actual, declared.constructor)
+            .ok()
+            .flatten()
+    }) else {
+        return false;
+    };
+    view.args.len() == declared.args.len()
+        && declared
+            .args
+            .iter()
+            .zip(&view.args)
+            .all(|(inner, held)| unify(inner, held, parameters, bound))
 }
 
 /// A function named in `UpperCamelCase` is a type's constructor, which only
@@ -445,6 +499,7 @@ impl Checker<'_> {
                         self.lint(Name::Field, &field.name, &field.span);
                     }
                     self.declarations.declare(declaration)?;
+                    crate::declarations::enter_lattice(declaration)?;
                     TypeRef::UNIT
                 }
                 Stmt::Fn(declaration) => {
@@ -471,6 +526,35 @@ impl Checker<'_> {
             (&expression.kind, expected.and_then(TypeRef::as_function))
         {
             let ty = self.lambda_value(expression, Some(parameters))?;
+            self.checked
+                .types
+                .insert(expression.span.clone(), ty.clone());
+            return Ok(ty);
+        }
+        // A collection literal checked against a collection type holds its
+        // elements at that type: `[Circle(…), Square(…)]` is a `List<Shape>`
+        // where the annotation says so, though the elements alone meet
+        // nowhere.
+        if let (Kind::List(values) | Kind::Set(values), Some(expected)) =
+            (&expression.kind, expected)
+            && let Some(element) = expected.element()
+            && !element.has_variable()
+            && !element.has_placeholder()
+        {
+            for value in values {
+                let actual = self.expecting(value, Some(&element))?;
+                if !actual.is(&element) {
+                    return Err(Diagnostic::typing(
+                        value.span.clone(),
+                        format!("this element is {actual}, and the collection holds {element}"),
+                    ));
+                }
+            }
+            let ty = if matches!(expression.kind, Kind::Set(_)) {
+                TypeRef::set(element)
+            } else {
+                TypeRef::list(element)
+            };
             self.checked
                 .types
                 .insert(expression.span.clone(), ty.clone());
@@ -543,7 +627,7 @@ impl Checker<'_> {
         let ty = TypeRef::function(types, result).ok_or_else(|| {
             Diagnostic::typing(
                 expression.span.clone(),
-                "a function takes at most four parameters",
+                "a function takes at most eight parameters",
             )
         })?;
         self.checked
@@ -656,7 +740,7 @@ impl Checker<'_> {
         let ty = TypeRef::function(parameters.clone(), result.clone()).ok_or_else(|| {
             Diagnostic::typing(
                 declaration.span.clone(),
-                "a function takes at most four parameters",
+                "a function takes at most eight parameters",
             )
         })?;
         self.scope.insert(declaration.name.clone(), ty.clone());
@@ -763,7 +847,7 @@ impl Checker<'_> {
         if alias.parameters.len() > 4 {
             return Err(Diagnostic::typing(
                 alias.span.clone(),
-                "a function takes at most four parameters",
+                "a function takes at most eight parameters",
             ));
         }
         let candidates: Vec<TypeRef> = if implicit {
@@ -861,7 +945,7 @@ impl Checker<'_> {
             let ty = TypeRef::function(parameters.clone(), result).ok_or_else(|| {
                 Diagnostic::typing(
                     alias.span.clone(),
-                    "a function takes at most four parameters",
+                    "a function takes at most eight parameters",
                 )
             })?;
             let variables: Vec<(String, TypeRef, Option<TypeRef>)> = [false, true]
@@ -1142,6 +1226,104 @@ impl Checker<'_> {
         }
         self.checked.applications.insert(span, pack);
         Ok(result)
+    }
+
+    /// `Point(x = 1, y = 2)`: a record built from its fields, by name or in
+    /// declaration order, with the record's parameters taken from the values.
+    fn construct_record(
+        &mut self,
+        name: &str,
+        shape: &crate::types::program::RecordShape,
+        arguments: &[Arg],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        let mut given: Vec<Option<&Arg>> = vec![None; shape.fields.len()];
+        for (index, argument) in arguments.iter().enumerate() {
+            let position = match &argument.name {
+                Some(written) => shape
+                    .fields
+                    .iter()
+                    .position(|field| field.name == *written)
+                    .ok_or_else(|| {
+                        Diagnostic::name(
+                            argument.value.span.clone(),
+                            format!("`{name}` has no field `{written}`"),
+                        )
+                    })?,
+                None if index < shape.fields.len() => index,
+                None => {
+                    return Err(Diagnostic::typing(
+                        argument.value.span.clone(),
+                        format!(
+                            "`{name}` has {} field{}, and this is one more",
+                            shape.fields.len(),
+                            if shape.fields.len() == 1 { "" } else { "s" }
+                        ),
+                    ));
+                }
+            };
+            if given[position].replace(argument).is_some() {
+                return Err(Diagnostic::typing(
+                    argument.value.span.clone(),
+                    format!(
+                        "`{}` is supplied twice to `{name}`",
+                        shape.fields[position].name
+                    ),
+                ));
+            }
+        }
+        let mut bound: HashMap<&'static str, TypeRef> = HashMap::new();
+        for (field, argument) in shape.fields.iter().zip(given) {
+            let Some(argument) = argument else {
+                if field.optional {
+                    continue;
+                }
+                return Err(Diagnostic::typing(
+                    span,
+                    format!("`{name}` needs `{}`", field.name),
+                ));
+            };
+            let open = crate::declarations::mentions_parameter(&field.ty, &shape.parameters);
+            let expected = (!open).then(|| field.ty.clone());
+            let actual = self.expecting(&argument.value, expected.as_ref())?;
+            // An optional field takes its type or an Option of it.
+            let actual = if field.optional && actual.constructor.0 == "Option" {
+                actual.present().clone()
+            } else {
+                actual
+            };
+            if open {
+                if !unify(&field.ty, &actual, &shape.parameters, &mut bound) {
+                    return Err(Diagnostic::typing(
+                        argument.value.span.clone(),
+                        format!(
+                            "`{}` of `{name}` is {}, and this is {actual}",
+                            field.name, field.ty
+                        ),
+                    ));
+                }
+            } else if !actual.is(&field.ty) {
+                return Err(Diagnostic::typing(
+                    argument.value.span.clone(),
+                    format!(
+                        "`{}` of `{name}` is {}, and this is {actual}",
+                        field.name, field.ty
+                    ),
+                ));
+            }
+        }
+        let args: Vec<TypeRef> = shape
+            .parameters
+            .iter()
+            .map(|parameter| bound.get(parameter).cloned().unwrap_or(TypeRef::NEVER))
+            .collect();
+        let system = crate::types::builtin::system()
+            .map_err(|error| Diagnostic::typing(span.clone(), error.to_string()))?;
+        let ty = system
+            .apply(crate::types::program::constructor(name), args)
+            .map_err(|error| Diagnostic::typing(span.clone(), error.to_string()))?;
+        self.checked.records.insert(span, ty.clone());
+        Ok(ty)
     }
 
     /// Whether a name is bound to a function value.
@@ -1434,6 +1616,11 @@ impl Checker<'_> {
                 };
                 if let Some(constructor) = crate::constructors::named(name) {
                     return crate::constructors::check(self, constructor, arguments, None, span);
+                }
+                if crate::types::program::is_record_valued(name)
+                    && let Some(shape) = crate::types::program::record(name)
+                {
+                    return self.construct_record(name, &shape, arguments, span);
                 }
                 if name == SOME && !self.scope.contains_key(name) {
                     let [argument] = arguments.as_slice() else {
@@ -2013,11 +2200,8 @@ fn indexed(receiver: &TypeRef) -> Result<TypeRef, String> {
 /// The type of a field on a value of a type.
 pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
     if field == "keys" && crate::types::MapKind::of(receiver.constructor).is_some() {
-        return crate::types::collections::keys_type(
-            crate::types::builtin::system().ok()?,
-            receiver,
-        )
-        .ok();
+        let system = crate::types::builtin::system().ok()?;
+        return crate::types::collections::keys_type(&system, receiver).ok();
     }
     match receiver.constructor.0 {
         // Absence nests no deeper than once: a field of a field that may be
@@ -2027,8 +2211,10 @@ pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
         // A key of an open tree may not be there, so reading one is optional
         // by type: `field? : T` and `Option<T>` are the same claim.
         "Data" => Some(TypeRef::optional(TypeRef::DATA)),
-        // A record's fields are what its declaration in `std/` says.
-        _ => crate::library::field_type(receiver, field),
+        // A record's fields are what its declaration says, in the program
+        // or in `std/`.
+        _ => crate::types::program::field_type(receiver, field)
+            .or_else(|| crate::library::field_type(receiver, field)),
     }
 }
 
@@ -2091,6 +2277,13 @@ fn exhaustive(patterns: &[&Pattern], subject: &TypeRef) -> bool {
     if patterns.iter().any(covers) {
         return true;
     }
+    // A union is covered when each of its members is.
+    if let Ok(system) = crate::types::builtin::system()
+        && let Ok(definition) = system.definition(subject.constructor)
+        && let crate::types::TypeKind::Union(members) = &definition.kind
+    {
+        return members.iter().all(|member| exhaustive(patterns, member));
+    }
     if subject.constructor.0 == "Option" {
         let present = patterns
             .iter()
@@ -2114,6 +2307,12 @@ fn missing_cases(subject: &TypeRef) -> &'static str {
         "cover both `some(…)` and `none`, or add `_`"
     } else if *subject == TypeRef::BOOL {
         "cover both `true` and `false`, or add `_`"
+    } else if crate::types::builtin::system()
+        .ok()
+        .and_then(|system| system.definition(subject.constructor).ok().cloned())
+        .is_some_and(|definition| matches!(definition.kind, crate::types::TypeKind::Union(_)))
+    {
+        "cover every member of the union with a type pattern, or add `_`"
     } else {
         "add a `_` arm"
     }

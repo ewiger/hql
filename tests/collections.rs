@@ -102,14 +102,14 @@ fn the_type_system_accepts_sorting_every_collection_view() {
         TypeRef::list(TypeRef::INT),
     ] {
         assert_eq!(
-            collections::sort_type(system, &input, SortOrder::Intrinsic),
+            collections::sort_type(&system, &input, SortOrder::Intrinsic),
             Ok(TypeRef::list(TypeRef::INT))
         );
     }
     let input = TypeRef::set(TypeRef::list(TypeRef::STR));
-    assert!(collections::sort_type(system, &input, SortOrder::Intrinsic).is_err());
+    assert!(collections::sort_type(&system, &input, SortOrder::Intrinsic).is_err());
     assert_eq!(
-        collections::sort_type(system, &input, SortOrder::ExplicitComparison),
+        collections::sort_type(&system, &input, SortOrder::ExplicitComparison),
         Ok(TypeRef::list(TypeRef::list(TypeRef::STR)))
     );
 }

@@ -85,6 +85,153 @@ impl Drop for TypeVariables {
     }
 }
 
+/// Add a checked declaration to the lattice of the program, so that its name
+/// is a type the rest of the program can construct, read and match.
+///
+/// A declaration that restates a built-in type is checked for agreement by
+/// [`Declarations::declare`] and adds nothing here.
+pub(crate) fn enter_lattice(declaration: &TypeDecl) -> Result<(), Diagnostic> {
+    use crate::types::program::{self, RecordField, RecordShape};
+    use crate::types::{TypeDefinition, TypeParameter, Variance};
+    if builtin::constructor(&declaration.name).is_some() {
+        return Ok(());
+    }
+    // A union over a parameter, `union {T, Seq<Tree<T>>}`, has no closed
+    // members to enter; it is checked as a declaration and stays one.
+    if declaration.union.is_some() && !declaration.parameters.is_empty() {
+        return Ok(());
+    }
+    let parameters: Vec<&'static str> = declaration
+        .parameters
+        .iter()
+        .map(|parameter| program::intern(parameter))
+        .collect();
+    let own = program::constructor(&declaration.name);
+    let structural = |written: &TypeAnn| structural(written, &parameters, Some(own));
+    // A declaration with fields is a record, with values of its own. One
+    // without is a tag: a contract other types name in their supertype sets,
+    // which no value is built as.
+    let kind = match &declaration.union {
+        Some(members) => TypeKind::Union(
+            members
+                .iter()
+                .map(|member| {
+                    let member_type = structural(member)?;
+                    if mentions_parameter(&member_type, &parameters) {
+                        return Err(Diagnostic::typing(
+                            member.span.clone(),
+                            "a union's member is a closed type, not a type parameter",
+                        ));
+                    }
+                    Ok(member_type)
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+        None if declaration.abstract_type || declaration.fields.is_empty() => TypeKind::Abstract,
+        None => TypeKind::Concrete,
+    };
+    let mut parents = Vec::new();
+    let mut applied = Vec::new();
+    for supertype in &declaration.supertypes {
+        let parent = structural(supertype)?;
+        // The graph carriers are monomorphic: `Edge<S, T>` names `Edge`.
+        if parent.args.is_empty() || matches!(parent.constructor.0, "Graph" | "Edge") {
+            parents.push(parent.constructor);
+        } else {
+            applied.push(parent);
+        }
+    }
+    let mut typed_parameters = Vec::new();
+    for name in &parameters {
+        let bound = declaration
+            .bounds
+            .iter()
+            .find(|(bounded, _)| bounded == name)
+            .map(|(_, bound)| annotation(bound))
+            .transpose()?;
+        typed_parameters.push(TypeParameter {
+            name,
+            variance: Variance::Covariant,
+            bound,
+        });
+    }
+    let shape = (kind == TypeKind::Concrete).then(|| {
+        Ok::<_, Diagnostic>(RecordShape {
+            parameters: parameters.clone(),
+            parents: declaration
+                .supertypes
+                .iter()
+                .map(structural)
+                .collect::<Result<Vec<_>, _>>()?,
+            fields: declaration
+                .fields
+                .iter()
+                .map(|field| {
+                    Ok(RecordField {
+                        name: field.name.clone(),
+                        ty: structural(&field.annotation)?,
+                        optional: field.optional,
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?,
+        })
+    });
+    let shape = shape.transpose()?;
+    program::declare(
+        TypeDefinition {
+            constructor: program::constructor(&declaration.name),
+            kind,
+            parameters: typed_parameters,
+            parents,
+            applied,
+        },
+        shape,
+    )
+    .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))
+}
+
+/// A written type as a reference built from names: a parameter of the
+/// declaration stays a nullary application of its name, every other name
+/// must be a type, and nothing is validated, since the parameters are bound
+/// only when the type is applied.
+fn structural(
+    written: &TypeAnn,
+    parameters: &[&'static str],
+    own: Option<types::TypeConstructor>,
+) -> Result<TypeRef, Diagnostic> {
+    if let Some(parameter) = parameters.iter().find(|held| **held == written.name) {
+        return Ok(types::TypeConstructor(parameter).apply([]));
+    }
+    let args = written
+        .arguments
+        .iter()
+        .map(|argument| structural(argument, parameters, own))
+        .collect::<Result<Vec<_>, _>>()?;
+    // A union may list the type being declared inside an argument, which is
+    // what makes a tree.
+    if let Some(own) = own
+        && own.0 == written.name
+    {
+        return Ok(own.apply(args));
+    }
+    let constructor = builtin::constructor(&written.name).ok_or_else(|| {
+        Diagnostic::name(
+            written.span.clone(),
+            format!("unknown type `{}`", written.name),
+        )
+    })?;
+    Ok(constructor.apply(args))
+}
+
+/// Whether a structural type mentions one of the declaration's parameters.
+pub(crate) fn mentions_parameter(ty: &TypeRef, parameters: &[&'static str]) -> bool {
+    (ty.args.is_empty() && parameters.contains(&ty.constructor.0))
+        || ty
+            .args
+            .iter()
+            .any(|arg| mentions_parameter(arg, parameters))
+}
+
 /// What a program has declared so far.
 #[derive(Debug, Default)]
 pub(crate) struct Declarations {
@@ -431,22 +578,6 @@ impl Declarations {
                 ),
             ));
         }
-        if let Ok(system) = builtin::system()
-            && let Some(constructor) = system.constructor(&written.name)
-            && !written.arguments.is_empty()
-            && !matches!(constructor.0, "Graph" | "Edge")
-        {
-            let args = written
-                .arguments
-                .iter()
-                .map(|argument| self.scoped_type(argument, scope))
-                .collect::<Option<Vec<_>>>();
-            if let Some(args) = args {
-                system
-                    .apply(constructor, args)
-                    .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
-            }
-        }
         if let Some(declared) = self.known.get(&written.name) {
             // A bare name is the constructor itself — `Graph<Card, Link>`
             // passes `Link`, not a `Link` of something. Whether a constructor
@@ -470,6 +601,22 @@ impl Declarations {
                     },
                 ),
             ));
+        }
+        if let Ok(system) = builtin::system()
+            && let Some(constructor) = system.constructor(&written.name)
+            && !written.arguments.is_empty()
+            && !matches!(constructor.0, "Graph" | "Edge")
+        {
+            let args = written
+                .arguments
+                .iter()
+                .map(|argument| self.scoped_type(argument, scope))
+                .collect::<Option<Vec<_>>>();
+            if let Some(args) = args {
+                system
+                    .apply(constructor, args)
+                    .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
+            }
         }
         if builtin::constructor(&written.name).is_some() {
             return Ok(());
@@ -535,6 +682,9 @@ impl Declarations {
                 if let Some(index) = names.iter().position(|name| name == &written.name) {
                     return parameters.get(index).cloned();
                 }
+                if !crate::types::program::is_builtin(&written.name) {
+                    return None;
+                }
                 let args = written
                     .arguments
                     .iter()
@@ -579,8 +729,12 @@ impl Declarations {
                 if one.is(&other) || other.is(&one) {
                     continue;
                 }
+                // Only the binary's own concrete types exclude each other; a
+                // declared record may be narrowed together with anything.
                 if one.is_concrete()
                     && other.is_concrete()
+                    && crate::types::program::is_builtin(one.constructor.0)
+                    && crate::types::program::is_builtin(other.constructor.0)
                     && one.declared_common_type(&other).is_none()
                 {
                     return Err(Diagnostic::typing(
