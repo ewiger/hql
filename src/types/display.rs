@@ -100,6 +100,8 @@ impl Value {
                     .map(|(name, value)| (name.clone(), value.to_json()))
                     .collect(),
             ),
+            Self::Ok(value, _) => json!({ "ok": value.to_json() }),
+            Self::Err(error, _) => json!({ "err": error.to_json() }),
         }
     }
 }
@@ -178,6 +180,8 @@ impl fmt::Display for Value {
             Self::Group(group) => {
                 write!(f, "{}: [{}]", Nested(&group.key), nested(&group.items))
             }
+            Self::Ok(value, _) => write!(f, "ok({})", Nested(value)),
+            Self::Err(error, _) => write!(f, "err({})", Nested(error)),
             // A record prints as the call that constructs it.
             Self::Record(record) => {
                 write!(f, "{}(", record.ty.constructor)?;

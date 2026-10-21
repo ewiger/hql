@@ -380,6 +380,24 @@ impl Evaluator<'_> {
                 })))
             }
             Kind::Some(value) => Ok(Value::Present(Arc::new(self.expression(value)?))),
+            Kind::Ok(value) => {
+                let error = expression
+                    .ty
+                    .as_result()
+                    .map_or(TypeRef::NEVER, |(_, error)| error.clone());
+                let value = self.expression(value)?;
+                let value = self.settled(value, &span)?;
+                Ok(Value::Ok(Arc::new(value), error))
+            }
+            Kind::Err(error) => {
+                let value = expression
+                    .ty
+                    .as_result()
+                    .map_or(TypeRef::NEVER, |(value, _)| value.clone());
+                let error = self.expression(error)?;
+                let error = self.settled(error, &span)?;
+                Ok(Value::Err(Arc::new(error), value))
+            }
             Kind::Tee {
                 input,
                 name,
@@ -1060,6 +1078,20 @@ impl Evaluator<'_> {
         if step.takes_raw_input() {
             return (step.eval)(self, input, arguments, span);
         }
+        // `map` over a result maps a success and keeps a failure.
+        if step.name == "map" && matches!(&input, Value::Ok(..) | Value::Err(..)) {
+            let by = crate::extensions::named_or_first(arguments, "by")
+                .ok_or_else(|| Diagnostic::runtime(span.clone(), "`map` needs a function"))?;
+            let produced = crate::extensions::collections::produced(by);
+            return Ok(match input {
+                Value::Ok(held, error) => Value::Ok(
+                    Arc::new(self.apply(by, vec![held.as_ref().clone()])?),
+                    error,
+                ),
+                Value::Err(error, _) => Value::Err(error, produced),
+                _ => unreachable!("matched a result"),
+            });
+        }
         // `map` over one optional value: absent stays absent, at the function's
         // result type, and a present value is mapped and stays present.
         if step.name == "map" && matches!(&input, Value::Absent(_) | Value::Present(_)) {
@@ -1375,6 +1407,9 @@ fn fits(pattern: &crate::ast::Pattern, value: &Value, bindings: &mut Vec<(String
             true
         }
         (Pattern::Some(inner), Value::Present(held)) => fits(inner, held, bindings),
+        (Pattern::Ok(inner), Value::Ok(held, _)) | (Pattern::Err(inner), Value::Err(held, _)) => {
+            fits(inner, held, bindings)
+        }
         (Pattern::Type(name, inner), _) => crate::types::named(name, &[])
             .and_then(|wanted| value.interpreted(&wanted))
             .is_some_and(|interpreted| fits(inner, &interpreted, bindings)),

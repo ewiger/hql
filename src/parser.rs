@@ -867,6 +867,18 @@ impl Parser {
                 self.expect(&Token::CloseParen, "to close `some(…)`")?;
                 Pattern::Some(Box::new(inner))
             }
+            Token::Ident(name)
+                if (name == "ok" || name == "err") && self.peek() == &Token::OpenParen =>
+            {
+                self.advance();
+                let inner = self.pattern()?;
+                self.expect(&Token::CloseParen, "to close the result pattern")?;
+                if name == "ok" {
+                    Pattern::Ok(Box::new(inner))
+                } else {
+                    Pattern::Err(Box::new(inner))
+                }
+            }
             // `U name`: a type name, capitalised, followed by what it binds.
             Token::Ident(name)
                 if name.starts_with(|c: char| c.is_uppercase())

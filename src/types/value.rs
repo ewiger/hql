@@ -53,6 +53,12 @@ pub enum Value {
     Group(Arc<Group>),
     /// A value of a declared record type: its fields, in declaration order.
     Record(Arc<Record>),
+    /// A computation that succeeded, with the type of the error it did not
+    /// produce.
+    Ok(Arc<Value>, TypeRef),
+    /// A computation that failed, with the type of the value it did not
+    /// produce.
+    Err(Arc<Value>, TypeRef),
     /// A function: parameters, a body, and the names it captured.
     Function(Arc<Closure>),
     /// Text in a presentation format, such as `Markdown` or `Json`.
@@ -222,6 +228,8 @@ impl Value {
                 super::builtin::GROUP.apply([group.key_type.clone(), group.item_type.clone()])
             }
             Self::Record(record) => record.ty.clone(),
+            Self::Ok(value, error) => TypeRef::result(value.type_of(), error.clone()),
+            Self::Err(error, value) => TypeRef::result(value.clone(), error.type_of()),
         }
     }
 
@@ -419,6 +427,9 @@ impl PartialEq for Value {
             // field by field.
             (Self::Record(left), Self::Record(right)) => {
                 left.ty.constructor == right.ty.constructor && left.fields == right.fields
+            }
+            (Self::Ok(left, _), Self::Ok(right, _)) | (Self::Err(left, _), Self::Err(right, _)) => {
+                left == right
             }
             // A function is equal only to itself: equal behaviour is undecidable.
             (Self::Function(left), Self::Function(right)) => Arc::ptr_eq(left, right),

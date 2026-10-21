@@ -265,6 +265,10 @@ pub(crate) enum Pattern {
     Some(Box<Pattern>),
     /// `none`: an absent option.
     None,
+    /// `ok(p)`: a result that succeeded with a value fitting `p`.
+    Ok(Box<Pattern>),
+    /// `err(p)`: a result that failed with an error fitting `p`.
+    Err(Box<Pattern>),
     /// `U name` or `U _`: a value that is a `U`, bound at that type.
     Type(String, Box<Pattern>),
 }

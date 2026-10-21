@@ -27,6 +27,7 @@ pub mod logging;
 pub(crate) mod math;
 pub mod net;
 pub(crate) mod option;
+pub(crate) mod result;
 pub mod semantic;
 pub(crate) mod seq;
 pub mod spec;
@@ -153,7 +154,7 @@ impl Operation {
     pub(crate) fn takes_raw_input(&self) -> bool {
         self.keeps_input()
             || self.name == "str"
-            || matches!(self.spec.input, spec::TypePattern::Apply(constructor, _) if constructor.0 == "Option")
+            || matches!(self.spec.input, spec::TypePattern::Apply(constructor, _) if matches!(constructor.0, "Option" | "Result"))
     }
 }
 
@@ -255,6 +256,13 @@ static OPTION: Extension = Extension {
     metadata: None,
 };
 
+static RESULT: Extension = Extension {
+    name: "result",
+    version: env!("CARGO_PKG_VERSION"),
+    steps: result::STEPS,
+    metadata: None,
+};
+
 /// Every extension compiled into this binary, core first.
 ///
 /// Registration is not import: a step here is known to diagnostics and to
@@ -262,7 +270,8 @@ static OPTION: Extension = Extension {
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
 pub(crate) static REGISTERED: &[&Extension] = &[
-    &CORE, &STRING, &SEQ, &MATH, &OPTION, &GRAPH, &FORMAT, &IO, &NET, &LOGGING, &LEXICAL, &SEMANTIC,
+    &CORE, &STRING, &SEQ, &MATH, &OPTION, &RESULT, &GRAPH, &FORMAT, &IO, &NET, &LOGGING, &LEXICAL,
+    &SEMANTIC,
 ];
 
 impl Extension {

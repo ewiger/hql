@@ -294,6 +294,22 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         parents: vec![TypeRef::READABLE.constructor, TypeRef::WRITABLE.constructor],
         applied: Vec::new(),
     })?;
+    // A computation that may have failed: `type Result<T, E>`, `ok(value)`
+    // or `err(error)`, each covariant.
+    system.declare(TypeDefinition {
+        constructor: RESULT,
+        kind: TypeKind::Concrete,
+        parameters: ["T", "E"]
+            .into_iter()
+            .map(|name| TypeParameter {
+                name,
+                variance: Variance::Covariant,
+                bound: None,
+            })
+            .collect(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     // Two values held together: `type Pair<A, B> { first : A, second : B }`,
     // the element of `zip`, `enumerate`, `entries` and `join`.
     system.declare(TypeDefinition {
@@ -369,6 +385,26 @@ pub const CHANNEL: TypeConstructor = TypeConstructor("Channel");
 
 /// The constructor of one `group` partition.
 pub const GROUP: TypeConstructor = TypeConstructor("Group");
+
+/// The constructor of a computation that may have failed.
+pub const RESULT: TypeConstructor = TypeConstructor("Result");
+
+impl TypeRef {
+    /// `Result<T, E>`.
+    #[must_use]
+    pub fn result(value: Self, error: Self) -> Self {
+        RESULT.apply([value, error])
+    }
+
+    /// The value and error types of a `Result`.
+    #[must_use]
+    pub fn as_result(&self) -> Option<(&Self, &Self)> {
+        if self.constructor != RESULT {
+            return None;
+        }
+        Some((self.args.first()?, self.args.get(1)?))
+    }
+}
 
 /// Resolve a constructor's spelling without instantiating its parameters.
 pub fn constructor(name: &str) -> Option<TypeConstructor> {

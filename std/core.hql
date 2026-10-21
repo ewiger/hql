@@ -49,11 +49,11 @@ type Option<T>
 // somes<F<_> : Iterable<_>, T>(xs: F<Option<T>>) : F<T>   keeps the present values
 // There is no unwrap: every way out of an Option says what absence means.
 
-// A computation that may have failed: ok(value) or err(error). Designed beside
-// Option and not yet built in, so it is not declared here until it is:
-// type Result<T, E>
+// A computation that may have failed: ok(value) or err(error). The ways out
+// mirror Option's, in the `result` module of the prelude:
 // is_ok, is_err, ok() : Option<T>, err() : Option<E>, unwrap_or,
 // unwrap_or_else(f: E -> T), map, map_err, and_then, or_else. No unwrap.
+type Result<T, E>
 
 // compare(a, b) returns Less, Equal, or Greater for one Orderable type.
 // Supplying a comparison to sort does not change the element's ancestry.

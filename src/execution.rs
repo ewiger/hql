@@ -146,6 +146,10 @@ pub(crate) enum Kind {
     },
     /// `some(value)`.
     Some(Box<Expr>),
+    /// `ok(value)`: a result that succeeded.
+    Ok(Box<Expr>),
+    /// `err(error)`: a result that failed.
+    Err(Box<Expr>),
     /// `Point(x = 1, y = 2)`: a record of the expression's type, from the
     /// fields written, each by name.
     Record(Vec<(String, Expr)>),
@@ -705,6 +709,10 @@ impl Checked {
                     }
                 } else if matches!(&callee.kind, A::Ident(name) if name == "some") {
                     Kind::Some(boxed(&arguments[0].value)?)
+                } else if matches!(&callee.kind, A::Ident(name) if name == "ok") {
+                    Kind::Ok(boxed(&arguments[0].value)?)
+                } else if matches!(&callee.kind, A::Ident(name) if name == "err") {
+                    Kind::Err(boxed(&arguments[0].value)?)
                 } else if matches!(&callee.kind, A::Ident(name) if name == "compare") {
                     Kind::Order(boxed(&arguments[0].value)?, boxed(&arguments[1].value)?)
                 } else {

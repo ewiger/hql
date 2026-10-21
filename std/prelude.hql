@@ -10,6 +10,7 @@ import string
 import seq
 import math
 import option
+import result
 import graph
 import format
 import io

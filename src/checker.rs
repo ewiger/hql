@@ -1705,6 +1705,26 @@ impl Checker<'_> {
                 {
                     return self.construct_record(name, &shape, arguments, span);
                 }
+                if (name == OK || name == ERR)
+                    && !self.scope.contains_key(name)
+                    && arguments.len() == 1
+                {
+                    let [argument] = arguments.as_slice() else {
+                        unreachable!("one argument");
+                    };
+                    if argument.name.is_some() {
+                        return Err(Diagnostic::typing(
+                            span,
+                            format!("`{name}` takes one positional value"),
+                        ));
+                    }
+                    let held = self.expression(&argument.value)?;
+                    return Ok(if name == OK {
+                        TypeRef::result(held, TypeRef::NEVER)
+                    } else {
+                        TypeRef::result(TypeRef::NEVER, held)
+                    });
+                }
                 if name == SOME && !self.scope.contains_key(name) {
                     let [argument] = arguments.as_slice() else {
                         return Err(Diagnostic::typing(span, "`some` takes one value"));
@@ -2051,6 +2071,19 @@ impl Checker<'_> {
                 .unwrap_or_else(|| input.present().clone());
             return Ok(TypeRef::optional(element));
         }
+        // `map` over a result maps its success: `Result<T, E> -> Result<U, E>`.
+        if step.name == "map"
+            && let Some((value, error)) = input.as_result()
+        {
+            let (value, error) = (value.clone(), error.clone());
+            let by = crate::extensions::named_or_first(arguments, "by")
+                .ok_or_else(|| Diagnostic::typing(span.clone(), "`map` needs a function"))?;
+            if arguments.len() != 1 {
+                return Err(Diagnostic::typing(span, "`map` takes one function"));
+            }
+            let produced = self.lambda_parameters(by, vec![value])?;
+            return Ok(TypeRef::result(produced, error));
+        }
         // `map` over one optional value maps what is present and keeps
         // absence: `Option<T> -> Option<U>`.
         if step.name == "map"
@@ -2359,6 +2392,9 @@ pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
 const NONE: &str = "none";
 /// The name a present option is built with when nothing binds it.
 const SOME: &str = "some";
+/// The names a result is built with when nothing binds them.
+const OK: &str = "ok";
+const ERR: &str = "err";
 
 /// The names a pattern binds, at their types, or why it cannot fit `subject`.
 fn pattern_bindings(
@@ -2389,6 +2425,15 @@ fn pattern_bindings(
         Pattern::None if subject.constructor.0 == "Option" => Ok(()),
         Pattern::Some(_) | Pattern::None => Err(format!(
             "`some` and `none` fit an Option, and this is a {subject}"
+        )),
+        Pattern::Ok(inner) if let Some((value, _)) = subject.as_result() => {
+            pattern_bindings(inner, value, bindings)
+        }
+        Pattern::Err(inner) if let Some((_, error)) = subject.as_result() => {
+            pattern_bindings(inner, error, bindings)
+        }
+        Pattern::Ok(_) | Pattern::Err(_) => Err(format!(
+            "`ok` and `err` fit a Result, and this is a {subject}"
         )),
         Pattern::Type(name, inner) => {
             let wanted =
@@ -2421,6 +2466,24 @@ fn exhaustive(patterns: &[&Pattern], subject: &TypeRef) -> bool {
     {
         return members.iter().all(|member| exhaustive(patterns, member));
     }
+    if let Some((value, error)) = subject.as_result() {
+        let oks = patterns
+            .iter()
+            .filter_map(|pattern| match pattern {
+                Pattern::Ok(inner) => Some(inner.as_ref()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let errs = patterns
+            .iter()
+            .filter_map(|pattern| match pattern {
+                Pattern::Err(inner) => Some(inner.as_ref()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        return (*value == TypeRef::NEVER || exhaustive(&oks, value))
+            && (*error == TypeRef::NEVER || exhaustive(&errs, error));
+    }
     if subject.constructor.0 == "Option" {
         let present = patterns
             .iter()
@@ -2442,6 +2505,8 @@ fn exhaustive(patterns: &[&Pattern], subject: &TypeRef) -> bool {
 fn missing_cases(subject: &TypeRef) -> &'static str {
     if subject.constructor.0 == "Option" {
         "cover both `some(…)` and `none`, or add `_`"
+    } else if subject.as_result().is_some() {
+        "cover both `ok(…)` and `err(…)`, or add `_`"
     } else if *subject == TypeRef::BOOL {
         "cover both `true` and `false`, or add `_`"
     } else if crate::types::builtin::system()
