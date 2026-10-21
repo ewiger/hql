@@ -734,14 +734,48 @@ fn eval_sort(
             let mut keyed = Vec::new();
             for element in elements {
                 let key = cx.apply_lambda(argument, element.clone())?;
-                keyed.push((key.order_key(), element));
+                keyed.push((key, element));
             }
-            keyed.sort_by(|left, right| compare(&left.0, &right.0));
+            if keyed.iter().all(|(key, _)| key.order_key().is_some()) {
+                keyed.sort_by(|left, right| compare(&left.0.order_key(), &right.0.order_key()));
+            } else {
+                sort_through(cx, &mut keyed, &span, |pair| &pair.0)?;
+            }
             elements = keyed.into_iter().map(|(_, element)| element).collect();
         }
-        None => elements.sort_by(|left, right| compare(&left.order_key(), &right.order_key())),
+        None => {
+            if elements.iter().all(|element| element.order_key().is_some()) {
+                elements.sort_by(|left, right| compare(&left.order_key(), &right.order_key()));
+            } else {
+                sort_through(cx, &mut elements, &span, |element| element)?;
+            }
+        }
     }
     Ok(Value::list(elements, element_type(&input)))
+}
+
+/// A stable sort by an order only the evaluator can decide, since it may
+/// come from an implementation of `Ord`. Insertion sort keeps equal keys in
+/// their positions and never hides a failure inside a sorting callback.
+fn sort_through<T>(
+    cx: &mut dyn EvalCx,
+    items: &mut [T],
+    span: &Range<usize>,
+    key: impl Fn(&T) -> &Value,
+) -> Result<(), Diagnostic> {
+    for index in 1..items.len() {
+        let mut position = index;
+        while position > 0 {
+            let order =
+                cx.compare_values(key(&items[position - 1]), key(&items[position]), span)?;
+            if order != Ordering::Greater {
+                break;
+            }
+            items.swap(position - 1, position);
+            position -= 1;
+        }
+    }
+    Ok(())
 }
 
 fn eval_take(
@@ -1590,7 +1624,7 @@ fn eval_max(
 
 /// The first occurrence that no later one beats in the wanted direction.
 fn extreme(
-    _: &mut dyn EvalCx,
+    cx: &mut dyn EvalCx,
     input: Value,
     _: &[TypedArg],
     span: Range<usize>,
@@ -1599,7 +1633,7 @@ fn extreme(
     let mut best: Option<Value> = None;
     for value in elements(&input, "min", &span)? {
         best = Some(match best {
-            Some(held) if compare(&value.order_key(), &held.order_key()) != wanted => held,
+            Some(held) if cx.compare_values(&value, &held, &span)? != wanted => held,
             _ => value,
         });
     }

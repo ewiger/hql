@@ -59,6 +59,34 @@ type Result<T, E>
 // Supplying a comparison to sort does not change the element's ancestry.
 type Ordering
 
+// The capabilities the language owns, in scope in every program: the
+// operators resolve through them, and a declared type implements them for
+// its own values. `Self` is the implementing type. A type implementing Ord
+// is Orderable: compare, <, sort, min and max take it, and its compare
+// decides the order. See doc/proposals/HQL-0024/parts/05-traits.md and
+// 06-operators.md.
+trait Eq {
+    fn eq(self, other: Self) : Bool
+}
+trait Ord {
+    fn compare(self, other: Self) : Ordering
+}
+trait Add {
+    fn add(self, other: Self) : Self
+}
+trait Sub {
+    fn sub(self, other: Self) : Self
+}
+trait Mul {
+    fn mul(self, other: Self) : Self
+}
+trait Div {
+    fn div(self, other: Self) : Self
+}
+trait Rem {
+    fn rem(self, other: Self) : Self
+}
+
 // Two values held together, each at its own type: what zip, enumerate,
 // entries and join produce, and what a program builds with
 // Pair(first = a, second = b).

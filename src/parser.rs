@@ -1,8 +1,9 @@
 //! Parse tokens into a program: statements, bindings, pipelines and calls.
 
 use crate::ast::{
-    ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, Field, FnDecl, Kind,
-    Logic, Param, Pattern, Program, Relation, Stmt, TEE_INPUT, TypeAnn, TypeDecl,
+    ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, Field, FnDecl, ImplDecl,
+    Kind, Logic, MethodDecl, Param, Pattern, Program, Relation, Stmt, TEE_INPUT, TraitDecl,
+    TypeAnn, TypeDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -206,6 +207,18 @@ impl Parser {
             && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
         {
             return Ok(Stmt::Fn(self.function()?));
+        }
+        if let Token::Ident(keyword) = self.peek().clone()
+            && keyword == "trait"
+            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+        {
+            return Ok(Stmt::Trait(self.trait_declaration()?));
+        }
+        if let Token::Ident(keyword) = self.peek().clone()
+            && keyword == "impl"
+            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+        {
+            return Ok(Stmt::Impl(self.implementation()?));
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "type"
@@ -641,6 +654,156 @@ impl Parser {
             body,
             span,
         }))
+    }
+
+    /// `trait Name { fn m(self, p: T) : R [= body] … }`, one function per line.
+    fn trait_declaration(&mut self) -> Result<TraitDecl, Diagnostic> {
+        let start = self.advance().span.start;
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(named.span, "expected a trait name"));
+        };
+        let (methods, end) = self.methods("a trait")?;
+        Ok(TraitDecl {
+            name,
+            methods,
+            span: start..end,
+        })
+    }
+
+    /// `impl Name for Type { fn m(self, p: T) : R = body … }`.
+    fn implementation(&mut self) -> Result<ImplDecl, Diagnostic> {
+        let start = self.advance().span.start;
+        let named = self.advance();
+        let Token::Ident(trait_name) = named.token else {
+            return Err(Diagnostic::syntax(named.span, "expected a trait name"));
+        };
+        self.expect(
+            &Token::Ident("for".to_owned()),
+            "after the trait an impl provides",
+        )?;
+        let target = self.simple_type()?;
+        let (methods, end) = self.methods("an impl")?;
+        Ok(ImplDecl {
+            trait_name,
+            target,
+            methods,
+            span: start..end,
+        })
+    }
+
+    /// `{ fn … }` with one function per line, as a trait or an impl body.
+    fn methods(&mut self, context: &str) -> Result<(Vec<MethodDecl>, usize), Diagnostic> {
+        let saved = std::mem::replace(&mut self.nesting, 0);
+        self.expect(
+            &Token::OpenBrace,
+            &format!("to open the functions of {context}"),
+        )?;
+        let mut methods = Vec::new();
+        let end = loop {
+            self.continuation();
+            if matches!(self.peek(), Token::CloseBrace) {
+                break self.advance().span.end;
+            }
+            if !matches!(self.peek(), Token::Ident(keyword) if keyword == "fn") {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    format!(
+                        "expected `fn` or `}}` in {context}, found {}",
+                        self.peek().describe()
+                    ),
+                ));
+            }
+            methods.push(self.method()?);
+            if !matches!(self.tokens[self.index].token, Token::Newline)
+                && !matches!(self.peek(), Token::CloseBrace)
+            {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    format!(
+                        "expected a line break after a function, found {}",
+                        self.peek().describe()
+                    ),
+                ));
+            }
+        };
+        self.nesting = saved;
+        Ok((methods, end))
+    }
+
+    /// `fn name(self, p: Type) : Result [= body]`: a function of a trait or
+    /// an impl. The body is left out only in a trait, where the
+    /// implementation supplies it.
+    fn method(&mut self) -> Result<MethodDecl, Diagnostic> {
+        let start = self.advance().span.start;
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(named.span, "expected a function name"));
+        };
+        self.expect(&Token::OpenParen, "to open the parameters")?;
+        self.nesting += 1;
+        let mut has_self = false;
+        let mut parameters: Vec<Param> = Vec::new();
+        if !matches!(self.peek(), Token::CloseParen) {
+            loop {
+                let written = self.advance();
+                let Token::Ident(parameter) = written.token else {
+                    return Err(Diagnostic::syntax(
+                        written.span,
+                        "expected a parameter name",
+                    ));
+                };
+                if parameter == "self" {
+                    if has_self || !parameters.is_empty() {
+                        return Err(Diagnostic::syntax(
+                            written.span,
+                            "`self` is the first parameter, written once",
+                        ));
+                    }
+                    has_self = true;
+                } else {
+                    if parameters.iter().any(|seen| seen.name == parameter) {
+                        return Err(Diagnostic::syntax(
+                            written.span,
+                            "parameters must be distinct",
+                        ));
+                    }
+                    self.expect(
+                        &Token::Colon,
+                        "after a parameter name: every parameter is typed",
+                    )?;
+                    let annotation = self.type_annotation()?;
+                    parameters.push(Param {
+                        name: parameter,
+                        span: written.span,
+                        annotation,
+                        variadic: false,
+                    });
+                }
+                if !self.eat(&Token::Comma) {
+                    break;
+                }
+            }
+        }
+        self.expect(&Token::CloseParen, "to close the parameters")?;
+        self.nesting -= 1;
+        self.expect(&Token::Colon, "before the result type")?;
+        let result = self.type_annotation()?;
+        let body = if self.eat(&Token::Equals) {
+            self.continuation();
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        let end = body.as_ref().map_or(result.span.end, |body| body.span.end);
+        Ok(MethodDecl {
+            name,
+            has_self,
+            parameters,
+            result,
+            body,
+            span: start..end,
+        })
     }
 
     /// `fn name<T>(p: Type, xs: ...Type) : Result = body`.

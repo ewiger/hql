@@ -144,6 +144,26 @@ pub fn declare(definition: TypeDefinition, shape: Option<RecordShape>) -> Result
     Ok(())
 }
 
+/// Give a type of the lattice in force one more parent: `Orderable`, when
+/// the program implements `Ord` for it.
+///
+/// # Errors
+///
+/// Returns why the parent cannot be adopted.
+pub fn adopt_parent(
+    constructor: TypeConstructor,
+    parent: TypeConstructor,
+) -> Result<(), TypeError> {
+    let held = current()?;
+    let mut system = (*held.system).clone();
+    system.adopt(constructor, parent)?;
+    install(Arc::new(Lattice {
+        system: Arc::new(system),
+        records: Arc::clone(&held.records),
+    }));
+    Ok(())
+}
+
 /// The shape of a record the program declared, or one the standard library
 /// declares.
 #[must_use]

@@ -105,6 +105,14 @@ pub(crate) trait EvalCx: Send {
     ) -> Result<bool, Diagnostic>;
     /// A lambda argument applied to one element.
     fn apply_lambda(&mut self, argument: &TypedArg, element: Value) -> Result<Value, Diagnostic>;
+    /// How two values of one Orderable type compare: by their intrinsic
+    /// keys, or by the `compare` an implementation of `Ord` provides.
+    fn compare_values(
+        &mut self,
+        left: &Value,
+        right: &Value,
+        span: &Range<usize>,
+    ) -> Result<std::cmp::Ordering, Diagnostic>;
     /// A function argument applied to any number of values, none included.
     fn apply_function(
         &mut self,

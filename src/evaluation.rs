@@ -66,6 +66,7 @@ pub(crate) fn traverse(
         vault,
         scope: base(vault),
         log: Vec::new(),
+        impls: Vec::new(),
     };
     evaluator
         .run_traversal(traversal, &mut |_, value| Ok(sink(value)))
@@ -102,6 +103,7 @@ fn evaluate_in(
         vault,
         scope,
         log: Vec::new(),
+        impls: Vec::new(),
     };
     // A finite traversal is the values it produces, so the result holds them;
     // a stream that may not end is left for the host to bound.
@@ -118,6 +120,16 @@ struct Evaluator<'a> {
     /// Entries in the order evaluation produced them, which on this
     /// sequential evaluator is the order of their traces.
     log: Vec<Report>,
+    /// Every implementation the program has declared so far, in order.
+    impls: Vec<RuntimeImpl>,
+}
+
+/// An implementation of a trait for a type, as closures over the scope
+/// where it was declared.
+struct RuntimeImpl {
+    trait_name: String,
+    target: TypeRef,
+    methods: HashMap<String, Value>,
 }
 
 impl Evaluator<'_> {
@@ -147,10 +159,83 @@ impl Evaluator<'_> {
                     self.scope.insert(name.clone(), function);
                     Value::Unit
                 }
+                Stmt::Impl {
+                    trait_name,
+                    target,
+                    methods,
+                } => {
+                    let methods = methods
+                        .iter()
+                        .map(|(name, parameters, body, ty)| {
+                            let function = Value::Function(Arc::new(Closure {
+                                name: Some(format!("{trait_name}.{name}")),
+                                parameters: parameters.clone(),
+                                body: Arc::clone(body),
+                                captured: self.scope.clone(),
+                                ty: ty.clone(),
+                            }));
+                            (name.clone(), function)
+                        })
+                        .collect();
+                    self.impls.push(RuntimeImpl {
+                        trait_name: trait_name.clone(),
+                        target: target.clone(),
+                        methods,
+                    });
+                    Value::Unit
+                }
                 Stmt::Expr(expression) => self.expression(expression)?,
             };
         }
         Ok(last)
+    }
+
+    /// Call a trait's function on a receiver: the implementation for the
+    /// receiver's own type, found at run time, so a value held at a wider
+    /// type still takes its own.
+    fn dispatch(
+        &mut self,
+        trait_name: &str,
+        method: &str,
+        receiver: Value,
+        mut arguments: Vec<Value>,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        let receiver_type = receiver.type_of();
+        let function = self
+            .impls
+            .iter()
+            .rev()
+            .find(|held| held.trait_name == trait_name && receiver_type.is(&held.target))
+            .and_then(|held| held.methods.get(method).cloned())
+            .ok_or_else(|| {
+                Diagnostic::runtime(
+                    span.clone(),
+                    format!("no implementation of `{trait_name}` for {receiver_type} provides `{method}`"),
+                )
+            })?;
+        arguments.insert(0, receiver);
+        self.call(&function, arguments, span)
+    }
+
+    /// How two values of one Orderable type compare: by their intrinsic
+    /// keys, or by the `compare` an implementation of `Ord` provides.
+    fn ordering(
+        &mut self,
+        left: &Value,
+        right: &Value,
+        span: &Range<usize>,
+    ) -> Result<std::cmp::Ordering, Diagnostic> {
+        if let (Some(left), Some(right)) = (left.order_key(), right.order_key()) {
+            return Ok(left.compare(&right));
+        }
+        match self.dispatch("Ord", "compare", left.clone(), vec![right.clone()], span)? {
+            Value::Ordering(order) => Ok(order),
+            other => Err(Diagnostic::runtime(
+                span.clone(),
+                format!("`compare` returned {}, not an Ordering", other.type_of()),
+            )),
+        }
     }
 
     fn expression(&mut self, expression: &Expr) -> Result<Value, Diagnostic> {
@@ -208,14 +293,10 @@ impl Evaluator<'_> {
                 right,
                 relation,
             } => {
-                let key = |value: Value| {
-                    value.order_key().ok_or_else(|| {
-                        Diagnostic::runtime(span.clone(), "checked ordering value has no key")
-                    })
-                };
-                let left = key(self.expression(left)?)?;
-                let right = key(self.expression(right)?)?;
-                Ok(Value::Bool(relation.holds(left.compare(&right))))
+                let left = self.expression(left)?;
+                let right = self.expression(right)?;
+                let order = self.ordering(&left, &right, &span)?;
+                Ok(Value::Bool(relation.holds(order)))
             }
             Kind::Logic { first, rest } => {
                 let mut value = self.condition(first)?;
@@ -237,23 +318,7 @@ impl Evaluator<'_> {
                 left,
                 right,
                 negated,
-            } => {
-                let left = self.expression(left)?;
-                let right = self.expression(right)?;
-                // Equality looks through `Option`: absence equals absence and
-                // nothing present.
-                let equal = match (present(left), present(right)) {
-                    (None, None) => true,
-                    (Some(left), Some(right))
-                        if matches!(left, Value::Data(_)) || matches!(right, Value::Data(_)) =>
-                    {
-                        as_data(&left) == as_data(&right)
-                    }
-                    (Some(left), Some(right)) => left == right,
-                    _ => false,
-                };
-                Ok(Value::Bool(equal != *negated))
-            }
+            } => self.equality(left, right, *negated),
             Kind::Field(receiver, field) => {
                 let value = self.expression(receiver)?;
                 self.field(&value, field, &expression.ty, &span)
@@ -283,13 +348,7 @@ impl Evaluator<'_> {
                 combiner,
                 left,
                 right,
-            } => {
-                let left = self.expression(left)?;
-                let left = self.settled(left, &span)?;
-                let right = self.expression(right)?;
-                let right = self.settled(right, &span)?;
-                combine(combiner, left, right, &expression.ty, &span)
-            }
+            } => self.combined(combiner, left, right, &expression.ty, &span),
             Kind::Generate {
                 statements,
                 element,
@@ -317,26 +376,24 @@ impl Evaluator<'_> {
                 callee,
                 arguments,
                 pack,
+            } => self.applied(callee, arguments, pack.as_ref(), &span),
+            Kind::Order(left, right) => {
+                let left = self.expression(left)?;
+                let right = self.expression(right)?;
+                Ok(Value::Ordering(self.ordering(&left, &right, &span)?))
+            }
+            Kind::Method {
+                trait_name,
+                method,
+                receiver,
+                arguments,
             } => {
-                let callee = self.expression(callee)?;
-                let mut values = arguments
+                let receiver = self.expression(receiver)?;
+                let arguments = arguments
                     .iter()
                     .map(|argument| self.expression(argument))
                     .collect::<Result<Vec<_>, _>>()?;
-                if let Some((fixed, element)) = pack {
-                    let trailing = values.split_off((*fixed).min(values.len()));
-                    values.push(Value::list(trailing, element.clone()));
-                }
-                self.call(&callee, values, &span)
-            }
-            Kind::Order(left, right) => {
-                let left = self.expression(left)?.order_key().ok_or_else(|| {
-                    Diagnostic::runtime(span.clone(), "checked ordering value has no key")
-                })?;
-                let right = self.expression(right)?.order_key().ok_or_else(|| {
-                    Diagnostic::runtime(span.clone(), "checked ordering value has no key")
-                })?;
-                Ok(Value::Ordering(left.compare(&right)))
+                self.dispatch(trait_name, method, receiver, arguments, &span)
             }
             Kind::Step {
                 step,
@@ -350,35 +407,7 @@ impl Evaluator<'_> {
                 self.step(step, value, arguments, at.clone())
             }
             Kind::Type => Err(Diagnostic::runtime(span, "a type argument is not a value")),
-            Kind::Record(fields) => {
-                let ty = &expression.ty;
-                let shape = crate::types::program::record(ty.constructor.0).ok_or_else(|| {
-                    Diagnostic::runtime(span.clone(), format!("{ty} is not a declared record"))
-                })?;
-                let mut built = Vec::with_capacity(shape.fields.len());
-                for field in &shape.fields {
-                    let written = fields.iter().find(|(name, _)| *name == field.name);
-                    let value = match written {
-                        Some((_, value)) => {
-                            let value = self.expression(value)?;
-                            let value = self.settled(value, &span)?;
-                            if field.optional
-                                && !matches!(value, Value::Present(_) | Value::Absent(_))
-                            {
-                                Value::Present(Arc::new(value))
-                            } else {
-                                value
-                            }
-                        }
-                        None => Value::Absent(shape.bound(&field.ty, &ty.args)),
-                    };
-                    built.push((field.name.clone(), value));
-                }
-                Ok(Value::Record(Arc::new(crate::types::Record {
-                    ty: ty.clone(),
-                    fields: built,
-                })))
-            }
+            Kind::Record(fields) => self.record(fields, &expression.ty, &span),
             Kind::Some(value) => Ok(Value::Present(Arc::new(self.expression(value)?))),
             Kind::Ok(value) => {
                 let error = expression
@@ -402,21 +431,7 @@ impl Evaluator<'_> {
                 input,
                 name,
                 branch,
-            } => {
-                let value = self.expression(input)?;
-                let previous = self
-                    .scope
-                    .insert(crate::ast::TEE_INPUT.to_owned(), value.clone());
-                let result = self.expression(branch);
-                match previous {
-                    Some(previous) => self
-                        .scope
-                        .insert(crate::ast::TEE_INPUT.to_owned(), previous),
-                    None => self.scope.remove(crate::ast::TEE_INPUT),
-                };
-                self.scope.insert(name.clone(), result?);
-                Ok(value)
-            }
+            } => self.tee(input, name, branch),
             Kind::Given {
                 value,
                 condition,
@@ -432,48 +447,181 @@ impl Evaluator<'_> {
                     (false, Some(other)) => self.expression(other),
                 }
             }
-            Kind::Match { subject, arms } => {
-                let subject = self.expression(subject)?;
-                for arm in arms {
-                    let mut bindings = Vec::new();
-                    if !fits(&arm.pattern, &subject, &mut bindings) {
-                        continue;
-                    }
-                    let previous = bindings
-                        .into_iter()
-                        .map(|(name, value)| {
-                            let held = self.scope.insert(name.clone(), value);
-                            (name, held)
-                        })
-                        .collect::<Vec<_>>();
-                    let outcome = (|| {
-                        if let Some(guard) = &arm.guard {
-                            let holds = self.expression(guard)?.truth().ok_or_else(|| {
-                                Diagnostic::runtime(guard.span.clone(), "a guard is a Bool")
-                            })?;
-                            if !holds {
-                                return Ok(None);
-                            }
-                        }
-                        self.expression(&arm.body).map(Some)
-                    })();
-                    for (name, held) in previous.into_iter().rev() {
-                        match held {
-                            Some(held) => {
-                                self.scope.insert(name, held);
-                            }
-                            None => {
-                                self.scope.remove(&name);
-                            }
-                        }
-                    }
-                    if let Some(result) = outcome? {
-                        return Ok(result);
+            Kind::Match { subject, arms } => self.matched(subject, arms, span),
+        }
+    }
+
+    /// Build a record from the fields written: an optional field left out is
+    /// absent, and one given a bare value holds it present.
+    #[inline(never)]
+    fn record(
+        &mut self,
+        fields: &[(String, Expr)],
+        ty: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        let shape = crate::types::program::record(ty.constructor.0).ok_or_else(|| {
+            Diagnostic::runtime(span.clone(), format!("{ty} is not a declared record"))
+        })?;
+        let mut built = Vec::with_capacity(shape.fields.len());
+        for field in &shape.fields {
+            let written = fields.iter().find(|(name, _)| *name == field.name);
+            let value = match written {
+                Some((_, value)) => {
+                    let value = self.expression(value)?;
+                    let value = self.settled(value, span)?;
+                    if field.optional && !matches!(value, Value::Present(_) | Value::Absent(_)) {
+                        Value::Present(Arc::new(value))
+                    } else {
+                        value
                     }
                 }
-                Err(Diagnostic::runtime(span, "no match arm fits this value"))
+                None => Value::Absent(shape.bound(&field.ty, &ty.args)),
+            };
+            built.push((field.name.clone(), value));
+        }
+        Ok(Value::Record(Arc::new(crate::types::Record {
+            ty: ty.clone(),
+            fields: built,
+        })))
+    }
+
+    /// The first arm whose pattern fits the subject and whose guard holds.
+    #[inline(never)]
+    fn matched(
+        &mut self,
+        subject: &Expr,
+        arms: &[crate::execution::Arm],
+        span: Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        let subject = self.expression(subject)?;
+        for arm in arms {
+            let mut bindings = Vec::new();
+            if !fits(&arm.pattern, &subject, &mut bindings) {
+                continue;
+            }
+            let previous = bindings
+                .into_iter()
+                .map(|(name, value)| {
+                    let held = self.scope.insert(name.clone(), value);
+                    (name, held)
+                })
+                .collect::<Vec<_>>();
+            let outcome = (|| {
+                if let Some(guard) = &arm.guard {
+                    let holds = self.expression(guard)?.truth().ok_or_else(|| {
+                        Diagnostic::runtime(guard.span.clone(), "a guard is a Bool")
+                    })?;
+                    if !holds {
+                        return Ok(None);
+                    }
+                }
+                self.expression(&arm.body).map(Some)
+            })();
+            for (name, held) in previous.into_iter().rev() {
+                match held {
+                    Some(held) => {
+                        self.scope.insert(name, held);
+                    }
+                    None => {
+                        self.scope.remove(&name);
+                    }
+                }
+            }
+            if let Some(result) = outcome? {
+                return Ok(result);
             }
         }
+        Err(Diagnostic::runtime(span, "no match arm fits this value"))
+    }
+
+    /// `input | tee name = branch`: the input, bound under the name once the
+    /// branch has read it, and passed on.
+    #[inline(never)]
+    fn tee(&mut self, input: &Expr, name: &str, branch: &Expr) -> Result<Value, Diagnostic> {
+        let value = self.expression(input)?;
+        let previous = self
+            .scope
+            .insert(crate::ast::TEE_INPUT.to_owned(), value.clone());
+        let result = self.expression(branch);
+        match previous {
+            Some(previous) => self
+                .scope
+                .insert(crate::ast::TEE_INPUT.to_owned(), previous),
+            None => self.scope.remove(crate::ast::TEE_INPUT),
+        };
+        self.scope.insert(name.to_owned(), result?);
+        Ok(value)
+    }
+
+    /// Two values combined by a combiner. `min` and `max` over values ordered
+    /// by an implementation of `Ord` ask it which comes first.
+    #[inline(never)]
+    fn combined(
+        &mut self,
+        combiner: &'static str,
+        left: &Expr,
+        right: &Expr,
+        ty: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        let left = self.expression(left)?;
+        let left = self.settled(left, span)?;
+        let right = self.expression(right)?;
+        let right = self.settled(right, span)?;
+        if matches!(combiner, "min" | "max")
+            && (left.order_key().is_none() || right.order_key().is_none())
+        {
+            let order = self.ordering(&left, &right, span)?;
+            let keep_left = if combiner == "min" {
+                order != std::cmp::Ordering::Greater
+            } else {
+                order != std::cmp::Ordering::Less
+            };
+            return Ok(if keep_left { left } else { right });
+        }
+        combine(combiner, left, right, ty, span)
+    }
+
+    /// `a == b` and `a != b`. Equality looks through `Option`: absence equals
+    /// absence and nothing present.
+    #[inline(never)]
+    fn equality(&mut self, left: &Expr, right: &Expr, negated: bool) -> Result<Value, Diagnostic> {
+        let left = self.expression(left)?;
+        let right = self.expression(right)?;
+        let equal = match (present(left), present(right)) {
+            (None, None) => true,
+            (Some(left), Some(right))
+                if matches!(left, Value::Data(_)) || matches!(right, Value::Data(_)) =>
+            {
+                as_data(&left) == as_data(&right)
+            }
+            (Some(left), Some(right)) => left == right,
+            _ => false,
+        };
+        Ok(Value::Bool(equal != negated))
+    }
+
+    /// A function value applied to its arguments, the trailing ones packed
+    /// into a list for a variadic parameter.
+    #[inline(never)]
+    fn applied(
+        &mut self,
+        callee: &Expr,
+        arguments: &[Expr],
+        pack: Option<&(usize, TypeRef)>,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        let callee = self.expression(callee)?;
+        let mut values = arguments
+            .iter()
+            .map(|argument| self.expression(argument))
+            .collect::<Result<Vec<_>, _>>()?;
+        if let Some((fixed, element)) = pack {
+            let trailing = values.split_off((*fixed).min(values.len()));
+            values.push(Value::list(trailing, element.clone()));
+        }
+        self.call(&callee, values, span)
     }
 
     /// Fold a left-associated chain, retaining each partial result's span.
@@ -1174,6 +1322,15 @@ impl EvalCx for Evaluator<'_> {
 
     fn apply_function(&mut self, argument: &Arg, values: Vec<Value>) -> Result<Value, Diagnostic> {
         self.apply(argument, values)
+    }
+
+    fn compare_values(
+        &mut self,
+        left: &Value,
+        right: &Value,
+        span: &Range<usize>,
+    ) -> Result<std::cmp::Ordering, Diagnostic> {
+        self.ordering(left, right, span)
     }
 
     fn apply_comparator(

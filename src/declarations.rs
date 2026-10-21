@@ -29,6 +29,16 @@ fn lattice(written: &TypeAnn) -> Option<TypeRef> {
 
 /// Resolve a runtime annotation recursively and validate every supplied argument.
 pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
+    // `Self` is the implementing type inside an impl, and stands for itself
+    // inside a trait, where no type has implemented it yet.
+    if written.name == "Self" && written.arguments.is_empty() {
+        return Ok(SELF_TYPE.with(|held| {
+            held.borrow()
+                .last()
+                .cloned()
+                .unwrap_or_else(|| crate::checker::SELF.apply([]))
+        }));
+    }
     if written.arguments.is_empty()
         && let Some(variable) = VARIABLES.with(|held| {
             held.borrow()
@@ -62,6 +72,26 @@ pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
 thread_local! {
     /// The type parameters of the generic function being checked.
     static VARIABLES: std::cell::RefCell<Vec<(String, TypeRef)>> = const { std::cell::RefCell::new(Vec::new()) };
+    /// The implementing type of the impl being checked, innermost last.
+    static SELF_TYPE: std::cell::RefCell<Vec<TypeRef>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The implementing type `Self` stands for while an impl is checked.
+pub(crate) struct SelfType;
+
+impl SelfType {
+    pub(crate) fn enter(target: TypeRef) -> Self {
+        SELF_TYPE.with(|held| held.borrow_mut().push(target));
+        Self
+    }
+}
+
+impl Drop for SelfType {
+    fn drop(&mut self) {
+        SELF_TYPE.with(|held| {
+            held.borrow_mut().pop();
+        });
+    }
 }
 
 /// The type parameters of a generic function, in scope while it is checked:

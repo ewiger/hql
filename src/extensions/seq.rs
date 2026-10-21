@@ -809,18 +809,12 @@ fn extreme_by(
     let by = named_or_first(arguments, "by").ok_or_else(|| wrong(name, "a key", &span))?;
     let element = element_of(&input);
     let comparator = super::collections::arity_of(by) == Some(2);
-    let mut best: Option<(Value, Option<crate::types::Key>)> = None;
+    let mut best: Option<(Value, Option<Value>)> = None;
     for value in elements(&input, name, &span)? {
         let key = if comparator {
             None
         } else {
-            Some(
-                cx.apply_lambda(by, value.clone())?
-                    .order_key()
-                    .ok_or_else(|| {
-                        Diagnostic::runtime(span.clone(), format!("a `{name}` key is Orderable"))
-                    })?,
-            )
+            Some(cx.apply_lambda(by, value.clone())?)
         };
         let better = match &best {
             None => true,
@@ -832,7 +826,7 @@ fn extreme_by(
                     }
                 } else {
                     match (&key, held_key) {
-                        (Some(key), Some(held_key)) => key.compare(held_key),
+                        (Some(key), Some(held_key)) => cx.compare_values(key, held_key, &span)?,
                         _ => std::cmp::Ordering::Equal,
                     }
                 };

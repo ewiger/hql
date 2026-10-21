@@ -1,6 +1,6 @@
 //! Static checking: what a program's type is, before anything is evaluated.
 
-use crate::ast::{Arg, Arm, Expr, FnDecl, Kind, Pattern, Program, Stmt};
+use crate::ast::{Arg, Arm, Expr, FnDecl, ImplDecl, Kind, Pattern, Program, Stmt, TraitDecl};
 use crate::builtins;
 use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
@@ -29,9 +29,9 @@ pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypedProgram, Di
 /// # Errors
 ///
 /// Returns the first syntax, type or name failure.
-pub(crate) fn check_with(
-    program: &Program,
-    vault: &Vault,
+pub(crate) fn check_with<'a>(
+    program: &'a Program,
+    vault: &'a Vault,
     bound: &[(String, TypeRef)],
 ) -> Result<TypedProgram, Diagnostic> {
     let mut scope = globals(vault);
@@ -48,6 +48,11 @@ pub(crate) fn check_with(
         placeholders: HashMap::new(),
         uses: Vec::new(),
         effectful: HashMap::new(),
+        traits: core_traits(),
+        trait_decls: HashMap::new(),
+        impls: Vec::new(),
+        trait_bounds: Vec::new(),
+        trait_bounded: HashMap::new(),
     }
     .program(program)
 }
@@ -66,9 +71,9 @@ pub(crate) fn check_collecting(
 }
 
 /// [`check_collecting`] with further names in scope.
-pub(crate) fn check_collecting_with(
-    program: &Program,
-    vault: &Vault,
+pub(crate) fn check_collecting_with<'a>(
+    program: &'a Program,
+    vault: &'a Vault,
     bound: &[(String, TypeRef)],
 ) -> (Option<TypedProgram>, Vec<Diagnostic>) {
     let resolution = match Resolution::new(&vault.extensions) {
@@ -93,6 +98,11 @@ pub(crate) fn check_collecting_with(
         placeholders: HashMap::new(),
         uses: Vec::new(),
         effectful: HashMap::new(),
+        traits: core_traits(),
+        trait_decls: HashMap::new(),
+        impls: Vec::new(),
+        trait_bounds: Vec::new(),
+        trait_bounded: HashMap::new(),
     };
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
@@ -355,6 +365,11 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 placeholders: HashMap::new(),
                 uses: Vec::new(),
                 effectful: HashMap::new(),
+                traits: core_traits(),
+                trait_decls: HashMap::new(),
+                impls: Vec::new(),
+                trait_bounds: Vec::new(),
+                trait_bounded: HashMap::new(),
             }
             .program(&program)
             .ok()?;
@@ -394,10 +409,98 @@ struct Checker<'a> {
     uses: Vec<String>,
     /// Each declared function whose body is effectful, with what it uses.
     effectful: HashMap<String, Vec<String>>,
+    /// Every trait in scope: the core's operator traits and the program's.
+    traits: HashMap<String, TraitInfo>,
+    /// The program's trait declarations, for the default bodies an
+    /// implementation inherits.
+    trait_decls: HashMap<String, &'a TraitDecl>,
+    /// Every implementation the program has declared.
+    impls: Vec<ImplInfo>,
+    /// The trait bounds in force while a generic body is checked: each type
+    /// variable and the trait it satisfies.
+    trait_bounds: Vec<(TypeRef, String)>,
+    /// Each generic function's trait bounds: the parameter name, its type
+    /// variable and the trait, checked at every call.
+    trait_bounded: HashMap<String, Vec<(String, TypeRef, String)>>,
 }
 
-impl Checker<'_> {
-    fn program(&mut self, program: &Program) -> Result<TypedProgram, Diagnostic> {
+/// A trait's contract: its functions, with `Self` standing for the
+/// implementing type.
+#[derive(Debug, Clone)]
+pub(crate) struct TraitInfo {
+    pub methods: Vec<MethodSig>,
+}
+
+/// One function of a trait.
+#[derive(Debug, Clone)]
+pub(crate) struct MethodSig {
+    pub name: String,
+    /// The parameters after `self`, written over `Self`.
+    pub parameters: Vec<TypeRef>,
+    pub result: TypeRef,
+}
+
+/// One implementation of a trait for a type.
+#[derive(Debug, Clone)]
+struct ImplInfo {
+    trait_name: String,
+    target: TypeRef,
+    span: Range<usize>,
+}
+
+/// The type `Self` stands for inside a trait, before an implementation
+/// binds it.
+pub(crate) const SELF: crate::types::TypeConstructor = crate::types::TypeConstructor("%Self");
+
+/// A type written over `Self`, with the implementing type in its place.
+fn with_self(written: &TypeRef, target: &TypeRef) -> TypeRef {
+    if written.constructor == SELF {
+        return target.clone();
+    }
+    written
+        .constructor
+        .apply(written.args.iter().map(|arg| with_self(arg, target)))
+}
+
+/// The traits the language owns, in scope in every program: the operators
+/// resolve through them, and `std/core.hql` restates them.
+pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
+    let self_type = SELF.apply([]);
+    let binary = |name: &str, result: TypeRef| TraitInfo {
+        methods: vec![MethodSig {
+            name: name.to_owned(),
+            parameters: vec![self_type.clone()],
+            result,
+        }],
+    };
+    [
+        ("Add", binary("add", self_type.clone())),
+        ("Sub", binary("sub", self_type.clone())),
+        ("Mul", binary("mul", self_type.clone())),
+        ("Div", binary("div", self_type.clone())),
+        ("Rem", binary("rem", self_type.clone())),
+        ("Eq", binary("eq", TypeRef::BOOL)),
+        ("Ord", binary("compare", TypeRef::ORDERING)),
+    ]
+    .into_iter()
+    .map(|(name, info)| (name.to_owned(), info))
+    .collect()
+}
+
+/// The trait and method an arithmetic operator resolves through.
+fn operator_trait(operator: crate::ast::Arith) -> (&'static str, &'static str) {
+    use crate::ast::Arith;
+    match operator {
+        Arith::Add => ("Add", "add"),
+        Arith::Sub => ("Sub", "sub"),
+        Arith::Mul => ("Mul", "mul"),
+        Arith::Div => ("Div", "div"),
+        Arith::Rem => ("Rem", "rem"),
+    }
+}
+
+impl<'a> Checker<'a> {
+    fn program(&mut self, program: &'a Program) -> Result<TypedProgram, Diagnostic> {
         let mut last = TypeRef::UNIT;
         for statement in &program.statements {
             last = self.statement(statement)?;
@@ -447,7 +550,7 @@ impl Checker<'_> {
         }
     }
 
-    fn statement(&mut self, statement: &Stmt) -> Result<TypeRef, Diagnostic> {
+    fn statement(&mut self, statement: &'a Stmt) -> Result<TypeRef, Diagnostic> {
         Ok({
             match statement {
                 Stmt::Bind {
@@ -508,6 +611,14 @@ impl Checker<'_> {
                 }
                 Stmt::Alias(alias) => {
                     self.declaring(&alias.name, |checker| checker.alias(alias))?;
+                    TypeRef::UNIT
+                }
+                Stmt::Trait(declaration) => {
+                    self.declare_trait(declaration)?;
+                    TypeRef::UNIT
+                }
+                Stmt::Impl(declaration) => {
+                    self.implement(declaration)?;
                     TypeRef::UNIT
                 }
                 Stmt::Expr(expression) => self.expression(expression)?,
@@ -689,13 +800,28 @@ impl Checker<'_> {
         // A generic parameter stands for its type variable while the
         // declaration is checked; its bound is checked at each call.
         let mut variables = Vec::new();
+        let mut traits_bounding = Vec::new();
         for name in &declaration.generics {
-            let bound = declaration
+            let written = declaration
                 .bounds
                 .iter()
                 .find(|(bounded, _)| bounded == name)
-                .map(|(_, bound)| crate::declarations::annotation(bound))
-                .transpose()?;
+                .map(|(_, bound)| bound);
+            // `T : Shape` names a trait: the variable is unbounded in the
+            // lattice, and the trait is checked at each call and usable in
+            // the body.
+            let trait_bound = written
+                .filter(|bound| bound.arguments.is_empty() && self.traits.contains_key(&bound.name))
+                .map(|bound| bound.name.clone());
+            let bound = match (&trait_bound, written) {
+                (None, Some(bound)) => Some(crate::declarations::annotation(bound)?),
+                _ => None,
+            };
+            if let Some(trait_name) = &trait_bound
+                && let Some(variable) = crate::types::builtin::type_variable(name, None)
+            {
+                traits_bounding.push((name.clone(), variable, trait_name.clone()));
+            }
             let variable =
                 crate::types::builtin::type_variable(name, bound.as_ref()).ok_or_else(|| {
                     Diagnostic::typing(
@@ -727,6 +853,26 @@ impl Checker<'_> {
             self.generic_functions
                 .insert(declaration.name.clone(), variables);
         }
+        if traits_bounding.is_empty() {
+            self.trait_bounded.remove(&declaration.name);
+        } else {
+            self.trait_bounded
+                .insert(declaration.name.clone(), traits_bounding.clone());
+        }
+        let bounds_before = self.trait_bounds.len();
+        self.trait_bounds.extend(
+            traits_bounding
+                .iter()
+                .map(|(_, variable, trait_name)| (variable.clone(), trait_name.clone())),
+        );
+        let checked = self.function_body(declaration);
+        self.trait_bounds.truncate(bounds_before);
+        checked
+    }
+
+    /// The signature and body of a declared function, with its type
+    /// variables and trait bounds in force.
+    fn function_body(&mut self, declaration: &FnDecl) -> Result<(), Diagnostic> {
         let mut parameters = Vec::new();
         for parameter in &declaration.parameters {
             let ty = crate::declarations::annotation(&parameter.annotation)?;
@@ -1199,6 +1345,23 @@ impl Checker<'_> {
                     ));
                 }
             }
+            if let Some(bounds) = self.trait_bounded.get(callee_name).cloned() {
+                for (name, variable, trait_name) in bounds {
+                    let filled = bound
+                        .get(&variable.constructor)
+                        .cloned()
+                        .unwrap_or(TypeRef::NEVER);
+                    if !self.implements(&filled, &trait_name) {
+                        return Err(Diagnostic::typing(
+                            span,
+                            format!(
+                                "`{callee_name}` needs {name} : {trait_name}, and {filled} does \
+                                 not implement `{trait_name}`"
+                            ),
+                        ));
+                    }
+                }
+            }
             parameters = parameters
                 .iter()
                 .map(|parameter| substituted(parameter, &bound))
@@ -1269,6 +1432,45 @@ impl Checker<'_> {
             return self.step(step, &input_type, Some(&input.value), rest, span);
         }
         let receiver_type = self.expression(receiver)?;
+        // A trait's function, implemented for the receiver's type or
+        // promised by a bound on it.
+        if let Some((trait_name, signature)) = self.method_for(&receiver_type, name, &span)? {
+            let parameters: Vec<TypeRef> = signature
+                .parameters
+                .iter()
+                .map(|parameter| with_self(parameter, &receiver_type))
+                .collect();
+            if arguments.len() != parameters.len() {
+                return Err(Diagnostic::typing(
+                    span,
+                    format!(
+                        "`{name}` of `{trait_name}` takes {} argument{} after the receiver, not {}",
+                        parameters.len(),
+                        if parameters.len() == 1 { "" } else { "s" },
+                        arguments.len()
+                    ),
+                ));
+            }
+            for (argument, parameter) in arguments.iter().zip(&parameters) {
+                if argument.name.is_some() {
+                    return Err(Diagnostic::typing(
+                        argument.value.span.clone(),
+                        "a trait's function takes its arguments by position",
+                    ));
+                }
+                let actual = self.expecting(&argument.value, Some(parameter))?;
+                if !actual.is(parameter) {
+                    return Err(Diagnostic::typing(
+                        argument.value.span.clone(),
+                        format!("this argument is {actual}, and `{name}` takes {parameter}"),
+                    ));
+                }
+            }
+            self.checked
+                .method_calls
+                .insert(span, (trait_name, name.to_owned()));
+            return Ok(with_self(&signature.result, &receiver_type));
+        }
         if let Some(&(combiner, _)) = crate::ast::COMBINERS.iter().find(|(held, _)| held == &name)
             && positional == 1
             && arguments.len() == 1
@@ -1306,6 +1508,328 @@ impl Checker<'_> {
             span,
             format!("{receiver_type} has no function `{name}`{hint}"),
         ))
+    }
+
+    /// `trait Name { … }`: a contract the program may implement. A core
+    /// trait restated by `std/` must agree with the binary's.
+    fn declare_trait(&mut self, declaration: &'a TraitDecl) -> Result<(), Diagnostic> {
+        self.lint(
+            crate::naming::Kind::Type,
+            &declaration.name,
+            &declaration.span,
+        );
+        if self.trait_decls.contains_key(&declaration.name) {
+            return Err(Diagnostic::name(
+                declaration.span.clone(),
+                format!("the trait `{}` is declared twice", declaration.name),
+            ));
+        }
+        let mut methods = Vec::new();
+        for method in &declaration.methods {
+            if !method.has_self {
+                return Err(Diagnostic::typing(
+                    method.span.clone(),
+                    format!(
+                        "`{}` takes `self`: a trait's function is called on a value of the type",
+                        method.name
+                    ),
+                ));
+            }
+            self.lint(crate::naming::Kind::Function, &method.name, &method.span);
+            if methods
+                .iter()
+                .any(|held: &MethodSig| held.name == method.name)
+            {
+                return Err(Diagnostic::name(
+                    method.span.clone(),
+                    format!("`{}` declares `{}` twice", declaration.name, method.name),
+                ));
+            }
+            let parameters = method
+                .parameters
+                .iter()
+                .map(|parameter| crate::declarations::annotation(&parameter.annotation))
+                .collect::<Result<Vec<_>, _>>()?;
+            methods.push(MethodSig {
+                name: method.name.clone(),
+                parameters,
+                result: crate::declarations::annotation(&method.result)?,
+            });
+        }
+        if let Some(core) = self.traits.get(&declaration.name) {
+            let same = core.methods.len() == methods.len()
+                && core.methods.iter().zip(&methods).all(|(held, written)| {
+                    held.name == written.name
+                        && held.parameters == written.parameters
+                        && held.result == written.result
+                });
+            if !same {
+                return Err(Diagnostic::typing(
+                    declaration.span.clone(),
+                    format!(
+                        "`{}` is a core trait, and this declaration contradicts it",
+                        declaration.name
+                    ),
+                ));
+            }
+        }
+        self.traits
+            .insert(declaration.name.clone(), TraitInfo { methods });
+        self.trait_decls
+            .insert(declaration.name.clone(), declaration);
+        Ok(())
+    }
+
+    /// `impl Name for Type { … }`: every function the trait requires, with
+    /// `self` at the type, and the trait's defaults for the rest. One
+    /// implementation per trait and type.
+    fn implement(&mut self, declaration: &'a ImplDecl) -> Result<(), Diagnostic> {
+        let trait_name = declaration.trait_name.as_str();
+        let info = self.traits.get(trait_name).cloned().ok_or_else(|| {
+            Diagnostic::name(
+                declaration.span.clone(),
+                format!("no trait named `{trait_name}` is in scope"),
+            )
+        })?;
+        let target = crate::declarations::annotation(&declaration.target)?;
+        if let Some(previous) = self.impls.iter().find(|held| {
+            held.trait_name == trait_name && held.target.constructor == target.constructor
+        }) {
+            return Err(Diagnostic::typing(
+                declaration.span.clone(),
+                format!(
+                    "`{trait_name}` is implemented for {target} twice, and the earlier one \
+                     is still in force (it begins at byte {})",
+                    previous.span.start
+                ),
+            ));
+        }
+        for method in &declaration.methods {
+            if !info.methods.iter().any(|held| held.name == method.name) {
+                return Err(Diagnostic::name(
+                    method.span.clone(),
+                    format!("`{trait_name}` has no function `{}`", method.name),
+                ));
+            }
+            if !method.has_self {
+                return Err(Diagnostic::typing(
+                    method.span.clone(),
+                    format!("`{}` takes `self`", method.name),
+                ));
+            }
+            if method.body.is_none() {
+                return Err(Diagnostic::typing(
+                    method.span.clone(),
+                    format!("`{}` has a body in an implementation", method.name),
+                ));
+            }
+        }
+        let _self_type = crate::declarations::SelfType::enter(target.clone());
+        let mut lowered = Vec::new();
+        for signature in &info.methods {
+            let parameters: Vec<TypeRef> = signature
+                .parameters
+                .iter()
+                .map(|parameter| with_self(parameter, &target))
+                .collect();
+            let result = with_self(&signature.result, &target);
+            let own = declaration
+                .methods
+                .iter()
+                .find(|method| method.name == signature.name);
+            let (method, default_of) = match own {
+                Some(method) => (method, None),
+                None => {
+                    let inherited = self
+                        .trait_decls
+                        .get(trait_name)
+                        .and_then(|held| {
+                            held.methods
+                                .iter()
+                                .find(|method| method.name == signature.name)
+                        })
+                        .filter(|method| method.body.is_some());
+                    match inherited {
+                        Some(method) => (method, Some(trait_name.to_owned())),
+                        None => {
+                            return Err(Diagnostic::typing(
+                                declaration.span.clone(),
+                                format!(
+                                    "`impl {trait_name} for {target}` lacks `{}`",
+                                    signature.name
+                                ),
+                            ));
+                        }
+                    }
+                }
+            };
+            let Some(body) = &method.body else {
+                unreachable!("a body was required above");
+            };
+            if own.is_some() {
+                if method.parameters.len() != parameters.len() {
+                    return Err(Diagnostic::typing(
+                        method.span.clone(),
+                        format!(
+                            "`{}` of `{trait_name}` takes {} parameter{} after `self`",
+                            signature.name,
+                            parameters.len(),
+                            if parameters.len() == 1 { "" } else { "s" }
+                        ),
+                    ));
+                }
+                for (parameter, expected) in method.parameters.iter().zip(&parameters) {
+                    let written = crate::declarations::annotation(&parameter.annotation)?;
+                    if written != *expected {
+                        return Err(Diagnostic::typing(
+                            parameter.span.clone(),
+                            format!(
+                                "`{}` of `{trait_name}` takes {expected} here, and this \
+                                 implementation writes {written}",
+                                signature.name
+                            ),
+                        ));
+                    }
+                }
+                let written = crate::declarations::annotation(&method.result)?;
+                if written != result {
+                    return Err(Diagnostic::typing(
+                        method.result.span.clone(),
+                        format!(
+                            "`{}` of `{trait_name}` returns {result}, and this implementation \
+                             writes {written}",
+                            signature.name
+                        ),
+                    ));
+                }
+            }
+            let names: Vec<String> = std::iter::once("self".to_owned())
+                .chain(
+                    method
+                        .parameters
+                        .iter()
+                        .map(|parameter| parameter.name.clone()),
+                )
+                .collect();
+            let types: Vec<TypeRef> = std::iter::once(target.clone())
+                .chain(parameters.iter().cloned())
+                .collect();
+            // The implementation is visible to its own bodies, so a function
+            // may call another of the same trait on `self`.
+            self.impls.push(ImplInfo {
+                trait_name: trait_name.to_owned(),
+                target: target.clone(),
+                span: declaration.span.clone(),
+            });
+            let body_type = self.with_bindings(
+                names.iter().cloned().zip(types.iter().cloned()),
+                |checker| checker.expecting(body, Some(&result)),
+            );
+            self.impls.pop();
+            let body_type = body_type?;
+            if !body_type.is(&result) {
+                return Err(Diagnostic::typing(
+                    body.span.clone(),
+                    format!(
+                        "`{}` of `{trait_name}` returns {result}, and this body is {body_type}",
+                        signature.name
+                    ),
+                ));
+            }
+            let ty = TypeRef::function(types, result).ok_or_else(|| {
+                Diagnostic::typing(
+                    method.span.clone(),
+                    "a function takes at most eight parameters",
+                )
+            })?;
+            lowered.push(crate::execution::MethodLowering {
+                name: signature.name.clone(),
+                parameters: names,
+                default_of,
+                ty,
+            });
+        }
+        self.impls.push(ImplInfo {
+            trait_name: trait_name.to_owned(),
+            target: target.clone(),
+            span: declaration.span.clone(),
+        });
+        // A type implementing `Ord` is Orderable: `compare`, `<`, `sort`,
+        // `min` and `max` accept it, and its `compare` decides the order.
+        if trait_name == "Ord" {
+            crate::types::program::adopt_parent(target.constructor, TypeRef::ORDERABLE.constructor)
+                .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
+        }
+        self.checked.impls.insert(
+            declaration.span.clone(),
+            crate::execution::ImplLowering {
+                trait_name: trait_name.to_owned(),
+                target,
+                methods: lowered,
+            },
+        );
+        Ok(())
+    }
+
+    /// The trait function a receiver of a type reaches by name: implemented
+    /// for the type, or promised by a trait bound on the type variable.
+    /// Two traits offering one name are an ambiguity.
+    fn method_for(
+        &self,
+        receiver: &TypeRef,
+        name: &str,
+        span: &Range<usize>,
+    ) -> Result<Option<(String, MethodSig)>, Diagnostic> {
+        let mut found: Vec<(String, MethodSig)> = Vec::new();
+        let mut consider = |trait_name: &str, traits: &HashMap<String, TraitInfo>| {
+            if found.iter().any(|(held, _)| held == trait_name) {
+                return;
+            }
+            if let Some(info) = traits.get(trait_name)
+                && let Some(signature) = info.methods.iter().find(|method| method.name == name)
+            {
+                found.push((trait_name.to_owned(), signature.clone()));
+            }
+        };
+        for held in &self.impls {
+            if receiver.is(&held.target) {
+                consider(&held.trait_name, &self.traits);
+            }
+        }
+        for (variable, trait_name) in &self.trait_bounds {
+            if variable == receiver {
+                consider(trait_name, &self.traits);
+            }
+        }
+        match found.len() {
+            0 => Ok(None),
+            1 => Ok(found.pop()),
+            _ => Err(Diagnostic::name(
+                span.clone(),
+                format!(
+                    "`{name}` is a function of {} for {receiver}, so the call is ambiguous",
+                    found
+                        .iter()
+                        .map(|(trait_name, _)| format!("`{trait_name}`"))
+                        .collect::<Vec<_>>()
+                        .join(" and ")
+                ),
+            )),
+        }
+    }
+
+    /// Whether a type satisfies a trait: implemented for it, or promised by
+    /// a bound in force. `Never`, the type of nothing, satisfies every trait.
+    fn implements(&self, ty: &TypeRef, trait_name: &str) -> bool {
+        *ty == TypeRef::NEVER
+            || self
+                .impls
+                .iter()
+                .any(|held| held.trait_name == trait_name && ty.is(&held.target))
+            || self
+                .trait_bounds
+                .iter()
+                .any(|(variable, held)| variable == ty && held == trait_name)
     }
 
     /// `Point(x = 1, y = 2)`: a record built from its fields, by name or in
@@ -1611,6 +2135,26 @@ impl Checker<'_> {
             Kind::Compare { left, right, .. } => {
                 let left_type = self.expression(left)?;
                 let right_type = self.expression(right)?;
+                // A type implementing `Eq` decides its own equality.
+                if left_type.constructor.0 != "Option"
+                    && let Some((_, signature)) = self.method_for(&left_type, "eq", &span)?
+                    && self
+                        .impls
+                        .iter()
+                        .any(|held| held.trait_name == "Eq" && left_type.is(&held.target))
+                {
+                    let parameter = with_self(&signature.parameters[0], &left_type);
+                    if !right_type.is(&parameter) {
+                        return Err(Diagnostic::typing(
+                            span,
+                            format!(
+                                "`Eq` for {left_type} compares with {parameter}, not {right_type}"
+                            ),
+                        ));
+                    }
+                    self.checked.operator_calls.insert(span, "Eq");
+                    return Ok(TypeRef::BOOL);
+                }
                 // An open tree's leaf may be compared with a literal: that is
                 // what asking a header a question looks like. Equality looks
                 // through `Option`, so a key that may be missing still can,
@@ -1838,19 +2382,48 @@ impl Checker<'_> {
     fn arithmetic(&mut self, mut expression: &Expr) -> Result<TypeRef, Diagnostic> {
         let mut operands = Vec::new();
         while let Kind::Arith(operator, left, right) = &expression.kind {
-            operands.push((*operator, left.as_ref(), right.as_ref()));
+            operands.push((
+                *operator,
+                expression.span.clone(),
+                left.as_ref(),
+                right.as_ref(),
+            ));
             expression = left;
         }
-        let expected = self.expression(expression)?;
-        for (operator, left, right) in operands.into_iter().rev() {
+        let mut expected = self.expression(expression)?;
+        for (operator, node, left, right) in operands.into_iter().rev() {
             // Arithmetic is homogeneous: there is no implicit widening.
             let refused = || format!("{} requires two Int or two Float operands", operator.noun());
-            if !matches!(expected.constructor.0, "Int" | "Float") {
-                return Err(Diagnostic::typing(left.span.clone(), refused()));
+            if matches!(expected.constructor.0, "Int" | "Float") {
+                if self.expression(right)? != expected {
+                    return Err(Diagnostic::typing(right.span.clone(), refused()));
+                }
+                continue;
             }
-            if self.expression(right)? != expected {
-                return Err(Diagnostic::typing(right.span.clone(), refused()));
+            // Any other type resolves the operator through its trait: a
+            // declared type implementing `Add` has an addition of its own.
+            let (trait_name, method) = operator_trait(operator);
+            let Some((_, signature)) = self.method_for(&expected, method, &node)? else {
+                return Err(Diagnostic::typing(
+                    left.span.clone(),
+                    format!(
+                        "{}, or two values of a type implementing `{trait_name}`, not {expected}",
+                        refused()
+                    ),
+                ));
+            };
+            let parameter = with_self(&signature.parameters[0], &expected);
+            let actual = self.expecting(right, Some(&parameter))?;
+            if !actual.is(&parameter) {
+                return Err(Diagnostic::typing(
+                    right.span.clone(),
+                    format!("`{trait_name}` for {expected} takes {parameter}, not {actual}"),
+                ));
             }
+            expected = with_self(&signature.result, &expected);
+            // The chain is lowered call by call, so each link's type is kept.
+            self.checked.types.insert(node.clone(), expected.clone());
+            self.checked.operator_calls.insert(node, trait_name);
         }
         Ok(expected)
     }

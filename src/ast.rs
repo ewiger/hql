@@ -29,7 +29,45 @@ pub(crate) enum Stmt {
     Fn(FnDecl),
     /// `name(p, ..) := body`: a function whose types the checker writes.
     Alias(AliasDecl),
+    /// `trait Name { fn m(self, ..) : R [= body] .. }`: a capability contract.
+    Trait(TraitDecl),
+    /// `impl Name for Type { fn m(self, ..) : R = body .. }`: a type's
+    /// implementation of a trait.
+    Impl(ImplDecl),
     Expr(Expr),
+}
+
+/// A declared trait: a name and the functions a type implements to satisfy
+/// it, some with a default body.
+#[derive(Debug)]
+pub(crate) struct TraitDecl {
+    pub name: String,
+    pub methods: Vec<MethodDecl>,
+    pub span: Range<usize>,
+}
+
+/// An implementation of a trait for a type.
+#[derive(Debug)]
+pub(crate) struct ImplDecl {
+    pub trait_name: String,
+    pub target: TypeAnn,
+    pub methods: Vec<MethodDecl>,
+    pub span: Range<usize>,
+}
+
+/// One function of a trait or an implementation: `self` first, then the
+/// typed parameters, the result, and a body unless the trait leaves it to
+/// the implementation. `Self` in a signature is the implementing type.
+#[derive(Debug)]
+pub(crate) struct MethodDecl {
+    pub name: String,
+    /// Whether the function takes `self`, and so is reached as `value.f()`.
+    pub has_self: bool,
+    /// The parameters after `self`.
+    pub parameters: Vec<Param>,
+    pub result: TypeAnn,
+    pub body: Option<Expr>,
+    pub span: Range<usize>,
 }
 
 /// A declared function: a name, typed parameters, a result type and a body.

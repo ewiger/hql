@@ -40,7 +40,33 @@ pub(crate) enum Stmt {
         body: std::sync::Arc<Expr>,
         ty: TypeRef,
     },
+    /// An implementation of a trait for a type: each function, `self` first
+    /// among its parameters, as a closure over the scope at this point.
+    Impl {
+        trait_name: String,
+        target: TypeRef,
+        methods: Vec<(String, Vec<String>, std::sync::Arc<Expr>, TypeRef)>,
+    },
     Unit,
+}
+
+/// What checking established about one implementation, for lowering it.
+#[derive(Debug, Clone)]
+pub(crate) struct ImplLowering {
+    pub trait_name: String,
+    pub target: TypeRef,
+    pub methods: Vec<MethodLowering>,
+}
+
+/// One function of an implementation: its own, or inherited from the trait.
+#[derive(Debug, Clone)]
+pub(crate) struct MethodLowering {
+    pub name: String,
+    /// `self` first, then the parameters.
+    pub parameters: Vec<String>,
+    /// The trait whose default body this is, when the impl did not write one.
+    pub default_of: Option<String>,
+    pub ty: TypeRef,
 }
 
 /// One statement of an iterating function's body.
@@ -153,6 +179,14 @@ pub(crate) enum Kind {
     /// `Point(x = 1, y = 2)`: a record of the expression's type, from the
     /// fields written, each by name.
     Record(Vec<(String, Expr)>),
+    /// A trait's function called on a receiver, `v.area()` or `a + b`,
+    /// dispatched at run time on the receiver's type.
+    Method {
+        trait_name: String,
+        method: String,
+        receiver: Box<Expr>,
+        arguments: Vec<Expr>,
+    },
     /// `input | tee name = branch`: the input, evaluated once, is read by
     /// the branch under [`crate::ast::TEE_INPUT`] and passed on.
     Tee {
@@ -295,6 +329,12 @@ pub(crate) struct Checked {
     /// Each step named as a function value, `map(str)`, with the type it
     /// takes and the type it produces.
     pub step_values: HashMap<Range<usize>, (&'static Operation, TypeRef, TypeRef)>,
+    /// Each call of a trait's function, by the trait and the function.
+    pub method_calls: HashMap<Range<usize>, (String, String)>,
+    /// Each operator resolved through a trait, by the trait.
+    pub operator_calls: HashMap<Range<usize>, &'static str>,
+    /// Each implementation, by the span of its declaration.
+    pub impls: HashMap<Range<usize>, ImplLowering>,
     /// What checking found worth saying that does not make the program wrong.
     pub warnings: Vec<crate::warnings::Warning>,
     /// Each alias the program defines, with the signature the checker wrote.
@@ -305,39 +345,39 @@ pub(crate) struct Checked {
 
 impl Checked {
     pub fn program(&self, program: &ast::Program, result: TypeRef) -> Result<Program, Diagnostic> {
-        let statements =
-            program
-                .statements
-                .iter()
-                .map(|statement| {
-                    Ok(match statement {
-                        ast::Stmt::Bind { name, value, .. } => {
-                            let value = self.expression(value)?;
-                            let view = self
-                                .views
-                                .get(&value.span)
-                                .cloned()
-                                .unwrap_or_else(|| value.ty.clone());
-                            Stmt::Bind {
-                                name: name.clone(),
-                                view,
-                                value,
-                            }
+        let statements = program
+            .statements
+            .iter()
+            .map(|statement| {
+                Ok(match statement {
+                    ast::Stmt::Bind { name, value, .. } => {
+                        let value = self.expression(value)?;
+                        let view = self
+                            .views
+                            .get(&value.span)
+                            .cloned()
+                            .unwrap_or_else(|| value.ty.clone());
+                        Stmt::Bind {
+                            name: name.clone(),
+                            view,
+                            value,
                         }
-                        ast::Stmt::Expr(value) => Stmt::Expr(self.expression(value)?),
-                        ast::Stmt::Alias(alias) => Stmt::Fn {
-                            name: alias.name.clone(),
-                            parameters: alias
-                                .parameters
-                                .iter()
-                                .map(|parameter| parameter.name.clone())
-                                .collect(),
-                            body: std::sync::Arc::new(self.expression(&alias.body)?),
-                            ty: self.functions.get(&alias.span).cloned().ok_or_else(|| {
-                                Diagnostic::typing(alias.span.clone(), "alias was not checked")
-                            })?,
-                        },
-                        ast::Stmt::Fn(declaration) => Stmt::Fn {
+                    }
+                    ast::Stmt::Expr(value) => Stmt::Expr(self.expression(value)?),
+                    ast::Stmt::Alias(alias) => Stmt::Fn {
+                        name: alias.name.clone(),
+                        parameters: alias
+                            .parameters
+                            .iter()
+                            .map(|parameter| parameter.name.clone())
+                            .collect(),
+                        body: std::sync::Arc::new(self.expression(&alias.body)?),
+                        ty: self.functions.get(&alias.span).cloned().ok_or_else(|| {
+                            Diagnostic::typing(alias.span.clone(), "alias was not checked")
+                        })?,
+                    },
+                    ast::Stmt::Fn(declaration) => {
+                        Stmt::Fn {
                             name: declaration.name.clone(),
                             parameters: declaration
                                 .parameters
@@ -353,11 +393,62 @@ impl Checked {
                                     )
                                 },
                             )?,
-                        },
-                        ast::Stmt::Import { .. } | ast::Stmt::Type(_) => Stmt::Unit,
-                    })
+                        }
+                    }
+                    ast::Stmt::Import { .. } | ast::Stmt::Type(_) | ast::Stmt::Trait(_) => {
+                        Stmt::Unit
+                    }
+                    ast::Stmt::Impl(declaration) => {
+                        let lowering = self.impls.get(&declaration.span).ok_or_else(|| {
+                            Diagnostic::typing(
+                                declaration.span.clone(),
+                                "implementation was not checked",
+                            )
+                        })?;
+                        let mut methods = Vec::new();
+                        for method in &lowering.methods {
+                            let body = match &method.default_of {
+                                None => declaration
+                                    .methods
+                                    .iter()
+                                    .find(|held| held.name == method.name)
+                                    .and_then(|held| held.body.as_ref()),
+                                Some(trait_name) => program
+                                    .statements
+                                    .iter()
+                                    .find_map(|statement| match statement {
+                                        ast::Stmt::Trait(held) if held.name == *trait_name => {
+                                            Some(held)
+                                        }
+                                        _ => None,
+                                    })
+                                    .and_then(|held| {
+                                        held.methods.iter().find(|held| held.name == method.name)
+                                    })
+                                    .and_then(|held| held.body.as_ref()),
+                            };
+                            let body = body.ok_or_else(|| {
+                                Diagnostic::typing(
+                                    declaration.span.clone(),
+                                    format!("`{}` has no body to run", method.name),
+                                )
+                            })?;
+                            methods.push((
+                                method.name.clone(),
+                                method.parameters.clone(),
+                                std::sync::Arc::new(self.expression(body)?),
+                                method.ty.clone(),
+                            ));
+                        }
+                        Stmt::Impl {
+                            trait_name: lowering.trait_name.clone(),
+                            target: lowering.target.clone(),
+                            methods,
+                        }
+                    }
                 })
-                .collect::<Result<_, Diagnostic>>()?;
+            })
+            .collect::<Result<_, Diagnostic>>()?;
         Ok(Program {
             statements,
             result,
@@ -515,6 +606,42 @@ impl Checked {
                     .map(|(key, value)| Ok((key.clone(), self.expression(value)?)))
                     .collect::<Result<_, Diagnostic>>()?,
             ),
+            A::Arith(operator, left, right) if self.operator_calls.contains_key(&span) => {
+                let (trait_name, method) = match operator {
+                    Arith::Add => ("Add", "add"),
+                    Arith::Sub => ("Sub", "sub"),
+                    Arith::Mul => ("Mul", "mul"),
+                    Arith::Div => ("Div", "div"),
+                    Arith::Rem => ("Rem", "rem"),
+                };
+                Kind::Method {
+                    trait_name: trait_name.to_owned(),
+                    method: method.to_owned(),
+                    receiver: boxed(left)?,
+                    arguments: vec![self.expression(right)?],
+                }
+            }
+            A::Compare {
+                left,
+                right,
+                negated,
+            } if self.operator_calls.contains_key(&span) => {
+                let equal = Expr {
+                    kind: Kind::Method {
+                        trait_name: "Eq".to_owned(),
+                        method: "eq".to_owned(),
+                        receiver: boxed(left)?,
+                        arguments: vec![self.expression(right)?],
+                    },
+                    ty: TypeRef::BOOL,
+                    span: span.clone(),
+                };
+                if *negated {
+                    Kind::Not(Box::new(equal))
+                } else {
+                    equal.kind
+                }
+            }
             A::Arith(..) => {
                 let mut first = expression;
                 let mut rest = Vec::new();
@@ -586,6 +713,21 @@ impl Checked {
                 body: std::sync::Arc::new(self.expression(body)?),
                 function: self.functions.get(&span).cloned(),
             },
+            A::Call { callee, arguments } if self.method_calls.contains_key(&span) => {
+                let A::Field(receiver, _) = &callee.kind else {
+                    return Err(Diagnostic::typing(span, "a method call reads a receiver"));
+                };
+                let (trait_name, method) = self.method_calls[&span].clone();
+                Kind::Method {
+                    trait_name,
+                    method,
+                    receiver: boxed(receiver)?,
+                    arguments: arguments
+                        .iter()
+                        .map(|argument| self.expression(&argument.value))
+                        .collect::<Result<_, _>>()?,
+                }
+            }
             A::Call { callee, arguments } if self.receiver_calls.contains(&span) => {
                 let A::Field(receiver, _) = &callee.kind else {
                     return Err(Diagnostic::typing(span, "a receiver call reads a receiver"));

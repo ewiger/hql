@@ -277,9 +277,10 @@ fn eval_sign(
 ) -> Result<Value, Diagnostic> {
     Ok(Value::Int(match number(&input, "sign", &span)? {
         Value::Int(n) => n.signum(),
-        Value::Float(x) if x == 0.0 => 0,
         Value::Float(x) => {
-            if x.is_sign_negative() {
+            if x == 0.0 {
+                0
+            } else if x.is_sign_negative() {
                 -1
             } else {
                 1
