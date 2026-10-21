@@ -51,6 +51,24 @@ An alias is a local binding; the module's canonical identity is unchanged.
 `import io` makes `io` visible and nothing below it. `io.file` is imported on
 its own. There is no wildcard import and no re-export syntax.
 
+### The prelude is the implicit import list
+
+Two things make a module visible in a source unit: the unit's own imports and
+the prelude. The prelude is the imports written in `prelude.hql` files, the
+standard library's `std/prelude.hql` and one per loaded extension; those
+modules are visible in every source unit as if written at the head of that
+unit ([the standard library](03-standard-library.md)). An explicit import
+that repeats a prelude member is allowed and changes nothing. An import whose
+local name collides with a prelude member is a collision like any other and is
+resolved with `as`. A workspace that sets `prelude = false` in `hql.toml`
+empties the implicit list and changes no grammar.
+
+An import also loads. Importing one module of an extension loads the whole
+extension and runs its `prelude.hql`, so `import postgres.query` makes `query`
+visible in this unit and, through the prelude, whatever the extension names as
+necessary visible in every unit
+([packages and extensions](09-packages-and-extensions.md)).
+
 ### Placement
 
 Imports are compile-time declarations. A source unit reads, in order: the
@@ -101,12 +119,19 @@ before compilation, in the execution context.
   settled with that record.
 - The `hql.toml` import list stays as provider configuration; its interaction
   with per-unit imports is fixed by the [host boundary](10-host-boundary.md).
+- The prelude stops being a runtime constant and becomes the imports of
+  `prelude.hql` files ([part 3](03-standard-library.md)); resolution treats
+  them as imports the unit did not write.
+- An import of a module provided by an extension loads that extension as a
+  whole ([part 9](09-packages-and-extensions.md)). Today `import` binds an
+  extension by name; tomorrow it names a module and the extension follows.
 
 ## Work units
 
 1. Grammar: dotted module paths, `as` aliases, placement rule, the refusal of
    string imports.
-2. Resolution against the registry; local-name collision diagnostics.
+2. Resolution against the registry; local-name collision diagnostics,
+   including collisions between a unit's imports and the prelude's.
 3. Migrating the extension registry so that an extension registers the modules
    it provides and `import` resolves through them.
 4. Renaming the `io` submodule imports in cards, `std/` and examples.

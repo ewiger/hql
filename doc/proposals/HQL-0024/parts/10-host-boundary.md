@@ -75,6 +75,11 @@ configured package modules.
   configuration; the per-unit `import` of [part 2](02-imports.md) is the
   language's. A program never depends on which configuration file made a
   module available.
+- `prelude = false` keeps its meaning and now withholds the imports of every
+  `prelude.hql`, the standard library's and each loaded extension's
+  ([part 3](03-standard-library.md)). Which extensions the host activates is
+  the host's; which an import loads, and what a prelude means, is the
+  language's.
 - The vault becomes one kind of workspace root. What HQL-0020 says about
   namespace inheritance between a vault and its sub-namespaces is re-read as a
   statement about roots and host bindings, and amended where it conflicts with
@@ -88,3 +93,6 @@ configured package modules.
    precedence, host composition) as a checklist against HQL-0020.
 3. A bare-CLI test: a program with imports and no vault resolves builtin
    modules.
+4. `prelude = false` withholding the extensions' prelude imports along with
+   the standard one's, with a test on a vault that activates an extension
+   carrying a `prelude.hql`.

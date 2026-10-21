@@ -66,6 +66,46 @@ receiver modules. It does not flatten the library into lexical scope: `trim`,
 and domain-specific facilities stay explicit: `regex`, `io.file`, `io.net`,
 `format.json`.
 
+#### `prelude.hql`
+
+The prelude is declared in HQL source, not in the runtime, in a file named
+`prelude.hql` at a module root. It is not a module: it has no canonical name,
+cannot be imported, and is the one file at a root with a role, where
+`<root>/mod.hql` is invalid ([modules](01-modules.md)). It is an extension's
+constructor: it runs once when the extension loads, and its body is the import
+statements that initialize the modules the extension cannot do without. Every
+module it imports is visible in every source unit of the invocation as if that
+unit had imported it. Modules it does not name are the extension's optional
+part and are imported on their own
+([packages and extensions](09-packages-and-extensions.md)).
+
+Each extension has its own `prelude.hql`, at the module root of its package.
+The standard library is not an extension; it is HQL's own, always loaded, and
+has one dedicated file, `std/prelude.hql`, which therefore always runs:
+
+```hql
+// std/prelude.hql
+import core
+import string
+import seq
+import math
+import option
+```
+
+The effective prelude of an invocation is the union of `std/prelude.hql` and
+the `prelude.hql` of every loaded extension, whether the host activated it or
+a source unit imported one of its modules. Two preludes that bind one local
+name are an environment error naming both files, as two imports of one name
+are in a source unit ([imports](02-imports.md)). Changing a prelude is
+editing its file; the standard prelude is versioned by being part of `std/`,
+which is bundled with the binary. There is no separate prelude version and no
+edition mechanism.
+
+`prelude = false` in `hql.toml` keeps every prelude's imports out of the
+implicit list, so every module is imported explicitly. The preludes still run
+when their extensions load; the model has no extension that is loaded but not
+constructed.
+
 ### Layout
 
 Hierarchical modules are preferred over unrelated top-level names: `io.file`,
@@ -75,6 +115,7 @@ Hierarchical modules are preferred over unrelated top-level names: `io.file`,
 
 ```text
 std/
+├── prelude.hql    not a module: the standard library's implicit imports
 ├── core.hql
 ├── string.hql
 ├── math.hql
@@ -123,8 +164,10 @@ runtime primitives, OS integration, codecs, external libraries and backends.
 ## What changes
 
 - The prelude is redefined from "two extensions" to "core types, selected
-  functions and selected receiver modules". Which bare step names remain bare
-  (today: `size`, `filter`, `map`, `sort`, ...) is decided together with
+  functions and selected receiver modules", and from a runtime constant to the
+  imports of `std/prelude.hql`, with each extension contributing its own
+  `prelude.hql` when it loads. Which bare step names remain bare (today: `size`, `filter`,
+  `map`, `sort`, ...) is decided together with
   [receiver modules](04-receiver-modules.md), since `xs.first()` and
   `first(xs)` are the same declaration.
 - `std/` becomes the contract: its comment signatures become declarations,
@@ -140,8 +183,10 @@ runtime primitives, OS integration, codecs, external libraries and backends.
 
 1. Bundling the `std/` contracts and grouping the Rust built-ins into builtin
    extensions with descriptors (`std-core`, `std-io`, ...).
-2. The prelude as a declared, versioned set; `prelude = false` keeps its
-   meaning.
+2. `prelude.hql` as a root-level file with a role: `std/prelude.hql` runs at
+   environment construction, an extension's when the extension loads, each
+   adding its imports to the implicit import list of every source unit, with
+   the collision check between preludes; `prelude = false` keeps its meaning.
 3. Splitting `std/` into the target layout and migrating card and README
    references.
 4. Native binding: one declaration, two implementation routes, with a test

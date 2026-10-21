@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 27 # to be incremented when adding a new issue card
+  last_id: 28 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -40,6 +40,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0028"
+        title: "Implementing HQL-0024: records, receivers, traits, modules and the standard library"
+        file: 0028-complete-type-system-implementation.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md

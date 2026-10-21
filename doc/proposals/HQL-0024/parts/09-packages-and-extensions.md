@@ -53,6 +53,38 @@ modules in the one registry; there is no second import syntax, and a module
 from a package behaves exactly as a standard or workspace module after
 binding.
 
+### An extension loads as a whole
+
+An extension is the unit of loading. It is loaded when the host activates it,
+or when any source unit imports any module it provides: importing
+`postgres.query` loads `postgres-native`, and with it everything that
+extension brings. One module is never loaded on its own.
+
+Loading runs the extension's `prelude.hql` once per invocation. The file is
+the extension's constructor: a sequence of import statements that initializes
+the modules the extension cannot do without. Those modules are visible in
+every source unit of the invocation from then on, as if each unit had
+imported them. The prelude so partitions the extension's modules:
+
+| Named in `prelude.hql` | Not named |
+| --- | --- |
+| necessary: loaded and visible whenever the extension is | optional: in the registry, visible only to a unit that imports it |
+
+```text
+package postgres
+└── modules/
+    ├── prelude.hql        import postgres  import postgres.types
+    └── postgres/
+        ├── mod.hql
+        ├── types.hql
+        └── query.hql      optional: `import postgres.query` loads the extension,
+                           runs the prelude, and adds `query` to the importing unit
+```
+
+An extension without a `prelude.hql` has every module optional. The standard
+library is always loaded, so `std/prelude.hql` always runs
+([the standard library](03-standard-library.md)).
+
 ### Transport and ABI
 
 How an extension's code reaches the process, compiled in, loaded dynamically,
@@ -162,6 +194,9 @@ installation and dependency resolution, is a later record.
 - "Compiled into the binary" stays true for builtin extensions; a package
   origin is added for installed ones, and how one is discovered belongs to the
   execution context.
+- An extension gains a load step with a constructor, `prelude.hql`, that runs
+  once when the extension is first activated or imported from. Today an
+  extension is a static table and nothing runs when `import` binds it.
 
 ## Work units
 
@@ -176,3 +211,7 @@ installation and dependency resolution, is a later record.
    `logging`, `lexical`, `semantic`) to declare their modules.
 5. A naming rule for packages beside the existing extension-name rule in the
    naming card and HQL-0011.
+6. Extension loading: import of one module loads the providing extension,
+   runs its `prelude.hql` once, and adds the prelude's imports to the implicit
+   list; a test that a second import from the same extension does not run the
+   prelude again.

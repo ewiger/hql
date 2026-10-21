@@ -33,7 +33,10 @@ fn load_cases() -> Vec<Case> {
                 continue;
             }
             if path.is_dir() {
-                visit(root, &path, cases);
+                // A module root holds modules a case imports, not cases.
+                if path.file_name().and_then(|name| name.to_str()) != Some("lib") {
+                    visit(root, &path, cases);
+                }
                 continue;
             }
             // Preserve the original header-free CLI smoke fixture.
@@ -103,6 +106,9 @@ fn corpus_metadata_and_index_cover_every_case() {
         } else {
             assert_eq!(m["implementation"], "implemented", "{}", case.path);
             assert!(!m.contains_key("proposal"), "{}", case.path);
+        }
+        if let Some(modules) = m.get("modules") {
+            assert!(root.join(modules).is_dir(), "{}: no module root", case.path);
         }
         match m["environment"].as_str() {
             "pure" => assert!(!m.contains_key("vault"), "{}", case.path),

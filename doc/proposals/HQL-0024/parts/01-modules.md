@@ -96,7 +96,12 @@ root.foo
 root.db.postgres
 ```
 
-`<root>/mod.hql` has no module to define and is invalid.
+`<root>/mod.hql` has no module to define and is invalid. The one file at a
+root with a role is `<root>/prelude.hql`, which is not a module: it is the
+constructor of the extension rooted there, run once when the extension loads,
+and its imports are the modules every source unit then sees
+([the standard library](03-standard-library.md),
+[packages and extensions](09-packages-and-extensions.md)).
 
 A module root may come from:
 
@@ -287,7 +292,7 @@ foo.parser
 
 The name `mod.hql` replaces `init.hql`.
 
-A module file declares a namespace; it does not initialize one. The name `init.hql` incorrectly suggests runtime initialization order, which the module model does not have.
+A module file declares a namespace; it does not initialize one. The name `init.hql` incorrectly suggests runtime initialization order, which the module model does not have. Initialization belongs to the extension, not the module: an extension's `prelude.hql` runs once when the extension loads, and modules within it have no order ([packages and extensions](09-packages-and-extensions.md)).
 
 ---
 
@@ -921,6 +926,7 @@ A package is the usual one:
 ```text
 package postgres
 ├── modules/
+│   ├── prelude.hql        // constructor: runs on load, imports the necessary modules
 │   └── postgres/
 │       ├── mod.hql        // contracts
 │       ├── query.hql
@@ -931,6 +937,8 @@ package postgres
 
 Discovery finds `postgres`, `postgres.query` and `postgres.types` as contracts
 and `postgres-native` as an extension; binding makes them resolved modules.
+`prelude.hql` is not a module; it runs when the extension loads and its
+imports join the implicit import list.
 
 How the extension's code reaches the process is outside this part: compiled
 into a binary built with it, loaded dynamically, run out of process, or
