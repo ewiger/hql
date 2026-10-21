@@ -109,6 +109,45 @@ cards
 
 This makes the same language suitable for small queries and larger programs.
 
+### A general-purpose core
+
+Beyond queries, HQL has the pieces a program needs: records, unions, results,
+traits, receiver calls and modules.
+
+```hql
+type Circle { radius : Float }
+type Rect { width : Float, height : Float }
+
+trait Shape {
+    fn area(self) : Float
+    fn describe(self) : String = fmt("area {}", self.area())
+}
+
+impl Shape for Circle {
+    fn area(self) : Float = 3.0 * self.radius * self.radius
+}
+
+impl Shape for Rect {
+    fn area(self) : Float = self.width * self.height
+}
+
+fn total<T : Shape>(shapes: List<T>) : Float = shapes | map(s => s.area()) | sum
+
+[Circle(radius = 1.0).describe(), str(total([Rect(width = 2.0, height = 3.0)]))]
+```
+
+A record is constructed by its fields and read with a dot; a `match` over a
+union of records covers every member; `Result<T, E>` is `ok(v)` or `err(e)`
+and there is no unwrap. `value.f(args)` calls `f` with the value first,
+resolved by the value's type among the visible modules, so `"  hi ".trim()`,
+`xs.first()` and `7.max(3)` need no import. `trait` and `impl` are HQL's own
+compile-time contracts: the operators resolve through `Add`, `Eq` and `Ord`,
+and a type implementing `Ord` sorts. `import a.b as c` makes one module
+visible, from the standard library or from a module root of HQL files;
+`module for String` makes a file's `self` functions receiver functions. The
+[Mighty Types corpus](examples/mighty-types/README.md) walks all of it,
+program by program.
+
 ---
 
 ## A dataflow language
@@ -686,9 +725,11 @@ It is to provide one coherent language across these workloads.
 
 ---
 
-## Formats are types
+## Formats are a category of their own
 
-HQL treats data representations explicitly.
+HQL treats data representations explicitly. A format is a value of `Format`:
+it describes an external representation and its framing, and it is neither the
+text it encodes nor the values it decodes.
 
 ```hql
 format(result, Json)
@@ -696,18 +737,22 @@ format(result, Yaml)
 format(result, Markdown)
 ```
 
-Presentation types include:
+The formats:
 
 ```text
-Text
-Json
-Yaml
-Csv
-Markdown
-Hql
-D2
-Mermaid
+Text      Lines
+Json      JsonLines
+Yaml      Csv
+Markdown  Hmd
+Hql       D2      Mermaid
 ```
+
+`format(x, Json)` applies the encoder for `x`'s type and gives the encoded text
+as a `String`; `source(e, Json)` applies the decoder. `Lines` frames text one
+record per line and `JsonLines` one JSON document per line, so
+`source(file("events.jsonl"), JsonLines)` reads records without a `split("\n")`
+in sight. The contracts, `Decoder<F, T>` and `Encoder<T, F>`, are declared in
+`std/format.hql` and implemented natively.
 
 Formats describe encoding rather than execution shape.
 
@@ -750,7 +795,10 @@ Stream<Item>
 Stream<Seq<Item>>
 ```
 
-not from introducing separate formats such as a special JSON-lines data type.
+not from the format: `source(file("x.jsonl"), JsonLines)` is a `Seq<Data>`
+because a file ends, and `source(stdin, JsonLines)` a `Stream<Data>` because
+standard input does not. The format decides the representation; the endpoint
+decides whether it ends.
 
 ---
 
@@ -1000,6 +1048,7 @@ and then move outward into:
 - bindings and expressions,
 - collections and types,
 - functions and pattern matching,
+- records, traits and modules,
 - streams and batching,
 - sources, targets and sinks,
 - retrieval,

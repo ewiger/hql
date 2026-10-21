@@ -109,6 +109,7 @@ nav:
           - 13. Reading and writing data: public/learn/13-reading-and-writing.md
           - 14. Channels and logs: public/learn/14-channels-and-logs.md
           - 15. Agents and runs: public/learn/15-agents-and-runs.md
+          - 16. Types, traits and modules: public/learn/16-types-traits-and-modules.md
       - Examples: public/examples.md
   - Reference:
       - Overview: public/reference.md

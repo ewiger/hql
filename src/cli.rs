@@ -181,13 +181,14 @@ const COMMANDS: [&str; 9] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 6] = [
+const VALUED: [&str; 7] = [
     "--vault",
     "--envelope",
     "--to",
     "--report",
     "--report-level",
     "--log-level",
+    "--modules",
 ];
 
 /// `hql '<program>'` is `hql eval '<program>'`: insert `eval` before a first

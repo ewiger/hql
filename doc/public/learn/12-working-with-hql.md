@@ -56,11 +56,13 @@ core 0.4.0 (always available)
   …
 ```
 
-A step from an extension that the program has not imported is listed too, so
-the import it needs can be looked up. `import lexical` brings in a step;
-`lexical.lexical(…)` names one with its extension, when two extensions provide
-the same name. `graph` and `format` are imported for every program unless the
-vault's `hql.toml` says `prelude = false`.
+A function of a module that the program has not imported is listed too, so
+the import it needs can be looked up. `import lexical` makes a module visible;
+`lexical.lexical(…)` names a function with its module, when two visible modules
+declare one name and the input does not tell them apart. The modules of
+`std/prelude.hql`, `string`, `seq`, `math`, `option`, `result`, `graph`,
+`format` and `io` among them, are visible in every program unless the vault's
+`hql.toml` says `prelude = false`.
 
 ## Reports
 
