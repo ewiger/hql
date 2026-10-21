@@ -20,7 +20,7 @@ fn refused(source: &str) -> String {
 
 /// Every `.hql` file under `dir`, with the module name it is embedded as: the
 /// path below `std/` without its extension, folders joined by `.`, and a
-/// folder's `init.hql` named for the folder.
+/// folder's `mod.hql` named for the folder.
 fn modules_under(
     dir: &std::path::Path,
     prefix: &str,
@@ -41,7 +41,7 @@ fn modules_under(
         if path.is_dir() {
             modules_under(&path, &name, found);
         } else if path.extension().and_then(|name| name.to_str()) == Some("hql") {
-            let name = if stem == "init" {
+            let name = if stem == "mod" {
                 prefix.to_owned()
             } else {
                 name
@@ -499,4 +499,48 @@ fn a_name_off_its_kinds_convention_is_a_warning_at_the_name() {
             warning.span
         );
     }
+}
+
+/// HQL declares and an extension implements: a standard module written as
+/// external declarations names exactly the functions its extension provides,
+/// so neither side can drift from the other.
+#[test]
+fn every_external_declaration_has_an_implementation_and_every_implementation_a_declaration() {
+    let catalogue = hql::extensions::catalogue(&hql::extensions::Config::default());
+    let mut checked = 0;
+    for (name, source) in library::MODULES {
+        let declared: Vec<&str> = source
+            .lines()
+            .filter_map(|line| line.strip_prefix("fn "))
+            .filter(|line| !line.contains('='))
+            .map(|line| {
+                line.split(['(', '<'])
+                    .next()
+                    .expect("a function name")
+                    .trim()
+            })
+            .collect();
+        if declared.is_empty() {
+            continue;
+        }
+        let provider = catalogue
+            .iter()
+            .find(|provider| provider.name == *name)
+            .unwrap_or_else(|| {
+                panic!(
+                    "std/{name}.hql declares externally, and no `{name}` extension implements it"
+                )
+            });
+        let mut implemented: Vec<&str> = provider.steps.iter().map(|step| step.name).collect();
+        let mut declared = declared;
+        implemented.sort_unstable();
+        declared.sort_unstable();
+        declared.dedup();
+        assert_eq!(declared, implemented, "module `{name}`");
+        checked += 1;
+    }
+    assert!(
+        checked >= 6,
+        "only {checked} modules are declared externally"
+    );
 }

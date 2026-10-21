@@ -5,7 +5,9 @@ The type declarations HQL ships with, written in HQL.
 **Status: parsed and checked.** `hql check std/graph.hql` prints `Unit`, and
 `tests/declarations.rs` walks this folder, so a file added here cannot be
 silently left unchecked. These files are the single place the declarations live
-as *source* rather than as prose inside a card.
+as *source* rather than as prose inside a card. The modules written as external
+declarations, `string`, `seq`, `math`, `option`, `result` and `regex`, are the
+contracts the binary's extensions implement, checked against them by name.
 
 Checking a declaration is not evaluating one. A declaration yields `Unit` and
 introduces no value; constructing a value of a declared record type is separate
@@ -54,23 +56,37 @@ is what gets fixed.
 
 ## Layout
 
-One file per module, a folder for a module with submodules (`io/init.hql` is
+One file per module, a folder for a module with submodules (`io/mod.hql` is
 `io`, `io/net.hql` is `io.net`), mirroring the extension split in
 [HQL-0001](../doc/proposals/HQL-0001/README.md), so a module's declarations sit
 where its steps will:
 
 | File | Module |
 | --- | --- |
-| `core.hql` | the scalar, data, absence and value-order vocabulary the core owns |
+| `prelude.hql` | not a module: the implicit import list every source unit starts with ([HQL-0024 part 3](../doc/proposals/HQL-0024/parts/03-standard-library.md)) |
+| `core.hql` | the scalar, data, absence, result, pair and value-order vocabulary the core owns, and the core traits `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` |
 | `collections.hql` | membership, order and lookup |
+| `string.hql` | `module for String`: the text functions, `str` and `fmt`; external, implemented by the `string` extension |
+| `seq.hql` | `module for Seq<T>`: the sequence, set and map operations beyond the core's; external |
+| `math.hql` | numbers and the conversions between `Int` and `Float`; external |
+| `option.hql` | `module for Option<T>`: the ways out of an option; external |
+| `result.hql` | `module for Result<T, E>`: the ways out of a result; external |
+| `regex.hql` | text matched against a pattern; external, imported where it is used |
 | `doc.hql` | documents |
-| `format.hql` | the presentation formats, arriving with [HQL-0017](../doc/proposals/HQL-0017/README.md) |
+| `format.hql` | the formats, a category of their own, and the codec contracts ([HQL-0024 part 7](../doc/proposals/HQL-0024/parts/07-formats-and-codecs.md)) |
 | `graph.hql` | the graph domain |
-| `io/init.hql` | endpoints, channels, data sources and data targets, arriving with [HQL-0021](../doc/proposals/HQL-0021/README.md) |
-| `io/net.hql` | network endpoints, arriving with HQL-0021 |
-| `io/logging.hql` | loggers and log events, arriving with HQL-0021 |
+| `io/mod.hql` | endpoints, channels, data sources and data targets, arriving with [HQL-0021](../doc/proposals/HQL-0021/README.md) |
+| `io/net.hql` | network endpoints, arriving with HQL-0021; `import io.net` or `import net` |
+| `io/logging.hql` | loggers and log events, arriving with HQL-0021; `import io.logging` or `import logging` |
 | `knowledge.hql` | the knowledge domain, including the card family |
 | `retrieval.hql` | ranking, arriving with [HQL-0002](../doc/proposals/HQL-0002/README.md) |
+
+A module written as **external declarations**, `fn trim(self) : String` with
+no body, is a contract the extension of the same name implements, and a test
+holds the two to each other: every external declaration has an implementation
+and every implementation a declaration. A module that opens with
+`module for T` is a receiver module, whose `self` functions resolve as
+`value.f()`.
 
 ## Conventions
 

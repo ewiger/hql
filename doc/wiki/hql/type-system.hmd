@@ -191,27 +191,41 @@ projection is a function — see [[graph-type]]. What a projection's *result* ma
 do is declare both parents for itself, which is a claim about that one type and
 leaves the two domains peers; that case is below.
 
-### There are no traits
+### Traits are capability contracts, not a host mechanism
 
-A trait is a **host-language** mechanism. An extension is written in Rust and may
-use traits internally, as any Rust program does; none of that reaches HQL's
-surface. "Rust does it this way" is never an argument for an HQL feature — see
-[the stack scope note](../../stack.md) and [[hql/extensions]].
+A Rust trait is a **host-language** mechanism, and none of it reaches HQL's
+surface: "Rust does it this way" is never an argument for an HQL feature — see
+[the stack scope note](../../stack.md) and [[hql/extensions]]. HQL's `trait` is
+its own construct ([HQL-0024 part 5](../../proposals/HQL-0024/parts/05-traits.md)):
+a compile-time contract, a named set of functions a type satisfies through an
+`impl`, written for what generic code quantifies over and for the operators,
+and for nothing else. `String.trim()` needs no `Trimmable`; it is a function
+of the `string` receiver module.
 
-Three different things had been collapsed into one mechanism, and separating
-them is why none of them needs a trait:
+Three different things are kept apart:
 
 | What is being said | The mechanism |
 | --- | --- |
 | The value genuinely **is** the thing | ordinary `:` — `Card : Doc`, `Card : Orderable` |
-| Something can be **done with** the value, by someone else | an [[hql/extensions|extension]] registers `render(Graph) -> Html` |
+| A capability generic code or an operator **quantifies over** | a `trait`, and one `impl Trait for Type` per trait and type: `T : Shape`, `impl Add for Vec2` |
+| Something can be **done with** the value, by someone else | an [[hql/extensions|extension]] registers `render(Graph) -> Html`, or a codec encodes it ([[hql/presentation]]) |
 | Several types happen to have **the same fields** | a partial schema over an open [[data-type|Data]] tree — see [[fields]] |
 
-Typing is strict, not duck typing, and that is *why* no trait is needed: the
-checker asks about structure it can see. A record declares its shape and an
-incomplete literal fails at construction; a `Data` tree earns a stronger type by
-established structure, checked only where the evidence holds, and refinement
-never converts the value.
+`T : Shape` uses the one relation symbol a bound has; it is checked at every
+call, and inside the body `x.area()` resolves through the bound. A trait may
+give a function a default body an implementation inherits. The core traits are
+`Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div` and `Rem`, in scope everywhere and
+restated in `std/core.hql`: `a + b` over a declared type resolves `Add` for
+it, `==` resolves `Eq`, and a type implementing `Ord` is `Orderable`, its
+`compare` deciding `<`, `sort`, `min` and `max`. Dispatch is on the value's own
+type at run time, so a value held at a wider type still takes its own
+implementation. No trait object, no existential type and no dynamic
+registration exist.
+
+Typing is strict, not duck typing: the checker asks about structure it can see.
+A record declares its shape and an incomplete literal fails at construction; a
+`Data` tree earns a stronger type by established structure, checked only where
+the evidence holds, and refinement never converts the value.
 
 Absence is not part of this. `Option` is an ordinary sum type, not a trait — see
 [[option-type]].
@@ -761,7 +775,10 @@ language's central value cannot be the place where the rule is improvised.
 
 ## Open questions
 
-- Whether narrowing is nominal or structural.
+- Whether narrowing is nominal or structural. A record declared by a program
+  is nominal: `Point(x = 1, y = 2)` is a `Point` and nothing else is.
+- Whether an `impl` of a generic trait, `Encoder<T, F>`, may be written in HQL;
+  the codec contracts are declared and implemented natively for now.
 - The spelling of validation and refinement at the call site: `validate<Person>(card)`,
   a `where` clause, or a predicate that the checker records.
 - How conflicting requirements from parents in a supertype set are diagnosed.

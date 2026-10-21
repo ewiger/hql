@@ -40,13 +40,13 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
-      - id: "0028"
-        title: "Implementing HQL-0024: records, receivers, traits, modules and the standard library"
-        file: 0028-complete-type-system-implementation.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0028"
+        title: "Implementing HQL-0024: records, receivers, traits, modules and the standard library"
+        file: 0028-complete-type-system-implementation.md
       - id: "0027"
         title: Indexing a sequence by position
         file: 0027-sequence-indexing.md

@@ -28,7 +28,7 @@ the design, the card says so.
 | [[graph-type]] | `Graph<N, E>`, `Edge<S, T>`, and the document and knowledge graphs |
 | [[orderable]] | `Orderable`, the card's own key, and the `take` contract |
 | [[option-type]] | `Option<T>`, absence, and the optional-by-type doc reference |
-| [[match-op]] | `match` and `given … otherwise`: branching on values (implemented; `Result` arms wait for `Result`) |
+| [[match-op]] | `match` and `given … otherwise`: branching on values, `some`, `none`, `ok`, `err` and type patterns |
 | [[hql/presentation]] | Presentation formats, `format` and its shorthands, renderers, and the presentation context |
 | [[hql/error-reporting]] | The structured log: severities, entry context, `strict` and `collect`, configuration |
 | [[hql/semantic-search]] | `semantic`, `Hit`, `Ranking` and the read path of memory |
@@ -37,15 +37,19 @@ the design, the card says so.
 ## Current direction
 
 Prefer ordinary functions, bare bindings and fundamental pipe syntax. SQL
-clauses and Rust-like trait machinery stay out of the design. A trait is a host
-mechanism an extension may use internally and it never reaches HQL's surface;
-what would be asked of it splits into ancestry (`:`), capability (an extension
-registers a function) and a partial schema over `Data` — see [[type-system]].
-Extensions supply external capabilities and may be written in Rust. That
-registration is now implemented: collection steps are the core's, `graph` and
-`format` are a prelude a vault may decline, and retrieval is imported where it
-is used — see [[hql/extensions]]. Module resolution is not, so optional
-namespace `init.hql` files remain design.
+clauses and Rust's trait machinery stay out of the design. HQL's own `trait` is
+a compile-time capability contract with an `impl` per type, written for what
+generic code and the operators quantify over and for nothing else; ancestry
+stays `:` and a shared shape stays a partial schema over `Data` — see
+[[type-system]] and [HQL-0024](../../proposals/HQL-0024/README.md). Records,
+unions of records, `Result<T, E>`, receiver calls `value.f()`, modules
+imported as `import a.b as c` from the standard library or a module root, and
+`module for T` receiver modules are implemented, with the
+[Mighty Types corpus](../../../examples/mighty-types/README.md) as their
+record. Extensions supply external capabilities and may be written in Rust:
+the standard modules `string`, `seq`, `math`, `option`, `result` and `regex`
+are HQL contracts the binary implements — see [[hql/extensions]] and
+[[hql/std-lib]].
 
 Generic types are written with angle brackets — `Set<Card>`, `fn first<T>(xs:
 Seq<T>) : T?` — and square brackets are sequence values and indexing,

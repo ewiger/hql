@@ -1,6 +1,6 @@
 # 0028 — Implementing HQL-0024: records, receivers, traits, modules and the standard library
 
-Status: doing
+Status: done
 Related: [HQL-0024](../proposals/HQL-0024/README.md), [type system](../wiki/hql/type-system.hmd),
 [naming](../wiki/hql/naming.hmd), [the Mighty Types corpus](../../examples/mighty-types/README.md)
 
@@ -63,6 +63,14 @@ day the binary checks and evaluates it.
 - A receiver call resolves, in order, a trait implementation for the receiver's
   type, a receiver module whose pattern matches it, and a core operation of that
   name taking it as input. Two candidates of one kind are an ambiguity.
+
+## Outcome
+
+All twenty-three programs of the corpus are `valid-now`; the suite, clippy and
+fmt pass. Left for later records: an `impl` of a generic trait written in HQL
+(the codec contracts), a workspace module's trait defaults inherited by an
+importer's `impl`, `target` folded into `sink`, binary formats, and HQL-0025
+for the execution context, reserved.
 
 ## Done when
 

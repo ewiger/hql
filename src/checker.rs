@@ -1,6 +1,8 @@
 //! Static checking: what a program's type is, before anything is evaluated.
 
-use crate::ast::{Arg, Arm, Expr, FnDecl, ImplDecl, Kind, Pattern, Program, Stmt, TraitDecl};
+use crate::ast::{
+    Arg, Arm, Expr, ExternalDecl, FnDecl, ImplDecl, Kind, Pattern, Program, Stmt, TraitDecl,
+};
 use crate::builtins;
 use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
@@ -60,6 +62,8 @@ pub(crate) fn check_with<'a>(
         receiver: None,
         pattern_variables: None,
         seen_body: false,
+        externals: HashMap::new(),
+        own_receivers: Vec::new(),
     }
     .program(program)
 }
@@ -117,6 +121,8 @@ pub(crate) fn check_collecting_with<'a>(
         receiver: None,
         pattern_variables: None,
         seen_body: false,
+        externals: HashMap::new(),
+        own_receivers: Vec::new(),
     };
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
@@ -404,6 +410,8 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 receiver: None,
                 pattern_variables: None,
                 seen_body: false,
+                externals: HashMap::new(),
+                own_receivers: Vec::new(),
             }
             .program(&program)
             .ok()?;
@@ -473,6 +481,11 @@ struct Checker<'a> {
     /// Whether a declaration or an expression has been seen, after which an
     /// import is out of place.
     seen_body: bool,
+    /// The external declarations of this unit: signatures an extension
+    /// implements, bound to nothing here.
+    externals: HashMap<String, TypeRef>,
+    /// This unit's own receiver functions, `fn f(self)` under `module for T`.
+    own_receivers: Vec<(String, TypeRef)>,
 }
 
 type ModuleCache = std::sync::Arc<
@@ -684,18 +697,26 @@ impl<'a> Checker<'a> {
                     TypeRef::UNIT
                 }
                 Stmt::ModuleFor { pattern, span } => {
-                    if !self.module_file {
-                        return Err(Diagnostic::syntax(
+                    // The receiver pattern of the declarations that follow. A
+                    // module file opens with it; the standard library's
+                    // modules, checked one after another, each open their own.
+                    // A pattern is concrete or structural, never a bare
+                    // variable: that would need coherence rules not written.
+                    if pattern.arguments.is_empty()
+                        && pattern.name.len() == 1
+                        && crate::types::builtin::constructor(&pattern.name).is_none()
+                    {
+                        return Err(Diagnostic::typing(
                             span.clone(),
-                            "`module for` opens a module file; a program has no receiver",
+                            format!(
+                                "`module for {}` matches every type; a receiver pattern is a \
+                                 type or a constructor over variables, `Seq<T>`",
+                                pattern.name
+                            ),
                         ));
                     }
-                    if self.seen_body || self.receiver.is_some() {
-                        return Err(Diagnostic::syntax(
-                            span.clone(),
-                            "`module for` is the first statement of a module file, written once",
-                        ));
-                    }
+                    self.pattern_variables = None;
+                    self.own_receivers.clear();
                     // A one-letter argument that names no type is a pattern
                     // variable, bound per call: `Seq<T>`.
                     let variables: Vec<(String, TypeRef)> = pattern
@@ -733,6 +754,17 @@ impl<'a> Checker<'a> {
                 }
                 Stmt::Fn(declaration) => {
                     self.declaring(&declaration.name, |checker| checker.function(declaration))?;
+                    if declaration.has_self
+                        && let Some(ty) = self.scope.get(&declaration.name).cloned()
+                    {
+                        self.own_receivers
+                            .retain(|(held, _)| *held != declaration.name);
+                        self.own_receivers.push((declaration.name.clone(), ty));
+                    }
+                    TypeRef::UNIT
+                }
+                Stmt::External(declaration) => {
+                    self.external(declaration)?;
                     TypeRef::UNIT
                 }
                 Stmt::Alias(alias) => {
@@ -1699,6 +1731,68 @@ impl<'a> Checker<'a> {
         ))
     }
 
+    /// `fn name(p: T) : R` without a body: the signature of a function an
+    /// extension implements. It is checked and recorded, and binds nothing:
+    /// the implementation is reached through the module's registry entry.
+    fn external(&mut self, declaration: &ExternalDecl) -> Result<(), Diagnostic> {
+        constructor_name(&declaration.name, &declaration.span)?;
+        self.lint(
+            crate::naming::Kind::Function,
+            &declaration.name,
+            &declaration.span,
+        );
+        let mut variables = Vec::new();
+        for name in &declaration.generics {
+            let bound = declaration
+                .bounds
+                .iter()
+                .find(|(bounded, _)| bounded == name)
+                .filter(|(_, bound)| !self.traits.contains_key(&bound.name))
+                .map(|(_, bound)| crate::declarations::annotation(bound))
+                .transpose()?;
+            if let Some(variable) = crate::types::builtin::type_variable(name, bound.as_ref()) {
+                variables.push((name.clone(), variable));
+            }
+        }
+        let _variables = crate::declarations::TypeVariables::enter(&variables);
+        let mut parameters = Vec::new();
+        if declaration.has_self {
+            let Some(receiver) = self.receiver.clone() else {
+                return Err(Diagnostic::typing(
+                    declaration.span.clone(),
+                    format!(
+                        "`{}` takes `self`, which only a receiver module declares: open the \
+                         module file with `module for T`",
+                        declaration.name
+                    ),
+                ));
+            };
+            parameters.push(receiver);
+        }
+        for parameter in &declaration.parameters {
+            self.lint(
+                crate::naming::Kind::Parameter,
+                &parameter.name,
+                &parameter.span,
+            );
+            let ty = crate::declarations::annotation(&parameter.annotation)?;
+            parameters.push(if parameter.variadic {
+                TypeRef::list(ty)
+            } else {
+                ty
+            });
+        }
+        let result = crate::declarations::annotation(&declaration.result)?;
+        let ty = TypeRef::function(parameters, result).ok_or_else(|| {
+            Diagnostic::typing(
+                declaration.span.clone(),
+                "a function takes at most eight parameters",
+            )
+        })?;
+        self.externals.insert(declaration.name.clone(), ty);
+        Ok(())
+    }
+
     /// `import a.b [as c]` of a workspace module: load it once, and bind its
     /// functions, traits and implementations under the local name.
     fn import_module(
@@ -1866,6 +1960,8 @@ impl<'a> Checker<'a> {
             receiver: None,
             pattern_variables: None,
             seen_body: false,
+            externals: HashMap::new(),
+            own_receivers: Vec::new(),
         };
         let checked = checker.program(&program);
         self.loading
@@ -1941,6 +2037,15 @@ impl<'a> Checker<'a> {
         span: &Range<usize>,
     ) -> Result<Option<(String, TypeRef)>, Diagnostic> {
         let mut found: Vec<(String, TypeRef)> = Vec::new();
+        if let Some(pattern) = &self.receiver {
+            let mut bound = HashMap::new();
+            instantiate(pattern, receiver, &mut bound);
+            if receiver.is(&substituted(pattern, &bound))
+                && let Some((own, ty)) = self.own_receivers.iter().find(|(held, _)| held == name)
+            {
+                found.push((own.clone(), ty.clone()));
+            }
+        }
         for (local, module) in &self.modules {
             let Some(pattern) = &module.receiver else {
                 continue;
@@ -2509,6 +2614,14 @@ impl<'a> Checker<'a> {
                         span,
                         format!(
                             "`{name}` needs a vault: run inside one or pass --vault <directory>"
+                        ),
+                    )
+                } else if let Some(ty) = self.externals.get(name) {
+                    Diagnostic::name(
+                        span,
+                        format!(
+                            "`{name}` is declared external here, `{name} : {ty}`, and only an \
+                             extension implements it"
                         ),
                     )
                 } else if builtins::exists(name) {

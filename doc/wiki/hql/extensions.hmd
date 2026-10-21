@@ -51,9 +51,13 @@ collection types and mention nothing above them. Retrieval and drawing are not
 the core's business — see [[lexical]], [[semantic]], [[hql/semantic-search]]
 and [[hql/presentation]].
 
-`import <extension>` binds an extension's steps, and `extension.step(…)` is
-always available for one that is imported. A name provided by two imported
-extensions fails at the import, naming both. A vault states its own imports in
+`import <module>` makes a module visible under its last segment or an `as`
+alias, `import io.net as net`, and `module.f(…)` is always available for one
+that is imported. A builtin module is the extension of that name; a workspace
+module is an HQL file under a module root, `hql.toml` `[modules] roots` or
+`--modules`. Two visible modules may declare one function name; the input's
+type tells them apart at the call, and a call that fits both is refused
+naming both ([HQL-0024](../../proposals/HQL-0024/README.md), parts 1 and 2). A vault states its own imports in
 `hql.toml`, and may decline the prelude. The rules are in
 [the grammar](../../models/behavior/expressions.md) and
 [the command line](../../models/behavior/cli.md); the decision is

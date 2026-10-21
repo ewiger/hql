@@ -70,7 +70,15 @@ convention:
 
 The value constructors of the core's sum types are spelled two ways today:
 `some`, `none`, `ok` and `err` in lowercase, `Less`, `Equal` and `Greater` in
-`PascalCase`. One convention for constructors is not yet stated.
+`PascalCase`. One convention for constructors is not yet stated. A record's
+constructor is its type's name, `Point(x = 1, y = 2)`.
+
+Three names are reserved by position, not by the lexer: `self`, the first
+parameter of a receiver function or a trait's function, which `value.f()`
+supplies; `Self`, the implementing type inside a `trait` or an `impl`; and a
+module's local name, the last segment of `import a.b` or its `as` alias, which
+qualifies the module's functions as `b.f(…)` and may not be a binding at the
+same time ([HQL-0024](../../proposals/HQL-0024/README.md)).
 
 ## Providers
 
@@ -104,15 +112,18 @@ declarations are not in the grammar.
 | Namespace | Holds | Resolved by |
 | --- | --- | --- |
 | Types | every type name, one lattice | the `std/` declarations and the binary's registry |
-| Steps | step names, per extension | `import`; `extension.step(…)` qualifies one |
+| Steps and functions | step and function names, per module | the prelude and `import`; `module.f(…)` qualifies one, and the receiver's type tells two modules declaring one name apart |
+| Modules | the local names of imported modules | `import a.b [as c]`, the prelude's modules, and the standard library's canonical names |
+| Traits | trait names, with their functions | the core's operator traits, the program's `trait` declarations, and the traits of imported modules |
 | Bindings | program bindings and host-seeded context values | lexical scope: a binding is visible after the statement that makes it |
 | Fields | declared fields, per type | the type of the value the `.` path is read from |
 | Documents | file stems in the vault | the HyperMarkDown resolver — see [[hypermarkdown]] |
 | Sources | ids in the run context's configuration | `source(id)`, at check time and offline (design direction) |
 
-Two imported extensions that provide the same step name fail at the import,
-naming both; the qualified form `extension.step(…)` is how a program reaches
-one of them. The host seeds context values into the binding namespace before a
+Two visible modules may declare one function name, `contains` of a String and
+of a collection: the receiver's type tells them apart at the call, a call that
+fits both is refused naming both, and the qualified form `module.f(…)` reaches
+one of them. Two imports may not share a local name; `as` renames one. The host seeds context values into the binding namespace before a
 program runs: `vault`, of type `Vault`, and `knowledge`. `cards` is the
 standard-library binding `cards = vault.cards` — see [[card-type]].
 

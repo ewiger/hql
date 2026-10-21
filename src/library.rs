@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// Every module of the standard library, by name, in loading order: the path
-/// below `std/` with folders joined by `.`, and a folder's `init.hql` named for
+/// below `std/` with folders joined by `.`, and a folder's `mod.hql` named for
 /// the folder.
 ///
 /// A module may refer only to what an earlier one declares.
@@ -21,12 +21,18 @@ pub const MODULES: &[(&str, &str)] = &[
     ("prelude", PRELUDE),
     ("core", include_str!("../std/core.hql")),
     ("collections", include_str!("../std/collections.hql")),
+    ("string", include_str!("../std/string.hql")),
+    ("seq", include_str!("../std/seq.hql")),
+    ("math", include_str!("../std/math.hql")),
+    ("option", include_str!("../std/option.hql")),
+    ("result", include_str!("../std/result.hql")),
+    ("regex", include_str!("../std/regex.hql")),
     ("doc", include_str!("../std/doc.hql")),
     ("graph", include_str!("../std/graph.hql")),
     ("knowledge", include_str!("../std/knowledge.hql")),
     ("retrieval", include_str!("../std/retrieval.hql")),
     ("format", include_str!("../std/format.hql")),
-    ("io", include_str!("../std/io/init.hql")),
+    ("io", include_str!("../std/io/mod.hql")),
     ("io.net", include_str!("../std/io/net.hql")),
     ("io.logging", include_str!("../std/io/logging.hql")),
     ("vault", include_str!("../std/vault.hql")),

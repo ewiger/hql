@@ -1,9 +1,9 @@
 //! Parse tokens into a program: statements, bindings, pipelines and calls.
 
 use crate::ast::{
-    ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, Field, FnDecl, ImplDecl,
-    Kind, Logic, MethodDecl, Param, Pattern, Program, Relation, Stmt, TEE_INPUT, TraitDecl,
-    TypeAnn, TypeDecl,
+    ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, ExternalDecl, Field,
+    FnDecl, ImplDecl, Kind, Logic, MethodDecl, Param, Pattern, Program, Relation, Stmt, TEE_INPUT,
+    TraitDecl, TypeAnn, TypeDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -245,7 +245,7 @@ impl Parser {
             && keyword == "fn"
             && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
         {
-            return Ok(Stmt::Fn(self.function()?));
+            return self.function();
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "trait"
@@ -845,8 +845,9 @@ impl Parser {
         })
     }
 
-    /// `fn name<T>(p: Type, xs: ...Type) : Result = body`.
-    fn function(&mut self) -> Result<FnDecl, Diagnostic> {
+    /// `fn name<T>(p: Type, xs: ...Type) : Result = body`, or without the
+    /// body an external declaration.
+    fn function(&mut self) -> Result<Stmt, Diagnostic> {
         let start = self.advance().span.start;
         let named = self.advance();
         let Token::Ident(name) = named.token else {
@@ -934,6 +935,23 @@ impl Parser {
         }
         self.expect(&Token::Colon, "before the result type")?;
         let result = self.type_annotation()?;
+        // A signature alone is an external declaration: the module's
+        // extension implements it.
+        if matches!(
+            self.tokens[self.index].token,
+            Token::Newline | Token::End | Token::CloseBrace
+        ) {
+            let span = start..result.span.end;
+            return Ok(Stmt::External(ExternalDecl {
+                name,
+                has_self,
+                generics,
+                bounds,
+                parameters,
+                result,
+                span,
+            }));
+        }
         let body = if matches!(self.peek(), Token::OpenBrace) {
             let open = self.peek_span().start;
             let statements = self.block()?;
@@ -948,7 +966,7 @@ impl Parser {
             self.expression()?
         };
         let span = start..body.span.end;
-        Ok(FnDecl {
+        Ok(Stmt::Fn(FnDecl {
             name,
             has_self,
             generics,
@@ -957,7 +975,7 @@ impl Parser {
             result,
             body,
             span,
-        })
+        }))
     }
 
     fn expression(&mut self) -> Result<Expr, Diagnostic> {

@@ -34,6 +34,9 @@ pub(crate) enum Stmt {
     Type(TypeDecl),
     /// `fn name(p: T, ..) : R = body`.
     Fn(FnDecl),
+    /// `fn name(p: T, ..) : R` with no body: an external declaration, which
+    /// the module's extension implements.
+    External(ExternalDecl),
     /// `name(p, ..) := body`: a function whose types the checker writes.
     Alias(AliasDecl),
     /// `trait Name { fn m(self, ..) : R [= body] .. }`: a capability contract.
@@ -91,6 +94,19 @@ pub(crate) struct FnDecl {
     pub parameters: Vec<Param>,
     pub result: TypeAnn,
     pub body: Expr,
+    pub span: Range<usize>,
+}
+
+/// A declared function without a body: its signature, implemented outside
+/// HQL by the extension providing the module.
+#[derive(Debug)]
+pub(crate) struct ExternalDecl {
+    pub name: String,
+    pub has_self: bool,
+    pub generics: Vec<String>,
+    pub bounds: Vec<(String, TypeAnn)>,
+    pub parameters: Vec<Param>,
+    pub result: TypeAnn,
     pub span: Range<usize>,
 }
 

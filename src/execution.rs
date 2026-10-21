@@ -421,6 +421,7 @@ impl Checked {
                     }
                     ast::Stmt::Import { .. }
                     | ast::Stmt::ModuleFor { .. }
+                    | ast::Stmt::External(_)
                     | ast::Stmt::Type(_)
                     | ast::Stmt::Trait(_) => Stmt::Unit,
                     ast::Stmt::Impl(declaration) => {
