@@ -415,6 +415,54 @@ fn a_tree_leaf_is_read_by_its_shape_as_the_scalar_it_holds() {
 }
 
 #[test]
+fn a_tree_is_read_as_a_declared_record_by_its_shape() {
+    let book = "type Book {\n    title: String\n    pages: Int\n    genre?: String\n}\n";
+    for (body, expected) in [
+        (
+            "d : Data = {title: \"Dune\", pages: 412}\nd | is(Book)",
+            "true",
+        ),
+        ("d : Data = {title: \"Dune\"}\nd | is(Book)", "false"),
+        (
+            "d : Data = {title: \"Dune\", pages: \"many\"}\nd | is(Book)",
+            "false",
+        ),
+        (
+            "d : Data = {title: \"Dune\", pages: 412, year: 1965}\nmatch d { Book b => b.pages + 1, _ => 0 }",
+            "413",
+        ),
+        (
+            "d : Data = {title: \"Dune\", pages: 412}\nmatch d { Book b => b.genre, _ => none }",
+            "none",
+        ),
+        (
+            "ds : List<Data> = [{title: \"Dune\", pages: 412}, {title: \"Emma\"}, 3]\nds | of_type(Book)",
+            "[Book(title = \"Dune\", pages = 412, genre = none)]",
+        ),
+        (
+            "ds : List<Data> = [{title: \"Dune\", pages: 412, genre: \"sf\"}]\n(ds | of_type(Book)) == [Book(title = \"Dune\", pages = 412, genre = \"sf\")]",
+            "true",
+        ),
+    ] {
+        let source = format!("{book}{body}");
+        assert_eq!(eval(&source).unwrap().to_string(), expected, "{source}");
+    }
+    let nested = "type Inner {n: Int}\ntype Outer {inner: Inner, tags: List<String>}\n\
+                  d : Data = {inner: {n: 2}, tags: [\"a\"]}\nmatch d { Outer o => o.inner.n, _ => 0 }";
+    assert_eq!(eval(nested).unwrap().to_string(), "2");
+    // A built-in record is established by its source, and a generic record
+    // has no single shape to test against.
+    for refused in [
+        "d : Data = {name: \"x\"}\nd | is(Card)",
+        "type Box<T> {v: T}\nd : Data = {v: 1}\nd | is(Box)",
+        "type Point {x: Int}\n3 | is(Point)",
+    ] {
+        let error = check(refused).unwrap_err().to_string();
+        assert!(error.contains("always false"), "{refused}: {error}");
+    }
+}
+
+#[test]
 fn a_type_arm_covers_its_subject_and_refuses_a_type_that_cannot_fit() {
     assert_eq!(
         hql::eval("match 3 { Int n => n * 2 }").unwrap().to_string(),

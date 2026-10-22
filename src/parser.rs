@@ -9,6 +9,9 @@ use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
 use std::ops::Range;
 
+/// Type parameter bounds, each by the parameter it constrains.
+type Bounds = Vec<(String, TypeAnn)>;
+
 // Bound the left-deep operator chains, including their traversal and destruction.
 const MAX_OPERATORS: usize = 255;
 // Bound recursion through parentheses, calls, data literals and lambdas.
@@ -713,7 +716,7 @@ impl Parser {
     /// `<T, E : Bound>` after a function, trait or `impl`: the type
     /// parameters and the bounds they are written with. Nothing when no `<`
     /// follows.
-    fn type_parameters(&mut self) -> Result<(Vec<String>, Vec<(String, TypeAnn)>), Diagnostic> {
+    fn type_parameters(&mut self) -> Result<(Vec<String>, Bounds), Diagnostic> {
         let mut generics = Vec::new();
         let mut bounds = Vec::new();
         if self.eat(&Token::Less) {

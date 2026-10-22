@@ -25,7 +25,7 @@ Each item names its card status and what, if anything, the draft changes.
 | How much refinement survives an extension, a cell or a host boundary | undecided | silent; the host boundary ([part 10](10-host-boundary.md)) fixes where the boundary is, not what crosses it |
 | May a subtype change a field's optionality? | undecided ([fields](../../../wiki/hql/fields.hmd)) | silent |
 | Constructor parameters `F<_>` in the checker | designed, unbuilt; `filter` keeps its container, `map` and `sort` return a `List` ([issue 0018](../../../issues/0018-operator-synonymy-audit.md)) | the receiver signatures of [part 4](04-receiver-modules.md) return the pattern's constructor, which this item has to reconcile |
-| Record values and the conversions that need them | designed: a record declares its shape, an incomplete literal fails at construction ([HQL-0018](../../HQL-0018/README.md)) | silent |
+| Record values and the conversions that need them | implemented: a record declares its shape, an incomplete literal fails at construction ([HQL-0018](../../HQL-0018/README.md)), and `is`, `of_type` and a type arm read a `Data` tree as a declared record by its shape ([HQL-0016](../../HQL-0016/README.md)) | silent |
 | `Result<T, E>` and `match` arms over it | designed beside `Option`, not declared ([`std/core.hql`](../../../../std/core.hql), [match](../../../wiki/hql/operators/match-op.hmd)) | silent |
 | Function types beyond four parameters | implemented up to four as `Fn0` to `Fn4` | silent |
 

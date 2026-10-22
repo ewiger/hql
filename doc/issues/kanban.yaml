@@ -46,13 +46,13 @@ board:
       - id: "0033"
         title: "Overloaded declarations: every standard operation declared in HQL"
         file: 0033-overloaded-declarations.md
-      - id: "0030"
-        title: "HQL is the only signature authority: operations take their types from the contract"
-        file: 0030-hql-only-signature-authority.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0030"
+        title: "HQL is the only signature authority: operations take their types from the contract"
+        file: 0030-hql-only-signature-authority.md
       - id: "0032"
         title: Traits take type parameters
         file: 0032-generic-traits.md

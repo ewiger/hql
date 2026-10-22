@@ -23,14 +23,14 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0013](HQL-0013/README.md) | drafted | Joins over named sides |
 | [HQL-0014](HQL-0014/README.md) | accepted | `reduce` as the aggregation primitive, and `merge` as a combiner |
 | [HQL-0015](HQL-0015/README.md) | implemented | `:=` is function alias syntax sugar |
-| [HQL-0016](HQL-0016/README.md) | accepted | Type tests, narrowing, widening and conversion |
+| [HQL-0016](HQL-0016/README.md) | implemented | Type tests, narrowing, widening and conversion |
 | [HQL-0017](HQL-0017/README.md) | accepted | Presentation formats |
 | [HQL-0018](HQL-0018/README.md) | accepted | A type's constructor is an operation |
 | [HQL-0019](HQL-0019/README.md) | accepted | Graph construction |
 | [HQL-0020](HQL-0020/README.md) | accepted | The vault and its namespace |
 | [HQL-0021](HQL-0021/README.md) | drafted | I/O: endpoints, channels, the network and logging |
 | HQL-0022 | reserved | The AI harness extension |
-| [HQL-0023](HQL-0023/README.md) | drafted | A document reference is written `@[[..]]` |
+| [HQL-0023](HQL-0023/README.md) | implemented | A document reference is written `@[[..]]` |
 | [HQL-0024](HQL-0024/README.md) | accepted, implemented in part | A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions |
 | [HQL-0025](HQL-0025/README.md) | drafted | Execution contexts and running modes: bare, HQL workspace and vault workspace, configuration layers, named contexts |
 | [HQL-0026](HQL-0026/README.md) | drafted | Positions and slices: `xs[i]`, `xs[a:b]` and the `Slice` capability |

@@ -193,7 +193,7 @@ process; with external extensions there is one per extension set.
 | an extension creates no declaration: every operation of a module an extension provides is declared | built for functions: binding refuses an undeclared or missing operation, by name |
 | one declaration behind every call form | the three forms resolve to one operation; the operation, not a declaration identity, is the resolved target |
 | explicit receivers | a declaration writes its receiver's type where the module's pattern does not describe it, `fn join(self: Collection<String>, …)`; binding still maps the first parameter of a declaration without `self` to the operation's single input |
-| HQL is the only signature authority | built for every operation whose declaration states its whole signature: such an operation is `Signature::Declared`, its Rust side a name, a summary and a body, and binding derives the checking signature from the declaration. An operation whose result keeps, reorders or folds its input (`reverse`, `distinct`, `take_while`, `drop_while`, `with`, `without`, `intersection`, `difference`, `abs`, `pow`), takes an ordering argument (`min_by`, `max_by`) or a value of any type (`fmt`), or belongs to a module without a contract keeps a native signature, and binding compares it with the declaration in full wherever the declaration states one |
+| HQL is the only signature authority | built for every operation whose declaration states its whole signature: such an operation is `Signature::Declared`, its Rust side a name, a summary and a body, and binding derives the checking signature from the declaration. A result that keeps, reorders or folds its input (`reverse`, `distinct`, `take_while`, `drop_while`, `with`, `without`, `intersection`, `difference`, `abs`, `pow`, `sign`) and an ordering argument (`min_by`, `max_by`) are stated by overloaded declarations. `fmt`, which takes a value of any type in each variadic position, and an operation of a module without a contract keep a native signature, and binding compares it with the declaration in full wherever the declaration states one |
 | native trait implementations declared in HQL | built: `std/core.hql` declares `impl Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` for the built-in types they hold for; binding refuses a header without a native body and a native body without a header; a bound `T : Eq` accepts `Int` through the header, and dispatch reaches the native body |
 | coherence and ownership | built: one implementation per trait and type across the standard library, imported modules and the program, the error naming both; an implementation belongs with its trait or its type; a program writes no bodyless header |
 | a module claim is total | built, by name |
@@ -210,11 +210,13 @@ In order:
    module, declaration, type and trait identities, then bind extension
    implementations to them. Lower all three call forms to one declaration
    identity.
-2. **HQL as the only signature authority.** Done for the declarations that
-   state a whole signature. What remains needs the contract language to state
-   a result computed from the input's type (a kept or reordered sequence, a
-   fold), an ordering argument and a value of any type; each operation moves
-   to its declaration as that becomes expressible.
+2. **HQL as the only signature authority.** Done for every operation of the
+   `string`, `math`, `regex`, `option`, `result` and `seq` contracts but
+   `fmt`: overloaded declarations state the kept, reordered and folded
+   results and the ordering arguments. `fmt` keeps a native signature until
+   a variadic parameter takes a value of any type in each position; the core,
+   `format` and the modules without a contract follow as issue
+   [0033](../../../issues/0033-overloaded-declarations.md) declares them.
 3. **Explicit receivers.** Bind a declaration with a receiver to a receiver
    input and one without to positional arguments; pipeline lowering stays in
    the checker.

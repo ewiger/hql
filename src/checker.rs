@@ -561,6 +561,12 @@ struct Checker<'a> {
     own_receivers: Vec<(String, TypeRef)>,
 }
 
+/// Type variables in scope, each by the name it is written as.
+type Variables = Vec<(String, TypeRef)>;
+
+/// A declared type parameter: the variable, and the type its arguments meet.
+type Parameter = (TypeRef, Option<TypeRef>);
+
 type ModuleCache = std::sync::Arc<
     std::sync::Mutex<HashMap<String, std::sync::Arc<crate::modules::WorkspaceModule>>>,
 >;
@@ -686,7 +692,7 @@ pub(crate) fn native_impls() -> Vec<ImplInfo> {
 
 /// An implementation's type parameters: the names its types are written
 /// over, and each as the type variable it stands for.
-fn impl_variables(generics: &[String]) -> Option<(Vec<&'static str>, Vec<(String, TypeRef)>)> {
+fn impl_variables(generics: &[String]) -> Option<(Vec<&'static str>, Variables)> {
     let variables = generics
         .iter()
         .map(|name| {
@@ -2407,7 +2413,7 @@ impl<'a> Checker<'a> {
         generics: &[String],
         bounds: &[(String, crate::ast::TypeAnn)],
         span: &Range<usize>,
-    ) -> Result<(Vec<(TypeRef, Option<TypeRef>)>, Vec<(String, TypeRef)>), Diagnostic> {
+    ) -> Result<(Vec<Parameter>, Variables), Diagnostic> {
         let mut parameters = Vec::new();
         let mut variables: Vec<(String, TypeRef)> = Vec::new();
         for name in generics {
@@ -4207,7 +4213,7 @@ fn pattern_bindings(
         Pattern::Type(name, inner) => {
             let wanted =
                 crate::types::named(name, &[]).ok_or_else(|| format!("unknown type `{name}`"))?;
-            if !wanted.is(subject) && !subject.is(&wanted) {
+            if !crate::types::program::may_be(subject, &wanted) {
                 return Err(format!(
                     "no {subject} can be a {wanted}, so this arm never fits"
                 ));

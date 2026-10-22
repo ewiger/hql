@@ -43,6 +43,7 @@ not check yet, and the day it does the header is promoted to `valid-now`.
 | [stats module](queries/23-stats-module.hql) | A module written in HQL that imports `math` for itself | `[5.0, 4.0, 2.0, 4.5]` |
 | [files](queries/24-files.hql) | `source(file, Lines)` reads records, `target(file, Lines)` writes another file whole | `3`, and `data/shout.txt` |
 | [append](queries/25-append.hql) | `sink(file(p).end, Lines)` appends one record per value | `()`, and three lines more in `data/journal.txt` |
+| [reading records](queries/26-reading-records.hql) | A `Data` tree read as a declared record by `match`, `is` and `of_type` | two strings |
 
 ## The files under `data/`
 

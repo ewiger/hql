@@ -10,6 +10,14 @@ The language continues to be in active development.
 
 ### Added
 
+- A `Data` tree is read as a record the program declares, by its shape
+  ([HQL-0016](doc/proposals/HQL-0016/README.md), shown in
+  [reading records](examples/mighty-types/queries/26-reading-records.hql)):
+  `d | is(Book)`, `of_type(Book)` and a `Book b` arm of `match` take a map
+  with an entry for every required field at its type, ignore the entries
+  `Book` does not name, and bind or keep the `Book` its constructor builds.
+  A built-in record, a card kind among them, is not read from a tree.
+
 - Generic traits ([HQL-0027](doc/proposals/HQL-0027/README.md), shown in the
   [generic traits corpus](examples/generic-traits/README.md)): a trait takes
   type parameters, `trait Index<T>`, an implementation its own,

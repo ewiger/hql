@@ -1,6 +1,6 @@
 # 0030 — HQL is the only signature authority: operations take their types from the contract
 
-Status: doing
+Status: done
 Related: [HQL-0024 part 12](../proposals/HQL-0024/parts/12-contracts-and-binding.md),
 [extensions](../wiki/hql/extensions.hmd), [the standard library](../../std/README.md)
 
@@ -44,10 +44,15 @@ generic bound or a result's type argument can differ, and the Rust one wins.
   `any`, `all`, `is_empty`, `join`, `min_by`, `max_by`, `to_map`
   (`self: Collection<T>`), `take_while` (`self: Iterable<T>`) and `sign`
   (a numeric check over `N`, as `abs` and `pow` have).
-- Declared: every `option`, `result` and `regex` function, every `math`
-  function but `abs` and `pow`, every `string` function but `fmt`, and the `seq` functions with a typed result.
-- Native, compared: `fmt` (any value), `min_by` and `max_by` (an ordering
-  argument), and the `seq` and `math` functions whose result keeps, reorders
-  or folds the input.
+- Declared: every `option`, `result`, `regex`, `math` and `seq` function,
+  and every `string` function but `fmt`. Overloaded declarations (issue
+  [0033](0033-overloaded-declarations.md)) state the kept, reordered and
+  folded results and the ordering arguments.
+- Native, compared: `fmt`. Its contract `fmt(self, args: ...Data)` admits a
+  `Data` value per argument and `fmt<T>(self, args: ...T)` one type for all
+  of them; `fmt` takes a value of any type in each position, which no
+  parameter form states. `fmt` keeps a native signature until a variadic
+  parameter over any type exists, a scope item of issue
+  [0033](0033-overloaded-declarations.md).
 - Optionality is part of the comparison: `range` declares `step: Int = 1`,
   the one argument a declared operation may omit.

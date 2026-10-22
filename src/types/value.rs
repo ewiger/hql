@@ -8,6 +8,7 @@ use crate::data::Data;
 use crate::document::{Card, Document, Kind};
 use crate::graph::{Edge, Graph};
 use crate::search::{Hit, Ranking};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 /// A result of evaluating an HQL expression.
@@ -322,9 +323,40 @@ impl Value {
                 let list = Self::list(read, element);
                 return list.type_of().is(wanted).then_some(list);
             }
-            Data::Map(_) | Data::Empty => return None,
+            Data::Map(entries) => return Self::record_from(entries, wanted),
+            Data::Empty => return None,
         };
         read.type_of().is(wanted).then_some(read)
+    }
+
+    /// A tree read as a declared record: each field's entry read at the
+    /// field's type, an optional field without an entry absent, and any
+    /// other entry ignored, since a record names the paths it knows.
+    fn record_from(entries: &BTreeMap<String, Data>, wanted: &TypeRef) -> Option<Self> {
+        let shape = super::program::tree_shape(wanted)?;
+        let mut fields = Vec::with_capacity(shape.fields.len());
+        for field in &shape.fields {
+            let entry = entries
+                .get(&field.name)
+                .filter(|entry| !matches!(entry, Data::Empty));
+            let value = match (entry, field.optional) {
+                (Some(entry), optional) => {
+                    let read = Self::Data(Arc::new(entry.clone())).interpreted(&field.ty)?;
+                    if optional {
+                        Self::Present(Arc::new(read))
+                    } else {
+                        read
+                    }
+                }
+                (None, true) => Self::Absent(field.ty.clone()),
+                (None, false) => return None,
+            };
+            fields.push((field.name.clone(), value));
+        }
+        Some(Self::Record(Arc::new(Record {
+            ty: wanted.clone(),
+            fields,
+        })))
     }
 
     /// Whether the value counts as true where a condition is expected.

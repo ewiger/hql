@@ -900,7 +900,7 @@ fn check_of_type(
 ) -> Result<(), Diagnostic> {
     let element = &call.bindings["T"];
     let wanted = &call.bindings["U"];
-    if !wanted.is(element) && !element.is(wanted) {
+    if !crate::types::program::may_be(element, wanted) {
         return Err(Diagnostic::typing(
             span,
             format!("no {element} can be a {wanted}, so this is always false"),

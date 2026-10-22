@@ -177,6 +177,27 @@ pub fn record(name: &str) -> Option<RecordShape> {
     crate::library::shape(name)
 }
 
+/// The shape a `Data` tree is tested against when a program asks whether it
+/// is a `wanted`: a record the program declared, without type parameters.
+/// A built-in record, a card kind among them, is established by its source
+/// and never read from a tree.
+#[must_use]
+pub fn tree_shape(wanted: &TypeRef) -> Option<RecordShape> {
+    let lattice = current().ok()?;
+    let shape = lattice.records.get(wanted.constructor.0)?;
+    (wanted.args.is_empty() && shape.parameters.is_empty()).then(|| shape.clone())
+}
+
+/// Whether a value of `subject` can be a `wanted`: one is a subtype of the
+/// other, or `subject` is `Data` and `wanted` a record a tree is tested
+/// against by its shape.
+#[must_use]
+pub fn may_be(subject: &TypeRef, wanted: &TypeRef) -> bool {
+    wanted.is(subject)
+        || subject.is(wanted)
+        || (*subject == TypeRef::DATA && tree_shape(wanted).is_some())
+}
+
 /// Whether a name is a type of the built-in lattice, declared by the binary
 /// rather than by a program.
 #[must_use]

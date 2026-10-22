@@ -26,6 +26,9 @@ in Rust or in the checker, and the limits of overload selection.
   a declaration rather than by `Checker::step`.
 - `collect(for = …)`, a reserved argument, is refused by its declaration
   rather than by `collections::reserved`.
+- A variadic parameter takes a value of any type in each position, so that
+  `fmt` is declared: `fmt("{}", some(1))` is refused by `...Data`, and
+  `...T` binds one type for every argument.
 - An argument may be declared positional only, as `count(value)`,
   `contains(value)`, `get(key)` and `pow(exponent)` were.
 - Overload selection reads argument types where the input and arity do not
@@ -40,7 +43,7 @@ in Rust or in the checker, and the limits of overload selection.
 
 ## Done when
 
-- No core, `seq`, `math` or `format` operation has a type written in Rust,
+- No core, `seq`, `math`, `string` or `format` operation has a type written in Rust,
   and `Checker::step` names no operation.
 - `Output` holds only `Type` and `Computed`.
 - Each item above has a test.
