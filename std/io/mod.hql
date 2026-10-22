@@ -95,9 +95,11 @@ abstract type StreamSource<T> : {DataSource, Stream<Message<T>>}
 // topics.
 abstract type Catalog<S> : DataSource
 
-// Documents read as cards, keyed by card name. What the documents sit on, a
-// filesystem, a git revision, an HTTP server, is the concrete type's.
-abstract type VaultSource : KeyedSource<String, Card>
+// A vault: an endpoint that holds its cards, as a catalog holds tables,
+// with its members as fields rather than names. It is not a Seq<Card>
+// itself; its cards are. What the documents sit on, a filesystem, a git
+// revision, an HTTP server, is the concrete type's. See HQL-0020.
+abstract type VaultSource : DataSource
 
 // A configured source, by its id: `source("field_notes")`. The run
 // context's configuration, `[sources.<id>]` in hql.toml, states its kind,

@@ -189,3 +189,10 @@ cargo clippy --locked --all-targets -- -D warnings
   `graph = vault.graph` and a missing vault naming `--vault` are implemented,
   and keyed `vault.cards`, the `knowledge` binding and other vaults as sources
   are not yet
+- 2026-10-22: other vaults are read as sources of kind `vault`,
+  `source("field_notes")` a `Vault` with its own `cards`, `graph`, `name` and
+  `root`, its cards never merged into `cards`
+  ([HQL-0012](../HQL-0012/README.md), [issue 0040](../../issues/0040-configured-data-sources.md));
+  `std/io/mod.hql` declares `VaultSource : DataSource`. `Vault` does not yet
+  narrow `VaultSource`, and keyed `vault.cards` and `knowledge` are not
+  built

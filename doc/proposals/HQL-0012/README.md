@@ -304,9 +304,10 @@ abstract type LiveSource<T> : {DataSource, Stream<Message<T>>}
 // An endpoint that contains sources: a database of tables, a cluster of topics.
 abstract type Catalog<S> : DataSource
 
-// Documents read as cards, keyed by card name. What the documents sit on — a
-// filesystem, a git revision, an HTTP server — is the concrete type's.
-abstract type VaultSource : KeyedSource<String, Card>
+// A vault: its cards, knowledge and graph as fields (HQL-0020). What the
+// documents sit on — a filesystem, a git revision, an HTTP server — is the
+// concrete type's.
+abstract type VaultSource : DataSource
 
 // One element of a stream, with where and when it sits in it.
 type Message<T> {
@@ -325,7 +326,7 @@ type Position : Orderable
   consumer demands, as for any lazy `Seq` or `Stream` in the
   [queries model](../../models/behavior/queries.md).
 - A concrete source type MUST narrow exactly one of `FiniteSource`,
-  `StreamSource`, `LiveSource` or `Catalog`. The contract fixes what the
+  `StreamSource`, `LiveSource`, `Catalog` or `VaultSource`. The contract fixes what the
   source's contents are, so it is not optional.
 - `VaultSource` is the one domain contract the core declares, because `cards`
   is defined over it (the section "The default source and the `cards` anchor"). It is abstract, so it has no runtime
@@ -726,8 +727,9 @@ None.
   `json_lines`, `yaml` and `sqlite` (one table, ordered by `order`, else by
   `rowid`) are implemented; `element` types a file or table's elements, and
   `[execution] max_elements` and `max_bytes` bound a source. `std/io/mod.hql`
-  declares `KeyedSource`, `StreamSource`, `Catalog`, `VaultSource`,
-  `Message` and `Position`. A file or table is typed `Seq<T>` rather than a
+  declares `KeyedSource`, `StreamSource`, `Catalog`, `Message` and
+  `Position`, and `VaultSource` as [HQL-0020](../HQL-0020/README.md) states
+  it, a `DataSource` and not a `Seq<Card>`. A file or table is typed `Seq<T>` rather than a
   concrete source type, `Vault` does not narrow `VaultSource`, and
   `tap("id")`, `member`, `get` over a keyed source, the stream, live and
   network kinds and native queries are not built
