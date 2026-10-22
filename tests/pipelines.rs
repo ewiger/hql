@@ -247,6 +247,147 @@ fn each_aggregation_equals_its_longhand() {
 }
 
 #[test]
+fn each_aggregation_whose_state_differs_equals_its_longhand() {
+    // variance: Welford's count, mean and squared deviations, then their
+    // quotient; the host computes the same operations, so the two agree
+    // exactly.
+    let moments = "type Moments {\n  count : Int\n  mean : Float\n  m2 : Float\n}\n";
+    let variance = |input: &str| {
+        format!(
+            "{moments}xs : List<Float> = {input}\n\
+             s = xs | reduce(initial = Moments(count = 0, mean = 0.0, m2 = 0.0), \
+             by = (s, x) => Moments(count = s.count + 1, \
+             mean = s.mean + (x - s.mean) / float(s.count + 1), \
+             m2 = s.m2 + (x - s.mean) * (x - (s.mean + (x - s.mean) / float(s.count + 1)))))\n\
+             (xs | variance) == (none given s.count == 0 otherwise some(s.m2 / float(s.count)))"
+        )
+    };
+    for input in ["[2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.5]", "[3.0]", "[]"] {
+        holds(&variance(input));
+    }
+    holds("([1, 2, 3, 4] | variance) == some(1.25)");
+    holds("([] | List<Int> | variance) == none");
+
+    // count_by: a count per key.
+    for input in ["[3, 1, 3, 2, 5]", "List<Int>([])"] {
+        holds(&format!(
+            "xs = {input}\nf = (x: Int) => x % 2\n\
+             (xs | count_by(f)) == (xs | reduce(initial = Map<Int, Int>([], []), \
+             by = (m, x) => m | with(f(x), (m | get(f(x)) | unwrap_or(0)) + 1)))"
+        ));
+    }
+
+    // histogram: count_by the bucket's lower bound, in key order.
+    for input in ["[3, 15, 17, -2, 29, 10, -10, -11]", "List<Int>([])"] {
+        holds(&format!(
+            "xs = {input}\nwidth = 10\n\
+             (xs | histogram(width)) == (xs | reduce(initial = SortedMap<Int, Int>([], []), \
+             by = (m, x) => m | with(x - (x % width + width) % width, \
+             (m | get(x - (x % width + width) % width) | unwrap_or(0)) + 1)))"
+        ));
+    }
+    holds(
+        "xs = [0.5, 1.5, -0.25, 2.0]\n\
+         (xs | histogram(1.0)) == (xs | reduce(initial = SortedMap<Float, Int>([], []), \
+         by = (m, x) => m | with(floor(x / 1.0) * 1.0, \
+         (m | get(floor(x / 1.0) * 1.0) | unwrap_or(0)) + 1)))",
+    );
+
+    // top_k: the k greatest, equal keys in input order.
+    for (input, k) in [("[4, 9, 2, 9, 1]", 3), ("[4, 9]", 5), ("List<Int>([])", 2)] {
+        holds(&format!(
+            "xs = {input}\n(xs | top_k({k})) == (xs | reduce(initial = List<Int>([]), \
+             by = (top, x) => concat(top, [x]) | sort(by = (a, b) => compare(b, a)) | take({k})))"
+        ));
+    }
+    holds(
+        r#"xs = ["bb", "a", "ccc", "dd", "ee"]
+(xs | top_k(3, by = w => w.length())) == (xs | reduce(initial = List<String>([]), by = (top, x) => concat(top, [x]) | sort(by = (a, b) => compare(b.length(), a.length())) | take(3)))"#,
+    );
+}
+
+#[test]
+fn a_top_k_split_into_partitions_gives_the_sequential_result() {
+    for split in 0..=6 {
+        holds(&format!(
+            "xs = [5, 3, 9, 3, 7, 1]\n\
+             (xs | top_k(3)) == (concat(xs[0:{split}] | top_k(3), xs[{split}:] | top_k(3)) | top_k(3))"
+        ));
+        holds(&format!(
+            r#"xs = ["bb", "a", "ccc", "dd", "ee", "f"]
+(xs | top_k(3, by = w => w.length())) == (concat(xs[0:{split}] | top_k(3, by = w => w.length()), xs[{split}:] | top_k(3, by = w => w.length())) | top_k(3, by = w => w.length()))"#
+        ));
+    }
+}
+
+#[test]
+fn approx_distinct_is_deterministic_and_close() {
+    for source in [
+        "[1, 2, 2, 3, 3, 3] | approx_distinct",
+        "{3, 1, 2} | approx_distinct",
+        r#"concat(["owl", "raven", "owl"], ["robin"]) | approx_distinct"#,
+    ] {
+        assert_eq!(eval(source).unwrap(), hql::types::Value::Int(3), "{source}");
+    }
+    assert_eq!(
+        eval("List<Int>([]) | approx_distinct").unwrap(),
+        hql::types::Value::Int(0)
+    );
+    // Order, repeats and the collection kind do not change the estimate.
+    holds(
+        "xs = range(0, 3000) | map(n => n % 1000)\n\
+         (xs | approx_distinct) == (xs | reverse | approx_distinct) \
+         and (xs | approx_distinct) == (Set(xs) | approx_distinct)",
+    );
+    let hql::types::Value::Int(estimate) = eval("range(0, 1000) | approx_distinct").unwrap() else {
+        panic!("an Int");
+    };
+    assert!((950..=1050).contains(&estimate), "{estimate}");
+}
+
+#[test]
+fn a_histogram_needs_a_positive_width_and_a_count_cannot_be_negative() {
+    for source in ["[1, 2] | histogram(0)", "[1.0] | histogram(-1.0)"] {
+        let refused = eval(source).unwrap_err();
+        assert!(
+            refused.message().contains("positive width"),
+            "{source}: {refused}"
+        );
+    }
+    let refused = eval("[1, 2] | top_k(-1)").unwrap_err();
+    assert!(refused.message().contains("negative"), "{refused}");
+    // A histogram over Ints is keyed by Int, over Floats by Float.
+    assert_eq!(
+        check("[1, 2] | histogram(10)").unwrap().to_string(),
+        "SortedMap<Int, Int>"
+    );
+    assert_eq!(
+        check(r#"["a"] | count_by(w => w.length())"#)
+            .unwrap()
+            .to_string(),
+        "Map<Int, Int>"
+    );
+}
+
+#[test]
+fn the_aggregations_whose_state_differs_are_reductions() {
+    for (source, step) in [
+        ("[1, 2] | average", "average"),
+        ("[1, 2] | variance", "variance"),
+        ("[1, 2] | count_by(x => x)", "count_by"),
+        ("[1, 2] | histogram(10)", "histogram"),
+        ("[1, 2] | top_k(1)", "top_k"),
+        ("[1, 2] | approx_distinct", "approx_distinct"),
+    ] {
+        assert_eq!(
+            shapes(source),
+            vec![(step.to_owned(), Shape::Reduction)],
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn an_order_sensitive_fold_refuses_a_set_and_says_to_sort_first() {
     for source in [
         "Set([[1], [2]]) | reduce(List<Int>([]), concat)",

@@ -15,6 +15,8 @@ target/debug/hql --vault examples/mapreduce/wiki run examples/mapreduce/queries/
 target/debug/hql --vault examples/mapreduce/wiki run examples/mapreduce/queries/shelf.hql
 target/debug/hql --vault examples/mapreduce/wiki run examples/mapreduce/queries/by-genre.hql
 target/debug/hql run examples/mapreduce/queries/word-count.hql
+target/debug/hql --vault examples/mapreduce/wiki run examples/mapreduce/queries/genre-counts.hql
+target/debug/hql run examples/mapreduce/queries/page-histogram.hql
 target/debug/hql --vault examples/mapreduce/wiki render examples/mapreduce/wiki/library.hmd
 ```
 
@@ -31,6 +33,11 @@ result.
 | [metadata pages](queries/metadata-pages.hql) | A metadata leaf read as an `Int` with `of_type`, then summed | runs | 1589 |
 | [tee summary](queries/tee-summary.hql) | `tee` binds side counts while the main line counts the novels | runs | 3 novels, 6 books, 2 short |
 | [merge layers](queries/merge-layers.hql) | `merge` as a combiner: layers of metadata folded in order, a later layer winning | runs | shelf fiction, 14 loan days |
+| [genre counts](queries/genre-counts.hql) | `count_by` as one reduction, the answer of by genre without `group` | runs | essay 2, novel 3, poetry 1 |
+| [page histogram](queries/page-histogram.hql) | `histogram(width)`: counts per bucket, in key order | runs | 0: 1, 100: 1, 200: 1, 300: 2, 400: 1 |
+| [longest books](queries/longest-books.hql) | `top_k(k, by)`: the k greatest by a key, greatest first | runs | Dune, The Common Reader, The Hobbit |
+| [page variance](queries/page-variance.hql) | `variance`: a state of count, mean and squared deviations, then a quotient | runs | 10738.8… |
+| [distinct genres](queries/distinct-genres.hql) | `approx_distinct`: a deterministic HyperLogLog estimate | runs | 3 |
 | [reserved operation](queries/invalid-reserved-operation.hql) | The operation types, one per shape, are reserved names | refused | a type error |
 
 Every `|` is a boundary the executor sees, and every step has a shape, which
@@ -51,6 +58,11 @@ backend has to match.
 - `sum`, `min` and `max` are the shorthands `reduce(0, +)`, `reduce(min)` and
   `reduce(max)`. They accept any collection, since their combiners do not
   depend on order.
+- `average`, `variance`, `count_by`, `histogram`, `top_k` and `approx_distinct`
+  carry a state of another type than their element and project it at the
+  end; each state combines by a combiner the host holds, so each is a
+  reduction. `std/collections.hql` writes each one's longhand fold beside its
+  signature.
 - The `List` constructor materializes a `Seq<T>` into a `List<T>`, as
   `List(xs)`. No query here needs it, because nothing in the implemented slice
   is lazy.

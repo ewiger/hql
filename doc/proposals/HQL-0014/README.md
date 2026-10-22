@@ -1,6 +1,6 @@
 # HQL-0014: `reduce` as the aggregation primitive, and `merge` as a combiner
 
-- **Status**: implemented in part
+- **Status**: implemented
 - **Created**: 2026-10-18
 - **Source**: [MapReduce: pipeline steps, stages and execution backends](../HQL-0004/README.md)
 
@@ -349,3 +349,18 @@ None.
   `:=` declarations in `std/`, and `variance`, `histogram`, `top_k`,
   `count_by` and `approx_distinct` are not built
   ([issue 0012](../../issues/0012-mapreduce-backends.md))
+- 2026-10-22: implemented; `variance`, `count_by`, `histogram(width)`,
+  `top_k(k)`, `top_k(k, by)` and `approx_distinct` are host steps of shape
+  `Reduction`, each with a state combiner that equals its sequential fold, and
+  `std/collections.hql` writes each one's longhand fold beside its signature,
+  with `average`'s. `variance` is the population variance, absent over an
+  empty input; `histogram` keys each bucket by its lower bound in a
+  `SortedMap`; `top_k` is greatest first, equal keys in input order;
+  `approx_distinct` is HyperLogLog over 4096 registers and an unseeded
+  SHA-256 digest of each value. The named aggregations stay host steps rather
+  than `:=` or bodied declarations in `std/`: a declaration with a body is not
+  external, and only an external declaration carries the `reduction` shape,
+  so moving one would make it a `Barrier`; a `:=` longhand's literal also
+  fixes one element type, `reduce(0, +)` summing `Int` alone, where `sum`
+  and `product` take `Int` and `Float`. `approx_distinct`'s longhand is not
+  writable in HQL, which exposes no hash

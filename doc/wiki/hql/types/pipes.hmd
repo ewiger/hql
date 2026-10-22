@@ -132,7 +132,7 @@ whole of what a backend may assume about splitting it:
 | --- | --- | --- |
 | elementwise | each element's result depends on that element alone; any split runs separately and is recombined in input order | `filter`, `map`, `of_type`, `somes`, `emit`, `flat_map` |
 | partition | the input is regrouped by a key; groups complete in any order | `group` |
-| reduction | the input collapses to one value through a combiner the executor holds | `size`, `count`, `contains`, `sum`, `product`, `average`, `min`, `max`, `merge_all`, `union_all`, `concat_all`, and `seq`'s `any`, `all`, `is_empty` |
+| reduction | the input collapses to one value through a combiner the executor holds | `size`, `count`, `contains`, `sum`, `product`, `average`, `variance`, `count_by`, `histogram`, `top_k`, `approx_distinct`, `min`, `max`, `merge_all`, `union_all`, `concat_all`, and `seq`'s `any`, `all`, `is_empty` |
 | barrier | the whole input is needed first; nothing is split | every other step: `sort`, `take`, `drop`, `get`, `collect`, `reduce`, presentation and retrieval |
 
 The declaration states it before `fn`, as `effectful` states purity:
@@ -142,7 +142,13 @@ for every step. A `reduce` whose `by` names a combiner directly,
 `reduce(0, +)`, is a reduction, because the host states that combiner's laws
 ([HQL-0014](../../../proposals/HQL-0014/README.md)); with a lambda it stays a
 barrier, since nothing is known about the lambda. The combiners and their laws
-are listed by `hql builtins` too.
+are listed by `hql builtins` too. An aggregation whose state is not its
+element — `average`, `variance`, `count_by`, `histogram`, `top_k`,
+`approx_distinct` — is a reduction because its state combines by a combiner
+the host holds, and its answer is a projection of that state; its longhand
+fold is written beside its signature in `std/collections.hql`.
+`approx_distinct` is approximate and deterministic: an unseeded SHA-256
+digest feeds a HyperLogLog sketch whose registers combine by `max`.
 
 A checked program runs on a **backend**. `localhost` is the in-memory
 evaluator, one step after another with no fusion, partitioning or parallelism,
