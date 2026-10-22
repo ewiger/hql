@@ -3,9 +3,12 @@
 //! A standard module's `.hql` file is the only place a function's types are
 //! written. Binding reads each external declaration once and turns it into
 //! the structural signature the checker consumes: generic parameters and
-//! their bounds, the input (the receiver of a `module for T`, or the first
-//! parameter of a module without one), the arguments in order, a function
-//! type as a lambda and `...T` as a variadic argument, and the result.
+//! their bounds, the input, the arguments in order, a function type as a
+//! lambda and `...T` as a variadic argument, and the result. The input is the
+//! receiver of a declaration that takes `self`, typed by the module's pattern
+//! or written; for a declaration without `self` it is the first argument,
+//! which is how a call and a pipeline step lower, and binding records that
+//! the declaration has no receiver, so `value.f()` does not reach it.
 
 use super::spec::{
     ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,

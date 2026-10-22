@@ -75,8 +75,9 @@ fn parse(text: String) : Result<Int, String> = match text.to_int() {
 
 ## Receiver calls
 
-`value.f(args)` calls `f` with the value as its first argument, resolved by
-the value's type among the modules in scope. The prelude's modules, `string`,
+`value.f(args)` calls a function declared with a receiver, `self`, with the
+value as that receiver, resolved by the value's type among the modules in
+scope. The prelude's modules, `string`,
 `seq`, `math`, `option` and `result`, need no import, so text, sequences and
 options have their functions at hand. `c.title` without parentheses is still
 a field read.
@@ -92,7 +93,9 @@ a field read.
 `string.trim(s)` is the same call written with its module, and `s | trim` the
 same declaration as a pipeline step. Two modules may declare one name:
 `"abc".contains("b")` is the string's and `[1, 2].contains(2)` the
-collection's, told apart by the receiver.
+collection's, told apart by the receiver. A function declared without
+`self` takes no receiver: `range(1, 3)` and `1 | range(3)` call it, and
+`1.range(3)` is refused.
 
 ## Traits and operators
 

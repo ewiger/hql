@@ -38,17 +38,17 @@ type Logger {
 }
 
 // Construction, and the five operations, provided by the `logging` extension.
-// Construction is Pure; each operation is Effectful, returns Unit, and writes
-// one event when its level is at least the logger's threshold.
-// Logger(to: Writable, format: Type<F>, name: String, level: Type<L> = Info) : Logger
-// Logger(to: Channel<LogEvent>, name: String, level: Type<L> = Info) : Logger
-//
-// Called directly or through a pipe: info(log, "loaded") is log | info("loaded").
-// trace(log: Logger, message: String, data: Data = {}) : Unit
-// debug(log: Logger, message: String, data: Data = {}) : Unit
-// info(log: Logger, message: String, data: Data = {}) : Unit
-// warn(log: Logger, message: String, data: Data = {}) : Unit
-// error(log: Logger, message: String, data: Data = {}) : Unit
+// Construction is pure; each operation is effectful, returns Unit, and writes
+// one event when its level is at least the logger's threshold. The format
+// is omitted for a Channel<LogEvent>, which takes the events as values, and
+// the level is Info unless written. Called directly or through a pipe:
+// info(log, "loaded") is log | info("loaded").
+fn Logger<F : Format, L : LogLevel>(to: Writable, format: Type<F>, *, name: String, level: Type<L> = Info) : Logger
+effectful fn trace(log: Logger, message: String, data: Data = {}) : Unit
+effectful fn debug(log: Logger, message: String, data: Data = {}) : Unit
+effectful fn info(log: Logger, message: String, data: Data = {}) : Unit
+effectful fn warn(log: Logger, message: String, data: Data = {}) : Unit
+effectful fn error(log: Logger, message: String, data: Data = {}) : Unit
 
 // The cell `hql render` is running, bound as `cell` as `vault` is. Its logs
 // are shown beside the cell's result and never saved into the document.

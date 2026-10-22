@@ -262,6 +262,26 @@ impl Parser {
         {
             return self.function();
         }
+        // `effectful fn f(…) : T`: an external declaration whose evaluation
+        // reads or changes something outside its result.
+        if let Token::Ident(keyword) = self.peek().clone()
+            && keyword == "effectful"
+            && matches!(&self.tokens[self.index + 1].token, Token::Ident(word) if word == "fn")
+        {
+            let marker = self.advance().span;
+            return match self.function()? {
+                Stmt::External(mut declaration) => {
+                    declaration.effectful = true;
+                    declaration.span.start = marker.start;
+                    Ok(Stmt::External(declaration))
+                }
+                _ => Err(Diagnostic::syntax(
+                    marker,
+                    "`effectful` belongs to an external declaration; a function with a body \
+                     is effectful exactly when its body uses an effectful operation",
+                )),
+            };
+        }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "trait"
             && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
@@ -1071,6 +1091,7 @@ impl Parser {
             let span = start..result.span.end;
             return Ok(Stmt::External(ExternalDecl {
                 name,
+                effectful: false,
                 has_self,
                 receiver,
                 generics,

@@ -13,9 +13,10 @@ language requirements.
 ## The registry
 
 A registry of extensions is implemented; a module loader is not. An extension
-declares a name, a version and its steps, and each step supplies a structural
-`StepSpec`, its evaluator, and whether it is pure — so a
-capability is added without editing the core's checker or evaluator. Extensions
+declares a name, a version and its steps, and each step supplies its
+evaluator, its own marking of whether it is pure, and, where no declaration
+states one, a structural `StepSpec` — so a capability is added without
+editing the core's checker or evaluator. Extensions
 are compiled into the binary and registered in one table. There is no dynamic
 loading and no plugin ABI: registration says what exists, and it is a host
 mechanism that never reaches HQL's surface.
@@ -48,8 +49,9 @@ native bodies. The model and its stages are
 | --- | --- | --- |
 | the module, `std/string.hql` is `string` | the descriptor's `provides: &["string"]` | the canonical module name; the claim is total: every external declaration of the module is implemented, and nothing else is |
 | an external declaration, `fn trim(self) : String` | an operation named `trim`: `declared("trim", summary, eval_trim)` | the name |
-| one name declared more than once, `fn take<S : Seq<T>, T>(xs: S, n: Int) : S` then `fn take<T>(xs: Stream<T>, n: Int) : List<T>` | one operation, whose one implementation serves every overload | the name; a call takes the first overload its input and arguments fit |
-| the receiver, `self`, typed by the module's pattern or written, `self: Collection<T>` | the operation's input | binding derives it from the declaration |
+| one name declared more than once, `fn take<S : Seq<T>, T>(self: S, n: Int) : S` then `fn take<T>(self: Stream<T>, n: Int) : List<T>` | one operation, whose one implementation serves every overload | the name; a call takes the first overload its input and arguments fit |
+| the receiver, `self`, typed by the module's pattern or written, `self: Collection<T>`, `self: Int` | the operation's input | binding derives it from the declaration; `value.f()` reaches only a declaration with `self`, and every form of one name has a receiver or none does |
+| the purity, `fn` pure and `effectful fn source(…)` effectful | the operation's own marking, `Purity::Effectful` | binding refuses a marking that differs; checking reads the declaration |
 | the generic parameters and their bounds, a parameter bound by a shape, `S : Seq<T>`, which is the input at its own type, and a constructor parameter, `F<_> : Iterable<_>` or `M<_, _> : Map<_, _>`, which `F<U>` rebuilds around other arguments; the parameters in order, a function type as a lambda, `T -> Is<U>` as a predicate testing its parameter's type, `...T` as a variadic argument of one type, `...Any` as one of any type in each position, `step: Int = 1` as one that may be omitted, the parameters before `/` as supplied by position only and those after `*` by name only | the operation's arguments | binding derives them from the declaration |
 | the result type | the operation's output | binding derives it from the declaration |
 | a native implementation, `impl Ord for Int`, `impl<T> Index<T> for Seq<T>` | a body for the trait's functions over the type's values | the trait and the type; a header needs a body and a body needs a header |
@@ -76,12 +78,12 @@ one of the name always takes first:
 
 ```hql
 // std/collections.hql
-fn sort<F<_> : Seq<_>, T : Orderable>(xs: F<T>) : F<T>
-fn sort<T : Orderable>(xs: Collection<T>) : List<T>
-fn sort<F<_> : Seq<_>, T, K : Orderable>(xs: F<T>, by: T -> K) : F<T>
-fn sort<T, K : Orderable>(xs: Collection<T>, by: T -> K) : List<T>
-fn sort<F<_> : Seq<_>, T>(xs: F<T>, by: (T, T) -> Ordering) : F<T>
-fn sort<T>(xs: Collection<T>, by: (T, T) -> Ordering) : List<T>
+fn sort<F<_> : Seq<_>, T : Orderable>(self: F<T>) : F<T>
+fn sort<T : Orderable>(self: Collection<T>) : List<T>
+fn sort<F<_> : Seq<_>, T, K : Orderable>(self: F<T>, by: T -> K) : F<T>
+fn sort<T, K : Orderable>(self: Collection<T>, by: T -> K) : List<T>
+fn sort<F<_> : Seq<_>, T>(self: F<T>, by: (T, T) -> Ordering) : F<T>
+fn sort<T>(self: Collection<T>, by: (T, T) -> Ordering) : List<T>
 ```
 
 `[3, 1] | sort` is a `List<Int>`, `{3, 1} | sort` a `List<Int>`, and a
@@ -99,7 +101,7 @@ so both belong to an external declaration:
 
 ```hql
 // std/collections.hql, std/format.hql
-fn count<T>(xs: Collection<T>, value: T, /) : Int
+fn count<T>(self: Collection<T>, value: T, /) : Int
 fn format<T, F : Format>(x: T, as: Type<F>, *, limit: Int = 0, renderer: String = "") : String
 ```
 
@@ -111,8 +113,8 @@ narrowing `filter` is a declaration of its own, written before the general
 one:
 
 ```hql
-fn filter<F<_> : Iterable<_>, T, U>(xs: F<T>, by: T -> Is<U>) : F<U>
-fn filter<S : Iterable<T>, T>(xs: S, by: T -> Bool) : S
+fn filter<F<_> : Iterable<_>, T, U>(self: F<T>, by: T -> Is<U>) : F<U>
+fn filter<S : Iterable<T>, T>(self: S, by: T -> Bool) : S
 ```
 
 A method call, a qualified call and a pipeline step reach the same
@@ -126,10 +128,14 @@ fn pad_left(self, width: Int, fill: String) : String
 ```
 
 `"x".pad_left(3, "0")`, `string.pad_left("x", 3, "0")` and
-`"x" | pad_left(3, "0")` resolve `string.pad_left`, then run the `string`
-extension's operation of that name. `text | parse` lowering to `parse(text)`
-is a property of the pipeline syntax, not of the module: a declaration without
-`self` has no receiver.
+`"x" | pad_left(3, "0")` resolve the declaration `string.pad_left`, then run
+the `string` extension's operation bound to it; the checked program carries
+the declaration's identity. `text | parse` lowering to `parse(text)` is a
+property of the pipeline syntax, not of the module: a declaration without
+`self` has no receiver, so `range(1, 3)` and `1 | range(3)` reach
+`fn range(start: Int, …)` and `1.range(3)` is refused. Loading `std/`
+allocates an identity for each module and each external declaration, and
+binding maps each declaration identity to the operation implementing it.
 
 A trait the language owns, and the built-in types' implementations of it, are
 declarations of `std/core.hql`:
@@ -160,13 +166,13 @@ provides; a program writes the functions in braces.
 
 Four parts of the model are not yet built. An operation whose result is
 computed from the call carries a native signature beside its declaration,
-compared rather than replaced, and binding maps a declaration without `self`
-by its first parameter to the operation's single input.
-Purity is marked on the Rust operation rather than declared in HQL. A type an
-extension represents uses one of the binary's closed `Value` forms, `File` a
-`Value::Endpoint`, rather than a native value carrying the declared type's
-identity. Every extension is compiled in, so binding is per process rather
-than per runtime environment.
+compared rather than replaced. Identities are allocated for modules and
+external declarations only: types, traits and implementations are matched by
+name, and a call finds its operation by name among the visible modules. A
+type an extension represents uses one of the binary's closed `Value` forms,
+`File` a `Value::Endpoint`, rather than a native value carrying the declared
+type's identity. Every extension is compiled in, so binding is per process
+rather than per runtime environment.
 
 Steps split by the layering core → graph → knowledge:
 
@@ -198,9 +204,13 @@ naming both ([HQL-0024](../../proposals/HQL-0024/README.md), parts 1 and 2). A v
 [the command line](../../models/behavior/cli.md); the decision is
 [HQL-0001](../../proposals/HQL-0001/README.md).
 
-An extension declares each step `Pure` or `Effectful`, because [[pipes]]
-reserves execution freedom that is only safe over pure steps. Every step
-registered today is pure. [HQL-0004](../../proposals/HQL-0004/README.md) adds a
+A declaration states whether its operation is pure, `fn`, or effectful,
+`effectful fn`, because [[pipes]] reserves execution freedom that is only
+safe over pure steps; the extension's own marking is checked against it.
+`io`'s `source`, `tap`, `target` and `sink` and `logging`'s five levels are
+effectful, and every other step is pure. An operation of a module without a
+contract, `graph`, `net`, `lexical` or `semantic`, has no declaration, and
+its extension's marking stands. [HQL-0004](../../proposals/HQL-0004/README.md) adds a
 shape beside purity — elementwise, partition, reduction or barrier — and the
 backend a checked program runs on. The map/reduce vocabulary and the backend
 contract are one Rust module, `mapreduce`; its steps are the core's, and the

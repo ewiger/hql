@@ -15,10 +15,11 @@ use crate::execution::{Arg as TypedArg, Expr as TypedExpr};
 use crate::types::TypeRef;
 use crate::types::Value;
 use crate::vault::Vault;
-use std::collections::HashMap;
+
 use std::ops::Range;
 use std::path::Path;
 
+pub(crate) mod binding;
 pub(crate) mod collections;
 pub(crate) mod contract;
 pub mod format;
@@ -145,7 +146,9 @@ pub struct Operation {
     pub(crate) spec: Signature,
     /// One sentence about what it does.
     pub(crate) summary: &'static str,
-    /// Whether the executor may move it.
+    /// The extension's own marking of whether the executor may move it:
+    /// binding checks it against the declaration, which is what
+    /// [`Operation::purity`] reads.
     pub(crate) purity: Purity,
     /// What it does to a type.
     pub(crate) check: Option<Check>,
@@ -167,26 +170,6 @@ pub(crate) enum Signature {
     Native(OperationSpec),
 }
 
-/// The signatures binding derives for declared operations, by the address of
-/// the operation, which lives in a static table: one per declaration, in the
-/// order written, an overloaded name having several.
-fn declared_specs() -> &'static HashMap<usize, Vec<OperationSpec>> {
-    static SPECS: std::sync::OnceLock<HashMap<usize, Vec<OperationSpec>>> =
-        std::sync::OnceLock::new();
-    SPECS.get_or_init(|| {
-        let mut specs: HashMap<usize, Vec<OperationSpec>> = HashMap::new();
-        for (_, _, step, declared) in declared_signatures().unwrap_or_default() {
-            if let Ok(declared) = declared {
-                specs
-                    .entry(std::ptr::from_ref(step) as usize)
-                    .or_default()
-                    .push(declared);
-            }
-        }
-        specs
-    })
-}
-
 /// What a declared operation checks against when its declaration states no
 /// signature, which binding refuses before any program runs.
 const UNBOUND: OperationSpec = OperationSpec {
@@ -196,8 +179,9 @@ const UNBOUND: OperationSpec = OperationSpec {
     output: spec::Output::Type(spec::TypePattern::Any),
 };
 
-/// A pure operation whose signature is its declaration in a standard
-/// module: a name, a summary and what it does to a value.
+/// An operation whose signature and purity are its declaration's in a
+/// standard module: a name, a summary and what it does to a value, marked
+/// pure, which binding checks against the declaration.
 pub(crate) const fn declared(name: &'static str, summary: &'static str, eval: Eval) -> Operation {
     Operation {
         name,
@@ -283,10 +267,39 @@ impl Operation {
     pub(crate) fn specs(&self) -> &[OperationSpec] {
         match &self.spec {
             Signature::Native(spec) => std::slice::from_ref(spec),
-            Signature::Declared => declared_specs()
-                .get(&(std::ptr::from_ref(self) as usize))
-                .map_or(std::slice::from_ref(&UNBOUND), Vec::as_slice),
+            Signature::Declared => binding::Environment::get()
+                .ok()
+                .map(|environment| environment.signatures(self))
+                .filter(|specs| !specs.is_empty())
+                .unwrap_or(std::slice::from_ref(&UNBOUND)),
         }
+    }
+
+    /// Whether the executor may move it: what its declaration states, `fn`
+    /// pure and `effectful fn` effectful. An operation of a module without a
+    /// contract has no declaration, and its extension's marking stands.
+    pub(crate) fn purity(&self) -> Purity {
+        let Ok(environment) = binding::Environment::get() else {
+            return self.purity;
+        };
+        match environment.of(self).first() {
+            Some(id) => environment.declaration(*id).purity,
+            None => self.purity,
+        }
+    }
+
+    /// Whether a receiver call, `value.f()`, reaches the operation: its
+    /// declarations take `self`. A declaration without `self` is reached by
+    /// a call or a pipeline step only, and an operation without a
+    /// declaration has no receiver.
+    pub(crate) fn has_receiver(&self) -> bool {
+        let Ok(environment) = binding::Environment::get() else {
+            return false;
+        };
+        environment
+            .of(self)
+            .iter()
+            .any(|id| environment.declaration(*id).receiver)
     }
 
     /// Whether the step receives an optional input as it is, absence
@@ -609,13 +622,15 @@ pub(crate) fn builtin_module(path: &str) -> Option<&'static Extension> {
 
 /// Bind the standard library's contracts to the extensions implementing them.
 ///
-/// HQL declares, an extension implements: for every module of `std/` written
-/// as external declarations, the extension whose descriptor provides the
-/// module must implement each declaration and nothing more, with the arity
-/// the declaration states and the result type it names. The check runs once
-/// per process; a mismatch is a defect of the binary, and refuses every
-/// program with a message naming the module, the declaration and the
-/// extension.
+/// HQL declares, an extension implements: loading the modules of `std/`
+/// allocates module and declaration identities, and for every module written
+/// as external declarations the extension whose descriptor provides the
+/// module must implement each declaration and nothing more. A declaration's
+/// signature, its receiver and its purity are the declaration's; the
+/// extension's own marking of purity, and a native signature where one is
+/// written, are checked against it. The check runs once per process; a
+/// mismatch is a defect of the binary, and refuses every program with a
+/// message naming the module, the declaration and the extension.
 ///
 /// # Errors
 ///
@@ -740,106 +755,87 @@ fn bind_codecs(headers: &[crate::library::NativeHeader]) -> Result<(), String> {
     Ok(())
 }
 
-/// Each external declaration of a standard module, with the extension
-/// operation that implements it and the signature the declaration states.
-type Declared = Vec<(
-    &'static str,
-    &'static Extension,
-    &'static Operation,
-    Result<OperationSpec, String>,
-)>;
-
-fn declared_signatures() -> Result<Declared, String> {
-    let mut found = Vec::new();
-    for (module, source) in crate::library::MODULES {
-        let program = crate::parser::parse(source)
-            .map_err(|error| format!("std/{module}: {}", error.message()))?;
-        let receiver = program
-            .statements
-            .iter()
-            .find_map(|statement| match statement {
-                crate::ast::Stmt::ModuleFor { pattern, .. } => Some(pattern),
-                _ => None,
-            });
-        for statement in &program.statements {
-            let crate::ast::Stmt::External(declaration) = statement else {
-                continue;
-            };
-            let Some(provider) = REGISTERED
-                .iter()
-                .find(|extension| extension.provides.contains(module))
-            else {
-                continue;
-            };
-            let Some(step) = provider.step(&declaration.name) else {
-                continue;
-            };
-            found.push((
-                *module,
-                *provider,
-                step,
-                contract::derive(declaration, receiver),
-            ));
-        }
-    }
-    Ok(found)
-}
-
 fn bind_contracts() -> Result<(), String> {
-    use crate::library::contracts;
     bind_native_impls()?;
     crate::constructors::bind()?;
-    let contracts = contracts()?;
-    for (module, declared) in &contracts {
-        let provider = REGISTERED
-            .iter()
-            .find(|extension| extension.provides.contains(module))
-            .ok_or_else(|| {
-                format!(
-                    "module `{module}` has no implementation: its contract declares \
-                     externally, and no extension provides `{module}`"
-                )
-            })?;
-        if let Some(declaration) = declared
-            .iter()
-            .find(|declaration| provider.step(&declaration.name).is_none())
-        {
+    let environment = binding::Environment::get()?;
+    // A module claim is total: every external declaration of a module has a
+    // provider, and the provider implements it.
+    for (id, declaration) in environment.declarations() {
+        let module = environment.module(declaration.module);
+        let Some(provider) = module.provider else {
             return Err(format!(
-                "`{module}.{}` is declared, and the extension `{}` implements no such function",
-                declaration.name, provider.name
+                "module `{}` has no implementation: its contract declares externally, and no \
+                 extension provides `{}`",
+                module.name, module.name
+            ));
+        };
+        if declaration.operation.is_none() {
+            return Err(format!(
+                "`{}` is declared, and the extension `{}` implements no such function",
+                environment.qualified(id),
+                provider.name
             ));
         }
     }
     // The declaration is the signature: a declared operation takes it, and a
     // native one states the same types wherever the declaration states one.
-    let derived = declared_signatures()?;
-    for (module, provider, step, declared) in &derived {
-        let declared = declared.as_ref().map_err(|why| {
+    let bound = |declaration: &binding::Declaration| {
+        declaration
+            .operation
+            .zip(environment.module(declaration.module).provider)
+    };
+    for (id, declaration) in environment.declarations() {
+        let Some((step, provider)) = bound(declaration) else {
+            continue;
+        };
+        let declared = declaration.signature.as_ref().map_err(|why| {
             format!(
-                "`{module}.{}` states no signature an operation can take: {why}",
-                step.name
+                "`{}` states no signature an operation can take: {why}",
+                environment.qualified(id)
             )
         })?;
+        let overloads = environment.of(step);
+        // A receiver call reaches every form of a name or none: whether
+        // `value.f()` is a call is a property of the name.
+        if let Some(other) = overloads
+            .iter()
+            .find(|other| environment.declaration(**other).receiver != declaration.receiver)
+        {
+            return Err(format!(
+                "`{}` is declared with `self` in one form and without it in another, at `{}`: \
+                 a name's forms all take a receiver or none does",
+                environment.qualified(id),
+                environment.declaration(*other).name
+            ));
+        }
+        // Purity is the declaration's; the extension's marking is checked
+        // against it, and every form of a name states one purity.
+        if declaration.purity != step.purity {
+            return Err(format!(
+                "`{}` is declared {}, and the extension `{}` marks it {}",
+                environment.qualified(id),
+                declaration.purity.label(),
+                provider.name,
+                step.purity.label()
+            ));
+        }
         if let Signature::Native(native) = &step.spec {
             // One native signature cannot hold to several declarations.
-            let overloads = derived
-                .iter()
-                .filter(|(_, _, held, _)| std::ptr::eq(*held, *step))
-                .count();
-            if overloads > 1 {
+            if overloads.len() > 1 {
                 return Err(format!(
-                    "`{module}.{}` is declared {overloads} times, and the extension `{}` \
-                     writes one signature for it: an overloaded operation takes its \
-                     signatures from its declarations",
-                    step.name, provider.name
+                    "`{}` is declared {} times, and the extension `{}` writes one signature \
+                     for it: an overloaded operation takes its signatures from its declarations",
+                    environment.qualified(id),
+                    overloads.len(),
+                    provider.name
                 ));
             }
             let found = contract::departures(native, declared);
             if !found.is_empty() {
                 return Err(format!(
-                    "`{module}.{}` is declared with other types than the extension `{}` \
-                     implements: {}",
-                    step.name,
+                    "`{}` is declared with other types than the extension `{}` implements: {}",
+                    environment.qualified(id),
                     provider.name,
                     found.join("; ")
                 ));
@@ -848,17 +844,27 @@ fn bind_contracts() -> Result<(), String> {
     }
     // An overload declared after one that takes every call it fits is never
     // taken.
-    for (index, (module, _, step, later)) in derived.iter().enumerate() {
-        let Ok(later) = later else { continue };
-        if let Some(earlier) = derived[..index]
+    for (_, declaration) in environment.declarations() {
+        let Some(step) = declaration.operation else {
+            continue;
+        };
+        let Ok(later) = &declaration.signature else {
+            continue;
+        };
+        let ids = environment.of(step);
+        let position = ids
             .iter()
-            .filter(|(_, _, held, _)| std::ptr::eq(*held, *step))
-            .filter_map(|(_, _, _, earlier)| earlier.as_ref().ok())
+            .position(|id| std::ptr::eq(environment.declaration(*id), declaration))
+            .unwrap_or(0);
+        if let Some(earlier) = ids[..position]
+            .iter()
+            .filter_map(|id| environment.declaration(*id).signature.as_ref().ok())
             .find(|earlier| contract::shadows(earlier, later))
         {
             return Err(format!(
-                "`{module}.{}` declares `{}` after `{}`, which takes every call it fits, \
-                 so it is never taken: declare the more specific form first",
+                "`{}.{}` declares `{}` after `{}`, which takes every call it fits, so it is \
+                 never taken: declare the more specific form first",
+                environment.module(declaration.module).name,
                 step.name,
                 later.signature(step.name),
                 earlier.signature(step.name)
@@ -867,10 +873,7 @@ fn bind_contracts() -> Result<(), String> {
     }
     for extension in REGISTERED {
         for step in extension.steps {
-            let bound = derived
-                .iter()
-                .any(|(_, _, held, _)| std::ptr::eq(*held, step));
-            if matches!(step.spec, Signature::Declared) && !bound {
+            if matches!(step.spec, Signature::Declared) && environment.of(step).is_empty() {
                 return Err(format!(
                     "the extension `{}` takes the signature of `{}` from its declaration, and \
                      no contract under std/ declares it",
@@ -879,20 +882,23 @@ fn bind_contracts() -> Result<(), String> {
             }
         }
     }
-    // An extension provides nothing a contract does not declare.
+    // An extension provides nothing a contract does not declare: an
+    // extension whose modules declare anything implements only what they
+    // declare.
     for extension in REGISTERED {
-        let declared: Vec<&str> = contracts
-            .iter()
-            .filter(|(module, _)| extension.provides.contains(module))
-            .flat_map(|(_, declared)| declared.iter().map(|declaration| declaration.name.as_str()))
-            .collect();
-        if declared.is_empty() {
+        let claimed = environment.declarations().any(|(_, declaration)| {
+            environment
+                .module(declaration.module)
+                .provider
+                .is_some_and(|provider| std::ptr::eq(provider, *extension))
+        });
+        if !claimed {
             continue;
         }
         if let Some(step) = extension
             .steps
             .iter()
-            .find(|step| !declared.contains(&step.name))
+            .find(|step| environment.of(step).is_empty())
         {
             return Err(format!(
                 "the extension `{}` implements `{}`, which no contract under std/ declares",
@@ -1040,9 +1046,50 @@ impl Resolution {
         positional: usize,
         span: &Range<usize>,
     ) -> Result<&'static Operation, Diagnostic> {
+        self.step_among(name, input, positional, span, false)
+    }
+
+    /// The step a receiver call, `value.f()`, resolves to: as
+    /// [`Resolution::step_for`], among the visible operations whose
+    /// declarations take `self`. A name declared only without `self` is
+    /// reached by a call or a pipeline step, and the refusal says so.
+    pub(crate) fn receiver_step_for(
+        &self,
+        name: &str,
+        input: &TypeRef,
+        positional: usize,
+        span: &Range<usize>,
+    ) -> Result<&'static Operation, Diagnostic> {
+        let visible = self
+            .imported
+            .iter()
+            .filter_map(|held| held.extension.step(name))
+            .collect::<Vec<_>>();
+        if !visible.is_empty() && !visible.iter().any(|step| step.has_receiver()) {
+            return Err(Diagnostic::name(
+                span.clone(),
+                format!(
+                    "`{name}` takes no receiver: its declaration has no `self`, so \
+                     `value.{name}(…)` does not reach it; write `{name}(value, …)` or \
+                     `value | {name}(…)`"
+                ),
+            ));
+        }
+        self.step_among(name, input, positional, span, true)
+    }
+
+    fn step_among(
+        &self,
+        name: &str,
+        input: &TypeRef,
+        positional: usize,
+        span: &Range<usize>,
+        receivers: bool,
+    ) -> Result<&'static Operation, Diagnostic> {
         let mut candidates: Vec<(&'static Extension, &'static Operation)> = Vec::new();
         for held in &self.imported {
             if let Some(step) = held.extension.step(name)
+                && (!receivers || step.has_receiver())
                 && !candidates
                     .iter()
                     .any(|(extension, _)| extension.name == held.extension.name)
@@ -1244,7 +1291,7 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
                     spec: step.spec(),
                     specs: step.specs(),
                     summary: step.summary,
-                    purity: step.purity,
+                    purity: step.purity(),
                 })
                 .collect(),
         })
@@ -1460,8 +1507,14 @@ mod tests {
     fn the_standard_contracts_bind_to_their_extensions() {
         assert_eq!(bind(), Ok(()));
         // Every declared operation takes a signature its declaration states.
-        for (module, _, step, declared) in declared_signatures().unwrap() {
-            assert!(declared.is_ok(), "{module}.{}: {declared:?}", step.name);
+        let environment = binding::Environment::get().unwrap();
+        for (id, declaration) in environment.declarations() {
+            assert!(
+                declaration.signature.is_ok(),
+                "{}: {:?}",
+                environment.qualified(id),
+                declaration.signature
+            );
         }
         // Every module declared externally has a provider, and the provider's
         // name is how `hql builtins` lists it.

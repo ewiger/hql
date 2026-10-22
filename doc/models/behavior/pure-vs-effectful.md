@@ -1,7 +1,10 @@
 # Pure and effectful operations
 
-Status: **declared, partly enforced.** Every registered step declares its
-purity, and a test pins which steps are effectful. The rules come from
+Status: **declared, partly enforced.** A standard module's declaration
+states its operation's purity, `fn` pure and `effectful fn` effectful, and
+binding refuses an extension whose own marking differs; an operation of a
+module without a contract keeps its extension's marking. A test pins which
+steps are effectful. The rules come from
 [HQL-0001](../../proposals/HQL-0001/README.md) (the declaration),
 [HQL-0004](../../proposals/HQL-0004/README.md) (what a backend may do with it)
 and [HQL-0021](../../proposals/HQL-0021/README.md) (the first effectful steps).
@@ -83,5 +86,5 @@ Embedded evaluation in cards starts pure; any effect there needs an explicit
 host policy ([program values](program-values.md)).
 
 See [pipes](../../wiki/hql/types/pipes.hmd) for the execution freedom purity
-protects, and [extensions](../../wiki/hql/extensions.hmd) for where a step
-declares it.
+protects, and [extensions](../../wiki/hql/extensions.hmd) for where a declaration
+states it.

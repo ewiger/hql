@@ -1,6 +1,6 @@
 # HQL-0024: A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions
 
-- **Status**: accepted, implemented in part (see [issue 0028](../../issues/0028-complete-type-system-implementation.md))
+- **Status**: accepted, implemented in part (see [issue 0028](../../issues/0028-complete-type-system-implementation.md) and, for part 12, [issue 0036](../../issues/0036-contracts-receivers-purity-identities.md))
 - **Created**: 2026-10-21
 - **Source**: [design draft 1](draft/design-draft-1.md),
   [notes on the implementation half of a module](parts/01a-modules.md), the
@@ -161,3 +161,7 @@ keeps its recorded types and diagnostics.
   `seq`, `math` and `format`: positional and named-only arguments, overload
   selection by argument types, shadowed overloads refused, `...Any` and the
   narrowing `filter` declared, as issue 0033 records
+- 2026-10-22: part 12's explicit receivers, purity declared in HQL with
+  `effectful fn`, and module and declaration identities allocated while
+  loading, the call forms carrying the declaration identity, as
+  issue 0036 records

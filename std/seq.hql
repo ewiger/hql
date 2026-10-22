@@ -38,11 +38,11 @@ fn to_map<K, V>(self: Collection<T>, key: T -> K, value: T -> V) : Map<K, V>
 fn range(start: Int, end: Int, step: Int = 1) : List<Int>
 
 // Over a map, which keeps its own type.
-fn with<M : Map<K, V>, K, V>(m: M, key: K, value: V) : M
-fn without<M : Map<K, V>, K, V>(m: M, key: K) : M
-fn entries<K, V>(m: Map<K, V>) : List<Pair<K, V>>
-fn values<K, V>(m: Map<K, V>) : List<V>
+fn with<M : Map<K, V>, K, V>(self: M, key: K, value: V) : M
+fn without<M : Map<K, V>, K, V>(self: M, key: K) : M
+fn entries<K, V>(self: Map<K, V>) : List<Pair<K, V>>
+fn values<K, V>(self: Map<K, V>) : List<V>
 
 // Over a set; `union` is a combiner of the core.
-fn intersection<S : Set<T>, T>(s: S, other: Set<T>) : S
-fn difference<S : Set<T>, T>(s: S, other: Set<T>) : S
+fn intersection<S : Set<T>, T>(self: S, other: Set<T>) : S
+fn difference<S : Set<T>, T>(self: S, other: Set<T>) : S

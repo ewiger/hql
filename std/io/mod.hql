@@ -62,7 +62,6 @@ fn Channel<T>(name: String) : Channel<T>
 // stdin  : Stdin
 // stdout : Stdout
 // stderr : Stderr
-// file(path: String) : File
 
 // What a program reads: a configured source by id, or an endpoint read in a
 // format. Its contract fixes what its contents are.
@@ -77,6 +76,16 @@ abstract type LiveSource<T> : {DataSource, Stream<T>}
 // What a program writes to: an endpoint written in a format, and later a
 // configured target by id, such as a table.
 abstract type DataTarget
+
+// The operations the `io` extension implements. Constructing an endpoint is
+// pure; reading and writing one is effectful: it runs once, where it is
+// written. `source` is a Seq read from a Replayable endpoint and a Stream
+// read from a live one, and T is the type the format decodes to.
+fn file(path: String) : File
+effectful fn source<F : Format, T>(endpoint: Readable, format: Type<F>) : Iterable<T>
+effectful fn tap<F : Format, T>(endpoint: Readable, format: Type<F>) : Stream<T>
+effectful fn target<T, F : Format>(value: T, endpoint: Writable, format: Type<F>) : Unit
+effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Unit
 
 // Reading, provided by the `io` extension. The format may be omitted only
 // when the endpoint is `file` of a literal path whose extension implies one.

@@ -528,7 +528,7 @@ fn every_external_declaration_has_an_implementation_and_every_implementation_a_d
         checked += 1;
     }
     assert!(
-        checked >= 6,
+        checked >= 10,
         "only {checked} modules are declared externally"
     );
 }

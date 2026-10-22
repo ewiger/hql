@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 35 # to be incremented when adding a new issue card
+  last_id: 36 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -47,6 +47,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0036"
+        title: "Contracts and binding: explicit receivers, declared purity, identities"
+        file: 0036-contracts-receivers-purity-identities.md
       - id: "0035"
         title: "Positions and slices: `xs[a:b]`, negative positions and `Slice`"
         file: 0035-positions-and-slices.md

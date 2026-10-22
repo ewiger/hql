@@ -146,6 +146,15 @@ pub(crate) enum Kind {
         /// collection of: absence gives absence, and a value it produces
         /// is present.
         lifted: bool,
+        /// The declaration the call resolved to, whichever of a call, a
+        /// receiver call or a pipeline step wrote it: none for an operation
+        /// of a module without a contract. The evaluator dispatches on the
+        /// operation bound to it; a planner reads the declaration.
+        #[cfg_attr(
+            not(test),
+            expect(dead_code, reason = "read by a planner, not by the evaluator")
+        )]
+        declaration: Option<crate::extensions::binding::DeclarationId>,
     },
     Link {
         source: Box<Expr>,
@@ -342,6 +351,9 @@ pub(crate) struct Checked {
     pub combiners: HashMap<Range<usize>, &'static str>,
     /// The calls that construct a record, at the type they build.
     pub records: HashMap<Range<usize>, TypeRef>,
+    /// The declaration each step call resolved to, by where the step is
+    /// written.
+    pub declarations: HashMap<Range<usize>, crate::extensions::binding::DeclarationId>,
     /// The calls written `receiver.f(…)`, whose receiver is the input.
     pub receiver_calls: HashSet<Range<usize>>,
     /// Each step named as a function value, `map(str)`, with the type it
@@ -640,6 +652,7 @@ impl Checked {
                             arguments: Vec::new(),
                             at: span.clone(),
                             lifted: self.lifted.contains(&span),
+                            declaration: self.declarations.get(&span).copied(),
                         },
                         ty: produced.clone(),
                         span: span.clone(),
@@ -821,6 +834,7 @@ impl Checked {
                         arguments: self.arguments(arguments)?,
                         at: span.clone(),
                         lifted: self.lifted.contains(&span),
+                        declaration: self.declarations.get(&span).copied(),
                     }
                 } else {
                     Kind::Order(
@@ -926,6 +940,7 @@ impl Checked {
                         arguments: self.arguments(arguments)?,
                         at: span.clone(),
                         lifted: self.lifted.contains(&span),
+                        declaration: self.declarations.get(&span).copied(),
                     }
                 } else if matches!(&callee.kind, A::Ident(name) if name == "some") {
                     Kind::Some(boxed(&arguments[0].value)?)
@@ -954,6 +969,7 @@ impl Checked {
                     arguments: self.arguments(arguments)?,
                     at: written.span.clone(),
                     lifted: self.lifted.contains(&written.span),
+                    declaration: self.declarations.get(&written.span).copied(),
                 }
             }
         };
@@ -985,6 +1001,51 @@ mod tests {
         let (program, errors) = crate::checker::check_collecting(&syntax, &vault);
         assert!(program.is_none());
         assert_eq!(errors.len(), 1);
+    }
+
+    #[test]
+    fn a_call_a_receiver_call_and_a_pipeline_step_resolve_one_declaration() {
+        fn declarations(expression: &Expr, found: &mut Vec<String>) {
+            if let Kind::Step {
+                input, declaration, ..
+            } = &expression.kind
+            {
+                let environment = crate::extensions::binding::Environment::get().unwrap();
+                found.push(declaration.map_or_else(String::new, |id| environment.qualified(id)));
+                declarations(input, found);
+            }
+        }
+        let vault = crate::vault::Vault::empty();
+        let mut found = Vec::new();
+        for source in [
+            "\"x\".pad_left(3, \"0\")",
+            "string.pad_left(\"x\", 3, \"0\")",
+            "\"x\" | pad_left(3, \"0\")",
+            "pad_left(\"x\", 3, \"0\")",
+        ] {
+            let syntax = crate::parser::parse(source).unwrap();
+            let program = crate::checker::check(&syntax, &vault).unwrap();
+            let [statement] = program.statements.as_slice() else {
+                panic!("one statement");
+            };
+            let Stmt::Expr(expression) = statement else {
+                panic!("an expression");
+            };
+            declarations(expression, &mut found);
+        }
+        assert_eq!(found, vec!["string.pad_left"; 4]);
+        // An overloaded name resolves the form the call took.
+        let syntax = crate::parser::parse("[2, 1] | sort").unwrap();
+        let program = crate::checker::check(&syntax, &vault).unwrap();
+        let Stmt::Expr(expression) = &program.statements[0] else {
+            panic!("an expression");
+        };
+        let Kind::Step { declaration, .. } = &expression.kind else {
+            panic!("a step");
+        };
+        let environment = crate::extensions::binding::Environment::get().unwrap();
+        let sort = environment.of(crate::extensions::CORE.step("sort").unwrap());
+        assert_eq!(*declaration, Some(sort[0]));
     }
 
     #[test]

@@ -2214,7 +2214,7 @@ impl<'a> Checker<'a> {
             }
             let input_type = self.expression(&input.value)?;
             self.checked.steps.insert(span.clone(), step);
-            self.using(step.name, step.purity == Purity::Effectful);
+            self.using(step.name, step.purity() == Purity::Effectful);
             return self.step(step, &input_type, Some(&input.value), rest, span);
         }
         let receiver_type = self.expression(receiver)?;
@@ -2327,12 +2327,12 @@ impl<'a> Checker<'a> {
             return Ok(TypeRef::ORDERING);
         }
         if builtins::exists(name) {
-            let step = self
-                .resolution
-                .step_for(name, &receiver_type, positional, &span)?;
+            let step =
+                self.resolution
+                    .receiver_step_for(name, &receiver_type, positional, &span)?;
             self.checked.steps.insert(span.clone(), step);
             self.checked.receiver_calls.insert(span.clone());
-            self.using(step.name, step.purity == Purity::Effectful);
+            self.using(step.name, step.purity() == Purity::Effectful);
             return self.step(step, &receiver_type, Some(receiver), arguments, span);
         }
         let hint = builtins::hint(name);
@@ -2396,7 +2396,15 @@ impl<'a> Checker<'a> {
         }
         let _variables = crate::declarations::TypeVariables::enter(&variables);
         let mut parameters = Vec::new();
-        if declaration.has_self {
+        // A written receiver, `self: Collection<T>`, is the type it names,
+        // in a receiver module or outside one.
+        if let Some(written) = declaration
+            .receiver
+            .as_ref()
+            .filter(|_| declaration.has_self)
+        {
+            parameters.push(crate::declarations::annotation(&erase(written))?);
+        } else if declaration.has_self {
             let Some(receiver) = self.receiver.clone() else {
                 return Err(Diagnostic::typing(
                     declaration.span.clone(),
@@ -3949,7 +3957,7 @@ impl<'a> Checker<'a> {
                         .count();
                     let step = self.resolution.step_for(name, &input, positional, &span)?;
                     self.checked.steps.insert(span.clone(), step);
-                    self.using(step.name, step.purity == Purity::Effectful);
+                    self.using(step.name, step.purity() == Purity::Effectful);
                     return self.step(step, &input, Some(written), arguments, span);
                 }
                 let _ = arguments;
@@ -3984,7 +3992,7 @@ impl<'a> Checker<'a> {
                 let reference = step_of(step)?;
                 let resolved = self.resolve(&reference, &input_type, &step.span)?;
                 self.checked.steps.insert(span.clone(), resolved);
-                self.using(resolved.name, resolved.purity == Purity::Effectful);
+                self.using(resolved.name, resolved.purity() == Purity::Effectful);
                 self.step(
                     resolved,
                     &input_type,
@@ -4259,6 +4267,12 @@ impl<'a> Checker<'a> {
         let optional = !raw && input.constructor.0 == "Option";
         let input = if raw { input.clone() } else { lifted.clone() };
         let spec = step.overload(self, &input, arguments, &span)?;
+        if let Some(id) = crate::extensions::binding::Environment::get()
+            .ok()
+            .and_then(|environment| environment.declaration_for(step, spec))
+        {
+            self.checked.declarations.insert(span.clone(), id);
+        }
         let (result, call) = spec.check(step.name, self, &input, input_expr, arguments, &span)?;
         if let Some(check) = step.check {
             check(self, &call, span.clone())?;
@@ -4401,7 +4415,7 @@ impl CheckCx for Checker<'_> {
                 ));
             };
             let step = self.resolution.step_for(name, parameter, 0, &span)?;
-            self.using(step.name, step.purity == Purity::Effectful);
+            self.using(step.name, step.purity() == Purity::Effectful);
             let produced = self.step(step, parameter, None, &[], span.clone())?;
             if let Some(function) = TypeRef::function(vec![parameter.clone()], produced.clone()) {
                 self.checked.types.insert(span.clone(), function);

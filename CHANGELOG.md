@@ -10,6 +10,15 @@ The language continues to be in active development.
 
 ### Added
 
+- Purity is declared in HQL ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.md),
+  [issue 0036](doc/issues/0036-contracts-receivers-purity-identities.md)):
+  `effectful fn source(…)` declares an external operation effectful and a
+  plain `fn` pure, and binding refuses an extension whose own marking
+  differs. `std/io/mod.hql` and `std/io/logging.hql` declare `file`,
+  `source`, `tap`, `target`, `sink`, `Logger` and the five log levels.
+  `effectful` before a function with a body is a syntax error: such a
+  function is effectful exactly when its body uses an effectful operation.
+
 - Slices ([HQL-0026](doc/proposals/HQL-0026/README.md), shown in the
   [slicing corpus](examples/slicing/README.md) and stated in
   [the bracket operator](doc/wiki/hql/operators/bracket-op.hmd)): `xs[a:b]`,
@@ -146,6 +155,15 @@ The language continues to be in active development.
     comma; an integer literal takes a call, `7.max(3)`.
 
 ### Changed
+
+- A receiver call, `value.f()`, reaches only a declaration that takes `self`
+  ([issue 0036](doc/issues/0036-contracts-receivers-purity-identities.md),
+  shown in the [receivers corpus](examples/receivers/README.md)). The core's
+  collection operations, `math`, and `seq`'s map and set functions write
+  their receiver, `fn size<T>(self: Collection<T>)`, `fn abs(self: Int)`, so
+  `xs.size()` and `42.abs()` still call them; `1.range(3)` and
+  `"ab".is_match("a")` are refused naming the call and pipeline forms, which
+  still reach them.
 
 - A negative position counts from the end: `xs[-1]` is the last element, not
   absence, and `s.slice(start, end)` counts a negative bound from the end

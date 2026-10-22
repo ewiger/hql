@@ -7,7 +7,8 @@ The type declarations HQL ships with, written in HQL.
 silently left unchecked. These files are the single place the declarations live
 as *source* rather than as prose inside a card. The modules written as external
 declarations, `string`, `seq`, `math`, `option`, `result` and `regex`, are the
-contracts the binary's extensions implement, checked against them by name.
+contracts the binary's extensions implement, checked against them by name;
+`io` and `io.logging` declare their operations beside their types.
 
 Checking a declaration is not evaluating one. A declaration yields `Unit` and
 introduces no value; constructing a value of a declared record type is separate
@@ -82,9 +83,9 @@ where its steps will:
 | `doc.hql` | documents |
 | `format.hql` | the formats, a category of their own, and the codec contracts ([HQL-0024 part 7](../doc/proposals/HQL-0024/parts/07-formats-and-codecs.md)) |
 | `graph.hql` | the graph domain |
-| `io/mod.hql` | endpoints, channels, data sources and data targets, arriving with [HQL-0021](../doc/proposals/HQL-0021/README.md) |
+| `io/mod.hql` | endpoints, channels, data sources and data targets, from [HQL-0021](../doc/proposals/HQL-0021/README.md); `file`, `source`, `tap`, `target` and `sink` external |
 | `io/net.hql` | network endpoints, arriving with HQL-0021; `import io.net` or `import net` |
-| `io/logging.hql` | loggers and log events, arriving with HQL-0021; `import io.logging` or `import logging` |
+| `io/logging.hql` | loggers and log events, from HQL-0021; `Logger` and the five levels external; `import io.logging` or `import logging` |
 | `knowledge.hql` | the knowledge domain, including the card family |
 | `retrieval.hql` | ranking, arriving with [HQL-0002](../doc/proposals/HQL-0002/README.md) |
 
@@ -94,7 +95,10 @@ provides the module. Binding, once per process, holds the two to each other by
 name, arity and result type, and refuses every program on a mismatch; the
 wiring is on the [extensions card](../doc/wiki/hql/extensions.hmd). A module
 that opens with `module for T` is a receiver module, whose `self` functions
-resolve as `value.f()`.
+resolve as `value.f()`; a declaration outside one writes its receiver's type,
+`fn abs(self: Int) : Int`, and one without `self` is never reached as
+`value.f()`. `effectful fn source(…)` declares an operation effectful, and a
+plain `fn` pure; binding holds the extension's own marking to it.
 
 ## Conventions
 

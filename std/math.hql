@@ -5,22 +5,22 @@
 //
 // See doc/proposals/HQL-0024/parts/03-standard-library.md.
 
-fn abs(x: Int) : Int
-fn abs(x: Float) : Float
-fn pow(x: Int, exponent: Int, /) : Int
-fn pow(x: Float, exponent: Float, /) : Float
-fn sign(x: Int) : Int
-fn sign(x: Float) : Int
-fn float(x: Int) : Float
-fn int(x: Float) : Int
-fn gcd(x: Int, other: Int) : Int
-fn sqrt(x: Float) : Float
-fn floor(x: Float) : Float
-fn ceil(x: Float) : Float
-fn round(x: Float) : Float
-fn exp(x: Float) : Float
-fn ln(x: Float) : Float
-fn log10(x: Float) : Float
-fn sin(x: Float) : Float
-fn cos(x: Float) : Float
-fn tan(x: Float) : Float
+fn abs(self: Int) : Int
+fn abs(self: Float) : Float
+fn pow(self: Int, exponent: Int, /) : Int
+fn pow(self: Float, exponent: Float, /) : Float
+fn sign(self: Int) : Int
+fn sign(self: Float) : Int
+fn float(self: Int) : Float
+fn int(self: Float) : Int
+fn gcd(self: Int, other: Int) : Int
+fn sqrt(self: Float) : Float
+fn floor(self: Float) : Float
+fn ceil(self: Float) : Float
+fn round(self: Float) : Float
+fn exp(self: Float) : Float
+fn ln(self: Float) : Float
+fn log10(self: Float) : Float
+fn sin(self: Float) : Float
+fn cos(self: Float) : Float
+fn tan(self: Float) : Float

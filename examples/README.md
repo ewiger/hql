@@ -26,6 +26,10 @@ The [overloads](overloads/README.md) cases call the standard operations a
 name declares more than once: positional arguments, forms chosen by their
 arguments' types, steps lifted over absence, and the narrowing `filter`.
 
+The [receivers](receivers/README.md) cases call a declaration that takes
+`self` as `value.f()`, and refuse it for one whose first parameter is not a
+receiver, from [HQL-0024](../doc/proposals/HQL-0024/README.md) part 12.
+
 The [generic traits](generic-traits/README.md) cases give a trait and an
 implementation type parameters, `impl<T> Index<T> for Ring<T>`, and infer a
 bound's open parameter from the implementation a call reaches, from

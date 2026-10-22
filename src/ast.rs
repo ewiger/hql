@@ -116,6 +116,9 @@ pub(crate) struct FnDecl {
 #[derive(Debug)]
 pub(crate) struct ExternalDecl {
     pub name: String,
+    /// Whether it is written `effectful fn`: its evaluation reads or changes
+    /// something outside its result, so it runs once, where it is written.
+    pub effectful: bool,
     pub has_self: bool,
     /// The receiver's type where it is written, `self: Collection<T>`: a
     /// receiver the module's pattern does not describe exactly.

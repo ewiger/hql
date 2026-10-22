@@ -99,6 +99,30 @@ fn a_receiver_call_is_a_call_with_the_receiver_first() {
 }
 
 #[test]
+fn a_receiver_call_reaches_only_a_declaration_with_self() {
+    // `fn abs(self: Int)`, `fn size<T>(self: Collection<T>)`: written
+    // receivers, outside a receiver module.
+    assert_eq!(shown("(0 - 42).abs()"), "42");
+    assert_eq!(shown("[1, 2].size()"), "2");
+    assert_eq!(shown("Map([\"a\"], [1]).values()"), "[1]");
+    // `fn range(start: Int, …)` has no receiver: a first parameter is never
+    // one, so the call and the pipeline reach it and `.range` does not.
+    assert_eq!(shown("range(1, 3)"), "[1, 2]");
+    assert_eq!(shown("1 | range(3)"), "[1, 2]");
+    assert!(refused("1.range(3)").contains("`range` takes no receiver"));
+    // `regex` declares its functions over a text and a pattern; `split` of a
+    // String is the receiver function, whichever modules are visible.
+    assert!(
+        refused("import regex\n\"ab\".is_match(\"a\")").contains("`is_match` takes no receiver")
+    );
+    assert_eq!(
+        shown("import regex\n\"a,b\".split(\",\")"),
+        "[\"a\", \"b\"]"
+    );
+    assert_eq!(shown("import regex\nis_match(\"ab\", \"a\")"), "true");
+}
+
+#[test]
 fn str_and_fmt_write_values_as_text() {
     assert_eq!(shown("str([1, \"a\"])"), "[1, \"a\"]");
     assert_eq!(shown("fmt(\"{}-{}\", 1, none)"), "1-none");

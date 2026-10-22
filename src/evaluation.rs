@@ -482,6 +482,7 @@ impl Evaluator<'_> {
                 arguments,
                 at,
                 lifted,
+                ..
             } => {
                 let value = as_checked(self.expression(input)?, &input.ty);
                 // A step lifted over an optional input: absence gives

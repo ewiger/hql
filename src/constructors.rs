@@ -48,6 +48,16 @@ pub(crate) fn is_constructor_name(name: &str) -> bool {
     name.chars().next().is_some_and(char::is_uppercase)
 }
 
+/// Whether a standard module's declaration of a name is a constructor the
+/// binary's table implements: named as a type is, and not an operation of
+/// the extension providing the module, as `Logger` of `io.logging` is.
+pub(crate) fn is_table_constructor(module: &str, name: &str) -> bool {
+    is_constructor_name(name)
+        && crate::extensions::builtin_module(module)
+            .and_then(|extension| extension.step(name))
+            .is_none()
+}
+
 /// Each standard constructor's forms, by type name: one signature per
 /// declaration in `std/`, in the order written, with the module declaring
 /// it.
@@ -64,7 +74,7 @@ fn declared_forms() -> &'static Result<Forms, String> {
                 let crate::ast::Stmt::External(declaration) = statement else {
                     continue;
                 };
-                if !is_constructor_name(&declaration.name) {
+                if !is_table_constructor(module, &declaration.name) {
                     continue;
                 }
                 let spec =
@@ -120,7 +130,7 @@ pub(crate) fn bind() -> Result<(), String> {
                 continue;
             };
             let name = declaration.name.as_str();
-            if !is_constructor_name(name) {
+            if !is_table_constructor(module, name) {
                 continue;
             }
             if !declared_here(name) {

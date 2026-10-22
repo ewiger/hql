@@ -57,8 +57,8 @@ struct Record {
 pub struct Contract {
     /// The declared name, which is the operation's name.
     pub name: String,
-    /// Whether the declaration takes `self`, the operation's input; without
-    /// it the first parameter is the input.
+    /// Whether the declaration takes `self`: a receiver, which `value.f()`
+    /// reaches. Without it the first parameter is an ordinary argument.
     pub has_self: bool,
     /// How many parameters are written, `self` excluded.
     pub parameters: usize,
@@ -95,7 +95,10 @@ pub fn contracts() -> Result<Contracts, String> {
                         // A constructor is bound to the binary's
                         // constructors, not to an extension's step.
                         Stmt::External(declaration)
-                            if !crate::constructors::is_constructor_name(&declaration.name) =>
+                            if !crate::constructors::is_table_constructor(
+                                name,
+                                &declaration.name,
+                            ) =>
                         {
                             Some(Contract {
                                 name: declaration.name.clone(),
