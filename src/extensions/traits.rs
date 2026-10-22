@@ -53,7 +53,11 @@ pub(crate) static NATIVE_IMPLS: &[NativeImpl] = &[
     native("Rem", "Int", arithmetic),
     native("Rem", "Float", arithmetic),
     native("Index", "Seq", position),
+    native("Index", "String", position),
     native("Index", "Data", position),
+    native("Slice", "Seq", part),
+    native("Slice", "String", part),
+    native("Slice", "Data", part),
 ];
 
 /// The native implementation of a trait for a type: the one declared for
@@ -145,4 +149,19 @@ fn position(
         ));
     };
     crate::evaluation::at_position(receiver, position, &TypeRef::NEVER, span)
+}
+
+fn part(
+    method: &str,
+    receiver: Value,
+    arguments: Vec<Value>,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let Some((start, end)) = arguments.first().and_then(crate::evaluation::range_bounds) else {
+        return Err(Diagnostic::runtime(
+            span.clone(),
+            format!("`{method}` takes a Range"),
+        ));
+    };
+    crate::evaluation::slice_of(receiver, start, end, span)
 }

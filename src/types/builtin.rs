@@ -27,7 +27,7 @@ atoms! {
     HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
-    CELL => "Cell",
+    CELL => "Cell", RANGE => "Range",
 }
 
 macro_rules! applications {
@@ -334,6 +334,15 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
                 bound: None,
             })
             .collect(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    // A window of positions: `type Range { start? : Int, end? : Int }`, the
+    // index of `xs[a:b]`.
+    system.declare(TypeDefinition {
+        constructor: TypeRef::RANGE.constructor,
+        kind: TypeKind::Concrete,
+        parameters: Vec::new(),
         parents: Vec::new(),
         applied: Vec::new(),
     })?;

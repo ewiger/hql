@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A declared type implements Slice and its values take the bracket
-// implementation: pending
-// proposal: doc/proposals/HQL-0026/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<String>
 // expected-json: ["second","third"]

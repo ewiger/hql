@@ -212,9 +212,10 @@ Three different things are kept apart:
 `T : Shape` uses the one relation symbol a bound has; it is checked at every
 call, and inside the body `x.area()` resolves through the bound. A trait may
 give a function a default body an implementation inherits. The core traits are
-`Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` and `Index`, in scope everywhere
-and restated in `std/core.hql`: `a + b` over a declared type resolves `Add` for
-it, `==` resolves `Eq`, `xs[i]` resolves `Index`, and a type implementing `Ord`
+`Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index` and `Slice`, in scope
+everywhere and restated in `std/core.hql`: `a + b` over a declared type resolves
+`Add` for it, `==` resolves `Eq`, `xs[i]` resolves `Index`, `xs[a:b]` resolves
+`Slice` ([[bracket-op]]), and a type implementing `Ord`
 is `Orderable`, its `compare` deciding `<`, `sort`, `min` and `max`. Dispatch is on the value's own
 type at run time, so a value held at a wider type still takes its own
 implementation. No trait object, no existential type and no dynamic

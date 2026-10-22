@@ -385,8 +385,13 @@ impl Evaluator<'_> {
             }
             Kind::Index(receiver, index) => {
                 let value = self.expression(receiver)?;
+                let index = self.expression(index)?;
+                // A Range in the bracket takes a slice, as `a:b` does.
+                if let Some((start, end)) = range_bounds(&index) {
+                    return self.slice(value, start, end, &expression.ty, &span);
+                }
                 let value = self.settled(value, &span)?;
-                let Value::Int(position) = self.expression(index)? else {
+                let Value::Int(position) = index else {
                     return Err(Diagnostic::runtime(span, "a position is an Int"));
                 };
                 // A declared type's positions are its implementation of
@@ -400,6 +405,12 @@ impl Evaluator<'_> {
                     return self.dispatch("Index", "at", value, vec![Value::Int(position)], &span);
                 }
                 at_position(value, position, expression.ty.present(), &span)
+            }
+            Kind::Slice(receiver, start, end) => {
+                let value = self.expression(receiver)?;
+                let start = self.bound(start.as_deref())?;
+                let end = self.bound(end.as_deref())?;
+                self.slice(value, start, end, &expression.ty, &span)
             }
             Kind::Link {
                 source,
@@ -1194,6 +1205,109 @@ impl Evaluator<'_> {
 
     /// A value placed inside another holds its values, so a finite traversal
     /// is forced there; a stream stays lazy.
+    /// One bound of `xs[a:b]`, or `None` where it is left out.
+    fn bound(&mut self, written: Option<&Expr>) -> Result<Option<i64>, Diagnostic> {
+        let Some(written) = written else {
+            return Ok(None);
+        };
+        match self.expression(written)? {
+            Value::Int(bound) => Ok(Some(bound)),
+            _ => Err(Diagnostic::runtime(
+                written.span.clone(),
+                "a bound of a range is an Int",
+            )),
+        }
+    }
+
+    /// The part of a value between two positions: a declared type's through
+    /// its implementation of `Slice`, a Stream's by its bounds, and any
+    /// other's clamped to its length.
+    fn slice(
+        &mut self,
+        value: Value,
+        start: Option<i64>,
+        end: Option<i64>,
+        ty: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        match value {
+            Value::Absent(_) => return Ok(Value::Absent(ty.present().clone())),
+            Value::Present(inner) => {
+                let part = self.slice(inner.as_ref().clone(), start, end, ty.present(), span)?;
+                return Ok(Value::Present(Arc::new(part)));
+            }
+            Value::Traversal(traversal) if !traversal.finite => {
+                return self.stream_slice(&traversal, start, end, span);
+            }
+            _ => {}
+        }
+        let receiver_type = value.type_of();
+        if self.impls.iter().any(|held| {
+            held.trait_name == "Slice"
+                && (receiver_type.is(&held.target)
+                    || receiver_type.constructor == held.target.constructor)
+        }) {
+            return self.dispatch("Slice", "slice", value, vec![range_value(start, end)], span);
+        }
+        let value = self.settled(value, span)?;
+        slice_of(value, start, end, span)
+    }
+
+    /// A slice of a Stream: `drop(a)` for an open end, which stays a
+    /// Stream, and `drop(a) | take(b - a)` for a bounded one, which ends and
+    /// is a List. At most `b` values are produced.
+    fn stream_slice(
+        &mut self,
+        traversal: &Arc<Traversal>,
+        start: Option<i64>,
+        end: Option<i64>,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        let from_end = || {
+            Diagnostic::runtime(
+                span.clone(),
+                format!(
+                    "{} may not end, so a position counted from its end is not known",
+                    traversal.type_of()
+                ),
+            )
+        };
+        let start = usize::try_from(start.unwrap_or(0)).map_err(|_| from_end())?;
+        let end = end
+            .map(|end| usize::try_from(end).map_err(|_| from_end()))
+            .transpose()?;
+        let element = traversal.element.clone();
+        let rest = if start == 0 {
+            Arc::clone(traversal)
+        } else {
+            Arc::new(Traversal::new(
+                element.clone(),
+                false,
+                Source::Drop {
+                    input: Arc::clone(traversal),
+                    n: start,
+                },
+            ))
+        };
+        let Some(end) = end else {
+            return Ok(Value::Traversal(rest));
+        };
+        let prefix = Traversal::new(
+            element.clone(),
+            true,
+            Source::Take {
+                input: rest,
+                n: end.saturating_sub(start),
+            },
+        );
+        let mut values = Vec::new();
+        self.run_traversal(&prefix, &mut |_, value| {
+            values.push(value);
+            Ok(true)
+        })?;
+        Ok(Value::list(values, element))
+    }
+
     fn settled(&mut self, value: Value, span: &Range<usize>) -> Result<Value, Diagnostic> {
         match value {
             Value::Traversal(traversal) if traversal.finite => self.force(&traversal, span),
@@ -1493,8 +1607,137 @@ fn as_checked(value: Value, checked: &TypeRef) -> Value {
     }
 }
 
-/// The element at a position, or absence past either end. A tree reads its
-/// members when it is a sequence, and is the wrong shape otherwise.
+/// A position over a length: a negative one counts from the end. A position
+/// outside `0..length` is `None`.
+fn resolved(position: i64, length: usize) -> Option<usize> {
+    let length = i64::try_from(length).ok()?;
+    let position = if position < 0 {
+        position.checked_add(length)?
+    } else {
+        position
+    };
+    usize::try_from(position).ok().filter(|_| position < length)
+}
+
+/// The positions a slice covers over a length: each bound resolved as a
+/// position is, then clamped into `0..=length`; a missing start is 0 and a
+/// missing end the length. A reversed window is empty.
+pub(crate) fn window(start: Option<i64>, end: Option<i64>, length: usize) -> Range<usize> {
+    let clamp = |bound: i64| {
+        let signed = i64::try_from(length).unwrap_or(i64::MAX);
+        let bound = if bound < 0 {
+            bound.saturating_add(signed)
+        } else {
+            bound
+        };
+        usize::try_from(bound.clamp(0, signed)).unwrap_or(length)
+    };
+    let low = start.map_or(0, clamp);
+    let high = end.map_or(length, clamp);
+    low..high.max(low)
+}
+
+/// `Range(start = a, end = b)`, a missing bound absent.
+pub(crate) fn range_value(start: Option<i64>, end: Option<i64>) -> Value {
+    let bound = |bound: Option<i64>| {
+        bound.map_or(Value::Absent(TypeRef::INT), |bound| {
+            Value::Present(Arc::new(Value::Int(bound)))
+        })
+    };
+    Value::Record(Arc::new(crate::types::Record {
+        ty: TypeRef::RANGE,
+        fields: vec![
+            ("start".to_owned(), bound(start)),
+            ("end".to_owned(), bound(end)),
+        ],
+    }))
+}
+
+/// The bounds a `Range` value holds, or `None` for any other value.
+pub(crate) fn range_bounds(value: &Value) -> Option<(Option<i64>, Option<i64>)> {
+    let Value::Record(record) = value else {
+        return None;
+    };
+    if record.ty != TypeRef::RANGE {
+        return None;
+    }
+    let bound = |name: &str| match record.field(name) {
+        Some(Value::Present(inner)) => match inner.as_ref() {
+            Value::Int(bound) => Some(*bound),
+            _ => None,
+        },
+        Some(Value::Int(bound)) => Some(*bound),
+        _ => None,
+    };
+    Some((bound("start"), bound("end")))
+}
+
+/// The part of a finite value between two positions, of the value's own
+/// kind: text, a tree's sequence, a ranking or a sequence. A slice never
+/// fails on its bounds; a value with no positions is the wrong shape.
+pub(crate) fn slice_of(
+    value: Value,
+    start: Option<i64>,
+    end: Option<i64>,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    match value {
+        Value::Absent(element) => Ok(Value::Absent(element)),
+        Value::Present(inner) => Ok(Value::Present(Arc::new(slice_of(
+            inner.as_ref().clone(),
+            start,
+            end,
+            span,
+        )?))),
+        Value::Str(text) => {
+            let characters: Vec<char> = text.chars().collect();
+            let part: String = characters[window(start, end, characters.len())]
+                .iter()
+                .collect();
+            Ok(Value::Str(part.into()))
+        }
+        Value::Data(data) => match data.as_ref() {
+            Data::List(items) => Ok(Value::Data(Arc::new(Data::List(
+                items[window(start, end, items.len())].to_vec(),
+            )))),
+            Data::Empty => Ok(Value::Data(data)),
+            other => Err(Diagnostic::typing(
+                span.clone(),
+                format!(
+                    "a slice needs a sequence here, not Data of shape {}",
+                    other.shape()
+                ),
+            )),
+        },
+        Value::List(values, element) => Ok(Value::List(
+            Arc::new(values[window(start, end, values.len())].to_vec()),
+            element,
+        )),
+        Value::Ranking(ranking) => {
+            let hits = &ranking.hits[window(start, end, ranking.hits.len())];
+            Ok(Value::Ranking(Arc::new(crate::search::Ranking {
+                hits: hits.to_vec(),
+                element: ranking.element.clone(),
+                retrieval: Arc::clone(&ranking.retrieval),
+            })))
+        }
+        Value::Traversal(traversal) if traversal.finite => {
+            let values = traversal.forced().map(<[Value]>::to_vec).ok_or_else(|| {
+                Diagnostic::runtime(span.clone(), "a sequence is sliced once it is produced")
+            })?;
+            let part = values[window(start, end, values.len())].to_vec();
+            Ok(Value::list(part, traversal.element.clone()))
+        }
+        other => Err(Diagnostic::runtime(
+            span.clone(),
+            format!("a {} is not sliced", other.type_of()),
+        )),
+    }
+}
+
+/// The element at a position, or absence past either end; a negative
+/// position counts from the end. A tree reads its members when it is a
+/// sequence, and is the wrong shape otherwise.
 pub(crate) fn at_position(
     value: Value,
     position: i64,
@@ -1502,12 +1745,20 @@ pub(crate) fn at_position(
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let absent = || Value::Absent(element.clone());
-    let index = usize::try_from(position).ok();
     match value {
         Value::Absent(_) => Ok(absent()),
         Value::Present(inner) => at_position(inner.as_ref().clone(), position, element, span),
+        // A String's positions are its characters, each read as text.
+        Value::Str(text) => {
+            let characters: Vec<char> = text.chars().collect();
+            Ok(resolved(position, characters.len())
+                .and_then(|index| characters.get(index))
+                .map_or_else(absent, |character| {
+                    Value::Present(Arc::new(Value::Str(character.to_string().into())))
+                }))
+        }
         Value::Data(data) => match data.as_ref() {
-            Data::List(items) => Ok(index
+            Data::List(items) => Ok(resolved(position, items.len())
                 .and_then(|index| items.get(index))
                 .map_or_else(absent, |item| {
                     Value::Present(Arc::new(Value::Data(Arc::new(item.clone()))))
@@ -1529,7 +1780,7 @@ pub(crate) fn at_position(
                     format!("a {} is not indexed", other.type_of()),
                 )
             })?;
-            Ok(index
+            Ok(resolved(position, elements.len())
                 .and_then(|index| elements.into_iter().nth(index))
                 .map_or_else(absent, |item| Value::Present(Arc::new(item))))
         }

@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A position in a String is the one-character String there, or absence
-// implementation: pending
-// proposal: doc/proposals/HQL-0026/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Option<String>>
 // expected-json: ["h","d",null]

@@ -29,12 +29,14 @@ without adopting SQL clauses or Rust-like trait machinery.
 
 These are the current design names. Generic types are written with angle
 brackets, `Set<T>` and `Edge<S, T>`, everywhere, and square brackets stay
-value-level: `[alice, bob]` is a sequence and `xs[0]` is indexing. Indexing
-reads a position of a `Seq<T>`, counting from `0`, as an `Option<T>`: a
-position past either end is absence, as a missing key is. A `Data` tree that is
-a sequence is indexed the same way. A `Set` or a `Map` has no positions, and a
-stream that may not end is bounded with `take(n)` first. The bracket must touch
-the value: one after a space or a line break opens a list. Subtyping, generic
+value-level: `[alice, bob]` is a sequence, `xs[0]` reads a position and
+`xs[1:3]` takes a slice. A position of a `Seq<T>` counts from `0`, a negative
+one from the end, and reads an `Option<T>`: a position past either end is
+absence, as a missing key is. A slice is of the receiver's type and clamps its
+bounds. A `String` and a `Data` tree that is a sequence are indexed and sliced
+the same way. A `Set` or a `Map` has no positions. The bracket must touch the
+value: one after a space or a line break opens a list. [[bracket-op]] states
+the operator. Subtyping, generic
 parameters and progressive refinement are [[type-system]]'s subject.
 Precise schemas, declarations, polymorphism, optional/error types and Date
 operations remain open.

@@ -155,6 +155,8 @@ pub(crate) enum Kind {
     Field(Box<Expr>, Field),
     /// `xs[i]`: the element at a position, or its absence.
     Index(Box<Expr>, Box<Expr>),
+    /// `xs[a:b]`: the part between two positions, either one left out.
+    Slice(Box<Expr>, Option<Box<Expr>>, Option<Box<Expr>>),
     Lambda {
         parameters: Vec<String>,
         body: std::sync::Arc<Expr>,
@@ -735,6 +737,11 @@ impl Checked {
                 negated: *negated,
             },
             A::Index(receiver, index) => Kind::Index(boxed(receiver)?, boxed(index)?),
+            A::Slice(receiver, start, end) => Kind::Slice(
+                boxed(receiver)?,
+                start.as_deref().map(boxed).transpose()?,
+                end.as_deref().map(boxed).transpose()?,
+            ),
             A::Field(_, _) if self.module_refs.contains_key(&span) => {
                 Kind::Ident(self.module_refs[&span].clone())
             }

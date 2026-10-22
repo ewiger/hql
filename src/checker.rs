@@ -862,6 +862,17 @@ pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
         ("Eq", binary("eq", TypeRef::BOOL)),
         ("Ord", binary("compare", TypeRef::ORDERING)),
         ("Index", index_trait()),
+        (
+            "Slice",
+            TraitInfo {
+                parameters: Vec::new(),
+                methods: vec![MethodSig {
+                    name: "slice".to_owned(),
+                    parameters: vec![TypeRef::RANGE],
+                    result: self_type.clone(),
+                }],
+            },
+        ),
     ]
     .into_iter()
     .map(|(name, info)| (name.to_owned(), info))
@@ -2225,7 +2236,15 @@ impl<'a> Checker<'a> {
         // A trait's function, implemented for the receiver's type or
         // promised by a bound on it. Implementations at several arguments
         // are told apart by the types of the call's own.
-        if let Some((trait_name, signatures)) = self.method_for(&receiver_type, name, &span)? {
+        // A step of the same name at another argument count is the other
+        // form: `s.slice(range)` is `Slice`'s, `s.slice(start, end)` the
+        // String module's.
+        let trait_route =
+            self.method_for(&receiver_type, name, &span)?
+                .filter(|(_, signatures)| {
+                    signatures[0].parameters.len() == arguments.len() || !builtins::exists(name)
+                });
+        if let Some((trait_name, signatures)) = trait_route {
             let count = signatures[0].parameters.len();
             if arguments.len() != count {
                 return Err(Diagnostic::typing(
@@ -3213,6 +3232,23 @@ impl<'a> Checker<'a> {
     /// and the function's signature with `Self` and the trait's arguments in
     /// place, once for each set of arguments the type implements the trait
     /// at. Two traits offering one name are an ambiguity.
+    /// The type of a slice of `receiver`: what [`sliced`] gives a built-in
+    /// type, and the type itself for one implementing `Slice`.
+    fn sliced(
+        &self,
+        receiver: &TypeRef,
+        written: Option<Written>,
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        sliced(receiver, written).or_else(|message| {
+            if self.applicable(receiver, "Slice").is_empty() {
+                Err(Diagnostic::typing(span, message))
+            } else {
+                Ok(receiver.clone())
+            }
+        })
+    }
+
     fn method_for(
         &self,
         receiver: &TypeRef,
@@ -3744,10 +3780,14 @@ impl<'a> Checker<'a> {
             Kind::Index(receiver, index) => {
                 let receiver_type = self.expression(receiver)?;
                 let index_type = self.expression(index)?;
+                // A Range in the bracket takes a slice, as `a:b` does.
+                if index_type == TypeRef::RANGE {
+                    return self.sliced(&receiver_type, None, span);
+                }
                 if index_type != TypeRef::INT {
                     return Err(Diagnostic::typing(
                         index.span.clone(),
-                        format!("a position is an Int, not {index_type}"),
+                        format!("an index is an Int position or a Range, not {index_type}"),
                     ));
                 }
                 indexed(&receiver_type).or_else(|message| {
@@ -3758,6 +3798,28 @@ impl<'a> Checker<'a> {
                         _ => Err(Diagnostic::typing(span, message)),
                     }
                 })
+            }
+            Kind::Slice(receiver, start, end) => {
+                let receiver_type = self.expression(receiver)?;
+                for bound in [start, end].into_iter().flatten() {
+                    let bound_type = self.expression(bound)?;
+                    if bound_type != TypeRef::INT {
+                        return Err(Diagnostic::typing(
+                            bound.span.clone(),
+                            format!("a bound of a range is an Int, not {bound_type}"),
+                        ));
+                    }
+                }
+                let negative = |bound: &Option<Box<Expr>>| {
+                    bound
+                        .as_deref()
+                        .is_some_and(|bound| matches!(bound.kind, Kind::Int(value) if value < 0))
+                };
+                let written = Written {
+                    from_end: negative(start) || negative(end),
+                    bounded: end.is_some(),
+                };
+                self.sliced(&receiver_type, Some(written), span)
             }
             Kind::Link {
                 source,
@@ -4455,6 +4517,10 @@ fn indexed(receiver: &TypeRef) -> Result<TypeRef, String> {
     if *receiver == TypeRef::DATA {
         return Ok(TypeRef::optional(TypeRef::DATA));
     }
+    // A String's positions are its characters, each read as text.
+    if *receiver == TypeRef::STR {
+        return Ok(TypeRef::optional(TypeRef::STR));
+    }
     if receiver.is_sequence() {
         let element = receiver
             .element()
@@ -4477,6 +4543,60 @@ fn indexed(receiver: &TypeRef) -> Result<TypeRef, String> {
         ));
     }
     Err(format!("{receiver} is not indexed; a sequence is"))
+}
+
+/// What a written `a:b` says about its bounds, as far as checking can see:
+/// whether one is a literal counted from the end, and whether the end is
+/// given.
+#[derive(Debug, Clone, Copy)]
+struct Written {
+    from_end: bool,
+    bounded: bool,
+}
+
+/// The type of `xs[a:b]` over a built-in type: the receiver's own type,
+/// since a part of a value is of the value's kind. A Stream's slice is
+/// decided by its bounds, so it is taken only with a written `a:b`.
+fn sliced(receiver: &TypeRef, written: Option<Written>) -> Result<TypeRef, String> {
+    if receiver.constructor.0 == "Option" {
+        return sliced(receiver.present(), written).map(TypeRef::optional);
+    }
+    if *receiver == TypeRef::STR || *receiver == TypeRef::DATA {
+        return Ok(receiver.clone());
+    }
+    if receiver.is_stream() && !receiver.is_collection() {
+        let element = receiver
+            .args
+            .first()
+            .cloned()
+            .ok_or_else(|| format!("{receiver} has no element type"))?;
+        return match written {
+            None => Err(format!(
+                "{receiver} is sliced by a written `a:b`, whose end decides whether the slice ends"
+            )),
+            Some(written) if written.from_end => Err(format!(
+                "{receiver} may not end, so a position counted from its end is not known"
+            )),
+            Some(written) if written.bounded => Ok(TypeRef::list(element)),
+            Some(_) => Ok(receiver.clone()),
+        };
+    }
+    if receiver.is_sequence() {
+        return Ok(receiver.clone());
+    }
+    if crate::types::MapKind::of(receiver.constructor).is_some() {
+        return Err(format!(
+            "{receiver} has keys, not positions; read a value with `get`"
+        ));
+    }
+    if receiver.is_collection() {
+        return Err(format!(
+            "{receiver} has no positions, so it is not sliced; `sort` it into one"
+        ));
+    }
+    Err(format!(
+        "{receiver} is not sliced; a sequence, a String, Data or a type implementing Slice is"
+    ))
 }
 
 /// The type of a field on a value of a type.

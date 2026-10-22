@@ -10,6 +10,17 @@ The language continues to be in active development.
 
 ### Added
 
+- Slices ([HQL-0026](doc/proposals/HQL-0026/README.md), shown in the
+  [slicing corpus](examples/slicing/README.md) and stated in
+  [the bracket operator](doc/wiki/hql/operators/bracket-op.hmd)): `xs[a:b]`,
+  either bound left out, takes the part between two positions, of the
+  receiver's own type, its bounds clamped so a slice never fails. `a:b` is a
+  `Range`, a core record a program also builds and passes to the bracket. A
+  String is indexed and sliced by character, `"hello"[1:3]`. A Stream's
+  bounded slice is a List and an open one a Stream, produced lazily. The core
+  trait `Slice` gives a declared type the bracket, and `Seq`, `String` and
+  `Data` implement it natively.
+
 - A type's constructor is an operation declared in HQL
   ([HQL-0018](doc/proposals/HQL-0018/README.md), shown in the
   [constructors corpus](examples/constructors/README.md)): `List`, `Set`,
@@ -135,6 +146,11 @@ The language continues to be in active development.
     comma; an integer literal takes a call, `7.max(3)`.
 
 ### Changed
+
+- A negative position counts from the end: `xs[-1]` is the last element, not
+  absence, and `s.slice(start, end)` counts a negative bound from the end
+  ([HQL-0026](doc/proposals/HQL-0026/README.md)). An index that is neither an
+  `Int` nor a `Range` is refused as "an index is an Int position or a Range".
 
 - A generic variadic parameter binds its type from the trailing arguments:
   `fn pack<T>(xs: ...T)` makes `pack(1, 2)` a `List<Int>`, and refuses

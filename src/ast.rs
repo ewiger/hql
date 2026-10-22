@@ -318,6 +318,9 @@ pub(crate) enum Kind {
     Field(Box<Expr>, String),
     /// `xs[i]` — the element at a position of a sequence, or of a tree.
     Index(Box<Expr>, Box<Expr>),
+    /// `xs[a:b]` — the part of a value between two positions, either one
+    /// left out.
+    Slice(Box<Expr>, Option<Box<Expr>>, Option<Box<Expr>>),
     Call {
         callee: Box<Expr>,
         arguments: Vec<Arg>,

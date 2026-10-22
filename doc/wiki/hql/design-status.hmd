@@ -28,6 +28,7 @@ the design, the card says so.
 | [[graph-type]] | `Graph<N, E>`, `Edge<S, T>`, and the document and knowledge graphs |
 | [[orderable]] | `Orderable`, the card's own key, and the `take` contract |
 | [[option-type]] | `Option<T>`, absence, and the optional-by-type doc reference |
+| [[bracket-op]] | `xs[i]` and `xs[a:b]`: positions, slices, `Range`, and the `Index` and `Slice` traits |
 | [[match-op]] | `match` and `given … otherwise`: branching on values, `some`, `none`, `ok`, `err` and type patterns |
 | [[hql/presentation]] | Presentation formats, `format` and its shorthands, renderers, and the presentation context |
 | [[hql/error-reporting]] | The structured log: severities, entry context, `strict` and `collect`, configuration |

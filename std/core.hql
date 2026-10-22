@@ -101,11 +101,24 @@ trait Div {
 trait Rem {
     fn rem(self, other: Self) : Self
 }
+// A window of positions, what a slice takes: `xs[a:b]` is
+// `xs[Range(start = a, end = b)]`, and a bound left out is absent. A negative
+// bound counts from the end. See doc/wiki/hql/operators/bracket-op.hmd.
+type Range {
+    start? : Int
+    end?   : Int
+}
+
 // A position: `xs[i]` over a type implementing Index is `xs.at(i)`, the
 // element there or its absence. T is the element type, which each
 // implementation names: `E : Index<T>` leaves T to the type E is.
 trait Index<T> {
     fn at(self, position: Int) : Option<T>
+}
+// A part: `xs[a:b]` over a type implementing Slice is
+// `xs.slice(Range(start = a, end = b))`, a value of the type itself.
+trait Slice {
+    fn slice(self, range: Range) : Self
 }
 
 // The built-in types' implementations of the core traits. A header without a
@@ -132,10 +145,16 @@ impl Div for Int
 impl Div for Float
 impl Rem for Int
 impl Rem for Float
-// Every sequence takes Seq's positions, a List and a Ranking among them.
-// Data's are a document's own: a String narrows Data and is not indexed.
+// Every sequence takes Seq's positions and parts, a List and a Ranking among
+// them. A String's positions are its characters, each read as text. Data's
+// are a document's own; Data is a union, so a String, one of its
+// alternatives, takes its own implementations and not Data's.
 impl<T> Index<T> for Seq<T>
+impl Index<String> for String
 impl Index<Data> for Data
+impl<T> Slice for Seq<T>
+impl Slice for String
+impl Slice for Data
 
 // Two values held together, each at its own type: what zip, enumerate,
 // entries and join produce, and what a program builds with

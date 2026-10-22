@@ -1,5 +1,6 @@
-//! `xs[i]`: the element at a position of a sequence or a tree, as an option.
-//! See doc/issues/0027-sequence-indexing.md.
+//! `xs[i]`: the element at a position of a sequence, a String or a tree, as
+//! an option; a negative position counts from the end. See
+//! doc/issues/0027-sequence-indexing.md and doc/proposals/HQL-0026.
 
 use hql::{check, eval};
 
@@ -21,11 +22,13 @@ const NATURALS: &str = "fn naturals(from: Int) : Stream<Int> {
 ";
 
 #[test]
-fn a_position_counts_from_zero_and_past_either_end_is_absence() {
+fn a_position_counts_from_zero_or_from_the_end_and_past_either_end_is_absence() {
     assert_eq!(shown("xs = [10, 20]\nxs[0]"), "10");
     assert_eq!(shown("[10, 20][1]"), "20");
     assert_eq!(shown("[10, 20][2]"), "none");
-    assert_eq!(shown("[10, 20][-1]"), "none");
+    assert_eq!(shown("[10, 20][-1]"), "20");
+    assert_eq!(shown("[10, 20][-2]"), "10");
+    assert_eq!(shown("[10, 20][-3]"), "none");
     assert_eq!(check("[10, 20][0]").unwrap().to_string(), "Option<Int>");
 }
 
@@ -55,7 +58,7 @@ fn an_optional_receiver_nests_no_deeper() {
 fn only_a_sequence_has_positions() {
     refused("Set([1, 2])[0]", "no positions");
     refused("Map([\"a\"], [1])[0]", "read a value with `get`");
-    refused("[1][\"x\"]", "a position is an Int");
+    refused("[1][\"x\"]", "an Int position or a Range");
     refused("1[0]", "Int is not indexed");
     refused(&format!("{NATURALS}naturals(1)[0]"), "take(n)");
 }

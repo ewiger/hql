@@ -1,6 +1,6 @@
 # HQL-0026: Positions and slices: `xs[i]`, `xs[a:b]` and the `Slice` capability
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-10-22
 **Source**: [the slicing example corpus](../../../examples/slicing/README.md)
 
@@ -59,7 +59,7 @@ range  = [ expression ] ":" [ expression ]
 `a:b` is a value of a core type, so a window named once is reused.
 
 ```hql
-type Range { start : Option<Int>, end : Option<Int> }
+type Range { start? : Int, end? : Int }
 ```
 
 - `xs[a:b]` MUST mean the same as `xs[Range(start = a, end = b)]`; a missing
@@ -122,6 +122,9 @@ A Stream may not end, so a slice of one is decided by its bounds.
   from its end is not known", and a computed one at evaluation with the same
   message.
 - Evaluation stays lazy: a bounded slice consumes at most `b` values.
+- A Stream is sliced only with a written `a:b`; a `Range` value in the
+  bracket over a Stream is a type error, since its type does not show whether
+  the end is present.
 
 ### 6. The `Slice` capability
 
@@ -206,3 +209,6 @@ cargo test --locked --test corpus
 ## Changelog
 
 - 2026-10-22: drafted
+- 2026-10-22: implemented; `Range` is declared with `start? : Int` and
+  `end? : Int`, and a Stream is sliced only with a written `a:b`
+  ([issue 0035](../../issues/0035-positions-and-slices.md))

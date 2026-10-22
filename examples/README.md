@@ -15,7 +15,7 @@ unbounded stream with `take`, and refuse `yield` outside a `fn` block body.
 
 The [slicing](slicing/README.md) cases take a position with `xs[i]` and a
 slice with `xs[a:b]` over strings, lists, documents, streams and a declared
-type, written ahead of [HQL-0026](../doc/proposals/HQL-0026/README.md).
+type, from [HQL-0026](../doc/proposals/HQL-0026/README.md).
 
 The [constructors](constructors/README.md) cases call a type's constructor
 and pipe into it, declare a program's own constructors told apart by their

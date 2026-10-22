@@ -661,15 +661,12 @@ fn eval_slice(
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    // `s.slice(start, end)` is `s[start:end]`: clamped, and a negative
+    // bound counts from the end.
     let s = input_text(&input, "slice", &span)?;
-    let start = usize::try_from(argument_int(cx, arguments, 0, "slice", &span)?).unwrap_or(0);
-    let end = usize::try_from(argument_int(cx, arguments, 1, "slice", &span)?).unwrap_or(0);
-    Ok(text(
-        &s.chars()
-            .skip(start)
-            .take(end.saturating_sub(start))
-            .collect::<String>(),
-    ))
+    let start = argument_int(cx, arguments, 0, "slice", &span)?;
+    let end = argument_int(cx, arguments, 1, "slice", &span)?;
+    crate::evaluation::slice_of(text(&s), Some(start), Some(end), &span)
 }
 
 fn eval_char_at(

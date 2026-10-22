@@ -49,6 +49,8 @@ fn pad_left(self, width: Int, fill: String) : String
 fn pad_right(self, width: Int, fill: String) : String
 fn center(self, width: Int, fill: String) : String
 fn truncate(self, width: Int) : String
+// `s[start:end]`: clamped to the text, a negative bound counted from the
+// end. `s.slice(range)`, with one argument, is the core trait `Slice`.
 fn slice(self, start: Int, end: Int) : String
 fn char_at(self, position: Int) : Option<String>
 fn to_int(self) : Option<Int>

@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A bounded slice of a Stream is a List, and an open one is a Stream
-// implementation: pending
-// proposal: doc/proposals/HQL-0026/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<List<Int>>
 // expected-json: [[1, 2, 3], [11, 12, 13], [101, 102]]

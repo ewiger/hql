@@ -30,7 +30,7 @@ result. Rendering without `--write` prints the card with computed answers.
 | [sorting](queries/sorting.hql) | An explicit comparison of lists by size | One-observation groups before the two-observation group |
 | [empty collections](queries/empty.hql) | Empty lists and explicitly typed constructors | Zero occurrences and no membership |
 | [tree](queries/tree.hql) | `Data` as a union: leaves, a list, a string-keyed map, and a tree literal held together | A `List<Data>` of six trees, each still the value it was |
-| [indexing](queries/indexing.hql) | `xs[i]` on a `List` and on a tree, as `Option<T>` | The first and last sighting, `none` past the end, and a count inside a tree |
+| [indexing](queries/indexing.hql) | `xs[i]` on a `List` and on a tree, as `Option<T>`; `xs[-1]` is the last | The first and last sighting, the last counted from the end, `none` past the end, and a count inside a tree |
 
 Binding types are inferred from their expressions. Annotations are optional;
 the examples use them when illustrating an abstract view or typing an empty

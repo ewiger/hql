@@ -1,10 +1,9 @@
-// status: proposed
+// status: valid-now
 // feature: A Range is a value, and one Range slices any sliceable type
-// implementation: pending
-// proposal: doc/proposals/HQL-0026/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<String>
-// expected-json: ["common-raven european-robin","ell"]
+// expected-json: ["common-raven european-robin","el"]
 
 // `a:b` inside brackets is a Range. A program that names the same window
 // more than once builds the Range itself, and the bracket takes it as it

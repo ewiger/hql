@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A slice of a List is a List, and a negative position counts from the end
-// implementation: pending
-// proposal: doc/proposals/HQL-0026/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: Data
 // expected-json: {"first_two":["barn-owl","common-raven"],"last_two":["european-robin","house-sparrow"],"last":"house-sparrow","middle":["common-raven","european-robin"],"none":[]}

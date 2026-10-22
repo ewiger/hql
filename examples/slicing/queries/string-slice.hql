@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A slice of a String is a String, between two character positions
-// implementation: pending
-// proposal: doc/proposals/HQL-0026/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<String>
 // expected-json: ["hello","world","hello, world","world","","lo, world"]

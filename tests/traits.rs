@@ -255,11 +255,16 @@ fn an_implementation_gives_the_trait_its_arguments_and_uses_its_parameters() {
 
 #[test]
 fn a_union_implementation_is_the_union_own_and_not_each_member_s() {
-    // `impl Index<Data> for Data` makes a document indexed, not a String,
-    // which narrows Data.
-    let message = refused("\"hello\"[0]");
-    assert!(message.contains("String is not indexed"), "{message}");
+    // `impl Index<Data> for Data` makes a document indexed, not a Bool,
+    // one of Data's alternatives; a String is indexed by its own
+    // implementation, at its own element type.
+    let message = refused("true[0]");
+    assert!(message.contains("Bool is not indexed"), "{message}");
     assert!(refused("5.at(0)").contains("Int has no function `at`"));
+    assert_eq!(
+        hql::check("\"hello\".at(0)").unwrap().to_string(),
+        "Option<String>"
+    );
 }
 
 #[test]

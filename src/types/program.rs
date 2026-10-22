@@ -206,12 +206,12 @@ pub fn is_builtin(name: &str) -> bool {
 }
 
 /// Whether values of a named type are represented as records: the types a
-/// program declares, and the standard library's `Pair`. The library's other
+/// program declares, and the standard library's `Pair` and `Range`. The library's other
 /// records, `Hit` or `Card`, have representations of their own and are built
 /// by their extensions, never by a program.
 #[must_use]
 pub fn is_record_valued(name: &str) -> bool {
-    if name == "Pair" {
+    if name == "Pair" || name == "Range" {
         return true;
     }
     current()

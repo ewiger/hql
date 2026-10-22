@@ -1590,16 +1590,34 @@ impl Parser {
             if matches!(self.peek(), Token::OpenBracket)
                 && self.tokens[self.index].span.start == expression.span.end
             {
-                self.advance();
+                let open = self.advance();
+                if matches!(self.peek(), Token::CloseBracket) {
+                    return Err(Diagnostic::syntax(
+                        open.span.start..self.tokens[self.index].span.end,
+                        "a bracket holds a position or a range, `xs[i]` or `xs[a:b]`",
+                    ));
+                }
                 self.nesting += 1;
-                let index = self.expression()?;
+                // `xs[a:b]`: either bound may be left out.
+                let start = if matches!(self.peek(), Token::Colon) {
+                    None
+                } else {
+                    Some(Box::new(self.expression()?))
+                };
+                let range = self.eat(&Token::Colon);
+                let end = if range && !matches!(self.peek(), Token::CloseBracket) {
+                    Some(Box::new(self.expression()?))
+                } else {
+                    None
+                };
                 self.nesting -= 1;
                 let close = self.expect(&Token::CloseBracket, "after an index")?;
                 let span = expression.span.start..close.span.end;
-                expression = Expr {
-                    kind: Kind::Index(Box::new(expression), Box::new(index)),
-                    span,
+                let kind = match start {
+                    Some(index) if !range => Kind::Index(Box::new(expression), index),
+                    start => Kind::Slice(Box::new(expression), start, end),
                 };
+                expression = Expr { kind, span };
                 continue;
             }
             if matches!(self.peek(), Token::OpenParen) {
