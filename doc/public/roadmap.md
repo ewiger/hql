@@ -5,8 +5,9 @@ features that lean on it.
 
 ## Built
 
-- **Aggregation** — `group`, `reduce`, `sum`, `product`, `average`, `min` and
-  `max` over finite inputs; combiners `merge`, `union` and `concat`, and
+- **Aggregation** — `group`, `reduce`, `sum`, `product`, `average`, `min`,
+  `max`, `variance`, `count_by`, `histogram`, `top_k` and `approx_distinct`
+  over finite inputs; combiners `merge`, `union` and `concat`, and
   `reduce(0, +)` with a combiner named directly.
 - **Functions as values** — function types, `T -> U`, named, recursive and
   generic functions (`fn first<T>`), aliases whose types the checker writes

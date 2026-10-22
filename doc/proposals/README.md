@@ -21,7 +21,7 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0011](HQL-0011/README.md) | implemented | Names, their providers, and the naming lint |
 | [HQL-0012](HQL-0012/README.md) | drafted | Data sources |
 | [HQL-0013](HQL-0013/README.md) | drafted | Joins over named sides |
-| [HQL-0014](HQL-0014/README.md) | implemented in part | `reduce` as the aggregation primitive, and `merge` as a combiner |
+| [HQL-0014](HQL-0014/README.md) | implemented | `reduce` as the aggregation primitive, and `merge` as a combiner |
 | [HQL-0015](HQL-0015/README.md) | implemented | `:=` is function alias syntax sugar |
 | [HQL-0016](HQL-0016/README.md) | implemented | Type tests, narrowing, widening and conversion |
 | [HQL-0017](HQL-0017/README.md) | accepted | Presentation formats |

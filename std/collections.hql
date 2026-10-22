@@ -149,6 +149,56 @@ reduction fn concat_all<U>(self: Collection<Seq<U>>) : List<U>
 // reduce(min) and reduce(max).
 reduction fn min<T : Orderable>(self: Collection<T>) : Option<T>
 reduction fn max<T : Orderable>(self: Collection<T>) : Option<T>
+
+// Aggregations whose state differs from their element: each is a host step
+// whose state combines by a known combiner, and equals the longhand fold
+// written beside it. Each name stays a host step because a declaration with
+// a body is not external, and only an external declaration carries the
+// `reduction` shape a planner splits by. `Mean` and `Moments` are records
+// a longhand declares: `type Mean { sum : Float  count : Int }` and
+// `type Moments { count : Int  mean : Float  m2 : Float }`.
+//
+// average: a sum and a count, combined by `+` on both, then their quotient.
+//   s = xs | reduce(initial = Mean(sum = 0.0, count = 0),
+//                   by = (s, x) => Mean(sum = s.sum + x, count = s.count + 1))
+//   none given s.count == 0 otherwise some(s.sum / float(s.count))
+//
+// variance: the population variance; a count, a running mean and the sum of
+// squared deviations from it, combined pairwise. Absent over [].
+//   s = xs | reduce(initial = Moments(count = 0, mean = 0.0, m2 = 0.0),
+//                   by = (s, x) => Moments(count = s.count + 1,
+//                       mean = s.mean + (x - s.mean) / float(s.count + 1),
+//                       m2 = s.m2 + (x - s.mean)
+//                            * (x - (s.mean + (x - s.mean) / float(s.count + 1)))))
+//   none given s.count == 0 otherwise some(s.m2 / float(s.count))
+reduction fn variance(self: Collection<Int>) : Option<Float>
+reduction fn variance(self: Collection<Float>) : Option<Float>
+// count_by: a count per key, combined by `+` per key; {} over [].
+//   reduce(initial = Map<K, Int>([], []),
+//          by = (m, x) => m | with(by(x), (m | get(by(x)) | unwrap_or(0)) + 1))
+reduction fn count_by<T, K>(self: Collection<T>, by: T -> K) : Map<K, Int>
+// histogram: count_by the bucket's lower bound, the greatest multiple of
+// `width` not above the value, in key order. A width of zero or less is an
+// evaluation error.
+//   reduce(initial = SortedMap<Int, Int>([], []),
+//          by = (m, x) => m | with(x - (x % width + width) % width,
+//              (m | get(x - (x % width + width) % width) | unwrap_or(0)) + 1))
+//   over Floats the bound is floor(x / width) * width.
+reduction fn histogram(self: Collection<Int>, width: Int) : SortedMap<Int, Int>
+reduction fn histogram(self: Collection<Float>, width: Float) : SortedMap<Float, Int>
+// top_k: the k greatest, greatest first, equal keys in input order; two
+// partial lists combine by keeping the k greatest of both.
+//   reduce(initial = List<T>([]),
+//          by = (top, x) => concat(top, [x]) | sort(by = (a, b) => compare(b, a)) | take(k))
+//   with `by`, the comparison is compare(by(b), by(a)).
+reduction fn top_k<T : Orderable>(self: Collection<T>, k: Int) : List<T>
+reduction fn top_k<T, K : Orderable>(self: Collection<T>, k: Int, by: T -> K) : List<T>
+// approx_distinct: an estimate of size(Set(xs)). Its state is a HyperLogLog
+// sketch, 4096 registers combined by `max` per register, over a SHA-256
+// digest of each value with no seed, so it is deterministic. HQL exposes no
+// hash, so this longhand is not writable in HQL; 0 over [].
+reduction fn approx_distinct<T>(self: Collection<T>) : Int
+
 // The combiners: min(a, b), max(a, b), merge(m, n), union(s, t), concat(xs, ys).
 // Named as a whole argument, a combiner or `+` / `*` is the function that
 // combines two values with it: `reduce(0, +)`. A fold whose combiner ignores

@@ -369,6 +369,59 @@ pub(crate) static STEPS: &[Operation] = &[
         check: None,
         eval: eval_max,
     },
+    Operation {
+        name: "variance",
+        spec: Signature::Declared,
+        summary: "The population variance of the occurrences, as a Float. Absent over an \
+                  empty input. Its state, a count, a mean and a sum of squared deviations, \
+                  combines pairwise.",
+        purity: Purity::Pure,
+        shape: super::Shape::Reduction,
+        check: None,
+        eval: eval_variance,
+    },
+    Operation {
+        name: "count_by",
+        spec: Signature::Declared,
+        summary: "How many occurrences have each key, as a map from key to count. Its \
+                  state combines by `+` per key.",
+        purity: Purity::Pure,
+        shape: super::Shape::Reduction,
+        check: None,
+        eval: eval_count_by,
+    },
+    Operation {
+        name: "histogram",
+        spec: Signature::Declared,
+        summary: "How many occurrences fall in each bucket of a width, keyed by the bucket's \
+                  lower bound, in key order. Its state combines by `+` per bucket.",
+        purity: Purity::Pure,
+        shape: super::Shape::Reduction,
+        check: None,
+        eval: eval_histogram,
+    },
+    Operation {
+        name: "top_k",
+        spec: Signature::Declared,
+        summary: "The k greatest occurrences, by value order or by a key, greatest first; \
+                  equal keys keep input order. Two partial top-k lists combine by keeping \
+                  the k greatest of both.",
+        purity: Purity::Pure,
+        shape: super::Shape::Reduction,
+        check: None,
+        eval: eval_top_k,
+    },
+    Operation {
+        name: "approx_distinct",
+        spec: Signature::Declared,
+        summary: "An estimate of how many distinct values occur: HyperLogLog over 4096 \
+                  registers and a SHA-256 hash, so every run gives the same answer. Its \
+                  registers combine by `max`.",
+        purity: Purity::Pure,
+        shape: super::Shape::Reduction,
+        check: None,
+        eval: eval_approx_distinct,
+    },
 ];
 
 fn eval_count(
@@ -1309,6 +1362,433 @@ fn extreme(
     })
 }
 
+/// The occurrences of a numeric input as Floats, an Int widened.
+fn numbers(input: &Value, name: &str, span: &Range<usize>) -> Result<Vec<f64>, Diagnostic> {
+    elements(input, name, span)?
+        .into_iter()
+        .map(|value| match value {
+            #[allow(clippy::cast_precision_loss)]
+            Value::Int(n) => Ok(n as f64),
+            Value::Float(x) => Ok(x),
+            _ => Err(wrong(name, "Int or Float occurrences", span)),
+        })
+        .collect()
+}
+
+/// The state `variance` folds: how many values, their running mean, and the
+/// sum of squared deviations from it (Welford's). Two states combine
+/// pairwise (Chan's), so the fold may be split; Float state is combined in
+/// input order, as a Float `+` is.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) struct Moments {
+    count: i64,
+    mean: f64,
+    deviations: f64,
+}
+
+impl Moments {
+    /// The state with one more value, as the longhand's lambda computes it.
+    pub(crate) fn add(self, x: f64) -> Self {
+        let count = self.count + 1;
+        let delta = x - self.mean;
+        #[allow(clippy::cast_precision_loss)]
+        let mean = self.mean + delta / count as f64;
+        Self {
+            count,
+            mean,
+            deviations: self.deviations + delta * (x - mean),
+        }
+    }
+
+    /// The state of two contiguous runs of input, this one first.
+    // The combiner a backend that splits the fold applies to partial
+    // states; `localhost` folds sequentially, and the tests hold the two equal.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn combine(self, other: Self) -> Self {
+        if self.count == 0 {
+            return other;
+        }
+        if other.count == 0 {
+            return self;
+        }
+        let count = self.count + other.count;
+        #[allow(clippy::cast_precision_loss)]
+        let (left, right, whole) = (self.count as f64, other.count as f64, count as f64);
+        let delta = other.mean - self.mean;
+        Self {
+            count,
+            mean: self.mean + delta * right / whole,
+            deviations: self.deviations + other.deviations + delta * delta * left * right / whole,
+        }
+    }
+
+    /// The population variance, absent over no values.
+    pub(crate) fn variance(self) -> Option<f64> {
+        #[allow(clippy::cast_precision_loss)]
+        (self.count > 0).then(|| self.deviations / self.count as f64)
+    }
+}
+
+fn eval_variance(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let state = numbers(&input, "variance", &span)?
+        .into_iter()
+        .fold(Moments::default(), Moments::add);
+    Ok(match state.variance() {
+        Some(variance) => Value::Present(Arc::new(Value::Float(variance))),
+        None => Value::Absent(TypeRef::FLOAT),
+    })
+}
+
+/// A count per key, keys in the order first seen: the state `count_by` and
+/// `histogram` fold. Two tallies combine by `+` per key.
+pub(crate) type Tally = Vec<(Value, i64)>;
+
+/// Add `n` to a key's count.
+pub(crate) fn tally(counts: &mut Tally, key: Value, n: i64) {
+    match counts.iter_mut().find(|(held, _)| *held == key) {
+        Some((_, count)) => *count += n,
+        None => counts.push((key, n)),
+    }
+}
+
+/// Two tallies of contiguous runs of input as one, the left one's keys first.
+// The combiner a backend that splits the fold applies to partial
+// states; `localhost` folds sequentially, and the tests hold the two equal.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn combine_tallies(mut left: Tally, right: Tally) -> Tally {
+    for (key, n) in right {
+        tally(&mut left, key, n);
+    }
+    left
+}
+
+fn tally_map(
+    kind: crate::types::MapKind,
+    counts: Tally,
+    key: TypeRef,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let (keys, counts): (Vec<Value>, Vec<Value>) = counts
+        .into_iter()
+        .map(|(key, count)| (key, Value::Int(count)))
+        .unzip();
+    crate::types::MapValue::new(kind, keys, counts, key, TypeRef::INT)
+        .map(|map| Value::Map(Arc::new(map)))
+        .map_err(|error| Diagnostic::runtime(span.clone(), error.to_string()))
+}
+
+fn eval_count_by(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let by = named_or_first(arguments, "by").ok_or_else(|| {
+        wrong(
+            "count_by",
+            "a key selector: `count_by(x => x.genre)`",
+            &span,
+        )
+    })?;
+    let mut counts = Tally::new();
+    for element in elements(&input, "count_by", &span)? {
+        tally(&mut counts, cx.apply_lambda(by, element)?, 1);
+    }
+    tally_map(
+        crate::types::MapKind::Unordered,
+        counts,
+        produced(by),
+        &span,
+    )
+}
+
+/// The lower bound of the bucket of `width` that holds a value: the
+/// greatest multiple of `width` not above it.
+fn bucket(value: &Value, width: &Value, span: &Range<usize>) -> Result<Value, Diagnostic> {
+    let narrow = || {
+        Diagnostic::runtime(
+            span.clone(),
+            "a bucket has a width above zero: `histogram(width)` needs a positive width",
+        )
+    };
+    match (value, width) {
+        (Value::Int(x), Value::Int(w)) => {
+            if *w <= 0 {
+                return Err(narrow());
+            }
+            x.checked_sub(x.rem_euclid(*w))
+                .map(Value::Int)
+                .ok_or_else(|| Diagnostic::Overflow { span: span.clone() })
+        }
+        (Value::Float(x), Value::Float(w)) => {
+            if w.partial_cmp(&0.0) != Some(Ordering::Greater) || !w.is_finite() {
+                return Err(narrow());
+            }
+            // `+ 0.0` reads a negative zero as zero, so both share a bucket.
+            Ok(Value::Float((x / w).floor() * w + 0.0))
+        }
+        _ => Err(wrong(
+            "histogram",
+            "Int occurrences and an Int width, or Float occurrences and a Float width",
+            span,
+        )),
+    }
+}
+
+fn eval_histogram(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let argument = named_or_first(arguments, "width")
+        .ok_or_else(|| wrong("histogram", "a bucket width: `histogram(10)`", &span))?;
+    let width = cx.evaluate(&argument.value)?;
+    let key = width.type_of();
+    let mut counts = Tally::new();
+    for value in elements(&input, "histogram", &span)? {
+        tally(
+            &mut counts,
+            bucket(&value, &width, &argument.value.span)?,
+            1,
+        );
+    }
+    tally_map(crate::types::MapKind::Sorted, counts, key, &span)
+}
+
+/// Keep `item` among the `k` greatest of `held`, which is ordered greatest
+/// first: it goes after every held key not below its own, so equal keys
+/// keep the order they arrived in. Inserting the items of a right partial
+/// result into a left one, in order, is the combiner of two partials.
+fn keep_greatest(
+    cx: &mut dyn EvalCx,
+    held: &mut Vec<(Value, Value)>,
+    item: (Value, Value),
+    k: usize,
+    span: &Range<usize>,
+) -> Result<(), Diagnostic> {
+    let mut position = held.len();
+    for (index, (key, _)) in held.iter().enumerate() {
+        if cx.compare_values(key, &item.0, span)? == Ordering::Less {
+            position = index;
+            break;
+        }
+    }
+    if position < k {
+        held.insert(position, item);
+        held.truncate(k);
+    }
+    Ok(())
+}
+
+fn eval_top_k(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let argument = named_or_first(arguments, "k")
+        .ok_or_else(|| wrong("top_k", "a count: `top_k(3)`", &span))?;
+    let Value::Int(k) = cx.evaluate(&argument.value)? else {
+        return Err(wrong("top_k", "an Int count", &span));
+    };
+    let k = usize::try_from(k).map_err(|_| {
+        Diagnostic::runtime(argument.value.span.clone(), "a count cannot be negative")
+    })?;
+    let by = super::named(arguments, "by").or_else(|| {
+        arguments
+            .iter()
+            .filter(|argument| argument.name.is_none())
+            .nth(1)
+    });
+    let mut held = Vec::new();
+    for element in elements(&input, "top_k", &span)? {
+        let key = match by {
+            Some(by) => cx.apply_lambda(by, element.clone())?,
+            None => element.clone(),
+        };
+        keep_greatest(cx, &mut held, (key, element), k, &span)?;
+    }
+    Ok(Value::list(
+        held.into_iter().map(|(_, element)| element).collect(),
+        element_type(&input),
+    ))
+}
+
+/// The state `approx_distinct` folds: a HyperLogLog sketch. Each value's
+/// SHA-256 digest of its canonical encoding picks a register and a run of
+/// leading zeros, and a register keeps the longest run it has seen. Two
+/// sketches combine by `max` per register, which is associative and
+/// commutative, and the hash takes no seed, so every split and every
+/// backend gives the same estimate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Sketch {
+    registers: Vec<u8>,
+}
+
+/// The bits of a digest that pick a register: 2^12 = 4096 registers, a
+/// standard error near 1.6%.
+const PRECISION: u32 = 12;
+
+impl Default for Sketch {
+    fn default() -> Self {
+        Self {
+            registers: vec![0; 1 << PRECISION],
+        }
+    }
+}
+
+impl Sketch {
+    /// Record one value.
+    pub(crate) fn insert(&mut self, value: &Value) {
+        let hash = digest(value);
+        let index = usize::try_from(hash >> (64 - PRECISION)).unwrap_or(0);
+        let rest = hash << PRECISION;
+        let run = (rest.leading_zeros() + 1).min(64 - PRECISION + 1);
+        if let Some(register) = self.registers.get_mut(index) {
+            *register = (*register).max(u8::try_from(run).unwrap_or(u8::MAX));
+        }
+    }
+
+    /// The sketch of two runs of input.
+    // The combiner a backend that splits the fold applies to partial
+    // states; `localhost` folds sequentially, and the tests hold the two equal.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn combine(mut self, other: &Self) -> Self {
+        for (mine, theirs) in self.registers.iter_mut().zip(&other.registers) {
+            *mine = (*mine).max(*theirs);
+        }
+        self
+    }
+
+    /// The estimated number of distinct values: the harmonic mean of the
+    /// registers, by linear counting while registers are still empty.
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
+    pub(crate) fn estimate(&self) -> i64 {
+        let m = self.registers.len() as f64;
+        let alpha = 0.7213 / (1.0 + 1.079 / m);
+        let harmonic: f64 = self
+            .registers
+            .iter()
+            .map(|register| (-f64::from(*register)).exp2())
+            .sum();
+        let raw = alpha * m * m / harmonic;
+        let empty = self
+            .registers
+            .iter()
+            .filter(|register| **register == 0)
+            .count();
+        let estimate = if raw <= 2.5 * m && empty > 0 {
+            m * (m / empty as f64).ln()
+        } else {
+            raw
+        };
+        estimate.round() as i64
+    }
+}
+
+/// The first 64 bits of a value's SHA-256 digest.
+fn digest(value: &Value) -> u64 {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    encode(value, &mut hasher);
+    let bytes = hasher.finalize();
+    let mut first = [0u8; 8];
+    first.copy_from_slice(&bytes[..8]);
+    u64::from_be_bytes(first)
+}
+
+/// Write a value's canonical encoding: two equal values write the same
+/// bytes, so a set's members and a map's entries are written in the order
+/// of their own digests, not the order they are held in.
+fn encode(value: &Value, out: &mut sha2::Sha256) {
+    use sha2::Digest;
+    let text = |out: &mut sha2::Sha256, tag: &[u8], text: &str| {
+        out.update(tag);
+        out.update(text.len().to_le_bytes());
+        out.update(text.as_bytes());
+    };
+    let unordered = |out: &mut sha2::Sha256, tag: &[u8], mut digests: Vec<u64>| {
+        digests.sort_unstable();
+        out.update(tag);
+        out.update(digests.len().to_le_bytes());
+        for digest in digests {
+            out.update(digest.to_le_bytes());
+        }
+    };
+    match value {
+        Value::Int(n) => {
+            out.update(b"i");
+            out.update(n.to_le_bytes());
+        }
+        Value::Float(x) => {
+            out.update(b"f");
+            out.update((x + 0.0).to_bits().to_le_bytes());
+        }
+        Value::Bool(b) => out.update([b'b', u8::from(*b)]),
+        Value::Str(held) => text(out, b"s", held),
+        Value::Formatted(formatted) => text(out, b"s", &formatted.text),
+        Value::Absent(ty) => text(out, b"n", &ty.to_string()),
+        Value::Present(held) => {
+            out.update(b"p");
+            encode(held, out);
+        }
+        Value::List(values, _) => {
+            out.update(b"l");
+            out.update(values.len().to_le_bytes());
+            for held in values.iter() {
+                encode(held, out);
+            }
+        }
+        Value::Set(values, _) => unordered(out, b"S", values.iter().map(digest).collect()),
+        Value::Map(map) => unordered(
+            out,
+            b"M",
+            map.entries()
+                .iter()
+                .map(|(key, held)| digest(key) ^ digest(held).rotate_left(1))
+                .collect(),
+        ),
+        Value::Record(record) => {
+            text(out, b"r", record.ty.constructor.0);
+            for (name, held) in &record.fields {
+                text(out, b".", name);
+                encode(held, out);
+            }
+        }
+        Value::Group(group) => {
+            out.update(b"g");
+            encode(&group.key, out);
+        }
+        Value::Data(tree) => text(out, b"d", &format!("{tree:?}")),
+        Value::Doc(doc) => text(out, b"D", &doc.path.to_string_lossy()),
+        Value::Card(card) => text(out, b"c", &card.document.path.to_string_lossy()),
+        other => text(out, b"o", &other.to_string()),
+    }
+}
+
+fn eval_approx_distinct(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let mut sketch = Sketch::default();
+    for value in elements(&input, "approx_distinct", &span)? {
+        sketch.insert(&value);
+    }
+    Ok(Value::Int(sketch.estimate()))
+}
+
 fn eval_somes(
     _: &mut dyn EvalCx,
     input: Value,
@@ -1340,5 +1820,98 @@ fn function_arity(argument: &TypedArg) -> Option<usize> {
             .ty
             .as_function()
             .map(|(parameters, _)| parameters.len()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn moments(xs: &[f64]) -> Moments {
+        xs.iter().copied().fold(Moments::default(), Moments::add)
+    }
+
+    #[test]
+    fn variance_states_of_contiguous_splits_combine_to_the_whole() {
+        let xs = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0];
+        let whole = moments(&xs);
+        assert_eq!(whole.variance(), Some(4.0));
+        for split in 0..=xs.len() {
+            let (left, right) = xs.split_at(split);
+            let combined = moments(left).combine(moments(right));
+            assert_eq!(combined.count, whole.count);
+            let variance = combined.variance().unwrap_or(f64::NAN);
+            assert!((variance - 4.0).abs() < 1e-12, "{split}: {variance}");
+        }
+        assert_eq!(Moments::default().variance(), None);
+        assert_eq!(moments(&[3.0]).variance(), Some(0.0));
+    }
+
+    #[test]
+    fn tallies_combine_by_addition_per_key() {
+        let count = |words: &[&str]| {
+            let mut counts = Tally::new();
+            for word in words {
+                tally(&mut counts, Value::Str(Arc::from(*word)), 1);
+            }
+            counts
+        };
+        let words = ["owl", "raven", "owl", "robin", "owl", "raven"];
+        let whole = count(&words);
+        let by_key = |entry: &(Value, i64)| entry.0.to_string();
+        for split in 0..=words.len() {
+            let (left, right) = words.split_at(split);
+            let mut combined = combine_tallies(count(left), count(right));
+            let mut expected = whole.clone();
+            combined.sort_by_key(by_key);
+            expected.sort_by_key(by_key);
+            assert_eq!(combined, expected, "{split}");
+        }
+    }
+
+    #[test]
+    fn sketches_combine_by_max_and_ignore_order_and_repeats() {
+        let sketch = |values: &[i64]| {
+            let mut sketch = Sketch::default();
+            for value in values {
+                sketch.insert(&Value::Int(*value));
+            }
+            sketch
+        };
+        let values: Vec<i64> = (0..500).map(|n| n % 120).collect();
+        let whole = sketch(&values);
+        for split in [0, 1, 250, 499, 500] {
+            let (left, right) = values.split_at(split);
+            assert_eq!(sketch(left).combine(&sketch(right)), whole, "{split}");
+            assert_eq!(sketch(right).combine(&sketch(left)), whole, "{split}");
+        }
+        let mut reversed = values.clone();
+        reversed.reverse();
+        assert_eq!(sketch(&reversed), whole);
+        assert_eq!(Sketch::default().estimate(), 0);
+        assert_eq!(sketch(&[7, 7, 7]).estimate(), 1);
+        // Approximate, and the same on every run: 120 distinct values read as 121.
+        assert_eq!(whole.estimate(), 121);
+    }
+
+    #[test]
+    fn equal_values_encode_alike() {
+        let set = |values: Vec<Value>| Value::set(values, TypeRef::INT);
+        assert_eq!(
+            digest(&set(vec![Value::Int(1), Value::Int(2)])),
+            digest(&set(vec![Value::Int(2), Value::Int(1)]))
+        );
+        assert_eq!(digest(&Value::Float(0.0)), digest(&Value::Float(-0.0)));
+        assert_ne!(digest(&Value::Int(1)), digest(&Value::Float(1.0)));
+        assert_ne!(
+            digest(&Value::list(
+                vec![Value::Int(1), Value::Int(2)],
+                TypeRef::INT
+            )),
+            digest(&Value::list(
+                vec![Value::Int(2), Value::Int(1)],
+                TypeRef::INT
+            ))
+        );
     }
 }
