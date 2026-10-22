@@ -1,6 +1,6 @@
 # 0039 — A `Table` shape, and a review of rendering and presentation
 
-Status: backlog
+Status: done
 Related: [HQL-0017](../proposals/HQL-0017/README.md),
 [formats and codecs](../proposals/HQL-0024/parts/07-formats-and-codecs.md),
 [presentation](../wiki/hql/presentation.hmd),
@@ -8,21 +8,18 @@ Related: [HQL-0017](../proposals/HQL-0017/README.md),
 
 HQL-0017 separates what a value is (a shape type: `Graph`, `Table`, `Tree`)
 from the syntax it is written in (a format), and names a renderer for each
-shape in each format. `Table` was deferred until record values existed.
-Records exist now; `Table` does not: `Table(xs)` is a name error.
+shape in each format. HQL-0024 part 7 defines a format as a `Format` value
+with `Encoder<T>` impls, and a renderer as one of a format's encoders.
 
-The table renderers `aligned`, `pipe`, `rows` and `records` are registered
-in `src/extensions/format.rs`, but `by_name` applies them to any value, so a
-table is written only by naming a renderer:
-`xs | format(as = Markdown, renderer = "pipe")`. Without one, a list of
-records in `Markdown` is a bullet list. Column order cannot be stated: an
-anonymous record literal's fields are written sorted by name, in every
-table renderer.
-
-HQL-0024 part 7 has since redefined a format as a `Format` value with
-`Encoder<T>` impls, and a renderer as one of a format's encoders. HQL-0017's
-shape side, renderer table and configuration were not restated against that
-model.
+`Table` is declared in `std/format.hql` and built by
+`Table(xs, columns = [...])`. Each format writes a `Table` with its own
+encoder: `Text` aligned columns, `Markdown` and `Hmd` a pipe table, `Csv`
+RFC 4180 rows, `Json` and `Yaml` an array of objects, each in column order.
+The table renderers `aligned`, `pipe`, `rows` and `records` write only a
+`Table`, and are refused for any other value when the program is checked and
+when a vault's `[format]` configuration is read. The
+[presentation](../wiki/hql/presentation.hmd) card states the model, and
+HQL-0017 and HQL-0024 part 7 point to it.
 
 ## Scope
 

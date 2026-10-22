@@ -19,8 +19,10 @@ type, from [HQL-0026](../doc/proposals/HQL-0026/README.md).
 
 The [constructors](constructors/README.md) cases call a type's constructor
 and pipe into it, declare a program's own constructors told apart by their
-first parameter, pass one to `map`, and parse text by constructing `Data`, from
-[HQL-0018](../doc/proposals/HQL-0018/README.md).
+first parameter, pass one to `map`, parse text by constructing `Data`, from
+[HQL-0018](../doc/proposals/HQL-0018/README.md), and build a `Table` that each
+format writes with its columns in the order named, from
+[HQL-0017](../doc/proposals/HQL-0017/README.md).
 
 The [overloads](overloads/README.md) cases call the standard operations a
 name declares more than once: positional arguments, forms chosen by their

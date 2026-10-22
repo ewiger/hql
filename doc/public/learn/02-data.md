@@ -208,19 +208,22 @@ pages,title
 310,The Hobbit
 ```
 
-A list of records lays out as a table where a format has one. `format` is the
-longhand of these steps, and it can name the renderer:
+A list of records becomes a table when it is built into one. `Table` takes
+the records as rows and `columns` names their fields in the order the table
+writes them; each format then writes the table in its own syntax, here a pipe
+table:
 
 ```hql
 [{title: "Dune", pages: 412}, {title: "The Hobbit", pages: 310}]
-| format(Markdown, renderer = "pipe")
+| Table(columns = ["title", "pages"])
+| markdown
 ```
 
 ```text
-| pages | title      |
-| ----- | ---------- |
-| 412   | Dune       |
-| 310   | The Hobbit |
+| title      | pages |
+| ---------- | ----- |
+| Dune       | 412   |
+| The Hobbit | 310   |
 ```
 
 [Chapter 10](10-output.md) is about formats in full.

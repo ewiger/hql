@@ -4,7 +4,7 @@
 //! binary can do, and keeping it out of [`value`](super::value) leaves that
 //! module about what a value *is*.
 
-use super::Value;
+use super::{Table, Value};
 use crate::data::Data;
 use crate::document::Kind;
 use std::fmt;
@@ -74,6 +74,24 @@ impl Value {
             Self::Set(values, _) | Self::List(values, _) => {
                 J::Array(values.iter().map(Self::to_json).collect())
             }
+            Self::Table(table) => J::Array(
+                table
+                    .rows
+                    .iter()
+                    .map(|row| {
+                        J::Object(
+                            table
+                                .columns
+                                .iter()
+                                .map(|column| {
+                                    let cell = Table::cell(row, column);
+                                    (column.clone(), cell.map_or(J::Null, |cell| cell.to_json()))
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            ),
             Self::Hit(hit) => json!({
                 "value": hit.name(),
                 "score": hit.score,
@@ -159,6 +177,18 @@ impl fmt::Display for Value {
                 graph.nodes.len(),
                 graph.induced().len()
             ),
+            // A table prints as the call that constructs it.
+            Self::Table(table) => write!(
+                f,
+                "Table([{}], columns = [{}])",
+                nested(&table.rows),
+                table
+                    .columns
+                    .iter()
+                    .map(|column| format!("{column:?}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             // `{}` is an empty record, so an empty set names its type.
             Self::Set(values, element) if values.is_empty() => write!(f, "Set<{element}>([])"),
             Self::Set(values, _) => write!(f, "{{{}}}", nested(values)),
@@ -231,23 +261,11 @@ fn nested(values: &[Value]) -> String {
         .join(", ")
 }
 
-/// Render a value as a table, choosing columns by what the value is.
+/// Lay a value out in rows, choosing columns by what the value is: the
+/// Markdown and CSV writing of a value that is not a `Table`.
 impl Value {
-    /// Render the value as a table, choosing columns by what the value is.
-    #[must_use]
-    pub fn to_table(&self) -> String {
-        if let Some(settled) = self.settled() {
-            return settled.to_table();
-        }
-        grids(self)
-            .iter()
-            .map(Grid::aligned)
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
-    /// Render the value as Markdown pipe tables, with the columns
-    /// [`to_table`](Self::to_table) chooses.
+    /// Render the value as Markdown pipe tables, choosing columns by what the
+    /// value is.
     #[must_use]
     pub fn to_markdown_table(&self) -> String {
         if let Some(settled) = self.settled() {
@@ -267,31 +285,9 @@ impl Value {
         if let Some(settled) = self.settled() {
             return settled.to_csv();
         }
-        let quote = |cell: &str| {
-            if cell.contains([',', '"', '\n', '\r']) {
-                format!("\"{}\"", cell.replace('"', "\"\""))
-            } else {
-                cell.to_owned()
-            }
-        };
         grids(self)
             .iter()
-            .map(|grid| {
-                std::iter::once(
-                    grid.headers
-                        .iter()
-                        .map(|header| quote(header))
-                        .collect::<Vec<_>>(),
-                )
-                .chain(
-                    grid.body
-                        .iter()
-                        .map(|row| row.iter().map(|cell| quote(cell)).collect()),
-                )
-                .map(|row| row.join(","))
-                .collect::<Vec<_>>()
-                .join("\r\n")
-            })
+            .map(Grid::csv)
             .collect::<Vec<_>>()
             .join("\r\n\r\n")
     }
@@ -327,6 +323,7 @@ impl Value {
                 })
                 .collect::<Vec<_>>()
                 .join("\n"),
+            Self::Table(table) => table.piped(),
             Self::Map(_) | Self::Ranking(_) | Self::Graph(_) => self.to_markdown_table(),
             Self::Data(data) if matches!(data.as_ref(), Data::Map(_)) => self.to_markdown_table(),
             Self::Unit => String::new(),
@@ -531,6 +528,28 @@ impl Grid {
         out.join("\n")
     }
 
+    /// Comma-separated rows, header first, each cell quoted as RFC 4180
+    /// requires.
+    fn csv(&self) -> String {
+        let quote = |cell: &str| {
+            if cell.contains([',', '"', '\n', '\r']) {
+                format!("\"{}\"", cell.replace('"', "\"\""))
+            } else {
+                cell.to_owned()
+            }
+        };
+        std::iter::once(&self.headers)
+            .chain(&self.body)
+            .map(|row| {
+                row.iter()
+                    .map(|cell| quote(cell))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })
+            .collect::<Vec<_>>()
+            .join("\r\n")
+    }
+
     /// A Markdown pipe table: a header row, a delimiter row, then the rows.
     /// A pipe in a cell is escaped and a line break becomes a space, so a
     /// cell cannot end its row early.
@@ -563,5 +582,164 @@ impl Grid {
                 .map(|row| line(row.iter().map(|cell| escape(cell)).collect())),
         );
         out.join("\n")
+    }
+}
+
+/// The text of one cell: a string bare, a missing field empty.
+fn cell_text(cell: Option<Value>) -> String {
+    match cell {
+        None => String::new(),
+        Some(Value::Data(data)) => match data.as_ref() {
+            Data::Str(text) => text.clone(),
+            other => other.to_string(),
+        },
+        Some(other) => other.to_string(),
+    }
+}
+
+/// How a table is written by each format's encoder: its columns in the
+/// order they are named, one row per row.
+impl Table {
+    fn grid(&self) -> Grid {
+        Grid {
+            headers: self.columns.clone(),
+            body: self
+                .rows
+                .iter()
+                .map(|row| {
+                    self.columns
+                        .iter()
+                        .map(|column| cell_text(Self::cell(row, column)))
+                        .collect()
+                })
+                .collect(),
+        }
+    }
+
+    /// The table in `Text`: space-aligned columns under a dashed rule.
+    #[must_use]
+    pub fn aligned(&self) -> String {
+        if self.columns.is_empty() {
+            return String::new();
+        }
+        self.grid().aligned()
+    }
+
+    /// The table in `Markdown`: a pipe table with header and delimiter rows.
+    #[must_use]
+    pub fn piped(&self) -> String {
+        if self.columns.is_empty() {
+            return String::new();
+        }
+        self.grid().piped()
+    }
+
+    /// The table in `Csv`: RFC 4180 rows, header first.
+    #[must_use]
+    pub fn csv(&self) -> String {
+        if self.columns.is_empty() {
+            return String::new();
+        }
+        self.grid().csv()
+    }
+
+    /// One row as `(column, JSON)` pairs, in column order, a missing field
+    /// `null`.
+    fn json_row(&self, row: &Value) -> Vec<(String, serde_json::Value)> {
+        self.columns
+            .iter()
+            .map(|column| {
+                let cell = Self::cell(row, column);
+                (
+                    column.clone(),
+                    cell.map_or(serde_json::Value::Null, |cell| cell.to_json()),
+                )
+            })
+            .collect()
+    }
+
+    /// The table in `Json`: an array of objects, each object's keys in
+    /// column order.
+    #[must_use]
+    pub fn json(&self) -> String {
+        if self.rows.is_empty() {
+            return "[]".to_owned();
+        }
+        let key = |name: &str| serde_json::to_string(name).unwrap_or_default();
+        let objects: Vec<String> = self
+            .rows
+            .iter()
+            .map(|row| {
+                let fields: Vec<String> = self
+                    .json_row(row)
+                    .iter()
+                    .map(|(column, cell)| {
+                        let written = serde_json::to_string_pretty(cell)
+                            .unwrap_or_else(|_| "null".to_owned())
+                            .replace('\n', "\n    ");
+                        format!("    {}: {written}", key(column))
+                    })
+                    .collect();
+                if fields.is_empty() {
+                    "  {}".to_owned()
+                } else {
+                    format!("  {{\n{}\n  }}", fields.join(",\n"))
+                }
+            })
+            .collect();
+        format!("[\n{}\n]", objects.join(",\n"))
+    }
+
+    /// The table in `JsonLines`: one object per row, keys in column order.
+    #[must_use]
+    pub fn json_lines(&self) -> String {
+        let key = |name: &str| serde_json::to_string(name).unwrap_or_default();
+        self.rows
+            .iter()
+            .map(|row| {
+                let fields: Vec<String> = self
+                    .json_row(row)
+                    .iter()
+                    .map(|(column, cell)| {
+                        format!(
+                            "{}:{}",
+                            key(column),
+                            serde_json::to_string(cell).unwrap_or_else(|_| "null".to_owned())
+                        )
+                    })
+                    .collect();
+                format!("{{{}}}", fields.join(","))
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// The table in `Yaml`: a sequence of mappings, keys in column order. A
+    /// cell that is not a scalar is written in flow style.
+    #[must_use]
+    pub fn yaml(&self) -> String {
+        if self.rows.is_empty() {
+            return "[]\n".to_owned();
+        }
+        let scalar = |value: &serde_json::Value| match value {
+            serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned())
+            }
+            scalar => serde_yaml_ng::to_string(scalar)
+                .map(|text| text.trim_end().to_owned())
+                .unwrap_or_else(|_| "null".to_owned()),
+        };
+        let mut out = String::new();
+        for row in &self.rows {
+            for (index, (column, cell)) in self.json_row(row).iter().enumerate() {
+                let key = scalar(&serde_json::Value::String(column.clone()));
+                let lead = if index == 0 { "- " } else { "  " };
+                out.push_str(&format!("{lead}{key}: {}\n", scalar(cell)));
+            }
+            if self.columns.is_empty() {
+                out.push_str("- {}\n");
+            }
+        }
+        out
     }
 }

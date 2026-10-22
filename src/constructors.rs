@@ -1,6 +1,6 @@
 //! Checking and evaluating the standard constructors: materialized
-//! collections, a graph projected from cards, a channel, and a tree parsed
-//! from text.
+//! collections, a graph projected from cards, a table of records, a
+//! channel, and a tree parsed from text.
 //!
 //! A constructor is declared in `std/` as a function named after its type,
 //! beside the type, and binding holds each declaration to the table here:
@@ -18,7 +18,7 @@ use std::sync::{Arc, OnceLock};
 
 /// The types a program may name as constructors, abstract ones included so
 /// that naming one is refused with its concrete subtypes.
-const CONSTRUCTORS: [TypeConstructor; 11] = [
+const CONSTRUCTORS: [TypeConstructor; 12] = [
     collections::COLLECTION,
     collections::SEQ,
     collections::LIST,
@@ -28,6 +28,7 @@ const CONSTRUCTORS: [TypeConstructor; 11] = [
     collections::SORTED_MAP,
     collections::ORDERABLE,
     GRAPH,
+    TABLE,
     builtin::CHANNEL,
     DATA,
 ];
@@ -35,6 +36,8 @@ const CONSTRUCTORS: [TypeConstructor; 11] = [
 const DATA: TypeConstructor = TypeConstructor("Data");
 
 const GRAPH: TypeConstructor = TypeConstructor("Graph");
+
+const TABLE: TypeConstructor = TypeConstructor("Table");
 
 pub(crate) fn named(name: &str) -> Option<TypeConstructor> {
     CONSTRUCTORS
@@ -165,6 +168,7 @@ pub(crate) fn bind() -> Result<(), String> {
     for constructor in CONSTRUCTORS {
         let concrete = constructor == DATA
             || constructor == GRAPH
+            || constructor == TABLE
             || system
                 .definition(constructor)
                 .is_ok_and(|definition| definition.kind == crate::types::TypeKind::Concrete);
@@ -324,6 +328,9 @@ fn check_native(
     if constructor == GRAPH {
         return check_graph(cx, args, span);
     }
+    if constructor == TABLE {
+        return check_table(cx, args, span);
+    }
     if constructor == builtin::CHANNEL {
         return check_channel(cx, args, expected, span);
     }
@@ -469,6 +476,78 @@ fn check_data(
     }
 }
 
+/// `Table(xs, columns = [...])`: one row per element, each a record or a
+/// `Data` map. Over a declared record, a column written as a literal must
+/// name one of its fields.
+fn check_table(
+    cx: &mut dyn CheckCx,
+    args: &[Arg],
+    span: Range<usize>,
+) -> Result<TypeRef, Diagnostic> {
+    let Some((rows, rest)) = args.split_first().filter(|(rows, _)| rows.name.is_none()) else {
+        return Err(Diagnostic::typing(
+            span,
+            "`Table` takes its rows by position: `Table(xs, columns = [...])`",
+        ));
+    };
+    let input = cx.infer(&rows.value)?;
+    let input = input.present();
+    if input.is_stream() && !input.is_collection() {
+        return Err(Diagnostic::typing(
+            rows.value.span.clone(),
+            format!(
+                "a Table needs a finite input, and {input} may not end; bound it with \
+                 `take(n)` or batch it with `collect(n)`"
+            ),
+        ));
+    }
+    let Some(element) = input.element() else {
+        return Err(Diagnostic::typing(
+            rows.value.span.clone(),
+            format!("a Table is built from a collection of records, not {input}"),
+        ));
+    };
+    let row = element.present().clone();
+    let record = crate::types::program::is_record_valued(row.constructor.0);
+    let open = row == TypeRef::DATA
+        || row == TypeRef::NEVER
+        || row.has_variable()
+        || row.has_placeholder()
+        || row.is_union();
+    if !record && !open {
+        return Err(Diagnostic::typing(
+            rows.value.span.clone(),
+            format!(
+                "a Table row is a record or a Data map, not {row}; `map` each element to a \
+                 record first"
+            ),
+        ));
+    }
+    let columns = rest
+        .iter()
+        .enumerate()
+        .find(|(index, argument)| {
+            argument.name.as_deref() == Some("columns") || (*index == 0 && argument.name.is_none())
+        })
+        .map(|(_, argument)| argument);
+    if record
+        && let Some(columns) = columns
+        && let crate::ast::Kind::List(written) = &columns.value.kind
+    {
+        for column in written {
+            if let crate::ast::Kind::Str(name) = &column.kind
+                && crate::types::program::field_type(&row, name).is_none()
+            {
+                return Err(Diagnostic::typing(
+                    column.span.clone(),
+                    format!("the column `{name}` names no field of {row}"),
+                ));
+            }
+        }
+    }
+    Ok(TypeRef::TABLE)
+}
+
 /// `Channel<T>(name)`: a name, and the element type written out, since
 /// nothing written to the channel yet can say it.
 fn check_channel(
@@ -565,21 +644,13 @@ pub(crate) fn evaluate(
     if constructor == DATA {
         return evaluate_data(cx, args, span);
     }
+    if constructor == TABLE {
+        return evaluate_table(cx, args, span);
+    }
     let mut inputs = Vec::new();
     for argument in args {
         let input = cx.evaluate(&argument.value)?;
-        // A constructor materializes, so a traversal's values are produced.
-        inputs.push(match input {
-            Value::Traversal(traversal) if traversal.forced().is_none() => {
-                let mut values = Vec::new();
-                cx.traverse(&traversal, &mut |_, value| {
-                    values.push(value);
-                    Ok(true)
-                })?;
-                Value::list(values, traversal.element.clone())
-            }
-            other => other,
-        });
+        inputs.push(materialized(cx, input)?);
     }
     if constructor == builtin::CHANNEL {
         let (Some(Value::Str(name)), Some(element)) = (inputs.first(), expected.args.first())
@@ -624,6 +695,70 @@ pub(crate) fn evaluate(
             format!("{constructor} has no runtime constructor"),
         )),
     }
+}
+
+/// A constructor materializes, so a traversal's values are produced.
+fn materialized(cx: &mut dyn EvalCx, input: Value) -> Result<Value, Diagnostic> {
+    Ok(match input {
+        Value::Traversal(traversal) if traversal.forced().is_none() => {
+            let mut values = Vec::new();
+            cx.traverse(&traversal, &mut |_, value| {
+                values.push(value);
+                Ok(true)
+            })?;
+            Value::list(values, traversal.element.clone())
+        }
+        other => other,
+    })
+}
+
+/// `Table(xs, columns = [...])`: the rows, under the columns named or the
+/// first row's fields.
+fn evaluate_table(
+    cx: &mut dyn EvalCx,
+    args: &[crate::execution::Arg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let Some((rows, rest)) = args.split_first() else {
+        return Err(Diagnostic::runtime(span, "`Table` needs its rows"));
+    };
+    let rows = cx.evaluate(&rows.value)?;
+    let rows = match materialized(cx, rows)? {
+        Value::Present(held) => held.as_ref().clone(),
+        other => other,
+    };
+    let rows = rows.elements().ok_or_else(|| {
+        Diagnostic::runtime(
+            span.clone(),
+            "a Table is built from a collection of records",
+        )
+    })?;
+    let columns = match rest.iter().find(|argument| {
+        argument
+            .name
+            .as_deref()
+            .is_none_or(|name| name == "columns")
+    }) {
+        Some(argument) => {
+            let written = cx.evaluate(&argument.value)?;
+            let names = materialized(cx, written)?
+                .elements()
+                .unwrap_or_default()
+                .iter()
+                .map(|name| match name {
+                    Value::Str(name) => name.to_string(),
+                    other => other.to_string(),
+                })
+                .collect::<Vec<_>>();
+            // `columns = []`, the default, names no columns: the first row's
+            // fields are the columns.
+            (!names.is_empty()).then_some(names)
+        }
+        None => None,
+    };
+    let table = crate::types::Table::new(rows, columns)
+        .map_err(|message| Diagnostic::runtime(span, message))?;
+    Ok(Value::Table(Arc::new(table)))
 }
 
 /// `Data(s, F)`: the text, parsed in the format the checked call names.
