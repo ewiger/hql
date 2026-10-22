@@ -70,7 +70,7 @@ The spelling of a no-result type, Unit or Void, remains open.
 
 `cards : Seq<Card>` denotes the cards in the current vault or namespace, in
 sorted-walk order: the entries of each directory sorted by name, depth first. It
-is the standard-library binding `cards = vault.cards`. See [[hql/collections]].
+is the program module's binding `cards = vault.cards`. See [[hql/collections]].
 
 `knowledge` denotes the semantic knowledge universe composed of concepts,
 relations, propositions and evidence. It is richer than a collection of cards

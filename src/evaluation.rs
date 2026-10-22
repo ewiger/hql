@@ -40,7 +40,7 @@ pub(crate) fn evaluate_with(
     // Values are read against the declarations they were checked under.
     crate::types::program::install(std::sync::Arc::clone(&program.lattice));
     let mut scope = base(vault);
-    // The library's bindings over `vault`, each its own program.
+    // The program module's bindings over `vault`, each its own program.
     for (name, library) in crate::checker::library(vault) {
         let (value, log) = evaluate_in(&library, vault, base(vault));
         match value {
@@ -196,10 +196,11 @@ impl Evaluator<'_> {
     /// Evaluate each workspace module the program imported, in its own scope,
     /// and bind its functions here under `local.name`. A module's own imports
     /// are loaded into its scope first; its implementations join the
-    /// program's.
+    /// program's. A module is a closure, so its scope starts empty: no host
+    /// binding reaches it.
     fn load_modules(&mut self, program: &Program) -> Result<(), Diagnostic> {
         for module in &program.modules {
-            let outer = std::mem::replace(&mut self.scope, base(self.vault));
+            let outer = std::mem::take(&mut self.scope);
             let loaded = self
                 .load_modules(&module.program)
                 .and_then(|()| self.program(&module.program));

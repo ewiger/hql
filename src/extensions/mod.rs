@@ -1145,6 +1145,25 @@ impl Resolution {
         }
     }
 
+    /// The visible modules whose receiver function `name` takes an input of
+    /// this type, by local name: the providers a receiver call could reach.
+    pub(crate) fn receiver_providers(&self, name: &str, input: &TypeRef) -> Vec<&'static str> {
+        let input = input.present();
+        let mut found: Vec<&Imported> = Vec::new();
+        for held in &self.imported {
+            if let Some(step) = held.extension.step(name)
+                && step.has_receiver()
+                && step.specs().iter().any(|spec| spec.input.accepts(input))
+                && !found
+                    .iter()
+                    .any(|known| known.extension.name == held.extension.name)
+            {
+                found.push(held);
+            }
+        }
+        found.into_iter().map(|held| held.local).collect()
+    }
+
     /// The step a bare name resolves to, whatever its input: the first
     /// visible module declaring it.
     #[cfg(test)]

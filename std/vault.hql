@@ -2,8 +2,8 @@
 //
 // See doc/issues/0010-yield-and-bind.md and doc/models/behavior/queries.md.
 //
-// A host with a vault seeds it as `vault`; a program running without one has
-// no `vault` binding.
+// A host with a vault seeds it as `vault` into the program module; a program
+// running without one has no `vault` binding, and no module sees it.
 
 type Vault {
     name : String    // the vault's directory name
@@ -14,7 +14,3 @@ type Vault {
     // the filesystem's, so `take(5)` answers the same on every machine.
     cards : Seq<Card>
 }
-
-// What every program over a vault starts from.
-cards = vault.cards
-graph = vault.graph

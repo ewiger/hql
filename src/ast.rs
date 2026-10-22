@@ -17,6 +17,8 @@ pub(crate) enum Stmt {
         name_span: Range<usize>,
         annotation: Option<TypeAnn>,
         value: Expr,
+        /// Where `private` is written before it.
+        private: Option<Range<usize>>,
     },
     /// `import a.b [as c]` — make one module visible under a local name:
     /// its last segment, or the alias.
@@ -49,10 +51,41 @@ pub(crate) enum Stmt {
     Expr(Expr),
 }
 
+impl Stmt {
+    /// Where `private` is written before the declaration, when it is.
+    pub(crate) fn private(&self) -> Option<&Range<usize>> {
+        match self {
+            Self::Fn(declaration) => declaration.private.as_ref(),
+            Self::External(declaration) => declaration.private.as_ref(),
+            Self::Alias(declaration) => declaration.private.as_ref(),
+            Self::Type(declaration) => declaration.private.as_ref(),
+            Self::Trait(declaration) => declaration.private.as_ref(),
+            Self::Bind { private, .. } => private.as_ref(),
+            Self::Import { .. } | Self::ModuleFor { .. } | Self::Impl(_) | Self::Expr(_) => None,
+        }
+    }
+
+    /// The name a declaration binds, when it is a declaration with one.
+    pub(crate) fn declared_name(&self) -> Option<&str> {
+        match self {
+            Self::Fn(declaration) => Some(&declaration.name),
+            Self::External(declaration) => Some(&declaration.name),
+            Self::Alias(declaration) => Some(&declaration.name),
+            Self::Type(declaration) => Some(&declaration.name),
+            Self::Trait(declaration) => Some(&declaration.name),
+            Self::Bind { name, .. } => Some(name),
+            Self::Import { .. } | Self::ModuleFor { .. } | Self::Impl(_) | Self::Expr(_) => None,
+        }
+    }
+}
+
 /// A declared trait: a name and the functions a type implements to satisfy
 /// it, some with a default body.
 #[derive(Debug)]
 pub(crate) struct TraitDecl {
+    /// Where `private` is written before it: visible only within its own
+    /// module.
+    pub private: Option<Range<usize>>,
     pub name: String,
     /// The trait's type parameters, `T` in `trait Index<T>`.
     pub generics: Vec<String>,
@@ -97,6 +130,9 @@ pub(crate) struct MethodDecl {
 /// A declared function: a name, typed parameters, a result type and a body.
 #[derive(Debug)]
 pub(crate) struct FnDecl {
+    /// Where `private` is written before it: visible only within its own
+    /// module.
+    pub private: Option<Range<usize>>,
     pub name: String,
     /// Whether the first parameter is `self`: a receiver function of the
     /// module the declaration is in, reached as `value.name(…)`.
@@ -115,6 +151,9 @@ pub(crate) struct FnDecl {
 /// HQL by the extension providing the module.
 #[derive(Debug)]
 pub(crate) struct ExternalDecl {
+    /// Where `private` is written before it: visible only within its own
+    /// module.
+    pub private: Option<Range<usize>>,
     pub name: String,
     /// Whether it is written `effectful fn`: its evaluation reads or changes
     /// something outside its result, so it runs once, where it is written.
@@ -150,6 +189,9 @@ pub(crate) enum BlockStmt {
 /// input and is annotated.
 #[derive(Debug)]
 pub(crate) struct AliasDecl {
+    /// Where `private` is written before it: visible only within its own
+    /// module.
+    pub private: Option<Range<usize>>,
     pub name: String,
     /// The input first, then the written parameters.
     pub parameters: Vec<AliasParam>,
@@ -210,6 +252,9 @@ pub(crate) enum Passing {
 /// A declared type: what it is called, what it narrows, and what it holds.
 #[derive(Debug)]
 pub(crate) struct TypeDecl {
+    /// Where `private` is written before it: visible only within its own
+    /// module.
+    pub private: Option<Range<usize>>,
     pub name: String,
     pub abstract_type: bool,
     pub bounds: Vec<(String, TypeAnn)>,

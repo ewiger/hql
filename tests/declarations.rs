@@ -77,10 +77,17 @@ fn every_file_in_the_standard_library_is_embedded_as_written() {
 fn every_module_of_the_standard_library_checks_after_the_ones_it_follows() {
     // Each module is checked with the modules before it, so a declaration
     // that contradicts the lattice is refused in the module that makes it.
-    // The library's bindings read `vault`, which a vault seeds.
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    // A package's own prelude does not apply to its own modules, so the
+    // library checks with none: each file names what it imports.
+    let mut vault = hql::vault::Vault::empty();
+    vault.extensions.prelude = false;
     let mut prefix = String::new();
     for (name, module) in library::MODULES {
+        // `prelude.hql` is not a module: it is the implicit import list of
+        // every unit outside the library.
+        if *name == "prelude" {
+            continue;
+        }
         let source = format!("{prefix}{module}");
         assert_eq!(
             hql::check_in(&source, &vault),

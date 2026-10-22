@@ -198,10 +198,16 @@ pub fn check() -> Result<(), Diagnostic> {
     load().map(drop)
 }
 
-/// The library's bindings, `cards = vault.cards` among them, in the order
-/// written. Each is checked and evaluated as its own program over `vault`.
+/// The bindings the program module starts with over the host's `vault`.
+/// They belong to the program module and to no module of the library: a
+/// module is a closure and never sees a host binding.
+const PROGRAM_BINDINGS: &str = "cards = vault.cards\ngraph = vault.graph\n";
+
+/// The program module's bindings over `vault`, `cards = vault.cards` among
+/// them, in the order written. Each is checked and evaluated as its own
+/// program over `vault`.
 pub(crate) fn bindings() -> Vec<(String, crate::ast::Expr)> {
-    let Ok(program) = crate::parser::parse(&source()) else {
+    let Ok(program) = crate::parser::parse(PROGRAM_BINDINGS) else {
         return Vec::new();
     };
     program

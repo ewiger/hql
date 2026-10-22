@@ -38,36 +38,8 @@ pub(crate) fn check_with<'a>(
 ) -> Result<TypedProgram, Diagnostic> {
     let mut scope = globals(vault);
     scope.extend(bound.iter().cloned());
-    Checker {
-        vault,
-        scope,
-        resolution: Resolution::new(&vault.extensions)?,
-        declarations: Declarations::default(),
-        checked: Checked::default(),
-        variadic: HashMap::new(),
-        parameter_names: HashMap::new(),
-        generic_functions: HashMap::new(),
-        constructor_forms: HashMap::new(),
-        placeholders: HashMap::new(),
-        uses: Vec::new(),
-        effectful: HashMap::new(),
-        traits: core_traits(),
-        trait_decls: HashMap::new(),
-        impls: native_impls(),
-        unit: String::new(),
-        trait_bounds: Vec::new(),
-        trait_bounded: HashMap::new(),
-        modules: Vec::new(),
-        module_cache: ModuleCache::default(),
-        loading: std::sync::Arc::default(),
-        module_file: false,
-        receiver: None,
-        pattern_variables: None,
-        seen_body: false,
-        externals: HashMap::new(),
-        own_receivers: Vec::new(),
-    }
-    .program(program)
+    let _hidden = crate::declarations::HiddenTypes::enter();
+    Checker::new(vault, scope, Resolution::new(&vault.extensions)?).program(program)
 }
 
 /// Check every statement, continuing past one that fails.
@@ -95,39 +67,17 @@ pub(crate) fn check_collecting_with<'a>(
         // say about the program: every statement would fail for one reason.
         Err(diagnostic) => return (None, vec![diagnostic]),
     };
-    let mut checker = Checker {
+    let mut checker = Checker::new(
         vault,
-        scope: {
+        {
             let mut scope = globals(vault);
             scope.extend(bound.iter().cloned());
             scope
         },
         resolution,
-        declarations: Declarations::default(),
-        checked: Checked::default(),
-        variadic: HashMap::new(),
-        parameter_names: HashMap::new(),
-        generic_functions: HashMap::new(),
-        constructor_forms: HashMap::new(),
-        placeholders: HashMap::new(),
-        uses: Vec::new(),
-        effectful: HashMap::new(),
-        traits: core_traits(),
-        trait_decls: HashMap::new(),
-        impls: native_impls(),
-        unit: String::new(),
-        trait_bounds: Vec::new(),
-        trait_bounded: HashMap::new(),
-        modules: Vec::new(),
-        module_cache: ModuleCache::default(),
-        loading: std::sync::Arc::default(),
-        module_file: false,
-        receiver: None,
-        pattern_variables: None,
-        seen_body: false,
-        externals: HashMap::new(),
-        own_receivers: Vec::new(),
-    };
+    );
+    checker.foresee(program);
+    let _hidden = crate::declarations::HiddenTypes::enter();
     let mut found = Vec::new();
     let mut last = TypeRef::UNIT;
     for statement in &program.statements {
@@ -460,8 +410,9 @@ fn mentions_any(ty: &TypeRef, test: &dyn Fn(crate::types::TypeConstructor) -> bo
     test(ty.constructor) || ty.args.iter().any(|arg| mentions_any(arg, test))
 }
 
-/// The names every program over a vault starts with: `vault`, and the
-/// library's bindings over it, `cards` among them.
+/// The names the program module starts with: the host's bindings, `vault`
+/// among them, and the program module's bindings over it, `cards` among
+/// them. No module sees any of them.
 fn globals(vault: &Vault) -> HashMap<String, TypeRef> {
     let mut scope = base(vault);
     for (name, library) in library(vault) {
@@ -486,8 +437,9 @@ fn base(vault: &Vault) -> HashMap<String, TypeRef> {
     scope
 }
 
-/// The standard library's bindings, each checked as its own program in a
-/// scope that holds only `vault`. Without a vault there are none.
+/// The program module's bindings over `vault`, each checked as its own
+/// program in a scope that holds only the host's. Without a vault there are
+/// none.
 pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
     if !vault.is_present() {
         return Vec::new();
@@ -498,40 +450,104 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
             let program = Program {
                 statements: vec![Stmt::Expr(value)],
             };
-            let typed = Checker {
-                vault,
-                scope: base(vault),
-                resolution: Resolution::new(&vault.extensions).ok()?,
-                declarations: Declarations::default(),
-                checked: Checked::default(),
-                variadic: HashMap::new(),
-                parameter_names: HashMap::new(),
-                generic_functions: HashMap::new(),
-                constructor_forms: HashMap::new(),
-                placeholders: HashMap::new(),
-                uses: Vec::new(),
-                effectful: HashMap::new(),
-                traits: core_traits(),
-                trait_decls: HashMap::new(),
-                impls: native_impls(),
-                unit: String::new(),
-                trait_bounds: Vec::new(),
-                trait_bounded: HashMap::new(),
-                modules: Vec::new(),
-                module_cache: ModuleCache::default(),
-                loading: std::sync::Arc::default(),
-                module_file: false,
-                receiver: None,
-                pattern_variables: None,
-                seen_body: false,
-                externals: HashMap::new(),
-                own_receivers: Vec::new(),
-            }
-            .program(&program)
-            .ok()?;
+            let typed = Checker::new(vault, base(vault), Resolution::new(&vault.extensions).ok()?)
+                .program(&program)
+                .ok()?;
             Some((name, typed))
         })
         .collect()
+}
+
+/// Refuse a public declaration of a module whose signature mentions one of
+/// the module's private types or traits: a parameter, a result, a bound, a
+/// field or a supertype. A public signature would otherwise hand importers a
+/// value of a type they cannot name.
+fn public_signatures(program: &Program) -> Result<(), Diagnostic> {
+    let private: std::collections::HashSet<&str> = program
+        .statements
+        .iter()
+        .filter(|statement| matches!(statement, Stmt::Type(_) | Stmt::Trait(_)))
+        .filter(|statement| statement.private().is_some())
+        .filter_map(Stmt::declared_name)
+        .collect();
+    if private.is_empty() {
+        return Ok(());
+    }
+    for statement in &program.statements {
+        if statement.private().is_some() {
+            continue;
+        }
+        let mut written: Vec<&crate::ast::TypeAnn> = Vec::new();
+        let span = match statement {
+            Stmt::Fn(declaration) => {
+                written.extend(declaration.parameters.iter().map(|p| &p.annotation));
+                written.push(&declaration.result);
+                written.extend(declaration.bounds.iter().map(|(_, bound)| bound));
+                &declaration.span
+            }
+            Stmt::External(declaration) => {
+                written.extend(declaration.parameters.iter().map(|p| &p.annotation));
+                written.push(&declaration.result);
+                written.extend(declaration.bounds.iter().map(|(_, bound)| bound));
+                written.extend(declaration.receiver.as_ref());
+                &declaration.span
+            }
+            Stmt::Type(declaration) => {
+                written.extend(declaration.supertypes.iter());
+                written.extend(declaration.fields.iter().map(|field| &field.annotation));
+                written.extend(declaration.union.iter().flatten());
+                written.extend(declaration.bounds.iter().map(|(_, bound)| bound));
+                &declaration.span
+            }
+            Stmt::Trait(declaration) => {
+                written.extend(declaration.bounds.iter().map(|(_, bound)| bound));
+                for method in &declaration.methods {
+                    written.extend(method.parameters.iter().map(|p| &p.annotation));
+                    written.push(&method.result);
+                }
+                &declaration.span
+            }
+            Stmt::Bind {
+                annotation: Some(annotation),
+                name_span,
+                ..
+            } => {
+                written.push(annotation);
+                name_span
+            }
+            _ => continue,
+        };
+        let Some(named) = written
+            .into_iter()
+            .find_map(|written| mentioned(written, &private))
+        else {
+            continue;
+        };
+        return Err(Diagnostic::typing(
+            span.clone(),
+            format!(
+                "`{}` is public and its signature mentions `{named}`, which is private: an \
+                 importer would hold a value of a type it cannot name; mark `{}` private or \
+                 make `{named}` public",
+                statement.declared_name().unwrap_or_default(),
+                statement.declared_name().unwrap_or_default()
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// The first of `names` a written type mentions, itself or in an argument.
+fn mentioned<'n>(
+    written: &crate::ast::TypeAnn,
+    names: &std::collections::HashSet<&'n str>,
+) -> Option<&'n str> {
+    names.get(written.name.as_str()).copied().or_else(|| {
+        written
+            .arguments
+            .iter()
+            .find_map(|argument| mentioned(argument, names))
+    })
 }
 
 /// The parameter a constructor passed as a function takes its value by.
@@ -607,6 +623,13 @@ struct Checker<'a> {
     externals: HashMap<String, TypeRef>,
     /// This unit's own receiver functions, `fn f(self)` under `module for T`.
     own_receivers: Vec<(String, TypeRef)>,
+    /// This unit's own functions that take no `self`: a receiver call of one
+    /// of their names never reaches an import's.
+    own_functions: std::collections::HashSet<String>,
+    /// The functions this unit declares below the statement being checked:
+    /// a use of one of their names reaches neither the declaration, not yet
+    /// checked, nor an import's, which the declaration wins over.
+    declared_below: std::collections::HashSet<String>,
 }
 
 /// Type variables in scope, each by the name it is written as.
@@ -906,7 +929,56 @@ fn operator_trait(operator: crate::ast::Arith) -> (&'static str, &'static str) {
 }
 
 impl<'a> Checker<'a> {
+    /// A checker for one import unit, starting from a scope and the modules
+    /// visible before the unit's own imports.
+    fn new(vault: &'a Vault, scope: HashMap<String, TypeRef>, resolution: Resolution) -> Self {
+        Checker {
+            vault,
+            scope,
+            resolution,
+            declarations: Declarations::default(),
+            checked: Checked::default(),
+            variadic: HashMap::new(),
+            parameter_names: HashMap::new(),
+            generic_functions: HashMap::new(),
+            constructor_forms: HashMap::new(),
+            placeholders: HashMap::new(),
+            uses: Vec::new(),
+            effectful: HashMap::new(),
+            traits: core_traits(),
+            trait_decls: HashMap::new(),
+            impls: native_impls(),
+            unit: String::new(),
+            trait_bounds: Vec::new(),
+            trait_bounded: HashMap::new(),
+            modules: Vec::new(),
+            module_cache: ModuleCache::default(),
+            loading: std::sync::Arc::default(),
+            module_file: false,
+            receiver: None,
+            pattern_variables: None,
+            seen_body: false,
+            externals: HashMap::new(),
+            own_receivers: Vec::new(),
+            own_functions: std::collections::HashSet::new(),
+            declared_below: std::collections::HashSet::new(),
+        }
+    }
+
+    /// Note the functions the unit declares before any is checked, so a use
+    /// written above one of them is told apart from a use of an import.
+    fn foresee(&mut self, program: &Program) {
+        self.declared_below = program
+            .statements
+            .iter()
+            .filter(|statement| matches!(statement, Stmt::Fn(_) | Stmt::Alias(_)))
+            .filter_map(Stmt::declared_name)
+            .map(str::to_owned)
+            .collect();
+    }
+
     fn program(&mut self, program: &'a Program) -> Result<TypedProgram, Diagnostic> {
+        self.foresee(program);
         let mut last = TypeRef::UNIT;
         for statement in &program.statements {
             last = self.statement(statement)?;
@@ -958,6 +1030,29 @@ impl<'a> Checker<'a> {
         if !matches!(statement, Stmt::Import { .. } | Stmt::ModuleFor { .. }) {
             self.seen_body = true;
         }
+        if let Some(marker) = statement.private()
+            && !self.module_file
+        {
+            return Err(Diagnostic::syntax(
+                marker.clone(),
+                "`private` belongs to a module: every declaration of a program is public, \
+                 since no other unit reads it",
+            ));
+        }
+        if let Stmt::Fn(FnDecl { name, .. }) | Stmt::Alias(crate::ast::AliasDecl { name, .. }) =
+            statement
+        {
+            self.declared_below.remove(name);
+        }
+        match statement {
+            Stmt::Fn(declaration) if !declaration.has_self => {
+                self.own_functions.insert(declaration.name.clone());
+            }
+            Stmt::Alias(declaration) => {
+                self.own_functions.insert(declaration.name.clone());
+            }
+            _ => {}
+        }
         if self.module_file && matches!(statement, Stmt::Expr(_)) {
             let Stmt::Expr(expression) = statement else {
                 unreachable!("matched an expression");
@@ -974,6 +1069,7 @@ impl<'a> Checker<'a> {
                     name_span,
                     annotation,
                     value,
+                    ..
                 } => {
                     self.lint(crate::naming::Kind::Binding, name, name_span);
                     let expected = annotation
@@ -2373,6 +2469,7 @@ impl<'a> Checker<'a> {
             return Ok(TypeRef::ORDERING);
         }
         if builtins::exists(name) {
+            self.not_own_function(name, &receiver_type, &span)?;
             let step =
                 self.resolution
                     .receiver_step_for(name, &receiver_type, positional, &span)?;
@@ -2523,6 +2620,12 @@ impl<'a> Checker<'a> {
                 self.effectful.insert(key, uses.clone());
             }
         }
+        for (binding, ty) in &module.bindings {
+            self.scope.insert(format!("{local}.{binding}"), ty.clone());
+        }
+        for private in &module.private_types {
+            crate::declarations::hide(private, &module.name);
+        }
         for (trait_name, info) in &module.traits {
             self.traits
                 .entry(trait_name.clone())
@@ -2647,35 +2750,26 @@ impl<'a> Checker<'a> {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .push(name.to_owned());
         let mut checker = Checker {
-            vault: self.vault,
-            scope: globals(self.vault),
-            resolution: Resolution::new(&self.vault.extensions)?,
-            declarations: Declarations::default(),
-            checked: Checked::default(),
-            variadic: HashMap::new(),
-            parameter_names: HashMap::new(),
-            generic_functions: HashMap::new(),
-            constructor_forms: HashMap::new(),
-            placeholders: HashMap::new(),
-            uses: Vec::new(),
-            effectful: HashMap::new(),
-            traits: core_traits(),
-            trait_decls: HashMap::new(),
-            impls: native_impls(),
             unit: name.to_owned(),
-            trait_bounds: Vec::new(),
-            trait_bounded: HashMap::new(),
-            modules: Vec::new(),
             module_cache: std::sync::Arc::clone(&self.module_cache),
             loading: std::sync::Arc::clone(&self.loading),
             module_file: true,
-            receiver: None,
-            pattern_variables: None,
-            seen_body: false,
-            externals: HashMap::new(),
-            own_receivers: Vec::new(),
+            // A module is a closure: it sees no host binding and none of the
+            // program's, and only the standard prelude among implicit imports.
+            ..Checker::new(
+                self.vault,
+                HashMap::new(),
+                Resolution::bare(self.vault.extensions.prelude),
+            )
         };
-        let checked = checker.program(&program);
+        let checked = {
+            // The unit's own imports decide which private types it may not
+            // name; the importer's do not reach it.
+            let _hidden = crate::declarations::HiddenTypes::enter();
+            checker
+                .program(&program)
+                .and_then(|typed| public_signatures(&program).map(|()| typed))
+        };
         self.loading
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -2683,9 +2777,14 @@ impl<'a> Checker<'a> {
         let typed = checked.map_err(inside)?;
         let mut functions = Vec::new();
         for statement in &program.statements {
+            // A private declaration is never exported: no importer reaches
+            // it, by name, as a receiver call or as a step.
             let Stmt::Fn(declaration) = statement else {
                 continue;
             };
+            if declaration.private.is_some() {
+                continue;
+            }
             let Some(ty) = checker.scope.get(&declaration.name).cloned() else {
                 continue;
             };
@@ -2717,17 +2816,47 @@ impl<'a> Checker<'a> {
                 effectful: checker.effectful.get(&declaration.name).cloned(),
             });
         }
+        let private: std::collections::HashSet<&str> = program
+            .statements
+            .iter()
+            .filter(|statement| statement.private().is_some())
+            .filter_map(Stmt::declared_name)
+            .collect();
+        let bindings = program
+            .statements
+            .iter()
+            .filter_map(|statement| match statement {
+                Stmt::Bind {
+                    name,
+                    private: None,
+                    ..
+                } => Some((name.clone(), checker.scope.get(name)?.clone())),
+                _ => None,
+            })
+            .collect();
+        let private_types = program
+            .statements
+            .iter()
+            .filter_map(|statement| match statement {
+                Stmt::Type(declaration) if declaration.private.is_some() => {
+                    Some(declaration.name.clone())
+                }
+                _ => None,
+            })
+            .collect();
         let core = core_traits();
         let traits = checker
             .traits
             .iter()
-            .filter(|(name, _)| !core.contains_key(*name))
+            .filter(|(name, _)| !core.contains_key(*name) && !private.contains(name.as_str()))
             .map(|(name, info)| (name.clone(), info.clone()))
             .collect();
         let module = std::sync::Arc::new(crate::modules::WorkspaceModule {
             name: name.to_owned(),
             receiver: checker.receiver.clone(),
             functions,
+            bindings,
+            private_types,
             program: std::sync::Arc::new(typed),
             traits,
             impls: checker.impls.clone(),
@@ -2739,25 +2868,70 @@ impl<'a> Checker<'a> {
         Ok(module)
     }
 
+    /// Refuse a use that would reach an import's `name` while this unit
+    /// declares its own further down: the unit's declaration wins wherever
+    /// it is written, and a function is used after it is declared.
+    fn not_declared_below(&self, name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
+        if self.declared_below.contains(name) {
+            return Err(Diagnostic::name(
+                span.clone(),
+                format!(
+                    "`{name}` is declared by this unit below this use; the unit's own \
+                     declaration wins over an import's, so declare `{name}` before it is used, \
+                     or qualify the import's"
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Refuse a receiver call that would reach an import's `name` while this
+    /// unit declares its own `name` without `self`: the unit's declaration
+    /// wins in every spelling, and it is no receiver.
+    fn not_own_function(
+        &self,
+        name: &str,
+        receiver: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<(), Diagnostic> {
+        self.not_declared_below(name, span)?;
+        if self.own_functions.contains(name) {
+            return Err(Diagnostic::name(
+                span.clone(),
+                format!(
+                    "`{name}` is this unit's own function, which takes no `self`, so \
+                     `value.{name}(…)` does not reach it and no import's `{name}` over \
+                     {receiver} is reached in its place; write `{name}(value, …)`, or qualify \
+                     the import's"
+                ),
+            ));
+        }
+        Ok(())
+    }
+
     /// The function a receiver module provides for a receiver of a type: the
-    /// modules whose pattern the type fits, and among them the one declaring
-    /// `name` with `self`. Two such modules are an ambiguity.
+    /// unit's own when it declares one, and otherwise the imported modules
+    /// whose pattern the type fits, among them the one declaring `name` with
+    /// `self`. Two such imports, or one beside a visible standard module's
+    /// receiver of the name, are an ambiguity that only qualifying resolves.
     fn receiver_function(
         &self,
         receiver: &TypeRef,
         name: &str,
         span: &Range<usize>,
     ) -> Result<Option<(String, TypeRef)>, Diagnostic> {
-        let mut found: Vec<(String, TypeRef)> = Vec::new();
         if let Some(pattern) = &self.receiver {
             let mut bound = HashMap::new();
             instantiate(pattern, receiver, &mut bound);
             if receiver.is(&substituted(pattern, &bound))
                 && let Some((own, ty)) = self.own_receivers.iter().find(|(held, _)| held == name)
             {
-                found.push((own.clone(), ty.clone()));
+                // The unit owns its names: its declaration wins over every
+                // import's, whichever was written first.
+                return Ok(Some((own.clone(), ty.clone())));
             }
         }
+        let mut found: Vec<(String, TypeRef)> = Vec::new();
         for (local, module) in &self.modules {
             let Some(pattern) = &module.receiver else {
                 continue;
@@ -2775,17 +2949,27 @@ impl<'a> Checker<'a> {
                 found.push((format!("{local}.{name}"), function.ty.clone()));
             }
         }
-        match found.len() {
-            0 => Ok(None),
+        if found.is_empty() {
+            return Ok(None);
+        }
+        self.not_own_function(name, receiver, span)?;
+        let mut providers: Vec<String> = found.iter().map(|(key, _)| key.clone()).collect();
+        providers.extend(
+            self.resolution
+                .receiver_providers(name, receiver)
+                .into_iter()
+                .map(|module| format!("{module}.{name}")),
+        );
+        match providers.len() {
             1 => Ok(found.pop()),
             _ => Err(Diagnostic::name(
                 span.clone(),
                 format!(
                     "`{name}` over {receiver} is declared by {}, so the call is ambiguous; \
                      qualify it",
-                    found
+                    providers
                         .iter()
-                        .map(|(key, _)| format!("`{key}`"))
+                        .map(|key| format!("`{key}`"))
                         .collect::<Vec<_>>()
                         .join(" and ")
                 ),
@@ -3444,6 +3628,9 @@ impl<'a> Checker<'a> {
         arguments: &[Arg],
         span: Range<usize>,
     ) -> Result<TypeRef, Diagnostic> {
+        if let Some(module) = crate::declarations::hidden(name) {
+            return Err(crate::declarations::private_type(name, &module, &span));
+        }
         let mut given: Vec<Option<&Arg>> = vec![None; shape.fields.len()];
         for (index, argument) in arguments.iter().enumerate() {
             let position = match &argument.name {
@@ -3635,9 +3822,25 @@ impl<'a> Checker<'a> {
             Kind::Ident(name) => self.scope.get(name).cloned().ok_or_else(|| {
                 // Unbound only because no vault was given: say what to pass,
                 // rather than that the name does not exist.
-                // `vault` and the library's bindings over it exist only when
-                // a vault is given.
-                if name == VAULT
+                // `vault` and the program module's bindings over it exist only when
+                // a vault is given, and only in the program module.
+                let hosted = name == VAULT
+                    || crate::extensions::io::BINDINGS
+                        .iter()
+                        .any(|(bound, _)| bound == name)
+                    || crate::library::bindings()
+                        .iter()
+                        .any(|(bound, _)| bound == name);
+                if self.module_file && hosted {
+                    Diagnostic::name(
+                        span,
+                        format!(
+                            "`{name}` is not bound in a module: the host seeds it into the \
+                             program module alone, so a module takes what it needs from a \
+                             program as a parameter"
+                        ),
+                    )
+                } else if name == VAULT
                     || crate::library::bindings()
                         .iter()
                         .any(|(bound, _)| bound == name)
@@ -4001,6 +4204,7 @@ impl<'a> Checker<'a> {
                         .iter()
                         .filter(|argument| argument.name.is_none())
                         .count();
+                    self.not_declared_below(name, &span)?;
                     let step = self.resolution.step_for(name, &input, positional, &span)?;
                     self.checked.steps.insert(span.clone(), step);
                     self.using(step.name, step.purity() == Purity::Effectful);
@@ -4202,6 +4406,7 @@ impl<'a> Checker<'a> {
                     .iter()
                     .filter(|argument| argument.name.is_none())
                     .count();
+                self.not_declared_below(name, span)?;
                 self.resolution.step_for(name, input, positional, span)
             }
             StepRef::Qualified {
@@ -4460,6 +4665,7 @@ impl CheckCx for Checker<'_> {
                     ),
                 ));
             };
+            self.not_declared_below(name, &span)?;
             let step = self.resolution.step_for(name, parameter, 0, &span)?;
             self.using(step.name, step.purity() == Purity::Effectful);
             let produced = self.step(step, parameter, None, &[], span.clone())?;
@@ -4489,6 +4695,13 @@ impl CheckCx for Checker<'_> {
                 "expected a type name",
             ));
         };
+        if let Some(module) = crate::declarations::hidden(name) {
+            return Err(crate::declarations::private_type(
+                name,
+                &module,
+                &argument.value.span,
+            ));
+        }
         // A constructor written bare, `is(List)`, asks for the constructor
         // whatever its arguments are.
         let ty = crate::types::named(name, &[])

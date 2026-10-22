@@ -66,7 +66,9 @@ values, persistence is explicit, and presentation belongs to a separate layer.
 `RelationCard : Card` represents an edge without becoming a node. The kind is
 declared by `metadata.knowledge.type` and must be checked, not trusted.
 
-HQL has **no field visibility**: no `pub`, `protected` or `private`. Values are
+HQL has **no field visibility**: no `pub`, `protected` or `private` on a
+field. `private` marks a module's declaration, never a field
+([HQL-0028](../../proposals/HQL-0028/README.md)). Values are
 data and declared fields are queryable data, so there is no privileged inside for
 a modifier to protect, and a subtype neither hides nor re-exposes what it
 inherits. What a type may declare instead is that a field is optional, `metadata?

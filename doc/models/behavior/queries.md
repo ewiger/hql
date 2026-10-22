@@ -288,7 +288,7 @@ This avoids inventing a false subtype relationship just for structural symmetry.
 
 ## `cards` is a `Seq<Card>`
 
-The vault is finite, and card enumeration must be reproducible. Therefore the standard `cards` value, the library binding `cards = vault.cards` declared in `std/vault.hql`, is a lazy sequence:
+The vault is finite, and card enumeration must be reproducible. Therefore the standard `cards` value, the program module's binding `cards = vault.cards` over the host's `vault`, is a lazy sequence:
 
 ```hql
 cards : Seq<Card>

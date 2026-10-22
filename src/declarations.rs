@@ -50,6 +50,9 @@ pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
     {
         return Ok(variable);
     }
+    if let Some(module) = hidden(&written.name) {
+        return Err(private_type(&written.name, &module, &written.span));
+    }
     let args = written
         .arguments
         .iter()
@@ -74,6 +77,62 @@ thread_local! {
     static VARIABLES: std::cell::RefCell<Vec<(String, TypeRef)>> = const { std::cell::RefCell::new(Vec::new()) };
     /// The implementing type of the impl being checked, innermost last.
     static SELF_TYPE: std::cell::RefCell<Vec<TypeRef>> = const { std::cell::RefCell::new(Vec::new()) };
+    /// For each import unit being checked, innermost last, the private
+    /// types of the modules it imported, each with its module: in the one
+    /// lattice, and named by no unit but their own.
+    static HIDDEN: std::cell::RefCell<Vec<Vec<(String, String)>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The private types an import unit may not name, while it is checked: a
+/// fresh, empty set until the guard is dropped.
+pub(crate) struct HiddenTypes;
+
+impl HiddenTypes {
+    pub(crate) fn enter() -> Self {
+        HIDDEN.with(|held| held.borrow_mut().push(Vec::new()));
+        Self
+    }
+}
+
+impl Drop for HiddenTypes {
+    fn drop(&mut self) {
+        HIDDEN.with(|held| {
+            held.borrow_mut().pop();
+        });
+    }
+}
+
+/// Withhold a private type of `module` from the unit being checked.
+pub(crate) fn hide(name: &str, module: &str) {
+    HIDDEN.with(|held| {
+        if let Some(frame) = held.borrow_mut().last_mut() {
+            frame.push((name.to_owned(), module.to_owned()));
+        }
+    });
+}
+
+/// The module whose private type `name` is, when the unit being checked
+/// imported it and so may not name it.
+pub(crate) fn hidden(name: &str) -> Option<String> {
+    HIDDEN.with(|held| {
+        held.borrow().last().and_then(|frame| {
+            frame
+                .iter()
+                .find(|(held, _)| held == name)
+                .map(|(_, module)| module.clone())
+        })
+    })
+}
+
+/// The refusal of a private type named outside its module.
+pub(crate) fn private_type(name: &str, module: &str, span: &Range<usize>) -> Diagnostic {
+    Diagnostic::name(
+        span.clone(),
+        format!(
+            "`{name}` is private to the module `{module}`: a private declaration is visible \
+             only within its own module"
+        ),
+    )
 }
 
 /// The implementing type `Self` stands for while an impl is checked.

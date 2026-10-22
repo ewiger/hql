@@ -5,8 +5,9 @@
 //! directory without `mod.hql` is a namespace and names nothing. A module is
 //! a contract of declarations, bound to the runtime as its provider; a program
 //! reaches it with `import foo.bar`, under the local name `bar` or an alias.
-//! What a module file may hold, and how its declarations are bound into the
-//! importing unit, is the checker's business; this module finds the file.
+//! What a module file may hold, and how its public declarations are bound
+//! into the importing unit, is the checker's business; this module finds the
+//! file.
 
 use crate::types::TypeRef;
 use std::collections::HashMap;
@@ -81,11 +82,16 @@ pub(crate) struct WorkspaceModule {
     pub name: String,
     /// The receiver pattern a `module for T` file opens with.
     pub receiver: Option<TypeRef>,
-    /// Every function it declares, exported under `local.name`.
+    /// Every public function it declares, exported under `local.name`.
     pub functions: Vec<ModuleFunction>,
+    /// Every public binding it declares, read as `local.name`, with its type.
+    pub bindings: Vec<(String, TypeRef)>,
+    /// The types it declares `private`: in the one lattice, and named by no
+    /// unit that imports it.
+    pub private_types: Vec<String>,
     /// The checked program whose `fn` statements are the functions.
     pub program: Arc<crate::execution::Program>,
-    /// The traits it declares, by name.
+    /// The public traits it declares, by name.
     pub traits: HashMap<String, crate::checker::TraitInfo>,
     /// The implementations it declares.
     pub impls: Vec<crate::checker::ImplInfo>,

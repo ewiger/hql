@@ -186,6 +186,51 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, Diagnostic> {
+        // `private` and `internal` mark a declaration when a name follows
+        // them, so neither word is reserved: `private = 1` binds it.
+        if let Token::Ident(marker) = self.peek().clone()
+            && (marker == "private" || marker == "internal")
+            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+        {
+            let span = self.advance().span;
+            if marker == "internal" {
+                return Err(Diagnostic::syntax(
+                    span,
+                    "`internal` is reserved: visibility across one package is admitted once \
+                     every module records its package; mark the declaration `private`, or \
+                     leave it public",
+                ));
+            }
+            let mut statement = self.statement()?;
+            let target = match &mut statement {
+                Stmt::Fn(declaration) => &mut declaration.private,
+                Stmt::External(declaration) => &mut declaration.private,
+                Stmt::Alias(declaration) => &mut declaration.private,
+                Stmt::Type(declaration) => &mut declaration.private,
+                Stmt::Trait(declaration) => &mut declaration.private,
+                Stmt::Bind { private, .. } => private,
+                Stmt::Impl(_) => {
+                    return Err(Diagnostic::syntax(
+                        span,
+                        "an `impl` is never private: coherence holds across every module, so \
+                         an implementation hidden from importers would hide the overlap it is \
+                         checked for",
+                    ));
+                }
+                Stmt::Import { .. } | Stmt::ModuleFor { .. } | Stmt::Expr(_) => {
+                    return Err(Diagnostic::syntax(
+                        span,
+                        "`private` marks a declaration: a function, a type, a trait or a \
+                         binding",
+                    ));
+                }
+            };
+            if target.is_some() {
+                return Err(Diagnostic::syntax(span, "`private` is written once"));
+            }
+            *target = Some(span);
+            return Ok(statement);
+        }
         if self.peek() == &Token::Ident("abstract".to_owned()) {
             self.advance();
             self.expect(&Token::Ident("type".to_owned()), "after abstract")?;
@@ -319,6 +364,7 @@ impl Parser {
                     name_span,
                     annotation,
                     value: self.expression()?,
+                    private: None,
                 });
             }
         }
@@ -448,6 +494,7 @@ impl Parser {
             }
         }
         Ok(TypeDecl {
+            private: None,
             name,
             abstract_type: false,
             bounds,
@@ -726,6 +773,7 @@ impl Parser {
         };
         let span = start..body.span.end;
         Ok(Some(AliasDecl {
+            private: None,
             name,
             parameters,
             body,
@@ -800,6 +848,7 @@ impl Parser {
         let (generics, bounds) = self.type_parameters()?;
         let (methods, end) = self.methods("a trait")?;
         Ok(TraitDecl {
+            private: None,
             name,
             generics,
             bounds,
@@ -1090,6 +1139,7 @@ impl Parser {
         ) {
             let span = start..result.span.end;
             return Ok(Stmt::External(ExternalDecl {
+                private: None,
                 name,
                 effectful: false,
                 has_self,
@@ -1140,6 +1190,7 @@ impl Parser {
         };
         let span = start..body.span.end;
         Ok(Stmt::Fn(FnDecl {
+            private: None,
             name,
             has_self,
             generics,

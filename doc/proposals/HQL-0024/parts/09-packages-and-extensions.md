@@ -63,8 +63,8 @@ extension brings. One module is never loaded on its own.
 Loading runs the extension's `prelude.hql` once per invocation. The file is
 the extension's constructor: a sequence of import statements that initializes
 the modules the extension cannot do without. Those modules are visible in
-every source unit of the invocation from then on, as if each unit had
-imported them. The prelude so partitions the extension's modules:
+the unit whose import loaded the extension, as if that unit had imported
+them, and in no other unit ([HQL-0028](../../HQL-0028/README.md)). The prelude so partitions the extension's modules:
 
 | Named in `prelude.hql` | Not named |
 | --- | --- |

@@ -218,12 +218,25 @@ fn is_blank(self) : Bool = self.trim().length() == 0
 ```hql
 import mighty.text
 
-["hello world".shout(), text.shout("hi"), str("   ".is_blank())]
+["hello world".shout(), text.shout("hi"), str(text.is_blank("   "))]
 ```
 
 ```text
 ["HELLO WORLD!", "HI!", "true"]
 ```
+
+`is_blank` is qualified because the prelude's `string` declares a receiver
+`is_blank` too: two imported declarations of one name are an ambiguity, and
+qualifying the call resolves it. A declaration the unit writes itself wins over
+every import's, in every spelling.
+
+Every module is an **import unit**: its imports, and the prelude, are visible
+in it and nowhere else. A module is a closure: it sees no host binding, so
+`vault`, `cards` and `stdin` belong to the program alone, and what a module
+needs from a program reaches it as an argument. Inside a module a declaration
+is public unless it is marked `private`; a private function, type, trait or
+binding is visible only within its own module and is never reached by an
+importer, by name, as a receiver call or as a step.
 
 Imports sit at the head of a source unit, two imports may not share a local
 name, and a module may not import itself through a cycle. The standard

@@ -30,7 +30,7 @@ cards : Seq<Card>
 
 This is a type statement for the context value, not a proposed standalone
 declaration syntax. `cards` represents the current vault or namespace. It is the
-standard-library binding `cards = vault.cards`, a lazy sequence — see
+program module's binding `cards = vault.cards`, a lazy sequence — see
 [[stream-type]] — whose order is the sorted walk's: the entries of each
 directory sorted by name, depth first. The order is the walk's, never the
 filesystem's. Any other order is introduced by sorting, which requires a defined

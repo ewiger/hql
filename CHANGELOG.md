@@ -10,6 +10,15 @@ The language continues to be in active development.
 
 ### Added
 
+- Declaration visibility ([HQL-0028](doc/proposals/HQL-0028/README.md);
+  [issue 0038](doc/issues/0038-import-units-and-visibility.md), shown in the
+  [Mighty Types programs](examples/mighty-types/README.md)): `private` before
+  a function, a type, a trait or a binding of a module makes it visible
+  within that module only. No importer reaches it, by name, as a receiver
+  call or as a step; a private type is named by no importer; a public
+  signature that mentions a private type or trait is refused. `private` is
+  refused on an `impl` and in a program, and `internal` is reserved. A
+  module's public bindings are read as `m.name`.
 - Typed decoding ([HQL-0021](doc/proposals/HQL-0021/README.md), accepted,
   implemented in part; [issue 0037](doc/issues/0037-io-typed-decoding.md),
   shown in the [I/O examples](examples/io/README.md)): the declared type of a
@@ -165,6 +174,18 @@ The language continues to be in active development.
 
 ### Changed
 
+- A module is a closure ([HQL-0028](doc/proposals/HQL-0028/README.md)): it
+  sees its own declarations and imports and no host binding, so `vault`,
+  `cards`, `graph`, `stdin` and the vault's configured imports belong to the
+  program module alone. `cards = vault.cards` and `graph = vault.graph` moved
+  out of `std/vault.hql` into the program module. A module that read one of
+  them takes it as a parameter.
+- Two imports declaring one receiver function are an ambiguity, the
+  prelude's modules included: with `mighty.text` imported,
+  `"   ".is_blank()` names `text.is_blank` and `string.is_blank` and is
+  qualified. A unit's own declaration wins over every import's; a use above
+  that declaration is refused, and a receiver call of the name of an own
+  function without `self` is refused rather than reaching an import's.
 - A receiver call, `value.f()`, reaches only a declaration that takes `self`
   ([issue 0036](doc/issues/0036-contracts-receivers-purity-identities.md),
   shown in the [receivers corpus](examples/receivers/README.md)). The core's

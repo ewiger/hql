@@ -33,9 +33,11 @@ the one that is true now.
 
 A field a program reads on a built-in record — `h.score` on a `Hit`, `c.kind`
 on a `Card`, `g.nodes` on a `Graph` — has the type its declaration in `std/`
-gives, looked up on the record and then on its parents. The library's bindings
-run before every program over a vault: `std/vault.hql` binds
-`cards = vault.cards`, so `cards` is an ordinary binding and no special case.
+gives, looked up on the record and then on its parents. The library holds
+no binding: `std/vault.hql` declares `Vault`, and `cards = vault.cards` is a
+binding of the program module, run before every program over a vault, so
+`cards` is an ordinary binding and no special case. A module never sees it
+([HQL-0028](../../proposals/HQL-0028/README.md)).
 
 ## Declarations are checked, not evaluated
 

@@ -44,9 +44,9 @@ with `hql#eval` cells, reading typed sort keys out of card metadata.
 
 The [Mighty Types](mighty-types/README.md) programs walk the language as a
 textbook would: records, unions, options, results, traits, operators, generics,
-closures, iterators, the standard library, modules written in HQL and the
-dataflow operations of a dataframe. Its `lib/` folder is a module root, not a
-set of cases.
+closures, iterators, the standard library, modules written in HQL with their
+private helpers and the dataflow operations of a dataframe. Its `lib/` folder
+is a module root, not a set of cases.
 
 Build the CLI from the repository root with `cargo build --locked`, then follow
 the commands in the example's README. Query headers record their expected type

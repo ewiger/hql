@@ -20,9 +20,11 @@ at exactly one place — a **bound**, `T : Doc`, where a generic unknown is
 restricted by the subtype relation — and that single meeting point is why one
 relation symbol is enough for the whole language.
 
-There is no fourth mechanism for hiding anything. HQL has no field visibility:
-values are data and declared fields are queryable data, so a type exposes
-everything it declares. What a type *can* say is that a field may be absent —
+There is no fourth mechanism for hiding anything in a value. HQL has no field
+visibility: values are data and declared fields are queryable data, so a type
+exposes everything it declares. Visibility is a property of a module's
+declarations, `private`, and not of a type's fields
+([HQL-0028](../../proposals/HQL-0028/README.md)). What a type *can* say is that a field may be absent —
 see [[fields]].
 
 # Inhabitation, Subtyping, and Inheritance

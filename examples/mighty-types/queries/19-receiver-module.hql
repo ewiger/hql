@@ -8,7 +8,9 @@
 
 // `mighty.text` opens with `module for String`, so once imported its
 // functions with `self` resolve as `value.f()`; `text.shout("hi")` is the
-// qualified spelling of the same declaration.
+// qualified spelling of the same declaration. `is_blank` is declared by
+// `mighty.text` and by the prelude's `string` too, so `"   ".is_blank()` is
+// ambiguous and the call is qualified.
 import mighty.text
 
-["hello world".shout(), "ada lovelace".initials(), str("   ".is_blank()), text.shout("hi")]
+["hello world".shout(), "ada lovelace".initials(), str(text.is_blank("   ")), text.shout("hi")]

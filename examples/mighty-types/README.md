@@ -1,6 +1,6 @@
 # Mighty Types: the language, program by program
 
-Twenty-three pure programs in the manner of a language textbook, each showing
+Thirty-one programs in the manner of a language textbook, each showing
 one part of the language that [HQL-0024](../../doc/proposals/HQL-0024/README.md)
 specifies: records, unions, options and results, traits and operators, generic
 functions, closures, iterators, the standard library, modules written in HQL
@@ -36,7 +36,7 @@ not check yet, and the day it does the header is promoted to `valid-now`.
 | [pattern matching](queries/16-pattern-matching.hql) | Literals, guards, type patterns over `Data`, nested `some` | FizzBuzz and friends |
 | [recursion](queries/17-recursion.hql) | Factorial, gcd, quicksort, primes, Collatz | `[3628800, 21, 123589, 10, 111]` |
 | [modules](queries/18-modules.hql) | `import mighty.geometry as geo` from the `lib` root | `[3.0, 12.0, 4.0]` |
-| [receiver module](queries/19-receiver-module.hql) | `module for String` written in HQL, used as `"hi".shout()` | four strings |
+| [receiver module](queries/19-receiver-module.hql) | `module for String` written in HQL, used as `"hi".shout()`; `text.is_blank` qualified past the prelude's | four strings |
 | [regex](queries/20-regex.hql) | `import regex`: match, find, replace, capture, split | seven strings |
 | [dataframe](queries/21-dataframe.hql) | Records grouped, aggregated, sorted and joined | two lines |
 | [word count](queries/22-word-count.hql) | Split, group, count, order, take: MapReduce in one pipeline | `the=3 fox=2 brown=1` |
@@ -44,6 +44,11 @@ not check yet, and the day it does the header is promoted to `valid-now`.
 | [files](queries/24-files.hql) | `source(file, Lines)` reads records, `target(file, Lines)` writes another file whole | `3`, and `data/shout.txt` |
 | [append](queries/25-append.hql) | `sink(file(p).end, Lines)` appends one record per value | `()`, and three lines more in `data/journal.txt` |
 | [reading records](queries/26-reading-records.hql) | A `Data` tree read as a declared record by `match`, `is` and `of_type` | two strings |
+| [private helpers](queries/27-private-helpers.hql) | A module's contract is its public declarations; a `private` helper stays inside | two strings |
+| [private refused](queries/28-private-refused.hql) | A private receiver function is reached by no importer | name error |
+| [ambiguous receiver](queries/29-ambiguous-receiver.hql) | Two imports declaring `is_blank(self)`: qualify the call | name error |
+| [private in a program](queries/30-private-in-a-program.hql) | Every declaration of the program module is public | syntax error |
+| [internal reserved](queries/31-internal-reserved.hql) | `internal` is reserved until modules record their package | syntax error |
 
 ## The files under `data/`
 
@@ -68,3 +73,8 @@ workspace's `hql.toml`. Files under a module root are not corpus cases.
 | `mighty.geometry` | plain | `Circle`, `Rect`, `circle_area`, `rect_area`, `unit_circle`, `scale` |
 | `mighty.text` | `module for String` | `shout`, `initials`, `is_blank` |
 | `mighty.stats` | plain, imports `math` | `mean`, `variance`, `stddev`, `median` |
+| `mighty.url` | `module for String`, a private helper | `slug`, `separator`; `words` is private |
+
+Each module is its own import unit and a closure: it sees what it declares and
+what it imports, never the program's bindings or the host's `vault`, `cards`
+and `stdin`. A declaration is public unless it is marked `private`.

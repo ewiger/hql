@@ -74,8 +74,9 @@ cannot be imported, and is the one file at a root with a role, where
 `<root>/mod.hql` is invalid ([modules](01-modules.md)). It is an extension's
 constructor: it runs once when the extension loads, and its body is the import
 statements that initialize the modules the extension cannot do without. Every
-module it imports is visible in every source unit of the invocation as if that
-unit had imported it. Modules it does not name are the extension's optional
+module it imports is visible in the unit whose import loaded the extension, as
+if that unit had imported it; `std/prelude.hql` is the implicit import list of
+every unit outside the standard library ([HQL-0028](../../HQL-0028/README.md)). Modules it does not name are the extension's optional
 part and are imported on their own
 ([packages and extensions](09-packages-and-extensions.md)).
 

@@ -99,7 +99,7 @@ root.db.postgres
 `<root>/mod.hql` has no module to define and is invalid. The one file at a
 root with a role is `<root>/prelude.hql`, which is not a module: it is the
 constructor of the extension rooted there, run once when the extension loads,
-and its imports are the modules every source unit then sees
+and its imports are the modules the loading unit then sees
 ([the standard library](03-standard-library.md),
 [packages and extensions](09-packages-and-extensions.md)).
 
@@ -1025,19 +1025,12 @@ The first implementation intentionally keeps the dependency graph acyclic.
 
 ## Visibility
 
-Top-level declarations of a module are visible to an importer according to existing declaration semantics.
+Declaration visibility is specified by [HQL-0028](../../HQL-0028/README.md). A top-level declaration of a
+module is public unless it is marked `private`, which makes it visible within
+its own module only; a module's contract is its public declarations. `internal`
+is reserved, and there is no `export`.
 
-This proposal does not introduce:
-
-```text
-private
-internal
-export
-```
-
-If declaration visibility is introduced later, it is specified separately.
-
-Module discovery and import resolution do not depend on that future feature.
+Module discovery and import resolution do not depend on visibility.
 
 ---
 

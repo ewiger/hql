@@ -230,9 +230,10 @@ with an empty header, a card carrying a diagnostic, or no card at all.
 
 ## cards
 
-`cards` is the standard-library binding `cards = vault.cards`, declared in
-[`std/vault.hql`](../../../../std/vault.hql); the host seeds `vault`, of type
-`Vault`, when a vault is present. It denotes every card in the current namespace
+`cards` is the program module's binding `cards = vault.cards`; the host seeds
+`vault`, of type `Vault` and declared in
+[`std/vault.hql`](../../../../std/vault.hql), into the program module when a
+vault is present, and no module sees either. It denotes every card in the current namespace
 vault:
 
 ```hql
@@ -241,7 +242,7 @@ cards : Seq<Card>
 
 A `Vault` also holds `name`, its directory's name, `root`, where it is, and
 `graph`, every card as a node with the links among them; `graph = vault.graph`
-is a library binding beside `cards`. Without a vault, `vault`, `cards` and
+is the program module's binding beside `cards`. Without a vault, `vault`, `cards` and
 `graph` are unbound, and naming one says to run inside a vault or pass
 `--vault`.
 

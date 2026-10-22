@@ -1,6 +1,6 @@
 # HQL-0028: Import units, the program module and declaration visibility
 
-**Status**: drafted
+**Status**: implemented, with `internal` reserved
 **Created**: 2026-10-22
 **Source**: [modules, the Visibility section](../HQL-0024/parts/01-modules.md)
 
@@ -218,3 +218,5 @@ every importer and wider than one module.
 ## Changelog
 
 - 2026-10-22: drafted
+- 2026-10-22: implemented, with `internal` reserved as specified
+  ([issue 0038](../../issues/0038-import-units-and-visibility.md))

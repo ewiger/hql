@@ -158,8 +158,9 @@ directly before the argument list; otherwise `<` is the comparison, so
 | `@[[a]] -> @[[b]] {..}` | `Edge` |
 | `cards` | `Seq<Card>`, bound when a vault is present |
 
-`cards` is the standard-library binding `cards = vault.cards`, declared in
-`std/vault.hql`; the host seeds `vault`, of type `Vault`, from the vault. Its
+`cards` is the program module's binding `cards = vault.cards`; the host seeds
+`vault`, of type `Vault`, from the vault into the program module, and no
+module sees either. Its
 cards arrive in sorted-walk order: the entries of each directory sorted by name,
 depth first. A program may shadow it like any other name. Without a vault it is
 unbound, and the checker says that it needs a vault rather than that it does

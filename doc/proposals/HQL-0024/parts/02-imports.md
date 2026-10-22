@@ -56,8 +56,8 @@ its own. There is no wildcard import and no re-export syntax.
 Two things make a module visible in a source unit: the unit's own imports and
 the prelude. The prelude is the imports written in `prelude.hql` files, the
 standard library's `std/prelude.hql` and one per loaded extension; those
-modules are visible in every source unit as if written at the head of that
-unit ([the standard library](03-standard-library.md)). An explicit import
+modules are visible in every source unit outside the package that declares
+the prelude, as if written at the head of that unit ([the standard library](03-standard-library.md)). An explicit import
 that repeats a prelude member is allowed and changes nothing. An import whose
 local name collides with a prelude member is a collision like any other and is
 resolved with `as`. A workspace that sets `prelude = false` in `hql.toml`
@@ -66,7 +66,7 @@ empties the implicit list and changes no grammar.
 An import also loads. Importing one module of an extension loads the whole
 extension and runs its `prelude.hql`, so `import postgres.query` makes `query`
 visible in this unit and, through the prelude, whatever the extension names as
-necessary visible in every unit
+necessary visible in this unit too, and in no other ([HQL-0028](../../HQL-0028/README.md))
 ([packages and extensions](09-packages-and-extensions.md)).
 
 ### Placement

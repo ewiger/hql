@@ -90,6 +90,6 @@ naturals(1)
 - A `Seq<T>` result promises that production ends. A step that needs the whole
   input produces a finite traversal's values once and keeps them.
 
-`cards` is such a sequence: the library binding
+`cards` is such a sequence: the program module's binding
 `cards = vault.cards`, a `Seq<Card>` in the order a sorted walk of the vault
 reaches each card.

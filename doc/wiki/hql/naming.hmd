@@ -21,8 +21,10 @@ and `_`; letters are Unicode alphabetic. Names are case-sensitive: `Card` and
 no rule reads an uppercase initial as a type or a constructor — so casing is a
 convention and never a syntax error. A checker warning for a departure is
 design direction, specified by HQL-0011. `true` and `false`
-are the only words the lexer reserves; `type`, `abstract`, `import` and the
-other keywords are recognized by position.
+are the only words the lexer reserves; `type`, `abstract`, `import`, `private`
+and the other keywords are recognized by position. `internal`, before a
+declaration, is reserved and refused
+([HQL-0028](../../proposals/HQL-0028/README.md)).
 
 ## Casing
 
@@ -95,8 +97,11 @@ provides source kinds and their concrete types, such as `Vault` under the core's
 abstract `VaultSource`. See [[hql/extensions]].
 
 **The run context** — the configuration and host the binary runs in — provides
-context values before a program starts: `cards` and `knowledge` today, and by
-HQL-0012 the default source `vault` and every source named in configuration.
+context values before a program starts, into the **program module** alone:
+`vault`, `stdin`, `stdout`, `stderr` and `file`, and the program module's
+bindings over `vault`, `cards` and `graph`; by HQL-0012 every source named in
+configuration. No module sees them
+([HQL-0028](../../proposals/HQL-0028/README.md)).
 
 **The program** provides bindings: `bird_cards = cards | filter(…)` introduces
 `bird_cards` for the statements after it. A lambda's parameter — `c` in
@@ -123,9 +128,31 @@ declarations are not in the grammar.
 Two visible modules may declare one function name, `contains` of a String and
 of a collection: the receiver's type tells them apart at the call, a call that
 fits both is refused naming both, and the qualified form `module.f(…)` reaches
-one of them. Two imports may not share a local name; `as` renames one. The host seeds context values into the binding namespace before a
-program runs: `vault`, of type `Vault`, and `knowledge`. `cards` is the
-standard-library binding `cards = vault.cards` — see [[card-type]].
+one of them. Two imports may not share a local name; `as` renames one. The host seeds context values into the binding namespace of the
+program module before a program runs: `vault`, of type `Vault`, and
+`knowledge`. `cards` is the program module's binding `cards = vault.cards` —
+see [[card-type]].
+
+## Import units and visibility
+
+Every module, and the program module of an invocation, is one **import
+unit**: its own imports and the prelude are visible in it and nowhere else. A
+module is a closure: a free name in it resolves through its own declarations
+and its own imports, never through the program module or a host binding.
+
+A unit's own declaration wins over an imported one of the same name, in every
+spelling — `s.f()`, `s | f` and `f(s)` — and a use written above that
+declaration is refused rather than reaching the import's. Two imported
+declarations of one name, neither the unit's own, are an ambiguity whatever
+the import order, the prelude's modules included; qualifying the call,
+`string.trim(s)`, resolves it.
+
+Inside a module a declaration is public unless it is marked `private`. A
+private function, receiver function, type, trait or binding is visible within
+its own module only: no importer reaches it by name, as a receiver call or as
+a step, and a public signature may not mention a private type or trait.
+`private` is refused on an `impl` and in the program module, whose
+declarations are all public. See [HQL-0028](../../proposals/HQL-0028/README.md).
 
 See [[type-system]] for how a type name relates to another, and [[pipes]] for
 what a step is.
