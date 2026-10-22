@@ -1,6 +1,6 @@
 # 0033 — Overloaded declarations: every standard operation declared in HQL
 
-Status: doing
+Status: done
 Related: [0030](0030-hql-only-signature-authority.md),
 [0018](0018-operator-synonymy-audit.md),
 [the extensions card](../wiki/hql/extensions.hmd),
@@ -14,8 +14,9 @@ type name. The core's collection operations, `seq`'s `reverse`, `distinct`,
 `take_while`, `drop_while`, `min_by`, `max_by`, `with`, `without`,
 `intersection` and `difference`, `math`'s `abs`, `pow` and `sign`, and `map`
 and `filter` over one `Option` and `map` over a `Result` take their signatures
-from their declarations. What is left below is every signature still written
-in Rust or in the checker, and the limits of overload selection.
+from their declarations. So do `format` and its shorthands, `fmt`, the
+narrowing `filter`, and the positional arguments of `count`, `contains`,
+`get` and `pow`.
 
 ## Scope
 
@@ -47,3 +48,41 @@ in Rust or in the checker, and the limits of overload selection.
   and `Checker::step` names no operation.
 - `Output` holds only `Type` and `Computed`.
 - Each item above has a test.
+
+## Decisions taken while implementing
+
+- **Positional and named only.** No card named a syntax, so an external
+  declaration writes `/` after the parameters a call supplies by position
+  only, and `*` before those it supplies by name only:
+  `fn count<T>(xs: Collection<T>, value: T, /) : Int`,
+  `fn format<T, F : Format>(x: T, as: Type<F>, *, limit: Int = 0, …)`. A
+  function with a body takes every argument by position already, so the
+  markers belong to an external declaration, as a default does.
+- **Overload selection.** A call takes the first declaration whose input,
+  arity and value arguments' types it fits; a function and a type name are
+  checked against the declaration chosen, not read to choose it. A call that
+  fits a declaration by its arity and none by its types is refused naming
+  every declaration of that arity when another one takes its arguments
+  (`2 | pow(2.0)`); otherwise the first declaration it fits is checked, so
+  the refusal names the argument that is wrong (`[1] | take(true)`).
+- **Shadowing.** Binding refuses a declaration when an earlier one of the
+  name takes the same arguments, may omit as many, and accepts every input
+  and value argument it does. Where the patterns alone cannot tell, the
+  declaration is kept.
+- **Absence lifting.** A step whose chosen declaration does not take a
+  collection is lifted over an optional input: `none | abs` is an
+  `Option<Int>` and absent, `some(-2) | abs` is present, and a result that
+  is already an `Option` is not wrapped again. A step over a collection
+  still takes absence as the empty collection, `none | json` is `"[]"`.
+- **`collect(for = …)`** is refused as an argument the declaration does not
+  name: `` `collect` has no argument `for` ``.
+- **`format`** is three declarations per name, over a `Collection<T>`, a
+  `Stream<T>` and any `T`, since a sequence is a stream that ends and the
+  first form a call fits is taken. The eleven shorthands are declared the
+  same way.
+- **The narrowing `filter`** is declared with a predicate of type
+  `T -> Is<U>`: such a parameter takes only a lambda written
+  `x => x | is(U)` and binds `U` to the type it tests. `Is<T>` is declared in
+  `std/core.hql` beside `Type<T>`.
+- **`...Any`** takes a value of any type in each position; `Any` is a
+  contract's name for an unconstrained value, not a type a program writes.

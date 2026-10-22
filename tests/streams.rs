@@ -283,8 +283,12 @@ fn the_small_diagnostics_name_what_to_write() {
         finite.contains("take(n)") && finite.contains("collect(n)"),
         "{finite}"
     );
+    // A time window is no argument `collect` declares.
     let window = check("[1, 2] | collect(for = 5)").expect_err("no time windows");
-    assert!(window.contains("not implemented yet"), "{window}");
+    assert!(
+        window.contains("`collect` has no argument `for`"),
+        "{window}"
+    );
     let renderer = check("[1] | format(Markdown, renderer = \"shiny\")").expect_err("unknown");
     assert!(
         renderer.contains("no renderer is named `shiny`"),

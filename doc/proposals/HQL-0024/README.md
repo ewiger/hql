@@ -157,3 +157,7 @@ keeps its recorded types and diagnostics.
   notes
 - 2026-10-22: part 7 adopted from [encode, decode and format](encode-decode-format.md);
   parts 1 to 6, 8 and 11 implemented as issue 0028 records
+- 2026-10-22: part 12's signature authority reaches the core, `string`,
+  `seq`, `math` and `format`: positional and named-only arguments, overload
+  selection by argument types, shadowed overloads refused, `...Any` and the
+  narrowing `filter` declared, as issue 0033 records

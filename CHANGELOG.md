@@ -44,6 +44,27 @@ The language continues to be in active development.
   `take_while`, `drop_while`, `min_by`, `max_by`, `with`, `without`,
   `intersection` and `difference` of `seq`, and `abs`, `pow` and `sign` of
   `math`, over an `Int` or a `Float`. `hql builtins` prints each overload.
+  Every core, `seq`, `math`, `string` and `format` operation now takes its
+  types from its declaration ([issue 0033](doc/issues/0033-overloaded-declarations.md),
+  shown in the [overloads corpus](examples/overloads/README.md)):
+  - A `/` in an external declaration ends the parameters a call supplies by
+    position only, and a `*` opens those it supplies by name only:
+    `count(value = 1)`, `contains(value = 1)`, `get(key = …)` and
+    `pow(exponent = 2)` are refused, and `format`'s `limit` and `renderer`
+    are named.
+  - An overload is chosen by its value arguments' types where the input and
+    the arity leave several; a call that fits no form, `2 | pow(2.0)`, is
+    refused naming every form of that arity.
+  - Binding refuses an overload declared after one that takes every call it
+    fits.
+  - `format` and its shorthands are declared in `std/format.hql`, a stream
+    giving a `Stream<String>` and a collection or any other value a `String`.
+  - `fmt` is declared `fmt(self, args: ...Any)`: `...Any` takes a value of
+    any type in each position, where `...T` binds one type for them all.
+  - A constructor parameter takes as many arguments as its bound,
+    `M<_, _> : Map<_, _>`.
+  - The narrowing `filter(x => x | is(U))` is a declaration whose predicate is
+    a `T -> Is<U>`, binding `U` to the type tested.
 
 - String functions in the prelude
   ([issue 0031](doc/issues/0031-missing-string-functions.md)):
@@ -103,6 +124,13 @@ The language continues to be in active development.
     comma; an integer literal takes a call, `7.max(3)`.
 
 ### Changed
+
+- A step over a value applied to an optional input is lifted over it
+  ([issue 0033](doc/issues/0033-overloaded-declarations.md)): `none | abs`,
+  `none | sqrt` and `none | upper` check and evaluate to absence, and
+  `some(-2) | abs` is an `Option<Int>`. A step over a collection still takes
+  absence as the empty collection.
+- `collect(for = …)` is refused as an argument `collect` does not declare.
 
 - `string.replace` and `regex.replace` are now `replace_all`, and each has a
   `replace_first` beside it, so a replacement names whether it applies to

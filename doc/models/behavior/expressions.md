@@ -195,7 +195,8 @@ and **warns**; the exit status does not change.
 
 Absence propagates through a field — `@[[nowhere]].title` is `Option<String>` —
 and a pipeline step applied to absence is one applied to nothing rather than a
-failure. `match` and `given … otherwise` consume absence explicitly; the
+failure: a step over a collection takes absence as the empty collection, and
+a step over any other value gives absence, `none | abs` an `Option<Int>`. `match` and `given … otherwise` consume absence explicitly; the
 implicit lifting stays beside them until the corpus no longer needs it.
 
 ## Steps

@@ -142,6 +142,10 @@ pub(crate) enum Kind {
         arguments: Vec<Arg>,
         /// Where the step itself is written: `debug(…)` in `xs | debug(…)`.
         at: Range<usize>,
+        /// Whether the step is lifted over an optional input it takes no
+        /// collection of: absence gives absence, and a value it produces
+        /// is present.
+        lifted: bool,
     },
     Link {
         source: Box<Expr>,
@@ -321,6 +325,8 @@ pub(crate) struct Checked {
     pub fields: HashMap<Range<usize>, Field>,
     pub views: HashMap<Range<usize>, TypeRef>,
     pub steps: HashMap<Range<usize>, &'static Operation>,
+    /// The steps lifted over an optional input, absence giving absence.
+    pub lifted: HashSet<Range<usize>>,
     /// A lambda written as a value, or a declared function, at its type.
     pub functions: HashMap<Range<usize>, TypeRef>,
     /// A call or pipe that applies a function value, with how many leading
@@ -621,6 +627,7 @@ impl Checked {
                             input: Box::new(held),
                             arguments: Vec::new(),
                             at: span.clone(),
+                            lifted: self.lifted.contains(&span),
                         },
                         ty: produced.clone(),
                         span: span.clone(),
@@ -796,6 +803,7 @@ impl Checked {
                         input: boxed(receiver)?,
                         arguments: self.arguments(arguments)?,
                         at: span.clone(),
+                        lifted: self.lifted.contains(&span),
                     }
                 } else {
                     Kind::Order(
@@ -900,6 +908,7 @@ impl Checked {
                         input: boxed(&input.value)?,
                         arguments: self.arguments(arguments)?,
                         at: span.clone(),
+                        lifted: self.lifted.contains(&span),
                     }
                 } else if matches!(&callee.kind, A::Ident(name) if name == "some") {
                     Kind::Some(boxed(&arguments[0].value)?)
@@ -927,6 +936,7 @@ impl Checked {
                     input: boxed(input)?,
                     arguments: self.arguments(arguments)?,
                     at: written.span.clone(),
+                    lifted: self.lifted.contains(&written.span),
                 }
             }
         };

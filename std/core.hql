@@ -63,6 +63,11 @@ type Ordering
 // type Type<U> takes a type name and binds U to the type it names.
 type Type<T>
 
+// What a predicate that tests its parameter's type, `x => x | is(U)`, gives:
+// a Bool that, where true, holds the parameter at U. A parameter of type
+// T -> Is<U> takes only such a predicate, and binds U to the type it tests.
+type Is<T>
+
 // The capabilities the language owns, in scope in every program: the
 // operators resolve through them, and a declared type implements them for
 // its own values. `Self` is the implementing type. A type implementing Ord

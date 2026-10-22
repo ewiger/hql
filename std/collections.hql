@@ -59,20 +59,23 @@ type Group<K, T> {
 // Every declaration is external: the core implements it, and binding holds
 // the two to each other. A name declared more than once is overloaded: a call
 // takes the first declaration its input and its arguments fit, so the more
-// specific forms come first.
+// specific forms come first. A `/` ends the parameters a call supplies by
+// position only: `count(1)`, never `count(value = 1)`.
 
 fn size<T>(xs: Collection<T>) : Int
 // The kept alias of size.
 fn count<T>(xs: Collection<T>) : Int
-fn count<T>(xs: Collection<T>, value: T) : Int
-fn contains<T>(xs: Collection<T>, value: T) : Bool
-fn get<K, V>(xs: Map<K, V>, key: K) : Option<V>
+fn count<T>(xs: Collection<T>, value: T, /) : Int
+fn contains<T>(xs: Collection<T>, value: T, /) : Bool
+fn get<K, V>(xs: Map<K, V>, key: K, /) : Option<V>
 
-// A predicate that tests the element's type, `x => x | is(U)`, narrows the
-// result to F<U>: of_type(U) is that filter. Over one optional value, filter
+// A predicate that tests the element's type, `x => x | is(U)`, is a
+// `T -> Is<U>`, and narrows the result to F<U>: of_type(U) is that filter. Over one optional value, filter
 // keeps it or makes it absent, and map maps what is present; map over a
 // result maps its success. An optional collection is a collection that may
 // be absent, so filter and map over it reach its elements.
+fn filter<F<_> : Iterable<_>, T, U>(xs: F<T>, by: T -> Is<U>) : F<U>
+fn filter<T, U>(xs: Option<T>, by: T -> Is<U>) : Option<U>
 fn filter<S : Iterable<T>, T>(xs: S, by: T -> Bool) : S
 fn filter<T>(xs: Option<T>, by: T -> Bool) : Option<T>
 fn of_type<F<_> : Collection<_>, T, U>(xs: F<T>, type: Type<U>) : F<U>

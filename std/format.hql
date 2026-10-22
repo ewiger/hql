@@ -65,15 +65,46 @@ impl Encoder<Graph> for Mermaid
 impl Encoder<Data> for Mermaid
 
 // Encoding a value in a format, provided by the `format` module. The result
-// is the encoded text, a String that keeps its format for presentation:
-// format<T, F : Format>(x: T, as: Type<F>, limit: Int = 0, renderer: String = "") : String
-// Each shorthand fixes the format and nothing else:
-// text     := format(Text)
-// hql      := format(Hql)
-// markdown := format(Markdown)
-// hmd      := format(Hmd)
-// json     := format(Json)
-// yaml     := format(Yaml)
-// csv      := format(Csv)
-// d2       := format(D2)
-// mermaid  := format(Mermaid)
+// is the encoded text, a String that keeps its format for presentation. A
+// stream that may not end is encoded piece by piece, as it is consumed, so
+// it gives a stream of texts; a collection, which ends, and any other value
+// give one text. A `*` opens the arguments a call supplies by name only:
+// `format(Markdown, limit = 3)`.
+fn format<T, F : Format>(x: Collection<T>, as: Type<F>, *, limit: Int = 0, renderer: String = "") : String
+fn format<T, F : Format>(x: Stream<T>, as: Type<F>, *, limit: Int = 0, renderer: String = "") : Stream<String>
+fn format<T, F : Format>(x: T, as: Type<F>, *, limit: Int = 0, renderer: String = "") : String
+
+// Each shorthand fixes the format and nothing else: `json` is `format(Json)`.
+fn text<T>(x: Collection<T>) : String
+fn text<T>(x: Stream<T>) : Stream<String>
+fn text<T>(x: T) : String
+fn hql<T>(x: Collection<T>) : String
+fn hql<T>(x: Stream<T>) : Stream<String>
+fn hql<T>(x: T) : String
+fn markdown<T>(x: Collection<T>) : String
+fn markdown<T>(x: Stream<T>) : Stream<String>
+fn markdown<T>(x: T) : String
+fn hmd<T>(x: Collection<T>) : String
+fn hmd<T>(x: Stream<T>) : Stream<String>
+fn hmd<T>(x: T) : String
+fn json<T>(x: Collection<T>) : String
+fn json<T>(x: Stream<T>) : Stream<String>
+fn json<T>(x: T) : String
+fn yaml<T>(x: Collection<T>) : String
+fn yaml<T>(x: Stream<T>) : Stream<String>
+fn yaml<T>(x: T) : String
+fn csv<T>(x: Collection<T>) : String
+fn csv<T>(x: Stream<T>) : Stream<String>
+fn csv<T>(x: T) : String
+fn lines<T>(x: Collection<T>) : String
+fn lines<T>(x: Stream<T>) : Stream<String>
+fn lines<T>(x: T) : String
+fn jsonlines<T>(x: Collection<T>) : String
+fn jsonlines<T>(x: Stream<T>) : Stream<String>
+fn jsonlines<T>(x: T) : String
+fn d2<T>(x: Collection<T>) : String
+fn d2<T>(x: Stream<T>) : Stream<String>
+fn d2<T>(x: T) : String
+fn mermaid<T>(x: Collection<T>) : String
+fn mermaid<T>(x: Stream<T>) : Stream<String>
+fn mermaid<T>(x: T) : String

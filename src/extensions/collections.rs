@@ -673,11 +673,11 @@ fn narrowed(input: &Value, kept: Vec<Value>, wanted: TypeRef) -> Value {
     }
 }
 
-/// The type a `filter` predicate narrows its elements to: the `U` of a lambda
-/// whose body is `x | is(U)` or `is(x, U)` on its own parameter.
-pub(crate) fn narrowing(arguments: &[crate::ast::Arg]) -> Option<&str> {
+/// The type a predicate tests its parameter for: the `U` of a lambda whose
+/// body is `x | is(U)` or `is(x, U)` on its own parameter, which a
+/// parameter declared `T -> Is<U>` takes.
+pub(crate) fn narrowing_of(argument: &crate::ast::Arg) -> Option<&str> {
     use crate::ast::Kind;
-    let argument = named_or_first(arguments, "by")?;
     let Kind::Lambda {
         parameters, body, ..
     } = &argument.value.kind
@@ -806,23 +806,6 @@ fn check_ordered(
                 "this step keeps positions, and {} has none; sort it first",
                 call.input
             ),
-        ));
-    }
-    Ok(())
-}
-
-/// An argument a step reserves and does not take yet, refused before any
-/// signature is chosen: `collect(for = …)`, a time window that closes a batch
-/// after a duration.
-pub(crate) fn reserved(name: &str, arguments: &[crate::ast::Arg]) -> Result<(), Diagnostic> {
-    if name == "collect"
-        && let Some(window) = arguments
-            .iter()
-            .find(|argument| argument.name.as_deref() == Some("for"))
-    {
-        return Err(Diagnostic::typing(
-            window.value.span.clone(),
-            "a time window, `collect(for = …)`, is not implemented yet; batch by count, `collect(n)`",
         ));
     }
     Ok(())

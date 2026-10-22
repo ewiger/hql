@@ -36,6 +36,11 @@ Absence lifts through a field access and through a step:
 ```
 
 A step applied to absence is a step applied to nothing rather than a failure.
+A step over a collection takes absence as the empty collection, so
+`@[[nowhere]] | downlinks` is an empty `List<Edge>`. A step over any other
+value is lifted over the option: `none | abs` is an absent `Option<Int>`,
+`some(-2) | abs` the present `Option<Int>` holding `2`, and a step whose
+result is already an `Option` gives that `Option`.
 
 **This lifting is a stopgap.** Absence is an ordinary sum type consumed
 explicitly — by an exhaustive [[match-op|match]], by `given … otherwise`, by

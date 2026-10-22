@@ -216,9 +216,15 @@ impl Operation {
         &self.specs()[0]
     }
 
-    /// The signature a call takes: the first overload it fits. Where none
-    /// fits, the first its input meets, so checking names the argument that
-    /// is wrong; where the input meets none, the refusal lists what it may be.
+    /// The signature a call takes: the first overload whose input, arity and
+    /// value arguments the call fits. Where the input and the arity leave
+    /// several, the arguments' types decide; where a call fits a form by its
+    /// arity and no form by its types, and another form takes those
+    /// arguments, the refusal names every form of that arity. Otherwise the
+    /// first form the call fits by arity, or failing that by its input and
+    /// the argument names it writes, is checked, so checking names the
+    /// argument that is wrong; where the input meets none, the refusal lists
+    /// what it may be.
     pub(crate) fn overload(
         &self,
         cx: &mut dyn CheckCx,
@@ -230,9 +236,40 @@ impl Operation {
         if let [only] = specs {
             return Ok(only);
         }
+        let fitting: Vec<&OperationSpec> = specs
+            .iter()
+            .filter(|spec| spec.fits(cx, input, arguments))
+            .collect();
+        for spec in &fitting {
+            if spec.fits_types(cx, Some(input), arguments)? {
+                return Ok(spec);
+            }
+        }
+        if let Some(first) = fitting.first() {
+            // Forms of this arity that differ by their arguments' types: a
+            // form for another input takes these arguments.
+            let forms: Vec<&OperationSpec> = specs
+                .iter()
+                .filter(|spec| spec.fits_arity(cx, arguments))
+                .collect();
+            let mut taken = false;
+            for form in &forms {
+                if !fitting.iter().any(|held| std::ptr::eq(*held, *form))
+                    && form.fits_types(cx, None, arguments)?
+                {
+                    taken = true;
+                }
+            }
+            if taken && forms.len() > 1 {
+                return Err(spec::no_form(
+                    self.name, &forms, cx, input, arguments, span,
+                )?);
+            }
+            return Ok(first);
+        }
         if let Some(spec) = specs
             .iter()
-            .find(|spec| spec.fits(cx, input, arguments))
+            .find(|spec| spec.input.accepts(input) && spec.declares_names(arguments))
             .or_else(|| specs.iter().find(|spec| spec.input.accepts(input)))
         {
             return Ok(spec);
@@ -806,6 +843,25 @@ fn bind_contracts() -> Result<(), String> {
                     found.join("; ")
                 ));
             }
+        }
+    }
+    // An overload declared after one that takes every call it fits is never
+    // taken.
+    for (index, (module, _, step, later)) in derived.iter().enumerate() {
+        let Ok(later) = later else { continue };
+        if let Some(earlier) = derived[..index]
+            .iter()
+            .filter(|(_, _, held, _)| std::ptr::eq(*held, *step))
+            .filter_map(|(_, _, _, earlier)| earlier.as_ref().ok())
+            .find(|earlier| contract::shadows(earlier, later))
+        {
+            return Err(format!(
+                "`{module}.{}` declares `{}` after `{}`, which takes every call it fits, \
+                 so it is never taken: declare the more specific form first",
+                step.name,
+                later.signature(step.name),
+                earlier.signature(step.name)
+            ));
         }
     }
     for extension in REGISTERED {

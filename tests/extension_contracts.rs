@@ -190,3 +190,122 @@ fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
         );
     }
 }
+
+/// A `/` in a declaration ends the parameters a call supplies by position
+/// only: the value counted, tested, looked up or raised to is never named.
+#[test]
+fn an_argument_declared_positional_only_is_refused_by_name() {
+    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    for (source, argument) in [
+        ("[1] | count(value = 1)", "value"),
+        ("[1] | contains(value = 1)", "value"),
+        ("Map([\"a\"], [1]) | get(key = \"a\")", "key"),
+        ("2 | pow(exponent = 2)", "exponent"),
+    ] {
+        let outcome = hql::run(source, &vault, Mode::Strict);
+        assert!(
+            outcome.reports.iter().any(|report| report
+                .message
+                .contains(&format!("takes `{argument}` by position"))),
+            "{source}: {:?}",
+            outcome.reports
+        );
+    }
+    for source in [
+        "[1] | count(1)",
+        "[1] | contains(1)",
+        "Map([\"a\"], [1]) | get(\"a\")",
+        "2 | pow(2)",
+        "\"ab\" | contains(part = \"b\")",
+    ] {
+        let outcome = hql::run(source, &vault, Mode::Strict);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+    }
+}
+
+/// Where the input and the arity leave a call to one form and another form
+/// takes its arguments, the refusal names both forms.
+#[test]
+fn an_overload_is_chosen_by_its_arguments_types_too() {
+    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    for source in ["2 | pow(2.0)", "2.0 | pow(2)"] {
+        let outcome = hql::run(source, &vault, Mode::Strict);
+        let message = outcome
+            .reports
+            .iter()
+            .map(|report| report.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            message.contains("`pow` has no form for")
+                && message.contains("Int | pow(exponent: Int")
+                && message.contains("Float | pow(exponent: Float"),
+            "{source}: {message}"
+        );
+    }
+    // No form takes a Bool: the refusal names the argument.
+    let outcome = hql::run("[1] | take(true)", &vault, Mode::Strict);
+    assert!(
+        outcome
+            .reports
+            .iter()
+            .any(|report| report.message.contains("argument `n` needs Int")),
+        "{:?}",
+        outcome.reports
+    );
+}
+
+/// A step over a value, applied to an optional input, is lifted: absence
+/// gives absence at the step's result type, and a present value's result is
+/// present.
+#[test]
+fn a_step_over_a_value_is_lifted_over_absence() {
+    let vault = hql::vault::Vault::empty();
+    for (source, ty, json) in [
+        ("none | abs", "Option<Int>", "null"),
+        ("none | sqrt", "Option<Float>", "null"),
+        ("none | upper", "Option<String>", "null"),
+        ("some(-2) | abs", "Option<Int>", "2"),
+        ("some(\"7\") | to_int", "Option<Int>", "7"),
+        (
+            "[some(-1), none] | map(abs)",
+            "List<Option<Int>>",
+            "[1,null]",
+        ),
+        // A step over a collection takes absence as the empty collection.
+        ("none | json", "String", "\"[]\""),
+    ] {
+        let outcome = hql::run(source, &vault, Mode::Strict);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        assert_eq!(outcome.inferred.unwrap().to_string(), ty, "{source}");
+        let value = outcome.value.unwrap();
+        assert_eq!(value.type_of().to_string(), ty, "{source}");
+        assert_eq!(
+            serde_json::to_string(&value.to_json()).unwrap(),
+            json,
+            "{source}"
+        );
+    }
+}
+
+/// `fmt` is declared `fmt(self, args: ...Any)`, `format` with its limit and
+/// renderer after `*`, by name only, and each over a stream, a collection and
+/// any other value.
+#[test]
+fn fmt_and_format_take_the_signatures_their_declarations_state() {
+    let vault = hql::vault::Vault::empty();
+    for (source, ty) in [
+        ("fmt(\"{} {}\", 1, \"a\")", "String"),
+        ("fmt(\"{}\", some(1))", "String"),
+        ("\"{} {}\".fmt([1], true)", "String"),
+        ("[1] | format(Json)", "String"),
+        ("[1, 2] | format(Markdown, limit = 1)", "String"),
+        ("1 | json", "String"),
+    ] {
+        let outcome = hql::run(source, &vault, Mode::Strict);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        assert_eq!(outcome.inferred.unwrap().to_string(), ty, "{source}");
+    }
+    let outcome = hql::run("[1] | format(Json, 3)", &vault, Mode::Strict);
+    assert!(outcome.failed());
+}

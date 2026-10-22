@@ -7,8 +7,8 @@
 
 fn abs(x: Int) : Int
 fn abs(x: Float) : Float
-fn pow(x: Int, exponent: Int) : Int
-fn pow(x: Float, exponent: Float) : Float
+fn pow(x: Int, exponent: Int, /) : Int
+fn pow(x: Float, exponent: Float, /) : Float
 fn sign(x: Int) : Int
 fn sign(x: Float) : Int
 fn float(x: Int) : Float

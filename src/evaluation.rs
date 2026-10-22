@@ -470,8 +470,25 @@ impl Evaluator<'_> {
                 input,
                 arguments,
                 at,
+                lifted,
             } => {
                 let value = as_checked(self.expression(input)?, &input.ty);
+                // A step lifted over an optional input: absence gives
+                // absence, and what the step produces is present.
+                if *lifted {
+                    return match value {
+                        Value::Absent(_) => Ok(Value::Absent(expression.ty.present().clone())),
+                        Value::Present(held) => {
+                            let produced =
+                                self.step(step, held.as_ref().clone(), arguments, at.clone())?;
+                            Ok(match produced {
+                                Value::Present(_) | Value::Absent(_) => produced,
+                                other => Value::Present(Arc::new(other)),
+                            })
+                        }
+                        other => self.step(step, other, arguments, at.clone()),
+                    };
+                }
                 // A step's own reports point at the step, not at the whole
                 // pipeline that feeds it.
                 self.step(step, value, arguments, at.clone())

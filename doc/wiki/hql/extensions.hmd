@@ -50,7 +50,7 @@ native bodies. The model and its stages are
 | an external declaration, `fn trim(self) : String` | an operation named `trim`: `declared("trim", summary, eval_trim)` | the name |
 | one name declared more than once, `fn take<S : Seq<T>, T>(xs: S, n: Int) : S` then `fn take<T>(xs: Stream<T>, n: Int) : List<T>` | one operation, whose one implementation serves every overload | the name; a call takes the first overload its input and arguments fit |
 | the receiver, `self`, typed by the module's pattern or written, `self: Collection<T>` | the operation's input | binding derives it from the declaration |
-| the generic parameters and their bounds, a parameter bound by a shape, `S : Seq<T>`, which is the input at its own type, and a constructor parameter, `F<_> : Iterable<_>`, which `F<U>` rebuilds around another element; the parameters in order, a function type as a lambda, `...T` as a variadic argument and `step: Int = 1` as one that may be omitted | the operation's arguments | binding derives them from the declaration |
+| the generic parameters and their bounds, a parameter bound by a shape, `S : Seq<T>`, which is the input at its own type, and a constructor parameter, `F<_> : Iterable<_>` or `M<_, _> : Map<_, _>`, which `F<U>` rebuilds around other arguments; the parameters in order, a function type as a lambda, `T -> Is<U>` as a predicate testing its parameter's type, `...T` as a variadic argument of one type, `...Any` as one of any type in each position, `step: Int = 1` as one that may be omitted, the parameters before `/` as supplied by position only and those after `*` by name only | the operation's arguments | binding derives them from the declaration |
 | the result type | the operation's output | binding derives it from the declaration |
 | a native implementation, `impl Ord for Int`, `impl<T> Index<T> for Seq<T>` | a body for the trait's functions over the type's values | the trait and the type; a header needs a body and a body needs a header |
 | a codec, `impl Decoder<String> for Lines`, `impl<T> Encoder<T> for Json` | the decoder and encoder tables | the format: a format read has the one decoder its header names, and a format writes a type exactly when an encoder header covers it |
@@ -69,8 +69,10 @@ extension.
 
 An overloaded name is checked against one declaration per call: the first
 whose input the call's input meets, whose required arguments are all
-supplied, and whose function arguments take as many parameters as the
-functions written. More specific declarations come first:
+supplied, whose function arguments take as many parameters as the functions
+written, and whose value arguments take the types written. More specific
+declarations come first, and binding refuses a declaration that an earlier
+one of the name always takes first:
 
 ```hql
 // std/collections.hql
@@ -86,7 +88,32 @@ fn sort<T>(xs: Collection<T>, by: (T, T) -> Ordering) : List<T>
 `Ranking<Card>` sorted by a key a `Seq<Hit<Card>>`, its constructor rebuilt
 around its element. Where no declaration fits, the refusal names the inputs
 the declarations take: `` `sum` needs Collection<Int> or Collection<Float>, not
-List<String> ``.
+List<String> ``. Where a call fits a declaration by its arity and none by
+its arguments' types, and another declaration takes those arguments, the
+refusal names every declaration of that arity: `2 | pow(2.0)` names
+`Int | pow(exponent: Int)` and `Float | pow(exponent: Float)`.
+
+The parameters before a `/` are supplied by position only, and those after
+a `*` by name only; a function with a body takes every argument by position,
+so both belong to an external declaration:
+
+```hql
+// std/collections.hql, std/format.hql
+fn count<T>(xs: Collection<T>, value: T, /) : Int
+fn format<T, F : Format>(x: T, as: Type<F>, *, limit: Int = 0, renderer: String = "") : String
+```
+
+`[1, 2, 1] | count(1)` is `2`, and `count(value = 1)` is refused.
+
+A predicate whose type is `T -> Is<U>` takes only a lambda that tests its
+parameter's type, `x => x | is(U)`, and binds `U` to the type tested, so the
+narrowing `filter` is a declaration of its own, written before the general
+one:
+
+```hql
+fn filter<F<_> : Iterable<_>, T, U>(xs: F<T>, by: T -> Is<U>) : F<U>
+fn filter<S : Iterable<T>, T>(xs: S, by: T -> Bool) : S
+```
 
 A method call, a qualified call and a pipeline step reach the same
 declaration:

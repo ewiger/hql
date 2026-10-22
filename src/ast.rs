@@ -187,6 +187,21 @@ pub(crate) struct Param {
     /// `step: Int = 1`: the value an omitted argument takes, written only in
     /// an external declaration.
     pub default: Option<Expr>,
+    /// How a call may supply it: `/` after a parameter makes it and those
+    /// before it positional, and `*` before one makes it and those after it
+    /// named, both written only in an external declaration.
+    pub passing: Passing,
+}
+
+/// How a call may supply an argument of an external declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Passing {
+    /// By position or by name.
+    Either,
+    /// By position only: declared before `/`.
+    Position,
+    /// By name only: declared after `*`.
+    Name,
 }
 
 /// A declared type: what it is called, what it narrows, and what it holds.

@@ -891,9 +891,7 @@ impl<'a> Checker<'a> {
             return;
         }
         if let Some(message) = crate::naming::departure(kind, name) {
-            self.checked
-                .warnings
-                .push(crate::warnings::Warning::new(span.clone(), message));
+            CheckCx::warn(self, crate::warnings::Warning::new(span.clone(), message));
         }
     }
 
@@ -2060,6 +2058,15 @@ impl<'a> Checker<'a> {
             if let Some(variable) = crate::types::builtin::type_variable(name, bound.as_ref()) {
                 variables.push((name.clone(), variable));
             }
+        }
+        // `...Any`: a value of any type in each position, held as a variable
+        // the declaration does not otherwise name.
+        if let Some(variable) = ('A'..='Z')
+            .map(String::from)
+            .find(|letter| !declaration.generics.contains(letter))
+            .and_then(|letter| crate::types::builtin::type_variable(&letter, None))
+        {
+            variables.push(("Any".to_owned(), variable));
         }
         let _variables = crate::declarations::TypeVariables::enter(&variables);
         let mut parameters = Vec::new();
@@ -3874,24 +3881,23 @@ impl<'a> Checker<'a> {
             || (*lifted != TypeRef::DATA
                 && !step.specs().iter().any(|spec| spec.input.accepts(lifted))
                 && step.specs().iter().any(|spec| spec.input.accepts(input)));
+        let optional = !raw && input.constructor.0 == "Option";
         let input = if raw { input.clone() } else { lifted.clone() };
-        crate::extensions::collections::reserved(step.name, arguments)?;
-        let (result, call) = step
-            .overload(self, &input, arguments, &span)?
-            .check(step.name, self, &input, input_expr, arguments, &span)?;
+        let spec = step.overload(self, &input, arguments, &span)?;
+        let (result, call) = spec.check(step.name, self, &input, input_expr, arguments, &span)?;
         if let Some(check) = step.check {
-            check(self, &call, span)?;
+            check(self, &call, span.clone())?;
         }
-        // A predicate that tests the element's type narrows the result to it:
-        // `Option<Doc> -> Option<Card>`, `List<Doc> -> List<Card>`.
-        if step.name == "filter"
-            && let Some(narrowed) = crate::extensions::collections::narrowing(arguments)
-                .and_then(|name| crate::types::named(name, &[]))
-        {
+        // Absence is the empty collection to a step over a collection. A
+        // step over anything else is lifted over it: absence gives absence,
+        // and what the step produces is present.
+        let empty = crate::types::collections::SET.apply([TypeRef::NEVER]);
+        if optional && !spec.input.accepts(&empty) {
+            self.checked.lifted.insert(span);
             return Ok(if result.constructor.0 == "Option" {
-                TypeRef::optional(narrowed)
+                result
             } else {
-                input.image(narrowed)
+                TypeRef::optional(result)
             });
         }
         Ok(result)
@@ -3904,7 +3910,11 @@ impl CheckCx for Checker<'_> {
     }
 
     fn warn(&mut self, warning: crate::warnings::Warning) {
-        self.checked.warnings.push(warning);
+        // Choosing among overloads may read an argument twice, and says
+        // what it finds once.
+        if !self.checked.warnings.contains(&warning) {
+            self.checked.warnings.push(warning);
+        }
     }
 
     fn placeholder(&mut self, actual: &TypeRef, expected: Option<TypeRef>) -> bool {

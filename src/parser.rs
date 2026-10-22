@@ -2,8 +2,8 @@
 
 use crate::ast::{
     ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, ExternalDecl, Field,
-    FnDecl, ImplDecl, Kind, Logic, MethodDecl, Param, Pattern, Program, Relation, Stmt, TEE_INPUT,
-    TraitDecl, TypeAnn, TypeDecl,
+    FnDecl, ImplDecl, Kind, Logic, MethodDecl, Param, Passing, Pattern, Program, Relation, Stmt,
+    TEE_INPUT, TraitDecl, TypeAnn, TypeDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -728,19 +728,28 @@ impl Parser {
                         "expected a type parameter",
                     ));
                 };
-                // `F<_> : Iterable<_>`: a parameter that stands for a type
-                // constructor, bound by the constructor it refines.
+                // `F<_> : Iterable<_>`, `M<_, _> : Map<_, _>`: a parameter
+                // that stands for a type constructor, bound by the
+                // constructor it refines, with as many holes as it has.
                 let constructor = self.eat(&Token::Less);
+                let mut holes = 0;
                 if constructor {
-                    self.hole()?;
+                    loop {
+                        self.hole()?;
+                        holes += 1;
+                        if !self.eat(&Token::Comma) {
+                            break;
+                        }
+                    }
                     self.expect(&Token::Greater, "after `_` in a constructor parameter")?;
                 }
                 if self.eat(&Token::Colon) {
                     let bound = self.simple_type()?;
-                    if constructor && !bound.is_constructor() {
+                    if constructor && (!bound.is_constructor() || bound.arguments.len() != holes) {
                         return Err(Diagnostic::syntax(
                             bound.span,
-                            "a constructor parameter is bound by a constructor: `F<_> : Iterable<_>`",
+                            "a constructor parameter is bound by a constructor of as many \
+                             arguments: `F<_> : Iterable<_>`, `M<_, _> : Map<_, _>`",
                         ));
                     }
                     bounds.push((parameter.clone(), bound));
@@ -905,6 +914,7 @@ impl Parser {
                         annotation,
                         variadic: false,
                         default: None,
+                        passing: Passing::Either,
                     });
                 }
                 if !self.eat(&Token::Comma) {
@@ -947,8 +957,41 @@ impl Parser {
         let mut parameters: Vec<Param> = Vec::new();
         let mut has_self = false;
         let mut receiver = None;
+        // Where `/` and `*` are written: an external declaration's parameters
+        // passed by position only, and those passed by name only.
+        let mut by_position: Option<Range<usize>> = None;
+        let mut by_name: Option<Range<usize>> = None;
         if !matches!(self.peek(), Token::CloseParen) {
             loop {
+                if matches!(self.peek(), Token::Slash) {
+                    let marker = self.advance().span;
+                    if parameters.is_empty() || by_position.is_some() || by_name.is_some() {
+                        return Err(Diagnostic::syntax(
+                            marker,
+                            "`/` follows the parameters passed by position only, once, \
+                             before any `*`",
+                        ));
+                    }
+                    for parameter in &mut parameters {
+                        parameter.passing = Passing::Position;
+                    }
+                    by_position = Some(marker);
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                    continue;
+                }
+                if matches!(self.peek(), Token::Star) {
+                    let marker = self.advance().span;
+                    if by_name.is_some() {
+                        return Err(Diagnostic::syntax(marker, "`*` is written once"));
+                    }
+                    by_name = Some(marker);
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                    continue;
+                }
                 let written = self.advance();
                 let Token::Ident(parameter) = written.token else {
                     return Err(Diagnostic::syntax(
@@ -996,6 +1039,11 @@ impl Parser {
                     annotation,
                     variadic,
                     default,
+                    passing: if by_name.is_some() {
+                        Passing::Name
+                    } else {
+                        Passing::Either
+                    },
                 });
                 if !self.eat(&Token::Comma) {
                     break;
@@ -1031,6 +1079,13 @@ impl Parser {
                 result,
                 span,
             }));
+        }
+        if let Some(marker) = by_position.or(by_name) {
+            return Err(Diagnostic::syntax(
+                marker,
+                "`/` and `*` belong to an external declaration; a function with a body \
+                 takes its arguments by position",
+            ));
         }
         if let Some(default) = parameters
             .iter()

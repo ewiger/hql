@@ -5,40 +5,22 @@
 //! declaration. `str` and `fmt` take any value and are the prelude's way to
 //! text that is not a presentation format.
 
-use super::spec::{ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypePattern as P};
-use super::{EvalCx, Operation, Purity};
-use super::{Signature, declared};
+use super::declared;
+use super::{EvalCx, Operation};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
-use crate::types::{TypeConstructor, TypeRef, Value};
+use crate::types::{TypeRef, Value};
 use std::ops::Range;
 use std::sync::Arc;
-
-const STRING: TypeConstructor = TypeConstructor("String");
 
 /// Every step the `string` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
     declared("str", "The text a value prints as.", eval_str),
-    Operation {
-        name: "fmt",
-        spec: Signature::Native(OperationSpec {
-            parameters: &[],
-            input: P::Type(STRING),
-            arguments: &[ArgumentSpec {
-                name: "args",
-                kind: A::Value(P::Any),
-                required: false,
-                positional: true,
-                named: false,
-                variadic: true,
-            }],
-            output: O::Type(P::Type(STRING)),
-        }),
-        summary: "The template with each `{}` replaced by the text of the next argument.",
-        purity: Purity::Pure,
-        check: None,
-        eval: eval_fmt,
-    },
+    declared(
+        "fmt",
+        "The template with each `{}` replaced by the text of the next argument.",
+        eval_fmt,
+    ),
     declared("length", "How many characters the text has.", eval_length),
     declared("upper", "The text in upper case.", eval_upper),
     declared("lower", "The text in lower case.", eval_lower),

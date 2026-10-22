@@ -7,9 +7,6 @@
 //! over built-in defaults. See [HQL-0017](../../doc/proposals/HQL-0017/README.md).
 
 use super::Signature;
-use super::spec::{
-    ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,
-};
 use super::{EvalCx, Operation, Purity, named};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
@@ -481,40 +478,7 @@ fn cut_marker(format: TypeConstructor, cut: usize) -> String {
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "format",
-        spec: Signature::Native(OperationSpec {
-            parameters: &[TypeParameter {
-                name: "F",
-                bound: Some(crate::types::builtin::FORMAT),
-            }],
-            input: P::Any,
-            arguments: &[
-                ArgumentSpec {
-                    name: "as",
-                    kind: A::TypeName("F"),
-                    required: true,
-                    positional: true,
-                    named: true,
-                    variadic: false,
-                },
-                ArgumentSpec {
-                    required: false,
-                    positional: false,
-                    ..ArgumentSpec::value("limit", P::Type(TypeConstructor("Int")))
-                },
-                ArgumentSpec {
-                    required: false,
-                    positional: false,
-                    ..ArgumentSpec::value("renderer", P::Type(TypeConstructor("String")))
-                },
-            ],
-            output: O::Finite {
-                finite: P::Type(TypeConstructor("String")),
-                open: P::Apply(
-                    crate::types::collections::STREAM,
-                    &[P::Type(TypeConstructor("String"))],
-                ),
-            },
-        }),
+        spec: Signature::Declared,
         summary: "Encode any value as text in a format, chosen by its type; a stream \
                   piece by piece.",
         purity: Purity::Pure,
@@ -625,19 +589,7 @@ fn unwrapped(value: &Value) -> &Value {
 const fn shorthand(name: &'static str, check: super::Check, eval: super::Eval) -> Operation {
     Operation {
         name,
-        spec: Signature::Native(OperationSpec {
-            parameters: &[],
-            input: P::Any,
-            arguments: &[],
-            // Encoded text is a String, whatever the format.
-            output: O::Finite {
-                finite: P::Type(TypeConstructor("String")),
-                open: P::Apply(
-                    crate::types::collections::STREAM,
-                    &[P::Type(TypeConstructor("String"))],
-                ),
-            },
-        }),
+        spec: Signature::Declared,
         summary: "Shorthand for format with its format fixed.",
         purity: Purity::Pure,
         check: Some(check),

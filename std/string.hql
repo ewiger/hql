@@ -8,10 +8,11 @@
 module for String
 
 // The text a value prints as, and a template filled with the text of each
-// argument in order: `fmt("{} of {}", 1, 2)`. Neither is `format`, which
-// encodes a value in a Format.
+// argument in order: `fmt("{} of {}", 1, some(2))`. `...Any` takes a value
+// of any type in each position, where `...T` would bind one type for every
+// argument. Neither is `format`, which encodes a value in a Format.
 fn str<T>(self: T) : String
-fn fmt(self, args: ...Data) : String
+fn fmt(self, args: ...Any) : String
 
 fn length(self) : Int
 fn upper(self) : String
