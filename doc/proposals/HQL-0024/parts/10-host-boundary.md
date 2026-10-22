@@ -88,11 +88,13 @@ configured package modules.
 ## Work units
 
 1. Reserve the execution-context proposal and state its boundary with
-   HQL-0012, HQL-0020 and HQL-0001.
+   HQL-0012, HQL-0020 and HQL-0001. Reserved as
+   [HQL-0025](../../HQL-0025/README.md), drafted.
 2. The invariant list of the draft (identity versus origin, no search path, no
    precedence, host composition) as a checklist against HQL-0020.
 3. A bare-CLI test: a program with imports and no vault resolves builtin
-   modules.
+   modules. Done: `tests/cli.rs` runs one in a directory with no vault above
+   it, and `cards` there is the "needs a vault" error.
 4. `prelude = false` withholding the extensions' prelude imports along with
    the standard one's, with a test on a vault that activates an extension
    carrying a `prelude.hql`.

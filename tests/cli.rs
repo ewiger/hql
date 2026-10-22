@@ -702,3 +702,26 @@ fn render_runs_one_cell_and_reports_every_cell_as_json() {
     assert_eq!(cells[0]["span"][0], 0);
     assert_eq!(json.status.code(), Some(1));
 }
+
+#[test]
+fn a_program_outside_every_vault_imports_builtin_modules() {
+    // No vault above the directory: the standard modules still resolve, by
+    // import and through the prelude, and only host bindings are missing.
+    let dir = tempdir().unwrap();
+    let program = dir.path().join("q.hql");
+    std::fs::write(
+        &program,
+        "import regex\nimport io.logging as log\n[regex.is_match(\"wren\", \"^w\"), \"  x \".trim() == \"x\"]\n",
+    )
+    .unwrap();
+    let output = hql_in(dir.path(), &["run", "q.hql"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "[true, true]");
+    let unbound = hql_in(dir.path(), &["eval", "cards | size"]);
+    assert!(!unbound.status.success());
+    assert!(String::from_utf8_lossy(&unbound.stderr).contains("needs a vault"));
+}
