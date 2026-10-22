@@ -2,12 +2,14 @@
 // implementation: implemented
 // environment: pure
 // feature: Sets, maps and the operations over them
-// expected-type: List<String>
-// expected-json: ["[1, 2, 3, 4, 5]","[3, 4]","[1, 2]","2","one,three,two","1,2,3","6","4","4","[3, 1, 2]","[[1, 2], [3, 4], [5, 6]]"]
+// expected-type: List<Data>
+// expected-json: [[1,2,3,4,5],"[1, 2, 3, 4, 5]","[3, 4]","[1, 2]","2","one,three,two","1,2,3","6","4","4","[3, 1, 2]","[[1, 2], [3, 4], [5, 6]]"]
 
 // `union`, `intersection` and `difference` combine sets; a map is built
 // from key and value sequences or with `to_map`, read with `get`, extended
-// with `with`, and projected to `keys`, `values()` and `entries()`.
+// with `with`, and projected to `keys`, `values()` and `entries()`. The
+// first element is the sorted union itself and the rest are texts, so the
+// list holds them at `Data`, the type a mixed literal has.
 a = Set([1, 2, 3, 4])
 b = Set([3, 4, 5])
 m = Map(["one", "two", "three"], [1, 2, 3])

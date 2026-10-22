@@ -58,8 +58,9 @@ The language continues to be in active development.
   JsonLines)` a `Stream<Data>`; `.jsonl` and `.ndjson` imply `JsonLines`.
   `std/format.hql` declares the codec contracts `Decoder<F, T>` and
   `Encoder<T, F>`. `Text` is one whole document; a `.txt` or `.log` path
-  implies `Lines`; `lines` and `jsonlines` encode one record per line; and
-  `sink` writes a single value as one document. The Mighty Types corpus
+  implies `Lines`; and `lines` and `jsonlines` encode one record per line.
+  `sink` writes a stream, one document per value, and `target` one whole
+  document, as before. The Mighty Types corpus
   shows `source(file, Lines)`, `target(file, Lines)` and
   `sink(file(p).end, Lines)`.
 - `import` names a module, not an extension; `import nonesuch` is refused as

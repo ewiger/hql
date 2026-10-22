@@ -115,9 +115,10 @@ source(file("input.txt"), Lines)
 | sink(file("output.txt"), Lines)
 ```
 
-`target`, which writes one value as one document, stays while HQL-0021 is
-drafted; the direction is that `sink` covers a single value as one document
-too and `target` is not needed beside it.
+`sink` is for streams: one document per value, as it arrives. `target` is a
+separate concept, one value written as one whole document, `[1, 2] | target(
+stdout, Json)` being one JSON array where `sink` would write two documents.
+Both stay, as HQL-0021 has them.
 
 ## Current state
 
@@ -128,8 +129,8 @@ too and `target` is not needed beside it.
   `Text` is one whole document, terminators and all. A `.txt` or `.log` path
   implies `Lines`, `.jsonl` and `.ndjson` imply `JsonLines`. `lines` and
   `jsonlines` are the in-memory shorthands, one record per line.
-- `sink` takes a single value as one document beside a stream of them, so a
-  program needs `target` only to replace a file with one document whole.
+- `sink` writes a stream and `target` one whole document; a single value goes
+  through `target`.
 - The decoder table is `io::document_type` and the encoder table is the
   renderer table of the [presentation card](../../../wiki/hql/presentation.hmd),
   both in Rust; `std/format.hql` declares `Decoder<F, T>` and `Encoder<T, F>`
@@ -145,7 +146,7 @@ too and `target` is not needed beside it.
    `format` returning `String`. Done.
 2. The codec contracts in `std/format.hql`, with the Rust tables as their
    implementations and a test that every format has a codec. Done.
-3. `target` retired in favour of `sink`, with HQL-0021. `Text` as one whole
-   document and `sink` of one value are done.
+3. Accepting HQL-0021 with this format model. `Text` as one whole document is
+   done.
 4. Binary formats as a format kind, and codecs an extension or an HQL `impl`
    provides, once generic traits exist.

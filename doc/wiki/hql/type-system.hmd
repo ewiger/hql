@@ -777,8 +777,10 @@ language's central value cannot be the place where the rule is improvised.
 
 - Whether narrowing is nominal or structural. A record declared by a program
   is nominal: `Point(x = 1, y = 2)` is a `Point` and nothing else is.
-- Whether an `impl` of a generic trait, `Encoder<T, F>`, may be written in HQL;
-  the codec contracts are declared and implemented natively for now.
+- Whether a `trait` may take type parameters, so that the codec contracts,
+  spelled `abstract type Decoder<F, T>` today, are written as traits. An
+  implementation stays native either way: HQL declares the interface and the
+  extension implements it.
 - The spelling of validation and refinement at the call site: `validate<Person>(card)`,
   a `where` clause, or a predicate that the checker records.
 - How conflicting requirements from parents in a supertype set are diagnosed.

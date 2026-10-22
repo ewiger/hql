@@ -547,7 +547,7 @@ fn lines_frame_text_by_line_and_text_is_one_document() {
     );
     // A plain text file is lines unless a format says otherwise.
     assert_eq!(json(r#"source(file("notes.txt")) | size"#), "2\n");
-    // Writing puts the terminators back, and a value alone is one record.
+    // Writing puts the terminators back.
     ok(&hql_in(
         dir.path(),
         &[r#"["x", "y"] | sink(file("out.txt"), Lines)"#],
@@ -556,9 +556,15 @@ fn lines_frame_text_by_line_and_text_is_one_document() {
         fs::read_to_string(dir.path().join("out.txt")).unwrap(),
         "x\ny\n"
     );
+    // A sink writes a stream, one record per value; one value is one whole
+    // document, written by target.
+    refused(
+        &hql_in(dir.path(), &[r#""solo" | sink(file("one.txt"), Lines)"#]),
+        "`sink` needs",
+    );
     ok(&hql_in(
         dir.path(),
-        &[r#""solo" | sink(file("one.txt"), Lines)"#],
+        &[r#""solo" | target(file("one.txt"), Lines)"#],
     ));
     assert_eq!(
         fs::read_to_string(dir.path().join("one.txt")).unwrap(),

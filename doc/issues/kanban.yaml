@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 28 # to be incremented when adding a new issue card
+  last_id: 29 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -33,6 +33,9 @@ board:
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
     todo:
+      - id: "0029"
+        title: "Binary formats, and codecs an extension or a package provides"
+        file: 0029-binary-formats-and-codecs.md
       - id: "0027"
         title: A partial record type reads card metadata as typed fields
         file: 0027-typed-metadata-sort-keys.md
