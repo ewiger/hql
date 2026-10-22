@@ -443,8 +443,10 @@ fn load() : Seq<Sighting> = source(file("birds.jsonl"))
   binding refuses it. A `Seq<Sighting>` is never read from `Lines`.
 - A tree MUST decode as a record by its shape
   ([HQL-0016](../HQL-0016/README.md)), as `match` and `of_type` read it: every
-  required field at its type, an optional field without an entry absent, and
-  an entry the record does not name ignored.
+  required field at its type and an optional field without an entry absent.
+  An entry the record does not name is refused for a closed record and kept
+  beneath an open one, a record narrowing `Data`
+  ([HQL-0030](../HQL-0030/README.md)).
 - A CSV cell MUST be read as the scalar its field declares, an `Int`, `Float`
   or `Bool` parsed from its text, and an empty cell at an optional field that
   is not a `String` MUST be absent. A `Json`, `JsonLines` or `Yaml` leaf MUST

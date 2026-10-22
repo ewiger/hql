@@ -323,6 +323,22 @@ impl Evaluator<'_> {
             Kind::Float(value) => Ok(Value::Float(*value)),
             Kind::Bool(value) => Ok(Value::Bool(*value)),
             Kind::Str(text) => Ok(Value::Str(Arc::from(text.as_str()))),
+            // `{:}` where a map type is declared is that empty map.
+            Kind::Data(entries)
+                if entries.is_empty()
+                    && let Some(kind) = crate::checker::map_kind(&expression.ty) =>
+            {
+                let key = expression
+                    .ty
+                    .args
+                    .first()
+                    .cloned()
+                    .unwrap_or(TypeRef::NEVER);
+                let value = expression.ty.args.get(1).cloned().unwrap_or(TypeRef::NEVER);
+                crate::types::MapValue::new(kind, Vec::new(), Vec::new(), key, value)
+                    .map(|map| Value::Map(Arc::new(map)))
+                    .map_err(|error| Diagnostic::runtime(span.clone(), error.to_string()))
+            }
             Kind::Data(entries) => {
                 let mut data = Data::map();
                 for (key, value) in entries {
@@ -524,6 +540,10 @@ impl Evaluator<'_> {
             }
             Kind::Type => Err(Diagnostic::runtime(span, "a type argument is not a value")),
             Kind::Record(fields) => self.record(fields, &expression.ty, &span),
+            Kind::Interpret { input, element } => {
+                let value = self.expression(input)?;
+                interpreted(value, element, &span)
+            }
             Kind::Some(value) => Ok(Value::Present(Arc::new(self.expression(value)?))),
             Kind::Ok(value) => {
                 let error = expression
@@ -600,6 +620,7 @@ impl Evaluator<'_> {
         Ok(Value::Record(Arc::new(crate::types::Record {
             ty: ty.clone(),
             fields: built,
+            carrier: None,
         })))
     }
 
@@ -1702,6 +1723,7 @@ pub(crate) fn range_value(start: Option<i64>, end: Option<i64>) -> Value {
             ("start".to_owned(), bound(start)),
             ("end".to_owned(), bound(end)),
         ],
+        carrier: None,
     }))
 }
 
@@ -1993,4 +2015,63 @@ pub(crate) fn arithmetic_of(
             ));
         }
     })
+}
+
+/// `data | User`: a value read as `element`, or each `Data` of it where it is
+/// optional or a collection, a stream read one element at a time. A value
+/// that does not read is an evaluation error naming every field that does
+/// not, not only the first (HQL-0030).
+fn interpreted(value: Value, element: &TypeRef, span: &Range<usize>) -> Result<Value, Diagnostic> {
+    let one = |value: &Value| {
+        // Read as `Data`, an open record is the tree it was read from.
+        if *element == TypeRef::DATA
+            && let Value::Record(record) = value
+            && let Some(carrier) = &record.carrier
+        {
+            return Ok(Value::Data(Arc::clone(carrier)));
+        }
+        value
+            .decoded(element, crate::types::Leaves::AsWritten)
+            .map_err(|mismatches| {
+                Diagnostic::runtime(
+                    span.clone(),
+                    format!("this does not read as {element}: {mismatches}"),
+                )
+            })
+    };
+    match value {
+        Value::Present(held) => Ok(Value::Present(Arc::new(interpreted(
+            held.as_ref().clone(),
+            element,
+            span,
+        )?))),
+        Value::Absent(_) => Ok(Value::Absent(element.clone())),
+        Value::List(values, _) => Ok(Value::list(
+            values.iter().map(one).collect::<Result<_, _>>()?,
+            element.clone(),
+        )),
+        Value::Set(values, _) => Ok(Value::set(
+            values.iter().map(one).collect::<Result<_, _>>()?,
+            element.clone(),
+        )),
+        Value::Traversal(traversal) => {
+            if let Some(values) = traversal.forced() {
+                return Ok(Value::Traversal(Arc::new(Traversal::kept(
+                    element.clone(),
+                    values.iter().map(one).collect::<Result<_, _>>()?,
+                ))));
+            }
+            Ok(Value::Traversal(Arc::new(Traversal::new(
+                element.clone(),
+                traversal.finite,
+                Source::Decode {
+                    input: Arc::clone(&traversal),
+                    leaves: crate::types::Leaves::AsWritten,
+                    from: format!("`| {element}`"),
+                    span: span.clone(),
+                },
+            ))))
+        }
+        other => one(&other),
+    }
 }

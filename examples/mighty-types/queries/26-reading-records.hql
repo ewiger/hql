@@ -6,10 +6,11 @@
 // expected: ["Dune, 412 pages, sf; Emma, 474 pages, no genre; not a book", "2 books, 886 pages"]
 
 // A tree is a `Book` when it has every required field at its type; an
-// optional field without an entry is absent, and an entry the record does
-// not name is ignored. `match`, `is` and `of_type` read a tree this way, and
-// the value they bind is a `Book`.
-type Book {
+// optional field without an entry is absent. `Book` narrows `Data`, so it is
+// an open view (HQL-0030): an entry it does not name, `year`, is allowed and
+// kept beneath the view. `match`, `is` and `of_type` read a tree this way,
+// and the value they bind is a `Book`.
+type Book : Data {
     title  : String
     pages  : Int
     genre? : String

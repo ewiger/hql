@@ -55,6 +55,36 @@ impl std::fmt::Display for Mismatch {
     }
 }
 
+/// Every reason a value does not read as a type, each field's in the order
+/// the type declares it: reading reports them all, not only the first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mismatches(pub Vec<Mismatch>);
+
+impl Mismatches {
+    /// Each mismatch seen from the value that holds it at `field`.
+    fn within(self, field: &str) -> Self {
+        Self(
+            self.0
+                .into_iter()
+                .map(|mismatch| mismatch.within(field))
+                .collect(),
+        )
+    }
+}
+
+impl From<Mismatch> for Mismatches {
+    fn from(mismatch: Mismatch) -> Self {
+        Self(vec![mismatch])
+    }
+}
+
+impl std::fmt::Display for Mismatches {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let each: Vec<String> = self.0.iter().map(ToString::to_string).collect();
+        f.write_str(&each.join("; "))
+    }
+}
+
 /// A text leaf read as the scalar `wanted` names, or as the text it is.
 fn parsed_leaf(text: &str, wanted: &TypeRef) -> Result<Value, Mismatch> {
     let refused = |name: &str| Mismatch::new(format!("{text:?} is not {name}"));
@@ -186,6 +216,10 @@ pub struct Record {
     /// Each field's value, in declaration order. An optional field holds an
     /// `Option` value: present, or absent at the field's type.
     pub fields: Vec<(String, Value)>,
+    /// The whole tree an open record was read from, undeclared entries
+    /// included: reading it as another type sees all of it (HQL-0030). A
+    /// closed record, or one built from its fields, has none.
+    pub carrier: Option<Arc<Data>>,
 }
 
 impl Record {
@@ -467,12 +501,19 @@ impl Value {
     /// # Errors
     ///
     /// The value, or a field of it, is not a `wanted`.
-    pub fn decoded(&self, wanted: &TypeRef, leaves: Leaves) -> Result<Self, Mismatch> {
+    pub fn decoded(&self, wanted: &TypeRef, leaves: Leaves) -> Result<Self, Mismatches> {
         if self.type_of().is(wanted) {
             return Ok(self.clone());
         }
+        // An open record is a view: read as another type, it is the tree it
+        // was read from that is read.
+        if let Self::Record(record) = self
+            && let Some(carrier) = &record.carrier
+        {
+            return Self::Data(Arc::clone(carrier)).decoded(wanted, leaves);
+        }
         let Self::Data(tree) = self else {
-            return Err(Mismatch::new(format!("{} is not {wanted}", self.type_of())));
+            return Err(Mismatch::new(format!("{} is not {wanted}", self.type_of())).into());
         };
         let read = match tree.as_ref() {
             Data::Bool(value) => Self::Bool(*value),
@@ -486,46 +527,50 @@ impl Value {
                 let element = wanted
                     .element()
                     .ok_or_else(|| Mismatch::new(format!("a list is not {wanted}")))?;
-                let read = items
-                    .iter()
-                    .enumerate()
-                    .map(|(index, item)| {
-                        Self::Data(Arc::new(item.clone()))
-                            .decoded(&element, leaves)
-                            .map_err(|mismatch| mismatch.within(&index.to_string()))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                let mut read = Vec::with_capacity(items.len());
+                let mut failed = Vec::new();
+                for (index, item) in items.iter().enumerate() {
+                    match Self::Data(Arc::new(item.clone())).decoded(&element, leaves) {
+                        Ok(value) => read.push(value),
+                        Err(mismatches) => failed.extend(mismatches.within(&index.to_string()).0),
+                    }
+                }
+                if !failed.is_empty() {
+                    return Err(Mismatches(failed));
+                }
                 let list = Self::list(read, element);
                 return if list.type_of().is(wanted) {
                     Ok(list)
                 } else {
-                    Err(Mismatch::new(format!("a list is not {wanted}")))
+                    Err(Mismatch::new(format!("a list is not {wanted}")).into())
                 };
             }
             Data::Map(entries) => return Self::record_from(entries, wanted, leaves),
-            Data::Empty => return Err(Mismatch::new(format!("nothing is not {wanted}"))),
+            Data::Empty => return Err(Mismatch::new(format!("nothing is not {wanted}")).into()),
         };
         if read.type_of().is(wanted) {
             Ok(read)
         } else {
-            Err(Mismatch::new(format!(
-                "{} is not {wanted}",
-                read.to_literal()
-            )))
+            Err(Mismatch::new(format!("{} is not {wanted}", read.to_literal())).into())
         }
     }
 
     /// A tree read as a declared record: each field's entry read at the
-    /// field's type, an optional field without an entry absent, and any
-    /// other entry ignored, since a record names the paths it knows.
+    /// field's type, and an optional field without an entry absent. A
+    /// closed record (HQL-0030) is exactly its fields, so an undeclared
+    /// entry is a mismatch; an open one, a record narrowing `Data`, ignores
+    /// it and keeps the whole tree beneath the view. Every field that does
+    /// not read is reported.
     fn record_from(
         entries: &BTreeMap<String, Data>,
         wanted: &TypeRef,
         leaves: Leaves,
-    ) -> Result<Self, Mismatch> {
+    ) -> Result<Self, Mismatches> {
         let shape = super::program::tree_shape(wanted)
             .ok_or_else(|| Mismatch::new(format!("a map is not {wanted}")))?;
+        let open = wanted.is(&TypeRef::DATA);
         let mut fields = Vec::with_capacity(shape.fields.len());
+        let mut failed = Vec::new();
         for field in &shape.fields {
             let entry = entries.get(&field.name).filter(|entry| match entry {
                 Data::Empty => false,
@@ -539,25 +584,39 @@ impl Value {
             });
             let value = match (entry, field.optional) {
                 (Some(entry), optional) => {
-                    let read = Self::Data(Arc::new(entry.clone()))
-                        .decoded(&field.ty, leaves)
-                        .map_err(|mismatch| mismatch.within(&field.name))?;
-                    if optional {
-                        Self::Present(Arc::new(read))
-                    } else {
-                        read
+                    match Self::Data(Arc::new(entry.clone())).decoded(&field.ty, leaves) {
+                        Ok(read) if optional => Self::Present(Arc::new(read)),
+                        Ok(read) => read,
+                        Err(mismatches) => {
+                            failed.extend(mismatches.within(&field.name).0);
+                            continue;
+                        }
                     }
                 }
                 (None, true) => Self::Absent(field.ty.clone()),
                 (None, false) => {
-                    return Err(Mismatch::new("it is missing").within(&field.name));
+                    failed.push(Mismatch::new("it is missing").within(&field.name));
+                    continue;
                 }
             };
             fields.push((field.name.clone(), value));
         }
+        if !open {
+            for key in entries.keys() {
+                if !shape.fields.iter().any(|field| field.name == *key) {
+                    failed.push(
+                        Mismatch::new(format!("{wanted} declares no such field")).within(key),
+                    );
+                }
+            }
+        }
+        if !failed.is_empty() {
+            return Err(Mismatches(failed));
+        }
         Ok(Self::Record(Arc::new(Record {
             ty: wanted.clone(),
             fields,
+            carrier: open.then(|| Arc::new(Data::Map(entries.clone()))),
         })))
     }
 

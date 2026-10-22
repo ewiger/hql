@@ -95,7 +95,11 @@ header.
 
 A binding whose declared type names an element decodes each document as that
 element. A tree is read as a declared record by its shape: every field at its
-type, and any other entry ignored.
+type. A plain record, `type Sighting {…}`, is closed, so a document with an
+entry it does not declare does not decode; a record narrowing `Data`,
+`type Sighting : Data {…}`, is an open view that tolerates such entries and
+keeps them ([HQL-0030](../../proposals/HQL-0030/README.md)). The same reading
+is written as a step, `source(file(p), Json) | Sighting`.
 
 <!-- run: skip -->
 ```hql

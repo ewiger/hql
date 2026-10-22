@@ -35,6 +35,10 @@ x : Set<Int> = {}
 d : Data = {:}
 ```
 
+`{:}` is the empty keyed literal: `Data` by itself, and the empty map where a
+map type is declared for it, `m : Map<String, Int> = {:}`
+([HQL-0030](../../proposals/HQL-0030/README.md)).
+
 `d : Data = {}` is a type error, since `{}` is already a set:
 
 ```text

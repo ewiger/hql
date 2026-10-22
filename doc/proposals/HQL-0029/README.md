@@ -63,7 +63,9 @@ data  ::= "{" ":" "}" | "{" key ":" expression ("," key ":" expression)* "}"
   entries MUST denote `Data`.
 - `{}` MUST be a `Set<Never>`. As every `Set<Never>`, it is accepted where a
   `Set<T>` is declared: `x : Set<Int> = {}`.
-- `{:}` MUST be the empty `Data`: `d : Data = {:}`.
+- `{:}` MUST be the empty keyed literal: the empty `Data`, `d : Data = {:}`,
+  and the empty map where a map type is declared for it,
+  `m : Map<String, Int> = {:}` ([HQL-0030](../HQL-0030/README.md)).
 - `d : Data = {}` MUST be a type error: `{}` already has a definite meaning.
 - Where a data literal is the only thing the grammar admits, a link's
   annotation `a -> b {…}`, `{}` MUST be refused as a syntax error naming `{:}`.
@@ -111,3 +113,5 @@ None.
 ## Changelog
 
 - 2026-10-22: drafted and implemented
+- 2026-10-23: `{:}` is the empty map where a `Map`, `OrderedMap` or
+  `SortedMap` is declared for it, as the companion note and HQL-0030 state

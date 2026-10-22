@@ -28,6 +28,7 @@ atoms! {
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
     CELL => "Cell", RANGE => "Range", TABLE => "Table",
+    TYPE_CONTRACT => "TypeContract", DATA_CONTRACT => "DataContract",
 }
 
 macro_rules! applications {
@@ -129,6 +130,10 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             ]),
             &[],
         ),
+        // The structural categories of `std/core.hql` (HQL-0030): a
+        // contract closed as a plain record is, and one open by being Data.
+        (TypeRef::TYPE_CONTRACT, TypeKind::Abstract, &[]),
+        (TypeRef::DATA_CONTRACT, TypeKind::Abstract, &[TypeRef::DATA]),
         (TypeRef::DOC, TypeKind::Concrete, &[TypeRef::ORDERABLE]),
         (TypeRef::CARD, TypeKind::Concrete, &[TypeRef::DOC]),
         (TypeRef::CONCEPT_CARD, TypeKind::Concrete, &[TypeRef::CARD]),

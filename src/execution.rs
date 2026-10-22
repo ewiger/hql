@@ -209,6 +209,13 @@ pub(crate) enum Kind {
     /// `Point(x = 1, y = 2)`: a record of the expression's type, from the
     /// fields written, each by name.
     Record(Vec<(String, Expr)>),
+    /// `data | User`: the input read as a declared type, each `Data` of it
+    /// where it is optional or a collection. Typing a value changes what is
+    /// known of it, not the value: an open record keeps the whole tree.
+    Interpret {
+        input: Box<Expr>,
+        element: TypeRef,
+    },
     /// A trait's function called on a receiver, `v.area()` or `a + b`,
     /// dispatched at run time on the receiver's type.
     Method {
@@ -325,6 +332,7 @@ impl Expr {
             Kind::Construct(held) => argument_values(held),
             Kind::Data(entries) => entries.iter().map(|(_, value)| value).collect(),
             Kind::Record(fields) => fields.iter().map(|(_, value)| value).collect(),
+            Kind::Interpret { input, .. } => vec![input],
             Kind::Arith { first, rest } => std::iter::once(first.as_ref())
                 .chain(rest.iter().map(|(_, operand, _)| operand))
                 .collect(),
@@ -625,6 +633,9 @@ pub(crate) struct Checked {
     /// the pipe's span: the operation type the planner reads, and whether
     /// an `Elementwise` runs over each element of its input.
     pub user_steps: HashMap<Range<usize>, (OperationType, bool)>,
+    /// Each pipe that reads its input as a declared type, `data | User`, by
+    /// the pipe's span: the type each `Data` is read as (HQL-0030).
+    pub interpretations: HashMap<Range<usize>, TypeRef>,
     /// Each call of a trait's function, by the trait and the function.
     pub method_calls: HashMap<Range<usize>, (String, String)>,
     /// Each operator resolved through a trait, by the trait.
@@ -1115,6 +1126,12 @@ impl Checked {
                 left: Box::new(self.expression(&arguments[0].value)?),
                 right: Box::new(self.expression(&arguments[1].value)?),
             },
+            A::Call { arguments, .. } if self.interpretations.contains_key(&span) => {
+                Kind::Interpret {
+                    input: Box::new(self.expression(&arguments[0].value)?),
+                    element: self.interpretations[&span].clone(),
+                }
+            }
             A::Call { arguments, .. } if self.records.contains_key(&span) => {
                 let shape = crate::types::program::record(self.records[&span].constructor.0)
                     .ok_or_else(|| Diagnostic::typing(span.clone(), "record was not declared"))?;

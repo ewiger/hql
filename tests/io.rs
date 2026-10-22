@@ -611,7 +611,7 @@ fn a_read_decodes_each_document_as_the_type_it_is_expected_to_give() {
     )
     .unwrap();
     fs::write(dir.path().join("notes.txt"), "a\n").unwrap();
-    const SIGHTING: &str = "type Sighting {\n    species : String\n    count   : Int\n}\n";
+    const SIGHTING: &str = "type Sighting : Data {\n    species : String\n    count   : Int\n}\n";
     let run = |program: &str| {
         hql_in(
             dir.path(),

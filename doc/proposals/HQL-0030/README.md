@@ -1,6 +1,6 @@
 # HQL-0030: Supplementary ADR: Structural Types, Open Data Views, Type Contracts, and Data Contracts
 
-**Status**: proposed
+**Status**: proposed, implemented in part
 **Created**: 2026-10-23
 **Supplements**: [HQL-0024](../HQL-0024/README.md), the complete type system;
 see also [HQL-0029](../HQL-0029/README.md) and its note on
@@ -2162,3 +2162,17 @@ itself.
 ## Changelog
 
 - 2026-10-23: proposed
+- 2026-10-23: implemented in part. `type A = {…}` is a structural body, the
+  same closed type as `type A {…}`, and `type B : Data = {…}` an open one;
+  `TypeContract` and `DataContract`, the second a `Data`, are in the lattice
+  and `std/core.hql`. A structural type is open exactly when it is a `Data`.
+  `data | T` (the parser's `T(data)` with one value by position) reads a
+  `Data`, an open record, or an optional or a collection of either, as `T`:
+  a closed type refuses an undeclared entry, an open one keeps the whole
+  tree, so `| Contact` and `| Data` read it again, and only declared fields
+  are visible. Every field that does not read is reported in one error with
+  its path. Typed decoding of a read follows the same rule, so a closed
+  record no longer ignores undeclared entries. `{:}` is the empty map where a
+  map type is declared. Contract rules, validators, events, hooks and
+  validation policies, structured validation values, and stream policies
+  are not built ([the structural examples](../../../examples/structural/README.md))

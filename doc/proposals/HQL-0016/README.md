@@ -78,7 +78,9 @@ is read at the type it passed:
 - A map is a record `R` the program declares without type parameters when it
   has an entry for every required field of `R` and each entry is read at its
   field's type. An optional field without an entry, or with an empty one, is
-  absent; an entry `R` does not name is ignored. The map is read as the `R`
+  absent. An entry `R` does not name makes the map not an `R` when `R` is
+  closed, and is kept beneath the view when `R` narrows `Data`
+  ([HQL-0030](../HQL-0030/README.md)). The map is read as the `R`
   the constructor builds from those fields.
 - `is(R)` over a `Data` value MUST NOT be refused as always false when `R` is
   such a record. A built-in record, a card kind among them, is established

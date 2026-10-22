@@ -391,10 +391,14 @@ impl Parser {
             self.nesting -= 1;
         }
 
-        // `=` defines the type as a choice among others. It says what the type
-        // is, where `:` says what it narrows, so the two are not combined.
+        // `= union {…}` defines the type as a choice among others. It says
+        // what the type is, where `:` says what it narrows, so the two are
+        // not combined. `= {…}` is a structural body, written after the
+        // supertypes where there are any: `type User : Data = {…}`.
         let mut union = None;
-        if self.eat(&Token::Equals) {
+        let structural = matches!(self.peek(), Token::Equals)
+            && matches!(self.tokens[self.index + 1].token, Token::OpenBrace);
+        if !structural && self.eat(&Token::Equals) {
             self.continuation();
             self.expect(&Token::Ident("union".to_owned()), "after `=` in a type")?;
             self.expect(&Token::OpenBrace, "to open a union")?;
@@ -442,6 +446,14 @@ impl Parser {
             }
         }
 
+        // A structural body is written `= {…}` or `{…}`, one meaning: whether
+        // it is closed or open is the supertype's to say.
+        if union.is_none()
+            && matches!(self.tokens[self.index].token, Token::Equals)
+            && matches!(self.tokens[self.index + 1].token, Token::OpenBrace)
+        {
+            self.advance();
+        }
         let mut fields = Vec::new();
         if union.is_none() && matches!(self.tokens[self.index].token, Token::OpenBrace) {
             self.advance();

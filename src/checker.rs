@@ -1604,6 +1604,19 @@ impl<'a> Checker<'a> {
                 .insert(expression.span.clone(), ty.clone());
             return Ok(ty);
         }
+        // `{:}` is the empty keyed literal: `Data` unless a map type is
+        // declared for it, `m : Map<String, Int> = {:}` (HQL-0030).
+        if let (Kind::Data(entries), Some(expected)) = (&expression.kind, expected)
+            && entries.is_empty()
+            && map_kind(expected).is_some()
+            && !expected.has_variable()
+            && !expected.has_placeholder()
+        {
+            self.checked
+                .types
+                .insert(expression.span.clone(), expected.clone());
+            return Ok(expected.clone());
+        }
         // A collection literal checked against a collection type holds its
         // elements at that type: `[Circle(…), Square(…)]` is a `List<Shape>`
         // where the annotation says so, though the elements alone meet
@@ -4014,6 +4027,9 @@ impl<'a> Checker<'a> {
         if let Some(module) = crate::declarations::hidden(name) {
             return Err(crate::declarations::private_type(name, &module, &span));
         }
+        if let Some(read) = self.interpreting(name, arguments, &span)? {
+            return Ok(read);
+        }
         let mut given: Vec<Option<&Arg>> = vec![None; shape.fields.len()];
         for (index, argument) in arguments.iter().enumerate() {
             let position = match &argument.name {
@@ -4101,6 +4117,84 @@ impl<'a> Checker<'a> {
             .map_err(|error| Diagnostic::typing(span.clone(), error.to_string()))?;
         self.checked.records.insert(span, ty.clone());
         Ok(ty)
+    }
+
+    /// `data | User`, which the parser writes `User(data)`: one value given
+    /// by position, read as the type rather than built from fields, where it
+    /// is a `Data` or an open record (HQL-0030).
+    fn interpreting(
+        &mut self,
+        name: &str,
+        arguments: &[Arg],
+        span: &Range<usize>,
+    ) -> Result<Option<TypeRef>, Diagnostic> {
+        let [only] = arguments else {
+            return Ok(None);
+        };
+        if only.name.is_some() {
+            return Ok(None);
+        }
+        let input = self.expression(&only.value)?;
+        let Some((element, read)) = self.interpretation(name, &input, span)? else {
+            return Ok(None);
+        };
+        self.checked.interpretations.insert(span.clone(), element);
+        Ok(Some(read))
+    }
+
+    /// `x | T` as a structural interpretation (HQL-0030): `T` a declared
+    /// record, or `Data`, and `x` a `Data` or an open record, which is a
+    /// view over the `Data` it was read from, or an optional or a
+    /// collection of either. Gives the type each is read as and the type of
+    /// the whole; `None` where the pipe is something else.
+    fn interpretation(
+        &mut self,
+        name: &str,
+        input: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Option<(TypeRef, TypeRef)>, Diagnostic> {
+        let record = crate::types::program::is_record_valued(name);
+        if !record && name != "Data" {
+            return Ok(None);
+        }
+        let readable = |ty: &TypeRef| {
+            *ty == TypeRef::DATA
+                || (crate::types::program::is_record_valued(ty.constructor.0)
+                    && ty.is(&TypeRef::DATA))
+        };
+        let read = if readable(input) {
+            None
+        } else if input.constructor.0 == "Option" && readable(input.present()) {
+            Some(None)
+        } else if let Some(element) = input.iterated()
+            && readable(&element)
+        {
+            Some(Some(input.constructor))
+        } else {
+            return Ok(None);
+        };
+        if let Some(module) = crate::declarations::hidden(name) {
+            return Err(crate::declarations::private_type(name, &module, span));
+        }
+        let element = crate::types::named(name, &[]).ok_or_else(|| {
+            Diagnostic::typing(
+                span.clone(),
+                format!("`{name}` takes type arguments; a value is read as one type"),
+            )
+        })?;
+        let whole = match read {
+            None => element.clone(),
+            Some(None) => TypeRef::optional(element.clone()),
+            Some(Some(constructor)) => {
+                use crate::types::collections::{LIST, SEQ, SET, STREAM};
+                if [LIST, SEQ, SET, STREAM].contains(&constructor) {
+                    constructor.apply([element.clone()])
+                } else {
+                    TypeRef::seq(element.clone())
+                }
+            }
+        };
+        Ok(Some((element, whole)))
     }
 
     /// `xs | f` where `f` is an `Elementwise<I, O>` and `xs` a collection of
@@ -4571,6 +4665,11 @@ impl<'a> Checker<'a> {
                 let Kind::Ident(name) = &callee.kind else {
                     unreachable!("a callee that is not a name is applied above");
                 };
+                if name == "Data"
+                    && let Some(read) = self.interpreting(name, arguments, &span)?
+                {
+                    return Ok(read);
+                }
                 if let Some(constructor) = crate::constructors::named(name) {
                     return crate::constructors::check(self, constructor, arguments, None, span);
                 }
@@ -5530,5 +5629,18 @@ fn missing_cases(subject: &TypeRef) -> &'static str {
         "cover every member of the union with a type pattern, or add `_`"
     } else {
         "add a `_` arm"
+    }
+}
+
+/// The kind of map a type is, `Map`, `OrderedMap` or `SortedMap`: what the
+/// empty keyed literal `{:}` builds where one is declared.
+pub(crate) fn map_kind(ty: &TypeRef) -> Option<crate::types::MapKind> {
+    use crate::types::MapKind;
+    use crate::types::collections::{MAP, ORDERED_MAP, SORTED_MAP};
+    match ty.constructor {
+        constructor if constructor == MAP => Some(MapKind::Unordered),
+        constructor if constructor == ORDERED_MAP => Some(MapKind::Ordered),
+        constructor if constructor == SORTED_MAP => Some(MapKind::Sorted),
+        _ => None,
     }
 }

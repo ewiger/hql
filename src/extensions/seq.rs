@@ -157,6 +157,7 @@ pub(crate) fn pair(first: Value, second: Value, a: TypeRef, b: TypeRef) -> Value
     Value::Record(Arc::new(Record {
         ty: PAIR.apply([a, b]),
         fields: vec![("first".to_owned(), first), ("second".to_owned(), second)],
+        carrier: None,
     }))
 }
 

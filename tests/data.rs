@@ -416,7 +416,9 @@ fn a_tree_leaf_is_read_by_its_shape_as_the_scalar_it_holds() {
 
 #[test]
 fn a_tree_is_read_as_a_declared_record_by_its_shape() {
-    let book = "type Book {\n    title: String\n    pages: Int\n    genre?: String\n}\n";
+    // An open view (HQL-0030): a tree with more entries than Book names is a
+    // Book, and the entries Book does not name are kept beneath it.
+    let book = "type Book : Data {\n    title: String\n    pages: Int\n    genre?: String\n}\n";
     for (body, expected) in [
         (
             "d : Data = {title: \"Dune\", pages: 412}\nd | is(Book)",

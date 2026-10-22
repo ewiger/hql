@@ -33,6 +33,16 @@ type Data = union {
     Map<String, Data>
 }
 
+// The structural categories (HQL-0030). Whether a structural type is closed
+// or open is its supertype's to say, never a modifier's:
+//   type A = {…}                 closed: exactly its declared fields
+//   type B : Data = {…}          open: at least its fields, a view over Data
+//   type C : TypeContract = {…}  closed, and validated as a contract
+//   type D : DataContract = {…}  open, and validated as a contract
+// A DataContract is open by being Data; it needs no `Data` written beside it.
+abstract type TypeContract
+abstract type DataContract : Data
+
 // Absence is an ordinary sum type. There is no null.
 type Option<T>
 
