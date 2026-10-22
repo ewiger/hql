@@ -688,7 +688,11 @@ fn from_names_the_format_of_standard_input() {
     assert_eq!(
         ok(&piped_in(
             dir.path(),
-            &["--from", "json", "source(stdin) | map(d => d.a) | take(2) | List"],
+            &[
+                "--from",
+                "json",
+                "source(stdin) | map(d => d.a) | take(2) | List"
+            ],
             "{\"a\": 1}\n{\"a\": 2}\n"
         ))
         .trim(),

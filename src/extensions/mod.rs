@@ -228,15 +228,6 @@ pub(crate) enum Signature {
     Native(OperationSpec),
 }
 
-/// What a declared operation checks against when its declaration states no
-/// signature, which binding refuses before any program runs.
-const UNBOUND: OperationSpec = OperationSpec {
-    parameters: &[],
-    input: spec::TypePattern::Any,
-    arguments: &[],
-    output: spec::Output::Type(spec::TypePattern::Any),
-};
-
 /// An operation whose signature, purity and shape are its declaration's in a
 /// standard module: a name, a summary and what it does to a value, marked
 /// pure and a barrier, which binding checks against the declaration.
@@ -334,13 +325,12 @@ impl Operation {
     /// Every signature the operation takes, most specific first: a call
     /// takes the first one it fits.
     pub(crate) fn specs(&self) -> &[OperationSpec] {
-        match &self.spec {
-            Signature::Native(spec) => std::slice::from_ref(spec),
-            Signature::Declared => binding::Environment::get()
-                .ok()
-                .map(|environment| environment.signatures(self))
-                .filter(|specs| !specs.is_empty())
-                .unwrap_or(std::slice::from_ref(&UNBOUND)),
+        match binding::Environment::get() {
+            Ok(environment) => environment.specs(self),
+            Err(_) => match &self.spec {
+                Signature::Native(spec) => std::slice::from_ref(spec),
+                Signature::Declared => std::slice::from_ref(&binding::UNBOUND),
+            },
         }
     }
 
@@ -348,13 +338,7 @@ impl Operation {
     /// pure and `effectful fn` effectful. An operation of a module without a
     /// contract has no declaration, and its extension's marking stands.
     pub(crate) fn purity(&self) -> Purity {
-        let Ok(environment) = binding::Environment::get() else {
-            return self.purity;
-        };
-        match environment.of(self).first() {
-            Some(id) => environment.declaration(*id).purity,
-            None => self.purity,
-        }
+        binding::Environment::get().map_or(self.purity, |environment| environment.purity(self))
     }
 
     /// How the executor may split it: what its declaration states, `fn` a
@@ -362,27 +346,7 @@ impl Operation {
     /// shape it names. An operation without a declaration keeps its
     /// extension's marking.
     pub fn shape(&self) -> Shape {
-        let Ok(environment) = binding::Environment::get() else {
-            return self.shape;
-        };
-        match environment.of(self).first() {
-            Some(id) => environment.declaration(*id).shape,
-            None => self.shape,
-        }
-    }
-
-    /// Whether a receiver call, `value.f()`, reaches the operation: its
-    /// declarations take `self`. A declaration without `self` is reached by
-    /// a call or a pipeline step only, and an operation without a
-    /// declaration has no receiver.
-    pub(crate) fn has_receiver(&self) -> bool {
-        let Ok(environment) = binding::Environment::get() else {
-            return false;
-        };
-        environment
-            .of(self)
-            .iter()
-            .any(|id| environment.declaration(*id).receiver)
+        binding::Environment::get().map_or(self.shape, |environment| environment.shape(self))
     }
 
     /// Whether the step receives an optional input as it is, absence
@@ -561,6 +525,7 @@ pub(crate) fn prelude() -> &'static [&'static str] {
 }
 
 /// The registered extension of a name.
+#[cfg(test)]
 pub(crate) fn extension(name: &str) -> Option<&'static Extension> {
     REGISTERED
         .iter()
@@ -569,6 +534,7 @@ pub(crate) fn extension(name: &str) -> Option<&'static Extension> {
 }
 
 /// Every registered extension providing a step name, in registration order.
+#[cfg(test)]
 pub(crate) fn providers(step: &str) -> Vec<&'static Extension> {
     REGISTERED
         .iter()
@@ -581,7 +547,7 @@ pub(crate) fn providers(step: &str) -> Vec<&'static Extension> {
 ///
 /// The prelude is a compatibility convenience, and a vault that wants every
 /// capability stated in the program that uses it must be able to decline it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Config {
     /// Extensions imported for every program this vault runs.
     pub imports: Vec<String>,
@@ -680,6 +646,10 @@ impl Availability {
 /// guessing at a misspelling.
 #[derive(Debug, Clone)]
 pub(crate) struct Resolution {
+    /// The frozen environment the program runs against: its extension set
+    /// is what an import may name, and its declarations say what an
+    /// importer reaches.
+    environment: binding::Frozen,
     /// Each visible builtin module, under the local name it is bound to.
     imported: Vec<Imported>,
 }
@@ -696,341 +666,57 @@ struct Imported {
 /// descriptor provides, `io.net`, or the extension's own one-word name, which
 /// `net` and `logging` keep.
 pub(crate) fn builtin_module(path: &str) -> Option<&'static Extension> {
-    REGISTERED
+    module_in(REGISTERED, path)
+}
+
+/// The module a dotted path names among an extension set.
+fn module_in(extensions: &[&'static Extension], path: &str) -> Option<&'static Extension> {
+    extensions
         .iter()
         .copied()
         .find(|extension| extension.provides.contains(&path))
-        .or_else(|| extension(path))
+        .or_else(|| {
+            extensions
+                .iter()
+                .copied()
+                .find(|extension| extension.name == path)
+        })
 }
 
 /// Bind the standard library's contracts to the extensions implementing them.
 ///
-/// HQL declares, an extension implements: loading the modules of `std/`
-/// allocates module and declaration identities, and for every module written
+/// HQL declares, an extension implements: the process's runtime environment
+/// loads the modules of `std/`, allocating module, declaration, type, trait,
+/// implementation and constructor identities, binds every compiled-in
+/// extension to them and validates the result once. For every module written
 /// as external declarations the extension whose descriptor provides the
 /// module must implement each declaration and nothing more. A declaration's
-/// signature, its receiver and its purity are the declaration's; the
-/// extension's own marking of purity, and a native signature where one is
-/// written, are checked against it. The check runs once per process; a
-/// mismatch is a defect of the binary, and refuses every program with a
-/// message naming the module, the declaration and the extension.
+/// signature, its receiver, its purity and its privacy are the declaration's;
+/// the extension's own marking of purity, and a native signature where one is
+/// written, are checked against it. A mismatch is a defect of the binary, and
+/// refuses every program with a message naming the module, the declaration
+/// and the extension.
 ///
 /// # Errors
 ///
 /// Returns the first disagreement between a contract and its implementation.
 pub fn bind() -> Result<(), String> {
-    static BOUND: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
-    BOUND.get_or_init(bind_contracts).clone()
-}
-
-/// Every bodyless `impl` header of the standard library has a native body,
-/// and every native body has a header: the runtime implements what the
-/// language declares, and nothing besides.
-fn bind_native_impls() -> Result<(), String> {
-    let headers = crate::library::native_impls()?;
-    bind_codecs(&headers)?;
-    for header in headers
-        .iter()
-        .filter(|header| !is_codec(&header.trait_name))
-    {
-        if traits::native_header_impl(&header.trait_name, &header.target).is_none() {
-            return Err(format!(
-                "`std/{}` declares `impl {} for {}` natively, and no extension implements it",
-                header.module, header.trait_name, header.target
-            ));
-        }
-    }
-    for held in traits::NATIVE_IMPLS {
-        if !headers
-            .iter()
-            .any(|header| header.trait_name == held.trait_name && header.target == held.target)
-        {
-            return Err(format!(
-                "an extension implements `{}` for {}, and no module declares \
-                 `impl {} for {}`: an extension implements declarations and creates none",
-                held.trait_name, held.target, held.trait_name, held.target
-            ));
-        }
-    }
-    Ok(())
-}
-
-/// Whether a trait is a codec contract, implemented by the decoder and
-/// encoder tables rather than by trait functions.
-fn is_codec(trait_name: &str) -> bool {
-    matches!(trait_name, "Decoder" | "Encoder")
-}
-
-/// The codec headers of `std/format.hql` and the runtime's tables say the
-/// same: a format the runtime reads has one `Decoder` header naming the type
-/// it reads as, a format it does not read has none, and a format writes a
-/// type exactly when one of its `Encoder` headers covers that type.
-fn bind_codecs(headers: &[crate::library::NativeHeader]) -> Result<(), String> {
-    let codecs: Vec<&crate::library::NativeHeader> = headers
-        .iter()
-        .filter(|header| is_codec(&header.trait_name))
-        .collect();
-    for header in &codecs {
-        if !format::FORMATS
-            .iter()
-            .any(|(name, _)| *name == header.target)
-        {
-            return Err(format!(
-                "`std/{}` declares `impl {} for {}`, and {} is not a format",
-                header.module, header.trait_name, header.target, header.target
-            ));
-        }
-    }
-    let named = |header: &crate::library::NativeHeader| {
-        let argument = &header.arguments[0];
-        if header.generics.contains(&argument.name) {
-            return Ok(None);
-        }
-        crate::types::builtin::named(&argument.name, &[])
-            .map(Some)
-            .ok_or_else(|| format!("`{}` names no type", argument.name))
-    };
-    let samples = [
-        TypeRef::INT,
-        TypeRef::STR,
-        TypeRef::DATA,
-        TypeRef::GRAPH,
-        TypeRef::list(TypeRef::INT),
-    ];
-    for (format_name, _) in format::FORMATS {
-        let format_type = crate::types::TypeConstructor(format_name);
-        let of = |trait_name: &str| {
-            codecs
-                .iter()
-                .filter(|header| header.trait_name == trait_name && header.target == format_name)
-                .map(|header| named(header))
-                .collect::<Result<Vec<_>, String>>()
-        };
-        let decoders = of("Decoder")?;
-        match (crate::io::document_type(format_type), decoders.as_slice()) {
-            (Ok(read), [Some(declared)]) if *declared == read => {}
-            (Err(_), []) => {}
-            (read, declared) => {
-                return Err(format!(
-                    "{format_name} reads as {}, and `std/format.hql` declares {} decoder{} for it",
-                    read.map_or_else(|_| "nothing".to_owned(), |ty| ty.to_string()),
-                    declared.len(),
-                    if declared.len() == 1 { "" } else { "s" }
-                ));
-            }
-        }
-        let encoders = of("Encoder")?;
-        for sample in &samples {
-            let writes = format::writable(sample, format_name).is_ok();
-            let declared = encoders.iter().any(|encoder| match encoder {
-                None => true,
-                Some(ty) => sample.takes_implementation_of(ty),
-            });
-            if writes != declared {
-                return Err(format!(
-                    "{format_name} {} {sample}, and `std/format.hql` {} an encoder for it",
-                    if writes { "writes" } else { "does not write" },
-                    if declared { "declares" } else { "declares no" }
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn bind_contracts() -> Result<(), String> {
-    bind_native_impls()?;
-    crate::constructors::bind()?;
-    let environment = binding::Environment::get()?;
-    // A module claim is total: every external declaration of a module has a
-    // provider, and the provider implements it.
-    for (id, declaration) in environment.declarations() {
-        let module = environment.module(declaration.module);
-        let Some(provider) = module.provider else {
-            return Err(format!(
-                "module `{}` has no implementation: its contract declares externally, and no \
-                 extension provides `{}`",
-                module.name, module.name
-            ));
-        };
-        if declaration.operation.is_none() {
-            return Err(format!(
-                "`{}` is declared, and the extension `{}` implements no such function",
-                environment.qualified(id),
-                provider.name
-            ));
-        }
-    }
-    // The declaration is the signature: a declared operation takes it, and a
-    // native one states the same types wherever the declaration states one.
-    let bound = |declaration: &binding::Declaration| {
-        declaration
-            .operation
-            .zip(environment.module(declaration.module).provider)
-    };
-    for (id, declaration) in environment.declarations() {
-        let Some((step, provider)) = bound(declaration) else {
-            continue;
-        };
-        let declared = declaration.signature.as_ref().map_err(|why| {
-            format!(
-                "`{}` states no signature an operation can take: {why}",
-                environment.qualified(id)
-            )
-        })?;
-        let overloads = environment.of(step);
-        // A receiver call reaches every form of a name or none: whether
-        // `value.f()` is a call is a property of the name.
-        if let Some(other) = overloads
-            .iter()
-            .find(|other| environment.declaration(**other).receiver != declaration.receiver)
-        {
-            return Err(format!(
-                "`{}` is declared with `self` in one form and without it in another, at `{}`: \
-                 a name's forms all take a receiver or none does",
-                environment.qualified(id),
-                environment.declaration(*other).name
-            ));
-        }
-        // Purity is the declaration's; the extension's marking is checked
-        // against it, and every form of a name states one purity.
-        if declaration.purity != step.purity {
-            return Err(format!(
-                "`{}` is declared {}, and the extension `{}` marks it {}",
-                environment.qualified(id),
-                declaration.purity.label(),
-                provider.name,
-                step.purity.label()
-            ));
-        }
-        // So is the shape: every form of a name states one, and the
-        // extension's marking agrees with it.
-        if declaration.shape != step.shape {
-            return Err(format!(
-                "`{}` is declared {}, and the extension `{}` marks it {}",
-                environment.qualified(id),
-                declaration.shape.label(),
-                provider.name,
-                step.shape.label()
-            ));
-        }
-        if let Signature::Native(native) = &step.spec {
-            // One native signature holds to several declarations only where
-            // its input is a choice, each declaration stating one of it:
-            // `source(endpoint: Readable, …)` and `source(id: String, …)`.
-            let alternatives = match native.input {
-                spec::TypePattern::OneOf(alternatives) => alternatives,
-                _ => &[],
-            };
-            if overloads.len() > 1 && overloads.len() != alternatives.len() {
-                return Err(format!(
-                    "`{}` is declared {} times, and the extension `{}` writes one signature \
-                     for it: an overloaded operation takes its signatures from its declarations",
-                    environment.qualified(id),
-                    overloads.len(),
-                    provider.name
-                ));
-            }
-            let found = match alternatives
-                .iter()
-                .find(|alternative| **alternative == declared.input)
-            {
-                Some(alternative) if overloads.len() > 1 => contract::departures(
-                    &spec::OperationSpec {
-                        input: *alternative,
-                        ..*native
-                    },
-                    declared,
-                ),
-                _ => contract::departures(native, declared),
-            };
-            if !found.is_empty() {
-                return Err(format!(
-                    "`{}` is declared with other types than the extension `{}` implements: {}",
-                    environment.qualified(id),
-                    provider.name,
-                    found.join("; ")
-                ));
-            }
-        }
-    }
-    // An overload declared after one that takes every call it fits is never
-    // taken.
-    for (_, declaration) in environment.declarations() {
-        let Some(step) = declaration.operation else {
-            continue;
-        };
-        let Ok(later) = &declaration.signature else {
-            continue;
-        };
-        let ids = environment.of(step);
-        let position = ids
-            .iter()
-            .position(|id| std::ptr::eq(environment.declaration(*id), declaration))
-            .unwrap_or(0);
-        if let Some(earlier) = ids[..position]
-            .iter()
-            .filter_map(|id| environment.declaration(*id).signature.as_ref().ok())
-            .find(|earlier| contract::shadows(earlier, later))
-        {
-            return Err(format!(
-                "`{}.{}` declares `{}` after `{}`, which takes every call it fits, so it is \
-                 never taken: declare the more specific form first",
-                environment.module(declaration.module).name,
-                step.name,
-                later.signature(step.name),
-                earlier.signature(step.name)
-            ));
-        }
-    }
-    for extension in REGISTERED {
-        for step in extension.steps {
-            if matches!(step.spec, Signature::Declared) && environment.of(step).is_empty() {
-                return Err(format!(
-                    "the extension `{}` takes the signature of `{}` from its declaration, and \
-                     no contract under std/ declares it",
-                    extension.name, step.name
-                ));
-            }
-        }
-    }
-    // An extension provides nothing a contract does not declare: an
-    // extension whose modules declare anything implements only what they
-    // declare.
-    for extension in REGISTERED {
-        let claimed = environment.declarations().any(|(_, declaration)| {
-            environment
-                .module(declaration.module)
-                .provider
-                .is_some_and(|provider| std::ptr::eq(provider, *extension))
-        });
-        if !claimed {
-            continue;
-        }
-        if let Some(step) = extension
-            .steps
-            .iter()
-            .find(|step| environment.of(step).is_empty())
-        {
-            return Err(format!(
-                "the extension `{}` implements `{}`, which no contract under std/ declares",
-                extension.name, step.name
-            ));
-        }
-    }
-    Ok(())
+    binding::Frozen::process().map(drop)
 }
 
 impl Resolution {
-    /// The core, plus the prelude unless the vault declines it.
-    pub(crate) fn bare(prelude: bool) -> Self {
+    /// The core, plus the prelude unless the vault declines it, over a
+    /// frozen environment.
+    pub(crate) fn bare(environment: binding::Frozen, prelude: bool) -> Self {
+        let extensions = environment.extensions();
+        let core = module_in(extensions, CORE.name).unwrap_or(&CORE);
         let mut imported = vec![Imported {
-            local: CORE.name,
-            extension: &CORE,
+            local: core.name,
+            extension: core,
         }];
         if prelude {
             for name in self::prelude() {
-                if let Some(found) = builtin_module(name)
+                if let Some(found) = module_in(extensions, name)
                     && !imported
                         .iter()
                         .any(|held| held.extension.name == found.name)
@@ -1042,46 +728,25 @@ impl Resolution {
                 }
             }
         }
-        Self { imported }
+        Self {
+            environment,
+            imported,
+        }
     }
 
-    /// What a vault starts every program with.
+    /// What a vault starts every program with: the configured layer of the
+    /// process's runtime environment, resolved once per configuration.
     ///
     /// A configured import fails the same way a written one does, at a span
     /// pointing at the program's start, because the fault is in the vault
     /// rather than in the line a reader is looking at.
     pub(crate) fn new(config: &Config) -> Result<Self, Diagnostic> {
-        for extension in REGISTERED {
-            for step in extension.steps {
-                for spec in step.specs() {
-                    spec.validate().map_err(|error| {
-                        Diagnostic::typing(
-                            0..0,
-                            format!("{}.{}, {error}", extension.name, step.name),
-                        )
-                    })?;
-                }
-            }
-        }
-        bind().map_err(|message| Diagnostic::typing(0..0, message))?;
-        let mut resolution = Self::bare(config.prelude);
-        for name in &config.imports {
-            let configured = |message: String| {
-                Diagnostic::name(
-                    0..0,
-                    format!("the vault's {}: {message}", crate::reporting::CONFIG_FILE),
-                )
-            };
-            // A vault's import list names standard modules; a workspace
-            // module is imported where it is used.
-            let bound = resolution
-                .import(name, None, &(0..0))
-                .map_err(|failed| configured(failed.message()))?;
-            if !bound {
-                return Err(configured(format!("no standard module named `{name}`")));
-            }
-        }
-        Ok(resolution)
+        binding::Runtime::process(config).map(|runtime| runtime.resolution.clone())
+    }
+
+    /// The frozen environment this resolution runs against.
+    pub(crate) fn environment(&self) -> binding::Frozen {
+        self.environment
     }
 
     /// Bind an extension's steps into the program.
@@ -1094,7 +759,7 @@ impl Resolution {
         alias: Option<&str>,
         span: &Range<usize>,
     ) -> Result<bool, Diagnostic> {
-        let Some(wanted) = builtin_module(path) else {
+        let Some(wanted) = module_in(self.environment.extensions(), path) else {
             return Ok(false);
         };
         let local = match alias {
@@ -1146,6 +811,14 @@ impl Resolution {
         self.has(name)
     }
 
+    /// The operation of a name an imported module offers an importer: one
+    /// its extension implements and its module does not declare private.
+    fn offered(&self, held: &Imported, name: &str) -> Option<&'static Operation> {
+        held.extension
+            .step(name)
+            .filter(|step| !self.environment.is_private(step))
+    }
+
     /// The step a name resolves to for an input of a type, among every
     /// visible module declaring the name: the one whose input the type fits,
     /// told apart from the others by that and by how many positional
@@ -1177,9 +850,13 @@ impl Resolution {
         let visible = self
             .imported
             .iter()
-            .filter_map(|held| held.extension.step(name))
+            .filter_map(|held| self.offered(held, name))
             .collect::<Vec<_>>();
-        if !visible.is_empty() && !visible.iter().any(|step| step.has_receiver()) {
+        if !visible.is_empty()
+            && !visible
+                .iter()
+                .any(|step| self.environment.has_receiver(step))
+        {
             return Err(Diagnostic::name(
                 span.clone(),
                 format!(
@@ -1203,8 +880,8 @@ impl Resolution {
     ) -> Result<&'static Operation, Diagnostic> {
         let mut candidates: Vec<(&'static Extension, &'static Operation)> = Vec::new();
         for held in &self.imported {
-            if let Some(step) = held.extension.step(name)
-                && (!receivers || step.has_receiver())
+            if let Some(step) = self.offered(held, name)
+                && (!receivers || self.environment.has_receiver(step))
                 && !candidates
                     .iter()
                     .any(|(extension, _)| extension.name == held.extension.name)
@@ -1212,6 +889,7 @@ impl Resolution {
                 candidates.push((held.extension, step));
             }
         }
+        let environment = self.environment;
         match candidates.as_slice() {
             [] => Err(self.unresolved(name, span)),
             [(_, only)] => Ok(only),
@@ -1222,7 +900,7 @@ impl Resolution {
                     let naming: Vec<_> = many
                         .iter()
                         .filter(|(_, step)| {
-                            step.specs().iter().any(|spec| {
+                            environment.specs(step).iter().any(|spec| {
                                 named.iter().all(|written| {
                                     spec.arguments
                                         .iter()
@@ -1239,7 +917,7 @@ impl Resolution {
                 let fitting: Vec<_> = many
                     .iter()
                     .filter(|(_, step)| {
-                        step.specs().iter().any(|spec| {
+                        environment.specs(step).iter().any(|spec| {
                             spec.input.accepts(input)
                                 || (input.constructor.0 == "Option"
                                     && spec.input.accepts(input.present()))
@@ -1249,7 +927,7 @@ impl Resolution {
                 let by_arity: Vec<_> = fitting
                     .iter()
                     .filter(|(_, step)| {
-                        step.specs().iter().any(|spec| {
+                        environment.specs(step).iter().any(|spec| {
                             // The arguments written by position fill the
                             // ones a call may write so, and each name
                             // written must be one of the form's.
@@ -1312,9 +990,13 @@ impl Resolution {
         let input = input.present();
         let mut found: Vec<&Imported> = Vec::new();
         for held in &self.imported {
-            if let Some(step) = held.extension.step(name)
-                && step.has_receiver()
-                && step.specs().iter().any(|spec| spec.input.accepts(input))
+            if let Some(step) = self.offered(held, name)
+                && self.environment.has_receiver(step)
+                && self
+                    .environment
+                    .specs(step)
+                    .iter()
+                    .any(|spec| spec.input.accepts(input))
                 && !found
                     .iter()
                     .any(|known| known.extension.name == held.extension.name)
@@ -1336,7 +1018,7 @@ impl Resolution {
         if let Some(step) = self
             .imported
             .iter()
-            .find_map(|held| held.extension.step(name))
+            .find_map(|held| self.offered(held, name))
         {
             return Ok(step);
         }
@@ -1344,7 +1026,7 @@ impl Resolution {
     }
 
     /// The step `<extension>.<step>` names, which is always available for an
-    /// imported extension.
+    /// imported extension unless its module declares it private.
     pub(crate) fn qualified(
         &self,
         extension: &str,
@@ -1356,6 +1038,11 @@ impl Resolution {
             .iter()
             .find(|held| held.local == extension)
             .ok_or_else(|| self.unresolved(extension, span))?;
+        if let Some(step) = held.extension.step(name)
+            && self.environment.is_private(step)
+        {
+            return Err(self.private(name, step, span));
+        }
         held.extension.step(name).ok_or_else(|| {
             Diagnostic::name(
                 span.clone(),
@@ -1364,9 +1051,43 @@ impl Resolution {
         })
     }
 
-    /// Why a name did not resolve: a missing import, or no such step at all.
+    /// The refusal of a private operation reached from outside its module.
+    fn private(&self, name: &str, step: &Operation, span: &Range<usize>) -> Diagnostic {
+        let module = self.environment.of(step).first().map_or("", |id| {
+            self.environment
+                .module(self.environment.declaration(*id).module)
+                .name
+        });
+        Diagnostic::name(
+            span.clone(),
+            format!(
+                "`{name}` is private to the module `{module}`: it is reachable inside that \
+                 module only"
+            ),
+        )
+    }
+
+    /// Why a name did not resolve: a private operation of an imported
+    /// module, a missing import, or no such step at all.
     fn unresolved(&self, name: &str, span: &Range<usize>) -> Diagnostic {
-        let providers = providers(name);
+        if let Some(step) = self.imported.iter().find_map(|held| {
+            held.extension
+                .step(name)
+                .filter(|step| self.environment.is_private(step))
+        }) {
+            return self.private(name, step, span);
+        }
+        let providers: Vec<&'static Extension> = self
+            .environment
+            .extensions()
+            .iter()
+            .copied()
+            .filter(|extension| {
+                extension
+                    .step(name)
+                    .is_some_and(|step| !self.environment.is_private(step))
+            })
+            .collect();
         let message = match providers.as_slice() {
             [] => {
                 let hint = crate::builtins::hint(name);
@@ -1390,9 +1111,14 @@ impl Resolution {
 
 /// Every registered step name, for the suggestion index.
 pub(crate) fn names() -> impl Iterator<Item = &'static str> {
-    REGISTERED
-        .iter()
-        .flat_map(|extension| extension.steps.iter().map(|step| step.name))
+    let environment = binding::Environment::get().ok();
+    REGISTERED.iter().flat_map(move |extension| {
+        extension
+            .steps
+            .iter()
+            .filter(move |step| !environment.is_some_and(|held| held.is_private(step)))
+            .map(|step| step.name)
+    })
 }
 
 /// One step, as `hql builtins` prints it.
@@ -1442,6 +1168,10 @@ pub struct Provider {
 /// diagnostic has just told them to write.
 #[must_use]
 pub fn catalogue(config: &Config) -> Vec<Provider> {
+    // A private operation is its module's own, and no program reaches it.
+    let private = |step: &Operation| {
+        binding::Environment::get().is_ok_and(|environment| environment.is_private(step))
+    };
     REGISTERED
         .iter()
         .map(|extension| Provider {
@@ -1460,6 +1190,7 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
             steps: extension
                 .steps
                 .iter()
+                .filter(|step| !private(step))
                 .map(|step| Listing {
                     provider: extension.name,
                     version: extension.version,
@@ -1505,6 +1236,10 @@ pub(crate) fn contribute_metadata(card: &mut crate::document::Card) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn bare(prelude: bool) -> Resolution {
+        Resolution::bare(binding::Frozen::process().unwrap(), prelude)
+    }
 
     fn listing() -> Vec<Listing> {
         catalogue(&Config::default())
@@ -1553,7 +1288,7 @@ mod tests {
 
     #[test]
     fn the_core_resolves_without_an_import_and_retrieval_does_not() {
-        let mut resolution = Resolution::bare(true);
+        let mut resolution = bare(true);
         assert!(resolution.step("count", &(0..1)).is_ok());
         assert!(resolution.step("markdown", &(0..1)).is_ok());
 
@@ -1572,7 +1307,7 @@ mod tests {
 
     #[test]
     fn the_prelude_is_a_convenience_a_vault_may_decline() {
-        let bare = Resolution::bare(false);
+        let bare = bare(false);
         let missing = bare.step("markdown", &(0..1)).unwrap_err();
         assert!(
             missing.message().contains("import format"),
@@ -1609,7 +1344,7 @@ mod tests {
 
     #[test]
     fn two_modules_declaring_one_name_are_told_apart_at_the_call() {
-        let mut resolution = Resolution::bare(true);
+        let mut resolution = bare(true);
         resolution.bind_as(PROBE.name, &PROBE, &(0..1)).unwrap();
         // A collection fits the core's `count` and the probe's `Any`, with
         // no arity to tell them apart: the call is ambiguous and says so.
@@ -1634,7 +1369,7 @@ mod tests {
 
     #[test]
     fn importing_the_same_extension_twice_is_not_a_collision() {
-        let mut resolution = Resolution::bare(true);
+        let mut resolution = bare(true);
         resolution.import("lexical", None, &(0..1)).unwrap();
         resolution.import("lexical", None, &(0..1)).unwrap();
         assert!(resolution.step("lexical", &(0..1)).is_ok());
@@ -1712,7 +1447,7 @@ mod tests {
 
     #[test]
     fn importing_a_name_no_builtin_module_has_binds_nothing() {
-        let mut resolution = Resolution::bare(true);
+        let mut resolution = bare(true);
         assert!(!resolution.import("nonesuch", None, &(0..1)).unwrap());
         assert!(resolution.import("io.net", None, &(0..1)).unwrap());
         assert!(resolution.has("net"));

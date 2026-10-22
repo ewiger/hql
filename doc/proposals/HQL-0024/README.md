@@ -165,3 +165,7 @@ keeps its recorded types and diagnostics.
   `effectful fn`, and module and declaration identities allocated while
   loading, the call forms carrying the declaration identity, as
   issue 0036 records
+- 2026-10-22: part 12's type, trait, implementation and constructor
+  identities, native headers and constructors bound by identity, and the
+  runtime environment built, validated once and frozen, with a `private fn`
+  external offered to no importer

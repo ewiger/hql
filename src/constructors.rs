@@ -12,9 +12,8 @@ use crate::diagnostics::Diagnostic;
 use crate::extensions::spec::OperationSpec;
 use crate::extensions::{CheckCx, EvalCx};
 use crate::types::{MapKind, MapValue, TypeConstructor, TypeRef, Value, builtin, collections};
-use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 /// The types a program may name as constructors, abstract ones included so
 /// that naming one is refused with its concrete subtypes.
@@ -61,108 +60,66 @@ pub(crate) fn is_table_constructor(module: &str, name: &str) -> bool {
             .is_none()
 }
 
-/// Each standard constructor's forms, by type name: one signature per
-/// declaration in `std/`, in the order written, with the module declaring
-/// it.
-type Forms = HashMap<String, Vec<(&'static str, OperationSpec)>>;
-
-fn declared_forms() -> &'static Result<Forms, String> {
-    static FORMS: OnceLock<Result<Forms, String>> = OnceLock::new();
-    FORMS.get_or_init(|| {
-        let mut forms: Forms = HashMap::new();
-        for (module, source) in crate::library::MODULES {
-            let program = crate::parser::parse(source)
-                .map_err(|error| format!("std/{module}: {}", error.message()))?;
-            for statement in &program.statements {
-                let crate::ast::Stmt::External(declaration) = statement else {
-                    continue;
-                };
-                if !is_table_constructor(module, &declaration.name) {
-                    continue;
-                }
-                let spec =
-                    crate::extensions::contract::derive(declaration, None).map_err(|why| {
-                        format!(
-                            "`{module}.{}` states no signature a constructor can take: {why}",
-                            declaration.name
-                        )
-                    })?;
-                forms
-                    .entry(declaration.name.clone())
-                    .or_default()
-                    .push((*module, spec));
-            }
-        }
-        Ok(forms)
-    })
-}
-
-/// The forms `std/` declares for a constructor, in the order written.
+/// The forms `std/` declares for a constructor, in the order written: the
+/// constructor declarations of the type identity binding bound it to.
 pub(crate) fn forms(constructor: TypeConstructor) -> Vec<&'static OperationSpec> {
-    declared_forms()
-        .as_ref()
-        .ok()
-        .and_then(|forms| forms.get(constructor.0))
-        .map(|held| held.iter().map(|(_, spec)| spec).collect())
+    crate::extensions::binding::Environment::get()
+        .map(|environment| environment.constructor_forms(constructor.0))
         .unwrap_or_default()
 }
 
-/// Bind the constructors `std/` declares to the table here: every
-/// declaration names a type its own module declares, concrete, and returns
-/// that type or a subtype of it; each has an implementation here, and each
-/// concrete type here a declaration; and two forms of one arity differ in
+/// Validate the constructors an environment declares against the table
+/// here: every declaration is bound to a concrete type its own module
+/// declares, states a form, and returns that type or a subtype of it; each
+/// has an implementation here, and each concrete type here is bound to a
+/// type identity with a declaration; and two forms of one arity differ in
 /// their first parameter.
 ///
 /// # Errors
 ///
 /// The first disagreement, a defect of the binary.
-pub(crate) fn bind() -> Result<(), String> {
-    let forms = declared_forms().as_ref().map_err(Clone::clone)?;
+pub(crate) fn bind(environment: &crate::extensions::binding::Environment) -> Result<(), String> {
     let system = builtin::system().map_err(|error| error.to_string())?;
-    for (module, source) in crate::library::MODULES {
-        let program = crate::parser::parse(source)
-            .map_err(|error| format!("std/{module}: {}", error.message()))?;
-        let declared_here = |name: &str| {
-            program.statements.iter().any(|statement| {
-                matches!(statement, crate::ast::Stmt::Type(declared)
-                    if declared.name == name && !declared.abstract_type)
-            })
+    for constructor in environment.constructors() {
+        let module = environment.module(constructor.module).name;
+        let name = constructor.name.as_str();
+        if constructor.ty.is_none() {
+            return Err(format!(
+                "`std/{module}` declares the constructor `{name}`, and declares no concrete \
+                 type `{name}`: a constructor is declared beside its type"
+            ));
+        }
+        let Some(table) = named(name) else {
+            return Err(format!(
+                "`std/{module}` declares the constructor `{name}`, and the binary implements \
+                 no such constructor"
+            ));
         };
-        for statement in &program.statements {
-            let crate::ast::Stmt::External(declaration) = statement else {
-                continue;
-            };
-            let name = declaration.name.as_str();
-            if !is_table_constructor(module, name) {
-                continue;
-            }
-            if !declared_here(name) {
-                return Err(format!(
-                    "`std/{module}` declares the constructor `{name}`, and declares no concrete \
-                     type `{name}`: a constructor is declared beside its type"
-                ));
-            }
-            let Some(constructor) = named(name) else {
-                return Err(format!(
-                    "`std/{module}` declares the constructor `{name}`, and the binary implements \
-                     no such constructor"
-                ));
-            };
-            let result = crate::types::builtin::constructor(&declaration.result.name)
-                .ok_or_else(|| format!("`{module}.{name}` returns an unknown type"))?;
-            let arguments = vec![TypeRef::DATA; declaration.result.arguments.len()];
-            let builds = result == constructor
-                || system
-                    .as_supertype(&result.apply(arguments), constructor)
-                    .ok()
-                    .flatten()
-                    .is_some();
-            if !builds {
-                return Err(format!(
-                    "`std/{module}` declares `{name}` returning {}, which is not a {name}",
-                    declaration.result.name
-                ));
-            }
+        if environment.table(table.0) != constructor.ty {
+            return Err(format!(
+                "`std/{module}` declares the constructor `{name}`, and the binary's `{name}` \
+                 is bound to another module's type `{name}`"
+            ));
+        }
+        if let Err(why) = &constructor.signature {
+            return Err(format!(
+                "`{module}.{name}` states no signature a constructor can take: {why}"
+            ));
+        }
+        let result = crate::types::builtin::constructor(&constructor.result.name)
+            .ok_or_else(|| format!("`{module}.{name}` returns an unknown type"))?;
+        let arguments = vec![TypeRef::DATA; constructor.result.arguments.len()];
+        let builds = result == table
+            || system
+                .as_supertype(&result.apply(arguments), table)
+                .ok()
+                .flatten()
+                .is_some();
+        if !builds {
+            return Err(format!(
+                "`std/{module}` declares `{name}` returning {}, which is not a {name}",
+                constructor.result.name
+            ));
         }
     }
     for constructor in CONSTRUCTORS {
@@ -172,9 +129,7 @@ pub(crate) fn bind() -> Result<(), String> {
             || system
                 .definition(constructor)
                 .is_ok_and(|definition| definition.kind == crate::types::TypeKind::Concrete);
-        let declared = forms
-            .get(constructor.0)
-            .is_some_and(|held| !held.is_empty());
+        let declared = !environment.constructor_forms(constructor.0).is_empty();
         if concrete && !declared {
             return Err(format!(
                 "the binary constructs {constructor}, and no module under std/ declares \
@@ -186,18 +141,17 @@ pub(crate) fn bind() -> Result<(), String> {
                 "std/ declares a constructor of {constructor}, which is abstract"
             ));
         }
-    }
-    for (name, held) in forms {
-        for (index, (module, later)) in held.iter().enumerate() {
-            if let Some((_, earlier)) = held[..index].iter().find(|(_, earlier)| {
+        let held = environment.constructor_forms(constructor.0);
+        for (index, later) in held.iter().enumerate() {
+            if let Some(earlier) = held[..index].iter().find(|earlier| {
                 earlier.arguments.len() == later.arguments.len()
                     && earlier.input.to_string() == later.input.to_string()
             }) {
                 return Err(format!(
-                    "`std/{module}` declares `{}` after `{}`: forms of one arity differ in \
-                     their first parameter",
-                    later.signature(name),
-                    earlier.signature(name)
+                    "std/ declares `{}` after `{}`: forms of one arity differ in their first \
+                     parameter",
+                    later.signature(constructor.0),
+                    earlier.signature(constructor.0)
                 ));
             }
         }

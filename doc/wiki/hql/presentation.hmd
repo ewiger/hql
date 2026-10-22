@@ -132,8 +132,8 @@ source(file("birds.txt"), Lines)
 
 Over a `birds.txt` holding `raven\nrobin\n`, the steps are these.
 
-1. **Binding**, once per process, before any program is checked.
-   `bind_codecs` in `src/extensions/mod.rs` compares the headers of
+1. **Binding**, once per runtime environment, before any program is
+   checked. `validate_codecs` in `src/extensions/binding.rs` compares the headers of
    `std/format.hql` with the runtime's two tables: `io::document_type`, the
    decoder table, maps `Lines` to `String`, which is what the one `Decoder`
    header for `Lines` names; `format::writable`, the encoder table, accepts

@@ -66,9 +66,10 @@ result is computed from the call, what `source` reads from its endpoint and
 format, keeps a native signature; binding compares it with the declaration in
 full, the input, each argument's name and type, the bounds and the result,
 and refuses a native operation whose name is declared more than once. Binding
-runs once per process, before the first program, and a disagreement refuses
-every program with a message naming the module, the declaration and the
-extension.
+and validation run once per runtime environment, the module graph and the
+extension set, before the first program; the validated environment is frozen
+and shared by every program run against it, and a disagreement refuses every
+program with a message naming the module, the declaration and the extension.
 
 An overloaded name is checked against one declaration per call: the first
 whose input the call's input meets, whose required arguments are all
