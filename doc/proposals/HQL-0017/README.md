@@ -295,6 +295,8 @@ cargo clippy --locked --all-targets -- -D warnings
   construction (`s | Data`) are not yet
 - 2026-10-22: parsing by construction is implemented as `Data(s, F)`, the
   format written, by HQL-0018
+- 2026-10-22: `--from <format>` is implemented: it names the format of
+  standard input where a program reads `stdin` and names none
 - 2026-10-22: `Table` is implemented: `Table(xs, columns = [...])`, declared
   in `std/format.hql`, written by each format's encoder in column order; the
   table renderers write only a `Table`. "Shape types", "Renderers and their

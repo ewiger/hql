@@ -681,3 +681,48 @@ fn a_read_decodes_each_document_as_the_type_it_is_expected_to_give() {
         "declared Seq<Sighting> but its value is Seq<String>",
     );
 }
+
+#[test]
+fn from_names_the_format_of_standard_input() {
+    let dir = tempdir().unwrap();
+    assert_eq!(
+        ok(&piped_in(
+            dir.path(),
+            &["--from", "json", "source(stdin) | map(d => d.a) | take(2) | List"],
+            "{\"a\": 1}\n{\"a\": 2}\n"
+        ))
+        .trim(),
+        "[1, 2]"
+    );
+    assert_eq!(
+        ok(&piped_in(
+            dir.path(),
+            &[
+                "--from",
+                "csv",
+                "tap(stdin) | map(r => r.b) | take(1) | List"
+            ],
+            "a,b\n1,2\n3,4\n"
+        ))
+        .trim(),
+        "[\"2\"]"
+    );
+    // A format named in the program wins over `--from`.
+    assert_eq!(
+        ok(&piped_in(
+            dir.path(),
+            &["--from", "csv", "source(stdin, Lines) | take(1) | List"],
+            "a,b\n"
+        ))
+        .trim(),
+        "[\"a,b\"]"
+    );
+    refused(
+        &piped_in(dir.path(), &["source(stdin)"], "{}"),
+        "`--from json`",
+    );
+    refused(
+        &piped_in(dir.path(), &["--from", "d2", "source(stdin)"], "x"),
+        "written, not read",
+    );
+}

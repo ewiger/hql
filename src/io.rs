@@ -158,6 +158,9 @@ struct Host {
     /// Whether the program itself was read from standard input, which then
     /// holds no data.
     program_on_stdin: bool,
+    /// The format `--from` names for standard input, read where a program
+    /// names none.
+    stdin_format: Option<TypeConstructor>,
 }
 
 thread_local! {
@@ -169,6 +172,7 @@ thread_local! {
         log_level: None,
         fetched: HashMap::new(),
         program_on_stdin: false,
+        stdin_format: None,
     });
 }
 
@@ -193,6 +197,18 @@ pub fn set_program_on_stdin() {
 #[must_use]
 pub fn program_on_stdin() -> bool {
     HOST.with(|host| host.borrow().program_on_stdin)
+}
+
+/// Name the format standard input is read in where a program names none:
+/// `--from json`.
+pub fn set_stdin_format(format: Option<TypeConstructor>) {
+    HOST.with(|host| host.borrow_mut().stdin_format = format);
+}
+
+/// The format `--from` named for standard input, if any.
+#[must_use]
+pub fn stdin_format() -> Option<TypeConstructor> {
+    HOST.with(|host| host.borrow().stdin_format)
 }
 
 /// The most values one channel holds in a scope.

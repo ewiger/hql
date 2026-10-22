@@ -38,6 +38,7 @@ and a result of type `Unit` is written as nothing.
 | `--vault <DIR>` | the namespace `cards`, traversal and retrieval run against; without it, the nearest directory at or above the current one that holds `.hmd/` or `hql.toml` |
 | `--envelope text\|json` | what the answer is wrapped in: the value alone on stdout, written in the `--to` format, or one JSON document with the type, the value and the reports |
 | `--to <format>` | the [presentation format](../../wiki/hql/presentation.hmd) a result is written in when the program did not format it: `hql` (the default), `text`, `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2`, `mermaid`; `none` evaluates and writes no value |
+| `--from <format>` | the format standard input is read in where a program reads `stdin` and names none: `json`, `jsonlines`, `yaml`, `csv`, `lines` or `text`; a format the program names wins, and a format that is only written is refused |
 | `--compact` | a `Json` result written one document per line, as `jq -c` does; without it each document is pretty-printed, as `jq .` does |
 | `--log-level trace\|debug\|info\|warn\|error` | every logger's threshold, overriding the one it was constructed with |
 | `--report-level debug\|info\|warning\|error` | the lowest severity shown in `text`; see [reporting](reporting.md) |

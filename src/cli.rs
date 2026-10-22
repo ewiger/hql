@@ -63,6 +63,10 @@ pub struct Options {
     /// `yaml`, `csv`, `d2` or `mermaid`; `none` evaluates and writes no value.
     #[arg(long, global = true, value_name = "FORMAT")]
     pub to: Option<String>,
+    /// The format standard input is read in where a program reads `stdin`
+    /// and names none: `json`, `jsonlines`, `yaml`, `csv`, `lines` or `text`.
+    #[arg(long, global = true, value_name = "FORMAT")]
+    pub from: Option<String>,
     /// Write each JSON document of a result on one line, as `jq -c` does; a
     /// stream is then JSON Lines.
     #[arg(long, global = true)]
@@ -193,10 +197,11 @@ const COMMANDS: [&str; 10] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 8] = [
+const VALUED: [&str; 9] = [
     "--vault",
     "--envelope",
     "--to",
+    "--from",
     "--report",
     "--report-level",
     "--log-level",
@@ -270,6 +275,19 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         ));
     }
     crate::io::set_log_level(cli.options.log_level.clone());
+    crate::io::set_stdin_format(match cli.options.from.as_deref() {
+        None => None,
+        Some(name) => {
+            let format = crate::extensions::format::format_named(name)
+                .ok_or_else(|| format!("unknown format `{name}` for --from"))?;
+            crate::io::document_type(format).map_err(|_| {
+                format!(
+                    "--from names a format standard input is read in; {name} is written, not read"
+                )
+            })?;
+            Some(format)
+        }
+    });
     let root = cli.options.vault.clone().or_else(|| {
         std::env::current_dir()
             .ok()

@@ -274,6 +274,17 @@ $ head -2 examples/io/sightings.jsonl | hql 'source(stdin, Json)' --to json --co
 {"seen":"morning","site":"hedge","species":"wren"}
 ```
 
+`--from` names the format of standard input once, on the command line, so the
+program reads `stdin` without naming one; a format the program names wins:
+
+```text
+$ cat examples/io/sightings.jsonl | hql --from json 'source(stdin) | map(s => s.site)'
+"meadow"
+"hedge"
+"barn"
+"river"
+```
+
 Converting between formats is a source and a `--to`:
 
 ```text

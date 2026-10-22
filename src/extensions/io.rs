@@ -199,10 +199,18 @@ pub(crate) fn checked_format(
         }
         return Ok(format);
     }
+    if call.input.is(&TypeRef::STDIN)
+        && let Some(format) = io::stdin_format()
+    {
+        return Ok(format);
+    }
     match endpoint.and_then(literal_path) {
         Some(path) => io::format_of_extension(Path::new(path)).ok_or_else(|| {
             format!("the extension of {path:?} implies no format; name it: `{verb}(…, Json)`")
         }),
+        None if call.input.is(&TypeRef::STDIN) => Err(format!(
+            "`{verb}` needs a format, `{verb}(stdin, Json)`, or `--from json` on the command line"
+        )),
         None => Err(format!(
             "`{verb}` needs a format, `{verb}(…, Json)`: only a literal file path implies one"
         )),
@@ -522,6 +530,11 @@ fn evaluated_format(
         .find(|argument| matches!(argument.value.kind, TypedKind::Type))
     {
         return Ok(argument.value.ty.constructor);
+    }
+    if matches!(endpoint, Endpoint::Stdin)
+        && let Some(format) = io::stdin_format()
+    {
+        return Ok(format);
     }
     endpoint
         .path()
