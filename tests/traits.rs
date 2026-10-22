@@ -115,3 +115,167 @@ fn every_native_impl_is_declared_and_every_declared_one_is_implemented() {
             .any(|header| header.target == "Bool" && header.trait_name == "Ord")
     );
 }
+
+const BOX: &str = "type Box<T> { item : T }\n";
+
+const SCALE: &str = "trait Scale<F> {
+    fn scale(self, by: F) : Self
+}
+type V { x : Float }
+impl Scale<Float> for V {
+    fn scale(self, by: Float) : V = V(x = self.x * by)
+}
+impl Scale<Int> for V {
+    fn scale(self, by: Int) : V = V(x = self.x * float(by))
+}
+";
+
+#[test]
+fn a_generic_trait_is_implemented_generically_and_reached_through_a_bound() {
+    let program = format!(
+        "{BOX}impl<T> Index<T> for Box<T> {{
+    fn at(self, position: Int) : Option<T> = some(self.item)
+}}
+fn first_of<T, E : Index<T>>(xs: E) : Option<T> = xs[0]
+[first_of(Box(item = 7)), first_of([8, 9]), Box(item = 6).at(3), Box(item = 5)[0]]"
+    );
+    assert_eq!(
+        check(&program).map(|ty| ty.to_string()),
+        Ok("List<Option<Int>>".to_owned())
+    );
+    assert_eq!(shown(&program), "[7, 8, 6, 5]");
+}
+
+#[test]
+fn a_bound_leaves_a_parameter_to_the_implementation_that_applies() {
+    // E is filled by the argument, and T by the one implementation of
+    // Index for it: Seq's for a List, Data's for a document.
+    for (argument, expected) in [
+        ("[\"a\"]", "Option<String>"),
+        ("[[1]]", "Option<List<Int>>"),
+        ("{birds: [3]}.birds.unwrap_or([])", "Option<Data>"),
+    ] {
+        let program = format!(
+            "fn first_of<T, E : Index<T>>(xs: E) : Option<T> = xs[0]\nfirst_of({argument})"
+        );
+        assert_eq!(
+            check(&program).map(|ty| ty.to_string()),
+            Ok(expected.to_owned()),
+            "{program}"
+        );
+    }
+    let message = refused("fn first_of<T, E : Index<T>>(xs: E) : Option<T> = xs[0]\nfirst_of(42)");
+    assert!(
+        message.contains("`first_of` needs E : Index<T>, and Int does not implement `Index"),
+        "{message}"
+    );
+}
+
+#[test]
+fn implementations_at_different_arguments_are_chosen_by_the_call() {
+    assert_eq!(
+        shown(&format!(
+            "{SCALE}v = V(x = 1.5)\n[v.scale(2).x, v.scale(0.5).x]"
+        )),
+        "[3.0, 0.75]"
+    );
+    let message = refused(
+        "trait Convert<T> {
+    fn convert(self) : T
+}
+type C { v : Float }
+impl Convert<Float> for C {
+    fn convert(self) : Float = self.v
+}
+impl Convert<String> for C {
+    fn convert(self) : String = str(self.v)
+}
+C(v = 1.0).convert()",
+    );
+    assert!(
+        message.contains("implemented for C at several arguments, and this call does not choose"),
+        "{message}"
+    );
+    // A generic body reaches an implementation through its receiver alone.
+    let message = refused(&format!(
+        "{SCALE}fn twice<F, E : Scale<F>>(v: E, by: F) : E = v.scale(by).scale(by)\ntwice(V(x = 1.0), 2)"
+    ));
+    assert!(
+        message.contains("V implements `Scale` at several arguments"),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_generic_and_a_concrete_implementation_that_overlap_are_refused() {
+    let message = refused(&format!(
+        "{BOX}impl<T> Index<T> for Box<T> {{
+    fn at(self, position: Int) : Option<T> = some(self.item)
+}}
+impl Index<Int> for Box<Int> {{
+    fn at(self, position: Int) : Option<Int> = none
+}}
+1"
+    ));
+    assert!(
+        message.contains("`impl Index<Int> for Box<Int>` overlaps `impl Index<T> for Box<T>`"),
+        "{message}"
+    );
+}
+
+#[test]
+fn an_implementation_gives_the_trait_its_arguments_and_uses_its_parameters() {
+    let message = refused(&format!(
+        "{BOX}impl Index for Box<Int> {{
+    fn at(self, position: Int) : Option<Int> = none
+}}
+1"
+    ));
+    assert!(
+        message.contains("`Index` takes 1 type argument, not 0"),
+        "{message}"
+    );
+    let message = refused(&format!(
+        "{BOX}impl<T, U> Index<T> for Box<T> {{
+    fn at(self, position: Int) : Option<T> = none
+}}
+1"
+    ));
+    assert!(
+        message.contains("`U` of this impl appears in neither the type nor the trait's arguments"),
+        "{message}"
+    );
+    let message =
+        refused("trait Pick<T : Scalar> {}\ntype Q { x : Int }\nimpl Pick<List<Int>> for Q {}\n1");
+    assert!(
+        message.contains("`Pick` takes a Scalar here, not List<Int>"),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_union_implementation_is_the_union_own_and_not_each_member_s() {
+    // `impl Index<Data> for Data` makes a document indexed, not a String,
+    // which narrows Data.
+    let message = refused("\"hello\"[0]");
+    assert!(message.contains("String is not indexed"), "{message}");
+    assert!(refused("5.at(0)").contains("Int has no function `at`"));
+}
+
+#[test]
+fn the_codec_headers_are_the_decoder_and_encoder_tables() {
+    assert_eq!(hql::extensions::bind(), Ok(()));
+    let headers = hql::library::native_impls().expect("std parses");
+    let decoders: Vec<&str> = headers
+        .iter()
+        .filter(|header| header.module == "format" && header.trait_name == "Decoder")
+        .map(|header| header.target.as_str())
+        .collect();
+    assert!(decoders.contains(&"Lines") && decoders.contains(&"Json"));
+    assert!(!decoders.contains(&"D2"), "D2 is written, not read");
+    let encoders = headers
+        .iter()
+        .filter(|header| header.trait_name == "Encoder" && header.target == "Mermaid")
+        .count();
+    assert_eq!(encoders, 2, "a Graph, or a document holding one");
+}

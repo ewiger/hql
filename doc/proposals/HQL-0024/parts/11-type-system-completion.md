@@ -21,7 +21,7 @@ Each item names its card status and what, if anything, the draft changes.
 | Is narrowing nominal or structural? | undecided; `type A : B` is declared, a `Data` region earns a type by established structure | silent |
 | The call-site spelling of refinement and validation | undecided ([type interpretation](../../../wiki/hql/type-interpretation.hmd) has `is`, `of_type`, the asserting binding) | silent |
 | Diagnosis of conflicting parents in a supertype set | designed: `{Int, String}` refused, `{Scalar, Orderable}` admitted; the message is not fixed | silent |
-| The shape of a parameterized capability registration, `Renderable<T>` | undecided: a registration, not a type | a parameterized trait with an implementation per type, if traits cover capabilities ([part 5](05-traits.md)) |
+| The shape of a parameterized capability registration, `Renderable<T>` | decided: an implementation of `Encoder<T>` for the format, a generic trait ([HQL-0027](../../HQL-0027/README.md)) | a parameterized trait with an implementation per type, if traits cover capabilities ([part 5](05-traits.md)) |
 | How much refinement survives an extension, a cell or a host boundary | undecided | silent; the host boundary ([part 10](10-host-boundary.md)) fixes where the boundary is, not what crosses it |
 | May a subtype change a field's optionality? | undecided ([fields](../../../wiki/hql/fields.hmd)) | silent |
 | Constructor parameters `F<_>` in the checker | designed, unbuilt; `filter` keeps its container, `map` and `sort` return a `List` ([issue 0018](../../../issues/0018-operator-synonymy-audit.md)) | the receiver signatures of [part 4](04-receiver-modules.md) return the pattern's constructor, which this item has to reconcile |

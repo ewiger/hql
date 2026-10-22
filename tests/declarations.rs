@@ -515,11 +515,9 @@ fn every_external_declaration_has_an_implementation_and_every_implementation_a_d
             .collect();
         let provider = catalogue
             .iter()
-            .find(|provider| provider.name == name)
+            .find(|provider| provider.provides.contains(&name))
             .unwrap_or_else(|| {
-                panic!(
-                    "std/{name}.hql declares externally, and no `{name}` extension implements it"
-                )
+                panic!("std/{name}.hql declares externally, and no extension provides `{name}`")
             });
         let mut implemented: Vec<&str> = provider.steps.iter().map(|step| step.name).collect();
         let mut declared = declared;

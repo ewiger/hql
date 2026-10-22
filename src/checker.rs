@@ -249,6 +249,24 @@ fn unify(
             .all(|(inner, held)| unify(inner, held, parameters, bound))
 }
 
+/// A written type with each constructor parameter's arguments dropped:
+/// `F<T>` is the variable `F`.
+fn erase_constructors(written: &crate::ast::TypeAnn, constructors: &[&str]) -> crate::ast::TypeAnn {
+    crate::ast::TypeAnn {
+        name: written.name.clone(),
+        arguments: if constructors.contains(&written.name.as_str()) {
+            Vec::new()
+        } else {
+            written
+                .arguments
+                .iter()
+                .map(|argument| erase_constructors(argument, constructors))
+                .collect()
+        },
+        span: written.span.clone(),
+    }
+}
+
 /// A function named in `UpperCamelCase` is a type's constructor, which only
 /// the module declaring the type provides.
 fn constructor_name(name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
@@ -348,6 +366,55 @@ fn substituted(ty: &TypeRef, bound: &HashMap<crate::types::TypeConstructor, Type
     }
     ty.constructor
         .apply(ty.args.iter().map(|arg| substituted(arg, bound)))
+}
+
+/// What a bound's arguments take from one implementation that applies: the
+/// call's variables they leave open, filled from the implementation's
+/// arguments, or `None` when the two disagree. The arguments the call
+/// already decided are matched first, so they fix the implementation's
+/// open parameters before the rest is read from it.
+fn fill_from(
+    wanted: &[TypeRef],
+    applies: &Applies,
+    bound: &HashMap<crate::types::TypeConstructor, TypeRef>,
+) -> Option<HashMap<crate::types::TypeConstructor, TypeRef>> {
+    let decided = |argument: &TypeRef| {
+        !mentions_any(argument, &|constructor| {
+            constructor.0.starts_with('%') && !bound.contains_key(&constructor)
+        })
+    };
+    let mut open = HashMap::new();
+    for (argument, given) in wanted.iter().zip(&applies.arguments) {
+        if decided(argument) {
+            let argument = substituted_placeholders(argument, bound);
+            if !unify(given, &argument, &applies.open, &mut open) {
+                return None;
+            }
+        }
+    }
+    let open: HashMap<crate::types::TypeConstructor, TypeRef> = open
+        .into_iter()
+        .map(|(parameter, ty)| (crate::types::TypeConstructor(parameter), ty))
+        .collect();
+    let mut fill = HashMap::new();
+    for (argument, given) in wanted.iter().zip(&applies.arguments) {
+        if decided(argument) {
+            continue;
+        }
+        let given = substituted_placeholders(given, &open);
+        if crate::declarations::mentions_parameter(&given, &applies.open) {
+            return None;
+        }
+        instantiate(argument, &given, &mut fill);
+    }
+    fill.retain(|variable, _| !bound.contains_key(variable));
+    Some(fill)
+}
+
+/// Whether a type or one of its arguments has a constructor the test holds
+/// for.
+fn mentions_any(ty: &TypeRef, test: &dyn Fn(crate::types::TypeConstructor) -> bool) -> bool {
+    test(ty.constructor) || ty.args.iter().any(|arg| mentions_any(arg, test))
 }
 
 /// The names every program over a vault starts with: `vault`, and the
@@ -466,11 +533,10 @@ struct Checker<'a> {
     /// implementation it declares comes from.
     unit: String,
     /// The trait bounds in force while a generic body is checked: each type
-    /// variable and the trait it satisfies.
-    trait_bounds: Vec<(TypeRef, String)>,
-    /// Each generic function's trait bounds: the parameter name, its type
-    /// variable and the trait, checked at every call.
-    trait_bounded: HashMap<String, Vec<(String, TypeRef, String)>>,
+    /// variable, the trait it satisfies and the trait's arguments.
+    trait_bounds: Vec<Bounded>,
+    /// Each generic function's trait bounds, checked at every call.
+    trait_bounded: HashMap<String, Vec<Bounded>>,
     /// The workspace modules this unit imported, each under its local name.
     modules: Vec<(String, std::sync::Arc<crate::modules::WorkspaceModule>)>,
     /// Every workspace module loaded for the program, by canonical name,
@@ -499,11 +565,33 @@ type ModuleCache = std::sync::Arc<
     std::sync::Mutex<HashMap<String, std::sync::Arc<crate::modules::WorkspaceModule>>>,
 >;
 
-/// A trait's contract: its functions, with `Self` standing for the
-/// implementing type.
+/// A trait's contract: its type parameters and its functions, with `Self`
+/// standing for the implementing type.
 #[derive(Debug, Clone)]
 pub(crate) struct TraitInfo {
+    /// The type variables its functions are written over, `T` of
+    /// `Index<T>`, each with the bound an argument meets.
+    pub parameters: Vec<(TypeRef, Option<TypeRef>)>,
     pub methods: Vec<MethodSig>,
+}
+
+/// A type parameter's trait bound, `E : Index<T>`: the parameter, its type
+/// variable, the trait and the trait's arguments.
+#[derive(Debug, Clone)]
+pub(crate) struct Bounded {
+    pub name: String,
+    pub variable: TypeRef,
+    pub trait_name: String,
+    pub arguments: Vec<TypeRef>,
+}
+
+/// One way a type satisfies a trait: the trait's arguments it gives, and
+/// the implementation's parameters the type left open, `T` of
+/// `impl<T> Encoder<T> for Json`.
+#[derive(Debug, Clone)]
+struct Applies {
+    arguments: Vec<TypeRef>,
+    open: Vec<&'static str>,
 }
 
 /// One function of a trait.
@@ -515,10 +603,13 @@ pub(crate) struct MethodSig {
     pub result: TypeRef,
 }
 
-/// One implementation of a trait for a type.
+/// One implementation of a trait for a type: its own type parameters, the
+/// trait's arguments and the implementing type, written over them.
 #[derive(Debug, Clone)]
 pub(crate) struct ImplInfo {
     pub trait_name: String,
+    pub parameters: Vec<&'static str>,
+    pub arguments: Vec<TypeRef>,
     pub target: TypeRef,
     pub span: Range<usize>,
     /// Where it is declared: `std/core` for a native one, a module's name,
@@ -527,6 +618,35 @@ pub(crate) struct ImplInfo {
 }
 
 impl ImplInfo {
+    /// `Index<T> for Seq<T>`, as an error names it.
+    fn written(&self) -> String {
+        format!(
+            "{} for {}",
+            trait_written(&self.trait_name, &self.arguments),
+            self.target
+        )
+    }
+
+    /// Whether one assignment of the two implementations' parameters makes
+    /// them one: the same trait at the same arguments for the same type.
+    fn overlaps(&self, other: &Self) -> bool {
+        self.trait_name == other.trait_name
+            && could_equal(
+                &self.target,
+                &self.parameters,
+                &other.target,
+                &other.parameters,
+            )
+            && self.arguments.len() == other.arguments.len()
+            && self
+                .arguments
+                .iter()
+                .zip(&other.arguments)
+                .all(|(mine, theirs)| {
+                    could_equal(mine, &self.parameters, theirs, &other.parameters)
+                })
+    }
+
     fn whence(&self) -> String {
         if self.origin.is_empty() {
             format!("this program, at byte {}", self.span.start)
@@ -546,8 +666,16 @@ pub(crate) fn native_impls() -> Vec<ImplInfo> {
         .unwrap_or_default()
         .into_iter()
         .filter_map(|header| {
+            let (parameters, variables) = impl_variables(&header.generics)?;
+            let _variables = crate::declarations::TypeVariables::enter(&variables);
             Some(ImplInfo {
-                target: crate::types::builtin::named(&header.target, &[])?,
+                target: crate::declarations::annotation(&header.target_type).ok()?,
+                arguments: header
+                    .arguments
+                    .iter()
+                    .map(|argument| crate::declarations::annotation(argument).ok())
+                    .collect::<Option<_>>()?,
+                parameters,
                 trait_name: header.trait_name,
                 span: 0..0,
                 origin: format!("std/{}", header.module),
@@ -556,18 +684,107 @@ pub(crate) fn native_impls() -> Vec<ImplInfo> {
         .collect()
 }
 
+/// An implementation's type parameters: the names its types are written
+/// over, and each as the type variable it stands for.
+fn impl_variables(generics: &[String]) -> Option<(Vec<&'static str>, Vec<(String, TypeRef)>)> {
+    let variables = generics
+        .iter()
+        .map(|name| {
+            Some((
+                name.clone(),
+                crate::types::builtin::type_variable(name, None)?,
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let parameters = variables
+        .iter()
+        .map(|(_, variable)| variable.constructor.0)
+        .collect();
+    Some((parameters, variables))
+}
+
+/// `Index<T>`, or `Eq` for a trait without parameters.
+fn trait_written(trait_name: &str, arguments: &[TypeRef]) -> String {
+    if arguments.is_empty() {
+        return trait_name.to_owned();
+    }
+    format!(
+        "{trait_name}<{}>",
+        arguments
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+/// Whether some assignment of the parameters on each side makes two types
+/// the same.
+fn could_equal(
+    left: &TypeRef,
+    left_parameters: &[&'static str],
+    right: &TypeRef,
+    right_parameters: &[&'static str],
+) -> bool {
+    let is_parameter = |ty: &TypeRef, parameters: &[&'static str]| {
+        ty.args.is_empty() && parameters.contains(&ty.constructor.0)
+    };
+    if is_parameter(left, left_parameters) || is_parameter(right, right_parameters) {
+        return true;
+    }
+    left.constructor == right.constructor
+        && left.args.len() == right.args.len()
+        && left
+            .args
+            .iter()
+            .zip(&right.args)
+            .all(|(left, right)| could_equal(left, left_parameters, right, right_parameters))
+}
+
 /// The type `Self` stands for inside a trait, before an implementation
 /// binds it.
 pub(crate) const SELF: crate::types::TypeConstructor = crate::types::TypeConstructor("%Self");
 
-/// A type written over `Self`, with the implementing type in its place.
-fn with_self(written: &TypeRef, target: &TypeRef) -> TypeRef {
+/// A type written over `Self` and a trait's parameters, with the
+/// implementing type and the trait's arguments in their places.
+fn in_place(
+    written: &TypeRef,
+    target: &TypeRef,
+    parameters: &[(TypeRef, Option<TypeRef>)],
+    arguments: &[TypeRef],
+) -> TypeRef {
     if written.constructor == SELF {
         return target.clone();
     }
-    written
-        .constructor
-        .apply(written.args.iter().map(|arg| with_self(arg, target)))
+    if written.args.is_empty()
+        && let Some(position) = parameters
+            .iter()
+            .position(|(parameter, _)| *parameter == *written)
+        && let Some(argument) = arguments.get(position)
+    {
+        return argument.clone();
+    }
+    written.constructor.apply(
+        written
+            .args
+            .iter()
+            .map(|arg| in_place(arg, target, parameters, arguments)),
+    )
+}
+
+/// A trait's function with `Self` and the trait's parameters in place.
+fn signature_in_place(
+    signature: &MethodSig,
+    target: &TypeRef,
+    info: &TraitInfo,
+    arguments: &[TypeRef],
+) -> MethodSig {
+    let place = |written: &TypeRef| in_place(written, target, &info.parameters, arguments);
+    MethodSig {
+        name: signature.name.clone(),
+        parameters: signature.parameters.iter().map(place).collect(),
+        result: place(&signature.result),
+    }
 }
 
 /// The traits the language owns, in scope in every program: the operators
@@ -575,6 +792,7 @@ fn with_self(written: &TypeRef, target: &TypeRef) -> TypeRef {
 pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
     let self_type = SELF.apply([]);
     let binary = |name: &str, result: TypeRef| TraitInfo {
+        parameters: Vec::new(),
         methods: vec![MethodSig {
             name: name.to_owned(),
             parameters: vec![self_type.clone()],
@@ -589,10 +807,25 @@ pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
         ("Rem", binary("rem", self_type.clone())),
         ("Eq", binary("eq", TypeRef::BOOL)),
         ("Ord", binary("compare", TypeRef::ORDERING)),
+        ("Index", index_trait()),
     ]
     .into_iter()
     .map(|(name, info)| (name.to_owned(), info))
     .collect()
+}
+
+/// `trait Index<T> { fn at(self, position: Int) : Option<T> }`: what `xs[i]`
+/// resolves through over a type that is not a built-in sequence.
+fn index_trait() -> TraitInfo {
+    let element = crate::types::builtin::type_variable("T", None).expect("T is a type variable");
+    TraitInfo {
+        parameters: vec![(element.clone(), None)],
+        methods: vec![MethodSig {
+            name: "at".to_owned(),
+            parameters: vec![TypeRef::INT],
+            result: TypeRef::optional(element),
+        }],
+    }
 }
 
 /// The trait and method an arithmetic operator resolves through.
@@ -1007,18 +1240,17 @@ impl<'a> Checker<'a> {
                 .map(|(_, bound)| bound);
             // `T : Shape` names a trait: the variable is unbounded in the
             // lattice, and the trait is checked at each call and usable in
-            // the body.
-            let trait_bound = written
-                .filter(|bound| bound.arguments.is_empty() && self.traits.contains_key(&bound.name))
-                .map(|bound| bound.name.clone());
+            // the body. Its arguments name the other parameters, so they are
+            // read once every parameter is in scope.
+            let trait_bound = written.filter(|bound| self.traits.contains_key(&bound.name));
             let bound = match (&trait_bound, written) {
                 (None, Some(bound)) => Some(crate::declarations::annotation(bound)?),
                 _ => None,
             };
-            if let Some(trait_name) = &trait_bound
+            if let Some(trait_bound) = trait_bound
                 && let Some(variable) = crate::types::builtin::type_variable(name, None)
             {
-                traits_bounding.push((name.clone(), variable, trait_name.clone()));
+                traits_bounding.push((name.clone(), variable, trait_bound));
             }
             let variable =
                 crate::types::builtin::type_variable(name, bound.as_ref()).ok_or_else(|| {
@@ -1045,6 +1277,17 @@ impl<'a> Checker<'a> {
             .map(|(name, variable, _)| (name.clone(), variable.clone()))
             .collect();
         let _variables = crate::declarations::TypeVariables::enter(&in_scope);
+        let traits_bounding = traits_bounding
+            .into_iter()
+            .map(|(name, variable, written)| {
+                Ok(Bounded {
+                    name,
+                    variable,
+                    trait_name: written.name.clone(),
+                    arguments: self.trait_arguments(written)?,
+                })
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         if variables.is_empty() {
             self.generic_functions.remove(&declaration.name);
         } else {
@@ -1058,11 +1301,7 @@ impl<'a> Checker<'a> {
                 .insert(declaration.name.clone(), traits_bounding.clone());
         }
         let bounds_before = self.trait_bounds.len();
-        self.trait_bounds.extend(
-            traits_bounding
-                .iter()
-                .map(|(_, variable, trait_name)| (variable.clone(), trait_name.clone())),
-        );
+        self.trait_bounds.extend(traits_bounding);
         let checked = self.function_body(declaration);
         self.trait_bounds.truncate(bounds_before);
         checked
@@ -1571,6 +1810,9 @@ impl<'a> Checker<'a> {
             for ((actual, _), parameter) in supplied.iter().zip(&parameters) {
                 instantiate(parameter, actual, &mut bound);
             }
+            if let Some(bounds) = self.trait_bounded.get(callee_name).cloned() {
+                self.resolve_bounds(callee_name, &bounds, &mut bound, &span)?;
+            }
             for (name, variable, limit) in variables {
                 let filled = bound
                     .get(&variable.constructor)
@@ -1585,23 +1827,6 @@ impl<'a> Checker<'a> {
                             "`{callee_name}` needs {name} : {limit}, and {name} is {filled} here"
                         ),
                     ));
-                }
-            }
-            if let Some(bounds) = self.trait_bounded.get(callee_name).cloned() {
-                for (name, variable, trait_name) in bounds {
-                    let filled = bound
-                        .get(&variable.constructor)
-                        .cloned()
-                        .unwrap_or(TypeRef::NEVER);
-                    if !self.implements(&filled, &trait_name) {
-                        return Err(Diagnostic::typing(
-                            span,
-                            format!(
-                                "`{callee_name}` needs {name} : {trait_name}, and {filled} does \
-                                 not implement `{trait_name}`"
-                            ),
-                        ));
-                    }
                 }
             }
             parameters = parameters
@@ -1694,43 +1919,66 @@ impl<'a> Checker<'a> {
             );
         }
         // A trait's function, implemented for the receiver's type or
-        // promised by a bound on it.
-        if let Some((trait_name, signature)) = self.method_for(&receiver_type, name, &span)? {
-            let parameters: Vec<TypeRef> = signature
-                .parameters
-                .iter()
-                .map(|parameter| with_self(parameter, &receiver_type))
-                .collect();
-            if arguments.len() != parameters.len() {
+        // promised by a bound on it. Implementations at several arguments
+        // are told apart by the types of the call's own.
+        if let Some((trait_name, signatures)) = self.method_for(&receiver_type, name, &span)? {
+            let count = signatures[0].parameters.len();
+            if arguments.len() != count {
                 return Err(Diagnostic::typing(
                     span,
                     format!(
-                        "`{name}` of `{trait_name}` takes {} argument{} after the receiver, not {}",
-                        parameters.len(),
-                        if parameters.len() == 1 { "" } else { "s" },
+                        "`{name}` of `{trait_name}` takes {count} argument{} after the receiver, not {}",
+                        if count == 1 { "" } else { "s" },
                         arguments.len()
                     ),
                 ));
             }
-            for (argument, parameter) in arguments.iter().zip(&parameters) {
-                if argument.name.is_some() {
-                    return Err(Diagnostic::typing(
-                        argument.value.span.clone(),
-                        "a trait's function takes its arguments by position",
-                    ));
-                }
-                let actual = self.expecting(&argument.value, Some(parameter))?;
-                if !actual.is(parameter) {
-                    return Err(Diagnostic::typing(
-                        argument.value.span.clone(),
-                        format!("this argument is {actual}, and `{name}` takes {parameter}"),
-                    ));
-                }
+            if let Some(argument) = arguments.iter().find(|argument| argument.name.is_some()) {
+                return Err(Diagnostic::typing(
+                    argument.value.span.clone(),
+                    "a trait's function takes its arguments by position",
+                ));
             }
+            let signature = if let [signature] = signatures.as_slice() {
+                for (argument, parameter) in arguments.iter().zip(&signature.parameters) {
+                    let actual = self.expecting(&argument.value, Some(parameter))?;
+                    if !actual.is(parameter) {
+                        return Err(Diagnostic::typing(
+                            argument.value.span.clone(),
+                            format!("this argument is {actual}, and `{name}` takes {parameter}"),
+                        ));
+                    }
+                }
+                signature.clone()
+            } else {
+                let actuals = arguments
+                    .iter()
+                    .map(|argument| self.expression(&argument.value))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let chosen: Vec<&MethodSig> = signatures
+                    .iter()
+                    .filter(|signature| {
+                        actuals
+                            .iter()
+                            .zip(&signature.parameters)
+                            .all(|(actual, parameter)| actual.is(parameter))
+                    })
+                    .collect();
+                let [chosen] = chosen.as_slice() else {
+                    return Err(Diagnostic::typing(
+                        span,
+                        format!(
+                            "`{name}` of `{trait_name}` is implemented for {receiver_type} at \
+                             several arguments, and this call does not choose between them"
+                        ),
+                    ));
+                };
+                (*chosen).clone()
+            };
             self.checked
                 .method_calls
                 .insert(span, (trait_name, name.to_owned()));
-            return Ok(with_self(&signature.result, &receiver_type));
+            return Ok(signature.result);
         }
         if let Some(&(combiner, _)) = crate::ast::COMBINERS.iter().find(|(held, _)| held == &name)
             && positional == 1
@@ -1782,12 +2030,25 @@ impl<'a> Checker<'a> {
             &declaration.span,
         );
         let mut variables = Vec::new();
+        // A constructor parameter, `F<_>`, is written applied, `F<T>`; as a
+        // type it is the variable it binds.
+        let constructors: Vec<&str> = declaration
+            .bounds
+            .iter()
+            .filter(|(_, bound)| bound.is_constructor())
+            .map(|(name, _)| name.as_str())
+            .collect();
+        let erase = |written: &crate::ast::TypeAnn| erase_constructors(written, &constructors);
         for name in &declaration.generics {
+            // A bound written with arguments, `S : Seq<T>` or
+            // `F<_> : Iterable<_>`, is a shape the call's input meets, not a
+            // family of variables.
             let bound = declaration
                 .bounds
                 .iter()
                 .find(|(bounded, _)| bounded == name)
                 .filter(|(_, bound)| !self.traits.contains_key(&bound.name))
+                .filter(|(_, bound)| bound.arguments.is_empty())
                 .map(|(_, bound)| crate::declarations::annotation(bound))
                 .transpose()?;
             if let Some(variable) = crate::types::builtin::type_variable(name, bound.as_ref()) {
@@ -1815,14 +2076,14 @@ impl<'a> Checker<'a> {
                 &parameter.name,
                 &parameter.span,
             );
-            let ty = crate::declarations::annotation(&parameter.annotation)?;
+            let ty = crate::declarations::annotation(&erase(&parameter.annotation))?;
             parameters.push(if parameter.variadic {
                 TypeRef::list(ty)
             } else {
                 ty
             });
         }
-        let result = crate::declarations::annotation(&declaration.result)?;
+        let result = crate::declarations::annotation(&erase(&declaration.result))?;
         let ty = TypeRef::function(parameters, result).ok_or_else(|| {
             Diagnostic::typing(
                 declaration.span.clone(),
@@ -1875,10 +2136,7 @@ impl<'a> Checker<'a> {
                 .or_insert_with(|| info.clone());
         }
         for held in &module.impls {
-            let known = self.impls.iter().find(|known| {
-                known.trait_name == held.trait_name
-                    && known.target.constructor == held.target.constructor
-            });
+            let known = self.impls.iter().find(|known| known.overlaps(held));
             if let Some(known) = known {
                 // The one implementation reached through two imports is
                 // still one; two implementations are an incoherence.
@@ -1890,7 +2148,7 @@ impl<'a> Checker<'a> {
                     format!(
                         "`{}` is implemented for {} in {} and in {}: a trait has one \
                          implementation per type, and import order does not choose",
-                        held.trait_name,
+                        trait_written(&held.trait_name, &held.arguments),
                         held.target,
                         known.whence(),
                         held.whence()
@@ -2141,6 +2399,42 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// The type parameters a trait or an implementation declares: each as
+    /// the type variable it stands for, with the type its arguments meet,
+    /// and the variables to enter while its types are read.
+    fn declared_parameters(
+        &mut self,
+        generics: &[String],
+        bounds: &[(String, crate::ast::TypeAnn)],
+        span: &Range<usize>,
+    ) -> Result<(Vec<(TypeRef, Option<TypeRef>)>, Vec<(String, TypeRef)>), Diagnostic> {
+        let mut parameters = Vec::new();
+        let mut variables: Vec<(String, TypeRef)> = Vec::new();
+        for name in generics {
+            self.lint(crate::naming::Kind::TypeParameter, name, span);
+            if variables.iter().any(|(held, _)| held == name) {
+                return Err(Diagnostic::typing(
+                    span.clone(),
+                    format!("the type parameter `{name}` is written twice"),
+                ));
+            }
+            let variable = crate::types::builtin::type_variable(name, None).ok_or_else(|| {
+                Diagnostic::typing(
+                    span.clone(),
+                    format!("a type parameter is one capital letter, such as `T`, not `{name}`"),
+                )
+            })?;
+            let limit = bounds
+                .iter()
+                .find(|(bounded, _)| bounded == name)
+                .map(|(_, bound)| crate::declarations::annotation(bound))
+                .transpose()?;
+            parameters.push((variable.clone(), limit));
+            variables.push((name.clone(), variable));
+        }
+        Ok((parameters, variables))
+    }
+
     /// `trait Name { … }`: a contract the program may implement. A core
     /// trait restated by `std/` must agree with the binary's.
     fn declare_trait(&mut self, declaration: &'a TraitDecl) -> Result<(), Diagnostic> {
@@ -2155,6 +2449,12 @@ impl<'a> Checker<'a> {
                 format!("the trait `{}` is declared twice", declaration.name),
             ));
         }
+        let (parameters, variables) = self.declared_parameters(
+            &declaration.generics,
+            &declaration.bounds,
+            &declaration.span,
+        )?;
+        let _variables = crate::declarations::TypeVariables::enter(&variables);
         let mut methods = Vec::new();
         for method in &declaration.methods {
             if !method.has_self {
@@ -2188,7 +2488,8 @@ impl<'a> Checker<'a> {
             });
         }
         if let Some(core) = self.traits.get(&declaration.name) {
-            let same = core.methods.len() == methods.len()
+            let same = core.parameters == parameters
+                && core.methods.len() == methods.len()
                 && core.methods.iter().zip(&methods).all(|(held, written)| {
                     held.name == written.name
                         && held.parameters == written.parameters
@@ -2204,8 +2505,13 @@ impl<'a> Checker<'a> {
                 ));
             }
         }
-        self.traits
-            .insert(declaration.name.clone(), TraitInfo { methods });
+        self.traits.insert(
+            declaration.name.clone(),
+            TraitInfo {
+                parameters,
+                methods,
+            },
+        );
         self.trait_decls
             .insert(declaration.name.clone(), declaration);
         Ok(())
@@ -2223,13 +2529,50 @@ impl<'a> Checker<'a> {
                 format!("no trait named `{trait_name}` is in scope"),
             )
         })?;
+        let (_, variables) = self.declared_parameters(
+            &declaration.generics,
+            &declaration.bounds,
+            &declaration.span,
+        )?;
+        let _variables = crate::declarations::TypeVariables::enter(&variables);
+        let parameters: Vec<&'static str> = variables
+            .iter()
+            .map(|(_, variable)| variable.constructor.0)
+            .collect();
         let target = crate::declarations::annotation(&declaration.target)?;
+        let arguments = self.trait_arguments(&crate::ast::TypeAnn {
+            name: trait_name.to_owned(),
+            arguments: declaration.trait_arguments.clone(),
+            span: declaration.span.clone(),
+        })?;
+        for (name, variable) in &variables {
+            if !target.mentions(variable)
+                && !arguments.iter().any(|argument| argument.mentions(variable))
+            {
+                return Err(Diagnostic::typing(
+                    declaration.span.clone(),
+                    format!(
+                        "`{name}` of this impl appears in neither the type nor the trait's arguments"
+                    ),
+                ));
+            }
+        }
+        let this = ImplInfo {
+            trait_name: trait_name.to_owned(),
+            parameters,
+            arguments: arguments.clone(),
+            target: target.clone(),
+            span: declaration.span.clone(),
+            origin: self.unit.clone(),
+        };
+        let written = this.written();
         if declaration.native {
             // The header is the declaration a native implementation is bound
             // to: the standard library's, read again, or nothing.
             let bound = self.impls.iter().any(|held| {
                 held.trait_name == trait_name
-                    && held.target.constructor == target.constructor
+                    && held.target == target
+                    && held.arguments == arguments
                     && held.origin.starts_with("std/")
             });
             if bound {
@@ -2238,23 +2581,28 @@ impl<'a> Checker<'a> {
             return Err(Diagnostic::typing(
                 declaration.span.clone(),
                 format!(
-                    "`impl {trait_name} for {target}` has no body, and no extension implements \
+                    "`impl {written}` has no body, and no extension implements \
                      it: a native implementation is declared by a module an extension provides, \
                      and here the functions are written in braces"
                 ),
             ));
         }
-        if let Some(previous) = self.impls.iter().find(|held| {
-            held.trait_name == trait_name && held.target.constructor == target.constructor
-        }) {
-            return Err(Diagnostic::typing(
-                declaration.span.clone(),
+        if let Some(previous) = self.impls.iter().find(|held| held.overlaps(&this)) {
+            let message = if previous.arguments.is_empty() && previous.target == target {
                 format!(
                     "`{trait_name}` is already implemented for {target}, in {}: a trait has \
                      one implementation per type",
                     previous.whence()
-                ),
-            ));
+                )
+            } else {
+                format!(
+                    "`impl {written}` overlaps `impl {}`, in {}: one type at one set of \
+                     arguments has one implementation of a trait",
+                    previous.written(),
+                    previous.whence()
+                )
+            };
+            return Err(Diagnostic::typing(declaration.span.clone(), message));
         }
         if !self.trait_decls.contains_key(trait_name)
             && !self.declarations.holds(target.constructor.0)
@@ -2295,12 +2643,9 @@ impl<'a> Checker<'a> {
         let _self_type = crate::declarations::SelfType::enter(target.clone());
         let mut lowered = Vec::new();
         for signature in &info.methods {
-            let parameters: Vec<TypeRef> = signature
-                .parameters
-                .iter()
-                .map(|parameter| with_self(parameter, &target))
-                .collect();
-            let result = with_self(&signature.result, &target);
+            let MethodSig {
+                parameters, result, ..
+            } = signature_in_place(signature, &target, &info, &arguments);
             let own = declaration
                 .methods
                 .iter()
@@ -2384,12 +2729,7 @@ impl<'a> Checker<'a> {
                 .collect();
             // The implementation is visible to its own bodies, so a function
             // may call another of the same trait on `self`.
-            self.impls.push(ImplInfo {
-                trait_name: trait_name.to_owned(),
-                target: target.clone(),
-                span: declaration.span.clone(),
-                origin: self.unit.clone(),
-            });
+            self.impls.push(this.clone());
             let body_type = self.with_bindings(
                 names.iter().cloned().zip(types.iter().cloned()),
                 |checker| checker.expecting(body, Some(&result)),
@@ -2418,12 +2758,7 @@ impl<'a> Checker<'a> {
                 ty,
             });
         }
-        self.impls.push(ImplInfo {
-            trait_name: trait_name.to_owned(),
-            target: target.clone(),
-            span: declaration.span.clone(),
-            origin: self.unit.clone(),
-        });
+        self.impls.push(this);
         // A type implementing `Ord` is Orderable: `compare`, `<`, `sort`,
         // `min` and `max` accept it, and its `compare` decides the order.
         if trait_name == "Ord" {
@@ -2441,34 +2776,143 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
-    /// The trait function a receiver of a type reaches by name: implemented
-    /// for the type, or promised by a trait bound on the type variable.
-    /// Two traits offering one name are an ambiguity.
+    /// A trait's arguments as a bound or an implementation writes them,
+    /// `Index<T>`: one per parameter of the trait, each within the
+    /// parameter's bound.
+    fn trait_arguments(&self, written: &crate::ast::TypeAnn) -> Result<Vec<TypeRef>, Diagnostic> {
+        let info = self.traits.get(&written.name).ok_or_else(|| {
+            Diagnostic::name(
+                written.span.clone(),
+                format!("no trait named `{}` is in scope", written.name),
+            )
+        })?;
+        if written.arguments.len() != info.parameters.len() {
+            let count = info.parameters.len();
+            return Err(Diagnostic::typing(
+                written.span.clone(),
+                format!(
+                    "`{}` takes {count} type argument{}, not {}",
+                    written.name,
+                    if count == 1 { "" } else { "s" },
+                    written.arguments.len()
+                ),
+            ));
+        }
+        let mut arguments = Vec::new();
+        for (argument, (_, limit)) in written.arguments.iter().zip(&info.parameters) {
+            let ty = crate::declarations::annotation(argument)?;
+            if let Some(limit) = limit
+                && !ty.has_variable()
+                && !ty.is(limit)
+            {
+                return Err(Diagnostic::typing(
+                    argument.span.clone(),
+                    format!("`{}` takes a {limit} here, not {ty}", written.name),
+                ));
+            }
+            arguments.push(ty);
+        }
+        Ok(arguments)
+    }
+
+    /// The ways a type satisfies a trait: each implementation that applies
+    /// to it, with the trait's arguments that implementation gives, and the
+    /// bounds in force on a type variable. Several that give the same
+    /// arguments are one, and one for a narrower type hides one for a wider.
+    fn applicable(&self, ty: &TypeRef, trait_name: &str) -> Vec<Applies> {
+        // Each with the implementing type it applies as.
+        let mut found: Vec<(Applies, TypeRef)> = Vec::new();
+        for held in self
+            .impls
+            .iter()
+            .filter(|held| held.trait_name == trait_name)
+        {
+            if held.target.is_union() && ty.constructor != held.target.constructor {
+                continue;
+            }
+            let mut fixed = HashMap::new();
+            if !unify(&held.target, ty, &held.parameters, &mut fixed) {
+                continue;
+            }
+            let fixed: HashMap<crate::types::TypeConstructor, TypeRef> = fixed
+                .into_iter()
+                .map(|(parameter, ty)| (crate::types::TypeConstructor(parameter), ty))
+                .collect();
+            let applied = substituted_placeholders(&held.target, &fixed);
+            found.push((
+                Applies {
+                    arguments: held
+                        .arguments
+                        .iter()
+                        .map(|argument| substituted_placeholders(argument, &fixed))
+                        .collect(),
+                    open: held
+                        .parameters
+                        .iter()
+                        .copied()
+                        .filter(|parameter| {
+                            !fixed.contains_key(&crate::types::TypeConstructor(parameter))
+                        })
+                        .collect(),
+                },
+                applied,
+            ));
+        }
+        for bounded in &self.trait_bounds {
+            if bounded.variable == *ty && bounded.trait_name == trait_name {
+                found.push((
+                    Applies {
+                        arguments: bounded.arguments.clone(),
+                        open: Vec::new(),
+                    },
+                    ty.clone(),
+                ));
+            }
+        }
+        // Of two implementations on one chain of narrowing, the narrower
+        // type's is the one that applies: a List takes Seq's, not Data's.
+        let narrowest: Vec<&(Applies, TypeRef)> = found
+            .iter()
+            .filter(|(_, wide)| {
+                !found
+                    .iter()
+                    .any(|(_, narrow)| narrow != wide && narrow.is(wide) && !wide.is(narrow))
+            })
+            .collect();
+        let mut kept: Vec<Applies> = Vec::new();
+        for (applies, _) in narrowest {
+            if !kept.iter().any(|held| held.arguments == applies.arguments) {
+                kept.push(applies.clone());
+            }
+        }
+        kept
+    }
+
+    /// The trait function a receiver of a type reaches by name: the trait,
+    /// and the function's signature with `Self` and the trait's arguments in
+    /// place, once for each set of arguments the type implements the trait
+    /// at. Two traits offering one name are an ambiguity.
     fn method_for(
         &self,
         receiver: &TypeRef,
         name: &str,
         span: &Range<usize>,
-    ) -> Result<Option<(String, MethodSig)>, Diagnostic> {
-        let mut found: Vec<(String, MethodSig)> = Vec::new();
-        let mut consider = |trait_name: &str, traits: &HashMap<String, TraitInfo>| {
-            if found.iter().any(|(held, _)| held == trait_name) {
-                return;
-            }
-            if let Some(info) = traits.get(trait_name)
-                && let Some(signature) = info.methods.iter().find(|method| method.name == name)
-            {
-                found.push((trait_name.to_owned(), signature.clone()));
-            }
-        };
-        for held in &self.impls {
-            if receiver.is(&held.target) {
-                consider(&held.trait_name, &self.traits);
-            }
-        }
-        for (variable, trait_name) in &self.trait_bounds {
-            if variable == receiver {
-                consider(trait_name, &self.traits);
+    ) -> Result<Option<(String, Vec<MethodSig>)>, Diagnostic> {
+        let mut found: Vec<(String, Vec<MethodSig>)> = Vec::new();
+        let mut names: Vec<&String> = self.traits.keys().collect();
+        names.sort();
+        for trait_name in names {
+            let info = &self.traits[trait_name];
+            let Some(signature) = info.methods.iter().find(|method| method.name == name) else {
+                continue;
+            };
+            let signatures: Vec<MethodSig> = self
+                .applicable(receiver, trait_name)
+                .iter()
+                .map(|applies| signature_in_place(signature, receiver, info, &applies.arguments))
+                .collect();
+            if !signatures.is_empty() {
+                found.push((trait_name.clone(), signatures));
             }
         }
         match found.len() {
@@ -2488,18 +2932,96 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// Whether a type satisfies a trait: implemented for it, or promised by
-    /// a bound in force. `Never`, the type of nothing, satisfies every trait.
-    fn implements(&self, ty: &TypeRef, trait_name: &str) -> bool {
-        *ty == TypeRef::NEVER
-            || self
-                .impls
-                .iter()
-                .any(|held| held.trait_name == trait_name && ty.is(&held.target))
-            || self
-                .trait_bounds
-                .iter()
-                .any(|(variable, held)| variable == ty && held == trait_name)
+    /// Hold a call to a bounded function to each of its trait bounds: the
+    /// type each bound names implements the trait at the bound's arguments,
+    /// and a parameter the call's arguments left open is filled from the one
+    /// implementation that applies.
+    fn resolve_bounds(
+        &self,
+        callee: &str,
+        bounds: &[Bounded],
+        bound: &mut HashMap<crate::types::TypeConstructor, TypeRef>,
+        span: &Range<usize>,
+    ) -> Result<(), Diagnostic> {
+        for bounded in bounds {
+            let filled = bound
+                .get(&bounded.variable.constructor)
+                .cloned()
+                .unwrap_or(TypeRef::NEVER);
+            if filled == TypeRef::NEVER {
+                continue;
+            }
+            let applicable = self.applicable(&filled, &bounded.trait_name);
+            let unmet = || {
+                let wanted: Vec<TypeRef> = bounded
+                    .arguments
+                    .iter()
+                    .map(|argument| substituted_placeholders(argument, bound))
+                    .collect();
+                Diagnostic::typing(
+                    span.clone(),
+                    format!(
+                        "`{callee}` needs {} : {}, and {filled} does not implement `{}`",
+                        bounded.name,
+                        trait_written(&bounded.trait_name, &bounded.arguments),
+                        trait_written(&bounded.trait_name, &wanted)
+                    ),
+                )
+            };
+            if applicable.is_empty() {
+                return Err(unmet());
+            }
+            // A generic body reaches an implementation through its receiver
+            // alone, so it cannot tell two of one trait for one type apart.
+            let has_functions = self
+                .traits
+                .get(&bounded.trait_name)
+                .is_some_and(|info| !info.methods.is_empty());
+            if has_functions && applicable.len() > 1 {
+                return Err(Diagnostic::typing(
+                    span.clone(),
+                    format!(
+                        "`{callee}` needs {} : {}, and {filled} implements `{}` at several \
+                         arguments, which a generic body does not tell apart",
+                        bounded.name,
+                        trait_written(&bounded.trait_name, &bounded.arguments),
+                        bounded.trait_name
+                    ),
+                ));
+            }
+            let mut fills: Vec<HashMap<crate::types::TypeConstructor, TypeRef>> = Vec::new();
+            for applies in &applicable {
+                if let Some(fill) = fill_from(&bounded.arguments, applies, bound)
+                    && !fills.contains(&fill)
+                {
+                    fills.push(fill);
+                }
+            }
+            match fills.len() {
+                0 => return Err(unmet()),
+                1 => bound.extend(fills.pop().expect("one fill")),
+                _ => {
+                    return Err(Diagnostic::typing(
+                        span.clone(),
+                        format!(
+                            "`{callee}` needs {} : {}, and {filled} implements it at {}, which \
+                             this call does not choose between",
+                            bounded.name,
+                            trait_written(&bounded.trait_name, &bounded.arguments),
+                            applicable
+                                .iter()
+                                .map(|applies| trait_written(
+                                    &bounded.trait_name,
+                                    &applies.arguments
+                                ))
+                                .collect::<Vec<_>>()
+                                .join(" and ")
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 
     /// `Point(x = 1, y = 2)`: a record built from its fields, by name or in
@@ -2823,13 +3345,13 @@ impl<'a> Checker<'a> {
                 let right_type = self.expression(right)?;
                 // A type implementing `Eq` decides its own equality.
                 if left_type.constructor.0 != "Option"
-                    && let Some((_, signature)) = self.method_for(&left_type, "eq", &span)?
+                    && let Some((_, signatures)) = self.method_for(&left_type, "eq", &span)?
                     && self
                         .impls
                         .iter()
                         .any(|held| held.trait_name == "Eq" && left_type.is(&held.target))
                 {
-                    let parameter = with_self(&signature.parameters[0], &left_type);
+                    let parameter = signatures[0].parameters[0].clone();
                     if !right_type.is(&parameter) {
                         return Err(Diagnostic::typing(
                             span,
@@ -2907,7 +3429,14 @@ impl<'a> Checker<'a> {
                         format!("a position is an Int, not {index_type}"),
                     ));
                 }
-                indexed(&receiver_type).map_err(|message| Diagnostic::typing(span, message))
+                indexed(&receiver_type).or_else(|message| {
+                    // Any other type takes a position through its
+                    // implementation of `Index`, or a bound promising one.
+                    match self.applicable(&receiver_type, "Index").as_slice() {
+                        [applies] => Ok(TypeRef::optional(applies.arguments[0].clone())),
+                        _ => Err(Diagnostic::typing(span, message)),
+                    }
+                })
             }
             Kind::Link {
                 source,
@@ -3104,7 +3633,7 @@ impl<'a> Checker<'a> {
             // Any other type resolves the operator through its trait: a
             // declared type implementing `Add` has an addition of its own.
             let (trait_name, method) = operator_trait(operator);
-            let Some((_, signature)) = self.method_for(&expected, method, &node)? else {
+            let Some((_, signatures)) = self.method_for(&expected, method, &node)? else {
                 return Err(Diagnostic::typing(
                     left.span.clone(),
                     format!(
@@ -3113,7 +3642,8 @@ impl<'a> Checker<'a> {
                     ),
                 ));
             };
-            let parameter = with_self(&signature.parameters[0], &expected);
+            let signature = &signatures[0];
+            let parameter = signature.parameters[0].clone();
             let actual = self.expecting(right, Some(&parameter))?;
             if !actual.is(&parameter) {
                 return Err(Diagnostic::typing(
@@ -3121,7 +3651,7 @@ impl<'a> Checker<'a> {
                     format!("`{trait_name}` for {expected} takes {parameter}, not {actual}"),
                 ));
             }
-            expected = with_self(&signature.result, &expected);
+            expected = signature.result.clone();
             // The chain is lowered call by call, so each link's type is kept.
             self.checked.types.insert(node.clone(), expected.clone());
             self.checked.operator_calls.insert(node, trait_name);
@@ -3326,72 +3856,37 @@ impl<'a> Checker<'a> {
         arguments: &[Arg],
         span: Range<usize>,
     ) -> Result<TypeRef, Diagnostic> {
-        // `filter` over one optional value keeps it or makes it absent, and
-        // a narrowing predicate narrows it: `Option<Doc> -> Option<Card>`.
-        if step.name == "filter"
-            && input.constructor.0 == "Option"
-            && input.present().iterated().is_none()
-        {
-            let held = TypeRef::list(input.present().clone());
-            let (result, call) = step
-                .spec()
-                .check(step.name, self, &held, input_expr, arguments, &span)?;
-            if let Some(check) = step.check {
-                check(self, &call, span)?;
-            }
-            let element = crate::extensions::collections::narrowing(arguments)
-                .and_then(|name| crate::types::named(name, &[]))
-                .or_else(|| result.element())
-                .unwrap_or_else(|| input.present().clone());
-            return Ok(TypeRef::optional(element));
-        }
-        // `map` over a result maps its success: `Result<T, E> -> Result<U, E>`.
-        if step.name == "map"
-            && let Some((value, error)) = input.as_result()
-        {
-            let (value, error) = (value.clone(), error.clone());
-            let by = crate::extensions::named_or_first(arguments, "by")
-                .ok_or_else(|| Diagnostic::typing(span.clone(), "`map` needs a function"))?;
-            if arguments.len() != 1 {
-                return Err(Diagnostic::typing(span, "`map` takes one function"));
-            }
-            let produced = self.lambda_parameters(by, vec![value])?;
-            return Ok(TypeRef::result(produced, error));
-        }
-        // `map` over one optional value maps what is present and keeps
-        // absence: `Option<T> -> Option<U>`.
-        if step.name == "map"
-            && input.constructor.0 == "Option"
-            && input.present().iterated().is_none()
-            && *input.present() != TypeRef::DATA
-        {
-            let by = crate::extensions::named_or_first(arguments, "by")
-                .ok_or_else(|| Diagnostic::typing(span.clone(), "`map` needs a function"))?;
-            if arguments.len() != 1 {
-                return Err(Diagnostic::typing(span, "`map` takes one function"));
-            }
-            let produced = self.lambda_parameters(by, vec![input.present().clone()])?;
-            return Ok(TypeRef::optional(produced.present().clone()));
-        }
         // A step applied to absence is a step applied to nothing, not a
-        // failure: the reference that produced the absence was permitted.
-        let input = if step.takes_raw_input() {
-            input.clone()
-        } else {
-            input.present().clone()
-        };
+        // failure: the reference that produced the absence was permitted. A
+        // step sees the present value, unless only a declaration over the
+        // option or the result itself takes it: `map` over one optional value
+        // maps what is present, and over an optional list maps its elements.
+        // An open tree is a list or not only at run time, so an optional one
+        // is seen present, and a step over its elements is refused here.
+        let lifted = input.present();
+        let raw = step.takes_raw_input()
+            || (*lifted != TypeRef::DATA
+                && !step.specs().iter().any(|spec| spec.input.accepts(lifted))
+                && step.specs().iter().any(|spec| spec.input.accepts(input)));
+        let input = if raw { input.clone() } else { lifted.clone() };
+        crate::extensions::collections::reserved(step.name, arguments)?;
         let (result, call) = step
-            .spec()
+            .overload(self, &input, arguments, &span)?
             .check(step.name, self, &input, input_expr, arguments, &span)?;
         if let Some(check) = step.check {
             check(self, &call, span)?;
         }
-        // A predicate that tests the element's type narrows the result to it.
+        // A predicate that tests the element's type narrows the result to it:
+        // `Option<Doc> -> Option<Card>`, `List<Doc> -> List<Card>`.
         if step.name == "filter"
             && let Some(narrowed) = crate::extensions::collections::narrowing(arguments)
                 .and_then(|name| crate::types::named(name, &[]))
         {
-            return Ok(input.image(narrowed));
+            return Ok(if result.constructor.0 == "Option" {
+                TypeRef::optional(narrowed)
+            } else {
+                input.image(narrowed)
+            });
         }
         Ok(result)
     }

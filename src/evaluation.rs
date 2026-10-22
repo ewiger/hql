@@ -230,14 +230,39 @@ impl Evaluator<'_> {
         span: &Range<usize>,
     ) -> Result<Value, Diagnostic> {
         let receiver_type = receiver.type_of();
-        let declared = self
+        let applying: Vec<&RuntimeImpl> = self
             .impls
             .iter()
             .rev()
-            .find(|held| held.trait_name == trait_name && receiver_type.is(&held.target));
+            .filter(|held| {
+                held.trait_name == trait_name
+                    && (receiver_type.is(&held.target)
+                        || receiver_type.constructor == held.target.constructor)
+            })
+            .collect();
+        // Implementations of one trait at several arguments are told apart
+        // by the values the call passes, as checking told them apart by
+        // their types.
+        let declared = if applying.len() > 1 {
+            applying.into_iter().find(|held| {
+                held.methods
+                    .get(method)
+                    .is_some_and(|function| match function {
+                        Value::Function(closure) => closure
+                            .ty
+                            .args
+                            .iter()
+                            .skip(1)
+                            .zip(&arguments)
+                            .all(|(parameter, argument)| argument.type_of().is(parameter)),
+                        _ => false,
+                    })
+            })
+        } else {
+            applying.into_iter().next()
+        };
         if declared.is_none()
-            && let Some(native) =
-                crate::extensions::traits::native_impl(trait_name, receiver_type.constructor.0)
+            && let Some(native) = crate::extensions::traits::native_impl(trait_name, &receiver_type)
         {
             return (native.body)(method, receiver, arguments, span);
         }
@@ -364,6 +389,16 @@ impl Evaluator<'_> {
                 let Value::Int(position) = self.expression(index)? else {
                     return Err(Diagnostic::runtime(span, "a position is an Int"));
                 };
+                // A declared type's positions are its implementation of
+                // `Index`.
+                let receiver_type = value.type_of();
+                if self.impls.iter().any(|held| {
+                    held.trait_name == "Index"
+                        && (receiver_type.is(&held.target)
+                            || receiver_type.constructor == held.target.constructor)
+                }) {
+                    return self.dispatch("Index", "at", value, vec![Value::Int(position)], &span);
+                }
                 at_position(value, position, expression.ty.present(), &span)
             }
             Kind::Link {
@@ -1443,7 +1478,7 @@ fn as_checked(value: Value, checked: &TypeRef) -> Value {
 
 /// The element at a position, or absence past either end. A tree reads its
 /// members when it is a sequence, and is the wrong shape otherwise.
-fn at_position(
+pub(crate) fn at_position(
     value: Value,
     position: i64,
     element: &TypeRef,

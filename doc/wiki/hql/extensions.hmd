@@ -48,20 +48,45 @@ native bodies. The model and its stages are
 | --- | --- | --- |
 | the module, `std/string.hql` is `string` | the descriptor's `provides: &["string"]` | the canonical module name; the claim is total: every external declaration of the module is implemented, and nothing else is |
 | an external declaration, `fn trim(self) : String` | an operation named `trim`: `declared("trim", summary, eval_trim)` | the name |
+| one name declared more than once, `fn take<S : Seq<T>, T>(xs: S, n: Int) : S` then `fn take<T>(xs: Stream<T>, n: Int) : List<T>` | one operation, whose one implementation serves every overload | the name; a call takes the first overload its input and arguments fit |
 | the receiver, `self`, typed by the module's pattern or written, `self: Collection<T>` | the operation's input | binding derives it from the declaration |
-| the generic parameters and their bounds, the parameters in order, a function type as a lambda, `...T` as a variadic argument and `step: Int = 1` as one that may be omitted | the operation's arguments | binding derives them from the declaration |
+| the generic parameters and their bounds, a parameter bound by a shape, `S : Seq<T>`, which is the input at its own type, and a constructor parameter, `F<_> : Iterable<_>`, which `F<U>` rebuilds around another element; the parameters in order, a function type as a lambda, `...T` as a variadic argument and `step: Int = 1` as one that may be omitted | the operation's arguments | binding derives them from the declaration |
 | the result type | the operation's output | binding derives it from the declaration |
-| a native implementation, `impl Ord for Int` | a body for the trait's functions over the type's values | the trait and the type; a header needs a body and a body needs a header |
+| a native implementation, `impl Ord for Int`, `impl<T> Index<T> for Seq<T>` | a body for the trait's functions over the type's values | the trait and the type; a header needs a body and a body needs a header |
+| a codec, `impl Decoder<String> for Lines`, `impl<T> Encoder<T> for Json` | the decoder and encoder tables | the format: a format read has the one decoder its header names, and a format writes a type exactly when an encoder header covers it |
 | a declared type, `type File : {Replayable, Writable} { path : String }` | a `Value` representation and the constructor that builds it, `file(path)` | the type's name; the extension adds no type, parent or field |
 
 The declaration is the signature. An operation implementing one writes no
-type in Rust: binding reads the declaration and gives the checker the
-signature it states. An operation whose result the contract language cannot
-state yet, one that keeps, reorders or folds its input, keeps a native
-signature, and binding compares it with the declaration in full: the input,
-each argument's name and type, the bounds and the result. Binding runs once
-per process, before the first program, and a disagreement refuses every
-program with a message naming the module, the declaration and the extension.
+type in Rust: binding reads each declaration of its name and gives the
+checker the signatures they state, in the order written. An operation whose
+result is computed from the call, what `source` reads from its endpoint and
+format, keeps a native signature; binding compares it with the declaration in
+full, the input, each argument's name and type, the bounds and the result,
+and refuses a native operation whose name is declared more than once. Binding
+runs once per process, before the first program, and a disagreement refuses
+every program with a message naming the module, the declaration and the
+extension.
+
+An overloaded name is checked against one declaration per call: the first
+whose input the call's input meets, whose required arguments are all
+supplied, and whose function arguments take as many parameters as the
+functions written. More specific declarations come first:
+
+```hql
+// std/collections.hql
+fn sort<F<_> : Seq<_>, T : Orderable>(xs: F<T>) : F<T>
+fn sort<T : Orderable>(xs: Collection<T>) : List<T>
+fn sort<F<_> : Seq<_>, T, K : Orderable>(xs: F<T>, by: T -> K) : F<T>
+fn sort<T, K : Orderable>(xs: Collection<T>, by: T -> K) : List<T>
+fn sort<F<_> : Seq<_>, T>(xs: F<T>, by: (T, T) -> Ordering) : F<T>
+fn sort<T>(xs: Collection<T>, by: (T, T) -> Ordering) : List<T>
+```
+
+`[3, 1] | sort` is a `List<Int>`, `{3, 1} | sort` a `List<Int>`, and a
+`Ranking<Card>` sorted by a key a `Seq<Hit<Card>>`, its constructor rebuilt
+around its element. Where no declaration fits, the refusal names the inputs
+the declarations take: `` `sum` needs Collection<Int> or Collection<Float>, not
+List<String> ``.
 
 A method call, a qualified call and a pipeline step reach the same
 declaration:
@@ -98,18 +123,18 @@ Both are entries of one implementation table, and `compare`, `<`, `sort`,
 the traits its headers name: `String` is `Ord` and not `Add`, `Bool` is `Eq`
 and not `Ord`.
 
-Implementations are coherent: one per trait and type, across the standard
-library, imported modules and the program, the error naming both; an
+Implementations are coherent: no two of one trait overlap at one type and one
+set of arguments, across the standard library, imported modules and the
+program, the error naming both; an
 implementation is declared with its trait or with its type, so a program
 implements its own trait for `Int` and `Eq` for its own `Version`, and never
 `Add` for `String`. A bodyless header belongs to a module an extension
 provides; a program writes the functions in braces.
 
-Four parts of the model are not yet built. An operation whose result keeps,
-reorders or folds its input, `reverse`, `distinct` or `abs`, still carries a
-native signature beside its declaration, compared rather than replaced, and
-binding maps a declaration without `self` by its first parameter to the
-operation's single input.
+Four parts of the model are not yet built. An operation whose result is
+computed from the call carries a native signature beside its declaration,
+compared rather than replaced, and binding maps a declaration without `self`
+by its first parameter to the operation's single input.
 Purity is marked on the Rust operation rather than declared in HQL. A type an
 extension represents uses one of the binary's closed `Value` forms, `File` a
 `Value::Endpoint`, rather than a native value carrying the declared type's

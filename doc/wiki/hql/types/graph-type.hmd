@@ -111,8 +111,8 @@ not itself a node, which is what keeps `Graph<Concept, Relation>` a graph of
 concepts rather than one with an explained relationship appearing twice.
 
 It also marks where `:` stops. `Edge<S, T>` is what a relation *is*. Being
-renderable is not: that is a capability, supplied by an extension as
-`Renderable<Html>` rather than by inheritance.
+renderable is not: that is a capability, an encoder of a format for `Graph`,
+`impl Encoder<Graph> for D2`, rather than an inheritance.
 
 ## Endpoint identity, and where it fails
 

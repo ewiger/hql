@@ -35,8 +35,111 @@ external representation and its framing, and is neither the text it encodes
 nor a `String` subtype. `format(x, F)` applies the encoder for `x`'s type in
 `F` and gives the encoded text as a `String`, which keeps its format at run
 time for a host to print as it is. `source(e, F)` applies the decoder.
-The contracts are `Decoder<F, T>` and `Encoder<T, F>` in `std/format.hql`, and
-the model is [HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md).
+The contracts are the traits `Decoder<T>` and `Encoder<T>` in
+`std/format.hql`, described under [codecs](#codecs), and the model is
+[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md).
+
+## Codecs
+
+A **codec** is the conversion between a format's text and HQL values: a
+**decoder** reads records of the format as values, an **encoder** writes
+values as records of the format. A codec is declared in HQL and runs in
+Rust.
+
+### What is declared
+
+`std/format.hql` declares two traits whose implementing type is the format,
+and one bodyless header per codec the runtime has:
+
+```hql
+trait Decoder<T> {}
+trait Encoder<T> {}
+
+impl Decoder<String> for Lines
+impl<T> Encoder<T> for Lines
+```
+
+`impl Decoder<String> for Lines` states that the records of `Lines` read as
+`String` values; `impl<T> Encoder<T> for Lines` states that a value of every
+type is written as `Lines` records. The traits have no functions and the
+headers no bodies: a header converts nothing. It is the declaration of a
+conversion that exists, in the language rather than in a table of the
+binary, and the conversion itself is performed by the `io` and `format`
+extensions when a program calls `source`, `tap`, `sink`, `target` or
+`format`. These are generic traits, described on [[type-system]]
+([HQL-0027](../../proposals/HQL-0027/README.md)).
+
+### What runs: `Lines`, end to end
+
+```hql
+source(file("birds.txt"), Lines)
+| map(name => upper(name))
+| sink(file("loud.txt"), Lines)
+```
+
+Over a `birds.txt` holding `raven\nrobin\n`, the steps are these.
+
+1. **Binding**, once per process, before any program is checked.
+   `bind_codecs` in `src/extensions/mod.rs` compares the headers of
+   `std/format.hql` with the runtime's two tables: `io::document_type`, the
+   decoder table, maps `Lines` to `String`, which is what the one `Decoder`
+   header for `Lines` names; `format::writable`, the encoder table, accepts
+   every type for `Lines`, which is what `impl<T> Encoder<T> for Lines`
+   covers. A disagreement in either direction is a defect of the binary and
+   fails binding, naming the format and the type.
+2. **Checking.** The `io` extension's check for `source` reads the format
+   argument, `Lines`, and gives the element type from the decoder table:
+   `String`. A file is finite, so the result is `Seq<String>`. `map` then
+   types `name` as `String`. `sink` writes one record per value, so its check
+   refuses a format that describes a whole, `D2` or `Mermaid`; `format(x, F)`
+   consults the encoder table, and a type `F` does not write is a type error
+   naming both.
+3. **Reading.** `eval_source` calls `io::read_all`, which opens the file and
+   hands the byte stream to `io::pieces` with the format. For `Lines` that is
+   a buffered reader split at each line terminator, `\n` or `\r\n`: each line,
+   without its terminator, becomes one `Value::Str`. The terminator belongs to
+   the representation, so the values are `"raven"` and `"robin"`, not
+   `"raven\n"`. A final line without a terminator is still a record.
+4. **Writing.** `eval_sink` opens the destination once, then for each value
+   calls `format::piece(value, Lines)` for the record's text and writes it
+   followed by a terminator: `RAVEN\nROBIN\n`. A `String` is written as its
+   characters; any other value as its own rendering in `Text`, one value per
+   line.
+
+`Json` follows the same route with a different reader and writer: `pieces`
+runs a streaming JSON deserializer and turns each document into a `Data`
+tree, and `piece` serializes the value's data. `std/format.hql` is the
+statement of which routes exist; `src/io.rs` and `src/extensions/format.rs`
+are the routes.
+
+### Decoding and encoding are not symmetric
+
+A decoder and an encoder are declared apart because a format does not read
+and write the same types:
+
+| Format | Decodes as | Encodes |
+| --- | --- | --- |
+| `Json`, `JsonLines`, `Yaml`, `Csv` | `Data` | every type |
+| `Text`, `Lines`, `Markdown`, `Hmd`, `Hql` | `String` | every type |
+| `D2`, `Mermaid` | nothing | `Graph`, and `Data` whose value is a graph |
+
+- **Encoding is many to one.** Every value has a rendering in a text format:
+  a `Person`, a `List<Int>` and a `Graph` all have JSON text. One header with
+  a type parameter, `impl<T> Encoder<T> for Json`, covers them.
+- **Decoding is one to one.** The text of a JSON document does not record the
+  type of the value it was written from, so reading it gives the open tree,
+  `Data`, and a `Person` is obtained from that tree by
+  [[type-interpretation|refinement]], not by the decoder. The header names
+  exactly one type, `impl Decoder<Data> for Json`.
+- **Some formats are written only.** `D2` and `Mermaid` are diagram source
+  for a viewer; no decoder reads them back, so they have encoders and no
+  `Decoder` header.
+
+A single trait for both directions would state one set of types for both,
+which holds for none of these formats: `Json` would claim to read every type
+or to write only `Data`, and `D2` would claim to be read. Two traits let each
+direction state its own coverage, and binding checks each against its own
+table.
 
 ## `format` and its shorthands
 

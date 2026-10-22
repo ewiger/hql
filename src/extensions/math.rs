@@ -1,9 +1,8 @@
 //! The `math` module: numeric functions over `Int` and `Float`, and the
 //! conversions between the two.
 
-use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P};
-use super::{EvalCx, Operation, Purity};
-use super::{Signature, declared};
+use super::declared;
+use super::{EvalCx, Operation};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
 use crate::types::Value;
@@ -11,45 +10,13 @@ use std::ops::Range;
 
 /// Every step the `math` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
-    Operation {
-        name: "abs",
-        spec: Signature::Native(OperationSpec {
-            parameters: &[TypeParameter {
-                name: "N",
-                bound: None,
-            }],
-            input: P::Var("N"),
-            arguments: &[],
-            output: O::Input,
-        }),
-        summary: "The number without its sign.",
-        purity: Purity::Pure,
-        check: Some(check_number),
-        eval: eval_abs,
-    },
-    Operation {
-        name: "pow",
-        spec: Signature::Native(OperationSpec {
-            parameters: &[TypeParameter {
-                name: "N",
-                bound: None,
-            }],
-            input: P::Var("N"),
-            arguments: &[ArgumentSpec {
-                named: false,
-                ..ArgumentSpec::value("exponent", P::Var("N"))
-            }],
-            output: O::Input,
-        }),
-        summary: "The number raised to an exponent of the same type.",
-        purity: Purity::Pure,
-        check: Some(check_number),
-        eval: eval_pow,
-    },
-    Operation {
-        check: Some(check_number),
-        ..declared("sign", "-1, 0 or 1 by the sign of the number.", eval_sign)
-    },
+    declared("abs", "The number without its sign.", eval_abs),
+    declared(
+        "pow",
+        "The number raised to an exponent of the same type.",
+        eval_pow,
+    ),
+    declared("sign", "-1, 0 or 1 by the sign of the number.", eval_sign),
     declared("float", "The Int as a Float.", eval_float),
     declared(
         "int",
@@ -80,20 +47,6 @@ pub(crate) static STEPS: &[Operation] = &[
     declared("cos", "The cosine of an angle in radians.", eval_cos),
     declared("tan", "The tangent of an angle in radians.", eval_tan),
 ];
-
-fn check_number(
-    _: &mut dyn super::CheckCx,
-    call: &super::spec::CheckedCall<'_>,
-    span: Range<usize>,
-) -> Result<(), Diagnostic> {
-    if !matches!(call.input.constructor.0, "Int" | "Float") {
-        return Err(Diagnostic::typing(
-            span,
-            format!("this needs an Int or a Float, not {}", call.input),
-        ));
-    }
-    Ok(())
-}
 
 fn finite(value: f64, span: &Range<usize>) -> Result<Value, Diagnostic> {
     if value.is_finite() {

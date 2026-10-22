@@ -25,6 +25,13 @@ pub enum TypePattern {
     Iterable(&'static TypePattern),
     /// Any one of the alternatives.
     OneOf(&'static [TypePattern]),
+    /// A parameter bound by a shape, `S : Seq<T>`: what meets the shape,
+    /// held at its own type.
+    Is(&'static str, &'static TypePattern),
+    /// A constructor parameter applied to an element, `F<T>` with
+    /// `F<_> : Iterable<_>`: anything the bound's constructor holds, whose
+    /// constructor `F<U>` rebuilds around another element.
+    Family(&'static str, TypeConstructor, &'static TypePattern),
 }
 
 /// A generic parameter and its optional subtype bound.
@@ -46,8 +53,6 @@ pub enum ArgumentKind {
         parameters: &'static [TypePattern],
         result: TypePattern,
     },
-    /// An orderable key selector or a two-parameter comparator.
-    Ordering(TypePattern),
     /// A type name bound to a generic parameter.
     TypeName(&'static str),
 }
@@ -89,30 +94,11 @@ impl ArgumentSpec {
 pub enum Output {
     /// Instantiate a declared type pattern.
     Type(TypePattern),
-    /// Preserve the input's type.
-    Input,
-    /// Keep a sequence's type, since its positions are kept; anything else
-    /// gains an order and becomes a list.
-    Prefix(&'static str),
-    /// Like a prefix, except that a sequence whose type states where its
-    /// order came from loses that type, since a new order is not that one.
-    Reorder(&'static str),
-    /// Apply the input's constructor to the result element type.
-    Image(&'static str),
-    /// A number of the element's type; the sum of nothing is the `Int` zero.
-    Number(&'static str),
     /// One type over a finite input and another over a stream that may not
     /// end: a sequence keeps every guarantee it can prove.
     Finite {
         finite: TypePattern,
         open: TypePattern,
-    },
-    /// A fold: the accumulator when the initial value is supplied, and
-    /// otherwise an optional element, the accumulator then being the element.
-    Fold {
-        initial: &'static str,
-        accumulator: &'static str,
-        element: &'static str,
     },
     /// A type the providing extension computes from the call, named by the
     /// result written in help: what `source` reads depends on its endpoint
@@ -123,7 +109,7 @@ pub enum Output {
 impl ArgumentKind {
     /// Whether the argument is written as a function.
     fn is_function(self) -> bool {
-        matches!(self, Self::Lambda { .. } | Self::Ordering(_))
+        matches!(self, Self::Lambda { .. })
     }
 }
 
@@ -154,7 +140,80 @@ pub(crate) struct CheckedCall<'a> {
     pub bindings: BTreeMap<&'static str, TypeRef>,
 }
 
+/// A type viewed as one of its supertypes, with that constructor's own
+/// arguments: `Ranking<Card>` as a `Seq` is `Seq<Hit<Card>>`.
+fn viewed(actual: &TypeRef, constructor: TypeConstructor) -> Option<TypeRef> {
+    let system = crate::types::builtin::system().ok()?;
+    system.as_supertype(actual, constructor).ok().flatten()
+}
+
+/// The input viewed as a constructor shape, `Seq<T>`, where it has that
+/// constructor in its ancestry.
+fn viewed_shape(shape: &TypePattern, actual: &TypeRef) -> Option<TypeRef> {
+    match shape {
+        TypePattern::Apply(constructor, _) => viewed(actual, *constructor),
+        _ => None,
+    }
+}
+
+/// The refusal of an input no signature of an operation takes, naming what
+/// each one takes.
+pub(crate) fn refused(
+    name: &str,
+    inputs: &[TypePattern],
+    input: &TypeRef,
+    span: &Range<usize>,
+) -> Diagnostic {
+    // A whole-input operation over a stream fails for a reason a reader can
+    // act on: the input may not end.
+    if input.is_stream() && !input.is_collection() {
+        return Diagnostic::typing(
+            span.clone(),
+            format!(
+                "`{name}` needs a finite input, and {input} may not end; \
+                 bound it first with `take(n)`, or batch it with `collect(n)`"
+            ),
+        );
+    }
+    let mut wanted: Vec<String> = Vec::new();
+    for pattern in inputs {
+        let written = pattern.to_string();
+        if !wanted.contains(&written) {
+            wanted.push(written);
+        }
+    }
+    // Sequences asked for and sets given: a set's members have no positions
+    // until something orders them.
+    let unordered = input
+        .iterated()
+        .is_some_and(|element| element.is_collection() && !element.is_sequence());
+    let hint = if unordered && wanted.iter().any(|written| written.contains("Seq<")) {
+        "; a set has no positions, so sort each one first"
+    } else {
+        ""
+    };
+    Diagnostic::typing(
+        span.clone(),
+        format!("`{name}` needs {}, not {input}{hint}", wanted.join(" or ")),
+    )
+}
+
 impl TypePattern {
+    /// Whether the pattern refers to a parameter.
+    fn mentions(self, parameter: &str) -> bool {
+        match self {
+            Self::Any | Self::Type(_) => false,
+            Self::Var(name) => name == parameter,
+            Self::Apply(_, patterns) | Self::OneOf(patterns) => {
+                patterns.iter().any(|pattern| pattern.mentions(parameter))
+            }
+            Self::Collection(element) | Self::Iterable(element) => element.mentions(parameter),
+            Self::Is(name, inner) | Self::Family(name, _, inner) => {
+                name == parameter || inner.mentions(parameter)
+            }
+        }
+    }
+
     /// Whether a type fits the pattern, with nothing bound.
     pub(crate) fn accepts(self, actual: &TypeRef) -> bool {
         self.accept(actual, &mut BTreeMap::new())
@@ -210,6 +269,43 @@ impl TypePattern {
                     false
                 }
             }),
+            Self::Is(name, shape) => {
+                if bindings.contains_key(name) {
+                    return Self::Var(name).accept(actual, bindings);
+                }
+                // A shape's arguments are read off the input viewed as the
+                // shape: a `Ranking<T>` meets `Seq<Hit<T>>`.
+                // An open tree, which has no ancestry to view, meets a map
+                // shape as the shape itself says.
+                let met = match (*shape, viewed_shape(shape, actual)) {
+                    (Self::Apply(_, patterns), Some(view)) => {
+                        patterns.len() == view.args.len()
+                            && patterns
+                                .iter()
+                                .zip(&view.args)
+                                .all(|(pattern, actual)| pattern.accept(actual, bindings))
+                    }
+                    _ => shape.accept(actual, bindings),
+                };
+                if !met {
+                    return false;
+                }
+                bindings.insert(name, actual.clone());
+                true
+            }
+            Self::Family(name, base, element) => {
+                let Some(view) = viewed(actual, base) else {
+                    return false;
+                };
+                let [held] = view.args.as_slice() else {
+                    return false;
+                };
+                if !element.accept(held, bindings) {
+                    return false;
+                }
+                bindings.entry(name).or_insert_with(|| actual.clone());
+                true
+            }
         }
     }
 
@@ -231,6 +327,14 @@ impl TypePattern {
                     .map(|arg| arg.instantiate(bindings, span))
                     .collect::<Result<Vec<_>, _>>()?,
             )),
+            Self::Is(name, _) => Self::Var(name).instantiate(bindings, span),
+            // The input's own constructor around the new element: a set maps
+            // to a set, and a ranking, whose argument is not its element, to
+            // a sequence.
+            Self::Family(name, _, element) => {
+                let held = Self::Var(name).instantiate(bindings, span)?;
+                Ok(held.image(element.instantiate(bindings, span)?))
+            }
             _ => Err(Diagnostic::typing(
                 span.clone(),
                 "a result needs a concrete type expression",
@@ -281,9 +385,7 @@ impl OperationSpec {
                 )));
             }
             match argument.kind {
-                ArgumentKind::Value(pattern) | ArgumentKind::Ordering(pattern) => {
-                    patterns.push(pattern)
-                }
+                ArgumentKind::Value(pattern) => patterns.push(pattern),
                 ArgumentKind::TypeName(parameter) => patterns.push(TypePattern::Var(parameter)),
                 ArgumentKind::Lambda { parameters, result } => {
                     patterns.extend(parameters);
@@ -293,19 +395,7 @@ impl OperationSpec {
         }
         match self.output {
             Output::Type(pattern) => patterns.push(pattern),
-            Output::Prefix(parameter)
-            | Output::Reorder(parameter)
-            | Output::Image(parameter)
-            | Output::Number(parameter) => patterns.push(TypePattern::Var(parameter)),
-            Output::Fold {
-                accumulator,
-                element,
-                ..
-            } => {
-                patterns.push(TypePattern::Var(accumulator));
-                patterns.push(TypePattern::Var(element));
-            }
-            Output::Input | Output::Computed(_) => {}
+            Output::Computed(_) => {}
             Output::Finite { finite, open } => {
                 patterns.push(finite);
                 patterns.push(open);
@@ -343,6 +433,12 @@ impl OperationSpec {
                     }
                     patterns.extend(alternatives);
                 }
+                TypePattern::Is(name, inner) | TypePattern::Family(name, _, inner) => {
+                    if !parameters.contains(name) {
+                        return Err(SpecError(format!("undeclared parameter `{name}`")));
+                    }
+                    patterns.push(*inner);
+                }
             }
         }
         Ok(())
@@ -359,32 +455,156 @@ impl OperationSpec {
     ) -> Result<(TypeRef, CheckedCall<'a>), Diagnostic> {
         let mut bindings = BTreeMap::new();
         if !self.input.accept(input, &mut bindings) {
-            // A whole-input operation over a stream fails for a reason a
-            // reader can act on: the input may not end.
-            if input.is_stream() && !input.is_collection() {
+            return Err(refused(name, &[self.input], input, span));
+        }
+        let (supplied, trailing) = self.assign(name, cx, arguments)?;
+        let variadic = self.arguments.iter().position(|argument| argument.variadic);
+        for (spec, argument) in self.arguments.iter().zip(supplied) {
+            let Some(argument) = argument else {
+                if spec.required {
+                    return Err(Diagnostic::typing(
+                        span.clone(),
+                        format!("`{name}` needs `{}`", spec.name),
+                    ));
+                }
+                continue;
+            };
+            let argument_span = &argument.value.span;
+            let (actual, pattern) = match spec.kind {
+                ArgumentKind::Value(pattern) => (cx.infer(&argument.value)?, pattern),
+                ArgumentKind::TypeName(parameter) => {
+                    (cx.type_argument(argument)?, TypePattern::Var(parameter))
+                }
+                ArgumentKind::Lambda { parameters, result } => {
+                    let parameters = parameters
+                        .iter()
+                        .map(|parameter| parameter.instantiate(&bindings, argument_span))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    (cx.lambda_parameters(argument, parameters)?, result)
+                }
+            };
+            // An alias parameter whose type no annotation gave takes the
+            // type this argument requires.
+            if actual.constructor.0.starts_with("%?") {
+                let expected = pattern.instantiate(&bindings, argument_span).ok();
+                if cx.placeholder(&actual, expected) {
+                    continue;
+                }
+            }
+            if !pattern.accept(&actual, &mut bindings) {
                 return Err(Diagnostic::typing(
-                    span.clone(),
+                    argument_span.clone(),
                     format!(
-                        "`{name}` needs a finite input, and {input} may not end; \
-                         bound it first with `take(n)`, or batch it with `collect(n)`"
+                        "`{name}` argument `{}` needs {pattern}, not {actual}",
+                        spec.name
                     ),
                 ));
             }
-            // Sequences asked for and sets given: a set's members have no
-            // positions until something orders them.
-            let unordered = input
-                .iterated()
-                .is_some_and(|element| element.is_collection() && !element.is_sequence());
-            let hint = if unordered && self.input.to_string().contains("Seq<") {
-                "; a set has no positions, so sort each one first"
-            } else {
-                ""
-            };
-            return Err(Diagnostic::typing(
-                span.clone(),
-                format!("`{name}` needs {}, not {input}{hint}", self.input),
-            ));
         }
+        if let Some(variadic) = variadic {
+            let ArgumentKind::Value(pattern) = self.arguments[variadic].kind else {
+                unreachable!("validated as a value");
+            };
+            for argument in trailing {
+                let actual = cx.infer(&argument.value)?;
+                if !pattern.accept(&actual, &mut bindings) {
+                    return Err(Diagnostic::typing(
+                        argument.value.span.clone(),
+                        format!(
+                            "`{name}` argument `{}` needs {pattern}, not {actual}",
+                            self.arguments[variadic].name
+                        ),
+                    ));
+                }
+            }
+        }
+        for parameter in self.parameters {
+            // A parameter only an omitted argument would bind stays unbound.
+            if let Some(bound) = parameter.bound
+                && bindings.contains_key(parameter.name)
+            {
+                let actual = TypePattern::Var(parameter.name).instantiate(&bindings, span)?;
+                if !actual.is(&TypeRef::from(bound)) {
+                    // The element of the input lacking an order is the
+                    // common case, and supplying one is the remedy.
+                    let message = if TypeRef::from(bound) == TypeRef::ORDERABLE
+                        && self.input.mentions(parameter.name)
+                    {
+                        format!(
+                            "`{name}` needs elements with an order of their own, and {actual} \
+                             has none; sort with an explicit key first"
+                        )
+                    } else {
+                        format!(
+                            "`{name}` requires {} : {bound}, not {actual}",
+                            parameter.name
+                        )
+                    };
+                    return Err(Diagnostic::typing(span.clone(), message));
+                }
+            }
+        }
+        let result = match self.output {
+            Output::Type(pattern) => pattern.instantiate(&bindings, span)?,
+            // Only a stream that may not end takes the open form; a finite
+            // collection and a single value take the finite one.
+            Output::Finite { finite, open } => {
+                if input.is_stream() && !input.is_collection() {
+                    open.instantiate(&bindings, span)?
+                } else {
+                    finite.instantiate(&bindings, span)?
+                }
+            }
+            Output::Computed(_) => TypeRef::UNIT,
+        };
+        let call = CheckedCall {
+            input,
+            input_expr,
+            arguments,
+            bindings,
+        };
+        let result = match self.output {
+            Output::Computed(_) => super::io::result(name, &call)
+                .map_err(|message| Diagnostic::typing(span.clone(), message))?,
+            _ => result,
+        };
+        Ok((result, call))
+    }
+
+    /// Whether a call can take this signature: its input meets the declared
+    /// input, every argument has a place, every required one is supplied, and
+    /// a function written in place takes as many parameters as its place
+    /// does. Nothing is checked beyond that, so choosing a signature infers
+    /// nothing.
+    pub(crate) fn fits(&self, cx: &mut dyn CheckCx, input: &TypeRef, arguments: &[Arg]) -> bool {
+        if !self.input.accepts(input) {
+            return false;
+        }
+        let Ok((supplied, _)) = self.assign("", cx, arguments) else {
+            return false;
+        };
+        self.arguments
+            .iter()
+            .zip(supplied)
+            .all(|(spec, argument)| match (argument, spec.kind) {
+                (None, _) => !spec.required,
+                (Some(argument), ArgumentKind::Lambda { parameters, .. }) => cx
+                    .function_arity(argument)
+                    .is_none_or(|arity| arity == parameters.len()),
+                (Some(_), _) => true,
+            })
+    }
+
+    /// Each argument's place: the supplied argument for each declared one,
+    /// and the positional arguments past the last place, which a variadic
+    /// argument collects.
+    #[allow(clippy::type_complexity)]
+    fn assign<'a>(
+        &self,
+        name: &str,
+        cx: &mut dyn CheckCx,
+        arguments: &'a [Arg],
+    ) -> Result<(Vec<Option<&'a Arg>>, Vec<&'a Arg>), Diagnostic> {
         let mut supplied = vec![None; self.arguments.len()];
         let mut positions = self
             .arguments
@@ -439,192 +659,7 @@ impl OperationSpec {
                 ));
             }
         }
-        let folded_from_first = match self.output {
-            Output::Fold {
-                initial,
-                accumulator,
-                element,
-            } => {
-                let omitted = self
-                    .arguments
-                    .iter()
-                    .zip(&supplied)
-                    .any(|(spec, argument)| spec.name == initial && argument.is_none());
-                if omitted && let Some(bound) = bindings.get(element).cloned() {
-                    bindings.insert(accumulator, bound);
-                }
-                omitted
-            }
-            _ => false,
-        };
-        for (spec, argument) in self.arguments.iter().zip(supplied) {
-            let Some(argument) = argument else {
-                if spec.required {
-                    return Err(Diagnostic::typing(
-                        span.clone(),
-                        format!("`{name}` needs `{}`", spec.name),
-                    ));
-                }
-                continue;
-            };
-            let argument_span = &argument.value.span;
-            let (actual, pattern) = match spec.kind {
-                ArgumentKind::Value(pattern) => (cx.infer(&argument.value)?, pattern),
-                ArgumentKind::TypeName(parameter) => {
-                    (cx.type_argument(argument)?, TypePattern::Var(parameter))
-                }
-                ArgumentKind::Lambda { parameters, result } => {
-                    let parameters = parameters
-                        .iter()
-                        .map(|parameter| parameter.instantiate(&bindings, argument_span))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    (cx.lambda_parameters(argument, parameters)?, result)
-                }
-                ArgumentKind::Ordering(element) => {
-                    let element = element.instantiate(&bindings, argument_span)?;
-                    let comparator = cx.function_arity(argument) == Some(2);
-                    let actual = cx.lambda_parameters(
-                        argument,
-                        if comparator {
-                            vec![element.clone(), element]
-                        } else {
-                            vec![element]
-                        },
-                    )?;
-                    let expected = if comparator {
-                        TypeRef::ORDERING
-                    } else {
-                        TypeRef::ORDERABLE
-                    };
-                    if !actual.is(&expected) {
-                        return Err(Diagnostic::typing(
-                            argument_span.clone(),
-                            format!(
-                                "a sort {} must return {expected}, not {actual}",
-                                if comparator { "comparison" } else { "key" }
-                            ),
-                        ));
-                    }
-                    continue;
-                }
-            };
-            // An alias parameter whose type no annotation gave takes the
-            // type this argument requires.
-            if actual.constructor.0.starts_with("%?") {
-                let expected = pattern.instantiate(&bindings, argument_span).ok();
-                if cx.placeholder(&actual, expected) {
-                    continue;
-                }
-            }
-            if !pattern.accept(&actual, &mut bindings) {
-                return Err(Diagnostic::typing(
-                    argument_span.clone(),
-                    format!(
-                        "`{name}` argument `{}` needs {pattern}, not {actual}",
-                        spec.name
-                    ),
-                ));
-            }
-        }
-        if let Some(variadic) = variadic {
-            let ArgumentKind::Value(pattern) = self.arguments[variadic].kind else {
-                unreachable!("validated as a value");
-            };
-            for argument in trailing {
-                let actual = cx.infer(&argument.value)?;
-                if !pattern.accept(&actual, &mut bindings) {
-                    return Err(Diagnostic::typing(
-                        argument.value.span.clone(),
-                        format!(
-                            "`{name}` argument `{}` needs {pattern}, not {actual}",
-                            self.arguments[variadic].name
-                        ),
-                    ));
-                }
-            }
-        }
-        for parameter in self.parameters {
-            // A parameter only an omitted argument would bind stays unbound.
-            if let Some(bound) = parameter.bound
-                && bindings.contains_key(parameter.name)
-            {
-                let actual = TypePattern::Var(parameter.name).instantiate(&bindings, span)?;
-                if !actual.is(&TypeRef::from(bound)) {
-                    return Err(Diagnostic::typing(
-                        span.clone(),
-                        format!(
-                            "`{name}` requires {} : {bound}, not {actual}",
-                            parameter.name
-                        ),
-                    ));
-                }
-            }
-        }
-        let result = match self.output {
-            Output::Type(pattern) => pattern.instantiate(&bindings, span)?,
-            Output::Input => input.clone(),
-            // A sequence already has the order a prefix is taken in, so it
-            // keeps its type; anything else is materialized.
-            Output::Prefix(parameter) => {
-                if input.is_sequence() {
-                    input.clone()
-                } else {
-                    TypeRef::list(TypePattern::Var(parameter).instantiate(&bindings, span)?)
-                }
-            }
-            Output::Reorder(parameter) => {
-                let element = TypePattern::Var(parameter).instantiate(&bindings, span)?;
-                if input.is_sequence() && input.args.as_slice() == [element.clone()] {
-                    input.clone()
-                } else if input.is_sequence() {
-                    TypeRef::seq(element)
-                } else {
-                    TypeRef::list(element)
-                }
-            }
-            Output::Image(parameter) => {
-                let element = TypePattern::Var(parameter).instantiate(&bindings, span)?;
-                input.image(element)
-            }
-            Output::Number(parameter) => {
-                let element = TypePattern::Var(parameter).instantiate(&bindings, span)?;
-                if element == TypeRef::NEVER {
-                    TypeRef::INT
-                } else {
-                    element
-                }
-            }
-            // Only a stream that may not end takes the open form; a finite
-            // collection and a single value take the finite one.
-            Output::Finite { finite, open } => {
-                if input.is_stream() && !input.is_collection() {
-                    open.instantiate(&bindings, span)?
-                } else {
-                    finite.instantiate(&bindings, span)?
-                }
-            }
-            Output::Fold { accumulator, .. } => {
-                let result = TypePattern::Var(accumulator).instantiate(&bindings, span)?;
-                if folded_from_first {
-                    TypeRef::optional(result)
-                } else {
-                    result
-                }
-            }
-            Output::Computed(_) => TypeRef::UNIT,
-        };
-        let call = CheckedCall {
-            input,
-            input_expr,
-            arguments,
-            bindings,
-        };
-        let result = match self.output {
-            Output::Computed(_) => super::io::result(name, &call)
-                .map_err(|message| Diagnostic::typing(span.clone(), message))?,
-            _ => result,
-        };
-        Ok((result, call))
+        Ok((supplied, trailing))
     }
 
     /// Render the same contract the checker consumes.
@@ -633,9 +668,12 @@ impl OperationSpec {
         let parameters = self
             .parameters
             .iter()
-            .map(|parameter| match parameter.bound {
-                Some(bound) => format!("{} : {bound}", parameter.name),
-                None => parameter.name.to_owned(),
+            .map(|parameter| match (parameter.bound, self.input) {
+                (Some(bound), _) => format!("{} : {bound}", parameter.name),
+                (None, TypePattern::Family(family, ..)) if family == parameter.name => {
+                    format!("{family}<_>")
+                }
+                (None, _) => parameter.name.to_owned(),
             })
             .collect::<Vec<_>>();
         let generics = if parameters.is_empty() {
@@ -643,7 +681,7 @@ impl OperationSpec {
         } else {
             format!("<{}>", parameters.join(", "))
         };
-        let render = |argument: &ArgumentSpec, substitute: &dyn Fn(String) -> String| {
+        let render = |argument: &ArgumentSpec| {
             let kind = match argument.kind {
                 ArgumentKind::Value(pattern) => pattern.to_string(),
                 ArgumentKind::TypeName(parameter) => format!("Type<{parameter}>"),
@@ -655,16 +693,13 @@ impl OperationSpec {
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
-                ArgumentKind::Ordering(element) => {
-                    format!("({element} -> Orderable) | (({element}, {element}) -> Ordering)")
-                }
             };
             format!(
                 "{}{}: {}{}{}",
                 if argument.variadic { "..." } else { "" },
                 argument.name,
                 if argument.required { "" } else { "?" },
-                substitute(kind),
+                kind,
                 if !argument.named {
                     " (positional)"
                 } else if !argument.positional {
@@ -677,104 +712,36 @@ impl OperationSpec {
         let arguments = self
             .arguments
             .iter()
-            .map(|argument| render(argument, &|kind| kind))
+            .map(render)
             .collect::<Vec<_>>()
             .join(", ");
-        let call_with = |input: &str, generics: &str, arguments: &str, output: &str| {
+        let call = |input: &str, generics: &str, output: &str| {
             format!("{input} | {name}{generics}({arguments}) -> {output}")
         };
-        let call = |input: &str, generics: &str, output: &str| {
-            call_with(input, generics, &arguments, output)
+        // A parameter the input binds is written with its shape where the
+        // input is, and by name where it comes back.
+        let input = match self.input {
+            TypePattern::Is(parameter, shape) => format!("{parameter} : {shape}"),
+            TypePattern::Family(parameter, base, element) => {
+                format!("{parameter}<{element}> : {base}<{element}>")
+            }
+            other => other.to_string(),
         };
-        let with = |extra: &[&str]| {
-            let all = extra
-                .iter()
-                .map(|parameter| (*parameter).to_owned())
-                .chain(parameters.iter().cloned())
-                .collect::<Vec<_>>();
-            format!("<{}>", all.join(", "))
+        let written = |pattern: TypePattern| match pattern {
+            TypePattern::Is(parameter, _) => parameter.to_owned(),
+            TypePattern::Family(parameter, _, element) => format!("{parameter}<{element}>"),
+            other => other.to_string(),
         };
-        let input = self.input.to_string();
         // One line per overload, most specific first, in the form issue 0018
         // settles: `S` is the input's own type, `F<_>` its constructor.
         let lines = match self.output {
-            Output::Type(pattern) => vec![call(&input, &generics, &pattern.to_string())],
+            Output::Type(pattern) => vec![call(&input, &generics, &written(pattern))],
             Output::Computed(written) => vec![call(&input, &generics, written)],
-            Output::Number(parameter) => vec![call(&input, &generics, parameter)],
-            Output::Input => match self.input {
-                TypePattern::Var(parameter) => vec![call(parameter, &generics, parameter)],
-                _ => vec![call(&format!("S : {input}"), &with(&["S"]), "S")],
-            },
-            Output::Image(parameter) => vec![call(
-                &format!("F<{}> : {input}", self.element_name()),
-                &with(&["F<_>"]),
-                &format!("F<{parameter}>"),
-            )],
             Output::Finite { finite, open } => {
                 let element = self.element_name();
                 vec![
                     call(&format!("Stream<{element}>"), &generics, &open.to_string()),
                     call(&format!("Seq<{element}>"), &generics, &finite.to_string()),
-                ]
-            }
-            Output::Prefix(parameter) => vec![
-                call(&format!("S : Seq<{parameter}>"), &with(&["S"]), "S"),
-                call(&input, &generics, &format!("List<{parameter}>")),
-            ],
-            Output::Reorder(parameter) => vec![
-                call(
-                    &format!("Ranking<U> : Seq<{parameter}>"),
-                    &with(&["U"]),
-                    &format!("Seq<{parameter}>"),
-                ),
-                call(&format!("S : Seq<{parameter}>"), &with(&["S"]), "S"),
-                call(&input, &generics, &format!("List<{parameter}>")),
-            ],
-            // Without the initial value the accumulator is the element, so the
-            // second overload is written with one substituted for the other.
-            Output::Fold {
-                initial,
-                accumulator,
-                element,
-            } => {
-                let from_first = self
-                    .arguments
-                    .iter()
-                    .filter(|argument| argument.name != initial)
-                    .map(|argument| {
-                        render(argument, &|kind: String| kind.replace(accumulator, element))
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let generics_from_first = format!(
-                    "<{}>",
-                    parameters
-                        .iter()
-                        .filter(|parameter| parameter.as_str() != accumulator)
-                        .cloned()
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                );
-                let with_initial = self
-                    .arguments
-                    .iter()
-                    .map(|argument| {
-                        let required = ArgumentSpec {
-                            required: true,
-                            ..*argument
-                        };
-                        render(&required, &|kind| kind)
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                vec![
-                    call_with(&input, &generics, &with_initial, accumulator),
-                    call_with(
-                        &input,
-                        &generics_from_first,
-                        &from_first,
-                        &format!("Option<{element}>"),
-                    ),
                 ]
             }
         };
@@ -817,6 +784,10 @@ impl fmt::Display for TypePattern {
                     .collect::<Vec<_>>()
                     .join(" | ")
             ),
+            // Where a pattern is read as a requirement, a parameter bound by
+            // its shape is the shape.
+            Self::Is(_, shape) => write!(f, "{shape}"),
+            Self::Family(_, base, element) => write!(f, "{base}<{element}>"),
         }
     }
 }

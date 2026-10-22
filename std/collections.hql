@@ -51,56 +51,92 @@ type Group<K, T> {
 }
 
 // Core operations, callable directly or through a pipe. Each one returns the
-// type it was given: `S` is the input's own type and `F<_>` its constructor,
-// where `F<X> : Iterable<X>` for every `X`. An operation that gains a
-// guarantee its input lacks returns the type that states it.
-// size<T>(xs: Collection<T>) : Int
-// count<T>(xs: Collection<T>) : Int                  the kept alias of size
-// count<T>(xs: Collection<T>, value: T) : Int
-// contains<T>(xs: Collection<T>, value: T) : Bool
-// get<K, V>(xs: Map<K, V>, key: K) : Option<V>
-// filter<S : Iterable<T>, T>(xs: S, by: T -> Bool) : S
-// filter<F<_> : Iterable<_>, T, U>(xs: F<T>, by: x => x | is(U)) : F<U>   narrows
-// of_type<F<_> : Iterable<_>, T, U>(xs: F<T>, type: Type<U>) : F<U>   filter(x => x | is(U))
-// is<T, U>(x: T, type: Type<U>) : Bool          refused when no T can be a U
-// map<F<_> : Iterable<_>, T, U>(xs: F<T>, by: T -> U) : F<U>
-// take<S : Seq<T>, T>(xs: S, n: Int) : S
-// take<T>(xs: Stream<T>, n: Int) : List<T>             a bounded prefix is finite
-// drop<S : Stream<T>, T>(xs: S, n: Int) : S
-// collect<T>(xs: Stream<T>, n: Int) : Stream<List<T>>   batches of n, in order
-// collect<T>(xs: Seq<T>, n: Int) : List<List<T>>
-// emit<T>(xs: Stream<Seq<T>>) : Stream<T>               xs | collect(n) | emit = xs
-// emit<T>(xs: Seq<Seq<T>>) : List<T>
-// flat_map<T, U>(xs: Stream<T>, by: T -> Seq<U>) : Stream<U>   map(by) | emit
-// flat_map<T, U>(xs: Seq<T>, by: T -> Seq<U>) : List<U>
-// take<T : Orderable>(xs: Collection<T>, n: Int) : List<T>
-// sort<T>(xs: Ranking<T>, by: …) : Seq<Hit<T>>
-// sort<S : Seq<T>, T : Orderable>(xs: S) : S
-// sort<T : Orderable>(xs: Collection<T>) : List<T>
-// sort<S : Seq<T>, T>(xs: S, by: (T, T) -> Ordering) : S
-// sort<T>(xs: Collection<T>, by: (T, T) -> Ordering) : List<T>
-// sort<S : Seq<T>, T, K : Orderable>(xs: S, by: T -> K) : S
-// sort<T, K : Orderable>(xs: Collection<T>, by: T -> K) : List<T>
-// A Set maps to its image, which may be smaller than the input. A Ranking's
-// element is Hit<T>, not T, so `map` takes it as the Seq<Hit<T>> it is and
-// returns a Seq<U>; `take` keeps it a Ranking; `sort` gives it a new order
-// that is not the retrieval's, so the result is a Seq<Hit<T>>.
-// Sorting supplies positions; its input need not already be a sequence.
-// group<T, K>(xs: Collection<T>, by: T -> K) : Set<Group<K, T>>
-// reduce<T, R>(xs: Seq<T>, initial: R, by: (R, T) -> R) : R
-// reduce<T>(xs: Seq<T>, by: (T, T) -> T) : Option<T>       none over []
-// sum(xs: Collection<Int>) : Int                           reduce(0, +); [] | sum is 0
-// product(xs: Collection<Int>) : Int                       reduce(1, *)
-// average<T>(xs: Collection<T>) : Option<Float>            none over []
-// merge_all<M>(xs: Seq<M>) : M                             reduce({}, merge), a later key winning
-// union_all<T>(xs: Collection<Set<T>>) : Set<T>            reduce(Set([]), union)
-// concat_all<T>(xs: Seq<Seq<T>>) : List<T>                 reduce([], concat)
+// type it was given: `S : Seq<T>` is the input at its own type, and
+// `F<_> : Iterable<_>` its constructor, which `F<U>` rebuilds around another
+// element. An operation that gains a guarantee its input lacks returns the
+// type that states it.
+//
+// Every declaration is external: the core implements it, and binding holds
+// the two to each other. A name declared more than once is overloaded: a call
+// takes the first declaration its input and its arguments fit, so the more
+// specific forms come first.
+
+fn size<T>(xs: Collection<T>) : Int
+// The kept alias of size.
+fn count<T>(xs: Collection<T>) : Int
+fn count<T>(xs: Collection<T>, value: T) : Int
+fn contains<T>(xs: Collection<T>, value: T) : Bool
+fn get<K, V>(xs: Map<K, V>, key: K) : Option<V>
+
+// A predicate that tests the element's type, `x => x | is(U)`, narrows the
+// result to F<U>: of_type(U) is that filter. Over one optional value, filter
+// keeps it or makes it absent, and map maps what is present; map over a
+// result maps its success. An optional collection is a collection that may
+// be absent, so filter and map over it reach its elements.
+fn filter<S : Iterable<T>, T>(xs: S, by: T -> Bool) : S
+fn filter<T>(xs: Option<T>, by: T -> Bool) : Option<T>
+fn of_type<F<_> : Collection<_>, T, U>(xs: F<T>, type: Type<U>) : F<U>
+// Refused when no T can be a U.
+fn is<T, U>(x: T, type: Type<U>) : Bool
+// Keeps the present values.
+fn somes<F<_> : Collection<_>, T>(xs: F<Option<T>>) : F<T>
+fn map<F<_> : Iterable<_>, T, R>(xs: F<T>, by: T -> R) : F<R>
+fn map<T, R>(xs: Option<T>, by: T -> R) : Option<R>
+fn map<T, R, E>(xs: Result<T, E>, by: T -> R) : Result<R, E>
+
+// A prefix of a sequence keeps its positions; a bounded prefix of a stream is
+// finite; a prefix of anything else is taken in its elements' order.
+fn take<S : Seq<T>, T>(xs: S, n: Int) : S
+fn take<T>(xs: Stream<T>, n: Int) : List<T>
+fn take<T : Orderable>(xs: Collection<T>, n: Int) : List<T>
+// Refused over values without a stable order.
+fn drop<S : Iterable<T>, T>(xs: S, n: Int) : S
+// Batches of n, in order. xs | collect(n) | emit = xs.
+fn collect<T>(xs: Collection<T>, n: Int) : List<List<T>>
+fn collect<T>(xs: Stream<T>, n: Int) : Stream<List<T>>
+fn emit<T>(xs: Collection<Seq<T>>) : List<T>
+fn emit<T>(xs: Stream<Seq<T>>) : Stream<T>
+// map(by) | emit.
+fn flat_map<T, U>(xs: Collection<T>, by: T -> Seq<U>) : List<U>
+fn flat_map<T, U>(xs: Stream<T>, by: T -> Seq<U>) : Stream<U>
+
+// Sorting supplies positions; its input need not already be a sequence. A
+// sequence is rebuilt in its own constructor, so a List stays a List, while
+// a Ranking, whose element is Hit<T> and not T, becomes a Seq<Hit<T>>: the
+// new order is not the retrieval's.
+fn sort<F<_> : Seq<_>, T : Orderable>(xs: F<T>) : F<T>
+fn sort<T : Orderable>(xs: Collection<T>) : List<T>
+fn sort<F<_> : Seq<_>, T, K : Orderable>(xs: F<T>, by: T -> K) : F<T>
+fn sort<T, K : Orderable>(xs: Collection<T>, by: T -> K) : List<T>
+fn sort<F<_> : Seq<_>, T>(xs: F<T>, by: (T, T) -> Ordering) : F<T>
+fn sort<T>(xs: Collection<T>, by: (T, T) -> Ordering) : List<T>
+// A Set maps to its image, which may be smaller than the input; a Ranking
+// maps as the Seq<Hit<T>> it is, to a Seq<U>; take keeps it a Ranking.
+fn group<T, K>(xs: Collection<T>, by: T -> K) : Set<Group<K, T>>
+
+// Without an initial value the fold starts at the first element, and is
+// absent over [].
+fn reduce<T, R>(xs: Collection<T>, initial: R, by: (R, T) -> R) : R
+fn reduce<T>(xs: Collection<T>, by: (T, T) -> T) : Option<T>
+// reduce(0, +); [] | sum is 0.
+fn sum(xs: Collection<Int>) : Int
+fn sum(xs: Collection<Float>) : Float
+// reduce(1, *).
+fn product(xs: Collection<Int>) : Int
+fn product(xs: Collection<Float>) : Float
+// Absent over [].
+fn average(xs: Collection<Int>) : Option<Float>
+fn average(xs: Collection<Float>) : Option<Float>
+// reduce({}, merge), a later key winning; reduce(Set([]), union).
+fn merge_all<T>(xs: Collection<T>) : T
+fn union_all<T>(xs: Collection<T>) : T
+// reduce([], concat).
+fn concat_all<U>(xs: Collection<Seq<U>>) : List<U>
+// reduce(min) and reduce(max).
+fn min<T : Orderable>(xs: Collection<T>) : Option<T>
+fn max<T : Orderable>(xs: Collection<T>) : Option<T>
 // The combiners: min(a, b), max(a, b), merge(m, n), union(s, t), concat(xs, ys).
 // Named as a whole argument, a combiner or `+` / `*` is the function that
 // combines two values with it: `reduce(0, +)`. A fold whose combiner ignores
-// order (+, *, min, max, union) accepts any collection.
-// sum(xs: Collection<Float>) : Float                       reduce(0.0, +)
-// min<T : Orderable>(xs: Collection<T>) : Option<T>        reduce(min)
-// max<T : Orderable>(xs: Collection<T>) : Option<T>        reduce(max)
-// A fold visits positions, so reduce refuses a Set; sum, min and max combine
-// in an order-independent way and accept any collection.
+// order (+, *, min, max, union) accepts any collection; one that does not
+// visits positions, and so refuses a Set.

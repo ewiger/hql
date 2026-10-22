@@ -27,18 +27,42 @@ type Csv       : Format
 type D2        : Format
 type Mermaid   : Format
 
-// The codec contracts. A Decoder<F, T> reads records of the format F as
-// values of T; an Encoder<T, F> writes values of T as records of F. HQL
-// declares the contract and an extension implements it: parsing, encoding,
-// framing and buffering stay native. The decoders provided today:
-//   Decoder<Lines, String>  Decoder<Text, String>
-//   Decoder<Json, Data>     Decoder<JsonLines, Data>
-//   Decoder<Yaml, Data>     Decoder<Csv, Data>
-//   Decoder<Markdown, String>  Decoder<Hmd, String>  Decoder<Hql, String>
-// Every format has an encoder for every value, apart from D2 and Mermaid,
-// which encode a Graph alone.
-abstract type Decoder<F, T>
-abstract type Encoder<T, F>
+// The codec contracts, over the format: a Decoder<T> reads records of the
+// format as values of T, an Encoder<T> writes values of T as records of it.
+// HQL declares each codec as a bodyless header and an extension implements
+// it: parsing, encoding, framing and buffering stay native. Binding holds
+// these headers and the runtime's decoder and encoder tables to each other,
+// so `source(e, F)` reads the T of F's decoder and `format(x, F)` takes
+// what F's encoders cover. A format writes one type in several ways, so a
+// format has an Encoder at every type it writes, and a renderer chosen for a
+// type in a format is one of them.
+trait Decoder<T> {}
+trait Encoder<T> {}
+
+impl Decoder<String> for Text
+impl Decoder<String> for Lines
+impl Decoder<String> for Hql
+impl Decoder<String> for Markdown
+impl Decoder<String> for Hmd
+impl Decoder<Data> for Json
+impl Decoder<Data> for JsonLines
+impl Decoder<Data> for Yaml
+impl Decoder<Data> for Csv
+
+impl<T> Encoder<T> for Text
+impl<T> Encoder<T> for Lines
+impl<T> Encoder<T> for Hql
+impl<T> Encoder<T> for Markdown
+impl<T> Encoder<T> for Hmd
+impl<T> Encoder<T> for Json
+impl<T> Encoder<T> for JsonLines
+impl<T> Encoder<T> for Yaml
+impl<T> Encoder<T> for Csv
+// D2 and Mermaid describe graphs: a Graph, or a document holding one.
+impl Encoder<Graph> for D2
+impl Encoder<Data> for D2
+impl Encoder<Graph> for Mermaid
+impl Encoder<Data> for Mermaid
 
 // Encoding a value in a format, provided by the `format` module. The result
 // is the encoded text, a String that keeps its format for presentation:

@@ -156,28 +156,34 @@ pub struct Operation {
 /// Where an operation's checking signature comes from.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Signature {
-    /// Its external declaration in a standard module: binding derives the
-    /// signature, and Rust writes no type.
+    /// Its external declarations in a standard module: binding derives one
+    /// signature from each, an overloaded name having several, and Rust
+    /// writes no type.
     Declared,
     /// Written here, for an operation no contract declares or one whose
-    /// result the contract language cannot state yet: kept, reordered or
-    /// folded from the input, or computed from the call. Binding compares it
-    /// with the declaration wherever the declaration states one.
+    /// result is computed from the call. Binding compares it with the
+    /// declaration wherever the declaration states one; a native operation
+    /// has one signature, so its name is declared once.
     Native(OperationSpec),
 }
 
 /// The signatures binding derives for declared operations, by the address of
-/// the operation, which lives in a static table.
-fn declared_specs() -> &'static HashMap<usize, OperationSpec> {
-    static SPECS: std::sync::OnceLock<HashMap<usize, OperationSpec>> = std::sync::OnceLock::new();
+/// the operation, which lives in a static table: one per declaration, in the
+/// order written, an overloaded name having several.
+fn declared_specs() -> &'static HashMap<usize, Vec<OperationSpec>> {
+    static SPECS: std::sync::OnceLock<HashMap<usize, Vec<OperationSpec>>> =
+        std::sync::OnceLock::new();
     SPECS.get_or_init(|| {
-        declared_signatures()
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|(_, _, step, declared)| {
-                Some((std::ptr::from_ref(step) as usize, declared.ok()?))
-            })
-            .collect()
+        let mut specs: HashMap<usize, Vec<OperationSpec>> = HashMap::new();
+        for (_, _, step, declared) in declared_signatures().unwrap_or_default() {
+            if let Ok(declared) = declared {
+                specs
+                    .entry(std::ptr::from_ref(step) as usize)
+                    .or_default()
+                    .push(declared);
+            }
+        }
+        specs
     })
 }
 
@@ -187,7 +193,7 @@ const UNBOUND: OperationSpec = OperationSpec {
     parameters: &[],
     input: spec::TypePattern::Any,
     arguments: &[],
-    output: spec::Output::Input,
+    output: spec::Output::Type(spec::TypePattern::Any),
 };
 
 /// A pure operation whose signature is its declaration in a standard
@@ -204,30 +210,53 @@ pub(crate) const fn declared(name: &'static str, summary: &'static str, eval: Ev
 }
 
 impl Operation {
-    /// The structural signature used for checking and help.
+    /// The structural signature used for checking and help: the first
+    /// overload of a name declared more than once.
     pub(crate) fn spec(&self) -> &OperationSpec {
+        &self.specs()[0]
+    }
+
+    /// The signature a call takes: the first overload it fits. Where none
+    /// fits, the first its input meets, so checking names the argument that
+    /// is wrong; where the input meets none, the refusal lists what it may be.
+    pub(crate) fn overload(
+        &self,
+        cx: &mut dyn CheckCx,
+        input: &crate::types::TypeRef,
+        arguments: &[crate::ast::Arg],
+        span: &std::ops::Range<usize>,
+    ) -> Result<&OperationSpec, Diagnostic> {
+        let specs = self.specs();
+        if let [only] = specs {
+            return Ok(only);
+        }
+        if let Some(spec) = specs
+            .iter()
+            .find(|spec| spec.fits(cx, input, arguments))
+            .or_else(|| specs.iter().find(|spec| spec.input.accepts(input)))
+        {
+            return Ok(spec);
+        }
+        let inputs: Vec<_> = specs.iter().map(|spec| spec.input).collect();
+        Err(spec::refused(self.name, &inputs, input, span))
+    }
+
+    /// Every signature the operation takes, most specific first: a call
+    /// takes the first one it fits.
+    pub(crate) fn specs(&self) -> &[OperationSpec] {
         match &self.spec {
-            Signature::Native(spec) => spec,
+            Signature::Native(spec) => std::slice::from_ref(spec),
             Signature::Declared => declared_specs()
                 .get(&(std::ptr::from_ref(self) as usize))
-                .unwrap_or(&UNBOUND),
+                .map_or(std::slice::from_ref(&UNBOUND), Vec::as_slice),
         }
     }
 
-    /// Whether the step returns its input as it is, at whatever type it has —
-    /// `debug`. Such a step sees an optional value unlifted, absence included,
-    /// because it neither consumes the value nor promises anything about it.
-    pub(crate) fn keeps_input(&self) -> bool {
-        self.spec().output == spec::Output::Input
-            && matches!(self.spec().input, spec::TypePattern::Var(_))
-    }
-
     /// Whether the step receives an optional input as it is, absence
-    /// included: a step that keeps its input, one declared over `Option<T>`,
-    /// and `str`, whose text is of the whole value.
+    /// included: one declared over `Option<T>`, and `str`, whose text is of
+    /// the whole value.
     pub(crate) fn takes_raw_input(&self) -> bool {
-        self.keeps_input()
-            || self.name == "str"
+        self.name == "str"
             || matches!(self.spec().input, spec::TypePattern::Apply(constructor, _) if matches!(constructor.0, "Option" | "Result"))
     }
 }
@@ -564,8 +593,12 @@ pub fn bind() -> Result<(), String> {
 /// language declares, and nothing besides.
 fn bind_native_impls() -> Result<(), String> {
     let headers = crate::library::native_impls()?;
-    for header in &headers {
-        if traits::native_impl(&header.trait_name, &header.target).is_none() {
+    bind_codecs(&headers)?;
+    for header in headers
+        .iter()
+        .filter(|header| !is_codec(&header.trait_name))
+    {
+        if traits::native_header_impl(&header.trait_name, &header.target).is_none() {
             return Err(format!(
                 "`std/{}` declares `impl {} for {}` natively, and no extension implements it",
                 header.module, header.trait_name, header.target
@@ -582,6 +615,89 @@ fn bind_native_impls() -> Result<(), String> {
                  `impl {} for {}`: an extension implements declarations and creates none",
                 held.trait_name, held.target, held.trait_name, held.target
             ));
+        }
+    }
+    Ok(())
+}
+
+/// Whether a trait is a codec contract, implemented by the decoder and
+/// encoder tables rather than by trait functions.
+fn is_codec(trait_name: &str) -> bool {
+    matches!(trait_name, "Decoder" | "Encoder")
+}
+
+/// The codec headers of `std/format.hql` and the runtime's tables say the
+/// same: a format the runtime reads has one `Decoder` header naming the type
+/// it reads as, a format it does not read has none, and a format writes a
+/// type exactly when one of its `Encoder` headers covers that type.
+fn bind_codecs(headers: &[crate::library::NativeHeader]) -> Result<(), String> {
+    let codecs: Vec<&crate::library::NativeHeader> = headers
+        .iter()
+        .filter(|header| is_codec(&header.trait_name))
+        .collect();
+    for header in &codecs {
+        if !format::FORMATS
+            .iter()
+            .any(|(name, _)| *name == header.target)
+        {
+            return Err(format!(
+                "`std/{}` declares `impl {} for {}`, and {} is not a format",
+                header.module, header.trait_name, header.target, header.target
+            ));
+        }
+    }
+    let named = |header: &crate::library::NativeHeader| {
+        let argument = &header.arguments[0];
+        if header.generics.contains(&argument.name) {
+            return Ok(None);
+        }
+        crate::types::builtin::named(&argument.name, &[])
+            .map(Some)
+            .ok_or_else(|| format!("`{}` names no type", argument.name))
+    };
+    let samples = [
+        TypeRef::INT,
+        TypeRef::STR,
+        TypeRef::DATA,
+        TypeRef::GRAPH,
+        TypeRef::list(TypeRef::INT),
+    ];
+    for (format_name, _) in format::FORMATS {
+        let format_type = crate::types::TypeConstructor(format_name);
+        let of = |trait_name: &str| {
+            codecs
+                .iter()
+                .filter(|header| header.trait_name == trait_name && header.target == format_name)
+                .map(|header| named(header))
+                .collect::<Result<Vec<_>, String>>()
+        };
+        let decoders = of("Decoder")?;
+        match (crate::io::document_type(format_type), decoders.as_slice()) {
+            (Ok(read), [Some(declared)]) if *declared == read => {}
+            (Err(_), []) => {}
+            (read, declared) => {
+                return Err(format!(
+                    "{format_name} reads as {}, and `std/format.hql` declares {} decoder{} for it",
+                    read.map_or_else(|_| "nothing".to_owned(), |ty| ty.to_string()),
+                    declared.len(),
+                    if declared.len() == 1 { "" } else { "s" }
+                ));
+            }
+        }
+        let encoders = of("Encoder")?;
+        for sample in &samples {
+            let writes = format::writable(sample, format_name).is_ok();
+            let declared = encoders.iter().any(|encoder| match encoder {
+                None => true,
+                Some(ty) => sample.takes_implementation_of(ty),
+            });
+            if writes != declared {
+                return Err(format!(
+                    "{format_name} {} {sample}, and `std/format.hql` {} an encoder for it",
+                    if writes { "writes" } else { "does not write" },
+                    if declared { "declares" } else { "declares no" }
+                ));
+            }
         }
     }
     Ok(())
@@ -667,6 +783,19 @@ fn bind_contracts() -> Result<(), String> {
             )
         })?;
         if let Signature::Native(native) = &step.spec {
+            // One native signature cannot hold to several declarations.
+            let overloads = derived
+                .iter()
+                .filter(|(_, _, held, _)| std::ptr::eq(*held, *step))
+                .count();
+            if overloads > 1 {
+                return Err(format!(
+                    "`{module}.{}` is declared {overloads} times, and the extension `{}` \
+                     writes one signature for it: an overloaded operation takes its \
+                     signatures from its declarations",
+                    step.name, provider.name
+                ));
+            }
             let found = contract::departures(native, declared);
             if !found.is_empty() {
                 return Err(format!(
@@ -749,9 +878,14 @@ impl Resolution {
     pub(crate) fn new(config: &Config) -> Result<Self, Diagnostic> {
         for extension in REGISTERED {
             for step in extension.steps {
-                step.spec().validate().map_err(|error| {
-                    Diagnostic::typing(0..0, format!("{}.{}, {error}", extension.name, step.name))
-                })?;
+                for spec in step.specs() {
+                    spec.validate().map_err(|error| {
+                        Diagnostic::typing(
+                            0..0,
+                            format!("{}.{}, {error}", extension.name, step.name),
+                        )
+                    })?;
+                }
             }
         }
         bind().map_err(|message| Diagnostic::typing(0..0, message))?;
@@ -867,18 +1001,22 @@ impl Resolution {
                 let fitting: Vec<_> = many
                     .iter()
                     .filter(|(_, step)| {
-                        step.spec().input.accepts(input)
-                            || (input.constructor.0 == "Option"
-                                && step.spec().input.accepts(input.present()))
+                        step.specs().iter().any(|spec| {
+                            spec.input.accepts(input)
+                                || (input.constructor.0 == "Option"
+                                    && spec.input.accepts(input.present()))
+                        })
                     })
                     .collect();
                 let by_arity: Vec<_> = fitting
                     .iter()
                     .filter(|(_, step)| {
-                        let specs = step.spec().arguments;
-                        let required = specs.iter().filter(|spec| spec.required).count();
-                        let variadic = specs.iter().any(|spec| spec.variadic);
-                        positional >= required && (variadic || positional <= specs.len())
+                        step.specs().iter().any(|spec| {
+                            let specs = spec.arguments;
+                            let required = specs.iter().filter(|spec| spec.required).count();
+                            let variadic = specs.iter().any(|spec| spec.variadic);
+                            positional >= required && (variadic || positional <= specs.len())
+                        })
                     })
                     .collect();
                 match (by_arity.as_slice(), fitting.as_slice()) {
@@ -984,8 +1122,11 @@ pub struct Listing {
     pub name: &'static str,
     /// How it is called.
     pub signature: String,
-    /// The structural contract behind the rendered signature.
+    /// The structural contract behind the rendered signature: the first
+    /// overload of an overloaded step.
     pub spec: &'static OperationSpec,
+    /// Every overload, in the order a call tries them.
+    pub specs: &'static [OperationSpec],
     /// One sentence about what it does.
     pub summary: &'static str,
     /// Whether the executor may move it.
@@ -999,6 +1140,8 @@ pub struct Provider {
     pub name: &'static str,
     /// The version this extension reports.
     pub version: &'static str,
+    /// The standard modules whose contracts it implements.
+    pub provides: &'static [&'static str],
     /// Whether a program in this vault has it without asking.
     pub availability: Availability,
     /// What it supplies.
@@ -1018,6 +1161,7 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
         .map(|extension| Provider {
             name: extension.name,
             version: extension.version,
+            provides: extension.provides,
             availability: if extension.name == CORE.name {
                 Availability::Core
             } else if config.prelude && prelude().contains(&extension.name) {
@@ -1034,8 +1178,14 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
                     provider: extension.name,
                     version: extension.version,
                     name: step.name,
-                    signature: step.spec().signature(step.name),
+                    signature: step
+                        .specs()
+                        .iter()
+                        .map(|spec| spec.signature(step.name))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
                     spec: step.spec(),
+                    specs: step.specs(),
                     summary: step.summary,
                     purity: step.purity,
                 })

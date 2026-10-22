@@ -39,11 +39,12 @@ pub(crate) enum Stmt {
     External(ExternalDecl),
     /// `name(p, ..) := body`: a function whose types the checker writes.
     Alias(AliasDecl),
-    /// `trait Name { fn m(self, ..) : R [= body] .. }`: a capability contract.
+    /// `trait Name<T> { fn m(self, ..) : R [= body] .. }`: a capability
+    /// contract.
     Trait(TraitDecl),
-    /// `impl Name for Type { fn m(self, ..) : R = body .. }`: a type's
-    /// implementation of a trait; `impl Name for Type` alone declares one an
-    /// extension implements.
+    /// `impl<T> Name<A> for Type { fn m(self, ..) : R = body .. }`: a type's
+    /// implementation of a trait; the header alone declares one an extension
+    /// implements.
     Impl(ImplDecl),
     Expr(Expr),
 }
@@ -53,6 +54,10 @@ pub(crate) enum Stmt {
 #[derive(Debug)]
 pub(crate) struct TraitDecl {
     pub name: String,
+    /// The trait's type parameters, `T` in `trait Index<T>`.
+    pub generics: Vec<String>,
+    /// The bound a type parameter is written with, `T : Data`.
+    pub bounds: Vec<(String, TypeAnn)>,
     pub methods: Vec<MethodDecl>,
     pub span: Range<usize>,
 }
@@ -60,7 +65,12 @@ pub(crate) struct TraitDecl {
 /// An implementation of a trait for a type.
 #[derive(Debug)]
 pub(crate) struct ImplDecl {
+    /// The implementation's own type parameters, `T` in `impl<T>`.
+    pub generics: Vec<String>,
+    pub bounds: Vec<(String, TypeAnn)>,
     pub trait_name: String,
+    /// The trait's arguments, `T` in `Index<T>`.
+    pub trait_arguments: Vec<TypeAnn>,
     pub target: TypeAnn,
     /// Whether the header stands alone: the implementation is native, and an
     /// extension supplies every function of it.
@@ -214,6 +224,18 @@ pub(crate) struct TypeAnn {
     pub name: String,
     pub arguments: Vec<TypeAnn>,
     pub span: Range<usize>,
+}
+
+impl TypeAnn {
+    /// Whether this is a constructor with its arguments left open,
+    /// `Iterable<_>`: the bound of a constructor parameter.
+    pub(crate) fn is_constructor(&self) -> bool {
+        !self.arguments.is_empty()
+            && self
+                .arguments
+                .iter()
+                .all(|argument| argument.name == "_" && argument.arguments.is_empty())
+    }
 }
 
 #[derive(Debug)]

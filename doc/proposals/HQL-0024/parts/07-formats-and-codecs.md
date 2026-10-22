@@ -43,15 +43,19 @@ bytes -> Format + Decoder -> HQL values
 HQL values + Encoder + Format -> bytes
 ```
 
-The typed relationship is a pair of contracts:
+The typed relationship is a pair of generic traits over the format
+([HQL-0027](../../HQL-0027/README.md)):
 
 ```hql
-abstract type Decoder<F, T>    // F : Format, decodes to T
-abstract type Encoder<T, F>    // F : Format, encodes a T
+trait Decoder<T> {}            // Self is the format; decodes to T
+trait Encoder<T> {}            // Self is the format; encodes a T
+
+impl Decoder<String> for Lines
+impl<T> Encoder<T> for Lines
 ```
 
-`Decoder<Lines, String>` and `Encoder<String, Lines>` say that `Lines`
-decodes logical line records into `String` values and encodes `String` values
+`impl Decoder<String> for Lines` and `impl<T> Encoder<T> for Lines` say that
+`Lines` decodes logical line records into `String` values and encodes values
 back into line records. The format holds no implementation: HQL declares the
 contract, an extension declares that it implements it, and the codec itself,
 parsing, encoding, framing, buffering and the low-level I/O mechanics, lives
@@ -133,9 +137,10 @@ Both stay, as HQL-0021 has them.
   through `target`.
 - The decoder table is `io::document_type` and the encoder table is the
   renderer table of the [presentation card](../../../wiki/hql/presentation.hmd),
-  both in Rust; `std/format.hql` declares `Decoder<F, T>` and `Encoder<T, F>`
-  as the contracts they implement. A declared `impl Encoder<T, F> for …`
-  written in HQL is not yet admitted: generic traits wait for a later record.
+  both in Rust; `std/format.hql` declares the traits `Decoder<T>` and
+  `Encoder<T>` and one native header per codec, and binding holds the headers
+  and the tables to each other. An HQL `impl Encoder<T> for …` with a body
+  waits for a format to be a value a program holds.
 - [HQL-0017](../../HQL-0017/README.md) is superseded in its one rule that a
   format is a `String` subtype; its three questions and the renderer model
   stand.
@@ -149,4 +154,6 @@ Both stay, as HQL-0021 has them.
 3. Accepting HQL-0021 with this format model. `Text` as one whole document is
    done.
 4. Binary formats as a format kind, and codecs an extension or an HQL `impl`
-   provides, once generic traits exist.
+   provides. Generic traits exist ([HQL-0027](../../HQL-0027/README.md)), and
+   the codec contracts are traits; an HQL `impl` waits for formats as
+   values.

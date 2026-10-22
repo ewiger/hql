@@ -17,6 +17,11 @@ The [slicing](slicing/README.md) cases take a position with `xs[i]` and a
 slice with `xs[a:b]` over strings, lists, documents, streams and a declared
 type, written ahead of [HQL-0026](../doc/proposals/HQL-0026/README.md).
 
+The [generic traits](generic-traits/README.md) cases give a trait and an
+implementation type parameters, `impl<T> Index<T> for Ring<T>`, and infer a
+bound's open parameter from the implementation a call reaches, from
+[HQL-0027](../doc/proposals/HQL-0027/README.md).
+
 The [todo board](todo/README.md) lists open tasks and architecture decisions
 with `hql#eval` cells, reading typed sort keys out of card metadata.
 

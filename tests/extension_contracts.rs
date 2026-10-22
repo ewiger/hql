@@ -12,8 +12,12 @@ fn every_catalogue_signature_is_generated_from_its_structural_contract() {
     assert_eq!(count, 164);
     for provider in providers {
         for step in provider.steps {
-            step.spec.validate().unwrap();
-            assert_eq!(step.signature, step.spec.signature(step.name));
+            let mut lines = Vec::new();
+            for spec in step.specs {
+                spec.validate().unwrap();
+                lines.push(spec.signature(step.name));
+            }
+            assert_eq!(step.signature, lines.join("\n"));
             assert!(step.signature.contains(" -> "));
         }
     }
@@ -52,7 +56,7 @@ fn contracts_reject_unknown_duplicate_missing_and_mistyped_arguments() {
         "[1] | take",
         "[1] | take(true)",
         "[1] | size(unknown)",
-        "[1] | count(value = 1)",
+        "[1] | count(wrong = 1)",
         "[1] | contains(\"one\")",
         "[1] | map(by = n => n, by = n => n)",
         "[1] | map(n => n, unknown)",
@@ -115,6 +119,74 @@ fn every_registered_step_runs_at_its_declared_result_type() {
             outcome.value.unwrap().type_of(),
             outcome.inferred.unwrap(),
             "{source}"
+        );
+    }
+}
+
+/// A name declared more than once is checked against the first declaration
+/// its input and arguments fit, and its result is the one that declaration
+/// states.
+#[test]
+fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
+    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/birds")).unwrap();
+    for (source, expected) in [
+        ("[3, 1] | sort", "List<Int>"),
+        ("{3, 1} | sort", "List<Int>"),
+        ("[3, 1] | sort(by = n => n)", "List<Int>"),
+        ("{3, 1} | sort((a, b) => compare(b, a))", "List<Int>"),
+        ("[1, 2] | take(1)", "List<Int>"),
+        ("{1, 2} | take(1)", "List<Int>"),
+        ("{1, 2} | map(n => n > 1)", "Set<Bool>"),
+        ("[1, 2] | reduce((a, b) => a + b)", "Option<Int>"),
+        ("[1, 2] | reduce(0, (a, b) => a + b)", "Int"),
+        ("[1, 2] | count", "Int"),
+        ("[1, 2] | count(1)", "Int"),
+        ("[] | sum", "Int"),
+        ("[1.5] | sum", "Float"),
+        ("[[1], [2]] | emit", "List<Int>"),
+        ("-1 | abs", "Int"),
+        ("2.0 | pow(2.0)", "Float"),
+        ("Map([\"a\"], [1]) | with(\"b\", 2)", "Map<String, Int>"),
+        ("some(2) | map(n => n > 1)", "Option<Bool>"),
+        ("some([1, 2]) | map(n => n > 1)", "List<Bool>"),
+        ("some(2) | filter(n => n > 1)", "Option<Int>"),
+        ("ok(2) | map(n => n + 1)", "Result<Int, Never>"),
+        ("cards | first | filter(c => c | is(Card))", "Option<Card>"),
+        (
+            "import lexical\ncards | lexical(\"owl\") | sort(by = h => h.score)",
+            "Seq<Hit<Card>>",
+        ),
+        (
+            "import lexical\ncards | lexical(\"owl\") | take(1)",
+            "Ranking<Card>",
+        ),
+        (
+            "import lexical\ncards | lexical(\"owl\") | reverse",
+            "Seq<Hit<Card>>",
+        ),
+    ] {
+        let outcome = hql::run(source, &vault, Mode::Strict);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        assert_eq!(outcome.inferred.unwrap().to_string(), expected, "{source}");
+    }
+    for (source, message) in [
+        (
+            "[\"a\"] | sum",
+            "`sum` needs Collection<Int> or Collection<Float>, not List<String>",
+        ),
+        ("{true} | take(1)", "an order of their own"),
+        ("[1] | collect", "`collect` needs `n`"),
+        // An open tree is a list or not only at run time.
+        ("[1, \"a\"] | first | map(x => x)", "not Data"),
+    ] {
+        let outcome = hql::run(source, &vault, Mode::Strict);
+        assert!(
+            outcome
+                .reports
+                .iter()
+                .any(|report| report.message.contains(message)),
+            "{source}: {:?}",
+            outcome.reports
         );
     }
 }

@@ -10,6 +10,33 @@ The language continues to be in active development.
 
 ### Added
 
+- Generic traits ([HQL-0027](doc/proposals/HQL-0027/README.md), shown in the
+  [generic traits corpus](examples/generic-traits/README.md)): a trait takes
+  type parameters, `trait Index<T>`, an implementation its own,
+  `impl<T> Index<T> for Ring<T>`, and a bound names a generic trait,
+  `E : Index<T>`, a call filling `T` from the implementation that applies.
+  One type may implement a trait at several arguments, chosen by a call's
+  argument types; overlapping implementations are refused, generic or
+  concrete. `Index<T>` is a core trait: `xs[i]` over a declared type is its
+  `xs.at(i)`, and a sequence and Data implement it natively. The codec
+  contracts are the traits `Decoder<T>` and `Encoder<T>` over the format,
+  their native headers bound to the decoder and encoder tables.
+
+- Overloaded declarations in the standard library: one name declared more
+  than once in a `std/` module is one operation with several signatures, and
+  a call takes the first its input and arguments fit. A bound written with
+  arguments, `S : Seq<T>`, holds the input at its own type, and a constructor
+  parameter, `F<_> : Iterable<_>`, rebuilds it around another element as
+  `F<U>`; `Type<U>` takes a type name. The core's collection operations,
+  `std/collections.hql`, are declared this way rather than described in
+  comments: `take`, `sort`, `collect`, `emit`, `flat_map`, `reduce`, `count`,
+  `sum`, `product` and `average` by overload, `map`, `of_type` and `somes`
+  over `F<_>`, `filter` and `drop` over `S`, and `map` and `filter` over one
+  `Option` and `map` over a `Result` as overloads of their own. So are `reverse`, `distinct`,
+  `take_while`, `drop_while`, `min_by`, `max_by`, `with`, `without`,
+  `intersection` and `difference` of `seq`, and `abs`, `pow` and `sign` of
+  `math`, over an `Int` or a `Float`. `hql builtins` prints each overload.
+
 - String functions in the prelude
   ([issue 0031](doc/issues/0031-missing-string-functions.md)):
   `last_index_of`, `occurrences`, `strip_prefix` and `strip_suffix` (an

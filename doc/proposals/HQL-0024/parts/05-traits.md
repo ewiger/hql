@@ -64,7 +64,10 @@ workspace module writes the functions in braces.
 ### Coherence
 
 For one effective environment there is at most one implementation of a trait
-for a concrete type, whether it is native or HQL. Two are a compile error
+for a concrete type at one set of the trait's arguments, whether it is native
+or HQL; [HQL-0027](../../HQL-0027/README.md) gives traits and implementations
+type parameters and states the overlap rule between a generic and a concrete
+implementation. Two are a compile error
 naming both, across the standard library, the imported modules and the
 program; import order never chooses, and the one implementation reached
 through two imports is still one. An implementation is declared by the unit
@@ -87,11 +90,13 @@ code or language semantics has to quantify over a shared capability.
 
 ## Current state
 
-Built: `trait` and `impl` with `Self`, default bodies, `T : Trait` bounds
-checked at every call, dispatch on the value's own type, operators resolving
-through `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Eq` and `Ord`, native headers for
-the built-in types in `std/core.hql`, coherence and ownership as above. The
-core set is `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div` and `Rem`; `Neg`,
+Built: `trait` and `impl` with `Self` and type parameters,
+`impl<T> Index<T> for Seq<T>`, default bodies, `T : Trait` and
+`E : Index<T>` bounds checked at every call with open parameters inferred,
+dispatch on the value's own type, operators resolving through `Add`, `Sub`,
+`Mul`, `Div`, `Rem`, `Eq`, `Ord` and `Index`, native headers for the
+built-in types in `std/core.hql`, coherence and ownership as above. The core
+set is `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` and `Index`; `Neg`,
 `Hashable` and `Numeric` are not declared.
 
 | Type | Native implementations |
@@ -99,6 +104,8 @@ core set is `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div` and `Rem`; `Neg`,
 | `Bool` | `Eq` |
 | `Int`, `Float` | `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` |
 | `String`, `Date` | `Eq`, `Ord` |
+| `Seq<T>`, and so `List<T>` and `Ranking<T>` | `Index<T>` |
+| `Data` | `Index<Data>` |
 
 `Orderable` stays as the ancestry form of `Ord`: the built-in ordered types
 name it in their supertype sets, and a type implementing `Ord` adopts it, so

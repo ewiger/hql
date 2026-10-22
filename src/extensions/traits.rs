@@ -8,7 +8,7 @@
 
 use crate::ast::Arith;
 use crate::diagnostics::Diagnostic;
-use crate::types::Value;
+use crate::types::{TypeConstructor, TypeRef, Value};
 use std::ops::Range;
 
 /// The functions of one trait, run natively over a receiver and the
@@ -52,10 +52,28 @@ pub(crate) static NATIVE_IMPLS: &[NativeImpl] = &[
     native("Div", "Float", arithmetic),
     native("Rem", "Int", arithmetic),
     native("Rem", "Float", arithmetic),
+    native("Index", "Seq", position),
+    native("Index", "Data", position),
 ];
 
-/// The native implementation of a trait for a type, by the type's name.
-pub(crate) fn native_impl(trait_name: &str, target: &str) -> Option<&'static NativeImpl> {
+/// The native implementation of a trait for a type: the one declared for
+/// the type itself, or for a type it narrows, as a List takes Seq's.
+pub(crate) fn native_impl(trait_name: &str, receiver: &TypeRef) -> Option<&'static NativeImpl> {
+    let system = crate::types::builtin::system().ok();
+    NATIVE_IMPLS.iter().find(|held| {
+        held.trait_name == trait_name
+            && (held.target == receiver.constructor.0
+                || system.as_ref().is_some_and(|system| {
+                    system
+                        .as_supertype(receiver, TypeConstructor(held.target))
+                        .is_ok_and(|view| view.is_some())
+                }))
+    })
+}
+
+/// The native implementation a header declares, by its trait and its
+/// implementing type's name.
+pub(crate) fn native_header_impl(trait_name: &str, target: &str) -> Option<&'static NativeImpl> {
     NATIVE_IMPLS
         .iter()
         .find(|held| held.trait_name == trait_name && held.target == target)
@@ -112,4 +130,19 @@ fn arithmetic(
         }
     };
     crate::evaluation::arithmetic_of(operator, receiver, other(method, arguments, span)?, span)
+}
+
+fn position(
+    method: &str,
+    receiver: Value,
+    arguments: Vec<Value>,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let Some(Value::Int(position)) = arguments.into_iter().next() else {
+        return Err(Diagnostic::runtime(
+            span.clone(),
+            format!("`{method}` takes a position, an Int"),
+        ));
+    };
+    crate::evaluation::at_position(receiver, position, &TypeRef::NEVER, span)
 }

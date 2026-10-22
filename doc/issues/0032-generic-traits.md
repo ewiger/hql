@@ -1,10 +1,11 @@
 # 0032 — Traits take type parameters
 
-Status: todo
+Status: done
 Related: [HQL-0024 traits](../proposals/HQL-0024/parts/05-traits.md),
 [HQL-0024 formats and codecs](../proposals/HQL-0024/parts/07-formats-and-codecs.md),
 [HQL-0024 type system completion](../proposals/HQL-0024/parts/11-type-system-completion.md),
 [HQL-0026](../proposals/HQL-0026/README.md),
+[HQL-0027](../proposals/HQL-0027/README.md),
 [type system](../wiki/hql/type-system.hmd)
 
 A trait declares functions over `Self` and the concrete types it names; it

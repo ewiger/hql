@@ -77,6 +77,18 @@ impl Parser {
         token
     }
 
+    /// The `_` of a constructor parameter, `F<_>`.
+    fn hole(&mut self) -> Result<(), Diagnostic> {
+        let written = self.advance();
+        match written.token {
+            Token::Ident(name) if name == "_" => Ok(()),
+            _ => Err(Diagnostic::syntax(
+                written.span,
+                "a constructor parameter takes `_`: `F<_>`",
+            )),
+        }
+    }
+
     fn eat(&mut self, expected: &Token) -> bool {
         if self.peek() == expected {
             self.advance();
@@ -255,7 +267,10 @@ impl Parser {
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "impl"
-            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+            && matches!(
+                self.tokens[self.index + 1].token,
+                Token::Ident(_) | Token::Less
+            )
         {
             return Ok(Stmt::Impl(self.implementation()?));
         }
@@ -695,29 +710,80 @@ impl Parser {
         }))
     }
 
-    /// `trait Name { fn m(self, p: T) : R [= body] … }`, one function per line.
+    /// `<T, E : Bound>` after a function, trait or `impl`: the type
+    /// parameters and the bounds they are written with. Nothing when no `<`
+    /// follows.
+    fn type_parameters(&mut self) -> Result<(Vec<String>, Vec<(String, TypeAnn)>), Diagnostic> {
+        let mut generics = Vec::new();
+        let mut bounds = Vec::new();
+        if self.eat(&Token::Less) {
+            loop {
+                let parameter = self.advance();
+                let Token::Ident(parameter) = parameter.token else {
+                    return Err(Diagnostic::syntax(
+                        parameter.span,
+                        "expected a type parameter",
+                    ));
+                };
+                // `F<_> : Iterable<_>`: a parameter that stands for a type
+                // constructor, bound by the constructor it refines.
+                let constructor = self.eat(&Token::Less);
+                if constructor {
+                    self.hole()?;
+                    self.expect(&Token::Greater, "after `_` in a constructor parameter")?;
+                }
+                if self.eat(&Token::Colon) {
+                    let bound = self.simple_type()?;
+                    if constructor && !bound.is_constructor() {
+                        return Err(Diagnostic::syntax(
+                            bound.span,
+                            "a constructor parameter is bound by a constructor: `F<_> : Iterable<_>`",
+                        ));
+                    }
+                    bounds.push((parameter.clone(), bound));
+                } else if constructor {
+                    return Err(Diagnostic::syntax(
+                        self.peek_span(),
+                        "a constructor parameter needs its bound: `F<_> : Iterable<_>`",
+                    ));
+                }
+                generics.push(parameter);
+                if !self.eat(&Token::Comma) {
+                    break;
+                }
+            }
+            self.expect(&Token::Greater, "after type parameters")?;
+        }
+        Ok((generics, bounds))
+    }
+
+    /// `trait Name<T> { fn m(self, p: T) : R [= body] … }`, one function per
+    /// line.
     fn trait_declaration(&mut self) -> Result<TraitDecl, Diagnostic> {
         let start = self.advance().span.start;
         let named = self.advance();
         let Token::Ident(name) = named.token else {
             return Err(Diagnostic::syntax(named.span, "expected a trait name"));
         };
+        let (generics, bounds) = self.type_parameters()?;
         let (methods, end) = self.methods("a trait")?;
         Ok(TraitDecl {
             name,
+            generics,
+            bounds,
             methods,
             span: start..end,
         })
     }
 
-    /// `impl Name for Type { fn m(self, p: T) : R = body … }`, or the header
-    /// alone for a native implementation.
+    /// `impl<T> Name<A> for Type { fn m(self, p: T) : R = body … }`, or the
+    /// header alone for a native implementation.
     fn implementation(&mut self) -> Result<ImplDecl, Diagnostic> {
         let start = self.advance().span.start;
-        let named = self.advance();
-        let Token::Ident(trait_name) = named.token else {
-            return Err(Diagnostic::syntax(named.span, "expected a trait name"));
-        };
+        let (generics, bounds) = self.type_parameters()?;
+        let named = self.simple_type()?;
+        let trait_name = named.name;
+        let trait_arguments = named.arguments;
         self.expect(
             &Token::Ident("for".to_owned()),
             "after the trait an impl provides",
@@ -726,7 +792,10 @@ impl Parser {
         if !matches!(self.peek(), Token::OpenBrace) {
             let end = target.span.end;
             return Ok(ImplDecl {
+                generics,
+                bounds,
                 trait_name,
+                trait_arguments,
                 target,
                 native: true,
                 methods: Vec::new(),
@@ -735,7 +804,10 @@ impl Parser {
         }
         let (methods, end) = self.methods("an impl")?;
         Ok(ImplDecl {
+            generics,
+            bounds,
             trait_name,
+            trait_arguments,
             target,
             native: false,
             methods,
@@ -866,27 +938,7 @@ impl Parser {
         let Token::Ident(name) = named.token else {
             return Err(Diagnostic::syntax(named.span, "expected a function name"));
         };
-        let mut generics = Vec::new();
-        let mut bounds = Vec::new();
-        if self.eat(&Token::Less) {
-            loop {
-                let parameter = self.advance();
-                let Token::Ident(parameter) = parameter.token else {
-                    return Err(Diagnostic::syntax(
-                        parameter.span,
-                        "expected a type parameter",
-                    ));
-                };
-                if self.eat(&Token::Colon) {
-                    bounds.push((parameter.clone(), self.simple_type()?));
-                }
-                generics.push(parameter);
-                if !self.eat(&Token::Comma) {
-                    break;
-                }
-            }
-            self.expect(&Token::Greater, "after type parameters")?;
-        }
+        let (generics, bounds) = self.type_parameters()?;
         self.expect(&Token::OpenParen, "to open the parameters")?;
         self.nesting += 1;
         let mut parameters: Vec<Param> = Vec::new();

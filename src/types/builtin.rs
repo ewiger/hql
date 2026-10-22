@@ -459,6 +459,25 @@ impl TypeRef {
         })
     }
 
+    /// Whether this type is a union: its values are those of its members.
+    pub fn is_union(&self) -> bool {
+        system().is_ok_and(|system| {
+            system
+                .definition(self.constructor)
+                .is_ok_and(|definition| matches!(definition.kind, TypeKind::Union(_)))
+        })
+    }
+
+    /// Whether an implementation for `target` is one for this type: the
+    /// type narrows it, and a union's is the union's own, not each member's.
+    /// `Int` narrows `Data`, and `Data`'s implementations are not `Int`'s.
+    pub fn takes_implementation_of(&self, target: &Self) -> bool {
+        if target.is_union() {
+            return self.constructor == target.constructor;
+        }
+        self.is(target)
+    }
+
     /// Whether values of this type carry an intrinsic total ordering.
     pub fn is_orderable(&self) -> bool {
         self.is(&Self::ORDERABLE)

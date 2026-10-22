@@ -106,8 +106,8 @@ pub(crate) struct ModuleFunction {
     pub parameter_names: Vec<String>,
     /// Its type parameters: the name, its variable and its bound.
     pub generics: Option<Vec<(String, TypeRef, Option<TypeRef>)>>,
-    /// Its trait bounds: the parameter name, its variable and the trait.
-    pub trait_bounds: Option<Vec<(String, TypeRef, String)>>,
+    /// Its trait bounds, each with the trait's arguments.
+    pub trait_bounds: Option<Vec<crate::checker::Bounded>>,
     /// The effectful operations its body uses, when it is effectful.
     pub effectful: Option<Vec<String>>,
 }

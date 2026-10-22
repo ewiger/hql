@@ -33,9 +33,6 @@ is a List, an open one stays a Stream.
 ## Non-goals
 
 - A step, `xs[a:b:s]`. Every other element is `enumerate` with `filter`.
-- An `Index` capability. A position's result is the element type, which a
-  trait cannot name until traits take type parameters; `xs[i]` stays
-  language-defined over the built-in types.
 - Assignment through a bracket. Values are immutable.
 - `a:b` as an expression outside a bracket. A `Range` elsewhere is built with
   its constructor.
@@ -105,7 +102,7 @@ A slice is of its receiver's type; a position is an `Option` of its element.
 | `Option<S>` | `Option` of `S`'s position | `Option<S>`; absence stays absence |
 | `Stream<T>` | refused, as today | see the Stream rules below |
 | `Set<T>`, `Map<K, V>` | refused, as today | refused, with the same messages |
-| a type implementing `Slice` | refused | the type itself |
+| a declared type | `Option<T>` through its `Index<T>`, refused without one | the type itself, through its `Slice`, refused without one |
 
 - A String's positions MUST count characters, as `length`, `char_at` and
   `slice` do.
@@ -138,9 +135,15 @@ trait Slice {
 
 - `Slice` is a language-owned core trait in
   [`std/core.hql`](../../../std/core.hql), beside the operator traits.
-- `String`, `List`, `Seq`, `Ranking` and `Data` implement it natively with
-  bodyless headers; binding holds the headers and the native bodies to each
-  other, as for the other core traits.
+- `String`, `Seq` and `Data` implement it natively with bodyless headers,
+  `impl Slice for String` and `impl<T> Slice for Seq<T>`, the generic header
+  of [HQL-0027](../HQL-0027/README.md); a List and a Ranking take `Seq`'s.
+  Binding holds the headers and the native bodies to each other, as for the
+  other core traits.
+- A position resolves through `Index<T>`, the core trait of HQL-0027:
+  `xs[i]` over a declared type implementing it is `xs.at(i)`, and the rules
+  for [resolving a position](#3-resolving-a-position) bind the native
+  implementations.
 - A declared type implements `Slice` for its own values; the rules for
   [resolving a position](#3-resolving-a-position) bind the built-in implementations, and
   a declared one says what a part of its value is.

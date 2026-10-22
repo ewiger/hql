@@ -117,13 +117,19 @@ pub fn contracts() -> Result<Contracts, String> {
 /// A bodyless `impl` header of a standard module: the declaration that a
 /// type implements a trait natively, which an extension's function bodies
 /// satisfy.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct NativeHeader {
     /// The canonical name of the module declaring it.
     pub module: &'static str,
     pub trait_name: String,
     /// The implementing type's name.
     pub target: String,
+    /// The implementation's type parameters, `T` of `impl<T>`.
+    pub(crate) generics: Vec<String>,
+    /// The trait's arguments, `T` of `Index<T>`.
+    pub(crate) arguments: Vec<crate::ast::TypeAnn>,
+    /// The implementing type as written, `Seq<T>`.
+    pub(crate) target_type: crate::ast::TypeAnn,
 }
 
 /// Every native implementation the standard library declares, in order.
@@ -150,6 +156,9 @@ pub fn native_impls() -> Result<Vec<NativeHeader>, String> {
                                 module: name,
                                 trait_name: declaration.trait_name.clone(),
                                 target: declaration.target.name.clone(),
+                                generics: declaration.generics.clone(),
+                                arguments: declaration.trait_arguments.clone(),
+                                target_type: declaration.target.clone(),
                             }),
                             _ => None,
                         }),

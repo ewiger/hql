@@ -169,14 +169,12 @@ used at a stronger type, and none of them is subtyping.
 **Capability is not ancestry.** `Graph : Renderable<Html>` is tempting and
 wrong in the same way for every renderable type: it declares a parent whose
 implementation does not exist anywhere in the type graph, and the checker is
-left asking where `render` comes from. A capability is supplied *for* a type, by
-an [[hql/extensions|extension]] registering `render(Graph) -> Html`, not
-inherited by it. HQL knows the type; the extension knows what can be done with
-it. A capability is therefore a **registration the checker consults**, not a
-type participating in `:`. That follows from HQL having no traits: there is
-nothing for `Renderable<T>` to be except a registration — see *There are no
-traits* below. What a parameterized registration looks like is still a design
-question; whether it is a type is not.
+left asking where `render` comes from. A capability is supplied *for* a type,
+not inherited by it: it is an **implementation of a trait the checker
+consults**, not a type participating in `:`. Writing a value in a format is an
+encoder, `impl Encoder<Graph> for D2` in `std/format.hql`, a native
+implementation an [[hql/extensions|extension]] binds; a renderer chosen for a
+type in a format is one of a format's encoders ([[hql/presentation]]).
 
 `Orderable` is the contrasting case and is genuine ancestry. A card's ordering
 key is its own name, not something an extension supplies, so `Card : Orderable`
@@ -207,28 +205,46 @@ Three different things are kept apart:
 | What is being said | The mechanism |
 | --- | --- |
 | The value genuinely **is** the thing | ordinary `:` — `Card : Doc`, `Card : Orderable` |
-| A capability generic code or an operator **quantifies over** | a `trait`, and one `impl Trait for Type` per trait and type: `T : Shape`, `impl Add for Vec2` |
-| Something can be **done with** the value, by someone else | an [[hql/extensions|extension]] registers `render(Graph) -> Html`, or a codec encodes it ([[hql/presentation]]) |
+| A capability generic code or an operator **quantifies over** | a `trait`, and one `impl` per trait, arguments and type: `T : Shape`, `impl Add for Vec2`, `impl<T> Index<T> for Ring<T>` |
+| Something can be **done with** the value, by someone else | a codec, `Decoder<T>` or `Encoder<T>` implemented natively for a format ([[hql/presentation]]) |
 | Several types happen to have **the same fields** | a partial schema over an open [[data-type|Data]] tree — see [[fields]] |
 
 `T : Shape` uses the one relation symbol a bound has; it is checked at every
 call, and inside the body `x.area()` resolves through the bound. A trait may
 give a function a default body an implementation inherits. The core traits are
-`Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div` and `Rem`, in scope everywhere and
-restated in `std/core.hql`: `a + b` over a declared type resolves `Add` for
-it, `==` resolves `Eq`, and a type implementing `Ord` is `Orderable`, its
-`compare` deciding `<`, `sort`, `min` and `max`. Dispatch is on the value's own
+`Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` and `Index`, in scope everywhere
+and restated in `std/core.hql`: `a + b` over a declared type resolves `Add` for
+it, `==` resolves `Eq`, `xs[i]` resolves `Index`, and a type implementing `Ord`
+is `Orderable`, its `compare` deciding `<`, `sort`, `min` and `max`. Dispatch is on the value's own
 type at run time, so a value held at a wider type still takes its own
 implementation. No trait object, no existential type and no dynamic
 registration exist.
+
+A **generic trait** takes type parameters, and an implementation takes its own
+([HQL-0027](../../proposals/HQL-0027/README.md)). `trait Index<T>` names the
+element type its `at(self, position: Int) : Option<T>` returns, and
+`impl<T> Index<T> for Ring<T>` gives it for every `Ring`. A bound names a
+generic trait with its arguments, `E : Index<T>`, and a call fills a parameter
+its arguments leave open from the one implementation that applies:
+`first_of([1, 2])` has `T = Int` through `impl<T> Index<T> for Seq<T>`. There
+are no associated types; a parameter the implementing type decides is a trait
+parameter that inference fills. A type may implement one trait at several
+arguments, `Scale<Int>` and `Scale<Float>`, and a call's argument types choose
+between them; a generic body reaches an implementation through its receiver
+alone, so a bound over a trait with functions needs a type implementing it
+once. An implementation for a type applies to the types narrowing it, and
+where two apply the narrower type's is the one: a List takes `Seq`'s `Index`. A
+union's implementation is the union's own, not each member's, so
+`impl Index<Data> for Data` makes a document indexed and not a `String`.
 
 Traits are strict. That a built-in type implements a core trait is declared,
 not assumed: `std/core.hql` writes `impl Ord for Int` as a header without a
 body, a native implementation the runtime binds, and a built-in type
 implements exactly what its headers name, so `T : Add` takes `Int` and
-refuses `String`. There is one implementation per trait and type across the
-standard library, the imported modules and the program, and the error names
-both. An implementation is declared with its trait or with its type: a
+refuses `String`. Two implementations of one trait **overlap** when one
+assignment of their parameters makes their arguments and their types the same,
+and overlap is refused, generic or concrete, across the standard library, the
+imported modules and the program; the error names both. An implementation is declared with its trait or with its type: a
 program implements its own trait for any type and any trait for its own type.
 See [[hql/extensions]] for the binding.
 
@@ -787,18 +803,11 @@ language's central value cannot be the place where the rule is improvised.
 
 - Whether narrowing is nominal or structural. A record declared by a program
   is nominal: `Point(x = 1, y = 2)` is a `Point` and nothing else is.
-- Whether a `trait` may take type parameters, so that the codec contracts,
-  spelled `abstract type Decoder<F, T>` today, are written as traits. An
-  implementation stays native either way: HQL declares the interface and the
-  extension implements it.
 - The spelling of validation and refinement at the call site: `validate<Person>(card)`,
   a `where` clause, or a predicate that the checker records.
 - How conflicting requirements from parents in a supertype set are diagnosed.
   Every declared parent must hold; the set notation and its normalization stay
   the same.
-- What a parameterized capability registration such as `Renderable<T>` looks
-  like. That it is a registration rather than a type is decided; its shape is
-  not.
 - How much refinement survives a boundary: a value passed to an extension, a
   cell, or a host and back.
 - Whether a subtype may change a field's optionality — tracked on [[fields]].

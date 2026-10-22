@@ -2,73 +2,18 @@
 //! membership, order and lookup. Pairs, `Pair<A, B>` in `std/core.hql`, are
 //! how `zip`, `enumerate`, `entries` and `join` hold two values together.
 
-use super::spec::{
-    ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,
-};
-use super::{EvalCx, Operation, Purity, named_or_first};
-use super::{Signature, declared};
+use super::declared;
+use super::{EvalCx, Operation, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
-use crate::types::collections::{MAP, SEQ, SET};
 use crate::types::{MapKind, MapValue, Record, TypeConstructor, TypeRef, Value};
 use std::ops::Range;
 use std::sync::Arc;
 
 use super::collections::{elements, pending, produced, wrong};
 
-const BOOL: TypeConstructor = TypeConstructor("Bool");
-const OPTION: TypeConstructor = TypeConstructor("Option");
 /// The constructor of a pair, `type Pair<A, B> { first : A, second : B }`.
 pub const PAIR: TypeConstructor = TypeConstructor("Pair");
-
-const T: TypeParameter = TypeParameter {
-    name: "T",
-    bound: None,
-};
-const K: TypeParameter = TypeParameter {
-    name: "K",
-    bound: None,
-};
-const V: TypeParameter = TypeParameter {
-    name: "V",
-    bound: None,
-};
-const SEQ_T: P = P::Apply(SEQ, &[P::Var("T")]);
-const PREDICATE: ArgumentSpec = ArgumentSpec {
-    name: "by",
-    kind: A::Lambda {
-        parameters: &[P::Var("T")],
-        result: P::Type(BOOL),
-    },
-    required: true,
-    positional: true,
-    named: true,
-    variadic: false,
-};
-
-const fn op(
-    name: &'static str,
-    summary: &'static str,
-    parameters: &'static [TypeParameter],
-    input: P,
-    arguments: &'static [ArgumentSpec],
-    output: O,
-    eval: super::Eval,
-) -> Operation {
-    Operation {
-        name,
-        spec: Signature::Native(OperationSpec {
-            parameters,
-            input,
-            arguments,
-            output,
-        }),
-        summary,
-        purity: Purity::Pure,
-        check: None,
-        eval,
-    }
-}
 
 /// Every step the `seq` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
@@ -82,22 +27,14 @@ pub(crate) static STEPS: &[Operation] = &[
         "The element at the last position, or absence over an empty sequence.",
         eval_last,
     ),
-    op(
+    declared(
         "reverse",
         "The elements in the opposite order.",
-        &[T],
-        SEQ_T,
-        &[],
-        O::Reorder("T"),
         eval_reverse,
     ),
-    op(
+    declared(
         "distinct",
         "Each value once, at its first position.",
-        &[T],
-        SEQ_T,
-        &[],
-        O::Prefix("T"),
         eval_distinct,
     ),
     declared(
@@ -130,22 +67,14 @@ pub(crate) static STEPS: &[Operation] = &[
         "The position of the first element a predicate accepts, or absence.",
         eval_position,
     ),
-    op(
+    declared(
         "take_while",
         "The leading values a predicate accepts, stopping at the first it rejects.",
-        &[T],
-        P::Iterable(&P::Var("T")),
-        &[PREDICATE],
-        O::Prefix("T"),
         eval_take_while,
     ),
-    op(
+    declared(
         "drop_while",
         "The values after the leading ones a predicate accepts.",
-        &[T],
-        SEQ_T,
-        &[PREDICATE],
-        O::Prefix("T"),
         eval_drop_while,
     ),
     declared(
@@ -173,36 +102,14 @@ pub(crate) static STEPS: &[Operation] = &[
         "Every pair of an element and one of another collection that a predicate relates.",
         eval_join,
     ),
-    op(
+    declared(
         "min_by",
         "The element whose key is least, or absence over an empty input.",
-        &[T],
-        P::Collection(&P::Var("T")),
-        &[ArgumentSpec {
-            name: "by",
-            kind: A::Ordering(P::Var("T")),
-            required: true,
-            positional: true,
-            named: true,
-            variadic: false,
-        }],
-        O::Type(P::Apply(OPTION, &[P::Var("T")])),
         eval_min_by,
     ),
-    op(
+    declared(
         "max_by",
         "The element whose key is greatest, or absence over an empty input.",
-        &[T],
-        P::Collection(&P::Var("T")),
-        &[ArgumentSpec {
-            name: "by",
-            kind: A::Ordering(P::Var("T")),
-            required: true,
-            positional: true,
-            named: true,
-            variadic: false,
-        }],
-        O::Type(P::Apply(OPTION, &[P::Var("T")])),
         eval_max_by,
     ),
     declared(
@@ -210,34 +117,14 @@ pub(crate) static STEPS: &[Operation] = &[
         "A map from each element's key to its value; two elements with one key are refused.",
         eval_to_map,
     ),
-    op(
+    declared(
         "with",
         "The map with one key set to a value, added or replaced.",
-        &[K, V],
-        P::Apply(MAP, &[P::Var("K"), P::Var("V")]),
-        &[
-            ArgumentSpec {
-                named: false,
-                ..ArgumentSpec::value("key", P::Var("K"))
-            },
-            ArgumentSpec {
-                named: false,
-                ..ArgumentSpec::value("value", P::Var("V"))
-            },
-        ],
-        O::Input,
         eval_with,
     ),
-    op(
+    declared(
         "without",
         "The map without one key, whether or not it held it.",
-        &[K, V],
-        P::Apply(MAP, &[P::Var("K"), P::Var("V")]),
-        &[ArgumentSpec {
-            named: false,
-            ..ArgumentSpec::value("key", P::Var("K"))
-        }],
-        O::Input,
         eval_without,
     ),
     declared(
@@ -250,28 +137,14 @@ pub(crate) static STEPS: &[Operation] = &[
         "The values of a map, in its key order.",
         eval_values,
     ),
-    op(
+    declared(
         "intersection",
         "The members of both sets.",
-        &[T],
-        P::Apply(SET, &[P::Var("T")]),
-        &[ArgumentSpec {
-            named: false,
-            ..ArgumentSpec::value("other", P::Apply(SET, &[P::Var("T")]))
-        }],
-        O::Input,
         eval_intersection,
     ),
-    op(
+    declared(
         "difference",
         "The members of the set that the other does not hold.",
-        &[T],
-        P::Apply(SET, &[P::Var("T")]),
-        &[ArgumentSpec {
-            named: false,
-            ..ArgumentSpec::value("other", P::Apply(SET, &[P::Var("T")]))
-        }],
-        O::Input,
         eval_difference,
     ),
 ];

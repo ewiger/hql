@@ -59,6 +59,10 @@ type Result<T, E>
 // Supplying a comparison to sort does not change the element's ancestry.
 type Ordering
 
+// A type written as an argument: `is(Card)`, `of_type(Card)`. A parameter of
+// type Type<U> takes a type name and binds U to the type it names.
+type Type<T>
+
 // The capabilities the language owns, in scope in every program: the
 // operators resolve through them, and a declared type implements them for
 // its own values. `Self` is the implementing type. A type implementing Ord
@@ -86,6 +90,12 @@ trait Div {
 trait Rem {
     fn rem(self, other: Self) : Self
 }
+// A position: `xs[i]` over a type implementing Index is `xs.at(i)`, the
+// element there or its absence. T is the element type, which each
+// implementation names: `E : Index<T>` leaves T to the type E is.
+trait Index<T> {
+    fn at(self, position: Int) : Option<T>
+}
 
 // The built-in types' implementations of the core traits. A header without a
 // body declares a native implementation: the runtime supplies its functions,
@@ -111,6 +121,10 @@ impl Div for Int
 impl Div for Float
 impl Rem for Int
 impl Rem for Float
+// Every sequence takes Seq's positions, a List and a Ranking among them.
+// Data's are a document's own: a String narrows Data and is not indexed.
+impl<T> Index<T> for Seq<T>
+impl Index<Data> for Data
 
 // Two values held together, each at its own type: what zip, enumerate,
 // entries and join produce, and what a program builds with
