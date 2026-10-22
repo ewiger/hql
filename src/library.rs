@@ -51,6 +51,69 @@ struct Record {
     fields: Vec<Field>,
 }
 
+/// One external declaration of a standard module: the signature an extension
+/// implements, reduced to what binding cross-checks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Contract {
+    /// The declared name, which is the operation's name.
+    pub name: String,
+    /// Whether the declaration takes `self`, the operation's input; without
+    /// it the first parameter is the input.
+    pub has_self: bool,
+    /// How many parameters are written, `self` excluded.
+    pub parameters: usize,
+    /// Whether the last parameter collects trailing arguments.
+    pub variadic: bool,
+    /// The constructor of the declared result type.
+    pub result: String,
+}
+
+/// Each module written as external declarations, by canonical name, with its
+/// declarations in order.
+pub type Contracts = Vec<(&'static str, Vec<Contract>)>;
+
+/// The contracts of the standard library: each module written as external
+/// declarations, with its declarations in order. A module with none is
+/// implemented by the runtime, or documents its operations in comments, and
+/// does not appear.
+///
+/// # Errors
+///
+/// Returns the first module that does not parse, a defect of the binary.
+pub fn contracts() -> Result<Contracts, String> {
+    static CONTRACTS: OnceLock<Result<Contracts, String>> = OnceLock::new();
+    CONTRACTS
+        .get_or_init(|| {
+            let mut found = Vec::new();
+            for (name, source) in MODULES {
+                let program = crate::parser::parse(source)
+                    .map_err(|error| format!("std/{name}: {}", error.message()))?;
+                let declared: Vec<Contract> = program
+                    .statements
+                    .iter()
+                    .filter_map(|statement| match statement {
+                        Stmt::External(declaration) => Some(Contract {
+                            name: declaration.name.clone(),
+                            has_self: declaration.has_self,
+                            parameters: declaration.parameters.len(),
+                            variadic: declaration
+                                .parameters
+                                .last()
+                                .is_some_and(|parameter| parameter.variadic),
+                            result: declaration.result.name.clone(),
+                        }),
+                        _ => None,
+                    })
+                    .collect();
+                if !declared.is_empty() {
+                    found.push((*name, declared));
+                }
+            }
+            Ok(found)
+        })
+        .clone()
+}
+
 /// The whole library as one program's source.
 #[must_use]
 pub fn source() -> String {

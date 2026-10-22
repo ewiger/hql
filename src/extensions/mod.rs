@@ -174,6 +174,10 @@ pub struct Extension {
     pub(crate) name: &'static str,
     /// The version this extension reports.
     pub(crate) version: &'static str,
+    /// The descriptor's `provides`: the canonical names of the modules whose
+    /// contracts in `std/` this extension implements. Binding cross-checks
+    /// each contract's external declarations against the steps here.
+    pub(crate) provides: &'static [&'static str],
     /// What it supplies.
     pub(crate) steps: &'static [Operation],
     pub(crate) metadata: Option<fn(&mut crate::document::Card)>,
@@ -184,6 +188,7 @@ pub struct Extension {
 pub(crate) static CORE: Extension = Extension {
     name: "core",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["core", "collections"],
     steps: collections::STEPS,
     metadata: None,
 };
@@ -191,6 +196,7 @@ pub(crate) static CORE: Extension = Extension {
 static GRAPH: Extension = Extension {
     name: "graph",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["graph"],
     steps: graph::STEPS,
     metadata: None,
 };
@@ -198,6 +204,7 @@ static GRAPH: Extension = Extension {
 static FORMAT: Extension = Extension {
     name: "format",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["format"],
     steps: format::STEPS,
     metadata: None,
 };
@@ -205,6 +212,7 @@ static FORMAT: Extension = Extension {
 static IO: Extension = Extension {
     name: "io",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["io"],
     steps: io::STEPS,
     metadata: None,
 };
@@ -212,6 +220,7 @@ static IO: Extension = Extension {
 static LOGGING: Extension = Extension {
     name: "logging",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.logging"],
     steps: logging::STEPS,
     metadata: None,
 };
@@ -219,6 +228,7 @@ static LOGGING: Extension = Extension {
 static NET: Extension = Extension {
     name: "net",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.net"],
     steps: net::STEPS,
     metadata: None,
 };
@@ -226,6 +236,7 @@ static NET: Extension = Extension {
 static LEXICAL: Extension = Extension {
     name: "lexical",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["lexical"],
     steps: lexical::STEPS,
     metadata: Some(lexical::contribute_metadata),
 };
@@ -233,6 +244,7 @@ static LEXICAL: Extension = Extension {
 static SEMANTIC: Extension = Extension {
     name: "semantic",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["semantic"],
     steps: semantic::STEPS,
     metadata: None,
 };
@@ -240,6 +252,7 @@ static SEMANTIC: Extension = Extension {
 static STRING: Extension = Extension {
     name: "string",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["string"],
     steps: string::STEPS,
     metadata: None,
 };
@@ -247,6 +260,7 @@ static STRING: Extension = Extension {
 static SEQ: Extension = Extension {
     name: "seq",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["seq"],
     steps: seq::STEPS,
     metadata: None,
 };
@@ -254,6 +268,7 @@ static SEQ: Extension = Extension {
 static MATH: Extension = Extension {
     name: "math",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["math"],
     steps: math::STEPS,
     metadata: None,
 };
@@ -261,6 +276,7 @@ static MATH: Extension = Extension {
 static OPTION: Extension = Extension {
     name: "option",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["option"],
     steps: option::STEPS,
     metadata: None,
 };
@@ -268,6 +284,7 @@ static OPTION: Extension = Extension {
 static RESULT: Extension = Extension {
     name: "result",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["result"],
     steps: result::STEPS,
     metadata: None,
 };
@@ -275,6 +292,7 @@ static RESULT: Extension = Extension {
 static REGEX: Extension = Extension {
     name: "regex",
     version: env!("CARGO_PKG_VERSION"),
+    provides: &["regex"],
     steps: regex::STEPS,
     metadata: None,
 };
@@ -447,18 +465,119 @@ struct Imported {
     extension: &'static Extension,
 }
 
-/// The canonical module names a builtin extension answers to, beyond its own
-/// one-word name: the `io` family is reached through `io.net` and
-/// `io.logging` as `std/io/` lays it out.
-const CANONICAL: &[(&str, &str)] = &[("io.net", "net"), ("io.logging", "logging")];
-
-/// The builtin module a dotted path names, if any.
+/// The builtin module a dotted path names, if any: a module an extension's
+/// descriptor provides, `io.net`, or the extension's own one-word name, which
+/// `net` and `logging` keep.
 pub(crate) fn builtin_module(path: &str) -> Option<&'static Extension> {
-    let name = CANONICAL
+    REGISTERED
         .iter()
-        .find(|(canonical, _)| *canonical == path)
-        .map_or(path, |(_, name)| name);
-    extension(name)
+        .copied()
+        .find(|extension| extension.provides.contains(&path))
+        .or_else(|| extension(path))
+}
+
+/// Bind the standard library's contracts to the extensions implementing them.
+///
+/// HQL declares, an extension implements: for every module of `std/` written
+/// as external declarations, the extension whose descriptor provides the
+/// module must implement each declaration and nothing more, with the arity
+/// the declaration states and the result type it names. The check runs once
+/// per process; a mismatch is a defect of the binary, and refuses every
+/// program with a message naming the module, the declaration and the
+/// extension.
+///
+/// # Errors
+///
+/// Returns the first disagreement between a contract and its implementation.
+pub fn bind() -> Result<(), String> {
+    static BOUND: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
+    BOUND.get_or_init(bind_contracts).clone()
+}
+
+fn bind_contracts() -> Result<(), String> {
+    use crate::library::contracts;
+    let contracts = contracts()?;
+    for (module, declared) in &contracts {
+        let provider = REGISTERED
+            .iter()
+            .find(|extension| extension.provides.contains(module))
+            .ok_or_else(|| {
+                format!(
+                    "module `{module}` has no implementation: its contract declares \
+                     externally, and no extension provides `{module}`"
+                )
+            })?;
+        for declaration in declared {
+            let step = provider.step(&declaration.name).ok_or_else(|| {
+                format!(
+                    "`{module}.{}` is declared, and the extension `{}` implements no such \
+                     function",
+                    declaration.name, provider.name
+                )
+            })?;
+            let specs = step.spec.arguments;
+            let required = specs.iter().filter(|spec| spec.required).count();
+            let variadic = specs.iter().any(|spec| spec.variadic);
+            // `self`, or the first parameter, is the operation's input; the
+            // parameters after it are its arguments, in order.
+            let written = if declaration.has_self {
+                declaration.parameters
+            } else {
+                declaration.parameters.saturating_sub(1)
+            };
+            let fits = (required <= written && written <= specs.len())
+                || (variadic && written >= required);
+            if !fits || (declaration.variadic && !variadic) {
+                return Err(format!(
+                    "`{module}.{}` declares {written} parameter{} after its input, and the \
+                     extension `{}` implements it with {} ({required} required{})",
+                    declaration.name,
+                    if written == 1 { "" } else { "s" },
+                    provider.name,
+                    specs.len(),
+                    if variadic { ", the last variadic" } else { "" }
+                ));
+            }
+            let implemented = match step.spec.output {
+                spec::Output::Type(spec::TypePattern::Type(constructor))
+                | spec::Output::Type(spec::TypePattern::Apply(constructor, _)) => {
+                    Some(constructor.0)
+                }
+                _ => None,
+            };
+            if let Some(implemented) = implemented
+                && implemented != declaration.result
+            {
+                return Err(format!(
+                    "`{module}.{}` is declared to return {}, and the extension `{}` returns \
+                     {implemented}",
+                    declaration.name, declaration.result, provider.name
+                ));
+            }
+        }
+    }
+    // An extension provides nothing a contract does not declare.
+    for extension in REGISTERED {
+        let declared: Vec<&str> = contracts
+            .iter()
+            .filter(|(module, _)| extension.provides.contains(module))
+            .flat_map(|(_, declared)| declared.iter().map(|declaration| declaration.name.as_str()))
+            .collect();
+        if declared.is_empty() {
+            continue;
+        }
+        if let Some(step) = extension
+            .steps
+            .iter()
+            .find(|step| !declared.contains(&step.name))
+        {
+            return Err(format!(
+                "the extension `{}` implements `{}`, which no contract under std/ declares",
+                extension.name, step.name
+            ));
+        }
+    }
+    Ok(())
 }
 
 impl Resolution {
@@ -498,6 +617,7 @@ impl Resolution {
                 })?;
             }
         }
+        bind().map_err(|message| Diagnostic::typing(0..0, message))?;
         let mut resolution = Self::bare(config.prelude);
         for name in &config.imports {
             let configured = |message: String| {
@@ -893,6 +1013,7 @@ mod tests {
     static PROBE: Extension = Extension {
         name: "probe",
         version: "0",
+        provides: &[],
         metadata: None,
         steps: &[Operation {
             name: "count",
@@ -989,6 +1110,19 @@ mod tests {
             "{}",
             failed.message()
         );
+    }
+
+    #[test]
+    fn the_standard_contracts_bind_to_their_extensions() {
+        assert_eq!(bind(), Ok(()));
+        // Every module declared externally has a provider, and the provider's
+        // name is how `hql builtins` lists it.
+        for (module, _) in crate::library::contracts().unwrap() {
+            assert!(
+                builtin_module(module).is_some(),
+                "{module} has no extension providing it"
+            );
+        }
     }
 
     #[test]

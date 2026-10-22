@@ -148,7 +148,11 @@ The registry grows in three stages, each usable on its own.
    `graph`, `lexical`, `semantic`. Each step is registered against a
    declaration identity in `std/`. The registry is builtin-only; binding runs
    against the `std/` contracts and replaces the test that compares `std/` with
-   the Rust lattice. Nothing is loaded.
+   the Rust lattice. Nothing is loaded. *Done in part:* every builtin
+   extension carries `provides`, and binding cross-checks the external
+   contracts of `std/` against it by name, arity and result type once per
+   process ([extensions](../../../wiki/hql/extensions.hmd)); `id` and `abi`
+   and the regrouping wait for the second stage.
 2. **Configuration selects.** The execution context builds the registry from
    the builtin table and configuration: which compiled-in extensions are
    active, what the prelude is. `hql.toml`'s `[extensions]` keys are re-read

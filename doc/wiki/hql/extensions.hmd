@@ -33,15 +33,73 @@ Registration is not import. Every extension in the binary is registered;
 a program resolves what it has imported. That is what lets a diagnostic name
 the import a program is missing instead of guessing at a misspelling.
 
+## How an HQL interface is wired to its implementation
+
 **HQL declares, an extension implements.** The interface of a module is its
-HQL file in `std/`: `fn trim(self) : String` with no body is an external
-declaration, and the extension of the same name is what implements it, as the
-codec contracts `Decoder<F, T>` and `Encoder<T, F>` of `std/format.hql` are
-implemented by the format and I/O extensions. The implementation is always
-native and always reached through the declaration; an extension provides
-nothing a contract does not declare, and a test holds each external module to
-its extension function by function
-([HQL-0024](../../proposals/HQL-0024/README.md), parts 1 and 3).
+HQL file; the implementation is native, inside an extension, and is reached
+only through the declaration ([HQL-0024](../../proposals/HQL-0024/README.md),
+parts 1, 3 and 9). The wiring, as the binary does it:
+
+| In the `.hql` contract | In the extension | Matched by |
+| --- | --- | --- |
+| the module, `std/string.hql` is `string` | the descriptor's `provides: &["string"]` | the canonical module name; one extension per module, any number of modules per extension |
+| an external declaration, `fn trim(self) : String` | an `Operation` named `trim` | the name; every declaration must be implemented and nothing else may be |
+| `self`, or the first parameter where there is no `self` | the operation's input, `P::Type(STRING)` | position: the receiver module's pattern is the input's type |
+| the parameters after it, in order | the operation's arguments, in order; a named argument by its name | arity: the written count lies between the required and the declared arguments, or the last is variadic on both sides |
+| the result type | the operation's output | the result's constructor, where the output names one; an output that keeps or maps the input is not compared |
+| a declared type without fields, `type File : {Replayable, Writable}` | a `Value` representation and the constructor step that builds it, `file(path)` | the type's name; the extension may not add a type, a parent or a field |
+
+Binding runs once per process, before the first program, and a disagreement
+refuses every program with a message naming the module, the declaration and
+the extension. It replaces no test: `tests/declarations.rs` still compares the
+names, and the binding is what runs in production.
+
+A worked example across the three kinds of declaration:
+
+```hql
+// std/string.hql: the module is a receiver module over String, and every
+// function is external.
+module for String
+fn trim(self) : String
+fn pad_left(self, width: Int, fill: String) : String
+```
+
+```rust
+// src/extensions/string.rs: the extension named `string` provides the
+// module `string`; `trim` and `pad_left` are its operations, the input is
+// `self`, and the two arguments of `pad_left` follow in order.
+static STRING: Extension = Extension { name: "string", provides: &["string"], steps: string::STEPS, .. };
+Operation { name: "pad_left", spec: OperationSpec { input: P::Type(STRING), arguments: &[width, fill], output: O::Type(P::Type(STRING)), .. }, .. }
+```
+
+Calling `"x".pad_left(3, "0")`, `string.pad_left("x", 3, "0")` or
+`"x" | pad_left(3, "0")` resolves the declaration and runs the operation.
+
+```hql
+// std/io/mod.hql: a type the extension represents, and the constructor that
+// builds it, declared here and implemented by the `io` extension.
+type File : {Replayable, Writable} { path : String }
+// file(path: String) : File
+```
+
+The `io` extension holds the representation, `Value::Endpoint`, and the step
+`file`; a program never sees either, only `File` and `file(p)`.
+
+```hql
+// std/core.hql: a trait the language owns.
+trait Ord {
+    fn compare(self, other: Self) : Ordering
+}
+```
+
+`Ord` for `Int`, `Float` and `String` is implemented natively, through the
+values' own order; `impl Ord for Version { … }` in a program is an HQL body
+run by the runtime; both are reached by `compare`, `<`, `sort`, `min` and
+`max` through the one declaration. What part 1 also allows, an `impl` header
+declared in HQL with a body an extension supplies, is not yet built, and
+neither are extensions outside the binary: today every extension is compiled
+in and the descriptor is the `provides` field of its static table entry, the
+first stage of part 9's plan.
 
 Steps split by the layering core → graph → knowledge:
 

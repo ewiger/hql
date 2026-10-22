@@ -82,11 +82,12 @@ where its steps will:
 | `retrieval.hql` | ranking, arriving with [HQL-0002](../doc/proposals/HQL-0002/README.md) |
 
 A module written as **external declarations**, `fn trim(self) : String` with
-no body, is a contract the extension of the same name implements, and a test
-holds the two to each other: every external declaration has an implementation
-and every implementation a declaration. A module that opens with
-`module for T` is a receiver module, whose `self` functions resolve as
-`value.f()`.
+no body, is a contract an extension implements: the extension whose descriptor
+provides the module. Binding, once per process, holds the two to each other by
+name, arity and result type, and refuses every program on a mismatch; the
+wiring is on the [extensions card](../doc/wiki/hql/extensions.hmd). A module
+that opens with `module for T` is a receiver module, whose `self` functions
+resolve as `value.f()`.
 
 ## Conventions
 
