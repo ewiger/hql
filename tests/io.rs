@@ -396,7 +396,7 @@ fn tapping_the_end_of_a_file_follows_what_is_appended() {
     let child = Command::new(env!("CARGO_BIN_EXE_hql"))
         .current_dir(dir.path())
         .args([
-            r#"tap(file("app.log").end, Text) | take(1)"#,
+            r#"tap(file("app.log").end, Lines) | take(1)"#,
             "--to",
             "json",
             "--compact",
@@ -528,4 +528,55 @@ fn each_tee_branch_writes_its_own_output() {
         input,
     );
     refused(&failed, "no/x.jsonl");
+}
+
+#[test]
+fn lines_frame_text_by_line_and_text_is_one_document() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("notes.txt"), "a\nb\n").unwrap();
+    let json = |program: &str| ok(&hql_in(dir.path(), &[program, "--to", "json", "--compact"]));
+    // The terminator belongs to the representation.
+    assert_eq!(
+        json(r#"source(file("notes.txt"), Lines)"#),
+        "[\"a\",\"b\"]\n"
+    );
+    // Text is the whole document, terminators and all.
+    assert_eq!(
+        json(r#"source(file("notes.txt"), Text)"#),
+        "[\"a\\nb\\n\"]\n"
+    );
+    // A plain text file is lines unless a format says otherwise.
+    assert_eq!(json(r#"source(file("notes.txt")) | size"#), "2\n");
+    // Writing puts the terminators back, and a value alone is one record.
+    ok(&hql_in(
+        dir.path(),
+        &[r#"["x", "y"] | sink(file("out.txt"), Lines)"#],
+    ));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("out.txt")).unwrap(),
+        "x\ny\n"
+    );
+    ok(&hql_in(
+        dir.path(),
+        &[r#""solo" | sink(file("one.txt"), Lines)"#],
+    ));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("one.txt")).unwrap(),
+        "solo\n"
+    );
+    // The shorthands encode in memory: one line per element.
+    assert_eq!(
+        ok(&hql_in(dir.path(), &[r#"["a", "b"] | lines"#])),
+        "a\nb\n"
+    );
+    assert_eq!(
+        ok(&hql_in(dir.path(), &[r#"[{a: 1}, {a: 2}] | jsonlines"#])),
+        "{\"a\":1}\n{\"a\":2}\n"
+    );
+    // JsonLines reads one document per line, and a stream of them taps.
+    fs::write(dir.path().join("events.jsonl"), "{\"n\":1}\n{\"n\":2}\n").unwrap();
+    assert_eq!(
+        json(r#"source(file("events.jsonl"), JsonLines) | map(e => e.n)"#),
+        "[1,2]\n"
+    );
 }

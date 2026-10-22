@@ -41,6 +41,15 @@ not check yet, and the day it does the header is promoted to `valid-now`.
 | [dataframe](queries/21-dataframe.hql) | Records grouped, aggregated, sorted and joined | two lines |
 | [word count](queries/22-word-count.hql) | Split, group, count, order, take: MapReduce in one pipeline | `the=3 fox=2 brown=1` |
 | [stats module](queries/23-stats-module.hql) | A module written in HQL that imports `math` for itself | `[5.0, 4.0, 2.0, 4.5]` |
+| [files](queries/24-files.hql) | `source(file, Lines)` reads records, `target(file, Lines)` writes another file whole | `3`, and `data/shout.txt` |
+| [append](queries/25-append.hql) | `sink(file(p).end, Lines)` appends one record per value | `()`, and three lines more in `data/journal.txt` |
+
+## The files under `data/`
+
+`data/haiku.txt` is what the two I/O programs read. They write
+`data/shout.txt` and `data/journal.txt` beside it, which Git ignores; the
+harness runs them in a temporary copy of this directory, as the `io: sandbox`
+line of their headers says, so a test run leaves the checkout as it was.
 
 ## The modules under `lib/`
 

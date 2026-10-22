@@ -28,4 +28,6 @@ or diagnostic; the cards form the vault those queries read. A header may also
 say `status: proposed` with `implementation: pending` and a `proposal:` naming
 the record that specifies it: such a case is a design input, pinned before it
 runs, and the harness asserts it does not check yet. A `modules:` line names a
-module root under `examples/` that the program imports from.
+module root under `examples/` that the program imports from, and `io: sandbox`
+says the program reads and writes files relative to its own directory, so the
+harness runs it in a temporary copy of its example.

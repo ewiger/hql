@@ -35,6 +35,20 @@ impl Case {
     }
 }
 
+/// Copy a directory tree, for a case that writes beside what it reads.
+fn copy_tree(from: &Path, to: &Path) {
+    fs::create_dir_all(to).unwrap();
+    for entry in fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
 fn load_cases() -> Vec<Case> {
     fn visit(root: &Path, directory: &Path, cases: &mut Vec<Case>) {
         for entry in fs::read_dir(directory).unwrap() {
@@ -175,7 +189,31 @@ fn valid_now_cases_check_and_evaluate() {
         count += 1;
         let vault = case.vault();
         let ty = check_in(&case.source, &vault).unwrap_or_else(|e| panic!("{}: {e}", case.path));
+        // A program that reads and writes files runs in a temporary copy of
+        // its example, with paths resolving against its own directory as
+        // `hql run` has them, so the checkout is left as it was.
+        let sandbox = case.metadata.get("io").map(|io| {
+            assert_eq!(io, "sandbox", "{}", case.path);
+            let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
+            let example = Path::new(&case.path)
+                .components()
+                .next()
+                .expect("an example directory")
+                .as_os_str()
+                .to_owned();
+            let copy = tempfile::tempdir().expect("a temporary directory");
+            copy_tree(&root.join(&example), &copy.path().join(&example));
+            let base = copy
+                .path()
+                .join(Path::new(&case.path).parent().expect("a directory"));
+            hql::io::set_host(hql::io::Policy::Open, base);
+            copy
+        });
         let outcome = run(&case.source, &vault, Mode::Strict);
+        if sandbox.is_some() {
+            hql::io::set_host(hql::io::Policy::Open, std::path::PathBuf::from("."));
+        }
+        drop(sandbox);
         assert!(
             outcome.reports.is_empty(),
             "{}: {:?}",

@@ -127,7 +127,7 @@ file's end, `file(p).end`, it follows what is appended, as `tail -F` does:
 
 <!-- run: skip -->
 ```hql
-tap(file("app.log").end, Text) | take(1)
+tap(file("app.log").end, Lines) | take(1)
 ```
 
 waits for the next line written to `app.log`, and returns it.

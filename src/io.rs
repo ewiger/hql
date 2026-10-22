@@ -376,7 +376,8 @@ pub fn format_of_extension(path: &Path) -> Option<TypeConstructor> {
         "jsonl" | "ndjson" => "JsonLines",
         "yaml" | "yml" => "Yaml",
         "csv" => "Csv",
-        "txt" | "log" => "Text",
+        // A plain text file is read as lines unless a format says otherwise.
+        "txt" | "log" => "Lines",
         "md" => "Markdown",
         "hmd" => "Hmd",
         "hql" => "Hql",
@@ -401,11 +402,9 @@ pub fn document_type(format: TypeConstructor) -> Result<TypeRef, String> {
 }
 
 /// Whether a format's documents can be separated, so read one at a time.
+/// `Text` is one whole document; `Lines` frames it one record per line.
 fn separable(format: TypeConstructor) -> bool {
-    matches!(
-        format.0,
-        "Json" | "JsonLines" | "Yaml" | "Csv" | "Text" | "Lines"
-    )
+    matches!(format.0, "Json" | "JsonLines" | "Yaml" | "Csv" | "Lines")
 }
 
 /// A tree read from JSON or YAML.
@@ -503,7 +502,9 @@ fn pieces(reader: Box<dyn Read + Send>, format: TypeConstructor, origin: String)
                     })
                 }),
         ),
-        "Text" | "Lines" => Box::new(BufReader::new(reader).lines().map(move |line| {
+        // Line framing: the terminator belongs to the representation, so a
+        // record is the line without it.
+        "Lines" => Box::new(BufReader::new(reader).lines().map(move |line| {
             line.map(|line| Value::Str(line.into()))
                 .map_err(|error| located(error.to_string()))
         })),

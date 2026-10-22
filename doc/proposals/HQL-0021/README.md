@@ -152,7 +152,7 @@ which endpoint it names, so a file has no open mode.
 ```hql
 report | target(file("report.json"))             // rewrite
 events | sink(file("events.jsonl").end)           // append
-tap(file("app.log").end, Text)                    // follow
+tap(file("app.log").end, Lines)                   // follow
 | filter(line => contains(line, "ERROR"))
 ```
 
@@ -177,8 +177,9 @@ endpoint may hold one document or a sequence of them.
 | `Json` | `Data` | whitespace between top-level values |
 | `Yaml` | `Data` | a `---` line |
 | `Csv` | `Data`, one row keyed by the header | a line; the header is read once |
-| `Text` | `String`, one line without its terminator | a line terminator |
-| `Markdown`, `Hmd`, `Hql` | the format type, the whole text | not separable |
+| `Lines` | `String`, one line without its terminator | a line terminator |
+| `JsonLines` | `Data`, one JSON document per line | a line terminator |
+| `Text`, `Markdown`, `Hmd`, `Hql` | `String`, the whole text | not separable |
 
 - The documents of an endpoint MUST be read in the order they appear. These
   are the pieces [HQL-0017](../HQL-0017/README.md) writes when it formats a
@@ -198,10 +199,11 @@ When the format argument is omitted, a literal path's extension implies it:
 
 | Extension | Format |
 | --- | --- |
-| `.json`, `.jsonl`, `.ndjson` | `Json` |
+| `.json` | `Json` |
+| `.jsonl`, `.ndjson` | `JsonLines` |
 | `.yaml`, `.yml` | `Yaml` |
 | `.csv` | `Csv` |
-| `.txt`, `.log` | `Text` |
+| `.txt`, `.log` | `Lines` |
 | `.md` | `Markdown` |
 | `.hmd` | `Hmd` |
 | `.hql` | `Hql` |

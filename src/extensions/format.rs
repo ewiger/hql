@@ -527,6 +527,8 @@ pub(crate) static STEPS: &[Operation] = &[
     shorthand("json", check_json, eval_json),
     shorthand("yaml", check_yaml, eval_yaml),
     shorthand("csv", check_csv, eval_csv),
+    shorthand("lines", check_lines, eval_lines),
+    shorthand("jsonlines", check_jsonlines, eval_jsonlines),
     shorthand("d2", check_d2, eval_d2),
     shorthand("mermaid", check_mermaid, eval_mermaid),
 ];
@@ -561,6 +563,8 @@ shorthands! {
     check_json, eval_json => "Json",
     check_yaml, eval_yaml => "Yaml",
     check_csv, eval_csv => "Csv",
+    check_lines, eval_lines => "Lines",
+    check_jsonlines, eval_jsonlines => "JsonLines",
     check_d2, eval_d2 => "D2",
     check_mermaid, eval_mermaid => "Mermaid",
 }

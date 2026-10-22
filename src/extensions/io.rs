@@ -120,12 +120,12 @@ pub(crate) static STEPS: &[Operation] = &[
                 },
                 FORMAT_PARAMETER,
             ],
-            input: P::Iterable(&P::Var("T")),
+            input: P::Var("T"),
             arguments: &[ENDPOINT, FORMAT],
             output: O::Type(P::Type(TypeConstructor("Unit"))),
         },
-        summary: "Write each value of a stream as one document, as it arrives; a file is \
-                  replaced, its `.end` appended to.",
+        summary: "Write each value of a stream as one document, as it arrives, and one value \
+                  as one document; a file is replaced, its `.end` appended to.",
         purity: Purity::Effectful,
         check: Some(check_sink),
         eval: eval_sink,
@@ -331,7 +331,12 @@ fn check_sink(
     call: &CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
-    let element = call.input.iterated().unwrap_or(TypeRef::NEVER);
+    // A collection or a stream is written value by value; anything else is
+    // one document.
+    let element = call
+        .input
+        .iterated()
+        .unwrap_or_else(|| call.input.present().clone());
     if check_channel_write(cx, call, &element, &span)? {
         return Ok(());
     }
@@ -573,7 +578,7 @@ fn eval_sink(
                 })?;
             }
             other => {
-                for value in other.elements().unwrap_or_default() {
+                for value in other.elements().unwrap_or_else(|| vec![other.clone()]) {
                     io::push(name, value)
                         .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
                 }
@@ -599,8 +604,9 @@ fn eval_sink(
         Value::Traversal(traversal) => {
             cx.traverse(traversal, &mut |_, value| write(value))?;
         }
+        // A value that is not a collection is one document.
         other => {
-            for value in other.elements().unwrap_or_default() {
+            for value in other.elements().unwrap_or_else(|| vec![other.clone()]) {
                 write(value)?;
             }
         }

@@ -124,9 +124,12 @@ too and `target` is not needed beside it.
 - `Format` is in the lattice; every format type narrows it and none narrows
   `String`. `Lines` and `JsonLines` are formats. `format(x, F)` returns
   `String`, and `Stream<String>` over a stream.
-- `Lines` and `Text` both read a file line by line today, and both write one
-  value per line; whether `Text` becomes one whole document is a question for
-  HQL-0021 when it is accepted.
+- `Lines` reads a file one record per line and writes the terminators back;
+  `Text` is one whole document, terminators and all. A `.txt` or `.log` path
+  implies `Lines`, `.jsonl` and `.ndjson` imply `JsonLines`. `lines` and
+  `jsonlines` are the in-memory shorthands, one record per line.
+- `sink` takes a single value as one document beside a stream of them, so a
+  program needs `target` only to replace a file with one document whole.
 - The decoder table is `io::document_type` and the encoder table is the
   renderer table of the [presentation card](../../../wiki/hql/presentation.hmd),
   both in Rust; `std/format.hql` declares `Decoder<F, T>` and `Encoder<T, F>`
@@ -142,7 +145,7 @@ too and `target` is not needed beside it.
    `format` returning `String`. Done.
 2. The codec contracts in `std/format.hql`, with the Rust tables as their
    implementations and a test that every format has a codec. Done.
-3. `target` folded into `sink`, and `Text` as one whole document, with
-   HQL-0021.
+3. `target` retired in favour of `sink`, with HQL-0021. `Text` as one whole
+   document and `sink` of one value are done.
 4. Binary formats as a format kind, and codecs an extension or an HQL `impl`
    provides, once generic traits exist.
