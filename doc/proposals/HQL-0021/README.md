@@ -896,3 +896,7 @@ None.
   and the `effectful fn` headers; configured sources by id and `max_bytes`
   wait for HQL-0012
   ([issue 0037](../../issues/0037-io-typed-decoding.md))
+- 2026-10-22: `source("id")` reads a configured source and `tap("id")` a
+  finite one one element at a time, a file of documents as `tap` reads the
+  file; `max_bytes` bounds a configured source
+  ([issue 0040](../../issues/0040-configured-data-sources.md))

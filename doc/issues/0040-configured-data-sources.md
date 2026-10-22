@@ -38,5 +38,4 @@ holds every path, host and secret. Only the filesystem vault existed, and
 
 - A configured file or table is a `Seq<T>`, not a concrete source type such
   as `CsvFile`, and `Vault` does not narrow `VaultSource`.
-- `tap("id")`, `member`, `get` over a keyed source, stream, live and network
-  kinds, and native queries.
+- `member`, stream, live and network kinds, and native queries.

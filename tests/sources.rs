@@ -294,3 +294,36 @@ fn a_vaults_cards_are_keyed_by_name() {
     let refused = hql::check_in(r#"[1, 2].get("x")"#, &vault).unwrap_err();
     assert!(refused.message().contains("T : Doc"), "{refused}");
 }
+
+#[test]
+fn tap_reads_a_finite_source_one_element_at_a_time() {
+    let (_dir, vault) = configured("");
+    assert_eq!(
+        hql::check_in(r#"tap("counts")"#, &vault)
+            .unwrap()
+            .to_string(),
+        "Stream<Data>"
+    );
+    assert_eq!(
+        value(
+            r#"tap("sightings") | map(s => s.species) | take(1)"#,
+            &vault
+        ),
+        r#"["owl"]"#
+    );
+    assert_eq!(
+        value(r#"tap("birds") | map(b => b.name) | take(2)"#, &vault),
+        r#"["kite", "owl"]"#
+    );
+    assert_eq!(
+        value(
+            "type Count { species: String, count: Int }\n\
+             counts : Stream<Count> = tap(\"counts\")\n\
+             counts | map(c => c.count) | take(2)",
+            &vault
+        ),
+        "[3, 5]"
+    );
+    let vault_tap = hql::check_in(r#"tap("field_notes")"#, &vault).unwrap_err();
+    assert!(vault_tap.message().contains(".cards"), "{vault_tap}");
+}

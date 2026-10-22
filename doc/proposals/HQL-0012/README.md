@@ -731,5 +731,7 @@ None.
   `Position`, and `VaultSource` as [HQL-0020](../HQL-0020/README.md) states
   it, a `DataSource` and not a `Seq<Card>`. A file or table is typed `Seq<T>` rather than a
   concrete source type, `Vault` does not narrow `VaultSource`, and
-  `tap("id")`, `member`, `get` over a keyed source, the stream, live and
-  network kinds and native queries are not built
+  `member`, the stream, live and network kinds and native queries are not
+  built
+- 2026-10-22: `tap("id")` gives a finite source's elements as a `Stream`,
+  and a vault source's cards are keyed by name, `notes.cards.get("owl")`

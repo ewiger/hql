@@ -266,9 +266,14 @@ mod tests {
             ("file", Purity::Pure),
         ] {
             let step = super::super::IO.step(name).unwrap();
-            // `source` reads an endpoint or a configured source's id.
+            // `source` and `tap` read an endpoint or a configured source's id.
             let forms = environment.of(step);
-            assert_eq!(forms.len(), if name == "source" { 2 } else { 1 }, "{name}");
+            let count = if matches!(name, "source" | "tap") {
+                2
+            } else {
+                1
+            };
+            assert_eq!(forms.len(), count, "{name}");
             for id in forms {
                 assert_eq!(environment.declaration(*id).purity, expected, "{name}");
             }

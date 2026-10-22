@@ -123,6 +123,7 @@ fn file(path: String) : File
 effectful fn source<F : Format, T>(endpoint: Readable, format: Type<F>) : Iterable<T>
 effectful fn source<F : Format, T>(id: String, format: Type<F>) : Iterable<T>
 effectful fn tap<F : Format, T>(endpoint: Readable, format: Type<F>) : Stream<T>
+effectful fn tap<F : Format, T>(id: String, format: Type<F>) : Stream<T>
 effectful fn target<T, F : Format>(value: T, endpoint: Writable, format: Type<F>) : Unit
 effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Unit
 

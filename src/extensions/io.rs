@@ -87,7 +87,10 @@ pub(crate) static STEPS: &[Operation] = &[
         name: "tap",
         spec: Signature::Native(OperationSpec {
             parameters: &[FORMAT_PARAMETER],
-            input: P::Type(TypeConstructor("Readable")),
+            input: P::OneOf(&[
+                P::Type(TypeConstructor("Readable")),
+                P::Type(TypeConstructor("String")),
+            ]),
             arguments: &[FORMAT],
             output: O::Computed("Stream<T>"),
         }),
@@ -222,7 +225,23 @@ pub(crate) fn result(
     vault: &crate::vault::Vault,
 ) -> Result<TypeRef, Diagnostic> {
     if call.input.is(&TypeRef::STR) {
-        return configured_type(call, vault);
+        let read = configured_type(call, vault)?;
+        if name != "tap" {
+            return Ok(read);
+        }
+        // `tap("id")` holds one element at a time: a finite source's
+        // elements as a Stream.
+        return match read.iterated() {
+            Some(element) if read != TypeRef::VAULT => {
+                Ok(crate::types::collections::STREAM.apply([element]))
+            }
+            _ => Err(Diagnostic::typing(
+                call.input_expr
+                    .map_or(0..0, |expression| expression.span.clone()),
+                "a vault source holds cards as a field, not as its elements; read it with \
+                 `source`, and its cards with `.cards`",
+            )),
+        };
     }
     let span = call
         .input_expr
@@ -545,11 +564,14 @@ fn eval_source(
 }
 
 fn eval_tap(
-    _: &mut dyn EvalCx,
+    cx: &mut dyn EvalCx,
     input: Value,
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    if let Value::Str(id) = &input {
+        return tap_configured(id, cx.vault(), &span);
+    }
     let endpoint = endpoint(&input, &span)?;
     if let Endpoint::Channel(name, element) = endpoint.as_ref() {
         let reading = Reading::Channel {
@@ -644,6 +666,36 @@ fn read_configured(
         TypeRef::DATA,
         documents,
     ))))
+}
+
+/// A configured finite source one element at a time: a file of documents
+/// read as `tap` reads the file, and a JSON array or a table, which are read
+/// whole, then produced as a stream.
+fn tap_configured(
+    id: &str,
+    vault: &crate::vault::Vault,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let configured =
+        configured(id, vault).map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+    if let crate::sources::Kind::File { path, format } = &configured.kind
+        && *format != "Json"
+    {
+        let reading = Reading::File {
+            path: path.clone(),
+            format: TypeConstructor(format),
+        };
+        return Ok(live(reading, TypeRef::DATA, span.clone()));
+    }
+    let Value::Traversal(read) = read_configured(id, vault, span)? else {
+        return Err(Diagnostic::runtime(
+            span.clone(),
+            format!("source `{id}` is not read one element at a time"),
+        ));
+    };
+    let streamed = Traversal::new(TypeRef::DATA, false, crate::traversal::Source::Kept);
+    streamed.keep(read.forced().map(<[Value]>::to_vec).unwrap_or_default());
+    Ok(Value::Traversal(Arc::new(streamed)))
 }
 
 /// Whether a step is this extension's `source` or `tap`: a read whose
