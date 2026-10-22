@@ -194,5 +194,7 @@ cargo clippy --locked --all-targets -- -D warnings
   `root`, its cards never merged into `cards`
   ([HQL-0012](../HQL-0012/README.md), [issue 0040](../../issues/0040-configured-data-sources.md));
   `std/io/mod.hql` declares `VaultSource : DataSource`. `Vault` does not yet
-  narrow `VaultSource`, and keyed `vault.cards` and `knowledge` are not
-  built
+  narrow `VaultSource`, and `knowledge` is not built
+- 2026-10-22: cards are keyed by name: `get(vault.cards, "alice")` and
+  `cards.get("alice")` give `Option<Card>`, by a `get` over any collection
+  of documents that `std/collections.hql` declares

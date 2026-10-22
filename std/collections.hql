@@ -79,6 +79,8 @@ reduction fn count<T>(self: Collection<T>) : Int
 reduction fn count<T>(self: Collection<T>, value: T, /) : Int
 reduction fn contains<T>(self: Collection<T>, value: T, /) : Bool
 fn get<K, V>(self: Map<K, V>, key: K, /) : Option<V>
+// Documents are keyed by name: `cards.get("alice")` is the card named alice.
+fn get<T : Doc>(self: Collection<T>, name: String, /) : Option<T>
 
 // A predicate that tests the element's type, `x => x | is(U)`, is a
 // `T -> Is<U>`, and narrows the result to F<U>: of_type(U) is that filter. Over one optional value, filter

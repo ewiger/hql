@@ -268,3 +268,29 @@ fn a_document_reads_the_sources_its_vault_configures() {
     );
     assert!(text.contains('2'), "{text}");
 }
+
+#[test]
+fn a_vaults_cards_are_keyed_by_name() {
+    let (_dir, vault) = configured("");
+    let notes = r#"notes = source("field_notes")
+"#;
+    assert_eq!(
+        value(
+            &format!("{notes}notes.cards.get(\"owl\") | map(c => c.title)"),
+            &vault
+        ),
+        "Owl"
+    );
+    assert_eq!(
+        value(&format!("{notes}get(notes.cards, \"heron\")"), &vault),
+        "none"
+    );
+    assert_eq!(
+        hql::check_in(r#"source("archive").cards.get("finch")"#, &vault)
+            .unwrap()
+            .to_string(),
+        "Option<Card>"
+    );
+    let refused = hql::check_in(r#"[1, 2].get("x")"#, &vault).unwrap_err();
+    assert!(refused.message().contains("T : Doc"), "{refused}");
+}

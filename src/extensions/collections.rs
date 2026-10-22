@@ -480,6 +480,16 @@ fn eval_get(
     match (input, key) {
         (Value::Map(map), key) => Ok(map.get(&key)),
         (Value::Data(data), Value::Str(key)) => crate::evaluation::data_key(&data, &key, &span),
+        // Documents are keyed by name: the first one so named, in order.
+        (documents, Value::Str(key)) => {
+            let found = elements(&documents, "get", &span)?
+                .into_iter()
+                .find(|element| element.as_card().is_some_and(|card| card.name() == &*key));
+            Ok(match found {
+                Some(card) => Value::Present(Arc::new(card)),
+                None => Value::Absent(element_type(&documents)),
+            })
+        }
         _ => Err(Diagnostic::runtime(span, "get needs a map")),
     }
 }
