@@ -189,8 +189,15 @@ impl fmt::Display for Value {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            // `{}` is an empty record, so an empty set names its type.
-            Self::Set(values, element) if values.is_empty() => write!(f, "Set<{element}>([])"),
+            // `{}` is the empty set, read back as a `Set<Never>`; an empty
+            // set of a known element type names it, so it reads back as one.
+            Self::Set(values, element) if values.is_empty() => {
+                if *element == crate::types::TypeRef::NEVER {
+                    f.write_str("{}")
+                } else {
+                    write!(f, "Set<{element}>([])")
+                }
+            }
             Self::Set(values, _) => write!(f, "{{{}}}", nested(values)),
             Self::List(values, _) => write!(f, "[{}]", nested(values)),
             Self::Hit(hit) => write!(f, "{} ({:.4})", hit.name(), hit.score),

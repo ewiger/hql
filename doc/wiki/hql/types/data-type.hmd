@@ -376,3 +376,6 @@ That tree can later be queried, transformed, validated, interpreted, or converte
 See [[doc-type]] for the document header, [[card-type]] for the knowledge-bearing
 kind of document, [[pipes]] for composition, and [[hql/knowledge]] for the
 semantic side of the `Data`/`Knowledge` boundary.
+
+A `Data` literal is written in braces with `key: value` entries, and the
+empty one is `{:}`; braces without a colon are a set. See [[set-vs-data]].

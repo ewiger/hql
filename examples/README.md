@@ -7,6 +7,10 @@ sorted-key constraints and duplicate-key checks are enforced.
 The [mapreduce shelf](mapreduce/README.md) is six book cards to filter, group and
 reduce, read as a chain of steps.
 
+The [braces](braces/README.md) cases tell a set from `Data` by the colon:
+`{}` is the empty set and `{:}` the empty record, from
+[HQL-0029](../doc/proposals/HQL-0029/README.md).
+
 The [functions](functions/README.md) cases declare, bind, pass and return
 functions, with one intentional error for a parameter type.
 

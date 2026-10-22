@@ -43,7 +43,7 @@ operation.
   no single value of an abstract type to build, and calling one is refused with
   a message naming its concrete subtypes, as HQL-0016 already requires.
 - A record type's constructor takes its fields as named arguments,
-  `Edge(source = a, target = b, data = {})`, once declared records can be
+  `Edge(source = a, target = b, data = {:})`, once declared records can be
   constructed ([issue 0016](../../issues/0016-sql-parity-analysis.md),
   roadblock "record and pair values").
 - A format type has no constructor: a format is a value of `Format`, not the

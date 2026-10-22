@@ -1869,6 +1869,21 @@ impl Parser {
         let open = self.expect(&Token::OpenBrace, "to open a data literal")?;
         self.nesting += 1;
         let mut entries = Vec::new();
+        // `{:}` is the empty Data; `{}` is the empty set.
+        if self.eat(&Token::Colon) {
+            let close = self.expect(&Token::CloseBrace, "to close the empty data literal `{:}`")?;
+            self.nesting -= 1;
+            return Ok(Expr {
+                kind: Kind::Data(entries),
+                span: open.span.start..close.span.end,
+            });
+        }
+        if matches!(self.peek(), Token::CloseBrace) {
+            return Err(Diagnostic::syntax(
+                open.span.start..self.peek_span().end,
+                "`{}` is the empty set; the empty data literal is `{:}`",
+            ));
+        }
         while !matches!(self.peek(), Token::CloseBrace) {
             let key = self.advance();
             let name = match key.token {
@@ -1937,11 +1952,15 @@ impl Parser {
             {
                 after += 1;
             }
-            if !matches!(self.tokens[next].token, Token::CloseBrace | Token::End)
-                && !self
-                    .tokens
-                    .get(after)
-                    .is_some_and(|token| matches!(token.token, Token::Colon))
+            // The colon tells the two apart: braces holding values are a
+            // set, `{}` the empty one; braces holding `key: value` entries
+            // are Data, `{:}` the empty one.
+            if matches!(self.tokens[next].token, Token::CloseBrace)
+                || (!matches!(self.tokens[next].token, Token::End | Token::Colon)
+                    && !self
+                        .tokens
+                        .get(after)
+                        .is_some_and(|token| matches!(token.token, Token::Colon)))
             {
                 return self.collection_literal(true);
             }

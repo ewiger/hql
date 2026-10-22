@@ -19,15 +19,15 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0009](HQL-0009/README.md) | implemented | Cells: identity, shared values and saved outputs |
 | [HQL-0010](HQL-0010/README.md) | implemented | `tee` branches a pipeline without ending it |
 | [HQL-0011](HQL-0011/README.md) | implemented | Names, their providers, and the naming lint |
-| [HQL-0012](HQL-0012/README.md) | drafted | Data sources |
-| [HQL-0013](HQL-0013/README.md) | drafted | Joins over named sides |
+| [HQL-0012](HQL-0012/README.md) | accepted, implemented in part | Data sources |
+| [HQL-0013](HQL-0013/README.md) | accepted, implemented in part | Joins over named sides |
 | [HQL-0014](HQL-0014/README.md) | implemented | `reduce` as the aggregation primitive, and `merge` as a combiner |
 | [HQL-0015](HQL-0015/README.md) | implemented | `:=` is function alias syntax sugar |
 | [HQL-0016](HQL-0016/README.md) | implemented | Type tests, narrowing, widening and conversion |
-| [HQL-0017](HQL-0017/README.md) | accepted | Presentation formats |
+| [HQL-0017](HQL-0017/README.md) | accepted, implemented in part | Presentation formats |
 | [HQL-0018](HQL-0018/README.md) | implemented | A type's constructor is an operation |
 | [HQL-0019](HQL-0019/README.md) | accepted | Graph construction |
-| [HQL-0020](HQL-0020/README.md) | accepted | The vault and its namespace |
+| [HQL-0020](HQL-0020/README.md) | accepted, implemented in part | The vault and its namespace |
 | [HQL-0021](HQL-0021/README.md) | accepted, implemented in part | I/O: endpoints, channels, the network and logging |
 | HQL-0022 | reserved | The AI harness extension |
 | [HQL-0023](HQL-0023/README.md) | implemented | A document reference is written `@[[..]]` |
@@ -36,3 +36,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0026](HQL-0026/README.md) | implemented | Positions and slices: `xs[i]`, `xs[a:b]` and the `Slice` capability |
 | [HQL-0027](HQL-0027/README.md) | implemented | Generic traits: type parameters on `trait` and `impl` |
 | [HQL-0028](HQL-0028/README.md) | implemented | Import units, the program module and declaration visibility |
+| [HQL-0029](HQL-0029/README.md) | implemented | Braces: `{}` is the empty set, `{:}` the empty Data |

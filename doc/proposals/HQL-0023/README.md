@@ -95,7 +95,7 @@ The link operator takes references in the new spelling:
 - `->` MUST accept a reference on either side as before, and refuse anything
   else with `` a link endpoint is a document reference, `@[[name]]`, not T ``.
 - A reference written as a field value MUST use the same form:
-  `Edge { source: @[[alice]], target: @[[bob]], data: {} }`.
+  `Edge { source: @[[alice]], target: @[[bob]], data: {:} }`.
 - The implicit source is written `@[[this]]` wherever HQL source names it.
 
 ### 4. HMD bodies

@@ -271,7 +271,7 @@ fn a_union_needs_members_that_exist_and_are_not_itself() {
 
 #[test]
 fn a_key_of_a_tree_is_optional_and_a_missing_one_is_absence() {
-    let tree = "tree = {genre: \"novel\", pages: 412, note: {}}\n";
+    let tree = "tree = {genre: \"novel\", pages: 412, note: {:}}\n";
     // `field? : T` is exactly `Option<T>`: reading a key says it may be missing.
     assert_eq!(
         check(&format!("{tree}tree.genre")),
@@ -514,4 +514,36 @@ fn a_record_may_open_a_line_inside_a_list() {
         hql::eval("[\n    {1, 2},\n]").unwrap().to_string(),
         "[{1, 2}]"
     );
+}
+
+#[test]
+fn braces_without_a_colon_are_a_set_and_with_one_data() {
+    for (source, ty) in [
+        ("{}", "Set<Never>"),
+        ("{1, 2, 3}", "Set<Int>"),
+        ("{\"a\", \"b\"}", "Set<String>"),
+        ("{:}", "Data"),
+        ("{name: \"Alice\"}", "Data"),
+        ("{name: \"Alice\", age: 42}", "Data"),
+        ("x : Set<Int> = {}\nx", "Set<Int>"),
+        ("d : Data = {:}\nd", "Data"),
+    ] {
+        assert_eq!(check(source).unwrap().to_string(), ty, "{source}");
+    }
+    let refused = check("d : Data = {}\nd").unwrap_err().message();
+    assert!(
+        refused.contains("declared Data but its value is Set<Never>"),
+        "{refused}"
+    );
+    // Each prints as the literal that writes it.
+    assert_eq!(eval("{}").unwrap().to_string(), "{}");
+    assert_eq!(eval("{:}").unwrap().to_string(), "{:}");
+    assert_eq!(eval("{a: {:}}").unwrap().to_string(), "{a: {:}}");
+    assert_eq!(
+        eval("x : Set<Int> = {}\nx").unwrap().to_string(),
+        "Set<Int>([])"
+    );
+    // A link's annotation is a data literal, so `{}` there is refused.
+    let link = hql::check("@[[a]] -> @[[b]] {}").unwrap_err().message();
+    assert!(link.contains("`{:}`"), "{link}");
 }

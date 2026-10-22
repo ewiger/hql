@@ -12,7 +12,7 @@ of one. `sum` is the shorthand for `reduce(0, +)`: a fold, as
 **combiner** is an ordinary binary operation on two values of one type — `+`,
 `min`, `merge`, `union`, `concat` — and the host knows its algebraic
 properties. `merge(a, b)` combines two maps, the right one winning a conflicting
-key, and `maps | reduce({}, merge)` is the same operation over a sequence of
+key, and `maps | reduce({:}, merge)` is the same operation over a sequence of
 maps. A fold whose combiner is one of these has shape `Reduction` and may be
 computed from partial results; a fold with a lambda stays a `Barrier`, since
 nothing is known about it. `reduce` without an initial value folds from the
@@ -79,7 +79,7 @@ reduce<T>(xs: Seq<T>, by: (T, T) -> T)                 : Option<T>  from the fir
 ```hql
 values | reduce(0, +)
 values | reduce(max)
-maps   | reduce({}, merge)
+maps   | reduce({:}, merge)
 values | reduce(initial = 0, by = (acc, x) => acc + x * x)
 ```
 
@@ -109,7 +109,7 @@ min         :=  reduce(min)
 max         :=  reduce(max)
 size        :=  map(x => 1) | reduce(0, +)
 count(v)    :=  filter(x => x == v) | size
-merge_all   :=  reduce({}, merge)
+merge_all   :=  reduce({:}, merge)
 union_all   :=  reduce(Set([]), union)
 concat_all  :=  reduce([], concat)
 ```
@@ -135,7 +135,7 @@ merge(left: Data, right: Data)                               : Data
 
 ```hql
 merge({a: 1, b: 2}, {b: 3, c: 4})            // {a: 1, b: 3, c: 4}
-[{a: 1}, {b: 2}, {c: 3}] | reduce({}, merge)  // {a: 1, b: 2, c: 3}
+[{a: 1}, {b: 2}, {c: 3}] | reduce({:}, merge)  // {a: 1, b: 2, c: 3}
 ```
 
 - The result holds every key of either input. A key in both takes the value
@@ -150,7 +150,7 @@ merge({a: 1, b: 2}, {b: 3, c: 4})            // {a: 1, b: 3, c: 4}
   [structured log](../../wiki/hql/error-reporting.hmd).
 - As a combiner, `merge` has the empty map as its identity, is associative, and
   is order-sensitive: which value wins depends on which map comes later. So
-  `Seq<Map<K, V>> | reduce({}, merge)` is deterministic, and a `Set` of maps is
+  `Seq<Map<K, V>> | reduce({:}, merge)` is deterministic, and a `Set` of maps is
   refused.
 
 ### 5. Combiner properties
@@ -311,7 +311,7 @@ Unit tests MUST include:
   order as *`merge` combines two maps* states
 - a split fold with a non-identity `initial`, `reduce(10, +)`, giving the
   sequential result
-- `reduce({}, merge)` and `reduce([], concat)` over a `Set`, refused with the
+- `reduce({:}, merge)` and `reduce([], concat)` over a `Set`, refused with the
   message saying to sort first
 
 Integration tests MUST include:

@@ -48,9 +48,9 @@ arm         ::= pattern ("given" pipeline)? "=>" expression
 pattern     ::= "_" | ident | int | float | string | bool
               | "some" "(" pattern ")" | "none" | type ("_" | ident)
 lambda      ::= (ident | "(" (ident (":" type)? ("," ident (":" type)?)*)? ")") "=>" expression
-data        ::= "{" (key ":" expression ("," key ":" expression)*)? "}"
+data        ::= "{" ":" "}" | "{" key ":" expression ("," key ":" expression)* "}"
 list        ::= "[" (expression ("," expression)* ","?)? "]"
-set         ::= "{" expression ("," expression)* ","? "}"
+set         ::= "{" (expression ("," expression)* ","?)? "}"
 docref      ::= "@[[" name "]]"
 type        ::= simple ("->" type)? | "(" (type ("," type)*)? ")" "->" type
 simple      ::= ident ("<" type ("," type)* ">")?
@@ -68,8 +68,12 @@ error.
 
 Generics are written with angle brackets, so an angle bracket always means the
 type world. A square bracket stays value-level: `[1, 2, 1]` materializes a
-`List<Int>`. `{1, 2, 1}` materializes a `Set<Int>` with two distinct elements;
-`{}` remains an empty `Data` literal, so an empty typed set is `Set<Int>([])`.
+`List<Int>`. `{1, 2, 1}` materializes a `Set<Int>` with two distinct elements. The colon
+tells braces apart: braces without one denote a set, and braces holding
+`key: value` entries denote `Data`. `{}` is the empty set, a `Set<Never>`
+that a declared type such as `Set<Int>` accepts, and `{:}` is the empty
+`Data`; `d : Data = {}` is a type error
+([HQL-0029](../../proposals/HQL-0029/README.md)).
 
 `abstract type` declares a contract with no independent runtime constructor.
 `Collection` and `Seq` are abstract; `List` and `Set` are concrete. Type arguments

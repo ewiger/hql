@@ -20,6 +20,12 @@ Values may be scalars, lists, or other records:
 A key that is not an identifier is quoted: `{"first name": "Ada"}`. The record
 prints with its keys in order, so the same tree always prints the same way.
 
+The colon is what makes braces a record. The empty record is `{:}`; `{}`
+without a colon is the empty set, as `{1, 2}` is a set of two. So
+`d : Data = {:}` holds an empty record, and `d : Data = {}` is a type error:
+`{}` is a `Set<Never>`, which a `Set<Int>` binding accepts and a `Data` one
+does not.
+
 ## Reading a field
 
 A path reads into the tree, one key per step:

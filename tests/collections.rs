@@ -365,7 +365,7 @@ fn a_combiner_names_how_two_values_become_one() {
         ("[2, 3, 4] | reduce(*)", "24"),
         ("[4, 9, 2] | reduce(max)", "9"),
         ("[ [1], [2] ] | reduce([], concat)", "[1, 2]"),
-        ("[{a: 1}, {b: 2}] | reduce({}, merge)", "{a: 1, b: 2}"),
+        ("[{a: 1}, {b: 2}] | reduce({:}, merge)", "{a: 1, b: 2}"),
         // A combiner that ignores order folds a set; one that does not, a sequence.
         ("{3, 1, 2} | reduce(0, +)", "6"),
     ] {
@@ -373,7 +373,7 @@ fn a_combiner_names_how_two_values_become_one() {
         assert_eq!(value.to_string(), expected, "{source}");
     }
     let ordered =
-        hql::check("{ {a: 1} } | reduce({}, merge)").expect_err("merge cares about order");
+        hql::check("{ {a: 1} } | reduce({:}, merge)").expect_err("merge cares about order");
     assert!(
         ordered.message().contains("sort it first"),
         "{}",

@@ -1,0 +1,58 @@
+---
+tags: [hql, syntax, set, data, type-system]
+nav:
+  visibility: public
+---
+
+# Set and Data
+
+Braces write two different things, and the colon is the discriminator:
+
+> Braces without `:` denote sets. Braces containing key/value entries denote
+> `Data`. The empty `Data` literal is `{:}`.
+
+```hql
+{}                        // Set<Never>, the empty set
+{1, 2, 3}                 // Set<Int>
+{"a", "b"}                // Set<String>
+
+{:}                       // Data, the empty record
+{name: "Alice"}           // Data
+{name: "Alice", age: 42}  // Data
+```
+
+A set is values in braces; `Data` is key/value structure in braces. The empty
+forms keep exactly that distinction, so no literal takes its meaning from the
+type expected of it.
+
+## Empty forms
+
+`{}` is a `Set<Never>`: a set with no elements, of no element type yet. Like
+every `Set<Never>`, a declared set type accepts it:
+
+```hql
+x : Set<Int> = {}
+d : Data = {:}
+```
+
+`d : Data = {}` is a type error, since `{}` is already a set:
+
+```text
+type error: `d` is declared Data but its value is Set<Never>
+```
+
+The constructor writes the same empty set with its element type,
+`Set<Int>([])`, which is how an empty set of a known type prints so that the
+text reads back as the same value. The empty `Data` prints as `{:}`, alone or
+nested: `{a: {:}}`.
+
+## What each is
+
+A `Set<T>` is a collection of distinct values with no positions; see the
+[collection model](types/collections/collection-types.md). `Data` is an open
+tree whose keys belong to whoever wrote them; see [[data-type]]. A record
+literal is not a declared record type: `{name: "Alice"}` is `Data`, and reading
+`.name` from it gives an `Option<Data>`.
+
+The rule is specified by [HQL-0029](../../proposals/HQL-0029/README.md), and the
+[braces examples](../../../examples/braces/README.md) run it.

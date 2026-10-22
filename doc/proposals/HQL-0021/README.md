@@ -515,7 +515,7 @@ type Socket : {Readable, Writable} {
     port : Int
 }
 
-fn http(url: String, method: String = "GET", headers: Data = {}) : Http
+fn http(url: String, method: String = "GET", headers: Data = {:}) : Http
 fn websocket(url: String) : WebSocket
 fn socket(host: String, port: Int) : Socket
 ```
@@ -570,7 +570,7 @@ type Logger {
 }
 
 fn Logger<F : Format, L : LogLevel>(to: Writable, format: Type<F>, *, name: String, level: Type<L> = Info) : Logger
-effectful fn info(log: Logger, message: String, data: Data = {}) : Unit   // and trace, debug, warn, error
+effectful fn info(log: Logger, message: String, data: Data = {:}) : Unit   // and trace, debug, warn, error
 ```
 
 The format is omitted for a `Channel<LogEvent>`, which takes the events as
@@ -601,7 +601,7 @@ birds | sink(stdout, Json)
   replaces the file with this run's events, by the rules of `sink`.
 - Formatted as `Text`, a `LogEvent` MUST be one line: the level in capitals,
   the logger's name, the message, then the data as an `Hql` literal unless it
-  is `{}`:
+  is the empty `{:}`:
 
   ```text
   INFO birds filter completed {kept: 2}

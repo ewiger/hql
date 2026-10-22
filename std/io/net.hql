@@ -33,6 +33,6 @@ type Socket : {Readable, Writable} {
 }
 
 // Constructors, provided by the `net` extension; each is Pure:
-// http(url: String, method: String = "GET", headers: Data = {}) : Http
+// http(url: String, method: String = "GET", headers: Data = {:}) : Http
 // websocket(url: String) : WebSocket
 // socket(host: String, port: Int) : Socket

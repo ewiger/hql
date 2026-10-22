@@ -27,7 +27,7 @@ type LogEvent {
     level   : LogLevel
     logger  : String   // the producer's name, dotted by convention: hql.query
     message : String
-    data    : Data     // structured context, {} when none is given
+    data    : Data     // structured context, {:} when none is given
 }
 
 // A producer of events. Its destination is not a field: what a logger writes
@@ -44,11 +44,11 @@ type Logger {
 // the level is Info unless written. Called directly or through a pipe:
 // info(log, "loaded") is log | info("loaded").
 fn Logger<F : Format, L : LogLevel>(to: Writable, format: Type<F>, *, name: String, level: Type<L> = Info) : Logger
-effectful fn trace(log: Logger, message: String, data: Data = {}) : Unit
-effectful fn debug(log: Logger, message: String, data: Data = {}) : Unit
-effectful fn info(log: Logger, message: String, data: Data = {}) : Unit
-effectful fn warn(log: Logger, message: String, data: Data = {}) : Unit
-effectful fn error(log: Logger, message: String, data: Data = {}) : Unit
+effectful fn trace(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn debug(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn info(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn warn(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn error(log: Logger, message: String, data: Data = {:}) : Unit
 
 // The cell `hql render` is running, bound as `cell` as `vault` is. Its logs
 // are shown beside the cell's result and never saved into the document.

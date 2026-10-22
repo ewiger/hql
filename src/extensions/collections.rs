@@ -390,7 +390,7 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "merge_all",
         spec: Signature::Declared,
-        summary: "Merge every map in order, a later key winning: reduce({}, merge).",
+        summary: "Merge every map in order, a later key winning: reduce({:}, merge).",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: Some(check_all),

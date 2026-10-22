@@ -176,7 +176,7 @@ reduction fn product(self: Collection<Float>) : Float
 // Absent over [].
 reduction fn average(self: Collection<Int>) : Option<Float>
 reduction fn average(self: Collection<Float>) : Option<Float>
-// reduce({}, merge), a later key winning; reduce(Set([]), union).
+// reduce({:}, merge), a later key winning; reduce(Set([]), union).
 reduction fn merge_all<T>(self: Collection<T>) : T
 reduction fn union_all<T>(self: Collection<T>) : T
 // reduce([], concat).

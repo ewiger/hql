@@ -139,6 +139,8 @@ impl fmt::Display for Data {
                 }
                 f.write_str("]")
             }
+            // The empty map is `{:}`: `{}` is the empty set.
+            Self::Map(entries) if entries.is_empty() => f.write_str("{:}"),
             Self::Map(entries) => {
                 f.write_str("{")?;
                 for (index, (key, value)) in entries.iter().enumerate() {
