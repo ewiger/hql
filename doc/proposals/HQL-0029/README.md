@@ -4,6 +4,14 @@
 **Created**: 2026-10-22
 **Source**: [set and Data](../../wiki/hql/set-vs-data.hmd)
 
+## Companion notes
+
+- [`data-and-type-boundaries.md`](data-and-type-boundaries.md) — `Data` as the
+  boundary representation of decoded external data, format decoding kept
+  apart from type interpretation (`source(file(p), Json) | User`), `{:}` as
+  an empty keyed literal typed by context, and the rule that an explicit type
+  boundary replaces guessing where structure is dynamic, erased or absent.
+
 ## Abstract
 
 Braces hold either values or `key: value` entries, and the colon is what tells
