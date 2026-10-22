@@ -27,7 +27,7 @@ atoms! {
     HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
-    CELL => "Cell", RANGE => "Range",
+    CELL => "Cell", RANGE => "Range", TABLE => "Table",
 }
 
 macro_rules! applications {
@@ -135,6 +135,8 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::RELATION_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
         (TypeRef::EDGE, TypeKind::Concrete, &[]),
         (TypeRef::GRAPH, TypeKind::Concrete, &[]),
+        // Rows under ordered columns: `type Table` in `std/format.hql`.
+        (TypeRef::TABLE, TypeKind::Concrete, &[]),
         (TypeRef::VAULT, TypeKind::Concrete, &[]),
         (TypeRef::ORDERING, TypeKind::Concrete, &[]),
         // Where values come from and go to: `std/io/init.hql`. A capability

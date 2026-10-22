@@ -18,7 +18,7 @@ mod value;
 pub use builtin::named;
 pub use mapping::{CollectionError, MapKind, MapValue};
 pub use system::{TypeDefinition, TypeError, TypeKind, TypeParameter, TypeSystem, Variance};
-pub use value::{Closure, Formatted, Group, Key, Leaves, Mismatch, Record, Value};
+pub use value::{Closure, Formatted, Group, Key, Leaves, Mismatch, Record, Table, Value};
 
 use std::fmt;
 

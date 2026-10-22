@@ -22,8 +22,8 @@ const RETIRED: &[(&str, &str)] = &[("typed", "of_type"), ("flatten", "emit")];
 /// instead.
 const EXPLAINED: &[(&str, &str)] = &[(
     "table",
-    "a table is the type `Table`, which arrives with record values; \
-     `text` and `markdown` lay a collection out in rows",
+    "a table is a value of the type `Table`, built by its constructor: \
+     `Table(xs, columns = [...])`",
 )];
 
 /// The hint a diagnostic appends for a name that is not a step: what to write

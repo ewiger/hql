@@ -1,10 +1,12 @@
 //! The `format` extension: writing a value as text in a presentation format.
 //!
-//! A presentation format is a subtype of `String` with a known syntax:
-//! `Markdown`, `Json`, `D2` and the rest. `format(x, F)` writes any value as
-//! text of format `F`, and the result is ordinary text a later step may read.
-//! Which renderer writes a type in a format is chosen per vault in `hql.toml`,
-//! over built-in defaults. See [HQL-0017](../../doc/proposals/HQL-0017/README.md).
+//! A format is a value of `Format`: `Markdown`, `Json`, `D2` and the rest.
+//! `format(x, F)` applies the encoder for `x`'s type in `F` and gives the
+//! encoded text, a `String` a later step may read. A renderer is one of a
+//! format's encoders for one shape, `Graph` or `Table`; which one writes a
+//! type in a format is chosen per vault in `hql.toml`, over built-in
+//! defaults. The model is stated in
+//! [presentation](../../doc/wiki/hql/presentation.hmd).
 
 use super::Signature;
 use super::{EvalCx, Operation, Purity, named};
@@ -49,6 +51,20 @@ const RENDERERS: [(&str, &[&str]); 9] = [
 
 /// Graph renderers write only a `Graph`.
 const GRAPH_RENDERERS: [&str; 4] = ["adjacency", "node-link", "d2", "mermaid"];
+
+/// Table renderers write only a `Table`.
+const TABLE_RENDERERS: [&str; 4] = ["aligned", "pipe", "rows", "records"];
+
+/// The shape a renderer writes, when it writes one shape only.
+fn shape_of(renderer: &str) -> Option<&'static str> {
+    if GRAPH_RENDERERS.contains(&renderer) {
+        Some("Graph")
+    } else if TABLE_RENDERERS.contains(&renderer) {
+        Some("Table")
+    } else {
+        None
+    }
+}
 
 /// Whether some renderer writes a value of type `input` as `format`: a graph
 /// in any format, text of one format as itself, as `Text`, or fenced in
@@ -142,9 +158,11 @@ impl Renderers {
                         format.0
                     ));
                 }
-                if GRAPH_RENDERERS.contains(&renderer) && ty != "Graph" {
+                if let Some(shape) = shape_of(renderer)
+                    && ty != shape
+                {
                     return Err(format!(
-                        "the renderer `{renderer}` writes a Graph, not {ty}"
+                        "the renderer `{renderer}` writes a {shape}, not {ty}"
                     ));
                 }
                 chosen.insert((ty.clone(), format.0.to_owned()), renderer.to_owned());
@@ -221,6 +239,9 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
     if let Value::Formatted(_) = value {
         return render(value, format, 0, None, &Renderers::default());
     }
+    if let Value::Table(_) = unwrapped(value) {
+        return render(value, format, 0, None, &Renderers::default());
+    }
     let one = Value::list(vec![value.clone()], value.type_of());
     match format.0 {
         "Text" | "Lines" | "String" => Ok(text(value)),
@@ -247,8 +268,22 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
     }
 }
 
-/// The built-in choice for a type in a format.
+/// The built-in choice for a type in a format: a `Graph` by its graph
+/// renderers, a `Table` by each format's table encoder, and any other value
+/// as its own rendering or its data.
 fn default(value: &Value, format: TypeConstructor) -> Result<String, String> {
+    if let Value::Table(table) = unwrapped(value) {
+        return match format.0 {
+            "Text" | "String" | "Lines" => Ok(table.aligned()),
+            "Markdown" | "Hmd" => Ok(table.piped()),
+            "Csv" => Ok(table.csv()),
+            "Json" => Ok(table.json()),
+            "JsonLines" => Ok(table.json_lines()),
+            "Yaml" => Ok(table.yaml()),
+            "Hql" => Ok(value.to_literal()),
+            other => Err(format!("no renderer writes Table as {other}")),
+        };
+    }
     let graph = matches!(unwrapped(value), Value::Graph(_));
     match format.0 {
         "Text" | "String" | "Hql" if graph => by_name("adjacency", value, format),
@@ -299,12 +334,15 @@ fn by_name(name: &str, value: &Value, format: TypeConstructor) -> Result<String,
         ("node-link", Value::Graph(graph)) => Ok(node_link(graph)),
         ("d2", Value::Graph(graph)) => Ok(fenced("d2", d2(graph))),
         ("mermaid", Value::Graph(graph)) => Ok(fenced("mermaid", mermaid(graph))),
-        ("aligned", _) => Ok(value.to_table()),
-        ("pipe", _) => Ok(value.to_markdown_table()),
-        ("rows", _) => Ok(value.to_csv()),
-        ("records", _) => Ok(json(value)),
+        ("aligned", Value::Table(table)) => Ok(table.aligned()),
+        ("pipe", Value::Table(table)) => Ok(table.piped()),
+        ("rows", Value::Table(table)) => Ok(table.csv()),
+        ("records", Value::Table(table)) => Ok(table.json()),
         ("list", _) => Ok(value.to_markdown()),
-        ("adjacency" | "node-link" | "d2" | "mermaid", _) => Err(refused()),
+        (
+            "adjacency" | "node-link" | "d2" | "mermaid" | "aligned" | "pipe" | "rows" | "records",
+            _,
+        ) => Err(refused()),
         _ => Err(format!("no renderer is named `{name}`")),
     }
 }
@@ -439,6 +477,13 @@ fn capped(value: &Value, limit: usize) -> (Value, usize) {
             kept.hits.truncate(limit);
             (Value::Ranking(Arc::new(kept)), ranking.hits.len() - limit)
         }
+        Value::Table(table) if table.rows.len() > limit => (
+            Value::Table(Arc::new(crate::types::Table {
+                columns: table.columns.clone(),
+                rows: table.rows[..limit].to_vec(),
+            })),
+            table.rows.len() - limit,
+        ),
         Value::Graph(graph) if graph.nodes.len() > limit => {
             let kept: std::collections::BTreeSet<&String> =
                 graph.nodes.iter().take(limit).collect();
@@ -571,7 +616,25 @@ fn check_format(
                     format!("the renderer `{renderer}` does not write {format}"),
                 ));
             }
-            Some(_) => {}
+            Some(_) => {
+                // A table renderer writes a `Table`, so over a value whose
+                // type is known it is refused before the program runs.
+                let input = call.input.present();
+                let known =
+                    !input.has_variable() && !input.has_placeholder() && *input != TypeRef::NEVER;
+                if TABLE_RENDERERS.contains(&renderer.as_str())
+                    && known
+                    && !input.is(&TypeRef::TABLE)
+                {
+                    return Err(Diagnostic::typing(
+                        argument.value.span.clone(),
+                        format!(
+                            "the renderer `{renderer}` writes a Table, not {input}; build one \
+                             with `Table(xs, columns = [...])`"
+                        ),
+                    ));
+                }
+            }
         }
     }
     writable(call.input, format).map_err(|message| Diagnostic::typing(span, message))

@@ -720,7 +720,10 @@ fn a_program_outside_every_vault_imports_builtin_modules() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "[true, true]");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "[true, true]"
+    );
     let unbound = hql_in(dir.path(), &["eval", "cards | size"]);
     assert!(!unbound.status.success());
     assert!(String::from_utf8_lossy(&unbound.stderr).contains("needs a vault"));

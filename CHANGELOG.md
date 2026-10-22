@@ -10,6 +10,17 @@ The language continues to be in active development.
 
 ### Added
 
+- `Table` ([HQL-0017](doc/proposals/HQL-0017/README.md);
+  [issue 0039](doc/issues/0039-table-shape-and-presentation-review.md), shown
+  in the [constructors examples](examples/constructors/README.md)):
+  `Table(xs, columns = [...])` builds rows from records or `Data` maps, the
+  columns in the order named, or the first row's fields. Each format writes a
+  `Table` with its own encoder, with no renderer named: `Text` aligned
+  columns, `Markdown` and `Hmd` a pipe table, `Csv` rows header first, `Json`
+  and `Yaml` an array of objects, keys in column order. A column naming no
+  field of a declared record is a type error. The
+  [presentation](doc/wiki/hql/presentation.hmd) card states the
+  presentation model.
 - Declaration visibility ([HQL-0028](doc/proposals/HQL-0028/README.md);
   [issue 0038](doc/issues/0038-import-units-and-visibility.md), shown in the
   [Mighty Types programs](examples/mighty-types/README.md)): `private` before
@@ -174,6 +185,11 @@ The language continues to be in active development.
 
 ### Changed
 
+- The table renderers `aligned`, `pipe`, `rows` and `records` write only a
+  `Table`. Named for another value, in `format(..., renderer = ...)` or in a
+  vault's `[format.<Type>]`, they are refused before the program runs;
+  `xs | format(Markdown, renderer = "pipe")` is written
+  `xs | Table(columns = [...]) | markdown`.
 - A module is a closure ([HQL-0028](doc/proposals/HQL-0028/README.md)): it
   sees its own declarations and imports and no host binding, so `vault`,
   `cards`, `graph`, `stdin` and the vault's configured imports belong to the

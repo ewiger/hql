@@ -135,6 +135,11 @@ Both stay, as HQL-0021 has them.
   `jsonlines` are the in-memory shorthands, one record per line.
 - `sink` writes a stream and `target` one whole document; a single value goes
   through `target`.
+- The [presentation card](../../../wiki/hql/presentation.hmd) states the
+  presentation model built on this part: shape types, formats, encoders,
+  renderers, the vault's `[format]` configuration and the presentation
+  context. A renderer is a named encoder for one shape in one format, and a
+  `Table` is written by each format's own encoder for `Table`.
 - The decoder table is `io::document_type` and the encoder table is the
   renderer table of the [presentation card](../../../wiki/hql/presentation.hmd),
   both in Rust; `std/format.hql` declares the traits `Decoder<T>` and

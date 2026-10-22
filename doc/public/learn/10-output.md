@@ -74,27 +74,36 @@ cards
 … 4 more not shown
 ```
 
-`renderer` chooses how a value is written in the format. A list of records in
-Markdown is a list by default, and a table with `renderer = "pipe"`:
+A list of records in Markdown is a bullet list. A table is a value of its own
+type, `Table`: `Table(xs, columns = [...])` takes one row per record and the
+columns in the order written, and every format writes it as a table, a pipe
+table in Markdown:
 
 ```hql
 cards
 | filter(c => c.metadata.category == "book")
 | map(c => {title: c.title, pages: c.metadata.pages})
-| format(Markdown, renderer = "pipe")
+| Table(columns = ["title", "pages"])
+| markdown
 ```
 
 ```text
-| pages | title               |
-| ----- | ------------------- |
-| 112   | A Room of One's Own |
-| 412   | Dune                |
-| 280   | Frankenstein        |
-| 145   | Leaves of Grass     |
-| 194   | Mrs Dalloway        |
-| 304   | The Common Reader   |
-| 310   | The Hobbit          |
+| title               | pages |
+| ------------------- | ----- |
+| A Room of One's Own | 112   |
+| Dune                | 412   |
+| Frankenstein        | 280   |
+| Leaves of Grass     | 145   |
+| Mrs Dalloway        | 194   |
+| The Common Reader   | 304   |
+| The Hobbit          | 310   |
 ```
+
+The same table in `Csv` is a header row and one row per record, in `Json` an
+array of objects with their keys in column order, and in `Text` space-aligned
+columns. `renderer` names one of a format's encoders for a shape over the
+vault's choice, `format(Markdown, renderer = "mermaid")` for a graph; a table
+renderer, such as `pipe`, writes only a `Table`.
 
 A format that cannot write a value is refused before the program runs:
 

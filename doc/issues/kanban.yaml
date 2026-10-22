@@ -20,9 +20,6 @@ board:
   last_id: 40 # to be incremented when adding a new issue card
   items:
     backlog:
-      - id: "0039"
-        title: "A `Table` shape, and a review of rendering and presentation"
-        file: 0039-table-shape-and-presentation-review.md
       - id: "0016"
         title: "SQL parity analysis: relational operations, aggregation and schema"
         file: 0016-sql-parity-analysis.md
@@ -50,6 +47,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0039"
+        title: "A `Table` shape, and a review of rendering and presentation"
+        file: 0039-table-shape-and-presentation-review.md
       - id: "0040"
         title: "Configured data sources: `source(\"id\")` and HQL-0012 accepted"
         file: 0040-configured-data-sources.md

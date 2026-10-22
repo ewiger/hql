@@ -115,6 +115,8 @@ pub enum Value {
     Edge(Arc<Edge>),
     /// A graph.
     Graph(Arc<Graph>),
+    /// Rows under ordered columns.
+    Table(Arc<Table>),
     /// An unordered collection, with the type of its elements.
     Set(Arc<Vec<Value>>, TypeRef),
     /// An ordered collection, with the type of its elements.
@@ -194,6 +196,80 @@ impl Record {
             .iter()
             .find(|(held, _)| held == name)
             .map(|(_, value)| value)
+    }
+}
+
+/// Rows under ordered columns: `Table(xs, columns = [...])`. Each row is a
+/// record or a `Data` map, and a cell is the row's field of its column's
+/// name.
+#[derive(Debug, Clone)]
+pub struct Table {
+    /// The column names, in the order they are written.
+    pub columns: Vec<String>,
+    /// The rows, each a record or a `Data` map, in input order.
+    pub rows: Vec<Value>,
+}
+
+impl Table {
+    /// A table over `rows`: the columns named, or else the first row's
+    /// fields in the order it holds them.
+    ///
+    /// # Errors
+    /// Names a row that is neither a record nor a `Data` map.
+    pub fn new(rows: Vec<Value>, columns: Option<Vec<String>>) -> Result<Self, String> {
+        let rows: Vec<Value> = rows
+            .into_iter()
+            .map(|row| match row {
+                Value::Present(held) => held.as_ref().clone(),
+                other => other,
+            })
+            .collect();
+        if let Some(row) = rows.iter().find(|row| Self::fields(row).is_none()) {
+            return Err(format!(
+                "a Table row is a record or a Data map, not {}",
+                row.type_of()
+            ));
+        }
+        let columns = match columns {
+            Some(columns) => columns,
+            None => rows.first().and_then(Self::fields).unwrap_or_default(),
+        };
+        Ok(Self { columns, rows })
+    }
+
+    /// The field names of a row, in the order it holds them.
+    fn fields(row: &Value) -> Option<Vec<String>> {
+        match row {
+            Value::Record(record) => {
+                Some(record.fields.iter().map(|(name, _)| name.clone()).collect())
+            }
+            Value::Data(data) => match data.as_ref() {
+                Data::Map(entries) => Some(entries.keys().cloned().collect()),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// The cell of `row` under `column`: the row's field of that name, or
+    /// `None` when it has none or holds an absent optional.
+    #[must_use]
+    pub fn cell(row: &Value, column: &str) -> Option<Value> {
+        let found = match row {
+            Value::Record(record) => record.field(column).cloned(),
+            Value::Data(data) => match data.as_ref() {
+                Data::Map(entries) => entries
+                    .get(column)
+                    .map(|held| Value::Data(Arc::new(held.clone()))),
+                _ => None,
+            },
+            _ => None,
+        }?;
+        match found {
+            Value::Absent(_) => None,
+            Value::Present(held) => Some(held.as_ref().clone()),
+            other => Some(other),
+        }
     }
 }
 
@@ -294,6 +370,7 @@ impl Value {
             },
             Self::Edge(_) => TypeRef::EDGE,
             Self::Graph(_) => TypeRef::GRAPH,
+            Self::Table(_) => TypeRef::TABLE,
             Self::Set(_, element) => TypeRef::set(element.clone()),
             Self::List(_, element) => TypeRef::list(element.clone()),
             Self::Hit(hit) => TypeRef::hit(hit.element.clone()),
@@ -576,6 +653,7 @@ impl PartialEq for Value {
             }
             (Self::List(left, _), Self::List(right, _)) => left == right,
             (Self::Graph(a), Self::Graph(b)) => Arc::ptr_eq(a, b),
+            (Self::Table(a), Self::Table(b)) => a.columns == b.columns && a.rows == b.rows,
             (Self::Hit(a), Self::Hit(b)) => {
                 Arc::ptr_eq(a, b)
                     || (a.value == b.value
