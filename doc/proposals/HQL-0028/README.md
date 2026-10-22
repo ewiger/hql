@@ -220,3 +220,5 @@ every importer and wider than one module.
 - 2026-10-22: drafted
 - 2026-10-22: implemented, with `internal` reserved as specified
   ([issue 0038](../../issues/0038-import-units-and-visibility.md))
+- 2026-10-22: a parent importing its child is a warning at the import, and
+  what checking a module warns is reported where the module is imported

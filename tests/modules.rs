@@ -305,3 +305,35 @@ fn the_import_graph_is_acyclic() {
         "{message}"
     );
 }
+
+#[test]
+fn a_parent_importing_its_child_is_warned_and_still_runs() {
+    let files = [
+        ("shapes/circle.hql", "fn area(r: Int) : Int = 3 * r * r\n"),
+        (
+            "shapes/mod.hql",
+            "import shapes.circle\nfn unit_area() : Int = circle.area(1)\n",
+        ),
+    ];
+    let (_root, vault) = workspace(&files);
+    let outcome = run("import shapes\nshapes.unit_area()", &vault, Mode::Strict);
+    assert_eq!(outcome.value.expect("a value").to_string(), "3");
+    let messages: Vec<_> = outcome.reports.iter().map(|r| r.message.clone()).collect();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("imports its own child `shapes.circle`")),
+        "{messages:?}"
+    );
+    // A child importing its parent is the direction the tree allows.
+    let files = [
+        ("shapes/mod.hql", "fn unit() : Int = 1\n"),
+        (
+            "shapes/circle.hql",
+            "import shapes\nfn area(r: Int) : Int = 3 * r * r * shapes.unit()\n",
+        ),
+    ];
+    let (_root, vault) = workspace(&files);
+    let outcome = run("import shapes.circle\ncircle.area(1)", &vault, Mode::Strict);
+    assert!(outcome.reports.is_empty(), "{:?}", outcome.reports);
+}

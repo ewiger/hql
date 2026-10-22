@@ -80,6 +80,5 @@ declaration is public unless it is marked `private`.
 - No `std/` file declares a private external, so a private native operation
   is not yet filtered out of the extension's table; the parser and checker
   carry the flag, and binding does not yet read it.
-- "A parent SHOULD NOT import its child" is not diagnosed.
 - `internal` waits for every resolved module to record its package
   ([HQL-0025](../proposals/HQL-0025/README.md)).

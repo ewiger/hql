@@ -1160,6 +1160,22 @@ impl<'a> Checker<'a> {
                             ),
                         ));
                     }
+                    // A child may import its parent; the reverse would give
+                    // the module tree a dependency in both directions.
+                    if !self.unit.is_empty() && dotted.starts_with(&format!("{}.", self.unit)) {
+                        CheckCx::warn(
+                            self,
+                            crate::warnings::Warning::new(
+                                span.clone(),
+                                format!(
+                                    "`{}` imports its own child `{dotted}`: what a parent needs \
+                                     from a child belongs in the parent, or in a module both \
+                                     import",
+                                    self.unit
+                                ),
+                            ),
+                        );
+                    }
                     if !self.resolution.import(&dotted, alias.as_deref(), span)? {
                         self.import_module(&dotted, &local, span)?;
                     }
@@ -2825,6 +2841,17 @@ impl<'a> Checker<'a> {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .pop();
         let typed = checked.map_err(inside)?;
+        // What checking the module had to say is said where it is imported,
+        // the one place the importer's report can point at.
+        for warning in std::mem::take(&mut checker.checked.warnings) {
+            CheckCx::warn(
+                self,
+                crate::warnings::Warning::new(
+                    span.clone(),
+                    format!("in module `{name}`: {}", warning.message),
+                ),
+            );
+        }
         let mut functions = Vec::new();
         for statement in &program.statements {
             // A private declaration is never exported: no importer reaches
