@@ -2,6 +2,7 @@
 
 Status: backlog
 Related: [HQL-0030](../proposals/HQL-0030/README.md),
+[HQL-0032](../proposals/HQL-0032/README.md),
 [the structural examples](../../examples/structural/README.md)
 
 HQL-0030's structural categories are built: `type A = {…}` is closed,
@@ -27,7 +28,7 @@ adds beyond structure is built.
 
 ## Done when
 
-- HQL-0030 specifies the syntax of contract rules, and a `TypeContract` or
+- HQL-0032 specifies the syntax of contract rules, and a `TypeContract` or
   `DataContract` enforces them when `data | T` reads a value.
 - A failed validation can be read as a structured value.
 - A stream read through a contract follows a stated policy for invalid
