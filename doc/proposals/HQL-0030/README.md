@@ -2175,4 +2175,5 @@ itself.
   record no longer ignores undeclared entries. `{:}` is the empty map where a
   map type is declared. Contract rules, validators, events, hooks and
   validation policies, structured validation values, and stream policies
-  are not built ([the structural examples](../../../examples/structural/README.md))
+  are not built ([the structural examples](../../../examples/structural/README.md);
+  [issue 0043](../../issues/0043-contract-validation.md))
