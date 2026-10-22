@@ -108,7 +108,7 @@ without importing Rust's syntax or extension mechanisms.
 
 Pure collection steps should leave room for lazy evaluation, step fusion,
 source-side query execution and partitioned work. These are executor options,
-not promises that every pipe runs in parallel or that a query planner exists.
+not promises that every pipe runs in parallel.
 
 An optimization must preserve observable values, sequence order and failures.
 Parallel reduction needs a suitable combining operation; arbitrary functions
@@ -118,12 +118,23 @@ duplicated merely because they appear in a pipeline.
 
 [HQL-0004](../../../proposals/HQL-0004/README.md) gives this freedom a shape.
 `x | f(a)` is typed as `f(x, a)` and lowers to a step the executor still sees.
-A **pipeline** is the chain of steps joined by `|`; a **step** is one
-occurrence in it, invoking one **operation**; a **stage** is a physical unit of
-execution a planner makes of one or more steps, and is never source syntax
-([HQL-0005](../../../proposals/HQL-0005/README.md)). A receiver call,
-`x.trim()` inside `map(x => x.trim())`, is expression evaluation inside the
-step that holds it, never a step of its own.
+[HQL-0005](../../../proposals/HQL-0005/README.md) gives each word one meaning:
+
+```text
+Pipeline      ordered logical program: a maximal chain of steps joined by |
+Step          one occurrence, at one position, in a pipeline
+Operation     the semantics a step invokes: map, filter, group, reduce, ...
+Presentation  consumer-facing rendering a step may invoke instead: format, markdown, json, ...
+Operator      syntax: |  +  :  ->  and the rest of the operator table
+Stage         physical, planned execution unit; one or more steps
+Backend       the mechanism that executes stages
+```
+
+An HQL pipeline is an ordered sequence of typed steps, and the logical
+pipeline does not prescribe a particular execution strategy. `filter` written
+twice is two steps and one operation. A stage is never source syntax. A
+receiver call, `x.trim()` inside `map(x => x.trim())`, is expression
+evaluation inside the step that holds it, never a step of its own.
 
 Every operation declares a **shape** beside its purity, and the shape is the
 whole of what a backend may assume about splitting it:
@@ -150,6 +161,38 @@ fold is written beside its signature in `std/collections.hql`.
 `approx_distinct` is approximate and deterministic: an unseeded SHA-256
 digest feeds a HyperLogLog sketch whose registers combine by `max`.
 
+## Operations of a program's own
+
+`Operation<I, O>` and its four shape subtypes, `Elementwise<I, O>`,
+`Partition<I, O>`, `Reduction<I, O>` and `Barrier<I, O>`, are reserved types
+in `std/core.hql`; a program declares no type of these names. Each is a
+function type from `I` to `O` that also carries the shape its name states, and
+a value of one is called exactly as an `I -> O` function is. A lambda or a
+function of the program's own, bound at one of them, is a **user operation**:
+
+```hql
+fn minutes(pages: Int) : Int = pages * 2
+reading : Elementwise<Int, Int> = minutes
+long : Elementwise<Int, Bool> = n => n > 300
+total : Reduction<List<Int>, Int> = xs => xs | sum
+
+[412, 280, 310] | filter(long) | reading | total
+```
+
+- An `Elementwise<I, O>` piped a collection of `I` runs over each element and
+  gives the collection of `O` that `map` gives; piped one `I`, it is applied
+  to it. The other operation types, and a plain function, are applied to
+  their input whole.
+- The checker verifies the shape it can: the body of an `Elementwise` reads
+  its one element and nothing else. A value bound outside the body, `cards`
+  among them, or a document by `@[[name]]` is a type error; its parameters,
+  its own lambdas' parameters, literals, and functions and steps named in it
+  are within the element. A shape the checker cannot verify, such as an
+  associative `Reduction`, is the author's claim.
+- A user operation is pure only if every call in its body is; an effectful
+  one is a barrier to reordering whatever its shape.
+- A plain function piped as a step, `x | f`, is a barrier.
+
 A checked program runs on a **backend**. `localhost` is the in-memory
 evaluator, one step after another with no fusion, partitioning or parallelism,
 always registered, the default, and the oracle every other backend has to
@@ -158,6 +201,40 @@ against it. Which backend runs a program is host configuration —
 `--backend`, `[execution] backend` in `hql.toml`, `HQL_BACKEND`, then the
 default — never syntax. The reduce side — `reduce`, `group`, `collect` — is
 shown in [the mapreduce example](../../../../examples/mapreduce/README.md).
+
+## Plans and stages
+
+Before a backend runs a checked program, the **planner** annotates every step
+node with the stage it belongs to. A **plan** is the checked pipeline with
+every step carrying a stage annotation; the steps, their order and their
+operations are unchanged, and the steps of one stage are contiguous. An
+annotation names the stage, counted from `0` within its pipeline, and its
+strategy. The planner derives it from the shape and purity of the operation
+type each step invokes, a user operation's exactly as a host operation's, and
+from what the backend executes; nothing in the program names one.
+
+- `localhost` executes in process, so its plan is the trivial one: the whole
+  pipeline is one stage, `in process`.
+- A backend that splits work is planned by shape: adjacent pure elementwise
+  steps are fused into one `parallel` stage, which one pure reduction may
+  close; a partition opens a `partitioned` stage the pure elementwise and
+  reduction steps after it join; a barrier is an `assembled` stage of its own
+  and ends the one before it, as an effectful step (`effect`) and a
+  presentation (`presentation`) do.
+- A backend refuses a pipeline a step of which carries no annotation; there
+  is no unplanned execution path.
+- An annotation never changes the value a pipeline produces.
+
+`hql plan <file>` prints the plan on the backend in force without running
+anything; for the program above:
+
+```text
+backend localhost
+line 6: [412, 280, 310]
+  | filter   stage 0  in process    elementwise, pure
+  | reading  stage 0  in process    elementwise, pure
+  | total    stage 0  in process    reduction, pure
+```
 
 Unknown extension functions remain ordinary calls unless their declared contract
 allows more. Failure metadata and the eager/lazy boundary are open design work

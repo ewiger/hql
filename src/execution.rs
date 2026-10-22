@@ -2,7 +2,7 @@
 
 use crate::ast::{self, Arith, Logic, Relation};
 use crate::diagnostics::Diagnostic;
-use crate::extensions::{Operation, Shape};
+use crate::extensions::{Operation, Purity, Shape};
 use crate::types::TypeRef;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -155,6 +155,8 @@ pub(crate) enum Kind {
             expect(dead_code, reason = "read by a planner, not by the evaluator")
         )]
         declaration: Option<crate::extensions::binding::DeclarationId>,
+        /// What the planner reads of the step and the stage it writes.
+        plan: StepPlan,
     },
     Link {
         source: Box<Expr>,
@@ -194,6 +196,9 @@ pub(crate) enum Kind {
         callee: Box<Expr>,
         arguments: Vec<Expr>,
         pack: Option<(usize, TypeRef)>,
+        /// Present when the application is a pipeline step, `x | f`: the
+        /// input is the first argument.
+        plan: Option<StepPlan>,
     },
     /// `some(value)`.
     Some(Box<Expr>),
@@ -218,6 +223,7 @@ pub(crate) enum Kind {
         input: Box<Expr>,
         name: String,
         branch: Box<Expr>,
+        plan: StepPlan,
     },
     Match {
         subject: Box<Expr>,
@@ -230,26 +236,207 @@ pub(crate) enum Kind {
     },
 }
 
+/// What a step invokes, as a planner reads it: the operation's name, its
+/// shape and its purity, and whether it presents its input. A host
+/// operation and a program's own function reach the step node through this
+/// one type, so the planner has one code path for both.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OperationType {
+    pub name: String,
+    pub shape: Shape,
+    pub purity: Purity,
+    /// Whether the operation is a presentation: `format` and its shorthands.
+    pub presentation: bool,
+}
+
+impl OperationType {
+    /// A host operation, at the shape its arguments refine it to.
+    pub(crate) fn host(step: &'static Operation, arguments: &[Arg]) -> Self {
+        Self {
+            name: step.name.to_owned(),
+            shape: shape_of(step, arguments),
+            purity: step.purity(),
+            presentation: crate::extensions::format::STEPS
+                .iter()
+                .any(|presentation| std::ptr::eq(presentation, step)),
+        }
+    }
+}
+
+/// The planner's field on a step node: what the step invokes, and the stage
+/// annotation, empty until the planner fills it.
+#[derive(Debug)]
+pub(crate) struct StepPlan {
+    pub invokes: OperationType,
+    pub stage: std::sync::OnceLock<crate::backends::Stage>,
+}
+
+impl StepPlan {
+    pub(crate) fn new(invokes: OperationType) -> Self {
+        Self {
+            invokes,
+            stage: std::sync::OnceLock::new(),
+        }
+    }
+}
+
 impl Expr {
-    /// The steps of the pipeline this expression ends, first to last, each
-    /// with the shape it was checked to. Expressions inside a step's
+    /// The step node this expression is, with its input: a host
+    /// operation's step, a function applied by `|`, or a `tee`.
+    pub(crate) fn as_step(&self) -> Option<(&StepPlan, &Expr)> {
+        match &self.kind {
+            Kind::Step { plan, input, .. } | Kind::Tee { plan, input, .. } => Some((plan, input)),
+            Kind::Apply {
+                plan: Some(plan),
+                arguments,
+                ..
+            } => arguments.first().map(|input| (plan, input)),
+            _ => None,
+        }
+    }
+
+    /// The step nodes of the pipeline this expression ends, first to last,
+    /// and the expression the first one reads. Expressions inside a step's
     /// arguments, a lambda's body among them, are evaluated within that
     /// step and are not steps of the pipeline.
-    pub(crate) fn pipeline(&self) -> Vec<(&'static str, Shape)> {
+    pub(crate) fn steps(&self) -> (Vec<&StepPlan>, &Expr) {
         let mut steps = Vec::new();
         let mut at = self;
-        while let Kind::Step {
-            step,
-            input,
-            arguments,
-            ..
-        } = &at.kind
-        {
-            steps.push((step.name, shape_of(step, arguments)));
+        while let Some((plan, input)) = at.as_step() {
+            steps.push(plan);
             at = input;
         }
         steps.reverse();
-        steps
+        (steps, at)
+    }
+
+    /// The expressions this one holds directly, in the order they are
+    /// written.
+    pub(crate) fn children(&self) -> Vec<&Expr> {
+        match &self.kind {
+            Kind::Int(_)
+            | Kind::Float(_)
+            | Kind::Bool(_)
+            | Kind::Str(_)
+            | Kind::Ident(_)
+            | Kind::DocRef(_)
+            | Kind::Type => Vec::new(),
+            Kind::List(values) | Kind::Set(values) => values.iter().collect(),
+            Kind::Construct(held) => argument_values(held),
+            Kind::Data(entries) => entries.iter().map(|(_, value)| value).collect(),
+            Kind::Record(fields) => fields.iter().map(|(_, value)| value).collect(),
+            Kind::Arith { first, rest } => std::iter::once(first.as_ref())
+                .chain(rest.iter().map(|(_, operand, _)| operand))
+                .collect(),
+            Kind::Logic { first, rest } => std::iter::once(first.as_ref())
+                .chain(rest.iter().map(|(_, operand)| operand))
+                .collect(),
+            Kind::Compare { left, right, .. }
+            | Kind::Relate { left, right, .. }
+            | Kind::Order(left, right)
+            | Kind::Index(left, right)
+            | Kind::Combine { left, right, .. } => vec![left, right],
+            Kind::Not(inner)
+            | Kind::Field(inner, _)
+            | Kind::Some(inner)
+            | Kind::Ok(inner)
+            | Kind::Err(inner) => vec![inner],
+            Kind::Slice(value, start, end) => std::iter::once(value.as_ref())
+                .chain(start.as_deref())
+                .chain(end.as_deref())
+                .collect(),
+            Kind::Step {
+                input,
+                arguments: held,
+                ..
+            } => std::iter::once(input.as_ref())
+                .chain(argument_values(held))
+                .collect(),
+            Kind::Link {
+                source,
+                target,
+                data,
+            } => [source.as_ref(), target.as_ref()]
+                .into_iter()
+                .chain(data.as_deref())
+                .collect(),
+            Kind::Lambda { body, .. } => vec![body.as_ref()],
+            Kind::Generate { statements, .. } => {
+                let mut held = Vec::new();
+                block_expressions(statements, &mut held);
+                held
+            }
+            Kind::Apply {
+                callee, arguments, ..
+            } => std::iter::once(callee.as_ref()).chain(arguments).collect(),
+            Kind::Method {
+                receiver,
+                arguments,
+                ..
+            } => std::iter::once(receiver.as_ref())
+                .chain(arguments)
+                .collect(),
+            Kind::Tee { input, branch, .. } => vec![input, branch],
+            Kind::Match { subject, arms } => std::iter::once(subject.as_ref())
+                .chain(
+                    arms.iter()
+                        .flat_map(|arm| arm.guard.iter().chain(std::iter::once(&arm.body))),
+                )
+                .collect(),
+            Kind::Given {
+                value,
+                condition,
+                otherwise,
+            } => [value.as_ref(), condition.as_ref()]
+                .into_iter()
+                .chain(otherwise.as_deref())
+                .collect(),
+        }
+    }
+
+    /// Every pipeline under this expression, each by the step node that
+    /// ends it, outermost first. A pipeline inside a step's arguments, a
+    /// lambda's body among them, is a pipeline of its own.
+    pub(crate) fn pipelines<'e>(&'e self, found: &mut Vec<&'e Expr>) {
+        if self.as_step().is_none() {
+            for child in self.children() {
+                child.pipelines(found);
+            }
+            return;
+        }
+        found.push(self);
+        let mut at = self;
+        while let Some((_, input)) = at.as_step() {
+            for child in at.children() {
+                if !std::ptr::eq(child, input) {
+                    child.pipelines(found);
+                }
+            }
+            at = input;
+        }
+        at.pipelines(found);
+    }
+
+    /// Whether a step under this expression is effectful.
+    pub(crate) fn reaches_effect(&self) -> bool {
+        let mut found = Vec::new();
+        self.pipelines(&mut found);
+        found.iter().any(|end| {
+            end.steps()
+                .0
+                .iter()
+                .any(|plan| plan.invokes.purity == Purity::Effectful)
+        })
+    }
+
+    /// The steps of the pipeline this expression ends, first to last, each
+    /// with the shape it was checked to.
+    pub(crate) fn pipeline(&self) -> Vec<(String, Shape)> {
+        self.steps()
+            .0
+            .into_iter()
+            .map(|plan| (plan.invokes.name.clone(), plan.invokes.shape))
+            .collect()
     }
 }
 
@@ -434,6 +621,10 @@ pub(crate) struct Checked {
     /// Each step named as a function value, `map(str)`, with the type it
     /// takes and the type it produces.
     pub step_values: HashMap<Range<usize>, (&'static Operation, TypeRef, TypeRef)>,
+    /// Each pipeline step whose operation is a function value, `x | f`, by
+    /// the pipe's span: the operation type the planner reads, and whether
+    /// an `Elementwise` runs over each element of its input.
+    pub user_steps: HashMap<Range<usize>, (OperationType, bool)>,
     /// Each call of a trait's function, by the trait and the function.
     pub method_calls: HashMap<Range<usize>, (String, String)>,
     /// Each operator resolved through a trait, by the trait.
@@ -721,14 +912,14 @@ impl Checked {
                 Kind::Lambda {
                     parameters: vec![crate::checker::CONSTRUCTED.to_owned()],
                     body: std::sync::Arc::new(Expr {
-                        kind: Kind::Step {
+                        kind: step_node(
                             step,
-                            input: Box::new(held),
-                            arguments: Vec::new(),
-                            at: span.clone(),
-                            lifted: self.lifted.contains(&span),
-                            declaration: self.declarations.get(&span).copied(),
-                        },
+                            Box::new(held),
+                            Vec::new(),
+                            span.clone(),
+                            self.lifted.contains(&span),
+                            self.declarations.get(&span).copied(),
+                        ),
                         ty: produced.clone(),
                         span: span.clone(),
                     }),
@@ -875,6 +1066,7 @@ impl Checked {
                     }),
                     arguments: values,
                     pack: self.applications.get(&span).cloned().flatten(),
+                    plan: None,
                 }
             }
             A::Call { callee, arguments } if self.method_calls.contains_key(&span) => {
@@ -903,14 +1095,14 @@ impl Checked {
                         right: Box::new(self.expression(&arguments[0].value)?),
                     }
                 } else if let Some(step) = self.steps.get(&span) {
-                    Kind::Step {
+                    step_node(
                         step,
-                        input: boxed(receiver)?,
-                        arguments: self.arguments(arguments)?,
-                        at: span.clone(),
-                        lifted: self.lifted.contains(&span),
-                        declaration: self.declarations.get(&span).copied(),
-                    }
+                        boxed(receiver)?,
+                        self.arguments(arguments)?,
+                        span.clone(),
+                        self.lifted.contains(&span),
+                        self.declarations.get(&span).copied(),
+                    )
                 } else {
                     Kind::Order(
                         boxed(receiver)?,
@@ -949,19 +1141,55 @@ impl Checked {
                     .map(|argument| self.expression(&argument.value))
                     .collect::<Result<_, _>>()?,
                 pack: self.applications[&span].clone(),
+                plan: None,
             },
             A::Pipe(input, written) if matches!(written.kind, A::Tee { .. }) => {
                 let A::Tee { name, branch } = &written.kind else {
                     unreachable!("matched above");
                 };
+                let branch = boxed(branch)?;
+                let purity = if branch.reaches_effect() {
+                    Purity::Effectful
+                } else {
+                    Purity::Pure
+                };
                 Kind::Tee {
                     input: boxed(input)?,
                     name: name.clone(),
-                    branch: boxed(branch)?,
+                    branch,
+                    plan: StepPlan::new(OperationType {
+                        name: "tee".to_owned(),
+                        shape: Shape::Barrier,
+                        purity,
+                        presentation: false,
+                    }),
                 }
             }
             A::Tee { .. } => {
                 return Err(Diagnostic::syntax(span, "`tee` is a pipeline step"));
+            }
+            A::Pipe(input, written)
+                if self.user_steps.get(&span).is_some_and(|(_, each)| *each) =>
+            {
+                // An `Elementwise<I, O>` over a collection of `I` is the
+                // step `map` runs, invoking the program's operation.
+                let (invokes, _) = self.user_steps[&span].clone();
+                let map = crate::extensions::collections::STEPS
+                    .iter()
+                    .find(|step| step.name == "map")
+                    .ok_or_else(|| Diagnostic::typing(span.clone(), "`map` is not registered"))?;
+                Kind::Step {
+                    step: map,
+                    input: boxed(input)?,
+                    arguments: vec![Arg {
+                        name: None,
+                        value: self.expression(written)?,
+                    }],
+                    at: written.span.clone(),
+                    lifted: false,
+                    declaration: None,
+                    plan: StepPlan::new(invokes),
+                }
             }
             A::Pipe(input, written) if self.applications.contains_key(&span) => {
                 let (callee, rest) = match &written.kind {
@@ -972,10 +1200,20 @@ impl Checked {
                 for argument in rest {
                     arguments.push(self.expression(&argument.value)?);
                 }
+                let invokes = self.user_steps.get(&span).map_or_else(
+                    || OperationType {
+                        name: "<function>".to_owned(),
+                        shape: Shape::Barrier,
+                        purity: Purity::Effectful,
+                        presentation: false,
+                    },
+                    |(invokes, _)| invokes.clone(),
+                );
                 Kind::Apply {
                     callee: boxed(callee)?,
                     arguments,
                     pack: self.applications[&span].clone(),
+                    plan: Some(StepPlan::new(invokes)),
                 }
             }
             A::Match { subject, arms } => Kind::Match {
@@ -1009,14 +1247,14 @@ impl Checked {
                     let (input, arguments) = arguments
                         .split_first()
                         .ok_or_else(|| Diagnostic::typing(span.clone(), "step needs an input"))?;
-                    Kind::Step {
+                    step_node(
                         step,
-                        input: boxed(&input.value)?,
-                        arguments: self.arguments(arguments)?,
-                        at: span.clone(),
-                        lifted: self.lifted.contains(&span),
-                        declaration: self.declarations.get(&span).copied(),
-                    }
+                        boxed(&input.value)?,
+                        self.arguments(arguments)?,
+                        span.clone(),
+                        self.lifted.contains(&span),
+                        self.declarations.get(&span).copied(),
+                    )
                 } else if matches!(&callee.kind, A::Ident(name) if name == "some") {
                     Kind::Some(boxed(&arguments[0].value)?)
                 } else if matches!(&callee.kind, A::Ident(name) if name == "ok") {
@@ -1038,17 +1276,89 @@ impl Checked {
                     A::Call { arguments, .. } => arguments.as_slice(),
                     _ => &[],
                 };
-                Kind::Step {
+                step_node(
                     step,
-                    input: boxed(input)?,
-                    arguments: self.arguments(arguments)?,
-                    at: written.span.clone(),
-                    lifted: self.lifted.contains(&written.span),
-                    declaration: self.declarations.get(&written.span).copied(),
-                }
+                    boxed(input)?,
+                    self.arguments(arguments)?,
+                    written.span.clone(),
+                    self.lifted.contains(&written.span),
+                    self.declarations.get(&written.span).copied(),
+                )
             }
         };
         Ok(Expr { kind, ty, span })
+    }
+}
+
+/// The values of a step's or a constructor's arguments.
+fn argument_values(arguments: &[Arg]) -> Vec<&Expr> {
+    arguments.iter().map(|argument| &argument.value).collect()
+}
+
+/// The expressions an iterating function's body holds, in order.
+fn block_expressions<'e>(statements: &'e [BlockStmt], held: &mut Vec<&'e Expr>) {
+    for statement in statements {
+        match statement {
+            BlockStmt::Bind { value, .. } | BlockStmt::Yield(value) => held.push(value),
+            BlockStmt::For { iterable, body, .. } => {
+                held.push(iterable);
+                block_expressions(body, held);
+            }
+        }
+    }
+}
+
+impl Program {
+    /// The roots of the program's expression trees: each statement's, a
+    /// function's body and an implementation's among them, then each
+    /// imported module's.
+    pub(crate) fn roots(&self) -> Vec<&Expr> {
+        let mut roots = Vec::new();
+        for statement in &self.statements {
+            match statement {
+                Stmt::Bind { value, .. } | Stmt::Expr(value) => roots.push(value),
+                Stmt::Fn { body, .. } => roots.push(body.as_ref()),
+                Stmt::Impl { methods, .. } => {
+                    roots.extend(methods.iter().map(|(_, _, body, _)| body.as_ref()));
+                }
+                Stmt::Unit => {}
+            }
+        }
+        for module in &self.modules {
+            roots.extend(module.program.roots());
+        }
+        roots
+    }
+
+    /// Every pipeline of the program, each by the step node that ends it.
+    pub(crate) fn pipelines(&self) -> Vec<&Expr> {
+        let mut found = Vec::new();
+        for root in self.roots() {
+            root.pipelines(&mut found);
+        }
+        found
+    }
+}
+
+/// A host operation's step node, carrying the operation type the planner
+/// reads.
+fn step_node(
+    step: &'static Operation,
+    input: Box<Expr>,
+    arguments: Vec<Arg>,
+    at: Range<usize>,
+    lifted: bool,
+    declaration: Option<crate::extensions::binding::DeclarationId>,
+) -> Kind {
+    let plan = StepPlan::new(OperationType::host(step, &arguments));
+    Kind::Step {
+        step,
+        input,
+        arguments,
+        at,
+        lifted,
+        declaration,
+        plan,
     }
 }
 

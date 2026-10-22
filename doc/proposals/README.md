@@ -12,7 +12,7 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0002](HQL-0002/README.md) | implemented | Semantic retrieval over a precomputed embedding index |
 | [HQL-0003](HQL-0003/README.md) | drafted | A graph example corpus |
 | [HQL-0004](HQL-0004/README.md) | implemented | MapReduce: pipeline steps, stages and execution backends |
-| [HQL-0005](HQL-0005/README.md) | implemented in part | Pipeline vocabulary and the logical/physical separation |
+| [HQL-0005](HQL-0005/README.md) | implemented | Pipeline vocabulary and the logical/physical separation |
 | [HQL-0006](HQL-0006/README.md) | implemented | `Stream<T>` as a first-class pipeline type |
 | [HQL-0007](HQL-0007/README.md) | implemented | `collect` and `emit` are stream-shape operations |
 | [HQL-0008](HQL-0008/README.md) | superseded by [HQL-0017](HQL-0017/README.md) | Presentation is separate from computation |

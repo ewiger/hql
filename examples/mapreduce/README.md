@@ -17,6 +17,8 @@ target/debug/hql --vault examples/mapreduce/wiki run examples/mapreduce/queries/
 target/debug/hql run examples/mapreduce/queries/word-count.hql
 target/debug/hql --vault examples/mapreduce/wiki run examples/mapreduce/queries/genre-counts.hql
 target/debug/hql run examples/mapreduce/queries/page-histogram.hql
+target/debug/hql run examples/mapreduce/queries/user-operations.hql
+target/debug/hql --vault examples/mapreduce/wiki plan examples/mapreduce/queries/by-genre.hql
 target/debug/hql --vault examples/mapreduce/wiki render examples/mapreduce/wiki/library.hmd
 ```
 
@@ -39,6 +41,8 @@ result.
 | [page variance](queries/page-variance.hql) | `variance`: a state of count, mean and squared deviations, then a quotient | runs | 10738.8… |
 | [distinct genres](queries/distinct-genres.hql) | `approx_distinct`: a deterministic HyperLogLog estimate | runs | 3 |
 | [reserved operation](queries/invalid-reserved-operation.hql) | The operation types, one per shape, are reserved names | refused | a type error |
+| [user operations](queries/user-operations.hql) | A named function and a lambda bound at `Elementwise<I, O>`, and a `Reduction`, as steps | runs | 2084 |
+| [elementwise reads beyond](queries/invalid-elementwise-reads-beyond.hql) | An `Elementwise` body that reads a value bound outside it | refused | a type error |
 
 Every `|` is a boundary the executor sees, and every step has a shape, which
 `hql builtins` prints beside its purity: `filter` and `map` are elementwise,
@@ -48,6 +52,27 @@ barrier when it is a lambda, as in [total pages](queries/total-pages.hql).
 Under `localhost` each step runs to completion before the next,
 with no parallelism, and that sequential answer is the oracle every other
 backend has to match.
+
+Before a backend runs a program, the planner annotates every step with its
+**stage**, the physical unit of execution it belongs to, from the step's shape
+and purity and from what the backend executes. `localhost`'s plan is the
+trivial one: the whole pipeline is one stage, in process. `hql plan` prints it
+without running anything:
+
+```text
+backend localhost
+line 14: cards
+  | filter  stage 0  in process    elementwise, pure
+  | group   stage 0  in process    partition, pure
+  | sort    stage 0  in process    barrier, pure
+  | map     stage 0  in process    elementwise, pure
+```
+
+A program's own operation enters the plan on the same information: a value of
+`Elementwise<I, O>`, `Partition<I, O>`, `Reduction<I, O>` or `Barrier<I, O>`
+is a step at the shape its type states, as in
+[user operations](queries/user-operations.hql), and a plain function is a
+barrier.
 
 - `group(by = …)` partitions a collection by key into a `Set<Group<K, T>>`; a
   group has a `key` and its `items`, a `List<T>` in input order. Two groups are
@@ -75,4 +100,5 @@ comparison of group sizes because a genre read from metadata is a `Data` leaf,
 which is not `Orderable`.
 
 The step vocabulary, the backend contract, and the three steps are specified
-in [HQL-0004](../../doc/proposals/HQL-0004/README.md).
+in [HQL-0004](../../doc/proposals/HQL-0004/README.md); the operation types,
+stages and the planner in [HQL-0005](../../doc/proposals/HQL-0005/README.md).

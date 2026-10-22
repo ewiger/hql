@@ -17,6 +17,7 @@ binary can reach is logic that cannot be tested.
 | `hql eval <program>` | check and evaluate an argument |
 | `hql check <file>` | print the type without evaluating |
 | `hql run <file>` | check and evaluate a file |
+| `hql plan <file>` | check a file and print its plan on the backend in force without evaluating: per pipeline a statement is, the line and the expression its first step reads, then each step with its operation, shape, purity, stage and strategy; `--envelope json` writes the same as one JSON document |
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps a pipeline may use, grouped by provider, each with its signature, purity and shape, then the combiners a fold names with the laws each holds |
@@ -73,7 +74,10 @@ backend = "localhost"
 ```
 
 `localhost` is the only registered backend: the in-memory evaluator, each step
-run to completion before the next. A name that is not registered fails every
+run to completion before the next. Before a backend runs a program, the planner
+annotates every step with its stage
+([HQL-0005](../../proposals/HQL-0005/README.md)); `localhost`'s plan is one
+stage per pipeline, in process, and `hql plan` prints it. A name that is not registered fails every
 program, and `hql config`, with a message naming the flag, the file or the
 variable that supplied it. `hql render` runs its cells on `localhost`.
 

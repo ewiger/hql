@@ -8,8 +8,16 @@
 //! the query's `--backend`, the vault's `[execution] backend`, the user's
 //! `HQL_BACKEND`, then the default — and never syntax, because the answer
 //! does not depend on it. See `doc/proposals/HQL-0004/README.md`.
+//!
+//! Before a backend accepts a program, the planner annotates every step with
+//! its stage, from the step's shape and purity and from what the backend
+//! executes, and a backend refuses a pipeline a step of which carries no
+//! annotation. See `doc/proposals/HQL-0005/README.md`.
 
 mod localhost;
+mod plan;
+
+pub use plan::{Execution, Stage, Strategy};
 
 use crate::diagnostics::Diagnostic;
 use crate::execution::Program;
@@ -21,6 +29,9 @@ use std::{env, fs};
 
 /// What executes a checked program.
 pub(crate) trait Backend: Sync {
+    /// What it executes, which the planner reads to cut stages.
+    fn execution(&self) -> Execution;
+
     /// Evaluate a checked program against a vault, with further names bound:
     /// the value, or the diagnostic `localhost` would report, and the log the
     /// run wrote.
@@ -52,13 +63,40 @@ impl std::fmt::Debug for Registered {
 }
 
 impl Registered {
-    /// Run a checked program on this backend.
+    /// Plan a checked program for this backend, then run it.
     pub(crate) fn run(
         &self,
         program: &Program,
         vault: &Vault,
         bound: Vec<(String, Value)>,
     ) -> (Result<Value, Diagnostic>, Vec<Report>) {
+        self.plan(program);
+        self.execute(program, vault, bound)
+    }
+
+    /// Annotate every step of a checked program with its stage on this
+    /// backend.
+    pub(crate) fn plan(&self, program: &Program) {
+        plan::plan(program, self.backend.execution());
+    }
+
+    /// What this backend executes.
+    #[must_use]
+    pub fn execution(&self) -> Execution {
+        self.backend.execution()
+    }
+
+    /// Run a planned program, refusing one with a step that carries no
+    /// stage annotation before any part of it runs.
+    pub(crate) fn execute(
+        &self,
+        program: &Program,
+        vault: &Vault,
+        bound: Vec<(String, Value)>,
+    ) -> (Result<Value, Diagnostic>, Vec<Report>) {
+        if let Some(refused) = plan::refusal(program, self.name) {
+            return (Err(refused), Vec::new());
+        }
         self.backend.run(program, vault, bound)
     }
 }
@@ -211,6 +249,99 @@ mod tests {
             assert!(refused.contains("`postgres`"), "{refused}");
             assert!(refused.contains(layer), "{refused}");
             assert!(refused.contains("`localhost`"), "{refused}");
+        }
+    }
+
+    fn checked(source: &str) -> Program {
+        crate::checker::check(&crate::parser::parse(source).unwrap(), &Vault::empty()).unwrap()
+    }
+
+    /// A backend that cuts stages by shape and evaluates as `localhost`
+    /// does: what is planned differs, and nothing else.
+    struct Splitting;
+
+    impl Backend for Splitting {
+        fn execution(&self) -> Execution {
+            Execution::Partitioned
+        }
+
+        fn run(
+            &self,
+            program: &Program,
+            vault: &Vault,
+            bound: Vec<(String, Value)>,
+        ) -> (Result<Value, Diagnostic>, Vec<Report>) {
+            crate::evaluation::evaluate_with(program, vault, bound)
+        }
+    }
+
+    static SPLITTING: Registered = Registered {
+        name: "splitting",
+        summary: "Stages cut by shape, evaluated in memory.",
+        backend: &Splitting,
+    };
+
+    const PROGRAMS: [&str; 4] = [
+        "[3, 1, 2] | filter(n => n > 1) | map(n => n * 2) | sort | take(1)",
+        r#"["owl", "raven", "owl"] | group(by = w => w) | map(g => size(g.items)) | sum"#,
+        "doubled : Elementwise<Int, Int> = n => n * 2\n[1, 2, 3] | doubled | sum",
+        "[1, 2] | map(n => [n, n] | map(m => m + 1) | sum) | markdown",
+    ];
+
+    #[test]
+    fn a_backend_refuses_a_pipeline_that_is_not_planned() {
+        let program = checked("[1, 2, 3] | map(n => n + 1) | size");
+        let (value, _) = LOCALHOST.execute(&program, &Vault::empty(), Vec::new());
+        let refused = value.unwrap_err().to_string();
+        assert!(refused.contains("`localhost`"), "{refused}");
+        assert!(refused.contains("stage annotation"), "{refused}");
+        // Planned, the same program runs.
+        LOCALHOST.plan(&program);
+        let (value, _) = LOCALHOST.execute(&program, &Vault::empty(), Vec::new());
+        assert_eq!(value.unwrap(), Value::Int(3));
+    }
+
+    #[test]
+    fn the_localhost_plan_annotates_every_step_with_one_stage() {
+        for source in PROGRAMS {
+            let program = checked(source);
+            LOCALHOST.plan(&program);
+            let ends = program.pipelines();
+            assert!(!ends.is_empty(), "{source}");
+            for end in ends {
+                for plan in end.steps().0 {
+                    assert_eq!(
+                        plan.stage.get(),
+                        Some(&Stage {
+                            index: 0,
+                            strategy: Strategy::InProcess
+                        }),
+                        "{source}: {}",
+                        plan.invokes.name
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn annotations_do_not_change_the_value_a_pipeline_produces() {
+        for source in PROGRAMS {
+            let on_localhost = checked(source);
+            let split = checked(source);
+            let (expected, _) = LOCALHOST.run(&on_localhost, &Vault::empty(), Vec::new());
+            let (produced, _) = SPLITTING.run(&split, &Vault::empty(), Vec::new());
+            assert_eq!(produced.unwrap(), expected.unwrap(), "{source}");
+            // The plans differ, so the agreement is not a tautology.
+            let stages = |program: &Program| -> Vec<Stage> {
+                program
+                    .pipelines()
+                    .into_iter()
+                    .flat_map(|end| end.steps().0)
+                    .filter_map(|plan| plan.stage.get().copied())
+                    .collect()
+            };
+            assert_ne!(stages(&on_localhost), stages(&split), "{source}");
         }
     }
 

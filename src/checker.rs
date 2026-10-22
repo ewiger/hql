@@ -667,6 +667,9 @@ struct Checker<'a> {
     /// a use of one of their names reaches neither the declaration, not yet
     /// checked, nor an import's, which the declaration wins over.
     declared_below: std::collections::HashSet<String>,
+    /// This unit's own functions, by name, with their parameters and body:
+    /// what binding one at `Elementwise<I, O>` verifies.
+    function_bodies: HashMap<String, (Vec<String>, &'a Expr)>,
 }
 
 /// Type variables in scope, each by the name it is written as.
@@ -953,6 +956,24 @@ fn index_trait() -> TraitInfo {
     }
 }
 
+/// The names a `match` pattern binds, added to `bound`.
+fn pattern_names(pattern: &crate::ast::Pattern, bound: &mut Vec<String>) {
+    use crate::ast::Pattern;
+    match pattern {
+        Pattern::Bind(name) => bound.push(name.clone()),
+        Pattern::Some(inner) | Pattern::Ok(inner) | Pattern::Err(inner) => {
+            pattern_names(inner, bound);
+        }
+        Pattern::Type(_, inner) => pattern_names(inner, bound),
+        Pattern::Wildcard
+        | Pattern::Int(_)
+        | Pattern::Float(_)
+        | Pattern::Str(_)
+        | Pattern::Bool(_)
+        | Pattern::None => {}
+    }
+}
+
 /// The trait and method an arithmetic operator resolves through.
 fn operator_trait(operator: crate::ast::Arith) -> (&'static str, &'static str) {
     use crate::ast::Arith;
@@ -999,6 +1020,7 @@ impl<'a> Checker<'a> {
             own_receivers: Vec::new(),
             own_functions: std::collections::HashSet::new(),
             declared_below: std::collections::HashSet::new(),
+            function_bodies: HashMap::new(),
         }
     }
 
@@ -1043,6 +1065,255 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
+    /// Bind a user operation: a lambda or a function of the program's own
+    /// at one of the operation types. Its value must be the function the
+    /// type is, `I -> O`, and an `Elementwise` one must read its one
+    /// element and nothing else. It is effectful when its body is.
+    fn operation(
+        &mut self,
+        name: &str,
+        declared: &TypeRef,
+        value: &'a Expr,
+    ) -> Result<(), Diagnostic> {
+        let mut inferred = TypeRef::UNIT;
+        self.declaring(name, |checker| {
+            inferred = checker.expecting(value, Some(declared))?;
+            Ok(())
+        })?;
+        if inferred.is(declared) {
+            if let Kind::Ident(held) = &value.kind
+                && let Some(uses) = self.effectful.get(held).cloned()
+            {
+                self.effectful.insert(name.to_owned(), uses);
+            }
+            return Ok(());
+        }
+        let function = declared.operation_function().ok_or_else(|| {
+            Diagnostic::typing(value.span.clone(), format!("{declared} is not a function"))
+        })?;
+        if !inferred.is(&function) {
+            return Err(Diagnostic::typing(
+                value.span.clone(),
+                format!(
+                    "`{name}` is declared {declared}, a function {function}, but its value is \
+                     {inferred}"
+                ),
+            ));
+        }
+        if declared.operation_shape() != Some(crate::extensions::Shape::Elementwise) {
+            if let Kind::Ident(held) = &value.kind
+                && let Some(uses) = self.effectful.get(held).cloned()
+            {
+                self.effectful.insert(name.to_owned(), uses);
+            }
+            return Ok(());
+        }
+        let (parameters, body) = match &value.kind {
+            Kind::Lambda {
+                parameters, body, ..
+            } => (parameters.clone(), body.as_ref()),
+            Kind::Ident(held) => match self.function_bodies.get(held) {
+                Some((parameters, body)) => {
+                    if let Some(uses) = self.effectful.get(held).cloned() {
+                        self.effectful.insert(name.to_owned(), uses);
+                    }
+                    (parameters.clone(), *body)
+                }
+                None => {
+                    return Err(Diagnostic::typing(
+                        value.span.clone(),
+                        format!(
+                            "`{name}` is declared {declared}, and the body of `{held}` is not \
+                             this program's to verify reads its one element only"
+                        ),
+                    ));
+                }
+            },
+            _ => {
+                return Err(Diagnostic::typing(
+                    value.span.clone(),
+                    format!(
+                        "`{name}` is declared {declared}: its value is a lambda or a function \
+                         of this program, whose body is verified to read its one element only"
+                    ),
+                ));
+            }
+        };
+        let mut bound: Vec<String> = parameters;
+        if let Some((read, at)) = self.read_beyond(body, &mut bound) {
+            return Err(Diagnostic::typing(
+                at,
+                format!(
+                    "`{name}` is declared {declared}, so its body reads its one element and \
+                     nothing else, and this reads `{read}`"
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    /// The first thing a body reads besides the names bound within it: a
+    /// value bound outside it, or a document by `@[[name]]`. A function or
+    /// a type named outside it is not a read; calling one is.
+    fn read_beyond(&self, body: &Expr, bound: &mut Vec<String>) -> Option<(String, Range<usize>)> {
+        let depth = bound.len();
+        let found = self.read_beyond_inner(body, bound);
+        bound.truncate(depth);
+        found
+    }
+
+    fn read_beyond_inner(
+        &self,
+        body: &Expr,
+        bound: &mut Vec<String>,
+    ) -> Option<(String, Range<usize>)> {
+        match &body.kind {
+            Kind::Ident(name) => {
+                let outside = !bound.iter().any(|held| held == name)
+                    && self
+                        .scope
+                        .get(name)
+                        .is_some_and(|ty| ty.as_function().is_none());
+                outside.then(|| (name.clone(), body.span.clone()))
+            }
+            Kind::DocRef(name) => Some((format!("@[[{name}]]"), body.span.clone())),
+            Kind::Int(_) | Kind::Float(_) | Kind::Bool(_) | Kind::Str(_) => None,
+            Kind::List(values) | Kind::Set(values) => self.first_read(values.iter(), bound),
+            Kind::Construct { arguments, .. } => {
+                self.first_read(arguments.iter().map(|argument| &argument.value), bound)
+            }
+            Kind::Data(entries) => self.first_read(entries.iter().map(|(_, value)| value), bound),
+            Kind::Arith(_, left, right)
+            | Kind::Compare { left, right, .. }
+            | Kind::Relate { left, right, .. }
+            | Kind::Logic(_, left, right)
+            | Kind::Index(left, right) => self.first_read([left.as_ref(), right.as_ref()], bound),
+            Kind::Not(inner) | Kind::Field(inner, _) => self.read_beyond(inner, bound),
+            Kind::Slice(value, start, end) => self.first_read(
+                std::iter::once(value.as_ref())
+                    .chain(start.as_deref())
+                    .chain(end.as_deref()),
+                bound,
+            ),
+            Kind::Link {
+                source,
+                target,
+                data,
+            } => self.first_read(
+                [source.as_ref(), target.as_ref()]
+                    .into_iter()
+                    .chain(data.as_deref()),
+                bound,
+            ),
+            // A step or a function named in call position is not a read of
+            // a value; its arguments are.
+            Kind::Pipe(input, step) => {
+                self.read_beyond(input, bound).or_else(|| match &step.kind {
+                    Kind::Call { callee, arguments } => {
+                        self.callee_read(callee, bound).or_else(|| {
+                            self.first_read(arguments.iter().map(|argument| &argument.value), bound)
+                        })
+                    }
+                    Kind::Tee { branch, .. } => self.read_beyond(branch, bound),
+                    _ => self.callee_read(step, bound),
+                })
+            }
+            Kind::Call { callee, arguments } => self.callee_read(callee, bound).or_else(|| {
+                self.first_read(arguments.iter().map(|argument| &argument.value), bound)
+            }),
+            Kind::Lambda {
+                parameters, body, ..
+            } => {
+                bound.extend(parameters.iter().cloned());
+                self.read_beyond(body, bound)
+            }
+            Kind::Match { subject, arms } => self.read_beyond(subject, bound).or_else(|| {
+                arms.iter().find_map(|arm| {
+                    let depth = bound.len();
+                    pattern_names(&arm.pattern, bound);
+                    let found = arm
+                        .guard
+                        .iter()
+                        .chain(std::iter::once(&arm.body))
+                        .find_map(|expression| self.read_beyond(expression, bound));
+                    bound.truncate(depth);
+                    found
+                })
+            }),
+            Kind::Tee { branch, .. } => self.read_beyond(branch, bound),
+            Kind::Given {
+                value,
+                condition,
+                otherwise,
+            } => self.first_read(
+                [value.as_ref(), condition.as_ref()]
+                    .into_iter()
+                    .chain(otherwise.as_deref()),
+                bound,
+            ),
+            Kind::Block(statements) => self.block_read(statements, bound),
+        }
+    }
+
+    /// What a callee reads: nothing when it names a function or a step, the
+    /// receiver when it is a field of one.
+    fn callee_read(
+        &self,
+        callee: &Expr,
+        bound: &mut Vec<String>,
+    ) -> Option<(String, Range<usize>)> {
+        match &callee.kind {
+            Kind::Ident(_) => None,
+            Kind::Field(receiver, _) if matches!(&receiver.kind, Kind::Ident(module) if self.is_module(module)) => {
+                None
+            }
+            _ => self.read_beyond(callee, bound),
+        }
+    }
+
+    fn first_read<'e>(
+        &self,
+        expressions: impl IntoIterator<Item = &'e Expr>,
+        bound: &mut Vec<String>,
+    ) -> Option<(String, Range<usize>)> {
+        expressions
+            .into_iter()
+            .find_map(|expression| self.read_beyond(expression, bound))
+    }
+
+    fn block_read(
+        &self,
+        statements: &[crate::ast::BlockStmt],
+        bound: &mut Vec<String>,
+    ) -> Option<(String, Range<usize>)> {
+        use crate::ast::BlockStmt;
+        for statement in statements {
+            let found = match statement {
+                BlockStmt::Bind { name, value } => {
+                    let found = self.read_beyond(value, bound);
+                    bound.push(name.clone());
+                    found
+                }
+                BlockStmt::Yield(value) => self.read_beyond(value, bound),
+                BlockStmt::For {
+                    name,
+                    iterable,
+                    body,
+                } => self.read_beyond(iterable, bound).or_else(|| {
+                    let depth = bound.len();
+                    bound.push(name.clone());
+                    let found = self.block_read(body, bound);
+                    bound.truncate(depth);
+                    found
+                }),
+            };
+            if found.is_some() {
+                return found;
+            }
+        }
+        None
+    }
+
     /// Note that the body being checked uses an operation, when it is
     /// effectful: a step declared so, or a function whose body is.
     fn using(&mut self, name: &str, effectful: bool) {
@@ -1084,6 +1355,17 @@ impl<'a> Checker<'a> {
         match statement {
             Stmt::Fn(declaration) if !declaration.has_self => {
                 self.own_functions.insert(declaration.name.clone());
+                self.function_bodies.insert(
+                    declaration.name.clone(),
+                    (
+                        declaration
+                            .parameters
+                            .iter()
+                            .map(|parameter| parameter.name.clone())
+                            .collect(),
+                        &declaration.body,
+                    ),
+                );
             }
             Stmt::Alias(declaration) => {
                 self.own_functions.insert(declaration.name.clone());
@@ -1113,6 +1395,14 @@ impl<'a> Checker<'a> {
                         .as_ref()
                         .map(crate::declarations::annotation)
                         .transpose()?;
+                    if let Some(declared) = expected.clone().filter(TypeRef::is_operation) {
+                        self.operation(name, &declared, value)?;
+                        self.checked
+                            .views
+                            .insert(value.span.clone(), declared.clone());
+                        self.scope.insert(name.clone(), declared);
+                        return Ok(TypeRef::UNIT);
+                    }
                     let inferred = self.expecting(value, expected.as_ref())?;
                     if let Some(annotation) = annotation {
                         let declared = crate::declarations::annotation(annotation)?;
@@ -3797,6 +4087,78 @@ impl<'a> Checker<'a> {
         Ok(ty)
     }
 
+    /// `xs | f` where `f` is an `Elementwise<I, O>` and `xs` a collection of
+    /// `I`: the step runs `f` over each element, giving the collection of
+    /// `O` that `xs | map(f)` gives. `None` when the input is not such a
+    /// collection, and the step applies `f` to it whole.
+    fn over_each(
+        &mut self,
+        callee: &Expr,
+        input: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Option<TypeRef>, Diagnostic> {
+        let Kind::Ident(name) = &callee.kind else {
+            return Ok(None);
+        };
+        let Some(declared) = self.scope.get(name).cloned() else {
+            return Ok(None);
+        };
+        if declared.operation_shape() != Some(crate::extensions::Shape::Elementwise) {
+            return Ok(None);
+        }
+        let (element_in, element_out) = (declared.args[0].clone(), declared.args[1].clone());
+        if input.is(&element_in) {
+            return Ok(None);
+        }
+        let Some(element) = input.iterated() else {
+            return Ok(None);
+        };
+        if !element.is(&element_in) {
+            return Err(Diagnostic::typing(
+                callee.span.clone(),
+                format!(
+                    "`{name}` is {declared}, and runs over each element of a collection of \
+                     {element_in}; this input is {input}"
+                ),
+            ));
+        }
+        self.expression(callee)?;
+        let effectful = self.effectful.contains_key(name);
+        self.using(name, effectful);
+        self.user_step(callee, span, true);
+        Ok(Some(input.image(element_out)))
+    }
+
+    /// Record a step whose operation is a function value, with the shape
+    /// and purity a planner reads off its type.
+    fn user_step(&mut self, callee: &Expr, span: &Range<usize>, over_each: bool) {
+        let key = self.callee_key(callee);
+        let ty = key.as_ref().and_then(|key| self.scope.get(key));
+        let shape = ty
+            .and_then(TypeRef::operation_shape)
+            .unwrap_or(crate::extensions::Shape::Barrier);
+        let purity = if key
+            .as_ref()
+            .is_some_and(|key| self.effectful.contains_key(key))
+        {
+            Purity::Effectful
+        } else {
+            Purity::Pure
+        };
+        self.checked.user_steps.insert(
+            span.clone(),
+            (
+                crate::execution::OperationType {
+                    name: key.unwrap_or_else(|| "<function>".to_owned()),
+                    shape,
+                    purity,
+                    presentation: false,
+                },
+                over_each,
+            ),
+        );
+    }
+
     /// Whether a name is bound to a function value.
     fn names_function(&self, expression: &Expr) -> bool {
         match &expression.kind {
@@ -4306,12 +4668,25 @@ impl<'a> Checker<'a> {
                     return Ok(input_type);
                 }
                 // `x | f` and `x | f(a)` apply a bound function to the input.
+                // The step's operation is the function's type: an operation
+                // type states its shape, and a plain function is a barrier.
+                // An `Elementwise<I, O>` over a collection of `I` runs over
+                // each element, as `map` would.
                 match &step.kind {
                     Kind::Ident(_) if self.names_function(step) => {
-                        return self.application(step, Some(&input_type), &[], span);
+                        if let Some(produced) = self.over_each(step, &input_type, &span)? {
+                            return Ok(produced);
+                        }
+                        let produced =
+                            self.application(step, Some(&input_type), &[], span.clone())?;
+                        self.user_step(step, &span, false);
+                        return Ok(produced);
                     }
                     Kind::Call { callee, arguments } if self.names_function(callee) => {
-                        return self.application(callee, Some(&input_type), arguments, span);
+                        let produced =
+                            self.application(callee, Some(&input_type), arguments, span.clone())?;
+                        self.user_step(callee, &span, false);
+                        return Ok(produced);
                     }
                     _ => {}
                 }

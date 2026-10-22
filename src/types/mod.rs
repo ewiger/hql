@@ -64,7 +64,8 @@ impl fmt::Display for TypeConstructor {
 impl fmt::Display for TypeRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // A function type is written with an arrow, never by its constructor.
-        if let Some((parameters, result)) = self.as_function() {
+        // An operation type keeps its name, which states its shape.
+        if let Some((parameters, result)) = self.as_function().filter(|_| !self.is_operation()) {
             return match parameters {
                 [only] if only.as_function().is_none() => write!(f, "{only} -> {result}"),
                 _ => {
