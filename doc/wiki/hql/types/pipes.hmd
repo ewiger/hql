@@ -117,19 +117,45 @@ require coordination or materialization. Effects must not be reordered or
 duplicated merely because they appear in a pipeline.
 
 [HQL-0004](../../../proposals/HQL-0004/README.md) gives this freedom a shape.
-`x | f(a)` is typed as `f(x, a)` and lowers to a step the executor still sees; a
-chain of steps is a region, and a planner groups steps into stages. Every step
-declares, beside its purity, whether it is elementwise, a partition, a reduction
-with a known combiner, or a barrier, and that is the whole of what a backend may
-assume about splitting it. A checked program runs on a backend; `localhost` is
-the in-memory evaluator, one step after another with no parallelism, and the
-oracle every other backend has to match. The reduce side — `reduce`, `group`,
-`collect` — is specified there and shown in [the mapreduce
-example](../../../../examples/mapreduce/README.md).
+`x | f(a)` is typed as `f(x, a)` and lowers to a step the executor still sees.
+A **pipeline** is the chain of steps joined by `|`; a **step** is one
+occurrence in it, invoking one **operation**; a **stage** is a physical unit of
+execution a planner makes of one or more steps, and is never source syntax
+([HQL-0005](../../../proposals/HQL-0005/README.md)). A receiver call,
+`x.trim()` inside `map(x => x.trim())`, is expression evaluation inside the
+step that holds it, never a step of its own.
+
+Every operation declares a **shape** beside its purity, and the shape is the
+whole of what a backend may assume about splitting it:
+
+| Shape | Meaning | Core operations |
+| --- | --- | --- |
+| elementwise | each element's result depends on that element alone; any split runs separately and is recombined in input order | `filter`, `map`, `of_type`, `somes`, `emit`, `flat_map` |
+| partition | the input is regrouped by a key; groups complete in any order | `group` |
+| reduction | the input collapses to one value through a combiner the executor holds | `size`, `count`, `contains`, `sum`, `product`, `average`, `min`, `max`, `merge_all`, `union_all`, `concat_all`, and `seq`'s `any`, `all`, `is_empty` |
+| barrier | the whole input is needed first; nothing is split | every other step: `sort`, `take`, `drop`, `get`, `collect`, `reduce`, presentation and retrieval |
+
+The declaration states it before `fn`, as `effectful` states purity:
+`elementwise fn map<…>(…)`, and a plain `fn` is a barrier. Binding refuses an
+extension whose own marking differs, and `hql builtins` prints purity and shape
+for every step. A `reduce` whose `by` names a combiner directly,
+`reduce(0, +)`, is a reduction, because the host states that combiner's laws
+([HQL-0014](../../../proposals/HQL-0014/README.md)); with a lambda it stays a
+barrier, since nothing is known about the lambda. The combiners and their laws
+are listed by `hql builtins` too.
+
+A checked program runs on a **backend**. `localhost` is the in-memory
+evaluator, one step after another with no fusion, partitioning or parallelism,
+always registered, the default, and the oracle every other backend has to
+match; a conformance test runs the corpus through every registered backend
+against it. Which backend runs a program is host configuration —
+`--backend`, `[execution] backend` in `hql.toml`, `HQL_BACKEND`, then the
+default — never syntax. The reduce side — `reduce`, `group`, `collect` — is
+shown in [the mapreduce example](../../../../examples/mapreduce/README.md).
 
 Unknown extension functions remain ordinary calls unless their declared contract
-allows more. Purity, failure and execution metadata, plus the eager/lazy boundary,
-are open design work shared with [[hql/extensions]].
+allows more. Failure metadata and the eager/lazy boundary are open design work
+shared with [[hql/extensions]].
 
 See [[hql/collections]] for ordering, [[hql/knowledge]] for terminal presenters,
 and [[card-type]], [[doc-type]] and [[data-type]] for the values that flow through

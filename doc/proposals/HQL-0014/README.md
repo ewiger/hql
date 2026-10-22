@@ -1,6 +1,6 @@
 # HQL-0014: `reduce` as the aggregation primitive, and `merge` as a combiner
 
-- **Status**: accepted
+- **Status**: implemented in part
 - **Created**: 2026-10-18
 - **Source**: [MapReduce: pipeline steps, stages and execution backends](../HQL-0004/README.md)
 
@@ -341,3 +341,11 @@ None.
   `product` and `average` (`[] | sum` is `0`) are implemented, and combiner
   properties in `hql builtins` and the `Reduction` shape of known folds are not
   yet
+- 2026-10-22: implemented in part; combiner properties are host metadata
+  printed by `hql builtins`, each declared law and the split fold are tested,
+  a fold naming an associative combiner is a `Reduction`, an unresolved name
+  in a fold suggests a combiner, and `examples/mapreduce/` gains a `merge` of
+  metadata layers. The named aggregations remain host operations rather than
+  `:=` declarations in `std/`, and `variance`, `histogram`, `top_k`,
+  `count_by` and `approx_distinct` are not built
+  ([issue 0012](../../issues/0012-mapreduce-backends.md))

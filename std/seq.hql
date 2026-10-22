@@ -16,8 +16,8 @@ fn reverse<F<_> : Seq<_>>(self: F<T>) : F<T>
 fn distinct<S : Seq<T>>(self: S) : S
 fn zip<U>(self, other: Seq<U>) : List<Pair<T, U>>
 fn enumerate(self) : List<Pair<Int, T>>
-fn any(self: Collection<T>, by: T -> Bool) : Bool
-fn all(self: Collection<T>, by: T -> Bool) : Bool
+reduction fn any(self: Collection<T>, by: T -> Bool) : Bool
+reduction fn all(self: Collection<T>, by: T -> Bool) : Bool
 fn find(self, by: T -> Bool) : Option<T>
 fn position(self, by: T -> Bool) : Option<Int>
 fn take_while<S : Seq<T>>(self: S, by: T -> Bool) : S
@@ -25,7 +25,7 @@ fn take_while(self: Iterable<T>, by: T -> Bool) : List<T>
 fn drop_while<S : Seq<T>>(self: S, by: T -> Bool) : S
 fn window(self, n: Int) : List<List<T>>
 fn partition(self, by: T -> Bool) : Pair<List<T>, List<T>>
-fn is_empty(self: Collection<T>) : Bool
+reduction fn is_empty(self: Collection<T>) : Bool
 fn join<U>(self: Collection<T>, other: Collection<U>, by: (T, U) -> Bool) : List<Pair<T, U>>
 fn min_by<K : Orderable>(self: Collection<T>, by: T -> K) : Option<T>
 fn min_by(self: Collection<T>, by: (T, T) -> Ordering) : Option<T>

@@ -51,12 +51,14 @@ pub(crate) static STEPS: &[Operation] = &[
         "any",
         "Whether a predicate holds of some occurrence; false over an empty input.",
         eval_any,
-    ),
+    )
+    .shaped(super::Shape::Reduction),
     declared(
         "all",
         "Whether a predicate holds of every occurrence; true over an empty input.",
         eval_all,
-    ),
+    )
+    .shaped(super::Shape::Reduction),
     declared(
         "find",
         "The first element a predicate accepts, or absence.",
@@ -91,7 +93,8 @@ pub(crate) static STEPS: &[Operation] = &[
         "is_empty",
         "Whether the collection has no occurrences.",
         eval_is_empty,
-    ),
+    )
+    .shaped(super::Shape::Reduction),
     declared(
         "range",
         "The Ints from the start up to, not including, an end, by a step of 1 or as given.",

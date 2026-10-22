@@ -45,6 +45,7 @@ pub(crate) static STEPS: &[Operation] = &[Operation {
     }),
     summary: "Rank a corpus by the words it shares with a query.",
     purity: Purity::Pure,
+    shape: super::Shape::Barrier,
     check: None,
     eval: eval_lexical,
 }];

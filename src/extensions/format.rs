@@ -482,6 +482,7 @@ pub(crate) static STEPS: &[Operation] = &[
         summary: "Encode any value as text in a format, chosen by its type; a stream \
                   piece by piece.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check_format),
         eval: eval_format,
     },
@@ -592,6 +593,7 @@ const fn shorthand(name: &'static str, check: super::Check, eval: super::Eval) -
         spec: Signature::Declared,
         summary: "Shorthand for format with its format fixed.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check),
         eval,
     }

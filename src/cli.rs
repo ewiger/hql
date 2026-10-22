@@ -74,6 +74,11 @@ pub struct Options {
     /// When to stop: `strict` at the first error, `collect` to report them all.
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
+    /// The execution backend that runs a checked program: `localhost`, the
+    /// in-memory evaluator, unless `hql.toml` or `HQL_BACKEND` names
+    /// another. The answer does not depend on it.
+    #[arg(long, global = true, value_name = "NAME")]
+    pub backend: Option<String>,
     /// The lowest severity shown: `debug`, `info`, `warning` or `error`.
     /// `--envelope json` carries every entry whatever this says.
     #[arg(long, global = true, value_name = "LEVEL")]
@@ -181,7 +186,7 @@ const COMMANDS: [&str; 9] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 7] = [
+const VALUED: [&str; 8] = [
     "--vault",
     "--envelope",
     "--to",
@@ -189,6 +194,7 @@ const VALUED: [&str; 7] = [
     "--report-level",
     "--log-level",
     "--modules",
+    "--backend",
 ];
 
 /// `hql '<program>'` is `hql eval '<program>'`: insert `eval` before a first
@@ -282,6 +288,16 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     };
     let level = Level::resolve(level, root.as_deref());
     let shown = level.severity;
+    // An unregistered backend fails every program, and `hql config`, naming
+    // the layer that supplied it; listing the builtins needs none.
+    let backend =
+        crate::backends::Selection::resolve(cli.options.backend.as_deref(), root.as_deref());
+    if !matches!(cli.command, Command::Builtins)
+        && let Err(refused) = &backend
+    {
+        return Err(refused.clone());
+    }
+    let backend = backend.unwrap_or_else(|_| crate::backends::Selection::standard());
 
     match &cli.command {
         Command::Builtins => {
@@ -297,13 +313,38 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                 for step in provider.steps {
                     writeln!(
                         out,
-                        "  {}\n    {}\n    {}",
+                        "  {}\n    {}\n    {}, {}\n    {}",
                         step.name,
                         step.signature.replace('\n', "\n    "),
+                        step.purity.label(),
+                        step.shape.label(),
                         step.summary
                     )
                     .map_err(|error| error.to_string())?;
                 }
+            }
+            // The combiners a fold may name in its `by` position, with the
+            // laws a planner reads to split it.
+            writeln!(out, "combiners").map_err(|error| error.to_string())?;
+            for combiner in crate::extensions::COMBINERS {
+                let laws: Vec<&str> = [
+                    (combiner.associative, "associative"),
+                    (combiner.commutative, "commutative"),
+                    (!combiner.commutative, "order-sensitive"),
+                ]
+                .into_iter()
+                .filter_map(|(holds, law)| holds.then_some(law))
+                .collect();
+                writeln!(
+                    out,
+                    "  {}\n    over {}, identity {}\n    {}; folds {}",
+                    combiner.name,
+                    combiner.over,
+                    combiner.identity.unwrap_or("none"),
+                    laws.join(", "),
+                    combiner.input()
+                )
+                .map_err(|error| error.to_string())?;
             }
             Ok(0)
         }
@@ -324,11 +365,13 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         Command::Config => {
             writeln!(
                 out,
-                "report mode: {} (from {})\nreport level: {} (from {})\nvault: {}",
+                "report mode: {} (from {})\nreport level: {} (from {})\nbackend: {} (from {})\nvault: {}",
                 settings.mode.label(),
                 settings.origin,
                 level.severity.label(),
                 level.origin,
+                backend.backend.name,
+                backend.origin.label(),
                 if vault.is_present() {
                     format!("{} ({} cards)", vault.root.display(), vault.cards.len())
                 } else {
@@ -340,7 +383,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         }
         Command::Eval { expression } => {
             crate::io::set_host(crate::io::Policy::Open, PathBuf::from("."));
-            let outcome = crate::run(expression, &vault, settings.mode);
+            let outcome = crate::run_on(expression, &vault, settings.mode, backend);
             emit(
                 &outcome,
                 expression,
@@ -359,7 +402,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             if file == "-" {
                 crate::io::set_program_on_stdin();
             }
-            let outcome = crate::run(&source, &vault, settings.mode);
+            let outcome = crate::run_on(&source, &vault, settings.mode, backend);
             emit(
                 &outcome,
                 &source,
@@ -467,7 +510,15 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             }
             Ok(u8::from(rendered.reports.has_errors()))
         }
-        Command::Repl => repl(&vault, settings.mode, shown, &cli.options, out, err),
+        Command::Repl => repl(
+            &vault,
+            settings.mode,
+            backend,
+            shown,
+            &cli.options,
+            out,
+            err,
+        ),
     }
 }
 
@@ -710,6 +761,7 @@ fn report_all(
 fn repl(
     vault: &Vault,
     mode: Mode,
+    backend: crate::backends::Selection,
     shown: Severity,
     options: &Options,
     out: &mut impl Write,
@@ -799,7 +851,7 @@ fn repl(
         let outcome = if typing {
             crate::check_reported(&source, vault, mode)
         } else {
-            crate::run(&source, vault, mode)
+            crate::run_on(&source, vault, mode, backend)
         };
         emit(
             &outcome, &source, "<repl>", HQL, options, vault, shown, out, err,

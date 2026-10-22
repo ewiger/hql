@@ -23,6 +23,7 @@ use std::sync::Arc;
 ///
 /// The log comes back whether or not evaluation failed, so what a program
 /// captured before its first failure is not lost with the value.
+#[cfg(test)]
 pub(crate) fn evaluate(
     program: &Program,
     vault: &Vault,

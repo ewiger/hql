@@ -2,7 +2,7 @@
 
 use crate::ast::{self, Arith, Logic, Relation};
 use crate::diagnostics::Diagnostic;
-use crate::extensions::Operation;
+use crate::extensions::{Operation, Shape};
 use crate::types::TypeRef;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -228,6 +228,81 @@ pub(crate) enum Kind {
         condition: Box<Expr>,
         otherwise: Option<Box<Expr>>,
     },
+}
+
+impl Expr {
+    /// The steps of the pipeline this expression ends, first to last, each
+    /// with the shape it was checked to. Expressions inside a step's
+    /// arguments, a lambda's body among them, are evaluated within that
+    /// step and are not steps of the pipeline.
+    pub(crate) fn pipeline(&self) -> Vec<(&'static str, Shape)> {
+        let mut steps = Vec::new();
+        let mut at = self;
+        while let Kind::Step {
+            step,
+            input,
+            arguments,
+            ..
+        } = &at.kind
+        {
+            steps.push((step.name, shape_of(step, arguments)));
+            at = input;
+        }
+        steps.reverse();
+        steps
+    }
+}
+
+/// The shape of a checked step: its operation's, refined by a combiner. A
+/// fold whose `by` names an associative combiner the host holds is a
+/// `Reduction`, since its splits may be folded and combined; a fold with a
+/// lambda stays the barrier `reduce` is declared, because nothing is known
+/// about the lambda.
+pub(crate) fn shape_of(step: &Operation, arguments: &[Arg]) -> Shape {
+    let declared = step.shape();
+    if step.name != "reduce" {
+        return declared;
+    }
+    let named = arguments
+        .iter()
+        .find(|argument| argument.name.as_deref() == Some("by"))
+        .or_else(|| arguments.last());
+    match named.and_then(known_combiner) {
+        Some(combiner) if combiner.associative => Shape::Reduction,
+        _ => declared,
+    }
+}
+
+/// The combiner an argument names directly, `+` in `reduce(0, +)`: the
+/// lambda the parser writes for it, whose parameters no program can name.
+pub(crate) fn known_combiner(argument: &Arg) -> Option<&'static crate::extensions::Combiner> {
+    let Kind::Lambda {
+        parameters, body, ..
+    } = &argument.value.kind
+    else {
+        return None;
+    };
+    if !parameters
+        .first()
+        .is_some_and(|parameter| parameter.starts_with('%'))
+    {
+        return None;
+    }
+    let name = match &body.kind {
+        Kind::Combine { combiner, .. } => combiner,
+        Kind::Arith { rest, .. } => match rest.first().map(|(operator, _, _)| operator) {
+            Some(Arith::Add) => "+",
+            Some(Arith::Mul) => "*",
+            _ => return None,
+        },
+        Kind::Method { trait_name, .. } => match trait_name.as_str() {
+            "Add" => "+",
+            "Mul" => "*",
+            _ => return None,
+        },
+        _ => return None,
+    };
+    crate::extensions::combiner(name)
 }
 
 /// A checked `match` arm.

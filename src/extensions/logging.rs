@@ -222,6 +222,7 @@ macro_rules! levels {
             }),
             summary: $summary,
             purity: Purity::Effectful,
+            shape: super::Shape::Barrier,
             check: None,
             eval: $eval,
         }),*]
@@ -276,6 +277,7 @@ pub(crate) static STEPS: &[Operation] = &{
             summary: "A logger that writes LogEvents to an endpoint in a format, or to a \
                       Channel<LogEvent> as values; `level` is the least severe it writes.",
             purity: Purity::Pure,
+            shape: super::Shape::Barrier,
             check: Some(check_logger),
             eval: eval_logger,
         },

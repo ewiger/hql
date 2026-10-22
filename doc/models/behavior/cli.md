@@ -19,8 +19,8 @@ binary can reach is logic that cannot be tested.
 | `hql run <file>` | check and evaluate a file |
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
-| `hql builtins` | list the steps a pipeline may use, grouped by provider |
-| `hql config` | the reporting mode and shown level in force, and where each came from |
+| `hql builtins` | list the steps a pipeline may use, grouped by provider, each with its signature, purity and shape, then the combiners a fold names with the laws each holds |
+| `hql config` | the reporting mode, the shown level and the execution backend in force, and where each came from |
 | `hql doctor` | check the semantic-search chain in order — vault, `hql.toml`, index, model, query vectors, card coverage — printing one line per part; it stops at the first missing part, names the command to run next, and exits `1` when any part is missing |
 
 `-` reads standard input wherever a file is taken, so `hql` composes in a
@@ -41,6 +41,7 @@ and a result of type `Unit` is written as nothing.
 | `--log-level trace\|debug\|info\|warn\|error` | every logger's threshold, overriding the one it was constructed with |
 | `--report-level debug\|info\|warning\|error` | the lowest severity shown in `text`; see [reporting](reporting.md) |
 | `--report strict\|collect` | when the run stops; see [reporting](reporting.md) |
+| `--backend <name>` | the execution backend that runs a checked program; see *Backends* below |
 
 The vault is found the way `hmd` finds a project: walking up from the current
 directory, the first directory holding `.hmd/` — or `hql.toml`, for a vault
@@ -53,6 +54,28 @@ card-ness is a place in a namespace, and a vault is a directory marked as one by
 for it are assumed.
 See [Card](../../wiki/hql/types/card-type.hmd) and
 [the semantic-search requirements](../requirements/semantic-search.md).
+
+## Backends
+
+A checked program runs on an execution backend
+([HQL-0004](../../proposals/HQL-0004/README.md)). The backend changes how a
+program runs and never its answer, so it is host configuration and never
+syntax, resolved with the precedence [reporting](reporting.md) uses:
+
+1. the query — `--backend <name>`
+2. the vault — `hql.toml`, `[execution] backend = "<name>"`
+3. the user — `HQL_BACKEND` in the environment
+4. the default — `localhost`
+
+```toml
+[execution]
+backend = "localhost"
+```
+
+`localhost` is the only registered backend: the in-memory evaluator, each step
+run to completion before the next. A name that is not registered fails every
+program, and `hql config`, with a message naming the flag, the file or the
+variable that supplied it. `hql render` runs its cells on `localhost`.
 
 ## Extensions
 

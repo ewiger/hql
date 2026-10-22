@@ -458,6 +458,10 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
         .collect()
 }
 
+/// The operation types `std/core.hql` reserves, one per shape and their
+/// common supertype: a program may not declare a type of these names.
+const RESERVED_TYPES: [&str; 5] = ["Operation", "Elementwise", "Partition", "Reduction", "Barrier"];
+
 /// Refuse a public declaration of a module whose signature mentions one of
 /// the module's private types or traits: a parameter, a result, a bound, a
 /// field or a supertype. A public signature would otherwise hand importers a
@@ -1173,6 +1177,17 @@ impl<'a> Checker<'a> {
                 // introduces no value: constructing one is separate work.
                 Stmt::Type(declaration) => {
                     use crate::naming::Kind as Name;
+                    if RESERVED_TYPES.contains(&declaration.name.as_str()) {
+                        return Err(Diagnostic::typing(
+                            declaration.span.clone(),
+                            format!(
+                                "`{}` is reserved: the operation types `Operation`, \
+                                 `Elementwise`, `Partition`, `Reduction` and `Barrier` are \
+                                 the standard library's, and a program declares none of them",
+                                declaration.name
+                            ),
+                        ));
+                    }
                     self.lint(Name::Type, &declaration.name, &declaration.span);
                     for parameter in &declaration.parameters {
                         self.lint(Name::TypeParameter, parameter, &declaration.span);
@@ -2445,7 +2460,7 @@ impl<'a> Checker<'a> {
                 .insert(span, (trait_name, name.to_owned()));
             return Ok(signature.result);
         }
-        if let Some(&(combiner, _)) = crate::ast::COMBINERS.iter().find(|(held, _)| held == &name)
+        if let Some(combiner) = crate::extensions::combiner(name).map(|held| held.name)
             && positional == 1
             && arguments.len() == 1
             && !self.scope.contains_key(name)
@@ -4175,8 +4190,7 @@ impl<'a> Checker<'a> {
                 }
                 // Two values combined, `min(a, b)` or `merge(m, n)`: the
                 // combiner, where one value is the step of the same name.
-                if let Some(&(combiner, _)) =
-                    crate::ast::COMBINERS.iter().find(|(held, _)| held == name)
+                if let Some(combiner) = crate::extensions::combiner(name).map(|held| held.name)
                     && arguments.len() == 2
                     && arguments.iter().all(|argument| argument.name.is_none())
                     && !self.scope.contains_key(name)
@@ -4494,8 +4508,42 @@ impl<'a> Checker<'a> {
         Ok(result)
     }
 
-    /// Dispatch a pipeline step to the extension that provides it.
+    /// Dispatch a pipeline step to the extension that provides it. A name
+    /// a fold's `by` position does not resolve is suggested among the
+    /// combiners, since that is the vocabulary the position takes.
     fn step(
+        &mut self,
+        step: &'static Operation,
+        input: &TypeRef,
+        input_expr: Option<&Expr>,
+        arguments: &[Arg],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        let checked = self.dispatch_step(step, input, input_expr, arguments, span);
+        if step.name != "reduce" {
+            return checked;
+        }
+        checked.map_err(|refused| {
+            let Diagnostic::Name { span: at, .. } = &refused else {
+                return refused;
+            };
+            let unknown = arguments
+                .iter()
+                .find_map(|argument| match &argument.value.kind {
+                    Kind::Ident(name) if argument.value.span == *at => Some(name),
+                    _ => None,
+                });
+            match unknown {
+                Some(name) => Diagnostic::name(
+                    at.clone(),
+                    format!("`{name}` is not bound{}", builtins::combiner_hint(name)),
+                ),
+                None => refused,
+            }
+        })
+    }
+
+    fn dispatch_step(
         &mut self,
         step: &'static Operation,
         input: &TypeRef,

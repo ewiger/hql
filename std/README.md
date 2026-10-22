@@ -98,7 +98,9 @@ that opens with `module for T` is a receiver module, whose `self` functions
 resolve as `value.f()`; a declaration outside one writes its receiver's type,
 `fn abs(self: Int) : Int`, and one without `self` is never reached as
 `value.f()`. `effectful fn source(…)` declares an operation effectful, and a
-plain `fn` pure; binding holds the extension's own marking to it.
+plain `fn` pure; `elementwise fn`, `partition fn` and `reduction fn` declare
+how an executor may split its input, and a plain `fn` is a barrier. Binding
+holds the extension's own markings to both.
 
 ## Conventions
 

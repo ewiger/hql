@@ -37,7 +37,15 @@ pub(crate) mod seq;
 pub mod spec;
 pub(crate) mod string;
 pub(crate) mod traits;
+pub use collections::{COMBINERS, Combiner};
 use spec::{CheckedCall, OperationSpec};
+
+/// The combiner of a name: `+`, `*`, `min`, `max`, `union`, `merge` or
+/// `concat`.
+#[must_use]
+pub fn combiner(name: &str) -> Option<&'static Combiner> {
+    COMBINERS.iter().find(|combiner| combiner.name == name)
+}
 
 /// Whether the executor may move a step around.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +65,52 @@ impl Purity {
             Self::Pure => "pure",
             Self::Effectful => "effectful",
         }
+    }
+}
+
+/// How the executor may split a step's input: the whole of what a backend
+/// may assume about partitioning it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Shape {
+    /// The result for each element depends on that element alone: any split
+    /// of the input may run separately and be recombined in the input's
+    /// order.
+    Elementwise,
+    /// The input is regrouped by a key, and the groups may complete in any
+    /// order.
+    Partition,
+    /// The whole input collapses to one value through a combiner the
+    /// executor holds, so splits may be reduced and their results combined.
+    Reduction,
+    /// The whole input is needed before any output: nothing may be split.
+    Barrier,
+}
+
+impl Shape {
+    /// Every shape, in the order help explains them.
+    pub const ALL: [Self; 4] = [
+        Self::Elementwise,
+        Self::Partition,
+        Self::Reduction,
+        Self::Barrier,
+    ];
+
+    /// The word help prints for this shape, and the word a declaration
+    /// writes before `fn`.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Elementwise => "elementwise",
+            Self::Partition => "partition",
+            Self::Reduction => "reduction",
+            Self::Barrier => "barrier",
+        }
+    }
+
+    /// The shape a declaration's word names.
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|shape| shape.label() == word)
     }
 }
 
@@ -150,6 +204,10 @@ pub struct Operation {
     /// binding checks it against the declaration, which is what
     /// [`Operation::purity`] reads.
     pub(crate) purity: Purity,
+    /// The extension's own marking of how the executor may split it:
+    /// binding checks it against the declaration, which is what
+    /// [`Operation::shape`] reads.
+    pub(crate) shape: Shape,
     /// What it does to a type.
     pub(crate) check: Option<Check>,
     /// What it does to a value.
@@ -179,21 +237,29 @@ const UNBOUND: OperationSpec = OperationSpec {
     output: spec::Output::Type(spec::TypePattern::Any),
 };
 
-/// An operation whose signature and purity are its declaration's in a
+/// An operation whose signature, purity and shape are its declaration's in a
 /// standard module: a name, a summary and what it does to a value, marked
-/// pure, which binding checks against the declaration.
+/// pure and a barrier, which binding checks against the declaration.
 pub(crate) const fn declared(name: &'static str, summary: &'static str, eval: Eval) -> Operation {
     Operation {
         name,
         spec: Signature::Declared,
         summary,
         purity: Purity::Pure,
+        shape: Shape::Barrier,
         check: None,
         eval,
     }
 }
 
 impl Operation {
+    /// The same operation marked with another shape, for one its
+    /// declaration writes `elementwise fn`, `partition fn` or
+    /// `reduction fn`.
+    pub(crate) const fn shaped(self, shape: Shape) -> Self {
+        Self { shape, ..self }
+    }
+
     /// The structural signature used for checking and help: the first
     /// overload of a name declared more than once.
     pub(crate) fn spec(&self) -> &OperationSpec {
@@ -285,6 +351,20 @@ impl Operation {
         match environment.of(self).first() {
             Some(id) => environment.declaration(*id).purity,
             None => self.purity,
+        }
+    }
+
+    /// How the executor may split it: what its declaration states, `fn` a
+    /// barrier and `elementwise fn`, `partition fn` or `reduction fn` the
+    /// shape it names. An operation without a declaration keeps its
+    /// extension's marking.
+    pub fn shape(&self) -> Shape {
+        let Ok(environment) = binding::Environment::get() else {
+            return self.shape;
+        };
+        match environment.of(self).first() {
+            Some(id) => environment.declaration(*id).shape,
+            None => self.shape,
         }
     }
 
@@ -820,6 +900,17 @@ fn bind_contracts() -> Result<(), String> {
                 step.purity.label()
             ));
         }
+        // So is the shape: every form of a name states one, and the
+        // extension's marking agrees with it.
+        if declaration.shape != step.shape {
+            return Err(format!(
+                "`{}` is declared {}, and the extension `{}` marks it {}",
+                environment.qualified(id),
+                declaration.shape.label(),
+                provider.name,
+                step.shape.label()
+            ));
+        }
         if let Signature::Native(native) = &step.spec {
             // One native signature cannot hold to several declarations.
             if overloads.len() > 1 {
@@ -1254,6 +1345,8 @@ pub struct Listing {
     pub summary: &'static str,
     /// Whether the executor may move it.
     pub purity: Purity,
+    /// How the executor may split it.
+    pub shape: Shape,
 }
 
 /// One extension and its steps, as `hql builtins` prints them.
@@ -1311,6 +1404,7 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
                     specs: step.specs(),
                     summary: step.summary,
                     purity: step.purity(),
+                    shape: step.shape(),
                 })
                 .collect(),
         })
@@ -1437,6 +1531,7 @@ mod tests {
             }),
             summary: "A second `count`, so the collision has two sides.",
             purity: Purity::Pure,
+            shape: Shape::Barrier,
             check: None,
             eval: |_, _, _, _| Ok(Value::Int(0)),
         }],

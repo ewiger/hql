@@ -25,6 +25,7 @@ pub mod naming;
 mod net;
 mod parser;
 
+pub mod backends;
 pub mod builtins;
 pub mod cli;
 pub mod data;
@@ -86,6 +87,33 @@ pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
     checker::check(&parser::parse(source)?, vault).map(|program| program.result)
 }
 
+/// The steps of the pipeline a program's last expression ends, first to
+/// last, each with the shape it was checked to: what a planner may assume
+/// about splitting it. A direct call is a one-step pipeline; an expression
+/// inside a step's arguments, a receiver call in a lambda among them, is
+/// evaluated within that step and is not one.
+///
+/// # Errors
+///
+/// Returns the first syntax, type or name failure.
+pub fn pipeline(source: &str) -> Result<Vec<(String, extensions::Shape)>, Diagnostic> {
+    let program = checker::check(&parser::parse(source)?, &Vault::empty())?;
+    let last = program
+        .statements
+        .iter()
+        .rev()
+        .find_map(|statement| match statement {
+            execution::Stmt::Expr(expression) => Some(expression),
+            _ => None,
+        });
+    Ok(last
+        .map(execution::Expr::pipeline)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, shape)| (name.to_owned(), shape))
+        .collect())
+}
+
 /// Write a stream a program returned as it arrives: each value goes to
 /// `sink`, which answers whether it wants another.
 ///
@@ -108,7 +136,9 @@ pub fn stream(
 pub fn eval(source: &str) -> Result<Value, Diagnostic> {
     let program = parser::parse(source)?;
     let program = checker::check(&program, &Vault::empty())?;
-    evaluation::evaluate(&program, &Vault::empty()).0
+    backends::LOCALHOST
+        .run(&program, &Vault::empty(), Vec::new())
+        .0
 }
 
 /// Type-check a program, reporting under a mode.
@@ -158,13 +188,21 @@ pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
     }
 }
 
-/// Run a program against a vault under a reporting mode.
+/// Run a program against a vault under a reporting mode, on `localhost`.
 ///
 /// Checking runs over the whole program before anything is evaluated. In
 /// [`Mode::Collect`] every statement is checked even after one fails, so the
 /// queue holds the whole list rather than only the first entry.
 #[must_use]
 pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
+    run_on(source, vault, mode, backends::Selection::standard())
+}
+
+/// Run a program against a vault under a reporting mode, on a selected
+/// backend. The backend receives the checked program and nothing earlier:
+/// parsing and checking have run before it is reached.
+#[must_use]
+pub fn run_on(source: &str, vault: &Vault, mode: Mode, selection: backends::Selection) -> Outcome {
     let program = match parser::parse(source) {
         Ok(program) => program,
         Err(diagnostic) => return failed(&diagnostic),
@@ -189,7 +227,7 @@ pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
         reports.push(Report::of_check_warning(warning));
     }
     let inferred = program.result.clone();
-    let (value, log) = evaluation::evaluate(&program, vault);
+    let (value, log) = selection.backend.run(&program, vault, Vec::new());
     for entry in log {
         reports.push(entry);
     }
@@ -240,13 +278,14 @@ pub(crate) fn check_cell(
     (checked, reports)
 }
 
-/// Evaluate one checked cell with the values of the cells it reads.
+/// Evaluate one checked cell with the values of the cells it reads, on
+/// `localhost`.
 pub(crate) fn evaluate_cell(
     program: &execution::Program,
     vault: &Vault,
     bound: Vec<(String, Value)>,
 ) -> (Result<Value, Diagnostic>, Reports) {
-    let (value, log) = evaluation::evaluate_with(program, vault, bound);
+    let (value, log) = backends::LOCALHOST.run(program, vault, bound);
     (value, log.into_iter().collect())
 }
 

@@ -307,25 +307,12 @@ impl Parser {
         {
             return self.function();
         }
-        // `effectful fn f(…) : T`: an external declaration whose evaluation
-        // reads or changes something outside its result.
-        if let Token::Ident(keyword) = self.peek().clone()
-            && keyword == "effectful"
-            && matches!(&self.tokens[self.index + 1].token, Token::Ident(word) if word == "fn")
-        {
-            let marker = self.advance().span;
-            return match self.function()? {
-                Stmt::External(mut declaration) => {
-                    declaration.effectful = true;
-                    declaration.span.start = marker.start;
-                    Ok(Stmt::External(declaration))
-                }
-                _ => Err(Diagnostic::syntax(
-                    marker,
-                    "`effectful` belongs to an external declaration; a function with a body \
-                     is effectful exactly when its body uses an effectful operation",
-                )),
-            };
+        // `effectful fn f(…) : T`, `elementwise fn f(…) : T`: an external
+        // declaration whose evaluation reads or changes something outside
+        // its result, or whose input an executor may split as the shape
+        // names. Each word is one only before `fn` or another such word.
+        if let Some(statement) = self.marked_external()? {
+            return Ok(statement);
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "trait"
@@ -1142,6 +1129,7 @@ impl Parser {
                 private: None,
                 name,
                 effectful: false,
+                shape: None,
                 has_self,
                 receiver,
                 generics,
@@ -1708,6 +1696,63 @@ impl Parser {
         }
     }
 
+    /// The words an external declaration may carry before `fn`, `effectful`
+    /// and a shape, then the declaration; none when the words do not lead
+    /// to `fn`.
+    fn marked_external(&mut self) -> Result<Option<Stmt>, Diagnostic> {
+        let is_marker = |token: &Token| {
+            matches!(token, Token::Ident(word)
+                if word == "effectful" || crate::extensions::Shape::parse(word).is_some())
+        };
+        let mut at = self.index;
+        while is_marker(&self.tokens[at].token) {
+            at += 1;
+        }
+        if at == self.index || !matches!(&self.tokens[at].token, Token::Ident(word) if word == "fn")
+        {
+            return Ok(None);
+        }
+        let first = self.tokens[self.index].span.clone();
+        let mut effectful = false;
+        let mut shape = None;
+        while self.index < at {
+            let marker = self.advance();
+            let Token::Ident(word) = &marker.token else {
+                continue;
+            };
+            let repeated = if word == "effectful" {
+                std::mem::replace(&mut effectful, true)
+            } else {
+                shape
+                    .replace(crate::extensions::Shape::parse(word))
+                    .is_some()
+            };
+            if repeated {
+                return Err(Diagnostic::syntax(
+                    marker.span.clone(),
+                    "a declaration states its purity once and its shape once",
+                ));
+            }
+        }
+        match self.function()? {
+            Stmt::External(mut declaration) => {
+                declaration.effectful = effectful;
+                declaration.shape = shape.flatten();
+                declaration.span.start = first.start;
+                Ok(Some(Stmt::External(declaration)))
+            }
+            _ => Err(Diagnostic::syntax(
+                first,
+                if effectful {
+                    "`effectful` belongs to an external declaration; a function with a body \
+                     is effectful exactly when its body uses an effectful operation"
+                } else {
+                    "a shape belongs to an external declaration, which the host implements"
+                },
+            )),
+        }
+    }
+
     fn arguments(&mut self) -> Result<(Vec<Arg>, usize), Diagnostic> {
         self.expect(&Token::OpenParen, "to open an argument list")?;
         self.nesting += 1;
@@ -1770,11 +1815,8 @@ impl Parser {
         let (name, commutative) = match &head.token {
             Token::Plus => ("+", true),
             Token::Star => ("*", true),
-            Token::Ident(name) => match crate::ast::COMBINERS
-                .iter()
-                .find(|(combiner, _)| combiner == name)
-            {
-                Some((combiner, commutative)) => (*combiner, *commutative),
+            Token::Ident(name) => match crate::extensions::combiner(name) {
+                Some(combiner) => (combiner.name, combiner.commutative),
                 None => return Ok(None),
             },
             _ => return Ok(None),

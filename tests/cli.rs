@@ -451,6 +451,57 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
 }
 
 #[test]
+fn builtins_print_purity_and_shape_for_every_step_and_the_combiner_laws() {
+    let listed = stdout(&hql(&["builtins"]));
+    assert!(listed.contains("  map\n"), "{listed}");
+    assert!(listed.contains("pure, elementwise"));
+    assert!(listed.contains("pure, partition"));
+    assert!(listed.contains("pure, reduction"));
+    assert!(listed.contains("pure, barrier"));
+    assert!(listed.contains("effectful, barrier"));
+    // Each step's third line is its purity and shape.
+    let steps = listed
+        .lines()
+        .filter(|line| line.starts_with("  ") && !line.starts_with("    "))
+        .count();
+    let shaped = listed
+        .lines()
+        .filter(|line| {
+            ["pure, ", "effectful, "]
+                .iter()
+                .any(|purity| line.trim_start().starts_with(purity))
+        })
+        .count();
+    let combiners = hql::extensions::COMBINERS.len();
+    assert_eq!(shaped + combiners, steps, "{listed}");
+    assert!(listed.contains("combiners\n  +\n    over numbers, identity 0\n"));
+    assert!(listed.contains("associative, order-sensitive; folds Seq"));
+}
+
+#[test]
+fn config_reports_the_backend_and_an_unknown_one_fails_every_program() {
+    let plain = stdout(&hql(&["config"]));
+    assert!(
+        plain.contains("backend: localhost (from the default)"),
+        "{plain}"
+    );
+    let mapreduce = stdout(&hql(&["--vault", "examples/mapreduce/wiki", "config"]));
+    assert!(
+        mapreduce.contains("backend: localhost (from the vault's hql.toml)"),
+        "{mapreduce}"
+    );
+    let chosen = hql(&["--backend", "localhost", "eval", "1 + 1"]);
+    assert_eq!(stdout(&chosen), "2\n");
+    let refused = hql(&["--backend", "threads", "eval", "1 + 1"]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(
+        stderr(&refused).contains("no backend is named `threads`, which --backend names"),
+        "{}",
+        stderr(&refused)
+    );
+}
+
+#[test]
 fn cli_surface_identifies_hql_and_usage_errors_exit_two() {
     let help = hql(&["--help"]);
     assert!(help.status.success());

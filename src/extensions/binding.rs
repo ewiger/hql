@@ -7,10 +7,11 @@
 //! persistent identifier. Binding then maps each declaration identity to the
 //! extension operation implementing it, and every question asked of an
 //! operation afterwards (its signatures, whether it has a receiver, whether
-//! it is pure) is answered from its declarations rather than from its name.
+//! it is pure, how it may be split) is answered from its declarations rather
+//! than from its name.
 
 use super::spec::OperationSpec;
-use super::{Extension, Operation, Purity, REGISTERED, contract};
+use super::{Extension, Operation, Purity, REGISTERED, Shape, contract};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -46,6 +47,9 @@ pub(crate) struct Declaration {
     pub(crate) receiver: bool,
     /// Whether it is written `effectful fn`.
     pub(crate) purity: Purity,
+    /// The shape its word before `fn` names, a barrier where none is
+    /// written.
+    pub(crate) shape: Shape,
 }
 
 /// The modules and declarations of the standard library, with each
@@ -135,6 +139,7 @@ impl Environment {
                     } else {
                         Purity::Pure
                     },
+                    shape: declaration.shape.unwrap_or(Shape::Barrier),
                 });
             }
         }
@@ -274,6 +279,65 @@ mod tests {
         let info = super::super::LOGGING.step("info").unwrap();
         assert_eq!(info.purity(), Purity::Effectful);
         assert!(!info.has_receiver());
+    }
+
+    #[test]
+    fn shape_is_read_from_the_declaration_and_agrees_with_the_marking() {
+        let environment = Environment::get().unwrap();
+        for (name, expected) in [
+            ("map", Shape::Elementwise),
+            ("group", Shape::Partition),
+            ("size", Shape::Reduction),
+            ("sort", Shape::Barrier),
+        ] {
+            let step = super::super::CORE.step(name).unwrap();
+            for id in environment.of(step) {
+                assert_eq!(environment.declaration(*id).shape, expected, "{name}");
+            }
+            assert_eq!(step.shape, expected, "{name}");
+            assert_eq!(step.shape(), expected, "{name}");
+        }
+        // Every bound declaration states the shape its extension marks.
+        for (_, declaration) in environment.declarations() {
+            if let Some(operation) = declaration.operation {
+                assert_eq!(declaration.shape, operation.shape, "{}", declaration.name);
+            }
+        }
+    }
+
+    #[test]
+    fn a_shape_marks_an_external_declaration_once() {
+        let program = crate::parser::parse(
+            "effectful elementwise fn f(x: Int) : Int\nreduction fn g(x: Int) : Int",
+        )
+        .unwrap();
+        let [
+            crate::ast::Stmt::External(first),
+            crate::ast::Stmt::External(second),
+        ] = program.statements.as_slice()
+        else {
+            panic!("two external declarations");
+        };
+        assert!(first.effectful);
+        assert_eq!(first.shape, Some(Shape::Elementwise));
+        assert!(!second.effectful);
+        assert_eq!(second.shape, Some(Shape::Reduction));
+        let twice = crate::parser::parse("barrier partition fn f(x: Int) : Int").unwrap_err();
+        assert!(
+            twice.message().contains("its shape once"),
+            "{}",
+            twice.message()
+        );
+        let bodied = crate::parser::parse("elementwise fn f(x: Int) : Int = x").unwrap_err();
+        assert!(
+            bodied
+                .message()
+                .contains("belongs to an external declaration"),
+            "{}",
+            bodied.message()
+        );
+        // A shape is a word only before `fn`: `partition` stays a name.
+        assert!(crate::parser::parse("partition = 1\npartition").is_ok());
     }
 
     #[test]

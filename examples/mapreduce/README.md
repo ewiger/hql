@@ -5,7 +5,7 @@ and a page count are the dataset for filtering, mapping, grouping and reducing.
 Only `wiki/` is the vault, so this README and the query files do not become
 cards. The vault's `hql.toml` names the `localhost` backend, which is the
 default and the only one; the line records where the results are promised to
-hold rather than changing anything.
+hold rather than changing anything, and `hql config` reports it.
 
 From the repository root:
 
@@ -30,10 +30,15 @@ result.
 | [by genre](queries/by-genre.hql) | The full package as one pipeline over card metadata | runs | poetry 1, essay 2, novel 3 |
 | [metadata pages](queries/metadata-pages.hql) | A metadata leaf read as an `Int` with `of_type`, then summed | runs | 1589 |
 | [tee summary](queries/tee-summary.hql) | `tee` binds side counts while the main line counts the novels | runs | 3 novels, 6 books, 2 short |
+| [merge layers](queries/merge-layers.hql) | `merge` as a combiner: layers of metadata folded in order, a later layer winning | runs | shelf fiction, 14 loan days |
+| [reserved operation](queries/invalid-reserved-operation.hql) | The operation types, one per shape, are reserved names | refused | a type error |
 
-Every `|` is a boundary the executor sees: `filter` and `map` are
-elementwise, `group` is a partition, `size` and `reduce` are reductions, `sort`
-is a barrier. Under `localhost` each step runs to completion before the next,
+Every `|` is a boundary the executor sees, and every step has a shape, which
+`hql builtins` prints beside its purity: `filter` and `map` are elementwise,
+`group` is a partition, `size` and `sum` are reductions, `sort` is a barrier. A
+`reduce` is a reduction when its `by` names a combiner, `reduce(0, +)`, and a
+barrier when it is a lambda, as in [total pages](queries/total-pages.hql).
+Under `localhost` each step runs to completion before the next,
 with no parallelism, and that sequential answer is the oracle every other
 backend has to match.
 

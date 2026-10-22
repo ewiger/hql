@@ -60,6 +60,7 @@ pub(crate) static STEPS: &[Operation] = &[
         summary: "The file at a path, as an endpoint: read whole, written by replacing it; \
                   its `.end` is appended to and followed.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check_file),
         eval: eval_file,
     },
@@ -74,6 +75,7 @@ pub(crate) static STEPS: &[Operation] = &[
         summary: "Read an endpoint's documents in a format: every one, as a Seq, when it can \
                   be read again; each as it arrives, as a Stream, when it cannot.",
         purity: Purity::Effectful,
+        shape: super::Shape::Barrier,
         check: Some(check_read),
         eval: eval_source,
     },
@@ -88,6 +90,7 @@ pub(crate) static STEPS: &[Operation] = &[
         summary: "Read an endpoint's documents one at a time, as a Stream; at a file's \
                   `.end`, each one appended from now on.",
         purity: Purity::Effectful,
+        shape: super::Shape::Barrier,
         check: Some(check_read),
         eval: eval_tap,
     },
@@ -108,6 +111,7 @@ pub(crate) static STEPS: &[Operation] = &[
         summary: "Write one completed value as one document; a file is replaced, its `.end` \
                   appended to.",
         purity: Purity::Effectful,
+        shape: super::Shape::Barrier,
         check: Some(check_target),
         eval: eval_target,
     },
@@ -128,6 +132,7 @@ pub(crate) static STEPS: &[Operation] = &[
         summary: "Write each value of a stream as one document, as it arrives; a file is \
                   replaced, its `.end` appended to.",
         purity: Purity::Effectful,
+        shape: super::Shape::Barrier,
         check: Some(check_sink),
         eval: eval_sink,
     },

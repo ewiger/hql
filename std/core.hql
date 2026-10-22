@@ -156,6 +156,17 @@ impl<T> Slice for Seq<T>
 impl Slice for String
 impl Slice for Data
 
+// The operation types, reserved: one per shape a pipeline step may have, and
+// their common supertype. Each stands for a function from I to O that also
+// carries its shape: what an executor may assume about splitting the step.
+// A program declares no type of these names. See
+// doc/proposals/HQL-0005/README.md and HQL-0004's shapes.
+abstract type Operation<I, O>
+abstract type Elementwise<I, O> : Operation<I, O>
+abstract type Partition<I, O> : Operation<I, O>
+abstract type Reduction<I, O> : Operation<I, O>
+abstract type Barrier<I, O> : Operation<I, O>
+
 // Two values held together, each at its own type: what zip, enumerate,
 // entries and join produce, and what a program builds with
 // Pair(first = a, second = b).

@@ -16,6 +16,97 @@ use std::sync::Arc;
 
 use crate::traversal::{Source, Traversal};
 
+/// A combiner: a binary operation the host provides on two values of one
+/// type, with the laws the host states for it. A fold whose combiner is one
+/// of these is a known fold, and a planner reads these properties to split
+/// it; a program never writes them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Combiner {
+    /// How it is written in the `by` position: `reduce(0, +)`.
+    pub name: &'static str,
+    /// The values it combines.
+    pub over: &'static str,
+    /// The value `e` with `combine(e, x) = x = combine(x, e)`, where there
+    /// is one, as HQL writes it.
+    pub identity: Option<&'static str>,
+    /// `combine(combine(a, b), c) = combine(a, combine(b, c))`: a fold may
+    /// be computed from the folds of contiguous splits.
+    pub associative: bool,
+    /// `combine(a, b) = combine(b, a)`: the order of the input does not
+    /// change the result, so a fold over it accepts any collection and its
+    /// partial results combine in any order. A combiner that is not
+    /// commutative is order-sensitive and folds only a `Seq`.
+    pub commutative: bool,
+}
+
+impl Combiner {
+    /// The input a fold over it accepts.
+    #[must_use]
+    pub fn input(&self) -> &'static str {
+        if self.commutative {
+            "any collection"
+        } else {
+            "Seq"
+        }
+    }
+}
+
+/// Every combiner the host provides. A Float `+` is associative only up to
+/// rounding, so its partial sums are combined in input order: `sum` adds
+/// from the first element to the last, and a backend that splits a Float
+/// fold combines its partials in that same order.
+pub static COMBINERS: &[Combiner] = &[
+    Combiner {
+        name: "+",
+        over: "numbers",
+        identity: Some("0"),
+        associative: true,
+        commutative: true,
+    },
+    Combiner {
+        name: "*",
+        over: "numbers",
+        identity: Some("1"),
+        associative: true,
+        commutative: true,
+    },
+    Combiner {
+        name: "min",
+        over: "Orderable",
+        identity: None,
+        associative: true,
+        commutative: true,
+    },
+    Combiner {
+        name: "max",
+        over: "Orderable",
+        identity: None,
+        associative: true,
+        commutative: true,
+    },
+    Combiner {
+        name: "union",
+        over: "Set<T>",
+        identity: Some("Set([])"),
+        associative: true,
+        commutative: true,
+    },
+    Combiner {
+        name: "merge",
+        over: "maps",
+        identity: Some("{}"),
+        associative: true,
+        commutative: false,
+    },
+    Combiner {
+        name: "concat",
+        over: "Seq<T>",
+        identity: Some("[]"),
+        associative: true,
+        commutative: false,
+    },
+];
+
 /// The steps that consume a traversal one value at a time and so keep it
 /// lazy. Every other step receives a traversal's values, forced once.
 pub(crate) const LAZY: [&str; 18] = [
@@ -58,6 +149,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Count all element occurrences.",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: None,
         eval: eval_size,
     },
@@ -66,6 +158,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Whether a value occurs in the collection.",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: None,
         eval: eval_contains,
     },
@@ -74,6 +167,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Look up a key, yielding absence when it is missing.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: None,
         eval: eval_get,
     },
@@ -82,6 +176,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Count occurrences of a value; without an argument, count all occurrences.",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: None,
         eval: eval_count,
     },
@@ -90,6 +185,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Order a collection by its elements' own key, or by one you supply.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: None,
         eval: eval_sort,
     },
@@ -98,6 +194,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "The first n elements, in the elements' own order.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: None,
         eval: eval_take,
     },
@@ -106,6 +203,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Consecutive values in batches of n, in order; the last batch may be shorter.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check_collect),
         eval: eval_collect,
     },
@@ -114,6 +212,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Every member of every sequence, in order: the inverse of collect.",
         purity: Purity::Pure,
+        shape: super::Shape::Elementwise,
         check: Some(check_emit),
         eval: eval_emit,
     },
@@ -122,6 +221,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "map then emit: each value to a sequence, and their members in order.",
         purity: Purity::Pure,
+        shape: super::Shape::Elementwise,
         check: Some(check_ordered),
         eval: eval_flat_map,
     },
@@ -130,6 +230,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Everything after the first n elements, in the input's own order.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check_drop),
         eval: eval_drop,
     },
@@ -138,6 +239,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Keep the elements a predicate accepts.",
         purity: Purity::Pure,
+        shape: super::Shape::Elementwise,
         check: None,
         eval: eval_filter,
     },
@@ -146,6 +248,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Apply a function to every element; the result keeps the input's collection type.",
         purity: Purity::Pure,
+        shape: super::Shape::Elementwise,
         check: None,
         eval: eval_map,
     },
@@ -154,6 +257,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Keep the elements of a type, narrowing the element type: filter(x => x | is(U)).",
         purity: Purity::Pure,
+        shape: super::Shape::Elementwise,
         check: Some(check_of_type),
         eval: eval_of_type,
     },
@@ -162,6 +266,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Whether a value's runtime type is a type or one of its subtypes.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check_of_type),
         eval: eval_is,
     },
@@ -170,6 +275,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Keep the present values of a collection of options, dropping the absent ones.",
         purity: Purity::Pure,
+        shape: super::Shape::Elementwise,
         check: None,
         eval: eval_somes,
     },
@@ -178,6 +284,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Partition occurrences by key into a set of groups, each a key and its items.",
         purity: Purity::Pure,
+        shape: super::Shape::Partition,
         check: None,
         eval: eval_group,
     },
@@ -186,6 +293,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Fold a sequence from the left, from an initial value or from its first element.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check_reduce),
         eval: eval_reduce,
     },
@@ -194,6 +302,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Add every occurrence: reduce(0, +). An empty input sums to zero.",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: None,
         eval: eval_sum,
     },
@@ -202,6 +311,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Multiply every occurrence: reduce(1, *). An empty input multiplies to one.",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: None,
         eval: eval_product,
     },
@@ -210,6 +320,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "The mean of the occurrences, as a Float. Absent over an empty input.",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: None,
         eval: eval_average,
     },
@@ -218,6 +329,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Merge every map in order, a later key winning: reduce({}, merge).",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: Some(check_all),
         eval: eval_merge_all,
     },
@@ -226,6 +338,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Every member of every set: reduce(Set([]), union).",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: Some(check_all),
         eval: eval_union_all,
     },
@@ -234,6 +347,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "Every member of every sequence, in order: reduce([], concat).",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: Some(check_ordered),
         eval: eval_concat_all,
     },
@@ -242,6 +356,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "The least occurrence by value order: reduce(min). Absent over an empty input.",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: None,
         eval: eval_min,
     },
@@ -250,6 +365,7 @@ pub(crate) static STEPS: &[Operation] = &[
         spec: Signature::Declared,
         summary: "The greatest occurrence by value order: reduce(max). Absent over an empty input.",
         purity: Purity::Pure,
+        shape: super::Shape::Reduction,
         check: None,
         eval: eval_max,
     },

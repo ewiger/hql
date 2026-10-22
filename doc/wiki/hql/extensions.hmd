@@ -52,6 +52,7 @@ native bodies. The model and its stages are
 | one name declared more than once, `fn take<S : Seq<T>, T>(self: S, n: Int) : S` then `fn take<T>(self: Stream<T>, n: Int) : List<T>` | one operation, whose one implementation serves every overload | the name; a call takes the first overload its input and arguments fit |
 | the receiver, `self`, typed by the module's pattern or written, `self: Collection<T>`, `self: Int` | the operation's input | binding derives it from the declaration; `value.f()` reaches only a declaration with `self`, and every form of one name has a receiver or none does |
 | the purity, `fn` pure and `effectful fn source(…)` effectful | the operation's own marking, `Purity::Effectful` | binding refuses a marking that differs; checking reads the declaration |
+| the shape, `elementwise fn`, `partition fn`, `reduction fn`, and a plain `fn` a barrier | the operation's own marking, `Shape::Elementwise` | binding refuses a marking that differs; `hql builtins` and a planner read the declaration |
 | the generic parameters and their bounds, a parameter bound by a shape, `S : Seq<T>`, which is the input at its own type, and a constructor parameter, `F<_> : Iterable<_>` or `M<_, _> : Map<_, _>`, which `F<U>` rebuilds around other arguments; the parameters in order, a function type as a lambda, `T -> Is<U>` as a predicate testing its parameter's type, `...T` as a variadic argument of one type, `...Any` as one of any type in each position, `step: Int = 1` as one that may be omitted, the parameters before `/` as supplied by position only and those after `*` by name only | the operation's arguments | binding derives them from the declaration |
 | the result type | the operation's output | binding derives it from the declaration |
 | a native implementation, `impl Ord for Int`, `impl<T> Index<T> for Seq<T>` | a body for the trait's functions over the type's values | the trait and the type; a header needs a body and a body needs a header |
@@ -210,11 +211,13 @@ safe over pure steps; the extension's own marking is checked against it.
 `io`'s `source`, `tap`, `target` and `sink` and `logging`'s five levels are
 effectful, and every other step is pure. An operation of a module without a
 contract, `graph`, `net`, `lexical` or `semantic`, has no declaration, and
-its extension's marking stands. [HQL-0004](../../proposals/HQL-0004/README.md) adds a
-shape beside purity — elementwise, partition, reduction or barrier — and the
-backend a checked program runs on. The map/reduce vocabulary and the backend
-contract are one Rust module, `mapreduce`; its steps are the core's, and the
-module is how the binary is organized, not something a program imports.
+its extension's marking stands. A declaration states the operation's shape
+the same way, before `fn` — elementwise, partition, reduction, or a barrier
+where nothing is written ([HQL-0004](../../proposals/HQL-0004/README.md),
+[[pipes]]) — and an operation without a declaration keeps its extension's
+marking, a barrier. The backend a checked program runs on is host
+configuration, registered in one table as extensions are; `localhost` is the
+only one.
 
 An extension may also contribute metadata while cards are assembled; lexical
 owns its own model and indexing entries. Extension-defined types and dynamically

@@ -87,6 +87,7 @@ pub(crate) static STEPS: &[Operation] = &[Operation {
     }),
     summary: "Rank a corpus against a query by the meaning a model found in both.",
     purity: Purity::Pure,
+    shape: super::Shape::Barrier,
     check: Some(check_semantic),
     eval: eval_semantic,
 }];

@@ -158,6 +158,9 @@ pub(crate) struct ExternalDecl {
     /// Whether it is written `effectful fn`: its evaluation reads or changes
     /// something outside its result, so it runs once, where it is written.
     pub effectful: bool,
+    /// The shape written before `fn`, `elementwise fn`, where one is: how
+    /// an executor may split the operation's input.
+    pub shape: Option<crate::extensions::Shape>,
     pub has_self: bool,
     /// The receiver's type where it is written, `self: Collection<T>`: a
     /// receiver the module's pattern does not describe exactly.
@@ -206,16 +209,6 @@ pub(crate) struct AliasParam {
     pub annotation: Option<TypeAnn>,
     pub span: Range<usize>,
 }
-
-/// The combiners a host provides, by name, and whether each is commutative:
-/// an order-independent fold over one may visit any collection.
-pub(crate) const COMBINERS: [(&str, bool); 5] = [
-    ("min", true),
-    ("max", true),
-    ("union", true),
-    ("merge", false),
-    ("concat", false),
-];
 
 /// The name a fragment alias's implicit input takes. It cannot be written.
 pub(crate) const ALIAS_INPUT: &str = "%input";

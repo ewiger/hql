@@ -249,6 +249,31 @@ fn valid_now_cases_check_and_evaluate() {
     assert!(count > 0);
 }
 
+/// Every registered backend gives every corpus case the value, the type and
+/// the reports `localhost` gives: the contract that makes a backend a
+/// backend. With `localhost` alone it compares the oracle with itself; it is
+/// written so that a second backend arrives into it.
+#[test]
+fn every_backend_agrees_with_localhost_on_every_case() {
+    let mut compared = 0;
+    for case in load_cases() {
+        if case.metadata["status"] != "valid-now" || case.metadata.contains_key("io") {
+            continue;
+        }
+        let vault = case.vault();
+        let oracle = run(&case.source, &vault, Mode::Strict);
+        for backend in hql::backends::REGISTERED {
+            let selection =
+                hql::backends::Selection::of(backend.name, hql::backends::Origin::Query)
+                    .expect("a registered backend");
+            let outcome = hql::run_on(&case.source, &vault, Mode::Strict, selection);
+            assert_eq!(outcome, oracle, "{} on {}", case.path, backend.name);
+            compared += 1;
+        }
+    }
+    assert!(compared > 0);
+}
+
 /// A proposed case is a design input, not a regression test. It stays
 /// proposed only while the implementation cannot check it; the day it checks,
 /// this test names it so that its header is promoted rather than left claiming

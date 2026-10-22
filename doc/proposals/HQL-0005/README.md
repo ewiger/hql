@@ -1,6 +1,6 @@
 # HQL-0005: Pipeline vocabulary and the logical/physical separation
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-09-28
 **Source**: [typed pipeline operations](../../issues/0013-typed-pipeline-operations.md)
 
@@ -97,6 +97,8 @@ Plan
   operation.
 - `map`, `filter` and every other named thing after `|` MUST NOT be called an
   operator. `|` is the operator that forms a pipeline.
+- A receiver call, `x.trim()` in `map(x => x.trim())`, is expression
+  evaluation inside the step that holds it, never a step of its own.
 - **Stage** MUST NOT be used as a synonym for step. A stage exists only in an
   execution plan; its boundaries are chosen by a planner and are not visible in
   HQL source.
@@ -330,3 +332,10 @@ separate uses listed under Open Questions.
   ([HQL-0015](../HQL-0015/README.md)) and presentations are ordinary operations
   ([HQL-0017](../HQL-0017/README.md)); the reserved operation types, stage
   annotations and the planner are not yet implemented
+- 2026-10-22: implemented in part; `std/core.hql` declares the reserved
+  operation types and a program declaring one is refused, a receiver call is
+  evaluated inside its step, and the shape of every operation is declared
+  ([HQL-0004](../HQL-0004/README.md)). An operation type is not yet a function
+  type a user operation is written at, so the `Elementwise` body check, stage
+  annotations and the planner are not built
+  ([issue 0012](../../issues/0012-mapreduce-backends.md))

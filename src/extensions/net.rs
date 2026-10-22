@@ -42,6 +42,7 @@ pub(crate) static STEPS: &[Operation] = &[
         summary: "An HTTP resource, as an endpoint: read by a GET once per evaluation, \
                   written by one request per document.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(refuse_in_documents),
         eval: eval_http,
     },
@@ -55,6 +56,7 @@ pub(crate) static STEPS: &[Operation] = &[
         }),
         summary: "A WebSocket connection, as an endpoint: one document per message.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(refuse_in_documents),
         eval: eval_websocket,
     },
@@ -69,6 +71,7 @@ pub(crate) static STEPS: &[Operation] = &[
         summary: "A TCP connection, as an endpoint: documents separated as their format \
                   separates them.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(refuse_in_documents),
         eval: eval_socket,
     },
