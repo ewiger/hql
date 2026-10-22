@@ -17,9 +17,12 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 41 # to be incremented when adding a new issue card
+  last_id: 42 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0042"
+        title: "Decimal"
+        file: 0042-decimal.md
       - id: "0016"
         title: "SQL parity analysis: relational operations, aggregation and schema"
         file: 0016-sql-parity-analysis.md

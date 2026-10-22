@@ -38,3 +38,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0028](HQL-0028/README.md) | implemented | Import units, the program module and declaration visibility |
 | [HQL-0029](HQL-0029/README.md) | implemented | Braces: `{}` is the empty set, `{:}` the empty Data |
 | [HQL-0030](HQL-0030/README.md) | proposed | Supplementary ADR: Structural Types, Open Data Views, Type Contracts, and Data Contracts |
+| [HQL-0031](HQL-0031/README.md) | drafted | `Decimal`, an exact decimal number type |
