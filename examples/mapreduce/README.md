@@ -20,7 +20,7 @@ target/debug/hql run examples/mapreduce/queries/page-histogram.hql
 target/debug/hql --vault examples/mapreduce/wiki render examples/mapreduce/wiki/library.hmd
 ```
 
-Add `--format json` before `run` to inspect the inferred type and structured
+Add `--envelope json` before `run` to inspect the inferred type and structured
 result.
 
 | Query | What it shows | Status | Result |
