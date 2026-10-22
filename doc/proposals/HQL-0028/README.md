@@ -4,6 +4,9 @@
 **Created**: 2026-10-22
 **Source**: [modules, the Visibility section](../HQL-0024/parts/01-modules.md)
 
+**Depends on**: [HQL-0025](../HQL-0025/README.md), the execution context that
+decides the package a workspace module belongs to
+
 ## Abstract
 
 Every module is an **import unit**: one visibility scope whose imports, and
@@ -49,6 +52,16 @@ An import unit is the scope in which imports take effect and names resolve.
   everything it imports and declares.
 - The program module of an invocation MUST be exactly one import unit.
 - An import MUST make a module visible in the importing unit only.
+- A unit's own declaration MUST win over an imported declaration of the same
+  name, in every spelling: a receiver call `s.lower()`, a pipeline step
+  `s | lower` and an unqualified call `lower(s)`. The imported one stays
+  reachable qualified, `string.lower(s)`. A unit owns its own names, and a
+  module that later gains a declaration cannot take one away from it.
+- Which declaration wins MUST NOT depend on the order declarations are written
+  in; a declaration later in the unit wins over an import just as an earlier
+  one does.
+- Two imported declarations of the same name, neither the unit's own, remain
+  an ambiguity, resolved by qualifying the call; import order never decides.
 
 ### Preludes are per unit
 
@@ -147,6 +160,10 @@ A declaration inside a module is public unless it is marked.
 - A module's contract MUST be its public declarations and nothing else.
 - A private declaration MUST NOT be exported: no importer reaches it, whether
   qualified, as a receiver call, as an unqualified call or as a pipeline step.
+- A public declaration MUST NOT mention a private type or trait in its
+  signature: a parameter, a result, a bound, a field or a supertype. The
+  checker refuses it at the declaration, since a public signature would
+  otherwise hand importers a value of a type they cannot name.
 - `private` MAY mark every declaration a module writes: a function, a
   receiver function, a type, a trait and a module-level binding.
 - `private` MUST be refused on an `impl`. Coherence holds across every module,
@@ -170,7 +187,16 @@ every importer and wider than one module.
   both need can be internal to it.
 - `internal` is admitted only once every resolved module records its package.
   Before then it could mean only what `private` means.
-- Which package a workspace module belongs to: placeholder.
+- A module under a workspace's module roots belongs to that workspace's
+  package, which the execution context establishes
+  ([HQL-0025](../HQL-0025/README.md)): in a vault workspace the package is
+  the vault and takes its name, and in an HQL workspace it is the one
+  `hql.toml` configures.
+- In bare mode there is no workspace and so no workspace package. A module
+  reached through user, system or `HQL_PATH` roots belongs to no package, and
+  `internal` is refused in it.
+- Package membership follows the module root, not the invocation, so a module
+  keeps one package in every invocation that loads it.
 
 ## Backwards Compatibility
 
