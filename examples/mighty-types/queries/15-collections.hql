@@ -13,6 +13,7 @@ b = Set([3, 4, 5])
 m = Map(["one", "two", "three"], [1, 2, 3])
 
 [
+    union(a, b) | sort,
     str(union(a, b) | sort),
     str(intersection(a, b) | sort),
     str(difference(a, b) | sort),
