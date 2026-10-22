@@ -1,0 +1,26 @@
+# ADR status
+
+Every proposal under [`doc/proposals/`](../proposals/README.md), read from its
+README: the number, the title, the status line as written, and whether the
+status says it is implemented.
+
+```hql#eval
+import regex
+
+// The text after `**Status**:` on the README's status line.
+fn status_of(body: String) : String =
+    regex.find(body, "\\*\\*Status\\*\\*:[^\\n]*")
+    | map(s => regex.replace_first(s, "^\\*\\*Status\\*\\*: *", ""))
+    | unwrap_or("unknown")
+
+cards
+| filter(c => c.path.contains("proposals/HQL-") and c.path.ends_with("/README.md"))
+| sort(by = c => c.path)
+| map(c => {
+    adr: regex.find(c.path, "HQL-[0-9]+").unwrap_or(c.name),
+    title: regex.replace_first(c.title, "^HQL-[0-9]+: *", ""),
+    status: status_of(c.body),
+    implemented: "yes" given status_of(c.body).starts_with("implemented") otherwise "no"
+  })
+| markdown
+```
