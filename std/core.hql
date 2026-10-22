@@ -159,6 +159,11 @@ impl Slice for Data
 // The operation types, reserved: one per shape a pipeline step may have, and
 // their common supertype. Each stands for a function from I to O that also
 // carries its shape: what an executor may assume about splitting the step.
+// A value of one is called as an I -> O function is, and a lambda or a
+// program's own function bound at one is an operation on equal terms with
+// map or filter: `long : Elementwise<Int, Bool> = n => n > 300`. An
+// Elementwise piped a collection of I runs over each element, and its body
+// reads its one element and nothing else.
 // A program declares no type of these names. See
 // doc/proposals/HQL-0005/README.md and HQL-0004's shapes.
 abstract type Operation<I, O>

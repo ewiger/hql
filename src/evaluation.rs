@@ -459,6 +459,7 @@ impl Evaluator<'_> {
                 callee,
                 arguments,
                 pack,
+                ..
             } => self.applied(callee, arguments, pack.as_ref(), &span),
             Kind::Order(left, right) => {
                 let left = self.expression(left)?;
@@ -545,6 +546,7 @@ impl Evaluator<'_> {
                 input,
                 name,
                 branch,
+                ..
             } => self.tee(input, name, branch),
             Kind::Given {
                 value,

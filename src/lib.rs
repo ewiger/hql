@@ -114,6 +114,78 @@ pub fn pipeline(source: &str) -> Result<Vec<(String, extensions::Shape)>, Diagno
         .collect())
 }
 
+/// One step of a planned pipeline: the operation it invokes, the shape and
+/// purity the planner read off the operation's type, and the stage
+/// annotation it wrote.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedStep {
+    /// The operation the step invokes, a program's own function among them.
+    pub name: String,
+    /// How the operation may be split.
+    pub shape: extensions::Shape,
+    /// Whether the operation may be moved.
+    pub purity: extensions::Purity,
+    /// The stage annotation.
+    pub stage: backends::Stage,
+}
+
+/// A planned pipeline: the expression its first step reads, and its steps.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedPipeline {
+    /// Where the pipeline is written, as a byte range of the source.
+    pub span: std::ops::Range<usize>,
+    /// The source text of the expression the first step reads.
+    pub input: String,
+    /// The steps, first to last.
+    pub steps: Vec<PlannedStep>,
+}
+
+/// The plan of a program on a backend: each pipeline a statement of the
+/// program is, with every step annotated by the stage the planner gave it.
+/// A pipeline inside a step's arguments, or in a function's body, is
+/// planned too, and not listed.
+///
+/// # Errors
+///
+/// Returns the first syntax, type or name failure.
+pub fn plan(
+    source: &str,
+    vault: &Vault,
+    backend: &backends::Registered,
+) -> Result<Vec<PlannedPipeline>, Diagnostic> {
+    let program = checker::check(&parser::parse(source)?, vault)?;
+    backend.plan(&program);
+    let mut planned = Vec::new();
+    for statement in &program.statements {
+        let (execution::Stmt::Bind { value, .. } | execution::Stmt::Expr(value)) = statement else {
+            continue;
+        };
+        let (steps, input) = value.steps();
+        if steps.is_empty() {
+            continue;
+        }
+        planned.push(PlannedPipeline {
+            span: value.span.clone(),
+            input: source
+                .get(input.span.clone())
+                .unwrap_or_default()
+                .to_owned(),
+            steps: steps
+                .into_iter()
+                .filter_map(|plan| {
+                    Some(PlannedStep {
+                        name: plan.invokes.name.clone(),
+                        shape: plan.invokes.shape,
+                        purity: plan.invokes.purity,
+                        stage: *plan.stage.get()?,
+                    })
+                })
+                .collect(),
+        });
+    }
+    Ok(planned)
+}
+
 /// Write a stream a program returned as it arrives: each value goes to
 /// `sink`, which answers whether it wants another.
 ///

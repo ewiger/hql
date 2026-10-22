@@ -98,6 +98,13 @@ enum Command {
         /// A file, or `-` for standard input.
         file: String,
     },
+    /// Print the plan of a program from a file without evaluating it: each
+    /// pipeline's steps, with the stage the planner gives each on the
+    /// backend in force.
+    Plan {
+        /// A file, or `-` for standard input.
+        file: String,
+    },
     /// Type-check and evaluate a program from a file.
     Run {
         /// A file, or `-` for standard input.
@@ -181,8 +188,8 @@ fn directory_of(file: &str) -> PathBuf {
 }
 
 /// The commands a first argument may name; anything else is a program.
-const COMMANDS: [&str; 9] = [
-    "eval", "check", "run", "repl", "render", "builtins", "config", "doctor", "help",
+const COMMANDS: [&str; 10] = [
+    "eval", "check", "plan", "run", "repl", "render", "builtins", "config", "doctor", "help",
 ];
 
 /// Options that take a value, so the word after one is not the program.
@@ -430,6 +437,26 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                 err,
             )
         }
+        Command::Plan { file } => {
+            let (source, origin) = read(file)?;
+            let Ok(planned) = crate::plan(&source, &vault, backend.backend) else {
+                // What stopped it is what checking reports.
+                let outcome = crate::check_reported(&source, &vault, settings.mode);
+                return emit(
+                    &outcome,
+                    &source,
+                    &origin,
+                    TEXT,
+                    &cli.options,
+                    &vault,
+                    shown,
+                    out,
+                    err,
+                );
+            };
+            write_plan(&planned, &source, backend.backend.name, &cli.options, out)?;
+            Ok(0)
+        }
         Command::Render {
             file,
             write,
@@ -520,6 +547,80 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             err,
         ),
     }
+}
+
+/// Write a program's plan: per pipeline, the line it is written on and the
+/// expression its first step reads, then one line per step with its
+/// operation, shape, purity and stage annotation. `--envelope json` writes
+/// the same as one JSON document.
+fn write_plan(
+    planned: &[crate::PlannedPipeline],
+    source: &str,
+    backend: &str,
+    options: &Options,
+    out: &mut impl Write,
+) -> Result<(), String> {
+    let line_of = |at: usize| source[..at.min(source.len())].matches('\n').count() + 1;
+    if options.envelope == Shape::Json {
+        let pipelines: Vec<_> = planned
+            .iter()
+            .map(|pipeline| {
+                serde_json::json!({
+                    "line": line_of(pipeline.span.start),
+                    "span": [pipeline.span.start, pipeline.span.end],
+                    "input": pipeline.input,
+                    "steps": pipeline.steps.iter().map(|step| serde_json::json!({
+                        "name": step.name,
+                        "shape": step.shape.label(),
+                        "purity": step.purity.label(),
+                        "stage": step.stage.index,
+                        "strategy": step.stage.strategy.label(),
+                    })).collect::<Vec<_>>(),
+                })
+            })
+            .collect();
+        let document = serde_json::json!({ "backend": backend, "pipelines": pipelines });
+        let text = if options.compact {
+            serde_json::to_string(&document)
+        } else {
+            serde_json::to_string_pretty(&document)
+        }
+        .map_err(|error| error.to_string())?;
+        return writeln!(out, "{text}").map_err(|error| error.to_string());
+    }
+    writeln!(out, "backend {backend}").map_err(|error| error.to_string())?;
+    for pipeline in planned {
+        writeln!(
+            out,
+            "line {}: {}",
+            line_of(pipeline.span.start),
+            pipeline
+                .input
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
+        .map_err(|error| error.to_string())?;
+        let width = pipeline
+            .steps
+            .iter()
+            .map(|step| step.name.len())
+            .max()
+            .unwrap_or(0);
+        for step in &pipeline.steps {
+            writeln!(
+                out,
+                "  | {:<width$}  stage {}  {:<12}  {}, {}",
+                step.name,
+                step.stage.index,
+                step.stage.strategy.label(),
+                step.shape.label(),
+                step.purity.label(),
+            )
+            .map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 fn load_vault(root: Option<&Path>) -> Result<Vault, String> {

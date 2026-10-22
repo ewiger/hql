@@ -276,3 +276,113 @@ fn an_unknown_fold_names_the_nearest_combiner_and_nothing_else() {
     assert!(!refused.message().contains("cos"), "{refused}");
     assert!(refused.message().contains("`concat`"), "{refused}");
 }
+
+const OPERATIONS: &str = "fn double(n: Int) : Int = n * 2
+twice : Elementwise<Int, Int> = double
+doubled : Elementwise<Int, Int> = n => n * 2
+total : Reduction<List<Int>, Int> = xs => xs | sum
+";
+
+#[test]
+fn a_user_operation_of_an_elementwise_type_runs_as_a_step_as_map_would() {
+    let by_map = eval("[1, 2, 3] | map(n => n * 2)").unwrap();
+    for step in ["twice", "doubled"] {
+        let source = format!("{OPERATIONS}[1, 2, 3] | {step}");
+        assert_eq!(eval(&source).unwrap(), by_map, "{step}");
+    }
+    // A set maps to a set, as `map` gives it.
+    assert_eq!(
+        eval(&format!("{OPERATIONS}Set<Int>([1, 2]) | doubled")).unwrap(),
+        eval("Set<Int>([1, 2]) | map(n => n * 2)").unwrap()
+    );
+    // Over one element it is the function it is.
+    assert_eq!(
+        eval(&format!("{OPERATIONS}[3 | doubled, doubled(4)]")).unwrap(),
+        eval("[6, 8]").unwrap()
+    );
+    assert_eq!(
+        eval(&format!("{OPERATIONS}[1, 2, 3] | doubled | total")).unwrap(),
+        eval("12").unwrap()
+    );
+}
+
+#[test]
+fn a_user_operation_enters_the_pipeline_at_the_shape_its_type_states() {
+    assert_eq!(
+        shapes(&format!(
+            "{OPERATIONS}fn plain(xs: List<Int>) : List<Int> = xs\n\
+             [1, 2, 3] | filter(n => n > 1) | doubled | plain | total"
+        )),
+        vec![
+            ("filter".to_owned(), Shape::Elementwise),
+            ("doubled".to_owned(), Shape::Elementwise),
+            ("plain".to_owned(), Shape::Barrier),
+            ("total".to_owned(), Shape::Reduction),
+        ]
+    );
+}
+
+#[test]
+fn an_elementwise_body_reads_its_one_element_and_nothing_else() {
+    for source in [
+        "limit = 10\nscaled : Elementwise<Int, Int> = n => n * limit\nscaled(1)",
+        "words = [\"a\"]\nknown : Elementwise<String, Bool> = w => words | contains(w)\nknown(\"a\")",
+        "limit = 10\nfn scale(n: Int) : Int = n * limit\n\
+         scaled : Elementwise<Int, Int> = scale\nscaled(1)",
+    ] {
+        let refused = check(source).unwrap_err().to_string();
+        assert!(
+            refused.contains("reads its one element"),
+            "{source}: {refused}"
+        );
+    }
+    // Its own parameter, its lambdas' parameters, literals and functions
+    // are within the element.
+    check(
+        "fn inc(n: Int) : Int = n + 1\n\
+         ok : Elementwise<List<Int>, Int> = xs => xs | map(x => inc(x)) | sum\n\
+         ok([1])",
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_value_at_an_operation_type_is_the_function_its_type_states() {
+    let refused = check("wrong : Elementwise<Int, Int> = (n: Int) => \"n\"\n1")
+        .unwrap_err()
+        .to_string();
+    assert!(refused.contains("Elementwise<Int, Int>"), "{refused}");
+    let refused = check("doubled : Elementwise<Int, Int> = n => n * 2\n[\"a\"] | doubled")
+        .unwrap_err()
+        .to_string();
+    assert!(refused.contains("each element"), "{refused}");
+}
+
+#[test]
+fn the_localhost_plan_puts_every_step_in_one_stage() {
+    let planned = hql::plan(
+        &format!("{OPERATIONS}[3, 1, 2] | filter(n => n > 1) | doubled | sort | take(1) | total"),
+        &hql::vault::Vault::empty(),
+        &hql::backends::LOCALHOST,
+    )
+    .unwrap();
+    assert_eq!(planned.len(), 1);
+    let names: Vec<&str> = planned[0]
+        .steps
+        .iter()
+        .map(|step| step.name.as_str())
+        .collect();
+    assert_eq!(names, ["filter", "doubled", "sort", "take", "total"]);
+    assert_eq!(planned[0].input, "[3, 1, 2]");
+    for step in &planned[0].steps {
+        assert_eq!(
+            step.stage,
+            hql::backends::Stage {
+                index: 0,
+                strategy: hql::backends::Strategy::InProcess
+            },
+            "{}",
+            step.name
+        );
+    }
+}

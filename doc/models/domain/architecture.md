@@ -30,8 +30,13 @@ A checked program is handed to an execution backend (`backends/`), selected by
 host configuration and registered in one table. `localhost`, the only backend,
 is the evaluator: sequential by definition, one step after another, and the
 oracle a later backend is tested against. Every step's operation declares a
-purity and a shape, which say what a backend may move and split; a planner,
-parallel scheduling and pushdown are later backends that consume them.
+purity and a shape, which say what a backend may move and split. Before a
+backend runs a program, the planner (`backends/plan.rs`) annotates every step
+node with its stage, derived from the shape and purity of the operation type
+the step invokes and from what the backend executes; a backend refuses a
+pipeline a step of which carries no annotation. `localhost`'s plan puts the
+whole pipeline in one stage. Parallel scheduling and pushdown are later
+backends that consume the plan.
 
 ## Source and knowledge assembly
 

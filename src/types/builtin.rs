@@ -261,6 +261,44 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             applied: Vec::new(),
         })?;
     }
+    // The operation types, `std/core.hql`: each a function from `I` to `O`
+    // that also carries the shape its name states, under their common
+    // supertype. The input is contravariant and the output covariant, as a
+    // function's are.
+    let operation_parameters = || {
+        vec![
+            TypeParameter {
+                name: "I",
+                variance: Variance::Contravariant,
+                bound: None,
+            },
+            TypeParameter {
+                name: "O",
+                variance: Variance::Covariant,
+                bound: None,
+            },
+        ]
+    };
+    system.declare(TypeDefinition {
+        constructor: OPERATION,
+        kind: TypeKind::Abstract,
+        parameters: operation_parameters(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    let (input, output) = (
+        TypeConstructor("I").apply([]),
+        TypeConstructor("O").apply([]),
+    );
+    for (constructor, _) in &OPERATION_SHAPES {
+        system.declare(TypeDefinition {
+            constructor: *constructor,
+            kind: TypeKind::Abstract,
+            parameters: operation_parameters(),
+            parents: Vec::new(),
+            applied: vec![OPERATION.apply([input.clone(), output.clone()])],
+        })?;
+    }
     // The formats: a category of its own, `std/format.hql`. A format
     // describes an external representation and its framing; it is not the
     // text it encodes, so none narrows `String`.
@@ -389,16 +427,74 @@ impl TypeRef {
         Some(constructor.apply(args))
     }
 
-    /// A function type's parameters and result.
+    /// A function type's parameters and result. An operation type,
+    /// `Elementwise<I, O>`, is a function from `I` to `O` and is called as
+    /// one.
     #[must_use]
     pub fn as_function(&self) -> Option<(&[Self], &Self)> {
-        if !FUNCTIONS.contains(&self.constructor) {
+        if !FUNCTIONS.contains(&self.constructor) && !self.is_operation() {
             return None;
         }
         let (result, parameters) = self.args.split_last()?;
         Some((parameters, result))
     }
+
+    /// Whether this is one of the reserved operation types.
+    #[must_use]
+    pub fn is_operation(&self) -> bool {
+        self.args.len() == 2
+            && (self.constructor == OPERATION
+                || OPERATION_SHAPES
+                    .iter()
+                    .any(|(constructor, _)| *constructor == self.constructor))
+    }
+
+    /// The shape an operation type states: `Some` for one of the four
+    /// shape types, `None` for `Operation<I, O>` itself and for any other
+    /// type.
+    #[must_use]
+    pub fn operation_shape(&self) -> Option<crate::extensions::Shape> {
+        if self.args.len() != 2 {
+            return None;
+        }
+        OPERATION_SHAPES
+            .iter()
+            .find(|(constructor, _)| *constructor == self.constructor)
+            .map(|(_, shape)| *shape)
+    }
+
+    /// The plain function type an operation type is: `I -> O`.
+    #[must_use]
+    pub fn operation_function(&self) -> Option<Self> {
+        if !self.is_operation() {
+            return None;
+        }
+        Self::function(vec![self.args[0].clone()], self.args[1].clone())
+    }
 }
+
+/// The common supertype of the operation types.
+pub const OPERATION: TypeConstructor = TypeConstructor("Operation");
+
+/// The operation type of each shape.
+pub const OPERATION_SHAPES: [(TypeConstructor, crate::extensions::Shape); 4] = [
+    (
+        TypeConstructor("Elementwise"),
+        crate::extensions::Shape::Elementwise,
+    ),
+    (
+        TypeConstructor("Partition"),
+        crate::extensions::Shape::Partition,
+    ),
+    (
+        TypeConstructor("Reduction"),
+        crate::extensions::Shape::Reduction,
+    ),
+    (
+        TypeConstructor("Barrier"),
+        crate::extensions::Shape::Barrier,
+    ),
+];
 
 /// The constructor of an in-memory channel.
 pub const CHANNEL: TypeConstructor = TypeConstructor("Channel");
@@ -455,6 +551,13 @@ pub fn named(name: &str, args: &[TypeRef]) -> Option<TypeRef> {
 impl TypeRef {
     /// Whether this type satisfies the expected type's contract.
     pub fn is(&self, expected: &Self) -> bool {
+        // A value of an operation type is callable exactly as the function
+        // it is, so it satisfies that function type.
+        if FUNCTIONS.contains(&expected.constructor)
+            && let Some(function) = self.operation_function()
+        {
+            return function.is(expected);
+        }
         system().is_ok_and(|system| system.is_subtype(self, expected).unwrap_or(false))
     }
 

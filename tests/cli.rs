@@ -502,6 +502,34 @@ fn config_reports_the_backend_and_an_unknown_one_fails_every_program() {
 }
 
 #[test]
+fn plan_prints_each_step_with_its_stage_on_the_backend_in_force() {
+    let program = "doubled : Elementwise<Int, Int> = n => n * 2\n\
+                   [3, 1, 2] | filter(n => n > 1) | doubled | sort\n";
+    let planned = piped(&["plan", "-"], program);
+    assert!(planned.status.success(), "{}", stderr(&planned));
+    assert_eq!(
+        stdout(&planned),
+        "backend localhost\n\
+         line 2: [3, 1, 2]\n  \
+         | filter   stage 0  in process    elementwise, pure\n  \
+         | doubled  stage 0  in process    elementwise, pure\n  \
+         | sort     stage 0  in process    barrier, pure\n"
+    );
+    let json = piped(&["--envelope", "json", "--compact", "plan", "-"], program);
+    let document: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
+    assert_eq!(document["backend"], "localhost");
+    assert_eq!(document["pipelines"][0]["steps"][1]["name"], "doubled");
+    assert_eq!(
+        document["pipelines"][0]["steps"][1]["strategy"],
+        "in process"
+    );
+    // A program that does not check has no plan, and says why.
+    let refused = piped(&["plan", "-"], "[1] | take(true)\n");
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(stderr(&refused).contains("error"), "{}", stderr(&refused));
+}
+
+#[test]
 fn cli_surface_identifies_hql_and_usage_errors_exit_two() {
     let help = hql(&["--help"]);
     assert!(help.status.success());
