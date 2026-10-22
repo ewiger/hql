@@ -130,6 +130,39 @@ fn sort<T>(self: Collection<T>, by: (T, T) -> Ordering) : List<T>
 // maps as the Seq<Hit<T>> it is, to a Seq<U>; take keeps it a Ranking.
 partition fn group<T, K>(self: Collection<T>, by: T -> K) : Set<Group<K, T>>
 
+// Joins of the pipeline value with one other sequence (HQL-0013, the binary
+// form). The condition is the key functions `left` and `right`, matching x
+// with y when left(x) == right(y), a predicate `on` over the pair, or both;
+// `into` builds each result from a matching pair. Results are ordered by the
+// left element's position, then the right's. left_join keeps every element
+// of the input, with `none` for an unmatched right; right_join every element
+// of `other`; full_join both, the unmatched elements of `other` after the
+// matched results. A join with no condition is a cross_join, asked for by
+// name.
+
+fn join<T, U, K, R>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K, on: (T, U) -> Bool, into: (T, U) -> R) : Seq<R>
+fn join<T, U, K, R>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K, into: (T, U) -> R) : Seq<R>
+fn join<T, U, R>(self: Seq<T>, other: Seq<U>, *, on: (T, U) -> Bool, into: (T, U) -> R) : Seq<R>
+fn left_join<T, U, K, R>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K, on: (T, U) -> Bool, into: (T, Option<U>) -> R) : Seq<R>
+fn left_join<T, U, K, R>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K, into: (T, Option<U>) -> R) : Seq<R>
+fn left_join<T, U, R>(self: Seq<T>, other: Seq<U>, *, on: (T, U) -> Bool, into: (T, Option<U>) -> R) : Seq<R>
+fn right_join<T, U, K, R>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K, on: (T, U) -> Bool, into: (Option<T>, U) -> R) : Seq<R>
+fn right_join<T, U, K, R>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K, into: (Option<T>, U) -> R) : Seq<R>
+fn right_join<T, U, R>(self: Seq<T>, other: Seq<U>, *, on: (T, U) -> Bool, into: (Option<T>, U) -> R) : Seq<R>
+fn full_join<T, U, K, R>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K, on: (T, U) -> Bool, into: (Option<T>, Option<U>) -> R) : Seq<R>
+fn full_join<T, U, K, R>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K, into: (Option<T>, Option<U>) -> R) : Seq<R>
+fn full_join<T, U, R>(self: Seq<T>, other: Seq<U>, *, on: (T, U) -> Bool, into: (Option<T>, Option<U>) -> R) : Seq<R>
+// Every pair, in order: no condition.
+fn cross_join<T, U, R>(self: Seq<T>, other: Seq<U>, *, into: (T, U) -> R) : Seq<R>
+// The elements of the input that match some element of `other`, or none:
+// each kept at most once, in its position.
+fn semi_join<T, U, K>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K, on: (T, U) -> Bool) : Seq<T>
+fn semi_join<T, U, K>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K) : Seq<T>
+fn semi_join<T, U>(self: Seq<T>, other: Seq<U>, *, on: (T, U) -> Bool) : Seq<T>
+fn anti_join<T, U, K>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K, on: (T, U) -> Bool) : Seq<T>
+fn anti_join<T, U, K>(self: Seq<T>, other: Seq<U>, *, left: T -> K, right: U -> K) : Seq<T>
+fn anti_join<T, U>(self: Seq<T>, other: Seq<U>, *, on: (T, U) -> Bool) : Seq<T>
+
 // Without an initial value the fold starts at the first element, and is
 // absent over [].
 fn reduce<T, R>(self: Collection<T>, initial: R, by: (R, T) -> R) : R

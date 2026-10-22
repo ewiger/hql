@@ -468,6 +468,15 @@ const RESERVED_TYPES: [&str; 5] = [
     "Barrier",
 ];
 
+/// The names a call writes its named arguments under, `into` in
+/// `join(xs, into = f)`: what tells apart two modules declaring one name.
+fn written_names(arguments: &[Arg]) -> Vec<&str> {
+    arguments
+        .iter()
+        .filter_map(|argument| argument.name.as_deref())
+        .collect()
+}
+
 /// Whether a declaration of a reserved name is the one `std/core.hql`
 /// makes, `abstract type Elementwise<I, O> : Operation<I, O>`: the library's
 /// own text checks as a program, and restating it declares nothing new.
@@ -2826,9 +2835,13 @@ impl<'a> Checker<'a> {
         }
         if builtins::exists(name) {
             self.not_own_function(name, &receiver_type, &span)?;
-            let step =
-                self.resolution
-                    .receiver_step_for(name, &receiver_type, positional, &span)?;
+            let step = self.resolution.receiver_step_for(
+                name,
+                &receiver_type,
+                positional,
+                &written_names(arguments),
+                &span,
+            )?;
             self.checked.steps.insert(span.clone(), step);
             self.checked.receiver_calls.insert(span.clone());
             self.using(step.name, step.purity() == Purity::Effectful);
@@ -4643,7 +4656,13 @@ impl<'a> Checker<'a> {
                         .filter(|argument| argument.name.is_none())
                         .count();
                     self.not_declared_below(name, &span)?;
-                    let step = self.resolution.step_for(name, &input, positional, &span)?;
+                    let step = self.resolution.step_for(
+                        name,
+                        &input,
+                        positional,
+                        &written_names(arguments),
+                        &span,
+                    )?;
                     self.checked.steps.insert(span.clone(), step);
                     self.using(step.name, step.purity() == Purity::Effectful);
                     return self.step(step, &input, Some(written), arguments, span);
@@ -4858,7 +4877,8 @@ impl<'a> Checker<'a> {
                     .filter(|argument| argument.name.is_none())
                     .count();
                 self.not_declared_below(name, span)?;
-                self.resolution.step_for(name, input, positional, span)
+                self.resolution
+                    .step_for(name, input, positional, &written_names(arguments), span)
             }
             StepRef::Qualified {
                 extension, name, ..
@@ -5151,7 +5171,7 @@ impl CheckCx for Checker<'_> {
                 ));
             };
             self.not_declared_below(name, &span)?;
-            let step = self.resolution.step_for(name, parameter, 0, &span)?;
+            let step = self.resolution.step_for(name, parameter, 0, &[], &span)?;
             self.using(step.name, step.purity() == Purity::Effectful);
             let produced = self.step(step, parameter, None, &[], span.clone())?;
             if let Some(function) = TypeRef::function(vec![parameter.clone()], produced.clone()) {

@@ -163,6 +163,69 @@ pub(crate) static STEPS: &[Operation] = &[
         eval: eval_contains,
     },
     Operation {
+        name: "join",
+        spec: Signature::Declared,
+        summary: "Join one other sequence: each matching pair, by keys, a predicate or both, built by `into`.",
+        purity: Purity::Pure,
+        shape: super::Shape::Barrier,
+        check: None,
+        eval: |cx, input, arguments, span| eval_join(cx, input, arguments, span, Join::Inner),
+    },
+    Operation {
+        name: "left_join",
+        spec: Signature::Declared,
+        summary: "Join one other sequence, keeping every element of the input; an unmatched one meets `none`.",
+        purity: Purity::Pure,
+        shape: super::Shape::Barrier,
+        check: None,
+        eval: |cx, input, arguments, span| eval_join(cx, input, arguments, span, Join::Left),
+    },
+    Operation {
+        name: "right_join",
+        spec: Signature::Declared,
+        summary: "Join one other sequence, keeping every element of it; an unmatched one meets `none`.",
+        purity: Purity::Pure,
+        shape: super::Shape::Barrier,
+        check: None,
+        eval: |cx, input, arguments, span| eval_join(cx, input, arguments, span, Join::Right),
+    },
+    Operation {
+        name: "full_join",
+        spec: Signature::Declared,
+        summary: "Join one other sequence, keeping every element of both; an unmatched one meets `none`.",
+        purity: Purity::Pure,
+        shape: super::Shape::Barrier,
+        check: None,
+        eval: |cx, input, arguments, span| eval_join(cx, input, arguments, span, Join::Full),
+    },
+    Operation {
+        name: "cross_join",
+        spec: Signature::Declared,
+        summary: "Every pair of the input and one other sequence, in order, built by `into`.",
+        purity: Purity::Pure,
+        shape: super::Shape::Barrier,
+        check: None,
+        eval: |cx, input, arguments, span| eval_join(cx, input, arguments, span, Join::Cross),
+    },
+    Operation {
+        name: "semi_join",
+        spec: Signature::Declared,
+        summary: "Keep each element of the input that matches some element of another sequence, once.",
+        purity: Purity::Pure,
+        shape: super::Shape::Barrier,
+        check: None,
+        eval: |cx, input, arguments, span| eval_join(cx, input, arguments, span, Join::Semi),
+    },
+    Operation {
+        name: "anti_join",
+        spec: Signature::Declared,
+        summary: "Keep each element of the input that matches no element of another sequence.",
+        purity: Purity::Pure,
+        shape: super::Shape::Barrier,
+        check: None,
+        eval: |cx, input, arguments, span| eval_join(cx, input, arguments, span, Join::Anti),
+    },
+    Operation {
         name: "get",
         spec: Signature::Declared,
         summary: "Look up a key, yielding absence when it is missing.",
@@ -465,6 +528,180 @@ fn eval_contains(
     Ok(Value::Bool(
         matches!(result, Value::Int(count) if count > 0),
     ))
+}
+
+/// Why a call of a join fits none of its forms, where the reason is one the
+/// join's own rules give: no condition, which is a `cross_join`; `left`
+/// without `right`; or a `Set`, which has no positions to order results by.
+pub(crate) fn join_refusal(
+    name: &str,
+    input: &TypeRef,
+    arguments: &[crate::ast::Arg],
+) -> Option<String> {
+    if !matches!(
+        name,
+        "join" | "left_join" | "right_join" | "full_join" | "semi_join" | "anti_join"
+    ) {
+        return None;
+    }
+    let written = |key: &str| {
+        arguments
+            .iter()
+            .any(|argument| argument.name.as_deref() == Some(key))
+    };
+    if input.present().constructor == crate::types::collections::SET {
+        return Some(format!(
+            "`{name}` orders its results by position, and a Set has none; `sort` it first"
+        ));
+    }
+    if written("left") != written("right") {
+        return Some(format!(
+            "`{name}` takes `left` and `right` together: a key function for each side"
+        ));
+    }
+    if !written("left") && !written("on") && !written("by") {
+        return Some(format!(
+            "`{name}` states when elements match, with keys `left` and `right`, a predicate \
+             `on`, or both; every pair is a `cross_join`"
+        ));
+    }
+    None
+}
+
+/// Which elements a join keeps, and what it builds from them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Join {
+    Inner,
+    Left,
+    Right,
+    Full,
+    Cross,
+    Semi,
+    Anti,
+}
+
+/// A join of the input with one other sequence (HQL-0013, the binary form):
+/// results in the order of the left element's position, then the right's,
+/// the unmatched elements of `other` that a right or full join keeps after
+/// every matched result.
+fn eval_join(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+    mode: Join,
+) -> Result<Value, Diagnostic> {
+    let lefts = elements(&input, "join", &span)?;
+    let other = super::named(arguments, "other")
+        .or_else(|| arguments.iter().find(|argument| argument.name.is_none()))
+        .ok_or_else(|| wrong("join", "another sequence", &span))?;
+    let other = match cx.evaluate(&other.value)? {
+        Value::Traversal(traversal) if traversal.forced().is_none() => {
+            let mut values = Vec::new();
+            cx.traverse(&traversal, &mut |_, value| {
+                values.push(value);
+                Ok(true)
+            })?;
+            Value::list(values, traversal.element.clone())
+        }
+        value => value,
+    };
+    let rights = elements(&other, "join", &span)?;
+    let keys = |cx: &mut dyn EvalCx, name: &str, values: &[Value]| {
+        super::named(arguments, name)
+            .map(|argument| {
+                values
+                    .iter()
+                    .map(|value| cx.apply_lambda(argument, value.clone()))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()
+    };
+    let left_keys = keys(cx, "left", &lefts)?;
+    let right_keys = keys(cx, "right", &rights)?;
+    let on = super::named(arguments, "on");
+    let matches = |cx: &mut dyn EvalCx, i: usize, j: usize| -> Result<bool, Diagnostic> {
+        if mode == Join::Cross {
+            return Ok(true);
+        }
+        if let (Some(left), Some(right)) = (&left_keys, &right_keys)
+            && left[i] != right[j]
+        {
+            return Ok(false);
+        }
+        match on {
+            Some(on) => Ok(matches!(
+                cx.apply_function(on, vec![lefts[i].clone(), rights[j].clone()])?,
+                Value::Bool(true)
+            )),
+            None => Ok(true),
+        }
+    };
+    if matches!(mode, Join::Semi | Join::Anti) {
+        let mut kept = Vec::new();
+        for (i, left) in lefts.iter().enumerate() {
+            let mut found = false;
+            for j in 0..rights.len() {
+                if matches(cx, i, j)? {
+                    found = true;
+                    break;
+                }
+            }
+            if found == (mode == Join::Semi) {
+                kept.push(left.clone());
+            }
+        }
+        return Ok(Value::list(kept, element_type(&input)));
+    }
+    let into = super::named(arguments, "into").ok_or_else(|| wrong("join", "`into`", &span))?;
+    // A side that may be missing is an Option in `into`.
+    let optional_left = matches!(mode, Join::Right | Join::Full);
+    let optional_right = matches!(mode, Join::Left | Join::Full);
+    let present = |value: &Value, optional: bool| {
+        if optional {
+            Value::Present(Arc::new(value.clone()))
+        } else {
+            value.clone()
+        }
+    };
+    let mut results = Vec::new();
+    let mut right_matched = vec![false; rights.len()];
+    for (i, left) in lefts.iter().enumerate() {
+        let mut matched = false;
+        for j in 0..rights.len() {
+            if matches(cx, i, j)? {
+                matched = true;
+                right_matched[j] = true;
+                results.push(cx.apply_function(
+                    into,
+                    vec![
+                        present(left, optional_left),
+                        present(&rights[j], optional_right),
+                    ],
+                )?);
+            }
+        }
+        if !matched && optional_right {
+            results.push(cx.apply_function(
+                into,
+                vec![
+                    present(left, optional_left),
+                    Value::Absent(element_type(&other)),
+                ],
+            )?);
+        }
+    }
+    if optional_left {
+        for (j, right) in rights.iter().enumerate() {
+            if !right_matched[j] {
+                results.push(cx.apply_function(
+                    into,
+                    vec![Value::Absent(element_type(&input)), present(right, true)],
+                )?);
+            }
+        }
+    }
+    Ok(Value::list(results, produced(into)))
 }
 
 fn eval_get(

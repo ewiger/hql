@@ -1,6 +1,6 @@
 # HQL-0013: Joins over named sides
 
-- **Status**: drafted
+- **Status**: accepted, implemented in part
 - **Created**: 2026-10-18
 - **Source**: [SQL parity analysis](../../issues/0016-sql-parity-analysis.md)
 
@@ -457,3 +457,14 @@ None.
 - 2026-10-18: drafted
 - 2026-10-19: materialization is written with the `List` constructor, since
   `list` is retired; no join is implemented yet
+- 2026-10-22: accepted, implemented in part. The binary form is built as
+  core operations declared in `std/collections.hql`: `join`, `left_join`,
+  `right_join` and `full_join` with `into`, by keys, `on` or both;
+  `cross_join`; `semi_join` and `anti_join`, in the order of the section
+  "Order". A join with no condition is refused naming `cross_join`, `left`
+  without `right` is refused, and a `Set` input is refused naming `sort`.
+  The name `join` is shared with `string.join` and `seq.join`, and a call's
+  named arguments choose among the modules
+  ([issue 0041](../../issues/0041-binary-joins.md)). The head and extending
+  forms, optional sides `?`, row types and the stream rules of the section
+  "Joining across kinds of source" are not built

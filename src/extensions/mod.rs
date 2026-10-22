@@ -317,6 +317,9 @@ impl Operation {
             }
             return Ok(first);
         }
+        if let Some(message) = collections::join_refusal(self.name, input, arguments) {
+            return Err(Diagnostic::typing(span.clone(), message));
+        }
         if let Some(spec) = specs
             .iter()
             .find(|spec| spec.input.accepts(input) && spec.declares_names(arguments))
@@ -1153,9 +1156,10 @@ impl Resolution {
         name: &str,
         input: &TypeRef,
         positional: usize,
+        named: &[&str],
         span: &Range<usize>,
     ) -> Result<&'static Operation, Diagnostic> {
-        self.step_among(name, input, positional, span, false)
+        self.step_among(name, input, positional, named, span, false)
     }
 
     /// The step a receiver call, `value.f()`, resolves to: as
@@ -1167,6 +1171,7 @@ impl Resolution {
         name: &str,
         input: &TypeRef,
         positional: usize,
+        named: &[&str],
         span: &Range<usize>,
     ) -> Result<&'static Operation, Diagnostic> {
         let visible = self
@@ -1184,7 +1189,7 @@ impl Resolution {
                 ),
             ));
         }
-        self.step_among(name, input, positional, span, true)
+        self.step_among(name, input, positional, named, span, true)
     }
 
     fn step_among(
@@ -1192,6 +1197,7 @@ impl Resolution {
         name: &str,
         input: &TypeRef,
         positional: usize,
+        named: &[&str],
         span: &Range<usize>,
         receivers: bool,
     ) -> Result<&'static Operation, Diagnostic> {
@@ -1210,6 +1216,25 @@ impl Resolution {
             [] => Err(self.unresolved(name, span)),
             [(_, only)] => Ok(only),
             many => {
+                // The names a call writes tell modules apart before its
+                // input does: only one module's `join` takes `into`.
+                if !named.is_empty() {
+                    let naming: Vec<_> = many
+                        .iter()
+                        .filter(|(_, step)| {
+                            step.specs().iter().any(|spec| {
+                                named.iter().all(|written| {
+                                    spec.arguments
+                                        .iter()
+                                        .any(|held| held.named && held.name == *written)
+                                })
+                            })
+                        })
+                        .collect();
+                    if let [(_, only)] = naming.as_slice() {
+                        return Ok(only);
+                    }
+                }
                 let input = input.present();
                 let fitting: Vec<_> = many
                     .iter()
@@ -1225,10 +1250,28 @@ impl Resolution {
                     .iter()
                     .filter(|(_, step)| {
                         step.specs().iter().any(|spec| {
+                            // The arguments written by position fill the
+                            // ones a call may write so, and each name
+                            // written must be one of the form's.
                             let specs = spec.arguments;
-                            let required = specs.iter().filter(|spec| spec.required).count();
+                            let by_position: Vec<_> =
+                                specs.iter().filter(|spec| spec.positional).collect();
                             let variadic = specs.iter().any(|spec| spec.variadic);
-                            positional >= required && (variadic || positional <= specs.len())
+                            let filled = |name: &str| {
+                                named.contains(&name)
+                                    || by_position
+                                        .iter()
+                                        .take(positional)
+                                        .any(|spec| spec.name == name)
+                            };
+                            (variadic || positional <= by_position.len())
+                                && specs
+                                    .iter()
+                                    .filter(|spec| spec.required && !spec.variadic)
+                                    .all(|spec| filled(spec.name))
+                                && named.iter().all(|written| {
+                                    specs.iter().any(|spec| spec.named && spec.name == *written)
+                                })
                         })
                     })
                     .collect();
@@ -1236,19 +1279,28 @@ impl Resolution {
                     ([(_, step)], _) => Ok(step),
                     ([], [(_, step)]) => Ok(step),
                     ([], []) => Ok(many[0].1),
-                    (several, _) => Err(Diagnostic::name(
-                        span.clone(),
-                        format!(
-                            "`{name}` over {input} is declared by {}, so the call is \
+                    (by_arity, fitting) => {
+                        // Several fit: by arity where any does, else by input.
+                        let several: Vec<&(&'static Extension, &'static Operation)> =
+                            if by_arity.is_empty() {
+                                fitting.to_vec()
+                            } else {
+                                by_arity.iter().map(|held| **held).collect()
+                            };
+                        Err(Diagnostic::name(
+                            span.clone(),
+                            format!(
+                                "`{name}` over {input} is declared by {}, so the call is \
                              ambiguous; qualify it, `{}.{name}(…)`",
-                            several
-                                .iter()
-                                .map(|(extension, _)| format!("`{}`", extension.name))
-                                .collect::<Vec<_>>()
-                                .join(" and "),
-                            several[0].0.name
-                        ),
-                    )),
+                                several
+                                    .iter()
+                                    .map(|(extension, _)| format!("`{}`", extension.name))
+                                    .collect::<Vec<_>>()
+                                    .join(" and "),
+                                several[0].0.name
+                            ),
+                        ))
+                    }
                 }
             }
         }
@@ -1562,7 +1614,7 @@ mod tests {
         // A collection fits the core's `count` and the probe's `Any`, with
         // no arity to tell them apart: the call is ambiguous and says so.
         let both = resolution
-            .step_for("count", &TypeRef::list(TypeRef::INT), 0, &(0..1))
+            .step_for("count", &TypeRef::list(TypeRef::INT), 0, &[], &(0..1))
             .unwrap_err();
         assert!(
             both.message().contains("`core` and `probe`"),
@@ -1571,7 +1623,7 @@ mod tests {
         );
         // An Int fits only the probe's.
         let probe = resolution
-            .step_for("count", &TypeRef::INT, 0, &(0..1))
+            .step_for("count", &TypeRef::INT, 0, &[], &(0..1))
             .unwrap();
         assert_eq!(
             probe.summary,
