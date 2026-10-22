@@ -77,6 +77,43 @@ run to completion before the next. A name that is not registered fails every
 program, and `hql config`, with a message naming the flag, the file or the
 variable that supplied it. `hql render` runs its cells on `localhost`.
 
+## Data sources
+
+A vault declares the data sources its programs read under `[sources.<id>]`
+in `hql.toml` ([HQL-0012](../../proposals/HQL-0012/README.md)). A program
+names a source by its id, `source("field_notes")`, and nothing else: paths,
+hosts and credentials are configuration. Paths resolve against the vault
+root.
+
+```toml
+[sources.field_notes]
+kind = "vault"          # a Vault: documents read as cards
+root = "notes"
+
+[sources.counts]
+kind = "csv"            # also json (one array's elements), json_lines, yaml
+path = "data/counts.csv"
+element = "Tally"       # optional: the element type; Data by default
+
+[sources.birds]
+kind = "sqlite"         # one table, a Data row per element
+path = "data/birds.sqlite"
+table = "birds"
+order = ["id"]          # optional: the row order; rowid by default
+
+[execution]
+max_elements = 100000   # the most elements of one source an evaluation holds
+max_bytes = 50000000    # the most bytes of one source an evaluation reads
+```
+
+Loading the vault refuses a malformed entry, and so fails every program in
+it: an id off `[a-z][a-z0-9_]*`, the id `vault` (the vault the program runs
+against), an unknown kind, a missing or unknown key, and a literal secret in
+`password`, `token`, `secret` or `api_key`. A secret is given as the name of
+the environment variable holding it, in a key ending `_env`. Exceeding a
+bound is an evaluation error naming the source and the bound; a source is
+never truncated.
+
 ## Extensions
 
 `hql builtins` groups steps by the extension that provides them and says, of

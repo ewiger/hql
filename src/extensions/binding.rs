@@ -266,10 +266,12 @@ mod tests {
             ("file", Purity::Pure),
         ] {
             let step = super::super::IO.step(name).unwrap();
-            let [id] = environment.of(step) else {
-                panic!("`{name}` is declared once");
-            };
-            assert_eq!(environment.declaration(*id).purity, expected, "{name}");
+            // `source` reads an endpoint or a configured source's id.
+            let forms = environment.of(step);
+            assert_eq!(forms.len(), if name == "source" { 2 } else { 1 }, "{name}");
+            for id in forms {
+                assert_eq!(environment.declaration(*id).purity, expected, "{name}");
+            }
             assert_eq!(step.purity(), expected, "{name}");
         }
         // `Logger` is an operation of `io.logging`, not a table constructor.

@@ -168,7 +168,7 @@ fn an_endpoint_is_used_only_for_what_it_can_do() {
     let dir = tempdir().unwrap();
     refused(
         &hql_in(dir.path(), &["source(stdout, Json)"]),
-        "needs Readable",
+        "needs (Readable | String), not Stdout",
     );
     refused(
         &hql_in(dir.path(), &["42 | target(stdin, Json)"]),

@@ -308,6 +308,37 @@ type error: a document writes nothing outside itself, so `target` and `sink` are
 The same program runs under different capability policies without changing
 its model: a terminal may write files, and a document being rendered may not.
 
+## Configured sources
+
+A program that names a file path is tied to one machine's files. A vault can
+instead declare its sources in `hql.toml`, each under an id, and a program
+names only the id:
+
+```toml
+[sources.journal]
+kind = "vault"
+root = "journal"
+
+[sources.counts]
+kind = "csv"
+path = "data/counts.csv"
+```
+
+```hql
+journal = source("journal")
+journal.cards | map(c => c.name)
+```
+
+`source("journal")` is a `Vault`, with its own `cards`; `source("counts")` is
+a `Seq<Data>`, a row per element, decoded as a declared record where one is
+expected, as above. The type comes from the configuration, so checking reads
+`hql.toml` and opens nothing. The id is a literal: `source(id)` with a
+computed `id` is a type error, and `source("postgres://db/birds")` is refused
+with a diagnostic saying connection details belong in configuration. An id
+the configuration does not declare is a name error that suggests the nearest
+one. The [data sources examples](../../../examples/sources/README.md) read
+two vaults side by side.
+
 ## What is next
 
 Not every endpoint is bytes. [Chapter 14](14-channels-and-logs.md) passes

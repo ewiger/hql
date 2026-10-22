@@ -66,4 +66,5 @@ implementation had moved past: `std/io/init.hql`, and no `JsonLines`.
 
 ## Left open
 
-- `source("id")`, `tap("id")` and `max_bytes` wait for HQL-0012.
+- `tap("id")` waits for a stream kind of HQL-0012; `source("id")` and
+  `max_bytes` are built ([issue 0040](0040-configured-data-sources.md)).

@@ -68,12 +68,16 @@ pub(crate) static STEPS: &[Operation] = &[
         name: "source",
         spec: Signature::Native(OperationSpec {
             parameters: &[FORMAT_PARAMETER],
-            input: P::Type(TypeConstructor("Readable")),
+            input: P::OneOf(&[
+                P::Type(TypeConstructor("Readable")),
+                P::Type(TypeConstructor("String")),
+            ]),
             arguments: &[FORMAT],
-            output: O::Computed("Seq<T> | Stream<T>"),
+            output: O::Computed("Seq<T> | Stream<T> | S"),
         }),
         summary: "Read an endpoint's documents in a format: every one, as a Seq, when it can \
-                  be read again; each as it arrives, as a Stream, when it cannot.",
+                  be read again; each as it arrives, as a Stream, when it cannot. Given an \
+                  id, the source the run context configures under it.",
         purity: Purity::Effectful,
         shape: super::Shape::Barrier,
         check: Some(check_read),
@@ -212,7 +216,95 @@ fn channel_element(ty: &TypeRef) -> Option<&TypeRef> {
 const NO_FORMAT: &str = "a channel holds values, not bytes, so it takes no format";
 
 /// The type `source` or `tap` gives.
-pub(crate) fn result(name: &str, call: &CheckedCall<'_>) -> Result<TypeRef, String> {
+pub(crate) fn result(
+    name: &str,
+    call: &CheckedCall<'_>,
+    vault: &crate::vault::Vault,
+) -> Result<TypeRef, Diagnostic> {
+    if call.input.is(&TypeRef::STR) {
+        return configured_type(call, vault);
+    }
+    let span = call
+        .input_expr
+        .map_or(0..0, |expression| expression.span.clone());
+    read_type(name, call).map_err(|message| Diagnostic::typing(span, message))
+}
+
+/// The type of `source("id")`: the one the run context's configuration
+/// states for the id, read offline. A vault source is a `Vault`, and a
+/// file or table a `Seq` of the element its configuration names, or of the
+/// kind's own document type.
+fn configured_type(
+    call: &CheckedCall<'_>,
+    vault: &crate::vault::Vault,
+) -> Result<TypeRef, Diagnostic> {
+    let span = call
+        .input_expr
+        .map_or(0..0, |expression| expression.span.clone());
+    let Some(Kind::Str(id)) = call.input_expr.map(|expression| &expression.kind) else {
+        return Err(Diagnostic::typing(
+            span,
+            "`source` names a configured source by a literal id, `source(\"field_notes\")`: \
+             a computed id would leave its type unknown until evaluation",
+        ));
+    };
+    if call.bindings.contains_key("F") {
+        return Err(Diagnostic::typing(
+            span,
+            "a configured source's format is its kind's, set in its configuration; name none",
+        ));
+    }
+    let configured = configured(id, vault).map_err(|message| {
+        if crate::sources::is_id(id) {
+            Diagnostic::name(span.clone(), message)
+        } else {
+            Diagnostic::typing(span.clone(), message)
+        }
+    })?;
+    if matches!(configured.kind, crate::sources::Kind::Vault { .. }) {
+        return Ok(TypeRef::VAULT);
+    }
+    let element = match &configured.element {
+        Some(written) => crate::types::named(written, &[]).ok_or_else(|| {
+            Diagnostic::typing(
+                span.clone(),
+                format!("source `{id}` names the element type `{written}`, which is not a type"),
+            )
+        })?,
+        None => TypeRef::DATA,
+    };
+    Ok(TypeRef::seq(element))
+}
+
+/// The configuration of the source an id names: the id must be one, and
+/// configured.
+fn configured<'v>(
+    id: &str,
+    vault: &'v crate::vault::Vault,
+) -> Result<&'v crate::sources::Configured, String> {
+    if !crate::sources::is_id(id) {
+        return Err(
+            if id.contains(':') || id.contains('/') || id.contains('.') {
+                format!(
+                    "{id:?} is not a source id: connection details belong in configuration, \
+                 `[sources.<id>]` in hql.toml, and a program names the id"
+                )
+            } else {
+                format!("{id:?} is not a source id: an id is snake_case, `[a-z][a-z0-9_]*`")
+            },
+        );
+    }
+    vault.sources.get(id).ok_or_else(|| {
+        let hint = vault.sources.nearest(id).map_or_else(
+            || "; a source is declared under `[sources.<id>]` in the vault's hql.toml".to_owned(),
+            |near| format!("; did you mean `{near}`?"),
+        );
+        format!("no source `{id}` is configured{hint}")
+    })
+}
+
+/// The type a read of an endpoint gives.
+fn read_type(name: &str, call: &CheckedCall<'_>) -> Result<TypeRef, String> {
     // A channel's values are what it holds now to `source`, and what is
     // written from now on to `tap`.
     if let Some(element) = channel_element(call.input) {
@@ -419,11 +511,14 @@ fn evaluated_format(
 }
 
 fn eval_source(
-    _: &mut dyn EvalCx,
+    cx: &mut dyn EvalCx,
     input: Value,
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    if let Value::Str(id) = &input {
+        return read_configured(id, cx.vault(), &span);
+    }
     let endpoint = endpoint(&input, &span)?;
     if let Endpoint::Channel(name, element) = endpoint.as_ref() {
         return Ok(Value::list(io::held(name), element.clone()));
@@ -494,6 +589,63 @@ fn eval_tap(
     Ok(live(reading, element, span))
 }
 
+/// A configured source's contents: a vault source's vault, or every element
+/// of a file or table, in the source's order, within the run context's
+/// bounds. Configuration is the access boundary, so a document reads every
+/// source its vault configures.
+fn read_configured(
+    id: &str,
+    vault: &crate::vault::Vault,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    use crate::sources::Kind as Source;
+    let failed = |message: String| Diagnostic::runtime(span.clone(), message);
+    let configured = configured(id, vault).map_err(failed)?;
+    let bounds = vault.sources.bounds;
+    let within = |count: usize| match bounds.max_elements {
+        Some(most) if count > most => Err(failed(format!(
+            "source `{id}` holds {count} elements, more than `max_elements = {most}`; take it \
+             in portions"
+        ))),
+        _ => Ok(()),
+    };
+    let sized = |path: &Path| match bounds.max_bytes {
+        Some(most) => match std::fs::metadata(path) {
+            Ok(metadata) if metadata.len() > most => Err(failed(format!(
+                "source `{id}` is {} bytes, more than `max_bytes = {most}`",
+                metadata.len()
+            ))),
+            _ => Ok(()),
+        },
+        None => Ok(()),
+    };
+    let documents = match &configured.kind {
+        Source::Vault { .. } => {
+            let loaded = configured.vault().map_err(failed)?;
+            within(loaded.cards.len())?;
+            return Ok(Value::Vault(Some(loaded)));
+        }
+        Source::File { path, format } => {
+            sized(path)?;
+            io::read_configured(path, TypeConstructor(format), *format == "Json")
+                .map_err(|message| failed(format!("source `{id}`: {message}")))?
+        }
+        Source::Sqlite { path, table, order } => {
+            sized(path)?;
+            crate::sources::sqlite_rows(path, table, order)
+                .map_err(|message| failed(format!("source `{id}`: {message}")))?
+                .into_iter()
+                .map(|row| Value::Data(Arc::new(row)))
+                .collect()
+        }
+    };
+    within(documents.len())?;
+    Ok(Value::Traversal(Arc::new(Traversal::kept(
+        TypeRef::DATA,
+        documents,
+    ))))
+}
+
 /// Whether a step is this extension's `source` or `tap`: a read whose
 /// documents decode as the element type it is expected to give.
 pub(crate) fn reads(step: &Operation) -> bool {
@@ -513,6 +665,7 @@ pub(crate) fn reads(step: &Operation) -> bool {
 /// otherwise. A CSV cell is text, so it is parsed as the scalar its field
 /// wants; a Json, Yaml or JsonLines leaf keeps the type it was written with.
 pub(crate) fn decoded(
+    vault: &crate::vault::Vault,
     endpoint: &Value,
     produced: Value,
     wanted: &TypeRef,
@@ -525,13 +678,27 @@ pub(crate) fn decoded(
     if traversal.element == *element {
         return Ok(produced);
     }
-    let endpoint = self::endpoint(endpoint, span)?;
-    let leaves = if evaluated_format(arguments, &endpoint, span)?.0 == "Csv" {
+    let (format, from) = match endpoint {
+        Value::Str(id) => (
+            match configured(id, vault).map(|configured| &configured.kind) {
+                Ok(crate::sources::Kind::File { format, .. }) => *format,
+                _ => "Data",
+            },
+            format!("source `{id}`"),
+        ),
+        _ => {
+            let endpoint = self::endpoint(endpoint, span)?;
+            (
+                evaluated_format(arguments, &endpoint, span)?.0,
+                endpoint.describe(),
+            )
+        }
+    };
+    let leaves = if format == "Csv" {
         crate::types::Leaves::Text
     } else {
         crate::types::Leaves::AsWritten
     };
-    let from = endpoint.describe();
     if let Some(values) = traversal.forced() {
         let decoded = values
             .iter()

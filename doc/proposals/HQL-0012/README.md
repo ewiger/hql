@@ -1,6 +1,6 @@
 # HQL-0012: Data sources
 
-- **Status**: drafted
+- **Status**: accepted, implemented in part
 - **Created**: 2026-10-18
 - **Source**: [HQL is not an HMD query language](../../wiki/hmd-integration.hmd)
 
@@ -67,8 +67,10 @@ order of a sorted walk.
 - **No native query strings in the core.** A `filter` over a table is
   HQL, and pushing it into SQL is the planner's work under HQL-0004. An
   extension MAY offer an escape hatch, which the section "Native queries" bounds.
-- **No implementation of any network source.** Every kind in the section "Source kinds" except
-  the filesystem vault is design direction.
+- **No implementation of any network source.** The kinds read from local
+  files, `vault`, `csv`, `json`, `json_lines`, `yaml` and `sqlite`, are
+  implemented; every network kind in the section "Source kinds" is design
+  direction.
 - **No dynamic sources.** A program cannot create a source at evaluation time
   from a computed string.
 
@@ -277,7 +279,7 @@ Each term below has one meaning.
 
 ### 2. The abstract types
 
-The core declares the contracts in a new module, `std/sources.hql`. Each source
+The core declares the contracts in the `io` module, `std/io/mod.hql`. Each source
 contract is also the type of the source's contents, so a source stands wherever
 its contents would.
 
@@ -329,8 +331,7 @@ type Position : Orderable
   is defined over it (the section "The default source and the `cards` anchor"). It is abstract, so it has no runtime
   constructor: every vault value is of a concrete type an extension provides,
   and a program written against `VaultSource` runs unchanged on each of them.
-  It is a contract in the sense of an abstract type, not a trait; HQL has no
-  traits, per the [type system](../../wiki/hql/type-system.hmd).
+  It is a contract in the sense of an abstract type, not a trait.
 - `Message<T>` carries `position` and `time` because a program filters on them
   to choose where a stream starts (the section "Using a source").
 - `StreamSource` and `LiveSource` depend on `Stream<T>`, which
@@ -499,7 +500,9 @@ warehouse | postgres.sql("select species, count(*) from sightings group by 1")
 ### 8. Source kinds
 
 Each kind below is provided by an extension, which provides the HQL type and the
-reader. Only `vault` is implemented; every other row is design direction.
+reader. `vault`, `csv`, `json`, `json_lines`, `yaml` and `sqlite` with one
+`table` are implemented, by the binary's `io` extension; every other row is
+design direction.
 
 **Documents.**
 
@@ -520,6 +523,7 @@ source whose snapshot is the same on every machine and every day.
 | `csv` | `CsvFile` | `FiniteSource<Data>` | a row keyed by header | file order |
 | `json_lines` | `JsonLinesFile` | `FiniteSource<Data>` | one line | file order |
 | `json` | `JsonFile` | `FiniteSource<Data>` | one array element | array order |
+| `yaml` | `YamlFile` | `FiniteSource<Data>` | one document | file order |
 | `parquet` | `ParquetFile` | `FiniteSource<Data>` | a row | file order |
 
 **Relational and analytical databases.**
@@ -712,3 +716,18 @@ None.
 - 2026-10-19: `cards` is stated as `vault.cards` in sorted-walk order
   (HQL-0020); no part of this record is implemented yet beyond the filesystem
   vault
+- 2026-10-22: accepted, implemented in part. `[sources.<id>]` in `hql.toml`
+  is read with the vault and refused at load for an id off `snake_case`, the
+  id `vault`, an unknown kind, a missing or unknown key and a literal secret.
+  `source("id")` is typed at check time from the configuration alone, needs a
+  literal id, refuses a connection string and a format, and names the
+  nearest configured id. The kinds `vault` (a `Vault` with its own `cards`,
+  loaded once per run), `csv`, `json` (the elements of one array),
+  `json_lines`, `yaml` and `sqlite` (one table, ordered by `order`, else by
+  `rowid`) are implemented; `element` types a file or table's elements, and
+  `[execution] max_elements` and `max_bytes` bound a source. `std/io/mod.hql`
+  declares `KeyedSource`, `StreamSource`, `Catalog`, `VaultSource`,
+  `Message` and `Position`. A file or table is typed `Seq<T>` rather than a
+  concrete source type, `Vault` does not narrow `VaultSource`, and
+  `tap("id")`, `member`, `get` over a keyed source, the stream, live and
+  network kinds and native queries are not built

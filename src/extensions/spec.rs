@@ -653,8 +653,7 @@ impl OperationSpec {
             bindings,
         };
         let result = match self.output {
-            Output::Computed(_) => super::io::result(name, &call)
-                .map_err(|message| Diagnostic::typing(span.clone(), message))?,
+            Output::Computed(_) => super::io::result(name, &call, cx.vault())?,
             _ => result,
         };
         Ok((result, call))

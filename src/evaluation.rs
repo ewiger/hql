@@ -89,7 +89,7 @@ fn base(vault: &Vault) -> HashMap<String, Value> {
         scope.insert("cell".to_owned(), Value::Cell);
     }
     if vault.is_present() {
-        scope.insert(crate::checker::VAULT.to_owned(), Value::Vault);
+        scope.insert(crate::checker::VAULT.to_owned(), Value::Vault(None));
     }
     scope
 }
@@ -509,6 +509,7 @@ impl Evaluator<'_> {
                     let endpoint = value.clone();
                     let produced = self.step(step, value, arguments, at.clone())?;
                     return crate::extensions::io::decoded(
+                        self.vault,
                         &endpoint,
                         produced,
                         &expression.ty,
@@ -901,36 +902,49 @@ impl Evaluator<'_> {
                 Field::Logs => Ok(Value::Endpoint(Arc::new(crate::io::cell_logs()))),
                 _ => Err(missing()),
             },
-            Value::Vault => match field {
-                Field::Cards => Ok(Value::Traversal(Arc::new(Traversal::new(
-                    TypeRef::CARD,
-                    true,
-                    Source::Cards,
-                )))),
-                Field::Name => Ok(text(
-                    &self
-                        .vault
-                        .root
-                        .file_name()
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
-                )),
-                Field::Root => Ok(text(&self.vault.root.display().to_string())),
-                Field::Graph => {
-                    let cards = self
-                        .vault
-                        .cards
-                        .iter()
-                        .map(|card| Value::Card(Arc::clone(card)))
-                        .collect();
-                    crate::extensions::graph::construct(
-                        self.vault,
-                        Value::list(cards, TypeRef::CARD),
-                        span,
-                    )
+            Value::Vault(configured) => {
+                let vault = configured.as_deref().unwrap_or(self.vault);
+                match field {
+                    Field::Cards => Ok(match configured {
+                        None => Value::Traversal(Arc::new(Traversal::new(
+                            TypeRef::CARD,
+                            true,
+                            Source::Cards,
+                        ))),
+                        // A configured vault's cards, in the order its sorted
+                        // walk gave them, from the snapshot loaded once.
+                        Some(_) => Value::Traversal(Arc::new(Traversal::kept(
+                            TypeRef::CARD,
+                            vault
+                                .cards
+                                .iter()
+                                .map(|card| Value::Card(Arc::clone(card)))
+                                .collect(),
+                        ))),
+                    }),
+                    Field::Name => Ok(text(
+                        &vault
+                            .root
+                            .file_name()
+                            .map(|name| name.to_string_lossy().into_owned())
+                            .unwrap_or_default(),
+                    )),
+                    Field::Root => Ok(text(&vault.root.display().to_string())),
+                    Field::Graph => {
+                        let cards = vault
+                            .cards
+                            .iter()
+                            .map(|card| Value::Card(Arc::clone(card)))
+                            .collect();
+                        crate::extensions::graph::construct(
+                            vault,
+                            Value::list(cards, TypeRef::CARD),
+                            span,
+                        )
+                    }
+                    _ => Err(missing()),
                 }
-                _ => Err(missing()),
-            },
+            }
             Value::Ranking(ranking) => match field {
                 Field::Hits => Ok(Value::list(
                     ranking

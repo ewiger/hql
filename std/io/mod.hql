@@ -73,6 +73,40 @@ abstract type FiniteSource<T> : {DataSource, Seq<T>}
 // Each document as it arrives, with no replay: read from a live endpoint.
 abstract type LiveSource<T> : {DataSource, Stream<T>}
 
+// Finite contents addressable by key: get(s, key) gives Option<T>.
+abstract type KeyedSource<K, T> : FiniteSource<T>
+
+// A message's place in its log, in the log's order.
+type Position : Orderable
+
+// One element of a stream, with where and when it sits in it.
+type Message<T> {
+    value    : T
+    position : Position
+    key?     : Data
+    time?    : Date
+    headers  : Data
+}
+
+// A log: contents in order, replayable within its retention.
+abstract type StreamSource<T> : {DataSource, Stream<Message<T>>}
+
+// An endpoint that contains sources: a database of tables, a cluster of
+// topics.
+abstract type Catalog<S> : DataSource
+
+// Documents read as cards, keyed by card name. What the documents sit on, a
+// filesystem, a git revision, an HTTP server, is the concrete type's.
+abstract type VaultSource : KeyedSource<String, Card>
+
+// A configured source, by its id: `source("field_notes")`. The run
+// context's configuration, `[sources.<id>]` in hql.toml, states its kind,
+// and the kind its type, read at check time and offline: a `vault` source
+// is a Vault, and a `csv`, `json`, `json_lines`, `yaml` or `sqlite` source
+// a Seq<Data>, or a Seq of the type its `element` names. The id is a
+// literal, snake_case, and never a connection string; an id takes no
+// format, since its kind fixes one.
+
 // What a program writes to: an endpoint written in a format, and later a
 // configured target by id, such as a table.
 abstract type DataTarget
@@ -85,6 +119,7 @@ abstract type DataTarget
 // source(file("birds.json"))` decodes each document as a Sighting.
 fn file(path: String) : File
 effectful fn source<F : Format, T>(endpoint: Readable, format: Type<F>) : Iterable<T>
+effectful fn source<F : Format, T>(id: String, format: Type<F>) : Iterable<T>
 effectful fn tap<F : Format, T>(endpoint: Readable, format: Type<F>) : Stream<T>
 effectful fn target<T, F : Format>(value: T, endpoint: Writable, format: Type<F>) : Unit
 effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Unit

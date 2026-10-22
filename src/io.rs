@@ -482,6 +482,30 @@ fn row(header: &[String], fields: Vec<String>) -> Value {
     Value::Data(Arc::new(Data::Map(map)))
 }
 
+/// Every document of a configured file source, in file order. `spread`
+/// reads a Json file as the elements of the one array it holds.
+/// Configuration is the access boundary, so the document policy that
+/// confines a document's own reads does not apply.
+pub(crate) fn read_configured(
+    path: &Path,
+    format: TypeConstructor,
+    spread: bool,
+) -> Result<Vec<Value>, String> {
+    let file = fs::File::open(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    if spread {
+        let json: serde_json::Value = serde_json::from_reader(BufReader::new(file))
+            .map_err(|error| format!("{}: not JSON: {error}", path.display()))?;
+        let serde_json::Value::Array(elements) = json else {
+            return Err(format!(
+                "{}: a `json` source holds one array, whose elements it reads",
+                path.display()
+            ));
+        };
+        return Ok(elements.into_iter().map(tree).collect());
+    }
+    pieces(Box::new(file), format, path.display().to_string()).collect()
+}
+
 /// Documents read one at a time from a reader.
 type Pieces = Box<dyn Iterator<Item = Result<Value, String>> + Send>;
 

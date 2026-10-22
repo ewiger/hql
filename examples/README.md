@@ -39,6 +39,11 @@ The [I/O](io/README.md) cases read a JSON Lines file and a CSV file with
 `source`, each document decoded as the record its binding declares, from
 [HQL-0021](../doc/proposals/HQL-0021/README.md).
 
+The [data sources](sources/README.md) cases read the sources a vault's
+`hql.toml` configures by id with `source("id")`: two vaults side by side, a
+CSV file and a JSON array, typed from the configuration before anything is
+read, from [HQL-0012](../doc/proposals/HQL-0012/README.md).
+
 The [todo board](todo/README.md) lists open tasks and architecture decisions
 with `hql#eval` cells, reading typed sort keys out of card metadata.
 

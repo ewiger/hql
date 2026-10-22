@@ -92,7 +92,7 @@ pub fn combiner_hint(name: &str) -> String {
     )
 }
 
-fn distance(left: &str, right: &str) -> usize {
+pub(crate) fn distance(left: &str, right: &str) -> usize {
     let right: Vec<char> = right.chars().collect();
     let mut previous: Vec<usize> = (0..=right.len()).collect();
     for (row, from) in left.chars().enumerate() {

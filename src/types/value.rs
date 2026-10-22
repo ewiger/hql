@@ -137,8 +137,9 @@ pub enum Value {
     Function(Arc<Closure>),
     /// Text in a presentation format, such as `Markdown` or `Json`.
     Formatted(Arc<Formatted>),
-    /// The current vault, whose fields are what a program reads from it.
-    Vault,
+    /// A vault, whose fields are what a program reads from it: the one the
+    /// program runs against, or a configured vault source, `source("notes")`.
+    Vault(Option<Arc<crate::vault::Vault>>),
     /// A generated sequence or stream, produced on demand.
     Traversal(Arc<crate::traversal::Traversal>),
     /// Where values come from or go to: `stdin`, `file("x.json")`.
@@ -270,7 +271,7 @@ impl Value {
     pub fn type_of(&self) -> TypeRef {
         match self {
             Self::Traversal(traversal) => traversal.type_of(),
-            Self::Vault => TypeRef::VAULT,
+            Self::Vault(_) => TypeRef::VAULT,
             Self::Endpoint(endpoint) => endpoint.type_of(),
             Self::Level(level) => level.type_of(),
             Self::Log(_) => TypeRef::LOG_EVENT,
@@ -542,7 +543,11 @@ impl PartialEq for Value {
         }
         match (self, other) {
             (Self::Traversal(a), Self::Traversal(b)) => Arc::ptr_eq(a, b),
-            (Self::Vault, Self::Vault) => true,
+            (Self::Vault(a), Self::Vault(b)) => match (a, b) {
+                (None, None) => true,
+                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                _ => false,
+            },
             (Self::Unit, Self::Unit) => true,
             (Self::Ordering(a), Self::Ordering(b)) => a == b,
             (Self::Map(a), Self::Map(b)) => a == b,

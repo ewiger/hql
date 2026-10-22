@@ -912,8 +912,14 @@ fn bind_contracts() -> Result<(), String> {
             ));
         }
         if let Signature::Native(native) = &step.spec {
-            // One native signature cannot hold to several declarations.
-            if overloads.len() > 1 {
+            // One native signature holds to several declarations only where
+            // its input is a choice, each declaration stating one of it:
+            // `source(endpoint: Readable, …)` and `source(id: String, …)`.
+            let alternatives = match native.input {
+                spec::TypePattern::OneOf(alternatives) => alternatives,
+                _ => &[],
+            };
+            if overloads.len() > 1 && overloads.len() != alternatives.len() {
                 return Err(format!(
                     "`{}` is declared {} times, and the extension `{}` writes one signature \
                      for it: an overloaded operation takes its signatures from its declarations",
@@ -922,7 +928,19 @@ fn bind_contracts() -> Result<(), String> {
                     provider.name
                 ));
             }
-            let found = contract::departures(native, declared);
+            let found = match alternatives
+                .iter()
+                .find(|alternative| **alternative == declared.input)
+            {
+                Some(alternative) if overloads.len() > 1 => contract::departures(
+                    &spec::OperationSpec {
+                        input: *alternative,
+                        ..*native
+                    },
+                    declared,
+                ),
+                _ => contract::departures(native, declared),
+            };
             if !found.is_empty() {
                 return Err(format!(
                     "`{}` is declared with other types than the extension `{}` implements: {}",

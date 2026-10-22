@@ -66,9 +66,10 @@ convention:
 - **Source ids and kinds.** A data source is named in the run context's
   configuration, and a program reaches it with a string, `source("field_notes")`.
   Ids and kind names (`vault`, `git_vault`, `postgres`) are `snake_case`, so a
-  binding can carry the id's name: `field_notes = source("field_notes")`. Data
-  sources are design direction, specified by
-  [HQL-0012](../../proposals/HQL-0012/README.md).
+  binding can carry the id's name: `field_notes = source("field_notes")`. The
+  kinds `vault`, `csv`, `json`, `json_lines`, `yaml` and `sqlite` are
+  implemented; [HQL-0012](../../proposals/HQL-0012/README.md) specifies the
+  rest.
 
 The value constructors of the core's sum types are spelled two ways today:
 `some`, `none`, `ok` and `err` in lowercase, `Less`, `Equal` and `Greater` in

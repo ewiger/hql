@@ -19,7 +19,7 @@ impl Value {
         use serde_json::{Value as J, json};
         match self {
             Self::Traversal(traversal) => J::String(format!("<{}>", traversal.type_of())),
-            Self::Vault => J::String("<vault>".to_owned()),
+            Self::Vault(_) => J::String("<vault>".to_owned()),
             Self::Endpoint(endpoint) => J::String(endpoint.to_string()),
             Self::Level(level) => J::String(level.name().to_owned()),
             Self::Log(event) => event.to_json(),
@@ -124,7 +124,7 @@ impl fmt::Display for Value {
         }
         match self {
             Self::Traversal(traversal) => write!(f, "<{}>", traversal.type_of()),
-            Self::Vault => f.write_str("<vault>"),
+            Self::Vault(_) => f.write_str("<vault>"),
             Self::Endpoint(endpoint) => write!(f, "{endpoint}"),
             Self::Level(level) => f.write_str(level.name()),
             Self::Log(event) => write!(f, "{event}"),

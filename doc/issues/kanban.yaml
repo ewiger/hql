@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 39 # to be incremented when adding a new issue card
+  last_id: 40 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0039"
@@ -50,6 +50,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0040"
+        title: "Configured data sources: `source(\"id\")` and HQL-0012 accepted"
+        file: 0040-configured-data-sources.md
       - id: "0038"
         title: "Import units, the program module and declaration visibility"
         file: 0038-import-units-and-visibility.md

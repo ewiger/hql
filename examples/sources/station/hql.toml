@@ -1,0 +1,18 @@
+# The field station's run context: the sources its programs may read, each
+# by an id. Paths resolve against this directory.
+
+[sources.journal]
+kind = "vault"
+root = "journal"
+
+[sources.archive]
+kind = "vault"
+root = "archive"
+
+[sources.counts]
+kind = "csv"
+path = "data/counts.csv"
+
+[sources.sightings]
+kind = "json"
+path = "data/sightings.json"
