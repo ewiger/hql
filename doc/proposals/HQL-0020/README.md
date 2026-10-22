@@ -1,6 +1,6 @@
 # HQL-0020: The vault and its namespace
 
-- **Status**: accepted
+- **Status**: accepted, implemented in part
 - **Created**: 2026-10-18
 - **Source**: [issue 0010](../../issues/0010-yield-and-bind.md),
   [HQL-0012](../HQL-0012/README.md), [card type](../../wiki/hql/types/card-type.hmd)
