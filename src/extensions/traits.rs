@@ -8,7 +8,7 @@
 
 use crate::ast::Arith;
 use crate::diagnostics::Diagnostic;
-use crate::types::{TypeConstructor, TypeRef, Value};
+use crate::types::{TypeRef, Value};
 use std::ops::Range;
 
 /// The functions of one trait, run natively over a receiver and the
@@ -17,6 +17,7 @@ type Body = fn(&str, Value, Vec<Value>, &Range<usize>) -> Result<Value, Diagnost
 
 /// One native implementation: the trait, the implementing type's name and
 /// the body of every function the trait requires.
+#[derive(Debug)]
 pub(crate) struct NativeImpl {
     pub trait_name: &'static str,
     pub target: &'static str,
@@ -60,19 +61,13 @@ pub(crate) static NATIVE_IMPLS: &[NativeImpl] = &[
     native("Slice", "Data", part),
 ];
 
-/// The native implementation of a trait for a type: the one declared for
-/// the type itself, or for a type it narrows, as a List takes Seq's.
+/// The native implementation of a trait for a type, as the process's
+/// environment bound it: the body behind the header declared for the type
+/// itself, or for a type it narrows, as a List takes Seq's.
 pub(crate) fn native_impl(trait_name: &str, receiver: &TypeRef) -> Option<&'static NativeImpl> {
-    let system = crate::types::builtin::system().ok();
-    NATIVE_IMPLS.iter().find(|held| {
-        held.trait_name == trait_name
-            && (held.target == receiver.constructor.0
-                || system.as_ref().is_some_and(|system| {
-                    system
-                        .as_supertype(receiver, TypeConstructor(held.target))
-                        .is_ok_and(|view| view.is_some())
-                }))
-    })
+    super::binding::Environment::get()
+        .ok()?
+        .native_body(trait_name, receiver)
 }
 
 /// The native implementation a header declares, by its trait and its

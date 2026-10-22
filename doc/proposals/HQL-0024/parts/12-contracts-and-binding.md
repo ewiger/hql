@@ -191,16 +191,16 @@ process; with external extensions there is one per extension set.
 | Rule | State |
 | --- | --- |
 | an extension creates no declaration: every operation of a module an extension provides is declared | built for functions: binding refuses an undeclared or missing operation, by name |
-| one declaration behind every call form | built: a call, a receiver call, a qualified call and a pipeline step resolve the same declaration, and the checked execution tree carries its identity beside the operation bound to it; resolution finds the operation by name among the visible modules, and the declaration through the overload the call takes ([issue 0036](../../../issues/0036-contracts-receivers-purity-identities.md)) |
+| one declaration behind every call form | built: a call, a receiver call, a qualified call and a pipeline step resolve the same declaration, and the checked execution tree carries its identity beside the operation bound to it ([issue 0036](../../../issues/0036-contracts-receivers-purity-identities.md)). Resolution still matches the written name against the operation table of each visible module's extension, then takes the declaration identity through the overload the call fits; whether the operation has a receiver, is private, and which signatures it takes are read from its declaration identities in the environment the program runs against |
 | explicit receivers | built: `value.f()` reaches only a declaration with `self`, typed by the module's pattern or written, `fn join(self: Collection<String>, …)`, `fn abs(self: Int)`; a declaration without `self`, `range(start: Int, …)` or `regex.is_match(text: String, …)`, is reached by a call or a pipeline step and refused as a receiver call. Every form of one name takes a receiver or none does. A receiverless declaration's first parameter fills the operation's input slot, which is call lowering, and binding records that the declaration has no receiver |
 | HQL is the only signature authority | built for every operation of the core, `seq`, `math`, `string`, `option`, `result`, `regex` and `format`: such an operation is `Signature::Declared`, its Rust side a name, a summary and a body, and binding derives the checking signature from the declaration. A result that keeps, reorders or folds its input (`reverse`, `distinct`, `take_while`, `drop_while`, `with`, `without`, `intersection`, `difference`, `abs`, `pow`, `sign`), an ordering argument (`min_by`, `max_by`), a stream's result beside a finite input's (`format`) and the narrowing `filter`, whose predicate is a `T -> Is<U>`, are stated by overloaded declarations; `/` and `*` mark the arguments supplied by position only and by name only, and `...Any` a variadic argument of any type in each position. A call takes the first declaration its input, arity and value arguments' types fit, and binding refuses a declaration an earlier one always takes first. An operation of a module without a contract, and one whose result is computed from the call, keep a native signature, and binding compares it with the declaration in full wherever the declaration states one |
-| native trait implementations declared in HQL | built: `std/core.hql` declares `impl Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` for the built-in types they hold for; binding refuses a header without a native body and a native body without a header; a bound `T : Eq` accepts `Int` through the header, and dispatch reaches the native body |
-| coherence and ownership | built: one implementation per trait and type across the standard library, imported modules and the program, the error naming both; an implementation belongs with its trait or its type; a program writes no bodyless header |
-| a module claim is total | built, by name |
-| identities | built for modules and external declarations: loading `std/` allocates a module identity per module and a declaration identity per external declaration, binding maps each declaration identity to its operation, and an operation's signatures, receiver and purity are read through its declarations. Package, type, trait and implementation identities are not allocated; resolution matches names among visible modules, and trait implementations and constructors are matched by name |
+| native trait implementations declared in HQL | built: `std/core.hql` declares `impl Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` for the built-in types they hold for; binding binds each header's implementation identity to its native body, matching the trait and type names once, and refuses a header without a native body and a native body without a header; the checker's native implementations are read from the bound headers, a bound `T : Eq` accepts `Int` through the header, and dispatch reaches only a body bound to a header |
+| coherence and ownership | built: one implementation per trait and type across the standard library, imported modules and the program, the error naming both; an implementation belongs with its trait or its type, which binding checks for a standard header by the modules of the trait and type identities; a program writes no bodyless header |
+| a module claim is total | built: a declaration is bound to its provider's operation by name once, at binding, and validation refuses a declaration without an operation and an operation without a declaration; a `private fn` declaration is bound like any other and offered to no importer |
+| identities | built for modules, external declarations, types, traits, implementations and constructors: loading `std/` allocates each an identity; binding maps a declaration identity to its operation, an implementation identity to its trait, its type and its native body, and each constructor of the binary's table to the type identity whose constructor declarations state its forms. An operation's signatures, receiver, purity, shape and privacy are read through its declarations, and a constructor's forms through its type identity. Package identities are not allocated. Resolution matches the written name among the visible modules' operation tables, and dispatch of a native trait function matches the trait's name and the receiver's type constructor among the bound headers at each call |
 | native type identity | built-in types use the closed `Value` representations; `File` is a `Value::Endpoint` |
 | semantic properties in the contract | built for purity: `effectful fn` declares an external declaration effectful and `fn` pure; binding refuses an extension whose marking differs, and checking reads the declaration. `io` and `io.logging` declare their operations, `source`, `tap`, `target`, `sink` and the five levels effectful. The operations of `graph`, `io.net`, `lexical` and `semantic` have no declaration, so their extension's marking, pure, stands. Capabilities are not declared |
-| validation per environment | binding runs once per process |
+| validation per environment | built: a runtime environment is the module graph and the extension set, loaded and bound, then validated once and frozen; a frozen environment is immutable and shared by every program run against it, and a configuration's imports are resolved over it once, as the runtime every program of that configuration starts from. The process caches one environment per module graph and extension set, and one runtime per configuration; a failing validation refuses the environment, and every program under it, naming the defect |
 
 ## Work units
 
@@ -209,9 +209,13 @@ In order:
 1. **Declaration identity and binding.** Load `.hql` modules first, allocate
    module, declaration, type and trait identities, then bind extension
    implementations to them. Lower all three call forms to one declaration
-   identity. Done for modules and external declarations, and the call forms
-   carry the declaration identity; type, trait, implementation and package
-   identities, and resolution by identity rather than by name, remain.
+   identity. Done for modules, external declarations, types, traits,
+   implementations and constructors: native headers are bound to native
+   bodies and constructors to type identities at binding, and the call forms
+   carry the declaration identity. Package identities remain, and so does
+   resolution by identity: a call's name is matched among the visible
+   modules' operation tables, and a native trait function is dispatched by
+   trait name and receiver type.
 2. **HQL as the only signature authority.** Done for every operation of the
    core, `string`, `math`, `regex`, `option`, `result`, `seq` and `format`
    contracts ([issue 0033](../../../issues/0033-overloaded-declarations.md)):
@@ -233,7 +237,10 @@ In order:
    HQL and verified against the extension. Done for purity, `effectful fn`;
    capabilities remain.
 8. **Environment validation.** Replace the once-per-process check with a
-   built, validated and frozen runtime environment.
+   built, validated and frozen runtime environment. Done for the
+   compiled-in extension set: the environment is built from the module graph
+   and the extension set, validated once and frozen, and each configuration
+   is resolved over it once.
 9. **External extension loading.** Load a descriptor, resolve what it
    provides, bind implementations, validate the environment and freeze it:
    with the units above in place, loading adds no new model.

@@ -779,10 +779,13 @@ impl ImplInfo {
 /// `impl` headers an extension supplies the functions of: in force in
 /// every program, as an implementation the program wrote would be.
 pub(crate) fn native_impls() -> Vec<ImplInfo> {
-    crate::library::native_impls()
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|header| {
+    let Ok(environment) = crate::extensions::binding::Environment::get() else {
+        return Vec::new();
+    };
+    environment
+        .implementations()
+        .filter(|(_, header)| !matches!(header.body, crate::extensions::binding::Body::Written))
+        .filter_map(|(_, header)| {
             let (parameters, variables) = impl_variables(&header.generics)?;
             let _variables = crate::declarations::TypeVariables::enter(&variables);
             Some(ImplInfo {
@@ -793,9 +796,9 @@ pub(crate) fn native_impls() -> Vec<ImplInfo> {
                     .map(|argument| crate::declarations::annotation(argument).ok())
                     .collect::<Option<_>>()?,
                 parameters,
-                trait_name: header.trait_name,
+                trait_name: header.trait_name.clone(),
                 span: 0..0,
-                origin: format!("std/{}", header.module),
+                origin: format!("std/{}", environment.module(header.module).name),
             })
         })
         .collect()
@@ -3115,7 +3118,7 @@ impl<'a> Checker<'a> {
             ..Checker::new(
                 self.vault,
                 HashMap::new(),
-                Resolution::bare(self.vault.extensions.prelude),
+                Resolution::bare(self.resolution.environment(), self.vault.extensions.prelude),
             )
         };
         let checked = {

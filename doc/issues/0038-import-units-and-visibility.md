@@ -77,8 +77,9 @@ declaration is public unless it is marked `private`.
 
 - Two modules each declaring a private type of one name still collide in the
   one lattice.
-- No `std/` file declares a private external, so a private native operation
-  is not yet filtered out of the extension's table; the parser and checker
-  carry the flag, and binding does not yet read it.
+- A standard module holds no HQL bodies, so the inside of a standard module
+  is its provider's implementation: a `private fn` external is bound to its
+  operation and reached by no importer, in any spelling, and no `std/` file
+  declares one yet.
 - `internal` waits for every resolved module to record its package
   ([HQL-0025](../proposals/HQL-0025/README.md)).

@@ -96,13 +96,17 @@ implementations.
 
 ## Left open
 
-- **Type, trait, implementation and package identities** (work unit 1):
-  trait implementations, codecs and constructors are still matched by name
-  at binding, and resolution finds an operation by name among the visible
-  modules at each call; the declaration identity is attached after.
+- **Package identities, and resolution by identity** (work unit 1):
+  modules, declarations, types, traits, implementations and constructors
+  have identities, and native headers, codecs and constructors are bound by
+  them. A call still finds its operation by name in each visible module's
+  operation table, the declaration identity attached through the overload
+  the call takes; a native trait function is dispatched by trait name and
+  receiver type among the bound headers.
 - **Native type representation** (work unit 6): `File` is still a
   `Value::Endpoint`.
 - **Capabilities** (work unit 7): only purity is declared.
-- **A frozen runtime environment** (work unit 8) and **external extension
-  loading** (work unit 9): binding still runs once per process over the
-  compiled-in extensions.
+- **External extension loading** (work unit 9): the runtime environment is
+  built, validated once and frozen per module graph and extension set, and
+  the process holds one, over the compiled-in extensions; no descriptor is
+  loaded from outside the binary.
