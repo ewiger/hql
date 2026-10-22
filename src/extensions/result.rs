@@ -1,149 +1,51 @@
 //! The `result` module: the ways out of a `Result<T, E>`, each saying what
 //! a failure means. There is no unwrap.
 
-use super::spec::{
-    ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,
-};
-use super::{EvalCx, Operation, Purity, named_or_first};
+use super::declared;
+use super::{EvalCx, Operation, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
-use crate::types::builtin::RESULT;
-use crate::types::{TypeConstructor, TypeRef, Value};
+use crate::types::{TypeRef, Value};
 use std::ops::Range;
 use std::sync::Arc;
 
-const OPTION: TypeConstructor = TypeConstructor("Option");
-const BOOL: TypeConstructor = TypeConstructor("Bool");
-const T: TypeParameter = TypeParameter {
-    name: "T",
-    bound: None,
-};
-const E: TypeParameter = TypeParameter {
-    name: "E",
-    bound: None,
-};
-const U: TypeParameter = TypeParameter {
-    name: "U",
-    bound: None,
-};
-
-const fn over_result(
-    name: &'static str,
-    summary: &'static str,
-    parameters: &'static [TypeParameter],
-    arguments: &'static [ArgumentSpec],
-    output: O,
-    eval: super::Eval,
-) -> Operation {
-    Operation {
-        name,
-        spec: OperationSpec {
-            parameters,
-            input: P::Apply(RESULT, &[P::Var("T"), P::Var("E")]),
-            arguments,
-            output,
-        },
-        summary,
-        purity: Purity::Pure,
-        check: None,
-        eval,
-    }
-}
-
-const fn lambda(name: &'static str, parameters: &'static [P], result: P) -> ArgumentSpec {
-    ArgumentSpec {
-        name,
-        kind: A::Lambda { parameters, result },
-        required: true,
-        positional: true,
-        named: true,
-        variadic: false,
-    }
-}
-
 /// Every step the `result` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
-    over_result(
-        "is_ok",
-        "Whether the computation succeeded.",
-        &[T, E],
-        &[],
-        O::Type(P::Type(BOOL)),
-        eval_is_ok,
-    ),
-    over_result(
-        "is_err",
-        "Whether the computation failed.",
-        &[T, E],
-        &[],
-        O::Type(P::Type(BOOL)),
-        eval_is_err,
-    ),
-    over_result(
+    declared("is_ok", "Whether the computation succeeded.", eval_is_ok),
+    declared("is_err", "Whether the computation failed.", eval_is_err),
+    declared(
         "ok",
         "The value of a success, or absence over a failure.",
-        &[T, E],
-        &[],
-        O::Type(P::Apply(OPTION, &[P::Var("T")])),
         eval_ok,
     ),
-    over_result(
+    declared(
         "err",
         "The error of a failure, or absence over a success.",
-        &[T, E],
-        &[],
-        O::Type(P::Apply(OPTION, &[P::Var("E")])),
         eval_err,
     ),
-    over_result(
+    declared(
         "unwrap_or",
         "The value of a success, and a default over a failure.",
-        &[T, E],
-        &[ArgumentSpec {
-            named: false,
-            ..ArgumentSpec::value("default", P::Var("T"))
-        }],
-        O::Type(P::Var("T")),
         eval_unwrap_or,
     ),
-    over_result(
+    declared(
         "unwrap_or_else",
         "The value of a success, and what a function of the error produces over a failure.",
-        &[T, E],
-        &[lambda("default", &[P::Var("E")], P::Var("T"))],
-        O::Type(P::Var("T")),
         eval_unwrap_or_else,
     ),
-    over_result(
+    declared(
         "map_err",
         "A function over the error of a failure; a success is kept.",
-        &[T, E, U],
-        &[lambda("by", &[P::Var("E")], P::Var("U"))],
-        O::Type(P::Apply(RESULT, &[P::Var("T"), P::Var("U")])),
         eval_map_err,
     ),
-    over_result(
+    declared(
         "and_then",
         "A function over the value of a success, whose own failure is kept.",
-        &[T, E, U],
-        &[lambda(
-            "by",
-            &[P::Var("T")],
-            P::Apply(RESULT, &[P::Var("U"), P::Var("E")]),
-        )],
-        O::Type(P::Apply(RESULT, &[P::Var("U"), P::Var("E")])),
         eval_and_then,
     ),
-    over_result(
+    declared(
         "or_else",
         "A function over the error of a failure, producing another result; a success is kept.",
-        &[T, E, U],
-        &[lambda(
-            "by",
-            &[P::Var("E")],
-            P::Apply(RESULT, &[P::Var("T"), P::Var("U")]),
-        )],
-        O::Type(P::Apply(RESULT, &[P::Var("T"), P::Var("U")])),
         eval_or_else,
     ),
 ];
@@ -307,7 +209,7 @@ mod tests {
     #[test]
     fn every_step_has_a_coherent_spec() {
         for step in STEPS {
-            step.spec
+            step.spec()
                 .validate()
                 .unwrap_or_else(|error| panic!("{}: {error}", step.name));
         }

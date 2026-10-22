@@ -15,10 +15,12 @@ use crate::execution::{Arg as TypedArg, Expr as TypedExpr};
 use crate::types::TypeRef;
 use crate::types::Value;
 use crate::vault::Vault;
+use std::collections::HashMap;
 use std::ops::Range;
 use std::path::Path;
 
 pub(crate) mod collections;
+pub(crate) mod contract;
 pub mod format;
 pub(crate) mod graph;
 pub(crate) mod io;
@@ -33,6 +35,7 @@ pub mod semantic;
 pub(crate) mod seq;
 pub mod spec;
 pub(crate) mod string;
+pub(crate) mod traits;
 use spec::{CheckedCall, OperationSpec};
 
 /// Whether the executor may move a step around.
@@ -136,8 +139,10 @@ pub(crate) trait EvalCx: Send {
 pub struct Operation {
     /// How it is written.
     pub(crate) name: &'static str,
-    /// Structural signature used for checking and help.
-    pub(crate) spec: OperationSpec,
+    /// Where its checking signature comes from: its HQL declaration, or a
+    /// native one for what a contract cannot state yet. Read it with
+    /// [`Operation::spec`].
+    pub(crate) spec: Signature,
     /// One sentence about what it does.
     pub(crate) summary: &'static str,
     /// Whether the executor may move it.
@@ -148,13 +153,73 @@ pub struct Operation {
     pub(crate) eval: Eval,
 }
 
+/// Where an operation's checking signature comes from.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Signature {
+    /// Its external declaration in a standard module: binding derives the
+    /// signature, and Rust writes no type.
+    Declared,
+    /// Written here, for an operation no contract declares or one whose
+    /// result the contract language cannot state yet: kept, reordered or
+    /// folded from the input, or computed from the call. Binding compares it
+    /// with the declaration wherever the declaration states one.
+    Native(OperationSpec),
+}
+
+/// The signatures binding derives for declared operations, by the address of
+/// the operation, which lives in a static table.
+fn declared_specs() -> &'static HashMap<usize, OperationSpec> {
+    static SPECS: std::sync::OnceLock<HashMap<usize, OperationSpec>> = std::sync::OnceLock::new();
+    SPECS.get_or_init(|| {
+        declared_signatures()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(_, _, step, declared)| {
+                Some((std::ptr::from_ref(step) as usize, declared.ok()?))
+            })
+            .collect()
+    })
+}
+
+/// What a declared operation checks against when its declaration states no
+/// signature, which binding refuses before any program runs.
+const UNBOUND: OperationSpec = OperationSpec {
+    parameters: &[],
+    input: spec::TypePattern::Any,
+    arguments: &[],
+    output: spec::Output::Input,
+};
+
+/// A pure operation whose signature is its declaration in a standard
+/// module: a name, a summary and what it does to a value.
+pub(crate) const fn declared(name: &'static str, summary: &'static str, eval: Eval) -> Operation {
+    Operation {
+        name,
+        spec: Signature::Declared,
+        summary,
+        purity: Purity::Pure,
+        check: None,
+        eval,
+    }
+}
+
 impl Operation {
+    /// The structural signature used for checking and help.
+    pub(crate) fn spec(&self) -> &OperationSpec {
+        match &self.spec {
+            Signature::Native(spec) => spec,
+            Signature::Declared => declared_specs()
+                .get(&(std::ptr::from_ref(self) as usize))
+                .unwrap_or(&UNBOUND),
+        }
+    }
+
     /// Whether the step returns its input as it is, at whatever type it has —
     /// `debug`. Such a step sees an optional value unlifted, absence included,
     /// because it neither consumes the value nor promises anything about it.
     pub(crate) fn keeps_input(&self) -> bool {
-        self.spec.output == spec::Output::Input
-            && matches!(self.spec.input, spec::TypePattern::Var(_))
+        self.spec().output == spec::Output::Input
+            && matches!(self.spec().input, spec::TypePattern::Var(_))
     }
 
     /// Whether the step receives an optional input as it is, absence
@@ -163,7 +228,7 @@ impl Operation {
     pub(crate) fn takes_raw_input(&self) -> bool {
         self.keeps_input()
             || self.name == "str"
-            || matches!(self.spec.input, spec::TypePattern::Apply(constructor, _) if matches!(constructor.0, "Option" | "Result"))
+            || matches!(self.spec().input, spec::TypePattern::Apply(constructor, _) if matches!(constructor.0, "Option" | "Result"))
     }
 }
 
@@ -494,8 +559,82 @@ pub fn bind() -> Result<(), String> {
     BOUND.get_or_init(bind_contracts).clone()
 }
 
+/// Every bodyless `impl` header of the standard library has a native body,
+/// and every native body has a header: the runtime implements what the
+/// language declares, and nothing besides.
+fn bind_native_impls() -> Result<(), String> {
+    let headers = crate::library::native_impls()?;
+    for header in &headers {
+        if traits::native_impl(&header.trait_name, &header.target).is_none() {
+            return Err(format!(
+                "`std/{}` declares `impl {} for {}` natively, and no extension implements it",
+                header.module, header.trait_name, header.target
+            ));
+        }
+    }
+    for held in traits::NATIVE_IMPLS {
+        if !headers
+            .iter()
+            .any(|header| header.trait_name == held.trait_name && header.target == held.target)
+        {
+            return Err(format!(
+                "an extension implements `{}` for {}, and no module declares \
+                 `impl {} for {}`: an extension implements declarations and creates none",
+                held.trait_name, held.target, held.trait_name, held.target
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Each external declaration of a standard module, with the extension
+/// operation that implements it and the signature the declaration states.
+type Declared = Vec<(
+    &'static str,
+    &'static Extension,
+    &'static Operation,
+    Result<OperationSpec, String>,
+)>;
+
+fn declared_signatures() -> Result<Declared, String> {
+    let mut found = Vec::new();
+    for (module, source) in crate::library::MODULES {
+        let program = crate::parser::parse(source)
+            .map_err(|error| format!("std/{module}: {}", error.message()))?;
+        let receiver = program
+            .statements
+            .iter()
+            .find_map(|statement| match statement {
+                crate::ast::Stmt::ModuleFor { pattern, .. } => Some(pattern),
+                _ => None,
+            });
+        for statement in &program.statements {
+            let crate::ast::Stmt::External(declaration) = statement else {
+                continue;
+            };
+            let Some(provider) = REGISTERED
+                .iter()
+                .find(|extension| extension.provides.contains(module))
+            else {
+                continue;
+            };
+            let Some(step) = provider.step(&declaration.name) else {
+                continue;
+            };
+            found.push((
+                *module,
+                *provider,
+                step,
+                contract::derive(declaration, receiver),
+            ));
+        }
+    }
+    Ok(found)
+}
+
 fn bind_contracts() -> Result<(), String> {
     use crate::library::contracts;
+    bind_native_impls()?;
     let contracts = contracts()?;
     for (module, declared) in &contracts {
         let provider = REGISTERED
@@ -507,51 +646,49 @@ fn bind_contracts() -> Result<(), String> {
                      externally, and no extension provides `{module}`"
                 )
             })?;
-        for declaration in declared {
-            let step = provider.step(&declaration.name).ok_or_else(|| {
-                format!(
-                    "`{module}.{}` is declared, and the extension `{}` implements no such \
-                     function",
-                    declaration.name, provider.name
-                )
-            })?;
-            let specs = step.spec.arguments;
-            let required = specs.iter().filter(|spec| spec.required).count();
-            let variadic = specs.iter().any(|spec| spec.variadic);
-            // `self`, or the first parameter, is the operation's input; the
-            // parameters after it are its arguments, in order.
-            let written = if declaration.has_self {
-                declaration.parameters
-            } else {
-                declaration.parameters.saturating_sub(1)
-            };
-            let fits = (required <= written && written <= specs.len())
-                || (variadic && written >= required);
-            if !fits || (declaration.variadic && !variadic) {
+        if let Some(declaration) = declared
+            .iter()
+            .find(|declaration| provider.step(&declaration.name).is_none())
+        {
+            return Err(format!(
+                "`{module}.{}` is declared, and the extension `{}` implements no such function",
+                declaration.name, provider.name
+            ));
+        }
+    }
+    // The declaration is the signature: a declared operation takes it, and a
+    // native one states the same types wherever the declaration states one.
+    let derived = declared_signatures()?;
+    for (module, provider, step, declared) in &derived {
+        let declared = declared.as_ref().map_err(|why| {
+            format!(
+                "`{module}.{}` states no signature an operation can take: {why}",
+                step.name
+            )
+        })?;
+        if let Signature::Native(native) = &step.spec {
+            let found = contract::departures(native, declared);
+            if !found.is_empty() {
                 return Err(format!(
-                    "`{module}.{}` declares {written} parameter{} after its input, and the \
-                     extension `{}` implements it with {} ({required} required{})",
-                    declaration.name,
-                    if written == 1 { "" } else { "s" },
+                    "`{module}.{}` is declared with other types than the extension `{}` \
+                     implements: {}",
+                    step.name,
                     provider.name,
-                    specs.len(),
-                    if variadic { ", the last variadic" } else { "" }
+                    found.join("; ")
                 ));
             }
-            let implemented = match step.spec.output {
-                spec::Output::Type(spec::TypePattern::Type(constructor))
-                | spec::Output::Type(spec::TypePattern::Apply(constructor, _)) => {
-                    Some(constructor.0)
-                }
-                _ => None,
-            };
-            if let Some(implemented) = implemented
-                && implemented != declaration.result
-            {
+        }
+    }
+    for extension in REGISTERED {
+        for step in extension.steps {
+            let bound = derived
+                .iter()
+                .any(|(_, _, held, _)| std::ptr::eq(*held, step));
+            if matches!(step.spec, Signature::Declared) && !bound {
                 return Err(format!(
-                    "`{module}.{}` is declared to return {}, and the extension `{}` returns \
-                     {implemented}",
-                    declaration.name, declaration.result, provider.name
+                    "the extension `{}` takes the signature of `{}` from its declaration, and \
+                     no contract under std/ declares it",
+                    extension.name, step.name
                 ));
             }
         }
@@ -612,7 +749,7 @@ impl Resolution {
     pub(crate) fn new(config: &Config) -> Result<Self, Diagnostic> {
         for extension in REGISTERED {
             for step in extension.steps {
-                step.spec.validate().map_err(|error| {
+                step.spec().validate().map_err(|error| {
                     Diagnostic::typing(0..0, format!("{}.{}, {error}", extension.name, step.name))
                 })?;
             }
@@ -730,15 +867,15 @@ impl Resolution {
                 let fitting: Vec<_> = many
                     .iter()
                     .filter(|(_, step)| {
-                        step.spec.input.accepts(input)
+                        step.spec().input.accepts(input)
                             || (input.constructor.0 == "Option"
-                                && step.spec.input.accepts(input.present()))
+                                && step.spec().input.accepts(input.present()))
                     })
                     .collect();
                 let by_arity: Vec<_> = fitting
                     .iter()
                     .filter(|(_, step)| {
-                        let specs = step.spec.arguments;
+                        let specs = step.spec().arguments;
                         let required = specs.iter().filter(|spec| spec.required).count();
                         let variadic = specs.iter().any(|spec| spec.variadic);
                         positional >= required && (variadic || positional <= specs.len())
@@ -897,8 +1034,8 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
                     provider: extension.name,
                     version: extension.version,
                     name: step.name,
-                    signature: step.spec.signature(step.name),
-                    spec: &step.spec,
+                    signature: step.spec().signature(step.name),
+                    spec: step.spec(),
                     summary: step.summary,
                     purity: step.purity,
                 })
@@ -1017,14 +1154,14 @@ mod tests {
         metadata: None,
         steps: &[Operation {
             name: "count",
-            spec: OperationSpec {
+            spec: Signature::Native(OperationSpec {
                 parameters: &[],
                 input: spec::TypePattern::Any,
                 arguments: &[],
                 output: spec::Output::Type(spec::TypePattern::Type(crate::types::TypeConstructor(
                     "Int",
                 ))),
-            },
+            }),
             summary: "A second `count`, so the collision has two sides.",
             purity: Purity::Pure,
             check: None,
@@ -1115,6 +1252,10 @@ mod tests {
     #[test]
     fn the_standard_contracts_bind_to_their_extensions() {
         assert_eq!(bind(), Ok(()));
+        // Every declared operation takes a signature its declaration states.
+        for (module, _, step, declared) in declared_signatures().unwrap() {
+            assert!(declared.is_ok(), "{module}.{}: {declared:?}", step.name);
+        }
         // Every module declared externally has a provider, and the provider's
         // name is how `hql builtins` lists it.
         for (module, _) in crate::library::contracts().unwrap() {

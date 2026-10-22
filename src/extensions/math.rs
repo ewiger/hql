@@ -3,36 +3,17 @@
 
 use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P};
 use super::{EvalCx, Operation, Purity};
+use super::{Signature, declared};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
-use crate::types::{TypeConstructor, Value};
+use crate::types::Value;
 use std::ops::Range;
-
-const INT: TypeConstructor = TypeConstructor("Int");
-const FLOAT: TypeConstructor = TypeConstructor("Float");
-const NUMBER: P = P::OneOf(&[P::Type(INT), P::Type(FLOAT)]);
-
-const fn float_fn(name: &'static str, summary: &'static str, eval: super::Eval) -> Operation {
-    Operation {
-        name,
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::Type(FLOAT),
-            arguments: &[],
-            output: O::Type(P::Type(FLOAT)),
-        },
-        summary,
-        purity: Purity::Pure,
-        check: None,
-        eval,
-    }
-}
 
 /// Every step the `math` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "abs",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "N",
                 bound: None,
@@ -40,7 +21,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Var("N"),
             arguments: &[],
             output: O::Input,
-        },
+        }),
         summary: "The number without its sign.",
         purity: Purity::Pure,
         check: Some(check_number),
@@ -48,7 +29,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "pow",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "N",
                 bound: None,
@@ -59,89 +40,45 @@ pub(crate) static STEPS: &[Operation] = &[
                 ..ArgumentSpec::value("exponent", P::Var("N"))
             }],
             output: O::Input,
-        },
+        }),
         summary: "The number raised to an exponent of the same type.",
         purity: Purity::Pure,
         check: Some(check_number),
         eval: eval_pow,
     },
     Operation {
-        name: "sign",
-        spec: OperationSpec {
-            parameters: &[],
-            input: NUMBER,
-            arguments: &[],
-            output: O::Type(P::Type(INT)),
-        },
-        summary: "-1, 0 or 1 by the sign of the number.",
-        purity: Purity::Pure,
-        check: None,
-        eval: eval_sign,
+        check: Some(check_number),
+        ..declared("sign", "-1, 0 or 1 by the sign of the number.", eval_sign)
     },
-    Operation {
-        name: "float",
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::Type(INT),
-            arguments: &[],
-            output: O::Type(P::Type(FLOAT)),
-        },
-        summary: "The Int as a Float.",
-        purity: Purity::Pure,
-        check: None,
-        eval: eval_float,
-    },
-    Operation {
-        name: "int",
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::Type(FLOAT),
-            arguments: &[],
-            output: O::Type(P::Type(INT)),
-        },
-        summary: "The Float as an Int, its fraction dropped.",
-        purity: Purity::Pure,
-        check: None,
-        eval: eval_int,
-    },
-    Operation {
-        name: "gcd",
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::Type(INT),
-            arguments: &[ArgumentSpec {
-                named: false,
-                ..ArgumentSpec::value("other", P::Type(INT))
-            }],
-            output: O::Type(P::Type(INT)),
-        },
-        summary: "The greatest common divisor of two Ints.",
-        purity: Purity::Pure,
-        check: None,
-        eval: eval_gcd,
-    },
-    float_fn("sqrt", "The square root.", eval_sqrt),
-    float_fn(
+    declared("float", "The Int as a Float.", eval_float),
+    declared(
+        "int",
+        "The Float as an Int, its fraction dropped.",
+        eval_int,
+    ),
+    declared("gcd", "The greatest common divisor of two Ints.", eval_gcd),
+    declared("sqrt", "The square root.", eval_sqrt),
+    declared(
         "floor",
         "The greatest whole number not above the value.",
         eval_floor,
     ),
-    float_fn(
+    declared(
         "ceil",
         "The least whole number not below the value.",
         eval_ceil,
     ),
-    float_fn(
+    declared(
         "round",
         "The nearest whole number, halves away from zero.",
         eval_round,
     ),
-    float_fn("exp", "e raised to the value.", eval_exp),
-    float_fn("ln", "The natural logarithm.", eval_ln),
-    float_fn("log10", "The base-10 logarithm.", eval_log10),
-    float_fn("sin", "The sine of an angle in radians.", eval_sin),
-    float_fn("cos", "The cosine of an angle in radians.", eval_cos),
-    float_fn("tan", "The tangent of an angle in radians.", eval_tan),
+    declared("exp", "e raised to the value.", eval_exp),
+    declared("ln", "The natural logarithm.", eval_ln),
+    declared("log10", "The base-10 logarithm.", eval_log10),
+    declared("sin", "The sine of an angle in radians.", eval_sin),
+    declared("cos", "The cosine of an angle in radians.", eval_cos),
+    declared("tan", "The tangent of an angle in radians.", eval_tan),
 ];
 
 fn check_number(
@@ -360,7 +297,7 @@ mod tests {
     #[test]
     fn every_step_has_a_coherent_spec() {
         for step in STEPS {
-            step.spec
+            step.spec()
                 .validate()
                 .unwrap_or_else(|error| panic!("{}: {error}", step.name));
         }

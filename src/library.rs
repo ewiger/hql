@@ -114,6 +114,52 @@ pub fn contracts() -> Result<Contracts, String> {
         .clone()
 }
 
+/// A bodyless `impl` header of a standard module: the declaration that a
+/// type implements a trait natively, which an extension's function bodies
+/// satisfy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeHeader {
+    /// The canonical name of the module declaring it.
+    pub module: &'static str,
+    pub trait_name: String,
+    /// The implementing type's name.
+    pub target: String,
+}
+
+/// Every native implementation the standard library declares, in order.
+/// These are the only implementations of a trait for a built-in type: the
+/// runtime supplies the bodies, and the headers say which exist.
+///
+/// # Errors
+///
+/// Returns the first module that does not parse, a defect of the binary.
+pub fn native_impls() -> Result<Vec<NativeHeader>, String> {
+    static HEADERS: OnceLock<Result<Vec<NativeHeader>, String>> = OnceLock::new();
+    HEADERS
+        .get_or_init(|| {
+            let mut found = Vec::new();
+            for (name, source) in MODULES {
+                let program = crate::parser::parse(source)
+                    .map_err(|error| format!("std/{name}: {}", error.message()))?;
+                found.extend(
+                    program
+                        .statements
+                        .iter()
+                        .filter_map(|statement| match statement {
+                            Stmt::Impl(declaration) if declaration.native => Some(NativeHeader {
+                                module: name,
+                                trait_name: declaration.trait_name.clone(),
+                                target: declaration.target.name.clone(),
+                            }),
+                            _ => None,
+                        }),
+                );
+            }
+            Ok(found)
+        })
+        .clone()
+}
+
 /// The whole library as one program's source.
 #[must_use]
 pub fn source() -> String {

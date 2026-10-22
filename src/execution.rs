@@ -424,6 +424,9 @@ impl Checked {
                     | ast::Stmt::External(_)
                     | ast::Stmt::Type(_)
                     | ast::Stmt::Trait(_) => Stmt::Unit,
+                    // A native implementation runs no HQL: its header is
+                    // bound to an extension's bodies.
+                    ast::Stmt::Impl(declaration) if declaration.native => Stmt::Unit,
                     ast::Stmt::Impl(declaration) => {
                         let lowering = self.impls.get(&declaration.span).ok_or_else(|| {
                             Diagnostic::typing(

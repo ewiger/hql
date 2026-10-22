@@ -230,11 +230,18 @@ impl Evaluator<'_> {
         span: &Range<usize>,
     ) -> Result<Value, Diagnostic> {
         let receiver_type = receiver.type_of();
-        let function = self
+        let declared = self
             .impls
             .iter()
             .rev()
-            .find(|held| held.trait_name == trait_name && receiver_type.is(&held.target))
+            .find(|held| held.trait_name == trait_name && receiver_type.is(&held.target));
+        if declared.is_none()
+            && let Some(native) =
+                crate::extensions::traits::native_impl(trait_name, receiver_type.constructor.0)
+        {
+            return (native.body)(method, receiver, arguments, span);
+        }
+        let function = declared
             .and_then(|held| held.methods.get(method).cloned())
             .ok_or_else(|| {
                 Diagnostic::runtime(
@@ -660,47 +667,7 @@ impl Evaluator<'_> {
     ) -> Result<Value, Diagnostic> {
         let mut result = self.expression(first)?;
         for (operator, right, span) in rest {
-            let overflow = || Diagnostic::Overflow { span: span.clone() };
-            result = match (result, self.expression(right)?) {
-                (Value::Int(a), Value::Int(b)) => {
-                    if b == 0 && matches!(operator, Arith::Div | Arith::Rem) {
-                        return Err(Diagnostic::runtime(span.clone(), "division by zero"));
-                    }
-                    // Division truncates toward zero, and `%` keeps the sign
-                    // of the dividend, so `a == (a / b) * b + a % b`.
-                    match operator {
-                        Arith::Add => a.checked_add(b),
-                        Arith::Sub => a.checked_sub(b),
-                        Arith::Mul => a.checked_mul(b),
-                        Arith::Div => a.checked_div(b),
-                        Arith::Rem => a.checked_rem(b),
-                    }
-                    .map(Value::Int)
-                    .ok_or_else(overflow)?
-                }
-                (Value::Float(a), Value::Float(b)) => {
-                    if b == 0.0 && matches!(operator, Arith::Div | Arith::Rem) {
-                        return Err(Diagnostic::runtime(span.clone(), "division by zero"));
-                    }
-                    let result = match operator {
-                        Arith::Add => a + b,
-                        Arith::Sub => a - b,
-                        Arith::Mul => a * b,
-                        Arith::Div => a / b,
-                        Arith::Rem => a % b,
-                    };
-                    if !result.is_finite() {
-                        return Err(overflow());
-                    }
-                    Value::Float(result)
-                }
-                _ => {
-                    return Err(Diagnostic::runtime(
-                        span.clone(),
-                        format!("invalid checked {}", operator.noun()),
-                    ));
-                }
-            };
+            result = arithmetic_of(*operator, result, self.expression(right)?, span)?;
         }
         Ok(result)
     }
@@ -1619,4 +1586,56 @@ fn fits(pattern: &crate::ast::Pattern, value: &Value, bindings: &mut Vec<(String
         }
         _ => false,
     }
+}
+
+/// Two Int or two Float operands under an arithmetic operator: what the
+/// operators compute natively, and the body of the core arithmetic traits'
+/// native implementations.
+pub(crate) fn arithmetic_of(
+    operator: Arith,
+    left: Value,
+    right: Value,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let overflow = || Diagnostic::Overflow { span: span.clone() };
+    Ok(match (left, right) {
+        (Value::Int(a), Value::Int(b)) => {
+            if b == 0 && matches!(operator, Arith::Div | Arith::Rem) {
+                return Err(Diagnostic::runtime(span.clone(), "division by zero"));
+            }
+            // Division truncates toward zero, and `%` keeps the sign
+            // of the dividend, so `a == (a / b) * b + a % b`.
+            match operator {
+                Arith::Add => a.checked_add(b),
+                Arith::Sub => a.checked_sub(b),
+                Arith::Mul => a.checked_mul(b),
+                Arith::Div => a.checked_div(b),
+                Arith::Rem => a.checked_rem(b),
+            }
+            .map(Value::Int)
+            .ok_or_else(overflow)?
+        }
+        (Value::Float(a), Value::Float(b)) => {
+            if b == 0.0 && matches!(operator, Arith::Div | Arith::Rem) {
+                return Err(Diagnostic::runtime(span.clone(), "division by zero"));
+            }
+            let result = match operator {
+                Arith::Add => a + b,
+                Arith::Sub => a - b,
+                Arith::Mul => a * b,
+                Arith::Div => a / b,
+                Arith::Rem => a % b,
+            };
+            if !result.is_finite() {
+                return Err(overflow());
+            }
+            Value::Float(result)
+        }
+        _ => {
+            return Err(Diagnostic::runtime(
+                span.clone(),
+                format!("invalid checked {}", operator.noun()),
+            ));
+        }
+    })
 }

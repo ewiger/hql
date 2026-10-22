@@ -35,71 +35,86 @@ the import a program is missing instead of guessing at a misspelling.
 
 ## How an HQL interface is wired to its implementation
 
-**HQL declares, an extension implements.** The interface of a module is its
-HQL file; the implementation is native, inside an extension, and is reached
-only through the declaration ([HQL-0024](../../proposals/HQL-0024/README.md),
-parts 1, 3 and 9). The wiring, as the binary does it:
+**An HQL module is a language contract. Extensions do not extend the HQL type
+system; they provide native implementations for declarations already present
+in that contract.** An extension may implement declarations; it may not create
+them: that a function exists and its signature, that a type exists with its
+parents and fields, that a type implements a trait, are all declared in HQL. A
+module needs no extension at all when its bodies are HQL, and may mix HQL and
+native bodies. The model and its stages are
+[HQL-0024 part 12](../../proposals/HQL-0024/parts/12-contracts-and-binding.md).
 
 | In the `.hql` contract | In the extension | Matched by |
 | --- | --- | --- |
-| the module, `std/string.hql` is `string` | the descriptor's `provides: &["string"]` | the canonical module name; one extension per module, any number of modules per extension |
-| an external declaration, `fn trim(self) : String` | an `Operation` named `trim` | the name; every declaration must be implemented and nothing else may be |
-| `self`, or the first parameter where there is no `self` | the operation's input, `P::Type(STRING)` | position: the receiver module's pattern is the input's type |
-| the parameters after it, in order | the operation's arguments, in order; a named argument by its name | arity: the written count lies between the required and the declared arguments, or the last is variadic on both sides |
-| the result type | the operation's output | the result's constructor, where the output names one; an output that keeps or maps the input is not compared |
-| a declared type without fields, `type File : {Replayable, Writable}` | a `Value` representation and the constructor step that builds it, `file(path)` | the type's name; the extension may not add a type, a parent or a field |
+| the module, `std/string.hql` is `string` | the descriptor's `provides: &["string"]` | the canonical module name; the claim is total: every external declaration of the module is implemented, and nothing else is |
+| an external declaration, `fn trim(self) : String` | an operation named `trim`: `declared("trim", summary, eval_trim)` | the name |
+| the receiver, `self`, typed by the module's pattern or written, `self: Collection<T>` | the operation's input | binding derives it from the declaration |
+| the generic parameters and their bounds, the parameters in order, a function type as a lambda, `...T` as a variadic argument and `step: Int = 1` as one that may be omitted | the operation's arguments | binding derives them from the declaration |
+| the result type | the operation's output | binding derives it from the declaration |
+| a native implementation, `impl Ord for Int` | a body for the trait's functions over the type's values | the trait and the type; a header needs a body and a body needs a header |
+| a declared type, `type File : {Replayable, Writable} { path : String }` | a `Value` representation and the constructor that builds it, `file(path)` | the type's name; the extension adds no type, parent or field |
 
-Binding runs once per process, before the first program, and a disagreement
-refuses every program with a message naming the module, the declaration and
-the extension. It replaces no test: `tests/declarations.rs` still compares the
-names, and the binding is what runs in production.
+The declaration is the signature. An operation implementing one writes no
+type in Rust: binding reads the declaration and gives the checker the
+signature it states. An operation whose result the contract language cannot
+state yet, one that keeps, reorders or folds its input, keeps a native
+signature, and binding compares it with the declaration in full: the input,
+each argument's name and type, the bounds and the result. Binding runs once
+per process, before the first program, and a disagreement refuses every
+program with a message naming the module, the declaration and the extension.
 
-A worked example across the three kinds of declaration:
+A method call, a qualified call and a pipeline step reach the same
+declaration:
 
 ```hql
-// std/string.hql: the module is a receiver module over String, and every
-// function is external.
+// std/string.hql: a receiver module over String; every function is external.
 module for String
 fn trim(self) : String
 fn pad_left(self, width: Int, fill: String) : String
 ```
 
-```rust
-// src/extensions/string.rs: the extension named `string` provides the
-// module `string`; `trim` and `pad_left` are its operations, the input is
-// `self`, and the two arguments of `pad_left` follow in order.
-static STRING: Extension = Extension { name: "string", provides: &["string"], steps: string::STEPS, .. };
-Operation { name: "pad_left", spec: OperationSpec { input: P::Type(STRING), arguments: &[width, fill], output: O::Type(P::Type(STRING)), .. }, .. }
-```
+`"x".pad_left(3, "0")`, `string.pad_left("x", 3, "0")` and
+`"x" | pad_left(3, "0")` resolve `string.pad_left`, then run the `string`
+extension's operation of that name. `text | parse` lowering to `parse(text)`
+is a property of the pipeline syntax, not of the module: a declaration without
+`self` has no receiver.
 
-Calling `"x".pad_left(3, "0")`, `string.pad_left("x", 3, "0")` or
-`"x" | pad_left(3, "0")` resolves the declaration and runs the operation.
+A trait the language owns, and the built-in types' implementations of it, are
+declarations of `std/core.hql`:
 
 ```hql
-// std/io/mod.hql: a type the extension represents, and the constructor that
-// builds it, declared here and implemented by the `io` extension.
-type File : {Replayable, Writable} { path : String }
-// file(path: String) : File
-```
-
-The `io` extension holds the representation, `Value::Endpoint`, and the step
-`file`; a program never sees either, only `File` and `file(p)`.
-
-```hql
-// std/core.hql: a trait the language owns.
 trait Ord {
     fn compare(self, other: Self) : Ordering
 }
+impl Ord for Int
+impl Ord for Float
+impl Ord for String
 ```
 
-`Ord` for `Int`, `Float` and `String` is implemented natively, through the
-values' own order; `impl Ord for Version { … }` in a program is an HQL body
-run by the runtime; both are reached by `compare`, `<`, `sort`, `min` and
-`max` through the one declaration. What part 1 also allows, an `impl` header
-declared in HQL with a body an extension supplies, is not yet built, and
-neither are extensions outside the binary: today every extension is compiled
-in and the descriptor is the `provides` field of its static table entry, the
-first stage of part 9's plan.
+The header is the whole HQL side of a native implementation; the runtime
+binds the body. `impl Ord for Version { … }` in a program is an HQL body.
+Both are entries of one implementation table, and `compare`, `<`, `sort`,
+`min` and `max` resolve through it alike. A built-in type implements exactly
+the traits its headers name: `String` is `Ord` and not `Add`, `Bool` is `Eq`
+and not `Ord`.
+
+Implementations are coherent: one per trait and type, across the standard
+library, imported modules and the program, the error naming both; an
+implementation is declared with its trait or with its type, so a program
+implements its own trait for `Int` and `Eq` for its own `Version`, and never
+`Add` for `String`. A bodyless header belongs to a module an extension
+provides; a program writes the functions in braces.
+
+Four parts of the model are not yet built. An operation whose result keeps,
+reorders or folds its input, `reverse`, `distinct` or `abs`, still carries a
+native signature beside its declaration, compared rather than replaced, and
+binding maps a declaration without `self` by its first parameter to the
+operation's single input.
+Purity is marked on the Rust operation rather than declared in HQL. A type an
+extension represents uses one of the binary's closed `Value` forms, `File` a
+`Value::Endpoint`, rather than a native value carrying the declared type's
+identity. Every extension is compiled in, so binding is per process rather
+than per runtime environment.
 
 Steps split by the layering core → graph → knowledge:
 

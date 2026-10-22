@@ -6,16 +6,16 @@ use super::spec::{
     ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,
 };
 use super::{EvalCx, Operation, Purity, named_or_first};
+use super::{Signature, declared};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
-use crate::types::collections::{LIST, MAP, SEQ, SET};
+use crate::types::collections::{MAP, SEQ, SET};
 use crate::types::{MapKind, MapValue, Record, TypeConstructor, TypeRef, Value};
 use std::ops::Range;
 use std::sync::Arc;
 
 use super::collections::{elements, pending, produced, wrong};
 
-const INT: TypeConstructor = TypeConstructor("Int");
 const BOOL: TypeConstructor = TypeConstructor("Bool");
 const OPTION: TypeConstructor = TypeConstructor("Option");
 /// The constructor of a pair, `type Pair<A, B> { first : A, second : B }`.
@@ -23,10 +23,6 @@ pub const PAIR: TypeConstructor = TypeConstructor("Pair");
 
 const T: TypeParameter = TypeParameter {
     name: "T",
-    bound: None,
-};
-const U: TypeParameter = TypeParameter {
-    name: "U",
     bound: None,
 };
 const K: TypeParameter = TypeParameter {
@@ -61,12 +57,12 @@ const fn op(
 ) -> Operation {
     Operation {
         name,
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters,
             input,
             arguments,
             output,
-        },
+        }),
         summary,
         purity: Purity::Pure,
         check: None,
@@ -76,22 +72,14 @@ const fn op(
 
 /// Every step the `seq` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
-    op(
+    declared(
         "first",
         "The element at position 0, or absence over an empty sequence.",
-        &[T],
-        SEQ_T,
-        &[],
-        O::Type(P::Apply(OPTION, &[P::Var("T")])),
         eval_first,
     ),
-    op(
+    declared(
         "last",
         "The element at the last position, or absence over an empty sequence.",
-        &[T],
-        SEQ_T,
-        &[],
-        O::Type(P::Apply(OPTION, &[P::Var("T")])),
         eval_last,
     ),
     op(
@@ -112,67 +100,34 @@ pub(crate) static STEPS: &[Operation] = &[
         O::Prefix("T"),
         eval_distinct,
     ),
-    op(
+    declared(
         "zip",
         "Pairs of elements at equal positions, as long as the shorter sequence.",
-        &[T, U],
-        SEQ_T,
-        &[ArgumentSpec {
-            named: false,
-            ..ArgumentSpec::value("other", P::Apply(SEQ, &[P::Var("U")]))
-        }],
-        O::Type(P::Apply(
-            LIST,
-            &[P::Apply(PAIR, &[P::Var("T"), P::Var("U")])],
-        )),
         eval_zip,
     ),
-    op(
+    declared(
         "enumerate",
         "Each element paired with its position, counting from 0.",
-        &[T],
-        SEQ_T,
-        &[],
-        O::Type(P::Apply(
-            LIST,
-            &[P::Apply(PAIR, &[P::Type(INT), P::Var("T")])],
-        )),
         eval_enumerate,
     ),
-    op(
+    declared(
         "any",
         "Whether a predicate holds of some occurrence; false over an empty input.",
-        &[T],
-        P::Collection(&P::Var("T")),
-        &[PREDICATE],
-        O::Type(P::Type(BOOL)),
         eval_any,
     ),
-    op(
+    declared(
         "all",
         "Whether a predicate holds of every occurrence; true over an empty input.",
-        &[T],
-        P::Collection(&P::Var("T")),
-        &[PREDICATE],
-        O::Type(P::Type(BOOL)),
         eval_all,
     ),
-    op(
+    declared(
         "find",
         "The first element a predicate accepts, or absence.",
-        &[T],
-        SEQ_T,
-        &[PREDICATE],
-        O::Type(P::Apply(OPTION, &[P::Var("T")])),
         eval_find,
     ),
-    op(
+    declared(
         "position",
         "The position of the first element a predicate accepts, or absence.",
-        &[T],
-        SEQ_T,
-        &[PREDICATE],
-        O::Type(P::Apply(OPTION, &[P::Type(INT)])),
         eval_position,
     ),
     op(
@@ -193,86 +148,29 @@ pub(crate) static STEPS: &[Operation] = &[
         O::Prefix("T"),
         eval_drop_while,
     ),
-    op(
+    declared(
         "window",
         "Every run of n consecutive elements, in order.",
-        &[T],
-        SEQ_T,
-        &[ArgumentSpec {
-            named: false,
-            ..ArgumentSpec::value("n", P::Type(INT))
-        }],
-        O::Type(P::Apply(LIST, &[P::Apply(LIST, &[P::Var("T")])])),
         eval_window,
     ),
-    op(
+    declared(
         "partition",
         "The elements a predicate accepts, and then the ones it rejects, each in order.",
-        &[T],
-        SEQ_T,
-        &[PREDICATE],
-        O::Type(P::Apply(
-            PAIR,
-            &[
-                P::Apply(LIST, &[P::Var("T")]),
-                P::Apply(LIST, &[P::Var("T")]),
-            ],
-        )),
         eval_partition,
     ),
-    op(
+    declared(
         "is_empty",
         "Whether the collection has no occurrences.",
-        &[T],
-        P::Collection(&P::Var("T")),
-        &[],
-        O::Type(P::Type(BOOL)),
         eval_is_empty,
     ),
-    op(
+    declared(
         "range",
         "The Ints from the start up to, not including, an end, by a step of 1 or as given.",
-        &[],
-        P::Type(INT),
-        &[
-            ArgumentSpec {
-                named: false,
-                ..ArgumentSpec::value("end", P::Type(INT))
-            },
-            ArgumentSpec {
-                required: false,
-                ..ArgumentSpec::value("step", P::Type(INT))
-            },
-        ],
-        O::Type(P::Apply(LIST, &[P::Type(INT)])),
         eval_range,
     ),
-    op(
+    declared(
         "join",
         "Every pair of an element and one of another collection that a predicate relates.",
-        &[T, U],
-        P::Collection(&P::Var("T")),
-        &[
-            ArgumentSpec {
-                named: false,
-                ..ArgumentSpec::value("other", P::Collection(&P::Var("U")))
-            },
-            ArgumentSpec {
-                name: "by",
-                kind: A::Lambda {
-                    parameters: &[P::Var("T"), P::Var("U")],
-                    result: P::Type(BOOL),
-                },
-                required: true,
-                positional: true,
-                named: true,
-                variadic: false,
-            },
-        ],
-        O::Type(P::Apply(
-            LIST,
-            &[P::Apply(PAIR, &[P::Var("T"), P::Var("U")])],
-        )),
         eval_join,
     ),
     op(
@@ -307,36 +205,9 @@ pub(crate) static STEPS: &[Operation] = &[
         O::Type(P::Apply(OPTION, &[P::Var("T")])),
         eval_max_by,
     ),
-    op(
+    declared(
         "to_map",
         "A map from each element's key to its value; two elements with one key are refused.",
-        &[T, K, V],
-        P::Collection(&P::Var("T")),
-        &[
-            ArgumentSpec {
-                name: "key",
-                kind: A::Lambda {
-                    parameters: &[P::Var("T")],
-                    result: P::Var("K"),
-                },
-                required: true,
-                positional: true,
-                named: true,
-                variadic: false,
-            },
-            ArgumentSpec {
-                name: "value",
-                kind: A::Lambda {
-                    parameters: &[P::Var("T")],
-                    result: P::Var("V"),
-                },
-                required: true,
-                positional: true,
-                named: true,
-                variadic: false,
-            },
-        ],
-        O::Type(P::Apply(MAP, &[P::Var("K"), P::Var("V")])),
         eval_to_map,
     ),
     op(
@@ -369,25 +240,14 @@ pub(crate) static STEPS: &[Operation] = &[
         O::Input,
         eval_without,
     ),
-    op(
+    declared(
         "entries",
         "Each association as a pair of its key and its value.",
-        &[K, V],
-        P::Apply(MAP, &[P::Var("K"), P::Var("V")]),
-        &[],
-        O::Type(P::Apply(
-            LIST,
-            &[P::Apply(PAIR, &[P::Var("K"), P::Var("V")])],
-        )),
         eval_entries,
     ),
-    op(
+    declared(
         "values",
         "The values of a map, in its key order.",
-        &[K, V],
-        P::Apply(MAP, &[P::Var("K"), P::Var("V")]),
-        &[],
-        O::Type(P::Apply(LIST, &[P::Var("V")])),
         eval_values,
     ),
     op(
@@ -1061,7 +921,7 @@ mod tests {
     #[test]
     fn every_step_has_a_coherent_spec() {
         for step in STEPS {
-            step.spec
+            step.spec()
                 .validate()
                 .unwrap_or_else(|error| panic!("{}: {error}", step.name));
         }

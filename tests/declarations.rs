@@ -508,24 +508,14 @@ fn a_name_off_its_kinds_convention_is_a_warning_at_the_name() {
 fn every_external_declaration_has_an_implementation_and_every_implementation_a_declaration() {
     let catalogue = hql::extensions::catalogue(&hql::extensions::Config::default());
     let mut checked = 0;
-    for (name, source) in library::MODULES {
-        let declared: Vec<&str> = source
-            .lines()
-            .filter_map(|line| line.strip_prefix("fn "))
-            .filter(|line| !line.contains('='))
-            .map(|line| {
-                line.split(['(', '<'])
-                    .next()
-                    .expect("a function name")
-                    .trim()
-            })
+    for (name, contract) in library::contracts().expect("std parses") {
+        let declared: Vec<&str> = contract
+            .iter()
+            .map(|declaration| declaration.name.as_str())
             .collect();
-        if declared.is_empty() {
-            continue;
-        }
         let provider = catalogue
             .iter()
-            .find(|provider| provider.name == *name)
+            .find(|provider| provider.name == name)
             .unwrap_or_else(|| {
                 panic!(
                     "std/{name}.hql declares externally, and no `{name}` extension implements it"

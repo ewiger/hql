@@ -13,6 +13,10 @@ functions, with one intentional error for a parameter type.
 The [streams](streams/README.md) cases generate values with `yield`, end an
 unbounded stream with `take`, and refuse `yield` outside a `fn` block body.
 
+The [slicing](slicing/README.md) cases take a position with `xs[i]` and a
+slice with `xs[a:b]` over strings, lists, documents, streams and a declared
+type, written ahead of [HQL-0026](../doc/proposals/HQL-0026/README.md).
+
 The [todo board](todo/README.md) lists open tasks and architecture decisions
 with `hql#eval` cells, reading typed sort keys out of card metadata.
 

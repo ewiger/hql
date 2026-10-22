@@ -1,142 +1,41 @@
 //! The `option` module: the ways out of an `Option<T>`, each saying what
 //! absence means. There is no unwrap.
 
-use super::spec::{
-    ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,
-};
-use super::{EvalCx, Operation, Purity, named_or_first};
+use super::declared;
+use super::{EvalCx, Operation, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
-use crate::types::{TypeConstructor, Value};
+use crate::types::Value;
 use std::ops::Range;
 use std::sync::Arc;
 
-const OPTION: TypeConstructor = TypeConstructor("Option");
-const BOOL: TypeConstructor = TypeConstructor("Bool");
-const T: TypeParameter = TypeParameter {
-    name: "T",
-    bound: None,
-};
-const U: TypeParameter = TypeParameter {
-    name: "U",
-    bound: None,
-};
-
-const fn over_option(
-    name: &'static str,
-    summary: &'static str,
-    parameters: &'static [TypeParameter],
-    arguments: &'static [ArgumentSpec],
-    output: O,
-    eval: super::Eval,
-) -> Operation {
-    Operation {
-        name,
-        spec: OperationSpec {
-            parameters,
-            input: P::Apply(OPTION, &[P::Var("T")]),
-            arguments,
-            output,
-        },
-        summary,
-        purity: Purity::Pure,
-        check: None,
-        eval,
-    }
-}
-
 /// Every step the `option` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
-    over_option(
-        "is_some",
-        "Whether a value is present.",
-        &[T],
-        &[],
-        O::Type(P::Type(BOOL)),
-        eval_is_some,
-    ),
-    over_option(
-        "is_none",
-        "Whether the value is absent.",
-        &[T],
-        &[],
-        O::Type(P::Type(BOOL)),
-        eval_is_none,
-    ),
-    over_option(
+    declared("is_some", "Whether a value is present.", eval_is_some),
+    declared("is_none", "Whether the value is absent.", eval_is_none),
+    declared(
         "unwrap_or",
         "The value when present, and a default otherwise.",
-        &[T],
-        &[ArgumentSpec {
-            named: false,
-            ..ArgumentSpec::value("default", P::Var("T"))
-        }],
-        O::Type(P::Var("T")),
         eval_unwrap_or,
     ),
-    over_option(
+    declared(
         "unwrap_or_else",
         "The value when present, and what a function produces otherwise.",
-        &[T],
-        &[ArgumentSpec {
-            name: "default",
-            kind: A::Lambda {
-                parameters: &[],
-                result: P::Var("T"),
-            },
-            required: true,
-            positional: true,
-            named: true,
-            variadic: false,
-        }],
-        O::Type(P::Var("T")),
         eval_unwrap_or_else,
     ),
-    over_option(
+    declared(
         "and_then",
         "A function over the present value, whose own absence is kept.",
-        &[T, U],
-        &[ArgumentSpec {
-            name: "by",
-            kind: A::Lambda {
-                parameters: &[P::Var("T")],
-                result: P::Apply(OPTION, &[P::Var("U")]),
-            },
-            required: true,
-            positional: true,
-            named: true,
-            variadic: false,
-        }],
-        O::Type(P::Apply(OPTION, &[P::Var("U")])),
         eval_and_then,
     ),
-    over_option(
+    declared(
         "or_else",
         "The value when present, and what a function produces otherwise, which may itself be absent.",
-        &[T],
-        &[ArgumentSpec {
-            name: "default",
-            kind: A::Lambda {
-                parameters: &[],
-                result: P::Apply(OPTION, &[P::Var("T")]),
-            },
-            required: true,
-            positional: true,
-            named: true,
-            variadic: false,
-        }],
-        O::Type(P::Apply(OPTION, &[P::Var("T")])),
         eval_or_else,
     ),
-    over_option(
+    declared(
         "alternative",
         "The value when present, and another option otherwise.",
-        &[T],
-        &[ArgumentSpec {
-            named: false,
-            ..ArgumentSpec::value("other", P::Apply(OPTION, &[P::Var("T")]))
-        }],
-        O::Type(P::Apply(OPTION, &[P::Var("T")])),
         eval_alternative,
     ),
 ];
@@ -252,7 +151,7 @@ mod tests {
     #[test]
     fn every_step_has_a_coherent_spec() {
         for step in STEPS {
-            step.spec
+            step.spec()
                 .validate()
                 .unwrap_or_else(|error| panic!("{}: {error}", step.name));
         }

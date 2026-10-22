@@ -42,7 +42,8 @@ pub(crate) enum Stmt {
     /// `trait Name { fn m(self, ..) : R [= body] .. }`: a capability contract.
     Trait(TraitDecl),
     /// `impl Name for Type { fn m(self, ..) : R = body .. }`: a type's
-    /// implementation of a trait.
+    /// implementation of a trait; `impl Name for Type` alone declares one an
+    /// extension implements.
     Impl(ImplDecl),
     Expr(Expr),
 }
@@ -61,6 +62,9 @@ pub(crate) struct TraitDecl {
 pub(crate) struct ImplDecl {
     pub trait_name: String,
     pub target: TypeAnn,
+    /// Whether the header stands alone: the implementation is native, and an
+    /// extension supplies every function of it.
+    pub native: bool,
     pub methods: Vec<MethodDecl>,
     pub span: Range<usize>,
 }
@@ -103,6 +107,9 @@ pub(crate) struct FnDecl {
 pub(crate) struct ExternalDecl {
     pub name: String,
     pub has_self: bool,
+    /// The receiver's type where it is written, `self: Collection<T>`: a
+    /// receiver the module's pattern does not describe exactly.
+    pub receiver: Option<TypeAnn>,
     pub generics: Vec<String>,
     pub bounds: Vec<(String, TypeAnn)>,
     pub parameters: Vec<Param>,
@@ -167,6 +174,9 @@ pub(crate) struct Param {
     pub annotation: TypeAnn,
     /// `xs: ...T`: the trailing arguments of a call, collected.
     pub variadic: bool,
+    /// `step: Int = 1`: the value an omitted argument takes, written only in
+    /// an external declaration.
+    pub default: Option<Expr>,
 }
 
 /// A declared type: what it is called, what it narrows, and what it holds.

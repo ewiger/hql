@@ -46,17 +46,31 @@ impl Add for Int {
 ```
 
 An implementation associates a trait, a type and the required operations. Its
-body may be HQL or native. The draft fixes the semantics and leaves the exact
-spelling of `trait` and `impl` to a grammar decision.
+body may be HQL or native. A native implementation is the header alone:
+
+```hql
+impl Add for Int
+impl Ord for String
+```
+
+The header is the declaration; an extension binds the bodies to it
+([part 12](12-contracts-and-binding.md)). That a built-in type implements a
+trait is therefore stated in HQL, in [`std/core.hql`](../../../../std/core.hql),
+and the runtime implements exactly the headers declared there: binding refuses
+a header without a native body and a native body without a header. Only a
+module an extension provides declares a bodyless header; a program or a
+workspace module writes the functions in braces.
 
 ### Coherence
 
 For one effective environment there is at most one implementation of a trait
-for a concrete type. Two are a compile error naming both; import order never
-chooses. An implementation must belong to the module family that defines
-either the trait or the type, so a third package cannot change the meaning of
-`Add for Int`. Full coherence rules are left by the draft to a dedicated trait
-record.
+for a concrete type, whether it is native or HQL. Two are a compile error
+naming both, across the standard library, the imported modules and the
+program; import order never chooses, and the one implementation reached
+through two imports is still one. An implementation is declared by the unit
+that declares the trait or the type, so a third party cannot change the
+meaning of `Add for Int`: a program implements its own trait for any type and
+any trait for its own type.
 
 ### The core set
 
@@ -73,54 +87,31 @@ code or language semantics has to quantify over a shared capability.
 
 ## Current state
 
-The [type system card](../../../wiki/hql/type-system.hmd) states **there are
-no traits**, and gives three mechanisms for what a trait would be asked to do:
+Built: `trait` and `impl` with `Self`, default bodies, `T : Trait` bounds
+checked at every call, dispatch on the value's own type, operators resolving
+through `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Eq` and `Ord`, native headers for
+the built-in types in `std/core.hql`, coherence and ownership as above. The
+core set is `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div` and `Rem`; `Neg`,
+`Hashable` and `Numeric` are not declared.
 
-| What is said | Today's mechanism |
+| Type | Native implementations |
 | --- | --- |
-| the value is the thing | ancestry: `type Int : {Scalar, Orderable}` |
-| something can be done with the value | an extension registers `render(Graph) -> Html`; the checker consults the registration |
-| several types share fields | a partial schema over `Data` |
+| `Bool` | `Eq` |
+| `Int`, `Float` | `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` |
+| `String`, `Date` | `Eq`, `Ord` |
 
-Bounds are written against **abstract types of law**: `T : Orderable`,
-`S : Collection<T>`, `F<_> : Iterable<_>`. An abstract type is declared with
-`abstract type Orderable` in [`std/core.hql`](../../../../std/core.hql), has
-no runtime constructor, is satisfied by a type naming it in its supertype set,
-and its law is enforced behaviorally in Rust. `compare`, `min`, `max`, `sort`
-and `SortedMap` keys require `Orderable` ([orderable](../../../wiki/hql/types/orderable.hmd)).
-
-## What changes
-
-- The card's position is reversed in one respect: a capability that generic
-  code quantifies over becomes a trait with an `impl`, instead of a
-  registration the checker consults. The other two rows stand: ancestry stays
-  `:` under `type`, and partial schemas stay with `Data`.
-- `abstract type` is not mentioned by the draft, so it stays as declared. The
-  two constructs now overlap exactly once: `Orderable` (ancestry, declared in a
-  supertype set) and `Ord` (a trait with an implementation) say the same thing
-  about `Int`. The design must pick one of:
-  - abstract types of law remain the bounds vocabulary for structure
-    (`Collection`, `Seq`, `Iterable`, `Endpoint`), and traits cover operations
-    a type implements (`Eq`, `Add`, `Ord`), with `Orderable` either kept as the
-    ancestry form of `Ord` or retired in its favour;
-  - every abstract type used only as a bound becomes a trait, and `abstract
-    type` is kept for abstract *collections* that have carriers (`Seq` over
-    `List`), which is what the "type of law" argument was written for.
-- `Renderable<T>`, which the card leaves as "a registration whose shape is a
-  design question", gets its shape from this part: a parameterized trait with
-  an implementation per type and format, or stays a registration if traits are
-  kept to operators. [Part 11](11-type-system-completion.md) carries the item.
-- Inline bounds `<T : Eq>` are the draft's only spelling; the card accepts
-  inline and `where`. Both stay unless the grammar decision removes one.
-- `Self` inside a trait body is new; the naming card gains it beside `self`.
+`Orderable` stays as the ancestry form of `Ord`: the built-in ordered types
+name it in their supertype sets, and a type implementing `Ord` adopts it, so
+`compare`, `<`, `sort`, `min`, `max` and `SortedMap` keys accept either. The
+[type system card](../../../wiki/hql/type-system.hmd) states the split between
+ancestry, traits and registrations.
 
 ## Work units
 
-1. The grammar decision for `trait` and `impl`, and `Self`.
+1. The grammar for `trait`, `impl` and `Self`. Done.
 2. Trait declarations, implementations, constraint checking at a call and
-   the coherence diagnostic.
+   the coherence diagnostic. Done.
 3. The core trait set in `std/`, with native implementations for `Int`,
-   `Float`, `String`, and the `Orderable` versus `Ord` decision applied to
-   `std/core.hql`, `compare`, `sort` and `SortedMap`.
-4. Updating the type system card's "There are no traits" section and the
-   design status card's "Current direction" to the adopted split.
+   `Float`, `String`, `Bool` and `Date` declared as bodyless headers. Done;
+   `Neg`, `Hashable` and `Numeric` remain.
+4. The type system card's traits section. Done.

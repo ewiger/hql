@@ -52,7 +52,8 @@ pub(crate) fn check_with<'a>(
         effectful: HashMap::new(),
         traits: core_traits(),
         trait_decls: HashMap::new(),
-        impls: Vec::new(),
+        impls: native_impls(),
+        unit: String::new(),
         trait_bounds: Vec::new(),
         trait_bounded: HashMap::new(),
         modules: Vec::new(),
@@ -111,7 +112,8 @@ pub(crate) fn check_collecting_with<'a>(
         effectful: HashMap::new(),
         traits: core_traits(),
         trait_decls: HashMap::new(),
-        impls: Vec::new(),
+        impls: native_impls(),
+        unit: String::new(),
         trait_bounds: Vec::new(),
         trait_bounded: HashMap::new(),
         modules: Vec::new(),
@@ -400,7 +402,8 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 effectful: HashMap::new(),
                 traits: core_traits(),
                 trait_decls: HashMap::new(),
-                impls: Vec::new(),
+                impls: native_impls(),
+                unit: String::new(),
                 trait_bounds: Vec::new(),
                 trait_bounded: HashMap::new(),
                 modules: Vec::new(),
@@ -456,8 +459,12 @@ struct Checker<'a> {
     /// The program's trait declarations, for the default bodies an
     /// implementation inherits.
     trait_decls: HashMap<String, &'a TraitDecl>,
-    /// Every implementation the program has declared.
+    /// Every implementation in force: the standard library's native ones,
+    /// the imported modules', and the unit's own.
     impls: Vec<ImplInfo>,
+    /// The module this checker checks, or empty for a program: where an
+    /// implementation it declares comes from.
+    unit: String,
     /// The trait bounds in force while a generic body is checked: each type
     /// variable and the trait it satisfies.
     trait_bounds: Vec<(TypeRef, String)>,
@@ -514,6 +521,39 @@ pub(crate) struct ImplInfo {
     pub trait_name: String,
     pub target: TypeRef,
     pub span: Range<usize>,
+    /// Where it is declared: `std/core` for a native one, a module's name,
+    /// or empty for the program's own.
+    pub origin: String,
+}
+
+impl ImplInfo {
+    fn whence(&self) -> String {
+        if self.origin.is_empty() {
+            format!("this program, at byte {}", self.span.start)
+        } else if self.origin.starts_with("std/") {
+            format!("`{}`, natively", self.origin)
+        } else {
+            format!("module `{}`", self.origin)
+        }
+    }
+}
+
+/// The native implementations the standard library declares, bodyless
+/// `impl` headers an extension supplies the functions of: in force in
+/// every program, as an implementation the program wrote would be.
+pub(crate) fn native_impls() -> Vec<ImplInfo> {
+    crate::library::native_impls()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|header| {
+            Some(ImplInfo {
+                target: crate::types::builtin::named(&header.target, &[])?,
+                trait_name: header.trait_name,
+                span: 0..0,
+                origin: format!("std/{}", header.module),
+            })
+        })
+        .collect()
 }
 
 /// The type `Self` stands for inside a trait, before an implementation
@@ -1835,10 +1875,29 @@ impl<'a> Checker<'a> {
                 .or_insert_with(|| info.clone());
         }
         for held in &module.impls {
-            if !self.impls.iter().any(|known| {
+            let known = self.impls.iter().find(|known| {
                 known.trait_name == held.trait_name
                     && known.target.constructor == held.target.constructor
-            }) {
+            });
+            if let Some(known) = known {
+                // The one implementation reached through two imports is
+                // still one; two implementations are an incoherence.
+                if known.origin == held.origin && known.span == held.span {
+                    continue;
+                }
+                return Err(Diagnostic::typing(
+                    span.clone(),
+                    format!(
+                        "`{}` is implemented for {} in {} and in {}: a trait has one \
+                         implementation per type, and import order does not choose",
+                        held.trait_name,
+                        held.target,
+                        known.whence(),
+                        held.whence()
+                    ),
+                ));
+            }
+            {
                 self.impls.push(held.clone());
                 if held.trait_name == "Ord" {
                     crate::types::program::adopt_parent(
@@ -1950,7 +2009,8 @@ impl<'a> Checker<'a> {
             effectful: HashMap::new(),
             traits: core_traits(),
             trait_decls: HashMap::new(),
-            impls: Vec::new(),
+            impls: native_impls(),
+            unit: name.to_owned(),
             trait_bounds: Vec::new(),
             trait_bounded: HashMap::new(),
             modules: Vec::new(),
@@ -2152,8 +2212,9 @@ impl<'a> Checker<'a> {
     }
 
     /// `impl Name for Type { … }`: every function the trait requires, with
-    /// `self` at the type, and the trait's defaults for the rest. One
-    /// implementation per trait and type.
+    /// `self` at the type, and the trait's defaults for the rest. The unit
+    /// declaring it declares the trait or the type, and there is one
+    /// implementation per trait and type wherever it comes from.
     fn implement(&mut self, declaration: &'a ImplDecl) -> Result<(), Diagnostic> {
         let trait_name = declaration.trait_name.as_str();
         let info = self.traits.get(trait_name).cloned().ok_or_else(|| {
@@ -2163,15 +2224,51 @@ impl<'a> Checker<'a> {
             )
         })?;
         let target = crate::declarations::annotation(&declaration.target)?;
+        if declaration.native {
+            // The header is the declaration a native implementation is bound
+            // to: the standard library's, read again, or nothing.
+            let bound = self.impls.iter().any(|held| {
+                held.trait_name == trait_name
+                    && held.target.constructor == target.constructor
+                    && held.origin.starts_with("std/")
+            });
+            if bound {
+                return Ok(());
+            }
+            return Err(Diagnostic::typing(
+                declaration.span.clone(),
+                format!(
+                    "`impl {trait_name} for {target}` has no body, and no extension implements \
+                     it: a native implementation is declared by a module an extension provides, \
+                     and here the functions are written in braces"
+                ),
+            ));
+        }
         if let Some(previous) = self.impls.iter().find(|held| {
             held.trait_name == trait_name && held.target.constructor == target.constructor
         }) {
             return Err(Diagnostic::typing(
                 declaration.span.clone(),
                 format!(
-                    "`{trait_name}` is implemented for {target} twice, and the earlier one \
-                     is still in force (it begins at byte {})",
-                    previous.span.start
+                    "`{trait_name}` is already implemented for {target}, in {}: a trait has \
+                     one implementation per type",
+                    previous.whence()
+                ),
+            ));
+        }
+        if !self.trait_decls.contains_key(trait_name)
+            && !self.declarations.holds(target.constructor.0)
+        {
+            return Err(Diagnostic::typing(
+                declaration.span.clone(),
+                format!(
+                    "`impl {trait_name} for {target}` belongs with `{trait_name}` or with \
+                     {target}, and {} declares neither",
+                    if self.unit.is_empty() {
+                        "this program".to_owned()
+                    } else {
+                        format!("module `{}`", self.unit)
+                    }
                 ),
             ));
         }
@@ -2291,6 +2388,7 @@ impl<'a> Checker<'a> {
                 trait_name: trait_name.to_owned(),
                 target: target.clone(),
                 span: declaration.span.clone(),
+                origin: self.unit.clone(),
             });
             let body_type = self.with_bindings(
                 names.iter().cloned().zip(types.iter().cloned()),
@@ -2324,6 +2422,7 @@ impl<'a> Checker<'a> {
             trait_name: trait_name.to_owned(),
             target: target.clone(),
             span: declaration.span.clone(),
+            origin: self.unit.clone(),
         });
         // A type implementing `Ord` is Orderable: `compare`, `<`, `sort`,
         // `min` and `max` accept it, and its `compare` decides the order.
@@ -3235,7 +3334,7 @@ impl<'a> Checker<'a> {
         {
             let held = TypeRef::list(input.present().clone());
             let (result, call) = step
-                .spec
+                .spec()
                 .check(step.name, self, &held, input_expr, arguments, &span)?;
             if let Some(check) = step.check {
                 check(self, &call, span)?;
@@ -3282,7 +3381,7 @@ impl<'a> Checker<'a> {
             input.present().clone()
         };
         let (result, call) = step
-            .spec
+            .spec()
             .check(step.name, self, &input, input_expr, arguments, &span)?;
         if let Some(check) = step.check {
             check(self, &call, span)?;

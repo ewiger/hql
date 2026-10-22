@@ -3,6 +3,7 @@
 //! These stay in the core rather than becoming an extension because they
 //! operate on the core's own collection types and mention nothing above them.
 
+use super::Signature;
 use super::spec::{
     ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,
 };
@@ -59,7 +60,7 @@ const OPTION: crate::types::TypeConstructor = crate::types::TypeConstructor("Opt
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "size",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -67,7 +68,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Collection(&P::Var("T")),
             arguments: &[],
             output: O::Type(P::Type(crate::types::TypeConstructor("Int"))),
-        },
+        }),
         summary: "Count all element occurrences.",
         purity: Purity::Pure,
         check: None,
@@ -75,7 +76,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "contains",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -86,7 +87,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 ..ArgumentSpec::value("value", P::Var("T"))
             }],
             output: O::Type(P::Type(crate::types::TypeConstructor("Bool"))),
-        },
+        }),
         summary: "Whether a value occurs in the collection.",
         purity: Purity::Pure,
         check: None,
@@ -94,7 +95,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "get",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "K",
@@ -114,7 +115,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 crate::types::TypeConstructor("Option"),
                 &[P::Var("V")],
             )),
-        },
+        }),
         summary: "Look up a key, yielding absence when it is missing.",
         purity: Purity::Pure,
         check: None,
@@ -122,7 +123,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "count",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -134,7 +135,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 ..ArgumentSpec::value("value", P::Var("T"))
             }],
             output: O::Type(P::Type(crate::types::TypeConstructor("Int"))),
-        },
+        }),
         summary: "Count occurrences of a value; without an argument, count all occurrences.",
         purity: Purity::Pure,
         check: None,
@@ -142,7 +143,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "sort",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -157,7 +158,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 variadic: false,
             }],
             output: O::Reorder("T"),
-        },
+        }),
         summary: "Order a collection by its elements' own key, or by one you supply.",
         purity: Purity::Pure,
         check: Some(check_sort),
@@ -165,7 +166,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "take",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -176,7 +177,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 P::Type(crate::types::TypeConstructor("Int")),
             )],
             output: O::Prefix("T"),
-        },
+        }),
         summary: "The first n elements, in the elements' own order.",
         purity: Purity::Pure,
         check: Some(check_take),
@@ -184,7 +185,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "collect",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -213,7 +214,7 @@ pub(crate) static STEPS: &[Operation] = &[
                     &[P::Apply(crate::types::collections::LIST, &[P::Var("T")])],
                 ),
             },
-        },
+        }),
         summary: "Consecutive values in batches of n, in order; the last batch may be shorter.",
         purity: Purity::Pure,
         check: Some(check_collect),
@@ -221,7 +222,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "emit",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -232,7 +233,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 finite: P::Apply(crate::types::collections::LIST, &[P::Var("T")]),
                 open: P::Apply(crate::types::collections::STREAM, &[P::Var("T")]),
             },
-        },
+        }),
         summary: "Every member of every sequence, in order: the inverse of collect.",
         purity: Purity::Pure,
         check: Some(check_emit),
@@ -240,7 +241,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "flat_map",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -267,7 +268,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 finite: P::Apply(crate::types::collections::LIST, &[P::Var("U")]),
                 open: P::Apply(crate::types::collections::STREAM, &[P::Var("U")]),
             },
-        },
+        }),
         summary: "map then emit: each value to a sequence, and their members in order.",
         purity: Purity::Pure,
         check: Some(check_ordered),
@@ -275,7 +276,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "drop",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -286,7 +287,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 P::Type(crate::types::TypeConstructor("Int")),
             )],
             output: O::Input,
-        },
+        }),
         summary: "Everything after the first n elements, in the input's own order.",
         purity: Purity::Pure,
         check: Some(check_drop),
@@ -294,7 +295,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "filter",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -312,7 +313,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 variadic: false,
             }],
             output: O::Input,
-        },
+        }),
         summary: "Keep the elements a predicate accepts.",
         purity: Purity::Pure,
         check: None,
@@ -320,7 +321,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "map",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -344,7 +345,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 variadic: false,
             }],
             output: O::Image("R"),
-        },
+        }),
         summary: "Apply a function to every element; the result keeps the input's collection type.",
         purity: Purity::Pure,
         check: None,
@@ -352,7 +353,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "of_type",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -373,7 +374,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 variadic: false,
             }],
             output: O::Image("U"),
-        },
+        }),
         summary: "Keep the elements of a type, narrowing the element type: filter(x => x | is(U)).",
         purity: Purity::Pure,
         check: Some(check_of_type),
@@ -381,7 +382,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "is",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -402,7 +403,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 variadic: false,
             }],
             output: O::Type(P::Type(crate::types::TypeConstructor("Bool"))),
-        },
+        }),
         summary: "Whether a value's runtime type is a type or one of its subtypes.",
         purity: Purity::Pure,
         check: Some(check_of_type),
@@ -410,7 +411,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "somes",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -418,7 +419,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Collection(&P::Apply(OPTION, &[P::Var("T")])),
             arguments: &[],
             output: O::Image("T"),
-        },
+        }),
         summary: "Keep the present values of a collection of options, dropping the absent ones.",
         purity: Purity::Pure,
         check: None,
@@ -426,7 +427,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "group",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -456,7 +457,7 @@ pub(crate) static STEPS: &[Operation] = &[
                     &[P::Var("K"), P::Var("T")],
                 )],
             )),
-        },
+        }),
         summary: "Partition occurrences by key into a set of groups, each a key and its items.",
         purity: Purity::Pure,
         check: None,
@@ -464,7 +465,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "reduce",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -498,7 +499,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 accumulator: "R",
                 element: "T",
             },
-        },
+        }),
         summary: "Fold a sequence from the left, from an initial value or from its first element.",
         purity: Purity::Pure,
         check: Some(check_reduce),
@@ -506,7 +507,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "sum",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -514,7 +515,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Collection(&P::Var("T")),
             arguments: &[],
             output: O::Number("T"),
-        },
+        }),
         summary: "Add every occurrence: reduce(0, +). An empty input sums to zero.",
         purity: Purity::Pure,
         check: Some(check_sum),
@@ -522,7 +523,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "product",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -530,7 +531,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Collection(&P::Var("T")),
             arguments: &[],
             output: O::Number("T"),
-        },
+        }),
         summary: "Multiply every occurrence: reduce(1, *). An empty input multiplies to one.",
         purity: Purity::Pure,
         check: Some(check_sum),
@@ -538,7 +539,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "average",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -549,7 +550,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 OPTION,
                 &[P::Type(crate::types::TypeConstructor("Float"))],
             )),
-        },
+        }),
         summary: "The mean of the occurrences, as a Float. Absent over an empty input.",
         purity: Purity::Pure,
         check: Some(check_sum),
@@ -557,7 +558,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "merge_all",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -565,7 +566,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Collection(&P::Var("T")),
             arguments: &[],
             output: O::Type(P::Var("T")),
-        },
+        }),
         summary: "Merge every map in order, a later key winning: reduce({}, merge).",
         purity: Purity::Pure,
         check: Some(check_all),
@@ -573,7 +574,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "union_all",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -581,7 +582,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Collection(&P::Var("T")),
             arguments: &[],
             output: O::Type(P::Var("T")),
-        },
+        }),
         summary: "Every member of every set: reduce(Set([]), union).",
         purity: Purity::Pure,
         check: Some(check_all),
@@ -589,7 +590,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "concat_all",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "U",
                 bound: None,
@@ -597,7 +598,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Collection(&P::Apply(crate::types::collections::SEQ, &[P::Var("U")])),
             arguments: &[],
             output: O::Type(P::Apply(crate::types::collections::LIST, &[P::Var("U")])),
-        },
+        }),
         summary: "Every member of every sequence, in order: reduce([], concat).",
         purity: Purity::Pure,
         check: Some(check_ordered),
@@ -605,7 +606,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "min",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -613,7 +614,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Collection(&P::Var("T")),
             arguments: &[],
             output: O::Type(P::Apply(OPTION, &[P::Var("T")])),
-        },
+        }),
         summary: "The least occurrence by value order: reduce(min). Absent over an empty input.",
         purity: Purity::Pure,
         check: Some(check_extreme),
@@ -621,7 +622,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "max",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "T",
                 bound: None,
@@ -629,7 +630,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Collection(&P::Var("T")),
             arguments: &[],
             output: O::Type(P::Apply(OPTION, &[P::Var("T")])),
-        },
+        }),
         summary: "The greatest occurrence by value order: reduce(max). Absent over an empty input.",
         purity: Purity::Pure,
         check: Some(check_extreme),

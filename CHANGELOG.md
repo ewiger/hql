@@ -10,6 +10,14 @@ The language continues to be in active development.
 
 ### Added
 
+- String functions in the prelude
+  ([issue 0031](doc/issues/0031-missing-string-functions.md)):
+  `last_index_of`, `occurrences`, `strip_prefix` and `strip_suffix` (an
+  `Option`), `trim_prefix` and `trim_suffix` (the text unchanged when the part
+  is missing), `is_blank`, `equals_ignore_case`, `to_bool`, `ord`, `chr`,
+  `bytes` (UTF-8), `truncate` and `center`. `split` takes an optional
+  `limit` that keeps at most that many pieces, the last holding the rest.
+
 - A complete type system and the language model around it, from
   [HQL-0024](doc/proposals/HQL-0024/README.md), shown program by program in
   the [Mighty Types corpus](examples/mighty-types/README.md):
@@ -35,6 +43,19 @@ The language continues to be in active development.
     checked at every call, dispatch on the value's own type; the operators
     resolve through `Add`, `Sub`, `Mul`, `Div`, `Rem` and `Eq`, and a type
     implementing `Ord` is `Orderable` for `<`, `sort`, `min` and `max`.
+  - Strict traits: `std/core.hql` declares the built-in types' native
+    implementations as bodyless headers, `impl Ord for Int`, so `T : Eq`
+    takes `Int` and `T : Add` refuses `String`; binding refuses a header
+    without a native body and a native body without a header; one
+    implementation per trait and type across the standard library, imported
+    modules and the program, the error naming both; an implementation is
+    declared with its trait or its type ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.md)).
+  - A standard module's `.hql` declaration is its functions' signature: an
+    operation implementing one writes no type in Rust, binding derives what
+    the checker uses, and an operation that keeps a native signature is
+    compared with its declaration in full, so the two cannot drift. A
+    declaration may write its receiver's type, `fn join(self: Collection<String>, …)`,
+    and a default for an argument that may be omitted, `step: Int = 1`.
   - Modules: `import a.b as c` binds one module under a local name, builtin
     (`io.net`) or a workspace module found by its position under a module
     root, `hql.toml` `[modules] roots` or `--modules`; a module file declares
@@ -47,6 +68,10 @@ The language continues to be in active development.
     comma; an integer literal takes a call, `7.max(3)`.
 
 ### Changed
+
+- `string.replace` and `regex.replace` are now `replace_all`, and each has a
+  `replace_first` beside it, so a replacement names whether it applies to
+  the first occurrence or to every occurrence.
 
 - A format is a `Format`, a category of its own, not a `String` subtype
   ([HQL-0024 part 7](doc/proposals/HQL-0024/parts/07-formats-and-codecs.md),

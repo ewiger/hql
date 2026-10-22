@@ -6,6 +6,7 @@
 //! Which renderer writes a type in a format is chosen per vault in `hql.toml`,
 //! over built-in defaults. See [HQL-0017](../../doc/proposals/HQL-0017/README.md).
 
+use super::Signature;
 use super::spec::{
     ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P,
 };
@@ -480,7 +481,7 @@ fn cut_marker(format: TypeConstructor, cut: usize) -> String {
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "format",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[TypeParameter {
                 name: "F",
                 bound: Some(crate::types::builtin::FORMAT),
@@ -513,7 +514,7 @@ pub(crate) static STEPS: &[Operation] = &[
                     &[P::Type(TypeConstructor("String"))],
                 ),
             },
-        },
+        }),
         summary: "Encode any value as text in a format, chosen by its type; a stream \
                   piece by piece.",
         purity: Purity::Pure,
@@ -624,7 +625,7 @@ fn unwrapped(value: &Value) -> &Value {
 const fn shorthand(name: &'static str, check: super::Check, eval: super::Eval) -> Operation {
     Operation {
         name,
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[],
             input: P::Any,
             arguments: &[],
@@ -636,7 +637,7 @@ const fn shorthand(name: &'static str, check: super::Check, eval: super::Eval) -
                     &[P::Type(TypeConstructor("String"))],
                 ),
             },
-        },
+        }),
         summary: "Shorthand for format with its format fixed.",
         purity: Purity::Pure,
         check: Some(check),

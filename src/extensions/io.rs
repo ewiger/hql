@@ -7,6 +7,7 @@
 //! says whether a file is replaced or appended to. The I/O itself is in
 //! [`crate::io`]. See [HQL-0021](../../doc/proposals/HQL-0021/README.md).
 
+use super::Signature;
 use super::spec::{
     ArgumentKind as A, ArgumentSpec, CheckedCall, OperationSpec, Output as O, TypeParameter,
     TypePattern as P,
@@ -50,12 +51,12 @@ const ENDPOINT: ArgumentSpec =
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "file",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[],
             input: P::Type(TypeConstructor("String")),
             arguments: &[],
             output: O::Type(P::Type(TypeConstructor("File"))),
-        },
+        }),
         summary: "The file at a path, as an endpoint: read whole, written by replacing it; \
                   its `.end` is appended to and followed.",
         purity: Purity::Pure,
@@ -64,12 +65,12 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "source",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[FORMAT_PARAMETER],
             input: P::Type(TypeConstructor("Readable")),
             arguments: &[FORMAT],
             output: O::Computed("Seq<T> | Stream<T>"),
-        },
+        }),
         summary: "Read an endpoint's documents in a format: every one, as a Seq, when it can \
                   be read again; each as it arrives, as a Stream, when it cannot.",
         purity: Purity::Effectful,
@@ -78,12 +79,12 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "tap",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[FORMAT_PARAMETER],
             input: P::Type(TypeConstructor("Readable")),
             arguments: &[FORMAT],
             output: O::Computed("Stream<T>"),
-        },
+        }),
         summary: "Read an endpoint's documents one at a time, as a Stream; at a file's \
                   `.end`, each one appended from now on.",
         purity: Purity::Effectful,
@@ -92,7 +93,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "target",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -103,7 +104,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Var("T"),
             arguments: &[ENDPOINT, FORMAT],
             output: O::Type(P::Type(TypeConstructor("Unit"))),
-        },
+        }),
         summary: "Write one completed value as one document; a file is replaced, its `.end` \
                   appended to.",
         purity: Purity::Effectful,
@@ -112,7 +113,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "sink",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[
                 TypeParameter {
                     name: "T",
@@ -123,7 +124,7 @@ pub(crate) static STEPS: &[Operation] = &[
             input: P::Iterable(&P::Var("T")),
             arguments: &[ENDPOINT, FORMAT],
             output: O::Type(P::Type(TypeConstructor("Unit"))),
-        },
+        }),
         summary: "Write each value of a stream as one document, as it arrives; a file is \
                   replaced, its `.end` appended to.",
         purity: Purity::Effectful,

@@ -5,94 +5,49 @@
 //! A pattern is a `String`; one that does not parse is an evaluation error
 //! at the call, naming what the pattern engine refused.
 
-use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypePattern as P};
-use super::{EvalCx, Operation, Purity};
+use super::declared;
+use super::{EvalCx, Operation};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
-use crate::types::collections::LIST;
-use crate::types::{TypeConstructor, TypeRef, Value};
+use crate::types::{TypeRef, Value};
 use std::ops::Range;
 use std::sync::Arc;
 
-const STRING: TypeConstructor = TypeConstructor("String");
-const BOOL: TypeConstructor = TypeConstructor("Bool");
-const OPTION: TypeConstructor = TypeConstructor("Option");
-
-const PATTERN: ArgumentSpec = ArgumentSpec {
-    named: false,
-    ..ArgumentSpec::value("pattern", P::Type(STRING))
-};
-
-const fn over_text(
-    name: &'static str,
-    summary: &'static str,
-    arguments: &'static [ArgumentSpec],
-    output: P,
-    eval: super::Eval,
-) -> Operation {
-    Operation {
-        name,
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::Type(STRING),
-            arguments,
-            output: O::Type(output),
-        },
-        summary,
-        purity: Purity::Pure,
-        check: None,
-        eval,
-    }
-}
-
 /// Every step the `regex` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
-    over_text(
+    declared(
         "is_match",
         "Whether the pattern matches somewhere in the text.",
-        &[PATTERN],
-        P::Type(BOOL),
         eval_is_match,
     ),
-    over_text(
+    declared(
         "find",
         "The first match of the pattern, or absence.",
-        &[PATTERN],
-        P::Apply(OPTION, &[P::Type(STRING)]),
         eval_find,
     ),
-    over_text(
+    declared(
         "find_all",
         "Every non-overlapping match of the pattern, in order.",
-        &[PATTERN],
-        P::Apply(LIST, &[P::Type(STRING)]),
         eval_find_all,
     ),
-    over_text(
+    declared(
         "captures",
         "The first match and its groups, whole match first, or absence; a group that did not take part is empty.",
-        &[PATTERN],
-        P::Apply(OPTION, &[P::Apply(LIST, &[P::Type(STRING)])]),
         eval_captures,
     ),
-    over_text(
-        "replace",
+    declared(
+        "replace_all",
         "The text with every match replaced; `$1` in the replacement is the first group.",
-        &[
-            PATTERN,
-            ArgumentSpec {
-                named: false,
-                ..ArgumentSpec::value("replacement", P::Type(STRING))
-            },
-        ],
-        P::Type(STRING),
-        eval_replace,
+        eval_replace_all,
     ),
-    over_text(
+    declared(
+        "replace_first",
+        "The text with the first match replaced; `$1` in the replacement is the first group.",
+        eval_replace_first,
+    ),
+    declared(
         "split",
         "The pieces between matches of the pattern, in order.",
-        &[PATTERN],
-        P::Apply(LIST, &[P::Type(STRING)]),
         eval_split,
     ),
 ];
@@ -194,20 +149,45 @@ fn eval_captures(
     })
 }
 
-fn eval_replace(
+/// The text with the first match, or every match, replaced.
+fn replaced(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+    name: &str,
+    every: bool,
+) -> Result<Value, Diagnostic> {
+    let haystack = input_text(&input, name, &span)?;
+    let pattern = pattern(cx, arguments, 0, name, &span)?;
+    let replacement = arguments.get(1).ok_or_else(|| {
+        Diagnostic::runtime(span.clone(), format!("`{name}` needs a replacement"))
+    })?;
+    let replacement = cx.evaluate(&replacement.value)?;
+    let replacement = input_text(&replacement, name, &span)?;
+    Ok(text(&if every {
+        pattern.replace_all(&haystack, replacement.as_str())
+    } else {
+        pattern.replace(&haystack, replacement.as_str())
+    }))
+}
+
+fn eval_replace_all(
     cx: &mut dyn EvalCx,
     input: Value,
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    let haystack = input_text(&input, "replace", &span)?;
-    let pattern = pattern(cx, arguments, 0, "replace", &span)?;
-    let replacement = arguments
-        .get(1)
-        .ok_or_else(|| Diagnostic::runtime(span.clone(), "`replace` needs a replacement"))?;
-    let replacement = cx.evaluate(&replacement.value)?;
-    let replacement = input_text(&replacement, "replace", &span)?;
-    Ok(text(&pattern.replace_all(&haystack, replacement.as_str())))
+    replaced(cx, input, arguments, span, "replace_all", true)
+}
+
+fn eval_replace_first(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    replaced(cx, input, arguments, span, "replace_first", false)
 }
 
 fn eval_split(
@@ -228,7 +208,7 @@ mod tests {
     #[test]
     fn every_step_has_a_coherent_spec() {
         for step in STEPS {
-            step.spec
+            step.spec()
                 .validate()
                 .unwrap_or_else(|error| panic!("{}: {error}", step.name));
         }

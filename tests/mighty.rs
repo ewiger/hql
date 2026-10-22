@@ -132,7 +132,7 @@ fn a_trait_is_implemented_once_per_type_and_dispatched_on_the_value() {
         refused(&format!(
             "{shape}impl Shape for C {{\n    fn area(self) : Float = 1.0\n}}\n1"
         ))
-        .contains("implemented for C twice")
+        .contains("already implemented for C, in this program")
     );
     assert!(
         refused("trait T { fn f(self) : Int }\ntype A { a : Int }\nimpl T for A {\n}\n1")

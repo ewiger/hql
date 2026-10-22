@@ -710,7 +710,8 @@ impl Parser {
         })
     }
 
-    /// `impl Name for Type { fn m(self, p: T) : R = body … }`.
+    /// `impl Name for Type { fn m(self, p: T) : R = body … }`, or the header
+    /// alone for a native implementation.
     fn implementation(&mut self) -> Result<ImplDecl, Diagnostic> {
         let start = self.advance().span.start;
         let named = self.advance();
@@ -722,10 +723,21 @@ impl Parser {
             "after the trait an impl provides",
         )?;
         let target = self.simple_type()?;
+        if !matches!(self.peek(), Token::OpenBrace) {
+            let end = target.span.end;
+            return Ok(ImplDecl {
+                trait_name,
+                target,
+                native: true,
+                methods: Vec::new(),
+                span: start..end,
+            });
+        }
         let (methods, end) = self.methods("an impl")?;
         Ok(ImplDecl {
             trait_name,
             target,
+            native: false,
             methods,
             span: start..end,
         })
@@ -817,6 +829,7 @@ impl Parser {
                         span: written.span,
                         annotation,
                         variadic: false,
+                        default: None,
                     });
                 }
                 if !self.eat(&Token::Comma) {
@@ -878,6 +891,7 @@ impl Parser {
         self.nesting += 1;
         let mut parameters: Vec<Param> = Vec::new();
         let mut has_self = false;
+        let mut receiver = None;
         if !matches!(self.peek(), Token::CloseParen) {
             loop {
                 let written = self.advance();
@@ -887,10 +901,14 @@ impl Parser {
                         "expected a parameter name",
                     ));
                 };
-                // `self` opens a receiver function, untyped: its type is the
-                // module's receiver pattern.
+                // `self` opens a receiver function: its type is the module's
+                // receiver pattern, or, in an external declaration, the type
+                // written after it, `self: Collection<T>`.
                 if parameter == "self" && parameters.is_empty() && !has_self {
                     has_self = true;
+                    if self.eat(&Token::Colon) {
+                        receiver = Some(self.type_annotation()?);
+                    }
                     if !self.eat(&Token::Comma) {
                         break;
                     }
@@ -912,11 +930,17 @@ impl Parser {
                     self.expect(&Token::Dot, "in `...`")?;
                 }
                 let annotation = self.type_annotation()?;
+                let default = if self.eat(&Token::Equals) {
+                    Some(self.expression()?)
+                } else {
+                    None
+                };
                 parameters.push(Param {
                     name: parameter,
                     span: written.span,
                     annotation,
                     variadic,
+                    default,
                 });
                 if !self.eat(&Token::Comma) {
                     break;
@@ -945,12 +969,30 @@ impl Parser {
             return Ok(Stmt::External(ExternalDecl {
                 name,
                 has_self,
+                receiver,
                 generics,
                 bounds,
                 parameters,
                 result,
                 span,
             }));
+        }
+        if let Some(default) = parameters
+            .iter()
+            .find_map(|parameter| parameter.default.as_ref())
+        {
+            return Err(Diagnostic::syntax(
+                default.span.clone(),
+                "a default belongs to an external declaration; a function with a body takes \
+                 every argument it declares",
+            ));
+        }
+        if let Some(receiver) = receiver {
+            return Err(Diagnostic::syntax(
+                receiver.span,
+                "a function with a body takes its receiver at the module's pattern: write \
+                 `self` untyped",
+            ));
         }
         let body = if matches!(self.peek(), Token::OpenBrace) {
             let open = self.peek_span().start;

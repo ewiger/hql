@@ -11,5 +11,6 @@ fn find_all(text: String, pattern: String) : List<String>
 // The first match and its groups, whole match first.
 fn captures(text: String, pattern: String) : Option<List<String>>
 // `$1` in the replacement is the first group.
-fn replace(text: String, pattern: String, replacement: String) : String
+fn replace_all(text: String, pattern: String, replacement: String) : String
+fn replace_first(text: String, pattern: String, replacement: String) : String
 fn split(text: String, pattern: String) : List<String>

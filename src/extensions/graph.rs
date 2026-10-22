@@ -4,6 +4,7 @@
 //! Drawing a graph is not the core's business. The layering is core → graph →
 //! knowledge, and these steps are the graph layer's half of it.
 
+use super::Signature;
 use super::collections::wrong;
 use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypePattern as P};
 use super::{EvalCx, Operation, Purity, named, named_or_first};
@@ -22,7 +23,7 @@ use std::sync::Arc;
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "uplinks",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[],
             input: P::OneOf(&[
                 P::OneOf(&[
@@ -45,7 +46,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 crate::types::collections::LIST,
                 &[P::Type(crate::types::TypeConstructor("Edge"))],
             )),
-        },
+        }),
         summary: "The edges leaving a card.",
         purity: Purity::Pure,
         check: None,
@@ -53,7 +54,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "downlinks",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[],
             input: P::OneOf(&[
                 P::OneOf(&[
@@ -76,7 +77,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 crate::types::collections::LIST,
                 &[P::Type(crate::types::TypeConstructor("Edge"))],
             )),
-        },
+        }),
         summary: "The edges entering a card, which needs a vault.",
         purity: Purity::Pure,
         check: Some(check_downlinks),
@@ -84,7 +85,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "expand",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[],
             input: P::OneOf(&[
                 P::Type(crate::types::TypeConstructor("Graph")),
@@ -112,7 +113,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 },
             ],
             output: O::Type(P::Type(crate::types::TypeConstructor("Graph"))),
-        },
+        }),
         summary: "Traverse outwards, keeping why each node is present.",
         purity: Purity::Pure,
         check: Some(check_expand),

@@ -14,7 +14,7 @@ s = "  Hello, World  "
     s.trim(),
     s.trim().upper(),
     s.trim().lower(),
-    s.trim().replace("World", "HQL"),
+    s.trim().replace_all("World", "HQL"),
     "a,b,c".split(",").join(" + "),
     "hello".chars().reverse().join(""),
     str("hello".length()),

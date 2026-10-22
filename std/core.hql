@@ -87,6 +87,31 @@ trait Rem {
     fn rem(self, other: Self) : Self
 }
 
+// The built-in types' implementations of the core traits. A header without a
+// body declares a native implementation: the runtime supplies its functions,
+// and binding refuses a header with no native body and a native body with no
+// header. These are every implementation a built-in type has; a program
+// implements a trait only for a type or a trait of its own.
+impl Eq for Bool
+impl Eq for Int
+impl Eq for Float
+impl Eq for String
+impl Eq for Date
+impl Ord for Int
+impl Ord for Float
+impl Ord for String
+impl Ord for Date
+impl Add for Int
+impl Add for Float
+impl Sub for Int
+impl Sub for Float
+impl Mul for Int
+impl Mul for Float
+impl Div for Int
+impl Div for Float
+impl Rem for Int
+impl Rem for Float
+
 // Two values held together, each at its own type: what zip, enumerate,
 // entries and join produce, and what a program builds with
 // Pair(first = a, second = b).

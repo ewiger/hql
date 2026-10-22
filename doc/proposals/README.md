@@ -33,3 +33,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0023](HQL-0023/README.md) | drafted | A document reference is written `@[[..]]` |
 | [HQL-0024](HQL-0024/README.md) | accepted, implemented in part | A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions |
 | HQL-0025 | reserved | Execution context and configuration: module roots, the vault as one workspace root, host bindings |
+| [HQL-0026](HQL-0026/README.md) | drafted | Positions and slices: `xs[i]`, `xs[a:b]` and the `Slice` capability |

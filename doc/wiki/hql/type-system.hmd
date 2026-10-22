@@ -222,6 +222,16 @@ type at run time, so a value held at a wider type still takes its own
 implementation. No trait object, no existential type and no dynamic
 registration exist.
 
+Traits are strict. That a built-in type implements a core trait is declared,
+not assumed: `std/core.hql` writes `impl Ord for Int` as a header without a
+body, a native implementation the runtime binds, and a built-in type
+implements exactly what its headers name, so `T : Add` takes `Int` and
+refuses `String`. There is one implementation per trait and type across the
+standard library, the imported modules and the program, and the error names
+both. An implementation is declared with its trait or with its type: a
+program implements its own trait for any type and any trait for its own type.
+See [[hql/extensions]] for the binding.
+
 Typing is strict, not duck typing: the checker asks about structure it can see.
 A record declares its shape and an incomplete literal fails at construction; a
 `Data` tree earns a stronger type by established structure, checked only where
