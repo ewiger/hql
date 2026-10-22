@@ -24,7 +24,11 @@ binary can reach is logic that cannot be tested.
 | `hql doctor` | check the semantic-search chain in order — vault, `hql.toml`, index, model, query vectors, card coverage — printing one line per part; it stops at the first missing part, names the command to run next, and exits `1` when any part is missing |
 
 `-` reads standard input wherever a file is taken, so `hql` composes in a
-pipeline.
+pipeline. A first argument that is not a command name is a program:
+`hql '<program>'` is `hql eval '<program>'`. The command line names no input
+and no output of a program's own: a program reads with `source` or `tap` and
+writes with `target` or `sink` ([HQL-0021](../../proposals/HQL-0021/README.md)),
+and a result of type `Unit` is written as nothing.
 
 ## Options
 
@@ -33,6 +37,8 @@ pipeline.
 | `--vault <DIR>` | the namespace `cards`, traversal and retrieval run against; without it, the nearest directory at or above the current one that holds `.hmd/` or `hql.toml` |
 | `--envelope text\|json` | what the answer is wrapped in: the value alone on stdout, written in the `--to` format, or one JSON document with the type, the value and the reports |
 | `--to <format>` | the [presentation format](../../wiki/hql/presentation.hmd) a result is written in when the program did not format it: `hql` (the default), `text`, `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2`, `mermaid`; `none` evaluates and writes no value |
+| `--compact` | a `Json` result written one document per line, as `jq -c` does; without it each document is pretty-printed, as `jq .` does |
+| `--log-level trace\|debug\|info\|warn\|error` | every logger's threshold, overriding the one it was constructed with |
 | `--report-level debug\|info\|warning\|error` | the lowest severity shown in `text`; see [reporting](reporting.md) |
 | `--report strict\|collect` | when the run stops; see [reporting](reporting.md) |
 

@@ -10,6 +10,15 @@ The language continues to be in active development.
 
 ### Added
 
+- Typed decoding ([HQL-0021](doc/proposals/HQL-0021/README.md), accepted,
+  implemented in part; [issue 0037](doc/issues/0037-io-typed-decoding.md),
+  shown in the [I/O examples](examples/io/README.md)): the declared type of a
+  binding or a function result decodes each document of a read as a declared
+  record, `s : Seq<Sighting> = source(file("birds.jsonl"))`, a live read one
+  document at a time. A CSV cell is parsed as the scalar its field declares.
+  A document that does not decode is an evaluation error naming the
+  endpoint, the document and the field.
+
 - Purity is declared in HQL ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.md),
   [issue 0036](doc/issues/0036-contracts-receivers-purity-identities.md)):
   `effectful fn source(…)` declares an external operation effectful and a

@@ -11,6 +11,79 @@ use crate::search::{Hit, Ranking};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+/// How the text leaves of a tree read when it is decoded as a declared type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Leaves {
+    /// A text leaf is a `String`, whatever it spells.
+    AsWritten,
+    /// A text leaf is read as the scalar its place wants: a CSV cell.
+    Text,
+}
+
+/// Why a value does not decode as a type: the dotted path of the field that
+/// does not, empty for the value itself, and what it holds instead.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mismatch {
+    /// The field's path from the value decoded, outermost first.
+    pub path: Vec<String>,
+    /// What the field holds, or that it is missing.
+    pub reason: String,
+}
+
+impl Mismatch {
+    fn new(reason: impl Into<String>) -> Self {
+        Self {
+            path: Vec::new(),
+            reason: reason.into(),
+        }
+    }
+
+    /// The mismatch seen from the value that holds it at `field`.
+    fn within(mut self, field: &str) -> Self {
+        self.path.insert(0, field.to_owned());
+        self
+    }
+}
+
+impl std::fmt::Display for Mismatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.path.is_empty() {
+            write!(f, "{}", self.reason)
+        } else {
+            write!(f, "field `{}`: {}", self.path.join("."), self.reason)
+        }
+    }
+}
+
+/// A text leaf read as the scalar `wanted` names, or as the text it is.
+fn parsed_leaf(text: &str, wanted: &TypeRef) -> Result<Value, Mismatch> {
+    let refused = |name: &str| Mismatch::new(format!("{text:?} is not {name}"));
+    if *wanted == TypeRef::INT {
+        return text
+            .trim()
+            .parse()
+            .map(Value::Int)
+            .map_err(|_| refused("an Int"));
+    }
+    if *wanted == TypeRef::FLOAT {
+        return text
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite())
+            .map(Value::Float)
+            .ok_or_else(|| refused("a Float"));
+    }
+    if *wanted == TypeRef::BOOL {
+        return match text.trim() {
+            "true" => Ok(Value::Bool(true)),
+            "false" => Ok(Value::Bool(false)),
+            _ => Err(refused("a Bool")),
+        };
+    }
+    Ok(Value::Str(Arc::from(text)))
+}
+
 /// A result of evaluating an HQL expression.
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -303,45 +376,94 @@ impl Value {
     /// is an `Int` and comes back as one.
     #[must_use]
     pub fn interpreted(&self, wanted: &TypeRef) -> Option<Self> {
+        self.decoded(wanted, Leaves::AsWritten).ok()
+    }
+
+    /// The value read as `wanted`, as [`Value::interpreted`] reads it, or
+    /// what keeps it from being one: the dotted path of the field that does
+    /// not read, empty for the value itself, and why. With
+    /// [`Leaves::Text`], a text leaf wanted as an `Int`, a `Float` or a
+    /// `Bool` is parsed as one, and an empty one wanted at an optional field
+    /// is absent: a CSV cell is text whatever it holds.
+    ///
+    /// # Errors
+    ///
+    /// The value, or a field of it, is not a `wanted`.
+    pub fn decoded(&self, wanted: &TypeRef, leaves: Leaves) -> Result<Self, Mismatch> {
         if self.type_of().is(wanted) {
-            return Some(self.clone());
+            return Ok(self.clone());
         }
         let Self::Data(tree) = self else {
-            return None;
+            return Err(Mismatch::new(format!("{} is not {wanted}", self.type_of())));
         };
         let read = match tree.as_ref() {
             Data::Bool(value) => Self::Bool(*value),
             Data::Int(value) => Self::Int(*value),
             Data::Float(value) => Self::Float(*value),
-            Data::Str(text) => Self::Str(Arc::from(text.as_str())),
+            Data::Str(text) => match leaves {
+                Leaves::Text => parsed_leaf(text, wanted)?,
+                Leaves::AsWritten => Self::Str(Arc::from(text.as_str())),
+            },
             Data::List(items) => {
-                let element = wanted.element()?;
+                let element = wanted
+                    .element()
+                    .ok_or_else(|| Mismatch::new(format!("a list is not {wanted}")))?;
                 let read = items
                     .iter()
-                    .map(|item| Self::Data(Arc::new(item.clone())).interpreted(&element))
-                    .collect::<Option<Vec<_>>>()?;
+                    .enumerate()
+                    .map(|(index, item)| {
+                        Self::Data(Arc::new(item.clone()))
+                            .decoded(&element, leaves)
+                            .map_err(|mismatch| mismatch.within(&index.to_string()))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let list = Self::list(read, element);
-                return list.type_of().is(wanted).then_some(list);
+                return if list.type_of().is(wanted) {
+                    Ok(list)
+                } else {
+                    Err(Mismatch::new(format!("a list is not {wanted}")))
+                };
             }
-            Data::Map(entries) => return Self::record_from(entries, wanted),
-            Data::Empty => return None,
+            Data::Map(entries) => return Self::record_from(entries, wanted, leaves),
+            Data::Empty => return Err(Mismatch::new(format!("nothing is not {wanted}"))),
         };
-        read.type_of().is(wanted).then_some(read)
+        if read.type_of().is(wanted) {
+            Ok(read)
+        } else {
+            Err(Mismatch::new(format!(
+                "{} is not {wanted}",
+                read.to_literal()
+            )))
+        }
     }
 
     /// A tree read as a declared record: each field's entry read at the
     /// field's type, an optional field without an entry absent, and any
     /// other entry ignored, since a record names the paths it knows.
-    fn record_from(entries: &BTreeMap<String, Data>, wanted: &TypeRef) -> Option<Self> {
-        let shape = super::program::tree_shape(wanted)?;
+    fn record_from(
+        entries: &BTreeMap<String, Data>,
+        wanted: &TypeRef,
+        leaves: Leaves,
+    ) -> Result<Self, Mismatch> {
+        let shape = super::program::tree_shape(wanted)
+            .ok_or_else(|| Mismatch::new(format!("a map is not {wanted}")))?;
         let mut fields = Vec::with_capacity(shape.fields.len());
         for field in &shape.fields {
-            let entry = entries
-                .get(&field.name)
-                .filter(|entry| !matches!(entry, Data::Empty));
+            let entry = entries.get(&field.name).filter(|entry| match entry {
+                Data::Empty => false,
+                Data::Str(text) => {
+                    !(text.is_empty()
+                        && field.optional
+                        && leaves == Leaves::Text
+                        && field.ty != TypeRef::STR)
+                }
+                _ => true,
+            });
             let value = match (entry, field.optional) {
                 (Some(entry), optional) => {
-                    let read = Self::Data(Arc::new(entry.clone())).interpreted(&field.ty)?;
+                    let read = Self::Data(Arc::new(entry.clone()))
+                        .decoded(&field.ty, leaves)
+                        .map_err(|mismatch| mismatch.within(&field.name))?;
                     if optional {
                         Self::Present(Arc::new(read))
                     } else {
@@ -349,11 +471,13 @@ impl Value {
                     }
                 }
                 (None, true) => Self::Absent(field.ty.clone()),
-                (None, false) => return None,
+                (None, false) => {
+                    return Err(Mismatch::new("it is missing").within(&field.name));
+                }
             };
             fields.push((field.name.clone(), value));
         }
-        Some(Self::Record(Arc::new(Record {
+        Ok(Self::Record(Arc::new(Record {
             ty: wanted.clone(),
             fields,
         })))

@@ -41,8 +41,8 @@ features that lean on it.
 
 ## Next
 
-- **Record values** — records, the `Table` shape type, typed decoding of a
-  source, and the joins that read them.
+- **Record values** — the `Table` shape type, and the joins that read
+  records.
 - **The network** — `http`, `websocket` and `socket` endpoints, and configured
   sources and targets by id.
 - **Execution backends** — operation shapes, a planner and backends beyond

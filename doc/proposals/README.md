@@ -28,7 +28,7 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0018](HQL-0018/README.md) | implemented | A type's constructor is an operation |
 | [HQL-0019](HQL-0019/README.md) | accepted | Graph construction |
 | [HQL-0020](HQL-0020/README.md) | accepted | The vault and its namespace |
-| [HQL-0021](HQL-0021/README.md) | drafted | I/O: endpoints, channels, the network and logging |
+| [HQL-0021](HQL-0021/README.md) | accepted, implemented in part | I/O: endpoints, channels, the network and logging |
 | HQL-0022 | reserved | The AI harness extension |
 | [HQL-0023](HQL-0023/README.md) | implemented | A document reference is written `@[[..]]` |
 | [HQL-0024](HQL-0024/README.md) | accepted, implemented in part | A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions |

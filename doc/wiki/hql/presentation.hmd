@@ -130,7 +130,10 @@ and write the same types:
   type of the value it was written from, so reading it gives the open tree,
   `Data`, and a `Person` is obtained from that tree by
   [[type-interpretation|refinement]], not by the decoder. The header names
-  exactly one type, `impl Decoder<Data> for Json`.
+  exactly one type, `impl Decoder<Data> for Json`. A read whose expected
+  type names a record, `people : Seq<Person> = source(file("people.json"))`,
+  applies that refinement to each document as it is read; a CSV cell, which
+  is text, is parsed as the scalar its field declares.
 - **Some formats are written only.** `D2` and `Mermaid` are diagram source
   for a viewer; no decoder reads them back, so they have encoders and no
   `Decoder` header.

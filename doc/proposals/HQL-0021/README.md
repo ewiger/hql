@@ -1,6 +1,6 @@
 # HQL-0021: I/O: endpoints, channels, the network and logging
 
-- **Status**: drafted
+- **Status**: accepted, implemented in part
 - **Created**: 2026-10-19
 - **Source**: [design outline](design-outline.md),
   [logging and channels](logging-n-net.md),
@@ -13,6 +13,10 @@
   endpoints, `source`, `tap`, `target` and `sink`, and of network endpoints.
 - [`logging-n-net.md`](logging-n-net.md) — the worked examples of loggers,
   log events and in-memory channels, and how a cell shows its logs.
+
+The notes are the worked examples this record was drawn from. Where a note and
+this record differ, this record holds: `JsonLines` and `Lines` are formats of
+their own, and the prelude module is `std/io/mod.hql`.
 
 ## Abstract
 
@@ -27,8 +31,11 @@ the endpoint. `target(endpoint, Format)` writes one completed value, and
 `sink(endpoint, Format)` writes a stream piece by piece as it arrives. A
 format decodes and encodes **documents**: an ordinary JSON file is one
 document, a JSON Lines file is many, and a JSON array is one document. Whether
-a value is one document or a sequence of them is carried by `Seq` and
-`Stream`, so there is no `JsonLines` format. A **channel**,
+the documents end is carried by `Seq` and `Stream`, never by the format; how
+they are framed is the format's, so `JsonLines`, one JSON document per line,
+is a format of its own (HQL-0024's
+[formats and codecs](../HQL-0024/parts/07-formats-and-codecs.md)). The expected type of a read decodes each document as a declared
+record. A **channel**,
 `Channel<T>(name)`, is an endpoint of values held in memory for one execution
 scope; it keeps `T`, so it takes no format, and `source` gives what it holds
 now while `tap` follows it. **Logging**, from `import logging`, is a stream of
@@ -88,7 +95,7 @@ The declarations live in three modules of the standard library.
 
 | Module | File | Provides | In a program |
 | --- | --- | --- | --- |
-| `io` | `std/io/init.hql` | endpoints, channels, sources, targets | the prelude |
+| `io` | `std/io/mod.hql` | endpoints, channels, sources, targets | the prelude |
 | `io.net` | `std/io/net.hql` | `Http`, `WebSocket`, `Socket` | `import net` |
 | `io.logging` | `std/io/logging.hql` | `LogLevel`, `LogEvent`, `Logger` | `import logging` |
 
@@ -96,7 +103,12 @@ The declarations live in three modules of the standard library.
 - `net` and `logging` MUST be imported ([HQL-0001](../HQL-0001/README.md)).
   Network access is then visible in the program's first lines.
 - The standard library MUST name a module by its path below `std/`, folders
-  joined by `.`, and a folder's `init.hql` by the folder.
+  joined by `.`, and a folder's `mod.hql` by the folder.
+- Every operation of the three modules MUST be declared in its module as a
+  bodyless header the extension implements, `effectful fn` for a read, a
+  write and a log call, and `fn` for a constructor
+  (HQL-0024's [contracts and binding](../HQL-0024/parts/12-contracts-and-binding.md)).
+  Binding refuses an extension whose own marking differs.
 
 ### 2. Endpoints
 
@@ -179,7 +191,11 @@ endpoint may hold one document or a sequence of them.
 | `Csv` | `Data`, one row keyed by the header | a line; the header is read once |
 | `Lines` | `String`, one line without its terminator | a line terminator |
 | `JsonLines` | `Data`, one JSON document per line | a line terminator |
-| `Text`, `Markdown`, `Hmd`, `Hql` | `String`, the whole text | not separable |
+| `Text`, `Markdown`, `Hmd`, `Hql` | `String`, the whole text, terminators included | not separable |
+
+- A format MUST be a type narrowing `Format` (`std/format.hql`), and what it
+  decodes MUST be the `Decoder<T>` it implements there: `Data` for `Json`,
+  `JsonLines`, `Yaml` and `Csv`, `String` for the text formats.
 
 - The documents of an endpoint MUST be read in the order they appear. These
   are the pieces [HQL-0017](../HQL-0017/README.md) writes when it formats a
@@ -215,8 +231,10 @@ When the format argument is omitted, a literal path's extension implies it:
   be a check error naming the format argument. The type of what is read
   depends on the format, and the checker cannot read a path computed at run
   time.
-- `.jsonl` MUST imply `Json`. JSON Lines is `Json` applied to each value of a
-  stream, so it is not a format of its own.
+- `.jsonl` and `.ndjson` MUST imply `JsonLines`, and `.txt` and `.log` MUST
+  imply `Lines`: the framing is the format's, one record per line. `Json`
+  over the same file reads the same documents, since whitespace separates
+  top-level JSON values.
 - A given format MUST win over the extension: `source(file("notes.data"),
   Json)` and `target(file("result.txt"), Json)` are allowed.
 
@@ -229,10 +247,16 @@ abstract type DataSource
 abstract type FiniteSource<T> : {DataSource, Seq<T>}
 abstract type LiveSource<T>   : {DataSource, Stream<T>}
 
-fn source<T>(endpoint: Replayable, format: Type<F> = <by extension>) : FiniteSource<T>
-fn source<T>(endpoint: Readable, format: Type<F>) : LiveSource<T>
-fn source<T>(channel: Channel<T>) : Seq<T>
-fn source<S>(id: String) : S   // HQL-0012, unchanged
+effectful fn source<F : Format, T>(endpoint: Readable, format: Type<F>) : Iterable<T>
+```
+
+The one header covers every form; the forms it takes are:
+
+```text
+source<T>(endpoint: Replayable, format: Type<F> = <by extension>) : FiniteSource<T>
+source<T>(endpoint: Readable, format: Type<F>) : LiveSource<T>
+source<T>(channel: Channel<T>) : Seq<T>
+source<S>(id: String) : S   // HQL-0012, unchanged
 ```
 
 | Expression | Contract | Stands as |
@@ -269,9 +293,13 @@ fn source<S>(id: String) : S   // HQL-0012, unchanged
 `tap` reads an endpoint one document at a time, as a `Stream`.
 
 ```hql
-fn tap<T>(endpoint: Readable, format: Type<F> = <by extension>) : Stream<T>
-fn tap<T>(channel: Channel<T>) : Stream<T>
-fn tap<T>(id: String) : Stream<T>
+effectful fn tap<F : Format, T>(endpoint: Readable, format: Type<F>) : Stream<T>
+```
+
+```text
+tap<T>(endpoint: Readable, format: Type<F> = <by extension>) : Stream<T>
+tap<T>(channel: Channel<T>) : Stream<T>
+tap<T>(id: String) : Stream<T>
 ```
 
 - `tap` MUST give a `Stream<T>` that is not a `Seq<T>`, whatever the endpoint,
@@ -290,10 +318,15 @@ A `target` receives one completed value and a `sink` consumes a stream.
 ```hql
 abstract type DataTarget
 
-fn target<T>(x: T, endpoint: Writable, format: Type<F> = <by extension>) : Unit
-fn target<T>(x: T, channel: Channel<T>) : Unit
-fn sink<T>(xs: Stream<T>, endpoint: Writable, format: Type<F> = <by extension>) : Unit
-fn sink<T>(xs: Stream<T>, channel: Channel<T>) : Unit
+effectful fn target<T, F : Format>(value: T, endpoint: Writable, format: Type<F>) : Unit
+effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Unit
+```
+
+```text
+target<T>(x: T, endpoint: Writable, format: Type<F> = <by extension>) : Unit
+target<T>(x: T, channel: Channel<T>) : Unit
+sink<T>(xs: Stream<T>, endpoint: Writable, format: Type<F> = <by extension>) : Unit
+sink<T>(xs: Stream<T>, channel: Channel<T>) : Unit
 ```
 
 - `DataTarget` MUST be the contract of what a program writes to, the mirror of
@@ -307,7 +340,7 @@ fn sink<T>(xs: Stream<T>, channel: Channel<T>) : Unit
   naming `sink` and `take(n)`. A stream may not end, so it has no completed
   value to write.
 - `sink` MUST write each value of `xs` as one document, as the value arrives.
-  A `Seq<Bird>` written by `sink` in `Json` is JSON Lines. Because a `Seq` is
+  A `Seq<Bird>` written by `sink` in `Json` or `JsonLines` is JSON Lines. Because a `Seq` is
   a `Stream`, `sink` accepts one without `emit`.
 - `D2` and `Mermaid` describe a whole and MUST be refused by `sink`, naming
   `target`.
@@ -389,20 +422,43 @@ The expected type of a read chooses what each document decodes as.
 
 ```hql
 type Sighting {
-    species: String,
-    count: Int,
+    species : String
+    count   : Int
 }
 
 sightings : Stream<Sighting> = source(stdin, Csv)
+birds : Seq<Sighting> = source(file("birds.json"))
+fn load() : Seq<Sighting> = source(file("birds.jsonl"))
 ```
 
-- When the expected type of `source` or `tap` names an element type, each
-  document MUST decode as that type, by the type's constructor
-  ([HQL-0018](../HQL-0018/README.md)). Without one, it decodes as the default
-  in the section "Formats decode and encode documents".
+- The expected type of a read MUST be the declared type of the binding whose
+  whole value it is, or the declared result of the function whose whole body
+  it is, written `file(p) | source` or `source(file(p))`. A read inside a
+  larger expression has none, and a call names no type argument.
+- When the expected type is a `Seq`, `Stream` or other iterable of an element
+  `E`, and the format's document type `D` is not `E`, each document MUST
+  decode as `E` when a `D` may be an `E`: a declared record read from a
+  `Data` tree, or a type that narrows `D`. Otherwise the read keeps its
+  default, from the section "Formats decode and encode documents", and the
+  binding refuses it. A `Seq<Sighting>` is never read from `Lines`.
+- A tree MUST decode as a record by its shape
+  ([HQL-0016](../HQL-0016/README.md)), as `match` and `of_type` read it: every
+  required field at its type, an optional field without an entry absent, and
+  an entry the record does not name ignored.
+- A CSV cell MUST be read as the scalar its field declares, an `Int`, `Float`
+  or `Bool` parsed from its text, and an empty cell at an optional field that
+  is not a `String` MUST be absent. A `Json`, `JsonLines` or `Yaml` leaf MUST
+  keep the type it was written with: `"3"` is not an `Int`.
 - A document that does not decode as the expected type MUST be an evaluation
-  error naming the document's position and the field. The type is fixed at
-  check time; the data is checked as it is read.
+  error naming the endpoint, the document's position, counted from 1, and the
+  field's dotted path:
+
+  ```text
+  rows.csv: document 2 does not decode as Sighting: field `count`: "many" is not an Int
+  ```
+
+  The type is fixed at check time; the data is checked as it is read, so
+  a stream gives every document before the one that does not decode.
 
 ### 10. Channels
 
@@ -513,10 +569,12 @@ type Logger {
     level : LogLevel
 }
 
-fn Logger(to: Writable, format: Type<F>, name: String, level: Type<L> = Info) : Logger
-fn Logger(to: Channel<LogEvent>, name: String, level: Type<L> = Info) : Logger
-fn info(log: Logger, message: String, data: Data = {}) : Unit   // and trace, debug, warn, error
+fn Logger<F : Format, L : LogLevel>(to: Writable, format: Type<F>, *, name: String, level: Type<L> = Info) : Logger
+effectful fn info(log: Logger, message: String, data: Data = {}) : Unit   // and trace, debug, warn, error
 ```
+
+The format is omitted for a `Channel<LogEvent>`, which takes the events as
+values: `Logger(events, name = "birds")`.
 
 ```hql
 import logging
@@ -717,28 +775,46 @@ hql run --log-level debug birds.hql < birds.jsonl 2> run.log
 
 ## Reference Implementation
 
-- `std/io/init.hql`, `std/io/net.hql`, `std/io/logging.hql` — the types,
-  declared and checked with the library, and the signatures beside them; the
-  host bindings and the operations wait for the extensions that provide them
-- `src/library.rs` and `tests/declarations.rs` — modules named by folder
-- `src/extensions/io.rs` — the `io` extension in the prelude: the decoders and
-  encoders by format, file endpoints relative to the source unit, atomic and
-  streaming writes, channels, and the `Effectful` declarations
-- `src/extensions/net.rs` — the `net` extension: HTTP, WebSocket and TCP
-  endpoints
+Built:
+
+- `std/io/mod.hql`, `std/io/net.hql`, `std/io/logging.hql` — the types and
+  the `effectful fn` and `fn` headers of every operation, bound to the
+  extensions that implement them; `std/format.hql` — the formats and their
+  `Decoder` and `Encoder` headers
+- `src/library.rs` and `tests/declarations.rs` — modules named by folder, a
+  folder's `mod.hql` by the folder
+- `src/io.rs` — the I/O itself: endpoints, the decoders and encoders by
+  format, file endpoints relative to the source unit, atomic and streaming
+  writes, following a file's end, channels, and the host policy
+- `src/extensions/io.rs` — the `io` extension in the prelude: `file`,
+  `source`, `tap`, `target` and `sink`, endpoint capabilities, the format a
+  literal extension implies, and the decoding of each document as the element
+  type a read is expected to give
+- `src/checker.rs` — the expected type of a read, `Effectful` propagated
+  through functions
+- `src/types/value.rs` — `Value::decoded`, a tree read as a declared record,
+  naming the field that does not read; `src/traversal.rs` and
+  `src/evaluation.rs` — a live read decoded one document at a time
+- `src/extensions/net.rs` and `src/net.rs` — the `net` extension: HTTP,
+  WebSocket and TCP endpoints
 - `src/extensions/logging.rs` — the `logging` extension: `Logger`, the five
   operations, and the `Text` and `Json` forms of a `LogEvent`
-- `src/checker.rs` — endpoint capabilities, the format implied by a literal
-  extension, the expected type of a read, channel names within a scope, and
-  `Effectful` propagated through functions
-- `src/extensions/mod.rs` — the host policy, checked against `Effectful` uses
-- `src/sources.rs` — the decoders shared with HQL-0012's file kinds
 - `src/document.rs` and `src/render.rs` — the `cell` binding and its logs
   channel, kept out of saved outputs
 - `src/cli.rs` — the default `eval`, `--compact`, `--log-level`,
   pretty-printed `Json` pieces, and `Unit` written as nothing
+- `tests/io.rs`, `tests/net.rs`, `tests/logging.rs`, and the
+  [I/O examples](../../../examples/io/README.md)
 - `doc/models/behavior/cli.md` and `doc/wiki/hql/extensions.hmd` — `io`,
   `net` and `logging` in the command table and the provider table
+
+Remaining, each waiting for [HQL-0012](../HQL-0012/README.md), which is
+drafted:
+
+- `source("id")` and `tap("id")`, a configured source read by id, and a
+  configured `json_lines`, `csv` or `json` source decoded by this record's
+  rules
+- HQL-0012's `max_bytes` bounding `source` over a replayable endpoint
 
 ## Test Plan
 
@@ -813,3 +889,10 @@ None.
 ## Changelog
 
 - 2026-10-19: drafted
+- 2026-10-22: accepted, implemented in part. Typed decoding: the declared
+  type of a binding or a function result decodes each document of a read as
+  a declared record, a CSV cell parsed as its field's scalar. The
+  specification states `std/io/mod.hql`, `JsonLines` and `Lines` as formats,
+  and the `effectful fn` headers; configured sources by id and `max_bytes`
+  wait for HQL-0012
+  ([issue 0037](../../issues/0037-io-typed-decoding.md))

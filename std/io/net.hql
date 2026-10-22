@@ -1,5 +1,5 @@
 // Network endpoints: transports, read and written by source, tap, target and
-// sink like any other endpoint (io/init.hql). Provided by the `net` extension,
+// sink like any other endpoint (io/mod.hql). Provided by the `net` extension,
 // which a program imports: `import net`.
 //
 // See doc/proposals/HQL-0021/README.md.

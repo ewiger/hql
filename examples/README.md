@@ -35,6 +35,10 @@ implementation type parameters, `impl<T> Index<T> for Ring<T>`, and infer a
 bound's open parameter from the implementation a call reaches, from
 [HQL-0027](../doc/proposals/HQL-0027/README.md).
 
+The [I/O](io/README.md) cases read a JSON Lines file and a CSV file with
+`source`, each document decoded as the record its binding declares, from
+[HQL-0021](../doc/proposals/HQL-0021/README.md).
+
 The [todo board](todo/README.md) lists open tasks and architecture decisions
 with `hql#eval` cells, reading typed sort keys out of card metadata.
 

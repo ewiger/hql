@@ -151,8 +151,9 @@ Both stay, as HQL-0021 has them.
    `format` returning `String`. Done.
 2. The codec contracts in `std/format.hql`, with the Rust tables as their
    implementations and a test that every format has a codec. Done.
-3. Accepting HQL-0021 with this format model. `Text` as one whole document is
-   done.
+3. Accepting HQL-0021 with this format model. Done: HQL-0021 states
+   `JsonLines` and `Lines` as formats and `Text` as one whole document, and
+   is accepted.
 4. Binary formats as a format kind, and codecs an extension or an HQL `impl`
    provides. Generic traits exist ([HQL-0027](../../HQL-0027/README.md)), and
    the codec contracts are traits; an HQL `impl` waits for formats as

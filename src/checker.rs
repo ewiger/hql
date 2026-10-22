@@ -1169,7 +1169,53 @@ impl<'a> Checker<'a> {
                 .insert(expression.span.clone(), ty.clone());
             return Ok(ty);
         }
-        self.expression(expression)
+        let inferred = self.expression(expression)?;
+        Ok(self.decoding(expression, inferred, expected))
+    }
+
+    /// A read, `source` or `tap` of an endpoint, at the element type it is
+    /// expected to give: `s : Seq<Sighting> = source(file("birds.json"))`
+    /// decodes each `Data` document as a `Sighting`. A type a document can be
+    /// read as is a declared record, or a type its document type narrows to;
+    /// any other expectation leaves the read as it is, for the binding to
+    /// refuse.
+    fn decoding(
+        &mut self,
+        expression: &Expr,
+        inferred: TypeRef,
+        expected: Option<&TypeRef>,
+    ) -> TypeRef {
+        let Some(expected) = expected else {
+            return inferred;
+        };
+        let step = match &expression.kind {
+            Kind::Pipe(_, step) => self
+                .checked
+                .steps
+                .get(&step.span)
+                .or_else(|| self.checked.steps.get(&expression.span)),
+            _ => self.checked.steps.get(&expression.span),
+        };
+        if !step.is_some_and(|step| crate::extensions::io::reads(step)) || inferred.is(expected) {
+            return inferred;
+        }
+        let (Some(document), Some(wanted)) = (inferred.args.first(), expected.iterated()) else {
+            return inferred;
+        };
+        if wanted.has_variable()
+            || wanted.has_placeholder()
+            || !crate::types::program::may_be(document, &wanted)
+        {
+            return inferred;
+        }
+        let decoded = inferred.constructor.apply([wanted]);
+        if !decoded.is(expected) {
+            return inferred;
+        }
+        self.checked
+            .types
+            .insert(expression.span.clone(), decoded.clone());
+        decoded
     }
 
     /// A lambda as a value: its parameters are typed by their annotations or

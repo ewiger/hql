@@ -501,6 +501,19 @@ impl Evaluator<'_> {
                         other => self.step(step, other, arguments, at.clone()),
                     };
                 }
+                // A read expected to give a declared type decodes each
+                // document as one.
+                if crate::extensions::io::reads(step) {
+                    let endpoint = value.clone();
+                    let produced = self.step(step, value, arguments, at.clone())?;
+                    return crate::extensions::io::decoded(
+                        &endpoint,
+                        produced,
+                        &expression.ty,
+                        arguments,
+                        at,
+                    );
+                }
                 // A step's own reports point at the step, not at the whole
                 // pipeline that feeds it.
                 self.step(step, value, arguments, at.clone())
@@ -1112,6 +1125,26 @@ impl Evaluator<'_> {
                         format: *format,
                     }));
                     sink(evaluator, piece)
+                })
+            }
+            Source::Decode {
+                input,
+                leaves,
+                from,
+                span,
+            } => {
+                let mut position = 0;
+                self.run_traversal(input, &mut |evaluator, value| {
+                    position += 1;
+                    let decoded = crate::extensions::io::decode_document(
+                        &value,
+                        &traversal.element,
+                        *leaves,
+                        position,
+                        from,
+                    )
+                    .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+                    sink(evaluator, decoded)
                 })
             }
             // Kept values are always forced, and answered above.

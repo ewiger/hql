@@ -489,6 +489,82 @@ fn eval_tap(
     Ok(live(reading, element, span))
 }
 
+/// Whether a step is this extension's `source` or `tap`: a read whose
+/// documents decode as the element type it is expected to give.
+pub(crate) fn reads(step: &Operation) -> bool {
+    matches!(step.name, "source" | "tap")
+        && matches!(
+            step.spec,
+            Signature::Native(OperationSpec {
+                output: O::Computed(_),
+                ..
+            })
+        )
+}
+
+/// The documents a read produced, decoded as the element of `wanted`, the
+/// type the checker fixed for the read: as they are when that is the
+/// format's own document type, and each one read as a declared record
+/// otherwise. A CSV cell is text, so it is parsed as the scalar its field
+/// wants; a Json, Yaml or JsonLines leaf keeps the type it was written with.
+pub(crate) fn decoded(
+    endpoint: &Value,
+    produced: Value,
+    wanted: &TypeRef,
+    arguments: &[TypedArg],
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let (Value::Traversal(traversal), Some(element)) = (&produced, wanted.args.first()) else {
+        return Ok(produced);
+    };
+    if traversal.element == *element {
+        return Ok(produced);
+    }
+    let endpoint = self::endpoint(endpoint, span)?;
+    let leaves = if evaluated_format(arguments, &endpoint, span)?.0 == "Csv" {
+        crate::types::Leaves::Text
+    } else {
+        crate::types::Leaves::AsWritten
+    };
+    let from = endpoint.describe();
+    if let Some(values) = traversal.forced() {
+        let decoded = values
+            .iter()
+            .enumerate()
+            .map(|(index, value)| decode_document(value, element, leaves, index + 1, &from))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+        return Ok(Value::Traversal(Arc::new(Traversal::kept(
+            element.clone(),
+            decoded,
+        ))));
+    }
+    Ok(Value::Traversal(Arc::new(Traversal::new(
+        element.clone(),
+        traversal.finite,
+        Source::Decode {
+            input: Arc::clone(traversal),
+            leaves,
+            from,
+            span: span.clone(),
+        },
+    ))))
+}
+
+/// One document decoded as `element`, or the error naming its position, the
+/// endpoint and the field that does not decode.
+pub(crate) fn decode_document(
+    value: &Value,
+    element: &TypeRef,
+    leaves: crate::types::Leaves,
+    position: usize,
+    from: &str,
+) -> Result<Value, String> {
+    value.decoded(element, leaves).map_err(|mismatch| {
+        format!("{from}: document {position} does not decode as {element}: {mismatch}")
+    })
+}
+
 fn live(reading: Reading, element: TypeRef, span: Range<usize>) -> Value {
     Value::Traversal(Arc::new(Traversal::new(
         element,

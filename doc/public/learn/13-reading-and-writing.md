@@ -91,6 +91,37 @@ Each document is `Data`, the type of a dynamically structured value from
 [chapter 2](02-data.md). A CSV row is a record of strings, keyed by the
 header.
 
+## Reading as a declared record
+
+A binding whose declared type names an element decodes each document as that
+element. A tree is read as a declared record by its shape: every field at its
+type, and any other entry ignored.
+
+<!-- run: skip -->
+```hql
+type Sighting {
+    species : String
+    site    : String
+    seen    : String
+}
+
+sightings : Seq<Sighting> = source(file("examples/io/sightings.jsonl"))
+sightings | filter(s => s.seen == "morning") | map(s => s.species)
+```
+
+```text
+["wren", "kingfisher"]
+```
+
+A function's declared result is an expected type in the same way. A CSV cell
+is text, so it is read as the `Int`, `Float` or `Bool` its field declares; a
+JSON leaf keeps the type it was written with. A document that does not decode
+stops the evaluation with an error naming the document and the field:
+
+```text
+counts.csv: document 2 does not decode as Tally: field `count`: "many" is not an Int
+```
+
 ## Finite or live: the type decides
 
 A file is replayable, so reading it gives a `Seq`: it ends, and every step in

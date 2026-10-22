@@ -80,7 +80,9 @@ abstract type DataTarget
 // The operations the `io` extension implements. Constructing an endpoint is
 // pure; reading and writing one is effectful: it runs once, where it is
 // written. `source` is a Seq read from a Replayable endpoint and a Stream
-// read from a live one, and T is the type the format decodes to.
+// read from a live one, and T is the type the format decodes to, or the
+// element type the read is expected to give: `s : Seq<Sighting> =
+// source(file("birds.json"))` decodes each document as a Sighting.
 fn file(path: String) : File
 effectful fn source<F : Format, T>(endpoint: Readable, format: Type<F>) : Iterable<T>
 effectful fn tap<F : Format, T>(endpoint: Readable, format: Type<F>) : Stream<T>

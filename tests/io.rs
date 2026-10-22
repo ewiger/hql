@@ -586,3 +586,98 @@ fn lines_frame_text_by_line_and_text_is_one_document() {
         "[1,2]\n"
     );
 }
+
+#[test]
+fn a_read_decodes_each_document_as_the_type_it_is_expected_to_give() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("sightings.jsonl"),
+        "{\"species\": \"owl\", \"count\": 3, \"site\": \"barn\"}\n{\"species\": \"wren\", \"count\": 5}\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("one.json"),
+        r#"{"species": "owl", "count": 3}"#,
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("rows.csv"),
+        "species,count\nowl,4\nwren,7\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("bad.csv"),
+        "species,count\nowl,4\nwren,many\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("notes.txt"), "a\n").unwrap();
+    const SIGHTING: &str = "type Sighting {\n    species : String\n    count   : Int\n}\n";
+    let run = |program: &str| {
+        hql_in(
+            dir.path(),
+            &[&format!("{SIGHTING}{program}"), "--to", "json", "--compact"],
+        )
+    };
+    // A binding's declared element type is what each document decodes as;
+    // an entry the record does not name is ignored.
+    assert_eq!(
+        ok(&run(
+            "s : Seq<Sighting> = source(file(\"sightings.jsonl\"))\ns | map(x => x.count + 1)"
+        )),
+        "[4,6]\n"
+    );
+    assert_eq!(
+        ok(&run(
+            "s : Seq<Sighting> = file(\"one.json\") | source\ns | map(x => x.species)"
+        )),
+        "[\"owl\"]\n"
+    );
+    // A function's declared result is an expected type too, and `tap` decodes
+    // one document at a time.
+    assert_eq!(
+        ok(&run(
+            "fn load() : Stream<Sighting> = tap(file(\"sightings.jsonl\"))\nload() | map(x => x.species)"
+        )),
+        "\"owl\"\n\"wren\"\n"
+    );
+    // A CSV cell is text, read as the scalar its field wants.
+    assert_eq!(
+        ok(&run(
+            "s : Seq<Sighting> = source(file(\"rows.csv\"))\ns | map(x => x.count) | sum"
+        )),
+        "11\n"
+    );
+    // A document that does not decode is refused as it is read, naming the
+    // document and the field.
+    refused(
+        &run("s : Seq<Sighting> = source(file(\"bad.csv\"))\ns"),
+        "document 2 does not decode as Sighting: field `count`: \"many\" is not an Int",
+    );
+    // A Json leaf keeps the type it was written with.
+    fs::write(
+        dir.path().join("text.json"),
+        r#"{"species": "owl", "count": "3"}"#,
+    )
+    .unwrap();
+    refused(
+        &run("s : Seq<Sighting> = source(file(\"text.json\"))\ns"),
+        "document 1 does not decode as Sighting: field `count`: \"3\" is not Int",
+    );
+    let missing = piped_in(
+        dir.path(),
+        &[&format!(
+            "{SIGHTING}s : Stream<Sighting> = source(stdin, Json)\ns | map(x => x.species)"
+        )],
+        "{\"species\": \"owl\", \"count\": 1}\n{\"species\": \"wren\"}\n",
+    );
+    refused(
+        &missing,
+        "document 2 does not decode as Sighting: field `count`: it is missing",
+    );
+    assert!(stdout(&missing).contains("owl"), "{}", stdout(&missing));
+    // A text document is a String, and no record is read from one.
+    refused(
+        &run("s : Seq<Sighting> = source(file(\"notes.txt\"))\ns"),
+        "declared Seq<Sighting> but its value is Seq<String>",
+    );
+}

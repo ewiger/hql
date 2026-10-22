@@ -62,6 +62,15 @@ pub(crate) enum Source {
     },
     /// Values already produced, kept at a sequence type.
     Kept,
+    /// Each document of `input` decoded as the traversal's element type, a
+    /// declared record the read is expected to give.
+    Decode {
+        input: Arc<Traversal>,
+        leaves: crate::types::Leaves,
+        /// The endpoint read, as an error names it.
+        from: String,
+        span: Range<usize>,
+    },
     /// Documents read from an endpoint as they arrive.
     Read {
         reading: Arc<crate::io::Reading>,

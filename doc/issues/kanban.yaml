@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 36 # to be incremented when adding a new issue card
+  last_id: 37 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -47,6 +47,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0037"
+        title: "I/O: typed decoding, and HQL-0021 accepted"
+        file: 0037-io-typed-decoding.md
       - id: "0036"
         title: "Contracts and binding: explicit receivers, declared purity, identities"
         file: 0036-contracts-receivers-purity-identities.md
