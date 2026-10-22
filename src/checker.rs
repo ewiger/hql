@@ -460,7 +460,40 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
 
 /// The operation types `std/core.hql` reserves, one per shape and their
 /// common supertype: a program may not declare a type of these names.
-const RESERVED_TYPES: [&str; 5] = ["Operation", "Elementwise", "Partition", "Reduction", "Barrier"];
+const RESERVED_TYPES: [&str; 5] = [
+    "Operation",
+    "Elementwise",
+    "Partition",
+    "Reduction",
+    "Barrier",
+];
+
+/// Whether a declaration of a reserved name is the one `std/core.hql`
+/// makes, `abstract type Elementwise<I, O> : Operation<I, O>`: the library's
+/// own text checks as a program, and restating it declares nothing new.
+fn restates_operation_type(declaration: &crate::ast::TypeDecl) -> bool {
+    let over_input_and_output = |written: &[crate::ast::TypeAnn]| {
+        written.len() == 2
+            && written
+                .iter()
+                .zip(["I", "O"])
+                .all(|(argument, name)| argument.name == name && argument.arguments.is_empty())
+    };
+    let parents_hold = match declaration.name.as_str() {
+        "Operation" => declaration.supertypes.is_empty(),
+        _ => matches!(
+            declaration.supertypes.as_slice(),
+            [parent] if parent.name == "Operation" && over_input_and_output(&parent.arguments)
+        ),
+    };
+    declaration.abstract_type
+        && declaration.private.is_none()
+        && declaration.bounds.is_empty()
+        && declaration.parameters == ["I", "O"]
+        && declaration.fields.is_empty()
+        && declaration.union.is_none()
+        && parents_hold
+}
 
 /// Refuse a public declaration of a module whose signature mentions one of
 /// the module's private types or traits: a parameter, a result, a bound, a
@@ -1177,7 +1210,9 @@ impl<'a> Checker<'a> {
                 // introduces no value: constructing one is separate work.
                 Stmt::Type(declaration) => {
                     use crate::naming::Kind as Name;
-                    if RESERVED_TYPES.contains(&declaration.name.as_str()) {
+                    if RESERVED_TYPES.contains(&declaration.name.as_str())
+                        && !restates_operation_type(declaration)
+                    {
                         return Err(Diagnostic::typing(
                             declaration.span.clone(),
                             format!(
