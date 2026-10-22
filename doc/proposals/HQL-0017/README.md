@@ -219,9 +219,11 @@ match wins:
 
 - `--from <format>` MUST name the format of standard input when it is a query
   source ([issue 0015](../../issues/0015-jq-parity-analysis.md)).
-- Text is parsed by construction: `s | Data` parses a `Json` or `Yaml` value,
-  `s | Table` a `Csv` value once `Table` exists. A plain `String` is parsed as
-  the format `--from` names, or refused.
+- Text is parsed by construction, the format named:
+  `s | Data(Json)` parses a `Json` or `Yaml` value
+  ([HQL-0018](../HQL-0018/README.md)), `s | Table` a `Csv` value once `Table`
+  exists. A plain `String` is parsed as the format `--from` names, or
+  refused.
 
 ### 9. Streams
 
@@ -309,3 +311,5 @@ cargo clippy --locked --all-targets -- -D warnings
   their configuration, the presentation context, `--to`, `--envelope` and
   streams are implemented; `--from`, `Table`, `Tree` and parsing by
   construction (`s | Data`) are not yet
+- 2026-10-22: parsing by construction is implemented as `Data(s, F)`, the
+  format written, by HQL-0018

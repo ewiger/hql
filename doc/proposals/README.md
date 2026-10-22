@@ -25,7 +25,7 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0015](HQL-0015/README.md) | implemented | `:=` is function alias syntax sugar |
 | [HQL-0016](HQL-0016/README.md) | implemented | Type tests, narrowing, widening and conversion |
 | [HQL-0017](HQL-0017/README.md) | accepted | Presentation formats |
-| [HQL-0018](HQL-0018/README.md) | accepted | A type's constructor is an operation |
+| [HQL-0018](HQL-0018/README.md) | implemented | A type's constructor is an operation |
 | [HQL-0019](HQL-0019/README.md) | accepted | Graph construction |
 | [HQL-0020](HQL-0020/README.md) | accepted | The vault and its namespace |
 | [HQL-0021](HQL-0021/README.md) | drafted | I/O: endpoints, channels, the network and logging |

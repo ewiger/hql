@@ -276,10 +276,18 @@ struct Declared {
     parents: Vec<String>,
     /// Each field, and whether the key may be absent.
     fields: Vec<(String, bool)>,
+    /// Whether it is `abstract type`, which has no constructor.
+    abstract_type: bool,
     span: Range<usize>,
 }
 
 impl Declarations {
+    /// Whether this source unit declares a type of this name, and whether
+    /// that type is abstract: a function named after it is its constructor.
+    pub(crate) fn declares(&self, name: &str) -> Option<bool> {
+        self.known.get(name).map(|declared| declared.abstract_type)
+    }
+
     /// Check a declaration and record it.
     pub(crate) fn declare(&mut self, declaration: &TypeDecl) -> Result<(), Diagnostic> {
         self.name_is_free(declaration)?;
@@ -403,6 +411,7 @@ impl Declarations {
                     .iter()
                     .map(|field| (field.name.clone(), field.optional))
                     .collect(),
+                abstract_type: declaration.abstract_type,
                 span: declaration.span.clone(),
             },
         );
@@ -425,6 +434,7 @@ impl Declarations {
                 parameters: declaration.parameters.len(),
                 parents: Vec::new(),
                 fields: Vec::new(),
+                abstract_type: declaration.abstract_type,
                 span: declaration.span.clone(),
             },
         );

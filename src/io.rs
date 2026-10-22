@@ -561,6 +561,37 @@ fn pieces(reader: Box<dyn Read + Send>, format: TypeConstructor, origin: String)
     }
 }
 
+/// Text parsed in a format whose decoder reads `Data`: the one document of a
+/// whole-text format, Json or Yaml, or the list of the records of a framed
+/// one, JsonLines or Csv.
+///
+/// # Errors
+/// Text that does not parse in the format, or a whole-text format holding
+/// other than one document.
+pub(crate) fn parse_text(text: &str, format: TypeConstructor) -> Result<Data, String> {
+    let reader = Box::new(std::io::Cursor::new(text.as_bytes().to_vec()));
+    let documents = pieces(reader, format, format!("Data(…, {format})"))
+        .map(|document| match document? {
+            Value::Data(data) => Ok(data.as_ref().clone()),
+            Value::Str(text) => Ok(Data::Str(text.to_string())),
+            other => Err(format!("{format} decodes no Data here, but {other:?}")),
+        })
+        .collect::<Result<Vec<Data>, String>>()?;
+    match format.0 {
+        "JsonLines" | "Csv" => Ok(Data::List(documents)),
+        _ => {
+            let count = documents.len();
+            let mut documents = documents.into_iter();
+            match (documents.next(), count) {
+                (Some(document), 1) => Ok(document),
+                _ => Err(format!(
+                    "the text holds {count} {format} documents, and `Data(s, {format})` parses one"
+                )),
+            }
+        }
+    }
+}
+
 /// The documents of a whole text in a format that is not read piece by piece.
 fn whole(text: &str, format: TypeConstructor) -> Result<Vec<Result<Value, String>>, String> {
     use serde::Deserialize;

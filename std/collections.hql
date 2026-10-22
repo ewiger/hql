@@ -50,6 +50,17 @@ type Group<K, T> {
     items : List<T>
 }
 
+// Constructors: a function named after its type builds a value of it, and
+// `List(xs)` and `xs | List` are one call, the piped value its first
+// argument. A type's forms of one arity differ in their first parameter, so
+// the first argument selects one. The binary implements each, as it does the
+// operations below.
+fn List<T>(xs: Seq<T>) : List<T>
+fn Set<T>(xs: Collection<T>) : Set<T>
+fn Map<K, V>(keys: Seq<K>, values: Seq<V>) : Map<K, V>
+fn OrderedMap<K, V>(keys: Seq<K>, values: Seq<V>) : OrderedMap<K, V>
+fn SortedMap<K : Orderable, V>(keys: Seq<K>, values: Seq<V>) : SortedMap<K, V>
+
 // Core operations, callable directly or through a pipe. Each one returns the
 // type it was given: `S : Seq<T>` is the input at its own type, and
 // `F<_> : Iterable<_>` its constructor, which `F<U>` rebuilds around another

@@ -788,6 +788,7 @@ fn declared_signatures() -> Result<Declared, String> {
 fn bind_contracts() -> Result<(), String> {
     use crate::library::contracts;
     bind_native_impls()?;
+    crate::constructors::bind()?;
     let contracts = contracts()?;
     for (module, declared) in &contracts {
         let provider = REGISTERED

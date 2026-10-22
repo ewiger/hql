@@ -92,16 +92,22 @@ pub fn contracts() -> Result<Contracts, String> {
                     .statements
                     .iter()
                     .filter_map(|statement| match statement {
-                        Stmt::External(declaration) => Some(Contract {
-                            name: declaration.name.clone(),
-                            has_self: declaration.has_self,
-                            parameters: declaration.parameters.len(),
-                            variadic: declaration
-                                .parameters
-                                .last()
-                                .is_some_and(|parameter| parameter.variadic),
-                            result: declaration.result.name.clone(),
-                        }),
+                        // A constructor is bound to the binary's
+                        // constructors, not to an extension's step.
+                        Stmt::External(declaration)
+                            if !crate::constructors::is_constructor_name(&declaration.name) =>
+                        {
+                            Some(Contract {
+                                name: declaration.name.clone(),
+                                has_self: declaration.has_self,
+                                parameters: declaration.parameters.len(),
+                                variadic: declaration
+                                    .parameters
+                                    .last()
+                                    .is_some_and(|parameter| parameter.variadic),
+                                result: declaration.result.name.clone(),
+                            })
+                        }
                         _ => None,
                     })
                     .collect();

@@ -47,6 +47,7 @@ pub(crate) fn check_with<'a>(
         variadic: HashMap::new(),
         parameter_names: HashMap::new(),
         generic_functions: HashMap::new(),
+        constructor_forms: HashMap::new(),
         placeholders: HashMap::new(),
         uses: Vec::new(),
         effectful: HashMap::new(),
@@ -107,6 +108,7 @@ pub(crate) fn check_collecting_with<'a>(
         variadic: HashMap::new(),
         parameter_names: HashMap::new(),
         generic_functions: HashMap::new(),
+        constructor_forms: HashMap::new(),
         placeholders: HashMap::new(),
         uses: Vec::new(),
         effectful: HashMap::new(),
@@ -267,19 +269,60 @@ fn erase_constructors(written: &crate::ast::TypeAnn, constructors: &[&str]) -> c
     }
 }
 
-/// A function named in `UpperCamelCase` is a type's constructor, which only
-/// the module declaring the type provides.
-fn constructor_name(name: &str, span: &Range<usize>) -> Result<(), Diagnostic> {
-    if name.chars().next().is_some_and(char::is_uppercase) {
-        return Err(Diagnostic::typing(
+/// A function named in `UpperCamelCase` is a type's constructor: its name
+/// is a concrete type the same source unit declares, and it returns that
+/// type or a subtype of it. An alias states no result, so it is never one.
+fn constructor_name(
+    declarations: &Declarations,
+    name: &str,
+    result: Option<&crate::ast::TypeAnn>,
+    span: &Range<usize>,
+) -> Result<(), Diagnostic> {
+    if !crate::constructors::is_constructor_name(name) {
+        return Ok(());
+    }
+    let refused = |why: String| {
+        Err(Diagnostic::typing(
             span.clone(),
             format!(
-                "`{name}` is named like a type's constructor, which only the module declaring \
-                 the type provides; name the function in snake_case"
+                "`{name}` is named like a type's constructor, {why}; name the function in \
+                 snake_case"
             ),
-        ));
+        ))
+    };
+    match declarations.declares(name) {
+        None => refused(format!(
+            "and `{name}` names no type declared here: a constructor is declared beside its type"
+        )),
+        Some(true) => refused(format!(
+            "and `{name}` is abstract, so it has no constructor"
+        )),
+        Some(false) => {
+            let Some(result) = result else {
+                return refused("and an alias states no result type".to_owned());
+            };
+            let builds = result.name == name
+                || crate::types::builtin::constructor(&result.name)
+                    .zip(crate::types::builtin::constructor(name))
+                    .zip(crate::types::builtin::system().ok())
+                    .is_some_and(|((built, own), system)| {
+                        let arguments = vec![TypeRef::DATA; result.arguments.len()];
+                        system
+                            .as_supertype(&built.apply(arguments), own)
+                            .ok()
+                            .flatten()
+                            .is_some()
+                    });
+            if builds {
+                Ok(())
+            } else {
+                refused(format!(
+                    "and it returns {}, which is not a `{name}`: a constructor returns its type",
+                    result.name
+                ))
+            }
+        }
     }
-    Ok(())
 }
 
 /// What a refused annotation could have written instead: a binding never
@@ -464,6 +507,7 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 variadic: HashMap::new(),
                 parameter_names: HashMap::new(),
                 generic_functions: HashMap::new(),
+                constructor_forms: HashMap::new(),
                 placeholders: HashMap::new(),
                 uses: Vec::new(),
                 effectful: HashMap::new(),
@@ -513,6 +557,10 @@ struct Checker<'a> {
     /// Each generic function's type parameters: the name, its type variable
     /// and its bound.
     generic_functions: HashMap<String, Vec<(String, TypeRef, Option<TypeRef>)>>,
+    /// Each type a program declares constructors for, with the name each
+    /// form is bound under, in the order declared: a call takes the first
+    /// whose first parameter its first argument fits.
+    constructor_forms: HashMap<String, Vec<String>>,
     /// The types an alias's unannotated parameters took, while its body is
     /// checked.
     placeholders: HashMap<crate::types::TypeConstructor, TypeRef>,
@@ -1030,7 +1078,11 @@ impl<'a> Checker<'a> {
                     TypeRef::UNIT
                 }
                 Stmt::Fn(declaration) => {
-                    self.declaring(&declaration.name, |checker| checker.function(declaration))?;
+                    let bound = self.constructor_binding(declaration);
+                    self.declaring(&bound, |checker| checker.function(declaration, &bound))?;
+                    if bound != declaration.name {
+                        self.constructor_form(declaration, &bound)?;
+                    }
                     if declaration.has_self
                         && let Some(ty) = self.scope.get(&declaration.name).cloned()
                     {
@@ -1211,13 +1263,20 @@ impl<'a> Checker<'a> {
 
     /// A declared function: bound before its body is checked, so it may call
     /// itself, and its body must have the declared result type.
-    fn function(&mut self, declaration: &FnDecl) -> Result<(), Diagnostic> {
-        constructor_name(&declaration.name, &declaration.span)?;
-        self.lint(
-            crate::naming::Kind::Function,
+    fn function(&mut self, declaration: &FnDecl, bound: &str) -> Result<(), Diagnostic> {
+        constructor_name(
+            &self.declarations,
             &declaration.name,
+            Some(&declaration.result),
             &declaration.span,
-        );
+        )?;
+        if !crate::constructors::is_constructor_name(&declaration.name) {
+            self.lint(
+                crate::naming::Kind::Function,
+                &declaration.name,
+                &declaration.span,
+            );
+        }
         for parameter in &declaration.parameters {
             self.lint(
                 crate::naming::Kind::Parameter,
@@ -1293,27 +1352,239 @@ impl<'a> Checker<'a> {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         if variables.is_empty() {
-            self.generic_functions.remove(&declaration.name);
+            self.generic_functions.remove(bound);
         } else {
-            self.generic_functions
-                .insert(declaration.name.clone(), variables);
+            self.generic_functions.insert(bound.to_owned(), variables);
         }
         if traits_bounding.is_empty() {
-            self.trait_bounded.remove(&declaration.name);
+            self.trait_bounded.remove(bound);
         } else {
             self.trait_bounded
-                .insert(declaration.name.clone(), traits_bounding.clone());
+                .insert(bound.to_owned(), traits_bounding.clone());
         }
         let bounds_before = self.trait_bounds.len();
         self.trait_bounds.extend(traits_bounding);
-        let checked = self.function_body(declaration);
+        let checked = self.function_body(declaration, bound);
         self.trait_bounds.truncate(bounds_before);
         checked
     }
 
+    /// The name a declared function is bound under: its own, or, for a
+    /// constructor, one per form, so that several forms of one type are
+    /// held side by side and a call selects among them.
+    fn constructor_binding(&mut self, declaration: &FnDecl) -> String {
+        if !crate::constructors::is_constructor_name(&declaration.name)
+            || self.declarations.declares(&declaration.name).is_none()
+        {
+            return declaration.name.clone();
+        }
+        let forms = self
+            .constructor_forms
+            .get(&declaration.name)
+            .map_or(0, Vec::len);
+        let bound = format!("{}#{forms}", declaration.name);
+        self.checked
+            .bound_names
+            .insert(declaration.span.clone(), bound.clone());
+        bound
+    }
+
+    /// Record a constructor's form once its signature is checked: forms of
+    /// one arity differ in their first parameter, so the first argument of
+    /// a call selects one.
+    fn constructor_form(&mut self, declaration: &FnDecl, bound: &str) -> Result<(), Diagnostic> {
+        let signature = |checker: &Self, name: &str| {
+            checker
+                .scope
+                .get(name)
+                .and_then(TypeRef::as_function)
+                .map(|(parameters, _)| parameters.to_vec())
+        };
+        let own = signature(self, bound).unwrap_or_default();
+        let held = self
+            .constructor_forms
+            .get(&declaration.name)
+            .cloned()
+            .unwrap_or_default();
+        for earlier in &held {
+            let Some(parameters) = signature(self, earlier) else {
+                continue;
+            };
+            if parameters.len() == own.len() && parameters.first() == own.first() {
+                return Err(Diagnostic::typing(
+                    declaration.span.clone(),
+                    format!(
+                        "`{}` already has a constructor taking {} first; the forms of a type \
+                         differ in their first parameter",
+                        declaration.name,
+                        own.first()
+                            .map_or_else(|| "nothing".to_owned(), ToString::to_string)
+                    ),
+                ));
+            }
+        }
+        self.constructor_forms
+            .entry(declaration.name.clone())
+            .or_default()
+            .push(bound.to_owned());
+        Ok(())
+    }
+
+    /// The forms of a program's constructor, each with its parameters.
+    fn constructor_signatures(&self, name: &str) -> Vec<(String, Vec<TypeRef>)> {
+        if self.scope.contains_key(name) {
+            return Vec::new();
+        }
+        self.constructor_forms
+            .get(name)
+            .into_iter()
+            .flatten()
+            .filter_map(|bound| {
+                let (parameters, _) = self.scope.get(bound)?.as_function()?;
+                Some((bound.clone(), parameters.to_vec()))
+            })
+            .collect()
+    }
+
+    /// A call of a program's constructor: fields by name build the record,
+    /// and otherwise the first form whose first parameter the first
+    /// argument fits is applied.
+    fn construct_by_form(
+        &mut self,
+        callee: &Expr,
+        name: &str,
+        arguments: &[Arg],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        if !arguments.is_empty()
+            && arguments.iter().all(|argument| argument.name.is_some())
+            && crate::types::program::is_record_valued(name)
+            && let Some(shape) = crate::types::program::record(name)
+        {
+            return self.construct_record(name, &shape, arguments, span);
+        }
+        let forms = self.constructor_signatures(name);
+        let first = match arguments.first() {
+            Some(argument) if argument.name.is_none() => Some(self.expression(&argument.value)?),
+            _ => None,
+        };
+        let chosen = forms.iter().find(|(_, parameters)| {
+            parameters.len() == arguments.len()
+                && match (&first, parameters.first()) {
+                    (Some(actual), Some(parameter)) => {
+                        parameter.has_variable() || actual.is(parameter)
+                    }
+                    (None, None) => true,
+                    _ => false,
+                }
+        });
+        let Some((bound, _)) = chosen else {
+            let taken = forms
+                .iter()
+                .map(|(_, parameters)| {
+                    format!(
+                        "({})",
+                        parameters
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" or ");
+            let given = first.map_or_else(|| "no argument".to_owned(), |ty| ty.to_string());
+            return Err(Diagnostic::typing(
+                span,
+                format!(
+                    "`{name}` has no constructor taking {given} with {} argument{}: its forms \
+                     take {taken}",
+                    arguments.len(),
+                    if arguments.len() == 1 { "" } else { "s" }
+                ),
+            ));
+        };
+        let bound = bound.clone();
+        let ty = self.scope.get(&bound).cloned().unwrap_or(TypeRef::NEVER);
+        self.checked
+            .module_refs
+            .insert(callee.span.clone(), bound.clone());
+        self.checked.types.insert(callee.span.clone(), ty.clone());
+        self.apply_key(
+            Some(&bound),
+            &ty,
+            callee.span.clone(),
+            None,
+            arguments,
+            span,
+        )
+    }
+
+    /// A program's constructor passed as a function value: the one form
+    /// whose parameters take what the receiving operation passes.
+    fn constructor_value(
+        &mut self,
+        name: &str,
+        span: &Range<usize>,
+        parameters: &[TypeRef],
+    ) -> Result<TypeRef, Diagnostic> {
+        let forms = self.constructor_signatures(name);
+        let taking: Vec<&(String, Vec<TypeRef>)> = forms
+            .iter()
+            .filter(|(_, held)| {
+                held.len() == parameters.len()
+                    && held
+                        .iter()
+                        .zip(parameters)
+                        .all(|(held, passed)| held.has_variable() || passed.is(held))
+            })
+            .collect();
+        let firsts = |candidates: &[&(String, Vec<TypeRef>)]| {
+            candidates
+                .iter()
+                .filter_map(|(_, held)| held.first().map(|first| format!("`{first}`")))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        let passed = parameters
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let [(bound, _)] = taking.as_slice() else {
+            let all: Vec<&(String, Vec<TypeRef>)> = forms.iter().collect();
+            return Err(Diagnostic::typing(
+                span.clone(),
+                if taking.is_empty() {
+                    format!(
+                        "`{name}` passed here takes {passed}, and no form of it does: its forms \
+                         take {}",
+                        firsts(&all)
+                    )
+                } else {
+                    format!(
+                        "`{name}` passed here is ambiguous: {passed} fits its forms taking {}; \
+                         write the call, `x => {name}(x)`",
+                        firsts(&taking)
+                    )
+                },
+            ));
+        };
+        let bound = bound.clone();
+        let ty = self.scope.get(&bound).cloned().unwrap_or(TypeRef::NEVER);
+        self.checked.module_refs.insert(span.clone(), bound.clone());
+        self.using(&bound, self.effectful.contains_key(&bound));
+        let (_, result) = ty.as_function().ok_or_else(|| {
+            Diagnostic::typing(span.clone(), format!("`{name}` is not a function"))
+        })?;
+        let result = result.clone();
+        self.checked.types.insert(span.clone(), ty);
+        Ok(result)
+    }
+
     /// The signature and body of a declared function, with its type
     /// variables and trait bounds in force.
-    fn function_body(&mut self, declaration: &FnDecl) -> Result<(), Diagnostic> {
+    fn function_body(&mut self, declaration: &FnDecl, bound: &str) -> Result<(), Diagnostic> {
         let mut parameters = Vec::new();
         let mut names: Vec<String> = Vec::new();
         if declaration.has_self {
@@ -1351,20 +1622,18 @@ impl<'a> Checker<'a> {
                 "a function takes at most eight parameters",
             )
         })?;
-        self.scope.insert(declaration.name.clone(), ty.clone());
+        self.scope.insert(bound.to_owned(), ty.clone());
         if declaration
             .parameters
             .last()
             .is_some_and(|last| last.variadic)
         {
-            self.variadic
-                .insert(declaration.name.clone(), parameters.len());
+            self.variadic.insert(bound.to_owned(), parameters.len());
         } else {
-            self.variadic.remove(&declaration.name);
+            self.variadic.remove(bound);
         }
         self.checked.functions.insert(declaration.span.clone(), ty);
-        self.parameter_names
-            .insert(declaration.name.clone(), names.clone());
+        self.parameter_names.insert(bound.to_owned(), names.clone());
         let names = names.into_iter();
         if let Kind::Block(statements) = &declaration.body.kind {
             return self.with_bindings(names.zip(parameters), |checker| {
@@ -1423,7 +1692,7 @@ impl<'a> Checker<'a> {
     /// unannotated parameter the type of the first step argument it is
     /// passed to, and the result whatever the body returns.
     fn alias(&mut self, alias: &crate::ast::AliasDecl) -> Result<(), Diagnostic> {
-        constructor_name(&alias.name, &alias.span)?;
+        constructor_name(&self.declarations, &alias.name, None, &alias.span)?;
         use crate::types::builtin::{PLACEHOLDERS, type_variable};
         self.lint(crate::naming::Kind::Function, &alias.name, &alias.span);
         if builtins::exists(&alias.name) {
@@ -1782,12 +2051,38 @@ impl<'a> Checker<'a> {
                         format!("this function takes at least {fixed} arguments"),
                     ));
                 }
-                let element = parameters[fixed].element().unwrap_or(TypeRef::DATA);
+                let mut element = parameters[fixed].element().unwrap_or(TypeRef::DATA);
+                // `...T` binds one type for every trailing argument: the
+                // fixed arguments and the trailing ones fill it as repeated
+                // parameters do, a later argument widening it only to a
+                // declared ancestor of what an earlier one bound.
+                let generic_element = element.has_variable();
+                if generic_element {
+                    let mut bound = HashMap::new();
+                    for ((actual, _), parameter) in supplied[..fixed].iter().zip(&parameters) {
+                        instantiate(parameter, actual, &mut bound);
+                    }
+                    for (actual, _) in &supplied[fixed..] {
+                        instantiate(&element, actual, &mut bound);
+                    }
+                    element = substituted(&element, &bound);
+                    if element.has_variable() {
+                        // No argument fills it: the pack is empty.
+                        element = TypeRef::NEVER;
+                    }
+                }
                 for (actual, at) in &supplied[fixed..] {
                     if !actual.is(&element) {
                         return Err(Diagnostic::typing(
                             at.clone(),
-                            format!("a trailing argument here is {element}, not {actual}"),
+                            if generic_element {
+                                format!(
+                                    "the trailing arguments fill one type, here {element}, \
+                                     and this one is {actual}"
+                                )
+                            } else {
+                                format!("a trailing argument here is {element}, not {actual}")
+                            },
                         ));
                     }
                 }
@@ -1813,6 +2108,11 @@ impl<'a> Checker<'a> {
             let mut bound = HashMap::new();
             for ((actual, _), parameter) in supplied.iter().zip(&parameters) {
                 instantiate(parameter, actual, &mut bound);
+            }
+            if let Some((fixed, element)) = &pack
+                && let Some(parameter) = parameters.get(*fixed)
+            {
+                instantiate(parameter, &TypeRef::list(element.clone()), &mut bound);
             }
             if let Some(bounds) = self.trait_bounded.get(callee_name).cloned() {
                 self.resolve_bounds(callee_name, &bounds, &mut bound, &span)?;
@@ -2027,12 +2327,19 @@ impl<'a> Checker<'a> {
     /// extension implements. It is checked and recorded, and binds nothing:
     /// the implementation is reached through the module's registry entry.
     fn external(&mut self, declaration: &ExternalDecl) -> Result<(), Diagnostic> {
-        constructor_name(&declaration.name, &declaration.span)?;
-        self.lint(
-            crate::naming::Kind::Function,
+        constructor_name(
+            &self.declarations,
             &declaration.name,
+            Some(&declaration.result),
             &declaration.span,
-        );
+        )?;
+        if !crate::constructors::is_constructor_name(&declaration.name) {
+            self.lint(
+                crate::naming::Kind::Function,
+                &declaration.name,
+                &declaration.span,
+            );
+        }
         let mut variables = Vec::new();
         // A constructor parameter, `F<_>`, is written applied, `F<T>`; as a
         // type it is the variable it binds.
@@ -2275,6 +2582,7 @@ impl<'a> Checker<'a> {
             variadic: HashMap::new(),
             parameter_names: HashMap::new(),
             generic_functions: HashMap::new(),
+            constructor_forms: HashMap::new(),
             placeholders: HashMap::new(),
             uses: Vec::new(),
             effectful: HashMap::new(),
@@ -3478,6 +3786,11 @@ impl<'a> Checker<'a> {
                 if let Kind::Field(receiver, name) = &callee.kind {
                     return self.dot_call(callee, receiver, name, arguments, span);
                 }
+                if let Kind::Ident(name) = &callee.kind
+                    && !self.constructor_signatures(name).is_empty()
+                {
+                    return self.construct_by_form(callee, name, arguments, span);
+                }
                 if self.names_function(callee) || !matches!(callee.kind, Kind::Ident(_)) {
                     return self.application(callee, None, arguments, span);
                 }
@@ -3940,6 +4253,10 @@ impl CheckCx for Checker<'_> {
             {
                 Some(1)
             }
+            Kind::Ident(name) if !self.constructor_signatures(name).is_empty() => self
+                .constructor_signatures(name)
+                .first()
+                .map(|(_, parameters)| parameters.len()),
             Kind::Ident(name) => self
                 .scope
                 .get(name)
@@ -3957,6 +4274,13 @@ impl CheckCx for Checker<'_> {
         argument: &Arg,
         parameters: Vec<TypeRef>,
     ) -> Result<TypeRef, Diagnostic> {
+        // A program's constructor passed where a function is takes the one
+        // form whose first parameter takes what is passed.
+        if let Kind::Ident(name) = &argument.value.kind
+            && !self.constructor_signatures(name).is_empty()
+        {
+            return self.constructor_value(name, &argument.value.span, &parameters);
+        }
         // A constructor passed where a function is: `map(Set)` builds a set
         // from each value it is given.
         if let Kind::Ident(name) = &argument.value.kind
@@ -3964,6 +4288,9 @@ impl CheckCx for Checker<'_> {
             && !self.scope.contains_key(name)
         {
             let span = argument.value.span.clone();
+            if let [parameter] = parameters.as_slice() {
+                crate::constructors::resolve_value(constructor, parameter, &span)?;
+            }
             let [parameter] = parameters.as_slice() else {
                 return Err(Diagnostic::typing(
                     span,

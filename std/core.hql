@@ -63,6 +63,12 @@ type Ordering
 // type Type<U> takes a type name and binds U to the type it names.
 type Type<T>
 
+// Text parsed by construction: `Data(s, Json)`, `s | Data(Yaml)`. The format
+// is one whose Decoder reads Data, Json, JsonLines, Yaml or Csv; a framed
+// format, JsonLines or Csv, gives the list of its records, and Json or Yaml
+// one document. Text that does not parse in the format fails at run time.
+fn Data<F : Format>(text: String, as: Type<F>) : Data
+
 // What a predicate that tests its parameter's type, `x => x | is(U)`, gives:
 // a Bool that, where true, holds the parameter at U. A parameter of type
 // T -> Is<U> takes only such a predicate, and binds U to the type it tests.

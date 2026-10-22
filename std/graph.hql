@@ -23,3 +23,14 @@ type Graph<N, E> {
 // The document graph: authored links over cards.
 type Link<S, T> : Edge<S, T>
 type HmdGraph   : Graph<Card, Link>
+
+// A graph is projected from what names its nodes and edges: cards, hits over
+// cards, the edges among them, or a graph, which projects to itself. One card
+// or one hit is the graph of what it reaches.
+fn Graph(xs: Graph) : Graph
+fn Graph(xs: Collection<Doc>) : Graph
+fn Graph(xs: Collection<Hit<Doc>>) : Graph
+fn Graph(xs: Collection<Edge>) : Graph
+fn Graph(x: Doc) : Graph
+fn Graph(x: Hit<Doc>) : Graph
+fn Graph(nodes: Collection<Doc>, edges: Collection<Edge>) : Graph

@@ -354,6 +354,9 @@ pub(crate) struct Checked {
     /// Each reference to a workspace module's function, `geo.area`, by the
     /// name it is bound under.
     pub module_refs: HashMap<Range<usize>, String>,
+    /// Each function bound under another name than it is declared with: a
+    /// program's constructor, one name per form, by its declaration's span.
+    pub bound_names: HashMap<Range<usize>, String>,
     /// Each receiver call of a workspace module's function, `"hi".shout()`,
     /// by the name it is bound under and its type.
     pub module_calls: HashMap<Range<usize>, (String, TypeRef)>,
@@ -402,7 +405,11 @@ impl Checked {
                     },
                     ast::Stmt::Fn(declaration) => {
                         Stmt::Fn {
-                            name: declaration.name.clone(),
+                            name: self
+                                .bound_names
+                                .get(&declaration.span)
+                                .cloned()
+                                .unwrap_or_else(|| declaration.name.clone()),
                             parameters: declaration
                                 .has_self
                                 .then(|| "self".to_owned())
@@ -591,6 +598,9 @@ impl Checked {
             A::Float(value) => Kind::Float(*value),
             A::Bool(value) => Kind::Bool(*value),
             A::Str(value) => Kind::Str(value.clone()),
+            A::Ident(_) if self.module_refs.contains_key(&span) => {
+                Kind::Ident(self.module_refs[&span].clone())
+            }
             A::Ident(name) if self.constructor_values.contains_key(&span) => {
                 let (parameter, built) = self.constructor_values[&span].clone();
                 let held = Expr {

@@ -25,6 +25,13 @@ declarations and their `where` bounds agree with the Rust `TypeConstructor` /
 `TypeRef` registry. `List` and `Set` materialize occurrences; `Map`, `OrderedMap`,
 and `SortedMap` materialize associations. `SortedMap` requires orderable keys.
 
+A type's constructors are declared as functions named after it, beside it:
+`fn Set<T>(xs: Collection<T>) : Set<T>` in `collections.hql`, `fn Graph` in
+`graph.hql`, `fn Channel` in `io/mod.hql`, `fn Data` in `core.hql`. Binding
+holds each to the binary's constructor, as it holds an external operation to
+its extension
+([HQL-0018](../doc/proposals/HQL-0018/README.md)).
+
 Collection operations are core functions and also pipeline steps. For example,
 `count(["owl", "owl"], "owl")` returns `2`, and `sort([2, 1])` returns a
 `List<Int>`. The signatures beside the declarations document these implemented

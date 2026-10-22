@@ -17,6 +17,11 @@ The [slicing](slicing/README.md) cases take a position with `xs[i]` and a
 slice with `xs[a:b]` over strings, lists, documents, streams and a declared
 type, written ahead of [HQL-0026](../doc/proposals/HQL-0026/README.md).
 
+The [constructors](constructors/README.md) cases call a type's constructor
+and pipe into it, declare a program's own constructors told apart by their
+first parameter, pass one to `map`, and parse text by constructing `Data`, from
+[HQL-0018](../doc/proposals/HQL-0018/README.md).
+
 The [overloads](overloads/README.md) cases call the standard operations a
 name declares more than once: positional arguments, forms chosen by their
 arguments' types, steps lifted over absence, and the narrowing `filter`.

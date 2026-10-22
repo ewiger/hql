@@ -1,6 +1,6 @@
 # HQL-0018: A type's constructor is an operation
 
-- **Status**: accepted
+- **Status**: implemented
 - **Created**: 2026-10-18
 - **Source**: [HQL-0016](../HQL-0016/README.md), its section "Conversion is
   construction"; [HQL-0017](../HQL-0017/README.md)
@@ -46,10 +46,13 @@ operation.
   `Edge(source = a, target = b, data = {})`, once declared records can be
   constructed ([issue 0016](../../issues/0016-sql-parity-analysis.md),
   roadblock "record and pair values").
-- A format type of [HQL-0017](../HQL-0017/README.md) has one constructor from
-  `String`, which checks that the text parses in its format:
-  `Json(s) : Json`. It is not `format`: `Json(s)` reads `s` as JSON source,
-  while `format(s, Json)` writes the string `s` as a JSON value.
+- A format type has no constructor: a format is a value of `Format`, not the
+  text it encodes ([HQL-0024 part 7](../HQL-0024/parts/07-formats-and-codecs.md)).
+  Text is parsed by constructing the type a format's decoder reads:
+  `Data(s, Json) : Data` reads `s` as JSON source, while `format(s, Json)`
+  writes the string `s` as a JSON value. The format is one whose `Decoder`
+  reads `Data`, Json, JsonLines, Yaml or Csv; a framed format, JsonLines or
+  Csv, gives the list of its records, and Json or Yaml one document.
 
 ### 2. Declaring a constructor
 
@@ -57,20 +60,26 @@ A constructor is a function named after its type:
 
 ```hql
 fn Set<T>(xs: Collection<T>) : Set<T>
-fn Graph(xs: Collection<Card>) : HmdGraph
-fn Json(s: String) : Json
+fn Graph(xs: Collection<Doc>) : Graph
+fn Data<F : Format>(text: String, as: Type<F>) : Data
 ```
 
 - A function MAY be named in `UpperCamelCase` only if it is a constructor: its
-  name is a type declared in the same module, and it returns that type or one
-  of its subtypes.
+  name is a concrete type declared in the same module, and it returns that
+  type or one of its subtypes. An alias states no result, and is never one.
 - All constructors of a type MUST be declared in the module that declares the
   type. Another module builds values of the type through them, or declares its
   own subtype with its own constructors, as the knowledge extension does with
   `KnowledgeGraph`.
-- A type MAY have several constructors. They MUST differ in the type of their
-  first parameter, so that the first argument alone selects one, as overloads
-  of one operation do.
+- A type MAY have several constructors. Two of one arity MUST differ in the
+  type of their first parameter, so that the first argument selects one, as
+  overloads of one operation do: a call takes the first form, in the order
+  declared, whose first parameter its first argument fits.
+  `Graph(nodes, edges)` and `Graph(cards)` share a first parameter and differ
+  in arity.
+- A record type's fields given by name build its value directly, beside its
+  declared constructors: `Temp(kelvin = 0.0)` where `fn Temp(celsius: Float)
+  : Temp` is declared.
 
 ### 3. Two forms of one call
 
@@ -82,7 +91,7 @@ T<A>(x, …)    ≡  x | T<A>(…)
 
 - Both forms MUST check and evaluate identically.
 - The first parameter MAY be of any type. `Set(xs)` takes a collection,
-  `Graph(edges)` a collection of edges, `Json(s)` a string; the pipeline form
+  `Graph(edges)` a collection of edges, `Data(s, Json)` a string; the pipeline form
   carries whatever the first parameter takes.
 - In pipeline position, a bare type name with no arguments MUST resolve to its
   constructor. `<` after it opens type arguments under the rule the
@@ -98,12 +107,14 @@ A constructor is a function value with its signature
 
 ```hql
 groups | map(Set)        // each List<T> to a Set<T>
-texts  | map(Json)       // each String checked as JSON
+temps  | map(Temp)       // the one form of Temp that takes the element
 ```
 
 - A type with several constructors, passed as a value, MUST be resolved by the
-  parameter type the receiving operation expects, and a call that leaves it
-  ambiguous MUST be refused, naming the candidate first-parameter types.
+  parameter type the receiving operation expects: the one form whose first
+  parameter takes it. A call where no form, or more than one, takes it MUST
+  be refused, naming the candidate first-parameter types: `[] | map(Temp)`,
+  whose `Never` every form takes, and `[[]] | map(Graph)`.
 
 ### 5. No second name for a constructor
 
@@ -132,14 +143,17 @@ before, so restricting them to constructors breaks no program.
 
 ## Reference Implementation
 
-- `src/constructors.rs` — constructor lookup by type name and first-argument
-  type; the pipeline form
+- `src/constructors.rs` — the binary's constructors, bound to their
+  declarations in `std/`; form selection by first argument; the refusal of an
+  ambiguous constructor value; `Data(s, F)`
 - `src/checker.rs` — a bare type name in step position resolving to its
   constructor; the refusal of an abstract type; the `UpperCamelCase` rule for
-  `fn`
+  `fn`; a program's constructors, one binding per form
 - `src/extensions/mod.rs` — the case-insensitive suggestion for an unknown
   operation
-- `std/*.hql` — each constructor declared beside its type
+- `std/*.hql` — each constructor declared beside its type: `List`, `Set`,
+  `Map`, `OrderedMap` and `SortedMap` in `collections`, `Graph` in `graph`,
+  `Channel` in `io`, `Data` in `core`
 - `doc/models/behavior/expressions.md` — the two forms, replacing the open
   sentence about a constructor in other positions
 - `doc/wiki/hql/type-system.hmd` — constructors as the way a value of a type is
@@ -159,6 +173,9 @@ Unit tests MUST include:
 - `groups | map(Set)` checks; a type with two
   constructors passed where the expected parameter type does not pick one is
   refused, naming both
+- `fn Temp(celsius: Float) : Temp` beside `type Temp` checks, and a second
+  form taking a `String` is selected by the first argument; `Data(s, Json)`
+  parses, and `Data(s, Lines)` is refused
 
 ```bash
 cargo test --locked
@@ -173,3 +190,9 @@ cargo clippy --locked --all-targets -- -D warnings
   `UpperCamelCase` reserved for constructors are implemented, and constructors
   declared in `std/`, overloads by first argument, record constructors and
   `Json(s)` are not yet
+- 2026-10-22: implemented. Constructors are declared in `std/` and bound to
+  the binary's; a program declares its own beside its type, several told
+  apart by their first parameter; a constructor value is resolved by the
+  parameter type it is passed at, and refused where that leaves it
+  ambiguous. A format has no constructor, by HQL-0024 part 7: text is parsed
+  by constructing `Data(s, F)`

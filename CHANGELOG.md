@@ -10,6 +10,17 @@ The language continues to be in active development.
 
 ### Added
 
+- A type's constructor is an operation declared in HQL
+  ([HQL-0018](doc/proposals/HQL-0018/README.md), shown in the
+  [constructors corpus](examples/constructors/README.md)): `List`, `Set`,
+  `Map`, `OrderedMap`, `SortedMap`, `Graph`, `Channel` and `Data` are
+  declared as `fn` beside their types in `std/` and bound to the binary's
+  constructors. A program declares its own, `fn Temp(celsius: Float) : Temp`
+  beside `type Temp`, several told apart by their first parameter, called,
+  piped or passed to `map`; a constructor value whose expected parameter
+  fits no form or several is refused naming them. Text is parsed by
+  construction: `Data(s, Json)`, `s | Data(Csv)`.
+
 - A `Data` tree is read as a record the program declares, by its shape
   ([HQL-0016](doc/proposals/HQL-0016/README.md), shown in
   [reading records](examples/mighty-types/queries/26-reading-records.hql)):
@@ -124,6 +135,10 @@ The language continues to be in active development.
     comma; an integer literal takes a call, `7.max(3)`.
 
 ### Changed
+
+- A generic variadic parameter binds its type from the trailing arguments:
+  `fn pack<T>(xs: ...T)` makes `pack(1, 2)` a `List<Int>`, and refuses
+  `pack(1, "owl")`, whose arguments share no declared ancestor.
 
 - A step over a value applied to an optional input is lifted over it
   ([issue 0033](doc/issues/0033-overloaded-declarations.md)): `none | abs`,

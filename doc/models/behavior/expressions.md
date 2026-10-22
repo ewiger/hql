@@ -213,11 +213,29 @@ value is its first argument: `x | T` is `T(x)`, `x | T(a)` is `T(x, a)`, and
 refused with its concrete subtypes, `[1] | Seq` naming `List`, and a lowercase
 spelling of a type, `list`, is not a step and names the constructor.
 
+A constructor is a function named after its type, declared in the module
+that declares the type and returning that type or a subtype of it:
+`fn Set<T>(xs: Collection<T>) : Set<T>` in `std/collections.hql`, or a
+program's own `fn Temp(celsius: Float) : Temp` beside `type Temp`. A `fn`
+named in `UpperCamelCase` that names no concrete type declared in its source
+unit, or returns another type, is refused, and so is an alias so named. A
+type may have several constructors; forms of one arity differ in their first
+parameter, and a call takes the first form its first argument fits. Fields
+given by name build a record type's value itself, `Temp(kelvin = 0.0)`.
+
 A constructor passed where a function is expected is that function:
-`groups | map(Set)` builds a set from each group. A `fn` or alias named in
-`UpperCamelCase` is refused, since that casing is a type's constructor's, which
-only the module declaring the type provides
+`groups | map(Set)` builds a set from each group. Where a type has several
+forms, the parameter type the receiving operation passes selects the one
+form whose first parameter takes it; none, or more than one, is refused
+naming the candidates' first parameters, so `[] | map(Temp)` is refused when
+`Temp` takes a Float and a String
 ([HQL-0018](../../proposals/HQL-0018/README.md)).
+
+Text is parsed by construction: `Data(s, Json)`, or `s | Data(Json)`, gives
+the tree the text holds in a format whose decoder reads `Data`, Json,
+JsonLines, Yaml or Csv. A framed format gives the list of its records. A
+format type has no constructor, since a format is a value of `Format` and not
+the text it encodes.
 
 ## Type declarations
 

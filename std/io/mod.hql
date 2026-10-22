@@ -54,6 +54,10 @@ type Channel<T> : {Readable, Writable} {
     name : String
 }
 
+// The element type is written at the call, `Channel<LogEvent>("logs")`:
+// nothing written to the channel yet can say it.
+fn Channel<T>(name: String) : Channel<T>
+
 // Bound by the host, as `vault` is:
 // stdin  : Stdin
 // stdout : Stdout

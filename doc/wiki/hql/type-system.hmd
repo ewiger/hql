@@ -253,6 +253,15 @@ A record declares its shape and an incomplete literal fails at construction; a
 `Data` tree earns a stronger type by established structure, checked only where
 the evidence holds, and refinement never converts the value.
 
+A value of a concrete type is built by its **constructor**, a function named
+after the type, declared beside it and returning it: `fn Set<T>(xs:
+Collection<T>) : Set<T>` in `std/collections.hql`, `fn Temp(celsius: Float) :
+Temp` in a program that declares `type Temp`. `T(x, a)` and `x | T(a)` are one
+call. A type's forms of one arity differ in their first parameter, which is
+how a call, and a constructor passed as a function value, selects one; an
+abstract type has none. A record's fields given by name build its value
+directly ([HQL-0018](../../proposals/HQL-0018/README.md)).
+
 Absence is not part of this. `Option` is an ordinary sum type, not a trait — see
 [[option-type]].
 
@@ -424,6 +433,13 @@ has type `Seq<T>`; a call fills it from its trailing arguments, zero or more.
 coalesce<T>(os: ...Option<T>) : Option<T>   // Seq<Option<T>> -> Option<T>
 coalesce(card.summary, card.description)
 ```
+
+Where the element is a type parameter, the trailing arguments fill it as
+repeated parameters of that type do: the first binds it, and a later one
+widens it only to a declared ancestor of what is bound. `pack<T>(xs: ...T)`
+makes `pack(1, 2)` a `List<Int>` and refuses `pack(1, "owl")`, since `Int`
+and `String` share no declared ancestor; a list literal, `[1, "owl"]`, is the
+place their common type `Data` is taken.
 
 A variadic function is therefore an ordinary one-parameter function and needs no
 constructor of its own. An operation generic over arity itself, such as `curry`,

@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 33 # to be incremented when adding a new issue card
+  last_id: 34 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -47,6 +47,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0034"
+        title: "Constructors declared in HQL, overloaded, and passed as values"
+        file: 0034-constructors-as-operations.md
       - id: "0033"
         title: "Overloaded declarations: every standard operation declared in HQL"
         file: 0033-overloaded-declarations.md
