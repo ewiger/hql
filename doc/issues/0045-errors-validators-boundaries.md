@@ -238,3 +238,8 @@ refresh, caching, versioning and boundary events are not in this portion.
 - B1 done: HQL-0035 states the `hql.toml` form; `Configured.fields` holds
   one `FieldMapping` per field, its properties `None` where unwritten, for
   the resolver to merge; refusals pinned in `tests/sources.rs`.
+- B2 done: `src/boundary.rs` holds the resolver HQL-0035's new section on
+  it states: the format defaults and decoder tables, field-level recursive
+  override with an origin per property, and the five boundary errors,
+  pinned by unit tests. It takes the element type's fields and, where the
+  format knows them, the external fields, so B3 supplies both.

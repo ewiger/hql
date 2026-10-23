@@ -26,6 +26,7 @@ mod net;
 mod parser;
 
 pub mod backends;
+pub mod boundary;
 pub mod builtins;
 pub mod cli;
 pub mod data;

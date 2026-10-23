@@ -2986,6 +2986,53 @@ the wrong type, both `name` and `path`, a `path` on a kind that does not nest,
 a `position` below 1, an `absent` entry outside the three, or a subtable named
 by another kind.
 
+### The resolver
+
+One resolver turns the layers of a boundary into the effective boundary
+I/O proceeds with. Its layers, earliest first, are the format's defaults,
+the configured source's `fields`, and an invocation's override; HQL has no
+syntax for the last yet, and the resolver takes it all the same. It merges
+them by field-level recursive override: for each HQL field, each property
+takes the value of the latest layer that writes it, and the keys a kind owns
+merge key by key. Each effective property keeps the layer it came from, its
+**origin**: `format`, `configuration` or `invocation`.
+
+The format's defaults, per HQL field of the element type:
+
+| Property | Default |
+| --- | --- |
+| external field | the field's own name |
+| external type | the format's type for the HQL type, below |
+| position | the field's place in the declaration, from 1 |
+| read, write | `true` |
+| absent | `csv`: `empty`, `missing`; `json`, `json_lines`, `yaml`: `missing`, `null`; `sqlite`: `null` |
+
+| Format | Its types, and the HQL types each decodes to |
+| --- | --- |
+| `csv` | `text`: any scalar, its text parsed; `integer`: `Int`, `Float`, `Decimal`; `float`: `Float`, `Decimal`; `decimal`: `Decimal`; `boolean`: `Bool` |
+| `json`, `json_lines`, `yaml` | `string`: `String`, `Decimal`; `number`: `Int`, `Float`, `Decimal`; `boolean`: `Bool`; `array`: a list; `object`: a record, `Data` or a map |
+| `sqlite` | `INTEGER`: `Int`, `Float`, `Decimal`, `Bool`; `REAL`: `Float`, `Decimal`; `TEXT`: `String`, `Decimal`; `NUMERIC`: `Decimal`, `Int`, `Float`; `BLOB`: `String` |
+
+A `Data` field decodes from every external type. The default external type
+is the first listed for the HQL type: `text` in CSV, `string`, `number`,
+`boolean`, `array` or `object` in JSON and YAML, and `INTEGER`, `REAL` or
+`TEXT` in SQLite, `TEXT` for a `Decimal`. SQLite's type names compare
+without regard to case.
+
+Where the format knows its external fields before reading, a CSV header and
+an SQLite table's columns, the resolver checks the boundary against them.
+It reports every boundary error at once, each a structured diagnostic naming
+the source, the HQL field, the external field and the origin of the property
+at fault:
+
+| Error | When |
+| --- | --- |
+| undeclared field | the configuration maps a field the element type does not declare |
+| unmapped field | a required field's external field is not among the external fields |
+| shared external field | two HQL fields read one external field |
+| missing external field | a configured external field is not among the external fields |
+| no decoder | the external type is not the format's, or does not decode to the field's type |
+
 ### Write modes
 
 *Placeholder; specified separately.* How `Table<R>` is created, appended to
@@ -2999,3 +3046,7 @@ and replaced in a SQL database.
   ([issue 0045](../../issues/0045-errors-validators-boundaries.md), B1):
   `[sources.<id>.fields.<field>]` with `name`, `path`, `type`, `position`,
   `read`, `write` and `absent`, and extension keys under the kind
+- 2026-10-23: the resolver specified and built (issue 0045, B2): format
+  defaults, configuration and an invocation override merged by field-level
+  recursive override, each property with its origin, and five structured
+  boundary errors

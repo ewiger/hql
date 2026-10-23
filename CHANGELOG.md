@@ -109,7 +109,11 @@ The language continues to be in active development.
   `[sources.<id>.fields.<field>]` with `name` or a dotted `path`, `type`,
   `position`, `read`, `write` and `absent`, and keys its kind's extension
   owns in a subtable named by the kind; a malformed boundary refuses the
-  vault.
+  vault. One resolver merges the format's defaults, the configuration and
+  an invocation's override field by field, each property keeping its
+  origin, and reports every boundary error at once: an undeclared or
+  unmapped field, a shared or missing external field, and an external type
+  with no decoder.
 
 ### Changed
 
