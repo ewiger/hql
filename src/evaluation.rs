@@ -1204,6 +1204,12 @@ impl Evaluator<'_> {
                     sink(evaluator, mapped)
                 })
             }
+            Source::Keyed { input, by, span } => {
+                self.run_traversal(input, &mut |evaluator, value| {
+                    evaluator.call(by, vec![value.clone()], span)?;
+                    sink(evaluator, value)
+                })
+            }
             Source::Filter { input, by, span } => self.run_traversal(
                 input,
                 &mut |evaluator, value| match evaluator.call(by, vec![value.clone()], span)? {

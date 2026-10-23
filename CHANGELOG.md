@@ -87,6 +87,17 @@ The language continues to be in active development.
   `Data` maps a `Table<Data>`. `Table` written without its row is
   `Table<Data>`, and a `Table<Book>` is not a `Table<Film>`.
 
+### Changed
+
+- `partition` redistributes by key ([HQL-0036](doc/proposals/HQL-0036/README.md),
+  shown in the [dataflow examples](examples/dataflow/README.md)):
+  `xs | partition(by = f)` over a `Seq` or a `Stream` keeps the input's
+  type and every value, and is a stage boundary in a plan; the local
+  backend passes the values on in order. The predicate
+  `partition(by: T -> Bool) : Pair<List<T>, List<T>>` is removed: its
+  values are two branches of a `fork`,
+  `fork { yes = filter(p), no = filter(x => not p(x)) }`.
+
 ### Fixed
 
 - A record declared under another record, `type Sub : Base = {…}`, has its

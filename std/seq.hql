@@ -24,7 +24,12 @@ fn take_while<S : Seq<T>>(self: S, by: T -> Bool) : S
 fn take_while(self: Iterable<T>, by: T -> Bool) : List<T>
 fn drop_while<S : Seq<T>>(self: S, by: T -> Bool) : S
 fn window(self, n: Int) : List<List<T>>
-fn partition(self, by: T -> Bool) : Pair<List<T>, List<T>>
+// The values redistributed by a key (HQL-0036): each value once, at its own
+// type, those of one key in one logical partition. The step is a stage
+// boundary. The local backend has one partition per key on one worker, and
+// passes the values on in their order, which keeps each partition's.
+partition fn partition<S : Seq<T>, K>(self: S, by: T -> K) : S
+partition fn partition<K>(self: Stream<T>, by: T -> K) : Stream<T>
 reduction fn is_empty(self: Collection<T>) : Bool
 fn join<U>(self: Collection<T>, other: Collection<U>, by: (T, U) -> Bool) : List<Pair<T, U>>
 fn min_by<K : Orderable>(self: Collection<T>, by: T -> K) : Option<T>

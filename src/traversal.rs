@@ -40,6 +40,13 @@ pub(crate) enum Source {
         by: Value,
         span: Range<usize>,
     },
+    /// The values of `input`, each assigned its partition key by `by`:
+    /// `partition(by = …)` on the local backend (HQL-0036).
+    Keyed {
+        input: Arc<Traversal>,
+        by: Value,
+        span: Range<usize>,
+    },
     /// The values of `input` a predicate accepts.
     Filter {
         input: Arc<Traversal>,

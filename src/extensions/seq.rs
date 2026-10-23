@@ -86,9 +86,10 @@ pub(crate) static STEPS: &[Operation] = &[
     ),
     declared(
         "partition",
-        "The elements a predicate accepts, and then the ones it rejects, each in order.",
+        "The values redistributed by a key, each once and at its own type: a stage boundary.",
         eval_partition,
-    ),
+    )
+    .shaped(super::Shape::Partition),
     declared(
         "is_empty",
         "Whether the collection has no occurrences.",
@@ -432,23 +433,24 @@ fn eval_partition(
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    let by = predicate(arguments, "partition", &span)?;
-    let element = element_of(&input);
-    let (mut accepted, mut rejected) = (Vec::new(), Vec::new());
-    for value in elements(&input, "partition", &span)? {
-        if holds(cx, by, value.clone(), "partition")? {
-            accepted.push(value);
-        } else {
-            rejected.push(value);
-        }
+    let by = named_or_first(arguments, "by").ok_or_else(|| wrong("partition", "a key", &span))?;
+    // The local backend is one worker holding every partition, so each
+    // value keeps its place; its key is still computed, as a backend that
+    // redistributes would.
+    if let Some(traversal) = pending(&input) {
+        let source = crate::traversal::Source::Keyed {
+            input: Arc::clone(traversal),
+            by: cx.evaluate(&by.value)?,
+            span: by.value.span.clone(),
+        };
+        return Ok(Value::Traversal(Arc::new(
+            crate::traversal::Traversal::new(traversal.element.clone(), traversal.finite, source),
+        )));
     }
-    let list = TypeRef::list(element.clone());
-    Ok(pair(
-        Value::list(accepted, element.clone()),
-        Value::list(rejected, element),
-        list.clone(),
-        list,
-    ))
+    for value in elements(&input, "partition", &span)? {
+        cx.apply_lambda(by, value)?;
+    }
+    Ok(input)
 }
 
 fn eval_is_empty(

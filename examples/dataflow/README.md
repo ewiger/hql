@@ -17,6 +17,9 @@ however many pipelines and branches read it.
 | [accepted and rejected, live](queries/fork-results-live.hql) | a file validated and forked into `oks()` and `errs()` is read once | the accepted names, the broken rules |
 | [repairing rejected values](queries/repair-rejected.hql) | stored `errs()` read back as `Invalid`, repaired from `e.value`, validated and forked again | the repaired users, the stored rules |
 | [provenance outside `Invalid`](queries/invalid-provenance.hql) | an envelope holds a broker key beside the `Invalid`; a producer's extra field rides on the open record | `["users/7", "UserData", …]` |
+| [partition by key](queries/partition-by-key.hql) | `partition(by = …)` keeps the type and every value, in order, over a list and a stream | `[[5, 3, 8, 1], [1, 2, 3, 4]]` |
+| [complementary filters](queries/fork-complementary-filters.hql) | a predicate's accepted and rejected values as two `fork` branches | `{large: [5, 8], small: [3, 1]}` |
+| [no pair from `partition`](queries/invalid-partition-pair.hql) | `partition` keeps its input's type, so it has no `.first` | a name error |
 | [branch named twice](queries/invalid-fork-branch-twice.hql) | a branch name is written once | a syntax error |
 
 From the repository root:

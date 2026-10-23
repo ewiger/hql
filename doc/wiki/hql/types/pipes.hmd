@@ -67,6 +67,7 @@ get
 debug
 tee                                 binds a branch, passes the input on
 fork                                the record of branches over one input
+partition(by)                       the same values, redistributed by key
 uplinks
 downlinks
 expand
@@ -94,6 +95,14 @@ branch. `{ a, b } = xs | fork { … }` binds the branches by name, and
 `parts.a` reads one. Over a `Stream` each branch is a stream that keeps the
 upstream's order. Branches are separated by a line break or a comma; a branch
 continues over lines that open with `|`.
+
+`xs | partition(by = f)` redistributes values by key
+([HQL-0036](../../../proposals/HQL-0036/README.md)): its type is its input's, a
+`Seq` or `Stream`, each value appears once, and the values of one key are in
+one logical partition. It is a stage boundary in a plan. The local backend
+holds every partition on one worker and passes the values on in their order.
+Separating the values a predicate accepts from those it rejects is a `fork`
+with complementary filters, not a `partition`.
 
 A producer bound once is **evaluated once**: a binding's value is computed
 once, and a stream read from a file, standard input, a socket or a WebSocket
@@ -160,7 +169,7 @@ whole of what a backend may assume about splitting it:
 | Shape | Meaning | Core operations |
 | --- | --- | --- |
 | elementwise | each element's result depends on that element alone; any split runs separately and is recombined in input order | `filter`, `map`, `of_type`, `somes`, `emit`, `flat_map` |
-| partition | the input is regrouped by a key; groups complete in any order | `group` |
+| partition | the input is regrouped by a key; groups complete in any order | `group`, `partition` |
 | reduction | the input collapses to one value through a combiner the executor holds | `size`, `count`, `contains`, `sum`, `product`, `average`, `variance`, `count_by`, `histogram`, `top_k`, `approx_distinct`, `min`, `max`, `merge_all`, `union_all`, `concat_all`, and `seq`'s `any`, `all`, `is_empty` |
 | barrier | the whole input is needed first; nothing is split | every other step: `sort`, `take`, `drop`, `get`, `collect`, `reduce`, presentation and retrieval |
 

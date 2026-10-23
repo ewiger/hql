@@ -208,3 +208,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   E1; pinned by a two-run test and a repair case. `Message<T>` does not
   exist, so HQL-0033 now states that provenance sits in an envelope beside
   `Invalid` until it does.
+- P1 done: the predicate `partition` removed; `partition(by = …)` declared
+  `partition fn` over `S : Seq<T>` and `Stream<T>`, a stage boundary in the
+  plan, passing values on in order on the local backend through a lazy
+  keyed traversal. HQL-0037 marked accepted.

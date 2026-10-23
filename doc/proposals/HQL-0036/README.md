@@ -1,6 +1,6 @@
 # HQL-0036: Partitioning, shuffle boundaries and execution scheduling
 
-**Status:** proposed  
+**Status:** proposed, implemented in part  
 **Created:** 2026-10-23  
 **Related:** HQL-0010 (`tee`), HQL-0033 (error routing), HQL-0037 (`fork` and the dataflow DAG)
 
@@ -400,3 +400,17 @@ Those may build on the logical partition abstraction defined here.
 Reserve `partition` for **same-type distribution by key and the corresponding execution boundary**.
 
 Do not use `partition` for separating `Result<T, E>` into successful and failed values. That is a `fork` with `oks()` and `errs()`, as HQL-0033 and HQL-0037 specify. `partition` is logically `1 → 1`: its lanes are never first-class branches.
+
+---
+
+## The local backend
+
+`partition(by = f)` is declared over `S : Seq<T>`, giving `S`, and over `Stream<T>`, giving `Stream<T>`, with the shape `partition`, so the planner opens a stage at it. The key `f` may give a value of any type. The local backend holds one logical partition per key on one worker: it computes each value's key, as a backend that redistributes would, and passes the values on in their input order, which keeps the order of each partition. Over a stream it does so one value at a time. The former predicate form, the values a predicate accepts and those it rejects as a pair, is not `partition`; it is a `fork` with complementary filters.
+
+## Changelog
+
+- 2026-10-23: proposed
+- 2026-10-23: `partition(by = …)` built on the local backend
+  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), P1), and
+  the predicate `partition` removed; shown in the
+  [dataflow examples](../../../examples/dataflow/README.md)

@@ -230,6 +230,32 @@ mod tests {
         );
     }
 
+    /// `partition(by = …)` is a stage boundary (HQL-0036): the elementwise
+    /// steps before it are one stage and those after it join its own.
+    #[test]
+    fn partition_by_key_opens_a_stage() {
+        let steps = [
+            operation("map", Shape::Elementwise, Purity::Pure, false),
+            operation("partition", Shape::Partition, Purity::Pure, false),
+            operation("map", Shape::Elementwise, Purity::Pure, false),
+            operation("sum", Shape::Reduction, Purity::Pure, false),
+        ];
+        let steps: Vec<&OperationType> = steps.iter().collect();
+        let planned: Vec<(usize, Strategy)> = stages(&steps, Execution::Partitioned)
+            .into_iter()
+            .map(|stage| (stage.index, stage.strategy))
+            .collect();
+        assert_eq!(
+            planned,
+            [
+                (0, Strategy::Parallel),
+                (1, Strategy::Partitioned),
+                (1, Strategy::Partitioned),
+                (1, Strategy::Partitioned),
+            ]
+        );
+    }
+
     #[test]
     fn an_impure_elementwise_step_is_not_fused() {
         let steps = [
