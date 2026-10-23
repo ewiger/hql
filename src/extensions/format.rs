@@ -479,6 +479,7 @@ fn capped(value: &Value, limit: usize) -> (Value, usize) {
         }
         Value::Table(table) if table.rows.len() > limit => (
             Value::Table(Arc::new(crate::types::Table {
+                row: table.row.clone(),
                 columns: table.columns.clone(),
                 rows: table.rows[..limit].to_vec(),
             })),
@@ -624,7 +625,7 @@ fn check_format(
                     !input.has_variable() && !input.has_placeholder() && *input != TypeRef::NEVER;
                 if TABLE_RENDERERS.contains(&renderer.as_str())
                     && known
-                    && !input.is(&TypeRef::TABLE)
+                    && input.constructor != TypeRef::TABLE.constructor
                 {
                     return Err(Diagnostic::typing(
                         argument.value.span.clone(),

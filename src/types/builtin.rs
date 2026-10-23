@@ -43,7 +43,7 @@ macro_rules! applications {
     };
 }
 
-applications! { list => "List", seq => "Seq", set => "Set", hit => "Hit", ranking => "Ranking", optional => "Option", collection => "Collection" }
+applications! { list => "List", seq => "Seq", set => "Set", hit => "Hit", ranking => "Ranking", optional => "Option", collection => "Collection", table => "Table" }
 
 /// The type variables a generic function's parameters stand for, one per
 /// capital letter.
@@ -153,8 +153,6 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::RELATION_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
         (TypeRef::EDGE, TypeKind::Concrete, &[]),
         (TypeRef::GRAPH, TypeKind::Concrete, &[]),
-        // Rows under ordered columns: `type Table` in `std/format.hql`.
-        (TypeRef::TABLE, TypeKind::Concrete, &[]),
         (TypeRef::VAULT, TypeKind::Concrete, &[]),
         (TypeRef::ORDERING, TypeKind::Concrete, &[]),
         // Where values come from and go to: `std/io/init.hql`. A capability
@@ -379,6 +377,19 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         parents: Vec::new(),
         applied: Vec::new(),
     })?;
+    // Rows under ordered columns: `type Table<R>` in `std/format.hql`, `R`
+    // the row, a record type or `Data`.
+    system.declare(TypeDefinition {
+        constructor: TypeRef::TABLE.constructor,
+        kind: TypeKind::Concrete,
+        parameters: vec![TypeParameter {
+            name: "R",
+            variance: Variance::Covariant,
+            bound: None,
+        }],
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     // Two values held together: `type Pair<A, B> { first : A, second : B }`,
     // the element of `zip`, `enumerate`, `entries` and `join`.
     system.declare(TypeDefinition {
@@ -565,6 +576,10 @@ pub fn named(name: &str, args: &[TypeRef]) -> Option<TypeRef> {
     } else {
         args
     };
+    // `Table` written without its row is a table of `Data` rows.
+    if constructor.0 == "Table" && args.is_empty() {
+        return Some(TypeRef::table(TypeRef::DATA));
+    }
     system().ok()?.apply(constructor, args.iter().cloned()).ok()
 }
 

@@ -20,9 +20,6 @@ board:
   last_id: 44 # to be incremented when adding a new issue card
   items:
     backlog:
-      - id: "0044"
-        title: "`Table<R>`: a table typed by its row"
-        file: 0044-typed-tables.md
       - id: "0043"
         title: "Contract validation: rules, structured errors and stream policies"
         file: 0043-contract-validation.md
@@ -56,6 +53,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0044"
+        title: "`Table<R>`: a table typed by its row"
+        file: 0044-typed-tables.md
       - id: "0041"
         title: "Joins over one other sequence: HQL-0013's binary form"
         file: 0041-binary-joins.md

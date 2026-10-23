@@ -64,6 +64,12 @@ pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
             format!("unknown type `{}`", written.name),
         )
     })?;
+    // `Table` written without its row is a table of `Data` rows.
+    let args = if constructor == TypeRef::TABLE.constructor && args.is_empty() {
+        vec![TypeRef::DATA]
+    } else {
+        args
+    };
     let system = builtin::system()
         .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
     let reference = system

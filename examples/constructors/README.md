@@ -22,6 +22,9 @@ shape every format writes as a table
 | [parse by construction](queries/parse-by-construction.hql) | `Data(s, Json)` and `s \| Data(Csv)` parse text in a format whose decoder reads `Data` | a tree |
 | [table columns](queries/table-columns.hql) | `Table(xs, columns = [...])` over declared records, written as a pipe table in the order named | a `Markdown` pipe table |
 | [table in every format](queries/table-in-every-format.hql) | One `Table` written by the `Csv`, `Json` and `Text` encoders, no renderer named, a missing field an empty cell | the three texts |
+| [typed table](queries/table-typed.hql) | `[Book(…)] \| Table` is a `Table<Book>`, its columns `Book`'s fields | a `Table<Book>` |
+| [untyped table](queries/table-untyped.hql) | `Table` written without its row is `Table<Data>` | a `Table<Data>` |
+| [invalid table row type](queries/invalid-table-row-type.hql) | a `Table<Book>` declared as a `Table<Film>` | type error |
 | [invalid table column](queries/invalid-table-column.hql) | `columns` names a field `Book` does not declare | type error |
 | [invalid table renderer](queries/invalid-table-renderer.hql) | `renderer = "pipe"` over a list of records, which is not a `Table` | type error |
 | [invalid table step](queries/invalid-table-step.hql) | `xs \| table`: not a step, and the diagnostic names `Table(xs, columns = [...])` | name error |

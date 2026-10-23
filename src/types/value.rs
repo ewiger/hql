@@ -269,6 +269,8 @@ impl Record {
 /// name.
 #[derive(Debug, Clone)]
 pub struct Table {
+    /// The row type, `R` of `Table<R>`.
+    pub row: TypeRef,
     /// The column names, in the order they are written.
     pub columns: Vec<String>,
     /// The rows, each a record or a `Data` map, in input order.
@@ -281,7 +283,11 @@ impl Table {
     ///
     /// # Errors
     /// Names a row that is neither a record nor a `Data` map.
-    pub fn new(rows: Vec<Value>, columns: Option<Vec<String>>) -> Result<Self, String> {
+    pub fn new(
+        rows: Vec<Value>,
+        columns: Option<Vec<String>>,
+        row: TypeRef,
+    ) -> Result<Self, String> {
         let rows: Vec<Value> = rows
             .into_iter()
             .map(|row| match row {
@@ -299,7 +305,7 @@ impl Table {
             Some(columns) => columns,
             None => rows.first().and_then(Self::fields).unwrap_or_default(),
         };
-        Ok(Self { columns, rows })
+        Ok(Self { row, columns, rows })
     }
 
     /// The field names of a row, in the order it holds them.
@@ -435,7 +441,7 @@ impl Value {
             },
             Self::Edge(_) => TypeRef::EDGE,
             Self::Graph(_) => TypeRef::GRAPH,
-            Self::Table(_) => TypeRef::TABLE,
+            Self::Table(table) => TypeRef::table(table.row.clone()),
             Self::Set(_, element) => TypeRef::set(element.clone()),
             Self::List(_, element) => TypeRef::list(element.clone()),
             Self::Hit(hit) => TypeRef::hit(hit.element.clone()),

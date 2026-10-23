@@ -499,7 +499,7 @@ fn check_table(
             }
         }
     }
-    Ok(TypeRef::TABLE)
+    Ok(TypeRef::table(if record { row } else { TypeRef::DATA }))
 }
 
 /// `Channel<T>(name)`: a name, and the element type written out, since
@@ -599,7 +599,7 @@ pub(crate) fn evaluate(
         return evaluate_data(cx, args, span);
     }
     if constructor == TABLE {
-        return evaluate_table(cx, args, span);
+        return evaluate_table(cx, args, expected, span);
     }
     let mut inputs = Vec::new();
     for argument in args {
@@ -671,6 +671,7 @@ fn materialized(cx: &mut dyn EvalCx, input: Value) -> Result<Value, Diagnostic> 
 fn evaluate_table(
     cx: &mut dyn EvalCx,
     args: &[crate::execution::Arg],
+    expected: &TypeRef,
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let Some((rows, rest)) = args.split_first() else {
@@ -710,7 +711,8 @@ fn evaluate_table(
         }
         None => None,
     };
-    let table = crate::types::Table::new(rows, columns)
+    let row = expected.args.first().cloned().unwrap_or(TypeRef::DATA);
+    let table = crate::types::Table::new(rows, columns, row)
         .map_err(|message| Diagnostic::runtime(span, message))?;
     Ok(Value::Table(Arc::new(table)))
 }

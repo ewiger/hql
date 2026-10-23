@@ -28,14 +28,15 @@ type D2        : Format
 type Mermaid   : Format
 
 // Rows under ordered columns: the shape every format's encoder writes as a
-// table. A row is a record or a Data map, and `columns` names its fields in
+// table. R is the row, a record type or Data, and `Table` written without it
+// is `Table<Data>`. A row is a record or a Data map, and `columns` names its fields in
 // the order they are written; without it, the columns are the first row's
 // fields in the order the row holds them. Over a declared record, a column
 // naming no field is a type error; over Data, a missing field is an empty
 // cell.
-type Table
+type Table<R>
 
-fn Table<T>(rows: Collection<T>, columns: List<String> = []) : Table
+fn Table<T>(rows: Collection<T>, columns: List<String> = []) : Table<T>
 
 // The codec contracts, over the format: a Decoder<T> reads records of the
 // format as values of T, an Encoder<T> writes values of T as records of it.

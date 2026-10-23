@@ -28,7 +28,7 @@ the format and codec model; both point here for the current rules.
 | Type | Declared | Built by |
 | --- | --- | --- |
 | `Graph` | `std/graph.hql` | `Graph(xs)`: cards, hits or edges as nodes, the links among them as edges |
-| `Table` | `std/format.hql` | `Table(xs, columns = [...])`: one row per record |
+| `Table<R>` | `std/format.hql` | `Table(xs, columns = [...])`: one row per record of `R` |
 | `Data` | `std/core.hql` | a literal, a read, or `Data(s, F)`, text parsed in a format |
 | `Doc` | `std/doc.hql` | the vault |
 
@@ -37,11 +37,17 @@ the format and codec model; both point here for the current rules.
 ### `Table`
 
 ```hql
-fn Table<T>(rows: Collection<T>, columns: List<String> = []) : Table
+fn Table<T>(rows: Collection<T>, columns: List<String> = []) : Table<T>
 ```
 
 `Table(xs, columns = [...])` builds a `Table` from a finite collection: one
 row per element, each a value of a declared record type or a `Data` map.
+
+- `Table<R>` is a table whose rows are `R`: built from a collection of
+  `Book` records it is a `Table<Book>`, and from `Data` maps a
+  `Table<Data>`. `Table` written without its row is `Table<Data>`. A
+  `Table<Book>` is not a `Table<Film>`, and every format writes a table of
+  any row.
 
 - `columns` names the columns in the order every format writes them. Without
   it, the columns are the first row's fields in the order the row holds them:

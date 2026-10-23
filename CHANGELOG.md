@@ -34,6 +34,12 @@ The language continues to be in active development.
   warnings is `ok`. `oks()` and `errs()` keep the successes and the
   failures of a collection of results.
 
+- `Table<R>` ([issue 0044](doc/issues/0044-typed-tables.md), shown in the
+  [constructors examples](examples/constructors/README.md)): a table is
+  typed by its row, `[Book(…)] | Table` a `Table<Book>` and a table of
+  `Data` maps a `Table<Data>`. `Table` written without its row is
+  `Table<Data>`, and a `Table<Book>` is not a `Table<Film>`.
+
 ### Fixed
 
 - A record declared under another record, `type Sub : Base = {…}`, has its

@@ -1,6 +1,6 @@
 # 0044 — `Table<R>`: a table typed by its row
 
-Status: todo
+Status: done
 Related: [0039](0039-table-shape-and-presentation-review.md),
 [HQL-0035](../proposals/HQL-0035/README.md),
 [presentation](../wiki/hql/presentation.hmd)
@@ -23,7 +23,8 @@ particular columns.
 - `t : Table<Bird> = birds | Table` checks, and a column naming no field of
   `Bird` is a type error.
 - A `Table<Bird>` passed where a `Table<Sighting>` is expected is a type
-  error, and `Table<Bird>` is accepted where `Table` is.
+  error. Every format and table renderer writes a `Table<R>` of any row.
+- Shown in [the constructors examples](../../examples/constructors/README.md).
 
 ## Left open
 
