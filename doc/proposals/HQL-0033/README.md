@@ -1,6 +1,6 @@
 # HQL-0033: Errors as values — handling, routing, branching, retry and replay
 
-**Status:** draft revision of accepted HQL-0033  
+**Status:** accepted, implemented  
 **Created:** 2026-10-23  
 **Related:** HQL-0032 (`TypeContract`, `DataContract`), HQL-0010 (`tee`), HQL-0021 (sources, sinks, channels and messages), HQL-0036 (`partition`), HQL-0037 (`fork` and the dataflow DAG)
 
@@ -2067,6 +2067,10 @@ There is no hidden exception channel, no validation-specific dead-letter control
   with `sink` and read back with `| Invalid`, repaired from `e.value` into
   another `validate` and `fork`, and provenance held outside `Invalid` in an
   envelope; covers test plan items 11, 13 and 14
+- 2026-10-23: accepted with its revision, every item of the test plan
+  covered by the corpus and `tests/`, and HQL-0032's validation result and
+  stream-routing sections marked superseded where they conflict (issue 0045,
+  E6)
 - 2026-10-23: `retry` specified in the section on retry and built (issue
   0045, E5): `xs | retry(operation, attempts = n, when = …)`, elementwise
   over a collection or a stream, with no delay; covers test plan items 15

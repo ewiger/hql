@@ -73,7 +73,9 @@ The language continues to be in active development.
   `expected` or `actual`, and repair from `e.value`.
   `xs | retry(operation, attempts = n, when = …)` reinvokes a fallible
   operation for each value while it fails, up to `attempts` invocations,
-  the last failure standing; over a stream it is a stream.
+  the last failure standing; over a stream it is a stream. HQL-0033 is
+  accepted, and HQL-0032's validation result and stream-routing sections
+  are marked superseded by it.
 
 - Fan-in over streams ([HQL-0037](doc/proposals/HQL-0037/README.md)):
   `a | merge(b)` interleaves two streams, one value from each in turn,

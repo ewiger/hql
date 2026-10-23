@@ -48,8 +48,14 @@ adds beyond structure is built.
 - `x | validate(T)` gives `Result<T, Invalid>` over a value, a collection
   or a stream, and `oks()` and `errs()` split the results; `Violation` and
   `Invalid` are declared in `std/core.hql`.
-- To build: `Violation` and `Invalid`'s own rules and default, their
-  `expected` and `actual`, and reading one back with `| Invalid`, which
-  needs a standard record a tree is read as; validator types
-  ([HQL-0034](../proposals/HQL-0034/README.md)). Splitting a stream into
-  valid and invalid values waits on HQL-0033's stream policies.
+- `Violation`'s `expected`, `actual` and `severity` default, and reading a
+  stored `Invalid` back with `| Invalid`, are built; so are validator types
+  ([HQL-0034](../proposals/HQL-0034/README.md)) and the stream policies,
+  which are pipelines over results rather than settings of a contract
+  ([issue 0045](0045-errors-validators-boundaries.md), E1 to E5): fail fast
+  is `x | T`, continue is `validate(T) | oks()`, a dead letter is
+  `fork { accepted = oks(), rejected = errs() }` with `errs()` written to a
+  sink, and `retry` reinvokes a fallible operation.
+- To build: `Violation`'s and `Invalid`'s own rules in `std/`, error
+  aggregation and quality thresholds over a stream, and validation events
+  and hooks.

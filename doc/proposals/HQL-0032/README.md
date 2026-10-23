@@ -1285,6 +1285,14 @@ The execution policy defines what happens after invalidity is detected.
 
 These concerns must remain separate.
 
+*Superseded by [HQL-0033](../HQL-0033/README.md) where it conflicts.* Each
+policy is a pipeline over the `Result` that `validate(T)` gives, not a setting
+of the contract: fail immediately is `x | T`; collect errors and fail, or
+return a validation result, is `x | validate(T)`; skip invalid values is
+`| oks()`; route invalid values elsewhere and dead-letter them is
+`| fork { accepted = oks(), rejected = errs() }` with the rejected branch
+written to a sink; continue with warnings is a rule written `warn`.
+
 ## 31. Stream validation
 
 Contracts should work naturally with streams.
@@ -1313,6 +1321,11 @@ batch diagnostics
 Contract semantics themselves should remain independent from stream execution
 policy.
 
+*Superseded by [HQL-0033](../HQL-0033/README.md) where it conflicts.*
+`stream | validate(T)` is a stream of one `Result` per record, so an invalid
+record is a value of the stream, continuation is the stream itself, and
+dead-letter routing is a `fork` over `oks()` and `errs()`.
+
 ## 32. Dead-letter handling
 
 For stream processing, one useful future capability is explicit invalid-record
@@ -1330,6 +1343,10 @@ invalid records
 
 This should be expressible through normal HQL runtime/event mechanisms rather
 than hardcoded into `DataContract`.
+
+*Superseded by [HQL-0033](../HQL-0033/README.md).* Invalid records are routed
+by `fork { accepted = oks(), rejected = errs() }`, and the rejected branch is an
+ordinary stream of `Invalid` written with `sink`.
 
 ## 33. Dataset-level constraints
 
@@ -1937,20 +1954,10 @@ Implementations may optimize execution while preserving semantics.
 [HQL-0033](../HQL-0033/README.md) specifies this: `validate(T)` gives
 `Result<T, Invalid>`, and `Invalid` and `Violation` are declared contracts.
 
-The runtime should conceptually produce a result richer than `Bool`.
-
-Something equivalent to:
-
-```hql
-ValidationResult<T> = {
-    valid: Bool
-    value?: T
-    errors: Seq<ValidationError>
-    warnings: Seq<ValidationWarning>
-}
-```
-
-The exact type representation remains open.
+*Superseded by HQL-0033.* There is no `ValidationResult<T>` record: the
+result is `Result<T, Invalid>`, `ok` of the value read or `err` of one
+`Invalid` holding every `Violation`, a broken warning among them once
+anything else is broken.
 
 The important point is that validation should retain:
 
@@ -2364,12 +2371,15 @@ The following areas require additional ADRs or implementation design:
 4. Missing versus explicit `null`.
 5. Allowed declarative normalization operations.
 6. Whether coercion is permitted by default or opt-in.
-7. Exact representation of `ValidationResult`.
-8. Fail-fast versus aggregate configuration.
+7. Exact representation of `ValidationResult`: superseded by HQL-0033's
+   `Result<T, Invalid>`.
+8. Fail-fast versus aggregate configuration: superseded by HQL-0033, as
+   `x | T` against `x | validate(T)`.
 9. Severity model.
 10. Contract lifecycle hooks.
 11. Event naming.
-12. Stream invalid-record routing.
+12. Stream invalid-record routing: superseded by HQL-0033's `fork` over
+    `oks()` and `errs()`.
 13. Dataset-level validation syntax.
 14. Contract version declaration syntax.
 15. Compatibility classification.
@@ -2441,3 +2451,9 @@ data-validation layer on top of the structural type system.
   default is a literal, a collection of literals included, and never a
   call; `warn P` and `as name` on a rule; a validator is a function or a
   `Validator` type ([HQL-0034](../HQL-0034/README.md))
+- 2026-10-23: the runtime failure policies, stream validation, dead-letter
+  handling and the validation result are marked superseded by
+  [HQL-0033](../HQL-0033/README.md) where they conflict, and the open
+  questions on the result's representation, fail-fast against aggregate
+  configuration and stream routing with them
+  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), E6)

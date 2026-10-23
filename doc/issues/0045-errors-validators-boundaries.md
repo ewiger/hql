@@ -1,6 +1,6 @@
 # 0045 — Dataflow, errors as values, validator types and schema boundaries
 
-Status: todo
+Status: in progress
 Related: [HQL-0032](../proposals/HQL-0032/README.md),
 [HQL-0033](../proposals/HQL-0033/README.md),
 [HQL-0034](../proposals/HQL-0034/README.md),
@@ -226,3 +226,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   retry(operation, attempts = n, when = …)`, elementwise and lazy over a
   stream, with no delay. Channels make the invocations countable in the
   case.
+- E6 done: HQL-0032's runtime failure policies, stream validation,
+  dead-letter handling and validation result, and its open questions on
+  them, are marked superseded by HQL-0033; issue 0043's stream policies are
+  recorded as closed by E1 to E5; HQL-0033 is accepted and implemented.
