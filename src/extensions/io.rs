@@ -682,49 +682,80 @@ pub(crate) fn boundary_for(
 }
 
 /// A document's entries as the boundary names them (HQL-0035): each
-/// readable field's external entry under the field's own name, and a field
+/// readable field's external entry under the field's own name, an entry its
+/// `absent` lists left out so the field is absent or missing, and a field
 /// the boundary does not read left out, so its default or absence applies.
 /// Entries the boundary does not name are kept.
-pub(crate) fn remapped(document: &Value, boundary: &crate::boundary::EffectiveBoundary) -> Value {
+///
+/// # Errors
+/// Names an optional field holding a `null` its `absent` does not list.
+pub(crate) fn remapped(
+    document: &Value,
+    boundary: &crate::boundary::EffectiveBoundary,
+) -> Result<Value, String> {
     use crate::data::Data;
-    use crate::sources::External;
+    use crate::sources::{Absence, External};
     let Value::Data(tree) = document else {
-        return document.clone();
+        return Ok(document.clone());
     };
     let Data::Map(entries) = tree.as_ref() else {
-        return document.clone();
+        return Ok(document.clone());
     };
     let mut mapped = entries.clone();
     for field in &boundary.fields {
         let name = &field.field.name;
+        if let External::Name(external) = &field.external.value
+            && external != name
+        {
+            mapped.remove(external);
+        }
+        mapped.remove(name);
         if !field.readable.value {
-            mapped.remove(name);
             continue;
         }
         let held = match &field.external.value {
-            External::Name(external) if external == name => continue,
-            External::Name(external) => entries.get(external).cloned(),
-            External::Path(segments) => segments
-                .iter()
-                .try_fold(tree.as_ref(), |at, segment| match at {
-                    Data::Map(inner) => inner.get(segment),
-                    _ => None,
-                })
-                .cloned(),
+            External::Name(external) => entries.get(external),
+            External::Path(segments) => {
+                segments
+                    .iter()
+                    .try_fold(tree.as_ref(), |at, segment| match at {
+                        Data::Map(inner) => inner.get(segment),
+                        _ => None,
+                    })
+            }
         };
-        if let External::Name(external) = &field.external.value {
-            mapped.remove(external);
+        let representation = match held {
+            None => Some(Absence::Missing),
+            Some(Data::Empty) => Some(Absence::Null),
+            Some(Data::Str(text)) if text.is_empty() => Some(Absence::Empty),
+            Some(_) => None,
+        };
+        let absent = representation.is_some_and(|held| field.absent.value.contains(&held));
+        if absent {
+            continue;
         }
-        match held {
-            Some(value) => {
-                mapped.insert(name.clone(), value);
+        match (held, representation) {
+            (Some(Data::Empty), _) if field.field.optional => {
+                return Err(format!(
+                    "source `{}`, field `{name}`: it holds null, and its boundary reads only {} \
+                     as absent",
+                    boundary.source,
+                    field
+                        .absent
+                        .value
+                        .iter()
+                        .map(|absence| format!("`{}`", absence.name()))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
             }
-            None => {
-                mapped.remove(name);
+            (Some(value), _) => {
+                mapped.insert(name.clone(), value.clone());
             }
+            (None, _) => {}
         }
     }
-    Value::Data(Arc::new(Data::Map(mapped)))
+    Ok(Value::Data(Arc::new(Data::Map(mapped))))
 }
 
 /// `source("id")` expected to give a `Seq` of a declared record: the source
@@ -791,7 +822,7 @@ pub(crate) fn configured_source(
         .enumerate()
         .map(|(index, document)| {
             decode_document(
-                &remapped(document, &boundary),
+                &remapped(document, &boundary)?,
                 &element,
                 leaves,
                 index + 1,
@@ -960,12 +991,14 @@ pub(crate) fn decoded(
     if let Some(values) = traversal.forced() {
         let decoded = values
             .iter()
-            .map(|value| match &boundary {
-                Some(boundary) => remapped(value, boundary),
-                None => value.clone(),
-            })
             .enumerate()
-            .map(|(index, value)| decode_document(&value, element, leaves, index + 1, &from))
+            .map(|(index, value)| {
+                let value = match &boundary {
+                    Some(boundary) => remapped(value, boundary)?,
+                    None => value.clone(),
+                };
+                decode_document(&value, element, leaves, index + 1, &from)
+            })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
         return Ok(Value::Traversal(Arc::new(Traversal::kept(

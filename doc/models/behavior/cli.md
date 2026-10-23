@@ -131,7 +131,11 @@ by the kind. A malformed boundary refuses the vault like any other key. A source
 read where a `Seq` of a declared record is expected, by `source("id")` or
 `tap("id")`, is read through its boundary: each field reads its external
 field, a nested `path` included, and a table selects only the columns the
-boundary reads. A CSV header and a table's columns are checked against the
+boundary reads. An optional field is absent where its external field holds
+what its `absent` lists, by default an empty cell or a missing column in
+`csv`, a missing key or `null` in `json`, `json_lines` and `yaml`, and `NULL`
+in `sqlite`; a `null` it does not list is an evaluation error, and empty text
+it does not list is read as text. A CSV header and a table's columns are checked against the
 boundary before any element decodes, and a boundary naming a field the
 configured `element` lacks is a type error. Writing through a boundary is
 design direction. Exceeding a

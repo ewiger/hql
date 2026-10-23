@@ -1393,7 +1393,8 @@ impl Evaluator<'_> {
                 self.run_traversal(input, &mut |evaluator, value| {
                     position += 1;
                     let value = match boundary {
-                        Some(boundary) => crate::extensions::io::remapped(&value, boundary),
+                        Some(boundary) => crate::extensions::io::remapped(&value, boundary)
+                            .map_err(|message| Diagnostic::runtime(span.clone(), message))?,
                         None => value,
                     };
                     let decoded = crate::extensions::io::decode_document(

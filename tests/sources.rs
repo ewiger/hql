@@ -444,3 +444,34 @@ fn a_source_is_read_through_its_boundary() {
     let refused = hql::check_in(typed, &vault).unwrap_err().message();
     assert!(refused.contains("field `colour`"), "{refused}");
 }
+
+/// HQL-0035: a JSON `null` in an optional field is absent by default, and
+/// refused where the field's boundary reads only a missing key as absent.
+#[test]
+fn a_null_reads_as_absent_unless_the_boundary_says_otherwise() {
+    let (dir, _) = configured("");
+    fs::write(
+        dir.path().join("data/readings.json"),
+        r#"[{"station": "north", "reading": null}]"#,
+    )
+    .unwrap();
+    let reading = "type Reading {\n    station : String\n    reading? : Int\n}\n\
+                   seen : Seq<Reading> = source(\"readings\")\nseen | map(r => r.reading) | List";
+    let config = |extra: &str| {
+        fs::write(
+            dir.path().join("hql.toml"),
+            format!("[sources.readings]\nkind = \"json\"\npath = \"data/readings.json\"\n{extra}"),
+        )
+        .unwrap();
+        vault::load(dir.path()).unwrap()
+    };
+    assert_eq!(value(reading, &config("")), "[none]");
+    let error = refusal(
+        reading,
+        &config("[sources.readings.fields.reading]\nabsent = [\"missing\"]\n"),
+    );
+    assert!(
+        error.contains("field `reading`") && error.contains("holds null"),
+        "{error}"
+    );
+}

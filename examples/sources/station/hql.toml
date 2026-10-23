@@ -39,3 +39,20 @@ name = "user_id"
 
 [sources.profiles.fields.name]
 path = "profile.display_name"
+
+# Notes whose empty cells are absent by default, and whose `note` column
+# keeps an empty cell as the empty text it is.
+[sources.notes]
+kind = "csv"
+path = "data/notes.csv"
+
+[sources.notes.fields.note]
+absent = ["missing"]
+
+# Readings in which `null` is no value for `note` and not one for `reading`.
+[sources.readings]
+kind = "json"
+path = "data/readings.json"
+
+[sources.readings.fields.reading]
+absent = ["missing"]

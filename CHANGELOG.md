@@ -116,6 +116,8 @@ The language continues to be in active development.
   with no decoder. A source read as a declared record is read through its
   boundary: a CSV header, a nested JSON `path` and a SQLite column map onto
   a field, and a SQLite source selects only the columns the record reads.
+  An optional field is absent where its external field holds what its
+  `absent` lists, each format's default or the boundary's own.
 
 ### Changed
 

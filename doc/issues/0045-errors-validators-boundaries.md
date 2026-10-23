@@ -250,3 +250,6 @@ refresh, caching, versioning and boundary events are not in this portion.
   traversal. A configured `element` is checked against the boundary at
   check time. Cases in `examples/sources/`, the SQLite column selection in
   `tests/sources.rs`.
+- B4 done: HQL-0035's section on nullability at the boundary states the
+  rules; `remapped` applies each field's `absent`, refusing an unlisted
+  `null` in an optional field and reading unlisted empty text as text.

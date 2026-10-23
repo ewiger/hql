@@ -3033,6 +3033,29 @@ at fault:
 | missing external field | a configured external field is not among the external fields |
 | no decoder | the external type is not the format's, or does not decode to the field's type |
 
+### Nullability at the boundary
+
+Section 34's correspondence is the `absent` property. A field's `absent`
+lists which external representations stand for "no value": `missing`, the
+record holding no such field; `empty`, the field holding empty text; `null`,
+JSON `null` or SQL `NULL`. Each format's default is the resolver's: `csv`
+reads an empty cell or a missing column as absent, `json`, `json_lines` and
+`yaml` a missing key or `null`, and `sqlite` `NULL`. A boundary overrides it
+per field, `absent = ["missing"]`.
+
+When a document is read through its boundary:
+
+- an optional field whose external field holds a representation in its
+  `absent` is absent;
+- an optional field holding `null` that its `absent` does not list is a
+  boundary error naming the field: the boundary does not read `null` as a
+  value;
+- an optional field holding empty text that its `absent` does not list
+  reads that text: `""` for a `String`, and a decoding error for any other
+  type;
+- a required field holding a representation in its `absent` is missing, and
+  the value does not read, as a missing field does not.
+
 ### Write modes
 
 *Placeholder; specified separately.* How `Table<R>` is created, appended to
@@ -3054,3 +3077,5 @@ and replaced in a SQL database.
   `source("id")` and `tap("id")` read as a declared record map each field
   from its external field or path, a SQLite source selects only the columns
   read, and a CSV header and a table's columns are checked before decoding
+- 2026-10-23: nullability at the boundary specified and built (issue 0045,
+  B4): each format's `absent` default, and its override per field
