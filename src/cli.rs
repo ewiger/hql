@@ -587,13 +587,7 @@ fn write_plan(
                     "line": line_of(pipeline.span.start),
                     "span": [pipeline.span.start, pipeline.span.end],
                     "input": pipeline.input,
-                    "steps": pipeline.steps.iter().map(|step| serde_json::json!({
-                        "name": step.name,
-                        "shape": step.shape.label(),
-                        "purity": step.purity.label(),
-                        "stage": step.stage.index,
-                        "strategy": step.stage.strategy.label(),
-                    })).collect::<Vec<_>>(),
+                    "steps": steps_json(&pipeline.steps),
                 })
             })
             .collect();
@@ -619,23 +613,67 @@ fn write_plan(
                 .join(" ")
         )
         .map_err(|error| error.to_string())?;
-        let width = pipeline
-            .steps
-            .iter()
-            .map(|step| step.name.len())
-            .max()
-            .unwrap_or(0);
-        for step in &pipeline.steps {
-            writeln!(
-                out,
-                "  | {:<width$}  stage {}  {:<12}  {}, {}",
-                step.name,
-                step.stage.index,
-                step.stage.strategy.label(),
-                step.shape.label(),
-                step.purity.label(),
-            )
-            .map_err(|error| error.to_string())?;
+        write_steps(out, &pipeline.steps, "  ")?;
+    }
+    Ok(())
+}
+
+/// Planned steps as `hql plan --to json` writes them, a fan-out's branches
+/// within the step.
+fn steps_json(steps: &[crate::PlannedStep]) -> Vec<serde_json::Value> {
+    steps
+        .iter()
+        .map(|step| {
+            let mut written = serde_json::json!({
+                "name": step.name,
+                "shape": step.shape.label(),
+                "purity": step.purity.label(),
+                "stage": step.stage.index,
+                "strategy": step.stage.strategy.label(),
+            });
+            if let Some(topology) = step.topology {
+                written["topology"] = serde_json::json!(topology);
+            }
+            if !step.branches.is_empty() {
+                written["branches"] = step
+                    .branches
+                    .iter()
+                    .map(|branch| {
+                        serde_json::json!({ "name": branch.name, "steps": steps_json(&branch.steps) })
+                    })
+                    .collect();
+            }
+            written
+        })
+        .collect()
+}
+
+/// Planned steps, one per line under `indent`, each fan-out's branches
+/// beneath it as the stages that read the step's input.
+fn write_steps(
+    out: &mut dyn Write,
+    steps: &[crate::PlannedStep],
+    indent: &str,
+) -> Result<(), String> {
+    let width = steps.iter().map(|step| step.name.len()).max().unwrap_or(0);
+    for step in steps {
+        let topology = step
+            .topology
+            .map(|topology| format!(", {topology}"))
+            .unwrap_or_default();
+        writeln!(
+            out,
+            "{indent}| {:<width$}  stage {}  {:<12}  {}, {}{topology}",
+            step.name,
+            step.stage.index,
+            step.stage.strategy.label(),
+            step.shape.label(),
+            step.purity.label(),
+        )
+        .map_err(|error| error.to_string())?;
+        for branch in &step.branches {
+            writeln!(out, "{indent}    {} =", branch.name).map_err(|error| error.to_string())?;
+            write_steps(out, &branch.steps, &format!("{indent}      "))?;
         }
     }
     Ok(())

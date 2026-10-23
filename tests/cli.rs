@@ -529,6 +529,38 @@ fn plan_prints_each_step_with_its_stage_on_the_backend_in_force() {
     assert!(stderr(&refused).contains("error"), "{}", stderr(&refused));
 }
 
+/// HQL-0037: a `fork` and a `tee` are fan-out nodes with their branches
+/// beneath them, a combiner written as a step is a fan-in node, and a
+/// `fork` followed by `partition` stays two graph operations.
+#[test]
+fn plan_shows_fan_out_and_fan_in_nodes() {
+    let program = "parts = [5, 3, 8] | fork { odd = filter(x => x % 2 == 1), n = size() }\n\
+                   parts.odd | partition(by = x => x) | concat([1]) | size\n";
+    let planned = piped(&["plan", "-"], program);
+    assert!(planned.status.success(), "{}", stderr(&planned));
+    assert_eq!(
+        stdout(&planned),
+        "backend localhost\n\
+         line 1: [5, 3, 8]\n  \
+         | fork  stage 0  in process    barrier, pure, fan-out\n      \
+         odd =\n        \
+         | filter  stage 0  in process    elementwise, pure\n      \
+         n =\n        \
+         | size  stage 0  in process    reduction, pure\n\
+         line 2: parts.odd\n  \
+         | partition  stage 0  in process    partition, pure\n  \
+         | concat     stage 0  in process    barrier, pure, fan-in\n  \
+         | size       stage 0  in process    reduction, pure\n"
+    );
+    let json = piped(&["--envelope", "json", "--compact", "plan", "-"], program);
+    let document: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
+    let fork = &document["pipelines"][0]["steps"][0];
+    assert_eq!(fork["topology"], "fan-out");
+    assert_eq!(fork["branches"][0]["name"], "odd");
+    assert_eq!(fork["branches"][1]["steps"][0]["name"], "size");
+    assert_eq!(document["pipelines"][1]["steps"][1]["topology"], "fan-in");
+}
+
 #[test]
 fn cli_surface_identifies_hql_and_usage_errors_exit_two() {
     let help = hql(&["--help"]);

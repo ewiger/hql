@@ -17,7 +17,7 @@
 mod localhost;
 mod plan;
 
-pub use plan::{Execution, Stage, Strategy};
+pub use plan::{Execution, Stage, Strategy, topology};
 
 use crate::diagnostics::Diagnostic;
 use crate::execution::Program;

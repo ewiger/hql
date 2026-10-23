@@ -221,6 +221,8 @@ pub(crate) enum Kind {
         combiner: &'static str,
         left: Box<Expr>,
         right: Box<Expr>,
+        /// The step node it is when written as a step, `a | concat(b)`.
+        plan: Option<StepPlan>,
     },
     /// An iterating function's body: evaluating it makes a traversal and
     /// runs nothing.
@@ -348,6 +350,11 @@ impl Expr {
             Kind::Step { plan, input, .. }
             | Kind::Tee { plan, input, .. }
             | Kind::Fork { plan, input, .. } => Some((plan, input)),
+            Kind::Combine {
+                plan: Some(plan),
+                left,
+                ..
+            } => Some((plan, left)),
             Kind::Apply {
                 plan: Some(plan),
                 arguments,
@@ -1002,6 +1009,7 @@ impl Checked {
                         combiner: self.combiner_refs[&span],
                         left: Box::new(operand(&parameters[0], inputs.first())),
                         right: Box::new(operand(&parameters[1], inputs.get(1))),
+                        plan: None,
                     },
                     ty: result.clone(),
                     span: span.clone(),
@@ -1238,6 +1246,7 @@ impl Checked {
                         combiner,
                         left: boxed(receiver)?,
                         right: Box::new(self.expression(&arguments[0].value)?),
+                        plan: None,
                     }
                 } else if let Some(step) = self.steps.get(&span) {
                     step_node(
@@ -1260,16 +1269,24 @@ impl Checked {
                 let A::Call { arguments, .. } = &written.kind else {
                     return Err(Diagnostic::typing(span, "a combiner step is a call"));
                 };
+                let combiner = self.combiners[&span];
                 Kind::Combine {
-                    combiner: self.combiners[&span],
+                    combiner,
                     left: boxed(input)?,
                     right: Box::new(self.expression(&arguments[0].value)?),
+                    plan: Some(StepPlan::new(OperationType {
+                        name: combiner.to_owned(),
+                        shape: Shape::Barrier,
+                        purity: Purity::Pure,
+                        presentation: false,
+                    })),
                 }
             }
             A::Call { arguments, .. } if self.combiners.contains_key(&span) => Kind::Combine {
                 combiner: self.combiners[&span],
                 left: Box::new(self.expression(&arguments[0].value)?),
                 right: Box::new(self.expression(&arguments[1].value)?),
+                plan: None,
             },
             A::Call { arguments, .. } if self.interpretations.contains_key(&span) => {
                 Kind::Interpret {

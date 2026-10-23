@@ -2004,6 +2004,11 @@ The planner lowers this logical DAG into physical stages, partitions, channels, 
 - 2026-10-23: proposed
 - 2026-10-23: `merge` is overloaded for `Map` and `Stream`, resolved by static type
 - 2026-10-23: accepted
+- 2026-10-23: plan output built (issue 0045, D4): `hql plan` names a
+  step's topology, `fan-out` for `fork` and `tee` and `fan-in` for `merge`,
+  `zip`, `concat` and the joins, and lists a fan-out's branches beneath it
+  as the stages that read its input; `merge` and `concat` written as steps
+  are step nodes
 - 2026-10-23: fan-in over streams built (issue 0045, D3): `merge` and
   `concat` of two streams, also written `a | merge(b)` and `a | concat(b)`,
   and `zip` of two streams. On the local backend `merge` takes one value

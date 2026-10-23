@@ -497,6 +497,7 @@ impl Evaluator<'_> {
                 combiner,
                 left,
                 right,
+                ..
             } => self.combined(combiner, left, right, &expression.ty, &span),
             Kind::Generate {
                 statements,

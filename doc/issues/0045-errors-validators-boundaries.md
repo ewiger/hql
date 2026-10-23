@@ -218,3 +218,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   type, with the list, set and table refusals and the ambiguous reference;
   it stays in the core's combiner table, which `reduce`'s split relies on,
   as HQL-0037's changelog records.
+- D4 done: planned steps carry a topology and a fan-out's branches; `hql
+  plan` prints both and its JSON adds `topology` and `branches`. A combiner
+  written as a step is a step node. Pinned by a CLI test; the plan is not a
+  corpus value, so D4 has no corpus case.

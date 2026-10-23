@@ -128,6 +128,22 @@ pub struct PlannedStep {
     pub purity: extensions::Purity,
     /// The stage annotation.
     pub stage: backends::Stage,
+    /// `fan-out` or `fan-in` for a step that joins or splits the dataflow
+    /// graph (HQL-0037).
+    pub topology: Option<&'static str>,
+    /// The branches of a `fork` or a `tee`, each by its name, which read
+    /// the step's own input.
+    pub branches: Vec<PlannedBranch>,
+}
+
+/// One branch of a fan-out step: its name and its steps over the input the
+/// step reads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedBranch {
+    /// The name the branch is bound by.
+    pub name: String,
+    /// Its steps, first to last.
+    pub steps: Vec<PlannedStep>,
 }
 
 /// A planned pipeline: the expression its first step reads, and its steps.
@@ -161,7 +177,7 @@ pub fn plan(
         let (execution::Stmt::Bind { value, .. } | execution::Stmt::Expr(value)) = statement else {
             continue;
         };
-        let (steps, input) = value.steps();
+        let (steps, input) = planned_steps(value);
         if steps.is_empty() {
             continue;
         }
@@ -171,20 +187,51 @@ pub fn plan(
                 .get(input.span.clone())
                 .unwrap_or_default()
                 .to_owned(),
-            steps: steps
-                .into_iter()
-                .filter_map(|plan| {
-                    Some(PlannedStep {
-                        name: plan.invokes.name.clone(),
-                        shape: plan.invokes.shape,
-                        purity: plan.invokes.purity,
-                        stage: *plan.stage.get()?,
-                    })
-                })
-                .collect(),
+            steps,
         });
     }
     Ok(planned)
+}
+
+/// The planned steps of the pipeline `end` ends, first to last, and the
+/// expression the first reads; a `fork`'s or a `tee`'s branches with it.
+fn planned_steps(end: &execution::Expr) -> (Vec<PlannedStep>, &execution::Expr) {
+    let mut nodes = Vec::new();
+    let mut at = end;
+    while let Some((_, input)) = at.as_step() {
+        nodes.push(at);
+        at = input;
+    }
+    nodes.reverse();
+    let steps = nodes
+        .into_iter()
+        .filter_map(|node| {
+            let (plan, _) = node.as_step()?;
+            let branches = match &node.kind {
+                execution::Kind::Fork { branches, .. } => branches
+                    .iter()
+                    .map(|(name, branch)| PlannedBranch {
+                        name: name.clone(),
+                        steps: planned_steps(branch).0,
+                    })
+                    .collect(),
+                execution::Kind::Tee { name, branch, .. } => vec![PlannedBranch {
+                    name: name.clone(),
+                    steps: planned_steps(branch).0,
+                }],
+                _ => Vec::new(),
+            };
+            Some(PlannedStep {
+                name: plan.invokes.name.clone(),
+                shape: plan.invokes.shape,
+                purity: plan.invokes.purity,
+                stage: *plan.stage.get()?,
+                topology: backends::topology(&plan.invokes.name),
+                branches,
+            })
+        })
+        .collect();
+    (steps, at)
 }
 
 /// Write a stream a program returned as it arrives: each value goes to

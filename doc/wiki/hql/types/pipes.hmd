@@ -272,6 +272,28 @@ line 6: [412, 280, 310]
   | total    stage 0  in process    reduction, pure
 ```
 
+A step that splits or joins the dataflow graph names its **topology** after
+its purity ([HQL-0037](../../../proposals/HQL-0037/README.md)): `fork` and
+`tee` are `fan-out`, and their branches are listed beneath them, each by its
+name, as the stages that read the step's input; `merge`, `zip`, `concat` and
+the joins are `fan-in`. A `fork` followed by `partition` is two steps, a
+fan-out and a partition:
+
+```text
+line 1: [5, 3, 8]
+  | fork  stage 0  in process    barrier, pure, fan-out
+      odd =
+        | filter  stage 0  in process    elementwise, pure
+      n =
+        | size  stage 0  in process    reduction, pure
+line 2: parts.odd
+  | partition  stage 0  in process    partition, pure
+  | concat     stage 0  in process    barrier, pure, fan-in
+```
+
+`hql plan --envelope json` writes the same as a `topology` field and a
+`branches` list on the step.
+
 Unknown extension functions remain ordinary calls unless their declared contract
 allows more. Failure metadata and the eager/lazy boundary are open design work
 shared with [[hql/extensions]].

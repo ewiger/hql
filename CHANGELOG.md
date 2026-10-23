@@ -78,6 +78,8 @@ The language continues to be in active development.
   then the other. `merge` keeps its map form; over a `List`, `Seq`, `Set`
   or `Table` it is a type error naming `concat` or `union`, and `f = merge`
   with no expected function type is an ambiguous reference.
+  `hql plan` names each step's topology, `fan-out` or `fan-in`, and lists a
+  `fork`'s or `tee`'s branches beneath it.
 
 - Validator types ([HQL-0034](doc/proposals/HQL-0034/README.md), shown in
   the [structural examples](examples/structural/README.md)): a trait may

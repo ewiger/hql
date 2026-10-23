@@ -56,6 +56,18 @@ pub struct Stage {
     pub strategy: Strategy,
 }
 
+/// The dataflow topology of an operation (HQL-0037): `fan-out` for one
+/// input read by several branches, `fan-in` for several inputs joined into
+/// one, and none for an ordinary `1 → 1` step.
+#[must_use]
+pub fn topology(operation: &str) -> Option<&'static str> {
+    match operation {
+        "fork" | "tee" => Some("fan-out"),
+        "merge" | "zip" | "concat" | "join" | "left_join" => Some("fan-in"),
+        _ => None,
+    }
+}
+
 /// What a backend executes, which the planner reads to cut stages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Execution {
