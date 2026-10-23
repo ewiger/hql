@@ -177,4 +177,9 @@ refresh, caching, versioning and boundary events are not in this portion.
 
 ## Progress
 
-- Not started.
+- E1 done: `expected` and `actual` filled by kind (stated in HQL-0033's
+  `Violation` section), `Violation.severity` defaults to `"error"`, a
+  library `DataContract` record such as `Invalid` reads from a tree, and
+  `x | T` and `x | validate(T)` share one reading. Its cases checked at
+  type level before the work, so they land as `valid-now` without a
+  `proposed` step.

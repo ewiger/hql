@@ -49,7 +49,12 @@ The language continues to be in active development.
   contract, path, kind (`missing`, `undeclared`, `type` or `rule`), rule
   identity, the rule as written and a message; a value that breaks only
   warnings is `ok`. `oks()` and `errs()` keep the successes and the
-  failures of a collection of results.
+  failures of a collection of results. A `missing` or `type` violation
+  fills `expected` with the type the field was read as, and a `type` or
+  `undeclared` one fills `actual` with the tree the field holds;
+  `Violation.severity` defaults to `"error"`, so `| Invalid` reads a stored
+  `Invalid` back. `x | T` and `x | validate(T)` derive their violations from
+  one reading, so the fail-fast diagnostic says each error's message.
 
 - `Table<R>` ([issue 0044](doc/issues/0044-typed-tables.md), shown in the
   [constructors examples](examples/constructors/README.md)): a table is

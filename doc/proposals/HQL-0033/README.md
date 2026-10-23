@@ -274,6 +274,15 @@ Important properties:
 - `message` is intended primarily for display;
 - programs SHOULD use the structured fields rather than parse `message`.
 
+`expected` and `actual` are filled by kind:
+
+| `kind` | `expected` | `actual` |
+| --- | --- | --- |
+| `missing` | the field's declared type | absent |
+| `type` | the type the field was read as | the tree the field holds |
+| `undeclared` | absent | the tree the entry holds |
+| `rule` | absent: `text` states what the rule expects | absent: the value is at `path` in `Invalid.value` |
+
 A nested path may therefore be:
 
 ```hql
@@ -2021,3 +2030,14 @@ recovery:
 The high-level pipeline therefore remains algebraic and visible.
 
 There is no hidden exception channel, no validation-specific dead-letter control structure, and no requirement for `DataContract` itself to know anything about stream routing.
+
+---
+
+# Changelog
+
+- 2026-10-23: `Invalid` and `Violation` as declared here
+  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), E1):
+  `expected` and `actual` filled by kind, `severity` defaulting to
+  `"error"`, a stored `Invalid` read back with `| Invalid`, and `x | T` and
+  `x | validate(T)` reporting the same violations; covers test plan items
+  3, 4, 12 and 18

@@ -29,6 +29,10 @@ reads holds every rule.
 | [warnings and names](queries/contract-warnings.hql) | `warn age? < 120 as plausible_age` leaves a value of 130 valid | `[34, 130]` |
 | [validation results](queries/validate-results.hql) | `xs \| validate(UserData)` gives a `Result` per value; `oks()` and `errs()` split them, and each `Violation` names its rule | the valid ids, the broken rules |
 | [validation in a match](queries/validate-match.hql) | `match d \| validate(UserData) { ok(u) => …, err(e) => … }` | `"1 violation of UserData"` |
+| [violation fields](queries/validate-violation-fields.hql) | one `Invalid` holds every violation; a `missing` or `type` violation fills `expected` and `actual` | the rules, types and trees |
+| [original value](queries/validate-original-value.hql) | `e.value` is the `Data` validated, before defaults | the two rejected trees |
+| [one element per violation](queries/validate-flat-violations.hql) | `errs() \| flat_map(e => e.violations)` | three violations |
+| [stored `Invalid`](queries/stored-invalid.hql) | `stored \| Invalid` reads a written failure back, `severity` defaulting to `"error"` | `["UserData UserData.id_present error"]` |
 | [validating a closed value](queries/invalid-validate-closed-value.hql) | `validate(T)` reads `Data` or an open record | a type error |
 
 From the repository root:

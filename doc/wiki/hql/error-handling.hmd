@@ -102,8 +102,11 @@ status unchanged.
 
 `Result`, `ok`, `err` and their combinators are implemented (see
 [the result example](../../../examples/mighty-types/queries/08-result.hql)).
-`validate`, `Invalid`, `Violation`, `oks`, `errs`, `fork` and `retry` are
-designed.
+`validate`, `Invalid`, `Violation`, `oks` and `errs` are implemented: a
+structural `Violation` fills `expected` with the type a field was read as and
+`actual` with the tree it holds, and `stored | Invalid` reads a stored failure
+back (see [the structural examples](../../../examples/structural/README.md)).
+`fork` and `retry` are designed.
 
 ## Contracts decide what fails; the call site decides how
 

@@ -294,3 +294,31 @@ fn a_program_may_name_its_own_validate() {
     let source = "fn validate(x: Int) : Bool = x > 0\n[1, -1] | map(validate) | List";
     assert_eq!(value(source), "[true, false]");
 }
+
+/// HQL-0033: `x | T` stops at the first value that does not read, and
+/// `x | validate(T)` makes it an `err(Invalid)`; both say the same
+/// violations, the fail-fast diagnostic each error's message in order.
+#[test]
+fn fail_fast_and_validate_report_the_same_violations() {
+    let contract = "type UserData : DataContract = {\n    id: String\n    age?: Int\n    \
+                    require id != \"\" as id_present\n    require age? >= 0\n}\n";
+    for data in [
+        r#"{id: "", age: -3}"#,
+        r#"{age: "x", extra: 1}"#,
+        r#"{name: "n"}"#,
+    ] {
+        let source = format!("{contract}d : Data = {data}\n");
+        let said = failure(&format!("{source}d | UserData"));
+        let messages = value(&format!(
+            "{source}match d | validate(UserData) {{\n    ok(_) => [],\n    \
+             err(e) => e.violations | map(v => v.message) | List,\n}}"
+        ));
+        let messages: Vec<String> = serde_json::from_str(&messages).unwrap();
+        assert!(!messages.is_empty(), "{data}");
+        assert_eq!(
+            said,
+            format!("this does not read as UserData: {}", messages.join("; ")),
+            "{data}"
+        );
+    }
+}

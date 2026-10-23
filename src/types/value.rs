@@ -23,7 +23,7 @@ pub enum Leaves {
 
 /// Why a value does not decode as a type: the dotted path of the field that
 /// does not, empty for the value itself, and what it holds instead.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Mismatch {
     /// The field's path from the value decoded, outermost first.
     pub path: Vec<String>,
@@ -31,6 +31,10 @@ pub struct Mismatch {
     pub reason: String,
     /// What kind of mismatch it is.
     pub kind: MismatchKind,
+    /// The type the field was read as; none for an undeclared entry.
+    pub expected: Option<String>,
+    /// The tree the field holds; none where it holds nothing.
+    pub actual: Option<Data>,
 }
 
 /// The kinds of structural mismatch a validation reports (HQL-0033).
@@ -62,7 +66,19 @@ impl Mismatch {
             path: Vec::new(),
             reason: reason.into(),
             kind: MismatchKind::Type,
+            expected: None,
+            actual: None,
         }
+    }
+
+    fn expecting(mut self, wanted: &TypeRef) -> Self {
+        self.expected = Some(wanted.to_string());
+        self
+    }
+
+    fn holding(mut self, actual: &Data) -> Self {
+        self.actual = Some(actual.clone());
+        self
     }
 
     fn of_kind(mut self, kind: MismatchKind) -> Self {
@@ -89,7 +105,7 @@ impl std::fmt::Display for Mismatch {
 
 /// Every reason a value does not read as a type, each field's in the order
 /// the type declares it: reading reports them all, not only the first.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Mismatches(pub Vec<Mismatch>);
 
 impl Mismatches {
@@ -560,9 +576,31 @@ impl Value {
             return Self::Data(Arc::clone(carrier)).decoded(wanted, leaves);
         }
         let Self::Data(tree) = self else {
-            return Err(Mismatch::new(format!("{} is not {wanted}", self.type_of())).into());
+            return Err(Mismatch::new(format!("{} is not {wanted}", self.type_of()))
+                .expecting(wanted)
+                .into());
         };
-        let read = match tree.as_ref() {
+        // A mismatch of the tree itself, not of a field within it, is said
+        // with the type wanted and the tree held.
+        Self::tree_decoded(tree, wanted, leaves).map_err(|mismatches| {
+            Mismatches(
+                mismatches
+                    .0
+                    .into_iter()
+                    .map(|mismatch| {
+                        if mismatch.path.is_empty() && mismatch.expected.is_none() {
+                            mismatch.expecting(wanted).holding(tree)
+                        } else {
+                            mismatch
+                        }
+                    })
+                    .collect(),
+            )
+        })
+    }
+
+    fn tree_decoded(tree: &Data, wanted: &TypeRef, leaves: Leaves) -> Result<Self, Mismatches> {
+        let read = match tree {
             Data::Bool(value) => Self::Bool(*value),
             // A number leaf wanted as a Decimal keeps the digits it holds;
             // an integer one widens (HQL-0031).
@@ -673,6 +711,7 @@ impl Value {
                     failed.push(
                         Mismatch::new("it is missing")
                             .of_kind(MismatchKind::Missing)
+                            .expecting(&field.ty)
                             .within(&field.name),
                     );
                     continue;
@@ -681,11 +720,12 @@ impl Value {
             fields.push((field.name.clone(), value));
         }
         if !open {
-            for key in entries.keys() {
+            for (key, entry) in entries {
                 if !shape.fields.iter().any(|field| field.name == *key) {
                     failed.push(
                         Mismatch::new(format!("{wanted} declares no such field"))
                             .of_kind(MismatchKind::Undeclared)
+                            .holding(entry)
                             .within(key),
                     );
                 }

@@ -211,7 +211,7 @@ type Violation : DataContract {
     text      : String
     expected? : String
     actual?   : Data
-    severity  : String
+    severity  : String = "error"
     message   : String
 }
 

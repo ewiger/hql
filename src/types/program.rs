@@ -181,14 +181,19 @@ pub fn record(name: &str) -> Option<RecordShape> {
 }
 
 /// The shape a `Data` tree is tested against when a program asks whether it
-/// is a `wanted`: a record the program declared, without type parameters.
-/// A built-in record, a card kind among them, is established by its source
-/// and never read from a tree.
+/// is a `wanted`: a record the program declared, without type parameters,
+/// or a library record that is a `DataContract`, such as a stored `Invalid`.
+/// Any other built-in record, a card kind among them, is established by its
+/// source and never read from a tree.
 #[must_use]
 pub fn tree_shape(wanted: &TypeRef) -> Option<RecordShape> {
     let lattice = current().ok()?;
-    let shape = lattice.records.get(wanted.constructor.0)?;
-    (wanted.args.is_empty() && shape.parameters.is_empty()).then(|| shape.clone())
+    let shape = match lattice.records.get(wanted.constructor.0) {
+        Some(shape) => shape.clone(),
+        None if wanted.is(&TypeRef::DATA_CONTRACT) => crate::library::shape(wanted.constructor.0)?,
+        None => return None,
+    };
+    (wanted.args.is_empty() && shape.parameters.is_empty()).then_some(shape)
 }
 
 /// Whether a value of `subject` can be a `wanted`: one is a subtype of the

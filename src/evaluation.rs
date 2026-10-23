@@ -2010,6 +2010,19 @@ fn as_data(value: &Value) -> Data {
         Value::List(values, _) | Value::Set(values, _) => {
             Data::List(values.iter().map(as_data).collect())
         }
+        // A record is the tree it was read from, or its fields as a map,
+        // an absent one left out.
+        Value::Record(record) => match &record.carrier {
+            Some(carrier) => carrier.as_ref().clone(),
+            None => Data::Map(
+                record
+                    .fields
+                    .iter()
+                    .filter(|(_, held)| !matches!(held, Value::Absent(_)))
+                    .map(|(name, held)| (name.clone(), as_data(held)))
+                    .collect(),
+            ),
+        },
         other => Data::Str(other.to_string()),
     }
 }
@@ -2136,24 +2149,18 @@ fn widened(value: i64) -> Value {
     Value::Decimal(crate::decimal::Decimal::from_int(value))
 }
 
-/// One value read as `element`: a value that does not read is an evaluation
-/// error naming every field that does not, not only the first (HQL-0030).
-fn read_as(value: &Value, element: &TypeRef, span: &Range<usize>) -> Result<Value, Diagnostic> {
-    // Read as `Data`, an open record is the tree it was read from.
-    if *element == TypeRef::DATA
-        && let Value::Record(record) = value
-        && let Some(carrier) = &record.carrier
-    {
-        return Ok(Value::Data(Arc::clone(carrier)));
-    }
-    value
-        .decoded(element, crate::types::Leaves::AsWritten)
-        .map_err(|mismatches| {
-            Diagnostic::runtime(
-                span.clone(),
-                format!("this does not read as {element}: {mismatches}"),
-            )
-        })
+/// The fail-fast diagnostic for a value that does not read as `element`:
+/// every violation `validate(T)` would report of it, a warning aside.
+fn refused(element: &TypeRef, violations: &[Violation], span: &Range<usize>) -> Diagnostic {
+    let errors: Vec<&str> = violations
+        .iter()
+        .filter(|violation| violation.severity == "error")
+        .map(|violation| violation.message.as_str())
+        .collect();
+    Diagnostic::runtime(
+        span.clone(),
+        format!("this does not read as {element}: {}", errors.join("; ")),
+    )
 }
 
 impl Evaluator<'_> {
@@ -2170,10 +2177,7 @@ impl Evaluator<'_> {
         let mut each = |values: &[Value]| {
             values
                 .iter()
-                .map(|value| {
-                    let read = read_as(value, element, span)?;
-                    self.contracted(read, element, span)
-                })
+                .map(|value| self.read(value, element, span))
                 .collect::<Result<Vec<_>, _>>()
         };
         match value {
@@ -2203,11 +2207,27 @@ impl Evaluator<'_> {
                     },
                 ))))
             }
-            other => {
-                let read = read_as(&other, element, span)?;
-                self.contracted(read, element, span)
-            }
+            other => self.read(&other, element, span),
         }
+    }
+
+    /// One value read as `element` and held to its rules, or the
+    /// diagnostic naming every violation.
+    fn read(
+        &mut self,
+        value: &Value,
+        element: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        // Read as `Data`, an open record is the tree it was read from.
+        if *element == TypeRef::DATA
+            && let Value::Record(record) = value
+            && let Some(carrier) = &record.carrier
+        {
+            return Ok(Value::Data(Arc::clone(carrier)));
+        }
+        self.reading(value, element, span)?
+            .map_err(|violations| refused(element, &violations, span))
     }
 
     /// A value read as `element`, once every contract rule over it holds:
@@ -2224,19 +2244,14 @@ impl Evaluator<'_> {
         }
         let mut broken = Vec::new();
         self.broken_rules(&value, &mut Vec::new(), &mut broken, span)?;
-        let errors: Vec<String> = broken
+        if broken
             .iter()
-            .filter(|broken| broken.severity == crate::ast::Severity::Error)
-            .map(Broken::said)
-            .collect();
-        if errors.is_empty() {
-            Ok(value)
-        } else {
-            Err(Diagnostic::runtime(
-                span.clone(),
-                format!("this does not read as {element}: {}", errors.join("; ")),
-            ))
+            .all(|broken| broken.severity == crate::ast::Severity::Warning)
+        {
+            return Ok(value);
         }
+        let violations: Vec<Violation> = broken.iter().map(Broken::violation).collect();
+        Err(refused(element, &violations, span))
     }
 
     /// `x | validate(T)`: each value read as `element` and checked against
@@ -2293,61 +2308,84 @@ impl Evaluator<'_> {
         element: &TypeRef,
         span: &Range<usize>,
     ) -> Result<Value, Diagnostic> {
+        let violations = match self.reading(value, element, span)? {
+            Ok(read) => return Ok(Value::Ok(Arc::new(read), TypeRef::INVALID)),
+            Err(violations) => violations,
+        };
+        let read = match value {
+            Value::Data(tree) => Arc::clone(tree),
+            Value::Record(record) if let Some(carrier) = &record.carrier => Arc::clone(carrier),
+            other => Arc::new(as_data(other)),
+        };
+        let invalid = Value::Record(Arc::new(crate::types::Record {
+            ty: TypeRef::INVALID,
+            fields: vec![
+                (
+                    "contract".to_owned(),
+                    Value::Str(element.to_string().into()),
+                ),
+                ("value".to_owned(), Value::Data(read)),
+                (
+                    "violations".to_owned(),
+                    Value::list(
+                        violations.into_iter().map(violation).collect(),
+                        TypeRef::VIOLATION,
+                    ),
+                ),
+            ],
+            carrier: None,
+        }));
+        Ok(Value::Err(Arc::new(invalid), element.clone()))
+    }
+
+    /// One value read as `element` and held to its rules: what reads, or
+    /// every violation, a broken warning among them once anything else is
+    /// broken. `x | T` and `x | validate(T)` both read through this, so the
+    /// fail-fast diagnostic and the `Invalid` say the same violations.
+    fn reading(
+        &mut self,
+        value: &Value,
+        element: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Result<Value, Vec<Violation>>, Diagnostic> {
         let contract = element.to_string();
-        let violations = match value.decoded(element, crate::types::Leaves::AsWritten) {
+        match value.decoded(element, crate::types::Leaves::AsWritten) {
             Ok(read) => {
                 let mut broken = Vec::new();
-                self.broken_rules(&read, &mut Vec::new(), &mut broken, span)?;
+                if CONTRACTS.with(|held| !held.borrow().is_empty()) {
+                    self.broken_rules(&read, &mut Vec::new(), &mut broken, span)?;
+                }
                 if broken
                     .iter()
                     .all(|broken| broken.severity == crate::ast::Severity::Warning)
                 {
-                    return Ok(Value::Ok(Arc::new(read), TypeRef::INVALID));
+                    return Ok(Ok(read));
                 }
-                broken.iter().map(Broken::violation).collect()
+                Ok(Err(broken.iter().map(Broken::violation).collect()))
             }
-            Err(mismatches) => mismatches
+            Err(mismatches) => Ok(Err(mismatches
                 .0
-                .iter()
+                .into_iter()
                 .map(|mismatch| {
                     let place = if mismatch.path.is_empty() {
                         String::new()
                     } else {
                         format!(".{}", mismatch.path.join("."))
                     };
-                    violation(Violation {
+                    Violation {
                         contract: contract.clone(),
-                        path: mismatch.path.clone(),
-                        kind: mismatch.kind.name(),
                         rule: format!("{contract}{place}.{}", mismatch.kind.name()),
+                        kind: mismatch.kind.name(),
                         text: mismatch.reason.clone(),
                         severity: "error",
                         message: mismatch.to_string(),
-                    })
+                        path: mismatch.path,
+                        expected: mismatch.expected,
+                        actual: mismatch.actual,
+                    }
                 })
-                .collect(),
-        };
-        let read = match value {
-            Value::Data(tree) => Arc::clone(tree),
-            Value::Record(record) => record
-                .carrier
-                .clone()
-                .unwrap_or_else(|| Arc::new(crate::data::Data::Empty)),
-            _ => Arc::new(crate::data::Data::Empty),
-        };
-        let invalid = Value::Record(Arc::new(crate::types::Record {
-            ty: TypeRef::INVALID,
-            fields: vec![
-                ("contract".to_owned(), Value::Str(contract.into())),
-                ("value".to_owned(), Value::Data(read)),
-                (
-                    "violations".to_owned(),
-                    Value::list(violations, TypeRef::VIOLATION),
-                ),
-            ],
-            carrier: None,
-        }));
-        Ok(Value::Err(Arc::new(invalid), element.clone()))
+                .collect())),
+        }
     }
 
     /// Each rule broken within `value`, said of the path that leads to the
@@ -2464,9 +2502,11 @@ impl Broken {
         }
     }
 
-    /// The broken rule as a `Violation`.
-    fn violation(&self) -> Value {
-        violation(Violation {
+    /// The broken rule as a `Violation`. A rule's text says what it
+    /// expects, and the value it reads is at `path`, so it fills neither
+    /// `expected` nor `actual`.
+    fn violation(&self) -> Violation {
+        Violation {
             contract: self.contract.clone(),
             path: self.path.clone(),
             kind: "rule",
@@ -2477,7 +2517,9 @@ impl Broken {
                 crate::ast::Severity::Warning => "warning",
             },
             message: self.said(),
-        })
+            expected: None,
+            actual: None,
+        }
     }
 }
 
@@ -2490,6 +2532,8 @@ struct Violation {
     text: String,
     severity: &'static str,
     message: String,
+    expected: Option<String>,
+    actual: Option<Data>,
 }
 
 /// A `Violation` value, its fields in the order `std/core.hql` declares
@@ -2507,8 +2551,22 @@ fn violation(violation: Violation) -> Value {
             ("kind".to_owned(), text(violation.kind.to_owned())),
             ("rule".to_owned(), text(violation.rule)),
             ("text".to_owned(), text(violation.text)),
-            ("expected".to_owned(), Value::Absent(TypeRef::STR)),
-            ("actual".to_owned(), Value::Absent(TypeRef::DATA)),
+            (
+                "expected".to_owned(),
+                violation
+                    .expected
+                    .map_or(Value::Absent(TypeRef::STR), |expected| {
+                        Value::Present(Arc::new(text(expected)))
+                    }),
+            ),
+            (
+                "actual".to_owned(),
+                violation
+                    .actual
+                    .map_or(Value::Absent(TypeRef::DATA), |actual| {
+                        Value::Present(Arc::new(Value::Data(Arc::new(actual))))
+                    }),
+            ),
             ("severity".to_owned(), text(violation.severity.to_owned())),
             ("message".to_owned(), text(violation.message)),
         ],

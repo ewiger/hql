@@ -394,7 +394,7 @@ fn default(
 
 /// A default as data: a scalar literal, or a list, set or `Data` literal of
 /// them.
-fn literal(written: &crate::ast::Expr) -> Option<crate::data::Data> {
+pub(crate) fn literal(written: &crate::ast::Expr) -> Option<crate::data::Data> {
     use crate::ast::Kind;
     use crate::data::Data;
     Some(match &written.kind {
