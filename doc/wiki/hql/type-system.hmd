@@ -214,7 +214,7 @@ Three different things are kept apart:
 `T : Shape` uses the one relation symbol a bound has; it is checked at every
 call, and inside the body `x.area()` resolves through the bound. A trait may
 give a function a default body an implementation inherits. The core traits are
-`Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index` and `Slice`, in scope
+`Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index`, `Slice` and `Validator`, in scope
 everywhere and restated in `std/core.hql`: `a + b` over a declared type resolves
 `Add` for it, `==` resolves `Eq`, `xs[i]` resolves `Index`, `xs[a:b]` resolves
 `Slice` ([[bracket-op]]), and a type implementing `Ord`
@@ -222,6 +222,18 @@ is `Orderable`, its `compare` deciding `<`, `sort`, `min` and `max`. Dispatch is
 type at run time, so a value held at a wider type still takes its own
 implementation. No trait object, no existential type and no dynamic
 registration exist.
+
+A trait may **extend** others, `trait Email : Validator { }`: the functions of
+the traits it extends are its own, and an implementation of it supplies them;
+it implements none of the traits it extends by doing so. A trait extending
+`Validator` is a **validator type** ([HQL-0034](../../proposals/HQL-0034/README.md)),
+whose `validate(self) : Bool` is a check a value passes. A contract names one
+in a rule, `validate contact? with Email`, which holds where `Email`'s
+`validate` of the field is true and is a type error where the field's type
+does not implement `Email`. A field declared with one, `work_email: Email`, is
+of the one type implementing it and is held to its `validate` wherever the
+record is read or built, a broken one reported as the violation
+`UserData.work_email`.
 
 A **generic trait** takes type parameters, and an implementation takes its own
 ([HQL-0027](../../proposals/HQL-0027/README.md)). `trait Index<T>` names the

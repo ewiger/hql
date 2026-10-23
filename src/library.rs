@@ -263,6 +263,7 @@ pub(crate) fn shape(name: &str) -> Option<crate::types::program::RecordShape> {
                         .default
                         .as_ref()
                         .and_then(crate::declarations::literal),
+                    validator: None,
                 })
             })
             .collect::<Option<Vec<_>>>()?,

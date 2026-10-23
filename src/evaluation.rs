@@ -2247,7 +2247,9 @@ impl Evaluator<'_> {
         element: &TypeRef,
         span: &Range<usize>,
     ) -> Result<Value, Diagnostic> {
-        if CONTRACTS.with(|held| held.borrow().is_empty()) {
+        if CONTRACTS.with(|held| held.borrow().is_empty())
+            && !crate::types::program::has_validators()
+        {
             return Ok(value);
         }
         let mut broken = Vec::new();
@@ -2360,7 +2362,9 @@ impl Evaluator<'_> {
         match value.decoded(element, crate::types::Leaves::AsWritten) {
             Ok(read) => {
                 let mut broken = Vec::new();
-                if CONTRACTS.with(|held| !held.borrow().is_empty()) {
+                if CONTRACTS.with(|held| !held.borrow().is_empty())
+                    || crate::types::program::has_validators()
+                {
                     self.broken_rules(&read, &mut Vec::new(), &mut broken, span)?;
                 }
                 if broken
@@ -2421,6 +2425,7 @@ impl Evaluator<'_> {
                     self.broken_rules(held, path, broken, span)?;
                     path.pop();
                 }
+                self.broken_validators(record, path, broken, span)?;
                 for (contract, rules) in contracts_of(&record.ty) {
                     for (position, rule) in rules.iter().enumerate() {
                         if !self.rule_holds(rule, record, span)? {
@@ -2442,6 +2447,56 @@ impl Evaluator<'_> {
             }
             _ => Ok(()),
         }
+    }
+
+    /// Each field of `record` declared with a validator type whose
+    /// `validate` is false of it, an absent optional field passing.
+    fn broken_validators(
+        &mut self,
+        record: &crate::types::Record,
+        path: &[String],
+        broken: &mut Vec<Broken>,
+        span: &Range<usize>,
+    ) -> Result<(), Diagnostic> {
+        let Some(shape) = crate::types::program::record(record.ty.constructor.0) else {
+            return Ok(());
+        };
+        let contract = record.ty.constructor.0;
+        for field in &shape.fields {
+            let Some(validator) = field.validator else {
+                continue;
+            };
+            let value = match record.field(&field.name) {
+                Some(Value::Present(held)) => held.as_ref().clone(),
+                Some(Value::Absent(_)) | None => continue,
+                Some(held) => held.clone(),
+            };
+            match self.dispatch(validator, "validate", value, Vec::new(), span)? {
+                Value::Bool(true) => {}
+                Value::Bool(false) => broken.push(Broken {
+                    contract: contract.to_owned(),
+                    path: path
+                        .iter()
+                        .cloned()
+                        .chain(std::iter::once(field.name.clone()))
+                        .collect(),
+                    identity: format!("{contract}.{}", field.name),
+                    named: false,
+                    text: format!("{}: {validator}", field.name),
+                    severity: crate::ast::Severity::Error,
+                }),
+                other => {
+                    return Err(Diagnostic::runtime(
+                        span.clone(),
+                        format!(
+                            "`validate` of `{validator}` gave {}, not a Bool",
+                            other.type_of()
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Whether `rule` holds of `record`: vacuously where an optional field

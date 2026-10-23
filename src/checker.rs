@@ -698,7 +698,18 @@ pub(crate) struct TraitInfo {
     /// The type variables its functions are written over, `T` of
     /// `Index<T>`, each with the bound an argument meets.
     pub parameters: Vec<(TypeRef, Option<TypeRef>)>,
+    /// Its functions: those of the traits it extends, then its own.
     pub methods: Vec<MethodSig>,
+    /// The traits it extends, nearest first, and theirs after them.
+    pub supertraits: Vec<String>,
+}
+
+impl TraitInfo {
+    /// Whether it is a validator type: `Validator` is among the traits it
+    /// extends (HQL-0034).
+    pub(crate) fn is_validator(&self) -> bool {
+        self.supertraits.iter().any(|name| name == "Validator")
+    }
 }
 
 /// A type parameter's trait bound, `E : Index<T>`: the parameter, its type
@@ -927,6 +938,7 @@ pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
             parameters: vec![self_type.clone()],
             result,
         }],
+        supertraits: Vec::new(),
     };
     [
         ("Add", binary("add", self_type.clone())),
@@ -946,6 +958,19 @@ pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
                     parameters: vec![TypeRef::RANGE],
                     result: self_type.clone(),
                 }],
+                supertraits: Vec::new(),
+            },
+        ),
+        (
+            "Validator",
+            TraitInfo {
+                parameters: Vec::new(),
+                methods: vec![MethodSig {
+                    name: "validate".to_owned(),
+                    parameters: Vec::new(),
+                    result: TypeRef::BOOL,
+                }],
+                supertraits: Vec::new(),
             },
         ),
     ]
@@ -965,6 +990,7 @@ fn index_trait() -> TraitInfo {
             parameters: vec![TypeRef::INT],
             result: TypeRef::optional(element),
         }],
+        supertraits: Vec::new(),
     }
 }
 
@@ -3462,7 +3488,32 @@ impl<'a> Checker<'a> {
             &declaration.span,
         )?;
         let _variables = crate::declarations::TypeVariables::enter(&variables);
-        let mut methods = Vec::new();
+        // A trait extends others by having their functions as its own: an
+        // implementation of it supplies them.
+        let mut methods: Vec<MethodSig> = Vec::new();
+        let mut supertraits = Vec::new();
+        for written in &declaration.supertraits {
+            let info = self.traits.get(&written.name).ok_or_else(|| {
+                Diagnostic::name(
+                    written.span.clone(),
+                    format!("no trait named `{}` is in scope", written.name),
+                )
+            })?;
+            if !written.arguments.is_empty() || !info.parameters.is_empty() {
+                return Err(Diagnostic::typing(
+                    written.span.clone(),
+                    "a trait extends a trait without type parameters",
+                ));
+            }
+            for inherited in &info.methods {
+                if !methods.iter().any(|held| held.name == inherited.name) {
+                    methods.push(inherited.clone());
+                }
+            }
+            supertraits.push(written.name.clone());
+            supertraits.extend(info.supertraits.iter().cloned());
+        }
+        let inherited = methods.len();
         for method in &declaration.methods {
             if !method.has_self {
                 return Err(Diagnostic::typing(
@@ -3474,7 +3525,7 @@ impl<'a> Checker<'a> {
                 ));
             }
             self.lint(crate::naming::Kind::Function, &method.name, &method.span);
-            if methods
+            if methods[inherited..]
                 .iter()
                 .any(|held: &MethodSig| held.name == method.name)
             {
@@ -3488,11 +3539,27 @@ impl<'a> Checker<'a> {
                 .iter()
                 .map(|parameter| crate::declarations::annotation(&parameter.annotation))
                 .collect::<Result<Vec<_>, _>>()?;
-            methods.push(MethodSig {
+            let signature = MethodSig {
                 name: method.name.clone(),
                 parameters,
                 result: crate::declarations::annotation(&method.result)?,
-            });
+            };
+            if let Some(held) = methods[..inherited]
+                .iter()
+                .find(|held| held.name == signature.name)
+            {
+                if held.parameters != signature.parameters || held.result != signature.result {
+                    return Err(Diagnostic::typing(
+                        method.span.clone(),
+                        format!(
+                            "`{}` restates `{}` of a trait it extends with another signature",
+                            declaration.name, method.name
+                        ),
+                    ));
+                }
+                continue;
+            }
+            methods.push(signature);
         }
         if let Some(core) = self.traits.get(&declaration.name) {
             let same = core.parameters == parameters
@@ -3512,16 +3579,57 @@ impl<'a> Checker<'a> {
                 ));
             }
         }
-        self.traits.insert(
-            declaration.name.clone(),
-            TraitInfo {
-                parameters,
-                methods,
-            },
-        );
+        let info = TraitInfo {
+            parameters,
+            methods,
+            supertraits,
+        };
+        if info.is_validator() {
+            crate::types::program::validator(&declaration.name, None)
+                .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
+        }
+        self.traits.insert(declaration.name.clone(), info);
         self.trait_decls
             .insert(declaration.name.clone(), declaration);
         Ok(())
+    }
+
+    /// `V(f)`, which `validate f with V` writes, for a validator type `V`:
+    /// a `Bool`, `V`'s `validate` of `f`, where `f`'s type implements `V`.
+    fn validator_call(
+        &mut self,
+        name: &str,
+        info: &TraitInfo,
+        arguments: &[crate::ast::Arg],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        if !info.is_validator() {
+            return Err(Diagnostic::typing(
+                span,
+                format!(
+                    "`{name}` is a trait, not a validator type: a validator type extends \
+                     `Validator`, `trait {name} : Validator`"
+                ),
+            ));
+        }
+        let [checked] = arguments else {
+            return Err(Diagnostic::typing(
+                span,
+                format!("the validator `{name}` checks one value"),
+            ));
+        };
+        let ty = self.expression(&checked.value)?;
+        if self.applicable(&ty, name).is_empty() {
+            return Err(Diagnostic::typing(
+                checked.value.span.clone(),
+                format!(
+                    "`{name}` is not implemented for {ty}: a validator checks a value of a \
+                     type that implements it"
+                ),
+            ));
+        }
+        self.checked.validator_calls.insert(span, name.to_owned());
+        Ok(TypeRef::BOOL)
     }
 
     /// `impl Name for Type { … }`: every function the trait requires, with
@@ -3766,6 +3874,12 @@ impl<'a> Checker<'a> {
             });
         }
         self.impls.push(this);
+        // A field may be declared with a validator type, and is then of the
+        // type implementing it.
+        if info.is_validator() {
+            crate::types::program::validator(trait_name, Some(target.clone()))
+                .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
+        }
         // A type implementing `Ord` is Orderable: `compare`, `<`, `sort`,
         // `min` and `max` accept it, and its `compare` decides the order.
         if trait_name == "Ord" {
@@ -4870,6 +4984,12 @@ impl<'a> Checker<'a> {
                 let Kind::Ident(name) = &callee.kind else {
                     unreachable!("a callee that is not a name is applied above");
                 };
+                if !self.scope.contains_key(name)
+                    && crate::types::named(name, &[]).is_none()
+                    && let Some(info) = self.traits.get(name).cloned()
+                {
+                    return self.validator_call(name, &info, arguments, span);
+                }
                 if name == "Data"
                     && let Some(read) = self.interpreting(name, arguments, &span)?
                 {

@@ -58,6 +58,15 @@ The language continues to be in active development.
   `oks()` and `errs()` take a `Stream` of results to a `Stream`, one value
   at a time, as they take a `List`, `Seq` or `Set` to its own kind.
 
+- Validator types ([HQL-0034](doc/proposals/HQL-0034/README.md), shown in
+  the [structural examples](examples/structural/README.md)): a trait may
+  extend others, `trait Email : Validator { }`, and has their functions as
+  its own. A trait extending the core trait `Validator` is a validator type.
+  `validate f with V` holds where `V`'s `validate` of the field is true, and
+  is a type error where the field's type does not implement `V`; a field
+  declared `f: V` is of the type implementing `V` and is held to it,
+  reported as the violation `Contract.f`.
+
 - `Table<R>` ([issue 0044](doc/issues/0044-typed-tables.md), shown in the
   [constructors examples](examples/constructors/README.md)): a table is
   typed by its row, `[Book(…)] | Table` a `Table<Book>` and a table of

@@ -35,6 +35,9 @@ reads holds every rule.
 | [stored `Invalid`](queries/stored-invalid.hql) | `stored \| Invalid` reads a written failure back, `severity` defaulting to `"error"` | `["UserData UserData.id_present error"]` |
 | [results in collections](queries/results-in-collections.hql) | `map`, `map_err` and `match` over each `Result` of a `List`, a `Seq` and a `Stream` | the ids, `-` or `not UserData` per value |
 | [`oks` and `errs` over a stream](queries/stream-oks-errs.hql) | over a `Stream` of results each keeps a stream, bounded afterwards by `take(n)` | `[["u-1", "u-3", "u-1"], ["UserData.id_present", "UserData.id_present"]]` |
+| [validator types](queries/validator-types.hql) | `trait Email : Validator`; `validate contact? with Email` and a field `work_email: Email` | the valid email, the two broken checks |
+| [validator not implemented](queries/invalid-validator-not-implemented.hql) | `validate age with Email` where `Email` is not implemented for `Int` | a type error |
+| [plain trait as a validator](queries/invalid-validator-plain-trait.hql) | a trait that does not extend `Validator` is not a validator type | a type error |
 | [validating a closed value](queries/invalid-validate-closed-value.hql) | `validate(T)` reads `Data` or an open record | a type error |
 
 From the repository root:

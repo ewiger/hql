@@ -1,6 +1,6 @@
 # HQL-0034: Validator types
 
-**Status**: drafted
+**Status**: accepted, implemented in part
 **Created**: 2026-10-23
 **Source**: [HQL-0032](../HQL-0032/README.md), whose `validate f with V`
 names a validator; tracked by
@@ -54,6 +54,15 @@ type UserData : DataContract = {
 - A field declared `f: V` reads as `V` where the value reads as the type
   that implements `V` and its `validate` is `true`.
 
+A trait extends others by having their functions as its own: an
+implementation of `Email` supplies `validate`, and does not implement
+`Validator` by doing so. A field declared `f: V` is of the type that
+implements `V`, so `u.work_email` is a `String`; a validator type
+implemented for no type, or for several, is refused as a field's type until
+the placeholder below states the form for several. A field held to `V` that
+is not valid is reported as the violation of kind `rule` with the identity
+`Contract.f` and the text `f: V`.
+
 *Placeholder:* the standard validators and the module that declares them,
 how a validator type is written for more than one value type, and the
 identity and message of the violation a validator type reports.
@@ -61,3 +70,8 @@ identity and message of the violation a validator type reports.
 ## Changelog
 
 - 2026-10-23: drafted as a stub
+- 2026-10-23: `Validator` and validator types built
+  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), V1):
+  `trait V : Validator`, `validate f with V`, and a field `f: V` of the one
+  type implementing `V`, shown in the
+  [structural examples](../../../examples/structural/README.md)

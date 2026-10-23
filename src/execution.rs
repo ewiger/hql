@@ -686,6 +686,9 @@ pub(crate) struct Checked {
     pub validations: HashMap<Range<usize>, TypeRef>,
     /// Each call of a trait's function, by the trait and the function.
     pub method_calls: HashMap<Range<usize>, (String, String)>,
+    /// Each `validate f with V` naming a validator type, by the validator:
+    /// a call of `V`'s `validate` on the field (HQL-0034).
+    pub validator_calls: HashMap<Range<usize>, String>,
     /// Each operator resolved through a trait, by the trait.
     pub operator_calls: HashMap<Range<usize>, &'static str>,
     /// Each implementation, by the span of its declaration.
@@ -1151,6 +1154,17 @@ impl Checked {
                     arguments: values,
                     pack: self.applications.get(&span).cloned().flatten(),
                     plan: None,
+                }
+            }
+            A::Call { arguments, .. } if self.validator_calls.contains_key(&span) => {
+                let [checked] = arguments.as_slice() else {
+                    return Err(Diagnostic::typing(span, "a validator checks one value"));
+                };
+                Kind::Method {
+                    trait_name: self.validator_calls[&span].clone(),
+                    method: "validate".to_owned(),
+                    receiver: Box::new(self.expression(&checked.value)?),
+                    arguments: Vec::new(),
                 }
             }
             A::Call { callee, arguments } if self.method_calls.contains_key(&span) => {

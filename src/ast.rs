@@ -91,6 +91,9 @@ pub(crate) struct TraitDecl {
     pub generics: Vec<String>,
     /// The bound a type parameter is written with, `T : Data`.
     pub bounds: Vec<(String, TypeAnn)>,
+    /// The traits it extends, `Validator` in `trait Email : Validator`:
+    /// their functions are its own.
+    pub supertraits: Vec<TypeAnn>,
     pub methods: Vec<MethodDecl>,
     pub span: Range<usize>,
 }

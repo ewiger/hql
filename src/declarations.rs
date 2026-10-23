@@ -286,7 +286,10 @@ pub(crate) fn enter_lattice(declaration: &TypeDecl) -> Result<(), Diagnostic> {
                 .fields
                 .iter()
                 .map(|field| {
-                    let ty = structural(&field.annotation)?;
+                    let (ty, validator) = match validator_field(&field.annotation)? {
+                        Some((ty, validator)) => (ty, Some(validator)),
+                        None => (structural(&field.annotation)?, None),
+                    };
                     let default = field
                         .default
                         .as_ref()
@@ -297,6 +300,7 @@ pub(crate) fn enter_lattice(declaration: &TypeDecl) -> Result<(), Diagnostic> {
                         ty,
                         optional: field.optional,
                         default,
+                        validator,
                     })
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?,
@@ -352,6 +356,44 @@ fn structural(
         )
     })?;
     Ok(constructor.apply(args))
+}
+
+/// A field declared with a validator type `V`: of the one type that
+/// implements `V`, and held to it (HQL-0034). `None` where the field's type
+/// names no validator type.
+fn validator_field(written: &TypeAnn) -> Result<Option<(TypeRef, &'static str)>, Diagnostic> {
+    if !written.arguments.is_empty() {
+        return Ok(None);
+    }
+    use crate::types::program;
+    let Some(types) = program::implementing(&written.name) else {
+        return Ok(None);
+    };
+    match types.as_slice() {
+        [ty] => Ok(Some((ty.clone(), program::intern(&written.name)))),
+        [] => Err(Diagnostic::typing(
+            written.span.clone(),
+            format!(
+                "the validator type `{}` is implemented for no type, so a field declared \
+                 with it has none",
+                written.name
+            ),
+        )),
+        _ => Err(Diagnostic::typing(
+            written.span.clone(),
+            format!(
+                "the validator type `{}` is implemented for {}: declare the field with one of \
+                 them and `validate f with {}`",
+                written.name,
+                types
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" and "),
+                written.name
+            ),
+        )),
+    }
 }
 
 /// A field's default as the data a contract reads in its place: a literal
@@ -554,7 +596,13 @@ impl Declarations {
                 ));
             }
             seen.push(&field.name);
-            self.resolve(&field.annotation, &scope)?;
+            // A validator type is no type of its own: the field is of the
+            // type implementing it, resolved where the record is built.
+            let validator = field.annotation.arguments.is_empty()
+                && crate::types::program::implementing(&field.annotation.name).is_some();
+            if !validator {
+                self.resolve(&field.annotation, &scope)?;
+            }
             if field.optional {
                 self.field_stays_required(declaration, &field.name, &field.span)?;
             }

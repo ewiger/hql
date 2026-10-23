@@ -131,6 +131,12 @@ trait Index<T> {
 trait Slice {
     fn slice(self, range: Range) : Self
 }
+// A check a value passes: a trait extending Validator is a validator type
+// (HQL-0034). `validate f with V` holds where V's `validate` of `f` is true,
+// and a field declared `f: V` reads as the type implementing V, held to it.
+trait Validator {
+    fn validate(self) : Bool
+}
 
 // The built-in types' implementations of the core traits. A header without a
 // body declares a native implementation: the runtime supplies its functions,

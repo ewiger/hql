@@ -26,6 +26,10 @@ pub struct RecordField {
     /// What a contract reads where the data holds no entry for the field,
     /// written `name: Type = literal` (HQL-0032).
     pub default: Option<crate::data::Data>,
+    /// The validator type the field is declared with, `email: Email`: the
+    /// field is of the type implementing it and is held to its `validate`
+    /// (HQL-0034).
+    pub validator: Option<&'static str>,
 }
 
 /// What a record declares: its parameters and its fields, in order.
@@ -83,6 +87,9 @@ pub struct Lattice {
     pub system: Arc<TypeSystem>,
     /// The records the program declared, by name.
     pub records: Arc<HashMap<&'static str, RecordShape>>,
+    /// Each validator type in scope, with the types implementing it
+    /// (HQL-0034).
+    pub validators: Arc<HashMap<&'static str, Vec<TypeRef>>>,
 }
 
 thread_local! {
@@ -97,6 +104,7 @@ fn base() -> Result<Arc<Lattice>, TypeError> {
             Arc::new(Lattice {
                 system: Arc::new(system),
                 records: Arc::new(HashMap::new()),
+                validators: Arc::new(HashMap::new()),
             })
         })
     })
@@ -143,6 +151,7 @@ pub fn declare(definition: TypeDefinition, shape: Option<RecordShape>) -> Result
     install(Arc::new(Lattice {
         system: Arc::new(system),
         records: Arc::new(records),
+        validators: Arc::clone(&held.validators),
     }));
     Ok(())
 }
@@ -163,8 +172,42 @@ pub fn adopt_parent(
     install(Arc::new(Lattice {
         system: Arc::new(system),
         records: Arc::clone(&held.records),
+        validators: Arc::clone(&held.validators),
     }));
     Ok(())
+}
+
+/// Record that `implementing` implements the validator type `name`, or,
+/// with none, that `name` is a validator type (HQL-0034).
+///
+/// # Errors
+///
+/// Returns the built-in lattice's own defect, if it has one.
+pub fn validator(name: &str, implementing: Option<TypeRef>) -> Result<(), TypeError> {
+    let held = current()?;
+    let mut validators = (*held.validators).clone();
+    let types = validators.entry(intern(name)).or_default();
+    types.extend(implementing);
+    install(Arc::new(Lattice {
+        system: Arc::clone(&held.system),
+        records: Arc::clone(&held.records),
+        validators: Arc::new(validators),
+    }));
+    Ok(())
+}
+
+/// The types implementing a validator type, or `None` where `name` is not
+/// one.
+#[must_use]
+pub fn implementing(name: &str) -> Option<Vec<TypeRef>> {
+    current().ok()?.validators.get(name).cloned()
+}
+
+/// Whether any validator type is in scope, so a record may be held to a
+/// field's validator.
+#[must_use]
+pub fn has_validators() -> bool {
+    current().is_ok_and(|lattice| !lattice.validators.is_empty())
 }
 
 /// The shape of a record the program declared, or one the standard library
@@ -284,6 +327,7 @@ mod tests {
                     ty: TypeConstructor("T").apply([]),
                     optional: false,
                     default: None,
+                    validator: None,
                 }],
             }),
         )

@@ -987,8 +987,8 @@ impl Parser {
         Ok((generics, bounds))
     }
 
-    /// `trait Name<T> { fn m(self, p: T) : R [= body] … }`, one function per
-    /// line.
+    /// `trait Name<T> : Super { fn m(self, p: T) : R [= body] … }`, one
+    /// function per line.
     fn trait_declaration(&mut self) -> Result<TraitDecl, Diagnostic> {
         let start = self.advance().span.start;
         let named = self.advance();
@@ -996,12 +996,20 @@ impl Parser {
             return Err(Diagnostic::syntax(named.span, "expected a trait name"));
         };
         let (generics, bounds) = self.type_parameters()?;
+        let mut supertraits = Vec::new();
+        if self.eat(&Token::Colon) {
+            supertraits.push(self.simple_type()?);
+            while self.eat(&Token::Comma) {
+                supertraits.push(self.simple_type()?);
+            }
+        }
         let (methods, end) = self.methods("a trait")?;
         Ok(TraitDecl {
             private: None,
             name,
             generics,
             bounds,
+            supertraits,
             methods,
             span: start..end,
         })

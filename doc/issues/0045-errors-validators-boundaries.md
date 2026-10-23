@@ -187,3 +187,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   lazily, through a traversal that keeps one side; `map`, `map_err` and
   `match` over each result already held for all three kinds and are pinned
   by a case.
+- V1 done: `trait V : Validator`, trait extension with inherited functions,
+  `validate f with V` dispatching to `V`'s implementation, and `f: V` as the
+  one implementing type held to `V`. A validator type implemented for
+  several types is refused as a field type until V2.
