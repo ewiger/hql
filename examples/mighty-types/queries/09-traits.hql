@@ -18,7 +18,7 @@ type Circle { radius : Float }
 type Rect { width : Float, height : Float }
 
 impl Shape for Circle {
-    fn area(self) : Float = 3.0 * self.radius * self.radius
+    fn area(self) : Float = 3.0f * self.radius * self.radius
     fn name(self) : String = "circle"
 }
 
@@ -31,11 +31,11 @@ fn total_area<T : Shape>(shapes: List<T>) : Float = shapes | map(s => s.area()) 
 fn largest<T : Shape>(shapes: List<T>) : Option<String> =
     shapes | sort(by = s => s.area()) | last | map(s => s.describe())
 
-circles = [Circle(radius = 1.0), Circle(radius = 2.0)]
-rects = [Rect(width = 2.0, height = 3.0)]
+circles = [Circle(radius = 1.0f), Circle(radius = 2.0f)]
+rects = [Rect(width = 2.0f, height = 3.0f)]
 
 [
-    Circle(radius = 1.0).describe(),
+    Circle(radius = 1.0f).describe(),
     str(total_area(circles)),
     str(total_area(rects)),
     largest(circles).unwrap_or("none"),

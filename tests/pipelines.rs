@@ -238,8 +238,8 @@ fn each_aggregation_equals_its_longhand() {
     // `average` carries a sum and a count and projects their quotient.
     holds(
         "type Mean {\n  sum : Float\n  count : Int\n}\n\
-         xs = [1.0, 2.0, 4.5]\n\
-         s = xs | reduce(initial = Mean(sum = 0.0, count = 0), \
+         xs = [1.0f, 2.0f, 4.5f]\n\
+         s = xs | reduce(initial = Mean(sum = 0.0f, count = 0), \
          by = (s, x) => Mean(sum = s.sum + x, count = s.count + 1))\n\
          (xs | average) == some(s.sum / float(s.count))",
     );
@@ -255,17 +255,21 @@ fn each_aggregation_whose_state_differs_equals_its_longhand() {
     let variance = |input: &str| {
         format!(
             "{moments}xs : List<Float> = {input}\n\
-             s = xs | reduce(initial = Moments(count = 0, mean = 0.0, m2 = 0.0), \
+             s = xs | reduce(initial = Moments(count = 0, mean = 0.0f, m2 = 0.0f), \
              by = (s, x) => Moments(count = s.count + 1, \
              mean = s.mean + (x - s.mean) / float(s.count + 1), \
              m2 = s.m2 + (x - s.mean) * (x - (s.mean + (x - s.mean) / float(s.count + 1)))))\n\
              (xs | variance) == (none given s.count == 0 otherwise some(s.m2 / float(s.count)))"
         )
     };
-    for input in ["[2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.5]", "[3.0]", "[]"] {
+    for input in [
+        "[2.0f, 4.0f, 4.0f, 4.0f, 5.0f, 5.0f, 7.0f, 9.5f]",
+        "[3.0f]",
+        "[]",
+    ] {
         holds(&variance(input));
     }
-    holds("([1, 2, 3, 4] | variance) == some(1.25)");
+    holds("([1, 2, 3, 4] | variance) == some(1.25f)");
     holds("([] | List<Int> | variance) == none");
 
     // count_by: a count per key.
@@ -287,10 +291,10 @@ fn each_aggregation_whose_state_differs_equals_its_longhand() {
         ));
     }
     holds(
-        "xs = [0.5, 1.5, -0.25, 2.0]\n\
-         (xs | histogram(1.0)) == (xs | reduce(initial = SortedMap<Float, Int>([], []), \
-         by = (m, x) => m | with(floor(x / 1.0) * 1.0, \
-         (m | get(floor(x / 1.0) * 1.0) | unwrap_or(0)) + 1)))",
+        "xs = [0.5f, 1.5f, -0.25f, 2.0f]\n\
+         (xs | histogram(1.0f)) == (xs | reduce(initial = SortedMap<Float, Int>([], []), \
+         by = (m, x) => m | with(floor(x / 1.0f) * 1.0f, \
+         (m | get(floor(x / 1.0f) * 1.0f) | unwrap_or(0)) + 1)))",
     );
 
     // top_k: the k greatest, equal keys in input order.
@@ -347,7 +351,7 @@ fn approx_distinct_is_deterministic_and_close() {
 
 #[test]
 fn a_histogram_needs_a_positive_width_and_a_count_cannot_be_negative() {
-    for source in ["[1, 2] | histogram(0)", "[1.0] | histogram(-1.0)"] {
+    for source in ["[1, 2] | histogram(0)", "[1.0f] | histogram(-1.0f)"] {
         let refused = eval(source).unwrap_err();
         assert!(
             refused.message().contains("positive width"),

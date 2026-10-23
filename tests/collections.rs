@@ -197,7 +197,11 @@ fn group_partitions_by_key_and_keeps_input_order_within_a_group() {
 #[test]
 fn sum_min_and_max_equal_their_folds_and_have_empty_results() {
     assert_eq!(eval("[1, 2, 3] | sum"), Ok(Value::Int(6)));
-    assert_eq!(eval("{1.5, 2.5} | sum"), Ok(Value::Float(4.0)));
+    assert_eq!(eval("{1.5f, 2.5f} | sum"), Ok(Value::Float(4.0)));
+    assert_eq!(
+        eval("{1.5, 2.5} | sum").map(|sum| sum.to_string()),
+        Ok("4.0".to_owned())
+    );
     assert_eq!(
         eval("empty : List<Int> = []\nempty | sum"),
         Ok(Value::Int(0))

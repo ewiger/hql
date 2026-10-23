@@ -342,6 +342,7 @@ fn default(
     let data = match &written.kind {
         Kind::Int(value) => Data::Int(*value),
         Kind::Float(value) => Data::Float(*value),
+        Kind::Decimal(value) => Data::Decimal(value.clone()),
         Kind::Bool(value) => Data::Bool(*value),
         Kind::Str(text) => Data::Str(text.clone()),
         _ => {

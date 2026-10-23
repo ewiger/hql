@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a CSV cell read as a Decimal is read as a Decimal literal
-// implementation: pending
-// proposal: doc/proposals/HQL-0031/README.md
+// implementation: implemented
 // environment: pure
 // io: sandbox
 // expected-type: Decimal

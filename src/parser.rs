@@ -1434,11 +1434,13 @@ impl Parser {
         Ok(match head.token {
             Token::Int(value) => Pattern::Int(value),
             Token::Float(value) => Pattern::Float(value),
+            Token::Decimal(value) => Pattern::Decimal(value),
             Token::Bool(value) => Pattern::Bool(value),
             Token::Str(text) => Pattern::Str(text),
             Token::Minus => match self.advance().token {
                 Token::Int(value) => Pattern::Int(-value),
                 Token::Float(value) => Pattern::Float(-value),
+                Token::Decimal(value) => Pattern::Decimal(value.negated()),
                 _ => return Err(Diagnostic::syntax(head.span, "expected a number after `-`")),
             },
             Token::Ident(name) if name == "_" => Pattern::Wildcard,
@@ -2189,6 +2191,7 @@ impl Parser {
             }
             Token::Int(value) => Kind::Int(value),
             Token::Float(value) => Kind::Float(value),
+            Token::Decimal(value) => Kind::Decimal(value),
             Token::Bool(value) => Kind::Bool(value),
             Token::Str(text) => Kind::Str(text),
             Token::DocRef(name) => Kind::DocRef(name),

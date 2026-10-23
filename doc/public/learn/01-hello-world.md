@@ -71,7 +71,7 @@ names the expression it found and points at it:
 ```
 
 ```text
-type error: addition requires two Int or two Float operands
+type error: addition requires two Int, two Float or two Decimal operands
  --> <expression>:1:5
   |
 1 | 1 + "two"

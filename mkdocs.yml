@@ -99,6 +99,7 @@ nav:
               - public/learn/02-data-types/index.md
               - Int: public/learn/02-data-types/int.md
               - Float: public/learn/02-data-types/float.md
+- Decimal: public/learn/02-data-types/decimal.md
               - String: public/learn/02-data-types/string.md
               - Bool: public/learn/02-data-types/bool.md
               - Data: public/learn/02-data-types/data.md

@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a number written with a decimal point is an exact Decimal
-// implementation: pending
-// proposal: doc/proposals/HQL-0031/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: Bool
 // expected: true

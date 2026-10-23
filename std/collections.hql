@@ -170,12 +170,16 @@ fn reduce<T>(self: Collection<T>, by: (T, T) -> T) : Option<T>
 // reduce(0, +); [] | sum is 0.
 reduction fn sum(self: Collection<Int>) : Int
 reduction fn sum(self: Collection<Float>) : Float
+reduction fn sum(self: Collection<Decimal>) : Decimal
 // reduce(1, *).
 reduction fn product(self: Collection<Int>) : Int
 reduction fn product(self: Collection<Float>) : Float
+reduction fn product(self: Collection<Decimal>) : Decimal
 // Absent over [].
 reduction fn average(self: Collection<Int>) : Option<Float>
 reduction fn average(self: Collection<Float>) : Option<Float>
+// A Decimal mean is the sum divided by the count, as Decimal `/` divides.
+reduction fn average(self: Collection<Decimal>) : Option<Decimal>
 // reduce({:}, merge), a later key winning; reduce(Set([]), union).
 reduction fn merge_all<T>(self: Collection<T>) : T
 reduction fn union_all<T>(self: Collection<T>) : T

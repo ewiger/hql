@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a Decimal is written to JSON and YAML as a number with its digits
-// implementation: pending
-// proposal: doc/proposals/HQL-0031/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<String>
 // expected-json: ["{\n  \"amount\": 12.50,\n  \"item\": \"tea\"\n}", "amount: 12.50\nitem: tea\n"]

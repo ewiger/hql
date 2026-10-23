@@ -80,7 +80,7 @@ caret is a separate step in `render`, which is why it is testable rather than
 something only the binary can do.
 
 ```text
-type error: addition requires two Int or two Float operands
+type error: addition requires two Int, two Float or two Decimal operands
  --> <expression>:2:3
   |
 2 |   true + 1

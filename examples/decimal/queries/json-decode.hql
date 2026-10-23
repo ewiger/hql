@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a JSON number read as a Decimal keeps its digits exactly
-// implementation: pending
-// proposal: doc/proposals/HQL-0031/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Decimal>
 // expected: [1234567890.123456789012345, 0.10]

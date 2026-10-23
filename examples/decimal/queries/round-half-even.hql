@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: round(x, places) rounds a Decimal half to even, at scale places
-// implementation: pending
-// proposal: doc/proposals/HQL-0031/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Decimal>
 // expected: [2.34, 2.36, 2, 4, 1.200]

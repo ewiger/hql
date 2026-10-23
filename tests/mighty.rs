@@ -136,12 +136,12 @@ fn a_trait_is_implemented_once_per_type_and_dispatched_on_the_value() {
                  trait Shape {\n    fn area(self) : Float\n    fn name(self) : String = \"shape\"\n}\n\
                  impl Shape for C {\n    fn area(self) : Float = self.r\n    fn name(self) : String = \"c\"\n}\n\
                  impl Shape for S {\n    fn area(self) : Float = self.s * self.s\n}\n";
-    assert_eq!(shown(&format!("{shape}C(r = 2.0).area()")), "2.0");
-    assert_eq!(shown(&format!("{shape}S(s = 2.0).name()")), "shape");
+    assert_eq!(shown(&format!("{shape}C(r = 2.0f).area()")), "2.0");
+    assert_eq!(shown(&format!("{shape}S(s = 2.0f).name()")), "shape");
     assert_eq!(
         shown(&format!(
             "{shape}fn total<T : Shape>(xs: List<T>) : Float = xs | map(x => x.area()) | sum\n\
-             total([S(s = 1.0), S(s = 2.0)])"
+             total([S(s = 1.0f), S(s = 2.0f)])"
         )),
         "5.0"
     );
@@ -154,7 +154,7 @@ fn a_trait_is_implemented_once_per_type_and_dispatched_on_the_value() {
     );
     assert!(
         refused(&format!(
-            "{shape}impl Shape for C {{\n    fn area(self) : Float = 1.0\n}}\n1"
+            "{shape}impl Shape for C {{\n    fn area(self) : Float = 1.0f\n}}\n1"
         ))
         .contains("already implemented for C, in this program")
     );
@@ -183,7 +183,8 @@ fn operators_resolve_through_the_core_traits() {
     assert!(refused(&format!("{vec}V(x = 1) - V(x = 2)")).contains("implementing `Sub`"));
     assert!(refused(&format!("{vec}V(x = 1) + 2")).contains("takes V, not Int"));
     // The built-in types keep their built-in arithmetic and their refusals.
-    assert!(refused("1 + 1.0").contains("two Int or two Float"));
+    assert!(refused("1 + 1.0f").contains("two Int, two Float or two Decimal"));
+    assert!(refused("1.0 + 1.0f").contains("write `decimal(x)`"));
     let eq = "type V { x : Int }\nimpl Eq for V {\n    fn eq(self, other: V) : Bool = self.x % 2 == other.x % 2\n}\n";
     assert_eq!(
         shown(&format!("{eq}[V(x = 1) == V(x = 3), V(x = 1) != V(x = 2)]")),

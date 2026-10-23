@@ -22,6 +22,6 @@ impl Scale<Int> for Vec2 {
     fn scale(self, by: Int) : Vec2 = self.scale(float(by))
 }
 
-v = Vec2(x = 1.5, y = 2.0)
+v = Vec2(x = 1.5f, y = 2.0f)
 
-[v.scale(2).x, v.scale(0.5).x]
+[v.scale(2).x, v.scale(0.5f).x]

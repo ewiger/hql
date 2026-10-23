@@ -7,6 +7,7 @@ use std::ops::Range;
 pub(crate) enum Token {
     Int(i64),
     Float(f64),
+    Decimal(crate::decimal::Decimal),
     Bool(bool),
     Str(String),
     Ident(String),
@@ -54,7 +55,8 @@ impl Token {
     pub(crate) fn describe(&self) -> String {
         match self {
             Self::Int(value) => format!("`{value}`"),
-            Self::Float(value) => format!("`{value:?}`"),
+            Self::Float(value) => format!("`{value:?}f`"),
+            Self::Decimal(value) => format!("`{value}`"),
             Self::Bool(value) => format!("`{value}`"),
             Self::Str(_) => "a string".to_owned(),
             Self::Ident(name) => format!("`{name}`"),
@@ -274,6 +276,7 @@ impl Scanner<'_> {
                 last.token,
                 Token::Int(_)
                     | Token::Float(_)
+                    | Token::Decimal(_)
                     | Token::Bool(_)
                     | Token::Str(_)
                     | Token::Ident(_)
@@ -391,10 +394,18 @@ impl Scanner<'_> {
         if fraction {
             self.offset += 1;
             self.digits();
+            self.exponent();
+        }
+        let digits_end = self.offset;
+        // `f` directly after the digits makes the literal a Float.
+        let float = self.rest().starts_with('f')
+            && !self.source[self.offset + 1..]
+                .starts_with(|next: char| next.is_alphanumeric() || next == '_');
+        if float {
+            self.offset += 1;
         }
         // A point followed by a name ends the literal: `7.max(3)` calls
-        // `max` on `7`. A trailing point, or an exponent, is not part of the
-        // literal grammar.
+        // `max` on `7`. A trailing point is not part of the literal grammar.
         let receiver_call = self.rest().starts_with('.')
             && self.source[self.offset + 1..]
                 .starts_with(|next: char| next.is_alphabetic() || next == '_');
@@ -409,8 +420,8 @@ impl Scanner<'_> {
                 "malformed numeric literal",
             ));
         }
-        let text = &self.source[start..self.offset];
-        let token = if fraction {
+        let text = &self.source[start..digits_end];
+        let token = if float {
             let value = text
                 .parse::<f64>()
                 .ok()
@@ -422,6 +433,11 @@ impl Scanner<'_> {
                     )
                 })?;
             Token::Float(value)
+        } else if fraction {
+            let value = crate::decimal::Decimal::parse(text).ok_or_else(|| {
+                Diagnostic::syntax(start..self.offset, "malformed decimal literal")
+            })?;
+            Token::Decimal(value)
         } else {
             let value = text.parse::<i64>().map_err(|_| {
                 Diagnostic::syntax(
@@ -433,6 +449,23 @@ impl Scanner<'_> {
         };
         self.push(token, start);
         Ok(())
+    }
+
+    /// An exponent after a literal's fraction: `e` or `E`, an optional sign
+    /// and digits. Without digits after it, the `e` is not consumed.
+    fn exponent(&mut self) {
+        let bytes = self.source.as_bytes();
+        if !matches!(bytes.get(self.offset), Some(b'e' | b'E')) {
+            return;
+        }
+        let mut at = self.offset + 1;
+        if matches!(bytes.get(at), Some(b'+' | b'-')) {
+            at += 1;
+        }
+        if bytes.get(at).is_some_and(u8::is_ascii_digit) {
+            self.offset = at;
+            self.digits();
+        }
     }
 
     fn digits(&mut self) {

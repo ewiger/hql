@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a Decimal keeps every digit it is written with
-// implementation: pending
-// proposal: doc/proposals/HQL-0031/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: Decimal
 // expected: 123456789012345678901234567890.123456790

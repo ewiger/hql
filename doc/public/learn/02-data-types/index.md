@@ -2,7 +2,8 @@
 
 Every value in HQL has a type, and the checker knows it before the program
 runs. This chapter meets the types values are built from: the scalars `Int`,
-`Float`, `String` and `Bool`, and `Data`, the tree JSON and YAML are made of.
+`Float`, `Decimal`, `String` and `Bool`, and `Data`, the tree JSON and YAML
+are made of.
 Each has a page of its own; this one tries them in the REPL first.
 
 ## Trying values in the REPL
@@ -59,15 +60,16 @@ and the program is refused before it runs:
 ```
 
 ```text
-type error: addition requires two Int or two Float operands
+type error: addition requires two Int, two Float or two Decimal operands
  --> <expression>:1:7
   |
 1 | 412 + "pages"
   |       ^^^^^^^
 ```
 
-There is no implicit conversion between types. `str` writes a value as text,
-and `float` turns an `Int` into a `Float`:
+There is no implicit conversion between types, except that an `Int` beside a
+`Decimal` widens to one. `str` writes a value as text, and `float` turns an
+`Int` into a `Float`:
 
 ```hql
 412.str()
@@ -89,7 +91,8 @@ Int
 | Type | What it holds | Page |
 | --- | --- | --- |
 | `Int` | a whole number, 64 bits | [Int](int.md) |
-| `Float` | a binary floating-point number | [Float](float.md) |
+| `Float` | a binary floating-point number, written `2.5f` | [Float](float.md) |
+| `Decimal` | an exact decimal number, written `2.50` | [Decimal](decimal.md) |
 | `String` | text | [String](string.md) |
 | `Bool` | `true` or `false` | [Bool](bool.md) |
 | `Data` | a tree of records, lists and scalars | [Data](data.md) |

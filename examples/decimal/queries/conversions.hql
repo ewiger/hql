@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: decimal, float, int and to_decimal convert between the numbers
-// implementation: pending
-// proposal: doc/proposals/HQL-0031/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<String>
 // expected: ["0.1", "3", "12.50", "1.25", "-2"]

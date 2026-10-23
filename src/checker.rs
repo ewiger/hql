@@ -968,6 +968,36 @@ fn index_trait() -> TraitInfo {
     }
 }
 
+/// Whether a type is one of the built-in numbers.
+fn is_number(ty: &TypeRef) -> bool {
+    matches!(ty.constructor.0, "Int" | "Float" | "Decimal") && ty.args.is_empty()
+}
+
+/// The type two numbers combine to under an operator or a comparison: their
+/// common type, a Decimal for an Int beside a Decimal, and `None` for any
+/// other pair.
+fn numeric_pair(left: &TypeRef, right: &TypeRef) -> Option<TypeRef> {
+    if !is_number(left) || !is_number(right) {
+        return None;
+    }
+    if left == right {
+        return Some(left.clone());
+    }
+    let pair = [left.constructor.0, right.constructor.0];
+    (pair.contains(&"Int") && pair.contains(&"Decimal")).then_some(TypeRef::DECIMAL)
+}
+
+/// The diagnostic for a Decimal beside a Float, which names the conversion
+/// to write: a binary float carries no exact decimal value (HQL-0031).
+fn mixed_numbers(left: &TypeRef, right: &TypeRef) -> Option<String> {
+    let pair = [left.constructor.0, right.constructor.0];
+    (pair.contains(&"Decimal") && pair.contains(&"Float")).then(|| {
+        "a Decimal and a Float do not mix: write `decimal(x)` to read the Float as a Decimal, \
+         or `float(d)` to read the Decimal as a Float"
+            .to_owned()
+    })
+}
+
 /// The names a `match` pattern binds, added to `bound`.
 fn pattern_names(pattern: &crate::ast::Pattern, bound: &mut Vec<String>) {
     use crate::ast::Pattern;
@@ -980,6 +1010,7 @@ fn pattern_names(pattern: &crate::ast::Pattern, bound: &mut Vec<String>) {
         Pattern::Wildcard
         | Pattern::Int(_)
         | Pattern::Float(_)
+        | Pattern::Decimal(_)
         | Pattern::Str(_)
         | Pattern::Bool(_)
         | Pattern::None => {}
@@ -1189,7 +1220,7 @@ impl<'a> Checker<'a> {
                 outside.then(|| (name.clone(), body.span.clone()))
             }
             Kind::DocRef(name) => Some((format!("@[[{name}]]"), body.span.clone())),
-            Kind::Int(_) | Kind::Float(_) | Kind::Bool(_) | Kind::Str(_) => None,
+            Kind::Int(_) | Kind::Float(_) | Kind::Decimal(_) | Kind::Bool(_) | Kind::Str(_) => None,
             Kind::List(values) | Kind::Set(values) => self.first_read(values.iter(), bound),
             Kind::Construct { arguments, .. } => {
                 self.first_read(arguments.iter().map(|argument| &argument.value), bound)
@@ -2259,6 +2290,7 @@ impl<'a> Checker<'a> {
                 type_variable("T", Some(&TypeRef::ORDERABLE)),
                 Some(TypeRef::INT),
                 Some(TypeRef::FLOAT),
+                Some(TypeRef::DECIMAL),
                 Some(TypeRef::STR),
             ];
             elements
@@ -4451,6 +4483,7 @@ impl<'a> Checker<'a> {
             }
             Kind::Int(_) => Ok(TypeRef::INT),
             Kind::Float(_) => Ok(TypeRef::FLOAT),
+            Kind::Decimal(_) => Ok(TypeRef::DECIMAL),
             Kind::Bool(_) => Ok(TypeRef::BOOL),
             Kind::Str(_) => Ok(TypeRef::STR),
             Kind::Data(entries) => {
@@ -4572,6 +4605,13 @@ impl<'a> Checker<'a> {
                 // with no widening and no looking through `Option`. `Never`,
                 // the element of nothing, has no value to compare and so
                 // stands beside any one.
+                // An Int beside a Decimal widens to one (HQL-0031).
+                if numeric_pair(&left_type, &right_type).is_some() {
+                    return Ok(TypeRef::BOOL);
+                }
+                if let Some(message) = mixed_numbers(&left_type, &right_type) {
+                    return Err(Diagnostic::typing(span, message));
+                }
                 let never = left_type == TypeRef::NEVER || right_type == TypeRef::NEVER;
                 let ordered = if left_type == TypeRef::NEVER {
                     right_type.is_orderable()
@@ -4609,6 +4649,17 @@ impl<'a> Checker<'a> {
             Kind::Compare { left, right, .. } => {
                 let left_type = self.expression(left)?;
                 let right_type = self.expression(right)?;
+                // An Int beside a Decimal widens to one, and a Float beside
+                // a Decimal is refused (HQL-0031).
+                let (left_number, right_number) = (left_type.present(), right_type.present());
+                if left_number != right_number {
+                    if numeric_pair(left_number, right_number).is_some() {
+                        return Ok(TypeRef::BOOL);
+                    }
+                    if let Some(message) = mixed_numbers(left_number, right_number) {
+                        return Err(Diagnostic::typing(span, message));
+                    }
+                }
                 // A type implementing `Eq` decides its own equality.
                 if left_type.constructor.0 != "Option"
                     && let Some((_, signatures)) = self.method_for(&left_type, "eq", &span)?
@@ -4943,12 +4994,22 @@ impl<'a> Checker<'a> {
         }
         let mut expected = self.expression(expression)?;
         for (operator, node, left, right) in operands.into_iter().rev() {
-            // Arithmetic is homogeneous: there is no implicit widening.
-            let refused = || format!("{} requires two Int or two Float operands", operator.noun());
-            if matches!(expected.constructor.0, "Int" | "Float") {
-                if self.expression(right)? != expected {
-                    return Err(Diagnostic::typing(right.span.clone(), refused()));
-                }
+            // Arithmetic is homogeneous, except that an Int widens to a
+            // Decimal (HQL-0031).
+            let refused = || {
+                format!(
+                    "{} requires two Int, two Float or two Decimal operands",
+                    operator.noun()
+                )
+            };
+            if is_number(&expected) {
+                let actual = self.expression(right)?;
+                expected = numeric_pair(&expected, &actual).ok_or_else(|| {
+                    Diagnostic::typing(
+                        right.span.clone(),
+                        mixed_numbers(&expected, &actual).unwrap_or_else(refused),
+                    )
+                })?;
                 continue;
             }
             // Any other type resolves the operator through its trait: a
@@ -5632,6 +5693,7 @@ fn pattern_bindings(
         }
         Pattern::Int(_) => literal(TypeRef::INT),
         Pattern::Float(_) => literal(TypeRef::FLOAT),
+        Pattern::Decimal(_) => literal(TypeRef::DECIMAL),
         Pattern::Str(_) => literal(TypeRef::STR),
         Pattern::Bool(_) => literal(TypeRef::BOOL),
         Pattern::Some(inner) if subject.constructor.0 == "Option" => {

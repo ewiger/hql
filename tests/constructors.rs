@@ -18,8 +18,8 @@ fn refused(source: &str, says: &str) {
 }
 
 const TEMP: &str = "type Temp { kelvin : Float }
-fn Temp(celsius: Float) : Temp = Temp(kelvin = celsius + 273.0)
-fn Temp(label: String) : Temp = Temp(kelvin = 0.0)
+fn Temp(celsius: Float) : Temp = Temp(kelvin = celsius + 273.0f)
+fn Temp(label: String) : Temp = Temp(kelvin = 0.0f)
 ";
 
 #[test]
@@ -54,10 +54,10 @@ fn a_function_is_named_after_a_type_only_to_construct_it() {
 
 #[test]
 fn a_program_constructor_is_selected_by_its_first_argument() {
-    assert_eq!(shown(&format!("{TEMP}Temp(1.0).kelvin")), "274.0");
+    assert_eq!(shown(&format!("{TEMP}Temp(1.0f).kelvin")), "274.0");
     assert_eq!(shown(&format!("{TEMP}(\"zero\" | Temp).kelvin")), "0.0");
-    assert_eq!(shown(&format!("{TEMP}Temp(kelvin = 3.0).kelvin")), "3.0");
-    assert_eq!(typed(&format!("{TEMP}[1.0] | map(Temp)")), "List<Temp>");
+    assert_eq!(shown(&format!("{TEMP}Temp(kelvin = 3.0f).kelvin")), "3.0");
+    assert_eq!(typed(&format!("{TEMP}[1.0f] | map(Temp)")), "List<Temp>");
     refused(&format!("{TEMP}Temp(true)"), "no constructor taking Bool");
     refused(
         "type Temp { kelvin : Float }\nfn Temp(a: Float) : Temp = Temp(kelvin = a)\n\

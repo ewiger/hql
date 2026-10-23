@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: an Int beside a Decimal widens to a Decimal of scale 0
-// implementation: pending
-// proposal: doc/proposals/HQL-0031/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Decimal>
 // expected: [37.50, 2.5, 6.75]

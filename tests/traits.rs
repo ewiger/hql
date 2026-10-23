@@ -175,7 +175,7 @@ fn a_bound_leaves_a_parameter_to_the_implementation_that_applies() {
 fn implementations_at_different_arguments_are_chosen_by_the_call() {
     assert_eq!(
         shown(&format!(
-            "{SCALE}v = V(x = 1.5)\n[v.scale(2).x, v.scale(0.5).x]"
+            "{SCALE}v = V(x = 1.5f)\n[v.scale(2).x, v.scale(0.5f).x]"
         )),
         "[3.0, 0.75]"
     );
@@ -190,7 +190,7 @@ impl Convert<Float> for C {
 impl Convert<String> for C {
     fn convert(self) : String = str(self.v)
 }
-C(v = 1.0).convert()",
+C(v = 1.0f).convert()",
     );
     assert!(
         message.contains("implemented for C at several arguments, and this call does not choose"),
@@ -198,7 +198,7 @@ C(v = 1.0).convert()",
     );
     // A generic body reaches an implementation through its receiver alone.
     let message = refused(&format!(
-        "{SCALE}fn twice<F, E : Scale<F>>(v: E, by: F) : E = v.scale(by).scale(by)\ntwice(V(x = 1.0), 2)"
+        "{SCALE}fn twice<F, E : Scale<F>>(v: E, by: F) : E = v.scale(by).scale(by)\ntwice(V(x = 1.0f), 2)"
     ));
     assert!(
         message.contains("V implements `Scale` at several arguments"),

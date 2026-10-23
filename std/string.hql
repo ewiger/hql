@@ -55,6 +55,7 @@ fn slice(self, start: Int, end: Int) : String
 fn char_at(self, position: Int) : Option<String>
 fn to_int(self) : Option<Int>
 fn to_float(self) : Option<Float>
+fn to_decimal(self) : Option<Decimal>
 fn to_bool(self) : Option<Bool>
 fn is_empty(self) : Bool
 fn is_blank(self) : Bool

@@ -185,6 +185,11 @@ pub(crate) static STEPS: &[Operation] = &[
         eval_to_float,
     ),
     declared(
+        "to_decimal",
+        "The exact decimal number the text writes, or absence when it writes none.",
+        eval_to_decimal,
+    ),
+    declared(
         "to_bool",
         "The truth value the text writes as `true` or `false`, or absence when it writes neither.",
         eval_to_bool,
@@ -411,6 +416,10 @@ unary! {
     eval_to_float => "to_float", |s| match s.trim().parse::<f64>() {
         Ok(x) if x.is_finite() => Value::Present(Arc::new(Value::Float(x))),
         _ => Value::Absent(TypeRef::FLOAT),
+    };
+    eval_to_decimal => "to_decimal", |s| match crate::decimal::Decimal::parse(&s) {
+        Some(x) => Value::Present(Arc::new(Value::Decimal(x))),
+        None => Value::Absent(TypeRef::DECIMAL),
     };
 }
 

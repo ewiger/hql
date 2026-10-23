@@ -365,6 +365,7 @@ impl Evaluator<'_> {
             }
             Kind::Int(value) => Ok(Value::Int(*value)),
             Kind::Float(value) => Ok(Value::Float(*value)),
+            Kind::Decimal(value) => Ok(Value::Decimal(value.clone())),
             Kind::Bool(value) => Ok(Value::Bool(*value)),
             Kind::Str(text) => Ok(Value::Str(Arc::from(text.as_str()))),
             // `{:}` where a map type is declared is that empty map.
@@ -1959,6 +1960,7 @@ fn as_data(value: &Value) -> Data {
     match value {
         Value::Int(number) => Data::Int(*number),
         Value::Float(number) => Data::Float(*number),
+        Value::Decimal(number) => Data::Decimal(number.clone()),
         Value::Bool(truth) => Data::Bool(*truth),
         Value::Str(text) => Data::Str(text.to_string()),
         Value::Data(data) => data.as_ref().clone(),
@@ -1990,17 +1992,26 @@ fn fits(pattern: &crate::ast::Pattern, value: &Value, bindings: &mut Vec<(String
         (Pattern::None, Value::Absent(_)) => true,
         (Pattern::Int(expected), Value::Int(actual)) => expected == actual,
         (Pattern::Float(expected), Value::Float(actual)) => expected == actual,
+        (Pattern::Decimal(expected), Value::Decimal(actual)) => expected == actual,
+        (Pattern::Decimal(expected), Value::Int(actual)) => {
+            *expected == crate::decimal::Decimal::from_int(*actual)
+        }
         (Pattern::Str(expected), Value::Str(actual)) => expected.as_str() == actual.as_ref(),
         (Pattern::Bool(expected), Value::Bool(actual)) => expected == actual,
         // A tree leaf compares by its value, as equality does.
         (
-            Pattern::Str(_) | Pattern::Int(_) | Pattern::Float(_) | Pattern::Bool(_),
+            Pattern::Str(_)
+            | Pattern::Int(_)
+            | Pattern::Float(_)
+            | Pattern::Decimal(_)
+            | Pattern::Bool(_),
             Value::Data(_),
         ) => {
             let literal = match pattern {
                 Pattern::Str(text) => Value::Str(text.as_str().into()),
                 Pattern::Int(n) => Value::Int(*n),
                 Pattern::Float(x) => Value::Float(*x),
+                Pattern::Decimal(x) => Value::Decimal(x.clone()),
                 Pattern::Bool(b) => Value::Bool(*b),
                 _ => return false,
             };
@@ -2053,6 +2064,23 @@ pub(crate) fn arithmetic_of(
             }
             Value::Float(result)
         }
+        // An Int beside a Decimal widens to one (HQL-0031).
+        (Value::Decimal(a), Value::Int(b)) => {
+            return arithmetic_of(operator, Value::Decimal(a), widened(b), span);
+        }
+        (Value::Int(a), Value::Decimal(b)) => {
+            return arithmetic_of(operator, widened(a), Value::Decimal(b), span);
+        }
+        (Value::Decimal(a), Value::Decimal(b)) => {
+            let zero = || Diagnostic::runtime(span.clone(), "division by zero");
+            Value::Decimal(match operator {
+                Arith::Add => a.add(&b),
+                Arith::Sub => a.sub(&b),
+                Arith::Mul => a.mul(&b),
+                Arith::Div => a.div(&b).ok_or_else(zero)?,
+                Arith::Rem => a.rem(&b).ok_or_else(zero)?,
+            })
+        }
         _ => {
             return Err(Diagnostic::runtime(
                 span.clone(),
@@ -2060,6 +2088,11 @@ pub(crate) fn arithmetic_of(
             ));
         }
     })
+}
+
+/// An Int read as a Decimal of scale 0.
+fn widened(value: i64) -> Value {
+    Value::Decimal(crate::decimal::Decimal::from_int(value))
 }
 
 /// One value read as `element`: a value that does not read is an evaluation

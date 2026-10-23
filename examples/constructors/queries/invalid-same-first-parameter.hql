@@ -9,7 +9,7 @@
 // differ in their first parameter.
 type Temp { kelvin : Float }
 
-fn Temp(celsius: Float) : Temp = Temp(kelvin = celsius + 273.0)
+fn Temp(celsius: Float) : Temp = Temp(kelvin = celsius + 273.0f)
 fn Temp(fahrenheit: Float) : Temp = Temp(kelvin = fahrenheit)
 
 1

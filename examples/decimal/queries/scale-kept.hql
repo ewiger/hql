@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a Decimal keeps its scale for display and compares by value
-// implementation: pending
-// proposal: doc/proposals/HQL-0031/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Decimal>
 // expected: [1.50, 2.75, 2.250, 0.02]

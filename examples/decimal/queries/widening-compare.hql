@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a comparison of an Int with a Decimal widens the Int, and compares by value
-// implementation: pending
-// proposal: doc/proposals/HQL-0031/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Bool>
 // expected: [true, true, true, true]
