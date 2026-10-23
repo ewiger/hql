@@ -343,6 +343,24 @@ pub(crate) static STEPS: &[Operation] = &[
         eval: eval_somes,
     },
     Operation {
+        name: "oks",
+        spec: Signature::Declared,
+        summary: "Keep the successes of a collection of results, dropping the failures.",
+        purity: Purity::Pure,
+        shape: super::Shape::Elementwise,
+        check: None,
+        eval: eval_oks,
+    },
+    Operation {
+        name: "errs",
+        spec: Signature::Declared,
+        summary: "Keep the failures of a collection of results, dropping the successes.",
+        purity: Purity::Pure,
+        shape: super::Shape::Elementwise,
+        check: None,
+        eval: eval_errs,
+    },
+    Operation {
         name: "group",
         spec: Signature::Declared,
         summary: "Partition occurrences by key into a set of groups, each a key and its items.",
@@ -2051,6 +2069,44 @@ fn eval_somes(
         })
         .collect();
     Ok(narrowed(&input, kept, present))
+}
+
+fn eval_oks(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let success = element_type(&input)
+        .as_result()
+        .map_or(TypeRef::NEVER, |(value, _)| value.clone());
+    let kept = elements(&input, "oks", &span)?
+        .into_iter()
+        .filter_map(|value| match value {
+            Value::Ok(held, _) => Some(held.as_ref().clone()),
+            _ => None,
+        })
+        .collect();
+    Ok(narrowed(&input, kept, success))
+}
+
+fn eval_errs(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let failure = element_type(&input)
+        .as_result()
+        .map_or(TypeRef::NEVER, |(_, error)| error.clone());
+    let kept = elements(&input, "errs", &span)?
+        .into_iter()
+        .filter_map(|value| match value {
+            Value::Err(held, _) => Some(held.as_ref().clone()),
+            _ => None,
+        })
+        .collect();
+    Ok(narrowed(&input, kept, failure))
 }
 
 /// How many parameters a checked argument takes, when it is a lambda or a

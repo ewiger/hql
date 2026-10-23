@@ -96,6 +96,9 @@ elementwise fn of_type<F<_> : Collection<_>, T, U>(self: F<T>, type: Type<U>) : 
 fn is<T, U>(self: T, type: Type<U>) : Bool
 // Keeps the present values.
 elementwise fn somes<F<_> : Collection<_>, T>(self: F<Option<T>>) : F<T>
+// Keep the successes, and the failures, of a collection of results.
+elementwise fn oks<F<_> : Collection<_>, T, E>(self: F<Result<T, E>>) : F<T>
+elementwise fn errs<F<_> : Collection<_>, T, E>(self: F<Result<T, E>>) : F<E>
 elementwise fn map<F<_> : Iterable<_>, T, R>(self: F<T>, by: T -> R) : F<R>
 elementwise fn map<T, R>(self: Option<T>, by: T -> R) : Option<R>
 elementwise fn map<T, R, E>(self: Result<T, E>, by: T -> R) : Result<R, E>

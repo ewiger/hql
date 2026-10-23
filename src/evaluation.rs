@@ -589,9 +589,17 @@ impl Evaluator<'_> {
             }
             Kind::Type => Err(Diagnostic::runtime(span, "a type argument is not a value")),
             Kind::Record(fields) => self.record(fields, &expression.ty, &span),
-            Kind::Interpret { input, element } => {
+            Kind::Interpret {
+                input,
+                element,
+                validated,
+            } => {
                 let value = self.expression(input)?;
-                self.interpreted(value, element, &span)
+                if *validated {
+                    self.validated(value, element, &span)
+                } else {
+                    self.interpreted(value, element, &span)
+                }
             }
             Kind::Some(value) => Ok(Value::Present(Arc::new(self.expression(value)?))),
             Kind::Ok(value) => {
@@ -1256,6 +1264,14 @@ impl Evaluator<'_> {
                     sink(evaluator, decoded)
                 })
             }
+            Source::Validate {
+                input,
+                element,
+                span,
+            } => self.run_traversal(input, &mut |evaluator, value| {
+                let validated = evaluator.validation(&value, element, span)?;
+                sink(evaluator, validated)
+            }),
             // Kept values are always forced, and answered above.
             Source::Kept => Ok(true),
             Source::Read { reading, span } => reading
@@ -2175,14 +2191,130 @@ impl Evaluator<'_> {
         }
         let mut broken = Vec::new();
         self.broken_rules(&value, &mut Vec::new(), &mut broken, span)?;
-        if broken.is_empty() {
+        let errors: Vec<String> = broken
+            .iter()
+            .filter(|broken| broken.severity == crate::ast::Severity::Error)
+            .map(Broken::said)
+            .collect();
+        if errors.is_empty() {
             Ok(value)
         } else {
             Err(Diagnostic::runtime(
                 span.clone(),
-                format!("this does not read as {element}: {}", broken.join("; ")),
+                format!("this does not read as {element}: {}", errors.join("; ")),
             ))
         }
+    }
+
+    /// `x | validate(T)`: each value read as `element` and checked against
+    /// its rules, as `interpreted` does, each giving `ok` of what reads or
+    /// `err` of an `Invalid` naming every violation (HQL-0033).
+    fn validated(
+        &mut self,
+        value: Value,
+        element: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        let result = TypeRef::result(element.clone(), TypeRef::INVALID);
+        let mut each = |values: &[Value]| {
+            values
+                .iter()
+                .map(|value| self.validation(value, element, span))
+                .collect::<Result<Vec<_>, _>>()
+        };
+        match value {
+            Value::Present(held) => Ok(Value::Present(Arc::new(self.validated(
+                held.as_ref().clone(),
+                element,
+                span,
+            )?))),
+            Value::Absent(_) => Ok(Value::Absent(result)),
+            Value::List(values, _) => Ok(Value::list(each(&values)?, result)),
+            Value::Set(values, _) => Ok(Value::set(each(&values)?, result)),
+            Value::Traversal(traversal) => {
+                if let Some(values) = traversal.forced() {
+                    return Ok(Value::Traversal(Arc::new(Traversal::kept(
+                        result,
+                        each(values)?,
+                    ))));
+                }
+                Ok(Value::Traversal(Arc::new(Traversal::new(
+                    result,
+                    traversal.finite,
+                    Source::Validate {
+                        input: Arc::clone(&traversal),
+                        element: element.clone(),
+                        span: span.clone(),
+                    },
+                ))))
+            }
+            other => self.validation(&other, element, span),
+        }
+    }
+
+    /// One value read as `element`: `ok` of it, or `err` of an `Invalid`.
+    /// A warning alone leaves the value valid.
+    fn validation(
+        &mut self,
+        value: &Value,
+        element: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        let contract = element.to_string();
+        let violations = match value.decoded(element, crate::types::Leaves::AsWritten) {
+            Ok(read) => {
+                let mut broken = Vec::new();
+                self.broken_rules(&read, &mut Vec::new(), &mut broken, span)?;
+                if broken
+                    .iter()
+                    .all(|broken| broken.severity == crate::ast::Severity::Warning)
+                {
+                    return Ok(Value::Ok(Arc::new(read), TypeRef::INVALID));
+                }
+                broken.iter().map(Broken::violation).collect()
+            }
+            Err(mismatches) => mismatches
+                .0
+                .iter()
+                .map(|mismatch| {
+                    let place = if mismatch.path.is_empty() {
+                        String::new()
+                    } else {
+                        format!(".{}", mismatch.path.join("."))
+                    };
+                    violation(Violation {
+                        contract: contract.clone(),
+                        path: mismatch.path.clone(),
+                        kind: mismatch.kind.name(),
+                        rule: format!("{contract}{place}.{}", mismatch.kind.name()),
+                        text: mismatch.reason.clone(),
+                        severity: "error",
+                        message: mismatch.to_string(),
+                    })
+                })
+                .collect(),
+        };
+        let read = match value {
+            Value::Data(tree) => Arc::clone(tree),
+            Value::Record(record) => record
+                .carrier
+                .clone()
+                .unwrap_or_else(|| Arc::new(crate::data::Data::Empty)),
+            _ => Arc::new(crate::data::Data::Empty),
+        };
+        let invalid = Value::Record(Arc::new(crate::types::Record {
+            ty: TypeRef::INVALID,
+            fields: vec![
+                ("contract".to_owned(), Value::Str(contract.into())),
+                ("value".to_owned(), Value::Data(read)),
+                (
+                    "violations".to_owned(),
+                    Value::list(violations, TypeRef::VIOLATION),
+                ),
+            ],
+            carrier: None,
+        }));
+        Ok(Value::Err(Arc::new(invalid), element.clone()))
     }
 
     /// Each rule broken within `value`, said of the path that leads to the
@@ -2191,7 +2323,7 @@ impl Evaluator<'_> {
         &mut self,
         value: &Value,
         path: &mut Vec<String>,
-        broken: &mut Vec<String>,
+        broken: &mut Vec<Broken>,
         span: &Range<usize>,
     ) -> Result<(), Diagnostic> {
         match value {
@@ -2210,22 +2342,19 @@ impl Evaluator<'_> {
                     self.broken_rules(held, path, broken, span)?;
                     path.pop();
                 }
-                for contract in contracts_of(&record.ty) {
-                    // A warning leaves the value valid; where it is
-                    // reported is HQL-0033's to state.
-                    for rule in contract
-                        .iter()
-                        .filter(|rule| rule.severity == crate::ast::Severity::Error)
-                    {
+                for (contract, rules) in contracts_of(&record.ty) {
+                    for (position, rule) in rules.iter().enumerate() {
                         if !self.rule_holds(rule, record, span)? {
-                            let rule = match &rule.identity {
-                                Some(identity) => format!("`{}` ({identity})", rule.text),
-                                None => format!("`{}`", rule.text),
-                            };
-                            broken.push(if path.is_empty() {
-                                format!("{rule} does not hold")
-                            } else {
-                                format!("field `{}`: {rule} does not hold", path.join("."))
+                            broken.push(Broken {
+                                contract: contract.to_owned(),
+                                path: path.clone(),
+                                named: rule.identity.is_some(),
+                                identity: rule
+                                    .identity
+                                    .clone()
+                                    .unwrap_or_else(|| format!("{contract}.{}", position + 1)),
+                                text: rule.text.clone(),
+                                severity: rule.severity,
                             });
                         }
                     }
@@ -2274,13 +2403,94 @@ impl Evaluator<'_> {
     }
 }
 
-/// The rules over a value of `ty`: those of each record type it is declared
-/// under, a parent's before its child's, then its own.
-fn contracts_of(ty: &TypeRef) -> Vec<Arc<Vec<RuntimeRule>>> {
+/// A rule a value does not hold, and where.
+struct Broken {
+    /// The contract that declares the rule.
+    contract: String,
+    path: Vec<String>,
+    /// `Contract.name`, or `Contract.n` for the n-th unnamed rule.
+    identity: String,
+    /// Whether the rule is named with `as`.
+    named: bool,
+    text: String,
+    severity: crate::ast::Severity,
+}
+
+impl Broken {
+    /// The broken rule as the fail-fast diagnostic says it.
+    fn said(&self) -> String {
+        let rule = if self.named {
+            format!("`{}` ({})", self.text, self.identity)
+        } else {
+            format!("`{}`", self.text)
+        };
+        if self.path.is_empty() {
+            format!("{rule} does not hold")
+        } else {
+            format!("field `{}`: {rule} does not hold", self.path.join("."))
+        }
+    }
+
+    /// The broken rule as a `Violation`.
+    fn violation(&self) -> Value {
+        violation(Violation {
+            contract: self.contract.clone(),
+            path: self.path.clone(),
+            kind: "rule",
+            rule: self.identity.clone(),
+            text: self.text.clone(),
+            severity: match self.severity {
+                crate::ast::Severity::Error => "error",
+                crate::ast::Severity::Warning => "warning",
+            },
+            message: self.said(),
+        })
+    }
+}
+
+/// The fields of a `Violation` a validation fills.
+struct Violation {
+    contract: String,
+    path: Vec<String>,
+    kind: &'static str,
+    rule: String,
+    text: String,
+    severity: &'static str,
+    message: String,
+}
+
+/// A `Violation` value, its fields in the order `std/core.hql` declares
+/// them.
+fn violation(violation: Violation) -> Value {
+    let text = |text: String| Value::Str(text.into());
+    Value::Record(Arc::new(crate::types::Record {
+        ty: TypeRef::VIOLATION,
+        fields: vec![
+            ("contract".to_owned(), text(violation.contract)),
+            (
+                "path".to_owned(),
+                Value::list(violation.path.into_iter().map(text).collect(), TypeRef::STR),
+            ),
+            ("kind".to_owned(), text(violation.kind.to_owned())),
+            ("rule".to_owned(), text(violation.rule)),
+            ("text".to_owned(), text(violation.text)),
+            ("expected".to_owned(), Value::Absent(TypeRef::STR)),
+            ("actual".to_owned(), Value::Absent(TypeRef::DATA)),
+            ("severity".to_owned(), text(violation.severity.to_owned())),
+            ("message".to_owned(), text(violation.message)),
+        ],
+        carrier: None,
+    }))
+}
+
+/// The rules over a value of `ty`, each set by the contract that declares
+/// it: those of each record type it is declared under, a parent's before
+/// its child's, then its own.
+fn contracts_of(ty: &TypeRef) -> Vec<(&'static str, Arc<Vec<RuntimeRule>>)> {
     fn gather(
         name: &'static str,
         seen: &mut Vec<&'static str>,
-        found: &mut Vec<Arc<Vec<RuntimeRule>>>,
+        found: &mut Vec<(&'static str, Arc<Vec<RuntimeRule>>)>,
     ) {
         if seen.contains(&name) {
             return;
@@ -2292,7 +2502,7 @@ fn contracts_of(ty: &TypeRef) -> Vec<Arc<Vec<RuntimeRule>>> {
             }
         }
         if let Some(rules) = CONTRACTS.with(|held| held.borrow().get(name).cloned()) {
-            found.push(rules);
+            found.push((name, rules));
         }
     }
     let mut found = Vec::new();

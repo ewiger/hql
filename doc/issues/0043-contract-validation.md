@@ -45,8 +45,11 @@ adds beyond structure is built.
   supertype's fields and rules; a default may be a collection literal;
   `warn P` leaves a value valid; `as name` gives a rule the identity
   `Contract.name`, shown in the diagnostic.
-- To build: `validate(T)` giving `Result<T, Invalid>`, with `Violation`
-  and `Invalid` declared in the standard library as contracts, which needs
-  a standard record type a program can construct like `Pair`; validator
-  types ([HQL-0034](../proposals/HQL-0034/README.md)). Splitting a stream
-  into valid and invalid values waits on HQL-0033's stream policies.
+- `x | validate(T)` gives `Result<T, Invalid>` over a value, a collection
+  or a stream, and `oks()` and `errs()` split the results; `Violation` and
+  `Invalid` are declared in `std/core.hql`.
+- To build: `Violation` and `Invalid`'s own rules and default, their
+  `expected` and `actual`, and reading one back with `| Invalid`, which
+  needs a standard record a tree is read as; validator types
+  ([HQL-0034](../proposals/HQL-0034/README.md)). Splitting a stream into
+  valid and invalid values waits on HQL-0033's stream policies.

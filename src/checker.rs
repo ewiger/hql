@@ -4249,6 +4249,53 @@ impl<'a> Checker<'a> {
         Ok(Some(read))
     }
 
+    /// `x | validate(T)` (HQL-0033): `x` read as `T` as `x | T` reads it,
+    /// each read a `Result<T, Invalid>` in place of `T`. `None` where the
+    /// step is something else, or `validate` is a name of the program's.
+    fn validating(
+        &mut self,
+        step: &Expr,
+        input: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Option<TypeRef>, Diagnostic> {
+        let Kind::Call { callee, arguments } = &step.kind else {
+            return Ok(None);
+        };
+        if !matches!(&callee.kind, Kind::Ident(name) if name == "validate")
+            || self.scope.contains_key("validate")
+        {
+            return Ok(None);
+        }
+        let [argument] = arguments.as_slice() else {
+            return Ok(None);
+        };
+        let Kind::Ident(contract) = &argument.value.kind else {
+            return Ok(None);
+        };
+        if argument.name.is_some() {
+            return Ok(None);
+        }
+        let Some((element, whole)) = self.interpretation(contract, input, span)? else {
+            return Err(Diagnostic::typing(
+                span.clone(),
+                format!(
+                    "`validate({contract})` reads a Data or an open record as a declared record \
+                     type, and this is {input}"
+                ),
+            ));
+        };
+        let result = TypeRef::result(element.clone(), TypeRef::INVALID);
+        let produced = if whole == element {
+            result
+        } else if whole.constructor.0 == "Option" {
+            TypeRef::optional(result)
+        } else {
+            whole.constructor.apply([result])
+        };
+        self.checked.validations.insert(span.clone(), element);
+        Ok(Some(produced))
+    }
+
     /// `x | T` as a structural interpretation (HQL-0030): `T` a declared
     /// record, or `Data`, and `x` a `Data` or an open record, which is a
     /// view over the `Data` it was read from, or an optional or a
@@ -4894,6 +4941,9 @@ impl<'a> Checker<'a> {
                     )?;
                     self.scope.insert(name.clone(), result);
                     return Ok(input_type);
+                }
+                if let Some(produced) = self.validating(step, &input_type, &span)? {
+                    return Ok(produced);
                 }
                 // `x | f` and `x | f(a)` apply a bound function to the input.
                 // The step's operation is the function's type: an operation

@@ -1,6 +1,6 @@
 # HQL-0033: Errors as values and error handling
 
-**Status**: accepted
+**Status**: accepted, implemented in part
 **Created**: 2026-10-23
 **Source**: [HQL-0032](../HQL-0032/README.md), which leaves the form of a
 validation result and of a diagnostic to this record; tracked by
@@ -300,3 +300,10 @@ cargo test --locked --test structural --test corpus
 - 2026-10-23: accepted: two reading modes, `warn P` for a warning, `as name`
   for a rule's identity; splitting a stream into valid and invalid values
   stays a placeholder
+- 2026-10-23: implemented in part: `x | validate(T)` over a value, a
+  collection or a stream, `oks` and `errs`, `Violation` and `Invalid` in
+  `std/core.hql` with every violation of a value in one `Invalid`, and the
+  rule identities, `warn` and `as name`. Not built: the rules and the
+  default of `Violation` and `Invalid` themselves, `expected` and `actual`,
+  reading a written failure back with `| Invalid`, and the policies over
+  streams

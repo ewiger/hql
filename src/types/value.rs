@@ -28,6 +28,31 @@ pub struct Mismatch {
     pub path: Vec<String>,
     /// What the field holds, or that it is missing.
     pub reason: String,
+    /// What kind of mismatch it is.
+    pub kind: MismatchKind,
+}
+
+/// The kinds of structural mismatch a validation reports (HQL-0033).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MismatchKind {
+    /// A required field has no entry.
+    Missing,
+    /// A closed record's tree has an entry it does not declare.
+    Undeclared,
+    /// A value is not of the type wanted.
+    Type,
+}
+
+impl MismatchKind {
+    /// The kind as a `Violation` names it.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Missing => "missing",
+            Self::Undeclared => "undeclared",
+            Self::Type => "type",
+        }
+    }
 }
 
 impl Mismatch {
@@ -35,7 +60,13 @@ impl Mismatch {
         Self {
             path: Vec::new(),
             reason: reason.into(),
+            kind: MismatchKind::Type,
         }
+    }
+
+    fn of_kind(mut self, kind: MismatchKind) -> Self {
+        self.kind = kind;
+        self
     }
 
     /// The mismatch seen from the value that holds it at `field`.
@@ -606,7 +637,11 @@ impl Value {
                     }
                 }
                 (None, false) => {
-                    failed.push(Mismatch::new("it is missing").within(&field.name));
+                    failed.push(
+                        Mismatch::new("it is missing")
+                            .of_kind(MismatchKind::Missing)
+                            .within(&field.name),
+                    );
                     continue;
                 }
             };
@@ -616,7 +651,9 @@ impl Value {
             for key in entries.keys() {
                 if !shape.fields.iter().any(|field| field.name == *key) {
                     failed.push(
-                        Mismatch::new(format!("{wanted} declares no such field")).within(key),
+                        Mismatch::new(format!("{wanted} declares no such field"))
+                            .of_kind(MismatchKind::Undeclared)
+                            .within(key),
                     );
                 }
             }

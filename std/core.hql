@@ -189,3 +189,27 @@ type Pair<A, B> {
     first  : A
     second : B
 }
+
+// One reason a value does not read as a contract: what `validate(T)`
+// reports (HQL-0033). `kind` is "missing", "undeclared", "type" or "rule";
+// `rule` is the rule's identity, `Contract.name` or `Contract.n` for the
+// n-th unnamed rule; `path` leads from the value to the field, [] for the
+// value itself.
+type Violation : DataContract {
+    contract  : String
+    path      : List<String>
+    kind      : String
+    rule      : String
+    text      : String
+    expected? : String
+    actual?   : Data
+    severity  : String
+    message   : String
+}
+
+// A value that did not read as a contract, and every reason why.
+type Invalid : DataContract {
+    contract   : String
+    value      : Data
+    violations : List<Violation>
+}

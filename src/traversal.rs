@@ -71,6 +71,13 @@ pub(crate) enum Source {
         from: String,
         span: Range<usize>,
     },
+    /// Each value of `input` validated as `element`, `x | validate(T)`:
+    /// the traversal's element is `Result<T, Invalid>`.
+    Validate {
+        input: Arc<Traversal>,
+        element: crate::types::TypeRef,
+        span: Range<usize>,
+    },
     /// Documents read from an endpoint as they arrive.
     Read {
         reading: Arc<crate::io::Reading>,

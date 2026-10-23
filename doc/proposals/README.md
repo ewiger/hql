@@ -40,6 +40,6 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0030](HQL-0030/README.md) | superseded by [HQL-0032](HQL-0032/README.md) | Supplementary ADR: Structural Types, Open Data Views, Type Contracts, and Data Contracts |
 | [HQL-0031](HQL-0031/README.md) | accepted | `Decimal`, an exact decimal number type |
 | [HQL-0032](HQL-0032/README.md) | proposed, implemented in part | Data Validation with `TypeContract` and `DataContract` |
-| [HQL-0033](HQL-0033/README.md) | accepted | Errors as values and error handling |
+| [HQL-0033](HQL-0033/README.md) | accepted, implemented in part | Errors as values and error handling |
 | [HQL-0034](HQL-0034/README.md) | drafted | Validator types |
 | [HQL-0035](HQL-0035/README.md) | drafted | The schema boundary of a configured source or target |

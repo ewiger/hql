@@ -254,6 +254,9 @@ pub(crate) enum Kind {
     Interpret {
         input: Box<Expr>,
         element: TypeRef,
+        /// `x | validate(T)`: each read gives a `Result<T, Invalid>`
+        /// (HQL-0033).
+        validated: bool,
     },
     /// A trait's function called on a receiver, `v.area()` or `a + b`,
     /// dispatched at run time on the receiver's type.
@@ -675,6 +678,10 @@ pub(crate) struct Checked {
     /// Each pipe that reads its input as a declared type, `data | User`, by
     /// the pipe's span: the type each `Data` is read as (HQL-0030).
     pub interpretations: HashMap<Range<usize>, TypeRef>,
+    /// Each pipe that validates its input as a declared type,
+    /// `data | validate(User)`, by the pipe's span: the type each value is
+    /// read as (HQL-0033).
+    pub validations: HashMap<Range<usize>, TypeRef>,
     /// Each call of a trait's function, by the trait and the function.
     pub method_calls: HashMap<Range<usize>, (String, String)>,
     /// Each operator resolved through a trait, by the trait.
@@ -1193,6 +1200,7 @@ impl Checked {
                 Kind::Interpret {
                     input: Box::new(self.expression(&arguments[0].value)?),
                     element: self.interpretations[&span].clone(),
+                    validated: false,
                 }
             }
             A::Call { arguments, .. } if self.records.contains_key(&span) => {
@@ -1222,6 +1230,11 @@ impl Checked {
                     .collect::<Result<_, _>>()?,
                 pack: self.applications[&span].clone(),
                 plan: None,
+            },
+            A::Pipe(input, _) if self.validations.contains_key(&span) => Kind::Interpret {
+                input: Box::new(self.expression(input)?),
+                element: self.validations[&span].clone(),
+                validated: true,
             },
             A::Pipe(input, written) if matches!(written.kind, A::Tee { .. }) => {
                 let A::Tee { name, branch } = &written.kind else {

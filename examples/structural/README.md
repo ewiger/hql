@@ -27,6 +27,9 @@ reads holds every rule.
 | [collection defaults](queries/contract-collection-defaults.hql) | `tags: List<String> = []` | `[0, 2]` |
 | [default with a call](queries/invalid-default-call.hql) | a default is a literal, never a call | a type error |
 | [warnings and names](queries/contract-warnings.hql) | `warn age? < 120 as plausible_age` leaves a value of 130 valid | `[34, 130]` |
+| [validation results](queries/validate-results.hql) | `xs \| validate(UserData)` gives a `Result` per value; `oks()` and `errs()` split them, and each `Violation` names its rule | the valid ids, the broken rules |
+| [validation in a match](queries/validate-match.hql) | `match d \| validate(UserData) { ok(u) => …, err(e) => … }` | `"1 violation of UserData"` |
+| [validating a closed value](queries/invalid-validate-closed-value.hql) | `validate(T)` reads `Data` or an open record | a type error |
 
 From the repository root:
 

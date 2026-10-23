@@ -214,7 +214,7 @@ pub fn is_builtin(name: &str) -> bool {
 /// by their extensions, never by a program.
 #[must_use]
 pub fn is_record_valued(name: &str) -> bool {
-    if name == "Pair" || name == "Range" {
+    if matches!(name, "Pair" | "Range" | "Violation" | "Invalid") {
         return true;
     }
     current()

@@ -273,3 +273,24 @@ fn a_constructor_checks_a_parents_rule() {
         failure(source)
     );
 }
+
+#[test]
+fn a_decoded_stream_is_validated_one_document_at_a_time() {
+    let sightings = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/examples/structural/sightings.jsonl"
+    );
+    let source = format!(
+        "type Sighting : DataContract = {{\n    species: String\n    require species != \"wren\" as no_wrens\n}}\n\
+         results = source(file(\"{sightings}\"), Json) | validate(Sighting)\n\
+         [results | errs() | map(e => e.violations.size()) | List, \
+         results | errs() | map(e => e.contract) | List]"
+    );
+    assert_eq!(value(&source), r#"[[1], ["Sighting"]]"#);
+}
+
+#[test]
+fn a_program_may_name_its_own_validate() {
+    let source = "fn validate(x: Int) : Bool = x > 0\n[1, -1] | map(validate) | List";
+    assert_eq!(value(source), "[true, false]");
+}

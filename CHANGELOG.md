@@ -24,6 +24,16 @@ The language continues to be in active development.
   `Contract.name`. A default may be a list, set or `Data` literal of
   literals, never a call.
 
+- Errors as values ([HQL-0033](doc/proposals/HQL-0033/README.md), shown in
+  the [structural examples](examples/structural/README.md)):
+  `x | validate(T)` reads a `Data`, a collection or a stream as `T` and
+  gives a `Result<T, Invalid>` for each value instead of stopping. An
+  `Invalid` holds the value and every `Violation` of it, each with its
+  contract, path, kind (`missing`, `undeclared`, `type` or `rule`), rule
+  identity, the rule as written and a message; a value that breaks only
+  warnings is `ok`. `oks()` and `errs()` keep the successes and the
+  failures of a collection of results.
+
 ### Fixed
 
 - A record declared under another record, `type Sub : Base = {…}`, has its
