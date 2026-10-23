@@ -1,6 +1,6 @@
 //! The `string` module: text functions, `str` and `fmt`.
 //!
-//! Every function here is a receiver function of `String` in `std/string.hql`
+//! Every function here is a receiver function of `String` in `std/string/mod.hql`
 //! as well as a step: `s.trim()`, `string.trim(s)` and `s | trim` are one
 //! declaration. `str` and `fmt` take any value and are the prelude's way to
 //! text that is not a presentation format.

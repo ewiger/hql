@@ -27,7 +27,7 @@ end bound.
 
 ## `Range`
 
-`type Range { start? : Int, end? : Int }` is declared in `std/core.hql` and is
+`type Range { start? : Int, end? : Int }` is declared in `std/core/mod.hql` and is
 in scope in every program. `xs[a:b]` is `xs[Range(start = a, end = b)]`, and a
 bound left out is absent, so a window named once is reused:
 
@@ -82,7 +82,7 @@ present.
 ## The capabilities behind the bracket
 
 A position resolves the core trait `Index<T>` and a slice the core trait
-`Slice`, both declared in `std/core.hql`:
+`Slice`, both declared in `std/core/mod.hql`:
 
 ```hql
 trait Slice {

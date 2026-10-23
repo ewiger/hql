@@ -337,7 +337,7 @@ cards
 - `hql builtins` MUST show shape beside purity for every step, so that what a
   backend may do to a step is visible where the step is documented.
 - The signature lines for `reduce` and `group` appear in
-  `std/collections.hql`, beside `Group<K, T>`.
+  `std/collections/mod.hql`, beside `Group<K, T>`.
 
 ### 7. The corpus
 
@@ -400,7 +400,7 @@ observably a no-op.
 
 - `src/extensions/mod.rs`, `src/extensions/binding.rs` — `Shape` beside
   `Purity` on `Operation`, read from the declaration and checked against the
-  extension's marking; `std/collections.hql` and `std/seq.hql` write the
+  extension's marking; `std/collections/mod.hql` and `std/seq/mod.hql` write the
   shape words
 - `src/extensions/collections.rs` — `reduce` and `group`, registered in
   `CORE` with the other collection operations
@@ -412,7 +412,7 @@ observably a no-op.
   backend, and `pipeline` lists a program's steps with their shapes;
   `src/cli.rs` — `--backend`, `[execution]`, `hql config`
 - `src/builtins.rs` — the shape column
-- `std/collections.hql` — `Group<K, T>` and the two signatures
+- `std/collections/mod.hql` — `Group<K, T>` and the two signatures
 - `tests/corpus.rs` — already admits proposed cases; gains the conformance
   test over registered backends
 

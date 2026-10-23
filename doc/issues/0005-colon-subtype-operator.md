@@ -47,7 +47,7 @@ typing contexts.
 
 ## Done when
 
-- `cargo test` passes and `hql check std/knowledge.hql` prints `Unit`.
+- `cargo test` passes and `hql check std/knowledge/mod.hql` prints `Unit`.
 - A test pins `<:` as a syntax error, so the old operator cannot return quietly.
 - No `<:` survives as accepted syntax in `src/`, `std/`, `tests/`, `examples/`,
   or `doc/`. The rejection tests and migration explanation retain it, as does
@@ -59,7 +59,7 @@ typing contexts.
 - `cargo test --offline --locked --no-fail-fast`: 136 tests pass.
 - `cargo clippy --offline --locked --all-targets -- -D warnings`: clean.
 - `cargo fmt --all -- --check`: clean.
-- `hql check std/knowledge.hql`: `Unit`.
+- `hql check std/knowledge/mod.hql`: `Unit`.
 
 Colon declarations with a record body, supertype sets, and `where` bounds are
 covered by tests. The declaration checker and supertype normalization are

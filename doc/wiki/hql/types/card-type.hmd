@@ -232,7 +232,7 @@ with an empty header, a card carrying a diagnostic, or no card at all.
 
 `cards` is the program module's binding `cards = vault.cards`; the host seeds
 `vault`, of type `Vault` and declared in
-[`std/vault.hql`](../../../../std/vault.hql), into the program module when a
+[`std/vault/mod.hql`](../../../../std/vault/mod.hql), into the program module when a
 vault is present, and no module sees either. It denotes every card in the current namespace
 vault:
 

@@ -1,5 +1,5 @@
 // Network endpoints: transports, read and written by source, tap, target and
-// sink like any other endpoint (io/mod.hql). Provided by the `net` extension,
+// sink like any other endpoint (module `io`). Provided by the `net` extension,
 // which a program imports: `import net`.
 //
 // See doc/proposals/HQL-0021/README.md.
@@ -7,6 +7,8 @@
 // Constructing one sends nothing. The request a program describes happens
 // when a source, tap, target or sink uses it, and only if the host grants the
 // network to that program.
+import core
+import io
 
 // An HTTP resource. Read, it is a GET whose response body is its bytes; the
 // host reads it once per evaluation, so it is Replayable. Written, it is a

@@ -1,6 +1,10 @@
-// The knowledge domain: semantic, and everything in it is a claim.
+// Module `knowledge`: the knowledge domain, semantic, where everything is a
+// claim. Every declaration is a type; the module declares no operation.
 //
 // See doc/models/domain/knowledge.md and doc/wiki/hql/knowledge.hmd.
+import core
+import doc
+import graph
 
 abstract type Concept
 abstract type Proposition
@@ -11,20 +15,9 @@ abstract type Knowledge
 // evidence and provenance. It is never a Card.
 type Relation<S, T> : Edge<S, T>
 
-// Card is the base representation type: knowledge given a physical document.
-// Its two kinds say what the document is about.
-abstract type Card : Doc {
-    metadata : Data     // the knowledge attached to this card, assembled
-    kind     : String   // "ConceptCard" or "RelationCard"
-}
-
+// The two kinds of card, which say what the document is about.
 type ConceptCard  : {Card, Concept} // its subject is a concept — a node
 type RelationCard : Card           // its subject is a relation — an edge
-
-// Card is abstract in the other direction too: a concrete card is one whose
-// body is written in a given dialect, one subtype per `header.format`.
-type HmdCard : {Card, HmdDoc} // format is hmd
-type MdCard  : Card           // format is md, which no dialect type narrows
 
 // Both contracts at once, so the projection loses nothing: a knowledge graph is
 // a graph and is still knowledge.

@@ -74,30 +74,71 @@ fn every_file_in_the_standard_library_is_embedded_as_written() {
     assert_eq!(found.len(), library::MODULES.len() + library::WRITTEN.len());
 }
 
+/// The modules a standard module imports, by name, in the order written.
+fn imports_of(source: &str) -> Vec<&str> {
+    source
+        .lines()
+        .filter_map(|line| line.strip_prefix("import "))
+        .map(str::trim)
+        .collect()
+}
+
 #[test]
-fn every_module_of_the_standard_library_checks_after_the_ones_it_follows() {
-    // Each module is checked with the modules before it, so a declaration
-    // that contradicts the lattice is refused in the module that makes it.
-    // A package's own prelude does not apply to its own modules, so the
-    // library checks with none: each file names what it imports.
+fn every_module_of_the_standard_library_checks_over_its_own_imports() {
+    // Each module is its own import unit, so it is checked with the modules
+    // it imports, theirs in turn, and nothing else: a declaration that
+    // contradicts the lattice is refused in the module that makes it, and a
+    // module leaning on one it does not import fails here. A package's own
+    // prelude does not apply to its own modules, so the library checks with
+    // none: each file names what it imports.
     let mut vault = hql::vault::Vault::empty();
     vault.extensions.prelude = false;
-    let mut prefix = String::new();
+    let source_of = |name: &str| {
+        library::MODULES
+            .iter()
+            .find(|(module, _)| *module == name)
+            .map(|(_, source)| *source)
+            .unwrap_or_else(|| panic!("no standard module `{name}`"))
+    };
     for (name, module) in library::MODULES {
-        // `prelude.hql` is not a module: it is the implicit import list of
-        // every unit outside the library.
+        // `prelude.hql` is not a module: it is the package's global space,
+        // the implicit import list of every unit outside the library.
         if *name == "prelude" {
             continue;
         }
-        let source = format!("{prefix}{module}");
+        let mut cone: Vec<&str> = Vec::new();
+        let mut pending: Vec<&str> = imports_of(module);
+        while let Some(next) = pending.pop() {
+            if !cone.contains(&next) {
+                cone.push(next);
+                pending.extend(imports_of(source_of(next)));
+            }
+        }
+        // The cone in loading order, then the module; every import hoisted
+        // to the head, since one source unit holds them all.
+        let mut heads = String::new();
+        let mut bodies = String::new();
+        for (held, source) in library::MODULES {
+            if !cone.contains(held) && held != name {
+                continue;
+            }
+            for line in source.lines() {
+                if line.starts_with("import ") {
+                    heads.push_str(line);
+                    heads.push('\n');
+                } else {
+                    bodies.push_str(line);
+                    bodies.push('\n');
+                }
+            }
+        }
+        let source = format!("{heads}{bodies}");
         assert_eq!(
             hql::check_in(&source, &vault),
             Ok(TypeRef::UNIT),
             "{name}: {:?}",
             hql::check_in(&source, &vault)
         );
-        prefix.push_str(module);
-        prefix.push('\n');
     }
     assert_eq!(library::check(), Ok(()));
 }
@@ -228,7 +269,7 @@ fn a_union_lists_its_alternatives() {
         "type Value = union {Scalar, Seq<Value>, Map<String, Value>}",
         "type Tree<T> = union {T, Seq<Tree<T>>}",
         "type Id = union {Int, String}\ntype Holder { id : Id }",
-        // What `std/core.hql` says, and what the binary holds.
+        // What `std/core/mod.hql` says, and what the binary holds.
         "type Data = union {Scalar, Seq<Data>, Map<String, Data>}",
         "type Data = union {Map<String, Data>, Scalar, Seq<Data>}",
     ] {

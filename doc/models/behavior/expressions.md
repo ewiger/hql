@@ -228,7 +228,7 @@ spelling of a type, `list`, is not a step and names the constructor.
 
 A constructor is a function named after its type, declared in the module
 that declares the type and returning that type or a subtype of it:
-`fn Set<T>(xs: Collection<T>) : Set<T>` in `std/collections.hql`, or a
+`fn Set<T>(xs: Collection<T>) : Set<T>` in `std/core/mod.hql`, or a
 program's own `fn Temp(celsius: Float) : Temp` beside `type Temp`. A `fn`
 named in `UpperCamelCase` that names no concrete type declared in its source
 unit, or returns another type, is refused, and so is an alias so named. A

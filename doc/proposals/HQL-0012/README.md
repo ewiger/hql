@@ -654,7 +654,7 @@ MUST NOT appear to the program as fewer elements.
 
 ## Deployment / Activation
 
-1. Declare `std/sources.hql`, and expose the filesystem vault as
+1. Declare `std/sources/mod.hql`, and expose the filesystem vault as
    `vault : VaultSource`, with `cards` bound to `vault.cards`; no
    configuration change.
 2. Add `[sources.<id>]` and `source(id)` with a second `vault` kind source, so
@@ -666,7 +666,7 @@ MUST NOT appear to the program as fewer elements.
 
 ## Reference Implementation
 
-- `std/sources.hql` — the declarations of the section "The abstract types"
+- `std/sources/mod.hql` — the declarations of the section "The abstract types"
 - `src/sources.rs` — configuration loading, id validation, the secret-key
   refusal and the bounds of the section "Run-context bounds"
 - `src/checker.rs` — typing `source(id)` from configuration

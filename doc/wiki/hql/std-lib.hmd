@@ -6,11 +6,21 @@ nav:
 # Standard HQL library
 
 The declarations HQL ships with live in [`std/`](../../../std/README.md), written
-in HQL rather than described in prose, and embedded in the binary. One file
-per module, mirroring the extension split: `core`, `collections`, `string`,
-`seq`, `math`, `option`, `result`, `regex`, `doc`, `graph`, `knowledge`,
-`retrieval`, `format`, `io`, `io.net`, `io.logging` and `vault`, with
-`std/prelude.hql` as the implicit import list every source unit starts with.
+in HQL rather than described in prose, and embedded in the binary. `std/` is
+the builtin package: its root holds `prelude.hql`, the package's global space
+and the implicit import list every source unit outside the package starts
+with, and one folder per module, the module's declarations in its `mod.hql`:
+`core`, `doc`, `retrieval`, `graph`, `knowledge`, `collections`, `string`,
+`seq`, `math`, `option`, `result`, `regex`, `format`, `io`, `io.net`,
+`io.logging`, `vault` and `validators`. No declaration sits outside a module.
+
+Each module is an import unit closed over its own imports
+([HQL-0028](../../proposals/HQL-0028/README.md)): the package's prelude does not
+apply inside it, so it imports every module whose types or traits it writes,
+and binding refuses the environment when a module writes a name it neither
+declares nor imports, or imports a module listed after it. Types sit low and
+operations above them, so the collection types are `core`'s, since `Data` is a
+tree of sequences and maps, and `collections` holds the operations over them.
 `string`, `seq`, `math`, `option`, `result` and `regex` are written as external
 declarations, `fn trim(self) : String` with no body: HQL declares the contract
 and the extension of the same name implements it, which a test holds to the
@@ -19,7 +29,7 @@ declaration function by function
 
 These cards and those files say the same thing twice, which is a real cost worth
 naming. The division is that **the file is the declaration and the card is the
-argument**. `std/graph.hql` states that `Link<S, T> : Edge<S, T>`;
+argument**. `std/graph/mod.hql` states that `Link<S, T> : Edge<S, T>`;
 [[graph-type]] explains why an edge is the primitive and why its payload is
 [[data-type|Data]]. When the two disagree, the card is describing something that
 no longer exists, and the card is what gets fixed.
@@ -34,7 +44,7 @@ the one that is true now.
 A field a program reads on a built-in record — `h.score` on a `Hit`, `c.kind`
 on a `Card`, `g.nodes` on a `Graph` — has the type its declaration in `std/`
 gives, looked up on the record and then on its parents. The library holds
-no binding: `std/vault.hql` declares `Vault`, and `cards = vault.cards` is a
+no binding: `std/vault/mod.hql` declares `Vault`, and `cards = vault.cards` is a
 binding of the program module, run before every program over a vault, so
 `cards` is an ordinary binding and no special case. A module never sees it
 ([HQL-0028](../../proposals/HQL-0028/README.md)).
@@ -42,8 +52,8 @@ binding of the program module, run before every program over a vault, so
 ## Declarations are checked, not evaluated
 
 The parser reads the `type` statement, and every file in `std/` checks:
-`hql check std/graph.hql` prints `Unit`, and a test checks that every file is
-embedded as written, so a file added there cannot be silently left unchecked.
+`hql check std/graph/mod.hql` prints `Unit`, and a test checks that every file is
+embedded as written and checks over its own imports alone, so a file added there cannot be silently left unchecked.
 
 Checking is not evaluating. A declaration yields `Unit` and introduces no value
 and no case in the implemented lattice; constructing a value of a declared

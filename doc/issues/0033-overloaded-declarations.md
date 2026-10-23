@@ -20,7 +20,7 @@ narrowing `filter`, and the positional arguments of `count`, `contains`,
 
 ## Scope
 
-- `format` in `std/format.hql` is declared: `format<T, F : Format>(x: T, as:
+- `format` in `std/format/mod.hql` is declared: `format<T, F : Format>(x: T, as:
   Type<F>, …)`, whose result over a stream and over a finite input are two
   overloads, as `collect`'s are. `Output::Finite` is then unused and removed.
 - The narrowing `filter(x => x | is(U))`, which returns `F<U>`, is stated by
@@ -83,6 +83,6 @@ narrowing `filter`, and the positional arguments of `count`, `contains`,
 - **The narrowing `filter`** is declared with a predicate of type
   `T -> Is<U>`: such a parameter takes only a lambda written
   `x => x | is(U)` and binds `U` to the type it tests. `Is<T>` is declared in
-  `std/core.hql` beside `Type<T>`.
+  `std/core/mod.hql` beside `Type<T>`.
 - **`...Any`** takes a value of any type in each position; `Any` is a
   contract's name for an unconstrained value, not a type a program writes.

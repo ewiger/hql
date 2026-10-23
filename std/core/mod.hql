@@ -1,5 +1,9 @@
-// The vocabulary the core owns: scalars, the open tree, absence, value order.
-// Collections are their own module — see collections.hql.
+// Module `core`: the types every other module is written in. Scalars, the
+// collection types, the open tree, absence, failure, value order, the format
+// category and the core traits. A type sits here when a module below it
+// would otherwise import a module above it: Data is a tree of sequences and
+// maps, so the collection types are core types, and the operations over them
+// are the `collections` module's. Implemented by the `core` extension.
 //
 // See doc/wiki/hql/types/data-type.hmd, option-type.hmd, and
 // types/collections/collection-types.md.
@@ -23,6 +27,60 @@ type Float : {Scalar, Orderable}
 type Decimal : {Scalar, Orderable}
 type String : {Scalar, Orderable}
 type Date : {Scalar, Orderable}
+
+// The collection types. See doc/wiki/hql/types/collections/collection-types.md
+// and collection.md.
+
+// A value whose elements can each be visited. The bound an operation states
+// when it only visits each value. Finiteness, order and uniqueness are not
+// part of it. See doc/models/behavior/queries.md.
+abstract type Iterable<T>
+
+// A finite multiset of occurrences, unordered, with no runtime
+// representation. size(c) is the number of occurrences; count(c, x) is the
+// number equal to x; contains(c, x) iff count(c, x) > 0. Hence size(c) is
+// the sum of count(c, x) over the distinct values in c.
+abstract type Collection<T> : Iterable<T>
+
+// An ordered, possibly unending run of values x0, x1, x2, ... Size,
+// membership and global order are undefined on a stream: each requires a last
+// value. See doc/wiki/hql/types/stream-type.hmd.
+abstract type Stream<T> : Iterable<T>
+
+// A finite stream: a collection in which every occurrence has exactly one
+// position in 0 .. size(c)-1. Positional order does not require T : Orderable.
+abstract type Seq<T> : {Collection<T>, Stream<T>}
+
+// Materialized occurrences; repeated traversal preserves positions.
+type List<T> : Seq<T>
+
+// Materialized distinct values, using HQL equality: count(s, x) <= 1.
+// Traversal order is not a semantic guarantee.
+type Set<T> : Collection<T>
+
+// Materialized associations with distinct keys; unrelated to Collection<T>.
+// Construct from equally long key and value sequences: Map(keys, values).
+// Repeated keys are rejected. Missing lookup results are Option<V>.
+// The key projection of this static view has type Set<K>.
+type Map<K, V>
+
+// Keys preserve their construction positions; keys have type Seq<K>.
+// K need not be Orderable. Viewing this as Map exposes set key semantics.
+type OrderedMap<K, V> : Map<K, V>
+
+// Key positions follow K's intrinsic total ordering.
+type SortedMap<K, V> : OrderedMap<K, V>
+where K : Orderable
+
+// Constructors: a function named after its type builds a value of it, and
+// `List(xs)` and `xs | List` are one call, the piped value its first
+// argument. A type's forms of one arity differ in their first parameter, so
+// the first argument selects one. The binary implements each.
+fn List<T>(xs: Seq<T>) : List<T>
+fn Set<T>(xs: Collection<T>) : Set<T>
+fn Map<K, V>(keys: Seq<K>, values: Seq<V>) : Map<K, V>
+fn OrderedMap<K, V>(keys: Seq<K>, values: Seq<V>) : OrderedMap<K, V>
+fn SortedMap<K : Orderable, V>(keys: Seq<K>, values: Seq<V>) : SortedMap<K, V>
 
 // An open tree whose keys belong to whoever wrote them: what a YAML or JSON
 // document is. Here the alternatives are genuinely alternatives, so this is a
@@ -73,6 +131,12 @@ type Ordering
 // A type written as an argument: `is(Card)`, `of_type(Card)`. A parameter of
 // type Type<U> takes a type name and binds U to the type it names.
 type Type<T>
+
+// The category of formats: how bytes are documents. The formats themselves,
+// and the codecs over them, are the `format` module's; the category sits here
+// because parsing text into Data, and every reading and writing operation of
+// `io`, is bounded by it. See module `format`.
+abstract type Format
 
 // Text parsed by construction: `Data(s, Json)`, `s | Data(Yaml)`. The format
 // is one whose Decoder reads Data, Json, JsonLines, Yaml or Csv; a framed

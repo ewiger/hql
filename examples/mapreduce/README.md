@@ -86,7 +86,7 @@ barrier.
 - `average`, `variance`, `count_by`, `histogram`, `top_k` and `approx_distinct`
   carry a state of another type than their element and project it at the
   end; each state combines by a combiner the host holds, so each is a
-  reduction. `std/collections.hql` writes each one's longhand fold beside its
+  reduction. `std/collections/mod.hql` writes each one's longhand fold beside its
   signature.
 - The `List` constructor materializes a `Seq<T>` into a `List<T>`, as
   `List(xs)`. No query here needs it, because nothing in the implemented slice

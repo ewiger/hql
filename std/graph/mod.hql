@@ -4,6 +4,9 @@
 //
 // There is no Node type. What a node is arrives as a type parameter, so a graph
 // over documents and a graph over concepts share one declaration.
+import core
+import doc
+import retrieval
 
 // The carriers are not yet generic: whatever S and T are, an endpoint is held
 // as the name of the node it is. A graph is over the vault's cards, so its

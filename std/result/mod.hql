@@ -5,6 +5,7 @@
 //
 // See doc/proposals/HQL-0024/parts/11-type-system-completion.md.
 module for Result<T, E>
+import core
 
 fn is_ok(self) : Bool
 fn is_err(self) : Bool

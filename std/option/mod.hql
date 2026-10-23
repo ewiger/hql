@@ -5,6 +5,7 @@
 //
 // See doc/wiki/hql/types/option-type.hmd.
 module for Option<T>
+import core
 
 fn is_some(self) : Bool
 fn is_none(self) : Bool

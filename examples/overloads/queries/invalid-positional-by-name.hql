@@ -5,7 +5,7 @@
 // error: TypeMismatch
 // stage: typecheck
 
-// `std/collections.hql` declares `fn count<T>(xs: Collection<T>, value: T, /)`:
+// `std/collections/mod.hql` declares `fn count<T>(xs: Collection<T>, value: T, /)`:
 // the `/` ends the parameters a call supplies by position. `count(1)` counts
 // the ones; naming the value is refused.
 [1, 2, 1] | count(value = 1)

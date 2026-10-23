@@ -22,7 +22,7 @@ name can be folded into another.
   [orderable](../wiki/hql/types/orderable.hmd) card, which also fixes the red
   `[[orderable]]` links across the wiki. The collection side stays on
   [collections](../wiki/hql/collections.hmd).
-- [`std/doc.hql`](../../std/doc.hql) declares `Doc : Orderable`, matching the
+- [`std/doc/mod.hql`](../../std/doc/mod.hql) declares `Doc : Orderable`, matching the
   built-in registry; every `Card` is orderable through `Doc`.
 - The checker already enforces the split: bare `sort` and `take` on a `Set`
   require `Orderable` elements, and a sort key must return `Orderable`.

@@ -81,8 +81,8 @@ part and are imported on their own
 ([packages and extensions](09-packages-and-extensions.md)).
 
 Each extension has its own `prelude.hql`, at the module root of its package.
-The standard library is not an extension; it is HQL's own, always loaded, and
-has one dedicated file, `std/prelude.hql`, which therefore always runs:
+The standard library is the builtin package, always loaded, and its
+`std/prelude.hql` is the package's global space, which therefore always runs:
 
 ```hql
 // std/prelude.hql
@@ -112,24 +112,35 @@ constructed.
 Hierarchical modules are preferred over unrelated top-level names: `io.file`,
 `io.net`, `io.logging`, `format.json`, `format.csv`, rather than `file`,
 `net`, `json`. Modules that name fundamental vocabulary stay top level:
-`string`, `seq`, `map`, `option`, `math`. The draft's target tree:
+`string`, `seq`, `map`, `option`, `math`.
+
+Every standard module is a folder whose `mod.hql` holds its declarations,
+leaf modules included, so the package root holds `prelude.hql` and folders
+and nothing else, and a module gains a child without moving:
 
 ```text
 std/
-├── prelude.hql    not a module: the standard library's implicit imports
-├── core.hql
-├── string.hql
-├── math.hql
-├── option.hql
-├── regex.hql
-├── collections/   mod.hql  seq.hql  list.hql  set.hql  map.hql
-├── io/            mod.hql  file.hql  net.hql  logging.hql
-└── format/        mod.hql  text.hql  lines.hql  json.hql  yaml.hql  csv.hql  avro.hql  parquet.hql
+├── prelude.hql    not a module: the package's global space and implicit imports
+├── core/          mod.hql
+├── doc/           mod.hql
+├── collections/   mod.hql
+├── string/        mod.hql
+├── ...
+├── io/            mod.hql  net/mod.hql  logging/mod.hql
+└── format/        mod.hql
 ```
 
-Whether collections are `seq`, `map`, `set` or `collections.seq` and so on is
-decided by API ergonomics once the library's size is known; the module rules
-support both.
+Each module is an import unit closed over its own imports
+([HQL-0028](../../HQL-0028/README.md)): it imports every module whose types
+or traits it writes, `core` included, since the package's prelude does not
+apply to its own modules. Types sit low and operations above them, so a type
+two modules need lives in a module both import: the collection types are
+`core`'s, because `Data` is a tree of sequences and maps, and `collections`
+holds the operations over them.
+
+Whether collections are further split into `seq`, `map`, `set` or
+`collections.seq` and so on is decided by API ergonomics once the library's
+size is known; the module rules support both.
 
 ### Native and HQL implementations are indistinguishable
 
@@ -151,9 +162,12 @@ runtime primitives, OS integration, codecs, external libraries and backends.
 
 ## Current state
 
-- `std/` holds declarations only, one file per module, checked by
-  `tests/declarations.rs`; functions are documented in comments beside the
-  declarations and implemented in Rust ([std README](../../../../std/README.md)).
+- `std/` holds one folder per module, each module's declarations in its
+  `mod.hql`, and `prelude.hql` at the root. Each module imports what it
+  writes, and binding refuses an environment whose modules are not closed over
+  their imports or whose import graph is not acyclic; `tests/declarations.rs`
+  checks each module over its own imports alone
+  ([std README](../../../../std/README.md)).
 - The prelude is the extensions `graph`, `format` and `io`, declined by
   `prelude = false` in `hql.toml`; the core's collection steps are always in
   scope as bare names ([HQL-0001](../../HQL-0001/README.md)).

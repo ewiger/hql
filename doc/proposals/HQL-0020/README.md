@@ -64,7 +64,7 @@ abstract type VaultSource : DataSource {
 - `vault.cards` MUST be a `KeyedSource<String, Card>`: `get(vault.cards,
   "alice")` gives `Option<Card>`.
 - `vault.knowledge` MUST be the knowledge universe of the vault's cards, as
-  [`std/knowledge.hql`](../../../std/knowledge.hql) declares it: concepts,
+  [`std/knowledge/mod.hql`](../../../std/knowledge/mod.hql) declares it: concepts,
   relations, propositions and evidence, with their provenance.
 - `vault.graph` MUST equal `KnowledgeGraph(vault.cards)`
   ([HQL-0019](../HQL-0019/README.md)): the part of the knowledge that is
@@ -88,7 +88,7 @@ graph     = vault.graph
   for `hql render`, the vault containing the document. Without one, `vault` is
   unbound, and the checker says that it needs `--vault`.
 - The standard library MUST make the three bindings above. The host seeds
-  `vault` alone; `cards` and `graph` are bindings in `std/vault.hql`, and
+  `vault` alone; `cards` and `graph` are bindings in `std/vault/mod.hql`, and
   `knowledge` joins them with `vault.knowledge`. They are ordinary
   bindings, not keywords: a program reads `cards` and `graph` as it reads any
   name, and both are unbound when `vault` is.
@@ -146,8 +146,8 @@ carries. `knowledge` is not bound until `vault.knowledge` exists. `vault`,
 
 ## Reference Implementation
 
-- `std/sources.hql` — `VaultSource` with its fields
-- `std/vault.hql` — `Vault` with its fields, and the bindings
+- `std/sources/mod.hql` — `VaultSource` with its fields
+- `std/vault/mod.hql` — `Vault` with its fields, and the bindings
   `cards = vault.cards`, `knowledge = vault.knowledge` and `graph = vault.graph`
 - `src/traversal.rs`, `src/evaluation.rs` — the sorted walk, yielding cards
   lazily
@@ -197,4 +197,4 @@ cargo clippy --locked --all-targets -- -D warnings
   narrow `VaultSource`, and `knowledge` is not built
 - 2026-10-22: cards are keyed by name: `get(vault.cards, "alice")` and
   `cards.get("alice")` give `Option<Card>`, by a `get` over any collection
-  of documents that `std/collections.hql` declares
+  of documents that `std/collections/mod.hql` declares

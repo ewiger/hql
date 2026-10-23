@@ -770,6 +770,16 @@ impl Resolution {
         Ok(true)
     }
 
+    /// Whether a path names a standard module the runtime implements: one
+    /// whose contract declares nothing external, `doc` or `knowledge`, so no
+    /// extension provides it. Importing one binds no operation; its
+    /// declarations are types the environment already holds.
+    pub(crate) fn is_runtime_module(&self, path: &str) -> bool {
+        self.environment.modules().any(|(_, module)| {
+            module.name == path && path != "prelude" && module.provider.is_none()
+        })
+    }
+
     /// Bind an extension under a local name. One extension may be bound
     /// under several names; one name may not stand for two extensions.
     pub(crate) fn bind_as(

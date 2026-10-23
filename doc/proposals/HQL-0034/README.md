@@ -62,7 +62,7 @@ implemented for no type is refused as a field's type.
 
 ### The standard validators
 
-The module `validators`, [`std/validators.hql`](../../../std/validators.hql),
+The module `validators`, [`std/validators/mod.hql`](../../../std/validators/mod.hql),
 declares the standard validator types. It is written in HQL, its
 implementations bodies a program runs, and it is imported where it is used,
 `import validators`, never by the prelude, so a program that declares its own

@@ -4,6 +4,9 @@
 //
 // A host with a vault seeds it as `vault` into the program module; a program
 // running without one has no `vault` binding, and no module sees it.
+import core
+import doc
+import graph
 
 type Vault {
     name : String    // the vault's directory name

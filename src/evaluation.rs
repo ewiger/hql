@@ -2827,7 +2827,7 @@ struct Violation {
     actual: Option<Data>,
 }
 
-/// A `Violation` value, its fields in the order `std/core.hql` declares
+/// A `Violation` value, its fields in the order `std/core/mod.hql` declares
 /// them.
 fn violation(violation: Violation) -> Value {
     let text = |text: String| Value::Str(text.into());

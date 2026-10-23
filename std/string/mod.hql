@@ -6,6 +6,7 @@
 // See doc/proposals/HQL-0024/parts/03-standard-library.md and
 // 04-receiver-modules.md.
 module for String
+import core
 
 // The text a value prints as, and a template filled with the text of each
 // argument in order: `fmt("{} of {}", 1, some(2))`. `...Any` takes a value

@@ -17,7 +17,7 @@ and the core trait `Slice` a declared type implements.
 
 - `xs[a:b]`, `xs[a:]`, `xs[:b]` and `xs[:]` in the parser's postfix, as
   `Kind::Slice`; `xs[]` is a syntax error.
-- `type Range` and `trait Slice` in `std/core.hql`, with
+- `type Range` and `trait Slice` in `std/core/mod.hql`, with
   `impl<T> Slice for Seq<T>`, `impl Slice for String`, `impl Slice for Data`
   and `impl Index<String> for String` bound to native bodies in
   `src/extensions/traits.rs`.

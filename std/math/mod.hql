@@ -7,6 +7,7 @@
 //
 // See doc/proposals/HQL-0024/parts/03-standard-library.md and
 // doc/proposals/HQL-0031/README.md.
+import core
 
 fn abs(self: Int) : Int
 fn abs(self: Float) : Float

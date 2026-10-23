@@ -4,8 +4,9 @@
 // See doc/proposals/HQL-0021/README.md and doc/proposals/HQL-0012/README.md.
 //
 // An endpoint says where bytes are and performs no I/O. A format type
-// (format.hql) says how the bytes are documents. A source or target joins the
+// (module `format`) says how the bytes are documents. A source or target joins the
 // two, and Seq and Stream say whether the documents end.
+import core
 
 // Where bytes are. Constructing one opens, stats and resolves nothing.
 abstract type Endpoint
@@ -145,7 +146,7 @@ effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format
 // sink<T>(xs: Stream<T>, c: Channel<T>) : Unit                   appends each value
 //
 // Without the values, sink(e, F) is a step: Stream<T> -> Unit. A Logger
-// (io/logging.hql) takes one as its destination.
+// (module `io.logging`) takes one as its destination.
 //
 // What each accepts, by the shape of the values:
 //

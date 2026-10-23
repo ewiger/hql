@@ -4,6 +4,7 @@
 // is external: the `regex` extension implements it.
 //
 // See doc/proposals/HQL-0024/parts/03-standard-library.md.
+import core
 
 fn is_match(text: String, pattern: String) : Bool
 fn find(text: String, pattern: String) : Option<String>

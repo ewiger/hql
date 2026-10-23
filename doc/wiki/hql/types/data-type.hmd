@@ -46,7 +46,7 @@ Data
             └── "author"
 ```
 
-`Data` is recursive, and its declaration in [`std/core.hql`](../../../../std/core.hql) says so directly:
+`Data` is recursive, and its declaration in [`std/core/mod.hql`](../../../../std/core/mod.hql) says so directly:
 
 ```hql
 type Data = union {

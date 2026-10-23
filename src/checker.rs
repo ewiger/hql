@@ -476,7 +476,7 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
         .collect()
 }
 
-/// The operation types `std/core.hql` reserves, one per shape and their
+/// The operation types `std/core/mod.hql` reserves, one per shape and their
 /// common supertype: a program may not declare a type of these names.
 const RESERVED_TYPES: [&str; 5] = [
     "Operation",
@@ -495,7 +495,7 @@ fn written_names(arguments: &[Arg]) -> Vec<&str> {
         .collect()
 }
 
-/// Whether a declaration of a reserved name is the one `std/core.hql`
+/// Whether a declaration of a reserved name is the one `std/core/mod.hql`
 /// makes, `abstract type Elementwise<I, O> : Operation<I, O>`: the library's
 /// own text checks as a program, and restating it declares nothing new.
 fn restates_operation_type(declaration: &crate::ast::TypeDecl) -> bool {
@@ -946,7 +946,7 @@ fn signature_in_place(
 }
 
 /// The traits the language owns, in scope in every program: the operators
-/// resolve through them, and `std/core.hql` restates them.
+/// resolve through them, and `std/core/mod.hql` restates them.
 pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
     let self_type = SELF.apply([]);
     let binary = |name: &str, result: TypeRef| TraitInfo {
@@ -1559,7 +1559,9 @@ impl<'a> Checker<'a> {
                             ),
                         );
                     }
-                    if !self.resolution.import(&dotted, alias.as_deref(), span)? {
+                    if !self.resolution.import(&dotted, alias.as_deref(), span)?
+                        && !self.resolution.is_runtime_module(&dotted)
+                    {
                         self.import_module(&dotted, &local, span)?;
                     }
                     TypeRef::UNIT
@@ -3173,7 +3175,10 @@ impl<'a> Checker<'a> {
         let located = match written {
             // A written module of the standard library comes before the
             // roots, as a standard module named by an extension does.
-            Some(_) => Some(std::path::PathBuf::from(format!("std/{name}.hql"))),
+            Some(_) => Some(std::path::PathBuf::from(format!(
+                "std/{}/mod.hql",
+                name.replace('.', "/")
+            ))),
             None => crate::modules::locate(roots, name)
                 .map_err(|message| Diagnostic::name(span.clone(), message))?,
         };
@@ -3249,10 +3254,15 @@ impl<'a> Checker<'a> {
             module_file: true,
             // A module is a closure: it sees no host binding and none of the
             // program's, and only the standard prelude among implicit imports.
+            // A package's own prelude does not apply to its own modules, so a
+            // written module of the standard library names every import.
             ..Checker::new(
                 self.vault,
                 HashMap::new(),
-                Resolution::bare(self.resolution.environment(), self.vault.extensions.prelude),
+                Resolution::bare(
+                    self.resolution.environment(),
+                    self.vault.extensions.prelude && written.is_none(),
+                ),
             )
         };
         let checked = {

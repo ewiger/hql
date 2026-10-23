@@ -1,5 +1,5 @@
 //! The `seq` module: the sequence, set and map operations beyond the core's
-//! membership, order and lookup. Pairs, `Pair<A, B>` in `std/core.hql`, are
+//! membership, order and lookup. Pairs, `Pair<A, B>` in `std/core/mod.hql`, are
 //! how `zip`, `enumerate`, `entries` and `join` hold two values together.
 
 use super::declared;

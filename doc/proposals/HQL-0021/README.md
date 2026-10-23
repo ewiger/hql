@@ -96,8 +96,8 @@ The declarations live in three modules of the standard library.
 | Module | File | Provides | In a program |
 | --- | --- | --- | --- |
 | `io` | `std/io/mod.hql` | endpoints, channels, sources, targets | the prelude |
-| `io.net` | `std/io/net.hql` | `Http`, `WebSocket`, `Socket` | `import net` |
-| `io.logging` | `std/io/logging.hql` | `LogLevel`, `LogEvent`, `Logger` | `import logging` |
+| `io.net` | `std/io/net/mod.hql` | `Http`, `WebSocket`, `Socket` | `import net` |
+| `io.logging` | `std/io/logging/mod.hql` | `LogLevel`, `LogEvent`, `Logger` | `import logging` |
 
 - `io` MUST be in the prelude, so `source(stdin, Json)` needs no import.
 - `net` and `logging` MUST be imported ([HQL-0001](../HQL-0001/README.md)).
@@ -193,8 +193,9 @@ endpoint may hold one document or a sequence of them.
 | `JsonLines` | `Data`, one JSON document per line | a line terminator |
 | `Text`, `Markdown`, `Hmd`, `Hql` | `String`, the whole text, terminators included | not separable |
 
-- A format MUST be a type narrowing `Format` (`std/format.hql`), and what it
-  decodes MUST be the `Decoder<T>` it implements there: `Data` for `Json`,
+- A format MUST be a type narrowing `Format` (`std/core/mod.hql`), declared in
+  `std/format/mod.hql`, and what it decodes MUST be the `Decoder<T>` it
+  implements there: `Data` for `Json`,
   `JsonLines`, `Yaml` and `Csv`, `String` for the text formats.
 
 - The documents of an endpoint MUST be read in the order they appear. These
@@ -779,9 +780,9 @@ hql run --log-level debug birds.hql < birds.jsonl 2> run.log
 
 Built:
 
-- `std/io/mod.hql`, `std/io/net.hql`, `std/io/logging.hql` — the types and
+- `std/io/mod.hql`, `std/io/net/mod.hql`, `std/io/logging/mod.hql` — the types and
   the `effectful fn` and `fn` headers of every operation, bound to the
-  extensions that implement them; `std/format.hql` — the formats and their
+  extensions that implement them; `std/format/mod.hql` — the formats and their
   `Decoder` and `Encoder` headers
 - `src/library.rs` and `tests/declarations.rs` — modules named by folder, a
   folder's `mod.hql` by the folder

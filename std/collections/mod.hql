@@ -1,47 +1,11 @@
-// Finite occurrences, positional order, and keyed lookup.
-// See doc/wiki/hql/types/collections/collection-types.md and collection.md.
-
-// Values that can be traversed, and nothing more: no promise of finiteness,
-// order or uniqueness. The bound an operation states when it needs only to
-// visit each value. See doc/models/behavior/queries.md.
-abstract type Iterable<T>
-
-// No runtime representation and no promise of order or uniqueness.
-// size(c) counts occurrences; count(c, x) counts occurrences equal to x.
-// contains(c, x) iff count(c, x) > 0.
-// size(c) is the sum of count(c, x) over all distinct values occurring in c.
-abstract type Collection<T> : Iterable<T>
-
-// Values produced in a stable order: x0, x1, x2, ... Production need not end,
-// so a stream has no size, no membership and no global order: those need the
-// end. See doc/wiki/hql/types/stream-type.hmd.
-abstract type Stream<T> : Iterable<T>
-
-// Every occurrence occupies exactly one position in 0 .. size(c)-1.
-// Positional order does not require T : Orderable. A sequence is a stream
-// that ends.
-abstract type Seq<T> : {Collection<T>, Stream<T>}
-
-// Materialized occurrences; repeated traversal preserves positions.
-type List<T> : Seq<T>
-
-// Materialized distinct values, using HQL equality: count(s, x) <= 1.
-// Traversal order is not a semantic guarantee.
-type Set<T> : Collection<T>
-
-// Materialized associations with distinct keys; unrelated to Collection<T>.
-// Construct from equally long key and value sequences: Map(keys, values).
-// Repeated keys are rejected. Missing lookup results are Option<V>.
-// The key projection of this static view has type Set<K>.
-type Map<K, V>
-
-// Keys preserve their construction positions; keys have type Seq<K>.
-// K need not be Orderable. Viewing this as Map exposes set key semantics.
-type OrderedMap<K, V> : Map<K, V>
-
-// Key positions follow K's intrinsic total ordering.
-type SortedMap<K, V> : OrderedMap<K, V>
-where K : Orderable
+// Module `collections`: the operations over the collection types `core`
+// declares. Membership, filtering, mapping, order, grouping, joins and
+// reductions. Each is also a pipeline step, and carries the shape a planner
+// splits it by. Always visible: the `core` extension implements it with
+// `core`. See doc/wiki/hql/types/collections/collection-types.md and
+// collection.md.
+import core
+import doc
 
 // One partition of a group: its key, and the occurrences with that key in
 // input order. Two groups are equal iff their keys are.
@@ -49,17 +13,6 @@ type Group<K, T> {
     key   : K
     items : List<T>
 }
-
-// Constructors: a function named after its type builds a value of it, and
-// `List(xs)` and `xs | List` are one call, the piped value its first
-// argument. A type's forms of one arity differ in their first parameter, so
-// the first argument selects one. The binary implements each, as it does the
-// operations below.
-fn List<T>(xs: Seq<T>) : List<T>
-fn Set<T>(xs: Collection<T>) : Set<T>
-fn Map<K, V>(keys: Seq<K>, values: Seq<V>) : Map<K, V>
-fn OrderedMap<K, V>(keys: Seq<K>, values: Seq<V>) : OrderedMap<K, V>
-fn SortedMap<K : Orderable, V>(keys: Seq<K>, values: Seq<V>) : SortedMap<K, V>
 
 // Core operations, callable directly or through a pipe. Each one returns the
 // type it was given: `S : Seq<T>` is the input at its own type, and

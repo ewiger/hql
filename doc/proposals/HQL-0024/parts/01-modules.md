@@ -473,7 +473,7 @@ Extension(id)     an extension supplied outside the binary
 Examples:
 
 ```text
-regex       contract Standard(std/regex.hql)         implementation Builtin(std-regex)
+regex       contract Standard(std/regex/mod.hql)         implementation Builtin(std-regex)
 io.file     contract Standard(std/io/file.hql)       implementation Builtin(std-io)
 app.model   contract Workspace(/repo)                implementation Runtime
 acme.auth   contract Filesystem(/opt/acme/hql)       implementation Runtime
@@ -581,7 +581,7 @@ implementation provider:
 
 ```text
 ModuleRegistry {
-    regex     -> { contract: Standard("std/regex.hql"),              implementation: Builtin("std-regex") }
+    regex     -> { contract: Standard("std/regex/mod.hql"),              implementation: Builtin("std-regex") }
     io.file   -> { contract: Standard("std/io/file.hql"),            implementation: Builtin("std-io") }
     app       -> { contract: Workspace("/repo/app.hql"),             implementation: Runtime }
     acme.auth -> { contract: Filesystem("/opt/acme/hql/acme/auth.hql"), implementation: Runtime }

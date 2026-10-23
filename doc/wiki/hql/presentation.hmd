@@ -27,10 +27,10 @@ the format and codec model; both point here for the current rules.
 
 | Type | Declared | Built by |
 | --- | --- | --- |
-| `Graph` | `std/graph.hql` | `Graph(xs)`: cards, hits or edges as nodes, the links among them as edges |
-| `Table<R>` | `std/format.hql` | `Table(xs, columns = [...])`: one row per record of `R` |
-| `Data` | `std/core.hql` | a literal, a read, or `Data(s, F)`, text parsed in a format |
-| `Doc` | `std/doc.hql` | the vault |
+| `Graph` | `std/graph/mod.hql` | `Graph(xs)`: cards, hits or edges as nodes, the links among them as edges |
+| `Table<R>` | `std/format/mod.hql` | `Table(xs, columns = [...])`: one row per record of `R` |
+| `Data` | `std/core/mod.hql` | a literal, a read, or `Data(s, F)`, text parsed in a format |
+| `Doc` | `std/doc/mod.hql` | the vault |
 
 `Tree<T>`, a node and its subtrees, is design direction and not implemented.
 
@@ -95,7 +95,7 @@ nor a `String` subtype. `format(x, F)` applies the encoder for `x`'s type in
 `F` and gives the encoded text as a `String`, which keeps its format at run
 time for a host to print as it is. `source(e, F)` applies the decoder.
 The contracts are the traits `Decoder<T>` and `Encoder<T>` in
-`std/format.hql`, described under [codecs](#codecs), and the model is
+`std/format/mod.hql`, described under [codecs](#codecs), and the model is
 [HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md).
 
 ## Codecs
@@ -107,7 +107,7 @@ Rust.
 
 ### What is declared
 
-`std/format.hql` declares two traits whose implementing type is the format,
+`std/format/mod.hql` declares two traits whose implementing type is the format,
 and one bodyless header per codec the runtime has:
 
 ```hql
@@ -140,7 +140,7 @@ Over a `birds.txt` holding `raven\nrobin\n`, the steps are these.
 
 1. **Binding**, once per runtime environment, before any program is
    checked. `validate_codecs` in `src/extensions/binding.rs` compares the headers of
-   `std/format.hql` with the runtime's two tables: `io::document_type`, the
+   `std/format/mod.hql` with the runtime's two tables: `io::document_type`, the
    decoder table, maps `Lines` to `String`, which is what the one `Decoder`
    header for `Lines` names; `format::writable`, the encoder table, accepts
    every type for `Lines`, which is what `impl<T> Encoder<T> for Lines`
@@ -167,7 +167,7 @@ Over a `birds.txt` holding `raven\nrobin\n`, the steps are these.
 
 `Json` follows the same route with a different reader and writer: `pieces`
 runs a streaming JSON deserializer and turns each document into a `Data`
-tree, and `piece` serializes the value's data. `std/format.hql` is the
+tree, and `piece` serializes the value's data. `std/format/mod.hql` is the
 statement of which routes exist; `src/io.rs` and `src/extensions/format.rs`
 are the routes.
 

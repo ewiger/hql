@@ -55,7 +55,7 @@ impl Ord for String
 
 The header is the declaration; an extension binds the bodies to it
 ([part 12](12-contracts-and-binding.md)). That a built-in type implements a
-trait is therefore stated in HQL, in [`std/core.hql`](../../../../std/core.hql),
+trait is therefore stated in HQL, in [`std/core/mod.hql`](../../../../std/core/mod.hql),
 and the runtime implements exactly the headers declared there: binding refuses
 a header without a native body and a native body without a header. Only a
 module an extension provides declares a bodyless header; a program or a
@@ -95,7 +95,7 @@ Built: `trait` and `impl` with `Self` and type parameters,
 `E : Index<T>` bounds checked at every call with open parameters inferred,
 dispatch on the value's own type, operators resolving through `Add`, `Sub`,
 `Mul`, `Div`, `Rem`, `Eq`, `Ord` and `Index`, native headers for the
-built-in types in `std/core.hql`, coherence and ownership as above. The core
+built-in types in `std/core/mod.hql`, coherence and ownership as above. The core
 set is `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` and `Index`; `Neg`,
 `Hashable` and `Numeric` are not declared.
 

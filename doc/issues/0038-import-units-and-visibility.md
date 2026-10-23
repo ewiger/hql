@@ -23,7 +23,7 @@ declaration is public unless it is marked `private`.
 - A module is checked with an empty scope and the standard prelude alone,
   and evaluated in an empty scope: no host binding, no binding of the
   program, no import of the vault's `hql.toml`.
-- `cards = vault.cards` and `graph = vault.graph` leave `std/vault.hql` and
+- `cards = vault.cards` and `graph = vault.graph` leave `std/vault/mod.hql` and
   become the program module's bindings (`src/library.rs`).
 - Receiver lookup: the unit's own declaration wins; two imports declaring one
   receiver function, a workspace module's and a standard module's included,

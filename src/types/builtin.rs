@@ -132,12 +132,12 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             ]),
             &[],
         ),
-        // The structural categories of `std/core.hql` (HQL-0030): a
+        // The structural categories of `std/core/mod.hql` (HQL-0030): a
         // contract closed as a plain record is, and one open by being Data.
         (TypeRef::TYPE_CONTRACT, TypeKind::Abstract, &[]),
         (TypeRef::DATA_CONTRACT, TypeKind::Abstract, &[TypeRef::DATA]),
         // What `validate(T)` gives where a value does not read (HQL-0033):
-        // `type Violation` and `type Invalid` in `std/core.hql`.
+        // `type Violation` and `type Invalid` in `std/core/mod.hql`.
         (
             TypeRef::VIOLATION,
             TypeKind::Concrete,
@@ -156,7 +156,7 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::GRAPH, TypeKind::Concrete, &[]),
         (TypeRef::VAULT, TypeKind::Concrete, &[]),
         (TypeRef::ORDERING, TypeKind::Concrete, &[]),
-        // Where values come from and go to: `std/io/init.hql`. A capability
+        // Where values come from and go to: `std/io/mod.hql`. A capability
         // is a supertype, so the checker reads it off the endpoint's type.
         (TypeRef::ENDPOINT, TypeKind::Abstract, &[]),
         (TypeRef::READABLE, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
@@ -179,7 +179,7 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Concrete,
             &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
         ),
-        // Transports: `std/io/net.hql`.
+        // Transports: `std/io/net/mod.hql`.
         (
             TypeRef::HTTP,
             TypeKind::Concrete,
@@ -195,7 +195,7 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Concrete,
             &[TypeRef::READABLE, TypeRef::WRITABLE],
         ),
-        // Logging: `std/io/logging.hql`. A level is a type, so a threshold is
+        // Logging: `std/io/logging/mod.hql`. A level is a type, so a threshold is
         // passed as one and an event's level is tested with `is`.
         (TypeRef::LOG_LEVEL, TypeKind::Abstract, &[]),
         (TypeRef::TRACE, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
@@ -233,7 +233,7 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         }
     }
     // A ranking is a sequence of hits that also states where its order came
-    // from: `type Ranking<T> : Seq<Hit<T>>` in `std/retrieval.hql`.
+    // from: `type Ranking<T> : Seq<Hit<T>>` in `std/retrieval/mod.hql`.
     let parameter = TypeConstructor("T").apply([]);
     for (name, parent, applied) in [
         ("Option", None, None),
@@ -280,7 +280,7 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             applied: Vec::new(),
         })?;
     }
-    // The operation types, `std/core.hql`: each a function from `I` to `O`
+    // The operation types, `std/core/mod.hql`: each a function from `I` to `O`
     // that also carries the shape its name states, under their common
     // supertype. The input is contravariant and the output covariant, as a
     // function's are.
@@ -318,7 +318,7 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             applied: vec![OPERATION.apply([input.clone(), output.clone()])],
         })?;
     }
-    // The formats: a category of its own, `std/format.hql`. A format
+    // The formats: a category of its own, `std/format/mod.hql`. A format
     // describes an external representation and its framing; it is not the
     // text it encodes, so none narrows `String`.
     system.declare(TypeDefinition {
@@ -378,7 +378,7 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         parents: Vec::new(),
         applied: Vec::new(),
     })?;
-    // Rows under ordered columns: `type Table<R>` in `std/format.hql`, `R`
+    // Rows under ordered columns: `type Table<R>` in `std/format/mod.hql`, `R`
     // the row, a record type or `Data`.
     system.declare(TypeDefinition {
         constructor: TypeRef::TABLE.constructor,

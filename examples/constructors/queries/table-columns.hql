@@ -6,7 +6,7 @@
 // expected-json: "| year | title      | pages |\n| ---- | ---------- | ----- |\n| 1965 | Dune       | 412   |\n| 1937 | The Hobbit | 310   |"
 
 // `fn Table<T>(rows: Collection<T>, columns: List<String> = []) : Table<T>` in
-// `std/format.hql`. One row per record; `columns` names the fields in the
+// `std/format/mod.hql`. One row per record; `columns` names the fields in the
 // order every format writes them, here not the order `Book` declares.
 type Book {
   title : String

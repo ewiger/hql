@@ -15,7 +15,7 @@ written in** is a **presentation format**, a subtype of `String` such as
 `Markdown`, `Json` or `D2`. The operation `format(x, F)` turns any value into
 text of format `F`; it is an ordinary operation whose result type is the
 format, so a step after it is checked like any other. `markdown`, `json`, `yaml`, `csv`, `d2`, `mermaid`, `hmd` and
-`text` are its shorthands, each a host step whose longhand `std/format.hql`
+`text` are its shorthands, each a host step whose longhand `std/format/mod.hql`
 states as a `:=` line ([HQL-0015](../HQL-0015/README.md)). **How a type is written in a format** is
 a **renderer**, chosen per type and format from configuration: a `Graph` in
 `Json` is node-link JSON, in `Markdown` and `Hmd` a fenced D2 block. All of it lives in the `format` extension,
@@ -73,11 +73,11 @@ and the rules of each are stated in
 
 | Type | Declared | Built by |
 | --- | --- | --- |
-| `Graph<N, E>` | `std/graph.hql` | `Graph(xs)`: the elements as nodes, the links among them as edges |
-| `Table` | `std/format.hql` | `Table(xs, columns = [...])`: one row per record |
+| `Graph<N, E>` | `std/graph/mod.hql` | `Graph(xs)`: the elements as nodes, the links among them as edges |
+| `Table` | `std/format/mod.hql` | `Table(xs, columns = [...])`: one row per record |
 | `Tree<T>` | new | `Tree(root, children = …)`: a node and its subtrees |
-| `Data` | `std/core.hql` | parsing, see "Reading a format" |
-| `Doc` | `std/doc.hql` | the vault |
+| `Data` | `std/core/mod.hql` | parsing, see "Reading a format" |
+| `Doc` | `std/doc/mod.hql` | the vault |
 
 - `Graph(xs)` MUST be the projection from cards, hits or a ranking to a graph.
   `graph` is not an operation: it is the binding `graph = vault.graph`, the
@@ -238,8 +238,8 @@ checks. `tree`, `value` and `empty` were never implemented and are dropped.
 
 - `src/extensions/format.rs` — the `format` operation, the renderer table, the
   built-in renderers; replaces `src/extensions/present.rs`
-- `std/format.hql` — the format types and the shorthands
-- `src/constructors.rs` and `std/format.hql` — `Table` and its constructor
+- `std/format/mod.hql` — the format types and the shorthands
+- `src/constructors.rs` and `std/format/mod.hql` — `Table` and its constructor
 - `src/types/display.rs` — each format's encoder for a `Table`
 - `src/extensions/graph.rs` — the `graph` step removed; `Graph` as a
   constructor; `expand` refusing depth `0`
@@ -298,7 +298,7 @@ cargo clippy --locked --all-targets -- -D warnings
 - 2026-10-22: `--from <format>` is implemented: it names the format of
   standard input where a program reads `stdin` and names none
 - 2026-10-22: `Table` is implemented: `Table(xs, columns = [...])`, declared
-  in `std/format.hql`, written by each format's encoder in column order; the
+  in `std/format/mod.hql`, written by each format's encoder in column order; the
   table renderers write only a `Table`. "Shape types", "Renderers and their
   configuration" and "The presentation context" point to the
   [presentation](../../wiki/hql/presentation.hmd) card, which states the

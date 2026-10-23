@@ -271,7 +271,7 @@ change; see Open Questions.
 
 - `src/extensions/mod.rs`, `src/extensions/spec.rs` — `Step` to `Operation`,
   `StepSpec` to `OperationSpec`, and every call site
-- `std/core.hql` — declares the reserved operation types
+- `std/core/mod.hql` — declares the reserved operation types
 - the checker — accepts a user function of an operation type as a step, and
   verifies an `Elementwise` body
 - the step node — gains a stage annotation; the `localhost` planner puts every
@@ -337,7 +337,7 @@ separate uses listed under Open Questions.
   ([HQL-0015](../HQL-0015/README.md)) and presentations are ordinary operations
   ([HQL-0017](../HQL-0017/README.md)); the reserved operation types, stage
   annotations and the planner are not yet implemented
-- 2026-10-22: implemented in part; `std/core.hql` declares the reserved
+- 2026-10-22: implemented in part; `std/core/mod.hql` declares the reserved
   operation types and a program declaring one is refused, a receiver call is
   evaluated inside its step, and the shape of every operation is declared
   ([HQL-0004](../HQL-0004/README.md)). An operation type is not yet a function

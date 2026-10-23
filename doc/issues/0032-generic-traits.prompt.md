@@ -18,7 +18,7 @@ before anything else:
 - [HQL-0026](../proposals/HQL-0026/README.md): `Index<T>` and the generic
   native header `impl Slice for List<T>`;
 - the open questions of the [type system card](../wiki/hql/type-system.hmd);
-- `std/core.hql`, `std/format.hql`, `src/extensions/traits.rs`,
+- `std/core/mod.hql`, `std/format/mod.hql`, `src/extensions/traits.rs`,
   `src/extensions/contract.rs`, `tests/traits.rs`, and `trait_declaration` and
   `implementation` in `src/parser.rs`.
 

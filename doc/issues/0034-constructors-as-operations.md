@@ -18,8 +18,8 @@ variadic parameter, which refused `f(1, 2)` for `fn f<T>(xs: ...T)`.
 ## Scope
 
 - `fn List`, `Set`, `Map`, `OrderedMap` and `SortedMap` in
-  `std/collections.hql`, `fn Graph` in `std/graph.hql`, `fn Channel` in
-  `std/io/mod.hql` and `fn Data` in `std/core.hql`, each beside its type.
+  `std/collections/mod.hql`, `fn Graph` in `std/graph/mod.hql`, `fn Channel` in
+  `std/io/mod.hql` and `fn Data` in `std/core/mod.hql`, each beside its type.
   Binding holds them to `src/constructors.rs`: a declaration names a
   concrete type of its own module and returns it or a subtype, every
   constructor the binary implements is declared, and forms of one arity

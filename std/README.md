@@ -2,7 +2,7 @@
 
 The type declarations HQL ships with, written in HQL.
 
-**Status: parsed and checked.** `hql check std/graph.hql` prints `Unit`, and
+**Status: parsed and checked.** `hql check std/graph/mod.hql` prints `Unit`, and
 `tests/declarations.rs` walks this folder, so a file added here cannot be
 silently left unchecked. These files are the single place the declarations live
 as *source* rather than as prose inside a card. The modules written as external
@@ -31,8 +31,8 @@ declarations and their `where` bounds agree with the Rust `TypeConstructor` /
 and `SortedMap` materialize associations. `SortedMap` requires orderable keys.
 
 A type's constructors are declared as functions named after it, beside it:
-`fn Set<T>(xs: Collection<T>) : Set<T>` in `collections.hql`, `fn Graph` in
-`graph.hql`, `fn Channel` in `io/mod.hql`, `fn Data` in `core.hql`. Binding
+`fn Set<T>(xs: Collection<T>) : Set<T>` and `fn Data` in `core`, `fn Graph` in
+`graph`, `fn Channel` in `io`. Binding
 holds each to the binary's constructor, as it holds an external operation to
 its extension
 ([HQL-0018](../doc/proposals/HQL-0018/README.md)).
@@ -66,32 +66,58 @@ The rule is that the file is the declaration and the card is the argument: when
 they disagree, the card explains something that no longer exists, and the card
 is what gets fixed.
 
-## Layout
+## The package and its modules
 
-One file per module, a folder for a module with submodules (`io/mod.hql` is
-`io`, `io/net.hql` is `io.net`), mirroring the extension split in
-[HQL-0001](../doc/proposals/HQL-0001/README.md), so a module's declarations sit
-where its steps will:
+`std/` is the builtin package. Its root is a module root, not a module, and
+holds two kinds of thing:
 
-| File | Module |
-| --- | --- |
-| `prelude.hql` | not a module: the implicit import list every source unit starts with ([HQL-0024 part 3](../doc/proposals/HQL-0024/parts/03-standard-library.md)) |
-| `core.hql` | the scalar, data, absence, result, pair and value-order vocabulary the core owns, and the core traits `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem` |
-| `collections.hql` | membership, order and lookup |
-| `string.hql` | `module for String`: the text functions, `str` and `fmt`; external, implemented by the `string` extension |
-| `seq.hql` | `module for Seq<T>`: the sequence, set and map operations beyond the core's; external |
-| `math.hql` | numbers and the conversions between `Int`, `Float` and `Decimal`; external |
-| `option.hql` | `module for Option<T>`: the ways out of an option; external |
-| `result.hql` | `module for Result<T, E>`: the ways out of a result; external |
-| `regex.hql` | text matched against a pattern; external, imported where it is used |
-| `doc.hql` | documents |
-| `format.hql` | the formats, a category of their own, and the codec contracts ([HQL-0024 part 7](../doc/proposals/HQL-0024/parts/07-formats-and-codecs.md)) |
-| `graph.hql` | the graph domain |
-| `io/mod.hql` | endpoints, channels, data sources and data targets, from [HQL-0021](../doc/proposals/HQL-0021/README.md); `file`, `source`, `tap`, `target` and `sink` external |
-| `io/net.hql` | network endpoints, arriving with HQL-0021; `import io.net` or `import net` |
-| `io/logging.hql` | loggers and log events, from HQL-0021; `Logger` and the five levels external; `import io.logging` or `import logging` |
-| `knowledge.hql` | the knowledge domain, including the card family |
-| `retrieval.hql` | ranking, arriving with [HQL-0002](../doc/proposals/HQL-0002/README.md) |
+- `prelude.hql`, the package's global space: not a module, it runs when the
+  package loads, and its imports are the implicit import list of every source
+  unit outside the package
+  ([HQL-0024 part 3](../doc/proposals/HQL-0024/parts/03-standard-library.md)).
+- One folder per module, the module's declarations in the folder's `mod.hql`:
+  `core/mod.hql` is `core`, `io/net/mod.hql` is `io.net`. No declaration sits
+  outside a module.
+
+Every module is its own import unit
+([HQL-0028](../doc/proposals/HQL-0028/README.md)). The package's prelude does
+not apply to its own modules, so each `mod.hql` imports every module whose
+types or traits it writes, `import core` included, and sees nothing else.
+Types sit low and operations above them: a type that two modules both need
+lives in a module both import, never in either. That is why the collection
+types are `core`'s (`Data` is a tree of sequences and maps), why `Card` is
+`doc`'s (a graph's nodes are cards, and knowledge narrows the graph), and why
+the category `Format` is `core`'s (`Data(s, Json)` and every `io` operation
+are bounded by it).
+
+Binding refuses the whole environment when a module writes a name it neither
+declares nor imports, imports a module listed after it or its own child, or
+when two modules declare one name (`library::closure`). The modules are listed
+in import order, so the import graph is acyclic by construction:
+
+| Module | Imports | Holds | Implemented by |
+| --- | --- | --- | --- |
+| `core` | — | scalars, the collection types and their constructors, `Data`, `Option`, `Result`, `Ordering`, `Type`, `Is`, `Format`, `Range`, `Pair`, the operation types, the contract types and violations, the core traits `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index`, `Slice`, `Validator` and the built-in types' implementations of them | the `core` extension |
+| `doc` | `core` | documents, their headers, and the card family `Card`, `HmdCard`, `MdCard` | the runtime |
+| `retrieval` | `core` | `Hit` and `Ranking`, from [HQL-0002](../doc/proposals/HQL-0002/README.md) | the runtime |
+| `graph` | `core`, `doc`, `retrieval` | edges, graphs, links and the `Graph` constructor | the `graph` extension |
+| `knowledge` | `core`, `doc`, `graph` | concepts, relations, `ConceptCard`, `RelationCard`, `KnowledgeGraph` | the runtime |
+| `collections` | `core`, `doc` | the operations over the collection types: membership, filtering, mapping, order, grouping, joins, reductions; `Group` | the `core` extension |
+| `string` | `core` | `module for String`: the text functions, `str` and `fmt` | the `string` extension |
+| `seq` | `core` | `module for Seq<T>`: the sequence, set and map operations beyond the core's | the `seq` extension |
+| `math` | `core` | numbers and the conversions between `Int`, `Float` and `Decimal` | the `math` extension |
+| `option` | `core` | `module for Option<T>`: the ways out of an option | the `option` extension |
+| `result` | `core` | `module for Result<T, E>`: the ways out of a result | the `result` extension |
+| `regex` | `core` | text matched against a pattern; imported where it is used | the `regex` extension |
+| `format` | `core`, `graph` | the formats and the codec contracts ([HQL-0024 part 7](../doc/proposals/HQL-0024/parts/07-formats-and-codecs.md)) | the `format` extension |
+| `io` | `core` | endpoints, channels, data sources and data targets, from [HQL-0021](../doc/proposals/HQL-0021/README.md) | the `io` extension |
+| `io.net` | `core`, `io` | network endpoints; `import io.net` or `import net` | the `net` extension |
+| `io.logging` | `core`, `io` | loggers, levels, log events and the rendering cell; `import io.logging` or `import logging` | the `logging` extension |
+| `vault` | `core`, `doc`, `graph` | the vault a program runs against | the runtime |
+| `validators` | `core`, `string`, `seq`, `option` | the standard validator types, written in HQL; `import validators` | the runtime |
+
+A module the runtime implements declares nothing external, so no extension
+provides it; importing it binds no operation.
 
 A module written as **external declarations**, `fn trim(self) : String` with
 no body, is a contract an extension implements: the extension whose descriptor

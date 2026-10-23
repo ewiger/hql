@@ -60,7 +60,7 @@ implementation had moved past: `std/io/init.hql`, and no `JsonLines`.
   refuses it. A document that does not decode is an evaluation error naming
   the endpoint, the document's position from 1, and the field's dotted path.
 - **`Logger` keeps one declared form.** A logger on a
-  `Channel<LogEvent>` omits the format; `std/io/logging.hql` declares the
+  `Channel<LogEvent>` omits the format; `std/io/logging/mod.hql` declares the
   form with a format and says the format is omitted for a channel, and the
   proposal now shows the one header.
 

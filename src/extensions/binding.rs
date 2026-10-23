@@ -231,6 +231,8 @@ impl Environment {
             forms: HashMap::new(),
             tables: HashMap::new(),
         };
+        // Each module is its own import unit, closed over its imports.
+        crate::library::closure(graph)?;
         for (name, source) in graph {
             let program = crate::parser::parse(source)
                 .map_err(|error| format!("std/{name}: {}", error.message()))?;
@@ -402,7 +404,6 @@ impl Environment {
     }
 
     /// Every loaded module, in loading order.
-    #[cfg(test)]
     pub(crate) fn modules(&self) -> impl Iterator<Item = (ModuleId, &Module)> {
         self.modules
             .iter()
@@ -735,7 +736,7 @@ impl Environment {
                 (Err(_), []) => {}
                 (read, declared) => {
                     return Err(format!(
-                        "{format_name} reads as {}, and `std/format.hql` declares {} decoder{} for it",
+                        "{format_name} reads as {}, and `std/format/mod.hql` declares {} decoder{} for it",
                         read.map_or_else(|_| "nothing".to_owned(), |ty| ty.to_string()),
                         declared.len(),
                         if declared.len() == 1 { "" } else { "s" }
@@ -751,7 +752,7 @@ impl Environment {
                 });
                 if writes != declared {
                     return Err(format!(
-                        "{format_name} {} {sample}, and `std/format.hql` {} an encoder for it",
+                        "{format_name} {} {sample}, and `std/format/mod.hql` {} an encoder for it",
                         if writes { "writes" } else { "does not write" },
                         if declared { "declares" } else { "declares no" }
                     ));
@@ -1237,7 +1238,7 @@ mod tests {
         let (_, ord_int) = environment
             .implementations()
             .find(|(_, held)| held.trait_name == "Ord" && held.target == "Int")
-            .expect("`std/core.hql` declares `impl Ord for Int`");
+            .expect("`std/core/mod.hql` declares `impl Ord for Int`");
         let ord = ord_int.trait_id.expect("`Ord` is declared");
         let int = ord_int.target_id.expect("`Int` is declared");
         assert_eq!(environment.trait_declaration(ord).name, "Ord");
@@ -1283,7 +1284,7 @@ mod tests {
         let list = environment.table("List").expect("`List` is bound");
         let declared = environment.type_declaration(list);
         assert_eq!(declared.name, "List");
-        assert_eq!(environment.module(declared.module).name, "collections");
+        assert_eq!(environment.module(declared.module).name, "core");
         assert!(declared.concrete);
         assert_eq!(environment.constructor_forms("List").len(), 1);
         assert_eq!(environment.constructor_forms("Graph").len(), 7);
@@ -1407,7 +1408,8 @@ mod tests {
 
     /// The probe module's contract: a public receiver function and a
     /// private one.
-    const PROBE_SOURCE: &str = "fn shout(self: String) : String\n\
+    const PROBE_SOURCE: &str = "import core\n\
+                                fn shout(self: String) : String\n\
                                 private fn whisper(self: String) : String\n";
 
     /// The probe extension, implementing the probe module.

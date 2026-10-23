@@ -16,7 +16,7 @@ declared, so four contracts stay outside the trait system:
 - **Positions.** `xs[i]` returns `Option<T>` for the element type `T`. An
   `Index<T>` capability would let a declared type take `xs[i]`; HQL-0026
   keeps indexing language-defined because of this gap.
-- **Codecs.** `std/format.hql` declares `Decoder<F, T>` and `Encoder<T, F>`
+- **Codecs.** `std/format/mod.hql` declares `Decoder<F, T>` and `Encoder<T, F>`
   as abstract types, and an HQL `impl Encoder<T, F> for …` is not admitted.
   Work unit 4 of the formats part waits on this issue.
 - **Rendering.** `Renderable<T>` is a registration with no declared shape.
@@ -47,7 +47,7 @@ declared, so four contracts stay outside the trait system:
 
 - `trait` and `impl` take type parameters; bounds over a generic trait are
   checked at every call; coherence covers the trait's arguments.
-- `Decoder` and `Encoder` in `std/format.hql` are traits, with their native
+- `Decoder` and `Encoder` in `std/format/mod.hql` are traits, with their native
   implementations declared as headers and bound by the existing contract test.
 - A generic built-in type takes a native header (`impl<T> … for List<T>`).
 - `tests/traits.rs` pins generic declarations, implementations, bounds,

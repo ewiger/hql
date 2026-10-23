@@ -59,7 +59,7 @@ documents that describe today's behaviour still read `typed`.
 
 Done. Two items are left where they belong: the always-true warning on `is`
 waits for check-time warnings, which the checker does not yet emit; `filter`
-over a single `Option<T>` waits for the option operations of `std/core.hql`.
+over a single `Option<T>` waits for the option operations of `std/core/mod.hql`.
 Record interpretation over `Data` is the structural test, feature 6 of 0014.
 Issue and accepted-proposal records that describe the former name as history
 keep it.

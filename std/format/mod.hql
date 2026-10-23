@@ -1,6 +1,8 @@
-// Formats: how bytes are documents, and how values become bytes.
+// Module `format`: the formats, how bytes are documents and how values
+// become bytes, and the codec contracts over them. Implemented by the
+// `format` extension.
 //
-// A format is a value of Format, a category of its own. It describes an
+// A format is a type narrowing Format, the category `core` declares. It describes an
 // external representation and, where it applies, its framing: Lines is text
 // framed one record per line, JsonLines one JSON document per line. A format
 // is not the text it encodes, so none narrows String, and it is not Format<T>,
@@ -10,8 +12,8 @@
 //
 // See doc/proposals/HQL-0024/parts/07-formats-and-codecs.md and
 // doc/proposals/HQL-0024/encode-decode-format.md.
-
-abstract type Format
+import core
+import graph
 
 type Text      : Format
 type Lines     : Format

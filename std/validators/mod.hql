@@ -8,6 +8,10 @@
 // implements it; `NonEmpty`, implemented for more than one, is named in a
 // rule, `validate tags with NonEmpty`, where the field's type selects the
 // implementation. A broken one is the violation `Contract.f` of kind `rule`.
+import core
+import string
+import seq
+import option
 
 // An address: one `@` with text before it, and a domain after it holding a
 // `.` that neither opens nor closes it.

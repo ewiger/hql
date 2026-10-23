@@ -204,7 +204,7 @@ every importer and wider than one module.
   and every existing import keeps resolving.
 - Extension preludes are not implemented, so making them per unit breaks no
   program.
-- `std/vault.hql` binds `cards = vault.cards` and `graph = vault.graph` from the
+- `std/vault/mod.hql` binds `cards = vault.cards` and `graph = vault.graph` from the
   host-seeded `vault` inside a module file, which a closure may not do; both
   bindings belong to the program module.
 - The `std/` files write no imports today. Under the per-package prelude rule
@@ -222,3 +222,7 @@ every importer and wider than one module.
   ([issue 0038](../../issues/0038-import-units-and-visibility.md))
 - 2026-10-22: a parent importing its child is a warning at the import, and
   what checking a module warns is reported where the module is imported
+- 2026-10-23: the standard library's modules are import units: each names
+  every module whose types or traits it writes, and binding refuses an
+  environment where one is not closed over its imports
+  ([issue 0046](../../issues/0046-renovate-std.md))

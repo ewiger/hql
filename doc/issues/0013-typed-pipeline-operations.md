@@ -38,7 +38,7 @@ Seven commits, in this order. The first changes no behaviour.
    [0014](0014-next-feature-bundle.md)): two tests that name the registry
    type were renamed with it. The report schema's `stage` field names a
    checking phase, not a pipeline occurrence, and keeps its name.
-2. **`Stream<T>`** (HQL-0006). The abstract type in `std/collections.hql`,
+2. **`Stream<T>`** (HQL-0006). The abstract type in `std/collections/mod.hql`,
    `Seq<T> : {Collection<T>, Stream<T>}`, the stream overloads of `map`,
    `filter` and `take`, and the finite-input diagnostic on `size`, `count`,
    `contains` and `sort`. Existing result types unchanged.
@@ -118,7 +118,7 @@ values before it is presented. Add, beside them:
   question on the name is closed.
 - The decisions are stated where they are owned, and nothing describes an
   implemented operation as future work:
-  - `std/collections.hql` — `Stream<T>` and every new signature
+  - `std/collections/mod.hql` — `Stream<T>` and every new signature
   - `doc/models/behavior/expressions.md` — the grammar, if `emit`/`table`
     without parentheses or the window argument needs a production
   - `doc/models/behavior/queries.md` — status line updated for what is now

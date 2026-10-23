@@ -96,7 +96,7 @@ Takes effect in the parser, with no configuration.
 - `src/parser.rs`: `{}` parses as a set literal and `{:}` as a data literal;
   a data-only position refuses `{}`
 - `src/data.rs`, `src/types/display.rs`: `{:}` and `{}` printed
-- `std/collections.hql`, `std/io/logging.hql`, `std/io/net.hql`: `{:}`
+- `std/collections/mod.hql`, `std/io/logging/mod.hql`, `std/io/net/mod.hql`: `{:}`
 - [the braces examples](../../../examples/braces/README.md)
 
 ## Test Plan

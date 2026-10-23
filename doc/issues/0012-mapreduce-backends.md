@@ -45,7 +45,7 @@ makes the rest safe.
 - `hql config` reports the backend in force and where it came from.
 - `cargo test --locked`, `cargo clippy --locked --all-targets -- -D warnings`
   and `cargo fmt --check` are clean.
-- The decisions are stated where they are owned: `std/collections.hql` declares
+- The decisions are stated where they are owned: `std/collections/mod.hql` declares
   `Group<K, T>` and the three signatures; `doc/wiki/hql/types/pipes.hmd` says
   what a stage is and what a backend may do; `doc/models/behavior/cli.md`
   documents `--backend` and `[execution]`; `doc/models/domain/architecture.md`

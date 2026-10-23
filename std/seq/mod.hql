@@ -8,6 +8,7 @@
 //
 // See doc/proposals/HQL-0024/parts/03-standard-library.md.
 module for Seq<T>
+import core
 
 fn first(self) : Option<T>
 fn last(self) : Option<T>

@@ -193,7 +193,7 @@ are listed by `hql builtins` too. An aggregation whose state is not its
 element — `average`, `variance`, `count_by`, `histogram`, `top_k`,
 `approx_distinct` — is a reduction because its state combines by a combiner
 the host holds, and its answer is a projection of that state; its longhand
-fold is written beside its signature in `std/collections.hql`.
+fold is written beside its signature in `std/collections/mod.hql`.
 `approx_distinct` is approximate and deterministic: an unseeded SHA-256
 digest feeds a HyperLogLog sketch whose registers combine by `max`.
 
@@ -201,7 +201,7 @@ digest feeds a HyperLogLog sketch whose registers combine by `max`.
 
 `Operation<I, O>` and its four shape subtypes, `Elementwise<I, O>`,
 `Partition<I, O>`, `Reduction<I, O>` and `Barrier<I, O>`, are reserved types
-in `std/core.hql`; a program declares no type of these names. Each is a
+in `std/core/mod.hql`; a program declares no type of these names. Each is a
 function type from `I` to `O` that also carries the shape its name states, and
 a value of one is called exactly as an `I -> O` function is. A lambda or a
 function of the program's own, bound at one of them, is a **user operation**:

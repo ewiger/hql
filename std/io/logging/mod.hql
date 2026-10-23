@@ -5,9 +5,11 @@
 // See doc/proposals/HQL-0021/README.md.
 //
 // A logger owns no writer. It names a producer and holds a destination, as
-// sink would write it (io/mod.hql): stderr or a file in a format, a network
+// sink would write it (module `io`): stderr or a file in a format, a network
 // endpoint, or a Channel<LogEvent> that keeps the events as values for the
 // host.
+import core
+import io
 
 // How severe an event is. The five levels are ordered from least to most
 // severe: Trace, Debug, Info, Warn, Error. A level is tested with

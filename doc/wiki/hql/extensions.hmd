@@ -47,7 +47,7 @@ native bodies. The model and its stages are
 
 | In the `.hql` contract | In the extension | Matched by |
 | --- | --- | --- |
-| the module, `std/string.hql` is `string` | the descriptor's `provides: &["string"]` | the canonical module name; the claim is total: every external declaration of the module is implemented, and nothing else is |
+| the module, `std/string/mod.hql` is `string` | the descriptor's `provides: &["string"]` | the canonical module name; the claim is total: every external declaration of the module is implemented, and nothing else is |
 | an external declaration, `fn trim(self) : String` | an operation named `trim`: `declared("trim", summary, eval_trim)` | the name |
 | one name declared more than once, `fn take<S : Seq<T>, T>(self: S, n: Int) : S` then `fn take<T>(self: Stream<T>, n: Int) : List<T>` | one operation, whose one implementation serves every overload | the name; a call takes the first overload its input and arguments fit |
 | the receiver, `self`, typed by the module's pattern or written, `self: Collection<T>`, `self: Int` | the operation's input | binding derives it from the declaration; `value.f()` reaches only a declaration with `self`, and every form of one name has a receiver or none does |
@@ -79,7 +79,7 @@ declarations come first, and binding refuses a declaration that an earlier
 one of the name always takes first:
 
 ```hql
-// std/collections.hql
+// std/collections/mod.hql
 fn sort<F<_> : Seq<_>, T : Orderable>(self: F<T>) : F<T>
 fn sort<T : Orderable>(self: Collection<T>) : List<T>
 fn sort<F<_> : Seq<_>, T, K : Orderable>(self: F<T>, by: T -> K) : F<T>
@@ -103,7 +103,7 @@ a `*` by name only; a function with a body takes every argument by position,
 so both belong to an external declaration:
 
 ```hql
-// std/collections.hql, std/format.hql
+// std/collections/mod.hql, std/format/mod.hql
 fn count<T>(self: Collection<T>, value: T, /) : Int
 fn format<T, F : Format>(x: T, as: Type<F>, *, limit: Int = 0, renderer: String = "") : String
 ```
@@ -124,7 +124,7 @@ A method call, a qualified call and a pipeline step reach the same
 declaration:
 
 ```hql
-// std/string.hql: a receiver module over String; every function is external.
+// std/string/mod.hql: a receiver module over String; every function is external.
 module for String
 fn trim(self) : String
 fn pad_left(self, width: Int, fill: String) : String
@@ -141,7 +141,7 @@ allocates an identity for each module and each external declaration, and
 binding maps each declaration identity to the operation implementing it.
 
 A trait the language owns, and the built-in types' implementations of it, are
-declarations of `std/core.hql`:
+declarations of `std/core/mod.hql`:
 
 ```hql
 trait Ord {

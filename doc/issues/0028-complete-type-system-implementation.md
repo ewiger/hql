@@ -71,7 +71,7 @@ Left for later records: a workspace module's trait defaults inherited by an
 importer's `impl`, binary formats and codecs from outside the binary
 ([issue 0029](0029-binary-formats-and-codecs.md)), HQL-0021's acceptance, and
 HQL-0025 for the execution context, reserved. The codec contracts are
-declared in `std/format.hql` and implemented by the binary's extension, which
+declared in `std/format/mod.hql` and implemented by the binary's extension, which
 is the design: HQL declares the interface and native code implements it.
 `trait` declarations take no type parameters yet, so the contracts are
 spelled `abstract type Decoder<F, T>`; that is a spelling, not an opening.

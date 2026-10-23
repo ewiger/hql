@@ -81,7 +81,7 @@ The two questions the draft raises for the implemented grammar, answered in
 [the comparison](comparison.md):
 
 - **`abstract type`** is not mentioned by the draft and stays as declared in
-  [`std/core.hql`](../../../std/core.hql) and
+  [`std/core/mod.hql`](../../../std/core/mod.hql) and
   [`std/io/init.hql`](../../../std/io/init.hql). It meets the draft exactly
   once: `Orderable` as ancestry and `Ord` as a trait say the same thing about
   `Int`. Part 5 decides whether bounds over operations move to traits while
@@ -169,3 +169,8 @@ keeps its recorded types and diagnostics.
   identities, native headers and constructors bound by identity, and the
   runtime environment built, validated once and frozen, with a `private fn`
   external offered to no importer
+- 2026-10-23: part 3's layout: the standard library is the builtin package,
+  one folder per module with its declarations in `mod.hql` and `prelude.hql`
+  as the package's global space; each standard module imports what it writes,
+  and binding refuses a module not closed over its imports, as issue 0046
+  records

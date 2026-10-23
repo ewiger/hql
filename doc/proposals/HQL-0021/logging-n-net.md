@@ -33,12 +33,12 @@ The I/O extension namespace should be structured by concern:
 ```text
 io                  the prelude: std/io/init.hql
 
-io.net              import net: std/io/net.hql
+io.net              import net: std/io/net/mod.hql
     http
     socket
     websocket
 
-io.logging          import logging: std/io/logging.hql
+io.logging          import logging: std/io/logging/mod.hql
     Logger
     LogEvent
     LogLevel
@@ -948,12 +948,12 @@ io                    std/io/init.hql, the prelude
 ├── file
 ├── Channel
 │
-├── net               std/io/net.hql, import net
+├── net               std/io/net/mod.hql, import net
 │   ├── http
 │   ├── websocket
 │   └── socket
 │
-└── logging           std/io/logging.hql, import logging
+└── logging           std/io/logging/mod.hql, import logging
     ├── Logger
     ├── LogEvent
     └── LogLevel
