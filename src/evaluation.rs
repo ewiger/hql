@@ -1247,6 +1247,33 @@ impl Evaluator<'_> {
                 }
                 self.run_traversal(right, sink)
             }
+            Source::Retry {
+                input,
+                operation,
+                attempts,
+                when,
+                span,
+            } => self.run_traversal(input, &mut |evaluator, value| {
+                let mut tries = 0;
+                let result = loop {
+                    tries += 1;
+                    let result = evaluator.call(operation, vec![value.clone()], span)?;
+                    let again = match (&result, when) {
+                        (Value::Err(error, _), Some(when)) => {
+                            evaluator
+                                .call(when, vec![error.as_ref().clone()], span)?
+                                .truth()
+                                == Some(true)
+                        }
+                        (Value::Err(..), None) => true,
+                        _ => false,
+                    };
+                    if !again || tries >= *attempts {
+                        break result;
+                    }
+                };
+                sink(evaluator, result)
+            }),
             Source::Keyed { input, by, span } => {
                 self.run_traversal(input, &mut |evaluator, value| {
                     evaluator.call(by, vec![value.clone()], span)?;

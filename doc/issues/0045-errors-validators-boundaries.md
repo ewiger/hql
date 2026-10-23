@@ -222,3 +222,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   plan` prints both and its JSON adds `topology` and `branches`. A combiner
   written as a step is a step node. Pinned by a CLI test; the plan is not a
   corpus value, so D4 has no corpus case.
+- E5 done: HQL-0033's section on retry now states the form, `xs |
+  retry(operation, attempts = n, when = …)`, elementwise and lazy over a
+  stream, with no delay. Channels make the invocations countable in the
+  case.

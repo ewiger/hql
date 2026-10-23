@@ -112,7 +112,11 @@ gives both sides of a `List`, `Seq` or `Stream` of results, each value on one
 side and each side in source order, with a live source read once (see
 [the dataflow examples](../../../examples/dataflow/README.md)). Rejected values
 written with `errs() | sink(…)` read back with `| Invalid`, and a repair maps
-`e.value` into another `validate`. `retry` is designed.
+`e.value` into another `validate`. `xs | retry(operation, attempts = n,
+when = e => …)` invokes `operation` for each value again while it fails with an
+error `when` accepts, up to `attempts` invocations, and the last failure stands
+as an ordinary `err`; it takes the operation, never a finished `Result`, and
+waits no time between invocations.
 
 ## Contracts decide what fails; the call site decides how
 

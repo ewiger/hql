@@ -71,6 +71,9 @@ The language continues to be in active development.
   `List`, `Seq` or `Stream` of results. Rejected values written with
   `errs() | sink(…)` read back with `| Invalid`, `null` for an absent
   `expected` or `actual`, and repair from `e.value`.
+  `xs | retry(operation, attempts = n, when = …)` reinvokes a fallible
+  operation for each value while it fails, up to `attempts` invocations,
+  the last failure standing; over a stream it is a stream.
 
 - Fan-in over streams ([HQL-0037](doc/proposals/HQL-0037/README.md)):
   `a | merge(b)` interleaves two streams, one value from each in turn,

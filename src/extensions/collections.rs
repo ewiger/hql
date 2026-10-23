@@ -110,7 +110,7 @@ pub static COMBINERS: &[Combiner] = &[
 
 /// The steps that consume a traversal one value at a time and so keep it
 /// lazy. Every other step receives a traversal's values, forced once.
-pub(crate) const LAZY: [&str; 22] = [
+pub(crate) const LAZY: [&str; 23] = [
     "map",
     "filter",
     "take",
@@ -133,6 +133,7 @@ pub(crate) const LAZY: [&str; 22] = [
     "errs",
     "partition",
     "zip",
+    "retry",
 ];
 
 /// A traversal that has not been forced, which a lazy step wraps.
@@ -319,6 +320,15 @@ pub(crate) static STEPS: &[Operation] = &[
         shape: super::Shape::Elementwise,
         check: None,
         eval: eval_map,
+    },
+    Operation {
+        name: "retry",
+        spec: Signature::Declared,
+        summary: "Each value through a fallible operation, invoked again while it fails, up to `attempts` invocations.",
+        purity: Purity::Pure,
+        shape: super::Shape::Elementwise,
+        check: None,
+        eval: eval_retry,
     },
     Operation {
         name: "of_type",
@@ -1071,6 +1081,67 @@ fn eval_map(
     Ok(match input {
         Value::Set(..) => Value::set(mapped, produced(argument)),
         _ => Value::list(mapped, produced(argument)),
+    })
+}
+
+fn eval_retry(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let operation = named_or_first(arguments, "operation")
+        .ok_or_else(|| wrong("retry", "a fallible operation", &span))?;
+    let attempts = arguments
+        .iter()
+        .find(|argument| argument.name.as_deref() == Some("attempts"))
+        .or_else(|| arguments.get(1).filter(|argument| argument.name.is_none()))
+        .ok_or_else(|| wrong("retry", "a number of attempts", &span))?;
+    let attempts = match cx.evaluate(&attempts.value)? {
+        Value::Int(n) if n >= 1 => usize::try_from(n).unwrap_or(usize::MAX),
+        other => {
+            return Err(Diagnostic::runtime(
+                attempts.value.span.clone(),
+                format!("`retry` invokes its operation at least once, and `attempts` is {other}"),
+            ));
+        }
+    };
+    let when = arguments
+        .iter()
+        .find(|argument| argument.name.as_deref() == Some("when"))
+        .or_else(|| arguments.get(2).filter(|argument| argument.name.is_none()));
+    let result = produced(operation);
+    if let Some(traversal) = pending(&input) {
+        let source = Source::Retry {
+            input: Arc::clone(traversal),
+            operation: cx.evaluate(&operation.value)?,
+            attempts,
+            when: when.map(|when| cx.evaluate(&when.value)).transpose()?,
+            span: operation.value.span.clone(),
+        };
+        return Ok(wrapped(traversal, result, source));
+    }
+    let mut results = Vec::new();
+    for element in elements(&input, "retry", &span)? {
+        let mut tries = 0;
+        results.push(loop {
+            tries += 1;
+            let outcome = cx.apply_lambda(operation, element.clone())?;
+            let again = match (&outcome, when) {
+                (Value::Err(error, _), Some(when)) => {
+                    cx.apply_lambda(when, error.as_ref().clone())?.truth() == Some(true)
+                }
+                (Value::Err(..), None) => true,
+                _ => false,
+            };
+            if !again || tries >= attempts {
+                break outcome;
+            }
+        });
+    }
+    Ok(match input {
+        Value::Set(..) => Value::set(results, result),
+        _ => Value::list(results, result),
     })
 }
 

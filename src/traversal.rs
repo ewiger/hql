@@ -64,6 +64,16 @@ pub(crate) enum Source {
         left: Arc<Traversal>,
         right: Arc<Traversal>,
     },
+    /// Each value of `input` through a fallible operation, invoked again
+    /// while it fails with an error `when` accepts and fewer than
+    /// `attempts` invocations have run: `retry` (HQL-0033).
+    Retry {
+        input: Arc<Traversal>,
+        operation: Value,
+        attempts: usize,
+        when: Option<Value>,
+        span: Range<usize>,
+    },
     /// The values of `input` a predicate accepts.
     Filter {
         input: Arc<Traversal>,

@@ -104,6 +104,11 @@ elementwise fn errs<T, E>(self: Stream<Result<T, E>>) : Stream<E>
 elementwise fn map<F<_> : Iterable<_>, T, R>(self: F<T>, by: T -> R) : F<R>
 elementwise fn map<T, R>(self: Option<T>, by: T -> R) : Option<R>
 elementwise fn map<T, R, E>(self: Result<T, E>, by: T -> R) : Result<R, E>
+// Each value through a fallible operation, invoked again while it fails
+// with an error `when` accepts, every error without one, and fewer than
+// `attempts` invocations have run; the last failure stands (HQL-0033).
+elementwise fn retry<F<_> : Iterable<_>, T, U, E>(self: F<T>, operation: T -> Result<U, E>, attempts: Int) : F<Result<U, E>>
+elementwise fn retry<F<_> : Iterable<_>, T, U, E>(self: F<T>, operation: T -> Result<U, E>, attempts: Int, when: E -> Bool) : F<Result<U, E>>
 
 // A prefix of a sequence keeps its positions; a bounded prefix of a stream is
 // finite; a prefix of anything else is taken in its elements' order.

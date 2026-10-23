@@ -1380,7 +1380,19 @@ yielding:
 Stream<Result<EnrichedUser, EnrichmentError>>
 ```
 
-The exact retry API is a separate design point, but retry semantics MUST retain the operation being retried.
+Retry semantics MUST retain the operation being retried. The form is:
+
+```hql
+xs | retry(operation, attempts = n)
+xs | retry(operation, attempts = n, when = e => …)
+```
+
+- `retry` is an elementwise step over a `List`, `Seq`, `Set` or `Stream` of `T`. `operation : T -> Result<U, E>` is the fallible operation, and the result is the input's collection of `Result<U, E>`, a stream for a stream. A single value is retried as `[x] | retry(…)`.
+- `attempts : Int` is the total number of invocations allowed for one value, the first included, and is at least `1`; `attempts = 0` is an evaluation error.
+- `when : E -> Bool` decides whether an error is worth another invocation; without it every error is.
+- For each value, `operation` is invoked; an `ok` is the result at once. An `err(e)` is invoked again while `when(e)` holds and fewer than `attempts` invocations have run; otherwise `err(e)`, the last failure, is the result. Exhausted retries are therefore an ordinary final `err(E)`.
+- There is no delay or backoff between invocations: evaluation is deterministic and reads no clock. A policy with delay belongs to a backend that schedules work in time.
+- `retry` has no form over a `Result`; its first argument is the operation, so `results | retry(attempts = 3)` is a type error.
 
 ---
 
@@ -2055,3 +2067,7 @@ There is no hidden exception channel, no validation-specific dead-letter control
   with `sink` and read back with `| Invalid`, repaired from `e.value` into
   another `validate` and `fork`, and provenance held outside `Invalid` in an
   envelope; covers test plan items 11, 13 and 14
+- 2026-10-23: `retry` specified in the section on retry and built (issue
+  0045, E5): `xs | retry(operation, attempts = n, when = …)`, elementwise
+  over a collection or a stream, with no delay; covers test plan items 15
+  and 16
