@@ -68,6 +68,8 @@ pub struct EffectiveField {
     pub writable: Held<bool>,
     /// The external representations an optional field reads as absent.
     pub absent: Held<Vec<Absence>>,
+    /// Whether a representation that may not keep the value is permitted.
+    pub lossy: Held<bool>,
     /// The keys the kind's extension owns.
     pub owned: BTreeMap<String, Held<toml::Value>>,
 }
@@ -106,6 +108,9 @@ pub enum ErrorKind {
     /// The external type is not the format's, or does not decode to the
     /// field's type.
     NoDecoder,
+    /// The external type may not keep the field's value, and the field does
+    /// not permit it.
+    LossyRepresentation,
 }
 
 impl ErrorKind {
@@ -118,6 +123,7 @@ impl ErrorKind {
             Self::SharedExternalField => "shared external field",
             Self::MissingExternalField => "missing external field",
             Self::NoDecoder => "no decoder",
+            Self::LossyRepresentation => "lossy representation",
         }
     }
 }
@@ -250,6 +256,7 @@ pub fn resolve(
             absent: pick(&written_layers, default_absent(kind), |mapping| {
                 mapping.absent.clone()
             }),
+            lossy: pick(&written_layers, false, |mapping| mapping.lossy),
             owned,
             field: field.clone(),
         });
@@ -276,6 +283,18 @@ pub fn resolve(
                 held.external_type.origin,
                 format!("`{kind}` has no type `{}`", held.external_type.value),
             )),
+        }
+        if !held.lossy.value && lossy(kind, &held.external_type.value, &held.field.ty) {
+            errors.push(error(
+                ErrorKind::LossyRepresentation,
+                name,
+                Some(outside.clone()),
+                held.external_type.origin,
+                format!(
+                    "`{kind}`'s `{}` may not keep every {}; write `lossy = true` to permit it",
+                    held.external_type.value, held.field.ty
+                ),
+            ));
         }
         if let Some(known) = external
             && held.readable.value
@@ -405,7 +424,8 @@ fn default_type(kind: &str, ty: &TypeRef) -> &'static str {
         ("sqlite", Class::Int | Class::Bool) => "INTEGER",
         ("sqlite", Class::Float) => "REAL",
         ("sqlite", _) => "TEXT",
-        (_, Class::Int | Class::Float | Class::Decimal) => "number",
+        (_, Class::Decimal) => "string",
+        (_, Class::Int | Class::Float) => "number",
         (_, Class::Bool) => "boolean",
         (_, Class::List) => "array",
         (_, Class::Object | Class::Data) => "object",
@@ -420,6 +440,18 @@ fn default_absent(kind: &str) -> Vec<Absence> {
         "sqlite" => vec![Absence::Null],
         _ => vec![Absence::Missing, Absence::Null],
     }
+}
+
+/// Whether the format's external type may not keep every value of the HQL
+/// type: a `Decimal` as a JSON number, a CSV float, or a SQLite `REAL` or
+/// `NUMERIC`.
+fn lossy(kind: &str, external: &str, ty: &TypeRef) -> bool {
+    class(ty) == Class::Decimal
+        && match family(kind) {
+            "csv" => external == "float",
+            "sqlite" => matches!(external.to_ascii_uppercase().as_str(), "REAL" | "NUMERIC"),
+            _ => external == "number",
+        }
 }
 
 /// Whether the format's external type decodes to the HQL type; `None`
@@ -516,7 +548,7 @@ mod tests {
         let invocation = BTreeMap::from([(
             "balance".to_owned(),
             FieldMapping {
-                external_type: Some("REAL".to_owned()),
+                external_type: Some("TEXT".to_owned()),
                 ..FieldMapping::default()
             },
         )]);
@@ -536,7 +568,7 @@ mod tests {
         assert_eq!(
             balance.external_type,
             Held {
-                value: "REAL".to_owned(),
+                value: "TEXT".to_owned(),
                 origin: Origin::Invocation
             }
         );
@@ -598,6 +630,45 @@ mod tests {
             errors[0].to_string().contains("read by `id` already"),
             "{}",
             errors[0]
+        );
+    }
+
+    #[test]
+    fn a_lossy_representation_needs_permission() {
+        let number = |lossy| {
+            BTreeMap::from([(
+                "balance".to_owned(),
+                FieldMapping {
+                    external_type: Some("number".to_owned()),
+                    lossy,
+                    ..FieldMapping::default()
+                },
+            )])
+        };
+        let none = BTreeMap::new();
+        let refused = number(None);
+        let layers = Layers {
+            configuration: &refused,
+            invocation: &none,
+        };
+        let errors = resolve("users", "json", &user_row(), layers, None).unwrap_err();
+        assert_eq!(errors[0].kind, ErrorKind::LossyRepresentation);
+        assert!(errors[0].message.contains("lossy = true"));
+        let permitted = number(Some(true));
+        let layers = Layers {
+            configuration: &permitted,
+            invocation: &none,
+        };
+        assert!(resolve("users", "json", &user_row(), layers, None).is_ok());
+        // Unwritten, a JSON `Decimal` is a string, which keeps its digits.
+        let layers = Layers {
+            configuration: &none,
+            invocation: &none,
+        };
+        let boundary = resolve("users", "json", &user_row(), layers, None).unwrap();
+        assert_eq!(
+            boundary.field("balance").unwrap().external_type.value,
+            "string"
         );
     }
 

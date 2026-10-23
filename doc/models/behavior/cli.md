@@ -112,6 +112,7 @@ type = "TEXT"           # its external type, as the format names it
 position = 1            # its place in the record, from 1
 write = false           # read, never written; `read` likewise
 absent = ["empty"]      # what reads as an absent optional field: missing, empty, null
+lossy = false           # whether a representation that may not keep the value is permitted
 
 [execution]
 max_elements = 100000   # the most elements of one source an evaluation holds
@@ -134,7 +135,10 @@ field, a nested `path` included, and a table selects only the columns the
 boundary reads. An optional field is absent where its external field holds
 what its `absent` lists, by default an empty cell or a missing column in
 `csv`, a missing key or `null` in `json`, `json_lines` and `yaml`, and `NULL`
-in `sqlite`; a `null` it does not list is an evaluation error, and empty text
+in `sqlite`; a `Decimal` is a `string` in JSON and YAML by default and reads
+a string's digits, and a representation that may not keep a value, a
+`Decimal` as a JSON `number`, a CSV `float` or a SQLite `REAL` or `NUMERIC`,
+is a boundary error unless the field writes `lossy = true`; a `null` it does not list is an evaluation error, and empty text
 it does not list is read as text. A CSV header and a table's columns are checked against the
 boundary before any element decodes, and a boundary naming a field the
 configured `element` lacks is a type error. Writing through a boundary is

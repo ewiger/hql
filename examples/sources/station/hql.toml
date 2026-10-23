@@ -56,3 +56,9 @@ path = "data/readings.json"
 
 [sources.readings.fields.reading]
 absent = ["missing"]
+
+# Prices whose `price` is a decimal written as a JSON string, as a `Decimal`
+# is by default; the third is a JSON number, which reads with its digits.
+[sources.prices]
+kind = "json"
+path = "data/prices.json"

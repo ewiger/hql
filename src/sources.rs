@@ -237,13 +237,15 @@ pub struct FieldMapping {
     pub writable: Option<bool>,
     /// The external representations an optional field reads as absent.
     pub absent: Option<Vec<Absence>>,
+    /// Whether a representation that may not keep the value is permitted.
+    pub lossy: Option<bool>,
     /// The keys the kind's extension owns, under the kind's name.
     pub owned: BTreeMap<String, toml::Value>,
 }
 
 /// The core keys of a field's table (HQL-0035).
-const FIELD_KEYS: [&str; 7] = [
-    "name", "path", "type", "position", "read", "write", "absent",
+const FIELD_KEYS: [&str; 8] = [
+    "name", "path", "type", "position", "read", "write", "absent", "lossy",
 ];
 
 /// The field keys each kind's extension owns, under its own name: none yet.
@@ -569,6 +571,7 @@ fn field_mapping(
             }
             "read" => mapping.readable = Some(truth()?),
             "write" => mapping.writable = Some(truth()?),
+            "lossy" => mapping.lossy = Some(truth()?),
             "absent" => {
                 let absent = value
                     .as_array()

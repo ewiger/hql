@@ -1,10 +1,10 @@
 # Data sources: reading what a run context configures
 
-`station/` is a vault whose `hql.toml` declares eight sources under
+`station/` is a vault whose `hql.toml` declares nine sources under
 `[sources.<id>]`: two vaults of notes, `journal` and `archive`, a CSV file
 of counts, a JSON array of sightings, a CSV ledger and a JSON array of
 profiles whose fields a boundary maps, and notes and readings whose
-boundaries say what reads as absent
+boundaries say what reads as absent, and prices written as decimal strings
 ([HQL-0035](../../doc/proposals/HQL-0035/README.md)). A program reads one with
 `source("id")`, as [HQL-0012](../../doc/proposals/HQL-0012/README.md)
 specifies: the id is a literal, the configuration states the kind, and the
@@ -19,6 +19,7 @@ kind states the type, so checking reads the configuration and opens nothing.
 | [ledger through its boundary](queries/ledger-boundary.hql) | a `csv` source whose headers the boundary maps to `Tally`'s fields | each species and its total |
 | [profiles through their boundary](queries/profiles-boundary.hql) | a `json` source whose `name` is read from `profile.display_name` | each id and name |
 | [absent cells](queries/notes-absent.hql) | an empty CSV cell is absent by default; `absent = ["missing"]` reads it as `""` | each species, note and count |
+| [decimal strings](queries/decimal-strings.hql) | a `Decimal` field reads a JSON string's digits, its default representation, and a number's | `16.00` |
 | [join without a condition](queries/invalid-join-without-condition.hql) | a join with no keys and no `on` is refused, naming `cross_join` | refused |
 | [unknown id](queries/invalid-unknown-id.hql) | an unconfigured id is a name error, naming the nearest configured one | refused |
 | [computed id](queries/invalid-computed-id.hql) | a computed id is refused: the type would be unknown until evaluation | refused |

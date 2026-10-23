@@ -2973,6 +2973,7 @@ The keys of a field's table are the core properties of section 57:
 | `read` | a Bool | whether the field is read from the source, `true` unless written |
 | `write` | a Bool | whether the field is written to a target, `true` unless written |
 | `absent` | a list of `"missing"`, `"empty"`, `"null"` | the external representations an optional field reads as absent |
+| `lossy` | a Bool | whether a representation that may not keep the value is permitted, `false` unless written |
 
 A field table names `name` or `path`, not both; where it names neither, the
 external field has the HQL field's name. Keys an extension owns sit in a
@@ -2983,8 +2984,8 @@ there. A `vault` source has cards rather than fields and takes no `fields`.
 A malformed boundary is refused when the configuration loads, as every other
 source key is: a field table that is not a table, an unknown key, a value of
 the wrong type, both `name` and `path`, a `path` on a kind that does not nest,
-a `position` below 1, an `absent` entry outside the three, or a subtable named
-by another kind.
+a `position` below 1, an `absent` entry outside the three, a `lossy` that is
+not a Bool, or a subtable named by another kind.
 
 ### The resolver
 
@@ -3016,7 +3017,8 @@ The format's defaults, per HQL field of the element type:
 A `Data` field decodes from every external type. The default external type
 is the first listed for the HQL type: `text` in CSV, `string`, `number`,
 `boolean`, `array` or `object` in JSON and YAML, and `INTEGER`, `REAL` or
-`TEXT` in SQLite, `TEXT` for a `Decimal`. SQLite's type names compare
+`TEXT` in SQLite, `TEXT` for a `Decimal`; a `Decimal` is a `string` in JSON
+and YAML, the representation that keeps its digits wherever it is read. SQLite's type names compare
 without regard to case.
 
 Where the format knows its external fields before reading, a CSV header and
@@ -3032,6 +3034,25 @@ at fault:
 | shared external field | two HQL fields read one external field |
 | missing external field | a configured external field is not among the external fields |
 | no decoder | the external type is not the format's, or does not decode to the field's type |
+| lossy representation | the external type may not keep the field's value, and the field does not say `lossy = true` |
+
+### Representation and loss
+
+A field's external type is its representation. Section 38's policy is the
+`lossy` property: a representation that may not keep every value of the HQL
+type is refused unless the field writes `lossy = true`. The lossy pairs are:
+
+| HQL type | Lossy representations |
+| --- | --- |
+| `Decimal` | `number` in JSON and YAML, `float` in CSV, `REAL` and `NUMERIC` in SQLite |
+
+A consumer that reads a JSON number as a double, or SQLite's numeric
+affinity storing one as a `REAL`, may change a `Decimal`'s digits, so these
+pairs need the explicit permission. A `Decimal` field whose representation
+is a JSON or YAML `string` reads the string's digits as the `Decimal`, and a
+number found there reads with its digits too, since reading keeps them;
+text that is not a decimal number is a decoding error naming the field. How
+a target writes each representation is the section on configured targets.
 
 ### Nullability at the boundary
 
@@ -3079,3 +3100,6 @@ and replaced in a SQL database.
   read, and a CSV header and a table's columns are checked before decoding
 - 2026-10-23: nullability at the boundary specified and built (issue 0045,
   B4): each format's `absent` default, and its override per field
+- 2026-10-23: representation and loss specified and built (issue 0045, B5):
+  a `Decimal` is a JSON and YAML `string` by default and reads from one, and
+  a lossy representation needs `lossy = true`

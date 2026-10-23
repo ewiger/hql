@@ -24,5 +24,8 @@ applications and anywhere an amount must stay what it was written as.
   `decimal`, `float`, `int` and `to_decimal` convert. JSON, YAML and CSV read
   a `Decimal` field with its digits and write it with its scale, shown in
   [the decimal examples](../../examples/decimal/README.md).
-- A format boundary declaring a decimal field as a JSON string is
-  [HQL-0035](../proposals/HQL-0035/README.md)'s schema.
+- A decimal field written as a JSON string is built with
+  [HQL-0035](../proposals/HQL-0035/README.md)'s boundary
+  ([issue 0045](0045-errors-validators-boundaries.md), B5): it is a
+  `Decimal`'s default representation in JSON and YAML, and a lossy one, a
+  JSON number among them, needs `lossy = true`.

@@ -253,3 +253,7 @@ refresh, caching, versioning and boundary events are not in this portion.
 - B4 done: HQL-0035's section on nullability at the boundary states the
   rules; `remapped` applies each field's `absent`, refusing an unlisted
   `null` in an optional field and reading unlisted empty text as text.
+- B5 done: HQL-0035's section on representation and loss; the `lossy`
+  field key; a `Decimal` defaults to a JSON and YAML `string` and reads
+  one; the lossy pairs are a resolver error unless permitted. Closes
+  0042's open item.

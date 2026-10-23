@@ -117,7 +117,10 @@ The language continues to be in active development.
   boundary: a CSV header, a nested JSON `path` and a SQLite column map onto
   a field, and a SQLite source selects only the columns the record reads.
   An optional field is absent where its external field holds what its
-  `absent` lists, each format's default or the boundary's own.
+  `absent` lists, each format's default or the boundary's own. A
+  `Decimal` field is a JSON and YAML `string` by default and reads a
+  string's digits; a representation that may not keep its value needs
+  `lossy = true`.
 
 ### Changed
 

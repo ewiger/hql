@@ -749,6 +749,16 @@ pub(crate) fn remapped(
                         .join(", ")
                 ));
             }
+            // A `Decimal` written as text reads the text's digits.
+            (Some(Data::Str(text)), _) if field.field.ty == TypeRef::DECIMAL => {
+                let digits = crate::decimal::Decimal::parse(text).ok_or_else(|| {
+                    format!(
+                        "source `{}`, field `{name}`: {text:?} is not a decimal number",
+                        boundary.source
+                    )
+                })?;
+                mapped.insert(name.clone(), Data::Decimal(digits));
+            }
             (Some(value), _) => {
                 mapped.insert(name.clone(), value.clone());
             }
