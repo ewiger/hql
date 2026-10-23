@@ -64,6 +64,9 @@ The language continues to be in active development.
   once, and its value is the record of the branches' results, typed
   `{a: A, b: B}`. `{ a, b } = xs | fork { … }` binds the branches, and
   over a `Stream` each branch is a stream in the upstream's order.
+  A producer bound once is evaluated once: a `tap` of a file is read once
+  and replayed for every later traversal, as standard input and sockets
+  were, and a pure branch of a bound `fork` that nothing reads is not run.
 
 - Validator types ([HQL-0034](doc/proposals/HQL-0034/README.md), shown in
   the [structural examples](examples/structural/README.md)): a trait may

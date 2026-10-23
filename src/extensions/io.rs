@@ -606,10 +606,7 @@ fn eval_tap(
             headers: headers.clone(),
             format,
         },
-        Endpoint::File(path) => Reading::File {
-            path: path.clone(),
-            format,
-        },
+        Endpoint::File(path) => Reading::file(path.clone(), format),
         Endpoint::FileEnd(path) => Reading::Follow {
             path: path.clone(),
             format,
@@ -694,10 +691,7 @@ fn tap_configured(
     if let crate::sources::Kind::File { path, format } = &configured.kind
         && *format != "Json"
     {
-        let reading = Reading::File {
-            path: path.clone(),
-            format: TypeConstructor(format),
-        };
+        let reading = Reading::file(path.clone(), TypeConstructor(format));
         return Ok(live(reading, TypeRef::DATA, span.clone()));
     }
     let Value::Traversal(read) = read_configured(id, vault, span)? else {

@@ -2003,6 +2003,13 @@ The planner lowers this logical DAG into physical stages, partitions, channels, 
 
 - 2026-10-23: proposed
 - 2026-10-23: `merge` is overloaded for `Map` and `Stream`, resolved by static type
+- 2026-10-23: shared evaluation built (issue 0045, D2): a binding is
+  evaluated once, and a stream read from a file, standard input, a socket
+  or a WebSocket keeps what one read gave, so every later traversal of
+  that stream, a `fork` branch among them, replays it rather than reading
+  again; two `source` or `tap` expressions remain two reads. A pure branch
+  of a bound `fork` that no later statement reads, by `parts.a` or a
+  destructured name, is not run; an effectful one runs
 - 2026-10-23: `fork` built
   ([issue 0045](../../issues/0045-errors-validators-boundaries.md), D1): the
   step `xs | fork { a = …, b = … }`, its record of branch results typed

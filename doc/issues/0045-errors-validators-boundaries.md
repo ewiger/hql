@@ -195,3 +195,8 @@ refresh, caching, versioning and boundary events are not in this portion.
   evaluated once, and the value is a record type named by its branches,
   `{a: A, b: B}`; `{ a, b } = …` desugars to field reads of a hidden
   binding. Cases in `examples/dataflow/`.
+- D2 done: a file read is a shared reading, opened on first use and
+  replayed, like standard input; a configured source was already read once
+  per evaluation, now pinned with `max_elements`. Lowering marks the pure
+  branches of a bound `fork` that no later statement reads, and they are
+  not run.

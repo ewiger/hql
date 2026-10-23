@@ -95,6 +95,14 @@ branch. `{ a, b } = xs | fork { … }` binds the branches by name, and
 upstream's order. Branches are separated by a line break or a comma; a branch
 continues over lines that open with `|`.
 
+A producer bound once is **evaluated once**: a binding's value is computed
+once, and a stream read from a file, standard input, a socket or a WebSocket
+keeps what its one read gave, so every later traversal of that stream, each
+branch of a `fork` among them, replays it. Two `tap` or `source` expressions
+are two reads. A pure branch of a bound `fork` that no later statement reads
+is not run, so a failure inside it does not happen; an effectful branch,
+one that writes with `sink`, runs whether read or not.
+
 ## Functions as steps
 
 A candidate composition style lets configured operations return unary functions:

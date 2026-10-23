@@ -850,12 +850,6 @@ pub(crate) enum Reading {
     /// Standard input, read once: what has been read is kept, so a second use
     /// of one binding sees the same documents.
     Shared(Mutex<Shared>),
-    /// A file, opened afresh on each traversal and read one document at a
-    /// time.
-    File {
-        path: PathBuf,
-        format: TypeConstructor,
-    },
     /// The end of a file: documents appended after the traversal began.
     Follow {
         path: PathBuf,
@@ -881,9 +875,6 @@ impl fmt::Debug for Reading {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Shared(_) => f.write_str("Reading::Shared(<stdin>)"),
-            Self::File { path, format } => {
-                write!(f, "Reading::File({}, {})", path.display(), format.0)
-            }
             Self::Follow { path, format } => {
                 write!(f, "Reading::Follow({}, {})", path.display(), format.0)
             }
@@ -937,6 +928,24 @@ impl Reading {
         }
     }
 
+    /// A file, opened when a traversal first asks and read one document at
+    /// a time, once: every traversal of the stream, the branches of a
+    /// `fork` among them, sees the documents that one read gave
+    /// (HQL-0037).
+    pub(crate) fn file(path: PathBuf, format: TypeConstructor) -> Self {
+        let named = path.display().to_string();
+        let reader = Lazy {
+            connect: Some(Box::new(move || {
+                let full = readable(&path)?;
+                fs::File::open(&full)
+                    .map(|file| Box::new(file) as Box<dyn Read + Send>)
+                    .map_err(|error| format!("{}: {error}", path.display()))
+            })),
+            inner: None,
+        };
+        Self::shared(pieces(Box::new(reader), format, named))
+    }
+
     fn shared(rest: Pieces) -> Self {
         Self::Shared(Mutex::new(Shared {
             seen: Vec::new(),
@@ -987,17 +996,6 @@ impl Reading {
                         return Ok(false);
                     }
                 }
-            }
-            Self::File { path, format } => {
-                let full = readable(path).map_err(&failed)?;
-                let file = fs::File::open(&full)
-                    .map_err(|error| failed(format!("{}: {error}", path.display())))?;
-                for document in pieces(Box::new(file), *format, path.display().to_string()) {
-                    if !sink(document.map_err(&failed)?)? {
-                        return Ok(false);
-                    }
-                }
-                Ok(true)
             }
             Self::Follow { path, format } => follow(path, *format, sink, failed),
             Self::Http {

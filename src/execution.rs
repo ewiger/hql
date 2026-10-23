@@ -281,6 +281,8 @@ pub(crate) enum Kind {
     Fork {
         input: Box<Expr>,
         branches: Vec<(String, Expr)>,
+        /// The pure branches nothing reads, which are not run.
+        unread: Vec<String>,
         plan: StepPlan,
     },
     Match {
@@ -871,7 +873,9 @@ impl Checked {
                     }
                 })
             })
-            .collect::<Result<_, Diagnostic>>()?;
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let mut statements = statements;
+        unread_branches(&mut statements);
         Ok(Program {
             statements,
             result,
@@ -1309,6 +1313,7 @@ impl Checked {
                 Kind::Fork {
                     input: boxed(input)?,
                     branches,
+                    unread: Vec::new(),
                     plan: StepPlan::new(OperationType {
                         name: "fork".to_owned(),
                         shape: Shape::Barrier,
@@ -1448,6 +1453,102 @@ fn argument_values(arguments: &[Arg]) -> Vec<&Expr> {
 }
 
 /// The expressions an iterating function's body holds, in order.
+/// A pure branch of a bound `fork` that nothing reads is not run
+/// (HQL-0037): every later read of the binding names a branch, `parts.a`,
+/// and a destructured branch counts as read only where its own name is. An
+/// effectful branch runs whether read or not, and a binding read whole
+/// keeps every branch.
+fn unread_branches(statements: &mut [Stmt]) {
+    for index in 0..statements.len() {
+        let (before, after) = statements.split_at_mut(index + 1);
+        let Stmt::Bind { name, value, .. } = &mut before[index] else {
+            continue;
+        };
+        let Kind::Fork {
+            branches, unread, ..
+        } = &mut value.kind
+        else {
+            continue;
+        };
+        let mut read = std::collections::BTreeSet::new();
+        if !branches_read(name, after, &mut read) {
+            continue;
+        }
+        *unread = branches
+            .iter()
+            .filter(|(branch, body)| !read.contains(branch) && !body.reaches_effect())
+            .map(|(branch, _)| branch.clone())
+            .collect();
+    }
+}
+
+/// The branches of the record bound at `name` that `statements` read, into
+/// `read`; false where the record is read whole.
+fn branches_read(
+    name: &str,
+    statements: &[Stmt],
+    read: &mut std::collections::BTreeSet<String>,
+) -> bool {
+    for (index, statement) in statements.iter().enumerate() {
+        // `{ a, b } = parts` binds `a = parts.a`: the branch is read where
+        // `a` is.
+        if let Stmt::Bind {
+            name: bound, value, ..
+        } = statement
+            && let Kind::Field(receiver, Field::Record(branch)) = &value.kind
+            && matches!(&receiver.kind, Kind::Ident(held) if held == name)
+        {
+            if names_read(bound, &statements[index + 1..]) {
+                read.insert(branch.clone());
+            }
+            continue;
+        }
+        let roots: Vec<&Expr> = match statement {
+            Stmt::Bind { value, .. } | Stmt::Expr(value) => vec![value],
+            Stmt::Fn { body, .. } => vec![body.as_ref()],
+            Stmt::Impl { methods, .. } => methods
+                .iter()
+                .map(|(_, _, body, _)| body.as_ref())
+                .collect(),
+            Stmt::Contract { rules, .. } => rules.iter().map(|rule| rule.body.as_ref()).collect(),
+            Stmt::Unit => Vec::new(),
+        };
+        for root in roots {
+            if !fields_read(name, root, read) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Whether any of `statements` reads `name`.
+fn names_read(name: &str, statements: &[Stmt]) -> bool {
+    let mut ignored = std::collections::BTreeSet::new();
+    !branches_read(name, statements, &mut ignored) || !ignored.is_empty()
+}
+
+/// The fields of `name` that `expression` reads, into `read`; false where
+/// it reads `name` other than by a field.
+fn fields_read(
+    name: &str,
+    expression: &Expr,
+    read: &mut std::collections::BTreeSet<String>,
+) -> bool {
+    match &expression.kind {
+        Kind::Ident(held) => held != name,
+        Kind::Field(receiver, Field::Record(field)) if matches!(&receiver.kind, Kind::Ident(held) if held == name) =>
+        {
+            read.insert(field.clone());
+            true
+        }
+        _ => expression
+            .children()
+            .into_iter()
+            .all(|child| fields_read(name, child, read)),
+    }
+}
+
 fn block_expressions<'e>(statements: &'e [BlockStmt], held: &mut Vec<&'e Expr>) {
     for statement in statements {
         match statement {

@@ -628,8 +628,11 @@ impl Evaluator<'_> {
                 ..
             } => self.tee(input, name, branch),
             Kind::Fork {
-                input, branches, ..
-            } => self.fork(input, branches, &expression.ty),
+                input,
+                branches,
+                unread,
+                ..
+            } => self.fork(input, branches, unread, &expression.ty),
             Kind::Given {
                 value,
                 condition,
@@ -781,13 +784,21 @@ impl Evaluator<'_> {
         &mut self,
         input: &Expr,
         branches: &[(String, Expr)],
+        unread: &[String],
         ty: &TypeRef,
     ) -> Result<Value, Diagnostic> {
         let value = self.expression(input)?;
         let previous = self.scope.insert(crate::ast::FORK_INPUT.to_owned(), value);
         let fields = branches
             .iter()
-            .map(|(name, branch)| Ok((name.clone(), self.expression(branch)?)))
+            .map(|(name, branch)| {
+                // A pure branch nothing reads is not run; its field is
+                // never read.
+                if unread.contains(name) {
+                    return Ok((name.clone(), Value::Unit));
+                }
+                Ok((name.clone(), self.expression(branch)?))
+            })
             .collect::<Result<Vec<_>, Diagnostic>>();
         match previous {
             Some(previous) => self

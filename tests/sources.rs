@@ -327,3 +327,17 @@ fn tap_reads_a_finite_source_one_element_at_a_time() {
     let vault_tap = hql::check_in(r#"tap("field_notes")"#, &vault).unwrap_err();
     assert!(vault_tap.message().contains(".cards"), "{vault_tap}");
 }
+
+/// HQL-0037: a source bound once and read by several pipelines and the
+/// branches of a `fork` is read once, so `max_elements` counts its elements
+/// once.
+#[test]
+fn a_bound_source_counts_its_elements_once() {
+    let (_dir, vault) = configured("\n[execution]\nmax_elements = 2\n");
+    let program = r#"
+counts = source("counts")
+parts = counts | fork { first = take(1), all = size() }
+[counts | size, parts.all, parts.first | size]
+"#;
+    assert_eq!(value(program, &vault), "[2, 2, 1]");
+}

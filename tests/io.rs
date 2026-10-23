@@ -730,3 +730,22 @@ fn from_names_the_format_of_standard_input() {
         "written, not read",
     );
 }
+
+/// HQL-0037: a `fork` branch with an effect runs though nothing reads it,
+/// and a pure one nothing reads does not.
+#[test]
+fn an_effectful_fork_branch_runs_unread() {
+    let dir = tempdir().unwrap();
+    let output = hql_in(
+        dir.path(),
+        &[
+            r#"parts = [{a: 1}, {a: 2}] | fork { count = size(), copy = sink(file("copy.jsonl")), inverse = map(d => 1 / 0) }
+parts.count"#,
+        ],
+    );
+    assert_eq!(ok(&output), "2\n");
+    assert_eq!(
+        fs::read_to_string(dir.path().join("copy.jsonl")).unwrap(),
+        "{\"a\":1}\n{\"a\":2}\n"
+    );
+}
