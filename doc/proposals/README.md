@@ -44,3 +44,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0034](HQL-0034/README.md) | drafted | Validator types |
 | [HQL-0035](HQL-0035/README.md) | proposed | The schema boundary of a configured source or target |
 | [HQL-0036](HQL-0036/README.md) | proposed | Partitioning, shuffle boundaries and execution scheduling |
+| [HQL-0037](HQL-0037/README.md) | proposed | Dataflow DAG, fan-out, fan-in, fork and merge |

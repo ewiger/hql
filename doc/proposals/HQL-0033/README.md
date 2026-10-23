@@ -1,8 +1,8 @@
-# HQL-0033: Errors as values — handling, routing, splitting, retry and replay
+# HQL-0033: Errors as values — handling, routing, branching, retry and replay
 
 **Status:** draft revision of accepted HQL-0033  
 **Created:** 2026-10-23  
-**Related:** HQL-0032 (`TypeContract`, `DataContract`), HQL-0010 (`tee`), HQL-0021 (sources, sinks, channels and messages), HQL-0036 (`partition`)
+**Related:** HQL-0032 (`TypeContract`, `DataContract`), HQL-0010 (`tee`), HQL-0021 (sources, sinks, channels and messages), HQL-0036 (`partition`), HQL-0037 (`fork` and the dataflow DAG)
 
 ## Abstract
 
@@ -40,7 +40,7 @@ A program may:
 - transform either side of a `Result`;
 - retain only successes with `oks()`;
 - retain only errors with `errs()`;
-- separate both sides once with `split()`;
+- send both sides to separate computations with one `fork` ([HQL-0037](../HQL-0037/README.md));
 - write either stream to an ordinary sink;
 - flatten individual violations when violation-level processing is required;
 - retry a fallible operation when repeating that operation can reasonably succeed;
@@ -63,8 +63,8 @@ This ADR defines a coherent model for:
 - handling a single `Result`;
 - handling collections and streams of results;
 - `oks()` and `errs()`;
-- algebraic splitting with `split()`;
-- the relation between `split`, `tee` and `partition`;
+- both sides of a `Result` as branches of one `fork`;
+- the relation between that `fork`, `tee` and `partition`;
 - rejected-record and dead-letter patterns;
 - processing individual violations;
 - retry and replay;
@@ -186,7 +186,7 @@ Data
  └── err(Invalid)
 ```
 
-There is no split yet.
+There is no branching yet.
 
 The value flowing through the pipeline is one `Result`.
 
@@ -710,61 +710,22 @@ The source should not have to be evaluated twice merely because both projections
 
 The program is expressing one classification of one logical input.
 
-HQL therefore provides `split()`.
+HQL therefore forks the results ([HQL-0037](../HQL-0037/README.md)).
 
 ---
 
-# 15. `split()`
+# 15. Both sides with `fork`
 
-`split()` separates the alternatives of a `Result` collection and unwraps their constructors.
-
-Conceptually:
-
-```text
-F<Result<T, E>>
-        |
-      split
-      /   \
-   F<T>   F<E>
-```
-
-The recommended high-level syntax is record-valued:
+When both sides matter, the program forks the results once and keeps one side in each branch:
 
 ```hql
-parts =
+{ accepted, rejected } =
     users
     | validate(UserData)
-    | split()
-
-parts.oks
-| sink(users_table)
-
-parts.errs
-| sink(rejected_users)
-```
-
-With record destructuring:
-
-```hql
-{ oks, errs } =
-    users
-    | validate(UserData)
-    | split()
-
-oks
-| sink(users_table)
-
-errs
-| sink(rejected_users)
-```
-
-Application-specific names may be used:
-
-```hql
-{ oks: accepted, errs: rejected } =
-    users
-    | validate(UserData)
-    | split()
+    | fork {
+        accepted = oks()
+        rejected = errs()
+    }
 
 accepted
 | sink(users_table)
@@ -773,7 +734,29 @@ rejected
 | sink(rejected_users)
 ```
 
-This is the preferred algebraic form for the common:
+The branch names are the program's own. Nothing about `Result` fixes them.
+
+The branches may also be kept as one record:
+
+```hql
+parts =
+    users
+    | validate(UserData)
+    | fork {
+        ok  = oks()
+        err = errs()
+    }
+
+parts.ok
+| sink(users_table)
+
+parts.err
+| sink(rejected_users)
+```
+
+There is no error-specific routing operation. `fork` broadcasts the results to both branches; `oks()` and `errs()` keep complementary sides.
+
+This is the preferred form for the common:
 
 ```text
 valid values -> one pipeline
@@ -784,20 +767,23 @@ case.
 
 ---
 
-# 16. Semantics of `split`
+# 16. Semantics of both sides
 
 For:
 
 ```hql
 Stream<Result<T, E>>
-| split()
+| fork {
+    ok  = oks()
+    err = errs()
+}
 ```
 
-the two outputs are:
+the two branches are:
 
 ```text
-oks  : Stream<T>
-errs : Stream<E>
+ok  : Stream<T>
+err : Stream<E>
 ```
 
 For every input:
@@ -806,7 +792,7 @@ For every input:
 ok(v)
 ```
 
-`v` appears exactly once on `oks` and not on `errs`.
+`v` appears exactly once on `ok` and not on `err`.
 
 For every input:
 
@@ -814,7 +800,7 @@ For every input:
 err(e)
 ```
 
-`e` appears exactly once on `errs` and not on `oks`.
+`e` appears exactly once on `err` and not on `ok`.
 
 The constructor itself is removed:
 
@@ -823,7 +809,7 @@ ok(T)  -> T
 err(E) -> E
 ```
 
-Ordering within each output MUST preserve the relative order of matching source elements.
+Ordering within each branch MUST preserve the relative order of matching source elements.
 
 Given:
 
@@ -834,81 +820,32 @@ ok(b)
 err(y)
 ```
 
-the outputs are:
+the branches are:
 
 ```text
-oks  = a, b
-errs = x, y
+ok  = a, b
+err = x, y
 ```
-
-not:
-
-```text
-oks  = ok(a), ok(b)
-errs = err(x), err(y)
-```
-
-## 16.1 Splitting by a predicate
-
-`split(by = p)` separates a collection of any element type by a predicate:
-
-```hql
-F<T>
-| split(by = p : T -> Bool)
-    : { oks: F<T>, errs: F<T> }
-```
-
-It is defined as:
-
-```hql
-xs | split(by = p)
-    ==
-xs
-| map(x => if p(x) then ok(x) else err(x))
-| split()
-```
-
-The values for which `p` holds are on `oks`; the others are on `errs`. Every semantic rule of `split()` holds unchanged: each value appears on exactly one side, each side keeps source order, and a live upstream is evaluated once.
-
-The result has the same record shape as `split()`, so application-specific names are given by destructuring:
-
-```hql
-{ oks: adults, errs: minors } =
-    people
-    | split(by = p => p.age >= 18)
-```
-
-`split(by = p)` replaces the former `partition(by = p) : Pair<List<T>, List<T>>`. The name `partition` belongs to same-type redistribution by key ([HQL-0036](../HQL-0036/README.md)).
 
 ---
 
-# 17. Stream execution semantics of `split`
+# 17. Stream execution semantics of both sides
 
-For a live stream, `split()` is not equivalent to evaluating:
+For a live stream, the two branches are not two unrelated source computations.
 
-```hql
-results | oks()
-```
-
-and:
-
-```hql
-results | errs()
-```
-
-as two unrelated source computations.
-
-A split has one logical upstream.
+A fork has one logical upstream.
 
 Conceptually:
 
 ```text
-                    ┌── Stream<T>
+                    ┌── oks()  ── Stream<T>
 Stream<Result<T,E>> ─┤
-                    └── Stream<E>
+                    └── errs() ── Stream<E>
 ```
 
-The executor MUST preserve the observable semantics of one upstream evaluation with exclusive routing.
+The executor MUST preserve the observable semantics of one upstream evaluation.
+
+Because `oks()` and `errs()` are complementary, a planner may implement the two branches as one dispatch rather than two filters over a broadcast.
 
 The backend may choose:
 
@@ -923,13 +860,13 @@ lazy consumption
 
 as required by its execution model.
 
-Those choices MUST NOT change which logical values each output receives.
+Those choices MUST NOT change which logical values each branch receives.
 
 This is an execution concern, not user-level error policy.
 
 ---
 
-# 18. `split` is not `tee`
+# 18. Both sides are not a `tee`
 
 `tee` means:
 
@@ -941,55 +878,35 @@ one value
    +----> original value continues
 ```
 
-Every logical input is available to both computations.
+Its main-flow type remains unchanged, and the side branch is not a first-class result.
 
-Its main-flow type remains unchanged.
-
-For example:
-
-```text
-T
- |
-tee
- |
-T
-```
-
-with a side branch:
-
-```text
-T -> R
-```
-
-`split` means:
+A `fork` over results with `oks()` and `errs()` means:
 
 ```text
 Result<T,E>
       |
-      +---- ok ---> T
+      +---- oks()  ---> T
       |
-      +---- err --> E
+      +---- errs() ---> E
 ```
 
-Each input belongs to exactly one output.
+Each input reaches exactly one side.
 
-The output types differ.
+The branch types differ, and both branches are first-class results.
 
 Therefore:
 
 ```text
 tee
-    duplication / observation
+    side computation, unchanged continuation
 
-split
-    sum-type separation / routing
+fork + oks() / errs()
+    sum-type separation into named branches
 ```
-
-They solve different problems.
 
 ---
 
-# 19. `split` is not `partition`
+# 19. Both sides are not `partition`
 
 `partition` preserves the element type and changes data ownership or distribution:
 
@@ -1003,12 +920,12 @@ Stream<T>
     +-- partition C: T
 ```
 
-`split` changes the element type by eliminating a sum constructor:
+`oks()` and `errs()` in a `fork` change the element type by eliminating a sum constructor:
 
 ```text
 Stream<Result<T,E>>
        |
-      split
+      fork
       /   \
      T     E
 ```
@@ -1016,16 +933,14 @@ Stream<Result<T,E>>
 Therefore:
 
 ```text
-split
-    logical type routing
+fork + oks() / errs()
+    logical fan-out
     generally no distributed shuffle required
 
 partition
     same-type distribution by key
-    may create an execution/shuffle boundary
+    logically 1 → 1, may create an execution/shuffle boundary
 ```
-
-The names MUST remain distinct.
 
 ---
 
@@ -1100,10 +1015,13 @@ values.
 A common ETL pattern writes both successful and rejected values.
 
 ```hql
-{ oks: accepted, errs: rejected } =
+{ accepted, rejected } =
     source(file("users.jsonl"), Json)
     | validate(UserData)
-    | split()
+    | fork {
+        accepted = oks()
+        rejected = errs()
+    }
 
 accepted
 | sink(users_table)
@@ -1121,7 +1039,7 @@ validate
   |
 Result<UserData, Invalid>
   |
- split
+ fork
  /    \
 UserData    Invalid
    |          |
@@ -1140,10 +1058,13 @@ Both outputs are normal typed streams.
 The accepted and rejected sides may have independent pipelines.
 
 ```hql
-{ oks: accepted, errs: rejected } =
+{ accepted, rejected } =
     source(file("users.jsonl"), Json)
     | validate(UserData)
-    | split()
+    | fork {
+        accepted = oks()
+        rejected = errs()
+    }
 
 accepted
 | map(user => {
@@ -1166,7 +1087,7 @@ The graph is:
 ```text
                        ┌── UserData
                        │      |
-source -> validate -> split   map -> users
+source -> validate -> fork    map -> users
                        │
                        └── Invalid
                               |
@@ -1196,11 +1117,9 @@ rejected
 | sink(validation_metrics)
 ```
 
-If the same live rejected stream has several consumers, normal HQL fan-out semantics are required.
+If the same live rejected stream has several consumers, it is still evaluated once: reusing a producer creates several consumers of one computation ([HQL-0037](../HQL-0037/README.md)).
 
 `tee` remains the existing primitive for an explicit side computation.
-
-The exact ergonomic syntax for effect-only `tee` branches may be refined separately; it is not a reason to overload `split`.
 
 ---
 
@@ -1236,10 +1155,13 @@ That hides the more general pipeline topology.
 The primitive model remains:
 
 ```hql
-{ oks, errs } =
+{ accepted, rejected } =
     users
     | validate(UserData)
-    | split()
+    | fork {
+        accepted = oks()
+        rejected = errs()
+    }
 ```
 
 A future `reject(...)` MAY exist as a derived convenience function, but it MUST NOT define the underlying error model.
@@ -1274,19 +1196,22 @@ rather than automatically as retryable failures.
 The normal pattern is:
 
 ```hql
-{ oks, errs } =
+{ accepted, rejected } =
     input
     | validate(UserData)
-    | split()
+    | fork {
+        accepted = oks()
+        rejected = errs()
+    }
 
-oks
+accepted
 | sink(valid_target)
 
-errs
+rejected
 | sink(rejected_target)
 ```
 
-Retrying `errs` without changing the value or contract is normally pointless.
+Retrying `rejected` without changing the value or contract is normally pointless.
 
 ---
 
@@ -1313,14 +1238,17 @@ why it failed
     e.violations
 ```
 
-A complete repair flow may itself split again:
+A complete repair flow may itself fork again:
 
 ```hql
-{ oks: repaired, errs: still_invalid } =
+{ repaired, still_invalid } =
     source(rejected_users)
     | map(e => repair(e.value))
     | validate(UserData)
-    | split()
+    | fork {
+        repaired = oks()
+        still_invalid = errs()
+    }
 
 repaired
 | sink(users_table)
@@ -1449,17 +1377,20 @@ The exact retry API is a separate design point, but retry semantics MUST retain 
 
 # 29. Retry followed by routing
 
-After retry has finished, its final results may be split normally:
+After retry has finished, its final results may be forked normally:
 
 ```hql
-{ oks: enriched, errs: failed } =
+{ enriched, failed } =
     valid_users
     | retry(
         enrich,
         attempts = 3,
         when = e => e.transient
     )
-    | split()
+    | fork {
+        enriched = oks()
+        failed = errs()
+    }
 
 enriched
 | sink(enriched_users)
@@ -1485,7 +1416,7 @@ valid user
  |       |
  ok      err
   \      /
-    split
+    fork
     /   \
  result  DLQ
 ```
@@ -1674,22 +1605,28 @@ A future convenience operation MAY exist, but it should remain compositionally s
 A realistic pipeline may combine validation rejection and operational retry:
 
 ```hql
-{ oks: valid, errs: rejected } =
+{ valid, rejected } =
     source(users_source)
     | validate(UserData)
-    | split()
+    | fork {
+        valid = oks()
+        rejected = errs()
+    }
 
 rejected
 | sink(rejected_users)
 
-{ oks: enriched, errs: failed } =
+{ enriched, failed } =
     valid
     | retry(
         enrich,
         attempts = 3,
         when = e => e.transient
     )
-    | split()
+    | fork {
+        enriched = oks()
+        failed = errs()
+    }
 
 enriched
 | sink(users_table)
@@ -1737,15 +1674,18 @@ source(enrichment_dlq)
 
 # 35. Interaction with `partition`
 
-`split()` does not imply redistribution.
+A `fork` over results does not imply redistribution.
 
 For example:
 
 ```hql
-{ oks: valid, errs: rejected } =
+{ valid, rejected } =
     users
     | validate(UserData)
-    | split()
+    | fork {
+        valid = oks()
+        rejected = errs()
+    }
 ```
 
 is logical routing.
@@ -1765,7 +1705,7 @@ source
   |
 validate
   |
- split
+ fork
  /    \
 T      E
 |
@@ -1800,44 +1740,50 @@ accepted
 
 `tee` does not remove `ok` or `err`.
 
-`split` does.
+`oks()` and `errs()` do.
 
-A validation pipeline SHOULD therefore use `split` when the program genuinely needs distinct successful and failed flows.
+A validation pipeline SHOULD therefore use `fork` with `oks()` and `errs()` when the program genuinely needs distinct successful and failed flows.
 
 ---
 
 # 37. Syntax alternatives considered
 
-## A. Record-returning `split` — preferred
+## A. `fork` with `oks()` and `errs()` — preferred
 
 ```hql
-{ oks, errs } =
+{ accepted, rejected } =
     results
-    | split()
+    | fork {
+        accepted = oks()
+        rejected = errs()
+    }
 ```
 
 Advantages:
 
-- algebraic;
+- uses the general fan-out of [HQL-0037](../HQL-0037/README.md) rather than an error-specific operation;
 - explicit return value;
 - both streams are first-class values;
-- naturally supports application-specific names;
+- branch names are the program's own;
 - does not introduce validation-specific syntax;
 - generalizes beyond dead-lettering.
 
 ---
 
-## B. Named split object — equivalent
+## B. Branch record — equivalent
 
 ```hql
 parts =
     results
-    | split()
+    | fork {
+        ok  = oks()
+        err = errs()
+    }
 
-parts.oks
+parts.ok
 | ...
 
-parts.errs
+parts.err
 | ...
 ```
 
@@ -1894,10 +1840,9 @@ results
 
 can express the intent, but it has several disadvantages for this case:
 
-- the same algebraic split appears twice as `errs()` and `oks()`;
 - the branch binding may have no useful value when the branch ends in `sink`;
 - pipeline branch extent becomes syntactically significant;
-- the topology is fundamentally classification, while `tee` represents duplication.
+- the two sides are not symmetric: one is a side branch and the other the continuation, while `fork` names both.
 
 `tee` remains valid for genuine side computations but is not the canonical dead-letter form.
 
@@ -1923,11 +1868,8 @@ oks()
 errs()
     retain only failed payloads
 
-split()
-    expose both alternatives as independent typed flows
-
-split(by = p)
-    the same, for the values that do and do not satisfy p
+fork { ok = oks(), err = errs() }
+    expose both alternatives as independent typed branches ([HQL-0037](../HQL-0037/README.md))
 
 tee
     duplicate a logical flow into a side computation
@@ -1958,7 +1900,7 @@ Fused stateless stage
   |
 validate
   |
-split
+fork
  /   \
 T     E
 |     |
@@ -1966,18 +1908,18 @@ T     E
 |
 retry(fallible operation)
 |
-split
+fork
  /   \
 U     E2
 |      |
 Sink   DLQ
 ```
 
-`split` is a graph-routing node.
+A `fork` over results is one fan-out node; `oks()` and `errs()` on its branches are complementary, so a planner may implement them as one dispatch.
 
-It MUST NOT require reevaluating its upstream independently for each output.
+It MUST NOT require reevaluating its upstream independently for each branch.
 
-For finite collections, the backend may materialize the split.
+For finite collections, the backend may materialize the fork.
 
 For streams, the backend may implement it using coordinated output queues, backpressure or equivalent mechanisms.
 
@@ -2025,19 +1967,18 @@ Implementations should cover at least:
 4. `Invalid.value` preserving the original rejected `Data`;
 5. `oks()` over `List`, `Seq` and `Stream`;
 6. `errs()` over `List`, `Seq` and `Stream`;
-7. `split()` producing every successful value exactly once;
-8. `split()` producing every failed value exactly once;
-9. source-relative ordering preserved independently in `oks` and `errs`;
-10. a live source evaluated only once when both outputs of `split` are consumed;
+7. a `fork` with `oks()` and `errs()` producing every successful value exactly once;
+8. the same `fork` producing every failed value exactly once;
+9. source-relative ordering preserved independently in both branches;
+10. a live source evaluated only once when both branches of the `fork` are consumed;
 11. rejected `Invalid` values written and read back through a normal sink/source;
 12. `flat_map(e => e.violations)` producing one stream element per violation;
 13. repair using `e.value`;
 14. broker/message provenance remaining outside the core `Invalid`;
 15. retry reinvoking the fallible operation rather than operating on a completed `Result`;
 16. exhausted retry producing a normal final `err(E)`;
-17. `split` followed by `partition` remaining two distinct graph operations;
-18. fail-fast `x | T` and recoverable `x | validate(T)` deriving equivalent violation information;
-19. `split(by = p)` giving the same sides, in the same order, as mapping to `ok` and `err` by `p` and then `split()`.
+17. a `fork` over results followed by `partition` remaining two distinct graph operations;
+18. fail-fast `x | T` and recoverable `x | validate(T)` deriving equivalent violation information.
 
 ---
 
@@ -2059,7 +2000,7 @@ one side only:
     errs()
 
 both sides:
-    split()
+    fork { ok = oks(), err = errs() }
 
 duplicate observation:
     tee

@@ -2,7 +2,7 @@
 
 **Status:** proposed  
 **Created:** 2026-10-23  
-**Related:** HQL-0010 (`tee`), HQL-0033 (`split` and error routing)
+**Related:** HQL-0010 (`tee`), HQL-0033 (error routing), HQL-0037 (`fork` and the dataflow DAG)
 
 ## Abstract
 
@@ -21,7 +21,7 @@ The values remain `T`. The operation assigns values with the same partition key 
 `partition` is therefore different from:
 
 - `tee`, which duplicates a logical flow into a side computation;
-- `split`, which separates alternatives of a sum type such as `Result<T, E>` into differently typed outputs;
+- `fork`, which broadcasts one flow to several first-class branches, such as `oks()` and `errs()` over `Result<T, E>` ([HQL-0037](../HQL-0037/README.md));
 - ordinary `map`, `filter` and `flat_map`, which normally require no data redistribution.
 
 A partition is a logical unit of data ownership and scheduling. It is not a worker, thread, process or Kafka partition, although a backend may map it onto those concepts.
@@ -103,12 +103,14 @@ This is intentionally different from:
 ```text
 Stream<Result<T,E>>
     |
-   split
+   fork
    /   \
-  T     E
+oks()  errs()
+  |      |
+  T      E
 ```
 
-where the constructors are eliminated and the two outputs have different types.
+where the branches are first-class results and have different types.
 
 ---
 
@@ -320,10 +322,10 @@ tee
     one logical value -> main flow + side computation
     input value continues unchanged
 
-split
-    Result<T,E> -> T output + E output
-    constructor is removed
-    each input belongs to exactly one output
+fork
+    one flow -> several first-class branches
+    every branch sees every input
+    with oks() and errs(): Result<T,E> -> T branch + E branch
 
 partition
     T -> partitioned T
@@ -335,7 +337,7 @@ map/filter/flat_map
     normally fusible into one execution stage
 ```
 
-`split` is normally a cheap logical routing operation.
+`fork` is logical fan-out and is normally cheap; its branches are user-visible.
 
 `partition` may imply serialization, buffering, network transfer, backpressure, checkpointing and state migration.
 
@@ -397,4 +399,4 @@ Those may build on the logical partition abstraction defined here.
 
 Reserve `partition` for **same-type distribution by key and the corresponding execution boundary**.
 
-Do not use `partition` for separating `Result<T, E>` into successful and failed values. That operation is `split`, as specified by HQL-0033.
+Do not use `partition` for separating `Result<T, E>` into successful and failed values. That is a `fork` with `oks()` and `errs()`, as HQL-0033 and HQL-0037 specify. `partition` is logically `1 → 1`: its lanes are never first-class branches.

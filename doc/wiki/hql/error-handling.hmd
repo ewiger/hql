@@ -55,19 +55,24 @@ back like any other record.
 | one `Result` | `match`, `map`, `map_err`, `and_then`, `or_else`, `unwrap_or` |
 | successes only | `\| oks()` |
 | failures only | `\| errs()` |
-| both sides | `{ oks, errs } = … \| split()` |
+| both sides | `{ ok, err } = … \| fork { ok = oks(), err = errs() }` |
 | one element per violation | `\| errs() \| flat_map(e => e.violations)` |
 | a failure that may pass on a later attempt | `retry(operation, attempts = n, when = …)` |
 | replay or repair | a pipeline that reads the stored failures, `\| map(e => repair(e.value)) \| validate(T)` |
 
-`split()` gives each `ok` payload to `oks` and each `err` payload to `errs`,
-exactly once, in source order, over one evaluation of its upstream:
+`fork` sends the results to both branches over one evaluation of its upstream
+([HQL-0037](../../proposals/HQL-0037/README.md)); `oks()` keeps each `ok`
+payload and `errs()` each `err` payload, so every value lands on exactly one
+side, in source order:
 
 ```hql
-{ oks: accepted, errs: rejected } =
+{ accepted, rejected } =
     source(file("users.jsonl"), Json)
     | validate(UserData)
-    | split()
+    | fork {
+        accepted = oks()
+        rejected = errs()
+    }
 
 accepted | sink(users_table)
 rejected | sink(rejected_users)
@@ -83,8 +88,8 @@ Mapped onto the habits of a language with exceptions:
 | no handler; the program crashes | `x \| T` |
 | `try { … } catch (e) { … }` | `match x \| validate(T) { ok(v) => …, err(e) => … }` |
 | catch and ignore | `\| validate(T) \| oks()` |
-| catch, store, continue | `\| validate(T) \| split()`, with `errs` sunk |
-| retry, then give up to a dead-letter queue | `retry(…)` then `split()`, with `errs` sunk |
+| catch, store, continue | `\| validate(T) \| fork { … }`, with the `errs()` branch sunk |
+| retry, then give up to a dead-letter queue | `retry(…)` then `fork { … }`, with the `errs()` branch sunk |
 | run everything, list every problem, then fail | `x \| T` under the `collect` mode |
 
 A program that never handles a failure writes `x | T` and gets the behaviour of
@@ -97,7 +102,7 @@ status unchanged.
 
 `Result`, `ok`, `err` and their combinators are implemented (see
 [the result example](../../../examples/mighty-types/queries/08-result.hql)).
-`validate`, `Invalid`, `Violation`, `oks`, `errs`, `split` and `retry` are
+`validate`, `Invalid`, `Violation`, `oks`, `errs`, `fork` and `retry` are
 designed.
 
 ## Contracts decide what fails; the call site decides how

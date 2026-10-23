@@ -1,4 +1,4 @@
-# 0045 — Errors as values, validator types and schema boundaries
+# 0045 — Dataflow, errors as values, validator types and schema boundaries
 
 Status: todo
 Related: [HQL-0032](../proposals/HQL-0032/README.md),
@@ -6,6 +6,7 @@ Related: [HQL-0032](../proposals/HQL-0032/README.md),
 [HQL-0034](../proposals/HQL-0034/README.md),
 [HQL-0035](../proposals/HQL-0035/README.md),
 [HQL-0036](../proposals/HQL-0036/README.md),
+[HQL-0037](../proposals/HQL-0037/README.md),
 [0043](0043-contract-validation.md),
 [0044](0044-typed-tables.md),
 [the structural examples](../../examples/structural/README.md)
@@ -40,6 +41,34 @@ that in its commit. It does not add open questions.
 
 ## Work items
 
+### The dataflow DAG ([HQL-0037](../proposals/HQL-0037/README.md))
+
+- **D1 — `fork`.** `xs | fork { a = …, b = … }` parses as a structural
+  form, every branch consumes the same upstream, and the result is a record
+  of the branch results, each typed by its own pipeline. Destructuring
+  `{ a, b } = xs | fork { … }` binds the branches. Each branch keeps the
+  upstream's order.
+- **D2 — Shared evaluation.** A bound producer used by several consumers is
+  evaluated once: a live source under a `fork`, or bound once and read by
+  two pipelines, is read once, and `max_elements` counts its elements
+  once. A pure branch whose result nothing uses is not run; an effectful
+  one is.
+- **D3 — Fan-in over streams.** `merge`, `zip` and `concat` over two or more
+  flows of compatible element types, with the ordering each one states.
+  `zip` and `concat` exist over `Seq` and lists and extend to `Stream`.
+  `merge` is overloaded for `Map` and `Stream` only, as HQL-0037's section
+  on the overload states: the map combiner of
+  [HQL-0014](../proposals/HQL-0014/README.md) keeps its meaning, a call is
+  resolved by its argument types, and a named `merge` by the expected
+  function type, so `maps | reduce({:}, merge)` still checks and `f = merge`
+  is an ambiguous reference. Today the combiner is special-cased by name in
+  `src/checker.rs` and `src/evaluation.rs`; it becomes an ordinary overload
+  set. A `merge` over `List`, `Seq`, `Set` or `Table` is a type error naming
+  `concat` or `union`.
+- **D4 — Planner classification.** The plan in `src/backends/plan.rs` and
+  `hql`'s plan output show fork, tee and fan-in nodes, and a `fork`'s
+  branches as stages of one upstream.
+
 ### Errors as values ([HQL-0033](../proposals/HQL-0033/README.md))
 
 `Result`, `map_err`, `oks()`, `errs()`, `Violation` and `Invalid` exist.
@@ -55,15 +84,12 @@ that in its commit. It does not add open questions.
   each `Result` of a `List`, `Seq` and `Stream`, as the sections on handling
   one `Result` and on mapping results inside streams state; `oks()` and
   `errs()` over all three collection kinds.
-- **E3 — `split()`.** The record-returning form the proposal prefers:
-  `split()` over `F<Result<T, E>>` gives both sides as typed flows. Every
-  value lands in exactly one side, each side keeps source order, and a live
-  source is evaluated once when both sides are consumed. `split` stays
-  distinct from `tee`. With it, `split(by = p)` over any `F<T>`, as the
-  subsection on splitting by a predicate defines it; the predicate
-  `partition` in `std/seq.hql` and `src/extensions/seq.rs` is removed, and
-  the name is left for P1.
-- **E4 — Rejected values as ordinary data.** `errs()` or a `split` side
+- **E3 — Both sides with `fork`.** After D1 and D2:
+  `fork { accepted = oks(), rejected = errs() }` over a `List`, `Seq` and
+  `Stream` of `Result`, as the section on both sides with `fork` states.
+  Every value lands on exactly one side, each side keeps source order, and a
+  live source is evaluated once. There is no `split` over results.
+- **E4 — Rejected values as ordinary data.** `errs()` or a `fork` branch
   written with `sink` and read back as `Invalid`; repair from `e.value` into
   another pipeline. Broker provenance (`Message<T>`) stays outside `Invalid`.
 - **E5 — `retry`.** `retry` reinvokes a fallible operation under a policy;
@@ -131,11 +157,13 @@ refresh, caching, versioning and boundary events are not in this portion.
 
 ### Partitioning ([HQL-0036](../proposals/HQL-0036/README.md))
 
-- **P1 — `partition(by = …)`.** Starts after E3 has removed the predicate
-  `partition`, which becomes `split(by = p)`. Type-preserving over `Seq` and `Stream`; the
-  local backend keeps one logical partition per key; the plan in
-  `src/backends/plan.rs` records it as a stage boundary. `split` followed by
-  `partition` stays two graph operations.
+- **P1 — `partition(by = …)`.** First the predicate
+  `partition(self, by: T -> Bool) : Pair<List<T>, List<T>>` is removed from
+  `std/seq.hql` and `src/extensions/seq.rs`; its use is a `fork` with two
+  complementary filters. Then HQL-0036's form: type-preserving over `Seq`
+  and `Stream`, logically `1 → 1`, one logical partition per key on the
+  local backend, and a stage boundary in `src/backends/plan.rs`. A `fork`
+  followed by `partition` stays two graph operations.
 
 ## Done when
 
@@ -144,6 +172,7 @@ refresh, caching, versioning and boundary events are not in this portion.
 - HQL-0034 has no placeholder and its validator types are built.
 - A CSV, JSON and SQLite source and target read and write a declared record
   through a configured boundary, and HQL-0035 states what is built.
+- `fork` runs on the local backend with each producer evaluated once.
 - `partition` has one meaning, and HQL-0036's form runs on the local backend.
 
 ## Progress
