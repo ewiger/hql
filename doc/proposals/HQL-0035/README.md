@@ -3050,3 +3050,7 @@ and replaced in a SQL database.
   defaults, configuration and an invocation override merged by field-level
   recursive override, each property with its origin, and five structured
   boundary errors
+- 2026-10-23: reading through a boundary built (issue 0045, B3):
+  `source("id")` and `tap("id")` read as a declared record map each field
+  from its external field or path, a SQLite source selects only the columns
+  read, and a CSV header and a table's columns are checked before decoding

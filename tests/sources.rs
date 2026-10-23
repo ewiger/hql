@@ -414,3 +414,33 @@ fn a_boundary_is_configured_field_by_field() {
     let error = vault::load(dir.path()).unwrap_err().to_string();
     assert!(error.contains("no `fields`"), "{error}");
 }
+
+/// HQL-0035: a source read as a declared record goes through its boundary.
+/// A table reads only the columns the boundary reads, so a closed record
+/// leaving `wing` out reads it; a CSV header without a required field, and
+/// a boundary naming a field the element type lacks, are refused.
+#[test]
+fn a_source_is_read_through_its_boundary() {
+    let (_dir, vault) = configured(
+        "\n[sources.birds.fields.label]\nname = \"name\"\n\
+         [sources.tallies]\nkind = \"csv\"\npath = \"data/counts.csv\"\n\
+         [sources.tallies.fields.total]\nname = \"amount\"\n",
+    );
+    let birds = "type Bird {\n    id : Int\n    label : String\n}\n\
+                 seen : Seq<Bird> = source(\"birds\")\nseen | map(b => b.label) | List";
+    assert_eq!(value(birds, &vault), r#"["kite", "owl"]"#);
+    let tallies = "type Tally {\n    species : String\n    total : Int\n}\n\
+                   seen : Seq<Tally> = source(\"tallies\")\nseen | size";
+    let error = refusal(tallies, &vault);
+    assert!(
+        error.contains("field `total`") && error.contains("no field `amount`"),
+        "{error}"
+    );
+    let (_dir, vault) = configured(
+        "\n[sources.typed]\nkind = \"csv\"\npath = \"data/counts.csv\"\nelement = \"Tally\"\n\
+         [sources.typed.fields.colour]\nname = \"c\"\n",
+    );
+    let typed = "type Tally {\n    species : String\n    count : Int\n}\nsource(\"typed\") | size";
+    let refused = hql::check_in(typed, &vault).unwrap_err().message();
+    assert!(refused.contains("field `colour`"), "{refused}");
+}

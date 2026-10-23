@@ -104,6 +104,9 @@ pub(crate) enum Source {
     Decode {
         input: Arc<Traversal>,
         leaves: crate::types::Leaves,
+        /// The boundary a configured source's documents are read through
+        /// first (HQL-0035).
+        boundary: Option<Arc<crate::boundary::EffectiveBoundary>>,
         /// The endpoint read, as an error names it.
         from: String,
         span: Range<usize>,

@@ -127,9 +127,14 @@ the environment variable holding it, in a key ending `_env`. A source's
 under `[sources.<id>.fields.<field>]`: `name` or a dotted `path`, the latter
 only for `json`, `json_lines` and `yaml`, with `type`, `position`, `read`,
 `write` and `absent`, and keys the kind's extension owns in a subtable named
-by the kind. A malformed boundary refuses the vault like any other key. The
-boundary is loaded and checked; reading and writing through it is design
-direction. Exceeding a
+by the kind. A malformed boundary refuses the vault like any other key. A source
+read where a `Seq` of a declared record is expected, by `source("id")` or
+`tap("id")`, is read through its boundary: each field reads its external
+field, a nested `path` included, and a table selects only the columns the
+boundary reads. A CSV header and a table's columns are checked against the
+boundary before any element decodes, and a boundary naming a field the
+configured `element` lacks is a type error. Writing through a boundary is
+design direction. Exceeding a
 bound is an evaluation error naming the source and the bound; a source is
 never truncated.
 

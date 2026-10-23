@@ -300,6 +300,10 @@ fn configured_type(
         })?,
         None => TypeRef::DATA,
     };
+    // What the boundary says of the element type is checked here; the
+    // external fields are known only when the source is read.
+    boundary_for(configured, &element, None)
+        .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     Ok(TypeRef::seq(element))
 }
 
@@ -549,7 +553,7 @@ fn eval_source(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     if let Value::Str(id) = &input {
-        return read_configured(id, cx.vault(), &span);
+        return read_configured(id, cx.vault(), None, &span);
     }
     let endpoint = endpoint(&input, &span)?;
     if let Endpoint::Channel(name, element) = endpoint.as_ref() {
@@ -621,13 +625,195 @@ fn eval_tap(
     Ok(live(reading, element, span))
 }
 
+/// The fields of a declared record a boundary maps, each optional one at
+/// its present type; `None` for a type that is not a record, which is read
+/// as it is.
+fn declared_fields(element: &TypeRef) -> Option<Vec<crate::boundary::DeclaredField>> {
+    if !crate::types::program::is_record_valued(element.constructor.0) {
+        return None;
+    }
+    let shape = crate::types::program::record(element.constructor.0)?;
+    Some(
+        shape
+            .fields
+            .iter()
+            .map(|field| crate::boundary::DeclaredField {
+                name: field.name.clone(),
+                ty: shape.bound(&field.ty, &element.args),
+                optional: field.optional,
+            })
+            .collect(),
+    )
+}
+
+/// The effective boundary of a configured source read as `element`, checked
+/// against `external` where the format knows its fields; `None` where the
+/// element is not a record.
+///
+/// # Errors
+/// Every boundary error, one per line.
+pub(crate) fn boundary_for(
+    configured: &crate::sources::Configured,
+    element: &TypeRef,
+    external: Option<&[String]>,
+) -> Result<Option<crate::boundary::EffectiveBoundary>, String> {
+    let Some(fields) = declared_fields(element) else {
+        return Ok(None);
+    };
+    let none = std::collections::BTreeMap::new();
+    crate::boundary::resolve(
+        &configured.id,
+        configured.kind.name(),
+        &fields,
+        crate::boundary::Layers {
+            configuration: &configured.fields,
+            invocation: &none,
+        },
+        external,
+    )
+    .map(Some)
+    .map_err(|errors| {
+        errors
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n")
+    })
+}
+
+/// A document's entries as the boundary names them (HQL-0035): each
+/// readable field's external entry under the field's own name, and a field
+/// the boundary does not read left out, so its default or absence applies.
+/// Entries the boundary does not name are kept.
+pub(crate) fn remapped(document: &Value, boundary: &crate::boundary::EffectiveBoundary) -> Value {
+    use crate::data::Data;
+    use crate::sources::External;
+    let Value::Data(tree) = document else {
+        return document.clone();
+    };
+    let Data::Map(entries) = tree.as_ref() else {
+        return document.clone();
+    };
+    let mut mapped = entries.clone();
+    for field in &boundary.fields {
+        let name = &field.field.name;
+        if !field.readable.value {
+            mapped.remove(name);
+            continue;
+        }
+        let held = match &field.external.value {
+            External::Name(external) if external == name => continue,
+            External::Name(external) => entries.get(external).cloned(),
+            External::Path(segments) => segments
+                .iter()
+                .try_fold(tree.as_ref(), |at, segment| match at {
+                    Data::Map(inner) => inner.get(segment),
+                    _ => None,
+                })
+                .cloned(),
+        };
+        if let External::Name(external) = &field.external.value {
+            mapped.remove(external);
+        }
+        match held {
+            Some(value) => {
+                mapped.insert(name.clone(), value);
+            }
+            None => {
+                mapped.remove(name);
+            }
+        }
+    }
+    Value::Data(Arc::new(Data::Map(mapped)))
+}
+
+/// `source("id")` expected to give a `Seq` of a declared record: the source
+/// read through its boundary (HQL-0035). A table reads only the columns the
+/// boundary reads; a table's columns and a CSV file's header are checked
+/// against the boundary before any element is decoded.
+pub(crate) fn configured_source(
+    vault: &crate::vault::Vault,
+    id: &str,
+    wanted: &TypeRef,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    use crate::sources::Kind as Source;
+    let failed = |message: String| Diagnostic::runtime(span.clone(), message);
+    let configured = configured(id, vault).map_err(failed)?;
+    let element = wanted.args.first().cloned().unwrap_or(TypeRef::DATA);
+    let endpoint = Value::Str(id.into());
+    let plain = |columns: Option<&[String]>| read_configured(id, vault, columns, span);
+    let boundary = match &configured.kind {
+        Source::Vault { .. } => None,
+        Source::Sqlite { path, table, .. } => {
+            let columns = crate::sources::sqlite_columns(path, table)
+                .map_err(|message| failed(format!("source `{id}`: {message}")))?;
+            boundary_for(configured, &element, Some(&columns)).map_err(failed)?
+        }
+        Source::File { .. } => boundary_for(configured, &element, None).map_err(failed)?,
+    };
+    let Some(boundary) = boundary else {
+        let produced = plain(None)?;
+        return decoded(vault, &endpoint, produced, wanted, &[], span);
+    };
+    let read: Vec<String> = boundary
+        .fields
+        .iter()
+        .filter(|field| field.readable.value)
+        .filter_map(|field| match &field.external.value {
+            crate::sources::External::Name(name) => Some(name.clone()),
+            crate::sources::External::Path(_) => None,
+        })
+        .collect();
+    let columns = matches!(configured.kind, Source::Sqlite { .. }).then_some(read.as_slice());
+    let Value::Traversal(produced) = plain(columns)? else {
+        return Err(failed(format!(
+            "source `{id}` is not a sequence of elements"
+        )));
+    };
+    let documents = produced.forced().map(<[Value]>::to_vec).unwrap_or_default();
+    // A CSV file's header is the keys of its rows.
+    if matches!(&configured.kind, Source::File { format, .. } if *format == "Csv")
+        && let Some(Value::Data(first)) = documents.first()
+        && let crate::data::Data::Map(entries) = first.as_ref()
+    {
+        let header: Vec<String> = entries.keys().cloned().collect();
+        boundary_for(configured, &element, Some(&header)).map_err(failed)?;
+    }
+    let leaves = if matches!(&configured.kind, Source::File { format, .. } if *format == "Csv") {
+        crate::types::Leaves::Text
+    } else {
+        crate::types::Leaves::AsWritten
+    };
+    let from = format!("source `{id}`");
+    let decoded = documents
+        .iter()
+        .enumerate()
+        .map(|(index, document)| {
+            decode_document(
+                &remapped(document, &boundary),
+                &element,
+                leaves,
+                index + 1,
+                &from,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(failed)?;
+    Ok(Value::Traversal(Arc::new(Traversal::kept(
+        element, decoded,
+    ))))
+}
+
 /// A configured source's contents: a vault source's vault, or every element
 /// of a file or table, in the source's order, within the run context's
-/// bounds. Configuration is the access boundary, so a document reads every
-/// source its vault configures.
+/// bounds; of a table, only `columns` where a boundary names them.
+/// Configuration is the access boundary, so a document reads every source
+/// its vault configures.
 fn read_configured(
     id: &str,
     vault: &crate::vault::Vault,
+    columns: Option<&[String]>,
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
     use crate::sources::Kind as Source;
@@ -664,7 +850,7 @@ fn read_configured(
         }
         Source::Sqlite { path, table, order } => {
             sized(path)?;
-            crate::sources::sqlite_rows(path, table, order)
+            crate::sources::sqlite_rows(path, table, order, columns)
                 .map_err(|message| failed(format!("source `{id}`: {message}")))?
                 .into_iter()
                 .map(|row| Value::Data(Arc::new(row)))
@@ -694,7 +880,7 @@ fn tap_configured(
         let reading = Reading::file(path.clone(), TypeConstructor(format));
         return Ok(live(reading, TypeRef::DATA, span.clone()));
     }
-    let Value::Traversal(read) = read_configured(id, vault, span)? else {
+    let Value::Traversal(read) = read_configured(id, vault, None, span)? else {
         return Err(Diagnostic::runtime(
             span.clone(),
             format!("source `{id}` is not read one element at a time"),
@@ -758,11 +944,28 @@ pub(crate) fn decoded(
     } else {
         crate::types::Leaves::AsWritten
     };
+    // A configured source read one element at a time, `tap("id")`, is read
+    // through its boundary, which the read itself has not applied.
+    let boundary = match endpoint {
+        Value::Str(id) if traversal.element == TypeRef::DATA => configured(id, vault)
+            .ok()
+            .filter(|configured| !configured.fields.is_empty())
+            .map(|configured| boundary_for(configured, element, None))
+            .transpose()
+            .map_err(|message| Diagnostic::runtime(span.clone(), message))?
+            .flatten()
+            .map(Arc::new),
+        _ => None,
+    };
     if let Some(values) = traversal.forced() {
         let decoded = values
             .iter()
+            .map(|value| match &boundary {
+                Some(boundary) => remapped(value, boundary),
+                None => value.clone(),
+            })
             .enumerate()
-            .map(|(index, value)| decode_document(value, element, leaves, index + 1, &from))
+            .map(|(index, value)| decode_document(&value, element, leaves, index + 1, &from))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
         return Ok(Value::Traversal(Arc::new(Traversal::kept(
@@ -776,6 +979,7 @@ pub(crate) fn decoded(
         Source::Decode {
             input: Arc::clone(traversal),
             leaves,
+            boundary,
             from,
             span: span.clone(),
         },

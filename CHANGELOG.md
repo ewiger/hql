@@ -113,7 +113,9 @@ The language continues to be in active development.
   an invocation's override field by field, each property keeping its
   origin, and reports every boundary error at once: an undeclared or
   unmapped field, a shared or missing external field, and an external type
-  with no decoder.
+  with no decoder. A source read as a declared record is read through its
+  boundary: a CSV header, a nested JSON `path` and a SQLite column map onto
+  a field, and a SQLite source selects only the columns the record reads.
 
 ### Changed
 

@@ -634,8 +634,34 @@ fn kind_names() -> String {
         .join(", ")
 }
 
+/// The columns of one SQLite table, in the table's order. The database is
+/// opened read-only.
+///
+/// # Errors
+/// Names the database and what failed: opening it, or the query.
+pub fn sqlite_columns(path: &Path, table: &str) -> Result<Vec<String>, String> {
+    let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
+    let connection =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(located)?;
+    let mut statement = connection
+        .prepare(&format!(
+            "SELECT * FROM {} LIMIT 0",
+            format_args!("\"{}\"", table.replace('"', "\"\""))
+        ))
+        .map_err(located)?;
+    let columns = statement
+        .column_names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let _ = statement.query([]).map_err(located)?;
+    Ok(columns)
+}
+
 /// The rows of one SQLite table, in the order the configuration states, each
-/// a `Data` map from column to value. The database is opened read-only.
+/// a `Data` map from column to value: every column, or only `columns` where
+/// a boundary names the ones read. The database is opened read-only.
 ///
 /// # Errors
 /// Names the database and what failed: opening it, or the query.
@@ -643,6 +669,7 @@ pub fn sqlite_rows(
     path: &Path,
     table: &str,
     order: &[String],
+    columns: Option<&[String]>,
 ) -> Result<Vec<crate::data::Data>, String> {
     use crate::data::Data;
     use rusqlite::types::ValueRef;
@@ -660,8 +687,21 @@ pub fn sqlite_rows(
             .collect::<Vec<_>>()
             .join(", ")
     };
+    let selected = columns.filter(|columns| !columns.is_empty()).map_or_else(
+        || "*".to_owned(),
+        |columns| {
+            columns
+                .iter()
+                .map(|column| quoted(column))
+                .collect::<Vec<_>>()
+                .join(", ")
+        },
+    );
     let mut statement = connection
-        .prepare(&format!("SELECT * FROM {} ORDER BY {order}", quoted(table)))
+        .prepare(&format!(
+            "SELECT {selected} FROM {} ORDER BY {order}",
+            quoted(table)
+        ))
         .map_err(located)?;
     let columns: Vec<String> = statement
         .column_names()

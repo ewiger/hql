@@ -574,6 +574,17 @@ impl Evaluator<'_> {
                 // A read expected to give a declared type decodes each
                 // document as one.
                 if crate::extensions::io::reads(step) {
+                    // A configured source is read through its boundary.
+                    if step.name == "source"
+                        && let Value::Str(id) = &value
+                    {
+                        return crate::extensions::io::configured_source(
+                            self.vault,
+                            id,
+                            &expression.ty,
+                            at,
+                        );
+                    }
                     let endpoint = value.clone();
                     let produced = self.step(step, value, arguments, at.clone())?;
                     return crate::extensions::io::decoded(
@@ -1374,12 +1385,17 @@ impl Evaluator<'_> {
             Source::Decode {
                 input,
                 leaves,
+                boundary,
                 from,
                 span,
             } => {
                 let mut position = 0;
                 self.run_traversal(input, &mut |evaluator, value| {
                     position += 1;
+                    let value = match boundary {
+                        Some(boundary) => crate::extensions::io::remapped(&value, boundary),
+                        None => value,
+                    };
                     let decoded = crate::extensions::io::decode_document(
                         &value,
                         &traversal.element,
@@ -2389,6 +2405,7 @@ impl Evaluator<'_> {
                     Source::Decode {
                         input: Arc::clone(&traversal),
                         leaves: crate::types::Leaves::AsWritten,
+                        boundary: None,
                         from: format!("`| {element}`"),
                         span: span.clone(),
                     },

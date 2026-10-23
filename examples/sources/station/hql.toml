@@ -16,3 +16,26 @@ path = "data/counts.csv"
 [sources.sightings]
 kind = "json"
 path = "data/sightings.json"
+
+# A ledger whose headers are not the names a program reads: its boundary
+# maps each field of `Tally` to its column.
+[sources.ledger]
+kind = "csv"
+path = "data/ledger.csv"
+
+[sources.ledger.fields.species]
+name = "Species Name"
+
+[sources.ledger.fields.count]
+name = "Total"
+
+# Profiles whose display name sits below the top level.
+[sources.profiles]
+kind = "json"
+path = "data/profiles.json"
+
+[sources.profiles.fields.id]
+name = "user_id"
+
+[sources.profiles.fields.name]
+path = "profile.display_name"

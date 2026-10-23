@@ -243,3 +243,10 @@ refresh, caching, versioning and boundary events are not in this portion.
   override with an origin per property, and the five boundary errors,
   pinned by unit tests. It takes the element type's fields and, where the
   format knows them, the external fields, so B3 supplies both.
+- B3 done: `source("id")` expecting a `Seq` of a record reads through
+  `configured_source`: the boundary renames each document's external
+  entries to the HQL fields, SQLite selects only the readable columns and
+  checks them, a CSV header is checked, and `tap("id")` remaps in its decode
+  traversal. A configured `element` is checked against the boundary at
+  check time. Cases in `examples/sources/`, the SQLite column selection in
+  `tests/sources.rs`.
