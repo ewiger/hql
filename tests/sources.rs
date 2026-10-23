@@ -573,3 +573,46 @@ mode = "create"
         assert!(refused.contains(says), "{program}: {refused}");
     }
 }
+
+/// HQL-0035: a source's strictness decides what a read does with an
+/// external field no HQL field reads, and leaves the type's openness alone.
+#[test]
+fn strictness_decides_what_an_unmapped_field_does() {
+    let closed = "type Species {\n    species : String\n}\n\
+                  seen : Seq<Species> = source(\"tallies\")\nseen | map(s => s.species) | List";
+    let with = |strictness: &str| {
+        configured(&format!(
+            "\n[sources.tallies]\nkind = \"csv\"\npath = \"data/counts.csv\"\n{strictness}\n"
+        ))
+    };
+    // `compatible`, the default: the closed record refuses `count`.
+    let (_dir, vault) = with("");
+    assert!(refusal(closed, &vault).contains("count"));
+    let (_dir, vault) = with("strictness = \"open\"");
+    assert_eq!(value(closed, &vault), r#"["wren", "robin"]"#);
+    let (_dir, vault) = with("strictness = \"warn\"");
+    let outcome = hql::run(closed, &vault, Mode::Strict);
+    assert_eq!(
+        outcome.value.map(|value| value.to_string()).as_deref(),
+        Some(r#"["wren", "robin"]"#)
+    );
+    let warnings: Vec<&str> = outcome
+        .reports
+        .iter()
+        .map(|report| report.message.as_str())
+        .collect();
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("no field `count`"), "{warnings:?}");
+    let (_dir, vault) = with("strictness = \"strict\"");
+    let error = refusal(closed, &vault);
+    assert!(
+        error.contains("strict") && error.contains("`count`"),
+        "{error}"
+    );
+    // A table's unread columns meet the source's strictness before any row.
+    let (_dir, vault) = configured("strictness = \"strict\"\n");
+    let birds = "type Bird {\n    id : Int\n    name : String\n}\n\
+                 seen : Seq<Bird> = source(\"birds\")\nseen | size";
+    let error = refusal(birds, &vault);
+    assert!(error.contains("`wing`"), "{error}");
+}

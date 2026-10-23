@@ -264,3 +264,8 @@ refresh, caching, versioning and boundary events are not in this portion.
   CSV, JSON, JSON Lines, YAML and SQLite through the boundary. Pinned in
   `tests/sources.rs`, since a corpus case would write into the checkout.
   Closes 0044's SQLite item.
+- B7 done: HQL-0035's section on strictness defines the four modes over
+  unmapped external fields; `strictness` in the source's table; `open` and
+  `warn` drop them in `remapped`, `warn` reports each once per read through
+  the evaluator, `strict` refuses them, and a table's unread columns are
+  judged before any row.

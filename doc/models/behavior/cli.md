@@ -106,6 +106,7 @@ path = "data/birds.sqlite"
 table = "birds"
 order = ["id"]          # optional: the row order; rowid by default
 mode = "replace"        # how target("birds") writes: create, append or replace
+strictness = "compatible"  # an unmapped column: compatible, open, warn or strict
 
 [sources.counts.fields.species]
 name = "Species"        # the external field: a header, a key or a column
@@ -147,7 +148,11 @@ configured `element` lacks is a type error. `xs | target("id")` writes a
 fields it writes, under their external names, in position order, each in its
 external type. `mode` says what a write does with what the target holds:
 `create` writes only where nothing exists, `append` adds after it, and
-`replace`, the default, writes it again. Exceeding a
+`replace`, the default, writes it again. `strictness` says what a read does
+with an external field no HQL field reads: under `compatible`, the default,
+it passes to the HQL type, an open record keeping it and a closed one
+refusing it; under `open` it is not read; under `warn` it is not read and is
+reported once per read; under `strict` it is an evaluation error. Exceeding a
 bound is an evaluation error naming the source and the bound; a source is
 never truncated.
 

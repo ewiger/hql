@@ -3077,6 +3077,24 @@ When a document is read through its boundary:
 - a required field holding a representation in its `absent` is missing, and
   the value does not read, as a missing field does not.
 
+### Strictness
+
+Section 64's policies are the source's `strictness`, which decides what a
+read does with an **unmapped external field**: a field of an external record
+that no readable HQL field reads, by its name or as the first segment of its
+path. It never changes whether the HQL type is open or closed:
+
+| Strictness | An unmapped external field |
+| --- | --- |
+| `compatible` | passes to the HQL type as it is: an open record keeps it in its view, a closed one refuses it as undeclared, as reading without a boundary does |
+| `open` | is not read: it is dropped before the value is decoded, so a closed record reads a source wider than itself |
+| `warn` | is not read, as under `open`, and each such field is reported once per read as a warning naming the source |
+| `strict` | is a boundary error naming the source and the field |
+
+`compatible` is the default. A table's unmapped columns are never selected,
+so a SQLite source applies its strictness to the columns of the table the
+boundary does not read, before any row is.
+
 ### Configured targets
 
 A configured source is also a target: `xs | target("id")` writes to what
@@ -3139,3 +3157,5 @@ reading a target the same evaluation has replaced is refused.
   0045, B6): `target("id")` writes a `Table<R>` or `Seq<R>` through the
   boundary to CSV, JSON, JSON Lines, YAML and SQLite, in `create`, `append`
   or `replace` mode
+- 2026-10-23: strictness specified and built (issue 0045, B7): `strict`,
+  `compatible`, `open` and `warn` for unmapped external fields

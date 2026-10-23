@@ -578,12 +578,18 @@ impl Evaluator<'_> {
                     if step.name == "source"
                         && let Value::Str(id) = &value
                     {
-                        return crate::extensions::io::configured_source(
+                        let mut warnings = Vec::new();
+                        let read = crate::extensions::io::configured_source(
                             self.vault,
                             id,
                             &expression.ty,
                             at,
+                            &mut |message| warnings.push(message),
                         );
+                        for message in warnings {
+                            EvalCx::warn(self, Warning::new(at.clone(), message));
+                        }
+                        return read;
                     }
                     let endpoint = value.clone();
                     let produced = self.step(step, value, arguments, at.clone())?;
@@ -1390,11 +1396,25 @@ impl Evaluator<'_> {
                 span,
             } => {
                 let mut position = 0;
+                let mut reported = Vec::new();
                 self.run_traversal(input, &mut |evaluator, value| {
                     position += 1;
                     let value = match boundary {
-                        Some(boundary) => crate::extensions::io::remapped(&value, boundary)
-                            .map_err(|message| Diagnostic::runtime(span.clone(), message))?,
+                        Some(boundary) => {
+                            let mut warnings = Vec::new();
+                            crate::extensions::io::strictness_of(
+                                boundary,
+                                &value,
+                                &mut reported,
+                                &mut |message| warnings.push(message),
+                            )
+                            .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+                            for message in warnings {
+                                EvalCx::warn(evaluator, Warning::new(span.clone(), message));
+                            }
+                            crate::extensions::io::remapped(&value, boundary)
+                                .map_err(|message| Diagnostic::runtime(span.clone(), message))?
+                        }
                         None => value,
                     };
                     let decoded = crate::extensions::io::decode_document(

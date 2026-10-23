@@ -84,6 +84,8 @@ pub struct EffectiveBoundary {
     pub kind: String,
     /// The fields, in the order the element type declares them.
     pub fields: Vec<EffectiveField>,
+    /// What a read does with an external field no HQL field reads.
+    pub strictness: crate::sources::Strictness,
 }
 
 impl EffectiveBoundary {
@@ -345,6 +347,7 @@ pub fn resolve(
             source: source.to_owned(),
             kind: kind.to_owned(),
             fields: resolved,
+            strictness: crate::sources::Strictness::default(),
         })
     } else {
         Err(errors)

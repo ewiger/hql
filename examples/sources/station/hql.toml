@@ -62,3 +62,16 @@ absent = ["missing"]
 [sources.prices]
 kind = "json"
 path = "data/prices.json"
+
+# The ledger again, read by a narrower record: under `strictness = "open"`
+# the `Observer` column no field reads is not read.
+[sources.ledger_open]
+kind = "csv"
+path = "data/ledger.csv"
+strictness = "open"
+
+[sources.ledger_open.fields.species]
+name = "Species Name"
+
+[sources.ledger_open.fields.count]
+name = "Total"

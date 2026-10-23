@@ -741,13 +741,87 @@ pub(crate) fn boundary_for(
         },
         external,
     )
-    .map(Some)
+    .map(|mut boundary| {
+        boundary.strictness = configured.strictness;
+        Some(boundary)
+    })
     .map_err(|errors| {
         errors
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .join("\n")
+    })
+}
+
+/// A document's unmapped external fields under a `warn` boundary, each
+/// reported once per read; under `strict`, the boundary error.
+///
+/// # Errors
+/// Names a strict source's unmapped fields.
+pub(crate) fn strictness_of(
+    boundary: &crate::boundary::EffectiveBoundary,
+    document: &Value,
+    reported: &mut Vec<String>,
+    warn: &mut dyn FnMut(String),
+) -> Result<(), String> {
+    use crate::sources::Strictness;
+    let extra = unmapped(document, boundary);
+    match boundary.strictness {
+        Strictness::Strict if !extra.is_empty() => Err(format!(
+            "source `{}` is strict, and its boundary reads no field {}",
+            boundary.source,
+            extra
+                .iter()
+                .map(|key| format!("`{key}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+        Strictness::Warn => {
+            for key in extra {
+                if !reported.contains(&key) {
+                    warn(format!(
+                        "source `{}`: its boundary reads no field `{key}`, which is not read",
+                        boundary.source
+                    ));
+                    reported.push(key);
+                }
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+/// The external fields of a document no readable HQL field reads, by its
+/// name or as the first segment of its path.
+pub(crate) fn unmapped(
+    document: &Value,
+    boundary: &crate::boundary::EffectiveBoundary,
+) -> Vec<String> {
+    use crate::data::Data;
+    let Value::Data(tree) = document else {
+        return Vec::new();
+    };
+    let Data::Map(entries) = tree.as_ref() else {
+        return Vec::new();
+    };
+    entries
+        .keys()
+        .filter(|key| !boundary_reads(boundary, key))
+        .cloned()
+        .collect()
+}
+
+/// Whether a readable field of the boundary reads the external field `key`.
+fn boundary_reads(boundary: &crate::boundary::EffectiveBoundary, key: &str) -> bool {
+    use crate::sources::External;
+    boundary.fields.iter().any(|field| {
+        field.readable.value
+            && match &field.external.value {
+                External::Name(name) => name == key,
+                External::Path(segments) => segments.first().is_some_and(|first| first == key),
+            }
     })
 }
 
@@ -771,7 +845,15 @@ pub(crate) fn remapped(
     let Data::Map(entries) = tree.as_ref() else {
         return Ok(document.clone());
     };
+    use crate::sources::Strictness;
     let mut mapped = entries.clone();
+    // A strict source's unmapped fields were refused before; an open one's
+    // are not read.
+    if matches!(boundary.strictness, Strictness::Open | Strictness::Warn) {
+        for key in &unmapped(document, boundary) {
+            mapped.remove(key);
+        }
+    }
     for field in &boundary.fields {
         let name = &field.field.name;
         if let External::Name(external) = &field.external.value
@@ -847,6 +929,7 @@ pub(crate) fn configured_source(
     id: &str,
     wanted: &TypeRef,
     span: &Range<usize>,
+    warn: &mut dyn FnMut(String),
 ) -> Result<Value, Diagnostic> {
     use crate::sources::Kind as Source;
     let failed = |message: String| Diagnostic::runtime(span.clone(), message);
@@ -859,7 +942,18 @@ pub(crate) fn configured_source(
         Source::Sqlite { path, table, .. } => {
             let columns = crate::sources::sqlite_columns(path, table)
                 .map_err(|message| failed(format!("source `{id}`: {message}")))?;
-            boundary_for(configured, &element, Some(&columns)).map_err(failed)?
+            let boundary = boundary_for(configured, &element, Some(&columns)).map_err(failed)?;
+            // A table's unmapped columns are never selected, so its
+            // strictness is applied to them here, before any row.
+            if let Some(boundary) = &boundary {
+                let row: std::collections::BTreeMap<String, crate::data::Data> = columns
+                    .iter()
+                    .map(|column| (column.clone(), crate::data::Data::Empty))
+                    .collect();
+                let header = Value::Data(Arc::new(crate::data::Data::Map(row)));
+                strictness_of(boundary, &header, &mut Vec::new(), warn).map_err(failed)?;
+            }
+            boundary
         }
         Source::File { .. } => boundary_for(configured, &element, None).map_err(failed)?,
     };
@@ -897,6 +991,10 @@ pub(crate) fn configured_source(
         crate::types::Leaves::AsWritten
     };
     let from = format!("source `{id}`");
+    let mut reported = Vec::new();
+    for document in &documents {
+        strictness_of(&boundary, document, &mut reported, warn).map_err(failed)?;
+    }
     let decoded = documents
         .iter()
         .enumerate()

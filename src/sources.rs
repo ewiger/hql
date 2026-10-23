@@ -214,6 +214,33 @@ impl WriteMode {
     }
 }
 
+/// What a read does with an external field no HQL field reads (HQL-0035).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Strictness {
+    /// It is a boundary error.
+    Strict,
+    /// It passes to the HQL type, whose openness decides.
+    #[default]
+    Compatible,
+    /// It is not read.
+    Open,
+    /// It is not read, and is reported as a warning.
+    Warn,
+}
+
+impl Strictness {
+    /// The word `strictness =` writes it as.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Strict => "strict",
+            Self::Compatible => "compatible",
+            Self::Open => "open",
+            Self::Warn => "warn",
+        }
+    }
+}
+
 /// Where an HQL field is held outside: a name, or a path into nested data.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum External {
@@ -292,6 +319,8 @@ pub struct Configured {
     pub fields: BTreeMap<String, FieldMapping>,
     /// How a write to it treats what it holds, `mode =`.
     pub mode: WriteMode,
+    /// What a read does with an unmapped external field, `strictness =`.
+    pub strictness: Strictness,
     /// A vault source, loaded once: every use in a run sees one snapshot.
     loaded: Arc<std::sync::OnceLock<Result<Arc<crate::vault::Vault>, String>>>,
 }
@@ -462,7 +491,7 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
     };
     if let Some(key) = table.keys().find(|key| {
         !matches!(key.as_str(), "kind" | "element")
-            && !(matches!(key.as_str(), "fields" | "mode") && *kind != "vault")
+            && !(matches!(key.as_str(), "fields" | "mode" | "strictness") && *kind != "vault")
             && !keys.contains(&key.as_str())
             && !key.ends_with("_env")
     }) {
@@ -523,12 +552,25 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
             ));
         }
     };
+    let strictness = match text("strictness")?.as_deref() {
+        None | Some("compatible") => Strictness::Compatible,
+        Some("strict") => Strictness::Strict,
+        Some("open") => Strictness::Open,
+        Some("warn") => Strictness::Warn,
+        Some(other) => {
+            return Err(format!(
+                "`[sources.{id}] strictness` is `strict`, `compatible`, `open` or `warn`, not \
+                 `{other}`"
+            ));
+        }
+    };
     Ok(Configured {
         id: id.to_owned(),
         kind,
         element: text("element")?,
         fields,
         mode,
+        strictness,
         loaded: Arc::default(),
     })
 }

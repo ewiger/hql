@@ -124,6 +124,9 @@ The language continues to be in active development.
   a declared record through the boundary to CSV, JSON, JSON Lines, YAML or
   SQLite, the columns in position order and a field with `write = false`
   left out, as the target's `mode`, `create`, `append` or `replace`, says.
+  A source's `strictness` says what a read does with an external field no
+  HQL field reads: `compatible` passes it to the type, `open` does not read
+  it, `warn` does not read it and reports it, and `strict` refuses it.
 
 ### Changed
 
