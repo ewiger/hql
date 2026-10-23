@@ -256,10 +256,17 @@ pub(crate) fn enter_lattice(declaration: &TypeDecl) -> Result<(), Diagnostic> {
                 .fields
                 .iter()
                 .map(|field| {
+                    let ty = structural(&field.annotation)?;
+                    let default = field
+                        .default
+                        .as_ref()
+                        .map(|written| default(field, written, &ty))
+                        .transpose()?;
                     Ok(RecordField {
                         name: field.name.clone(),
-                        ty: structural(&field.annotation)?,
+                        ty,
                         optional: field.optional,
+                        default,
                     })
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?,
@@ -310,6 +317,49 @@ fn structural(
         )
     })?;
     Ok(constructor.apply(args))
+}
+
+/// A field's default as the data a contract reads in its place: a literal
+/// of the field's type, on a field that is not optional, since a default is
+/// what makes the entry always there.
+fn default(
+    field: &crate::ast::Field,
+    written: &crate::ast::Expr,
+    ty: &TypeRef,
+) -> Result<crate::data::Data, Diagnostic> {
+    use crate::ast::Kind;
+    use crate::data::Data;
+    if field.optional {
+        return Err(Diagnostic::typing(
+            written.span.clone(),
+            format!(
+                "`{}` is optional and has a default: a default makes it always present, so \
+                 write `{}: {}`",
+                field.name, field.name, field.annotation.name
+            ),
+        ));
+    }
+    let data = match &written.kind {
+        Kind::Int(value) => Data::Int(*value),
+        Kind::Float(value) => Data::Float(*value),
+        Kind::Bool(value) => Data::Bool(*value),
+        Kind::Str(text) => Data::Str(text.clone()),
+        _ => {
+            return Err(Diagnostic::typing(
+                written.span.clone(),
+                format!("the default of `{}` is written as a literal", field.name),
+            ));
+        }
+    };
+    crate::types::Value::Data(std::sync::Arc::new(data.clone()))
+        .decoded(ty, crate::types::Leaves::AsWritten)
+        .map_err(|_| {
+            Diagnostic::typing(
+                written.span.clone(),
+                format!("the default of `{}` is not {ty}", field.name),
+            )
+        })?;
+    Ok(data)
 }
 
 /// Whether a structural type mentions one of the declaration's parameters.

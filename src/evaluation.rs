@@ -1,7 +1,7 @@
 //! Evaluation: pure over the values it is given, with the vault as its source.
 
 use crate::ast::{Arith, Logic};
-use crate::execution::{Arg, BlockStmt, Expr, Field, Kind, Program, Stmt};
+use crate::execution::{Arg, BlockStmt, Expr, Field, Kind, Program, RuleRead, Stmt};
 use crate::traversal::{Source, Traversal};
 
 use crate::data::Data;
@@ -15,9 +15,27 @@ use crate::types::TypeRef;
 use crate::types::{Closure, Value};
 use crate::vault::Vault;
 use crate::warnings::Warning;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
+
+/// A contract rule as evaluation runs it: a closure over the scope the
+/// contract was declared in, taking the rule's parameters.
+struct RuntimeRule {
+    text: String,
+    reads: Vec<String>,
+    parameters: Vec<crate::execution::RuleParameter>,
+    check: Value,
+}
+
+thread_local! {
+    /// The rules of each contract declared so far, by its name. They live
+    /// beside the lattice, which is per thread, so a stream the host drives
+    /// after the program returns still checks them.
+    static CONTRACTS: RefCell<HashMap<String, Arc<Vec<RuntimeRule>>>> =
+        RefCell::new(HashMap::new());
+}
 
 /// Evaluate a checked program, logging anything worth saying along the way.
 ///
@@ -40,6 +58,7 @@ pub(crate) fn evaluate_with(
 ) -> (Result<Value, Diagnostic>, Vec<Report>) {
     // Values are read against the declarations they were checked under.
     crate::types::program::install(std::sync::Arc::clone(&program.lattice));
+    CONTRACTS.with(|held| held.borrow_mut().clear());
     let mut scope = base(vault);
     // The program module's bindings over `vault`, each its own program.
     for (name, library) in crate::checker::library(vault) {
@@ -185,6 +204,31 @@ impl Evaluator<'_> {
                         trait_name: trait_name.clone(),
                         target: target.clone(),
                         methods,
+                    });
+                    Value::Unit
+                }
+                Stmt::Contract { name, rules } => {
+                    let rules = rules
+                        .iter()
+                        .map(|rule| RuntimeRule {
+                            text: rule.text.clone(),
+                            reads: rule.reads.clone(),
+                            parameters: rule.parameters.clone(),
+                            check: Value::Function(Arc::new(Closure {
+                                name: None,
+                                parameters: rule
+                                    .parameters
+                                    .iter()
+                                    .map(|parameter| parameter.name.clone())
+                                    .collect(),
+                                body: Arc::clone(&rule.body),
+                                captured: self.scope.clone(),
+                                ty: TypeRef::BOOL,
+                            })),
+                        })
+                        .collect();
+                    CONTRACTS.with(|held| {
+                        held.borrow_mut().insert(name.clone(), Arc::new(rules));
                     });
                     Value::Unit
                 }
@@ -542,7 +586,7 @@ impl Evaluator<'_> {
             Kind::Record(fields) => self.record(fields, &expression.ty, &span),
             Kind::Interpret { input, element } => {
                 let value = self.expression(input)?;
-                interpreted(value, element, &span)
+                self.interpreted(value, element, &span)
             }
             Kind::Some(value) => Ok(Value::Present(Arc::new(self.expression(value)?))),
             Kind::Ok(value) => {
@@ -1183,6 +1227,7 @@ impl Evaluator<'_> {
                         from,
                     )
                     .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+                    let decoded = evaluator.contracted(decoded, &traversal.element, span)?;
                     sink(evaluator, decoded)
                 })
             }
@@ -2017,61 +2062,185 @@ pub(crate) fn arithmetic_of(
     })
 }
 
-/// `data | User`: a value read as `element`, or each `Data` of it where it is
-/// optional or a collection, a stream read one element at a time. A value
-/// that does not read is an evaluation error naming every field that does
-/// not, not only the first (HQL-0030).
-fn interpreted(value: Value, element: &TypeRef, span: &Range<usize>) -> Result<Value, Diagnostic> {
-    let one = |value: &Value| {
-        // Read as `Data`, an open record is the tree it was read from.
-        if *element == TypeRef::DATA
-            && let Value::Record(record) = value
-            && let Some(carrier) = &record.carrier
-        {
-            return Ok(Value::Data(Arc::clone(carrier)));
-        }
-        value
-            .decoded(element, crate::types::Leaves::AsWritten)
-            .map_err(|mismatches| {
-                Diagnostic::runtime(
-                    span.clone(),
-                    format!("this does not read as {element}: {mismatches}"),
-                )
-            })
-    };
-    match value {
-        Value::Present(held) => Ok(Value::Present(Arc::new(interpreted(
-            held.as_ref().clone(),
-            element,
-            span,
-        )?))),
-        Value::Absent(_) => Ok(Value::Absent(element.clone())),
-        Value::List(values, _) => Ok(Value::list(
-            values.iter().map(one).collect::<Result<_, _>>()?,
-            element.clone(),
-        )),
-        Value::Set(values, _) => Ok(Value::set(
-            values.iter().map(one).collect::<Result<_, _>>()?,
-            element.clone(),
-        )),
-        Value::Traversal(traversal) => {
-            if let Some(values) = traversal.forced() {
-                return Ok(Value::Traversal(Arc::new(Traversal::kept(
-                    element.clone(),
-                    values.iter().map(one).collect::<Result<_, _>>()?,
-                ))));
-            }
-            Ok(Value::Traversal(Arc::new(Traversal::new(
-                element.clone(),
-                traversal.finite,
-                Source::Decode {
-                    input: Arc::clone(&traversal),
-                    leaves: crate::types::Leaves::AsWritten,
-                    from: format!("`| {element}`"),
-                    span: span.clone(),
-                },
-            ))))
-        }
-        other => one(&other),
+/// One value read as `element`: a value that does not read is an evaluation
+/// error naming every field that does not, not only the first (HQL-0030).
+fn read_as(value: &Value, element: &TypeRef, span: &Range<usize>) -> Result<Value, Diagnostic> {
+    // Read as `Data`, an open record is the tree it was read from.
+    if *element == TypeRef::DATA
+        && let Value::Record(record) = value
+        && let Some(carrier) = &record.carrier
+    {
+        return Ok(Value::Data(Arc::clone(carrier)));
     }
+    value
+        .decoded(element, crate::types::Leaves::AsWritten)
+        .map_err(|mismatches| {
+            Diagnostic::runtime(
+                span.clone(),
+                format!("this does not read as {element}: {mismatches}"),
+            )
+        })
+}
+
+impl Evaluator<'_> {
+    /// `data | User`: a value read as `element`, or each `Data` of it where
+    /// it is optional or a collection, a stream read one element at a time.
+    /// What reads is checked against the rules of every contract in it
+    /// (HQL-0032).
+    fn interpreted(
+        &mut self,
+        value: Value,
+        element: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        let mut each = |values: &[Value]| {
+            values
+                .iter()
+                .map(|value| {
+                    let read = read_as(value, element, span)?;
+                    self.contracted(read, element, span)
+                })
+                .collect::<Result<Vec<_>, _>>()
+        };
+        match value {
+            Value::Present(held) => Ok(Value::Present(Arc::new(self.interpreted(
+                held.as_ref().clone(),
+                element,
+                span,
+            )?))),
+            Value::Absent(_) => Ok(Value::Absent(element.clone())),
+            Value::List(values, _) => Ok(Value::list(each(&values)?, element.clone())),
+            Value::Set(values, _) => Ok(Value::set(each(&values)?, element.clone())),
+            Value::Traversal(traversal) => {
+                if let Some(values) = traversal.forced() {
+                    return Ok(Value::Traversal(Arc::new(Traversal::kept(
+                        element.clone(),
+                        each(values)?,
+                    ))));
+                }
+                Ok(Value::Traversal(Arc::new(Traversal::new(
+                    element.clone(),
+                    traversal.finite,
+                    Source::Decode {
+                        input: Arc::clone(&traversal),
+                        leaves: crate::types::Leaves::AsWritten,
+                        from: format!("`| {element}`"),
+                        span: span.clone(),
+                    },
+                ))))
+            }
+            other => {
+                let read = read_as(&other, element, span)?;
+                self.contracted(read, element, span)
+            }
+        }
+    }
+
+    /// A value read as `element`, once every contract rule over it holds:
+    /// its own, its fields' and its elements'. A broken rule is an
+    /// evaluation error naming every rule that does not hold.
+    fn contracted(
+        &mut self,
+        value: Value,
+        element: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        if CONTRACTS.with(|held| held.borrow().is_empty()) {
+            return Ok(value);
+        }
+        let mut broken = Vec::new();
+        self.broken_rules(&value, &mut Vec::new(), &mut broken, span)?;
+        if broken.is_empty() {
+            Ok(value)
+        } else {
+            Err(Diagnostic::runtime(
+                span.clone(),
+                format!("this does not read as {element}: {}", broken.join("; ")),
+            ))
+        }
+    }
+
+    /// Each rule broken within `value`, said of the path that leads to the
+    /// value it is about.
+    fn broken_rules(
+        &mut self,
+        value: &Value,
+        path: &mut Vec<String>,
+        broken: &mut Vec<String>,
+        span: &Range<usize>,
+    ) -> Result<(), Diagnostic> {
+        match value {
+            Value::Present(held) => self.broken_rules(held, path, broken, span),
+            Value::List(values, _) | Value::Set(values, _) => {
+                for (index, held) in values.iter().enumerate() {
+                    path.push(index.to_string());
+                    self.broken_rules(held, path, broken, span)?;
+                    path.pop();
+                }
+                Ok(())
+            }
+            Value::Record(record) => {
+                for (name, held) in &record.fields {
+                    path.push(name.clone());
+                    self.broken_rules(held, path, broken, span)?;
+                    path.pop();
+                }
+                if let Some(contract) = contracts_of(&record.ty) {
+                    for rule in contract.as_ref() {
+                        if !self.rule_holds(rule, record, span)? {
+                            broken.push(if path.is_empty() {
+                                format!("`{}` does not hold", rule.text)
+                            } else {
+                                format!("field `{}`: `{}` does not hold", path.join("."), rule.text)
+                            });
+                        }
+                    }
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Whether `rule` holds of `record`: vacuously where an optional field
+    /// it reads as `f?` is absent.
+    fn rule_holds(
+        &mut self,
+        rule: &RuntimeRule,
+        record: &crate::types::Record,
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        let absent = |field: &str| matches!(record.field(field), None | Some(Value::Absent(_)));
+        if rule.reads.iter().any(|field| absent(field)) {
+            return Ok(true);
+        }
+        let mut arguments = Vec::with_capacity(rule.parameters.len());
+        for parameter in &rule.parameters {
+            let held = record
+                .field(&parameter.field)
+                .cloned()
+                .unwrap_or(Value::Unit);
+            arguments.push(match (parameter.reads, held) {
+                (RuleRead::Presence, held) => Value::Bool(matches!(held, Value::Present(_))),
+                (RuleRead::Present, Value::Present(inner)) => inner.as_ref().clone(),
+                (_, held) => held,
+            });
+        }
+        match self.call(&rule.check, arguments, span)? {
+            Value::Bool(holds) => Ok(holds),
+            other => Err(Diagnostic::runtime(
+                span.clone(),
+                format!(
+                    "the rule `{}` gave {}, not a Bool",
+                    rule.text,
+                    other.type_of()
+                ),
+            )),
+        }
+    }
+}
+
+/// The rules over a value of `ty`, where it is a contract that has some.
+fn contracts_of(ty: &TypeRef) -> Option<Arc<Vec<RuntimeRule>>> {
+    CONTRACTS.with(|held| held.borrow().get(ty.constructor.0).cloned())
 }

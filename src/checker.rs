@@ -1550,6 +1550,7 @@ impl<'a> Checker<'a> {
                     }
                     self.declarations.declare(declaration)?;
                     crate::declarations::enter_lattice(declaration)?;
+                    self.contract(declaration)?;
                     TypeRef::UNIT
                 }
                 Stmt::Fn(declaration) => {
@@ -3747,6 +3748,108 @@ impl<'a> Checker<'a> {
                 methods: lowered,
             },
         );
+        Ok(())
+    }
+
+    /// Check what a contract adds to its fields (HQL-0032): only a
+    /// `TypeContract` or a `DataContract` has rules or defaults, and each
+    /// rule is a `Bool` over the fields it declares.
+    fn contract(&mut self, declaration: &crate::ast::TypeDecl) -> Result<(), Diagnostic> {
+        use crate::execution::{RuleParameter, RuleRead};
+        let written = declaration
+            .rules
+            .first()
+            .map(|rule| rule.span.clone())
+            .or_else(|| {
+                declaration
+                    .fields
+                    .iter()
+                    .find(|field| field.default.is_some())
+                    .map(|field| field.span.clone())
+            });
+        let Some(written) = written else {
+            return Ok(());
+        };
+        let name = &declaration.name;
+        let contract = crate::types::named(name, &[])
+            .is_some_and(|ty| ty.is(&TypeRef::TYPE_CONTRACT) || ty.is(&TypeRef::DATA_CONTRACT));
+        if !contract {
+            return Err(Diagnostic::typing(
+                written,
+                format!(
+                    "rules and defaults belong to a contract: declare `type {name} : \
+                     TypeContract` for a closed one or `type {name} : DataContract` for an \
+                     open one"
+                ),
+            ));
+        }
+        if declaration.rules.is_empty() {
+            return Ok(());
+        }
+        let mut parameters = Vec::new();
+        for field in &declaration.fields {
+            let bind = |name: String, reads| RuleParameter {
+                name,
+                field: field.name.clone(),
+                reads,
+            };
+            parameters.push(bind(field.name.clone(), RuleRead::Value));
+            if field.optional {
+                parameters.push(bind(
+                    crate::ast::optional_read(&field.name),
+                    RuleRead::Present,
+                ));
+                parameters.push(bind(crate::ast::presence(&field.name), RuleRead::Presence));
+            }
+        }
+        let ty = |parameter: &RuleParameter| -> Result<TypeRef, Diagnostic> {
+            let declared = crate::types::named(name, &[])
+                .and_then(|ty| crate::types::program::field_type(&ty, &parameter.field))
+                .ok_or_else(|| {
+                    Diagnostic::typing(
+                        declaration.span.clone(),
+                        format!("`{}` has no type here", parameter.field),
+                    )
+                })?;
+            Ok(match parameter.reads {
+                RuleRead::Value => declared,
+                RuleRead::Present => declared.present().clone(),
+                RuleRead::Presence => TypeRef::BOOL,
+            })
+        };
+        let mut previous = Vec::new();
+        for parameter in &parameters {
+            let bound = ty(parameter)?;
+            previous.push((
+                parameter.name.clone(),
+                self.scope.insert(parameter.name.clone(), bound),
+            ));
+        }
+        let checked = declaration.rules.iter().try_for_each(|rule| {
+            let found = self.expression(&rule.predicate)?;
+            if found == TypeRef::BOOL {
+                Ok(())
+            } else {
+                Err(Diagnostic::typing(
+                    rule.predicate.span.clone(),
+                    format!("a rule is a Bool, and this is {found}"),
+                ))
+            }
+        });
+        for (name, value) in previous.into_iter().rev() {
+            match value {
+                Some(value) => {
+                    self.scope.insert(name, value);
+                }
+                None => {
+                    self.scope.remove(&name);
+                }
+            }
+        }
+        checked?;
+        self.checked
+            .contracts
+            .insert(declaration.span.clone(), parameters);
         Ok(())
     }
 

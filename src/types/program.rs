@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 /// One declared field of a record: its type written over the record's
 /// parameters, each a nullary application of its name.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RecordField {
     /// The field's name.
     pub name: String,
@@ -23,10 +23,13 @@ pub struct RecordField {
     pub ty: TypeRef,
     /// Whether the field is written `name? : Type`.
     pub optional: bool,
+    /// What a contract reads where the data holds no entry for the field,
+    /// written `name: Type = literal` (HQL-0032).
+    pub default: Option<crate::data::Data>,
 }
 
 /// What a record declares: its parameters and its fields, in order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RecordShape {
     /// The record's type parameters, in declaration order.
     pub parameters: Vec<&'static str>,
@@ -275,6 +278,7 @@ mod tests {
                     name: "held".to_owned(),
                     ty: TypeConstructor("T").apply([]),
                     optional: false,
+                    default: None,
                 }],
             }),
         )

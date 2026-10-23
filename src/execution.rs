@@ -43,6 +43,12 @@ pub(crate) enum Stmt {
         value: Expr,
     },
     Expr(Expr),
+    /// A contract's rules, each run over the fields of every value read as
+    /// the contract.
+    Contract {
+        name: String,
+        rules: Vec<RuleLowering>,
+    },
     /// A declared function, bound under its name.
     Fn {
         name: String,
@@ -66,6 +72,37 @@ pub(crate) struct ImplLowering {
     pub trait_name: String,
     pub target: TypeRef,
     pub methods: Vec<MethodLowering>,
+}
+
+/// A name a contract rule binds, and what of the value it binds.
+#[derive(Debug, Clone)]
+pub(crate) struct RuleParameter {
+    pub name: String,
+    pub field: String,
+    pub reads: RuleRead,
+}
+
+/// What a rule parameter holds of its field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RuleRead {
+    /// The field's value as declared: an optional one as an `Option`.
+    Value,
+    /// An optional field's value where present, written `f?`: a rule that
+    /// reads one that is absent does not apply.
+    Present,
+    /// Whether an optional field is present, `f?` standing as a condition.
+    Presence,
+}
+
+/// A contract rule lowered for evaluation: a function of its parameters.
+#[derive(Debug)]
+pub(crate) struct RuleLowering {
+    pub text: String,
+    /// The optional fields it reads as `f?`: it applies where all are
+    /// present.
+    pub reads: Vec<String>,
+    pub parameters: Vec<RuleParameter>,
+    pub body: std::sync::Arc<Expr>,
 }
 
 /// One function of an implementation: its own, or inherited from the trait.
@@ -642,6 +679,9 @@ pub(crate) struct Checked {
     pub operator_calls: HashMap<Range<usize>, &'static str>,
     /// Each implementation, by the span of its declaration.
     pub impls: HashMap<Range<usize>, ImplLowering>,
+    /// Each contract with rules, by the span of its declaration: the names a
+    /// rule's body reads its fields by, in the order a check binds them.
+    pub contracts: HashMap<Range<usize>, Vec<RuleParameter>>,
     /// Each reference to a workspace module's function, `geo.area`, by the
     /// name it is bound under.
     pub module_refs: HashMap<Range<usize>, String>,
@@ -723,10 +763,29 @@ impl Checked {
                             )?,
                         }
                     }
+                    ast::Stmt::Type(declaration) => match self.contracts.get(&declaration.span) {
+                        Some(parameters) => Stmt::Contract {
+                            name: declaration.name.clone(),
+                            rules: declaration
+                                .rules
+                                .iter()
+                                .map(|rule| {
+                                    Ok(RuleLowering {
+                                        text: rule.text.clone(),
+                                        reads: rule.reads.clone(),
+                                        parameters: parameters.clone(),
+                                        body: std::sync::Arc::new(
+                                            self.expression(&rule.predicate)?,
+                                        ),
+                                    })
+                                })
+                                .collect::<Result<_, Diagnostic>>()?,
+                        },
+                        None => Stmt::Unit,
+                    },
                     ast::Stmt::Import { .. }
                     | ast::Stmt::ModuleFor { .. }
                     | ast::Stmt::External(_)
-                    | ast::Stmt::Type(_)
                     | ast::Stmt::Trait(_) => Stmt::Unit,
                     // A native implementation runs no HQL: its header is
                     // bound to an extension's bodies.
@@ -1337,6 +1396,9 @@ impl Program {
                 Stmt::Fn { body, .. } => roots.push(body.as_ref()),
                 Stmt::Impl { methods, .. } => {
                     roots.extend(methods.iter().map(|(_, _, body, _)| body.as_ref()));
+                }
+                Stmt::Contract { rules, .. } => {
+                    roots.extend(rules.iter().map(|rule| rule.body.as_ref()));
                 }
                 Stmt::Unit => {}
             }

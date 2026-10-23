@@ -2,8 +2,8 @@
 
 use crate::ast::{
     ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, ExternalDecl, Field,
-    FnDecl, ImplDecl, Kind, Logic, MethodDecl, Param, Passing, Pattern, Program, Relation, Stmt,
-    TEE_INPUT, TraitDecl, TypeAnn, TypeDecl,
+    FnDecl, ImplDecl, Kind, Logic, MethodDecl, Param, Passing, Pattern, Program, Relation, Rule,
+    Stmt, TEE_INPUT, TraitDecl, TypeAnn, TypeDecl, optional_read, presence,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -26,6 +26,9 @@ pub(crate) fn parse(source: &str) -> Result<Program, Diagnostic> {
         nesting: 0,
         operators: 0,
         depth: 0,
+        rule_nesting: None,
+        source: source.to_owned(),
+        rule_reads: Vec::new(),
         line_starts: std::iter::once(0)
             .chain(source.match_indices('\n').map(|(index, _)| index + 1))
             .collect(),
@@ -43,9 +46,23 @@ struct Parser {
     depth: usize,
     /// Where each line of the source starts, for the columns `tee` reads.
     line_starts: Vec<usize>,
+    /// The bracket nesting of the contract rule being parsed, if any: at it,
+    /// `f?` reads an optional field and `=>` is implication, not a lambda.
+    rule_nesting: Option<usize>,
+    /// The program text, which a rule keeps as written for its diagnostic.
+    source: String,
+    /// The optional fields the rule being parsed reads as `f?`, once per
+    /// time it is written.
+    rule_reads: Vec<String>,
 }
 
 impl Parser {
+    /// Whether parsing is at the top of a contract rule, where `=>` is
+    /// implication.
+    fn at_rule_level(&self) -> bool {
+        self.rule_nesting == Some(self.nesting)
+    }
+
     fn peek(&self) -> &Token {
         // Inside brackets, newlines are insignificant and skipped on sight.
         let mut index = self.index;
@@ -455,11 +472,16 @@ impl Parser {
             self.advance();
         }
         let mut fields = Vec::new();
+        let mut rules = Vec::new();
         if union.is_none() && matches!(self.tokens[self.index].token, Token::OpenBrace) {
             self.advance();
             self.nesting += 1;
             while !matches!(self.peek(), Token::CloseBrace) {
-                fields.push(self.field()?);
+                if self.at_rule() {
+                    rules.push(self.rule()?);
+                } else {
+                    fields.push(self.field()?);
+                }
                 // A record body separates its fields by line, and a comma is
                 // accepted for anyone who writes one.
                 self.eat(&Token::Comma);
@@ -501,7 +523,104 @@ impl Parser {
             supertypes,
             fields,
             union,
+            rules,
             span: keyword.span.start..end,
+        })
+    }
+
+    /// Whether a record body continues with a rule rather than a field: the
+    /// word `require` or `validate` not followed by a field's `:` or `?:`,
+    /// so a field may still be called either.
+    fn at_rule(&self) -> bool {
+        let mut index = self.index;
+        while matches!(self.tokens[index].token, Token::Newline) {
+            index += 1;
+        }
+        matches!(&self.tokens[index].token, Token::Ident(word) if word == "require" || word == "validate")
+            && !matches!(self.tokens[index + 1].token, Token::Colon | Token::Question)
+    }
+
+    /// `require P`, or `validate f with V`, in a contract's body.
+    fn rule(&mut self) -> Result<Rule, Diagnostic> {
+        let keyword = self.advance();
+        self.rule_reads.clear();
+        let outer = self.rule_nesting.replace(self.nesting);
+        let predicate = if matches!(&keyword.token, Token::Ident(word) if word == "require") {
+            self.implication()
+        } else {
+            self.validation(keyword.span.start)
+        };
+        self.rule_nesting = outer;
+        let mut predicate = predicate?;
+        let mut reads = std::mem::take(&mut self.rule_reads);
+        mark_presence(&mut predicate, &mut reads);
+        reads.sort();
+        reads.dedup();
+        let span = keyword.span.start..predicate.span.end;
+        Ok(Rule {
+            text: self.source[span.clone()].to_owned(),
+            predicate,
+            reads,
+            span,
+        })
+    }
+
+    /// `a => b` within a rule: `a` implies `b`, which is `not a or b`. It
+    /// binds loosest and groups to the right.
+    fn implication(&mut self) -> Result<Expr, Diagnostic> {
+        let antecedent = self.expression()?;
+        if !self.eat(&Token::FatArrow) {
+            return Ok(antecedent);
+        }
+        self.continuation();
+        let consequent = self.nested(Self::implication)?;
+        let negated = Expr {
+            span: antecedent.span.clone(),
+            kind: Kind::Not(Box::new(antecedent)),
+        };
+        Ok(logic(Logic::Or, negated, consequent))
+    }
+
+    /// `validate f with V`, after the keyword: the call `V(f)`, spanning
+    /// the whole rule.
+    fn validation(&mut self, start: usize) -> Result<Expr, Diagnostic> {
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(
+                named.span,
+                "expected the field to validate",
+            ));
+        };
+        let mut read = Expr {
+            kind: Kind::Ident(name),
+            span: named.span.clone(),
+        };
+        if matches!(self.tokens[self.index].token, Token::Question)
+            && let Kind::Ident(name) = &mut read.kind
+        {
+            self.rule_reads.push(name.clone());
+            *name = optional_read(name);
+            read.span.end = self.advance().span.end;
+        }
+        self.expect(
+            &Token::Ident("with".to_owned()),
+            "after the validated field",
+        )?;
+        // The validator is an ordinary expression: `=>` there is a lambda's.
+        let outer = self.rule_nesting.take();
+        let validator = self.link();
+        self.rule_nesting = outer;
+        let validator = validator?;
+        let span = start..validator.span.end;
+        Ok(Expr {
+            kind: Kind::Call {
+                callee: Box::new(validator),
+                arguments: vec![Arg {
+                    name: None,
+                    value: read,
+                }],
+            },
+            span,
         })
     }
 
@@ -515,12 +634,20 @@ impl Parser {
         let optional = self.eat(&Token::Question);
         self.expect(&Token::Colon, "after a field name")?;
         let annotation = self.type_annotation()?;
-        let span = named.span.start..annotation.span.end;
+        let default = if self.eat(&Token::Equals) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        let end = default
+            .as_ref()
+            .map_or(annotation.span.end, |default| default.span.end);
         Ok(Field {
             name,
             optional,
             annotation,
-            span,
+            default,
+            span: named.span.start..end,
         })
     }
 
@@ -2002,7 +2129,10 @@ impl Parser {
                 }
                 look += 1;
             }
-            if depth == 0 && matches!(self.tokens[look].token, Token::FatArrow) {
+            if depth == 0
+                && matches!(self.tokens[look].token, Token::FatArrow)
+                && !self.at_rule_level()
+            {
                 let start = self.advance().span.start;
                 self.nesting += 1;
                 let mut parameters = Vec::new();
@@ -2064,7 +2194,17 @@ impl Parser {
             Token::DocRef(name) => Kind::DocRef(name),
             Token::Match => return self.match_expression(head.span.start),
             Token::Ident(name) => {
-                if matches!(self.peek(), Token::FatArrow) {
+                if self.rule_nesting.is_some()
+                    && matches!(self.tokens[self.index].token, Token::Question)
+                {
+                    let mark = self.advance();
+                    self.rule_reads.push(name.clone());
+                    return Ok(Expr {
+                        kind: Kind::Ident(optional_read(&name)),
+                        span: head.span.start..mark.span.end,
+                    });
+                }
+                if matches!(self.peek(), Token::FatArrow) && !self.at_rule_level() {
                     self.advance();
                     self.continuation();
                     let body = self.nested(Self::given)?;
@@ -2161,6 +2301,28 @@ fn arith(operator: Arith, left: Expr, right: Expr) -> Expr {
     Expr {
         kind: Kind::Arith(operator, Box::new(left), Box::new(right)),
         span,
+    }
+}
+
+/// Rename each `f?` that stands as a condition, the whole rule or an operand
+/// of `and`, `or` or `not`, to the presence of `f`, which is then not among
+/// the `reads` the rule depends on.
+fn mark_presence(condition: &mut Expr, reads: &mut Vec<String>) {
+    match &mut condition.kind {
+        Kind::Ident(name) => {
+            if let Some(field) = name.strip_suffix('?') {
+                if let Some(index) = reads.iter().position(|read| read == field) {
+                    reads.remove(index);
+                }
+                *name = presence(field);
+            }
+        }
+        Kind::Logic(_, left, right) => {
+            mark_presence(left, reads);
+            mark_presence(right, reads);
+        }
+        Kind::Not(operand) => mark_presence(operand, reads),
+        _ => {}
     }
 }
 

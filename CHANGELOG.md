@@ -10,6 +10,15 @@ The language continues to be in active development.
 
 ### Added
 
+- Contract rules and defaults ([HQL-0032](doc/proposals/HQL-0032/README.md);
+  [issue 0043](doc/issues/0043-contract-validation.md), shown in the
+  [structural examples](examples/structural/README.md)): a `TypeContract` or
+  `DataContract` body takes `require P` and `validate f with V` beside its
+  fields, and `name: T = literal` defaults. In a rule `f?` reads an optional
+  field, applying the rule only where it is present, or tests its presence
+  as a condition, and `=>` is implication. `x | T` and a decoded stream
+  check every rule, and a value that breaks some is an evaluation error
+  naming each as written.
 - `Table` ([HQL-0017](doc/proposals/HQL-0017/README.md);
   [issue 0039](doc/issues/0039-table-shape-and-presentation-review.md), shown
   in the [constructors examples](examples/constructors/README.md)):

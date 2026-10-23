@@ -594,6 +594,17 @@ impl Value {
                     }
                 }
                 (None, true) => Self::Absent(field.ty.clone()),
+                // A contract's default stands in for the entry; the tree a
+                // view keeps is still the one that was read.
+                (None, false) if let Some(default) = &field.default => {
+                    match Self::Data(Arc::new(default.clone())).decoded(&field.ty, leaves) {
+                        Ok(read) => read,
+                        Err(mismatches) => {
+                            failed.extend(mismatches.within(&field.name).0);
+                            continue;
+                        }
+                    }
+                }
                 (None, false) => {
                     failed.push(Mismatch::new("it is missing").within(&field.name));
                     continue;

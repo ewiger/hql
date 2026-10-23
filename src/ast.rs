@@ -261,6 +261,9 @@ pub(crate) struct TypeDecl {
     /// rather than what it narrows, so the parser leaves `supertypes` and
     /// `fields` empty whenever this is present.
     pub union: Option<Vec<TypeAnn>>,
+    /// The `require` and `validate` rules of a contract's body, in the order
+    /// written (HQL-0032).
+    pub rules: Vec<Rule>,
     pub span: Range<usize>,
 }
 
@@ -271,7 +274,40 @@ pub(crate) struct Field {
     /// Whether the field is written `name? : Type`.
     pub optional: bool,
     pub annotation: TypeAnn,
+    /// The literal written `name: Type = literal`, which a contract reads
+    /// where the data holds no entry.
+    pub default: Option<Expr>,
     pub span: Range<usize>,
+}
+
+/// A contract rule: `require P`, or `validate f with V`, which is
+/// `require V(f)`.
+///
+/// Within a rule, an optional field is written `f?`. Read as a value, it
+/// makes the rule apply only where `f` is present; standing as a condition,
+/// an operand of `and`, `or`, `not` or `=>`, it is the presence of `f` and
+/// is named [`presence`] here, so the two never share a binding.
+#[derive(Debug)]
+pub(crate) struct Rule {
+    /// The rule as written, for the diagnostic that reports it broken.
+    pub text: String,
+    /// The condition, `Bool`, with `a => b` written as `not a or b`.
+    pub predicate: Expr,
+    /// The optional fields it reads as `f?`: it applies where all are
+    /// present.
+    pub reads: Vec<String>,
+    pub span: Range<usize>,
+}
+
+/// The name a rule reads optional field `field` by: `field?`.
+pub(crate) fn optional_read(field: &str) -> String {
+    format!("{field}?")
+}
+
+/// The name a rule tests the presence of optional field `field` by. It
+/// cannot be written in a program, so no binding can shadow it.
+pub(crate) fn presence(field: &str) -> String {
+    format!("?{field}")
 }
 
 /// A written type, such as `Card` or `Set<Card>`.

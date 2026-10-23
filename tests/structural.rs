@@ -1,6 +1,7 @@
 //! Structural types (HQL-0030): a plain record is closed, one narrowing
 //! `Data` or `DataContract` is an open view, and `data | T` reads a `Data`
-//! as a declared type without changing it.
+//! as a declared type without changing it. A contract (HQL-0032) adds rules
+//! and defaults, and every value read as one holds its rules.
 
 use hql::{check, eval};
 
@@ -173,4 +174,61 @@ fn the_empty_keyed_literal_takes_a_declared_map_type() {
     );
     assert_eq!(check("{:}").unwrap().to_string(), "Data");
     assert_eq!(check("d : Data = {:}\nd").unwrap().to_string(), "Data");
+}
+
+const ACCOUNT: &str = "type Account : DataContract = {\n    status: String\n    closed_at?: String\n    age?: Int\n    require status == \"closed\" => closed_at?\n    require age? >= 18\n}\n";
+
+#[test]
+fn a_contract_rule_reads_an_optional_field_only_where_it_is_present() {
+    // `age?` is absent, so `require age? >= 18` does not apply.
+    assert_eq!(
+        value(&format!(
+            "{ACCOUNT}d : Data = {{status: \"open\"}}\n(d | Account).status"
+        )),
+        "open"
+    );
+    let broken = failure(&format!(
+        "{ACCOUNT}d : Data = {{status: \"closed\", age: 3}}\nd | Account"
+    ));
+    assert!(
+        broken.contains("`require status == \"closed\" => closed_at?` does not hold")
+            && broken.contains("`require age? >= 18` does not hold"),
+        "{broken}"
+    );
+}
+
+#[test]
+fn a_nested_contract_is_checked_at_its_path() {
+    let source = "type Inner : TypeContract = {\n    n: Int\n    require n > 0\n}\n\
+                  type Outer : TypeContract = {\n    inner: Inner\n}\n\
+                  d : Data = {inner: {n: 0}}\nd | Outer";
+    assert!(
+        failure(source).contains("field `inner`: `require n > 0` does not hold"),
+        "{}",
+        failure(source)
+    );
+}
+
+#[test]
+fn a_field_may_be_named_require_or_validate() {
+    let source = "type P : TypeContract = {\n    require: Int\n    validate?: Bool\n}\n\
+                  d : Data = {require: 1}\n(d | P).require";
+    assert_eq!(value(source), "1");
+}
+
+#[test]
+fn a_decoded_stream_is_checked_one_document_at_a_time() {
+    let sightings = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/examples/structural/sightings.jsonl"
+    );
+    let source = format!(
+        "type Sighting : DataContract = {{\n    species: String\n    require species != \"wren\"\n}}\n\
+         source(file(\"{sightings}\"), Json) | Sighting | map(s => s.species) | List"
+    );
+    assert!(
+        failure(&source).contains("`require species != \"wren\"` does not hold"),
+        "{}",
+        failure(&source)
+    );
 }

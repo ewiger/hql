@@ -3,7 +3,10 @@
 The cases follow [HQL-0032](../../doc/proposals/HQL-0032/README.md), which
 supersedes HQL-0030: a plain
 structural type is closed, one narrowing `Data` (or `DataContract`) is an open
-view, and `data | T` reads a `Data` as `T` without changing it.
+view, and `data | T` reads a `Data` as `T` without changing it. A
+`TypeContract` or `DataContract` adds rules, `require P` and
+`validate f with V`, and field defaults, `age: Int = 18`: every value it
+reads holds every rule.
 
 | Case | What it shows | Result |
 | --- | --- | --- |
@@ -12,6 +15,11 @@ view, and `data | T` reads a `Data` as `T` without changing it.
 | [closed, extra field](queries/invalid-closed-extra-field.hql) | a closed type refuses an undeclared `z` when the `Data` is read | an evaluation error |
 | [decoded sightings](queries/decoded-sightings.hql) | `source(file(…), Json) \| Sighting`: decoding at the source, interpretation in the pipeline | the first two species |
 | [empty map](queries/empty-map.hql) | `{:}` takes a declared `Map<String, Int>` type | `true` |
+| [contract rules](queries/contract-rules.hql) | `require` and `validate … with` hold for each value `\| UserData` reads; `age?` reads an optional field | `["Alice", "CH"]` |
+| [presence and implication](queries/contract-presence.hql) | `email? or phone?` tests presence, and `=>` is implication | `["open", "closed"]` |
+| [contract defaults](queries/contract-defaults.hql) | `age: Int = 18` stands in where the data has no `age` | `[18, 34]` |
+| [broken rules](queries/invalid-contract-rule.hql) | a value that breaks rules does not read, and each broken rule is named as written | an evaluation error |
+| [rule on a plain type](queries/invalid-rule-on-plain-type.hql) | only a `TypeContract` or `DataContract` has rules | a type error |
 
 From the repository root:
 

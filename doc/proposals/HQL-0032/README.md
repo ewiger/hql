@@ -511,7 +511,6 @@ type UserData : DataContract = {
     country: String
     active: Bool
 
-    // illustrative contract syntax
     require id != ""
     require name != ""
 
@@ -799,9 +798,9 @@ require age >= 18
 
 require start <= end
 
-require email? || phone?
+require email? or phone?
 
-require !(foo? && bar?)
+require not (foo? and bar?)
 
 require status == "closed" => closed_at?
 
@@ -824,6 +823,30 @@ nested predicates
 
 Logical constraints are one of the primary reasons contracts are richer than
 simple schemas.
+
+A rule is written in a contract's body, beside its fields:
+
+- `require P` states that the `Bool` `P` holds of every value read as the
+  contract. `P` is an HQL expression over the contract's fields, with
+  `and`, `or` and `not` as its connectives.
+- `a => b` in a rule is implication, `not a or b`. It binds loosest and
+  groups to the right.
+- A required field is read by its name. An optional field read as `f?`
+  makes the rule apply only where `f` is present, so `require age? >= 0`
+  holds of a value without `age`. Where `f?` stands as a condition, the
+  whole rule or an operand of `and`, `or`, `not` or `=>`, it is `true`
+  exactly where `f` is present.
+- `validate f with V` is `require V(f)`, for a function `V` of the field's
+  type to `Bool` in scope where the contract is declared.
+- `name: T = literal` is a default: where the data has no entry for the
+  field, the contract reads the literal. A default is a literal of the
+  field's type, on a field that is not optional, and it is applied before
+  the rules are checked.
+
+Only a `TypeContract` or a `DataContract` has rules or defaults. A value read
+with `x | T` holds every rule of `T` and of each contract within it, a
+decoded stream one element at a time; one that does not is an evaluation
+error naming each broken rule as written.
 
 ## 18. Cross-field invariants
 
@@ -932,6 +955,9 @@ The exact conflict-resolution model remains to be designed.
 Contract composition should remain predictable and inspectable.
 
 ## 22. Structured diagnostics
+
+[HQL-0033](../HQL-0033/README.md) specifies this: `validate(T)` gives
+`Result<T, Invalid>`, and `Invalid` and `Violation` are declared contracts.
 
 Validation failures should be represented as structured values.
 
@@ -1880,6 +1906,9 @@ This is conceptual.
 Implementations may optimize execution while preserving semantics.
 
 ## 55. Validation result
+
+[HQL-0033](../HQL-0033/README.md) specifies this: `validate(T)` gives
+`Result<T, Invalid>`, and `Invalid` and `Violation` are declared contracts.
 
 The runtime should conceptually produce a result richer than `Bool`.
 

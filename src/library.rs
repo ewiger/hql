@@ -259,6 +259,7 @@ pub(crate) fn shape(name: &str) -> Option<crate::types::program::RecordShape> {
                     name: field.name.clone(),
                     ty: structural(&field.annotation)?,
                     optional: field.optional,
+                    default: None,
                 })
             })
             .collect::<Option<Vec<_>>>()?,
