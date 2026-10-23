@@ -91,10 +91,11 @@ fn sort<T>(self: Collection<T>, by: (T, T) -> Ordering) : List<T>
 `[3, 1] | sort` is a `List<Int>`, `{3, 1} | sort` a `List<Int>`, and a
 `Ranking<Card>` sorted by a key a `Seq<Hit<Card>>`, its constructor rebuilt
 around its element. Where no declaration fits, the refusal names the inputs
-the declarations take: `` `sum` needs Collection<Int> or Collection<Float>, not
-List<String> ``. Where a call fits a declaration by its arity and none by
-its arguments' types, and another declaration takes those arguments, the
-refusal names every declaration of that arity: `2 | pow(2.0)` names
+the declarations take: `` `sum` needs Collection<Int> or Collection<Float> or
+Collection<Decimal>, not List<String> ``. Where a call fits a declaration by
+its arity and none by its arguments' types, and another declaration takes
+those arguments, the refusal names every declaration of that arity:
+`2 | pow(2.0f)` names
 `Int | pow(exponent: Int)` and `Float | pow(exponent: Float)`.
 
 The parameters before a `/` are supplied by position only, and those after

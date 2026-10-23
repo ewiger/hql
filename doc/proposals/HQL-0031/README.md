@@ -1,6 +1,6 @@
 # HQL-0031: `Decimal`, an exact decimal number type
 
-**Status**: accepted
+**Status**: accepted, implemented
 **Created**: 2026-10-23
 **Source**: [issue 0042](../../issues/0042-decimal.md);
 [HQL-0030](../HQL-0030/README.md) uses `Decimal` in its examples
@@ -120,3 +120,7 @@ compute with such literals give the same digits, now exact.
   `f`; arbitrary precision; exact `+ - *`, division to 100 significant
   digits, half-even `round`; `Int` widens and `Float` is refused; formats
   carry the digits exactly
+- 2026-10-23: implemented ([issue 0042](../../issues/0042-decimal.md)), with
+  the [decimal examples](../../../examples/decimal/README.md); `str(d)` is the
+  `string(d)` this record names, and a boundary declaring a decimal field as
+  a JSON string waits on HQL-0035's schema

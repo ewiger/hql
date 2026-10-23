@@ -153,11 +153,12 @@ directly before the argument list; otherwise `<` is the comparison, so
 | Written | Type |
 | --- | --- |
 | `42`, `-1` | `Int` |
-| `1.5` | `Float` |
+| `1.5`, `1.5e-3` | `Decimal`, with the scale it is written with |
+| `1.5f`, `6.02e23f`, `2f` | `Float` |
 | `true`, `false` | `Bool` |
 | `"text"` | `String` |
 | `{ key: value }` | `Data` |
-| `true`, `42`, `1.5`, `"text"` | also `Scalar`, and so also `Data` |
+| `true`, `42`, `1.5`, `1.5f`, `"text"` | also `Scalar`, and so also `Data` |
 | `@[[name]]` | `Option<Card>` |
 | `@[[a]] -> @[[b]] {..}` | `Edge` |
 | `cards` | `Seq<Card>`, bound when a vault is present |
@@ -170,17 +171,24 @@ depth first. A program may shadow it like any other name. Without a vault it is
 unbound, and the checker says that it needs a vault rather than that it does
 not exist.
 
-Arithmetic is homogeneous: `+`, `-`, `*`, `/` and `%` take two `Int` or two
-`Float`, never mixed, and `Int` never widens. `Int` division truncates toward
+Arithmetic is homogeneous: `+`, `-`, `*`, `/` and `%` take two `Int`, two
+`Float` or two `Decimal`, except that an `Int` beside a `Decimal` widens to a
+`Decimal` of scale 0. A `Float` beside a `Decimal` is a type error naming the
+conversions `decimal(x)` and `float(d)`. `Int` division truncates toward
 zero and `%` keeps the dividend's sign, so `a == (a / b) * b + a % b`.
+`Decimal` `+` and `-` have the larger scale of their operands and `*` the sum
+of their scales; `/` is exact where the quotient terminates and otherwise
+rounded half to even to 100 significant digits
+([HQL-0031](../../proposals/HQL-0031/README.md)).
 Division or remainder by zero is an evaluation failure. Overflow — an `i64`
 that wraps, or a result that leaves the finite floats — is an evaluation
 failure rather than a wrapped or infinite value.
 
 `==` and `!=` compare scalars; either side may be a `Data` leaf, which is what
 asking a header a question looks like. `<`, `<=`, `>` and `>=` take two values
-of one `Orderable` type, as `compare` does, with no widening and no looking
-through `Option` or into `Data`. No comparison chains: `a < b < c` is a syntax
+of one `Orderable` type, as `compare` does, with no looking through `Option`
+or into `Data`, and no widening but an `Int`'s beside a `Decimal`, which
+compares by value as `==` does. No comparison chains: `a < b < c` is a syntax
 error, and is written `a < b and b < c`.
 
 `and`, `or` and `not` take `Bool` operands and return `Bool`; an
