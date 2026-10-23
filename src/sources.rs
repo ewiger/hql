@@ -189,6 +189,68 @@ impl Kind {
     }
 }
 
+/// Where an HQL field is held outside: a name, or a path into nested data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum External {
+    /// A CSV header, a JSON key or a column, `name = "user_id"`.
+    Name(String),
+    /// A field below the top level, `path = "profile.display_name"`.
+    Path(Vec<String>),
+}
+
+/// An external representation an optional field reads as absent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Absence {
+    /// The record holds no such field.
+    Missing,
+    /// The field holds empty text, a CSV cell with nothing in it.
+    Empty,
+    /// The field holds JSON `null` or SQL `NULL`.
+    Null,
+}
+
+impl Absence {
+    /// The word `absent = [...]` writes it as.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Missing => "missing",
+            Self::Empty => "empty",
+            Self::Null => "null",
+        }
+    }
+}
+
+/// What a configuration says of one field's external side (HQL-0035): a
+/// property it does not write is `None`, left to the format's default.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct FieldMapping {
+    /// The external field, `name` or `path`.
+    pub external: Option<External>,
+    /// The external type, in the format's vocabulary.
+    pub external_type: Option<String>,
+    /// The external field's place in the record, from 1.
+    pub position: Option<usize>,
+    /// Whether the field is read from the source.
+    pub readable: Option<bool>,
+    /// Whether the field is written to a target.
+    pub writable: Option<bool>,
+    /// The external representations an optional field reads as absent.
+    pub absent: Option<Vec<Absence>>,
+    /// The keys the kind's extension owns, under the kind's name.
+    pub owned: BTreeMap<String, toml::Value>,
+}
+
+/// The core keys of a field's table (HQL-0035).
+const FIELD_KEYS: [&str; 7] = [
+    "name", "path", "type", "position", "read", "write", "absent",
+];
+
+/// The field keys each kind's extension owns, under its own name: none yet.
+fn owned_field_keys(_kind: &str) -> &'static [&'static str] {
+    &[]
+}
+
 /// One configured source: its id, what it is read from, and the element
 /// type its configuration names.
 #[derive(Debug, Clone)]
@@ -199,6 +261,8 @@ pub struct Configured {
     pub kind: Kind,
     /// The element type `element =` names, when it names one.
     pub element: Option<String>,
+    /// The boundary it configures, field by field, `[sources.<id>.fields]`.
+    pub fields: BTreeMap<String, FieldMapping>,
     /// A vault source, loaded once: every use in a run sees one snapshot.
     loaded: Arc<std::sync::OnceLock<Result<Arc<crate::vault::Vault>, String>>>,
 }
@@ -369,6 +433,7 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
     };
     if let Some(key) = table.keys().find(|key| {
         !matches!(key.as_str(), "kind" | "element")
+            && !(key.as_str() == "fields" && *kind != "vault")
             && !keys.contains(&key.as_str())
             && !key.ends_with("_env")
     }) {
@@ -415,12 +480,150 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
             },
         },
     };
+    let fields = match table.get("fields") {
+        None => BTreeMap::new(),
+        Some(fields) => boundary(id, kind.name(), fields)?,
+    };
     Ok(Configured {
         id: id.to_owned(),
         kind,
         element: text("element")?,
+        fields,
         loaded: Arc::default(),
     })
+}
+
+/// The boundary `[sources.<id>.fields]` configures, one mapping per field.
+fn boundary(
+    id: &str,
+    kind: &str,
+    fields: &toml::Value,
+) -> Result<BTreeMap<String, FieldMapping>, String> {
+    let fields = fields
+        .as_table()
+        .ok_or_else(|| format!("`[sources.{id}.fields]` holds one table per field"))?;
+    fields
+        .iter()
+        .map(|(field, entry)| Ok((field.clone(), field_mapping(id, kind, field, entry)?)))
+        .collect()
+}
+
+fn field_mapping(
+    id: &str,
+    kind: &str,
+    field: &str,
+    entry: &toml::Value,
+) -> Result<FieldMapping, String> {
+    let at = format!("[sources.{id}.fields.{field}]");
+    let table = entry
+        .as_table()
+        .ok_or_else(|| format!("`{at}` is a table of the field's external properties"))?;
+    if table.contains_key("name") && table.contains_key("path") {
+        return Err(format!(
+            "`{at}` names its external field once, with `name` or with `path`"
+        ));
+    }
+    let mut mapping = FieldMapping::default();
+    for (key, value) in table {
+        let text = || {
+            value
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| format!("`{at} {key}` is a string"))
+        };
+        let truth = || {
+            value
+                .as_bool()
+                .ok_or_else(|| format!("`{at} {key}` is `true` or `false`"))
+        };
+        match key.as_str() {
+            "name" => mapping.external = Some(External::Name(text()?)),
+            "path" => {
+                if !matches!(kind, "json" | "json_lines" | "yaml") {
+                    return Err(format!(
+                        "`{at} path` names a nested field, and a `{kind}` record does not \
+                         nest; name its field with `name`"
+                    ));
+                }
+                let written = text()?;
+                let segments: Vec<String> = written.split('.').map(str::to_owned).collect();
+                if segments.iter().any(String::is_empty) {
+                    return Err(format!(
+                        "`{at} path` is dotted field names, `profile.display_name`, not \
+                         `{written}`"
+                    ));
+                }
+                mapping.external = Some(External::Path(segments));
+            }
+            "type" => mapping.external_type = Some(text()?),
+            "position" => {
+                mapping.position = Some(
+                    value
+                        .as_integer()
+                        .filter(|n| *n >= 1)
+                        .and_then(|n| usize::try_from(n).ok())
+                        .ok_or_else(|| {
+                            format!("`{at} position` is the field's place, counted from 1")
+                        })?,
+                );
+            }
+            "read" => mapping.readable = Some(truth()?),
+            "write" => mapping.writable = Some(truth()?),
+            "absent" => {
+                let absent = value
+                    .as_array()
+                    .and_then(|entries| {
+                        entries
+                            .iter()
+                            .map(|entry| match entry.as_str()? {
+                                "missing" => Some(Absence::Missing),
+                                "empty" => Some(Absence::Empty),
+                                "null" => Some(Absence::Null),
+                                _ => None,
+                            })
+                            .collect::<Option<Vec<_>>>()
+                    })
+                    .ok_or_else(|| {
+                        format!(
+                            "`{at} absent` lists what reads as absent, from `\"missing\"`, \
+                             `\"empty\"` and `\"null\"`"
+                        )
+                    })?;
+                mapping.absent = Some(absent);
+            }
+            owner if owner == kind => {
+                let owned = value
+                    .as_table()
+                    .ok_or_else(|| format!("`{at} {kind}` is a table of `{kind}`'s own keys"))?;
+                let known = owned_field_keys(kind);
+                if let Some(key) = owned.keys().find(|key| !known.contains(&key.as_str())) {
+                    return Err(format!("`{at}`: `{kind}` owns no field key `{key}`"));
+                }
+                mapping.owned.extend(
+                    owned
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value.clone())),
+                );
+            }
+            other if KINDS.iter().any(|(name, _)| *name == other) => {
+                return Err(format!(
+                    "`{at} {other}` holds `{other}`'s keys, and this source is `{kind}`"
+                ));
+            }
+            other => {
+                return Err(format!(
+                    "`{at}` takes no `{other}`; a field takes {}, and `{kind}`'s own keys \
+                     under `{kind}`",
+                    FIELD_KEYS
+                        .iter()
+                        .map(|key| format!("`{key}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+        }
+    }
+    Ok(mapping)
 }
 
 fn kind_names() -> String {

@@ -104,6 +104,13 @@ The language continues to be in active development.
   `Data` maps a `Table<Data>`. `Table` written without its row is
   `Table<Data>`, and a `Table<Book>` is not a `Table<Film>`.
 
+- Schema boundaries in `hql.toml` ([HQL-0035](doc/proposals/HQL-0035/README.md)):
+  a configured source maps its fields under
+  `[sources.<id>.fields.<field>]` with `name` or a dotted `path`, `type`,
+  `position`, `read`, `write` and `absent`, and keys its kind's extension
+  owns in a subtable named by the kind; a malformed boundary refuses the
+  vault.
+
 ### Changed
 
 - `partition` redistributes by key ([HQL-0036](doc/proposals/HQL-0036/README.md),

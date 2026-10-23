@@ -235,3 +235,6 @@ refresh, caching, versioning and boundary events are not in this portion.
   validators` before the module roots, with `Email` and `NonEmpty`; several
   types by one `impl` each, named in a rule; and the identity `Contract.f`.
   HQL-0034 is accepted and implemented.
+- B1 done: HQL-0035 states the `hql.toml` form; `Configured.fields` holds
+  one `FieldMapping` per field, its properties `None` where unwritten, for
+  the resolver to merge; refusals pinned in `tests/sources.rs`.

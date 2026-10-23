@@ -1,6 +1,6 @@
 # HQL-0035: The schema boundary of a configured source or target
 
-**Status**: proposed
+**Status**: proposed, implemented in part
 **Created**: 2026-10-23
 **Source**: [HQL-0012](../HQL-0012/README.md), whose `[sources.<id>]`
 configuration names the systems a program reads;
@@ -2937,6 +2937,55 @@ and to every other structured I/O system.
 
 The Schema Boundary is therefore the explicit seam between HQL's semantic type system and the outside world's representation-specific schema.
 
+### The `hql.toml` form
+
+A configured source's boundary is written in `hql.toml`, in the source's own
+table, one subtable per HQL field under `fields`:
+
+```toml
+[sources.users]
+kind = "csv"
+path = "data/users.csv"
+element = "UserRow"
+
+[sources.users.fields.id]
+name = "user_id"          # the external field: a CSV header, a JSON key, a column
+type = "INTEGER"          # its external type, as the format names it
+
+[sources.users.fields.balance]
+name = "account_balance"
+position = 3              # its place among the external fields, from 1
+write = false             # read from the source, never written to it
+
+[sources.profiles.fields.name]
+path = "profile.display_name"   # a JSON or YAML field below the top level
+absent = ["missing", "null"]    # what reads as an absent optional field
+```
+
+The keys of a field's table are the core properties of section 57:
+
+| Key | Value | Meaning |
+| --- | --- | --- |
+| `name` | a string | the external field's name |
+| `path` | a dotted string, `a.b.c` | a nested external field; only `json`, `json_lines` and `yaml` nest |
+| `type` | a string | the external type, in the format's own vocabulary |
+| `position` | an integer from 1 | the external field's place in the record |
+| `read` | a Bool | whether the field is read from the source, `true` unless written |
+| `write` | a Bool | whether the field is written to a target, `true` unless written |
+| `absent` | a list of `"missing"`, `"empty"`, `"null"` | the external representations an optional field reads as absent |
+
+A field table names `name` or `path`, not both; where it names neither, the
+external field has the HQL field's name. Keys an extension owns sit in a
+subtable named by the source's kind, `[sources.users.fields.id.csv]`; the
+extension decides them, and a kind that owns no field key refuses every key
+there. A `vault` source has cards rather than fields and takes no `fields`.
+
+A malformed boundary is refused when the configuration loads, as every other
+source key is: a field table that is not a table, an unknown key, a value of
+the wrong type, both `name` and `path`, a `path` on a kind that does not nest,
+a `position` below 1, an `absent` entry outside the three, or a subtable named
+by another kind.
+
 ### Write modes
 
 *Placeholder; specified separately.* How `Table<R>` is created, appended to
@@ -2946,3 +2995,7 @@ and replaced in a SQL database.
 
 - 2026-10-23: drafted as a stub
 - 2026-10-23: specified; status proposed
+- 2026-10-23: the `hql.toml` form of a boundary specified and built
+  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), B1):
+  `[sources.<id>.fields.<field>]` with `name`, `path`, `type`, `position`,
+  `read`, `write` and `absent`, and extension keys under the kind

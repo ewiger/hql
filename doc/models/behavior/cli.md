@@ -106,6 +106,13 @@ path = "data/birds.sqlite"
 table = "birds"
 order = ["id"]          # optional: the row order; rowid by default
 
+[sources.counts.fields.species]
+name = "Species"        # the external field: a header, a key or a column
+type = "TEXT"           # its external type, as the format names it
+position = 1            # its place in the record, from 1
+write = false           # read, never written; `read` likewise
+absent = ["empty"]      # what reads as an absent optional field: missing, empty, null
+
 [execution]
 max_elements = 100000   # the most elements of one source an evaluation holds
 max_bytes = 50000000    # the most bytes of one source an evaluation reads
@@ -115,7 +122,14 @@ Loading the vault refuses a malformed entry, and so fails every program in
 it: an id off `[a-z][a-z0-9_]*`, the id `vault` (the vault the program runs
 against), an unknown kind, a missing or unknown key, and a literal secret in
 `password`, `token`, `secret` or `api_key`. A secret is given as the name of
-the environment variable holding it, in a key ending `_env`. Exceeding a
+the environment variable holding it, in a key ending `_env`. A source's
+**boundary** ([HQL-0035](../../proposals/HQL-0035/README.md)) maps its fields
+under `[sources.<id>.fields.<field>]`: `name` or a dotted `path`, the latter
+only for `json`, `json_lines` and `yaml`, with `type`, `position`, `read`,
+`write` and `absent`, and keys the kind's extension owns in a subtable named
+by the kind. A malformed boundary refuses the vault like any other key. The
+boundary is loaded and checked; reading and writing through it is design
+direction. Exceeding a
 bound is an evaluation error naming the source and the bound; a source is
 never truncated.
 

@@ -341,3 +341,76 @@ parts = counts | fork { first = take(1), all = size() }
 "#;
     assert_eq!(value(program, &vault), "[2, 2, 1]");
 }
+
+/// HQL-0035: a source's boundary is written field by field under
+/// `[sources.<id>.fields.<field>]`, and a malformed one refuses the vault.
+#[test]
+fn a_boundary_is_configured_field_by_field() {
+    use hql::sources::{Absence, External};
+    let (_dir, vault) = configured(
+        "\n[sources.people]\nkind = \"json\"\npath = \"data/sightings.json\"\n\
+         [sources.people.fields.id]\nname = \"user_id\"\ntype = \"string\"\nposition = 1\n\
+         [sources.people.fields.name]\npath = \"profile.display_name\"\nwrite = false\n\
+         absent = [\"missing\", \"null\"]\n",
+    );
+    let people = vault.sources.get("people").expect("a configured source");
+    let id = &people.fields["id"];
+    assert_eq!(id.external, Some(External::Name("user_id".to_owned())));
+    assert_eq!(id.external_type.as_deref(), Some("string"));
+    assert_eq!(id.position, Some(1));
+    let name = &people.fields["name"];
+    assert_eq!(
+        name.external,
+        Some(External::Path(vec![
+            "profile".to_owned(),
+            "display_name".to_owned()
+        ]))
+    );
+    assert_eq!(name.writable, Some(false));
+    assert_eq!(name.readable, None);
+    assert_eq!(name.absent, Some(vec![Absence::Missing, Absence::Null]));
+    let source = "[sources.db]\nkind = \"csv\"\npath = \"x\"\n";
+    for (fields, says) in [
+        ("[sources.db.fields]\nid = 3\n", "is a table"),
+        (
+            "[sources.db.fields.id]\ncolumn = \"x\"\n",
+            "takes no `column`",
+        ),
+        ("[sources.db.fields.id]\nname = 3\n", "is a string"),
+        (
+            "[sources.db.fields.id]\nname = \"a\"\npath = \"b\"\n",
+            "once",
+        ),
+        ("[sources.db.fields.id]\npath = \"a.b\"\n", "does not nest"),
+        ("[sources.db.fields.id]\nposition = 0\n", "counted from 1"),
+        (
+            "[sources.db.fields.id]\nread = \"yes\"\n",
+            "`true` or `false`",
+        ),
+        (
+            "[sources.db.fields.id]\nabsent = [\"blank\"]\n",
+            "what reads as absent",
+        ),
+        (
+            "[sources.db.fields.id.sqlite]\ntype = \"TEXT\"\n",
+            "this source is `csv`",
+        ),
+        (
+            "[sources.db.fields.id.csv]\nquote = \"'\"\n",
+            "owns no field key `quote`",
+        ),
+    ] {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("hql.toml"), format!("{source}{fields}")).unwrap();
+        let error = vault::load(dir.path()).unwrap_err().to_string();
+        assert!(error.contains(says), "{fields}: {error}");
+    }
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("hql.toml"),
+        "[sources.notes]\nkind = \"vault\"\nroot = \"notes\"\n[sources.notes.fields.id]\nname = \"x\"\n",
+    )
+    .unwrap();
+    let error = vault::load(dir.path()).unwrap_err().to_string();
+    assert!(error.contains("no `fields`"), "{error}");
+}
