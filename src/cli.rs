@@ -109,6 +109,20 @@ enum Command {
         /// A file, or `-` for standard input.
         file: String,
     },
+    /// Print a configured source's effective boundary: for each field of
+    /// the type it is read as, its external field, both types, its position,
+    /// whether it is read and written, what reads as absent, and the layer
+    /// each property comes from.
+    Boundary {
+        /// A program declaring the type the source is read as, or `-` for
+        /// standard input.
+        file: String,
+        /// The source's id, `[sources.<id>]` in the vault's hql.toml.
+        id: String,
+        /// The type the source is read as; the source's `element` without it.
+        #[arg(long = "as", value_name = "TYPE")]
+        element: Option<String>,
+    },
     /// Type-check and evaluate a program from a file.
     Run {
         /// A file, or `-` for standard input.
@@ -192,8 +206,9 @@ fn directory_of(file: &str) -> PathBuf {
 }
 
 /// The commands a first argument may name; anything else is a program.
-const COMMANDS: [&str; 10] = [
-    "eval", "check", "plan", "run", "repl", "render", "builtins", "config", "doctor", "help",
+const COMMANDS: [&str; 11] = [
+    "eval", "check", "plan", "boundary", "run", "repl", "render", "builtins", "config", "doctor",
+    "help",
 ];
 
 /// Options that take a value, so the word after one is not the program.
@@ -475,6 +490,19 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             write_plan(&planned, &source, backend.backend.name, &cli.options, out)?;
             Ok(0)
         }
+        Command::Boundary { file, id, element } => {
+            let (source, _) = read(file)?;
+            match crate::inspect_boundary(&source, &vault, id, element.as_deref()) {
+                Ok(inspected) => {
+                    write_boundary(&inspected, &cli.options, out)?;
+                    Ok(0)
+                }
+                Err(message) => {
+                    writeln!(err, "error: {message}").map_err(|error| error.to_string())?;
+                    Ok(1)
+                }
+            }
+        }
         Command::Render {
             file,
             write,
@@ -571,6 +599,119 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
 /// expression its first step reads, then one line per step with its
 /// operation, shape, purity and stage annotation. `--envelope json` writes
 /// the same as one JSON document.
+/// A source's effective boundary as `hql boundary` prints it: a line for
+/// the source, then each field with each property's value and origin.
+fn write_boundary(
+    inspected: &crate::InspectedBoundary,
+    options: &Options,
+    out: &mut impl Write,
+) -> Result<(), String> {
+    use crate::boundary::Held;
+    let boundary = &inspected.boundary;
+    let absent = |held: &Held<Vec<crate::sources::Absence>>| {
+        held.value
+            .iter()
+            .map(|absence| absence.name())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    if options.envelope == Shape::Json {
+        let held = |value: serde_json::Value, origin: crate::boundary::Origin| serde_json::json!({ "value": value, "origin": origin.label() });
+        let fields: Vec<_> = boundary
+            .fields
+            .iter()
+            .map(|field| {
+                serde_json::json!({
+                    "field": field.field.name,
+                    "type": field.field.ty.to_string(),
+                    "optional": field.field.optional,
+                    "external": held(
+                        crate::boundary::written(&field.external.value).into(),
+                        field.external.origin
+                    ),
+                    "external_type": held(
+                        field.external_type.value.clone().into(),
+                        field.external_type.origin
+                    ),
+                    "position": held(field.position.value.into(), field.position.origin),
+                    "read": held(field.readable.value.into(), field.readable.origin),
+                    "write": held(field.writable.value.into(), field.writable.origin),
+                    "absent": held(absent(&field.absent).into(), field.absent.origin),
+                    "lossy": held(field.lossy.value.into(), field.lossy.origin),
+                })
+            })
+            .collect();
+        let document = serde_json::json!({
+            "source": boundary.source,
+            "kind": boundary.kind,
+            "element": inspected.element,
+            "strictness": boundary.strictness.name(),
+            "mode": inspected.mode.name(),
+            "fields": fields,
+        });
+        let text = if options.compact {
+            serde_json::to_string(&document)
+        } else {
+            serde_json::to_string_pretty(&document)
+        }
+        .map_err(|error| error.to_string())?;
+        return writeln!(out, "{text}").map_err(|error| error.to_string());
+    }
+    writeln!(
+        out,
+        "source {} ({}), read as {}; strictness {}, mode {}",
+        boundary.source,
+        boundary.kind,
+        inspected.element,
+        boundary.strictness.name(),
+        inspected.mode.name()
+    )
+    .map_err(|error| error.to_string())?;
+    for field in &boundary.fields {
+        let optional = if field.field.optional { "?" } else { "" };
+        writeln!(out, "{}{optional} : {}", field.field.name, field.field.ty)
+            .map_err(|error| error.to_string())?;
+        let rows = [
+            (
+                "external",
+                crate::boundary::written(&field.external.value),
+                field.external.origin,
+            ),
+            (
+                "type",
+                field.external_type.value.clone(),
+                field.external_type.origin,
+            ),
+            (
+                "position",
+                field.position.value.to_string(),
+                field.position.origin,
+            ),
+            (
+                "read",
+                field.readable.value.to_string(),
+                field.readable.origin,
+            ),
+            (
+                "write",
+                field.writable.value.to_string(),
+                field.writable.origin,
+            ),
+            ("absent", absent(&field.absent), field.absent.origin),
+        ];
+        let width = rows
+            .iter()
+            .map(|(_, value, _)| value.len())
+            .max()
+            .unwrap_or(0);
+        for (property, value, origin) in rows {
+            writeln!(out, "  {property:<9}{value:<width$}  {}", origin.label())
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 fn write_plan(
     planned: &[crate::PlannedPipeline],
     source: &str,

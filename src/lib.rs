@@ -194,6 +194,75 @@ pub fn plan(
     Ok(planned)
 }
 
+/// What `hql boundary` prints of a configured source (HQL-0035): its
+/// effective boundary for an element type, with the source's own policies.
+#[derive(Debug, Clone)]
+pub struct InspectedBoundary {
+    /// The element type the boundary maps.
+    pub element: String,
+    /// The boundary, each property with its origin.
+    pub boundary: boundary::EffectiveBoundary,
+    /// How a write treats what the target holds.
+    pub mode: sources::WriteMode,
+}
+
+/// The effective boundary of the configured source `id` read as
+/// `element`, or as the type its configuration names, the type declared by
+/// `types`, a program the boundary's type is checked in. The external
+/// fields are read where the format knows them before reading: a CSV
+/// file's header and a table's columns.
+///
+/// # Errors
+///
+/// Returns why the boundary cannot be inspected: the program does not
+/// check, the source or the type is unknown, or every boundary error.
+pub fn inspect_boundary(
+    types: &str,
+    vault: &Vault,
+    id: &str,
+    element: Option<&str>,
+) -> Result<InspectedBoundary, String> {
+    let program = checker::check(
+        &parser::parse(types).map_err(|error| error.message())?,
+        vault,
+    )
+    .map_err(|error| error.message())?;
+    types::program::install(std::sync::Arc::clone(&program.lattice));
+    let configured = vault.sources.get(id).ok_or_else(|| {
+        format!("no source `{id}` is configured; a source is declared under `[sources.<id>]`")
+    })?;
+    let written = element
+        .map(str::to_owned)
+        .or_else(|| configured.element.clone())
+        .ok_or_else(|| {
+            format!("source `{id}` names no `element`; name the type it is read as with `--as`")
+        })?;
+    let ty = types::named(&written, &[])
+        .ok_or_else(|| format!("`{written}` is not a type the program declares"))?;
+    let external = match &configured.kind {
+        sources::Kind::Sqlite { path, table, .. } => Some(sources::sqlite_columns(path, table)?),
+        sources::Kind::File { path, format } if *format == "Csv" => {
+            io::read_configured(path, types::TypeConstructor(format), false)?
+                .first()
+                .and_then(|row| match row {
+                    Value::Data(tree) => match tree.as_ref() {
+                        data::Data::Map(entries) => Some(entries.keys().cloned().collect()),
+                        _ => None,
+                    },
+                    _ => None,
+                })
+        }
+        _ => None,
+    };
+    let boundary = extensions::io::boundary_for(configured, &ty, external.as_deref())?
+        .ok_or_else(|| format!("`{written}` is not a record, so it has no boundary"))?;
+    Ok(InspectedBoundary {
+        element: written,
+        boundary,
+        mode: configured.mode,
+    })
+}
+
 /// The planned steps of the pipeline `end` ends, first to last, and the
 /// expression the first reads; a `fork`'s or a `tee`'s branches with it.
 fn planned_steps(end: &execution::Expr) -> (Vec<PlannedStep>, &execution::Expr) {

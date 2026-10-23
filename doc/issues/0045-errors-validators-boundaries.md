@@ -1,6 +1,6 @@
 # 0045 — Dataflow, errors as values, validator types and schema boundaries
 
-Status: in progress
+Status: done
 Related: [HQL-0032](../proposals/HQL-0032/README.md),
 [HQL-0033](../proposals/HQL-0033/README.md),
 [HQL-0034](../proposals/HQL-0034/README.md),
@@ -269,3 +269,11 @@ refresh, caching, versioning and boundary events are not in this portion.
   `warn` drop them in `remapped`, `warn` reports each once per read through
   the evaluator, `strict` refuses them, and a table's unread columns are
   judged before any row.
+- B8 done: `hql boundary <file> <id> [--as T]` prints the effective
+  boundary through `inspect_boundary`, each property with its origin, in
+  text and as JSON, or every boundary error with exit status 1.
+- Every item is done. HQL-0033 and HQL-0034 are accepted and implemented;
+  HQL-0035 states what is built, a CSV, JSON and SQLite source and target
+  reading and writing a declared record through a configured boundary;
+  `fork` runs on the local backend with each producer evaluated once; and
+  `partition` has one meaning, `partition(by = …)`.

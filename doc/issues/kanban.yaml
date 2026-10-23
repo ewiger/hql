@@ -17,9 +17,12 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 45 # to be incremented when adding a new issue card
+  last_id: 46 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0046"
+        title: "Renovate `std/**` under the module, package and extension model"
+        file: 0046-renovate-std.md
       - id: "0043"
         title: "Contract validation: rules, structured errors and stream policies"
         file: 0043-contract-validation.md
@@ -46,13 +49,13 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
-      - id: "0045"
-        title: "Dataflow, errors as values, validator types and schema boundaries"
-        file: 0045-errors-validators-boundaries.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0045"
+        title: "Dataflow, errors as values, validator types and schema boundaries"
+        file: 0045-errors-validators-boundaries.md
       - id: "0044"
         title: "`Table<R>`: a table typed by its row"
         file: 0044-typed-tables.md

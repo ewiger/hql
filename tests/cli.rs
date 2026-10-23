@@ -788,3 +788,85 @@ fn a_program_outside_every_vault_imports_builtin_modules() {
     assert!(!unbound.status.success());
     assert!(String::from_utf8_lossy(&unbound.stderr).contains("needs a vault"));
 }
+
+/// HQL-0035: `hql boundary` prints a source's effective boundary, each
+/// property with the layer it comes from, and every boundary error.
+#[test]
+fn boundary_prints_a_sources_effective_boundary() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("ledger.csv"),
+        "Species Name,count\nwren,2\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("hql.toml"),
+        "[sources.ledger]\nkind = \"csv\"\npath = \"ledger.csv\"\nstrictness = \"open\"\n\
+         [sources.ledger.fields.species]\nname = \"Species Name\"\n\
+         [sources.ledger.fields.count]\nwrite = false\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("types.hql"),
+        "type Tally {\n    species : String\n    count? : Int\n}\n",
+    )
+    .unwrap();
+    let shown = hql_in(
+        dir.path(),
+        &["boundary", "types.hql", "ledger", "--as", "Tally"],
+    );
+    assert!(shown.status.success(), "{}", stderr(&shown));
+    let text = stdout(&shown);
+    assert!(
+        text.starts_with("source ledger (csv), read as Tally; strictness open, mode replace\n"),
+        "{text}"
+    );
+    assert!(text.contains("count? : Int\n"), "{text}");
+    let line = |property: &str, value: &str| {
+        text.lines()
+            .find(|line| line.trim_start().starts_with(property) && line.contains(value))
+            .map(|line| line.split_whitespace().last().unwrap_or("").to_owned())
+    };
+    assert_eq!(
+        line("external", "Species Name").as_deref(),
+        Some("configuration"),
+        "{text}"
+    );
+    assert_eq!(
+        line("write", "false").as_deref(),
+        Some("configuration"),
+        "{text}"
+    );
+    assert_eq!(line("type", "text").as_deref(), Some("format"), "{text}");
+    let json = hql_in(
+        dir.path(),
+        &[
+            "--envelope",
+            "json",
+            "boundary",
+            "types.hql",
+            "ledger",
+            "--as",
+            "Tally",
+        ],
+    );
+    let document: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
+    assert_eq!(document["fields"][1]["write"]["origin"], "configuration");
+    assert_eq!(document["fields"][0]["external_type"]["value"], "text");
+    // A required field the header does not hold is a boundary error.
+    std::fs::write(
+        dir.path().join("types.hql"),
+        "type Tally {\n    species : String\n    total : Int\n}\n",
+    )
+    .unwrap();
+    let refused = hql_in(
+        dir.path(),
+        &["boundary", "types.hql", "ledger", "--as", "Tally"],
+    );
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(
+        stderr(&refused).contains("field `total`") && stderr(&refused).contains("unmapped field"),
+        "{}",
+        stderr(&refused)
+    );
+}

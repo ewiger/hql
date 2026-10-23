@@ -3095,6 +3095,20 @@ path. It never changes whether the HQL type is open or closed:
 so a SQLite source applies its strictness to the columns of the table the
 boundary does not read, before any row is.
 
+### Inspecting a boundary
+
+Section 75's introspection is the command `hql boundary <file> <id>
+[--as T]`. `file` is a program declaring the type the source is read as:
+`T`, or the source's `element`. The command prints the source, its kind,
+the type, its strictness and its write mode, then each field of the type
+with every property of the effective boundary, its value and its origin:
+the external field, the external type, the position, whether it is read and
+written, and what reads as absent. The external fields are read where the
+format knows them before reading, so a CSV header and a table's columns are
+checked as a read checks them. A boundary that does not resolve prints
+every boundary error and exits with status 1. `--envelope json` writes the
+same as one JSON document, each property a value and its origin.
+
 ### Configured targets
 
 A configured source is also a target: `xs | target("id")` writes to what
@@ -3159,3 +3173,5 @@ reading a target the same evaluation has replaced is refused.
   or `replace` mode
 - 2026-10-23: strictness specified and built (issue 0045, B7): `strict`,
   `compatible`, `open` and `warn` for unmapped external fields
+- 2026-10-23: inspecting a boundary specified and built (issue 0045, B8):
+  `hql boundary <file> <id> [--as T]`, in text and as JSON

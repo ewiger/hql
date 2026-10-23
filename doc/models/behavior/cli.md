@@ -18,6 +18,7 @@ binary can reach is logic that cannot be tested.
 | `hql check <file>` | print the type without evaluating |
 | `hql run <file>` | check and evaluate a file |
 | `hql plan <file>` | check a file and print its plan on the backend in force without evaluating: per pipeline a statement is, the line and the expression its first step reads, then each step with its operation, shape, purity, stage and strategy; `--envelope json` writes the same as one JSON document |
+| `hql boundary <file> <id> [--as T]` | print the effective boundary of source `id` read as `T`, or as its `element`, declared in `file`: per field, its external field, both types, position, read and write, what reads as absent, and the layer each comes from; every boundary error otherwise, with exit status 1 |
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps a pipeline may use, grouped by provider, each with its signature, purity and shape, then the combiners a fold names with the laws each holds |

@@ -127,6 +127,9 @@ The language continues to be in active development.
   A source's `strictness` says what a read does with an external field no
   HQL field reads: `compatible` passes it to the type, `open` does not read
   it, `warn` does not read it and reports it, and `strict` refuses it.
+  `hql boundary <file> <id> [--as T]` prints a source's effective
+  boundary, each property with the layer it comes from, or every boundary
+  error.
 
 ### Changed
 
