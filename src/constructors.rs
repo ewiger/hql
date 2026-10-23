@@ -85,20 +85,23 @@ pub(crate) fn bind(environment: &crate::extensions::binding::Environment) -> Res
         let name = constructor.name.as_str();
         if constructor.ty.is_none() {
             return Err(format!(
-                "`std/{module}` declares the constructor `{name}`, and declares no concrete \
-                 type `{name}`: a constructor is declared beside its type"
+                "`{module}` declares the constructor `{name}`, and declares no concrete \
+                 type `{name}`: a constructor is declared beside its type",
+                module = crate::library::path(module)
             ));
         }
         let Some(table) = named(name) else {
             return Err(format!(
-                "`std/{module}` declares the constructor `{name}`, and the binary implements \
-                 no such constructor"
+                "`{module}` declares the constructor `{name}`, and the binary implements \
+                 no such constructor",
+                module = crate::library::path(module)
             ));
         };
         if environment.table(table.0) != constructor.ty {
             return Err(format!(
-                "`std/{module}` declares the constructor `{name}`, and the binary's `{name}` \
-                 is bound to another module's type `{name}`"
+                "`{module}` declares the constructor `{name}`, and the binary's `{name}` \
+                 is bound to another module's type `{name}`",
+                module = crate::library::path(module)
             ));
         }
         if let Err(why) = &constructor.signature {
@@ -117,8 +120,9 @@ pub(crate) fn bind(environment: &crate::extensions::binding::Environment) -> Res
                 .is_some();
         if !builds {
             return Err(format!(
-                "`std/{module}` declares `{name}` returning {}, which is not a {name}",
-                constructor.result.name
+                "`{module}` declares `{name}` returning {}, which is not a {name}",
+                constructor.result.name,
+                module = crate::library::path(module)
             ));
         }
     }

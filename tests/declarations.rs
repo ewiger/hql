@@ -19,14 +19,14 @@ fn refused(source: &str) -> String {
 }
 
 /// Every `.hql` file under `dir`, with the module name it is embedded as: the
-/// path below `lib/std/` without its extension, folders joined by `.`, and a
+/// path below its package folder, `lib/std/`, without its extension, folders joined by `.`, and a
 /// folder's `mod.hql` named for the folder.
 fn modules_under(
     dir: &std::path::Path,
     prefix: &str,
     found: &mut Vec<(String, std::path::PathBuf)>,
 ) {
-    for entry in fs::read_dir(dir).expect("the standard library") {
+    for entry in fs::read_dir(dir).expect("a builtin package") {
         let path = entry.expect("an entry").path();
         let stem = path
             .file_stem()
@@ -52,26 +52,50 @@ fn modules_under(
 }
 
 #[test]
-fn every_file_in_the_standard_library_is_embedded_as_written() {
-    // The folder is walked rather than listed, subfolders included, so a file
-    // added to `lib/std/` cannot be left out of the binary, and the copy the
-    // binary reads its record fields from is the one on disk.
-    let mut found = Vec::new();
-    modules_under(std::path::Path::new("lib/std"), "", &mut found);
-    for (name, path) in &found {
-        let embedded = library::MODULES
-            .iter()
-            .chain(library::WRITTEN)
-            .find(|(module, _)| module == name)
-            .unwrap_or_else(|| panic!("{} is not embedded as {name}", path.display()));
-        assert_eq!(
-            embedded.1,
-            fs::read_to_string(path).expect("a readable file"),
-            "{}",
-            path.display()
-        );
+fn every_file_in_a_builtin_package_is_embedded_as_written() {
+    // Each folder is walked rather than listed, subfolders included, so a
+    // file added under `lib/` cannot be left out of the binary, and the copy
+    // the binary reads its record fields from is the one on disk.
+    let packages: [(&str, Vec<(&str, &str)>); 2] = [
+        (
+            "std",
+            library::STD
+                .iter()
+                .chain(library::WRITTEN)
+                .copied()
+                .collect(),
+        ),
+        ("search", library::SEARCH.to_vec()),
+    ];
+    let mut folders: Vec<String> = fs::read_dir("lib")
+        .expect("the builtin packages")
+        .map(|entry| entry.expect("an entry").path())
+        .filter(|path| path.is_dir())
+        .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+        .collect();
+    folders.sort_unstable();
+    assert_eq!(folders, ["search", "std"], "one folder per builtin package");
+    for (package, embedded) in &packages {
+        let mut found = Vec::new();
+        modules_under(&std::path::Path::new("lib").join(package), "", &mut found);
+        for (name, path) in &found {
+            let source = embedded
+                .iter()
+                .find(|(module, _)| module == name)
+                .unwrap_or_else(|| panic!("{} is not embedded as {name}", path.display()));
+            assert_eq!(
+                source.1,
+                fs::read_to_string(path).expect("a readable file"),
+                "{}",
+                path.display()
+            );
+        }
+        assert_eq!(found.len(), embedded.len(), "lib/{package}/");
     }
-    assert_eq!(found.len(), library::MODULES.len() + library::WRITTEN.len());
+    assert_eq!(
+        library::MODULES.len(),
+        library::STD.len() + library::SEARCH.len()
+    );
 }
 
 /// The modules a standard module imports, by name, in the order written.
@@ -566,7 +590,10 @@ fn every_external_declaration_has_an_implementation_and_every_implementation_a_d
             .iter()
             .find(|provider| provider.provides.contains(&name))
             .unwrap_or_else(|| {
-                panic!("lib/std/{name}.hql declares externally, and no extension provides `{name}`")
+                panic!(
+                    "lib/{}/mod.hql declares externally, and no extension provides `{name}`",
+                    library::path(name)
+                )
             });
         let mut implemented: Vec<&str> = provider.steps.iter().map(|step| step.name).collect();
         let mut declared = declared;

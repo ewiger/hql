@@ -87,17 +87,25 @@ pub(crate) fn declared(
     name: &str,
 ) -> Result<(), (std::ops::Range<usize>, String)> {
     use crate::ast::Stmt;
-    let mut headers = program.statements.iter().filter_map(|statement| match statement {
-        Stmt::Module { path, span, .. } => Some((path.join("."), span)),
-        _ => None,
-    });
+    let mut headers = program
+        .statements
+        .iter()
+        .filter_map(|statement| match statement {
+            Stmt::Module { path, span, .. } => Some((path.join("."), span)),
+            _ => None,
+        });
     let opens = matches!(program.statements.first(), Some(Stmt::Module { .. }));
     match headers.next() {
         Some((_, span)) if !opens => Err((
             span.clone(),
-            format!("a module file opens with its declaration, `module {name}`, before any other statement"),
+            format!(
+                "a module file opens with its declaration, `module {name}`, before any other statement"
+            ),
         )),
-        None => Err((0..0, format!("a module file opens with its declaration: write `module {name}`"))),
+        None => Err((
+            0..0,
+            format!("a module file opens with its declaration: write `module {name}`"),
+        )),
         Some((written, span)) if written != name => Err((
             span.clone(),
             format!(
@@ -106,7 +114,10 @@ pub(crate) fn declared(
             ),
         )),
         Some(_) => match headers.next() {
-            Some((_, span)) => Err((span.clone(), "a module file declares its name once".to_owned())),
+            Some((_, span)) => Err((
+                span.clone(),
+                "a module file declares its name once".to_owned(),
+            )),
             None => Ok(()),
         },
     }

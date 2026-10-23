@@ -1,6 +1,6 @@
 # 0048 — Builtin packages live under `lib/`: `std` is one of them
 
-Status: doing
+Status: done
 Related: [`lib/std/`](../../lib/std/README.md),
 [HQL-0024 part 3](../proposals/HQL-0024/parts/03-standard-library.md),
 [packages](../status/packages.hmd),
@@ -31,6 +31,7 @@ with their own extensions and are named for what they provide, not `std`.
    the std-lib card, `lib/std/README.md` and `doc/status/packages.hmd` say
    so.
 5. A second builtin package, `search`: its internal extension `search`
-   provides `lexical` and `semantic`, and no contract declares them yet.
-   Give them contracts under `lib/search/`. Folding the descriptors is
-   [issue 0049](0049-one-extension-per-package.md).
+   provides `lexical` and `semantic`, each declared by a contract under
+   `lib/search/`, `lexical/mod.hql` and `semantic/mod.hql`, loaded after the
+   standard package's modules; a diagnostic names one as `search/lexical`.
+   Folding the descriptors is [issue 0049](0049-one-extension-per-package.md).

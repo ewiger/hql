@@ -836,7 +836,7 @@ pub(crate) fn native_impls() -> Vec<ImplInfo> {
                 parameters,
                 trait_name: header.trait_name.clone(),
                 span: 0..0,
-                origin: format!("std/{}", environment.module(header.module).name),
+                origin: crate::library::path(environment.module(header.module).name),
             })
         })
         .collect()
@@ -1711,6 +1711,15 @@ impl<'a> Checker<'a> {
                 .insert(expression.span.clone(), ty.clone());
             return Ok(ty);
         }
+        // A value block's bindings are each a `match` of one arm, so its
+        // final expression is checked against the function's result.
+        if let (Kind::Match { subject, arms }, Some(_)) = (&expression.kind, expected) {
+            let ty = self.match_expression(subject, arms, expression.span.clone(), expected)?;
+            self.checked
+                .types
+                .insert(expression.span.clone(), ty.clone());
+            return Ok(ty);
+        }
         // `{:}` is the empty keyed literal: `Data` unless a map type is
         // declared for it, `m : Map<String, Int> = {:}` (HQL-0030).
         if let (Kind::Data(entries), Some(expected)) = (&expression.kind, expected)
@@ -2522,17 +2531,8 @@ impl<'a> Checker<'a> {
                 ));
             }
         };
-        let yields = self.block(&declaration.name, statements, &element)?;
-        if yields == 0 {
-            return Err(Diagnostic::typing(
-                declaration.body.span.clone(),
-                format!(
-                    "`{}` has a block body and never yields: a block body produces its \
-                     values with `yield`",
-                    declaration.name
-                ),
-            ));
-        }
+        // The parser keeps a block as iterating only when it yields.
+        self.block(&declaration.name, statements, &element)?;
         self.checked
             .types
             .insert(declaration.body.span.clone(), result.clone());
@@ -4829,7 +4829,7 @@ impl<'a> Checker<'a> {
                     }
                 }
             }
-            Kind::Match { subject, arms } => self.match_expression(subject, arms, span),
+            Kind::Match { subject, arms } => self.match_expression(subject, arms, span, None),
             Kind::Tee { .. } => Err(Diagnostic::syntax(
                 span,
                 "`tee` is a pipeline step: write `input | tee name = branch`",
@@ -5450,11 +5450,14 @@ impl<'a> Checker<'a> {
 
     /// Check every arm against the subject's type, require the unguarded arms
     /// to cover every case, and type the match as the arms' common type.
+    /// A `match`, each arm's body checked against `expected` where one is
+    /// known, so a lambda arm takes its parameter types from it.
     fn match_expression(
         &mut self,
         subject: &Expr,
         arms: &[Arm],
         span: Range<usize>,
+        expected: Option<&TypeRef>,
     ) -> Result<TypeRef, Diagnostic> {
         let subject_type = self.expression(subject)?;
         let mut result = TypeRef::NEVER;
@@ -5479,7 +5482,7 @@ impl<'a> Checker<'a> {
                         ));
                     }
                 }
-                self.expression(&arm.body)
+                self.expecting(&arm.body, expected)
             })();
             for (name, held) in previous.into_iter().rev() {
                 match held {

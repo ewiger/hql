@@ -483,9 +483,10 @@ mod tests {
 
     #[test]
     fn a_receiver_function_takes_the_module_pattern_as_its_input() {
-        let spec =
-            declared("module string for String\nfn pad_left(self, width: Int, fill: String) : String")
-                .unwrap();
+        let spec = declared(
+            "module string for String\nfn pad_left(self, width: Int, fill: String) : String",
+        )
+        .unwrap();
         assert_eq!(spec.input, STRING);
         assert_eq!(spec.output, O::Type(STRING));
         let arguments: Vec<_> = spec
@@ -517,7 +518,8 @@ mod tests {
             name: "K",
             bound: Some(TypeConstructor("Orderable")),
         }));
-        let variadic = declared("module string for String\nfn fmt(self, args: ...Any) : String").unwrap();
+        let variadic =
+            declared("module string for String\nfn fmt(self, args: ...Any) : String").unwrap();
         assert!(variadic.arguments[0].variadic && !variadic.arguments[0].required);
         assert_eq!(variadic.arguments[0].kind, A::Value(P::Any));
         let one = declared("fn f<T>(x: Int, args: ...T) : Int").unwrap();

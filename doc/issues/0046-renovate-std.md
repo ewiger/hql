@@ -161,6 +161,4 @@ import; see "Remaining".
   function names are, completes HQL-0028 for programs.
 - The prelude still names `graph`, `format` and `io`, where the target of
   HQL-0024 part 3 is `core`, `string`, `seq`, `math` and `option`.
-- The `lexical` and `semantic` extensions provide modules no contract under
-  `lib/std/` declares, which the second cross-check of HQL-0024 part 1 refuses.
 

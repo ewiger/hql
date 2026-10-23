@@ -146,7 +146,10 @@ fn an_iterating_function_declares_what_it_yields() {
             "fn f(xs: List<Int>) : Seq<String> {\n    for x in xs {\n        yield x\n    }\n}\n1",
             "yields String, and this is Int",
         ),
-        ("fn f() : Seq<Int> {\n    x = 1\n}\n1", "never yields"),
+        (
+            "fn f() : Seq<Int> {\n    x = 1\n}\n1",
+            "holds only bindings",
+        ),
         (
             "fn f() : Seq<Int> {\n    for x in 1 {\n        yield x\n    }\n}\n1",
             "`for` traverses",

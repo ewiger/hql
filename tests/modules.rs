@@ -159,9 +159,18 @@ fn a_module_sees_no_host_binding() {
     let vault_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/vault");
     let root = tempfile::tempdir().unwrap();
     for (name, source) in [
-        ("reads_cards.hql", "module reads_cards\nfn count() : Int = cards | size\n"),
-        ("reads_vault.hql", "module reads_vault\nfn named() : String = vault.name\n"),
-        ("reads_stdin.hql", "module reads_stdin\nfn line() : String = stdin | first\n"),
+        (
+            "reads_cards.hql",
+            "module reads_cards\nfn count() : Int = cards | size\n",
+        ),
+        (
+            "reads_vault.hql",
+            "module reads_vault\nfn named() : String = vault.name\n",
+        ),
+        (
+            "reads_stdin.hql",
+            "module reads_stdin\nfn line() : String = stdin | first\n",
+        ),
     ] {
         std::fs::write(root.path().join(name), source).unwrap();
     }
@@ -310,7 +319,10 @@ fn the_import_graph_is_acyclic() {
 #[test]
 fn a_parent_importing_its_child_is_warned_and_still_runs() {
     let files = [
-        ("shapes/circle.hql", "module shapes.circle\nfn area(r: Int) : Int = 3 * r * r\n"),
+        (
+            "shapes/circle.hql",
+            "module shapes.circle\nfn area(r: Int) : Int = 3 * r * r\n",
+        ),
         (
             "shapes/mod.hql",
             "module shapes\nimport shapes.circle\nfn unit_area() : Int = circle.area(1)\n",

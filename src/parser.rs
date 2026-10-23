@@ -17,6 +17,22 @@ const MAX_OPERATORS: usize = 255;
 // Bound recursion through parentheses, calls, data literals and lambdas.
 const MAX_DEPTH: usize = 128;
 
+/// One line of a block: a statement, with its span, or an expression on a
+/// line of its own.
+enum Line {
+    Statement(BlockStmt, Range<usize>),
+    Value(Expr),
+}
+
+/// Whether a block yields, directly or within a `for`.
+fn yields(statements: &[BlockStmt]) -> bool {
+    statements.iter().any(|statement| match statement {
+        BlockStmt::Yield(_) => true,
+        BlockStmt::For { body, .. } => yields(body),
+        BlockStmt::Bind { .. } => false,
+    })
+}
+
 /// Parse a whole program. The entire input must be consumed.
 pub(crate) fn parse(source: &str) -> Result<Program, Diagnostic> {
     let tokens = lexer::scan(source)?;
@@ -839,13 +855,117 @@ impl Parser {
         })
     }
 
-    /// `{ statement* }`, one statement per line: the block body of an
-    /// iterating function. Newlines separate statements here, as they do at
-    /// the top level, whatever brackets surround the declaration.
+    /// `{ statement* }`, one statement per line: the body of a `for`, which
+    /// holds `yield`, `for` and bindings.
     fn block(&mut self) -> Result<Vec<BlockStmt>, Diagnostic> {
+        self.lines()?
+            .into_iter()
+            .map(|line| match line {
+                Line::Statement(statement, _) => Ok(statement),
+                Line::Value(value) => Err(Diagnostic::syntax(
+                    value.span,
+                    "an iterating block holds `yield`, `for` and bindings",
+                )),
+            })
+            .collect()
+    }
+
+    /// `{ line* }` as a function body: a value block, bindings followed by
+    /// the expression that is the function's value, or an iterating block of
+    /// bindings, `yield` and `for`. A value block is its bindings nested
+    /// around its final expression, each a `match` with one name arm.
+    fn function_block(&mut self) -> Result<Expr, Diagnostic> {
+        let open = self.peek_span().start;
+        let mut lines = self.lines()?;
+        let close = self.tokens[self.index.saturating_sub(1)].span.end;
+        let yields = lines.iter().any(|line| match line {
+            Line::Statement(statement, _) => yields(std::slice::from_ref(statement)),
+            Line::Value(_) => false,
+        });
+        let looped = lines
+            .iter()
+            .find(|line| matches!(line, Line::Statement(BlockStmt::For { .. }, _)));
+        let value = lines.iter().position(|line| matches!(line, Line::Value(_)));
+        match value {
+            None if yields => {
+                let statements = lines
+                    .into_iter()
+                    .map(|line| match line {
+                        Line::Statement(statement, _) => statement,
+                        Line::Value(_) => unreachable!("a block without a value line"),
+                    })
+                    .collect();
+                return Ok(Expr {
+                    kind: Kind::Block(statements),
+                    span: open..close,
+                });
+            }
+            None => {
+                return Err(Diagnostic::syntax(
+                    open..close,
+                    "a block ends in a value or yields; this one holds only bindings",
+                ));
+            }
+            Some(at) if yields => {
+                let Line::Value(value) = &lines[at] else {
+                    unreachable!("a value line")
+                };
+                return Err(Diagnostic::syntax(
+                    value.span.clone(),
+                    "a block that yields holds no expression on a line of its own",
+                ));
+            }
+            Some(at) if at + 1 < lines.len() => {
+                let Line::Value(value) = &lines[at] else {
+                    unreachable!("a value line")
+                };
+                return Err(Diagnostic::syntax(
+                    value.span.clone(),
+                    "an expression on a line of its own ends a value block: it is the last line",
+                ));
+            }
+            Some(_) => {}
+        }
+        if let Some(Line::Statement(_, span)) = looped {
+            return Err(Diagnostic::syntax(
+                span.clone(),
+                "`for` belongs to an iterating block; a value block is bindings and a final \
+                 expression",
+            ));
+        }
+        let Some(Line::Value(mut body)) = lines.pop() else {
+            unreachable!("a value block ends in its value")
+        };
+        // Each `match` spans the final expression, so a diagnostic about the
+        // block's value points at the line that produces it.
+        let last = body.span.clone();
+        for line in lines.into_iter().rev() {
+            let Line::Statement(BlockStmt::Bind { name, value }, span) = line else {
+                unreachable!("a value block's other lines are bindings")
+            };
+            let end = body.span.end;
+            body = Expr {
+                kind: Kind::Match {
+                    subject: Box::new(value),
+                    arms: vec![Arm {
+                        pattern: Pattern::Bind(name),
+                        guard: None,
+                        span: span.start..end,
+                        body,
+                    }],
+                },
+                span: last.clone(),
+            };
+        }
+        Ok(body)
+    }
+
+    /// The lines of a block, one per line. Newlines separate them here, as
+    /// they do at the top level, whatever brackets surround the declaration.
+    fn lines(&mut self) -> Result<Vec<Line>, Diagnostic> {
         let saved = std::mem::replace(&mut self.nesting, 0);
         self.expect(&Token::OpenBrace, "to open the body")?;
-        let mut statements = Vec::new();
+        let mut lines = Vec::new();
         loop {
             self.continuation();
             if self.eat(&Token::CloseBrace) {
@@ -857,7 +977,7 @@ impl Parser {
                     "expected `}` to close the body",
                 ));
             }
-            statements.push(self.nested(Self::block_statement)?);
+            lines.push(self.nested(Self::line)?);
             if !matches!(
                 self.tokens[self.index].token,
                 Token::Newline | Token::CloseBrace
@@ -872,7 +992,22 @@ impl Parser {
             }
         }
         self.nesting = saved;
-        Ok(statements)
+        Ok(lines)
+    }
+
+    fn line(&mut self) -> Result<Line, Diagnostic> {
+        let start = self.peek_span().start;
+        let head = self.peek().clone();
+        let next = self.tokens[self.index + 1].token.clone();
+        let statement = match head {
+            Token::Ident(keyword) if keyword == "yield" || keyword == "for" => {
+                self.block_statement()?
+            }
+            Token::Ident(_) if next == Token::Equals => self.block_statement()?,
+            _ => return Ok(Line::Value(self.expression()?)),
+        };
+        let end = self.tokens[self.index.saturating_sub(1)].span.end;
+        Ok(Line::Statement(statement, start..end))
     }
 
     fn block_statement(&mut self) -> Result<BlockStmt, Diagnostic> {
@@ -912,7 +1047,7 @@ impl Parser {
             }
             _ => Err(Diagnostic::syntax(
                 self.peek_span(),
-                "a block body holds `yield`, `for` and bindings",
+                "an iterating block holds `yield`, `for` and bindings",
             )),
         }
     }
@@ -1246,7 +1381,16 @@ impl Parser {
         self.nesting -= 1;
         self.expect(&Token::Colon, "before the result type")?;
         let result = self.type_annotation()?;
-        let body = if self.eat(&Token::Equals) {
+        let body = if matches!(self.peek(), Token::OpenBrace) {
+            let body = self.function_block()?;
+            if let Kind::Block(_) = body.kind {
+                return Err(Diagnostic::syntax(
+                    body.span,
+                    "a trait or impl function's block ends in a value; only a user `fn` yields",
+                ));
+            }
+            Some(body)
+        } else if self.eat(&Token::Equals) {
             self.continuation();
             Some(self.expression()?)
         } else {
@@ -1428,13 +1572,7 @@ impl Parser {
             ));
         }
         let body = if matches!(self.peek(), Token::OpenBrace) {
-            let open = self.peek_span().start;
-            let statements = self.block()?;
-            let close = self.tokens[self.index.saturating_sub(1)].span.end;
-            Expr {
-                kind: Kind::Block(statements),
-                span: open..close,
-            }
+            self.function_block()?
         } else {
             self.expect(&Token::Equals, "before the function body")?;
             self.continuation();

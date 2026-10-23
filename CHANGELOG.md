@@ -10,6 +10,15 @@ The language continues to be in active development.
 
 ### Added
 
+- A value block as a function body ([HQL-0038](doc/proposals/HQL-0038/README.md);
+  [issue 0051](doc/issues/0051-value-block.md), shown in the
+  [function examples](examples/functions/README.md)): `{ … }` written without
+  `=` is bindings followed by a final expression, which is the function's
+  value and has its declared result type. Any `fn` takes one, a trait's
+  default body and an `impl` function included. A block containing `yield`
+  stays an iterating block; a block that yields and ends in an expression,
+  one that only binds, and `for` in a value block are refused.
+
 - `Decimal`, an exact decimal number ([HQL-0031](doc/proposals/HQL-0031/README.md);
   [issue 0042](doc/issues/0042-decimal.md), shown in the
   [decimal examples](examples/decimal/README.md)): a number written with a

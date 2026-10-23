@@ -1,6 +1,6 @@
 # HQL-0038: Functions
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-10-23
 **Source**: the `function` rule of [the implemented grammar](../../models/behavior/expressions.md),
 [HQL-0024 part 4](../HQL-0024/parts/04-receiver-modules.md) and
@@ -189,3 +189,4 @@ cargo test --locked --test corpus --test declarations --test streams
 ## Changelog
 
 - 2026-10-23: drafted
+- 2026-10-24: implemented

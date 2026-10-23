@@ -20,8 +20,9 @@ function    ::= "fn" ident generics? "(" (param ("," param)*)? ")" ":" type ("="
 generics    ::= "<" generic ("," generic)* ">"
 generic     ::= letter (":" simple)?                                one capital letter, optionally bounded
 param       ::= ident ":" "..."? type
-block       ::= "{" (inner NEWLINE+)* "}"                           the body of an iterating function
-inner       ::= "yield" expression | "for" ident "in" expression block | ident "=" expression
+block       ::= "{" NEWLINE* (binding NEWLINE+)* (expression | iterating) NEWLINE* "}"
+iterating   ::= inner (NEWLINE+ inner)*                             a block containing `yield`
+inner       ::= "yield" expression | "for" ident "in" expression "{" iterating "}" | binding
 alias       ::= ident ("(" aliased ("," aliased)* ")")? ":=" expression
 aliased     ::= ident (":" type)?
 

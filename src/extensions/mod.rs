@@ -366,7 +366,7 @@ pub struct Extension {
     /// The version this extension reports.
     pub(crate) version: &'static str,
     /// The descriptor's `provides`: the canonical names of the modules whose
-    /// contracts in `lib/std/` this extension implements. Binding cross-checks
+    /// contracts under `lib/` this extension implements. Binding cross-checks
     /// each contract's external declarations against the steps here.
     pub(crate) provides: &'static [&'static str],
     /// What it supplies.

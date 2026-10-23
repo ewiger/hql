@@ -1,6 +1,6 @@
 # 0050 — Every module file declares its name: `module a.b`, `module a.b for T`
 
-Status: doing
+Status: done
 Related: [HQL-0024, modules](../proposals/HQL-0024/parts/01-modules.md),
 [HQL-0024, receiver modules](../proposals/HQL-0024/parts/04-receiver-modules.md),
 [`lib/std/`](../../lib/std/README.md),

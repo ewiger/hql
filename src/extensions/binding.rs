@@ -234,8 +234,13 @@ impl Environment {
         // Each module is its own import unit, closed over its imports.
         crate::library::closure(graph)?;
         for (name, source) in graph {
-            let program = crate::parser::parse(source)
-                .map_err(|error| format!("std/{name}: {}", error.message()))?;
+            let program = crate::parser::parse(source).map_err(|error| {
+                format!(
+                    "{name}: {}",
+                    error.message(),
+                    name = crate::library::path(name)
+                )
+            })?;
             environment.load(name, &program);
         }
         for (operation, ids) in &environment.operations {
@@ -622,8 +627,8 @@ impl Environment {
         for implementation in &self.implementations {
             if matches!(implementation.body, Body::Missing) {
                 return Err(format!(
-                    "`std/{}` declares `impl {} for {}` natively, and no extension implements it",
-                    self.module(implementation.module).name,
+                    "`{}` declares `impl {} for {}` natively, and no extension implements it",
+                    crate::library::path(self.module(implementation.module).name),
                     implementation.trait_name,
                     implementation.target
                 ));
@@ -636,7 +641,7 @@ impl Environment {
                 (implementation.trait_id, implementation.target_id)
             else {
                 return Err(format!(
-                    "`std/{module}` declares `impl {} for {}`, and the graph declares no {} `{}`",
+                    "`{module}` declares `impl {} for {}`, and the graph declares no {} `{}`",
                     implementation.trait_name,
                     implementation.target,
                     if implementation.trait_id.is_none() {
@@ -648,7 +653,8 @@ impl Environment {
                         &implementation.trait_name
                     } else {
                         &implementation.target
-                    }
+                    },
+                    module = crate::library::path(module)
                 ));
             };
             // An implementation belongs with its trait or its type.
@@ -656,9 +662,11 @@ impl Environment {
                 && self.type_declaration(target_id).module != implementation.module
             {
                 return Err(format!(
-                    "`std/{module}` declares `impl {} for {}`, and declares neither the trait \
+                    "`{module}` declares `impl {} for {}`, and declares neither the trait \
                      nor the type: an implementation belongs with its trait or its type",
-                    implementation.trait_name, implementation.target
+                    implementation.trait_name,
+                    implementation.target,
+                    module = crate::library::path(module)
                 ));
             }
         }
@@ -690,8 +698,8 @@ impl Environment {
                 .any(|(name, _)| *name == header.target)
             {
                 return Err(format!(
-                    "`std/{}` declares `impl {} for {}`, and {} is not a format",
-                    self.module(header.module).name,
+                    "`{}` declares `impl {} for {}`, and {} is not a format",
+                    crate::library::path(self.module(header.module).name),
                     header.trait_name,
                     header.target,
                     header.target
@@ -975,7 +983,7 @@ impl Environment {
                 if matches!(step.spec, Signature::Declared) && self.of(step).is_empty() {
                     return Err(format!(
                         "the extension `{}` takes the signature of `{}` from its declaration, and \
-                         no contract under lib/std/ declares it",
+                         no contract under lib/ declares it",
                         extension.name, step.name
                     ));
                 }
@@ -999,7 +1007,7 @@ impl Environment {
             }
             if let Some(step) = extension.steps.iter().find(|step| self.of(step).is_empty()) {
                 return Err(format!(
-                    "the extension `{}` implements `{}`, which no contract under lib/std/ declares",
+                    "the extension `{}` implements `{}`, which no contract under lib/ declares",
                     extension.name, step.name
                 ));
             }
