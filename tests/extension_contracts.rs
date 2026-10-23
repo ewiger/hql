@@ -9,7 +9,7 @@ fn every_catalogue_signature_is_generated_from_its_structural_contract() {
     let count: usize = providers.iter().map(|provider| provider.steps.len()).sum();
     // The core, string, seq, math, option, result, graph, format and io
     // modules of the prelude, and the four imported where they are used.
-    assert_eq!(count, 178);
+    assert_eq!(count, 180);
     for provider in providers {
         for step in provider.steps {
             let mut lines = Vec::new();
@@ -142,10 +142,11 @@ fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
         ("[1, 2] | count", "Int"),
         ("[1, 2] | count(1)", "Int"),
         ("[] | sum", "Int"),
-        ("[1.5] | sum", "Float"),
+        ("[1.5f] | sum", "Float"),
+        ("[1.5] | sum", "Decimal"),
         ("[[1], [2]] | emit", "List<Int>"),
         ("-1 | abs", "Int"),
-        ("2.0 | pow(2.0)", "Float"),
+        ("2.0f | pow(2.0f)", "Float"),
         ("Map([\"a\"], [1]) | with(\"b\", 2)", "Map<String, Int>"),
         ("some(2) | map(n => n > 1)", "Option<Bool>"),
         ("some([1, 2]) | map(n => n > 1)", "List<Bool>"),
@@ -172,7 +173,7 @@ fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
     for (source, message) in [
         (
             "[\"a\"] | sum",
-            "`sum` needs Collection<Int> or Collection<Float>, not List<String>",
+            "`sum` needs Collection<Int> or Collection<Float> or Collection<Decimal>, not List<String>",
         ),
         ("{true} | take(1)", "an order of their own"),
         ("[1] | collect", "`collect` needs `n`"),
@@ -228,7 +229,7 @@ fn an_argument_declared_positional_only_is_refused_by_name() {
 #[test]
 fn an_overload_is_chosen_by_its_arguments_types_too() {
     let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
-    for source in ["2 | pow(2.0)", "2.0 | pow(2)"] {
+    for source in ["2 | pow(2.0f)", "2.0f | pow(2)"] {
         let outcome = hql::run(source, &vault, Mode::Strict);
         let message = outcome
             .reports

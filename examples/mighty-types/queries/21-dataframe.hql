@@ -14,10 +14,10 @@ type Region { name : String, manager : String }
 type Summary { region : String, units : Int, revenue : Float }
 
 sales = [
-    Sale(region = "north", product = "widget", units = 10, price = 2.5),
-    Sale(region = "north", product = "gadget", units = 3, price = 10.0),
-    Sale(region = "south", product = "widget", units = 7, price = 2.5),
-    Sale(region = "east", product = "gizmo", units = 1, price = 99.0),
+    Sale(region = "north", product = "widget", units = 10, price = 2.5f),
+    Sale(region = "north", product = "gadget", units = 3, price = 10.0f),
+    Sale(region = "south", product = "widget", units = 7, price = 2.5f),
+    Sale(region = "east", product = "gizmo", units = 1, price = 99.0f),
 ]
 
 regions = [Region(name = "north", manager = "ada"), Region(name = "south", manager = "bob")]

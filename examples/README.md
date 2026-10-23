@@ -11,6 +11,11 @@ The [structural](structural/README.md) cases read `Data` as declared
 types: closed records, open views over `Data`, and `{:}` as a declared map,
 from [HQL-0030](../doc/proposals/HQL-0030/README.md).
 
+The [decimal](decimal/README.md) cases compute with `Decimal`, the exact
+decimal number a literal with a decimal point is: exact sums, the scale kept
+for display, `Int` widening, half-even `round`, and JSON, YAML and CSV
+carrying every digit, from [HQL-0031](../doc/proposals/HQL-0031/README.md).
+
 The [braces](braces/README.md) cases tell a set from `Data` by the colon:
 `{}` is the empty set and `{:}` the empty record, from
 [HQL-0029](../doc/proposals/HQL-0029/README.md).

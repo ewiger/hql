@@ -9,7 +9,7 @@
 // one; the refusal names both first parameters, Float and String.
 type Temp { kelvin : Float }
 
-fn Temp(celsius: Float) : Temp = Temp(kelvin = celsius + 273.0)
-fn Temp(label: String) : Temp = Temp(kelvin = 0.0)
+fn Temp(celsius: Float) : Temp = Temp(kelvin = celsius + 273.0f)
+fn Temp(label: String) : Temp = Temp(kelvin = 0.0f)
 
 [] | map(Temp)

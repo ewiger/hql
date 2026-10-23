@@ -15,11 +15,12 @@ abstract type Orderable
 // are separate contracts, which is why Bool satisfies one and not the other.
 abstract type Scalar
 
-// Int, Float and String carry the intrinsic orders used by sorting and by
-// SortedMap keys. No literal produces a Date yet.
+// Int, Float, Decimal and String carry the intrinsic orders used by sorting
+// and by SortedMap keys. No literal produces a Date yet.
 type Bool : Scalar
 type Int : {Scalar, Orderable}
 type Float : {Scalar, Orderable}
+type Decimal : {Scalar, Orderable}
 type String : {Scalar, Orderable}
 type Date : {Scalar, Orderable}
 
@@ -139,22 +140,29 @@ trait Slice {
 impl Eq for Bool
 impl Eq for Int
 impl Eq for Float
+impl Eq for Decimal
 impl Eq for String
 impl Eq for Date
 impl Ord for Int
 impl Ord for Float
+impl Ord for Decimal
 impl Ord for String
 impl Ord for Date
 impl Add for Int
 impl Add for Float
+impl Add for Decimal
 impl Sub for Int
 impl Sub for Float
+impl Sub for Decimal
 impl Mul for Int
 impl Mul for Float
+impl Mul for Decimal
 impl Div for Int
 impl Div for Float
+impl Div for Decimal
 impl Rem for Int
 impl Rem for Float
+impl Rem for Decimal
 // Every sequence takes Seq's positions and parts, a List and a Ranking among
 // them. A String's positions are its characters, each read as text. Data's
 // are a document's own; Data is a union, so a String, one of its

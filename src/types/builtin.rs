@@ -16,7 +16,7 @@ macro_rules! atoms {
 }
 
 atoms! {
-    NEVER => "Never", UNIT => "Unit", INT => "Int", FLOAT => "Float",
+    NEVER => "Never", UNIT => "Unit", INT => "Int", FLOAT => "Float", DECIMAL => "Decimal",
     BOOL => "Bool", STR => "String", DATA => "Data", DOC => "Doc", CARD => "Card",
     CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
@@ -119,6 +119,7 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::BOOL, TypeKind::Concrete, &[TypeRef::SCALAR]),
         (TypeRef::INT, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::FLOAT, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::DECIMAL, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::STR, TypeKind::Concrete, &ordered_scalar),
         // Declared so a schema can name it; no literal produces one yet.
         (TypeRef::DATE, TypeKind::Concrete, &ordered_scalar),

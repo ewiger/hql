@@ -370,6 +370,7 @@ pub(crate) enum Kind {
     Block(Vec<BlockStmt>),
     Int(i64),
     Float(f64),
+    Decimal(crate::decimal::Decimal),
     Bool(bool),
     Str(String),
     /// A bound name. `cards` is one, seeded from the vault.
@@ -462,6 +463,7 @@ pub(crate) enum Pattern {
     Bind(String),
     Int(i64),
     Float(f64),
+    Decimal(crate::decimal::Decimal),
     Str(String),
     Bool(bool),
     /// `some(p)`: a present option whose value fits `p`.

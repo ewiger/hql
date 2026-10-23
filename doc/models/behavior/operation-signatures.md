@@ -45,6 +45,7 @@ reduce<T, R>(xs: Seq<T>, initial: R, by: (R, T) -> R)   : R
 reduce<T>(xs: Seq<T>, by: (T, T) -> T)                  : Option<T>
 sum(xs: Collection<Int>)                                : Int
 sum(xs: Collection<Float>)                              : Float
+sum(xs: Collection<Decimal>)                            : Decimal
 min<T : Orderable>(xs: Collection<T>)                   : Option<T>
 max<T : Orderable>(xs: Collection<T>)                   : Option<T>
 

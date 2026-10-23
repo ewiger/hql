@@ -76,7 +76,7 @@ where its steps will:
 | `collections.hql` | membership, order and lookup |
 | `string.hql` | `module for String`: the text functions, `str` and `fmt`; external, implemented by the `string` extension |
 | `seq.hql` | `module for Seq<T>`: the sequence, set and map operations beyond the core's; external |
-| `math.hql` | numbers and the conversions between `Int` and `Float`; external |
+| `math.hql` | numbers and the conversions between `Int`, `Float` and `Decimal`; external |
 | `option.hql` | `module for Option<T>`: the ways out of an option; external |
 | `result.hql` | `module for Result<T, E>`: the ways out of a result; external |
 | `regex.hql` | text matched against a pattern; external, imported where it is used |

@@ -72,7 +72,7 @@ fn expression_failures_use_stderr_and_exit_one() {
         ("1 +", "syntax"),
         ("true + 1", "addition requires"),
         ("9223372036854775807 + 1", "numeric overflow"),
-        ("1 + 2.0", "addition requires"),
+        ("1 + 2.0f", "addition requires"),
         ("nosuchname", "is not bound"),
     ] {
         let output = hql(&["eval", source]);

@@ -11,6 +11,6 @@
 // imports are its own.
 import mighty.stats as stats
 
-data = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]
+data = [2.0f, 4.0f, 4.0f, 4.0f, 5.0f, 5.0f, 7.0f, 9.0f]
 
 [stats.mean(data), stats.variance(data), stats.stddev(data), stats.median(data)] | somes

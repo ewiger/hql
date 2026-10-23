@@ -250,7 +250,7 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
         "Json" | "JsonLines" => {
             serde_json::to_string(&value.to_json()).map_err(|error| error.to_string())
         }
-        "Yaml" => serde_yaml_ng::to_string(&value.to_json())
+        "Yaml" => crate::data::yaml_text(&value.to_json())
             .map(|document| format!("---\n{}", document.trim_end()))
             .map_err(|error| error.to_string()),
         "Csv" => {
@@ -311,7 +311,7 @@ fn default(value: &Value, format: TypeConstructor) -> Result<String, String> {
         "Hql" => Ok(value.to_literal()),
         "Markdown" | "Hmd" => Ok(value.to_markdown()),
         "Json" => Ok(json(value)),
-        "Yaml" => serde_yaml_ng::to_string(&value.to_json()).map_err(|error| error.to_string()),
+        "Yaml" => crate::data::yaml_text(&value.to_json()).map_err(|error| error.to_string()),
         "Csv" => Ok(value.to_csv()),
         other => Err(format!("no renderer writes {} as {other}", value.type_of())),
     }

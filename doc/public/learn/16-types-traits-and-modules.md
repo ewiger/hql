@@ -41,11 +41,11 @@ type Square { side : Float }
 type Shape = union { Circle, Square }
 
 fn area(s: Shape) : Float = match s {
-    Circle c => 3.0 * c.radius * c.radius,
+    Circle c => 3.0f * c.radius * c.radius,
     Square q => q.side * q.side,
 }
 
-shapes : List<Shape> = [Circle(radius = 1.0), Square(side = 2.0)]
+shapes : List<Shape> = [Circle(radius = 1.0f), Square(side = 2.0f)]
 
 shapes | map(area)
 ```
@@ -183,7 +183,7 @@ for itself:
 type Circle { radius : Float }
 type Rect { width : Float, height : Float }
 
-fn circle_area(c: Circle) : Float = 3.0 * c.radius * c.radius
+fn circle_area(c: Circle) : Float = 3.0f * c.radius * c.radius
 fn rect_area(r: Rect) : Float = r.width * r.height
 fn scale(r: Rect, k: Float) : Rect = Rect(width = r.width * k, height = r.height * k)
 ````
@@ -195,7 +195,7 @@ their names, since there is one lattice:
 ```hql
 import mighty.geometry as geo
 
-geo.rect_area(geo.scale(Rect(width = 2.0, height = 1.5), 2.0))
+geo.rect_area(geo.scale(Rect(width = 2.0f, height = 1.5f), 2.0f))
 ```
 
 ```text

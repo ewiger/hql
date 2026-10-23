@@ -18,5 +18,5 @@ its value arguments' types fit.
 | [narrowing filter](queries/narrowing-filter.hql) | `filter(x => x \| is(Int))` takes the declaration whose predicate is a `T -> Is<U>` | `[1, 2]` |
 | [fmt over any](queries/fmt-any.hql) | `...Any` takes a value of any type in each position | `"1 of [2, 3], some 4"` |
 | [invalid positional by name](queries/invalid-positional-by-name.hql) | `count(value = 1)`: an argument declared before `/` is never named | type error |
-| [invalid mixed pow](queries/invalid-mixed-pow.hql) | `2 \| pow(2.0)` fits no form, and the refusal names both | type error |
+| [invalid mixed pow](queries/invalid-mixed-pow.hql) | `2 \| pow(2.0f)` fits no form, and the refusal names both | type error |
 | [invalid collect window](queries/invalid-collect-window.hql) | `collect(for = 5)`: an argument no declaration names | type error |

@@ -7,4 +7,4 @@
 
 // The type inside the bracket decides between a position and a slice, and
 // a Float is neither.
-[10, 20, 30][1.5]
+[10, 20, 30][1.5f]

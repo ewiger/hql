@@ -5,6 +5,7 @@
 
 use super::{MapKind, MapValue, TypeRef};
 use crate::data::Data;
+use crate::decimal::Decimal;
 use crate::document::{Card, Document, Kind};
 use crate::graph::{Edge, Graph};
 use crate::search::{Hit, Ranking};
@@ -135,6 +136,11 @@ fn parsed_leaf(text: &str, wanted: &TypeRef) -> Result<Value, Mismatch> {
             .map(Value::Float)
             .ok_or_else(|| refused("a Float"));
     }
+    if *wanted == TypeRef::DECIMAL {
+        return Decimal::parse(text)
+            .map(Value::Decimal)
+            .ok_or_else(|| refused("a Decimal"));
+    }
     if *wanted == TypeRef::BOOL {
         return match text.trim() {
             "true" => Ok(Value::Bool(true)),
@@ -158,6 +164,8 @@ pub enum Value {
     Int(i64),
     /// A finite double-precision number.
     Float(f64),
+    /// An exact decimal number with its scale.
+    Decimal(Decimal),
     /// A Boolean truth value.
     Bool(bool),
     /// Text.
@@ -429,6 +437,7 @@ impl Value {
             Self::Map(map) => map.type_of(),
             Self::Int(_) => TypeRef::INT,
             Self::Float(_) => TypeRef::FLOAT,
+            Self::Decimal(_) => TypeRef::DECIMAL,
             Self::Bool(_) => TypeRef::BOOL,
             Self::Str(_) => TypeRef::STR,
             Self::Absent(element) => TypeRef::optional(element.clone()),
@@ -507,6 +516,7 @@ impl Value {
         match self {
             Self::Int(value) => Some(Key::Integer(*value)),
             Self::Float(value) => Some(Key::Number(if *value == 0.0 { 0.0 } else { *value })),
+            Self::Decimal(value) => Some(Key::Exact(value.clone())),
             Self::Str(text) => Some(Key::text(text)),
             Self::Formatted(formatted) => Some(Key::text(&formatted.text)),
             Self::Doc(doc) => Some(Key::text(&doc.name)),
@@ -554,8 +564,25 @@ impl Value {
         };
         let read = match tree.as_ref() {
             Data::Bool(value) => Self::Bool(*value),
+            // A number leaf wanted as a Decimal keeps the digits it holds;
+            // an integer one widens (HQL-0031).
+            Data::Int(value) if *wanted == TypeRef::DECIMAL => {
+                Self::Decimal(Decimal::from_int(*value))
+            }
             Data::Int(value) => Self::Int(*value),
+            Data::Float(value) if *wanted == TypeRef::DECIMAL => Decimal::from_float(*value)
+                .map(Self::Decimal)
+                .ok_or_else(|| Mismatch::new(format!("{value} is not a Decimal")))?,
             Data::Float(value) => Self::Float(*value),
+            // Read as anything else, a decimal leaf is the Float it was
+            // before Decimal existed, so an untyped tree reads as it did.
+            Data::Decimal(value) if !TypeRef::FLOAT.is(wanted) && TypeRef::DECIMAL.is(wanted) => {
+                Self::Decimal(value.clone())
+            }
+            Data::Decimal(value) => value
+                .to_float()
+                .map(Self::Float)
+                .ok_or_else(|| Mismatch::new(format!("{value} is not a Float")))?,
             Data::Str(text) => match leaves {
                 Leaves::Text => parsed_leaf(text, wanted)?,
                 Leaves::AsWritten => Self::Str(Arc::from(text.as_str())),
@@ -691,6 +718,9 @@ pub enum Key {
     Integer(i64),
     /// A finite floating-point number.
     Number(f64),
+    /// An exact decimal number, which an integer key compares with by
+    /// value.
+    Exact(Decimal),
     /// A text key.
     Text(String),
     /// A retrieval score with a deterministic document tiebreak.
@@ -707,6 +737,10 @@ impl Key {
         match (self, other) {
             (Self::Integer(a), Self::Integer(b)) => a.cmp(b),
             (Self::Number(a), Self::Number(b)) => a.total_cmp(b),
+            (Self::Exact(a), Self::Exact(b)) => a.cmp(b),
+            // An Int widens to a Decimal (HQL-0031).
+            (Self::Integer(a), Self::Exact(b)) => Decimal::from_int(*a).cmp(b),
+            (Self::Exact(a), Self::Integer(b)) => a.cmp(&Decimal::from_int(*b)),
             (Self::Text(a), Self::Text(b)) => a.cmp(b),
             (Self::Scored(a, x), Self::Scored(b, y)) => a.total_cmp(b).then_with(|| x.cmp(y)),
             _ => self.family().cmp(&other.family()),
@@ -717,8 +751,9 @@ impl Key {
         match self {
             Self::Integer(_) => 0,
             Self::Number(_) => 1,
-            Self::Text(_) => 2,
-            Self::Scored(..) => 3,
+            Self::Exact(_) => 2,
+            Self::Text(_) => 3,
+            Self::Scored(..) => 4,
         }
     }
 }
@@ -743,6 +778,11 @@ impl PartialEq for Value {
             (Self::Map(a), Self::Map(b)) => a == b,
             (Self::Int(left), Self::Int(right)) => left == right,
             (Self::Float(left), Self::Float(right)) => left == right,
+            // By value, so `1.0 == 1.00`, and an Int widens (HQL-0031).
+            (Self::Decimal(left), Self::Decimal(right)) => left == right,
+            (Self::Decimal(left), Self::Int(right)) | (Self::Int(right), Self::Decimal(left)) => {
+                *left == Decimal::from_int(*right)
+            }
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::Str(left), Self::Str(right)) => left == right,
             // Formatted text is a String, so it equals a String of the same text.

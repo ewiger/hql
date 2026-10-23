@@ -147,6 +147,7 @@ pub(crate) enum Kind {
     Construct(Vec<Arg>),
     Int(i64),
     Float(f64),
+    Decimal(crate::decimal::Decimal),
     Bool(bool),
     Str(String),
     Ident(String),
@@ -365,6 +366,7 @@ impl Expr {
         match &self.kind {
             Kind::Int(_)
             | Kind::Float(_)
+            | Kind::Decimal(_)
             | Kind::Bool(_)
             | Kind::Str(_)
             | Kind::Ident(_)
@@ -957,6 +959,7 @@ impl Checked {
             A::Construct { arguments, .. } => Kind::Construct(self.arguments(arguments)?),
             A::Int(value) => Kind::Int(*value),
             A::Float(value) => Kind::Float(*value),
+            A::Decimal(value) => Kind::Decimal(value.clone()),
             A::Bool(value) => Kind::Bool(*value),
             A::Str(value) => Kind::Str(value.clone()),
             A::Ident(_) if self.module_refs.contains_key(&span) => {

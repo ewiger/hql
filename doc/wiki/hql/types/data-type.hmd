@@ -101,13 +101,16 @@ Equality looks through `Option`, so `card.metadata.genre == "novel"` asks its qu
 abstract type Scalar
 
 type Bool   : Scalar
-type Int    : {Scalar, Orderable}
-type Float  : {Scalar, Orderable}
-type String : {Scalar, Orderable}
-type Date   : {Scalar, Orderable}
+type Int     : {Scalar, Orderable}
+type Float   : {Scalar, Orderable}
+type Decimal : {Scalar, Orderable}
+type String  : {Scalar, Orderable}
+type Date    : {Scalar, Orderable}
 ```
 
-`Scalar` is an abstract type of law: a value with no parts of its own. Being a leaf and having an order are separate contracts, which is why they are separate parents. `Bool` is a leaf with no order worth sorting by. A `Card` has an order, by its name, and is no leaf. The four ordered scalars satisfy both, and `{Scalar, Orderable}` is an ordinary supertype set.
+`Scalar` is an abstract type of law: a value with no parts of its own. Being a leaf and having an order are separate contracts, which is why they are separate parents. `Bool` is a leaf with no order worth sorting by. A `Card` has an order, by its name, and is no leaf. The five ordered scalars satisfy both, and `{Scalar, Orderable}` is an ordinary supertype set.
+
+A number leaf written with a decimal point keeps the digits it is written with: read as a `Decimal` it is exactly those digits, and read as anything else it is the nearest `Float` ([HQL-0031](../../../proposals/HQL-0031/README.md)).
 
 `Date` is declared so a schema can name it. No literal produces one yet, and its operations remain open.
 

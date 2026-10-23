@@ -5,7 +5,7 @@
 type Circle { radius : Float }
 type Rect { width : Float, height : Float }
 
-fn circle_area(c: Circle) : Float = 3.0 * c.radius * c.radius
+fn circle_area(c: Circle) : Float = 3.0f * c.radius * c.radius
 fn rect_area(r: Rect) : Float = r.width * r.height
-fn unit_circle() : Circle = Circle(radius = 1.0)
+fn unit_circle() : Circle = Circle(radius = 1.0f)
 fn scale(r: Rect, k: Float) : Rect = Rect(width = r.width * k, height = r.height * k)

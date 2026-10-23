@@ -6,10 +6,10 @@
 // expected-json: [2, true, 8, 8.0]
 
 // `count`, `contains`, `get` and `pow` take their second value by position.
-// `2 | pow(3)` takes the Int form and `2.0 | pow(3.0)` the Float one.
+// `2 | pow(3)` takes the Int form and `2.0f | pow(3.0f)` the Float one.
 [
     [1, 2, 1] | count(1),
     [1, 2] | contains(2),
     2 | pow(3),
-    2.0 | pow(3.0)
+    2.0f | pow(3.0f)
 ]

@@ -32,6 +32,7 @@ impl Value {
             }
             Self::Int(value) => J::from(*value),
             Self::Float(value) => serde_json::Number::from_f64(*value).map_or(J::Null, J::Number),
+            Self::Decimal(value) => crate::data::decimal_json(value),
             Self::Bool(value) => J::Bool(*value),
             Self::Str(text) => J::String(text.to_string()),
             Self::Absent(_) => J::Null,
@@ -163,6 +164,8 @@ impl fmt::Display for Value {
             Self::Int(value) => write!(f, "{value}"),
             // Debug formatting keeps the decimal point, so 1.0 is not printed as 1.
             Self::Float(value) => write!(f, "{value:?}"),
+            // The digits, with as many after the point as the scale says.
+            Self::Decimal(value) => write!(f, "{value}"),
             Self::Bool(value) => write!(f, "{value}"),
             Self::Str(text) => write!(f, "{text}"),
             Self::Absent(_) => f.write_str("none"),
@@ -732,7 +735,7 @@ impl Table {
             serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
                 serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned())
             }
-            scalar => serde_yaml_ng::to_string(scalar)
+            scalar => crate::data::yaml_text(scalar)
                 .map(|text| text.trim_end().to_owned())
                 .unwrap_or_else(|_| "null".to_owned()),
         };

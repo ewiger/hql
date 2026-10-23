@@ -11,10 +11,10 @@
 // `map`. Fields given by name build the record itself.
 type Temp { kelvin : Float }
 
-fn Temp(celsius: Float) : Temp = Temp(kelvin = celsius + 273.0)
-fn Temp(label: String) : Temp = Temp(kelvin = 0.0)
+fn Temp(celsius: Float) : Temp = Temp(kelvin = celsius + 273.0f)
+fn Temp(label: String) : Temp = Temp(kelvin = 0.0f)
 
 [
-    [Temp(1.0).kelvin, ("absolute zero" | Temp).kelvin, Temp(kelvin = 5.0).kelvin],
-    [2.0] | map(Temp) | map(t => t.kelvin)
+    [Temp(1.0f).kelvin, ("absolute zero" | Temp).kelvin, Temp(kelvin = 5.0f).kelvin],
+    [2.0f] | map(Temp) | map(t => t.kelvin)
 ] | emit

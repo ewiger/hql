@@ -14,10 +14,10 @@ type Square { side : Float }
 type Shape = union { Circle, Square }
 
 fn area(s: Shape) : Float = match s {
-    Circle c => 3.0 * c.radius * c.radius,
+    Circle c => 3.0f * c.radius * c.radius,
     Square q => q.side * q.side,
 }
 
-shapes : List<Shape> = [Circle(radius = 1.0), Square(side = 2.0), Circle(radius = 2.0)]
+shapes : List<Shape> = [Circle(radius = 1.0f), Square(side = 2.0f), Circle(radius = 2.0f)]
 
 fmt("{} shapes, total area {}", shapes.size(), shapes | map(area) | sum)

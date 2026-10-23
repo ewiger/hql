@@ -5,6 +5,7 @@
 
 use super::Signature;
 use super::{EvalCx, Operation, Purity, named_or_first};
+use crate::decimal::Decimal;
 use crate::diagnostics::Diagnostic;
 use crate::execution::{Arg as TypedArg, Kind as TypedKind};
 use crate::search::Ranking;
@@ -1515,6 +1516,13 @@ fn eval_product(
     _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    if element_type(&input) == TypeRef::DECIMAL {
+        let mut exact = Decimal::from_int(1);
+        for value in elements(&input, "product", &span)? {
+            exact = exact.mul(&decimal_of(value, "product", &span)?);
+        }
+        return Ok(Value::Decimal(exact));
+    }
     let floats = element_type(&input) == TypeRef::FLOAT;
     let mut whole: i64 = 1;
     let mut real: f64 = 1.0;
@@ -1543,6 +1551,21 @@ fn eval_average(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let values = elements(&input, "average", &span)?;
+    if element_type(&input) == TypeRef::DECIMAL {
+        if values.is_empty() {
+            return Ok(Value::Absent(TypeRef::DECIMAL));
+        }
+        let count =
+            i64::try_from(values.len()).map_err(|_| Diagnostic::Overflow { span: span.clone() })?;
+        let mut total = Decimal::from_int(0);
+        for value in values {
+            total = total.add(&decimal_of(value, "average", &span)?);
+        }
+        let mean = total
+            .div(&Decimal::from_int(count))
+            .ok_or_else(|| Diagnostic::runtime(span.clone(), "division by zero"))?;
+        return Ok(Value::Present(Arc::new(Value::Decimal(mean))));
+    }
     if values.is_empty() {
         return Ok(Value::Absent(TypeRef::FLOAT));
     }
@@ -1566,6 +1589,13 @@ fn eval_sum(
     _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    if element_type(&input) == TypeRef::DECIMAL {
+        let mut exact = Decimal::from_int(0);
+        for value in elements(&input, "sum", &span)? {
+            exact = exact.add(&decimal_of(value, "sum", &span)?);
+        }
+        return Ok(Value::Decimal(exact));
+    }
     let floats = element_type(&input) == TypeRef::FLOAT;
     let mut whole: i64 = 0;
     let mut real: f64 = 0.0;
@@ -1625,6 +1655,15 @@ fn extreme(
         Some(value) => Value::Present(Arc::new(value)),
         None => Value::Absent(element_type(&input)),
     })
+}
+
+/// One occurrence of a Decimal input.
+fn decimal_of(value: Value, name: &str, span: &Range<usize>) -> Result<Decimal, Diagnostic> {
+    match value {
+        Value::Decimal(x) => Ok(x),
+        Value::Int(n) => Ok(Decimal::from_int(n)),
+        _ => Err(wrong(name, "Decimal occurrences", span)),
+    }
 }
 
 /// The occurrences of a numeric input as Floats, an Int widened.
@@ -1999,6 +2038,8 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
             out.update(b"f");
             out.update((x + 0.0).to_bits().to_le_bytes());
         }
+        // Equal decimals share a digest whatever their scale.
+        Value::Decimal(x) => text(out, b"d", &x.canonical()),
         Value::Bool(b) => out.update([b'b', u8::from(*b)]),
         Value::Str(held) => text(out, b"s", held),
         Value::Formatted(formatted) => text(out, b"s", &formatted.text),

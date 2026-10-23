@@ -124,7 +124,7 @@ trait Shape {
 }
 
 impl Shape for Circle {
-    fn area(self) : Float = 3.0 * self.radius * self.radius
+    fn area(self) : Float = 3.0f * self.radius * self.radius
 }
 
 impl Shape for Rect {
@@ -133,7 +133,8 @@ impl Shape for Rect {
 
 fn total<T : Shape>(shapes: List<T>) : Float = shapes | map(s => s.area()) | sum
 
-[Circle(radius = 1.0).describe(), str(total([Rect(width = 2.0, height = 3.0)]))]
+[Circle(radius = 1.0f).describe(), str(total([Rect(width = 2.0f, height = 3.0f)]))]
+
 ```
 
 A record is constructed by its fields and read with a dot; a `match` over a

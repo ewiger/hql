@@ -29,6 +29,7 @@ pub mod backends;
 pub mod builtins;
 pub mod cli;
 pub mod data;
+pub mod decimal;
 pub mod diagnostics;
 pub mod document;
 pub mod extensions;

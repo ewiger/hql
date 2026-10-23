@@ -12,6 +12,6 @@
 // syntax: here the corpus header names `lib`.
 import mighty.geometry as geo
 
-r = geo.scale(Rect(width = 2.0, height = 1.5), 2.0)
+r = geo.scale(Rect(width = 2.0f, height = 1.5f), 2.0f)
 
 [geo.circle_area(geo.unit_circle()), geo.rect_area(r), r.width]

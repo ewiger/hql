@@ -10,6 +10,23 @@ The language continues to be in active development.
 
 ### Added
 
+- `Decimal`, an exact decimal number ([HQL-0031](doc/proposals/HQL-0031/README.md);
+  [issue 0042](doc/issues/0042-decimal.md), shown in the
+  [decimal examples](examples/decimal/README.md)): a number written with a
+  decimal point, `12.50` or `1.5e-3`, is an arbitrary-precision `Decimal`
+  whose scale is kept for display and whose equality and order are by value;
+  a `Float` is written with the suffix `f`, `0.5f`, `6.02e23f` or `2f`.
+  `+`, `-` and `*` are exact, `/` is exact where the quotient terminates and
+  otherwise rounded half to even to 100 significant digits, and
+  `round(x, places)` rounds half to even. `Decimal` is `Scalar` and
+  `Orderable`, and `min`, `max`, `sum`, `product`, `average`, `abs` and
+  `sign` take it. An `Int` beside a `Decimal` widens to one; a `Float` beside
+  one is a type error naming `decimal(x)` and `float(d)`. `decimal`, `float`,
+  `int` and `s.to_decimal()` convert. A JSON or YAML number or a CSV cell
+  read as a `Decimal` keeps its digits, and a `Decimal` is written to JSON
+  and YAML as a number with its scale, and to CSV and text as its digits.
+  A program that passes a literal with a decimal point to a `Float`
+  parameter, or mixes one with a `Float`, now writes the suffix `f`.
 - Contract rules and defaults ([HQL-0032](doc/proposals/HQL-0032/README.md);
   [issue 0043](doc/issues/0043-contract-validation.md), shown in the
   [structural examples](examples/structural/README.md)): a `TypeContract` or

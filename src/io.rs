@@ -428,9 +428,12 @@ fn data_of(json: serde_json::Value) -> Data {
     match json {
         serde_json::Value::Null => Data::Empty,
         serde_json::Value::Bool(value) => Data::Bool(value),
+        // A number keeps the digits it is written with, so it reads exactly
+        // as a Decimal (HQL-0031).
         serde_json::Value::Number(number) => number
             .as_i64()
             .map(Data::Int)
+            .or_else(|| crate::decimal::Decimal::parse(number.as_str()).map(Data::Decimal))
             .or_else(|| number.as_f64().map(Data::Float))
             .unwrap_or(Data::Empty),
         serde_json::Value::String(text) => Data::Str(text),
@@ -632,15 +635,103 @@ pub(crate) fn parse_text(text: &str, format: TypeConstructor) -> Result<Data, St
     }
 }
 
+/// Whether a tree holds a number that is not an integer.
+fn has_fraction(json: &serde_json::Value) -> bool {
+    match json {
+        serde_json::Value::Number(number) => number.as_i64().is_none(),
+        serde_json::Value::Array(items) => items.iter().any(has_fraction),
+        serde_json::Value::Object(entries) => entries.values().any(has_fraction),
+        _ => false,
+    }
+}
+
+/// A second read of a YAML document, guided by the tree the first read
+/// gave: each number that is not an integer is read as the text it is
+/// written with, and becomes a JSON number of exactly those digits.
+struct YamlDigits<'a>(&'a serde_json::Value);
+
+impl<'de> serde::de::DeserializeSeed<'de> for YamlDigits<'_> {
+    type Value = serde_json::Value;
+
+    fn deserialize<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error> {
+        use serde::Deserialize;
+        match self.0 {
+            serde_json::Value::Number(number) if number.as_i64().is_none() => {
+                let written = String::deserialize(deserializer)?;
+                Ok(written
+                    .parse::<serde_json::Number>()
+                    .map_or_else(|_| self.0.clone(), serde_json::Value::Number))
+            }
+            serde_json::Value::Array(_) => deserializer.deserialize_seq(self),
+            serde_json::Value::Object(_) => deserializer.deserialize_map(self),
+            _ => serde_json::Value::deserialize(deserializer),
+        }
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for YamlDigits<'_> {
+    type Value = serde_json::Value;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("the YAML document read before")
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(
+        self,
+        mut items: A,
+    ) -> Result<Self::Value, A::Error> {
+        let serde_json::Value::Array(guide) = self.0 else {
+            return Err(serde::de::Error::custom("a sequence where none was read"));
+        };
+        let mut read = Vec::with_capacity(guide.len());
+        for item in guide {
+            match items.next_element_seed(YamlDigits(item))? {
+                Some(value) => read.push(value),
+                None => return Err(serde::de::Error::custom("a shorter sequence")),
+            }
+        }
+        Ok(serde_json::Value::Array(read))
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(
+        self,
+        mut entries: A,
+    ) -> Result<Self::Value, A::Error> {
+        let serde_json::Value::Object(guide) = self.0 else {
+            return Err(serde::de::Error::custom("a mapping where none was read"));
+        };
+        let mut read = serde_json::Map::new();
+        while let Some(key) = entries.next_key::<String>()? {
+            let value = match guide.get(&key) {
+                Some(held) => entries.next_value_seed(YamlDigits(held))?,
+                None => entries.next_value::<serde_json::Value>()?,
+            };
+            read.insert(key, value);
+        }
+        Ok(serde_json::Value::Object(read))
+    }
+}
+
 /// The documents of a whole text in a format that is not read piece by piece.
 fn whole(text: &str, format: TypeConstructor) -> Result<Vec<Result<Value, String>>, String> {
     use serde::Deserialize;
     match format.0 {
         "Yaml" => Ok(serde_yaml_ng::Deserializer::from_str(text)
-            .map(|document| {
-                serde_json::Value::deserialize(document)
-                    .map(tree)
-                    .map_err(|error| format!("not YAML: {error}"))
+            .zip(serde_yaml_ng::Deserializer::from_str(text))
+            .map(|(document, again)| {
+                let read = serde_json::Value::deserialize(document)
+                    .map_err(|error| format!("not YAML: {error}"))?;
+                // YAML reads a number with a point as a binary float; read
+                // once more for the text of each, so its digits are kept.
+                Ok(tree(if has_fraction(&read) {
+                    serde::de::DeserializeSeed::deserialize(YamlDigits(&read), again)
+                        .unwrap_or(read)
+                } else {
+                    read
+                }))
             })
             .collect()),
         _ => Ok(vec![Ok(Value::Formatted(Arc::new(Formatted {
