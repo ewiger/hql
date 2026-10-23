@@ -1537,6 +1537,8 @@ The outer `Message` describes transport and provenance.
 
 Broker offsets, keys and delivery metadata SHOULD NOT be forced into the core definition of `Invalid`.
 
+`Message<T>` is not yet a type. Until it is, provenance is held by an envelope a program declares, a `DataContract` with its transport fields beside a field `value: Invalid`, or as extra fields on the open `Invalid` itself, which `| Invalid` keeps in the tree it reads.
+
 ---
 
 # 32. Writing errors
@@ -2049,3 +2051,7 @@ There is no hidden exception channel, no validation-specific dead-letter control
   `fork { accepted = oks(), rejected = errs() }` over a `List`, `Seq` and
   `Stream` of results, each side in source order and a live source read
   once; covers test plan items 7, 8, 9 and 10
+- 2026-10-23: rejected values as data (issue 0045, E4): `errs()` written
+  with `sink` and read back with `| Invalid`, repaired from `e.value` into
+  another `validate` and `fork`, and provenance held outside `Invalid` in an
+  envelope; covers test plan items 11, 13 and 14

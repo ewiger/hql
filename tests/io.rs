@@ -749,3 +749,36 @@ parts.count"#,
         "{\"a\":1}\n{\"a\":2}\n"
     );
 }
+
+/// HQL-0033: rejected values are ordinary data. `errs()` written to a sink
+/// in one run is read back as `Invalid` in the next, with the original
+/// `value` to repair from.
+#[test]
+fn rejected_values_are_written_and_read_back_as_invalid() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("users.jsonl"),
+        "{\"id\": \"u-1\"}\n{\"id\": \"\"}\n{\"name\": \"Anon\"}\n",
+    )
+    .unwrap();
+    let contract = "type UserData : DataContract = {\n    id: String\n    require id != \"\" as id_present\n}\n";
+    ok(&hql_in(
+        dir.path(),
+        &[&format!(
+            "{contract}tap(file(\"users.jsonl\"), JsonLines) | validate(UserData) | errs() | sink(file(\"rejected.jsonl\"), JsonLines)"
+        )],
+    ));
+    let read = hql_in(
+        dir.path(),
+        &[
+            "source(file(\"rejected.jsonl\"), JsonLines) | Invalid | map(e => [e.contract, fmt(\"{}\", e.value), e.violations[0] | map(v => v.rule) | unwrap_or(\"\")])",
+            "--to",
+            "json",
+            "--compact",
+        ],
+    );
+    assert_eq!(
+        ok(&read),
+        "[[\"UserData\",\"{id: \\\"\\\"}\",\"UserData.id_present\"],[\"UserData\",\"{name: \\\"Anon\\\"}\",\"UserData.id.missing\"]]\n"
+    );
+}

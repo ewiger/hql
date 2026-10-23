@@ -15,6 +15,8 @@ however many pipelines and branches read it.
 | [unread branch](queries/fork-unread-branch.hql) | a pure branch nothing reads is not run, so its division by zero never happens | `[1, 2, 3]` |
 | [shared read](queries/shared-read.hql) | a `tap` bound once is read once: later pipelines and both branches of a `fork` see that read after the file is replaced | the species, then those counted more and less than once |
 | [accepted and rejected, live](queries/fork-results-live.hql) | a file validated and forked into `oks()` and `errs()` is read once | the accepted names, the broken rules |
+| [repairing rejected values](queries/repair-rejected.hql) | stored `errs()` read back as `Invalid`, repaired from `e.value`, validated and forked again | the repaired users, the stored rules |
+| [provenance outside `Invalid`](queries/invalid-provenance.hql) | an envelope holds a broker key beside the `Invalid`; a producer's extra field rides on the open record | `["users/7", "UserData", …]` |
 | [branch named twice](queries/invalid-fork-branch-twice.hql) | a branch name is written once | a syntax error |
 
 From the repository root:

@@ -204,3 +204,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   beyond D1, D2 and E2; cases pin it over all three kinds, with source
   order, one side per value, a live file read once, and no `split` over
   results.
+- E4 done: writing `errs()` and reading it back as `Invalid` worked after
+  E1; pinned by a two-run test and a repair case. `Message<T>` does not
+  exist, so HQL-0033 now states that provenance sits in an envelope beside
+  `Invalid` until it does.
