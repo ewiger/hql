@@ -93,7 +93,10 @@ The language continues to be in active development.
   `validate f with V` holds where `V`'s `validate` of the field is true, and
   is a type error where the field's type does not implement `V`; a field
   declared `f: V` is of the type implementing `V` and is held to it,
-  reported as the violation `Contract.f`.
+  reported as the violation `Contract.f`. `import validators` gives the
+  standard validator types, `Email` and `NonEmpty`, the first module of
+  the standard library written in HQL rather than declared for an
+  extension; a validator implemented for several types is named in a rule.
 
 - `Table<R>` ([issue 0044](doc/issues/0044-typed-tables.md), shown in the
   [constructors examples](examples/constructors/README.md)): a table is

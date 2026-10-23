@@ -233,7 +233,10 @@ in a rule, `validate contact? with Email`, which holds where `Email`'s
 does not implement `Email`. A field declared with one, `work_email: Email`, is
 of the one type implementing it and is held to its `validate` wherever the
 record is read or built, a broken one reported as the violation
-`UserData.work_email`.
+`UserData.work_email`. `import validators` gives the standard ones: `Email`
+for text and `NonEmpty`, implemented for text and for lists, so it is named in
+a rule, `validate tags with NonEmpty`; a validator type implemented for
+several types has no one type to give a field.
 
 A **generic trait** takes type parameters, and an implementation takes its own
 ([HQL-0027](../../proposals/HQL-0027/README.md)). `trait Index<T>` names the

@@ -61,6 +61,7 @@ fn every_file_in_the_standard_library_is_embedded_as_written() {
     for (name, path) in &found {
         let embedded = library::MODULES
             .iter()
+            .chain(library::WRITTEN)
             .find(|(module, _)| module == name)
             .unwrap_or_else(|| panic!("{} is not embedded as {name}", path.display()));
         assert_eq!(
@@ -70,7 +71,7 @@ fn every_file_in_the_standard_library_is_embedded_as_written() {
             path.display()
         );
     }
-    assert_eq!(found.len(), library::MODULES.len());
+    assert_eq!(found.len(), library::MODULES.len() + library::WRITTEN.len());
 }
 
 #[test]

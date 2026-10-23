@@ -3169,8 +3169,14 @@ impl<'a> Checker<'a> {
             return Ok(std::sync::Arc::clone(module));
         }
         let roots = &self.vault.extensions.module_roots;
-        let located = crate::modules::locate(roots, name)
-            .map_err(|message| Diagnostic::name(span.clone(), message))?;
+        let written = crate::library::written(name);
+        let located = match written {
+            // A written module of the standard library comes before the
+            // roots, as a standard module named by an extension does.
+            Some(_) => Some(std::path::PathBuf::from(format!("std/{name}.hql"))),
+            None => crate::modules::locate(roots, name)
+                .map_err(|message| Diagnostic::name(span.clone(), message))?,
+        };
         let Some(path) = located else {
             let hint = if roots.is_empty() {
                 "; no module root is configured: pass `--modules <dir>` or set `[modules] \
@@ -3211,12 +3217,15 @@ impl<'a> Checker<'a> {
                 ));
             }
         }
-        let source = std::fs::read_to_string(&path).map_err(|error| {
-            Diagnostic::name(
-                span.clone(),
-                format!("module `{name}` at {}: {error}", path.display()),
-            )
-        })?;
+        let source = match written {
+            Some(source) => source.to_owned(),
+            None => std::fs::read_to_string(&path).map_err(|error| {
+                Diagnostic::name(
+                    span.clone(),
+                    format!("module `{name}` at {}: {error}", path.display()),
+                )
+            })?,
+        };
         let inside = |diagnostic: Diagnostic| {
             Diagnostic::name(
                 span.clone(),

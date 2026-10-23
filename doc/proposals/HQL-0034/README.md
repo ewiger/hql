@@ -1,6 +1,6 @@
 # HQL-0034: Validator types
 
-**Status**: accepted, implemented in part
+**Status**: accepted, implemented
 **Created**: 2026-10-23
 **Source**: [HQL-0032](../HQL-0032/README.md), whose `validate f with V`
 names a validator; tracked by
@@ -58,14 +58,39 @@ A trait extends others by having their functions as its own: an
 implementation of `Email` supplies `validate`, and does not implement
 `Validator` by doing so. A field declared `f: V` is of the type that
 implements `V`, so `u.work_email` is a `String`; a validator type
-implemented for no type, or for several, is refused as a field's type until
-the placeholder below states the form for several. A field held to `V` that
-is not valid is reported as the violation of kind `rule` with the identity
-`Contract.f` and the text `f: V`.
+implemented for no type is refused as a field's type.
 
-*Placeholder:* the standard validators and the module that declares them,
-how a validator type is written for more than one value type, and the
-identity and message of the violation a validator type reports.
+### The standard validators
+
+The module `validators`, [`std/validators.hql`](../../../std/validators.hql),
+declares the standard validator types. It is written in HQL, its
+implementations bodies a program runs, and it is imported where it is used,
+`import validators`, never by the prelude, so a program that declares its own
+`Email` keeps it. The first set:
+
+| Type | Implemented for | Holds where |
+| --- | --- | --- |
+| `Email` | `String` | the text holds one `@`, not at its start, and the part after it holds a `.` at neither of its ends |
+| `NonEmpty` | `String`, `List<T>` | the text is more than whitespace; the list has an element |
+
+### A validator for more than one type
+
+A validator type is written for more than one type of value by one `impl`
+per type, as `NonEmpty` is for `String` and for `List<T>`. A rule
+`validate f with V` takes the implementation for `f`'s type. A field
+declared `f: V` has the one type implementing `V`, so a validator type
+implemented for several types is refused there, with a diagnostic naming the
+types and the rule form.
+
+### The violation a validator reports
+
+A broken validator is a `Violation` of kind `rule`, like any broken rule. A
+rule `validate f with V` has the rule identity `as name` gives it, or
+`Contract.n` for the n-th unnamed rule, and its text as written. A field
+declared `f: V` has the identity `Contract.f`, the field's name standing as
+the rule's name, and the text `f: V`; its path leads to the field, and its
+message is the fail-fast diagnostic's, ``field `f`: `f: V` does not hold``.
+`expected` and `actual` are absent, as for every rule.
 
 ## Changelog
 
@@ -75,3 +100,7 @@ identity and message of the violation a validator type reports.
   `trait V : Validator`, `validate f with V`, and a field `f: V` of the one
   type implementing `V`, shown in the
   [structural examples](../../../examples/structural/README.md)
+- 2026-10-23: the placeholders stated and built (issue 0045, V2): the module
+  `validators` written in HQL and imported by name, with `Email` and
+  `NonEmpty`; a validator for several types by one `impl` per type, named in
+  a rule; and the identity `Contract.f` of a field declared with one

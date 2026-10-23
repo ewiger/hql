@@ -42,6 +42,8 @@ reads holds every rule.
 | [no `split` over results](queries/invalid-split-results.hql) | results have no routing operation of their own | a type error |
 | [retry](queries/retry.hql) | `retry(operation, attempts = n, when = …)` reinvokes a failing operation; exhausted, the last `err` stands | the result and the number of invocations of each |
 | [retry over results](queries/invalid-retry-result.hql) | `retry` needs the operation, not a finished `Result` | a type error |
+| [standard validators](queries/standard-validators.hql) | `import validators`: `email: Email` and `validate tags with NonEmpty` | the valid address, the broken checks |
+| [validator of several types as a field](queries/invalid-validator-field-several.hql) | `NonEmpty` has two implementations, so a field cannot be declared with it | a type error |
 | [validating a closed value](queries/invalid-validate-closed-value.hql) | `validate(T)` reads `Data` or an open record | a type error |
 
 From the repository root:

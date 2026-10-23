@@ -9,6 +9,10 @@ as *source* rather than as prose inside a card. The modules written as external
 declarations, `string`, `seq`, `math`, `option`, `result` and `regex`, are the
 contracts the binary's extensions implement, checked against them by name;
 `io` and `io.logging` declare their operations beside their types.
+`validators` is the one module written in HQL, its implementations bodies a
+program runs: it is loaded when a program writes `import validators`, as a
+workspace module is, and declares the standard validator types
+([HQL-0034](../doc/proposals/HQL-0034/README.md)).
 
 Checking a declaration is not evaluating one. A declaration yields `Unit` and
 introduces no value; constructing a value of a declared record type is separate

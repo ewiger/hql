@@ -230,3 +230,8 @@ refresh, caching, versioning and boundary events are not in this portion.
   dead-letter handling and validation result, and its open questions on
   them, are marked superseded by HQL-0033; issue 0043's stream policies are
   recorded as closed by E1 to E5; HQL-0033 is accepted and implemented.
+- V2 done: HQL-0034's placeholders are stated: `std/validators.hql`, the
+  first written module of the standard library, loaded on `import
+  validators` before the module roots, with `Email` and `NonEmpty`; several
+  types by one `impl` each, named in a rule; and the identity `Contract.f`.
+  HQL-0034 is accepted and implemented.
