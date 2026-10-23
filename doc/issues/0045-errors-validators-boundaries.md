@@ -200,3 +200,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   per evaluation, now pinned with `max_elements`. Lowering marks the pure
   branches of a bound `fork` that no later statement reads, and they are
   not run.
+- E3 done: `fork { accepted = oks(), rejected = errs() }` needed no code
+  beyond D1, D2 and E2; cases pin it over all three kinds, with source
+  order, one side per value, a live file read once, and no `split` over
+  results.

@@ -107,7 +107,11 @@ and `errs` over a `List`, `Seq`, `Set` or `Stream` of results: a
 structural `Violation` fills `expected` with the type a field was read as and
 `actual` with the tree it holds, and `stored | Invalid` reads a stored failure
 back (see [the structural examples](../../../examples/structural/README.md)).
-`fork` and `retry` are designed.
+`{ accepted, rejected } = results | fork { accepted = oks(), rejected = errs() }`
+gives both sides of a `List`, `Seq` or `Stream` of results, each value on one
+side and each side in source order, with a live source read once (see
+[the dataflow examples](../../../examples/dataflow/README.md)). `retry` is
+designed.
 
 ## Contracts decide what fails; the call site decides how
 

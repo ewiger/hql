@@ -2045,3 +2045,7 @@ There is no hidden exception channel, no validation-specific dead-letter control
   and `match` over each `Result` of a `List`, `Seq` and `Stream`, and
   `oks()` and `errs()` over a `Stream` keeping a stream; covers test plan
   items 5 and 6
+- 2026-10-23: both sides with `fork` (issue 0045, E3):
+  `fork { accepted = oks(), rejected = errs() }` over a `List`, `Seq` and
+  `Stream` of results, each side in source order and a live source read
+  once; covers test plan items 7, 8, 9 and 10

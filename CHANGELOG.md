@@ -67,6 +67,8 @@ The language continues to be in active development.
   A producer bound once is evaluated once: a `tap` of a file is read once
   and replayed for every later traversal, as standard input and sockets
   were, and a pure branch of a bound `fork` that nothing reads is not run.
+  `fork { accepted = oks(), rejected = errs() }` gives both sides of a
+  `List`, `Seq` or `Stream` of results.
 
 - Validator types ([HQL-0034](doc/proposals/HQL-0034/README.md), shown in
   the [structural examples](examples/structural/README.md)): a trait may

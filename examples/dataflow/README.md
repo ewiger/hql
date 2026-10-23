@@ -14,6 +14,7 @@ however many pipelines and branches read it.
 | [over a stream](queries/fork-stream.hql) | each branch of a `Stream` is a stream in the upstream's order | `[[2, 4, 6], [1, 3, 5]]` |
 | [unread branch](queries/fork-unread-branch.hql) | a pure branch nothing reads is not run, so its division by zero never happens | `[1, 2, 3]` |
 | [shared read](queries/shared-read.hql) | a `tap` bound once is read once: later pipelines and both branches of a `fork` see that read after the file is replaced | the species, then those counted more and less than once |
+| [accepted and rejected, live](queries/fork-results-live.hql) | a file validated and forked into `oks()` and `errs()` is read once | the accepted names, the broken rules |
 | [branch named twice](queries/invalid-fork-branch-twice.hql) | a branch name is written once | a syntax error |
 
 From the repository root:

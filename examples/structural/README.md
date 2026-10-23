@@ -38,6 +38,8 @@ reads holds every rule.
 | [validator types](queries/validator-types.hql) | `trait Email : Validator`; `validate contact? with Email` and a field `work_email: Email` | the valid email, the two broken checks |
 | [validator not implemented](queries/invalid-validator-not-implemented.hql) | `validate age with Email` where `Email` is not implemented for `Int` | a type error |
 | [plain trait as a validator](queries/invalid-validator-plain-trait.hql) | a trait that does not extend `Validator` is not a validator type | a type error |
+| [both sides with `fork`](queries/fork-results.hql) | `fork { accepted = oks(), rejected = errs() }` over a `List`, `Seq` and `Stream` of results | each side in source order |
+| [no `split` over results](queries/invalid-split-results.hql) | results have no routing operation of their own | a type error |
 | [validating a closed value](queries/invalid-validate-closed-value.hql) | `validate(T)` reads `Data` or an open record | a type error |
 
 From the repository root:
