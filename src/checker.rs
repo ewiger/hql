@@ -3786,8 +3786,12 @@ impl<'a> Checker<'a> {
         if declaration.rules.is_empty() {
             return Ok(());
         }
+        // A rule reads every field of the record, an inherited one too.
+        let fields = crate::types::program::record(name)
+            .map(|shape| shape.fields)
+            .unwrap_or_default();
         let mut parameters = Vec::new();
-        for field in &declaration.fields {
+        for field in &fields {
             let bind = |name: String, reads| RuleParameter {
                 name,
                 field: field.name.clone(),
@@ -4171,7 +4175,7 @@ impl<'a> Checker<'a> {
         let mut bound: HashMap<&'static str, TypeRef> = HashMap::new();
         for (field, argument) in shape.fields.iter().zip(given) {
             let Some(argument) = argument else {
-                if field.optional {
+                if field.optional || field.default.is_some() {
                     continue;
                 }
                 return Err(Diagnostic::typing(

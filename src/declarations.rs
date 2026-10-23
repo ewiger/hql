@@ -245,14 +245,38 @@ pub(crate) fn enter_lattice(declaration: &TypeDecl) -> Result<(), Diagnostic> {
         });
     }
     let shape = (kind == TypeKind::Concrete).then(|| {
-        Ok::<_, Diagnostic>(RecordShape {
-            parameters: parameters.clone(),
-            parents: declaration
-                .supertypes
-                .iter()
-                .map(structural)
-                .collect::<Result<Vec<_>, _>>()?,
-            fields: declaration
+        let supertypes = declaration
+            .supertypes
+            .iter()
+            .map(structural)
+            .collect::<Result<Vec<_>, _>>()?;
+        // A record under another record has its fields too, the parent's
+        // first; one it declares again is its own.
+        let mut fields: Vec<RecordField> = supertypes
+            .iter()
+            .filter_map(|parent| {
+                let shape = program::record(parent.constructor.0)?;
+                Some(
+                    shape
+                        .fields
+                        .iter()
+                        .map(|field| RecordField {
+                            ty: shape.bound(&field.ty, &parent.args),
+                            ..field.clone()
+                        })
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .flatten()
+            .filter(|inherited| {
+                !declaration
+                    .fields
+                    .iter()
+                    .any(|field| field.name == inherited.name)
+            })
+            .collect();
+        fields.extend(
+            declaration
                 .fields
                 .iter()
                 .map(|field| {
@@ -270,6 +294,11 @@ pub(crate) fn enter_lattice(declaration: &TypeDecl) -> Result<(), Diagnostic> {
                     })
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?,
+        );
+        Ok::<_, Diagnostic>(RecordShape {
+            parameters: parameters.clone(),
+            parents: supertypes,
+            fields,
         })
     });
     let shape = shape.transpose()?;
@@ -327,8 +356,6 @@ fn default(
     written: &crate::ast::Expr,
     ty: &TypeRef,
 ) -> Result<crate::data::Data, Diagnostic> {
-    use crate::ast::Kind;
-    use crate::data::Data;
     if field.optional {
         return Err(Diagnostic::typing(
             written.span.clone(),
@@ -339,18 +366,15 @@ fn default(
             ),
         ));
     }
-    let data = match &written.kind {
-        Kind::Int(value) => Data::Int(*value),
-        Kind::Float(value) => Data::Float(*value),
-        Kind::Bool(value) => Data::Bool(*value),
-        Kind::Str(text) => Data::Str(text.clone()),
-        _ => {
-            return Err(Diagnostic::typing(
-                written.span.clone(),
-                format!("the default of `{}` is written as a literal", field.name),
-            ));
-        }
-    };
+    let data = literal(written).ok_or_else(|| {
+        Diagnostic::typing(
+            written.span.clone(),
+            format!(
+                "the default of `{}` is written as a literal, with no call or name in it",
+                field.name
+            ),
+        )
+    })?;
     crate::types::Value::Data(std::sync::Arc::new(data.clone()))
         .decoded(ty, crate::types::Leaves::AsWritten)
         .map_err(|_| {
@@ -360,6 +384,29 @@ fn default(
             )
         })?;
     Ok(data)
+}
+
+/// A default as data: a scalar literal, or a list, set or `Data` literal of
+/// them.
+fn literal(written: &crate::ast::Expr) -> Option<crate::data::Data> {
+    use crate::ast::Kind;
+    use crate::data::Data;
+    Some(match &written.kind {
+        Kind::Int(value) => Data::Int(*value),
+        Kind::Float(value) => Data::Float(*value),
+        Kind::Bool(value) => Data::Bool(*value),
+        Kind::Str(text) => Data::Str(text.clone()),
+        Kind::List(items) | Kind::Set(items) => {
+            Data::List(items.iter().map(literal).collect::<Option<_>>()?)
+        }
+        Kind::Data(entries) => Data::Map(
+            entries
+                .iter()
+                .map(|(key, value)| Some((key.clone(), literal(value)?)))
+                .collect::<Option<_>>()?,
+        ),
+        _ => return None,
+    })
 }
 
 /// Whether a structural type mentions one of the declaration's parameters.

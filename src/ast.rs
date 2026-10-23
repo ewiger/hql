@@ -296,7 +296,19 @@ pub(crate) struct Rule {
     /// The optional fields it reads as `f?`: it applies where all are
     /// present.
     pub reads: Vec<String>,
+    /// `require` and `validate` give errors, `warn` warnings.
+    pub severity: Severity,
+    /// The name written after `as`, the rule's stable identity.
+    pub name: Option<String>,
     pub span: Range<usize>,
+}
+
+/// What breaking a rule makes of a value (HQL-0033): an error makes it
+/// invalid, a warning leaves it valid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Severity {
+    Error,
+    Warning,
 }
 
 /// The name a rule reads optional field `field` by: `field?`.

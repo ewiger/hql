@@ -20,6 +20,13 @@ reads holds every rule.
 | [contract defaults](queries/contract-defaults.hql) | `age: Int = 18` stands in where the data has no `age` | `[18, 34]` |
 | [broken rules](queries/invalid-contract-rule.hql) | a value that breaks rules does not read, and each broken rule is named as written | an evaluation error |
 | [rule on a plain type](queries/invalid-rule-on-plain-type.hql) | only a `TypeContract` or `DataContract` has rules | a type error |
+| [constructor](queries/contract-constructor.hql) | `UserData(id = "u-1")` fills `age` with its default and holds the rules | `[18, 34]` |
+| [constructor, broken rule](queries/invalid-contract-constructor.hql) | a constructor is held to the rules, as `\| T` is | an evaluation error |
+| [inherited fields and rules](queries/contract-inheritance.hql) | `Window : Span` has `low` and `high`, and its rule reads them | `[5, 9]` |
+| [inherited rule broken](queries/invalid-inherited-rule.hql) | a value read as `Window` holds `Span`'s rule | an evaluation error |
+| [collection defaults](queries/contract-collection-defaults.hql) | `tags: List<String> = []` | `[0, 2]` |
+| [default with a call](queries/invalid-default-call.hql) | a default is a literal, never a call | a type error |
+| [warnings and names](queries/contract-warnings.hql) | `warn age? < 120 as plausible_age` leaves a value of 130 valid | `[34, 130]` |
 
 From the repository root:
 

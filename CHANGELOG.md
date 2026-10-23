@@ -18,7 +18,18 @@ The language continues to be in active development.
   field, applying the rule only where it is present, or tests its presence
   as a condition, and `=>` is implication. `x | T` and a decoded stream
   check every rule, and a value that breaks some is an evaluation error
-  naming each as written.
+  naming each as written. A contract's constructor, `T(…)`, fills its
+  defaults and checks its rules too. `warn P` is a rule whose violation
+  leaves the value valid, and `as name` names a rule, reported as
+  `Contract.name`. A default may be a list, set or `Data` literal of
+  literals, never a call.
+
+### Fixed
+
+- A record declared under another record, `type Sub : Base = {…}`, has its
+  parent's fields, the parent's first: `Sub(n = 1, m = 2)` builds and
+  `(d | Sub).n` reads. A contract's rules read inherited fields, and a value
+  read as `Sub` holds `Base`'s rules before its own.
 - `Table` ([HQL-0017](doc/proposals/HQL-0017/README.md);
   [issue 0039](doc/issues/0039-table-shape-and-presentation-review.md), shown
   in the [constructors examples](examples/constructors/README.md)):

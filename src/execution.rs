@@ -98,6 +98,8 @@ pub(crate) enum RuleRead {
 #[derive(Debug)]
 pub(crate) struct RuleLowering {
     pub text: String,
+    pub severity: ast::Severity,
+    pub name: Option<String>,
     /// The optional fields it reads as `f?`: it applies where all are
     /// present.
     pub reads: Vec<String>,
@@ -772,6 +774,8 @@ impl Checked {
                                 .map(|rule| {
                                     Ok(RuleLowering {
                                         text: rule.text.clone(),
+                                        severity: rule.severity,
+                                        name: rule.name.clone(),
                                         reads: rule.reads.clone(),
                                         parameters: parameters.clone(),
                                         body: std::sync::Arc::new(

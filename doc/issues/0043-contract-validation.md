@@ -41,9 +41,12 @@ adds beyond structure is built.
   `f?` and `=>` in a rule, and `name: T = literal`, enforced when `x | T`
   reads a value or a decoded stream reads each element, shown in
   [the structural examples](../../examples/structural/README.md).
-- Decided, to build: `T(…)` checks rules and fills defaults; a record
-  subtype has its supertype's fields and rules; collection-literal
-  defaults; `warn P` and `as name`; `validate(T)` giving
-  `Result<T, Invalid>`; validator types
-  ([HQL-0034](../proposals/HQL-0034/README.md)). Splitting a stream into
-  valid and invalid values waits on HQL-0033's stream policies.
+- `T(…)` fills defaults and checks rules; a record subtype has its
+  supertype's fields and rules; a default may be a collection literal;
+  `warn P` leaves a value valid; `as name` gives a rule the identity
+  `Contract.name`, shown in the diagnostic.
+- To build: `validate(T)` giving `Result<T, Invalid>`, with `Violation`
+  and `Invalid` declared in the standard library as contracts, which needs
+  a standard record type a program can construct like `Pair`; validator
+  types ([HQL-0034](../proposals/HQL-0034/README.md)). Splitting a stream
+  into valid and invalid values waits on HQL-0033's stream policies.

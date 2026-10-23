@@ -3,7 +3,7 @@
 use crate::ast::{
     ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, ExternalDecl, Field,
     FnDecl, ImplDecl, Kind, Logic, MethodDecl, Param, Passing, Pattern, Program, Relation, Rule,
-    Stmt, TEE_INPUT, TraitDecl, TypeAnn, TypeDecl, optional_read, presence,
+    Severity, Stmt, TEE_INPUT, TraitDecl, TypeAnn, TypeDecl, optional_read, presence,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -529,26 +529,35 @@ impl Parser {
     }
 
     /// Whether a record body continues with a rule rather than a field: the
-    /// word `require` or `validate` not followed by a field's `:` or `?:`,
-    /// so a field may still be called either.
+    /// word `require`, `warn` or `validate` not followed by a field's `:` or
+    /// `?:`, so a field may still be called any of them.
     fn at_rule(&self) -> bool {
         let mut index = self.index;
         while matches!(self.tokens[index].token, Token::Newline) {
             index += 1;
         }
-        matches!(&self.tokens[index].token, Token::Ident(word) if word == "require" || word == "validate")
+        matches!(&self.tokens[index].token, Token::Ident(word) if matches!(word.as_str(), "require" | "warn" | "validate"))
             && !matches!(self.tokens[index + 1].token, Token::Colon | Token::Question)
     }
 
-    /// `require P`, or `validate f with V`, in a contract's body.
+    /// `require P`, `warn P` or `validate f with V` in a contract's body,
+    /// each optionally named with `as name`.
     fn rule(&mut self) -> Result<Rule, Diagnostic> {
         let keyword = self.advance();
+        let Token::Ident(word) = &keyword.token else {
+            return Err(Diagnostic::syntax(keyword.span, "expected a rule"));
+        };
+        let severity = if word == "warn" {
+            Severity::Warning
+        } else {
+            Severity::Error
+        };
         self.rule_reads.clear();
         let outer = self.rule_nesting.replace(self.nesting);
-        let predicate = if matches!(&keyword.token, Token::Ident(word) if word == "require") {
-            self.implication()
-        } else {
+        let predicate = if word == "validate" {
             self.validation(keyword.span.start)
+        } else {
+            self.implication()
         };
         self.rule_nesting = outer;
         let mut predicate = predicate?;
@@ -557,10 +566,25 @@ impl Parser {
         reads.sort();
         reads.dedup();
         let span = keyword.span.start..predicate.span.end;
+        let name = if matches!(&self.tokens[self.index].token, Token::Ident(word) if word == "as") {
+            self.advance();
+            let named = self.advance();
+            let Token::Ident(name) = named.token else {
+                return Err(Diagnostic::syntax(
+                    named.span,
+                    "expected the rule's name after `as`",
+                ));
+            };
+            Some(name)
+        } else {
+            None
+        };
         Ok(Rule {
             text: self.source[span.clone()].to_owned(),
             predicate,
             reads,
+            severity,
+            name,
             span,
         })
     }

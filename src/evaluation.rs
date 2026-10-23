@@ -24,6 +24,9 @@ use std::sync::Arc;
 /// contract was declared in, taking the rule's parameters.
 struct RuntimeRule {
     text: String,
+    /// `Contract.name` for a rule named with `as name` (HQL-0033).
+    identity: Option<String>,
+    severity: crate::ast::Severity,
     reads: Vec<String>,
     parameters: Vec<crate::execution::RuleParameter>,
     check: Value,
@@ -212,6 +215,8 @@ impl Evaluator<'_> {
                         .iter()
                         .map(|rule| RuntimeRule {
                             text: rule.text.clone(),
+                            identity: rule.name.as_ref().map(|named| format!("{name}.{named}")),
+                            severity: rule.severity,
                             reads: rule.reads.clone(),
                             parameters: rule.parameters.clone(),
                             check: Value::Function(Arc::new(Closure {
@@ -657,15 +662,35 @@ impl Evaluator<'_> {
                         value
                     }
                 }
+                // A contract's default stands in for a field not written.
+                None if let Some(default) = field.default.as_ref().filter(|_| !field.optional) => {
+                    Value::Data(Arc::new(default.clone()))
+                        .decoded(
+                            &shape.bound(&field.ty, &ty.args),
+                            crate::types::Leaves::AsWritten,
+                        )
+                        .map_err(|mismatches| {
+                            Diagnostic::runtime(
+                                span.clone(),
+                                format!(
+                                    "the default of `{}` does not read: {mismatches}",
+                                    field.name
+                                ),
+                            )
+                        })?
+                }
                 None => Value::Absent(shape.bound(&field.ty, &ty.args)),
             };
             built.push((field.name.clone(), value));
         }
-        Ok(Value::Record(Arc::new(crate::types::Record {
+        let built = Value::Record(Arc::new(crate::types::Record {
             ty: ty.clone(),
             fields: built,
             carrier: None,
-        })))
+        }));
+        // A contract built with its constructor holds its rules as one read
+        // with `| T` does.
+        self.contracted(built, ty, span)
     }
 
     /// The first arm whose pattern fits the subject and whose guard holds.
@@ -2185,13 +2210,22 @@ impl Evaluator<'_> {
                     self.broken_rules(held, path, broken, span)?;
                     path.pop();
                 }
-                if let Some(contract) = contracts_of(&record.ty) {
-                    for rule in contract.as_ref() {
+                for contract in contracts_of(&record.ty) {
+                    // A warning leaves the value valid; where it is
+                    // reported is HQL-0033's to state.
+                    for rule in contract
+                        .iter()
+                        .filter(|rule| rule.severity == crate::ast::Severity::Error)
+                    {
                         if !self.rule_holds(rule, record, span)? {
+                            let rule = match &rule.identity {
+                                Some(identity) => format!("`{}` ({identity})", rule.text),
+                                None => format!("`{}`", rule.text),
+                            };
                             broken.push(if path.is_empty() {
-                                format!("`{}` does not hold", rule.text)
+                                format!("{rule} does not hold")
                             } else {
-                                format!("field `{}`: `{}` does not hold", path.join("."), rule.text)
+                                format!("field `{}`: {rule} does not hold", path.join("."))
                             });
                         }
                     }
@@ -2240,7 +2274,28 @@ impl Evaluator<'_> {
     }
 }
 
-/// The rules over a value of `ty`, where it is a contract that has some.
-fn contracts_of(ty: &TypeRef) -> Option<Arc<Vec<RuntimeRule>>> {
-    CONTRACTS.with(|held| held.borrow().get(ty.constructor.0).cloned())
+/// The rules over a value of `ty`: those of each record type it is declared
+/// under, a parent's before its child's, then its own.
+fn contracts_of(ty: &TypeRef) -> Vec<Arc<Vec<RuntimeRule>>> {
+    fn gather(
+        name: &'static str,
+        seen: &mut Vec<&'static str>,
+        found: &mut Vec<Arc<Vec<RuntimeRule>>>,
+    ) {
+        if seen.contains(&name) {
+            return;
+        }
+        seen.push(name);
+        if let Some(shape) = crate::types::program::record(name) {
+            for parent in &shape.parents {
+                gather(parent.constructor.0, seen, found);
+            }
+        }
+        if let Some(rules) = CONTRACTS.with(|held| held.borrow().get(name).cloned()) {
+            found.push(rules);
+        }
+    }
+    let mut found = Vec::new();
+    gather(ty.constructor.0, &mut Vec::new(), &mut found);
+    found
 }

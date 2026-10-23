@@ -232,3 +232,44 @@ fn a_decoded_stream_is_checked_one_document_at_a_time() {
         failure(&source)
     );
 }
+
+#[test]
+fn a_field_may_be_named_warn() {
+    let source = "type P : TypeContract = {\n    warn: Int\n}\nd : Data = {warn: 2}\n(d | P).warn";
+    assert_eq!(value(source), "2");
+}
+
+#[test]
+fn a_named_rule_is_reported_by_its_identity() {
+    let source = "type U : DataContract = {\n    id: String\n    require id != \"\" as id_present\n}\n\
+                  d : Data = {id: \"\"}\nd | U";
+    assert!(
+        failure(source).contains("`require id != \"\"` (U.id_present) does not hold"),
+        "{}",
+        failure(source)
+    );
+}
+
+#[test]
+fn a_subtype_is_built_with_its_parents_fields_first() {
+    let source = "type Base = {\n    n: Int\n}\ntype Sub : Base = {\n    m: Int\n}\n\
+                  s = Sub(1, 2)\n[s.n, s.m]";
+    assert_eq!(value(source), "[1, 2]");
+}
+
+#[test]
+fn a_broken_warning_leaves_a_constructed_contract_valid() {
+    let source = "type P : TypeContract = {\n    n: Int\n    warn n < 10\n}\nP(n = 12).n";
+    assert_eq!(value(source), "12");
+}
+
+#[test]
+fn a_constructor_checks_a_parents_rule() {
+    let source = "type Base : TypeContract = {\n    n: Int\n    require n > 0\n}\n\
+                  type Sub : Base = {\n    m: Int\n}\nSub(n = 0, m = 1)";
+    assert!(
+        failure(source).contains("`require n > 0` does not hold"),
+        "{}",
+        failure(source)
+    );
+}
