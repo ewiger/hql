@@ -1,9 +1,9 @@
 # HQL-0032: Data Validation with `TypeContract` and `DataContract`
 
-**Status**: proposed
+**Status**: proposed, implemented in part
 **Created**: 2026-10-23
-**Builds on**: [HQL-0030](../HQL-0030/README.md), structural types, open Data
-views and contracts; tracked by
+**Supersedes**: [HQL-0030](../HQL-0030/README.md), structural types, open Data
+views and contracts, which it restates and extends; tracked by
 [issue 0043](../../issues/0043-contract-validation.md)
 
 ## Purpose
@@ -2371,3 +2371,12 @@ data-validation layer on top of the structural type system.
 ## Changelog
 
 - 2026-10-23: proposed
+- 2026-10-23: supersedes HQL-0030, and takes over what was built under it:
+  the four structural categories, `type A = {…}` closed and `type B : Data =
+  {…}` open, `TypeContract` and `DataContract` in the lattice, `data | T` as
+  structural interpretation keeping an open view's whole tree, every field
+  that does not read reported in one error, and `{:}` as a declared map
+  ([the structural examples](../../../examples/structural/README.md)).
+  Contract rules, defaults, normalization, validators, structured results,
+  events, policies, streams, datasets and versioning are not built
+  ([issue 0043](../../issues/0043-contract-validation.md))

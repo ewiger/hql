@@ -5,7 +5,7 @@ Related: [HQL-0030](../proposals/HQL-0030/README.md),
 [HQL-0032](../proposals/HQL-0032/README.md),
 [the structural examples](../../examples/structural/README.md)
 
-HQL-0030's structural categories are built: `type A = {…}` is closed,
+The structural categories HQL-0032 takes over from HQL-0030 are built: `type A = {…}` is closed,
 `type B : Data = {…}` an open view, and `data | T` reads a `Data` as `T`,
 reporting every field that does not read. `TypeContract` and `DataContract`
 exist, but behave exactly as closed and open plain types: nothing a contract

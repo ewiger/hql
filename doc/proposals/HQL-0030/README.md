@@ -1,6 +1,6 @@
 # HQL-0030: Supplementary ADR: Structural Types, Open Data Views, Type Contracts, and Data Contracts
 
-**Status**: proposed, implemented in part
+**Status**: superseded by [HQL-0032](../HQL-0032/README.md), which extends it
 **Created**: 2026-10-23
 **Supplements**: [HQL-0024](../HQL-0024/README.md), the complete type system;
 see also [HQL-0029](../HQL-0029/README.md) and its note on
@@ -2177,3 +2177,6 @@ itself.
   validation policies, structured validation values, and stream policies
   are not built ([the structural examples](../../../examples/structural/README.md);
   [issue 0043](../../issues/0043-contract-validation.md))
+- 2026-10-23: superseded by [HQL-0032](../HQL-0032/README.md), which restates
+  its structural model and extends it with data validation; what was built
+  under this record is HQL-0032's
