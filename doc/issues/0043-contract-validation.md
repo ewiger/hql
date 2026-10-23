@@ -40,6 +40,10 @@ adds beyond structure is built.
 - Contract rules and defaults are built: `require P`, `validate f with V`,
   `f?` and `=>` in a rule, and `name: T = literal`, enforced when `x | T`
   reads a value or a decoded stream reads each element, shown in
-  [the structural examples](../../examples/structural/README.md). A
-  contract built with its constructor, `T(…)`, is not checked yet, and a
-  rule reads only the fields its own type declares.
+  [the structural examples](../../examples/structural/README.md).
+- Decided, to build: `T(…)` checks rules and fills defaults; a record
+  subtype has its supertype's fields and rules; collection-literal
+  defaults; `warn P` and `as name`; `validate(T)` giving
+  `Result<T, Invalid>`; validator types
+  ([HQL-0034](../proposals/HQL-0034/README.md)). Splitting a stream into
+  valid and invalid values waits on HQL-0033's stream policies.

@@ -75,8 +75,10 @@ materialized by `List` joins as a batch.
   result is built by `into`.
 - **side**: one named input of a head or extending join, written as a field of
   a record of sequences: `b: birds`.
-- **row**: one element of a head or extending join's result, a record with one
-  field per side.
+- **row**: one element of a head or extending join's result, a closed
+  anonymous record with one field per side, an optional side's field
+  optional. It is an ordinary record value: `r | T` reads it as a declared
+  record type `T` and `r.b` reads a side.
 - **head form**: a join whose input is a record of sides, which starts a query.
 - **extending form**: a join whose input is a sequence of rows and whose
   argument is a record of further sides, which continues a query.
@@ -468,3 +470,5 @@ None.
   ([issue 0041](../../issues/0041-binary-joins.md)). The head and extending
   forms, optional sides `?`, row types and the stream rules of the section
   "Joining across kinds of source" are not built
+- 2026-10-23: a row is a closed anonymous record, read as a declared record
+  type with `| T`

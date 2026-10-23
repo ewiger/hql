@@ -1,6 +1,6 @@
 # HQL-0033: Errors as values and error handling
 
-**Status**: proposed
+**Status**: accepted
 **Created**: 2026-10-23
 **Source**: [HQL-0032](../HQL-0032/README.md), which leaves the form of a
 validation result and of a diagnostic to this record; tracked by
@@ -140,10 +140,20 @@ A violation is an `error` or a `warning`.
 
 - An `error` makes the value invalid. `validate` returns `err(Invalid)` when
   at least one error is found.
-- A `warning` does not invalidate the value. *Placeholder:* the rule syntax
-  that marks a rule as a warning, and the place a valid value's warnings are
-  reported, are specified with the first rule that needs one. Until then
-  every rule is an error, and `severity` is always `"error"`.
+- A `warning` does not invalidate the value. A rule written `warn P`
+  instead of `require P` gives warnings:
+
+  ```hql
+  type UserData : DataContract = {
+      age?: Int
+      require age? >= 0            // an error
+      warn age? < 120 as plausible_age   // a warning
+  }
+  ```
+
+  `x | T` does not stop for a warning, and `validate` gives `ok` for a
+  value whose only violations are warnings. *Placeholder:* the place a
+  valid value's warnings are reported.
 
 ### 5. Rule identity
 
@@ -160,6 +170,8 @@ Every violation names the rule it broke by a stable identity.
   the rule is how a consumer gets an identity that does not change.
 - `validate f with V` is named `"<Contract>.<f>.<V>"` unless named
   otherwise: `"UserData.country.is_country_code"`.
+- `as name` follows the rule, whatever its keyword: `require P as name`,
+  `warn P as name`, `validate f with V as name`.
 - An inherited rule keeps the identity of the contract that declares it.
 
 `text` keeps the rule exactly as written, so a reader sees what broke without
@@ -177,7 +189,11 @@ elementwise fn errs<F<_> : Collection<_>, T, E>(self: F<Result<T, E>>) : F<E>
 
 `oks` and `errs` are to `Result` what `somes` is to `Option`. A program
 chooses its policy for invalid values by the steps it writes. The policies
-HQL-0032 lists are pipelines, not settings:
+HQL-0032 lists are pipelines, not settings. *Placeholder:* how one stream
+is split into its valid and its invalid values, the dead-letter case
+below, is refined with stream policies; the `tee` form shows the intent,
+not the syntax.
+
 
 ```hql
 users = source(file("users.jsonl"), Json)
@@ -281,3 +297,6 @@ cargo test --locked --test structural --test corpus
 ## Changelog
 
 - 2026-10-23: proposed
+- 2026-10-23: accepted: two reading modes, `warn P` for a warning, `as name`
+  for a rule's identity; splitting a stream into valid and invalid values
+  stays a placeholder

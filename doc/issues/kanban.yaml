@@ -17,9 +17,12 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 43 # to be incremented when adding a new issue card
+  last_id: 44 # to be incremented when adding a new issue card
   items:
     backlog:
+      - id: "0044"
+        title: "`Table<R>`: a table typed by its row"
+        file: 0044-typed-tables.md
       - id: "0043"
         title: "Contract validation: rules, structured errors and stream policies"
         file: 0043-contract-validation.md

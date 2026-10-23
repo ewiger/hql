@@ -768,8 +768,14 @@ require age? >= 0
 require age? <= 150
 
 validate email? with Email
-validate country with CountryCode
+validate country with is_country_code
 ```
+
+A validator is either a function to `Bool` (`is_country_code`) or a
+validator type (`Email`), a trait under `Validator` that
+[HQL-0034](../HQL-0034/README.md) specifies. A field may also be declared
+with a type that validates itself, `email: Email`; reading the record then
+validates the field as part of reading it, and no rule names it.
 
 Reusable semantic validators may include:
 
@@ -836,17 +842,38 @@ A rule is written in a contract's body, beside its fields:
   holds of a value without `age`. Where `f?` stands as a condition, the
   whole rule or an operand of `and`, `or`, `not` or `=>`, it is `true`
   exactly where `f` is present.
-- `validate f with V` is `require V(f)`, for a function `V` of the field's
-  type to `Bool` in scope where the contract is declared.
-- `name: T = literal` is a default: where the data has no entry for the
-  field, the contract reads the literal. A default is a literal of the
-  field's type, on a field that is not optional, and it is applied before
-  the rules are checked.
+- `validate f with V` checks the field `f` with the validator `V`, in scope
+  where the contract is declared. `V` is either a function of the field's
+  type to `Bool`, and the rule is `require V(f)`, or a validator type, a
+  trait whose supertype is `Validator`, and the rule holds where the
+  field's `validate(self) : Bool` is `true`
+  ([HQL-0034](../HQL-0034/README.md)).
+- `warn P` is a rule whose violation is a warning. It is written and read
+  as `require P`, and a value that breaks it is still a valid value
+  ([HQL-0033](../HQL-0033/README.md) states severity).
+- A rule MAY be named with `as name` after it: `require id != "" as
+  id_present`, `validate country with is_country_code as known_country`.
+  The name gives the rule a stable identity.
+- `name: T = default` is a default: where the data has no entry for the
+  field, the contract reads the default. A default is a literal of the
+  field's type: a `String`, number or `Bool` literal, or a list, set or
+  record literal whose elements are themselves defaults. It contains no
+  call and no name. It is written on a field that is not optional, and it
+  is applied before the rules are checked.
 
 Only a `TypeContract` or a `DataContract` has rules or defaults. A value read
 with `x | T` holds every rule of `T` and of each contract within it, a
 decoded stream one element at a time; one that does not is an evaluation
 error naming each broken rule as written.
+
+A contract built with its constructor is held to the same rules.
+`T(f = …)` fills every defaulted field not written, then checks `T`'s
+rules, and fails as `x | T` fails. No way of making a `T` skips them.
+
+A record type declared under another record type has its supertype's
+fields and rules. In `type Sub : Base = {…}`, `Sub` reads the fields of
+`Base` and of `Sub`, a rule of `Sub` reads both, and a value read as `Sub`
+holds the rules of `Base` and of `Sub`, those of `Base` first.
 
 ## 18. Cross-field invariants
 
@@ -2409,3 +2436,8 @@ data-validation layer on top of the structural type system.
   Contract rules, defaults, normalization, validators, structured results,
   events, policies, streams, datasets and versioning are not built
   ([issue 0043](../../issues/0043-contract-validation.md))
+- 2026-10-23: a contract's constructor checks its rules and fills its
+  defaults; a record subtype has its supertype's fields and rules; a
+  default is a literal, a collection of literals included, and never a
+  call; `warn P` and `as name` on a rule; a validator is a function or a
+  `Validator` type ([HQL-0034](../HQL-0034/README.md))
