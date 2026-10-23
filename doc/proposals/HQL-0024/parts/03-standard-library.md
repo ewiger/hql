@@ -29,15 +29,15 @@ makes it standard is provisioning only:
 ```text
                  contract                        implementation
 
-regex            Standard, bundled with hql      Builtin(std-regex), compiled into hql
-postgres         Package, discovered             Extension(postgres-native), supplied
+regex            Standard, bundled with hql      Internal(std), compiled into hql
+postgres         Package, discovered             External(hql-ext-postgres), supplied
 app.model        Workspace, discovered           Runtime
 ```
 
 The contracts are bundled with the binary and their implementations are
-compiled into it, grouped as builtin extensions such as `std-core` and
-`std-io`, each with a descriptor naming the modules it provides. How many Rust
-crates those are is invisible to HQL. `import regex` resolves in the registry
+compiled into it as one internal extension, `std`, whose descriptor names
+every module it provides. How many Rust crates or source modules implement it
+is invisible to HQL and never splits it into more extensions. `import regex` resolves in the registry
 like any other import; there is no runtime search path, no `~/.hql/lib` and no
 environment variable for the standard library. Whether a bundled contract is
 embedded as source or pre-compiled is an implementation choice with no effect
@@ -45,7 +45,7 @@ on semantics.
 
 ### Ownership of canonical names
 
-Builtin owns every canonical name the standard library defines. A workspace or
+The `std` package owns every canonical name the standard library defines. A workspace or
 package may not define `regex` or `io.file`; it defines `app.regex` or
 `company.io`.
 
@@ -150,9 +150,9 @@ by the runtime; a declaration without one is external and is implemented by
 the module's extension. The difference is not visible in source or at a call:
 
 ```hql
-module for String
+module string for String
 
-fn trim(self) : String                               // external: std-core implements it
+fn trim(self) : String                               // external: std implements it
 fn is_blank(self) : Bool = self.trim().is_empty()   // HQL body
 ```
 
@@ -188,7 +188,7 @@ runtime primitives, OS integration, codecs, external libraries and backends.
   `first(xs)` are the same declaration.
 - `lib/std/` becomes the contract: its comment signatures become declarations,
   external where Rust implements them, and the Rust built-ins become the
-  implementations of builtin extensions checked against `lib/std/` at registry
+  implementations of the internal `std` extension checked against `lib/std/` at registry
   construction, instead of `lib/std/` restating Rust and a test comparing the two.
 - New modules: `string`, `math`, `regex`, `format.lines`, `format.avro`,
   `format.parquet`. `format.hql` becomes `format/mod.hql` with one file per
@@ -197,8 +197,8 @@ runtime primitives, OS integration, codecs, external libraries and backends.
 
 ## Work units
 
-1. Bundling the `lib/std/` contracts and grouping the Rust built-ins into builtin
-   extensions with descriptors (`std-core`, `std-io`, ...).
+1. Bundling the `lib/std/` contracts and folding the Rust built-ins into one
+   internal extension, `std`, with a descriptor.
 2. `prelude.hql` as a root-level file with a role: `lib/std/prelude.hql` runs at
    environment construction, an extension's when the extension loads, each
    adding its imports to the implicit import list of every source unit, with

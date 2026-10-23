@@ -1,6 +1,6 @@
 // Module `format`: the formats, how bytes are documents and how values
 // become bytes, and the codec contracts over them. Implemented by the
-// `format` extension.
+// `std` extension.
 //
 // A format is a type narrowing Format, the category `core` declares. It describes an
 // external representation and, where it applies, its framing: Lines is text
@@ -10,8 +10,14 @@
 // whether what is read ends: the source decides that, so source(file(p),
 // Lines) is a Seq<String> and source(stdin, Lines) a Stream<String>.
 //
+// A String is always UTF-8. Every format that holds text reads and writes
+// UTF-8 today, and decoding bytes that are not UTF-8 is a decoding error.
+// Another external text encoding is converted at the codec, never held in a
+// String.
+//
 // See doc/proposals/HQL-0024/parts/07-formats-and-codecs.md and
 // doc/proposals/HQL-0024/encode-decode-format.md.
+module format
 import core
 import graph
 

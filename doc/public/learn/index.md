@@ -4,7 +4,7 @@ This is a book about HQL, read from the first page to the last. It starts with
 a number and ends with an agent whose run is a value, and every chapter builds
 on the ones before it. Every program in it prints what the book shows.
 Chapters 1 to 12 run with the current release; chapters 13 to 15 cover the
-`io`, `logging` and `ai` extensions, which ship in the next one.
+`io`, `io.logging` and `ai` modules, which ship in the next one.
 
 HQL is a statically typed language for querying, transforming, connecting and
 computing over data, knowledge and AI workflows. A program is checked before it

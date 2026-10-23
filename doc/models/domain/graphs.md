@@ -162,7 +162,7 @@ knowledge
 
 `Graph` is the constructor from a knowledge value to a graph, not a
 presentation keyword and not a magical pipeline step. The value it returns happens to
-have a renderer registered by the graph extension, which is what makes it appear
+have a renderer registered for the `graph` module, which is what makes it appear
 in a host as a picture.
 
 Its result type is the open question. A `KnowledgeGraph` keeps both contracts,

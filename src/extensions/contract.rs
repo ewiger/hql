@@ -24,7 +24,7 @@ pub(crate) fn derive(
     receiver: Option<&TypeAnn>,
 ) -> Result<OperationSpec, String> {
     let mut variables: Vec<String> = declaration.generics.clone();
-    // A receiver module's own parameters, `T` of `module for Option<T>`, are
+    // A receiver module's own parameters, `T` of `module option for Option<T>`, are
     // variables of every function in it.
     if let Some(receiver) = receiver {
         variables.extend(
@@ -464,7 +464,7 @@ mod tests {
             .statements
             .iter()
             .find_map(|statement| match statement {
-                crate::ast::Stmt::ModuleFor { pattern, .. } => Some(pattern),
+                crate::ast::Stmt::Module { pattern, .. } => pattern.as_ref(),
                 _ => None,
             });
         let declaration = program
@@ -484,7 +484,7 @@ mod tests {
     #[test]
     fn a_receiver_function_takes_the_module_pattern_as_its_input() {
         let spec =
-            declared("module for String\nfn pad_left(self, width: Int, fill: String) : String")
+            declared("module string for String\nfn pad_left(self, width: Int, fill: String) : String")
                 .unwrap();
         assert_eq!(spec.input, STRING);
         assert_eq!(spec.output, O::Type(STRING));
@@ -502,7 +502,7 @@ mod tests {
     #[test]
     fn a_written_receiver_a_lambda_and_a_bound_are_read_from_the_declaration() {
         let spec = declared(
-            "module for Seq<T>\nfn min_by<K : Orderable>(self: Collection<T>, by: T -> K) : Option<T>",
+            "module seq for Seq<T>\nfn min_by<K : Orderable>(self: Collection<T>, by: T -> K) : Option<T>",
         )
         .unwrap();
         assert_eq!(spec.input, P::Collection(&P::Var("T")));
@@ -517,7 +517,7 @@ mod tests {
             name: "K",
             bound: Some(TypeConstructor("Orderable")),
         }));
-        let variadic = declared("module for String\nfn fmt(self, args: ...Any) : String").unwrap();
+        let variadic = declared("module string for String\nfn fmt(self, args: ...Any) : String").unwrap();
         assert!(variadic.arguments[0].variadic && !variadic.arguments[0].required);
         assert_eq!(variadic.arguments[0].kind, A::Value(P::Any));
         let one = declared("fn f<T>(x: Int, args: ...T) : Int").unwrap();

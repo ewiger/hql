@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 48 # to be incremented when adding a new issue card
+  last_id: 50 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0043"
@@ -36,6 +36,9 @@ board:
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
     todo:
+      - id: "0049"
+        title: "One extension per package: fold the descriptors into `std` and `search`"
+        file: 0049-one-extension-per-package.md
       - id: "0047"
         title: "Cardinality is `size`: a String's `size` replaces `length`"
         file: 0047-cardinality-is-size.md
@@ -49,6 +52,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0050"
+        title: "Every module file declares its name: `module a.b`, `module a.b for T`"
+        file: 0050-module-declaration.md
       - id: "0048"
         title: "Builtin packages live under `lib/`: `std` is one of them"
         file: 0048-builtin-packages-under-lib.md

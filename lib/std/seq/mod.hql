@@ -4,10 +4,10 @@
 // writes its receiver, `self: Collection<T>`, and the functions over sets and
 // maps take theirs as a typed first parameter. A receiver `S : Seq<T>` comes
 // back at its own type, and `F<_> : Seq<_>` rebuilt in its own constructor.
-// Every declaration is external: the `seq` extension implements it.
+// Every declaration is external: the `std` extension implements it.
 //
 // See doc/proposals/HQL-0024/parts/03-standard-library.md.
-module for Seq<T>
+module seq for Seq<T>
 import core
 
 fn first(self) : Option<T>

@@ -827,7 +827,7 @@ impl Checked {
                         None => Stmt::Unit,
                     },
                     ast::Stmt::Import { .. }
-                    | ast::Stmt::ModuleFor { .. }
+                    | ast::Stmt::Module { .. }
                     | ast::Stmt::External(_)
                     | ast::Stmt::Trait(_) => Stmt::Unit,
                     // A native implementation runs no HQL: its header is

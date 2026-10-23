@@ -14,8 +14,8 @@ paths; and `Entry`, one thing a folder holds with its kind and size. Its
 operations list one folder, walk a tree, match a glob and test a path, each
 effectful and each yielding a `Seq<Entry>` in the order of a sorted walk,
 never the file system's. `Path`, a place in a file system written as text, is
-declared in `io`, so that `file` and `io.fs` share it. The `io` extension
-implements both modules. A program imports `io.fs`; the prelude does not.
+declared in `io`, so that `file` and `io.fs` share it. The internal `std`
+extension implements both modules. A program imports `io.fs`; the prelude does not.
 
 ## Motivation
 
@@ -50,8 +50,8 @@ The declarations divide over two modules, by who needs them.
   ([HQL-0028](../HQL-0028/README.md)), so the shared type sits in the parent.
 - `Folder`, `Glob`, `Entry` and the listing operations MUST be declared in
   `io.fs`, at `lib/std/io/fs/mod.hql`, which imports `core` and `io`.
-- The `io` extension's descriptor MUST provide both `io` and `io.fs`. One
-  extension provides any number of modules
+- The `std` extension's descriptor MUST provide `io.fs` beside `io`. One
+  extension provides any number of modules, and a package carries one
   ([HQL-0024, modules](../HQL-0024/parts/01-modules.md)).
 - `io.fs` MUST NOT be in the prelude. A program writes `import io.fs` and
   reaches it as `fs`, as it writes `import io.net` today.
@@ -223,8 +223,8 @@ folder("data")
   `file(path: Path)` form.
 - `lib/std/io/fs/mod.hql`: the module, and its entry in `library::MODULES` after
   `io`.
-- `src/extensions/io.rs`: the `io` extension's descriptor provides `io.fs`;
-  the listing operations, sharing the vault's sorted walk.
+- `src/extensions/io.rs`: the listing operations, provided under `io.fs` by
+  the `std` extension's descriptor, sharing the vault's sorted walk.
 - The vault's walk and `walk` share one implementation, so section 4's order
   rule holds by construction.
 

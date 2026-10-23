@@ -35,7 +35,7 @@ declaration, is reserved and refused
 | Step, operation, function | `snake_case` | `size`, `unwrap_or`, `and_then`, `downlinks` |
 | Binding, parameter, named argument | `snake_case` | `bird_cards`, `first_two`, `by`, `default` |
 | Declared field | `snake_case` | `metadata`, `provenance`, `approximate` |
-| Extension | one lowercase word | `graph`, `format`, `lexical`, `semantic` |
+| Extension | the name of its package | `std`, `search`, `hql-ext-postgres` |
 | Keyword | lowercase | `type`, `abstract`, `import`, `match`, `given` |
 
 An acronym inside a type name is written as a word: `HmdCard`, `IndexRef`,
@@ -91,8 +91,11 @@ steps — `size`, `contains`, `get`, `count`, `sort`, `take`, `filter`, `map`,
 `of_type`, `is`, `group`, `reduce`, `sum`, `min`, `max`, `debug` — are always in
 scope. See [[hql/std-lib]] and [[hql/core]].
 
-**An extension** provides steps, registered in the binary and bound by
-`import`. Today an extension names types the lattice already has and adds no
+**An extension** implements the external declarations of its package's
+modules, and is named as that package is: `std`, `search`. A program imports
+a module, never an extension.
+Today the binary still registers one entry per Rust source module, named as
+the module it backs, and `import` binds that entry. Today an extension names types the lattice already has and adds no
 case to it. Design direction in HQL-0012 widens this by one thing: an extension
 provides source kinds and their concrete types, such as `Vault` under the core's
 abstract `VaultSource`. See [[hql/extensions]].

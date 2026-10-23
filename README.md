@@ -145,7 +145,8 @@ resolved by the value's type among the visible modules, so `"  hi ".trim()`,
 compile-time contracts: the operators resolve through `Add`, `Eq` and `Ord`,
 and a type implementing `Ord` sorts. `import a.b as c` makes one module
 visible, from the standard library or from a module root of HQL files;
-`module for String` makes a file's `self` functions receiver functions. The
+every module file opens with `module a.b`, its name checked against its path,
+and `module a.b for String` makes its `self` functions receiver functions. The
 [Mighty Types corpus](examples/mighty-types/README.md) walks all of it,
 program by program.
 

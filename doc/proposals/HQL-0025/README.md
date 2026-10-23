@@ -995,7 +995,7 @@ The same applies to extensions.
 An execution context may expose:
 
 ```text
-builtin extensions
+internal extensions
 user extensions
 workspace extensions
 package-provided extensions

@@ -30,7 +30,7 @@ with their own extensions and are named for what they provide, not `std`.
    one folder per builtin package, `std` the standard one. HQL-0024 part 3,
    the std-lib card, `lib/std/README.md` and `doc/status/packages.hmd` say
    so.
-5. A second builtin package: the `lexical` and `semantic` extensions are
-   compiled in and no contract under `lib/std/` declares their modules.
-   Decide their package's name and give their modules contracts under
-   `lib/<package>/`.
+5. A second builtin package, `search`: its internal extension `search`
+   provides `lexical` and `semantic`, and no contract declares them yet.
+   Give them contracts under `lib/search/`. Folding the descriptors is
+   [issue 0049](0049-one-extension-per-package.md).

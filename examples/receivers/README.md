@@ -15,5 +15,5 @@ pipeline step, `1 | range(3)`, and never by a receiver call
 
 | Query | What it shows | Result |
 | --- | --- | --- |
-| [receiver forms](queries/receiver-forms.hql) | A written receiver, `self: Int`, and a module's pattern, `module for String`, both reached as `value.f()` | `[42, 2, 3, 3]` |
+| [receiver forms](queries/receiver-forms.hql) | A written receiver, `self: Int`, and a module's pattern, `module string for String`, both reached as `value.f()` | `[42, 2, 3, 3]` |
 | [invalid first parameter](queries/invalid-first-parameter.hql) | `1.range(3)`: `range` declares no `self` | name error |

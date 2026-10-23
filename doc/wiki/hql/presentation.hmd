@@ -146,7 +146,7 @@ Over a `birds.txt` holding `raven\nrobin\n`, the steps are these.
    every type for `Lines`, which is what `impl<T> Encoder<T> for Lines`
    covers. A disagreement in either direction is a defect of the binary and
    fails binding, naming the format and the type.
-2. **Checking.** The `io` extension's check for `source` reads the format
+2. **Checking.** The check the `std` extension supplies for `io`'s `source` reads the format
    argument, `Lines`, and gives the element type from the decoder table:
    `String`. A file is finite, so the result is `Seq<String>`. `map` then
    types `name` as `String`. `sink` writes one record per value, so its check

@@ -18,14 +18,16 @@ parameter are reachable through receiver syntax when the module is visible.
 ### Declaration
 
 ```hql
-module for String
+module string for String
 
 fn trim(self) : String
 fn split(self, separator: String) : Seq<String>
 ```
 
-`module for T` associates the current module, whose name is derived from its
-position, with the pattern `T`. `String` is not turned into a class and no
+`module string for String` is the module declaration of
+[modules](01-modules.md) with a receiver pattern: it names the module, `string`,
+and associates it with the pattern `String`. A module without a pattern writes
+the name alone, `module math`. `String` is not turned into a class and no
 function is stored inside a `String` value. A receiver module is a module like
 any other: `fn trim(self) : String` without a body is an external declaration,
 bound to the module's extension under the rules of [modules](01-modules.md).
@@ -52,7 +54,7 @@ implementations.
 ### Generic receiver patterns
 
 ```hql
-module for Seq<T>
+module seq for Seq<T>
 
 fn first(self) : Option<T>
 fn reverse(self) : Seq<T>
@@ -63,13 +65,13 @@ fn map<U>(self, f: T -> U) : Seq<U>
 `names : Seq<String>`, `Seq<T>` matches `Seq<String>` with `T = String`, so
 `names.first() : Option<String>`. The module is still one module, `seq`; there
 is no `seq<Int>`. `T` is in scope for every declaration in the module and does
-not escape it. Multi-parameter patterns bind the same way: `module for
+not escape it. Multi-parameter patterns bind the same way: `module map for
 Map<K, V>` gives `users.get("a") : Option<User>` for `users : Map<String,
 User>`. A pattern that does not match the receiver's static type makes the
 module inapplicable: `Seq<T>` does not apply to `Map<String, Int>`.
 
 Patterns are concrete or structural: `String`, `Seq<T>`, `Map<K, V>`,
-`Option<T>`. A pattern over a capability, `module for T where T : Numeric`,
+`Option<T>`. A pattern over a capability, `module math for T where T : Numeric`,
 is not admitted; it needs coherence rules this record does not have, and the
 rejected spelling `module math<T : Numeric> for T` suggested a generic module.
 
@@ -109,7 +111,7 @@ pipeline step. It creates no step and is invisible to the planner (see
 
 ## What changes
 
-- `module for T` and `self` are new grammar, both recognized by position like
+- `module <name> for T` and `self` are new grammar, both recognized by position like
   `type` and `import`.
 - `.` followed by a name and `(` becomes a receiver call. `c.title` stays a
   field read; the two are told apart by the parenthesis, and a field holding a
@@ -118,8 +120,8 @@ pipeline step. It creates no step and is invisible to the planner (see
   the result, `fn reverse(self) : Seq<T>`. The type system card writes the same
   operations with input-type and constructor parameters so that a `List` stays
   a `List`. A receiver pattern binds `Seq<T>` to the receiver's declared
-  supertype and would return `Seq`; keeping the current rule means `module for
-  S where S : Seq<T>` or matching the pattern against the receiver's own
+  supertype and would return `Seq`; keeping the current rule means `module seq
+  for S where S : Seq<T>` or matching the pattern against the receiver's own
   constructor. This is the one place the draft and the card give different
   result types, and the design must pick.
 - The three namespaces of the naming card (types, steps, bindings) gain
@@ -128,7 +130,7 @@ pipeline step. It creates no step and is invisible to the planner (see
 
 ## Work units
 
-1. Grammar: `module for <pattern>`, `self`, receiver call syntax beside field
+1. Grammar: `module <name> for <pattern>`, `self`, receiver call syntax beside field
    access.
 2. Receiver type matching and the lookup algorithm, with the ambiguity
    diagnostic.

@@ -27,9 +27,12 @@ pub(crate) enum Stmt {
         alias: Option<String>,
         span: Range<usize>,
     },
-    /// `module for T` — the receiver pattern a module file opens with.
-    ModuleFor {
-        pattern: TypeAnn,
+    /// `module a.b`, or `module a.b for T` — the declaration a module file
+    /// opens with: its canonical name, checked against the file's position,
+    /// and the receiver pattern of a receiver module.
+    Module {
+        path: Vec<String>,
+        pattern: Option<TypeAnn>,
         span: Range<usize>,
     },
     /// `type Name<P> : Parent { field : Type }`, or `type Name = union { A, B }`.
@@ -61,7 +64,7 @@ impl Stmt {
             Self::Type(declaration) => declaration.private.as_ref(),
             Self::Trait(declaration) => declaration.private.as_ref(),
             Self::Bind { private, .. } => private.as_ref(),
-            Self::Import { .. } | Self::ModuleFor { .. } | Self::Impl(_) | Self::Expr(_) => None,
+            Self::Import { .. } | Self::Module { .. } | Self::Impl(_) | Self::Expr(_) => None,
         }
     }
 
@@ -74,7 +77,7 @@ impl Stmt {
             Self::Type(declaration) => Some(&declaration.name),
             Self::Trait(declaration) => Some(&declaration.name),
             Self::Bind { name, .. } => Some(name),
-            Self::Import { .. } | Self::ModuleFor { .. } | Self::Impl(_) | Self::Expr(_) => None,
+            Self::Import { .. } | Self::Module { .. } | Self::Impl(_) | Self::Expr(_) => None,
         }
     }
 }

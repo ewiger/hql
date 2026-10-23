@@ -18,7 +18,7 @@ A validator trait, which extends `Validator`, is the form HQL-0034 calls a
 validator type. A field `f: V` declared with one is of the type that
 implements `V`, held to `V`'s check. This record adds a second way to declare
 an implementation: a receiver module states the traits its receiver type
-implements, `module for String : Index<String>, Slice`, and its own `self`
+implements, `module string for String : Index<String>, Slice`, and its own `self`
 functions are that implementation.
 
 ## Motivation
@@ -44,7 +44,7 @@ functions are that implementation.
   registration. None of these exist, and this record adds none.
 - New standard traits. Which capabilities of strings, sequences and streams
   become traits is a later record. This one supplies the mechanism.
-- A receiver pattern over a capability, `module for T where T : Numeric`,
+- A receiver pattern over a capability, `module math for T where T : Numeric`,
   which part 4 does not admit.
 
 ## Specification
@@ -82,7 +82,7 @@ A trait's name is written in exactly these positions.
 | extension | `trait A : B, C { … }` | `A` has the functions of `B` and `C` as its own |
 | bound | `fn f<T : A>(x: T)` | every call's `T` implements `A`; `x.g()` resolves through `A` |
 | implementation | `impl A for T { … }` | `T` implements `A` |
-| module trait list | `module for T : A, B` | `T` implements `A` and `B` through the module's functions (see "Traits a module implements") |
+| module trait list | `module m for T : A, B` | `T` implements `A` and `B` through the module's functions (see "Traits a module implements") |
 | validator rule | `validate f with V` | `f`'s value passes `V` (see "Validator traits") |
 | validator field | `f: V` | `f` is of the type that implements `V` and passes `V` (see "Validator traits") |
 
@@ -152,7 +152,7 @@ are then the implementation of those traits for the pattern's type.
 
 ```hql
 // lib/std/string/mod.hql
-module for String : Index<String>, Slice
+module string for String : Index<String>, Slice
 import core
 
 fn at(self, position: Int) : Option<String>
@@ -161,22 +161,22 @@ fn trim(self) : String                      // a receiver function only
 ```
 
 ```hql
-// a workspace module declaring its own type
-type Circle { radius : Float }
+// shapes/circle.hql: a workspace module declaring its own type
+module shapes.circle for Circle : Shape
 
-module for Circle : Shape
+type Circle { radius : Float }
 
 fn area(self) : Float = 3.0f * self.radius * self.radius
 fn name(self) : String = "circle"
 ```
 
-- `module for P : A, B` declares one implementation of each listed trait for
+- `module m for P : A, B` declares one implementation of each listed trait for
   `P`, with the same meaning as `impl A for P` with the module's functions as
   the body.
 - For each listed trait, each required function MUST be a `self` function of
   the module whose signature matches with `Self = P`, or else MUST have a
   default body. A missing or mismatched function is refused against the
-  `module for` line, and the diagnostic names the trait and the function.
+  `module` line, and the diagnostic names the trait and the function.
 - A function that is listed in no trait's signature remains an ordinary
   receiver function.
 - A trait function the module supplies is one declaration. `s.at(1)`,
@@ -186,7 +186,7 @@ fn name(self) : String = "circle"
   implemented with `impl`. Every validator trait requires `validate`, so a
   module lists at most one validator trait.
 - A pattern's variables bind the trait's arguments, so
-  `module for Seq<T> : Index<T>, Slice` implements `Index<T>` for every `T`.
+  `module seq for Seq<T> : Index<T>, Slice` implements `Index<T>` for every `T`.
 - A module that an extension provides MAY write the functions without bodies,
   which makes a native implementation bound like any other
   ([HQL-0024 part 12](../HQL-0024/parts/12-contracts-and-binding.md)). This
@@ -224,7 +224,7 @@ A trait belongs to a module and is declared in that module's `mod.hql`.
 
 ## Backwards Compatibility
 
-Every `trait` and `impl` that checks today checks unchanged. `module for P`
+Every `trait` and `impl` that checks today checks unchanged. `module m for P`
 without a trait list keeps its meaning. A parameter, binding or result typed
 by a trait is refused, which no existing example writes. "Validator type"
 becomes "validator trait" in HQL-0034, in the type system card and in the
@@ -233,7 +233,7 @@ is unchanged.
 
 ## Reference Implementation
 
-- `src/parser.rs`: the trait list after `module for <pattern>`
+- `src/parser.rs`: the trait list after `module <name> for <pattern>`
 - `src/checker.rs`, `src/declarations.rs`: implementations collected from a
   module's trait list into the same registry as `impl`; the missing-function,
   shared-name and coherence diagnostics; refusal of a trait in a type
@@ -251,16 +251,16 @@ is unchanged.
 Proposed cases under `examples/`, with `status: proposed` and
 `proposal: HQL-0039`, promoted as each one checks:
 
-- `module for Circle : Shape` in a workspace module, called through a bound
+- `module shapes.circle for Circle : Shape` in a workspace module, called through a bound
   and as `c.area()`
-- `module for String : Index<String>, Slice` giving `s[1]`, `s[1:3]` and
+- `module string for String : Index<String>, Slice` giving `s[1]`, `s[1:3]` and
   `s.at(1)` as one function
 - a default body inherited through a module's trait list
 - a validator field `f: Email` and the rule `validate f with Email`, both
   named validator traits
 - invalid: a module listing a trait whose required function it lacks
 - invalid: a module listing two traits that require the same function
-- invalid: `impl Shape for Circle` beside `module for Circle : Shape`
+- invalid: `impl Shape for Circle` beside `module shapes.circle for Circle : Shape`
 - invalid: a parameter typed by a trait
 
 ```bash

@@ -7,5 +7,5 @@
 
 // `fn abs(self: Int)` and `fn size<T>(self: Collection<T>)` write their
 // receiver; `fn length(self)` takes `String`, the pattern of
-// `module for String`. Each is one declaration behind three call forms.
+// `module string for String`. Each is one declaration behind three call forms.
 [(0 - 42).abs(), [1, 2].size(), "abc".length(), string.length("abc")]

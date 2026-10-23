@@ -52,7 +52,7 @@ VaultSource → source snapshot → DocumentStore → card and knowledge assembl
 `document.rs` assigns names, parses headers and references, and reports bad
 documents. `knowledge.rs` assembles effective metadata, verifies relation
 endpoints, and builds link and relation edges. The extension registry dispatches
-metadata contributions; lexical metadata is owned by the lexical extension.
+metadata contributions; lexical metadata is owned by the `lexical` module, which the `search` extension implements.
 `vault.rs` coordinates these stages and exposes their aggregate to HQL.
 
 YAML syntax belongs to the YAML library. Conversion to HQL `Data` is fallible:

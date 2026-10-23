@@ -21,6 +21,20 @@ are compiled into the binary and registered in one table. There is no dynamic
 loading and no plugin ABI: registration says what exists, and it is a host
 mechanism that never reaches HQL's surface.
 
+An extension is the implementation unit of a package, and a package carries
+one, named as the package is: `std` implements the standard package's
+modules, `search` the modules `lexical` and `semantic`. A package carries a
+second extension only when parts of it are enabled or loaded independently;
+how the Rust code is split into source modules is never a reason for one. An
+extension is **internal** when it is built in, its package under `lib/` and
+its code compiled into the binary, and **external** when an installed
+package, typically a Cargo crate, supplies it. Both extensions today are
+internal ([packages](../../status/packages.hmd)). The table in
+`src/extensions/` still registers one entry per Rust source module, and
+`import` binds one of those entries;
+[issue 0049](../../issues/0049-one-extension-per-package.md) folds them into
+`std` and `search`.
+
 The signature declares generic parameters and bounds, input and result types,
 argument names and arity, and lambda or type arguments. The checker and
 `hql builtins` consume the same declaration. Ordinary steps need no custom
@@ -125,14 +139,14 @@ declaration:
 
 ```hql
 // lib/std/string/mod.hql: a receiver module over String; every function is external.
-module for String
+module string for String
 fn trim(self) : String
 fn pad_left(self, width: Int, fill: String) : String
 ```
 
 `"x".pad_left(3, "0")`, `string.pad_left("x", 3, "0")` and
 `"x" | pad_left(3, "0")` resolve the declaration `string.pad_left`, then run
-the `string` extension's operation bound to it; the checked program carries
+the operation the `std` extension binds to it; the checked program carries
 the declaration's identity. `text | parse` lowering to `parse(text)` is a
 property of the pipeline syntax, not of the module: a declaration without
 `self` has no receiver, so `range(1, 3)` and `1 | range(3)` reach
@@ -177,16 +191,18 @@ type an extension represents uses one of the binary's closed `Value` forms,
 type's identity. Every extension is compiled in, so binding is per process
 rather than per runtime environment.
 
-Steps split by the layering core → graph → knowledge:
+Steps split by the layering core → graph → knowledge. Every module below is
+implemented by an internal extension: `lexical` and `semantic` by `search`,
+the rest by `std`.
 
-| Provider | Steps | How a program gets it |
+| Module | Steps | How a program gets it |
 | --- | --- | --- |
-| core | `size` `contains` `get` `count` `sort` `take` `filter` `map` `of_type` `is` `group` `reduce` `sum` `min` `max` | always |
+| `core`, `collections` | `size` `contains` `get` `count` `sort` `take` `filter` `map` `of_type` `is` `group` `reduce` `sum` `min` `max` | always |
 | `graph` | `uplinks` `downlinks` `expand` | the prelude |
 | `format` | `format` `text` `markdown` `hmd` `json` `yaml` `csv` `d2` `mermaid` | the prelude |
 | `io` | `file` `source` `tap` `target` `sink` | the prelude |
-| `net` | `http` `websocket` `socket` | `import net` |
-| `logging` | `Logger` `trace` `debug` `info` `warn` `error` | `import logging` |
+| `io.net` | `http` `websocket` `socket` | `import net` |
+| `io.logging` | `Logger` `trace` `debug` `info` `warn` `error` | `import logging` |
 | `lexical` | `lexical` | `import lexical` |
 | `semantic` | `semantic` | `import semantic` |
 
@@ -197,8 +213,9 @@ and [[hql/presentation]].
 
 `import <module>` makes a module visible under its last segment or an `as`
 alias, `import io.net as net`, and `module.f(…)` is always available for one
-that is imported. A builtin module is the extension of that name; a workspace
-module is an HQL file under a module root, `hql.toml` `[modules] roots` or
+that is imported. A builtin module is one a builtin package's contract
+under `lib/` declares, implemented by that package's internal extension; a
+workspace module is an HQL file under a module root, `hql.toml` `[modules] roots` or
 `--modules`. Two visible modules may declare one function name; the input's
 type tells them apart at the call, and a call that fits both is refused
 naming both ([HQL-0024](../../proposals/HQL-0024/README.md), parts 1 and 2). A vault states its own imports in

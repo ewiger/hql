@@ -3,6 +3,7 @@
 // a type the runtime constructs; the module declares no operation.
 //
 // See doc/wiki/hql/types/doc-type.hmd and fields.hmd.
+module doc
 import core
 
 // Where a document is and what it is called are facts about the file, so they

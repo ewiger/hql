@@ -8,6 +8,7 @@
 // implements it; `NonEmpty`, implemented for more than one, is named in a
 // rule, `validate tags with NonEmpty`, where the field's type selects the
 // implementation. A broken one is the violation `Contract.f` of kind `rule`.
+module validators
 import core
 import string
 import seq

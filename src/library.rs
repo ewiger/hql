@@ -197,6 +197,8 @@ pub fn native_impls() -> Result<Vec<NativeHeader>, String> {
 /// only modules listed before it, so the listed order is a topological order
 /// of the import graph and the graph is acyclic; a module never imports its
 /// own child, and the prelude, which is not a module, imports only modules.
+/// Each module opens with `module` and the name its row gives, which is its
+/// path under `lib/std/`; the prelude declares no module.
 ///
 /// # Errors
 ///
@@ -208,6 +210,22 @@ pub fn closure(graph: &[(&str, &str)]) -> Result<(), String> {
         let program = crate::parser::parse(source)
             .map_err(|error| format!("std/{name}: {}", error.message()))?;
         parsed.push((*name, program));
+    }
+    for (module, program) in &parsed {
+        // The prelude is not a module and states no name; every module
+        // states the one its row gives, as its file under `lib/std/` does.
+        if *module == "prelude" {
+            if program
+                .statements
+                .iter()
+                .any(|statement| matches!(statement, Stmt::Module { .. }))
+            {
+                return Err("`std/prelude` declares a module, and the prelude is none".to_owned());
+            }
+        } else {
+            crate::modules::declared(program, module)
+                .map_err(|(_, message)| format!("std/{module}: {message}"))?;
+        }
     }
     let mut owners: HashMap<&str, &str> = HashMap::new();
     for (module, program) in &parsed {
@@ -269,7 +287,7 @@ pub fn closure(graph: &[(&str, &str)]) -> Result<(), String> {
             .statements
             .iter()
             .find_map(|statement| match statement {
-                Stmt::ModuleFor { pattern, .. } => Some(pattern),
+                Stmt::Module { pattern, .. } => pattern.as_ref(),
                 _ => None,
             })
             .map(|pattern| {
@@ -594,9 +612,9 @@ mod tests {
 
     #[test]
     fn a_module_sees_its_own_declarations_and_its_imports_and_nothing_else() {
-        let base = ("base", "type Thing\ntrait Shape {}\n");
+        let base = ("base", "module base\ntype Thing\ntrait Shape {}\n");
         // Neither declared here nor imported: refused, naming the owner.
-        let refused = closure(&[base, ("user", "type Box { inner : Thing }\n")]).unwrap_err();
+        let refused = closure(&[base, ("user", "module user\ntype Box { inner : Thing }\n")]).unwrap_err();
         assert!(
             refused.contains("`std/user` writes `Thing`, which `base` declares"),
             "{refused}"
@@ -604,10 +622,10 @@ mod tests {
         // A bound, a parameter, an `impl` header and a receiver pattern are
         // written names as much as a field is.
         for source in [
-            "fn f<T : Shape>(x: T) : T\n",
-            "fn f(x: Thing) : Unit\n",
-            "impl Shape for Int\n",
-            "module for Thing\nfn f(self) : Unit\n",
+            "module user\nfn f<T : Shape>(x: T) : T\n",
+            "module user\nfn f(x: Thing) : Unit\n",
+            "module user\nimpl Shape for Int\n",
+            "module user for Thing\nfn f(self) : Unit\n",
         ] {
             assert!(closure(&[base, ("user", source)]).is_err(), "{source}");
         }
@@ -617,35 +635,45 @@ mod tests {
                 base,
                 (
                     "user",
-                    "import base\ntype Box { inner : Thing, any : Any }\n"
+                    "module user\nimport base\ntype Box { inner : Thing, any : Any }\n"
                 )
             ]),
             Ok(())
         );
         // A type parameter shadows nothing it does not name.
         assert_eq!(
-            closure(&[base, ("user", "type Box<Thing> { inner : Thing }\n")]),
+            closure(&[base, ("user", "module user\ntype Box<Thing> { inner : Thing }\n")]),
             Ok(())
         );
     }
 
     #[test]
+    fn every_module_states_the_name_its_row_gives_and_the_prelude_states_none() {
+        let misnamed = closure(&[("a", "module b\ntype A\n")]).unwrap_err();
+        assert!(misnamed.contains("`module b` names another module"), "{misnamed}");
+        let missing = closure(&[("a", "type A\n")]).unwrap_err();
+        assert!(missing.contains("write `module a`"), "{missing}");
+        let prelude = closure(&[("prelude", "module prelude\n")]).unwrap_err();
+        assert!(prelude.contains("the prelude is none"), "{prelude}");
+    }
+
+    #[test]
     fn the_import_graph_is_listed_in_order_and_has_no_cycle() {
-        let later = closure(&[("a", "import b\n"), ("b", "type B\n")]).unwrap_err();
+        let later = closure(&[("a", "module a\nimport b\n"), ("b", "module b\ntype B\n")]).unwrap_err();
         assert!(later.contains("listed after it"), "{later}");
-        let unknown = closure(&[("a", "import nowhere\n")]).unwrap_err();
+        let unknown = closure(&[("a", "module a\nimport nowhere\n")]).unwrap_err();
         assert!(
             unknown.contains("no module of the standard library"),
             "{unknown}"
         );
-        let child = closure(&[("a.b", "type B\n"), ("a", "import a.b\n")]).unwrap_err();
+        let child = closure(&[("a.b", "module a.b\ntype B\n"), ("a", "module a\nimport a.b\n")]).unwrap_err();
         assert!(child.contains("imports its own child"), "{child}");
         // The prelude is not a module: it may name any module of the graph.
         assert_eq!(
-            closure(&[("prelude", "import a\n"), ("a", "type A\n")]),
+            closure(&[("prelude", "import a\n"), ("a", "module a\ntype A\n")]),
             Ok(())
         );
-        let twice = closure(&[("a", "type A\n"), ("b", "type A\n")]).unwrap_err();
+        let twice = closure(&[("a", "module a\ntype A\n"), ("b", "module b\ntype A\n")]).unwrap_err();
         assert!(twice.contains("declared by both"), "{twice}");
     }
 

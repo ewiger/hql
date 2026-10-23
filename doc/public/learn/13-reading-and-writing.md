@@ -1,8 +1,8 @@
 # 13. Reading and writing data
 
-!!! note "The `io` extension"
+!!! note "The `io` module"
 
-    This chapter covers the `io` extension, which ships in the next release.
+    This chapter covers the `io` module, which ships in the next release.
     It is part of the prelude, so a program needs no `import` to use it.
 
 Every program so far read a vault, or values written into the program itself.

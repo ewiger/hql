@@ -18,10 +18,22 @@ program.
 | Term | What it is |
 | --- | --- |
 | package | the user-facing installation and distribution unit, for example a Cargo crate `hql-ext-fancysql` |
-| extension | the implementation unit: a descriptor naming the modules it provides, and the implementations of their external declarations; a package may contain one or more |
-| module | the HQL contract a program imports, bound to one extension; a package provides one or more |
+| extension | the implementation unit: a descriptor naming the modules it provides, and the implementations of their external declarations; a package carries one, named as the package is; internal when built into the binary, external when supplied by an installed package |
+| module | the HQL contract a program imports, bound to one provider; a package provides one or more |
 
-A package name and a module name are separate: `hql-ext-fancysql` provides
+A package carries more than one extension only when parts of it are enabled
+or loaded independently: a part compiled out of some builds, or a part
+reaching the process by another transport than the rest. How the Rust code of
+an extension is split into crates or source modules is never a reason for a
+second one.
+
+| Package | Where | Extension |
+| --- | --- | --- |
+| builtin | a folder under `lib/`, contracts bundled with the binary | internal: compiled into the binary |
+| installed | a package of its own, typically a Cargo crate such as `hql-ext-postgres` | external: reaches the process through a transport |
+
+A package name and a module name are separate: `hql-ext-fancysql`, and its
+extension of the same name, provides
 `fancysql` and `fancysql.postgres`. The relation is package metadata, never
 inferred from a crate or file name.
 
@@ -31,7 +43,7 @@ An extension declares what it implements in metadata, never in HQL source:
 
 ```text
 ExtensionDescriptor {
-    id:       "postgres-native"
+    id:       "hql-ext-postgres"
     abi:      1
     provides: ["postgres", "postgres.query", "postgres.types"]
 }
@@ -57,7 +69,7 @@ binding.
 
 An extension is the unit of loading. It is loaded when the host activates it,
 or when any source unit imports any module it provides: importing
-`postgres.query` loads `postgres-native`, and with it everything that
+`postgres.query` loads `hql-ext-postgres`, and with it everything that
 extension brings. One module is never loaded on its own.
 
 Loading runs the extension's `prelude.hql` once per invocation. The file is
@@ -101,14 +113,14 @@ entry per extension:
 
 ```text
 ExtensionRegistry {
-    "std-core" -> {
-        descriptor:      { id: "std-core", abi: 1, provides: ["string", "collections", "option", "math"] }
-        origin:          Builtin
+    "std" -> {
+        descriptor:      { id: "std", abi: 1, provides: ["core", "collections", "string", "option", "math", ...] }
+        origin:          Internal
         implementations: { string.trim -> native fn, collections.sort -> native fn, ... }
     }
-    "postgres-native" -> {
-        descriptor:      { id: "postgres-native", abi: 1, provides: ["postgres", "postgres.query"] }
-        origin:          Package(hql-ext-postgres)
+    "hql-ext-postgres" -> {
+        descriptor:      { id: "hql-ext-postgres", abi: 1, provides: ["postgres", "postgres.query"] }
+        origin:          External(hql-ext-postgres)
         implementations: { postgres.Connection -> representation, postgres.connect -> native fn, ... }
     }
 }
@@ -123,7 +135,7 @@ The registry is built by extension discovery, which has three inputs:
 
 | Input | What it contributes | When |
 | --- | --- | --- |
-| the builtin table | the extensions compiled into the binary, each with a descriptor | always |
+| the builtin table | the internal extensions, one per builtin package, each with a descriptor | always |
 | configuration | which extensions are active, and the prelude | the execution context |
 | installed package artifacts | descriptors and implementations reached through a transport | later, with the transport and ABI record |
 
@@ -144,15 +156,15 @@ The registry grows in three stages, each usable on its own.
 
 1. **Descriptors on the static table.** Today's `Extension` table gains a
    descriptor, `id`, `abi` and `provides`, and the compiled-in extensions are
-   regrouped by the modules they provide, `std-core`, `std-io`, `std-format`,
-   `graph`, `lexical`, `semantic`. Each step is registered against a
+   folded into one internal extension per builtin package, `std` and
+   `search`. Each step is registered against a
    declaration identity in `lib/std/`. The registry is builtin-only; binding runs
    against the `lib/std/` contracts and replaces the test that compares `lib/std/` with
    the Rust lattice. Nothing is loaded. *Done in part:* every builtin
    extension carries `provides`, and binding cross-checks the external
    contracts of `lib/std/` against it by name, arity and result type once per
    process ([extensions](../../../wiki/hql/extensions.hmd)); `id` and `abi`
-   and the regrouping wait for the second stage.
+   and the folding wait for the second stage.
 2. **Configuration selects.** The execution context builds the registry from
    the builtin table and configuration: which compiled-in extensions are
    active, what the prelude is. `hql.toml`'s `[extensions]` keys are re-read
@@ -189,14 +201,14 @@ installation and dependency resolution, is a later record.
   declarations, registered against declaration identities and checked against
   the contracts at registry construction. An extension implements
   declarations; it does not declare.
-- The compiled-in extensions are regrouped by the modules they provide,
-  `std-core`, `std-io` and so on, independently of how the Rust crate is
+- The compiled-in extensions are folded into one internal extension per
+  builtin package, `std` and `search`, independently of how the Rust crate is
   organized.
 - The one-word extension name stops being a language-level name. `import
-  semantic` becomes an import of whatever module the retrieval package
+  semantic` becomes an import of whatever module the `search` package
   declares, which may still be `semantic`.
-- "Compiled into the binary" stays true for builtin extensions; a package
-  origin is added for installed ones, and how one is discovered belongs to the
+- "Compiled into the binary" stays true for internal extensions; an
+  external origin is added for the extensions of installed packages, and how one is discovered belongs to the
   execution context.
 - An extension gains a load step with a constructor, `prelude.hql`, that runs
   once when the extension is first activated or imported from. Today an
@@ -205,14 +217,15 @@ installation and dependency resolution, is a later record.
 ## Work units
 
 1. Stage 1 of the extension registry: descriptors on the static table,
-   regrouping by module, implementations keyed by declaration identity,
+   folding into `std` and `search`, implementations keyed by declaration identity,
    binding against `lib/std/`.
 2. Stage 2: the execution context builds the registry from the builtin table
    and configuration.
 3. Stage 3, in the transport and ABI record: package artifacts as a source of
    descriptors and implementations.
-4. Migrating the existing extensions (`graph`, `format`, `io`, `net`,
-   `logging`, `lexical`, `semantic`) to declare their modules.
+4. Migrating the existing descriptors into the two internal extensions:
+   `graph`, `format`, `io`, `net` and `logging` into `std`, `lexical` and
+   `semantic` into `search`.
 5. A naming rule for packages beside the existing extension-name rule in the
    naming card and HQL-0011.
 6. Extension loading: import of one module loads the providing extension,

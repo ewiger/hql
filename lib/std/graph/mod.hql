@@ -4,6 +4,7 @@
 //
 // There is no Node type. What a node is arrives as a type parameter, so a graph
 // over documents and a graph over concepts share one declaration.
+module graph
 import core
 import doc
 import retrieval

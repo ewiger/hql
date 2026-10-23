@@ -24,7 +24,7 @@ operations above them, so the collection types are `core`'s, since `Data` is a
 tree of sequences and maps, and `collections` holds the operations over them.
 `string`, `seq`, `math`, `option`, `result` and `regex` are written as external
 declarations, `fn trim(self) : String` with no body: HQL declares the contract
-and the extension of the same name implements it, which a test holds to the
+and the internal `std` extension implements it, which a test holds to the
 declaration function by function
 ([HQL-0024](../../proposals/HQL-0024/README.md), parts 1 and 3).
 

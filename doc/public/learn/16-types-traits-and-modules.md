@@ -202,13 +202,15 @@ geo.rect_area(geo.scale(Rect(width = 2.0f, height = 1.5f), 2.0f))
 12.0
 ```
 
-A module that opens with `module for String` is a **receiver module**: its
+Every module file opens with its name, checked against the file's place
+under its root: `lib/mighty/text.hql` opens with `module mighty.text`. A module
+that adds a pattern, `module mighty.text for String`, is a **receiver module**: its
 functions take `self`, and once the module is imported they resolve as
 `value.f()` for every value the pattern fits.
 
 ````hql
 // lib/mighty/text.hql
-module for String
+module mighty.text for String
 
 fn shout(self) : String = fmt("{}!", self.upper())
 fn is_blank(self) : Bool = self.trim().length() == 0
@@ -241,5 +243,5 @@ importer, by name, as a receiver call or as a step.
 Imports sit at the head of a source unit, two imports may not share a local
 name, and a module may not import itself through a cycle. The standard
 library's own modules are written the same way, as contracts in `lib/std/`:
-`lib/std/string/mod.hql` opens with `module for String` and declares `fn trim(self) :
+`lib/std/string/mod.hql` opens with `module string for String` and declares `fn trim(self) :
 String` with no body, which the binary implements.

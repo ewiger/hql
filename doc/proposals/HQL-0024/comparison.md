@@ -23,7 +23,7 @@ item of the stub's goal list. Those items are kept as
 | `abstract type` | declares a type of law with no constructor; `Orderable`, `Scalar`, `Collection`, `Seq`, `Endpoint`; recognized by position | not mentioned | stays as declared. Its one overlap with the draft is `Orderable` against the trait `Ord`; [part 5](parts/05-traits.md) decides whether bounds over operations move to traits and structure stays with abstract types |
 | field visibility: `pub`, `private`, `protected` | none, by design ([fields](../../wiki/hql/fields.hmd)) | none; `private`, `internal`, `export` at module level deferred to a separate record | unchanged. "Visibility" in the draft means which modules a source unit sees, set by the prelude and `import`; it is not a field modifier |
 | `trait`, `impl`, `Self` | none; "there are no traits" | compile-time capability contracts with implementations; exact syntax left open | new, [part 5](parts/05-traits.md); reverses one row of the card's three-way split |
-| `module for T` | none | associates a module with a receiver type pattern | new, [part 4](parts/04-receiver-modules.md) |
+| `module a.b`, `module a.b for T` | none | states a module's canonical name, checked against its file, and associates a receiver module with a type pattern | new, [part 4](parts/04-receiver-modules.md) |
 | `self` | none | explicit receiver parameter | new, [part 4](parts/04-receiver-modules.md) |
 | `value.f()` | `.` is field access; `extension.step()` qualifies a step | receiver call, expression-level | new, [part 4](parts/04-receiver-modules.md) |
 | `import a.b as c` | `import <one word>`, no path, no alias | dotted canonical path, alias | new, [part 2](parts/02-imports.md) |
@@ -44,7 +44,7 @@ item of the stub's goal list. Those items are kept as
 | Module implementation | Rust holds the lattice and every step signature; `lib/std/` restates them and a test checks agreement; `Extension.name` is what `import` names | the `.hql` file is the contract, an extension descriptor names the modules it implements, binding cross-checks them into resolved modules; a standard module differs from a package module only in provisioning | inverts the direction of authority; from the companion notes, not the draft |
 | Imports | one-word extension import, anywhere, duplicates fail at import, `hql.toml` list | module import, aliases, head-of-unit placement, parent does not import children | changes |
 | Standard library | declarations only, in `lib/std/`, restated in Rust; prelude is `graph`, `format`, `io` | compiled and embedded modules with bodies; small prelude of types, functions and receiver modules | changes |
-| Receiver modules | none | `module for T`, `self`, lookup, ambiguity, generic patterns | new |
+| Receiver modules | none | `module <name> for T`, `self`, lookup, ambiguity, generic patterns | new |
 | Traits | none; abstract types of law as bounds; capabilities are registrations | `Eq`, `Ord`, `Add`, ...; `impl`; coherence by ownership | new, and reverses a card position |
 | Operators | arithmetic over `Int` or `Float` only; comparison over `Orderable` | type-directed through traits; `\|`, connectives and binding stay language-defined | changes mechanism, keeps behavior for builtins |
 | Formats | text types under `String` ([HQL-0017](../HQL-0017/README.md), implemented); decode and encode in [HQL-0021](../HQL-0021/README.md) | descriptors that are not strings; `Lines`, `Avro`, `Parquet`; codec contracts; no `Format<T>` | **contradicts** an accepted record |
@@ -79,7 +79,7 @@ item of the stub's goal list. Those items are kept as
    the opposite. [Part 7](parts/07-formats-and-codecs.md) states both models
    and the proposal has to choose.
 3. **Generic receivers return their pattern.** `fn reverse(self) : Seq<T>`
-   under `module for Seq<T>` returns a `Seq` for a `List`; the card's input-type
+   under `module seq for Seq<T>` returns a `Seq` for a `List`; the card's input-type
    and constructor parameters return the container given. [Part 4](parts/04-receiver-modules.md)
    and [part 11](parts/11-type-system-completion.md).
 4. **`import` placement.** A statement anywhere today; head of the source unit

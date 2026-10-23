@@ -303,7 +303,7 @@ impl Environment {
             .statements
             .iter()
             .find_map(|statement| match statement {
-                Stmt::ModuleFor { pattern, .. } => Some(pattern),
+                Stmt::Module { pattern, .. } => pattern.as_ref(),
                 _ => None,
             });
         // Types and traits first, so a constructor and an implementation of
@@ -1408,7 +1408,8 @@ mod tests {
 
     /// The probe module's contract: a public receiver function and a
     /// private one.
-    const PROBE_SOURCE: &str = "import core\n\
+    const PROBE_SOURCE: &str = "module probe\n\
+                                import core\n\
                                 fn shout(self: String) : String\n\
                                 private fn whisper(self: String) : String\n";
 

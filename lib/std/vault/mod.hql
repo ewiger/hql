@@ -4,6 +4,7 @@
 //
 // A host with a vault seeds it as `vault` into the program module; a program
 // running without one has no `vault` binding, and no module sees it.
+module vault
 import core
 import doc
 import graph

@@ -5,6 +5,7 @@
 // A score is evidence for the proposition that a value is relevant to a query,
 // never relevance itself, which is why every hit carries the retrieval that
 // produced it: the index, model and metric, held as an open tree.
+module retrieval
 import core
 
 type Hit<T> {

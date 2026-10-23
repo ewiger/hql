@@ -1,9 +1,10 @@
 // Module `regex`: text matched against a pattern. Imported where it is used,
 // since a pattern language is a domain of its own. A pattern is a String; one
 // that does not parse is an evaluation error at the call. Every declaration
-// is external: the `regex` extension implements it.
+// is external: the `std` extension implements it.
 //
 // See doc/proposals/HQL-0024/parts/03-standard-library.md.
+module regex
 import core
 
 fn is_match(text: String, pattern: String) : Bool

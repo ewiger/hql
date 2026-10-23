@@ -3,7 +3,7 @@
 // category and the core traits. A type sits here when a module below it
 // would otherwise import a module above it: Data is a tree of sequences and
 // maps, so the collection types are core types, and the operations over them
-// are the `collections` module's. Implemented by the `core` extension.
+// are the `collections` module's. Implemented by the `std` extension.
 //
 // See doc/wiki/hql/types/data-type.hmd, option-type.hmd, and
 // types/collections/collection-types.md.
@@ -13,6 +13,7 @@
 // it — a Card is orderable because it has a name, which is what makes a prefix
 // of an unordered collection reproducible without discovery order becoming
 // observable. Sorting expects the order to be total.
+module core
 abstract type Orderable
 
 // A leaf: a value with no parts of its own. Being a leaf and having an order

@@ -71,6 +71,21 @@ Writing those three values through `Lines` produces the separators again.
 unterminated line are the codec's business; a program does not write
 `split("\n")` to read a file as lines.
 
+### A String is UTF-8
+
+- A `String` MUST be a sequence of Unicode scalar values held as UTF-8,
+  whatever encoding its text was read from. No `String` holds bytes that are
+  not UTF-8.
+- An external text encoding belongs to the codec: a decoder converts it to
+  UTF-8 and an encoder converts UTF-8 to it, at the boundary.
+- `Text`, `Lines`, `Json`, `JsonLines`, `Yaml`, `Csv`, `Markdown`, `Hmd`,
+  `Hql`, `D2` and `Mermaid` read and write UTF-8.
+- Decoding bytes that are not valid in the codec's encoding MUST be a
+  decoding error naming the source. A decoder MUST NOT replace invalid bytes
+  with U+FFFD.
+- An external name that crosses into a `String`, such as a file name or an
+  environment value, follows the same rule.
+
 ### A format does not determine cardinality
 
 `source(file("input.txt"), Lines)` is a `Seq<String>` because a file is

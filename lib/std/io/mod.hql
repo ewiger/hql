@@ -6,6 +6,7 @@
 // An endpoint says where bytes are and performs no I/O. A format type
 // (module `format`) says how the bytes are documents. A source or target joins the
 // two, and Seq and Stream say whether the documents end.
+module io
 import core
 
 // Where bytes are. Constructing one opens, stats and resolves nothing.
@@ -114,7 +115,7 @@ abstract type VaultSource : DataSource
 // configured target by id, such as a table.
 abstract type DataTarget
 
-// The operations the `io` extension implements. Constructing an endpoint is
+// The operations the `std` extension implements. Constructing an endpoint is
 // pure; reading and writing one is effectful: it runs once, where it is
 // written. `source` is a Seq read from a Replayable endpoint and a Stream
 // read from a live one, and T is the type the format decodes to, or the
@@ -129,7 +130,7 @@ effectful fn target<T, F : Format>(value: T, endpoint: Writable, format: Type<F>
 effectful fn target<T, F : Format>(value: T, id: String, format: Type<F>) : Unit
 effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Unit
 
-// Reading, provided by the `io` extension. The format may be omitted only
+// Reading, provided by the `std` extension. The format may be omitted only
 // when the endpoint is `file` of a literal path whose extension implies one.
 // source<T>(e: Replayable, format: Type<F>) : FiniteSource<T>   every document
 // source<T>(e: Readable, format: Type<F>)   : LiveSource<T>     each as it arrives
@@ -139,7 +140,7 @@ effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format
 // tap<T>(id: String) : Stream<T>
 // tap<T>(c: Channel<T>) : Stream<T>                            each value as it is written
 //
-// Writing, provided by the `io` extension. Both return Unit and are Effectful.
+// Writing, provided by the `std` extension. Both return Unit and are Effectful.
 // target<T>(x: T, e: Writable, format: Type<F>) : Unit           x as one document
 // sink<T>(xs: Stream<T>, e: Writable, format: Type<F>) : Unit    a document per value
 // target<T>(x: T, c: Channel<T>) : Unit                          appends x

@@ -7,7 +7,8 @@ The type declarations HQL ships with, written in HQL.
 silently left unchecked. These files are the single place the declarations live
 as *source* rather than as prose inside a card. The modules written as external
 declarations, `string`, `seq`, `math`, `option`, `result` and `regex`, are the
-contracts the binary's extensions implement, checked against them by name;
+contracts the package's internal extension, `std`, implements, checked against
+it by name;
 `io` and `io.logging` declare their operations beside their types.
 `validators` is the one module written in HQL, its implementations bodies a
 program runs: it is loaded when a program writes `import validators`, as a
@@ -69,7 +70,8 @@ is what gets fixed.
 ## The package and its modules
 
 `lib/` holds the builtin packages, one folder each: their contracts are
-bundled with the binary and their extensions compiled into it. `lib/std/` is
+bundled with the binary and the extension of each, one per package and named
+as it is, compiled into it: an internal extension. `lib/std/` is
 the standard package, the one builtin package whose prelude is the implicit
 import list. Its root is a module root, not a module, and holds two kinds of
 thing:
@@ -100,22 +102,22 @@ in import order, so the import graph is acyclic by construction:
 
 | Module | Imports | Holds | Implemented by |
 | --- | --- | --- | --- |
-| `core` | — | scalars, the collection types and their constructors, `Data`, `Option`, `Result`, `Ordering`, `Type`, `Is`, `Format`, `Range`, `Pair`, the operation types, the contract types and violations, the core traits `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index`, `Slice`, `Validator` and the built-in types' implementations of them | the `core` extension |
+| `core` | — | scalars, the collection types and their constructors, `Data`, `Option`, `Result`, `Ordering`, `Type`, `Is`, `Format`, `Range`, `Pair`, the operation types, the contract types and violations, the core traits `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index`, `Slice`, `Validator` and the built-in types' implementations of them | the `std` extension |
 | `doc` | `core` | documents, their headers, and the card family `Card`, `HmdCard`, `MdCard` | the runtime |
 | `retrieval` | `core` | `Hit` and `Ranking`, from [HQL-0002](../../doc/proposals/HQL-0002/README.md) | the runtime |
-| `graph` | `core`, `doc`, `retrieval` | edges, graphs, links and the `Graph` constructor | the `graph` extension |
+| `graph` | `core`, `doc`, `retrieval` | edges, graphs, links and the `Graph` constructor | the `std` extension |
 | `knowledge` | `core`, `doc`, `graph` | concepts, relations, `ConceptCard`, `RelationCard`, `KnowledgeGraph` | the runtime |
-| `collections` | `core`, `doc` | the operations over the collection types: membership, filtering, mapping, order, grouping, joins, reductions; `Group` | the `core` extension |
-| `string` | `core` | `module for String`: the text functions, `str` and `fmt` | the `string` extension |
-| `seq` | `core` | `module for Seq<T>`: the sequence, set and map operations beyond the core's | the `seq` extension |
-| `math` | `core` | numbers and the conversions between `Int`, `Float` and `Decimal` | the `math` extension |
-| `option` | `core` | `module for Option<T>`: the ways out of an option | the `option` extension |
-| `result` | `core` | `module for Result<T, E>`: the ways out of a result | the `result` extension |
-| `regex` | `core` | text matched against a pattern; imported where it is used | the `regex` extension |
-| `format` | `core`, `graph` | the formats and the codec contracts ([HQL-0024 part 7](../../doc/proposals/HQL-0024/parts/07-formats-and-codecs.md)) | the `format` extension |
-| `io` | `core` | endpoints, channels, data sources and data targets, from [HQL-0021](../../doc/proposals/HQL-0021/README.md) | the `io` extension |
-| `io.net` | `core`, `io` | network endpoints; `import io.net` or `import net` | the `net` extension |
-| `io.logging` | `core`, `io` | loggers, levels, log events and the rendering cell; `import io.logging` or `import logging` | the `logging` extension |
+| `collections` | `core`, `doc` | the operations over the collection types: membership, filtering, mapping, order, grouping, joins, reductions; `Group` | the `std` extension |
+| `string` | `core` | `module string for String`: the text functions, `str` and `fmt` | the `std` extension |
+| `seq` | `core` | `module seq for Seq<T>`: the sequence, set and map operations beyond the core's | the `std` extension |
+| `math` | `core` | numbers and the conversions between `Int`, `Float` and `Decimal` | the `std` extension |
+| `option` | `core` | `module option for Option<T>`: the ways out of an option | the `std` extension |
+| `result` | `core` | `module result for Result<T, E>`: the ways out of a result | the `std` extension |
+| `regex` | `core` | text matched against a pattern; imported where it is used | the `std` extension |
+| `format` | `core`, `graph` | the formats and the codec contracts ([HQL-0024 part 7](../../doc/proposals/HQL-0024/parts/07-formats-and-codecs.md)) | the `std` extension |
+| `io` | `core` | endpoints, channels, data sources and data targets, from [HQL-0021](../../doc/proposals/HQL-0021/README.md) | the `std` extension |
+| `io.net` | `core`, `io` | network endpoints; `import io.net` or `import net` | the `std` extension |
+| `io.logging` | `core`, `io` | loggers, levels, log events and the rendering cell; `import io.logging` or `import logging` | the `std` extension |
 | `vault` | `core`, `doc`, `graph` | the vault a program runs against | the runtime |
 | `validators` | `core`, `string`, `seq`, `option` | the standard validator types, written in HQL; `import validators` | the runtime |
 
@@ -124,10 +126,10 @@ provides it; importing it binds no operation.
 
 A module written as **external declarations**, `fn trim(self) : String` with
 no body, is a contract an extension implements: the extension whose descriptor
-provides the module. Binding, once per process, holds the two to each other by
+provides the module, here always `std`. Binding, once per process, holds the two to each other by
 name, arity and result type, and refuses every program on a mismatch; the
 wiring is on the [extensions card](../../doc/wiki/hql/extensions.hmd). A module
-that opens with `module for T` is a receiver module, whose `self` functions
+that opens with `module <name> for T` is a receiver module, whose `self` functions
 resolve as `value.f()`; a declaration outside one writes its receiver's type,
 `fn abs(self: Int) : Int`, and one without `self` is never reached as
 `value.f()`. `effectful fn source(…)` declares an operation effectful, and a

@@ -65,7 +65,7 @@ order is the dependency order.
 | 1 | [Modules](parts/01-modules.md) | A module is an HQL contract named by its position under a module root, `foo.hql` or `foo/mod.hql` is `foo` and `foo/bar.hql` is `foo.bar`, bound to exactly one implementation provider; contracts and extension descriptors are discovered separately, bound and cross-checked into one registry of resolved modules with no precedence between providers | new; `init.hql` becomes `mod.hql`; `lib/std/` stops restating Rust and defines it; [companion notes](parts/01a-modules.md) |
 | 2 | [Imports](parts/02-imports.md) | `import io.file` makes one module visible as `file`, `as` renames it, a parent does not import its children, and imports sit at the head of a source unit | `import` stops naming an extension |
 | 3 | [The standard library](parts/03-standard-library.md) | Standard modules have no `std.` prefix, are compiled into the binary, own their canonical names, and a small prelude of types, functions and receiver modules, declared in `lib/std/prelude.hql` and in each extension's `prelude.hql`, is visible without import | `lib/std/` gains bodies; the prelude is redefined |
-| 4 | [Receiver modules](parts/04-receiver-modules.md) | `module for Seq<T>` associates a module with a type pattern; functions with explicit `self` resolve as `xs.first()` by receiver type matching among visible modules, and an ambiguity is an error | new; `.` gains a call form |
+| 4 | [Receiver modules](parts/04-receiver-modules.md) | `module seq for Seq<T>` associates a module with a type pattern; functions with explicit `self` resolve as `xs.first()` by receiver type matching among visible modules, and an ambiguity is an error | new; `.` gains a call form |
 | 5 | [Traits and implementations](parts/05-traits.md) | A trait is a compile-time contract, `T : Eq` is a bound, `impl Add for Int` provides it, and one implementation per trait and type is enforced by ownership | reverses "there are no traits" for capabilities; `abstract type` stays |
 | 6 | [Operator contracts](parts/06-operators.md) | Arithmetic and comparison resolve through `Add`, `Eq`, `Ord` and their kin; `\|`, `and`, `or` and binding are language-defined; no pseudo-desugaring is part of the definition | mechanism changes, builtin behavior does not |
 | 7 | [Formats and codecs](parts/07-formats-and-codecs.md) | `Format` is a category of its own: a format describes representation and framing, is not a `String`, is not `Format<T>`, and `Decoder<F, T>` and `Encoder<T, F>` connect it to values; `Lines` and `JsonLines` are formats and `format(x, F)` gives a `String` | adopted from [encode, decode and format](encode-decode-format.md); supersedes the one rule of [HQL-0017](../HQL-0017/README.md) that a format is a `String` |
@@ -107,7 +107,7 @@ record stands until this proposal is accepted.
 - Programs that call `format(x, Json)` read a `String`, as before; a program
   that named `Json` as the type of a value, `xs : List<Json>`, now writes
   `List<String>`. The run-time value keeps its format for presentation.
-- Every other change is additive: dot calls, `module for`, `trait`, `impl`,
+- Every other change is additive: dot calls, `module`, `trait`, `impl`,
   `self` and `as` are recognized by position, like `type` and `import`, and no
   current program uses them as names in those positions.
 

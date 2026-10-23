@@ -1,9 +1,10 @@
 // Module `collections`: the operations over the collection types `core`
 // declares. Membership, filtering, mapping, order, grouping, joins and
 // reductions. Each is also a pipeline step, and carries the shape a planner
-// splits it by. Always visible: the `core` extension implements it with
+// splits it by. Always visible: the `std` extension implements it with
 // `core`. See doc/wiki/hql/types/collections/collection-types.md and
 // collection.md.
+module collections
 import core
 import doc
 

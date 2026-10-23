@@ -298,7 +298,7 @@ impl Parser {
                          checked for",
                     ));
                 }
-                Stmt::Import { .. } | Stmt::ModuleFor { .. } | Stmt::Expr(_) => {
+                Stmt::Import { .. } | Stmt::Module { .. } | Stmt::Expr(_) => {
                     return Err(Diagnostic::syntax(
                         span,
                         "`private` marks a declaration: a function, a type, a trait or a \
@@ -371,13 +371,42 @@ impl Parser {
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "module"
-            && matches!(&self.tokens[self.index + 1].token, Token::Ident(word) if word == "for")
+            && matches!(&self.tokens[self.index + 1].token, Token::Ident(_))
         {
             let head = self.advance();
-            self.advance();
-            let pattern = self.simple_type()?;
-            let span = head.span.start..pattern.span.end;
-            return Ok(Stmt::ModuleFor { pattern, span });
+            if matches!(self.peek(), Token::Ident(word) if word == "for") {
+                return Err(Diagnostic::syntax(
+                    head.span.start..self.peek_span().end,
+                    "a module declaration names its module before its pattern: \
+                     `module string for String`",
+                ));
+            }
+            let mut path = Vec::new();
+            let mut end;
+            loop {
+                let named = self.advance();
+                let Token::Ident(name) = named.token else {
+                    return Err(Diagnostic::syntax(named.span, "expected a module name"));
+                };
+                end = named.span.end;
+                path.push(name);
+                if !self.eat(&Token::Dot) {
+                    break;
+                }
+            }
+            let pattern = if matches!(self.peek(), Token::Ident(word) if word == "for") {
+                self.advance();
+                let pattern = self.simple_type()?;
+                end = pattern.span.end;
+                Some(pattern)
+            } else {
+                None
+            };
+            return Ok(Stmt::Module {
+                path,
+                pattern,
+                span: head.span.start..end,
+            });
         }
         if let Some(alias) = self.alias()? {
             return Ok(Stmt::Alias(alias));

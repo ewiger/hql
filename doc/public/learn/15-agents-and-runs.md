@@ -1,8 +1,8 @@
 # 15. Agents and runs
 
-!!! note "The `ai` extension"
+!!! note "The `ai` module"
 
-    This chapter covers the `ai` extension, which ships in the next release.
+    This chapter covers the `ai` module, which ships in the next release.
 
 Most of the work around a language model is not the call itself. Choosing
 evidence, building the context, writing the prompt, giving the model tools,

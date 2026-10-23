@@ -36,7 +36,7 @@ not check yet, and the day it does the header is promoted to `valid-now`.
 | [pattern matching](queries/16-pattern-matching.hql) | Literals, guards, type patterns over `Data`, nested `some` | FizzBuzz and friends |
 | [recursion](queries/17-recursion.hql) | Factorial, gcd, quicksort, primes, Collatz | `[3628800, 21, 123589, 10, 111]` |
 | [modules](queries/18-modules.hql) | `import mighty.geometry as geo` from the `lib` root | `[3.0, 12.0, 4.0]` |
-| [receiver module](queries/19-receiver-module.hql) | `module for String` written in HQL, used as `"hi".shout()`; `text.is_blank` qualified past the prelude's | four strings |
+| [receiver module](queries/19-receiver-module.hql) | `module mighty.text for String` written in HQL, used as `"hi".shout()`; `text.is_blank` qualified past the prelude's | four strings |
 | [regex](queries/20-regex.hql) | `import regex`: match, find, replace, capture, split | seven strings |
 | [dataframe](queries/21-dataframe.hql) | Records grouped, aggregated, sorted and joined | two lines |
 | [word count](queries/22-word-count.hql) | Split, group, count, order, take: MapReduce in one pipeline | `the=3 fox=2 brown=1` |
@@ -49,6 +49,7 @@ not check yet, and the day it does the header is promoted to `valid-now`.
 | [ambiguous receiver](queries/29-ambiguous-receiver.hql) | Two imports declaring `is_blank(self)`: qualify the call | name error |
 | [private in a program](queries/30-private-in-a-program.hql) | Every declaration of the program module is public | syntax error |
 | [internal reserved](queries/31-internal-reserved.hql) | `internal` is reserved until modules record their package | syntax error |
+| [misnamed module](queries/32-misnamed-module.hql) | A module file opens with `module` and its canonical name, checked where it is loaded | name error |
 
 ## The files under `data/`
 
@@ -63,7 +64,9 @@ line of their headers says, so a test run leaves the checkout as it was.
 their position. `lib/mighty/geometry.hql` is `mighty.geometry`,
 `lib/mighty/text.hql` is `mighty.text` and `lib/mighty/stats.hql` is
 `mighty.stats`; `mighty/` itself is a namespace directory with no `mod.hql`,
-so `import mighty` names nothing. A program names the root through the
+so `import mighty` names nothing. Each file opens with the name its position
+gives, `module mighty.text for String`, and importing a file whose declaration
+names another module is refused. A program names the root through the
 `modules:` line of its header, as `hql run --modules examples/mighty-types/lib`
 does on the command line and `[modules] roots = ["lib"]` does in a
 workspace's `hql.toml`. Files under a module root are not corpus cases.
@@ -71,9 +74,10 @@ workspace's `hql.toml`. Files under a module root are not corpus cases.
 | Module | Kind | Provides |
 | --- | --- | --- |
 | `mighty.geometry` | plain | `Circle`, `Rect`, `circle_area`, `rect_area`, `unit_circle`, `scale` |
-| `mighty.text` | `module for String` | `shout`, `initials`, `is_blank` |
+| `mighty.text` | `module mighty.text for String` | `shout`, `initials`, `is_blank` |
 | `mighty.stats` | plain, imports `math` | `mean`, `variance`, `stddev`, `median` |
-| `mighty.url` | `module for String`, a private helper | `slug`, `separator`; `words` is private |
+| `mighty.url` | `module mighty.url for String`, a private helper | `slug`, `separator`; `words` is private |
+| `mighty.misnamed` | declares `module mighty.renamed`, so importing it is refused | nothing |
 
 Each module is its own import unit and a closure: it sees what it declares and
 what it imports, never the program's bindings or the host's `vault`, `cards`

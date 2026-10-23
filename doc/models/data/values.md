@@ -6,6 +6,13 @@
 | `Float` | Finite double-precision number | Rust `f64`; non-finite results are overflow |
 | `Decimal` | Exact decimal number and its scale | `bigdecimal` significand of any size; scale never below 0 |
 | `Bool` | `true` or `false` | Rust `bool` |
+| `String` | Sequence of Unicode scalar values | Rust `Arc<str>`; always valid UTF-8 |
+
+A `String` is always UTF-8, whatever encoding its text was read from. It
+never holds bytes that are not UTF-8, its positions and `size` count code
+points, and `s.bytes()` is its UTF-8 encoding. An external text encoding is a
+codec's concern: the codec converts it to and from UTF-8 at the boundary
+([HQL-0024 formats and codecs](../../proposals/HQL-0024/parts/07-formats-and-codecs.md)).
 
 The AST contains literal and addition nodes with zero-based, half-open UTF-8
 byte ranges. Public diagnostics distinguish syntax, type, and evaluation

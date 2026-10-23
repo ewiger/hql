@@ -1,4 +1,5 @@
 // Module `mighty.stats`: descriptive statistics written in HQL over `math`.
+module mighty.stats
 import math
 
 fn mean(xs: List<Float>) : Option<Float> =

@@ -30,6 +30,7 @@ This part defines:
 
 - how a module gets its canonical name;
 - how module names map to files;
+- how a module file declares its name, and how loading checks it;
 - where HQL discovers module contracts;
 - how workspace, configured and standard contracts are combined;
 - how conflicts are detected;
@@ -296,6 +297,56 @@ A module file declares a namespace; it does not initialize one. The name `init.h
 
 ---
 
+## The module declaration
+
+A module file opens with its **module declaration**: the keyword `module`
+followed by the module's canonical name, every segment written.
+
+```hql
+module io.logging
+import core
+import io
+```
+
+A receiver module adds its receiver pattern to the same line
+([receiver modules](04-receiver-modules.md)):
+
+```hql
+module string for String
+import core
+```
+
+The declaration states the name the file's position already gives; it does not
+choose it. Loading a module checks the two against each other:
+
+| File | Opens with | Outcome |
+| --- | --- | --- |
+| `lib/std/io/logging/mod.hql` | `module io.logging` | loaded |
+| `mighty/text.hql` | `module mighty.text for String` | loaded |
+| `mighty/text.hql` | `module text for String` | refused: the file is the module `mighty.text` |
+| `mighty/text.hql` | `import core` | refused: a module opens with `module mighty.text` |
+
+The rules:
+
+- the declaration is the first statement of a module file; comments may
+  precede it;
+- a module file holds exactly one declaration;
+- the name is canonical: the full dotted path below the module root, never a
+  local name or an alias;
+- a root's `prelude.hql` is not a module and holds no declaration;
+- the check runs where a file is loaded as a module. A module file checked on
+  its own, `hql check lib/std/graph/mod.hql`, has no module root to hold the
+  name to, and its declaration only opens the receiver pattern.
+
+The standard library follows the same rules. Each `lib/std/<path>/mod.hql`
+declares `module` followed by its path joined with `.`, and the binary checks
+every one when the library is loaded.
+
+`module` begins a statement only when a name follows it, as `type` and
+`import` do; elsewhere it is an ordinary name.
+
+---
+
 ## Namespace-only directories
 
 A directory does not automatically define a module.
@@ -392,15 +443,10 @@ io.file
 
 A source file cannot rename itself.
 
-A receiver module writes:
-
-```hql
-module for T
-```
-
-as defined in [receiver modules](04-receiver-modules.md). This associates the module with a type but does not provide its canonical name.
-
-An explicit name assertion may later be introduced for generated sources, but such an assertion may only validate the derived name. It may never override it.
+The [module declaration](#the-module-declaration), `module io.file`, states the
+derived name and is checked against it; it never overrides it. A receiver
+module's `module string for String` adds a type pattern to the same declaration
+([receiver modules](04-receiver-modules.md)) and leaves the name as derived.
 
 ---
 
@@ -466,23 +512,27 @@ The **implementation origin** says what executes the declarations:
 
 ```text
 Runtime           every declaration has an HQL body
-Builtin(id)       an extension compiled into the binary
-Extension(id)     an extension supplied outside the binary
+Internal(id)      an extension built into the binary
+External(id)      an extension supplied outside the binary, by a package of its own
 ```
+
+An extension is named as the package that carries it, so `id` is a package
+name. An internal extension belongs to a builtin package under `lib/`; an
+external one to an installed package, typically a Cargo crate.
 
 Examples:
 
 ```text
-regex       contract Standard(lib/std/regex/mod.hql)         implementation Builtin(std-regex)
-io.file     contract Standard(lib/std/io/file.hql)       implementation Builtin(std-io)
-app.model   contract Workspace(/repo)                implementation Runtime
-acme.auth   contract Filesystem(/opt/acme/hql)       implementation Runtime
-postgres    contract Package(postgres)               implementation Extension(postgres-native)
+regex       contract Standard(lib/std/regex/mod.hql)   implementation Internal(std)
+io.file     contract Standard(lib/std/io/file.hql)     implementation Internal(std)
+app.model   contract Workspace(/repo)                  implementation Runtime
+acme.auth   contract Filesystem(/opt/acme/hql)         implementation Runtime
+postgres    contract Package(hql-ext-postgres)         implementation External(hql-ext-postgres)
 ```
 
 There is no builtin kind of module. The standard library is a set of ordinary
 modules whose contract origin is `Standard` and whose implementation origin is
-a builtin extension.
+the internal extension `std`.
 
 Both origins are diagnostic and configuration metadata. Neither is part of the
 canonical name, and neither appears in an import:
@@ -529,14 +579,14 @@ module discovery
 ModuleContractRegistry
 ```
 
-**Extension discovery** examines the builtin extensions, the configured
+**Extension discovery** examines the internal extensions, the configured
 extensions and the artifacts of installed packages and collects their
 descriptors; what the registry holds and how it is built in stages is in
 [packages and extensions](09-packages-and-extensions.md), "The extension
 registry":
 
 ```text
-builtin extensions + configured extensions + package artifacts
+internal extensions + configured extensions + package artifacts
         |
         v
 extension discovery
@@ -581,11 +631,11 @@ implementation provider:
 
 ```text
 ModuleRegistry {
-    regex     -> { contract: Standard("lib/std/regex/mod.hql"),              implementation: Builtin("std-regex") }
-    io.file   -> { contract: Standard("lib/std/io/file.hql"),            implementation: Builtin("std-io") }
-    app       -> { contract: Workspace("/repo/app.hql"),             implementation: Runtime }
+    regex     -> { contract: Standard("lib/std/regex/mod.hql"),              implementation: Internal("std") }
+    io.file   -> { contract: Standard("lib/std/io/file.hql"),                implementation: Internal("std") }
+    app       -> { contract: Workspace("/repo/app.hql"),                     implementation: Runtime }
     acme.auth -> { contract: Filesystem("/opt/acme/hql/acme/auth.hql"), implementation: Runtime }
-    postgres  -> { contract: Package("/packages/postgres/postgres/mod.hql"), implementation: Extension("postgres-native") }
+    postgres  -> { contract: Package("/packages/postgres/postgres/mod.hql"), implementation: External("hql-ext-postgres") }
 }
 ```
 
@@ -775,7 +825,7 @@ Nothing requires these bodies to exist in HQL. The extension supplies,
 conceptually:
 
 ```text
-extension postgres-native
+extension hql-ext-postgres
 
 provides:
     postgres.Connection
@@ -819,9 +869,9 @@ Every resolved module has exactly one implementation provider.
 One extension may implement any number of modules:
 
 ```text
-extension std-core        provides: string, collections, option, math
-extension std-io          provides: io, io.file, io.net, io.logging
-extension postgres-native provides: postgres, postgres.query, postgres.types, postgres.copy
+extension std               internal  provides: core, collections, string, seq, math, option, result, regex, graph, format, io, io.net, io.logging
+extension search            internal  provides: lexical, semantic
+extension hql-ext-postgres  external  provides: postgres, postgres.query, postgres.types, postgres.copy
 ```
 
 Several extensions may not implement one module. Admitting it would need
@@ -829,9 +879,10 @@ composition, precedence, compatibility and lifecycle rules for a module
 assembled from parts, which is the partial-module problem "One source per
 module" already refuses on the contract side.
 
-Whether `std-core` and `std-io` are one Rust crate or twenty is invisible to
-HQL. **Rust crate structure does not leak into HQL module structure**: the
-implementation may be reorganized without changing a single import.
+Whether `std` is one Rust crate or twenty, and how many Rust source modules
+it has, is invisible to HQL. **Rust crate structure does not leak into HQL
+module structure**: the implementation may be reorganized without changing a
+single import or adding an extension.
 
 ---
 
@@ -842,7 +893,7 @@ extension metadata, never in HQL source:
 
 ```text
 ExtensionDescriptor {
-    id:       "postgres-native"
+    id:       "hql-ext-postgres"
     abi:      1
     provides: ["postgres", "postgres.query", "postgres.types"]
 }
@@ -876,7 +927,7 @@ the module, the declaration and the extension:
 2. A descriptor providing a module no contract defines:
 
    ```text
-   error: extension `postgres-native` provides module `postgres`,
+   error: extension `hql-ext-postgres` provides module `postgres`,
    but no HQL contract for `postgres` was found
    ```
 
@@ -932,11 +983,11 @@ package postgres
 │       ├── query.hql
 │       └── types.hql
 └── extension
-    └── postgres-native    // descriptor + implementation
+    └── hql-ext-postgres    // descriptor + implementation
 ```
 
 Discovery finds `postgres`, `postgres.query` and `postgres.types` as contracts
-and `postgres-native` as an extension; binding makes them resolved modules.
+and `hql-ext-postgres` as an extension; binding makes them resolved modules.
 `prelude.hql` is not a module; it runs when the extension loads and its
 imports join the implicit import list.
 
@@ -961,13 +1012,20 @@ program that imports it is type-checked against it.
 ```text
 module       canonical HQL name       postgres.query
 package      distribution unit        hql-ext-postgres
-extension    implementation unit      postgres-native
+extension    implementation unit      hql-ext-postgres
 ```
 
 One extension may implement several modules. One module is implemented by one
-extension. One package may carry several modules and one or more extensions.
-None of the three is inferred from another's name; the package's metadata
-relates them.
+extension. One package may carry several modules and carries one extension,
+named as the package is. It carries more only when parts of it are enabled or
+loaded independently: a part compiled out of some builds, or a part reaching
+the process by another transport than the rest. How the extension's Rust code
+is split into crates or source modules is never a reason for a second one.
+
+An extension is **internal** when its package is builtin, under `lib/`, and
+its code compiled into the binary; **external** when its package is installed
+on its own, typically as a Cargo crate. A module name is not inferred from the
+package's name; the package's metadata relates them.
 
 The split has precedent outside the host language: a Python stub file states a
 native extension module's interface without its implementation, and a Lua
@@ -1149,8 +1207,8 @@ from which the effective `ModuleRegistry` can be constructed.
 
 5. **Extension descriptors**
    - `id`, `abi`, `provides`;
-   - the descriptors of the compiled-in extensions, grouped as `std-core`,
-     `std-io` and the rest;
+   - the descriptors of the internal extensions, one per builtin package:
+     `std` and `search`;
    - registration of implementations against declaration identities.
 
 6. **Module registry**

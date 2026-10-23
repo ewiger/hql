@@ -1,12 +1,13 @@
 // Network endpoints: transports, read and written by source, tap, target and
-// sink like any other endpoint (module `io`). Provided by the `net` extension,
-// which a program imports: `import net`.
+// sink like any other endpoint (module `io`). Provided by the `std` extension;
+// a program imports the module: `import net`.
 //
 // See doc/proposals/HQL-0021/README.md.
 //
 // Constructing one sends nothing. The request a program describes happens
 // when a source, tap, target or sink uses it, and only if the host grants the
 // network to that program.
+module io.net
 import core
 import io
 
@@ -34,7 +35,7 @@ type Socket : {Readable, Writable} {
     port : Int
 }
 
-// Constructors, provided by the `net` extension; each is Pure:
+// Constructors, provided by the `std` extension; each is Pure:
 // http(url: String, method: String = "GET", headers: Data = {:}) : Http
 // websocket(url: String) : WebSocket
 // socket(host: String, port: Int) : Socket

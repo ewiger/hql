@@ -22,6 +22,7 @@ pub(crate) static STEPS: &[Operation] = &[
         eval_fmt,
     ),
     declared("length", "How many characters the text has.", eval_length),
+    declared("size", "How many characters the text has.", eval_size),
     declared("upper", "The text in upper case.", eval_upper),
     declared("lower", "The text in lower case.", eval_lower),
     declared(
@@ -375,6 +376,7 @@ macro_rules! unary {
 
 unary! {
     eval_length => "length", |s| Value::Int(i64::try_from(s.chars().count()).unwrap_or(i64::MAX));
+    eval_size => "size", |s| Value::Int(i64::try_from(s.chars().count()).unwrap_or(i64::MAX));
     eval_upper => "upper", |s| text(&s.to_uppercase());
     eval_lower => "lower", |s| text(&s.to_lowercase());
     eval_trim => "trim", |s| text(s.trim());

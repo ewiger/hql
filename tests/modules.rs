@@ -38,6 +38,7 @@ fn shown(files: &[(&str, &str)], program: &str) -> String {
 }
 
 const HELPERS: &str = "\
+module m
 private fn twice(n: Int) : Int = n * 2
 fn quadruple(n: Int) : Int = twice(twice(n))
 limit = 10
@@ -60,7 +61,7 @@ fn a_private_function_is_used_inside_its_module_and_reached_by_no_importer() {
 fn a_private_receiver_function_joins_no_importers_receiver_lookup() {
     let files = [(
         "text.hql",
-        "module for String\n\
+        "module text for String\n\
          private fn yell(self) : String = self.upper()\n\
          fn shout(self) : String = fmt(\"{}!\", self.yell())\n",
     )];
@@ -73,14 +74,14 @@ fn a_private_receiver_function_joins_no_importers_receiver_lookup() {
 fn a_private_type_is_named_by_no_importer_and_no_public_signature() {
     let files = [(
         "shapes.hql",
-        "private type Point { x : Int, y : Int }\n\
+        "module shapes\nprivate type Point { x : Int, y : Int }\n\
          fn norm1(x: Int, y: Int) : Int = sum_of(Point(x = x, y = y))\n\
          private fn sum_of(p: Point) : Int = p.x + p.y\n",
     )];
     assert!(refused(&files, "import shapes\nshapes.norm1(1, 2)").contains("not bound"));
     let files = [(
         "shapes.hql",
-        "private type Point { x : Int, y : Int }\n\
+        "module shapes\nprivate type Point { x : Int, y : Int }\n\
          private fn sum_of(p: Point) : Int = p.x + p.y\n\
          fn norm1(x: Int, y: Int) : Int = sum_of(Point(x = x, y = y))\n",
     )];
@@ -94,10 +95,10 @@ fn a_private_type_is_named_by_no_importer_and_no_public_signature() {
             .contains("private to the module `shapes`")
     );
     for leaking in [
-        "private type Point { x : Int }\nfn origin() : Point = Point(x = 0)\n",
-        "private type Point { x : Int }\nfn x_of(p: Point) : Int = p.x\n",
-        "private type Point { x : Int }\ntype Line { from : Point, to : Point }\n",
-        "private trait Shape { fn area(self) : Float }\nfn big<T : Shape>(s: T) : Bool = true\n",
+        "module leak\nprivate type Point { x : Int }\nfn origin() : Point = Point(x = 0)\n",
+        "module leak\nprivate type Point { x : Int }\nfn x_of(p: Point) : Int = p.x\n",
+        "module leak\nprivate type Point { x : Int }\ntype Line { from : Point, to : Point }\n",
+        "module leak\nprivate trait Shape { fn area(self) : Float }\nfn big<T : Shape>(s: T) : Bool = true\n",
     ] {
         let files = [("leak.hql", leaking)];
         let message = refused(&files, "import leak\n1");
@@ -112,7 +113,7 @@ fn a_private_type_is_named_by_no_importer_and_no_public_signature() {
 fn a_private_trait_is_not_exported() {
     let files = [(
         "sized.hql",
-        "private trait Sized { fn width(self) : Int }\n\
+        "module sized\nprivate trait Sized { fn width(self) : Int }\n\
          type Box { w : Int }\n\
          impl Sized for Box { fn width(self) : Int = self.w }\n\
          fn box_width(b: Box) : Int = b.width()\n",
@@ -148,7 +149,7 @@ fn private_is_refused_on_an_impl_and_in_the_program_module() {
 
 #[test]
 fn internal_is_reserved() {
-    let files = [("m.hql", "internal fn f() : Int = 1\n")];
+    let files = [("m.hql", "module m\ninternal fn f() : Int = 1\n")];
     let message = refused(&files, "import m\n1");
     assert!(message.contains("`internal` is reserved"), "{message}");
 }
@@ -158,9 +159,9 @@ fn a_module_sees_no_host_binding() {
     let vault_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/vault");
     let root = tempfile::tempdir().unwrap();
     for (name, source) in [
-        ("reads_cards.hql", "fn count() : Int = cards | size\n"),
-        ("reads_vault.hql", "fn named() : String = vault.name\n"),
-        ("reads_stdin.hql", "fn line() : String = stdin | first\n"),
+        ("reads_cards.hql", "module reads_cards\nfn count() : Int = cards | size\n"),
+        ("reads_vault.hql", "module reads_vault\nfn named() : String = vault.name\n"),
+        ("reads_stdin.hql", "module reads_stdin\nfn line() : String = stdin | first\n"),
     ] {
         std::fs::write(root.path().join(name), source).unwrap();
     }
@@ -188,14 +189,14 @@ fn an_import_is_visible_in_the_importing_unit_only() {
     // module does not see it.
     let files = [(
         "words.hql",
-        "fn has_digit(s: String) : Bool = regex.is_match(s, \"[0-9]\")\n",
+        "module words\nfn has_digit(s: String) : Bool = regex.is_match(s, \"[0-9]\")\n",
     )];
     let message = refused(&files, "import regex\nimport words\n1");
     assert!(message.contains("regex"), "{message}");
     // A module's own import is its own: the program does not see it.
     let files = [(
         "words.hql",
-        "import regex\nfn has_digit(s: String) : Bool = regex.is_match(s, \"[0-9]\")\n",
+        "module words\nimport regex\nfn has_digit(s: String) : Bool = regex.is_match(s, \"[0-9]\")\n",
     )];
     assert_eq!(
         shown(&files, "import words\nwords.has_digit(\"a1\")"),
@@ -209,16 +210,16 @@ fn two_imports_declaring_one_receiver_function_are_ambiguous() {
     let files = [
         (
             "a.hql",
-            "module for String\nfn tidy(self) : String = \"a\"\n",
+            "module a for String\nfn tidy(self) : String = \"a\"\n",
         ),
         (
             "b.hql",
-            "module for String\nfn tidy(self) : String = \"b\"\n",
+            "module b for String\nfn tidy(self) : String = \"b\"\n",
         ),
         // `trim` is the prelude's `string.trim` as well.
         (
             "c.hql",
-            "module for String\nfn trim(self) : String = \"c\"\n",
+            "module c for String\nfn trim(self) : String = \"c\"\n",
         ),
     ];
     let message = refused(&files, "import a\nimport b\n\"x\".tidy()");
@@ -245,11 +246,11 @@ fn a_units_own_declaration_wins_over_an_import_in_every_spelling() {
     let files = [
         (
             "a.hql",
-            "module for String\nfn tidy(self) : String = \"a\"\n",
+            "module a for String\nfn tidy(self) : String = \"a\"\n",
         ),
         (
             "own.hql",
-            "import a\nmodule for String\n\
+            "module own for String\nimport a\n\
              fn tidy(self) : String = \"own\"\n\
              fn both(s: String) : List<String> = [s.tidy(), \" x \".trim()]\n\
              fn trim(self) : String = \"mine\"\n",
@@ -263,11 +264,11 @@ fn a_units_own_declaration_wins_over_an_import_in_every_spelling() {
     let files = [
         (
             "a.hql",
-            "module for String\nfn tidy(self) : String = \"a\"\n",
+            "module a for String\nfn tidy(self) : String = \"a\"\n",
         ),
         (
             "own.hql",
-            "import a\nmodule for String\n\
+            "module own for String\nimport a\n\
              fn tidy(self) : String = \"own\"\n\
              fn trim(self) : String = \"mine\"\n\
              fn both(s: String) : List<String> = [s.tidy(), \" x \".trim(), a.tidy(s)]\n",
@@ -295,9 +296,9 @@ fn a_units_own_declaration_wins_over_an_import_in_every_spelling() {
 #[test]
 fn the_import_graph_is_acyclic() {
     let files = [
-        ("a.hql", "import b\nfn f() : Int = 1\n"),
-        ("b.hql", "import c\nfn g() : Int = 1\n"),
-        ("c.hql", "import a\nfn h() : Int = 1\n"),
+        ("a.hql", "module a\nimport b\nfn f() : Int = 1\n"),
+        ("b.hql", "module b\nimport c\nfn g() : Int = 1\n"),
+        ("c.hql", "module c\nimport a\nfn h() : Int = 1\n"),
     ];
     let message = refused(&files, "import a\n1");
     assert!(
@@ -309,10 +310,10 @@ fn the_import_graph_is_acyclic() {
 #[test]
 fn a_parent_importing_its_child_is_warned_and_still_runs() {
     let files = [
-        ("shapes/circle.hql", "fn area(r: Int) : Int = 3 * r * r\n"),
+        ("shapes/circle.hql", "module shapes.circle\nfn area(r: Int) : Int = 3 * r * r\n"),
         (
             "shapes/mod.hql",
-            "import shapes.circle\nfn unit_area() : Int = circle.area(1)\n",
+            "module shapes\nimport shapes.circle\nfn unit_area() : Int = circle.area(1)\n",
         ),
     ];
     let (_root, vault) = workspace(&files);
@@ -327,13 +328,53 @@ fn a_parent_importing_its_child_is_warned_and_still_runs() {
     );
     // A child importing its parent is the direction the tree allows.
     let files = [
-        ("shapes/mod.hql", "fn unit() : Int = 1\n"),
+        ("shapes/mod.hql", "module shapes\nfn unit() : Int = 1\n"),
         (
             "shapes/circle.hql",
-            "import shapes\nfn area(r: Int) : Int = 3 * r * r * shapes.unit()\n",
+            "module shapes.circle\nimport shapes\nfn area(r: Int) : Int = 3 * r * r * shapes.unit()\n",
         ),
     ];
     let (_root, vault) = workspace(&files);
     let outcome = run("import shapes.circle\ncircle.area(1)", &vault, Mode::Strict);
     assert!(outcome.reports.is_empty(), "{:?}", outcome.reports);
+}
+
+#[test]
+fn a_module_file_opens_with_the_name_its_position_gives() {
+    let program = "import shapes.circle\ncircle.area(1)";
+    assert_eq!(
+        shown(
+            &[(
+                "shapes/circle.hql",
+                "// comments may come first\nmodule shapes.circle\nfn area(r: Int) : Int = 3 * r * r\n",
+            )],
+            program,
+        ),
+        "3"
+    );
+    for (source, expected) in [
+        (
+            "fn area(r: Int) : Int = 3 * r * r\n",
+            "write `module shapes.circle`",
+        ),
+        (
+            "module circle\nfn area(r: Int) : Int = 3 * r * r\n",
+            "`module circle` names another module: this file is the module `shapes.circle`",
+        ),
+        (
+            "import math\nmodule shapes.circle\nfn area(r: Int) : Int = 3 * r * r\n",
+            "before any other statement",
+        ),
+        (
+            "module shapes.circle\nmodule shapes.circle\nfn area(r: Int) : Int = 3 * r * r\n",
+            "declares its name once",
+        ),
+        (
+            "module for String\nfn area(r: Int) : Int = 3 * r * r\n",
+            "`module string for String`",
+        ),
+    ] {
+        let message = refused(&[("shapes/circle.hql", source)], program);
+        assert!(message.contains(expected), "{source}: {message}");
+    }
 }

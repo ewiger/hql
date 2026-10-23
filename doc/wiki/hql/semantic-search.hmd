@@ -18,8 +18,8 @@ cards
 | Graph
 ```
 
-A retrieval is written out because it is an extension capability rather than the
-core's business — see [[hql/extensions]].
+A retrieval is written out because it is a module of the `search` package rather
+than the core's business — see [[hql/extensions]].
 
 It has a vocabulary of its own but mints no node type and no edge type, so it is
 not a peer domain in the sense [[type-system]] uses: nothing in it is anyone's
@@ -91,7 +91,7 @@ to a query under one model. That is why **`retrieval` is not optional on
 | | A rank | exists only relative to a query and a corpus |
 
 A card has an embedding whether or not anyone ever searches; it has no score
-until someone asks something. A retrieval extension contributes under a key
+until someone asks something. A retrieval module contributes under a key
 named after itself — the matcher writes `metadata.lexical` — because two
 retrievals cannot both be "the" search, and a key either of them could claim is
 one they would take turns overwriting. See [[fields]] and [[card-type]].
@@ -132,7 +132,7 @@ rather than scoring quietly.
 
 ## What is built
 
-Two retrievals, each an extension and each honestly named. [[lexical]] matches
+Two retrievals, each a module of the `search` package and each honestly named. [[lexical]] matches
 shared spellings with `hql.hashbag.v1`, a hashed bag of words compared by
 cosine, offline, deterministic and exact, reporting `approximate: false`. It
 models no meaning and its name no longer claims to.

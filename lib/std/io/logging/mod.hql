@@ -1,5 +1,5 @@
 // Logging: structured events written to a sink, apart from the result.
-// Provided by the `logging` extension, which a program imports:
+// Provided by the `std` extension; a program imports the module:
 // `import logging`.
 //
 // See doc/proposals/HQL-0021/README.md.
@@ -8,6 +8,7 @@
 // sink would write it (module `io`): stderr or a file in a format, a network
 // endpoint, or a Channel<LogEvent> that keeps the events as values for the
 // host.
+module io.logging
 import core
 import io
 
@@ -39,7 +40,7 @@ type Logger {
     level : LogLevel   // the least severe level it writes
 }
 
-// Construction, and the five operations, provided by the `logging` extension.
+// Construction, and the five operations, provided by the `std` extension.
 // Construction is pure; each operation is effectful, returns Unit, and writes
 // one event when its level is at least the logger's threshold. The format
 // is omitted for a Channel<LogEvent>, which takes the events as values, and

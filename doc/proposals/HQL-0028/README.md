@@ -173,7 +173,7 @@ A declaration inside a module is public unless it is marked.
   implements it, and only its visibility differs. Visibility MUST be decided
   by the contract, never by the extension's table of operations, so a private
   native operation is reachable neither as a pipeline step nor by name.
-- `private` is recognized by position, as `type` and `module for` are, so no
+- `private` is recognized by position, as `type` and `module` are, so no
   identifier is reserved.
 
 ### `internal` is reserved

@@ -675,7 +675,7 @@ struct Checker<'a> {
     /// Whether this unit is a module file: declarations only, and a receiver
     /// pattern allowed.
     module_file: bool,
-    /// The receiver pattern of a `module for T` file.
+    /// The receiver pattern of a `module a.b for T` file.
     receiver: Option<TypeRef>,
     /// The pattern's type variables, in scope for the whole module file.
     pattern_variables: Option<crate::declarations::TypeVariables>,
@@ -685,7 +685,7 @@ struct Checker<'a> {
     /// The external declarations of this unit: signatures an extension
     /// implements, bound to nothing here.
     externals: HashMap<String, TypeRef>,
-    /// This unit's own receiver functions, `fn f(self)` under `module for T`.
+    /// This unit's own receiver functions, `fn f(self)` under `module a.b for T`.
     own_receivers: Vec<(String, TypeRef)>,
     /// This unit's own functions that take no `self`: a receiver call of one
     /// of their names never reaches an import's.
@@ -1428,7 +1428,7 @@ impl<'a> Checker<'a> {
     }
 
     fn statement(&mut self, statement: &'a Stmt) -> Result<TypeRef, Diagnostic> {
-        if !matches!(statement, Stmt::Import { .. } | Stmt::ModuleFor { .. }) {
+        if !matches!(statement, Stmt::Import { .. } | Stmt::Module { .. }) {
             self.seen_body = true;
         }
         if let Some(marker) = statement.private()
@@ -1566,12 +1566,21 @@ impl<'a> Checker<'a> {
                     }
                     TypeRef::UNIT
                 }
-                Stmt::ModuleFor { pattern, span } => {
-                    // The receiver pattern of the declarations that follow. A
-                    // module file opens with it; the standard library's
-                    // modules, checked one after another, each open their own.
+                Stmt::Module { pattern, span, .. } => {
+                    // The name is held to the file's position where the file
+                    // is loaded as a module; checked on its own, a module
+                    // file has no position to hold it to.
+                    self.pattern_variables = None;
+                    self.own_receivers.clear();
+                    self.receiver = None;
+                    // The receiver pattern of the declarations that follow. The
+                    // standard library's modules, checked one after another,
+                    // each open their own declaration.
                     // A pattern is concrete or structural, never a bare
                     // variable: that would need coherence rules not written.
+                    let Some(pattern) = pattern else {
+                        return Ok(TypeRef::UNIT);
+                    };
                     if pattern.arguments.is_empty()
                         && pattern.name.len() == 1
                         && crate::types::builtin::constructor(&pattern.name).is_none()
@@ -1579,14 +1588,12 @@ impl<'a> Checker<'a> {
                         return Err(Diagnostic::typing(
                             span.clone(),
                             format!(
-                                "`module for {}` matches every type; a receiver pattern is a \
-                                 type or a constructor over variables, `Seq<T>`",
+                                "the receiver pattern `{}` matches every type; a receiver \
+                                 pattern is a type or a constructor over variables, `Seq<T>`",
                                 pattern.name
                             ),
                         ));
                     }
-                    self.pattern_variables = None;
-                    self.own_receivers.clear();
                     // A one-letter argument that names no type is a pattern
                     // variable, bound per call: `Seq<T>`.
                     let variables: Vec<(String, TypeRef)> = pattern
@@ -2227,7 +2234,7 @@ impl<'a> Checker<'a> {
                     declaration.span.clone(),
                     format!(
                         "`{}` takes `self`, which only a receiver module declares: open the \
-                         module file with `module for T`",
+                         module file with `module <name> for T`",
                         declaration.name
                     ),
                 ));
@@ -3039,7 +3046,7 @@ impl<'a> Checker<'a> {
                     declaration.span.clone(),
                     format!(
                         "`{}` takes `self`, which only a receiver module declares: open the \
-                         module file with `module for T`",
+                         module file with `module <name> for T`",
                         declaration.name
                     ),
                 ));
@@ -3243,6 +3250,8 @@ impl<'a> Checker<'a> {
             )
         };
         let program = crate::parser::parse(&source).map_err(inside)?;
+        crate::modules::declared(&program, name)
+            .map_err(|(at, message)| inside(Diagnostic::name(at, message)))?;
         self.loading
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)

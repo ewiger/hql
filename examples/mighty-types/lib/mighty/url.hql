@@ -1,7 +1,7 @@
 // Module `mighty.url`: a receiver module over String whose contract is one
 // function and one binding. `words` is `private`: the module's own `slug`
 // calls it, and no importer reaches it, by name or as `value.words()`.
-module for String
+module mighty.url for String
 
 separator = "-"
 

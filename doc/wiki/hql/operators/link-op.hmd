@@ -141,7 +141,7 @@ same reason the header is `Data` rather than a declared record.
 
 ## The graph model behind it
 
-The edge types belong to the graph extension, not to the core:
+The edge types belong to the `graph` module, not to the core:
 
 ```hql
 type Edge<S, T> {

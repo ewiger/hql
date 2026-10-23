@@ -67,7 +67,7 @@ The declaration has one shape. Where it is placed determines how it is reached.
 | Placement | What it is | Reached as |
 | --- | --- | --- |
 | a program or a module | a function | `f(x)`, `x \| f`, `module.f(x)` |
-| a receiver module, `module for T`, with first parameter `self` | a receiver function | `x.f()`, also `module.f(x)` |
+| a receiver module, `module m for T`, with first parameter `self` | a receiver function | `x.f()`, also `module.f(x)` |
 | a `trait`, without a body | a required function | through an implementation |
 | a `trait`, with a body | a default body | inherited by each implementation that does not supply it |
 | an `impl`, or a module implementing a trait ([HQL-0039](../HQL-0039/README.md)) | an implementation function | `x.f()` and the trait's operator |

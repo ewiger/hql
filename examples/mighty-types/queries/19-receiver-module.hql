@@ -6,7 +6,7 @@
 // expected-type: List<String>
 // expected-json: ["HELLO WORLD!","al","true","HI!"]
 
-// `mighty.text` opens with `module for String`, so once imported its
+// `mighty.text` opens with `module mighty.text for String`, so once imported its
 // functions with `self` resolve as `value.f()`; `text.shout("hi")` is the
 // qualified spelling of the same declaration. `is_blank` is declared by
 // `mighty.text` and by the prelude's `string` too, so `"   ".is_blank()` is

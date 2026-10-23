@@ -2,11 +2,12 @@
 // or a Float, and `abs` and `sign` a Decimal too; `float`, `int` and
 // `decimal` convert between the three, since nothing widens on its own but
 // an Int beside a Decimal; `round` takes a Float or a Decimal, and the rest
-// take a Float. Every declaration is external: the `math` extension
+// take a Float. Every declaration is external: the `std` extension
 // implements it.
 //
 // See doc/proposals/HQL-0024/parts/03-standard-library.md and
 // doc/proposals/HQL-0031/README.md.
+module math
 import core
 
 fn abs(self: Int) : Int

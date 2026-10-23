@@ -1,11 +1,14 @@
 // Module `string`: the functions of a String, in the prelude. A receiver
 // module: each function takes `self`, so `s.trim()`, `string.trim(s)` and
 // `s | trim` are one declaration. Every declaration here is external: the
-// `string` extension implements it, and a test holds the two to each other.
+// `std` extension implements it, and a test holds the two to each other.
+//
+// A String is a sequence of Unicode scalar values held as UTF-8, whatever
+// encoding its text was read from. Positions and size count code points.
 //
 // See doc/proposals/HQL-0024/parts/03-standard-library.md and
 // 04-receiver-modules.md.
-module for String
+module string for String
 import core
 
 // The text a value prints as, and a template filled with the text of each
@@ -16,6 +19,8 @@ fn str<T>(self: T) : String
 fn fmt(self, args: ...Any) : String
 
 fn length(self) : Int
+// The alias of length.
+fn size(self) : Int
 fn upper(self) : String
 fn lower(self) : String
 fn trim(self) : String

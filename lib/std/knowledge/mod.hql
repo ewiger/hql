@@ -2,6 +2,7 @@
 // claim. Every declaration is a type; the module declares no operation.
 //
 // See doc/models/domain/knowledge.md and doc/wiki/hql/knowledge.hmd.
+module knowledge
 import core
 import doc
 import graph
