@@ -110,4 +110,4 @@ without `otherwise`. `Result` arms wait for `Result`, and the type arm of
 a `Data` leaf with that value. See [[option-type]] for absence,
 [optional fields and optional values](../../../models/behavior/options-in-types-and-fields.md)
 for `Option` and `Result` and their operations, and
-[[error-reporting]] for the errors that are not values at all.
+[[error-handling]] for the errors that are not values at all.

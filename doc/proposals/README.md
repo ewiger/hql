@@ -24,7 +24,7 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0014](HQL-0014/README.md) | implemented | `reduce` as the aggregation primitive, and `merge` as a combiner |
 | [HQL-0015](HQL-0015/README.md) | implemented | `:=` is function alias syntax sugar |
 | [HQL-0016](HQL-0016/README.md) | implemented | Type tests, narrowing, widening and conversion |
-| [HQL-0017](HQL-0017/README.md) | accepted, implemented in part | Presentation formats |
+| [HQL-0017](HQL-0017/README.md) | accepted, implemented in part; one rule superseded by [HQL-0024](HQL-0024/README.md) | Presentation formats |
 | [HQL-0018](HQL-0018/README.md) | implemented | A type's constructor is an operation |
 | [HQL-0019](HQL-0019/README.md) | accepted | Graph construction |
 | [HQL-0020](HQL-0020/README.md) | accepted, implemented in part | The vault and its namespace |
@@ -32,15 +32,15 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | HQL-0022 | reserved | The AI harness extension |
 | [HQL-0023](HQL-0023/README.md) | implemented | A document reference is written `@[[..]]` |
 | [HQL-0024](HQL-0024/README.md) | accepted, implemented in part | A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions |
-| [HQL-0025](HQL-0025/README.md) | drafted | Execution contexts and running modes: bare, HQL workspace and vault workspace, configuration layers, named contexts |
+| [HQL-0025](HQL-0025/README.md) | drafted | Execution contexts and running modes |
 | [HQL-0026](HQL-0026/README.md) | implemented | Positions and slices: `xs[i]`, `xs[a:b]` and the `Slice` capability |
 | [HQL-0027](HQL-0027/README.md) | implemented | Generic traits: type parameters on `trait` and `impl` |
-| [HQL-0028](HQL-0028/README.md) | implemented | Import units, the program module and declaration visibility |
+| [HQL-0028](HQL-0028/README.md) | implemented, with `internal` reserved | Import units, the program module and declaration visibility |
 | [HQL-0029](HQL-0029/README.md) | implemented | Braces: `{}` is the empty set, `{:}` the empty Data |
 | [HQL-0030](HQL-0030/README.md) | superseded by [HQL-0032](HQL-0032/README.md) | Supplementary ADR: Structural Types, Open Data Views, Type Contracts, and Data Contracts |
 | [HQL-0031](HQL-0031/README.md) | accepted, implemented | `Decimal`, an exact decimal number type |
-
 | [HQL-0032](HQL-0032/README.md) | proposed, implemented in part | Data Validation with `TypeContract` and `DataContract` |
-| [HQL-0033](HQL-0033/README.md) | accepted, implemented in part | Errors as values and error handling |
+| [HQL-0033](HQL-0033/README.md) | accepted, implemented in part; revision drafted | Errors as values — handling, routing, splitting, retry and replay |
 | [HQL-0034](HQL-0034/README.md) | drafted | Validator types |
-| [HQL-0035](HQL-0035/README.md) | drafted | The schema boundary of a configured source or target |
+| [HQL-0035](HQL-0035/README.md) | proposed | The schema boundary of a configured source or target |
+| [HQL-0036](HQL-0036/README.md) | proposed | Partitioning, shuffle boundaries and execution scheduling |

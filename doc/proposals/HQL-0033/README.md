@@ -1,309 +1,2046 @@
-# HQL-0033: Errors as values and error handling
+# HQL-0033: Errors as values — handling, routing, splitting, retry and replay
 
-**Status**: accepted, implemented in part
-**Created**: 2026-10-23
-**Source**: [HQL-0032](../HQL-0032/README.md), which leaves the form of a
-validation result and of a diagnostic to this record; tracked by
-[issue 0043](../../issues/0043-contract-validation.md)
+**Status:** draft revision of accepted HQL-0033  
+**Created:** 2026-10-23  
+**Related:** HQL-0032 (`TypeContract`, `DataContract`), HQL-0010 (`tee`), HQL-0021 (sources, sinks, channels and messages), HQL-0036 (`partition`)
 
 ## Abstract
 
-An error in HQL is a value. A computation that can fail returns
-`Result<T, E>`, and its failure `E` is a declared type. HQL has no `try`, no
-`catch` and no exception: a failure travels as an `err(e)` through the same
-pipelines, `match` arms and operations as any other value, and a program says
-what happens to it by the steps it writes. Validation is the first producer.
-`validate(T)` reads a value through a contract and gives
-`Result<T, Invalid>`, where `Invalid` and each `Violation` in it are
-`DataContract` values that the standard library declares. Because they are
-data, a failure formats as `Json`, `Text` or any other format, and it is
-written to a stream like any other message: a channel, a file, or a log
-topic. The runtime error that `x | T` raises today remains as the fail-fast
-form. It is the one failure a program does not handle.
+Recoverable errors in HQL are values.
 
-## Motivation
-
-Today `data | T` either gives a `T` or stops the program with a message that
-names every mismatch. That message is text. A program cannot read it, route
-it or count it. HQL-0032 asks for structured diagnostics, error
-accumulation, severity, rule identity and stream policies. All of them need
-the failure to be a value with a declared shape.
-
-- A pipeline over a stream must keep going past one bad record, and the
-  record and the reason must go somewhere a consumer can read them.
-- An IDE, a log and a metrics step need the path, the rule and the value
-  that broke it as fields, not as a sentence to parse.
-- HQL already has `Result<T, E>` with `ok` and `err` as constructors and
-  patterns, and `map`, `map_err`, `and_then`, `or_else` and `unwrap_or` over
-  it (see [the result example](../../../examples/mighty-types/queries/08-result.hql)).
-  Error handling is completed by building on it, not by adding a second
-  mechanism beside it.
-
-## Non-goals
-
-- Exceptions, `try`/`catch`, or any control flow that skips steps of a
-  pipeline. A failure is never thrown.
-- An `unwrap`. The `result` module's rule stands: every way out of a
-  `Result` says what a failure means.
-- Dataset-level constraints, contract versioning and migrations, which stay
-  with HQL-0032.
-
-## Specification
-
-### 1. Two kinds of failure
-
-HQL distinguishes the failure a program handles from the one that stops it.
-
-- A **recoverable** failure MUST be a value: an `err(e)` of a
-  `Result<T, E>`, with `E` a declared type. Every standard operation whose
-  failure depends on its input data (decoding, interpretation, contract
-  validation, parsing) MUST have a form that returns a `Result`.
-- An **unrecoverable** failure stops evaluation with a diagnostic and has no
-  value: a broken invariant of the runtime, an exhausted resource, or a step
-  written to fail fast. A program MUST NOT be able to intercept one. A program
-  that wants to handle a failure uses the `Result` form instead.
-- `x | T` stays the fail-fast form: where `x` does not read as `T` or breaks
-  one of `T`'s rules, evaluation stops with a diagnostic that lists every
-  violation. `x | validate(T)` is the same reading with the failure returned.
-
-The split keeps every handled failure visible in the types. A `Result` in a
-signature is the whole statement that something can fail.
-
-### 2. `validate(T)`
-
-`validate` reads a value through a declared type and returns the outcome.
+A fallible computation returns:
 
 ```hql
-fn validate<T>(self: Data, contract: Type<T>) : Result<T, Invalid>
+Result<T, E>
 ```
 
-- Over a collection or a stream it is elementwise. `Seq<Data> | validate(T)`
-  is a `Seq<Result<T, Invalid>>`, and a `Stream` stays a `Stream`.
-- It follows HQL-0032's evaluation phases: structural reading, defaults,
-  field rules, logical rules, cross-field rules. It MUST collect every
-  violation of one value in one pass and MUST NOT stop at the first.
-- `T` may be any record type. A plain record has only structural
-  violations, and a contract adds the violations of its rules.
-- `ValidationResult<T>`, the name HQL-0032 uses, is `Result<T, Invalid>`.
-  No separate type is declared.
+rather than throwing an exception.
 
-`validate` the operation and `validate` the rule keyword do not collide. The
-keyword is read only inside a contract body, at the head of a rule.
-
-### 3. `Violation` and `Invalid`
-
-The standard library declares the shape of a failure as a `DataContract`.
-Every producer of validation failures uses these types.
+Validation is the canonical example:
 
 ```hql
-// One reason a value is not a T.
+validate(UserData)
+    : Data -> Result<UserData, Invalid>
+```
+
+For collections and streams, validation is elementwise:
+
+```text
+List<Data>
+    -> List<Result<UserData, Invalid>>
+
+Stream<Data>
+    -> Stream<Result<UserData, Invalid>>
+```
+
+`Invalid` is an ordinary open `DataContract`. It contains the original rejected `Data` and the structured `Violation` values explaining why that data did not satisfy the requested contract.
+
+A program may:
+
+- transform either side of a `Result`;
+- retain only successes with `oks()`;
+- retain only errors with `errs()`;
+- separate both sides once with `split()`;
+- write either stream to an ordinary sink;
+- flatten individual violations when violation-level processing is required;
+- retry a fallible operation when repeating that operation can reasonably succeed;
+- write exhausted operational failures to a dead-letter endpoint;
+- replay rejected or dead-lettered values through another ordinary pipeline.
+
+There is no special exception channel.
+
+Error flows are normal typed dataflows.
+
+---
+
+# 1. Goals
+
+This ADR defines a coherent model for:
+
+- recoverable failures as values;
+- validation results;
+- `Invalid` and `Violation`;
+- handling a single `Result`;
+- handling collections and streams of results;
+- `oks()` and `errs()`;
+- algebraic splitting with `split()`;
+- the relation between `split`, `tee` and `partition`;
+- rejected-record and dead-letter patterns;
+- processing individual violations;
+- retry and replay;
+- error provenance through `Message<T>`;
+- high-level pipeline syntax for several common ETL patterns.
+
+The intent is that a pipeline graph remains visible in the program.
+
+Routing errors should not require hidden exception control flow or configuration attached to `DataContract`.
+
+---
+
+# 2. Non-goals
+
+This ADR does not define:
+
+- exceptions;
+- `try` / `catch`;
+- implicit skipping of failed pipeline steps;
+- broker-specific retry topics;
+- exactly-once delivery;
+- transaction semantics of sinks;
+- distributed checkpoint protocols;
+- automatic repair of invalid data;
+- dataset-wide validation constraints;
+- physical stream partitioning.
+
+`partition` and physical execution scheduling are specified separately.
+
+---
+
+# 3. Two kinds of failure
+
+HQL distinguishes recoverable failures from evaluation failures.
+
+## 3.1 Recoverable failure
+
+A recoverable failure is a value:
+
+```hql
+Result<T, E>
+```
+
+with:
+
+```text
+ok(T)
+err(E)
+```
+
+The possibility of failure is visible in the type.
+
+Operations whose failure is an expected consequence of their input SHOULD provide a `Result` form.
+
+Examples include:
+
+```text
+decoding
+parsing
+contract validation
+external enrichment
+recoverable conversion
+```
+
+## 3.2 Unrecoverable failure
+
+An unrecoverable failure stops evaluation.
+
+Examples include:
+
+```text
+broken runtime invariant
+resource exhaustion
+forbidden effect
+explicit fail-fast operation
+```
+
+Such a failure is not represented as `err(E)` and cannot be intercepted by normal HQL code.
+
+A program that wants to handle an expected failure uses a `Result`-producing operation.
+
+---
+
+# 4. Validation
+
+`validate` is fundamentally a scalar operation.
+
+Conceptually:
+
+```hql
+fn validate<T>(
+    self: Data,
+    contract: Type<T>
+) : Result<T, Invalid>
+```
+
+For:
+
+```hql
+data
+| validate(UserData)
+```
+
+the result is:
+
+```hql
+Result<UserData, Invalid>
+```
+
+Conceptually:
+
+```text
+Data
+ |
+ validate(UserData)
+ |
+ +── ok(UserData)
+ |
+ └── err(Invalid)
+```
+
+There is no split yet.
+
+The value flowing through the pipeline is one `Result`.
+
+---
+
+# 5. Elementwise validation
+
+The collection shape is preserved.
+
+```hql
+List<Data>
+| validate(UserData)
+```
+
+has the conceptual type:
+
+```hql
+List<Result<UserData, Invalid>>
+```
+
+and:
+
+```hql
+Stream<Data>
+| validate(UserData)
+```
+
+has:
+
+```hql
+Stream<Result<UserData, Invalid>>
+```
+
+For 10,000 input records with 179 invalid records, the stream conceptually contains:
+
+```text
+9821 × ok(UserData)
+ 179 × err(Invalid)
+```
+
+Each `Invalid` may itself contain multiple violations.
+
+Validation therefore does not create a special validation stream.
+
+It creates ordinary `Result` values inside the existing collection or stream.
+
+---
+
+# 6. `Violation`
+
+A `Violation` describes one reason a value did not satisfy a contract.
+
+The standard library declares it as an open `DataContract`.
+
+```hql
 type Violation : DataContract = {
-    contract: String         // the type read as, "UserData"
-    path: List<String>       // ["profile", "address", "postal_code"]; [] is the value itself
-    kind: String             // "missing", "undeclared", "type" or "rule"
-    rule: String             // the rule's identity, as Rule identity states it
-    text: String             // the rule as written: "require age? >= 0"
-    expected?: String        // "Int", or the rule's condition
-    actual?: Data            // the value found, absent where there is none
+    contract: String
+    path: List<String>
+    kind: String
+    rule: String
+    text: String
+
+    expected?: String
+    actual?: Data
+
     severity: String = "error"
-    message: String          // one sentence, rendered from the fields above
+    message: String
 
-    require kind == "missing" or kind == "undeclared" or kind == "type" or kind == "rule"
-    require severity == "error" or severity == "warning"
+    require kind == "missing"
+         or kind == "undeclared"
+         or kind == "type"
+         or kind == "rule"
+
+    require severity == "error"
+         or severity == "warning"
 }
+```
 
-// A value that did not read as a contract, and every reason why.
+Important properties:
+
+- `path` is structural data, not a preformatted dotted string;
+- `actual` is `Data`, because a mistyped value may by definition not have the expected field type;
+- `rule` provides stable machine-readable identity;
+- `text` retains the rule as written;
+- `message` is intended primarily for display;
+- programs SHOULD use the structured fields rather than parse `message`.
+
+A nested path may therefore be:
+
+```hql
+["profile", "address", "postal_code"]
+```
+
+while a renderer may display:
+
+```text
+profile.address.postal_code
+```
+
+---
+
+# 7. `Invalid`
+
+`Invalid` is the error payload produced when one input value cannot be accepted as the requested contract.
+
+```hql
 type Invalid : DataContract = {
     contract: String
-    value: Data              // the value as read, before defaults
+    value: Data
     violations: List<Violation>
 
     require violations.size() > 0
 }
 ```
 
-- `path` is a list of segments, not a dotted string. A list element is
-  named by its position as text, `"3"`. Rendering a path is the
-  renderer's choice.
-- `actual` is `Data`, because the value that broke a rule need not be of the
-  field's declared type. A `type` violation is exactly that case.
-- `message` is derived from the other fields. Programs SHOULD read the fields
-  and use `message` only for display.
-- The two types are contracts, so their own rules hold for every `Invalid`
-  the runtime produces. They are open, so a later producer MAY add fields
-  (`source`, `position`, `time`) without changing the declaration readers
-  rely on.
+`Invalid` is not:
 
-### 4. Severity
-
-A violation is an `error` or a `warning`.
-
-- An `error` makes the value invalid. `validate` returns `err(Invalid)` when
-  at least one error is found.
-- A `warning` does not invalidate the value. A rule written `warn P`
-  instead of `require P` gives warnings:
-
-  ```hql
-  type UserData : DataContract = {
-      age?: Int
-      require age? >= 0            // an error
-      warn age? < 120 as plausible_age   // a warning
-  }
-  ```
-
-  `x | T` does not stop for a warning, and `validate` gives `ok` for a
-  value whose only violations are warnings. *Placeholder:* the place a
-  valid value's warnings are reported.
-
-### 5. Rule identity
-
-Every violation names the rule it broke by a stable identity.
-
-- A structural violation's identity is its kind and path:
-  `"UserData.age.type"`, `"UserData.id.missing"`,
-  `"Point.z.undeclared"`.
-- A contract rule's identity is `"<Contract>.<name>"`. A rule MAY be named
-  where it is written, `require id != "" as id_present`, and a named rule
-  keeps its identity when its condition is rewritten. An unnamed rule's
-  identity is `"<Contract>.<n>"`, its position among the contract's rules
-  counted from 1. Inserting a rule before it changes that identity. Naming
-  the rule is how a consumer gets an identity that does not change.
-- `validate f with V` is named `"<Contract>.<f>.<V>"` unless named
-  otherwise: `"UserData.country.is_country_code"`.
-- `as name` follows the rule, whatever its keyword: `require P as name`,
-  `warn P as name`, `validate f with V as name`.
-- An inherited rule keeps the identity of the contract that declares it.
-
-`text` keeps the rule exactly as written, so a reader sees what broke without
-looking up the identity.
-
-### 6. Handling a result
-
-A `Result` is handled with the operations it already has, plus two steps
-over collections of results.
-
-```hql
-elementwise fn oks<F<_> : Collection<_>, T, E>(self: F<Result<T, E>>) : F<T>
-elementwise fn errs<F<_> : Collection<_>, T, E>(self: F<Result<T, E>>) : F<E>
+```text
+Invalid<T>
 ```
 
-`oks` and `errs` are to `Result` what `somes` is to `Option`. A program
-chooses its policy for invalid values by the steps it writes. The policies
-HQL-0032 lists are pipelines, not settings. *Placeholder:* how one stream
-is split into its valid and its invalid values, the dead-letter case
-below, is refined with stream policies; the `tee` form shows the intent,
-not the syntax.
+and it is not:
 
+```text
+List<Error>
+```
+
+It is one structured rejected-record value.
+
+For example:
 
 ```hql
-users = source(file("users.jsonl"), Json)
+err({
+    contract: "UserData",
 
-// fail fast: the first invalid value stops the program
-users | UserData
+    value: {
+        id: "4711",
+        name: "Alice",
+        age: "forty-two"
+    },
 
-// skip invalid values
-users | validate(UserData) | oks()
+    violations: [
+        {
+            contract: "UserData",
+            path: ["age"],
+            kind: "type",
+            rule: "UserData.age.type",
+            text: "age: Int",
+            expected: "Int",
+            actual: "forty-two",
+            severity: "error",
+            message: "..."
+        }
+    ]
+})
+```
 
-// dead-letter: invalid values go to a channel, valid ones go on
-users
-| validate(UserData)
-| tee rejected = errs() | sink(Channel<Invalid>("rejected"))
-| oks()
+The distinction is:
 
-// collect: every failure of a finite input, as one list
-users | validate(UserData) | errs() | List
+```text
+Violation
+    one reason why validation failed
 
-// one value, handled in a match
-match d | validate(UserData) {
-    ok(user) => user.name,
-    err(e) => fmt("{} violations of {}", e.violations.size(), e.contract),
+Invalid
+    original rejected value
+    + every violation for that value
+```
+
+`Invalid.value` preserves the input `Data` before defaults are applied.
+
+This is important for repair and replay.
+
+A rejected record does not need to be looked up elsewhere merely to discover what failed.
+
+---
+
+# 8. Why `Invalid` is a `DataContract`
+
+`Invalid` is ordinary typed HQL data.
+
+It is an open `DataContract` because the core fields are stable while producers may attach additional useful information.
+
+The stable core is:
+
+```hql
+invalid.contract
+invalid.value
+invalid.violations
+```
+
+A producer may additionally carry fields such as:
+
+```hql
+{
+    contract: ...,
+    value: ...,
+    violations: ...,
+
+    source: "users.csv",
+    position: 28173,
+    received_at: ...
 }
 ```
 
-A threshold policy, which fails a stream once too large a share of its
-elements is invalid, is a reduction over `errs()` and is specified with
-stream reductions.
+without requiring a separate type such as:
 
-### 7. Errors on a stream
-
-An `Invalid` is an ordinary value. It is written and read as one.
-
-- `format(e, Json)` gives its JSON. `format(e, Text)` gives its `message`
-  lines. `sink(errors, endpoint, Json)` writes one document per failure.
-- A failure written to an endpoint is read back with its contract:
-  `source(file("rejected.jsonl"), Json) | Invalid` reads it, and
-  `| validate(Invalid)` checks it. A consumer in another program relies on
-  the declared shape, not on the producer's code.
-- A `Channel<Invalid>` holds failures in memory for one execution scope. A
-  log endpoint, such as a Kafka topic once HQL-0021 provides one, carries
-  them between programs. In both cases the failure is the message's
-  `value`, and its `key`, `time` and `headers` are those of HQL-0021's
-  `Message<T>`.
-
-A failure is reported by writing it, which makes it a step of the program
-and visible in its effects. Logging a failure is a separate step and does
-not handle it.
-
-### 8. Diagnostics of the fail-fast form
-
-`x | T` and the runtime error it raises carry the same content as an
-`Invalid`.
-
-- The diagnostic MUST list every violation of the value, each with its path
-  and, for a rule, the rule's text as written:
-
-  ```text
-  this does not read as UserData: rule `require age? >= 0` does not hold
-  ```
-- The checker and runtime diagnostics stay text for the terminal and the
-  IDE. Their structured form is the `Invalid` that `validate` would give,
-  and a host MAY attach it.
-
-## Backwards Compatibility
-
-Nothing written today changes meaning. `x | T` keeps failing fast, with the
-same message plus rule violations. `validate`, `oks`, `errs`, `Violation`
-and `Invalid` are new names. `validate` is a function name only outside a
-contract body. A program that binds one of these names shadows it, as with
-any prelude name.
-
-## Reference Implementation
-
-- `std/validation.hql`: `Violation`, `Invalid`, and the declarations of
-  `validate`, `oks` and `errs`, in the prelude.
-- `src/types/value.rs`: the structural mismatches become `Violation` values
-  instead of text.
-- `src/evaluation.rs`: contract rules report `Violation` values, and
-  `validate` wraps the outcome in `ok` or `err`.
-- `examples/structural/`: a case per policy in the handling section, and
-  one that writes failures as JSON lines and reads them back as `Invalid`.
-
-## Test Plan
-
-- One value with a missing field, a mistyped field, an undeclared field and
-  a broken rule gives one `Invalid` with four violations, in declaration
-  order.
-- Each identity form in the rule-identity section, including an inherited
-  rule and a named rule.
-- `oks` and `errs` over a `List`, a `Seq` and a `Stream`, the stream left
-  unforced.
-- An `Invalid` written with `sink(…, Json)` reads back with `| Invalid`.
-- `x | T` reports the same violations as `x | validate(T)`.
-
-```bash
-cargo test --locked --test structural --test corpus
+```text
+InvalidWithSource
+InvalidWithKafkaMetadata
+InvalidWithPosition
 ```
 
-## Changelog
+Infrastructure-specific provenance SHOULD nevertheless remain in `Message<T>` when such an envelope already exists.
 
-- 2026-10-23: proposed
-- 2026-10-23: accepted: two reading modes, `warn P` for a warning, `as name`
-  for a rule's identity; splitting a stream into valid and invalid values
-  stays a placeholder
-- 2026-10-23: implemented in part: `x | validate(T)` over a value, a
-  collection or a stream, `oks` and `errs`, `Violation` and `Invalid` in
-  `std/core.hql` with every violation of a value in one `Invalid`, and the
-  rule identities, `warn` and `as name`. Not built: the rules and the
-  default of `Violation` and `Invalid` themselves, `expected` and `actual`,
-  reading a written failure back with `| Invalid`, and the policies over
-  streams
+---
+
+# 9. Fail-fast interpretation
+
+The existing direct interpretation form remains fail-fast:
+
+```hql
+data | UserData
+```
+
+If the value does not read as `UserData`, evaluation stops with a diagnostic.
+
+The recoverable equivalent is:
+
+```hql
+data | validate(UserData)
+```
+
+which returns:
+
+```hql
+Result<UserData, Invalid>
+```
+
+Both forms SHOULD derive their diagnostic information from the same validation machinery.
+
+The difference is policy:
+
+```text
+x | T
+    failure terminates evaluation
+
+x | validate(T)
+    failure becomes err(Invalid)
+```
+
+---
+
+# 10. Handling one `Result`
+
+A single result may be handled with normal result operations.
+
+For example:
+
+```hql
+result
+| map(user => normalize(user))
+```
+
+maps only the successful payload.
+
+Conceptually:
+
+```text
+ok(UserData)
+    -> ok(NormalizedUser)
+
+err(Invalid)
+    -> err(Invalid)
+```
+
+Likewise:
+
+```hql
+result
+| map_err(e => enrich_error(e))
+```
+
+transforms only the failure payload.
+
+A `match` handles both explicitly:
+
+```hql
+match data | validate(UserData) {
+    ok(user) => user.name,
+    err(e) => fmt(
+        "{} violations of {}",
+        e.violations.size(),
+        e.contract
+    ),
+}
+```
+
+No separate error-control syntax is required.
+
+---
+
+# 11. Mapping results inside streams
+
+For:
+
+```hql
+users
+| validate(UserData)
+```
+
+the type is:
+
+```hql
+Stream<Result<UserData, Invalid>>
+```
+
+An ordinary stream `map` sees each `Result`.
+
+For example:
+
+```hql
+users
+| validate(UserData)
+| map(r =>
+    match r {
+        ok(user) => ok(normalize(user)),
+        err(e) => err(e),
+    }
+)
+```
+
+Conceptually:
+
+```text
+Stream<Result<UserData, Invalid>>
+            |
+            v
+Stream<Result<NormalizedUser, Invalid>>
+```
+
+Equivalently, using `Result.map`:
+
+```hql
+users
+| validate(UserData)
+| map(r => r.map(user => normalize(user)))
+```
+
+The outer `map` operates on stream elements.
+
+The inner `Result.map` operates on the successful alternative.
+
+Likewise:
+
+```hql
+users
+| validate(UserData)
+| map(r => r.map_err(e => annotate(e)))
+```
+
+maps the error alternative without introducing another error mechanism.
+
+---
+
+# 12. `oks()` and `errs()`
+
+Collections of results have two projections.
+
+Conceptually:
+
+```hql
+oks
+    : F<Result<T, E>> -> F<T>
+
+errs
+    : F<Result<T, E>> -> F<E>
+```
+
+`oks()` keeps successful payloads and discards errors:
+
+```hql
+users
+| validate(UserData)
+| oks()
+```
+
+gives:
+
+```hql
+Stream<UserData>
+```
+
+`errs()` keeps failure payloads and discards successful values:
+
+```hql
+users
+| validate(UserData)
+| errs()
+```
+
+gives:
+
+```hql
+Stream<Invalid>
+```
+
+These operations are appropriate when only one side matters.
+
+They are analogous to projecting the `some` values from `Option`.
+
+They are not the preferred form when both sides are needed.
+
+---
+
+# 13. Error granularity
+
+After:
+
+```hql
+users
+| validate(UserData)
+| errs()
+```
+
+the stream contains one `Invalid` per rejected input:
+
+```hql
+Stream<Invalid>
+```
+
+Writing this stream preserves complete rejected records:
+
+```hql
+users
+| validate(UserData)
+| errs()
+| sink(rejected_users)
+```
+
+If one collection of violations per rejected record is required:
+
+```hql
+users
+| validate(UserData)
+| errs()
+| map(e => e.violations)
+```
+
+the type becomes:
+
+```hql
+Stream<List<Violation>>
+```
+
+If each violation should become an independent downstream value:
+
+```hql
+users
+| validate(UserData)
+| errs()
+| flat_map(e => e.violations)
+```
+
+the type becomes:
+
+```hql
+Stream<Violation>
+```
+
+These represent three useful levels:
+
+```text
+Invalid
+    one rejected input
+
+List<Violation>
+    all reasons for one rejected input
+
+Violation
+    one individual reason
+```
+
+Dead-letter or quarantine storage will normally preserve `Invalid`.
+
+Metrics and rule-level analysis will often consume individual `Violation` values.
+
+---
+
+# 14. Why a second operation is needed when both sides matter
+
+This form is valid when only valid records are wanted:
+
+```hql
+users
+| validate(UserData)
+| oks()
+| sink(users_table)
+```
+
+and this form is valid when only errors are wanted:
+
+```hql
+users
+| validate(UserData)
+| errs()
+| sink(rejected_users)
+```
+
+But writing:
+
+```hql
+results = users | validate(UserData)
+
+results | oks()  | sink(users_table)
+results | errs() | sink(rejected_users)
+```
+
+raises an execution question for a stream.
+
+The source should not have to be evaluated twice merely because both projections are required.
+
+The program is expressing one classification of one logical input.
+
+HQL therefore provides `split()`.
+
+---
+
+# 15. `split()`
+
+`split()` separates the alternatives of a `Result` collection and unwraps their constructors.
+
+Conceptually:
+
+```text
+F<Result<T, E>>
+        |
+      split
+      /   \
+   F<T>   F<E>
+```
+
+The recommended high-level syntax is record-valued:
+
+```hql
+parts =
+    users
+    | validate(UserData)
+    | split()
+
+parts.oks
+| sink(users_table)
+
+parts.errs
+| sink(rejected_users)
+```
+
+With record destructuring:
+
+```hql
+{ oks, errs } =
+    users
+    | validate(UserData)
+    | split()
+
+oks
+| sink(users_table)
+
+errs
+| sink(rejected_users)
+```
+
+Application-specific names may be used:
+
+```hql
+{ oks: accepted, errs: rejected } =
+    users
+    | validate(UserData)
+    | split()
+
+accepted
+| sink(users_table)
+
+rejected
+| sink(rejected_users)
+```
+
+This is the preferred algebraic form for the common:
+
+```text
+valid values -> one pipeline
+invalid values -> another pipeline
+```
+
+case.
+
+---
+
+# 16. Semantics of `split`
+
+For:
+
+```hql
+Stream<Result<T, E>>
+| split()
+```
+
+the two outputs are:
+
+```text
+oks  : Stream<T>
+errs : Stream<E>
+```
+
+For every input:
+
+```hql
+ok(v)
+```
+
+`v` appears exactly once on `oks` and not on `errs`.
+
+For every input:
+
+```hql
+err(e)
+```
+
+`e` appears exactly once on `errs` and not on `oks`.
+
+The constructor itself is removed:
+
+```text
+ok(T)  -> T
+err(E) -> E
+```
+
+Ordering within each output MUST preserve the relative order of matching source elements.
+
+Given:
+
+```text
+ok(a)
+err(x)
+ok(b)
+err(y)
+```
+
+the outputs are:
+
+```text
+oks  = a, b
+errs = x, y
+```
+
+not:
+
+```text
+oks  = ok(a), ok(b)
+errs = err(x), err(y)
+```
+
+---
+
+# 17. Stream execution semantics of `split`
+
+For a live stream, `split()` is not equivalent to evaluating:
+
+```hql
+results | oks()
+```
+
+and:
+
+```hql
+results | errs()
+```
+
+as two unrelated source computations.
+
+A split has one logical upstream.
+
+Conceptually:
+
+```text
+                    ┌── Stream<T>
+Stream<Result<T,E>> ─┤
+                    └── Stream<E>
+```
+
+The executor MUST preserve the observable semantics of one upstream evaluation with exclusive routing.
+
+The backend may choose:
+
+```text
+buffering
+independent branch scheduling
+bounded queues
+backpressure
+materialization for finite data
+lazy consumption
+```
+
+as required by its execution model.
+
+Those choices MUST NOT change which logical values each output receives.
+
+This is an execution concern, not user-level error policy.
+
+---
+
+# 18. `split` is not `tee`
+
+`tee` means:
+
+```text
+one value
+   |
+   +----> side computation
+   |
+   +----> original value continues
+```
+
+Every logical input is available to both computations.
+
+Its main-flow type remains unchanged.
+
+For example:
+
+```text
+T
+ |
+tee
+ |
+T
+```
+
+with a side branch:
+
+```text
+T -> R
+```
+
+`split` means:
+
+```text
+Result<T,E>
+      |
+      +---- ok ---> T
+      |
+      +---- err --> E
+```
+
+Each input belongs to exactly one output.
+
+The output types differ.
+
+Therefore:
+
+```text
+tee
+    duplication / observation
+
+split
+    sum-type separation / routing
+```
+
+They solve different problems.
+
+---
+
+# 19. `split` is not `partition`
+
+`partition` preserves the element type and changes data ownership or distribution:
+
+```text
+Stream<T>
+    |
+ partition(by = key)
+    |
+    +-- partition A: T
+    +-- partition B: T
+    +-- partition C: T
+```
+
+`split` changes the element type by eliminating a sum constructor:
+
+```text
+Stream<Result<T,E>>
+       |
+      split
+      /   \
+     T     E
+```
+
+Therefore:
+
+```text
+split
+    logical type routing
+    generally no distributed shuffle required
+
+partition
+    same-type distribution by key
+    may create an execution/shuffle boundary
+```
+
+The names MUST remain distinct.
+
+---
+
+# 20. Basic validation patterns
+
+## 20.1 Fail fast
+
+```hql
+users
+| UserData
+| sink(users_table)
+```
+
+The first invalid value stops evaluation.
+
+---
+
+## 20.2 Ignore invalid records
+
+```hql
+users
+| validate(UserData)
+| oks()
+| sink(users_table)
+```
+
+Only successful values continue.
+
+---
+
+## 20.3 Collect only rejected records
+
+```hql
+users
+| validate(UserData)
+| errs()
+| sink(rejected_users)
+```
+
+The sink receives:
+
+```hql
+Invalid
+```
+
+values.
+
+---
+
+## 20.4 Collect individual violations
+
+```hql
+users
+| validate(UserData)
+| errs()
+| flat_map(e => e.violations)
+| sink(validation_violations)
+```
+
+The sink receives:
+
+```hql
+Violation
+```
+
+values.
+
+---
+
+# 21. Dual-output ETL
+
+A common ETL pattern writes both successful and rejected values.
+
+```hql
+{ oks: accepted, errs: rejected } =
+    source(file("users.jsonl"), Json)
+    | validate(UserData)
+    | split()
+
+accepted
+| sink(users_table)
+
+rejected
+| sink(rejected_users)
+```
+
+Conceptually:
+
+```text
+source
+  |
+validate
+  |
+Result<UserData, Invalid>
+  |
+ split
+ /    \
+UserData    Invalid
+   |          |
+ users      rejected
+ table       store
+```
+
+There is no special dead-letter construct.
+
+Both outputs are normal typed streams.
+
+---
+
+# 22. Transforming both branches
+
+The accepted and rejected sides may have independent pipelines.
+
+```hql
+{ oks: accepted, errs: rejected } =
+    source(file("users.jsonl"), Json)
+    | validate(UserData)
+    | split()
+
+accepted
+| map(user => {
+    id: user.id,
+    name: normalize(user.name),
+    imported_at: now()
+})
+| sink(users_table)
+
+rejected
+| map(e => {
+    received_at: now(),
+    error: e
+})
+| sink(rejected_users)
+```
+
+The graph is:
+
+```text
+                       ┌── UserData
+                       │      |
+source -> validate -> split   map -> users
+                       │
+                       └── Invalid
+                              |
+                             map -> rejected
+```
+
+---
+
+# 23. Rejected records and violation analytics
+
+The rejected-record stream is useful at record granularity:
+
+```hql
+rejected
+| sink(rejected_users)
+```
+
+while violation analytics operate at violation granularity:
+
+```hql
+rejected
+| flat_map(e => e.violations)
+| map(v => {
+    rule: v.rule,
+    severity: v.severity
+})
+| sink(validation_metrics)
+```
+
+If the same live rejected stream has several consumers, normal HQL fan-out semantics are required.
+
+`tee` remains the existing primitive for an explicit side computation.
+
+The exact ergonomic syntax for effect-only `tee` branches may be refined separately; it is not a reason to overload `split`.
+
+---
+
+# 24. `reject(...)` is not a primitive
+
+A convenience operation such as:
+
+```hql
+users
+| validate(UserData)
+| reject(rejected_users)
+```
+
+could theoretically mean:
+
+```text
+write every err(E) to rejected_users
+pass every ok(T) downstream as T
+```
+
+However, this combines:
+
+```text
+sum-type elimination
+routing
+side effect
+```
+
+into one validation-oriented operation.
+
+That hides the more general pipeline topology.
+
+The primitive model remains:
+
+```hql
+{ oks, errs } =
+    users
+    | validate(UserData)
+    | split()
+```
+
+A future `reject(...)` MAY exist as a derived convenience function, but it MUST NOT define the underlying error model.
+
+---
+
+# 25. Rejected data is not necessarily a dead-letter queue
+
+Validation failures are normally deterministic with respect to the input and contract.
+
+For example:
+
+```hql
+{
+    age: "forty-two"
+}
+| validate(UserData)
+```
+
+will not succeed merely because it is executed again.
+
+Such values are better described as:
+
+```text
+rejected
+invalid
+quarantined
+```
+
+rather than automatically as retryable failures.
+
+The normal pattern is:
+
+```hql
+{ oks, errs } =
+    input
+    | validate(UserData)
+    | split()
+
+oks
+| sink(valid_target)
+
+errs
+| sink(rejected_target)
+```
+
+Retrying `errs` without changing the value or contract is normally pointless.
+
+---
+
+# 26. Repair
+
+Because `Invalid` contains the original rejected `Data`, a repair pipeline does not need an external lookup merely to recover the failed value.
+
+For example:
+
+```hql
+source(rejected_users)
+| map(e => repair(e.value))
+| validate(UserData)
+| ...
+```
+
+The error package contains:
+
+```text
+what failed
+    e.value
+
+why it failed
+    e.violations
+```
+
+A complete repair flow may itself split again:
+
+```hql
+{ oks: repaired, errs: still_invalid } =
+    source(rejected_users)
+    | map(e => repair(e.value))
+    | validate(UserData)
+    | split()
+
+repaired
+| sink(users_table)
+
+still_invalid
+| sink(rejected_users_next)
+```
+
+Replay is therefore another ordinary pipeline.
+
+---
+
+# 27. Operational failures
+
+Not every failure is validation failure.
+
+Consider:
+
+```hql
+fn enrich(user: UserData)
+    : Result<EnrichedUser, EnrichmentError>
+```
+
+Possible errors may include:
+
+```text
+timeout
+HTTP 503
+rate limit
+invalid remote response
+authentication failure
+```
+
+Some may be retryable.
+
+Others may not.
+
+They still use the same fundamental type:
+
+```hql
+Result<EnrichedUser, EnrichmentError>
+```
+
+The distinction lies in policy and in the error value, not in another exception mechanism.
+
+---
+
+# 28. Retry is not an operation on an already produced `Result`
+
+A plain:
+
+```hql
+err(e)
+```
+
+does not contain the computation required to produce another attempt.
+
+Therefore this is conceptually insufficient:
+
+```hql
+users
+| map(enrich)
+| retry(3)
+```
+
+if `map(enrich)` has already reduced the computation to ordinary `Result` values.
+
+Once:
+
+```hql
+enrich(user)
+```
+
+has returned:
+
+```hql
+err(e)
+```
+
+the runtime cannot infer how to call `enrich(user)` again merely from the result.
+
+Retry MUST therefore wrap a fallible operation.
+
+Conceptually:
+
+```hql
+retry(
+    enrich,
+    attempts = 3,
+    when = e => e.transient
+)
+```
+
+has a shape similar to:
+
+```text
+T
+ + fallible operation T -> Result<U,E>
+        |
+        v
+Result<U,E>
+```
+
+with the operation potentially invoked more than once.
+
+A possible pipeline form is:
+
+```hql
+valid_users
+| retry(
+    enrich,
+    attempts = 3,
+    when = e => e.transient
+)
+```
+
+yielding:
+
+```hql
+Stream<Result<EnrichedUser, EnrichmentError>>
+```
+
+The exact retry API is a separate design point, but retry semantics MUST retain the operation being retried.
+
+---
+
+# 29. Retry followed by routing
+
+After retry has finished, its final results may be split normally:
+
+```hql
+{ oks: enriched, errs: failed } =
+    valid_users
+    | retry(
+        enrich,
+        attempts = 3,
+        when = e => e.transient
+    )
+    | split()
+
+enriched
+| sink(enriched_users)
+
+failed
+| sink(enrichment_dlq)
+```
+
+Conceptually:
+
+```text
+valid user
+    |
+  enrich
+    |
+ failure?
+   /   \
+ no     yes
+ |       |
+ |     retry
+ |       |
+ |    exhausted
+ |       |
+ ok      err
+  \      /
+    split
+    /   \
+ result  DLQ
+```
+
+A dead-letter queue therefore normally represents:
+
+> automated processing was attempted according to policy and ultimately gave up.
+
+That is distinct from deterministic validation rejection.
+
+---
+
+# 30. Rejected data versus retry versus DLQ
+
+The following terminology is recommended.
+
+## Rejected / quarantine
+
+```text
+input violates a contract
+```
+
+Typical action:
+
+```text
+store Invalid
+inspect
+repair data or contract
+replay explicitly
+```
+
+## Retry
+
+```text
+operation may succeed if invoked again
+```
+
+Typical action:
+
+```text
+repeat fallible operation
+possibly with delay/backoff
+```
+
+## Dead-letter
+
+```text
+automatic processing/retry policy is exhausted
+```
+
+Typical action:
+
+```text
+store final failure
+inspect
+repair operational/data condition
+replay explicitly
+```
+
+These may all use ordinary endpoints and sinks.
+
+They differ semantically, not because HQL needs three special queue primitives.
+
+---
+
+# 31. Provenance and `Message<T>`
+
+Infrastructure provenance should remain separate from validation semantics.
+
+A broker may carry:
+
+```hql
+Message<Data>
+```
+
+with information such as:
+
+```text
+key
+time
+headers
+position/topic metadata
+value
+```
+
+A rejected broker record may correspond conceptually to:
+
+```hql
+Message<Invalid>
+```
+
+where:
+
+```text
+Message
+├── key
+├── time
+├── headers
+└── value
+    └── Invalid
+        ├── contract
+        ├── value: Data
+        └── violations
+```
+
+The inner `Invalid.value` is the rejected application data.
+
+The outer `Message` describes transport and provenance.
+
+Broker offsets, keys and delivery metadata SHOULD NOT be forced into the core definition of `Invalid`.
+
+---
+
+# 32. Writing errors
+
+An error is written like any other value.
+
+For a channel:
+
+```hql
+rejected
+| sink(Channel<Invalid>("rejected"))
+```
+
+For a formatted external endpoint:
+
+```hql
+rejected
+| sink(file("rejected.jsonl"), JsonLines)
+```
+
+A later pipeline may read those failures as typed data:
+
+```hql
+source(file("rejected.jsonl"), JsonLines)
+| Invalid
+```
+
+or validate them explicitly:
+
+```hql
+source(file("rejected.jsonl"), JsonLines)
+| validate(Invalid)
+```
+
+There is no special error serialization protocol.
+
+---
+
+# 33. Reporting is separate from handling
+
+Routing or storing an error determines what happens to the value.
+
+Logging, metrics and reporting are observations of that value.
+
+They are separate effects.
+
+For example:
+
+```hql
+rejected
+| flat_map(e => e.violations)
+| sink(validation_metrics)
+```
+
+does not make the rejected records valid and does not constitute recovery.
+
+Likewise, logging an error does not handle it.
+
+This ADR does not require a special:
+
+```hql
+report()
+```
+
+primitive.
+
+Observability may be constructed through normal logging, metrics and sink operations.
+
+A future convenience operation MAY exist, but it should remain compositionally separate from error routing.
+
+---
+
+# 34. Full ETL example
+
+A realistic pipeline may combine validation rejection and operational retry:
+
+```hql
+{ oks: valid, errs: rejected } =
+    source(users_source)
+    | validate(UserData)
+    | split()
+
+rejected
+| sink(rejected_users)
+
+{ oks: enriched, errs: failed } =
+    valid
+    | retry(
+        enrich,
+        attempts = 3,
+        when = e => e.transient
+    )
+    | split()
+
+enriched
+| sink(users_table)
+
+failed
+| sink(enrichment_dlq)
+```
+
+Conceptually:
+
+```text
+source
+  |
+validate
+ /      \
+valid    Invalid
+ |          |
+ |       rejected store
+ |
+enrich
+retry
+ /   \
+ok    exhausted error
+ |         |
+users      DLQ
+```
+
+The corresponding repair/replay paths are ordinary programs:
+
+```hql
+source(rejected_users)
+| map(e => repair(e.value))
+| validate(UserData)
+| ...
+```
+
+and:
+
+```hql
+source(enrichment_dlq)
+| ...
+```
+
+---
+
+# 35. Interaction with `partition`
+
+`split()` does not imply redistribution.
+
+For example:
+
+```hql
+{ oks: valid, errs: rejected } =
+    users
+    | validate(UserData)
+    | split()
+```
+
+is logical routing.
+
+A later operation may request distributed ownership:
+
+```hql
+valid
+| partition(by = u => u.account_id)
+| reduce(...)
+```
+
+The conceptual graph is:
+
+```text
+source
+  |
+validate
+  |
+ split
+ /    \
+T      E
+|
+partition(by = key)
+|
+shuffle
+|
+stateful operation
+```
+
+This separation is deliberate.
+
+The language can therefore express both algebraic dataflow and distributed execution without using one overloaded concept for both.
+
+---
+
+# 36. Interaction with `tee`
+
+`tee` remains useful where the same logical value should feed a side computation and continue unchanged.
+
+For example, conceptually:
+
+```text
+accepted
+   |
+  tee ----> metrics
+   |
+ transform
+   |
+  sink
+```
+
+`tee` does not remove `ok` or `err`.
+
+`split` does.
+
+A validation pipeline SHOULD therefore use `split` when the program genuinely needs distinct successful and failed flows.
+
+---
+
+# 37. Syntax alternatives considered
+
+## A. Record-returning `split` — preferred
+
+```hql
+{ oks, errs } =
+    results
+    | split()
+```
+
+Advantages:
+
+- algebraic;
+- explicit return value;
+- both streams are first-class values;
+- naturally supports application-specific names;
+- does not introduce validation-specific syntax;
+- generalizes beyond dead-lettering.
+
+---
+
+## B. Named split object — equivalent
+
+```hql
+parts =
+    results
+    | split()
+
+parts.oks
+| ...
+
+parts.errs
+| ...
+```
+
+This is useful where destructuring is not desired.
+
+---
+
+## C. Branch syntax
+
+A possible syntax such as:
+
+```hql
+results
+| split {
+    ok(x) => ...,
+    err(e) => ...
+}
+```
+
+is expressive but makes `split` a control-flow construct rather than an ordinary value-producing operation.
+
+It is not adopted by this ADR.
+
+---
+
+## D. `reject(...)`
+
+A convenience form such as:
+
+```hql
+results
+| reject(rejected_target)
+```
+
+is concise for one specific topology but combines routing and I/O.
+
+It may be introduced later as derived syntax.
+
+It is not the core model.
+
+---
+
+## E. `tee` plus `errs()` / `oks()`
+
+For example:
+
+```hql
+results
+| tee rejected =
+    errs()
+    | sink(rejected_target)
+| oks()
+```
+
+can express the intent, but it has several disadvantages for this case:
+
+- the same algebraic split appears twice as `errs()` and `oks()`;
+- the branch binding may have no useful value when the branch ends in `sink`;
+- pipeline branch extent becomes syntactically significant;
+- the topology is fundamentally classification, while `tee` represents duplication.
+
+`tee` remains valid for genuine side computations but is not the canonical dead-letter form.
+
+---
+
+# 38. Recommended high-level vocabulary
+
+The resulting concepts are intentionally small:
+
+```text
+Result<T,E>
+    recoverable success or failure value
+
+validate(T)
+    Data -> Result<T, Invalid>
+
+map / map_err / match
+    transform or consume one Result
+
+oks()
+    retain only successful payloads
+
+errs()
+    retain only failed payloads
+
+split()
+    expose both alternatives as independent typed flows
+
+tee
+    duplicate a logical flow into a side computation
+
+partition
+    redistribute same-type values by key
+
+sink
+    consume a stream into an endpoint
+
+retry
+    reinvoke a fallible operation according to policy
+
+replay
+    another ordinary source pipeline
+```
+
+---
+
+# 39. Execution model
+
+A backend may represent a typical error-aware ETL graph as:
+
+```text
+Source
+  |
+Fused stateless stage
+  |
+validate
+  |
+split
+ /   \
+T     E
+|     |
+|    Sink
+|
+retry(fallible operation)
+|
+split
+ /   \
+U     E2
+|      |
+Sink   DLQ
+```
+
+`split` is a graph-routing node.
+
+It MUST NOT require reevaluating its upstream independently for each output.
+
+For finite collections, the backend may materialize the split.
+
+For streams, the backend may implement it using coordinated output queues, backpressure or equivalent mechanisms.
+
+Those execution choices remain observationally equivalent to one logical upstream and exclusive routing.
+
+---
+
+# 40. Compatibility with HQL-0032
+
+HQL-0032 defines `TypeContract` and `DataContract`.
+
+This ADR resolves validation-result representation as:
+
+```hql
+Result<T, Invalid>
+```
+
+and does not introduce a separate:
+
+```hql
+ValidationResult<T>
+```
+
+type.
+
+`Invalid` and `Violation` are declared `DataContract` values.
+
+HQL-0032 should therefore treat its older conceptual `ValidationResult<T>` record and its open validation-routing questions as superseded by this ADR where they conflict.
+
+Contract semantics remain independent from stream policy.
+
+A `DataContract` defines what is valid.
+
+The pipeline defines what happens when a value is not valid.
+
+---
+
+# 41. Test plan
+
+Implementations should cover at least:
+
+1. scalar successful validation;
+2. scalar failed validation;
+3. multiple violations accumulated into one `Invalid`;
+4. `Invalid.value` preserving the original rejected `Data`;
+5. `oks()` over `List`, `Seq` and `Stream`;
+6. `errs()` over `List`, `Seq` and `Stream`;
+7. `split()` producing every successful value exactly once;
+8. `split()` producing every failed value exactly once;
+9. source-relative ordering preserved independently in `oks` and `errs`;
+10. a live source evaluated only once when both outputs of `split` are consumed;
+11. rejected `Invalid` values written and read back through a normal sink/source;
+12. `flat_map(e => e.violations)` producing one stream element per violation;
+13. repair using `e.value`;
+14. broker/message provenance remaining outside the core `Invalid`;
+15. retry reinvoking the fallible operation rather than operating on a completed `Result`;
+16. exhausted retry producing a normal final `err(E)`;
+17. `split` followed by `partition` remaining two distinct graph operations;
+18. fail-fast `x | T` and recoverable `x | validate(T)` deriving equivalent violation information.
+
+---
+
+# 42. Decision summary
+
+HQL uses one coherent model:
+
+```text
+failure is a value
+
+validation:
+    Data -> Result<T, Invalid>
+
+Invalid:
+    rejected Data + List<Violation>
+
+one side only:
+    oks()
+    errs()
+
+both sides:
+    split()
+
+duplicate observation:
+    tee
+
+distributed ownership:
+    partition(by = ...)
+
+output:
+    sink(...)
+
+transient failure:
+    retry the operation
+
+recovery:
+    read stored values and run another pipeline
+```
+
+The high-level pipeline therefore remains algebraic and visible.
+
+There is no hidden exception channel, no validation-specific dead-letter control structure, and no requirement for `DataContract` itself to know anything about stream routing.

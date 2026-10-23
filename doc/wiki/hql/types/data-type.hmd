@@ -83,7 +83,7 @@ Viewing a value as `Data` never converts it. `tally` above is still the `Map<Str
 
 Reading a key views a tree through its map alternative. `note.species` and `get(note, "species")` are the same read, and both have type `Option<Data>`: a key of an open tree is an optional field, and an optional field is exactly an [[option-type|Option]]. A path of several keys is still one `Option`, because absence propagates instead of nesting.
 
-The map view is confirmed when the value is read. A tree that turns out to be a leaf or a sequence is not missing a key; the program asked something of it that it is not, so the read fails as a type error and is reported — see [[error-reporting]]:
+The map view is confirmed when the value is read. A tree that turns out to be a leaf or a sequence is not missing a key; the program asked something of it that it is not, so the read fails as a type error and is reported — see [[error-handling]]:
 
 ```hql
 book = { genre: "novel", pages: 412 }

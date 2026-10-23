@@ -89,7 +89,7 @@ issues, proposals and cards; nothing here restates it.
 9. **The `debug` operator** — the
    [debug-op](../wiki/hql/operators/debug-op.hmd) card, with the `debug` and
    `info` severities and the `level` setting from the
-   [error-reporting](../wiki/hql/error-reporting.hmd) card. An identity step
+   [error-handling](../wiki/hql/error-handling.hmd) card. An identity step
    whose capture goes to the report log, ordered by trace. Done; `fail` and
    the language's own `code` / `trace` fields stay designed.
 10. **Pipeline vocabulary rename** — step 1 of 0013,

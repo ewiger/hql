@@ -458,7 +458,7 @@ typed `LiveSource`, so that its use is `Effectful`.
 the catalog defines — a table, a topic, a subject. Its existence is not checked
 offline. A missing member is an evaluation error naming the catalog's id and
 the member, reported through the
-[structured log](../../wiki/hql/error-reporting.hmd). Its type is the catalog's
+[structured log](../../wiki/hql/error-handling.hmd). Its type is the catalog's
 member type `S`.
 
 ### 6. The default source and the `cards` anchor

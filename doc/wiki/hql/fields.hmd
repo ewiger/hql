@@ -74,7 +74,7 @@ Absence and a wrong shape are different answers. When a schema or a read maps a
 region of `Data` onto a type and the value is there but is not that type — a
 leaf where a map was asked for, a string where a schema declares `Int` — the
 mapping fails and the failure is a type error in the
-[[error-reporting|report queue]]. It is never passed off as absence: absence
+[[error-handling|report queue]]. It is never passed off as absence: absence
 says the author wrote nothing, and a wrong shape says the author wrote something
 the program cannot use, which is the one a reader needs to hear about.
 

@@ -24,7 +24,7 @@ nowhere = @[[nowhere]]   // Option<Card>, and absent
 Evaluating an unresolved reference yields absence and queues a warning; the exit
 status does not change. A forward link to a document nobody has written yet is
 ordinary, which is why it is a warning rather than an error — see
-[[error-reporting]] and [[link-op]].
+[[error-handling]] and [[link-op]].
 
 ## Absence propagates
 
@@ -60,7 +60,7 @@ card with no genre — see [[fields]].
 
 Absence is not the answer to a wrong shape. A value that is present but is not
 the type it was read as fails as a type error in the
-[[error-reporting|report queue]].
+[[error-handling|report queue]].
 
 ## Resolving absence
 

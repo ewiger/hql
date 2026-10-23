@@ -31,7 +31,7 @@ the design, the card says so.
 | [[bracket-op]] | `xs[i]` and `xs[a:b]`: positions, slices, `Range`, and the `Index` and `Slice` traits |
 | [[match-op]] | `match` and `given … otherwise`: branching on values, `some`, `none`, `ok`, `err` and type patterns |
 | [[hql/presentation]] | Presentation formats, `format` and its shorthands, renderers, and the presentation context |
-| [[hql/error-reporting]] | The structured log: severities, entry context, `strict` and `collect`, configuration |
+| [[hql/error-handling]] | Errors as values and the run's report: `Result`, `validate` and `split` as summarised from HQL-0033, severities, entry context, `strict` and `collect`, exit status |
 | [[hql/semantic-search]] | `semantic`, `Hit`, `Ranking` and the read path of memory |
 | [[hql/std-lib]] | The standard library: `std/`, embedded in the binary, whose declarations give the built-in records their fields |
 

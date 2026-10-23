@@ -147,7 +147,7 @@ merge({a: 1, b: 2}, {b: 3, c: 4})            // {a: 1, b: 3, c: 4}
   their top-level keys; a value that is itself a map is replaced, not merged.
   Merging a `Data` value that is not a map is an evaluation error naming the
   value's kind, reported through the
-  [structured log](../../wiki/hql/error-reporting.hmd).
+  [structured log](../../wiki/hql/error-handling.hmd).
 - As a combiner, `merge` has the empty map as its identity, is associative, and
   is order-sensitive: which value wins depends on which map comes later. So
   `Seq<Map<K, V>> | reduce({:}, merge)` is deterministic, and a `Set` of maps is
