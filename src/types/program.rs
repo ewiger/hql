@@ -8,7 +8,7 @@
 //! and evaluation installs the one checking produced, so a value's type is
 //! read against the declarations it was built under.
 
-use super::{TypeConstructor, TypeDefinition, TypeError, TypeRef, TypeSystem};
+use super::{TypeConstructor, TypeDefinition, TypeError, TypeKind, TypeRef, TypeSystem};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -194,6 +194,54 @@ pub fn validator(name: &str, implementing: Option<TypeRef>) -> Result<(), TypeEr
         validators: Arc::new(validators),
     }));
     Ok(())
+}
+
+/// The record of a `fork`'s branches, `{a: T, b: U}`: a closed record named
+/// by its fields, in the order written, so two forks with the same branches
+/// and types give one type (HQL-0037).
+///
+/// # Errors
+///
+/// Returns why the record cannot join the lattice.
+pub fn branch_record(fields: &[(String, TypeRef)]) -> Result<TypeRef, TypeError> {
+    let written: Vec<String> = fields
+        .iter()
+        .map(|(name, ty)| format!("{name}: {ty}"))
+        .collect();
+    let constructor = constructor(&format!("{{{}}}", written.join(", ")));
+    if record(constructor.0).is_none() {
+        declare(
+            TypeDefinition {
+                constructor,
+                kind: TypeKind::Concrete,
+                parameters: Vec::new(),
+                parents: Vec::new(),
+                applied: Vec::new(),
+            },
+            Some(RecordShape {
+                parameters: Vec::new(),
+                parents: Vec::new(),
+                fields: fields
+                    .iter()
+                    .map(|(name, ty)| RecordField {
+                        name: name.clone(),
+                        ty: ty.clone(),
+                        optional: false,
+                        default: None,
+                        validator: None,
+                    })
+                    .collect(),
+            }),
+        )?;
+    }
+    Ok(constructor.apply([]))
+}
+
+/// Whether a record type is the record of a `fork`'s branches, which prints
+/// as the braces that name it.
+#[must_use]
+pub fn is_branch_record(ty: &TypeRef) -> bool {
+    ty.constructor.0.starts_with('{')
 }
 
 /// The types implementing a validator type, or `None` where `name` is not

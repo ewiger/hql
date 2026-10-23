@@ -627,6 +627,9 @@ impl Evaluator<'_> {
                 branch,
                 ..
             } => self.tee(input, name, branch),
+            Kind::Fork {
+                input, branches, ..
+            } => self.fork(input, branches, &expression.ty),
             Kind::Given {
                 value,
                 condition,
@@ -768,6 +771,35 @@ impl Evaluator<'_> {
         };
         self.scope.insert(name.to_owned(), result?);
         Ok(value)
+    }
+
+    /// `input | fork { a = branch, … }`: the input evaluated once, each
+    /// branch reading it in the order written, and the record of their
+    /// results.
+    #[inline(never)]
+    fn fork(
+        &mut self,
+        input: &Expr,
+        branches: &[(String, Expr)],
+        ty: &TypeRef,
+    ) -> Result<Value, Diagnostic> {
+        let value = self.expression(input)?;
+        let previous = self.scope.insert(crate::ast::FORK_INPUT.to_owned(), value);
+        let fields = branches
+            .iter()
+            .map(|(name, branch)| Ok((name.clone(), self.expression(branch)?)))
+            .collect::<Result<Vec<_>, Diagnostic>>();
+        match previous {
+            Some(previous) => self
+                .scope
+                .insert(crate::ast::FORK_INPUT.to_owned(), previous),
+            None => self.scope.remove(crate::ast::FORK_INPUT),
+        };
+        Ok(Value::Record(Arc::new(crate::types::Record {
+            ty: ty.clone(),
+            fields: fields?,
+            carrier: None,
+        })))
     }
 
     /// Two values combined by a combiner. `min` and `max` over values ordered

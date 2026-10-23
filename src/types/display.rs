@@ -222,6 +222,17 @@ impl fmt::Display for Value {
             }
             Self::Ok(value, _) => write!(f, "ok({})", Nested(value)),
             Self::Err(error, _) => write!(f, "err({})", Nested(error)),
+            // A fork's record prints as braces around its branches.
+            Self::Record(record) if super::program::is_branch_record(&record.ty) => {
+                f.write_str("{")?;
+                for (index, (name, value)) in record.fields.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{name}: {}", Nested(value))?;
+                }
+                f.write_str("}")
+            }
             // A record prints as the call that constructs it.
             Self::Record(record) => {
                 write!(f, "{}(", record.ty.constructor)?;

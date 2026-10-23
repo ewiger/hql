@@ -1,6 +1,6 @@
 # HQL-0037: Dataflow DAG, fan-out, fan-in, fork and merge
 
-**Status**: proposed
+**Status**: proposed, implemented in part
 **Created**: 2026-10-23
 **Related**: [HQL-0004](../HQL-0004/README.md),
 [HQL-0005](../HQL-0005/README.md),
@@ -2003,3 +2003,9 @@ The planner lowers this logical DAG into physical stages, partitions, channels, 
 
 - 2026-10-23: proposed
 - 2026-10-23: `merge` is overloaded for `Map` and `Stream`, resolved by static type
+- 2026-10-23: `fork` built
+  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), D1): the
+  step `xs | fork { a = …, b = … }`, its record of branch results typed
+  `{a: A, b: B}`, destructuring `{ a, b } = …`, and branches separated by a
+  line break or a comma, shown in the
+  [dataflow examples](../../../examples/dataflow/README.md)

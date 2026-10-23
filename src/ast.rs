@@ -435,6 +435,12 @@ pub(crate) enum Kind {
         name: String,
         branch: Box<Expr>,
     },
+    /// `fork { a = branch, b = branch }` as a pipeline step: each branch is
+    /// a pipeline over [`FORK_INPUT`], the value arriving at the step, and
+    /// the step's value is the record of the branches' results (HQL-0037).
+    Fork {
+        branches: Vec<(String, Expr)>,
+    },
     /// `value given condition`, and `value given condition otherwise other`.
     Given {
         value: Box<Expr>,
@@ -446,6 +452,9 @@ pub(crate) enum Kind {
 /// The name a `tee` branch reads its input by. It cannot be written in a
 /// program, so no binding can shadow it.
 pub(crate) const TEE_INPUT: &str = "%tee";
+
+/// The name a `fork` branch reads its input by, which no binding can shadow.
+pub(crate) const FORK_INPUT: &str = "%fork";
 
 /// One case of a `match`: the first arm whose pattern fits, and whose guard
 /// holds, produces the result.

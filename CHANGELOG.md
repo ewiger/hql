@@ -58,6 +58,13 @@ The language continues to be in active development.
   `oks()` and `errs()` take a `Stream` of results to a `Stream`, one value
   at a time, as they take a `List`, `Seq` or `Set` to its own kind.
 
+- `fork`, broadcast fan-out ([HQL-0037](doc/proposals/HQL-0037/README.md),
+  shown in the [dataflow examples](examples/dataflow/README.md)):
+  `xs | fork { a = …, b = … }` gives every branch the same input, evaluated
+  once, and its value is the record of the branches' results, typed
+  `{a: A, b: B}`. `{ a, b } = xs | fork { … }` binds the branches, and
+  over a `Stream` each branch is a stream in the upstream's order.
+
 - Validator types ([HQL-0034](doc/proposals/HQL-0034/README.md), shown in
   the [structural examples](examples/structural/README.md)): a trait may
   extend others, `trait Email : Validator { }`, and has their functions as

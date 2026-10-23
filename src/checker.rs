@@ -1284,6 +1284,9 @@ impl<'a> Checker<'a> {
                         })
                     }
                     Kind::Tee { branch, .. } => self.read_beyond(branch, bound),
+                    Kind::Fork { branches } => branches
+                        .iter()
+                        .find_map(|(_, branch)| self.read_beyond(branch, bound)),
                     _ => self.callee_read(step, bound),
                 })
             }
@@ -1310,6 +1313,9 @@ impl<'a> Checker<'a> {
                 })
             }),
             Kind::Tee { branch, .. } => self.read_beyond(branch, bound),
+            Kind::Fork { branches } => branches
+                .iter()
+                .find_map(|(_, branch)| self.read_beyond(branch, bound)),
             Kind::Given {
                 value,
                 condition,
@@ -4758,6 +4764,10 @@ impl<'a> Checker<'a> {
                 span,
                 "`tee` is a pipeline step: write `input | tee name = branch`",
             )),
+            Kind::Fork { .. } => Err(Diagnostic::syntax(
+                span,
+                "`fork` is a pipeline step: write `input | fork { name = branch }`",
+            )),
             Kind::Arith(..) => self.arithmetic(expression),
             Kind::Relate {
                 left,
@@ -5112,6 +5122,21 @@ impl<'a> Checker<'a> {
                     )?;
                     self.scope.insert(name.clone(), result);
                     return Ok(input_type);
+                }
+                // `x | fork { a = …, b = … }`: every branch reads the same
+                // input, and the step is the record of their results, each
+                // field typed by its own branch (HQL-0037).
+                if let Kind::Fork { branches } = &step.kind {
+                    let mut fields = Vec::with_capacity(branches.len());
+                    for (name, branch) in branches {
+                        let ty = self.with_bindings(
+                            [(crate::ast::FORK_INPUT.to_owned(), input_type.clone())],
+                            |checker| checker.expression(branch),
+                        )?;
+                        fields.push((name.clone(), ty));
+                    }
+                    return crate::types::program::branch_record(&fields)
+                        .map_err(|error| Diagnostic::typing(span, error.to_string()));
                 }
                 if let Some(produced) = self.validating(step, &input_type, &span)? {
                     return Ok(produced);

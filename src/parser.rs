@@ -1,9 +1,9 @@
 //! Parse tokens into a program: statements, bindings, pipelines and calls.
 
 use crate::ast::{
-    ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, ExternalDecl, Field,
-    FnDecl, ImplDecl, Kind, Logic, MethodDecl, Param, Passing, Pattern, Program, Relation, Rule,
-    Severity, Stmt, TEE_INPUT, TraitDecl, TypeAnn, TypeDecl, optional_read, presence,
+    ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, ExternalDecl, FORK_INPUT,
+    Field, FnDecl, ImplDecl, Kind, Logic, MethodDecl, Param, Passing, Pattern, Program, Relation,
+    Rule, Severity, Stmt, TEE_INPUT, TraitDecl, TypeAnn, TypeDecl, optional_read, presence,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -180,7 +180,11 @@ impl Parser {
         let mut statements = Vec::new();
         self.continuation();
         while !matches!(self.peek(), Token::End) {
-            statements.push(self.statement()?);
+            if let Some(names) = self.destructured_names() {
+                statements.extend(self.destructuring(names)?);
+            } else {
+                statements.push(self.statement()?);
+            }
             if matches!(self.tokens[self.index].token, Token::Newline) {
                 self.continuation();
             } else if !matches!(self.peek(), Token::End) {
@@ -200,6 +204,66 @@ impl Parser {
         Ok(Program {
             statements: std::mem::take(&mut statements),
         })
+    }
+
+    /// The names of `{ a, b } = value` when a statement opens with them.
+    fn destructured_names(&self) -> Option<Vec<(String, Range<usize>)>> {
+        if !matches!(self.tokens[self.index].token, Token::OpenBrace) {
+            return None;
+        }
+        let mut names = Vec::new();
+        let mut index = self.index + 1;
+        loop {
+            let Token::Ident(name) = &self.tokens[index].token else {
+                return None;
+            };
+            names.push((name.clone(), self.tokens[index].span.clone()));
+            index += 1;
+            match &self.tokens[index].token {
+                Token::Comma => index += 1,
+                Token::CloseBrace => break,
+                _ => return None,
+            }
+        }
+        matches!(self.tokens[index + 1].token, Token::Equals).then_some(names)
+    }
+
+    /// `{ a, b } = value`: the value bound under a name no program writes,
+    /// and each name bound to the field of that name.
+    fn destructuring(
+        &mut self,
+        names: Vec<(String, Range<usize>)>,
+    ) -> Result<Vec<Stmt>, Diagnostic> {
+        let open = self.advance().span;
+        while !matches!(self.advance().token, Token::CloseBrace) {}
+        self.expect(&Token::Equals, "in a binding")?;
+        self.continuation();
+        let value = self.expression()?;
+        let whole = format!("%destructured@{}", open.start);
+        let mut statements = vec![Stmt::Bind {
+            name: whole.clone(),
+            name_span: open.clone(),
+            annotation: None,
+            value,
+            private: None,
+        }];
+        for (name, span) in names {
+            let receiver = Expr {
+                kind: Kind::Ident(whole.clone()),
+                span: span.start..span.start,
+            };
+            statements.push(Stmt::Bind {
+                name: name.clone(),
+                name_span: span.clone(),
+                annotation: None,
+                value: Expr {
+                    kind: Kind::Field(Box::new(receiver), name),
+                    span,
+                },
+                private: None,
+            });
+        }
+        Ok(statements)
     }
 
     fn statement(&mut self) -> Result<Stmt, Diagnostic> {
@@ -1584,6 +1648,70 @@ impl Parser {
         })
     }
 
+    /// `fork { a = branch, b = branch }`: each branch a name and a pipeline
+    /// over the value arriving at the step, separated by a line break or a
+    /// comma.
+    fn fork(&mut self) -> Result<Expr, Diagnostic> {
+        let keyword = self.advance();
+        self.expect(&Token::OpenBrace, "after `fork`")?;
+        let mut branches: Vec<(String, Expr)> = Vec::new();
+        let end = loop {
+            self.continuation();
+            if matches!(self.peek(), Token::CloseBrace) {
+                break self.advance().span.end;
+            }
+            let named = self.advance();
+            let Token::Ident(name) = named.token else {
+                return Err(Diagnostic::syntax(
+                    named.span,
+                    "expected a branch name in a `fork`",
+                ));
+            };
+            if branches.iter().any(|(held, _)| *held == name) {
+                return Err(Diagnostic::syntax(
+                    named.span,
+                    format!("the branch `{name}` is named twice in this `fork`"),
+                ));
+            }
+            self.expect(&Token::Equals, "after the name of a `fork` branch")?;
+            self.continuation();
+            let input = Expr {
+                kind: Kind::Ident(FORK_INPUT.to_owned()),
+                span: named.span.clone(),
+            };
+            let first = self.link()?;
+            let mut branch = Expr {
+                span: named.span.start..first.span.end,
+                kind: Kind::Pipe(Box::new(input), Box::new(first)),
+            };
+            while self.at_infix(&Token::Pipe) {
+                self.continuation();
+                let next = self.link()?;
+                branch = Expr {
+                    span: branch.span.start..next.span.end,
+                    kind: Kind::Pipe(Box::new(branch), Box::new(next)),
+                };
+            }
+            branches.push((name, branch));
+            self.eat(&Token::Comma);
+        };
+        if branches.is_empty() {
+            return Err(Diagnostic::syntax(
+                keyword.span.start..end,
+                "a `fork` has at least one branch",
+            ));
+        }
+        Ok(Expr {
+            kind: Kind::Fork { branches },
+            span: keyword.span.start..end,
+        })
+    }
+
+    fn at_fork(&self) -> bool {
+        matches!(self.peek(), Token::Ident(word) if word == "fork")
+            && matches!(self.tokens[self.index + 1].token, Token::OpenBrace)
+    }
+
     fn at_tee(&self) -> bool {
         matches!(self.peek(), Token::Ident(word) if word == "tee")
             && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
@@ -1597,6 +1725,8 @@ impl Parser {
             self.continuation();
             let right = if self.at_tee() {
                 self.tee(pipe_column)?
+            } else if self.at_fork() {
+                self.fork()?
             } else if self.at_type_step() {
                 // `xs | List<Int>`: a constructor with its type arguments and
                 // no argument list of its own.

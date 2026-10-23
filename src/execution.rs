@@ -275,6 +275,14 @@ pub(crate) enum Kind {
         branch: Box<Expr>,
         plan: StepPlan,
     },
+    /// `input | fork { a = branch, … }`: the input, evaluated once, read
+    /// by each branch under [`crate::ast::FORK_INPUT`], and the record of
+    /// their results (HQL-0037).
+    Fork {
+        input: Box<Expr>,
+        branches: Vec<(String, Expr)>,
+        plan: StepPlan,
+    },
     Match {
         subject: Box<Expr>,
         arms: Vec<Arm>,
@@ -335,7 +343,9 @@ impl Expr {
     /// operation's step, a function applied by `|`, or a `tee`.
     pub(crate) fn as_step(&self) -> Option<(&StepPlan, &Expr)> {
         match &self.kind {
-            Kind::Step { plan, input, .. } | Kind::Tee { plan, input, .. } => Some((plan, input)),
+            Kind::Step { plan, input, .. }
+            | Kind::Tee { plan, input, .. }
+            | Kind::Fork { plan, input, .. } => Some((plan, input)),
             Kind::Apply {
                 plan: Some(plan),
                 arguments,
@@ -429,6 +439,11 @@ impl Expr {
                 .chain(arguments)
                 .collect(),
             Kind::Tee { input, branch, .. } => vec![input, branch],
+            Kind::Fork {
+                input, branches, ..
+            } => std::iter::once(input.as_ref())
+                .chain(branches.iter().map(|(_, branch)| branch))
+                .collect(),
             Kind::Match { subject, arms } => std::iter::once(subject.as_ref())
                 .chain(
                     arms.iter()
@@ -1277,6 +1292,33 @@ impl Checked {
             }
             A::Tee { .. } => {
                 return Err(Diagnostic::syntax(span, "`tee` is a pipeline step"));
+            }
+            A::Pipe(input, written) if matches!(written.kind, A::Fork { .. }) => {
+                let A::Fork { branches } = &written.kind else {
+                    unreachable!("matched above");
+                };
+                let branches = branches
+                    .iter()
+                    .map(|(name, branch)| Ok((name.clone(), self.expression(branch)?)))
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                let purity = if branches.iter().any(|(_, branch)| branch.reaches_effect()) {
+                    Purity::Effectful
+                } else {
+                    Purity::Pure
+                };
+                Kind::Fork {
+                    input: boxed(input)?,
+                    branches,
+                    plan: StepPlan::new(OperationType {
+                        name: "fork".to_owned(),
+                        shape: Shape::Barrier,
+                        purity,
+                        presentation: false,
+                    }),
+                }
+            }
+            A::Fork { .. } => {
+                return Err(Diagnostic::syntax(span, "`fork` is a pipeline step"));
             }
             A::Pipe(input, written)
                 if self.user_steps.get(&span).is_some_and(|(_, each)| *each) =>

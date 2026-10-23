@@ -191,3 +191,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   `validate f with V` dispatching to `V`'s implementation, and `f: V` as the
   one implementing type held to `V`. A validator type implemented for
   several types is refused as a field type until V2.
+- D1 done: `fork` parses as a pipeline step, every branch reads the input
+  evaluated once, and the value is a record type named by its branches,
+  `{a: A, b: B}`; `{ a, b } = …` desugars to field reads of a hidden
+  binding. Cases in `examples/dataflow/`.

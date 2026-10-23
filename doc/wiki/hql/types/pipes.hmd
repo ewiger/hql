@@ -66,6 +66,7 @@ drop                                designed (HQL-0006)
 get
 debug
 tee                                 binds a branch, passes the input on
+fork                                the record of branches over one input
 uplinks
 downlinks
 expand
@@ -84,6 +85,15 @@ format-named steps are shorthands of `format`, each writing its input in one
 [[hql/presentation|presentation format]]
 ([HQL-0017](../../../proposals/HQL-0017/README.md)). The rule and its list are owned
 by [HQL-0015](../../../proposals/HQL-0015/README.md).
+
+`xs | fork { a = …, b = … }` is broadcast fan-out
+([HQL-0037](../../../proposals/HQL-0037/README.md)): every branch is a pipeline
+over the same input, the input is evaluated once, and the step's value is the
+record of the branches' results, `{a: A, b: B}`, each field typed by its own
+branch. `{ a, b } = xs | fork { … }` binds the branches by name, and
+`parts.a` reads one. Over a `Stream` each branch is a stream that keeps the
+upstream's order. Branches are separated by a line break or a comma; a branch
+continues over lines that open with `|`.
 
 ## Functions as steps
 
