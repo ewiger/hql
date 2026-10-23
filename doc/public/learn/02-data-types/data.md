@@ -1,7 +1,7 @@
-# 2. Data: records and lists
+# Data: records and lists
 
 The values JSON and YAML are made of — records of named fields, lists, and
-scalar leaves — are one type in HQL, `Data`. This chapter does with `Data` what
+scalar leaves — are one type in HQL, `Data`. This page does with `Data` what
 `jq` does with JSON: build it, read into it, reshape it, and write it back out.
 
 ## A tree of values
@@ -234,13 +234,14 @@ table:
 
 [Chapter 10](10-output.md) is about formats in full.
 
-Today a program writes its data as literals, or reads it from a vault's
-documents, as [chapter 6](06-a-vault.md) does. Reading a JSON, YAML or CSV file
-as a query source, with `--from`, is on the
-[roadmap](../roadmap.md).
+A program writes its data as literals, reads it from a vault's documents, as
+[chapter 6](../06-a-vault.md) does, or reads a JSON, YAML or CSV file with
+`source`, as [chapter 13](../13-reading-and-writing.md) does.
 
 ## What is next
 
-A `Data` list is one kind of collection. [Chapter 3](03-collections.md) meets
+How `Data` differs from a set and from a map, all three written in braces, is
+[the next page](sets-data-and-maps.md). A `Data` list is one kind of
+collection. [Chapter 3](../03-collections.md) meets
 the others — lists, sets and maps of typed values — and the steps that work on
 all of them.

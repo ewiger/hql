@@ -1,15 +1,38 @@
-# 1. First steps
+# 1. Hello world
 
 HQL is a statically typed expression and query language. A program is an
 expression, or a few statements ending in one; `hql` checks its type, then
 evaluates it, and writes the value. This chapter is about that loop.
+
+## Hello, world
+
+The smallest program that says hello is the text itself:
+
+```hql
+"Hello, world!"
+```
+
+```text
+"Hello, world!"
+```
+
+A program is an expression, and its value is what `hql` writes. `fmt` writes
+values into a template, one `{}` each:
+
+```hql
+fmt("Hello, {}!", "world")
+```
+
+```text
+"Hello, world!"
+```
 
 ## Running a program
 
 `hql eval` takes a program as an argument:
 
 ```sh
-hql eval '1 + 2'
+hql eval '"Hello, world!"'
 ```
 
 Every program in this book runs that way. Most of them run against the
@@ -28,39 +51,15 @@ the block after it.
 
 ## Values and their types
 
-The scalar types are `Int`, `Float`, `String` and `Bool`. Arithmetic is defined
-on two `Int` or two `Float` operands; `Int` division truncates.
-
-```hql
-7 / 2
-```
-
-```text
-3
-```
-
-```hql
-7.0 / 2.0
-```
-
-```text
-3.5
-```
-
-```hql
-"Frankenstein" == "Frankenstein" and 3 < 4
-```
-
-```text
-true
-```
-
+Every value has a type: `1 + 2` is an `Int`, `"Hello"` a `String`.
 `hql check` writes a program's type without evaluating it:
 
 ```sh
 $ hql check - <<< '7 / 2'
 Int
 ```
+
+[Chapter 2](02-data-types/index.md) meets the types one by one.
 
 ## Checked before it runs
 
@@ -155,6 +154,6 @@ pattern that fits anything.
 
 ## What is next
 
-Scalars are only the leaves. [Chapter 2](02-data.md) builds trees of them —
-the records and lists that JSON and YAML are made of — and asks them
-questions.
+[Chapter 2](02-data-types/index.md) meets the data types: `Int`, `Float`,
+`String` and `Bool`, tried in the REPL, and `Data`, the records and lists that
+JSON and YAML are made of.

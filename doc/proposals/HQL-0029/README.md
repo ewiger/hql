@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-10-22
-**Source**: [set and Data](../../wiki/hql/set-vs-data.hmd)
+**Source**: [set and Data](../../wiki/hql/sets-vs-data-vs-map.hmd)
 
 ## Companion notes
 

@@ -280,7 +280,7 @@ A value in `Hql` is the literal that writes it, so the text reads back as the
 same value: a string in quotes, a list in square brackets, a set in braces —
 `{"novel", "essay"}`; the empty set is `{}`, and an empty set of a known
 element type is written `Set<Int>([])`, so it reads back with that type. The
-empty `Data` is `{:}` ([[set-vs-data]]). A cut is marked with a `//` comment. Text of another format
+empty `Data` is `{:}` ([[sets-vs-data-vs-map]]). A cut is marked with a `//` comment. Text of another format
 written as `Hql` is a string literal. A value's own rendering in `Text` is the
 same with one exception: a string standing alone is written bare.
 

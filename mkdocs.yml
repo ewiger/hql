@@ -94,8 +94,15 @@ nav:
       - Install: public/install.md
       - The HQL book:
           - public/learn/index.md
-          - 1. First steps: public/learn/01-first-steps.md
-          - 2. Data, records and lists: public/learn/02-data.md
+          - 1. Hello world: public/learn/01-hello-world.md
+          - 2. Data types:
+              - public/learn/02-data-types/index.md
+              - Int: public/learn/02-data-types/int.md
+              - Float: public/learn/02-data-types/float.md
+              - String: public/learn/02-data-types/string.md
+              - Bool: public/learn/02-data-types/bool.md
+              - Data: public/learn/02-data-types/data.md
+              - Sets, Data and maps: public/learn/02-data-types/sets-data-and-maps.md
           - 3. Collections: public/learn/03-collections.md
           - 4. Functions: public/learn/04-functions.md
           - 5. Asking questions: public/learn/05-questions.md

@@ -88,7 +88,7 @@ source(file("examples/io/sightings.jsonl"))
 ```
 
 Each document is `Data`, the type of a dynamically structured value from
-[chapter 2](02-data.md). A CSV row is a record of strings, keyed by the
+[chapter 2](02-data-types/data.md). A CSV row is a record of strings, keyed by the
 header.
 
 ## Reading as a declared record

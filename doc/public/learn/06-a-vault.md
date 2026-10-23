@@ -107,7 +107,7 @@ none
 
 ## Metadata is Data
 
-A card's metadata is the `Data` of [chapter 2](02-data.md), so every question
+A card's metadata is the `Data` of [chapter 2](02-data-types/data.md), so every question
 from chapters 2 and 5 applies. The books are the cards whose category says so:
 
 ```hql
