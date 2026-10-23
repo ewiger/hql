@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 47 # to be incremented when adding a new issue card
+  last_id: 48 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0043"
@@ -49,8 +49,11 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0048"
+        title: "Builtin packages live under `lib/`: `std` is one of them"
+        file: 0048-builtin-packages-under-lib.md
       - id: "0046"
-        title: "Renovate `std/**` under the module, package and extension model"
+        title: "Renovate `lib/std/**` under the module, package and extension model"
         file: 0046-renovate-std.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"

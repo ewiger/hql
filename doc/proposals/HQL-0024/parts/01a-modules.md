@@ -314,7 +314,7 @@ For example:
 ```text
 ModuleRegistry {
     "regex" -> {
-        contract: BuiltinContract("std/regex/mod.hql"),
+        contract: BuiltinContract("lib/std/regex/mod.hql"),
         implementation: BuiltinExtension("std-regex")
     },
 

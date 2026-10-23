@@ -65,7 +65,7 @@ the type it was read as fails as a type error in the
 ## Resolving absence
 
 `Option<T>` comes with the established option vocabulary, declared beside it in
-[`std/core/mod.hql`](../../../../std/core/mod.hql): `is_some`, `is_none`, `unwrap_or`,
+[`lib/std/core/mod.hql`](../../../../lib/std/core/mod.hql): `is_some`, `is_none`, `unwrap_or`,
 `unwrap_or_else`, `alternative`, `map`, `and_then` and `filter`. There is no `unwrap`;
 every way out of an `Option` says what absence means:
 

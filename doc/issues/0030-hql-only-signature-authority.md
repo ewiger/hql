@@ -2,7 +2,7 @@
 
 Status: done
 Related: [HQL-0024 part 12](../proposals/HQL-0024/parts/12-contracts-and-binding.md),
-[extensions](../wiki/hql/extensions.hmd), [the standard library](../../std/README.md)
+[extensions](../wiki/hql/extensions.hmd), [the standard library](../../lib/std/README.md)
 
 A standard module's `.hql` file declares each function's signature, and the
 extension implementing it writes the same signature again as an

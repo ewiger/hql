@@ -64,7 +64,7 @@ abstract type VaultSource : DataSource {
 - `vault.cards` MUST be a `KeyedSource<String, Card>`: `get(vault.cards,
   "alice")` gives `Option<Card>`.
 - `vault.knowledge` MUST be the knowledge universe of the vault's cards, as
-  [`std/knowledge/mod.hql`](../../../std/knowledge/mod.hql) declares it: concepts,
+  [`lib/std/knowledge/mod.hql`](../../../lib/std/knowledge/mod.hql) declares it: concepts,
   relations, propositions and evidence, with their provenance.
 - `vault.graph` MUST equal `KnowledgeGraph(vault.cards)`
   ([HQL-0019](../HQL-0019/README.md)): the part of the knowledge that is
@@ -88,7 +88,7 @@ graph     = vault.graph
   for `hql render`, the vault containing the document. Without one, `vault` is
   unbound, and the checker says that it needs `--vault`.
 - The standard library MUST make the three bindings above. The host seeds
-  `vault` alone; `cards` and `graph` are bindings in `std/vault/mod.hql`, and
+  `vault` alone; `cards` and `graph` are bindings in `lib/std/vault/mod.hql`, and
   `knowledge` joins them with `vault.knowledge`. They are ordinary
   bindings, not keywords: a program reads `cards` and `graph` as it reads any
   name, and both are unbound when `vault` is.
@@ -146,8 +146,8 @@ carries. `knowledge` is not bound until `vault.knowledge` exists. `vault`,
 
 ## Reference Implementation
 
-- `std/sources/mod.hql` — `VaultSource` with its fields
-- `std/vault/mod.hql` — `Vault` with its fields, and the bindings
+- `lib/std/sources/mod.hql` — `VaultSource` with its fields
+- `lib/std/vault/mod.hql` — `Vault` with its fields, and the bindings
   `cards = vault.cards`, `knowledge = vault.knowledge` and `graph = vault.graph`
 - `src/traversal.rs`, `src/evaluation.rs` — the sorted walk, yielding cards
   lazily
@@ -193,8 +193,8 @@ cargo clippy --locked --all-targets -- -D warnings
   `source("field_notes")` a `Vault` with its own `cards`, `graph`, `name` and
   `root`, its cards never merged into `cards`
   ([HQL-0012](../HQL-0012/README.md), [issue 0040](../../issues/0040-configured-data-sources.md));
-  `std/io/mod.hql` declares `VaultSource : DataSource`. `Vault` does not yet
+  `lib/std/io/mod.hql` declares `VaultSource : DataSource`. `Vault` does not yet
   narrow `VaultSource`, and `knowledge` is not built
 - 2026-10-22: cards are keyed by name: `get(vault.cards, "alice")` and
   `cards.get("alice")` give `Option<Card>`, by a `get` over any collection
-  of documents that `std/collections/mod.hql` declares
+  of documents that `lib/std/collections/mod.hql` declares

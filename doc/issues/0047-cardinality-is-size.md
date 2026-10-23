@@ -3,7 +3,7 @@
 Status: todo
 Related: [HQL-0014](../proposals/HQL-0014/README.md),
 [HQL-0026](../proposals/HQL-0026/README.md),
-[`std/string`](../../std/string/mod.hql)
+[`lib/std/string`](../../lib/std/string/mod.hql)
 
 Cardinality has one name, `size`, with `count(xs)` its one kept alias
 (HQL-0014, "Named aggregations are aliases"). A String declares its own
@@ -13,7 +13,7 @@ A String's positions are its code points, counted by `s.size()` (HQL-0026,
 
 ## Work
 
-1. `std/string/mod.hql`: `fn size(self) : Int` in place of `fn length(self) :
+1. `lib/std/string/mod.hql`: `fn size(self) : Int` in place of `fn length(self) :
    Int`, its comment stating the law `s.size() == s.chars().size()`.
 2. The `string` extension: the operation renamed, its description naming code
    points.

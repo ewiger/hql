@@ -2165,7 +2165,7 @@ itself.
 - 2026-10-23: implemented in part. `type A = {…}` is a structural body, the
   same closed type as `type A {…}`, and `type B : Data = {…}` an open one;
   `TypeContract` and `DataContract`, the second a `Data`, are in the lattice
-  and `std/core/mod.hql`. A structural type is open exactly when it is a `Data`.
+  and `lib/std/core/mod.hql`. A structural type is open exactly when it is a `Data`.
   `data | T` (the parser's `T(data)` with one value by position) reads a
   `Data`, an open record, or an optional or a collection of either, as `T`:
   a closed type refuses an undeclared entry, an open one keeps the whole

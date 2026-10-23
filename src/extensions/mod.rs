@@ -366,7 +366,7 @@ pub struct Extension {
     /// The version this extension reports.
     pub(crate) version: &'static str,
     /// The descriptor's `provides`: the canonical names of the modules whose
-    /// contracts in `std/` this extension implements. Binding cross-checks
+    /// contracts in `lib/std/` this extension implements. Binding cross-checks
     /// each contract's external declarations against the steps here.
     pub(crate) provides: &'static [&'static str],
     /// What it supplies.
@@ -507,7 +507,7 @@ impl Extension {
 }
 
 /// The modules imported unless a vault opts out: the imports written in
-/// `std/prelude.hql`, which is the standard library's implicit import list
+/// `lib/std/prelude.hql`, which is the standard library's implicit import list
 /// and not a module of its own.
 ///
 /// A prelude exists so that a program that trims a string or walks a graph
@@ -686,7 +686,7 @@ fn module_in(extensions: &[&'static Extension], path: &str) -> Option<&'static E
 /// Bind the standard library's contracts to the extensions implementing them.
 ///
 /// HQL declares, an extension implements: the process's runtime environment
-/// loads the modules of `std/`, allocating module, declaration, type, trait,
+/// loads the modules of `lib/std/`, allocating module, declaration, type, trait,
 /// implementation and constructor identities, binds every compiled-in
 /// extension to them and validates the result once. For every module written
 /// as external declarations the extension whose descriptor provides the

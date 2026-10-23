@@ -174,7 +174,7 @@ implementation does not exist anywhere in the type graph, and the checker is
 left asking where `render` comes from. A capability is supplied *for* a type,
 not inherited by it: it is an **implementation of a trait the checker
 consults**, not a type participating in `:`. Writing a value in a format is an
-encoder, `impl Encoder<Graph> for D2` in `std/format/mod.hql`, a native
+encoder, `impl Encoder<Graph> for D2` in `lib/std/format/mod.hql`, a native
 implementation an [[hql/extensions|extension]] binds; a renderer chosen for a
 type in a format is one of a format's encoders ([[hql/presentation]]).
 
@@ -215,7 +215,7 @@ Three different things are kept apart:
 call, and inside the body `x.area()` resolves through the bound. A trait may
 give a function a default body an implementation inherits. The core traits are
 `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index`, `Slice` and `Validator`, in scope
-everywhere and restated in `std/core/mod.hql`: `a + b` over a declared type resolves
+everywhere and restated in `lib/std/core/mod.hql`: `a + b` over a declared type resolves
 `Add` for it, `==` resolves `Eq`, `xs[i]` resolves `Index`, `xs[a:b]` resolves
 `Slice` ([[bracket-op]]), and a type implementing `Ord`
 is `Orderable`, its `compare` deciding `<`, `sort`, `min` and `max`. Dispatch is on the value's own
@@ -256,7 +256,7 @@ union's implementation is the union's own, not each member's, so
 `impl Index<Data> for Data` makes a document indexed and not a `String`.
 
 Traits are strict. That a built-in type implements a core trait is declared,
-not assumed: `std/core/mod.hql` writes `impl Ord for Int` as a header without a
+not assumed: `lib/std/core/mod.hql` writes `impl Ord for Int` as a header without a
 body, a native implementation the runtime binds, and a built-in type
 implements exactly what its headers name, so `T : Add` takes `Int` and
 refuses `String`. Two implementations of one trait **overlap** when one
@@ -273,7 +273,7 @@ the evidence holds, and refinement never converts the value.
 
 A value of a concrete type is built by its **constructor**, a function named
 after the type, declared beside it and returning it: `fn Set<T>(xs:
-Collection<T>) : Set<T>` in `std/core/mod.hql`, `fn Temp(celsius: Float) :
+Collection<T>) : Set<T>` in `lib/std/core/mod.hql`, `fn Temp(celsius: Float) :
 Temp` in a program that declares `type Temp`. `T(x, a)` and `x | T(a)` are one
 call. A type's forms of one arity differ in their first parameter, which is
 how a call, and a constructor passed as a function value, selects one; an
@@ -326,7 +326,7 @@ the type:
 
 | Part | Where it sits |
 | --- | --- |
-| the declaration | one short line in [`std/`](../../../std/README.md) — `abstract type Seq<T> : Collection<T>` in `collections.hql` |
+| the declaration | one short line in [`lib/std/`](../../../lib/std/README.md) — `abstract type Seq<T> : Collection<T>` in `collections.hql` |
 | the law it stands for | the comment beside that line, and the card arguing it |
 | enforcement | the Rust implementation under `src/` |
 
@@ -337,7 +337,7 @@ kind: nothing verifies that positions exist, and everything that builds a `Seq`
 supplies them.
 
 The binary carries the built-in declarations in Rust. Tests check the source
-declarations in `std/` against those built-ins, while evaluation enforces the
+declarations in `lib/std/` against those built-ins, while evaluation enforces the
 behavioral laws. See [issue 0003](../../issues/0003-type-declarations.md).
 
 ### What this decides about `Seq` and `List`
@@ -551,7 +551,7 @@ lookup accepts them. Function types follow the same rule from both ends:
 covariant in both, so a function written over `Graph<Doc, Edge>` accepts a
 `Graph<Card, Link>` — see [[graph-type]]. Each built-in declaration states its
 parameters' variance once, in Rust, and the checker applies it; a declaration in
-[`std/`](../../../std/README.md) has no variance marker, so `type Map<K, V>`
+[`lib/std/`](../../../lib/std/README.md) has no variance marker, so `type Map<K, V>`
 names the shape and the built-in fixes `K` invariant and `V` covariant.
 
 ## An operation returns the container it was given
@@ -595,7 +595,7 @@ map<F<_> : Iterable<_>, T, U>(xs: F<T>, f: T -> U) : F<U>
 `F<_> : Iterable<_>` admits a constructor whose argument is its element type,
 `F<X> : Iterable<X>` for every `X`. `List`, `Seq`, `Set` and `Stream` are
 such constructors. `Option` is not an `Iterable`; its `map` and `filter` are
-overloads of their own in [`std/core/mod.hql`](../../../std/core/mod.hql), with the
+overloads of their own in [`lib/std/core/mod.hql`](../../../lib/std/core/mod.hql), with the
 same shape. `Ranking` is not one either: `Ranking<T> : Seq<Hit<T>>`
 has `Hit<T>` as its element type, so a `Ranking` is mapped as the
 `Seq<Hit<T>>` it is.

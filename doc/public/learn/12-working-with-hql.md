@@ -60,7 +60,7 @@ A function of a module that the program has not imported is listed too, so
 the import it needs can be looked up. `import lexical` makes a module visible;
 `lexical.lexical(…)` names a function with its module, when two visible modules
 declare one name and the input does not tell them apart. The modules of
-`std/prelude.hql`, `string`, `seq`, `math`, `option`, `result`, `graph`,
+`lib/std/prelude.hql`, `string`, `seq`, `math`, `option`, `result`, `graph`,
 `format` and `io` among them, are visible in every program unless the vault's
 `hql.toml` says `prelude = false`.
 

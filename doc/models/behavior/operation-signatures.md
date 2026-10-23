@@ -119,7 +119,7 @@ These are the duplicates. Each has a decision already.
 | Signatures | Decision |
 | --- | --- |
 | `collect<T>(Seq<T>) : List<T>` (HQL-0004), `list<T>(Seq<T>) : List<T>` (HQL-0007) and the `List(xs)` constructor | the `List` constructor ([HQL-0016](../../proposals/HQL-0016/README.md)); HQL-0004's text still says `collect` |
-| `size<T>(Collection<T>) : Int` and `count<T>(Collection<T>) : Int` (the no-argument form) | kept as a declared alias, the only one; `std/collections/mod.hql` says so |
+| `size<T>(Collection<T>) : Int` and `count<T>(Collection<T>) : Int` (the no-argument form) | kept as a declared alias, the only one; `lib/std/collections/mod.hql` says so |
 | `graph(x) : Graph` and `expand(x, depth = 0) : Graph` over the same input union | the `Graph` constructor ([HQL-0017](../../proposals/HQL-0017/README.md)); `expand` refuses depth `0` |
 
 ### Same signature, different result: not duplicates

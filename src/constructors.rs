@@ -2,7 +2,7 @@
 //! collections, a graph projected from cards, a table of records, a
 //! channel, and a tree parsed from text.
 //!
-//! A constructor is declared in `std/` as a function named after its type,
+//! A constructor is declared in `lib/std/` as a function named after its type,
 //! beside the type, and binding holds each declaration to the table here:
 //! the declarations state the forms a call selects among by its first
 //! argument, and this module implements them.
@@ -60,7 +60,7 @@ pub(crate) fn is_table_constructor(module: &str, name: &str) -> bool {
             .is_none()
 }
 
-/// The forms `std/` declares for a constructor, in the order written: the
+/// The forms `lib/std/` declares for a constructor, in the order written: the
 /// constructor declarations of the type identity binding bound it to.
 pub(crate) fn forms(constructor: TypeConstructor) -> Vec<&'static OperationSpec> {
     crate::extensions::binding::Environment::get()
@@ -132,13 +132,13 @@ pub(crate) fn bind(environment: &crate::extensions::binding::Environment) -> Res
         let declared = !environment.constructor_forms(constructor.0).is_empty();
         if concrete && !declared {
             return Err(format!(
-                "the binary constructs {constructor}, and no module under std/ declares \
+                "the binary constructs {constructor}, and no module under lib/std/ declares \
                  `fn {constructor}(…)`"
             ));
         }
         if !concrete && declared {
             return Err(format!(
-                "std/ declares a constructor of {constructor}, which is abstract"
+                "lib/std/ declares a constructor of {constructor}, which is abstract"
             ));
         }
         let held = environment.constructor_forms(constructor.0);
@@ -148,7 +148,7 @@ pub(crate) fn bind(environment: &crate::extensions::binding::Environment) -> Res
                     && earlier.input.to_string() == later.input.to_string()
             }) {
                 return Err(format!(
-                    "std/ declares `{}` after `{}`: forms of one arity differ in their first \
+                    "lib/std/ declares `{}` after `{}`: forms of one arity differ in their first \
                      parameter",
                     later.signature(constructor.0),
                     earlier.signature(constructor.0)
@@ -256,7 +256,7 @@ pub(crate) fn resolve_value(
 
 /// Check a call of a standard constructor: the binary's own refinements
 /// first, a finite input and positions where a `List` needs them, then the
-/// form `std/` declares that the call takes.
+/// form `lib/std/` declares that the call takes.
 pub(crate) fn check(
     cx: &mut dyn CheckCx,
     constructor: TypeConstructor,

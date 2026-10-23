@@ -901,7 +901,7 @@ impl Declarations {
     }
 
     /// A declaration may restate a type the binary already has — that is what
-    /// `std/` is for — but it may not contradict it.
+    /// `lib/std/` is for — but it may not contradict it.
     fn agrees_with_the_lattice(
         &self,
         declaration: &TypeDecl,

@@ -279,7 +279,7 @@ Each term below has one meaning.
 
 ### 2. The abstract types
 
-The core declares the contracts in the `io` module, `std/io/mod.hql`. Each source
+The core declares the contracts in the `io` module, `lib/std/io/mod.hql`. Each source
 contract is also the type of the source's contents, so a source stands wherever
 its contents would.
 
@@ -654,7 +654,7 @@ MUST NOT appear to the program as fewer elements.
 
 ## Deployment / Activation
 
-1. Declare `std/sources/mod.hql`, and expose the filesystem vault as
+1. Declare `lib/std/sources/mod.hql`, and expose the filesystem vault as
    `vault : VaultSource`, with `cards` bound to `vault.cards`; no
    configuration change.
 2. Add `[sources.<id>]` and `source(id)` with a second `vault` kind source, so
@@ -666,7 +666,7 @@ MUST NOT appear to the program as fewer elements.
 
 ## Reference Implementation
 
-- `std/sources/mod.hql` — the declarations of the section "The abstract types"
+- `lib/std/sources/mod.hql` — the declarations of the section "The abstract types"
 - `src/sources.rs` — configuration loading, id validation, the secret-key
   refusal and the bounds of the section "Run-context bounds"
 - `src/checker.rs` — typing `source(id)` from configuration
@@ -726,7 +726,7 @@ None.
   loaded once per run), `csv`, `json` (the elements of one array),
   `json_lines`, `yaml` and `sqlite` (one table, ordered by `order`, else by
   `rowid`) are implemented; `element` types a file or table's elements, and
-  `[execution] max_elements` and `max_bytes` bound a source. `std/io/mod.hql`
+  `[execution] max_elements` and `max_bytes` bound a source. `lib/std/io/mod.hql`
   declares `KeyedSource`, `StreamSource`, `Catalog`, `Message` and
   `Position`, and `VaultSource` as [HQL-0020](../HQL-0020/README.md) states
   it, a `DataSource` and not a `Seq<Card>`. A file or table is typed `Seq<T>` rather than a

@@ -56,7 +56,7 @@ configured package modules.
 
 ## Current state
 
-- The run context seeds `vault`, `knowledge` and, through `std/`, `cards =
+- The run context seeds `vault`, `knowledge` and, through `lib/std/`, `cards =
   vault.cards` into the binding namespace before a program runs
   ([naming](../../../wiki/hql/naming.hmd), [HQL-0020](../../HQL-0020/README.md)).
 - A vault's `hql.toml` states imports and may decline the prelude

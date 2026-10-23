@@ -37,7 +37,7 @@ day the binary checks and evaluates it.
    the corpus header `modules:`), `foo/mod.hql`, `module for T` receiver
    modules, one registry over builtin and workspace providers, and an
    execution context that carries the vault and the module roots.
-7. **Contracts in `std/`** (parts 1 and 3): one file per module in the target
+7. **Contracts in `lib/std/`** (parts 1 and 3): one file per module in the target
    layout, external declarations for what Rust implements, and a test that
    every external declaration has an implementation and every implementation
    a declaration.
@@ -54,7 +54,7 @@ day the binary checks and evaluates it.
 - Part 5's split: `Orderable` stays the ancestry form; `impl Ord for T`
   makes `T` `Orderable` for `compare`, `<`, `sort`, `min`, `max`. Structure
   bounds (`Collection`, `Seq`, `Iterable`) stay abstract types.
-- Part 4's result-type rule: a receiver function declared in `std/` over
+- Part 4's result-type rule: a receiver function declared in `lib/std/` over
   `Seq<T>` keeps the container rule of the type system card, because the Rust
   implementation it binds to does; a receiver function with an HQL body
   returns what its signature says.
@@ -71,7 +71,7 @@ Left for later records: a workspace module's trait defaults inherited by an
 importer's `impl`, binary formats and codecs from outside the binary
 ([issue 0029](0029-binary-formats-and-codecs.md)), HQL-0021's acceptance, and
 HQL-0025 for the execution context, reserved. The codec contracts are
-declared in `std/format/mod.hql` and implemented by the binary's extension, which
+declared in `lib/std/format/mod.hql` and implemented by the binary's extension, which
 is the design: HQL declares the interface and native code implements it.
 `trait` declarations take no type parameters yet, so the contracts are
 spelled `abstract type Decoder<F, T>`; that is a spelling, not an opening.

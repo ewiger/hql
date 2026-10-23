@@ -31,8 +31,8 @@ functions are that implementation.
 - A receiver module holds a type's functions, and a separate `impl` states
   that the type has a capability. `String`'s positions and parts are
   `impl Index<String> for String` and `impl Slice for String` headers in
-  `std/core/mod.hql`, while its other text functions live in
-  `std/string/mod.hql`. One type's functions and capabilities belong in one
+  `lib/std/core/mod.hql`, while its other text functions live in
+  `lib/std/string/mod.hql`. One type's functions and capabilities belong in one
   module.
 - Strings, sequences and streams share capabilities, but each has its own
   receiver module. A trait list on a receiver module states which capability
@@ -101,7 +101,7 @@ and by what it extends, never by a keyword.
 
 - A trait MAY be of more than one kind. A validator trait MAY also be named
   in a bound.
-- The operator traits are the core traits declared in `std/core/mod.hql`.
+- The operator traits are the core traits declared in `lib/std/core/mod.hql`.
   A program MAY implement them for its own types, and MUST NOT declare new
   operator traits.
 
@@ -151,7 +151,7 @@ A receiver module MAY list traits after its pattern. Its `self` functions
 are then the implementation of those traits for the pattern's type.
 
 ```hql
-// std/string/mod.hql
+// lib/std/string/mod.hql
 module for String : Index<String>, Slice
 import core
 
@@ -215,8 +215,8 @@ A trait belongs to a module and is declared in that module's `mod.hql`.
 - A library trait MUST be declared in the `mod.hql` of the module whose
   domain it states, and is visible where that module is imported
   ([HQL-0028](../HQL-0028/README.md)). The core traits are declared in
-  `std/core/mod.hql` and are in scope everywhere. The standard validator
-  traits are declared in `std/validators/mod.hql`.
+  `lib/std/core/mod.hql` and are in scope everywhere. The standard validator
+  traits are declared in `lib/std/validators/mod.hql`.
 - A trait declared in a program belongs to the program module and is visible
   in that program only.
 - A trait and the receiver modules implementing it MAY be declared in
@@ -228,7 +228,7 @@ Every `trait` and `impl` that checks today checks unchanged. `module for P`
 without a trait list keeps its meaning. A parameter, binding or result typed
 by a trait is refused, which no existing example writes. "Validator type"
 becomes "validator trait" in HQL-0034, in the type system card and in the
-comments of `std/core/mod.hql` and `std/validators/mod.hql`. Their behaviour
+comments of `lib/std/core/mod.hql` and `lib/std/validators/mod.hql`. Their behaviour
 is unchanged.
 
 ## Reference Implementation
@@ -240,9 +240,9 @@ is unchanged.
   position other than a validator field
 - `src/extensions/binding.rs`: native implementations from a module's
   bodyless functions
-- `std/string/mod.hql`, `std/seq/mod.hql`: `Index` and `Slice` stated in the
+- `lib/std/string/mod.hql`, `lib/std/seq/mod.hql`: `Index` and `Slice` stated in the
   modules' trait lists, and the corresponding headers removed from
-  `std/core/mod.hql`
+  `lib/std/core/mod.hql`
 - `doc/wiki/hql/type-system.hmd`: its traits section rewritten around this
   record, or moved to a card of its own, `hql/traits.hmd`
 

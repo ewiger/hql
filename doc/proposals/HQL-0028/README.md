@@ -183,7 +183,7 @@ every importer and wider than one module.
 
 - An internal declaration is visible to every module of its package and to no
   unit outside it, and is not exported.
-- The standard library is the builtin package, so a helper `string` and `seq`
+- The standard library is a builtin package, so a helper `string` and `seq`
   both need can be internal to it.
 - `internal` is admitted only once every resolved module records its package.
   Before then it could mean only what `private` means.
@@ -204,10 +204,10 @@ every importer and wider than one module.
   and every existing import keeps resolving.
 - Extension preludes are not implemented, so making them per unit breaks no
   program.
-- `std/vault/mod.hql` binds `cards = vault.cards` and `graph = vault.graph` from the
+- `lib/std/vault/mod.hql` binds `cards = vault.cards` and `graph = vault.graph` from the
   host-seeded `vault` inside a module file, which a closure may not do; both
   bindings belong to the program module.
-- The `std/` files write no imports today. Under the per-package prelude rule
+- The `lib/std/` files write no imports today. Under the per-package prelude rule
   each names the standard modules it uses beyond the types the binary holds.
 - This record changes three parts of [HQL-0024](../HQL-0024/README.md): the
   Visibility section of [modules](../HQL-0024/parts/01-modules.md), the prelude

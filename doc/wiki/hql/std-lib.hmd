@@ -5,9 +5,10 @@ nav:
 ---
 # Standard HQL library
 
-The declarations HQL ships with live in [`std/`](../../../std/README.md), written
-in HQL rather than described in prose, and embedded in the binary. `std/` is
-the builtin package: its root holds `prelude.hql`, the package's global space
+The declarations HQL ships with live in [`lib/std/`](../../../lib/std/README.md), written
+in HQL rather than described in prose, and embedded in the binary. `lib/` holds
+the builtin packages, one folder each, and `lib/std/` is the standard package,
+one of them: its root holds `prelude.hql`, the package's global space
 and the implicit import list every source unit outside the package starts
 with, and one folder per module, the module's declarations in its `mod.hql`:
 `core`, `doc`, `retrieval`, `graph`, `knowledge`, `collections`, `string`,
@@ -29,12 +30,12 @@ declaration function by function
 
 These cards and those files say the same thing twice, which is a real cost worth
 naming. The division is that **the file is the declaration and the card is the
-argument**. `std/graph/mod.hql` states that `Link<S, T> : Edge<S, T>`;
+argument**. `lib/std/graph/mod.hql` states that `Link<S, T> : Edge<S, T>`;
 [[graph-type]] explains why an edge is the primitive and why its payload is
 [[data-type|Data]]. When the two disagree, the card is describing something that
 no longer exists, and the card is what gets fixed.
 
-`std/` is deliberately not [the corpus](../../../examples/README.md). The corpus
+`lib/std/` is deliberately not [the corpus](../../../examples/README.md). The corpus
 records what was considered and may keep a withdrawn spelling beside a current
 one; a standard library may not. There is one declaration of `Edge`, and it is
 the one that is true now.
@@ -42,17 +43,17 @@ the one that is true now.
 ## Fields and bindings come from the library
 
 A field a program reads on a built-in record — `h.score` on a `Hit`, `c.kind`
-on a `Card`, `g.nodes` on a `Graph` — has the type its declaration in `std/`
+on a `Card`, `g.nodes` on a `Graph` — has the type its declaration in `lib/std/`
 gives, looked up on the record and then on its parents. The library holds
-no binding: `std/vault/mod.hql` declares `Vault`, and `cards = vault.cards` is a
+no binding: `lib/std/vault/mod.hql` declares `Vault`, and `cards = vault.cards` is a
 binding of the program module, run before every program over a vault, so
 `cards` is an ordinary binding and no special case. A module never sees it
 ([HQL-0028](../../proposals/HQL-0028/README.md)).
 
 ## Declarations are checked, not evaluated
 
-The parser reads the `type` statement, and every file in `std/` checks:
-`hql check std/graph/mod.hql` prints `Unit`, and a test checks that every file is
+The parser reads the `type` statement, and every file in `lib/std/` checks:
+`hql check lib/std/graph/mod.hql` prints `Unit`, and a test checks that every file is
 embedded as written and checks over its own imports alone, so a file added there cannot be silently left unchecked.
 
 Checking is not evaluating. A declaration yields `Unit` and introduces no value
@@ -65,14 +66,14 @@ holds, the two agree. `type Card : Doc` checks; `type Card : Edge` is refused
 as a contradiction. The rules are in
 [the grammar](../../models/behavior/expressions.md).
 
-That agreement is the point of the folder. `std/` is not a second opinion about
+That agreement is the point of the folder. `lib/std/` is not a second opinion about
 the type lattice; it is the lattice written down where a reader can find it,
 and a file that drifts from the binary now fails rather than going unread.
 
 A standard library was a bootstrap non-goal in
 [requirements](../../models/requirements/bootstrap.md). It now ships one:
 the receiver modules of the prelude, `string` over `String`, `seq` over
-`Seq<T>`, `option` and `result`, `math` and `regex`, each a contract in `std/`
+`Seq<T>`, `option` and `result`, `math` and `regex`, each a contract in `lib/std/`
 with its implementation in the binary.
 
 See [[type-system]] for `:`, generics and refinement, [[hql/core]] for the

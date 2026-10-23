@@ -11,7 +11,7 @@ from the syntax it is written in (a format), and names a renderer for each
 shape in each format. HQL-0024 part 7 defines a format as a `Format` value
 with `Encoder<T>` impls, and a renderer as one of a format's encoders.
 
-`Table` is declared in `std/format/mod.hql` and built by
+`Table` is declared in `lib/std/format/mod.hql` and built by
 `Table(xs, columns = [...])`. Each format writes a `Table` with its own
 encoder: `Text` aligned columns, `Markdown` and `Hmd` a pipe table, `Csv`
 RFC 4180 rows, `Json` and `Yaml` an array of objects, each in column order.

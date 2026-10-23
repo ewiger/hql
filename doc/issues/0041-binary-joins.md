@@ -9,7 +9,7 @@ Related: [HQL-0013](../proposals/HQL-0013/README.md),
 
 - `join`, `left_join`, `right_join`, `full_join`, `cross_join`, `semi_join`
   and `anti_join` over the pipeline value and one other sequence, declared
-  in `std/collections/mod.hql` and implemented in `src/extensions/collections.rs`.
+  in `lib/std/collections/mod.hql` and implemented in `src/extensions/collections.rs`.
 - The refusals of the section "Conditions": no condition names
   `cross_join`, `left` needs `right`; a `Set` input names `sort`.
 - Module resolution: where several visible modules declare a name, the

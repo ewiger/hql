@@ -28,8 +28,8 @@ intersection type, and do not touch the normalization rule.
    `Token::Colon`. Check for an ambiguity I have not: the supertype is parsed as
    a type annotation and a record body may follow it, so `type X : Y { f : T }`
    has to keep parsing as it does now.
-3. **`std/`**. Every declaration there is affected. Keep the column alignment
-   that `std/graph/mod.hql` and `std/knowledge/mod.hql` use — the operator loses a
+3. **`lib/std/`**. Every declaration there is affected. Keep the column alignment
+   that `lib/std/graph/mod.hql` and `lib/std/knowledge/mod.hql` use — the operator loses a
    character, so the padding has to be re-struck, not left.
 4. **Tests.** `tests/declarations.rs` carries most of the spellings. Add a case
    pinning that `<:` is now a syntax error, so the old operator cannot quietly
@@ -61,7 +61,7 @@ several cards are *built* on there being two symbols. At minimum:
 ## Before you report it done
 
 - `cargo test` and `cargo clippy --all-targets` are clean, and
-  `hql check std/knowledge/mod.hql` prints `Unit`.
+  `hql check lib/std/knowledge/mod.hql` prints `Unit`.
 - Note that the working tree may already carry unrelated in-flight changes to
   `tests/core.rs`. Two failures there — `a_step_without_an_input_says_so` and a
   stack overflow in `bounds_addition_depth_and_evaluates_left_to_right` —

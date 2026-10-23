@@ -55,7 +55,7 @@ its own. There is no wildcard import and no re-export syntax.
 
 Two things make a module visible in a source unit: the unit's own imports and
 the prelude. The prelude is the imports written in `prelude.hql` files, the
-standard library's `std/prelude.hql` and one per loaded extension; those
+standard library's `lib/std/prelude.hql` and one per loaded extension; those
 modules are visible in every source unit outside the package that declares
 the prelude, as if written at the head of that unit ([the standard library](03-standard-library.md)). An explicit import
 that repeats a prelude member is allowed and changes nothing. An import whose
@@ -110,7 +110,7 @@ before compilation, in the execution context.
   provides.
 - `import x as y` and dotted paths are new grammar.
 - `import net` and `import logging` become `import io.net` and
-  `import io.logging`, matching the `std/io/` layout; whether `net` keeps a
+  `import io.logging`, matching the `lib/std/io/` layout; whether `net` keeps a
   shorter spelling is the standard library's decision
   ([part 3](03-standard-library.md)).
 - Import placement is restricted to the head of a source unit. A cell in a
@@ -134,4 +134,4 @@ before compilation, in the execution context.
    including collisions between a unit's imports and the prelude's.
 3. Migrating the extension registry so that an extension registers the modules
    it provides and `import` resolves through them.
-4. Renaming the `io` submodule imports in cards, `std/` and examples.
+4. Renaming the `io` submodule imports in cards, `lib/std/` and examples.

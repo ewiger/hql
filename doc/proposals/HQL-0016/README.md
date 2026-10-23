@@ -108,7 +108,7 @@ filter<S : Iterable<T>, T>(xs: S, by: T -> Bool)              : S
   predicate selects the ordinary overload, which keeps the element type.
 - The narrowing overload keeps exactly the elements the ordinary one keeps;
   only the static type differs.
-- `filter` over an `Option<T>` ([`std/core/mod.hql`](../../../std/core/mod.hql))
+- `filter` over an `Option<T>` ([`lib/std/core/mod.hql`](../../../lib/std/core/mod.hql))
   narrows the same way, so `o | filter(x => x | is(Card))` is an
   `Option<Card>`. A single value that is not an option is narrowed with
   `match`.
@@ -119,7 +119,7 @@ filter<S : Iterable<T>, T>(xs: S, by: T -> Bool)              : S
 of_type(U) := filter(x => x | is(U))
 ```
 
-- `of_type` is defined in `std/collections/mod.hql`. Its parameter `U` is a type
+- `of_type` is defined in `lib/std/collections/mod.hql`. Its parameter `U` is a type
   argument, which extends the parameters of HQL-0015 with a type form: a
   sugared parameter written as a type name binds a type.
 - `cards | of_type(RelationCard)` returns a `Set<RelationCard>` from a
@@ -227,7 +227,7 @@ names.
   `Data` tree, reading a map as a declared record
 - `src/constructors.rs` — `List` refusing a `Set` and an open `Stream`; a
   constructor as a pipeline step
-- `std/collections/mod.hql` — `of_type`, and the constructor signatures
+- `lib/std/collections/mod.hql` — `of_type`, and the constructor signatures
 - `doc/wiki/hql/type-interpretation.hmd` — `is`, `of_type`, widening by a
   binding, and construction
 - `doc/wiki/hql/types/collections/collection-types.md` — construction as the

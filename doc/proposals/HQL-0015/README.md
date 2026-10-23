@@ -104,7 +104,7 @@ checker did.
 
 - `hql check` MUST report the signature of every sugared definition in the
   program it checks.
-- `hql builtins` MUST list the functions `std/` defines with `:=` by their full
+- `hql builtins` MUST list the functions `lib/std/` defines with `:=` by their full
   signatures, beside the steps.
 - A use is checked against that signature, so an error at a use names the
   function and its parameter, never a step inside its body.
@@ -130,9 +130,9 @@ checker did.
 An operation may have a shorter name for one specific case of it.
 
 - A shorthand MUST have a longhand written in HQL, and the relationship MUST be
-  stated where the operations are owned, in `std/`. A core shorthand stays a
+  stated where the operations are owned, in `lib/std/`. A core shorthand stays a
   host step, and its longhand is written beside its signature in
-  `std/collections/mod.hql`.
+  `lib/std/collections/mod.hql`.
 - Two names at the same level of generality, where neither is a case of the
   other, are not a shorthand and MUST NOT both be admitted. Unary `count(xs)`
   for `size(xs)` is the one kept alias.
@@ -153,7 +153,7 @@ match x { U _ => true, _ => false }     x | is(U)
 match b { true => a, false => c }       a given b otherwise c
 ```
 
-The first six are host steps whose longhands `std/collections/mod.hql` states
+The first six are host steps whose longhands `lib/std/collections/mod.hql` states
 beside their signatures; `of_type` takes a type argument, as [HQL-0016](../HQL-0016/README.md) specifies. `contains`, `is` and
 `given … otherwise` are shorthands of an expression rather than of a
 fragment, so they are stated beside their operations instead.
@@ -169,8 +169,8 @@ rules with `::=`, so the notation and the language do not share a symbol.
 - `src/lexer.rs`, `src/parser.rs` — the `:=` token and the sugared definition
 - `src/checker.rs` — desugaring to the `fn` declaration of issue 0009, the
   signature inference of *Which types the checker writes*, and its report
-- `src/builtins.rs` — the full signatures of `std/`'s sugared functions
-- `std/collections/mod.hql` — the longhands of the core shorthands of *Which
+- `src/builtins.rs` — the full signatures of `lib/std/`'s sugared functions
+- `lib/std/collections/mod.hql` — the longhands of the core shorthands of *Which
   shorthands are admitted*, beside their signatures
 - `doc/models/behavior/expressions.md` — the sugar rule, and `::=` for the
   notation
@@ -193,4 +193,4 @@ rules with `::=`, so the notation and the language do not share a symbol.
 - 2026-10-18: drafted
 - 2026-10-19: implemented; `:=` definitions, their inferred signatures reported
   by `hql check`, and `x | f` over a bound function are built, and the core
-  shorthands are host steps whose longhands `std/collections/mod.hql` states
+  shorthands are host steps whose longhands `lib/std/collections/mod.hql` states

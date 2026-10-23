@@ -250,7 +250,7 @@ After `of_type`, `m.pages` is an `Int` and `m.genre` a `String`, so `+`,
 - **Partial interpretation.** A schema names only the fields it cares about.
   Each named field is checked and typed; every other key stays in the value
   as `Data`, reachable as before. This is the partial schema `HmdHeader`
-  already is in [std/doc/mod.hql](../../std/doc/mod.hql).
+  already is in [lib/std/doc/mod.hql](../../lib/std/doc/mod.hql).
 - **Complete interpretation.** A schema that names every field leaves nothing
   as `Data`, and the value is fully typed. Whether such a schema also refuses
   keys it does not name is a property of the schema, to be specified with

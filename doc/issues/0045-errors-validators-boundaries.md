@@ -103,7 +103,7 @@ that in its commit. It does not add open questions.
 
 ### Validator types ([HQL-0034](../proposals/HQL-0034/README.md))
 
-- **V1 — `Validator` and validator types.** `trait Validator` in `std/`; a
+- **V1 — `Validator` and validator types.** `trait Validator` in `lib/std/`; a
   type with `Validator` among its supertypes is a validator type;
   `validate f with V` and a field `f: V` hold where `V`'s `validate(self)`
   for the field's type is `true`. A type that does not implement it is a
@@ -159,7 +159,7 @@ refresh, caching, versioning and boundary events are not in this portion.
 
 - **P1 — `partition(by = …)`.** First the predicate
   `partition(self, by: T -> Bool) : Pair<List<T>, List<T>>` is removed from
-  `std/seq/mod.hql` and `src/extensions/seq.rs`; its use is a `fork` with two
+  `lib/std/seq/mod.hql` and `src/extensions/seq.rs`; its use is a `fork` with two
   complementary filters. Then HQL-0036's form: type-preserving over `Seq`
   and `Stream`, logically `1 → 1`, one logical partition per key on the
   local backend, and a stage boundary in `src/backends/plan.rs`. A `fork`
@@ -230,7 +230,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   dead-letter handling and validation result, and its open questions on
   them, are marked superseded by HQL-0033; issue 0043's stream policies are
   recorded as closed by E1 to E5; HQL-0033 is accepted and implemented.
-- V2 done: HQL-0034's placeholders are stated: `std/validators/mod.hql`, the
+- V2 done: HQL-0034's placeholders are stated: `lib/std/validators/mod.hql`, the
   first written module of the standard library, loaded on `import
   validators` before the module roots, with `Email` and `NonEmpty`; several
   types by one `impl` each, named in a rule; and the identity `Contract.f`.

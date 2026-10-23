@@ -47,7 +47,7 @@ adds beyond structure is built.
   `Contract.name`, shown in the diagnostic.
 - `x | validate(T)` gives `Result<T, Invalid>` over a value, a collection
   or a stream, and `oks()` and `errs()` split the results; `Violation` and
-  `Invalid` are declared in `std/core/mod.hql`.
+  `Invalid` are declared in `lib/std/core/mod.hql`.
 - `Violation`'s `expected`, `actual` and `severity` default, and reading a
   stored `Invalid` back with `| Invalid`, are built; so are validator types
   ([HQL-0034](../proposals/HQL-0034/README.md)) and the stream policies,
@@ -56,6 +56,6 @@ adds beyond structure is built.
   is `x | T`, continue is `validate(T) | oks()`, a dead letter is
   `fork { accepted = oks(), rejected = errs() }` with `errs()` written to a
   sink, and `retry` reinvokes a fallible operation.
-- To build: `Violation`'s and `Invalid`'s own rules in `std/`, error
+- To build: `Violation`'s and `Invalid`'s own rules in `lib/std/`, error
   aggregation and quality thresholds over a stream, and validation events
   and hooks.

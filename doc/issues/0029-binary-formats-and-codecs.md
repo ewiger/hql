@@ -9,7 +9,7 @@ Related: [HQL-0024 part 7](../proposals/HQL-0024/parts/07-formats-and-codecs.md)
 `Format` is a category of its own and every format today is textual: `Text`,
 `Lines`, `Json`, `JsonLines`, `Yaml`, `Csv`, `Markdown`, `Hmd`, `Hql`, `D2`,
 `Mermaid`. The codec contracts, `Decoder<F, T>` and `Encoder<T, F>`, are
-declared in `std/format/mod.hql` and implemented by the binary alone. Two things
+declared in `lib/std/format/mod.hql` and implemented by the binary alone. Two things
 follow from the format model and are not built:
 
 - **Binary formats** as a format kind: `Avro`, `Parquet`, `Protobuf`. A format

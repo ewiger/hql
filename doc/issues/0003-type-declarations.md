@@ -3,7 +3,7 @@
 Status: done
 Branch: `feat/type-declarations`
 
-`std/` held the standard library's declarations as HQL source, and the parser
+`lib/std/` held the standard library's declarations as HQL source, and the parser
 could not read a line of it:
 
 ```text
@@ -11,7 +11,7 @@ $ hql eval 'type Link<S, T> : Edge<S, T>'
 syntax failure: unexpected character
 ```
 
-Until this landed, `std/` was text nothing verified — the state `doc/status/`
+Until this landed, `lib/std/` was text nothing verified — the state `doc/status/`
 exists to catch. The folder was worth having anyway, because the declarations
 need one home rather than being scattered through prose, but the gap was real
 and belonged on the board rather than in a comment.
@@ -30,8 +30,8 @@ and belonged on the board rather than in a comment.
 
 ## Done when
 
-- Every file under `std/` parses and checks, pinned by a test that walks the
+- Every file under `lib/std/` parses and checks, pinned by a test that walks the
   folder — so a file added there cannot be silently ignored.
-- `hql check std/graph/mod.hql` prints `Unit`.
+- `hql check lib/std/graph/mod.hql` prints `Unit`.
 - `doc/models/behavior/expressions.md` documents the statement.
-- `doc/wiki/hql/std-lib.hmd` stops describing `std/` as unloadable.
+- `doc/wiki/hql/std-lib.hmd` stops describing `lib/std/` as unloadable.

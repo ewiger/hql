@@ -17,7 +17,7 @@ HQL declaration.
 ### No `std.` prefix
 
 Standard modules are named `string`, `regex`, `io`, `io.file`, `format`,
-`format.json`. The repository directory `std/` is the source root the library
+`format.json`. The repository directory `lib/std/` is the source root the library
 is built from, not a segment of any name.
 
 ### Not a different kind of module
@@ -75,17 +75,18 @@ cannot be imported, and is the one file at a root with a role, where
 constructor: it runs once when the extension loads, and its body is the import
 statements that initialize the modules the extension cannot do without. Every
 module it imports is visible in the unit whose import loaded the extension, as
-if that unit had imported it; `std/prelude.hql` is the implicit import list of
+if that unit had imported it; `lib/std/prelude.hql` is the implicit import list of
 every unit outside the standard library ([HQL-0028](../../HQL-0028/README.md)). Modules it does not name are the extension's optional
 part and are imported on their own
 ([packages and extensions](09-packages-and-extensions.md)).
 
 Each extension has its own `prelude.hql`, at the module root of its package.
-The standard library is the builtin package, always loaded, and its
-`std/prelude.hql` is the package's global space, which therefore always runs:
+The standard library is the standard package, one of the builtin packages
+the binary carries under `lib/`, always loaded, and its
+`lib/std/prelude.hql` is the package's global space, which therefore always runs:
 
 ```hql
-// std/prelude.hql
+// lib/std/prelude.hql
 import core
 import string
 import seq
@@ -93,12 +94,12 @@ import math
 import option
 ```
 
-The effective prelude of an invocation is the union of `std/prelude.hql` and
+The effective prelude of an invocation is the union of `lib/std/prelude.hql` and
 the `prelude.hql` of every loaded extension, whether the host activated it or
 a source unit imported one of its modules. Two preludes that bind one local
 name are an environment error naming both files, as two imports of one name
 are in a source unit ([imports](02-imports.md)). Changing a prelude is
-editing its file; the standard prelude is versioned by being part of `std/`,
+editing its file; the standard prelude is versioned by being part of `lib/std/`,
 which is bundled with the binary. There is no separate prelude version and no
 edition mechanism.
 
@@ -119,7 +120,7 @@ leaf modules included, so the package root holds `prelude.hql` and folders
 and nothing else, and a module gains a child without moving:
 
 ```text
-std/
+lib/std/
 ├── prelude.hql    not a module: the package's global space and implicit imports
 ├── core/          mod.hql
 ├── doc/           mod.hql
@@ -162,33 +163,33 @@ runtime primitives, OS integration, codecs, external libraries and backends.
 
 ## Current state
 
-- `std/` holds one folder per module, each module's declarations in its
+- `lib/std/` holds one folder per module, each module's declarations in its
   `mod.hql`, and `prelude.hql` at the root. Each module imports what it
   writes, and binding refuses an environment whose modules are not closed over
   their imports or whose import graph is not acyclic; `tests/declarations.rs`
   checks each module over its own imports alone
-  ([std README](../../../../std/README.md)).
+  ([std README](../../../../lib/std/README.md)).
 - The prelude is the extensions `graph`, `format` and `io`, declined by
   `prelude = false` in `hql.toml`; the core's collection steps are always in
   scope as bare names ([HQL-0001](../../HQL-0001/README.md)).
 - Modules are already named without `std.`: `io/init.hql` is `io`, `io/net.hql`
   is `io.net`.
-- `std/` files are declarations with `Unit` as their value; no function body
-  in `std/` is executed.
+- `lib/std/` files are declarations with `Unit` as their value; no function body
+  in `lib/std/` is executed.
 
 ## What changes
 
 - The prelude is redefined from "two extensions" to "core types, selected
   functions and selected receiver modules", and from a runtime constant to the
-  imports of `std/prelude.hql`, with each extension contributing its own
+  imports of `lib/std/prelude.hql`, with each extension contributing its own
   `prelude.hql` when it loads. Which bare step names remain bare (today: `size`, `filter`,
   `map`, `sort`, ...) is decided together with
   [receiver modules](04-receiver-modules.md), since `xs.first()` and
   `first(xs)` are the same declaration.
-- `std/` becomes the contract: its comment signatures become declarations,
+- `lib/std/` becomes the contract: its comment signatures become declarations,
   external where Rust implements them, and the Rust built-ins become the
-  implementations of builtin extensions checked against `std/` at registry
-  construction, instead of `std/` restating Rust and a test comparing the two.
+  implementations of builtin extensions checked against `lib/std/` at registry
+  construction, instead of `lib/std/` restating Rust and a test comparing the two.
 - New modules: `string`, `math`, `regex`, `format.lines`, `format.avro`,
   `format.parquet`. `format.hql` becomes `format/mod.hql` with one file per
   format if the [formats part](07-formats-and-codecs.md) is adopted.
@@ -196,13 +197,13 @@ runtime primitives, OS integration, codecs, external libraries and backends.
 
 ## Work units
 
-1. Bundling the `std/` contracts and grouping the Rust built-ins into builtin
+1. Bundling the `lib/std/` contracts and grouping the Rust built-ins into builtin
    extensions with descriptors (`std-core`, `std-io`, ...).
-2. `prelude.hql` as a root-level file with a role: `std/prelude.hql` runs at
+2. `prelude.hql` as a root-level file with a role: `lib/std/prelude.hql` runs at
    environment construction, an extension's when the extension loads, each
    adding its imports to the implicit import list of every source unit, with
    the collision check between preludes; `prelude = false` keeps its meaning.
-3. Splitting `std/` into the target layout and migrating card and README
+3. Splitting `lib/std/` into the target layout and migrating card and README
    references.
 4. Native binding: one declaration, two implementation routes, with a test
    that every native function has an HQL declaration.

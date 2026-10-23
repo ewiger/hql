@@ -736,7 +736,7 @@ impl Environment {
                 (Err(_), []) => {}
                 (read, declared) => {
                     return Err(format!(
-                        "{format_name} reads as {}, and `std/format/mod.hql` declares {} decoder{} for it",
+                        "{format_name} reads as {}, and `lib/std/format/mod.hql` declares {} decoder{} for it",
                         read.map_or_else(|_| "nothing".to_owned(), |ty| ty.to_string()),
                         declared.len(),
                         if declared.len() == 1 { "" } else { "s" }
@@ -752,7 +752,7 @@ impl Environment {
                 });
                 if writes != declared {
                     return Err(format!(
-                        "{format_name} {} {sample}, and `std/format/mod.hql` {} an encoder for it",
+                        "{format_name} {} {sample}, and `lib/std/format/mod.hql` {} an encoder for it",
                         if writes { "writes" } else { "does not write" },
                         if declared { "declares" } else { "declares no" }
                     ));
@@ -975,7 +975,7 @@ impl Environment {
                 if matches!(step.spec, Signature::Declared) && self.of(step).is_empty() {
                     return Err(format!(
                         "the extension `{}` takes the signature of `{}` from its declaration, and \
-                         no contract under std/ declares it",
+                         no contract under lib/std/ declares it",
                         extension.name, step.name
                     ));
                 }
@@ -999,7 +999,7 @@ impl Environment {
             }
             if let Some(step) = extension.steps.iter().find(|step| self.of(step).is_empty()) {
                 return Err(format!(
-                    "the extension `{}` implements `{}`, which no contract under std/ declares",
+                    "the extension `{}` implements `{}`, which no contract under lib/std/ declares",
                     extension.name, step.name
                 ));
             }
@@ -1238,7 +1238,7 @@ mod tests {
         let (_, ord_int) = environment
             .implementations()
             .find(|(_, held)| held.trait_name == "Ord" && held.target == "Int")
-            .expect("`std/core/mod.hql` declares `impl Ord for Int`");
+            .expect("`lib/std/core/mod.hql` declares `impl Ord for Int`");
         let ord = ord_int.trait_id.expect("`Ord` is declared");
         let int = ord_int.target_id.expect("`Int` is declared");
         assert_eq!(environment.trait_declaration(ord).name, "Ord");
@@ -1302,7 +1302,7 @@ mod tests {
     #[test]
     fn purity_is_read_from_the_declaration() {
         let environment = Environment::get().unwrap();
-        // `effectful fn source…` and `fn file…` in `std/io/mod.hql`.
+        // `effectful fn source…` and `fn file…` in `lib/std/io/mod.hql`.
         for (name, expected) in [
             ("source", Purity::Effectful),
             ("tap", Purity::Effectful),

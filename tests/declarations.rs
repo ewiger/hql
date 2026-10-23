@@ -19,7 +19,7 @@ fn refused(source: &str) -> String {
 }
 
 /// Every `.hql` file under `dir`, with the module name it is embedded as: the
-/// path below `std/` without its extension, folders joined by `.`, and a
+/// path below `lib/std/` without its extension, folders joined by `.`, and a
 /// folder's `mod.hql` named for the folder.
 fn modules_under(
     dir: &std::path::Path,
@@ -54,10 +54,10 @@ fn modules_under(
 #[test]
 fn every_file_in_the_standard_library_is_embedded_as_written() {
     // The folder is walked rather than listed, subfolders included, so a file
-    // added to `std/` cannot be left out of the binary, and the copy the
+    // added to `lib/std/` cannot be left out of the binary, and the copy the
     // binary reads its record fields from is the one on disk.
     let mut found = Vec::new();
-    modules_under(std::path::Path::new("std"), "", &mut found);
+    modules_under(std::path::Path::new("lib/std"), "", &mut found);
     for (name, path) in &found {
         let embedded = library::MODULES
             .iter()
@@ -205,7 +205,7 @@ fn a_parent_must_exist() {
 
 #[test]
 fn a_declaration_may_restate_a_built_in_type_but_not_contradict_it() {
-    // This is what `std/` is: the declarations the binary already holds,
+    // This is what `lib/std/` is: the declarations the binary already holds,
     // written down in one place as source rather than as prose.
     assert_eq!(check("type Card : Doc"), Ok(TypeRef::UNIT));
     assert_eq!(check("type ConceptCard : {Card, Doc}"), Ok(TypeRef::UNIT));
@@ -269,7 +269,7 @@ fn a_union_lists_its_alternatives() {
         "type Value = union {Scalar, Seq<Value>, Map<String, Value>}",
         "type Tree<T> = union {T, Seq<Tree<T>>}",
         "type Id = union {Int, String}\ntype Holder { id : Id }",
-        // What `std/core/mod.hql` says, and what the binary holds.
+        // What `lib/std/core/mod.hql` says, and what the binary holds.
         "type Data = union {Scalar, Seq<Data>, Map<String, Data>}",
         "type Data = union {Map<String, Data>, Scalar, Seq<Data>}",
     ] {
@@ -378,7 +378,7 @@ fn a_declaration_is_a_statement_and_not_an_expression() {
 
 #[test]
 fn a_built_in_record_field_has_the_type_its_declaration_gives() {
-    // Fields are read from `std/`, so each one a program reads is pinned
+    // Fields are read from `lib/std/`, so each one a program reads is pinned
     // here at the type its declaration states.
     for (receiver, field, declared) in [
         ("Hit<Card>", "value", "Card"),
@@ -494,7 +494,7 @@ fn every_name_the_binary_provides_follows_its_kind() {
             assert_eq!(departure(kind, step.name), None, "step {}", step.name);
         }
     }
-    // Every name `std/` declares passes: checking it reports no warning.
+    // Every name `lib/std/` declares passes: checking it reports no warning.
     let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     let outcome = hql::check_reported(&library::source(), &vault, hql::reporting::Mode::Strict);
     let warnings: Vec<_> = outcome
@@ -566,7 +566,7 @@ fn every_external_declaration_has_an_implementation_and_every_implementation_a_d
             .iter()
             .find(|provider| provider.provides.contains(&name))
             .unwrap_or_else(|| {
-                panic!("std/{name}.hql declares externally, and no extension provides `{name}`")
+                panic!("lib/std/{name}.hql declares externally, and no extension provides `{name}`")
             });
         let mut implemented: Vec<&str> = provider.steps.iter().map(|step| step.name).collect();
         let mut declared = declared;

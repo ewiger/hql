@@ -82,7 +82,7 @@ package postgres
 ```
 
 An extension without a `prelude.hql` has every module optional. The standard
-library is always loaded, so `std/prelude.hql` always runs
+library is always loaded, so `lib/std/prelude.hql` always runs
 ([the standard library](03-standard-library.md)).
 
 ### Transport and ABI
@@ -146,11 +146,11 @@ The registry grows in three stages, each usable on its own.
    descriptor, `id`, `abi` and `provides`, and the compiled-in extensions are
    regrouped by the modules they provide, `std-core`, `std-io`, `std-format`,
    `graph`, `lexical`, `semantic`. Each step is registered against a
-   declaration identity in `std/`. The registry is builtin-only; binding runs
-   against the `std/` contracts and replaces the test that compares `std/` with
+   declaration identity in `lib/std/`. The registry is builtin-only; binding runs
+   against the `lib/std/` contracts and replaces the test that compares `lib/std/` with
    the Rust lattice. Nothing is loaded. *Done in part:* every builtin
    extension carries `provides`, and binding cross-checks the external
-   contracts of `std/` against it by name, arity and result type once per
+   contracts of `lib/std/` against it by name, arity and result type once per
    process ([extensions](../../../wiki/hql/extensions.hmd)); `id` and `abi`
    and the regrouping wait for the second stage.
 2. **Configuration selects.** The execution context builds the registry from
@@ -206,7 +206,7 @@ installation and dependency resolution, is a later record.
 
 1. Stage 1 of the extension registry: descriptors on the static table,
    regrouping by module, implementations keyed by declaration identity,
-   binding against `std/`.
+   binding against `lib/std/`.
 2. Stage 2: the execution context builds the registry from the builtin table
    and configuration.
 3. Stage 3, in the transport and ABI record: package artifacts as a source of

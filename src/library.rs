@@ -1,7 +1,7 @@
-//! The standard library: the declarations in `std/`, compiled into the binary.
+//! The standard library: the declarations in `lib/std/`, compiled into the binary.
 //!
 //! A built-in record's fields are read from its declaration here, so what a
-//! program may read on a `Hit` or a `Card` is what `std/` says and nothing
+//! program may read on a `Hit` or a `Card` is what `lib/std/` says and nothing
 //! else. The library is checked as one program when it is first needed, the
 //! same way a program's own declarations are.
 
@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// Every module of the standard library, by name, in loading order: the
-/// folder below `std/` with its segments joined by `.`, each module's
+/// folder below `lib/std/` with its segments joined by `.`, each module's
 /// declarations in that folder's `mod.hql`.
 ///
 /// Each module is its own import unit: it names, with `import`, every module
@@ -22,29 +22,29 @@ use std::sync::OnceLock;
 /// ([`closure`]).
 pub const MODULES: &[(&str, &str)] = &[
     ("prelude", PRELUDE),
-    ("core", include_str!("../std/core/mod.hql")),
-    ("doc", include_str!("../std/doc/mod.hql")),
-    ("retrieval", include_str!("../std/retrieval/mod.hql")),
-    ("graph", include_str!("../std/graph/mod.hql")),
-    ("knowledge", include_str!("../std/knowledge/mod.hql")),
-    ("collections", include_str!("../std/collections/mod.hql")),
-    ("string", include_str!("../std/string/mod.hql")),
-    ("seq", include_str!("../std/seq/mod.hql")),
-    ("math", include_str!("../std/math/mod.hql")),
-    ("option", include_str!("../std/option/mod.hql")),
-    ("result", include_str!("../std/result/mod.hql")),
-    ("regex", include_str!("../std/regex/mod.hql")),
-    ("format", include_str!("../std/format/mod.hql")),
-    ("io", include_str!("../std/io/mod.hql")),
-    ("io.net", include_str!("../std/io/net/mod.hql")),
-    ("io.logging", include_str!("../std/io/logging/mod.hql")),
-    ("vault", include_str!("../std/vault/mod.hql")),
+    ("core", include_str!("../lib/std/core/mod.hql")),
+    ("doc", include_str!("../lib/std/doc/mod.hql")),
+    ("retrieval", include_str!("../lib/std/retrieval/mod.hql")),
+    ("graph", include_str!("../lib/std/graph/mod.hql")),
+    ("knowledge", include_str!("../lib/std/knowledge/mod.hql")),
+    ("collections", include_str!("../lib/std/collections/mod.hql")),
+    ("string", include_str!("../lib/std/string/mod.hql")),
+    ("seq", include_str!("../lib/std/seq/mod.hql")),
+    ("math", include_str!("../lib/std/math/mod.hql")),
+    ("option", include_str!("../lib/std/option/mod.hql")),
+    ("result", include_str!("../lib/std/result/mod.hql")),
+    ("regex", include_str!("../lib/std/regex/mod.hql")),
+    ("format", include_str!("../lib/std/format/mod.hql")),
+    ("io", include_str!("../lib/std/io/mod.hql")),
+    ("io.net", include_str!("../lib/std/io/net/mod.hql")),
+    ("io.logging", include_str!("../lib/std/io/logging/mod.hql")),
+    ("vault", include_str!("../lib/std/vault/mod.hql")),
 ];
 
 /// The modules of the standard library written in HQL rather than declared
 /// for an extension: a program imports one by name, `import validators`,
 /// and it is loaded as a workspace module is, its bodies run.
-pub const WRITTEN: &[(&str, &str)] = &[("validators", include_str!("../std/validators/mod.hql"))];
+pub const WRITTEN: &[(&str, &str)] = &[("validators", include_str!("../lib/std/validators/mod.hql"))];
 
 /// The source of a written module of the standard library.
 #[must_use]
@@ -55,11 +55,11 @@ pub fn written(name: &str) -> Option<&'static str> {
         .map(|(_, source)| *source)
 }
 
-/// The standard library's implicit import list, `std/prelude.hql`: not a
+/// The standard library's implicit import list, `lib/std/prelude.hql`: not a
 /// module, but the package's global space, run when the builtin package
 /// loads; its imports are what every source unit outside the package starts
 /// with unless the vault declines them.
-pub const PRELUDE: &str = include_str!("../std/prelude.hql");
+pub const PRELUDE: &str = include_str!("../lib/std/prelude.hql");
 
 /// One declaration, kept for reading its fields.
 #[derive(Debug)]

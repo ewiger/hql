@@ -102,7 +102,7 @@ one name, as the model intends.
    [type system](../wiki/hql/type-system.hmd) card beside `<T>` and the
    [bind versus apply](../models/behavior/bind-vs-apply-in-generic-types.md)
    model; write these signatures into
-   [queries](../models/behavior/queries.md), `std/collections/mod.hql`, the
+   [queries](../models/behavior/queries.md), `lib/std/collections/mod.hql`, the
    registry and HQL-0006; teach the checker to bind `S` and `F<_>`; and give
    `sort` an overload for `Ranking<T>` that returns `Seq<Hit<T>>`, since a
    new order is not the retrieval's
@@ -129,7 +129,7 @@ one name, as the model intends.
 ## Done when
 
 - Every operation name has one signature across `hql builtins`,
-  `std/collections/mod.hql`, the queries model and the accepted proposals, and
+  `lib/std/collections/mod.hql`, the queries model and the accepted proposals, and
   the comparison document's "same name, different signatures" table is empty.
 - The pipes card states the shorthand rule and the tree, and every operation
   in `hql builtins` appears in it exactly once.

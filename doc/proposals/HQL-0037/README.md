@@ -2019,7 +2019,7 @@ The planner lowers this logical DAG into physical stages, partitions, channels, 
   type where it is named as a value, `f = merge` alone being a type error;
   over a `List`, `Seq`, `Set` or `Table` it is a type error naming `concat`
   or `union`. Both forms remain one entry of the core's combiners rather
-  than two `std/` declarations, since the combiner is what lets
+  than two `lib/std/` declarations, since the combiner is what lets
   `reduce({:}, merge)` be split; the form is resolved by the argument types
   as an overload's would be. A call takes two inputs; `a | merge(b) |
   merge(c)` writes more

@@ -79,7 +79,7 @@ data  ::= "{" ":" "}" | "{" key ":" expression ("," key ":" expression)* "}"
 ## Backwards Compatibility
 
 Breaking: `{}` written for an empty `Data` is now an empty set. Every such use
-in `std/`, the examples, the tests and the documentation is written `{:}`:
+in `lib/std/`, the examples, the tests and the documentation is written `{:}`:
 `reduce({:}, merge)`, the logging operations' `data: Data = {:}` and
 `Edge(…, data = {:})`. JSON's `{}` is unaffected.
 
@@ -96,7 +96,7 @@ Takes effect in the parser, with no configuration.
 - `src/parser.rs`: `{}` parses as a set literal and `{:}` as a data literal;
   a data-only position refuses `{}`
 - `src/data.rs`, `src/types/display.rs`: `{:}` and `{}` printed
-- `std/collections/mod.hql`, `std/io/logging/mod.hql`, `std/io/net/mod.hql`: `{:}`
+- `lib/std/collections/mod.hql`, `lib/std/io/logging/mod.hql`, `lib/std/io/net/mod.hql`: `{:}`
 - [the braces examples](../../../examples/braces/README.md)
 
 ## Test Plan

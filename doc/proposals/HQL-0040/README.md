@@ -49,7 +49,7 @@ The declarations divide over two modules, by who needs them.
   both need it, and a parent never imports its child
   ([HQL-0028](../HQL-0028/README.md)), so the shared type sits in the parent.
 - `Folder`, `Glob`, `Entry` and the listing operations MUST be declared in
-  `io.fs`, at `std/io/fs/mod.hql`, which imports `core` and `io`.
+  `io.fs`, at `lib/std/io/fs/mod.hql`, which imports `core` and `io`.
 - The `io` extension's descriptor MUST provide both `io` and `io.fs`. One
   extension provides any number of modules
   ([HQL-0024, modules](../HQL-0024/parts/01-modules.md)).
@@ -62,7 +62,7 @@ A path is text naming a place in a file system, and constructing one touches
 nothing.
 
 ```hql
-// std/io/mod.hql
+// lib/std/io/mod.hql
 type Path : Orderable {
     text : String
 }
@@ -92,7 +92,7 @@ fn extension(self: Path) : Option<String>
 nothing.
 
 ```hql
-// std/io/fs/mod.hql
+// lib/std/io/fs/mod.hql
 import core
 import io
 
@@ -135,7 +135,7 @@ Listing reads the file system, so each listing operation is effectful and
 runs once, where it is written.
 
 ```hql
-// std/io/fs/mod.hql
+// lib/std/io/fs/mod.hql
 effectful fn entries(self: Folder) : Seq<Entry>
 effectful fn walk(self: Folder) : Seq<Entry>
 effectful fn glob(self: Folder, pattern: Glob) : Seq<Entry>
@@ -219,9 +219,9 @@ folder("data")
 
 ## Reference Implementation
 
-- `std/io/mod.hql`: `Path`, its constructor, its pure operations and the
+- `lib/std/io/mod.hql`: `Path`, its constructor, its pure operations and the
   `file(path: Path)` form.
-- `std/io/fs/mod.hql`: the module, and its entry in `library::MODULES` after
+- `lib/std/io/fs/mod.hql`: the module, and its entry in `library::MODULES` after
   `io`.
 - `src/extensions/io.rs`: the `io` extension's descriptor provides `io.fs`;
   the listing operations, sharing the vault's sorted walk.

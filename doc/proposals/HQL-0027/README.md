@@ -29,7 +29,7 @@ Four contracts stay outside the trait system because of it:
 | Contract | Today | What it needs |
 | --- | --- | --- |
 | A position, `xs[i]` | language-defined over the built-in types; a declared type is "not indexed" | the element type `T` in `at(self, position: Int) : Option<T>` |
-| A codec | `abstract type Decoder<F, T>` and `Encoder<T, F>` in `std/format/mod.hql`, related to the Rust tables by comment | a relation between a format and a value type, one format to several types |
+| A codec | `abstract type Decoder<F, T>` and `Encoder<T, F>` in `lib/std/format/mod.hql`, related to the Rust tables by comment | a relation between a format and a value type, one format to several types |
 | A rendering | `Renderable<T>`, a registration with no declared shape | the same relation as an encoder |
 | A generic built-in type | `impl Slice for List<T>` in [HQL-0026](../HQL-0026/README.md) has nothing to bind `T` | a parameter on the implementation |
 
@@ -206,7 +206,7 @@ impl Encoder<Graph> for D2
 
 - The format is the implementing type: `Decoder<T>` reads records of `Self`
   as values of `T`, `Encoder<T>` writes values of `T` as records of `Self`.
-- `std/format/mod.hql` declares both traits and one header per codec the
+- `lib/std/format/mod.hql` declares both traits and one header per codec the
   runtime provides. Binding holds the headers and the decoder and encoder
   tables to each other: a format the runtime reads has exactly the decoder
   its header names, and a format with no decoder header is not read; a
@@ -220,7 +220,7 @@ impl Encoder<Graph> for D2
 
 ### 9. Positions over a declared type
 
-`Index<T>` is a core trait in [`std/core/mod.hql`](../../../std/core/mod.hql), beside
+`Index<T>` is a core trait in [`lib/std/core/mod.hql`](../../../lib/std/core/mod.hql), beside
 the operator traits.
 
 - `Seq<T>` and `Data` implement it natively with bodyless headers; every
@@ -261,8 +261,8 @@ the operator traits.
 - `src/extensions/mod.rs`: binding the codec headers to the decoder and
   encoder tables.
 - `src/evaluation.rs`: `xs[i]` over a declared type dispatching to its `at`.
-- `std/core/mod.hql`: `trait Index<T>` and its native headers.
-- `std/format/mod.hql`: the codec traits and their headers.
+- `lib/std/core/mod.hql`: `trait Index<T>` and its native headers.
+- `lib/std/format/mod.hql`: the codec traits and their headers.
 
 ## Test Plan
 

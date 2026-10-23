@@ -376,7 +376,7 @@ partiality is in the type, an editor can say *this predicate is partial because
 
 Absence is resolved by operations on `Option<T>` itself, not by syntax and not
 by an extension. They are core: declared beside `type Option<T>` in
-[`std/core/mod.hql`](../../../std/core/mod.hql) and always available, because `Option`
+[`lib/std/core/mod.hql`](../../../lib/std/core/mod.hql) and always available, because `Option`
 is a core type and every program that reads an optional field needs them.
 
 The vocabulary is the established one for an option type, the set Rust's

@@ -8,9 +8,9 @@ name, a contract bound to one provider: the runtime, or exactly one extension
 identities"). One extension provides any number of modules; one package
 carries any number of modules and extensions.
 
-The binary carries one package, `std`, the standard package, provisioned as
-builtin: its contracts are bundled with the binary and its extensions compiled
-into it ([std README](../../std/README.md)). Its root holds `prelude.hql`, the
+The binary carries its builtin packages under `lib/`, one folder each,
+provisioned as builtin: their contracts are bundled with the binary and their
+extensions compiled into it. It carries one so far, `std`, the standard package ([std README](../../lib/std/README.md)). Its root holds `prelude.hql`, the
 package's global space, and one folder per module.
 
 | Package | Provisioned | Extensions | Modules | Types | Traits |
@@ -26,20 +26,20 @@ declares types alone.
 
 | Extension | Provides | Contract |
 | --- | --- | --- |
-| `core` | `core`, `collections` | `std/core`, `std/collections` |
-| `string` | `string` | `std/string` |
-| `seq` | `seq` | `std/seq` |
-| `math` | `math` | `std/math` |
-| `option` | `option` | `std/option` |
-| `result` | `result` | `std/result` |
-| `regex` | `regex` | `std/regex` |
-| `graph` | `graph` | `std/graph` |
-| `format` | `format` | `std/format` |
-| `io` | `io` | `std/io` |
-| `net` | `io.net` | `std/io/net` |
-| `logging` | `io.logging` | `std/io/logging` |
-| `lexical` | `lexical` | none: no contract under `std/` declares the module |
-| `semantic` | `semantic` | none: no contract under `std/` declares the module |
+| `core` | `core`, `collections` | `lib/std/core`, `lib/std/collections` |
+| `string` | `string` | `lib/std/string` |
+| `seq` | `seq` | `lib/std/seq` |
+| `math` | `math` | `lib/std/math` |
+| `option` | `option` | `lib/std/option` |
+| `result` | `result` | `lib/std/result` |
+| `regex` | `regex` | `lib/std/regex` |
+| `graph` | `graph` | `lib/std/graph` |
+| `format` | `format` | `lib/std/format` |
+| `io` | `io` | `lib/std/io` |
+| `net` | `io.net` | `lib/std/io/net` |
+| `logging` | `io.logging` | `lib/std/io/logging` |
+| `lexical` | `lexical` | none: no contract under `lib/std/` declares the module |
+| `semantic` | `semantic` | none: no contract under `lib/std/` declares the module |
 
 ## Modules
 

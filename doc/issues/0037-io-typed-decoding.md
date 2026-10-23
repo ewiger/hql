@@ -12,14 +12,14 @@ HQL-0021's endpoints, `source`, `tap`, `target`, `sink`, channels, `net`,
 logging and the command line are built. Its section "Typed decoding" was
 not: `s : Seq<Sighting> = source(file("birds.json"))` was refused as a
 `Seq<Data>`. The specification also stated a layout and a format model the
-implementation had moved past: `std/io/init.hql`, and no `JsonLines`.
+implementation had moved past: `lib/std/io/init.hql`, and no `JsonLines`.
 
 ## Scope
 
 - The expected type of a read decodes each document as a declared record:
   checked in `src/checker.rs`, decoded in `src/extensions/io.rs` through
   `Value::decoded`, a live read one document at a time.
-- The proposal states what shipped: `std/io/mod.hql`, `JsonLines` and
+- The proposal states what shipped: `lib/std/io/mod.hql`, `JsonLines` and
   `Lines` as formats, `.jsonl` implying `JsonLines`, the `effectful fn`
   headers, and the remaining work.
 
@@ -60,7 +60,7 @@ implementation had moved past: `std/io/init.hql`, and no `JsonLines`.
   refuses it. A document that does not decode is an evaluation error naming
   the endpoint, the document's position from 1, and the field's dotted path.
 - **`Logger` keeps one declared form.** A logger on a
-  `Channel<LogEvent>` omits the format; `std/io/logging/mod.hql` declares the
+  `Channel<LogEvent>` omits the format; `lib/std/io/logging/mod.hql` declares the
   form with a format and says the format is omitted for a channel, and the
   proposal now shows the one header.
 

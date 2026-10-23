@@ -1,14 +1,14 @@
 # 0031 — The string functions a text language is expected to have
 
 Status: done
-Related: [the standard library](../../std/README.md),
+Related: [the standard library](../../lib/std/README.md),
 [HQL-0024 part 12](../proposals/HQL-0024/parts/12-contracts-and-binding.md),
 [0030](0030-hql-only-signature-authority.md),
 [0029](0029-binary-formats-and-codecs.md)
 
-`std/string/mod.hql` lacks functions that common string libraries provide, and
+`lib/std/string/mod.hql` lacks functions that common string libraries provide, and
 its single `replace` does not say whether it replaces the first occurrence or
-every occurrence. Each function below is declared in `std/string/mod.hql` and
+every occurrence. Each function below is declared in `lib/std/string/mod.hql` and
 takes its signature from that declaration, as issue 0030 requires.
 
 ## Scope
@@ -42,7 +42,7 @@ takes its signature from that declaration, as issue 0030 requires.
 
 ## Done when
 
-- Every function above is declared in `std/string/mod.hql`, has no type written
+- Every function above is declared in `lib/std/string/mod.hql`, has no type written
   in Rust, and has a test.
 - No `replace` remains in `string` or `regex`, and the examples use
   `replace_all`.

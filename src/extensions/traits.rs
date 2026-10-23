@@ -1,5 +1,5 @@
 //! The native implementations of the core traits: the function bodies behind
-//! the bodyless `impl` headers of `std/core/mod.hql`.
+//! the bodyless `impl` headers of `lib/std/core/mod.hql`.
 //!
 //! A header is what says a built-in type implements a trait; this table only
 //! supplies what runs. Binding refuses an entry without a header and a header

@@ -5,7 +5,7 @@
 // error: TypeMismatch
 // stage: typecheck
 
-// `std/graph/mod.hql` declares a Graph from cards, from hits and from edges. An
+// `lib/std/graph/mod.hql` declares a Graph from cards, from hits and from edges. An
 // empty list is each of them, so `map(Graph)` over lists of nothing is
 // ambiguous.
 [[]] | map(Graph)

@@ -81,7 +81,7 @@ The major decisions are:
    Therefore an HQL source tree:
 
    ```text
-   std/
+   lib/std/
      io/
        file.hql
    ```
@@ -111,7 +111,7 @@ The major decisions are:
    format.json
    ```
 
-10. The physical `std/` directory in the HQL repository is the source root used to build the standard library. It is not part of module identity.
+10. The physical `lib/std/` directory in the HQL repository is the source root used to build the standard library. It is not part of module identity.
 
 11. Standard-library modules are compiled or embedded into the HQL executable. They are not searched from a Python-like runtime module path.
 
@@ -1592,7 +1592,7 @@ import io.file
 import format.json
 ```
 
-The physical `std/` repository directory is a source root, not a namespace component.
+The physical `lib/std/` repository directory is a source root, not a namespace component.
 
 ---
 
@@ -1601,7 +1601,7 @@ The physical `std/` repository directory is a source root, not a namespace compo
 A possible standard-library tree is:
 
 ```text
-std/
+lib/std/
 ├── core.hql
 ├── string.hql
 ├── math.hql
@@ -3647,13 +3647,13 @@ Existing standard-library source may need restructuring into the module-root con
 Existing:
 
 ```text
-std/io/init.hql
+lib/std/io/init.hql
 ```
 
 should migrate toward:
 
 ```text
-std/io/mod.hql
+lib/std/io/mod.hql
 ```
 
 if `io` is a directory-backed module.
@@ -3680,7 +3680,7 @@ The HQL 100 task suite should then be used to pressure-test whether the resultin
 A plausible eventual layout is:
 
 ```text
-std/
+lib/std/
 ├── core.hql
 ├── string.hql
 ├── math.hql

@@ -1,11 +1,11 @@
-# 0046 — Renovate `std/**` under the module, package and extension model
+# 0046 — Renovate `lib/std/**` under the module, package and extension model
 
 Status: doing
-Related: [`std/`](../../std/README.md),
+Related: [`lib/std/`](../../lib/std/README.md),
 [HQL-0024 part 3](../proposals/HQL-0024/parts/03-standard-library.md),
 [HQL-0028](../proposals/HQL-0028/README.md)
 
-Renovate the current `std/**` HQL standard library according to the latest language design.
+Renovate the current `lib/std/**` HQL standard library according to the latest language design.
 
 Treat the existing stdlib as an early draft, not as an architecture that must be preserved. The goal is to reorganize it into a coherent standard-library package using the current HQL concepts of **modules, types, constraints/capabilities, receiver association, pipeline behaviors, packages, and extensions**.
 
@@ -20,7 +20,7 @@ Use the latest ADRs/EDRs as authoritative, especially those covering:
 - execution behaviors such as `elementwise`, `partition`, `reduction`, etc.;
 - the distinction between ordinary expression behavior and planner-visible pipeline behavior.
 
-Do **not** preserve old structures merely because they currently exist in `std/mod.hql`. That file accumulated types, collection operations, joins, reductions, planner annotations, constructors and implementation notes before the module/package model was mature.
+Do **not** preserve old structures merely because they currently exist in `lib/std/mod.hql`. That file accumulated types, collection operations, joins, reductions, planner annotations, constructors and implementation notes before the module/package model was mature.
 
 The renovation should determine the proper ownership of every public declaration.
 
@@ -47,7 +47,7 @@ Important principles:
 
 ### Layout
 
-`std/` is the builtin package. Its root holds `prelude.hql`, the package's
+`lib/std/` is the builtin package. Its root holds `prelude.hql`, the package's
 global space, run when the package loads, whose imports are the implicit
 import list of every unit outside the package, and one folder per module,
 each module's declarations in the folder's `mod.hql`. No declaration sits
@@ -55,9 +55,9 @@ outside a module.
 
 | Before | After |
 | --- | --- |
-| `std/<m>.hql` | `std/<m>/mod.hql`, for every top-level module |
-| `std/io/net.hql`, `std/io/logging.hql` | `std/io/net/mod.hql`, `std/io/logging/mod.hql` |
-| `std/io/mod.hql`, `std/prelude.hql` | unchanged |
+| `lib/std/<m>.hql` | `lib/std/<m>/mod.hql`, for every top-level module |
+| `lib/std/io/net.hql`, `lib/std/io/logging.hql` | `lib/std/io/net/mod.hql`, `lib/std/io/logging/mod.hql` |
+| `lib/std/io/mod.hql`, `lib/std/prelude.hql` | unchanged |
 
 ### Import units
 
@@ -95,7 +95,7 @@ was resolved by moving the shared type down into a module both sides import:
 The eight questions, per declaration group. Kind: V value type, A abstract
 type or capability, T trait, R receiver behaviour, F ordinary function, P
 pipeline operation (with its shape). Visibility: *prelude* is imported by
-`std/prelude.hql`; *always* is the `core` extension, never absent; *import*
+`lib/std/prelude.hql`; *always* is the `core` extension, never absent; *import*
 needs `import m`. Program units still see every standard type without an
 import; see "Remaining".
 
@@ -134,11 +134,11 @@ import; see "Remaining".
 
 ### Changes
 
-- `std/**`: one folder per module; every module imports what it writes; the
+- `lib/std/**`: one folder per module; every module imports what it writes; the
   collection types and constructors and `Format` move to `core`, `Card`,
   `HmdCard` and `MdCard` to `doc`; the comments on `Iterable`, `Collection`,
   `Stream` and `Seq` state each type positively and the laws after it; file
-  references inside `std/` name modules.
+  references inside `lib/std/` name modules.
 - `src/library.rs`: `MODULES` lists the modules in import order from their new
   paths; `closure` holds every module, the written `validators` included, to
   the import-unit rules; `check` runs it; `source` hoists every import to the
@@ -149,7 +149,7 @@ import; see "Remaining".
   written standard module is checked without the package's prelude.
 - `tests/declarations.rs`: each module checks over its own import cone, not
   over every module before it.
-- `std/README.md`, the std-lib card, the collections, stream and type-system
+- `lib/std/README.md`, the std-lib card, the collections, stream and type-system
   cards, HQL-0024 part 3, HQL-0021, HQL-0028 and every path reference under
   `doc/` and `examples/`.
 
@@ -162,5 +162,5 @@ import; see "Remaining".
 - The prelude still names `graph`, `format` and `io`, where the target of
   HQL-0024 part 3 is `core`, `string`, `seq`, `math` and `option`.
 - The `lexical` and `semantic` extensions provide modules no contract under
-  `std/` declares, which the second cross-check of HQL-0024 part 1 refuses.
+  `lib/std/` declares, which the second cross-check of HQL-0024 part 1 refuses.
 

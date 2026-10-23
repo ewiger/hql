@@ -16,7 +16,7 @@
 
 The notes are the worked examples this record was drawn from. Where a note and
 this record differ, this record holds: `JsonLines` and `Lines` are formats of
-their own, and the prelude module is `std/io/mod.hql`.
+their own, and the prelude module is `lib/std/io/mod.hql`.
 
 ## Abstract
 
@@ -95,14 +95,14 @@ The declarations live in three modules of the standard library.
 
 | Module | File | Provides | In a program |
 | --- | --- | --- | --- |
-| `io` | `std/io/mod.hql` | endpoints, channels, sources, targets | the prelude |
-| `io.net` | `std/io/net/mod.hql` | `Http`, `WebSocket`, `Socket` | `import net` |
-| `io.logging` | `std/io/logging/mod.hql` | `LogLevel`, `LogEvent`, `Logger` | `import logging` |
+| `io` | `lib/std/io/mod.hql` | endpoints, channels, sources, targets | the prelude |
+| `io.net` | `lib/std/io/net/mod.hql` | `Http`, `WebSocket`, `Socket` | `import net` |
+| `io.logging` | `lib/std/io/logging/mod.hql` | `LogLevel`, `LogEvent`, `Logger` | `import logging` |
 
 - `io` MUST be in the prelude, so `source(stdin, Json)` needs no import.
 - `net` and `logging` MUST be imported ([HQL-0001](../HQL-0001/README.md)).
   Network access is then visible in the program's first lines.
-- The standard library MUST name a module by its path below `std/`, folders
+- The standard library MUST name a module by its path below `lib/std/`, folders
   joined by `.`, and a folder's `mod.hql` by the folder.
 - Every operation of the three modules MUST be declared in its module as a
   bodyless header the extension implements, `effectful fn` for a read, a
@@ -193,8 +193,8 @@ endpoint may hold one document or a sequence of them.
 | `JsonLines` | `Data`, one JSON document per line | a line terminator |
 | `Text`, `Markdown`, `Hmd`, `Hql` | `String`, the whole text, terminators included | not separable |
 
-- A format MUST be a type narrowing `Format` (`std/core/mod.hql`), declared in
-  `std/format/mod.hql`, and what it decodes MUST be the `Decoder<T>` it
+- A format MUST be a type narrowing `Format` (`lib/std/core/mod.hql`), declared in
+  `lib/std/format/mod.hql`, and what it decodes MUST be the `Decoder<T>` it
   implements there: `Data` for `Json`,
   `JsonLines`, `Yaml` and `Csv`, `String` for the text formats.
 
@@ -747,7 +747,7 @@ hql run --log-level debug birds.hql < birds.jsonl 2> run.log
   is removed; `debug` is the logging operation of `import logging`, and a
   program reports on itself through a `Logger`.
 - The standard library's module names now follow folders, and
-  `tests/declarations.rs` walks `std/` recursively.
+  `tests/declarations.rs` walks `lib/std/` recursively.
 
 ## Security Considerations
 
@@ -780,9 +780,9 @@ hql run --log-level debug birds.hql < birds.jsonl 2> run.log
 
 Built:
 
-- `std/io/mod.hql`, `std/io/net/mod.hql`, `std/io/logging/mod.hql` — the types and
+- `lib/std/io/mod.hql`, `lib/std/io/net/mod.hql`, `lib/std/io/logging/mod.hql` — the types and
   the `effectful fn` and `fn` headers of every operation, bound to the
-  extensions that implement them; `std/format/mod.hql` — the formats and their
+  extensions that implement them; `lib/std/format/mod.hql` — the formats and their
   `Decoder` and `Encoder` headers
 - `src/library.rs` and `tests/declarations.rs` — modules named by folder, a
   folder's `mod.hql` by the folder
@@ -895,7 +895,7 @@ None.
 - 2026-10-22: accepted, implemented in part. Typed decoding: the declared
   type of a binding or a function result decodes each document of a read as
   a declared record, a CSV cell parsed as its field's scalar. The
-  specification states `std/io/mod.hql`, `JsonLines` and `Lines` as formats,
+  specification states `lib/std/io/mod.hql`, `JsonLines` and `Lines` as formats,
   and the `effectful fn` headers; configured sources by id and `max_bytes`
   wait for HQL-0012
   ([issue 0037](../../issues/0037-io-typed-decoding.md))

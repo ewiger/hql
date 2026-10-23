@@ -6,7 +6,7 @@ Related: [0030](0030-hql-only-signature-authority.md),
 [the extensions card](../wiki/hql/extensions.hmd),
 [operation signatures](../models/behavior/operation-signatures.md)
 
-A name declared more than once in a `std/` module is one operation with
+A name declared more than once in a `lib/std/` module is one operation with
 several signatures, and a call takes the first declaration its input and its
 arguments fit. `S : Seq<T>` holds the input at its own type,
 `F<_> : Iterable<_>` rebuilds its constructor as `F<U>`, and `Type<U>` takes a
@@ -20,7 +20,7 @@ narrowing `filter`, and the positional arguments of `count`, `contains`,
 
 ## Scope
 
-- `format` in `std/format/mod.hql` is declared: `format<T, F : Format>(x: T, as:
+- `format` in `lib/std/format/mod.hql` is declared: `format<T, F : Format>(x: T, as:
   Type<F>, …)`, whose result over a stream and over a finite input are two
   overloads, as `collect`'s are. `Output::Finite` is then unused and removed.
 - The narrowing `filter(x => x | is(U))`, which returns `F<U>`, is stated by
@@ -83,6 +83,6 @@ narrowing `filter`, and the positional arguments of `count`, `contains`,
 - **The narrowing `filter`** is declared with a predicate of type
   `T -> Is<U>`: such a parameter takes only a lambda written
   `x => x | is(U)` and binds `U` to the type it tests. `Is<T>` is declared in
-  `std/core/mod.hql` beside `Type<T>`.
+  `lib/std/core/mod.hql` beside `Type<T>`.
 - **`...Any`** takes a value of any type in each position; `Any` is a
   contract's name for an unconstrained value, not a type a program writes.

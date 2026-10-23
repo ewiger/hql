@@ -203,9 +203,9 @@ apart from refusing depth `0`.
 
 - `src/extensions/graph.rs` — the constructors; `project` keeping only induced
   edges; `expand` over a graph or cards
-- `std/graph/mod.hql` — the constructor signatures beside `Graph` and `Edge`;
+- `lib/std/graph/mod.hql` — the constructor signatures beside `Graph` and `Edge`;
   `nodes` and `edges` as fields
-- `std/knowledge/mod.hql` — `KnowledgeGraph`'s constructor
+- `lib/std/knowledge/mod.hql` — `KnowledgeGraph`'s constructor
 - `src/checker.rs`, `field_type` — `nodes` and `edges` on `Graph`
 - `doc/wiki/hql/types/graph-type.hmd` — construction, the readable node and
   edge sets, and the projection section rewritten around `Graph(…)`

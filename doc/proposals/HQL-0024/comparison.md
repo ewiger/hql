@@ -28,7 +28,7 @@ item of the stub's goal list. Those items are kept as
 | `value.f()` | `.` is field access; `extension.step()` qualifies a step | receiver call, expression-level | new, [part 4](parts/04-receiver-modules.md) |
 | `import a.b as c` | `import <one word>`, no path, no alias | dotted canonical path, alias | new, [part 2](parts/02-imports.md) |
 | meaning of `import` | binds a compiled extension's steps | makes a module visible | changes, [part 2](parts/02-imports.md) |
-| `init.hql` | the file that defines the module of its directory: `std/io/init.hql` defines `io` | `mod.hql` | renamed so that no runtime initialization is implied, [part 1](parts/01-modules.md) |
+| `init.hql` | the file that defines the module of its directory: `lib/std/io/init.hql` defines `io` | `mod.hql` | renamed so that no runtime initialization is implied, [part 1](parts/01-modules.md) |
 | `std.` prefix | not used: `io/init.hql` is `io` | not used | aligned |
 | bound spelling | inline `filter<S : Iterable<T>, T>` and `where T : Orderable` | inline only, `fn contains<T : Eq>` | both stay |
 | function type | `T -> U` | `T => U` in one example | `->` stands; `=>` is the lambda arrow |
@@ -40,10 +40,10 @@ item of the stub's goal list. Those items are kept as
 
 | Area | Today | Draft | Kind |
 | --- | --- | --- | --- |
-| Module model | extension registry; no loader; `init.hql` defines the module of its directory; Rust holds the lattice and `std/` restates it | roots, module path, `mod.hql`, providers, one registry, no precedence, no cycles, no partial modules; HQL is the contract and native code implements its external declarations | new, and inverts the direction of authority |
-| Module implementation | Rust holds the lattice and every step signature; `std/` restates them and a test checks agreement; `Extension.name` is what `import` names | the `.hql` file is the contract, an extension descriptor names the modules it implements, binding cross-checks them into resolved modules; a standard module differs from a package module only in provisioning | inverts the direction of authority; from the companion notes, not the draft |
+| Module model | extension registry; no loader; `init.hql` defines the module of its directory; Rust holds the lattice and `lib/std/` restates it | roots, module path, `mod.hql`, providers, one registry, no precedence, no cycles, no partial modules; HQL is the contract and native code implements its external declarations | new, and inverts the direction of authority |
+| Module implementation | Rust holds the lattice and every step signature; `lib/std/` restates them and a test checks agreement; `Extension.name` is what `import` names | the `.hql` file is the contract, an extension descriptor names the modules it implements, binding cross-checks them into resolved modules; a standard module differs from a package module only in provisioning | inverts the direction of authority; from the companion notes, not the draft |
 | Imports | one-word extension import, anywhere, duplicates fail at import, `hql.toml` list | module import, aliases, head-of-unit placement, parent does not import children | changes |
-| Standard library | declarations only, in `std/`, restated in Rust; prelude is `graph`, `format`, `io` | compiled and embedded modules with bodies; small prelude of types, functions and receiver modules | changes |
+| Standard library | declarations only, in `lib/std/`, restated in Rust; prelude is `graph`, `format`, `io` | compiled and embedded modules with bodies; small prelude of types, functions and receiver modules | changes |
 | Receiver modules | none | `module for T`, `self`, lookup, ambiguity, generic patterns | new |
 | Traits | none; abstract types of law as bounds; capabilities are registrations | `Eq`, `Ord`, `Add`, ...; `impl`; coherence by ownership | new, and reverses a card position |
 | Operators | arithmetic over `Int` or `Float` only; comparison over `Orderable` | type-directed through traits; `\|`, connectives and binding stay language-defined | changes mechanism, keeps behavior for builtins |
@@ -61,7 +61,7 @@ item of the stub's goal list. Those items are kept as
 - A step is not a stage, and `|` is not an operator a program overloads.
 - HQL-facing declarations are authoritative over a Rust implementation; host
   mechanisms do not reach the language's surface.
-- The standard library is named without `std.` and lives in `std/` one file per
+- The standard library is named without `std.` and lives in `lib/std/` one file per
   module.
 - Format decides interpretation and the endpoint decides boundedness, as
   HQL-0021 has it.

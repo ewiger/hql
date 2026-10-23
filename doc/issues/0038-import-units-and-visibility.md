@@ -23,7 +23,7 @@ declaration is public unless it is marked `private`.
 - A module is checked with an empty scope and the standard prelude alone,
   and evaluated in an empty scope: no host binding, no binding of the
   program, no import of the vault's `hql.toml`.
-- `cards = vault.cards` and `graph = vault.graph` leave `std/vault/mod.hql` and
+- `cards = vault.cards` and `graph = vault.graph` leave `lib/std/vault/mod.hql` and
   become the program module's bindings (`src/library.rs`).
 - Receiver lookup: the unit's own declaration wins; two imports declaring one
   receiver function, a workspace module's and a standard module's included,
@@ -45,9 +45,9 @@ declaration is public unless it is marked `private`.
   vault's `[extensions] import` list is host configuration for the programs
   it runs, so it reaches the program module and no module.
   `prelude = false` empties the list for modules too.
-- **The standard library writes no import.** Every name a `std/` file uses is
+- **The standard library writes no import.** Every name a `lib/std/` file uses is
   a type the binary holds, so under "a package's own prelude does not apply
-  to its own modules" no file needs one. The test that checks each `std/`
+  to its own modules" no file needs one. The test that checks each `lib/std/`
   file now checks them with no prelude and without `prelude.hql`.
 - **The program module's bindings are written in `src/library.rs`**, as a
   short HQL source checked and evaluated over `vault`, beside and outside
@@ -79,7 +79,7 @@ declaration is public unless it is marked `private`.
   one lattice.
 - A standard module holds no HQL bodies, so the inside of a standard module
   is its provider's implementation: a `private fn` external is bound to its
-  operation and reached by no importer, in any spelling, and no `std/` file
+  operation and reached by no importer, in any spelling, and no `lib/std/` file
   declares one yet.
 - `internal` waits for every resolved module to record its package
   ([HQL-0025](../proposals/HQL-0025/README.md)).

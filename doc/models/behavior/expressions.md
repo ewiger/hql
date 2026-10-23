@@ -228,7 +228,7 @@ spelling of a type, `list`, is not a step and names the constructor.
 
 A constructor is a function named after its type, declared in the module
 that declares the type and returning that type or a subtype of it:
-`fn Set<T>(xs: Collection<T>) : Set<T>` in `std/core/mod.hql`, or a
+`fn Set<T>(xs: Collection<T>) : Set<T>` in `lib/std/core/mod.hql`, or a
 program's own `fn Temp(celsius: Float) : Temp` beside `type Temp`. A `fn`
 named in `UpperCamelCase` that names no concrete type declared in its source
 unit, or returns another type, is refused, and so is an alias so named. A
@@ -307,7 +307,7 @@ What is checked:
 - a parameter is a name no type already has, so a reader can tell which is
   meant, and inside the body it takes no arguments of its own;
 - a declaration may **restate** a type this binary already has — that is what
-  [`std/`](../../../std/README.md) is — but it may not contradict one.
+  [`lib/std/`](../../../lib/std/README.md) is — but it may not contradict one.
   `type Card : Doc` holds and `type Card : Edge` does not;
 - a supertype set holding two concrete types that share nothing declares a
   type no value can have, and is refused: `type X : {Int, String}`. A contract

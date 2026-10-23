@@ -21,7 +21,7 @@ holds every path, host and secret. Only the filesystem vault existed, and
 - Local kinds: `vault`, `csv`, `json`, `json_lines`, `yaml`, `sqlite`.
 - `Value::Vault` carries a configured vault, so two vaults are read side by
   side.
-- `std/io/mod.hql` declares the `id` form of `source` and the remaining
+- `lib/std/io/mod.hql` declares the `id` form of `source` and the remaining
   source contracts; binding accepts one declaration per alternative of a
   native choice input.
 

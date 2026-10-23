@@ -62,9 +62,9 @@ order is the dependency order.
 
 | Part | Document | Rule in one line | Against today |
 | --- | --- | --- | --- |
-| 1 | [Modules](parts/01-modules.md) | A module is an HQL contract named by its position under a module root, `foo.hql` or `foo/mod.hql` is `foo` and `foo/bar.hql` is `foo.bar`, bound to exactly one implementation provider; contracts and extension descriptors are discovered separately, bound and cross-checked into one registry of resolved modules with no precedence between providers | new; `init.hql` becomes `mod.hql`; `std/` stops restating Rust and defines it; [companion notes](parts/01a-modules.md) |
+| 1 | [Modules](parts/01-modules.md) | A module is an HQL contract named by its position under a module root, `foo.hql` or `foo/mod.hql` is `foo` and `foo/bar.hql` is `foo.bar`, bound to exactly one implementation provider; contracts and extension descriptors are discovered separately, bound and cross-checked into one registry of resolved modules with no precedence between providers | new; `init.hql` becomes `mod.hql`; `lib/std/` stops restating Rust and defines it; [companion notes](parts/01a-modules.md) |
 | 2 | [Imports](parts/02-imports.md) | `import io.file` makes one module visible as `file`, `as` renames it, a parent does not import its children, and imports sit at the head of a source unit | `import` stops naming an extension |
-| 3 | [The standard library](parts/03-standard-library.md) | Standard modules have no `std.` prefix, are compiled into the binary, own their canonical names, and a small prelude of types, functions and receiver modules, declared in `std/prelude.hql` and in each extension's `prelude.hql`, is visible without import | `std/` gains bodies; the prelude is redefined |
+| 3 | [The standard library](parts/03-standard-library.md) | Standard modules have no `std.` prefix, are compiled into the binary, own their canonical names, and a small prelude of types, functions and receiver modules, declared in `lib/std/prelude.hql` and in each extension's `prelude.hql`, is visible without import | `lib/std/` gains bodies; the prelude is redefined |
 | 4 | [Receiver modules](parts/04-receiver-modules.md) | `module for Seq<T>` associates a module with a type pattern; functions with explicit `self` resolve as `xs.first()` by receiver type matching among visible modules, and an ambiguity is an error | new; `.` gains a call form |
 | 5 | [Traits and implementations](parts/05-traits.md) | A trait is a compile-time contract, `T : Eq` is a bound, `impl Add for Int` provides it, and one implementation per trait and type is enforced by ownership | reverses "there are no traits" for capabilities; `abstract type` stays |
 | 6 | [Operator contracts](parts/06-operators.md) | Arithmetic and comparison resolve through `Add`, `Eq`, `Ord` and their kin; `\|`, `and`, `or` and binding are language-defined; no pseudo-desugaring is part of the definition | mechanism changes, builtin behavior does not |
@@ -81,8 +81,8 @@ The two questions the draft raises for the implemented grammar, answered in
 [the comparison](comparison.md):
 
 - **`abstract type`** is not mentioned by the draft and stays as declared in
-  [`std/core/mod.hql`](../../../std/core/mod.hql) and
-  [`std/io/init.hql`](../../../std/io/init.hql). It meets the draft exactly
+  [`lib/std/core/mod.hql`](../../../lib/std/core/mod.hql) and
+  [`lib/std/io/init.hql`](../../../lib/std/io/init.hql). It meets the draft exactly
   once: `Orderable` as ancestry and `Ord` as a trait say the same thing about
   `Int`. Part 5 decides whether bounds over operations move to traits while
   structure (`Collection`, `Seq`, `Endpoint`) stays with abstract types, or
@@ -103,7 +103,7 @@ record stands until this proposal is accepted.
 - `import net`, `import logging`, `import lexical`, `import semantic` keep
   working through the modules those extensions declare; dotted names are added,
   the one-word form is kept where the module is top level.
-- `std/io/init.hql` is renamed; no program names it.
+- `lib/std/io/init.hql` is renamed; no program names it.
 - Programs that call `format(x, Json)` read a `String`, as before; a program
   that named `Json` as the type of a value, `xs : List<Json>`, now writes
   `List<String>`. The run-time value keeps its format for presentation.
@@ -121,7 +121,7 @@ by item.
 
 ## Test Plan
 
-Each part lands with the tests it names. Across parts: `std/` compiles as
+Each part lands with the tests it names. Across parts: `lib/std/` compiles as
 modules and every builtin module is importable; a bare-CLI program with imports
 and no vault checks; the example corpus under [`examples/`](../../../examples/README.md)
 keeps its recorded types and diagnostics.
@@ -139,7 +139,7 @@ keeps its recorded types and diagnostics.
   companion notes make explicit: a standard module and a package module are
   one kind of module, a contract plus one provider, and the binary's Rust is
   demoted from the definition of the lattice to an implementation checked
-  against `std/`.
+  against `lib/std/`.
 - Nothing in the draft changes the two settled "no" positions: no field
   visibility and no host-language traits on the surface. The trait of part 5 is
   an HQL construct with HQL syntax, which is what the card's refusal left room
@@ -174,3 +174,6 @@ keeps its recorded types and diagnostics.
   as the package's global space; each standard module imports what it writes,
   and binding refuses a module not closed over its imports, as issue 0046
   records
+- 2026-10-23: builtin packages live under `lib/`, one folder each, and the
+  standard library is `lib/std/`, the standard package among them, as
+  issue 0048 records

@@ -22,7 +22,7 @@ abstract type Doc : Orderable { … }   // ordered by its name
 ```
 
 It is an [[type-system|abstract type of law]], declared in
-[`std/core/mod.hql`](../../../../std/core/mod.hql). Sorting expects the order to be total.
+[`lib/std/core/mod.hql`](../../../../lib/std/core/mod.hql). Sorting expects the order to be total.
 
 ## Order is not position
 

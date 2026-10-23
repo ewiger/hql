@@ -6,7 +6,7 @@ nav:
 # HQL collections
 
 HQL distinguishes membership, positions and lookup through collection contracts
-and concrete carriers. The types are declared in `std/core/mod.hql`, since `Data` is a tree of sequences and maps, and the operations over them in `std/collections/mod.hql`.
+and concrete carriers. The types are declared in `lib/std/core/mod.hql`, since `Data` is a tree of sequences and maps, and the operations over them in `lib/std/collections/mod.hql`.
 
 | Type | Intended meaning | Design consequence |
 | --- | --- | --- |
@@ -116,7 +116,7 @@ The second form is what makes `Seq<Function>` sortable without `Function` being
 says the values *have* a key, and supplying one from outside is the other
 signature, not the same one narrowed.
 
-`Ordering` is declared in `std/core/mod.hql`. `SortedSeq<T>` remains a design name;
+`Ordering` is declared in `lib/std/core/mod.hql`. `SortedSeq<T>` remains a design name;
 sorting a `Seq` returns the same sequence type, and sorting any other collection
 returns `List<T>`. A key selector such as `by = c => c.title`
 uses the selected key's intrinsic order. Equal keys retain their relative

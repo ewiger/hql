@@ -38,7 +38,7 @@ typing contexts.
   token, so the sequence lexes as `<` followed by `:` and is refused.
 - The supertype position and the `where` bound both read `Token::Colon` —
   `type SortedMap<K, V> : OrderedMap<K, V> where K : Orderable`.
-- `std/`, the examples, the tests, and the grammar in
+- `lib/std/`, the examples, the tests, and the grammar in
   [expressions](../models/behavior/expressions.md) take the new spelling.
 - [type-system](../wiki/hql/type-system.hmd) is rewritten to state the
   one-symbol rationale rather than to contrast two symbols.
@@ -47,9 +47,9 @@ typing contexts.
 
 ## Done when
 
-- `cargo test` passes and `hql check std/knowledge/mod.hql` prints `Unit`.
+- `cargo test` passes and `hql check lib/std/knowledge/mod.hql` prints `Unit`.
 - A test pins `<:` as a syntax error, so the old operator cannot return quietly.
-- No `<:` survives as accepted syntax in `src/`, `std/`, `tests/`, `examples/`,
+- No `<:` survives as accepted syntax in `src/`, `lib/std/`, `tests/`, `examples/`,
   or `doc/`. The rejection tests and migration explanation retain it, as does
   the [design conversation](../conversations/sets-n-subtypes.md), whose original
   wording is preserved with a note linking to the current syntax.
@@ -59,7 +59,7 @@ typing contexts.
 - `cargo test --offline --locked --no-fail-fast`: 136 tests pass.
 - `cargo clippy --offline --locked --all-targets -- -D warnings`: clean.
 - `cargo fmt --all -- --check`: clean.
-- `hql check std/knowledge/mod.hql`: `Unit`.
+- `hql check lib/std/knowledge/mod.hql`: `Unit`.
 
 Colon declarations with a record body, supertype sets, and `where` bounds are
 covered by tests. The declaration checker and supertype normalization are

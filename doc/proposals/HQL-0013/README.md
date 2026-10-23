@@ -412,7 +412,7 @@ noticed before it runs.
 ## Reference Implementation
 
 - `src/extensions/collections.rs` — the join steps, as core steps
-- `std/collections/mod.hql` — their signatures beside the existing core operations
+- `lib/std/collections/mod.hql` — their signatures beside the existing core operations
 - `src/parser.rs` — the `?` mark in a record literal
 - `src/types/` — the row type and its field access
 - `examples/` — a corpus example per mode and form, and an `invalid` case for a
@@ -460,7 +460,7 @@ None.
 - 2026-10-19: materialization is written with the `List` constructor, since
   `list` is retired; no join is implemented yet
 - 2026-10-22: accepted, implemented in part. The binary form is built as
-  core operations declared in `std/collections/mod.hql`: `join`, `left_join`,
+  core operations declared in `lib/std/collections/mod.hql`: `join`, `left_join`,
   `right_join` and `full_join` with `into`, by keys, `on` or both;
   `cross_join`; `semi_join` and `anti_join`, in the order of the section
   "Order". A join with no condition is refused naming `cross_join`, `left`

@@ -753,7 +753,7 @@ as a `String`; `source(e, Json)` applies the decoder. `Lines` frames text one
 record per line and `JsonLines` one JSON document per line, so
 `source(file("events.jsonl"), JsonLines)` reads records without a `split("\n")`
 in sight. The contracts, `Decoder<F, T>` and `Encoder<T, F>`, are declared in
-`std/format/mod.hql` and implemented natively.
+`lib/std/format/mod.hql` and implemented natively.
 
 Formats describe encoding rather than execution shape.
 

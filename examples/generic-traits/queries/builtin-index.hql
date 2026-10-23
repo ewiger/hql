@@ -5,7 +5,7 @@
 // expected-type: List<Option<Int>>
 // expected-json: [20, 7, null]
 
-// `std/core/mod.hql` declares `impl<T> Index<T> for Seq<T>`: a List is a Seq, so
+// `lib/std/core/mod.hql` declares `impl<T> Index<T> for Seq<T>`: a List is a Seq, so
 // it takes the trait's function `at` and satisfies `E : Index<T>`.
 fn last_of<T, E : Index<T>>(xs: E, length: Int) : Option<T> = xs[length - 1]
 

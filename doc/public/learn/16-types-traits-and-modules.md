@@ -240,6 +240,6 @@ importer, by name, as a receiver call or as a step.
 
 Imports sit at the head of a source unit, two imports may not share a local
 name, and a module may not import itself through a cycle. The standard
-library's own modules are written the same way, as contracts in `std/`:
-`std/string/mod.hql` opens with `module for String` and declares `fn trim(self) :
+library's own modules are written the same way, as contracts in `lib/std/`:
+`lib/std/string/mod.hql` opens with `module for String` and declares `fn trim(self) :
 String` with no body, which the binary implements.

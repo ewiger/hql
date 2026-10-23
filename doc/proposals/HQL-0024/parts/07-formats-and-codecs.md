@@ -22,7 +22,7 @@ below restate that document against the implemented language.
 `Format` is a language-level abstract type. A format is a value of it, named
 by a type: `Text`, `Lines`, `Json`, `JsonLines`, `Yaml`, `Csv`, `Markdown`,
 `Hmd`, `Hql`, `D2`, `Mermaid`, each declared `: Format` in
-`std/format/mod.hql`. It is **not** `Format<T>`, and a format is not a subtype of
+`lib/std/format/mod.hql`. It is **not** `Format<T>`, and a format is not a subtype of
 the values it encodes or decodes:
 
 ```hql
@@ -142,7 +142,7 @@ Both stay, as HQL-0021 has them.
   `Table` is written by each format's own encoder for `Table`.
 - The decoder table is `io::document_type` and the encoder table is the
   renderer table of the [presentation card](../../../wiki/hql/presentation.hmd),
-  both in Rust; `std/format/mod.hql` declares the traits `Decoder<T>` and
+  both in Rust; `lib/std/format/mod.hql` declares the traits `Decoder<T>` and
   `Encoder<T>` and one native header per codec, and binding holds the headers
   and the tables to each other. An HQL `impl Encoder<T> for …` with a body
   waits for a format to be a value a program holds.
@@ -154,7 +154,7 @@ Both stay, as HQL-0021 has them.
 
 1. `Format`, the format types under it, `Lines` and `JsonLines`, and
    `format` returning `String`. Done.
-2. The codec contracts in `std/format/mod.hql`, with the Rust tables as their
+2. The codec contracts in `lib/std/format/mod.hql`, with the Rust tables as their
    implementations and a test that every format has a codec. Done.
 3. Accepting HQL-0021 with this format model. Done: HQL-0021 states
    `JsonLines` and `Lines` as formats and `Text` as one whole document, and

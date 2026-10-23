@@ -6,7 +6,7 @@
 // expected-json: [true, true, true]
 
 // `fn Set<T>(xs: Collection<T>) : Set<T>` and `fn Map<K, V>(keys: Seq<K>,
-// values: Seq<V>) : Map<K, V>` are declared in `std/core/mod.hql`. The
+// values: Seq<V>) : Map<K, V>` are declared in `lib/std/core/mod.hql`. The
 // piped value is the constructor's first argument.
 [
     ([1, 2, 2] | Set) == Set([1, 2, 2]),

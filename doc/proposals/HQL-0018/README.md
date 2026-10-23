@@ -144,14 +144,14 @@ before, so restricting them to constructors breaks no program.
 ## Reference Implementation
 
 - `src/constructors.rs` — the binary's constructors, bound to their
-  declarations in `std/`; form selection by first argument; the refusal of an
+  declarations in `lib/std/`; form selection by first argument; the refusal of an
   ambiguous constructor value; `Data(s, F)`
 - `src/checker.rs` — a bare type name in step position resolving to its
   constructor; the refusal of an abstract type; the `UpperCamelCase` rule for
   `fn`; a program's constructors, one binding per form
 - `src/extensions/mod.rs` — the case-insensitive suggestion for an unknown
   operation
-- `std/*.hql` — each constructor declared beside its type: `List`, `Set`,
+- `lib/std/*.hql` — each constructor declared beside its type: `List`, `Set`,
   `Map`, `OrderedMap` and `SortedMap` in `collections`, `Graph` in `graph`,
   `Channel` in `io`, `Data` in `core`
 - `doc/models/behavior/expressions.md` — the two forms, replacing the open
@@ -188,9 +188,9 @@ cargo clippy --locked --all-targets -- -D warnings
 - 2026-10-19: accepted; the pipeline form of constructors, the refusal of an
   abstract type, constructors as function values (`map(Set)`) and
   `UpperCamelCase` reserved for constructors are implemented, and constructors
-  declared in `std/`, overloads by first argument, record constructors and
+  declared in `lib/std/`, overloads by first argument, record constructors and
   `Json(s)` are not yet
-- 2026-10-22: implemented. Constructors are declared in `std/` and bound to
+- 2026-10-22: implemented. Constructors are declared in `lib/std/` and bound to
   the binary's; a program declares its own beside its type, several told
   apart by their first parameter; a constructor value is resolved by the
   parameter type it is passed at, and refused where that leaves it

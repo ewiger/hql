@@ -9,7 +9,7 @@ nav:
 `x0, x1, x2, …`, whose production need not end. A stream has no size, no
 membership and no global order, because each of those needs the end. The
 design is [HQL-0006](../../../proposals/HQL-0006/README.md); the declaration
-is `std/core/mod.hql`, and the operations over it are `std/collections/mod.hql`'s.
+is `lib/std/core/mod.hql`, and the operations over it are `lib/std/collections/mod.hql`'s.
 
 ```hql
 abstract type Iterable<T>

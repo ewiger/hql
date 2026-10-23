@@ -476,7 +476,7 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
         .collect()
 }
 
-/// The operation types `std/core/mod.hql` reserves, one per shape and their
+/// The operation types `lib/std/core/mod.hql` reserves, one per shape and their
 /// common supertype: a program may not declare a type of these names.
 const RESERVED_TYPES: [&str; 5] = [
     "Operation",
@@ -495,7 +495,7 @@ fn written_names(arguments: &[Arg]) -> Vec<&str> {
         .collect()
 }
 
-/// Whether a declaration of a reserved name is the one `std/core/mod.hql`
+/// Whether a declaration of a reserved name is the one `lib/std/core/mod.hql`
 /// makes, `abstract type Elementwise<I, O> : Operation<I, O>`: the library's
 /// own text checks as a program, and restating it declares nothing new.
 fn restates_operation_type(declaration: &crate::ast::TypeDecl) -> bool {
@@ -946,7 +946,7 @@ fn signature_in_place(
 }
 
 /// The traits the language owns, in scope in every program: the operators
-/// resolve through them, and `std/core/mod.hql` restates them.
+/// resolve through them, and `lib/std/core/mod.hql` restates them.
 pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
     let self_type = SELF.apply([]);
     let binary = |name: &str, result: TypeRef| TraitInfo {
@@ -3176,7 +3176,7 @@ impl<'a> Checker<'a> {
             // A written module of the standard library comes before the
             // roots, as a standard module named by an extension does.
             Some(_) => Some(std::path::PathBuf::from(format!(
-                "std/{}/mod.hql",
+                "lib/std/{}/mod.hql",
                 name.replace('.', "/")
             ))),
             None => crate::modules::locate(roots, name)
@@ -3528,7 +3528,7 @@ impl<'a> Checker<'a> {
     }
 
     /// `trait Name { … }`: a contract the program may implement. A core
-    /// trait restated by `std/` must agree with the binary's.
+    /// trait restated by `lib/std/` must agree with the binary's.
     fn declare_trait(&mut self, declaration: &'a TraitDecl) -> Result<(), Diagnostic> {
         self.lint(
             crate::naming::Kind::Type,
@@ -5934,7 +5934,7 @@ pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
         // by type: `field? : T` and `Option<T>` are the same claim.
         "Data" => Some(TypeRef::optional(TypeRef::DATA)),
         // A record's fields are what its declaration says, in the program
-        // or in `std/`.
+        // or in `lib/std/`.
         _ => crate::types::program::field_type(receiver, field)
             .or_else(|| crate::library::field_type(receiver, field)),
     }

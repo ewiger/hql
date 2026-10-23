@@ -473,8 +473,8 @@ Extension(id)     an extension supplied outside the binary
 Examples:
 
 ```text
-regex       contract Standard(std/regex/mod.hql)         implementation Builtin(std-regex)
-io.file     contract Standard(std/io/file.hql)       implementation Builtin(std-io)
+regex       contract Standard(lib/std/regex/mod.hql)         implementation Builtin(std-regex)
+io.file     contract Standard(lib/std/io/file.hql)       implementation Builtin(std-io)
 app.model   contract Workspace(/repo)                implementation Runtime
 acme.auth   contract Filesystem(/opt/acme/hql)       implementation Runtime
 postgres    contract Package(postgres)               implementation Extension(postgres-native)
@@ -581,8 +581,8 @@ implementation provider:
 
 ```text
 ModuleRegistry {
-    regex     -> { contract: Standard("std/regex/mod.hql"),              implementation: Builtin("std-regex") }
-    io.file   -> { contract: Standard("std/io/file.hql"),            implementation: Builtin("std-io") }
+    regex     -> { contract: Standard("lib/std/regex/mod.hql"),              implementation: Builtin("std-regex") }
+    io.file   -> { contract: Standard("lib/std/io/file.hql"),            implementation: Builtin("std-io") }
     app       -> { contract: Workspace("/repo/app.hql"),             implementation: Runtime }
     acme.auth -> { contract: Filesystem("/opt/acme/hql/acme/auth.hql"), implementation: Runtime }
     postgres  -> { contract: Package("/packages/postgres/postgres/mod.hql"), implementation: Extension("postgres-native") }
@@ -1078,11 +1078,11 @@ from which the effective `ModuleRegistry` can be constructed.
 ## Current state
 
 - An **extension registry** exists and a module loader does not ([extensions](../../../wiki/hql/extensions.hmd)).
-- `init.hql` is the file that defines the module corresponding to its directory, `std/io/init.hql` defining `io`. The extensions card and [HQL-0020](../../HQL-0020/README.md) also sketch it as a namespace initialization entry point; this proposal renames the file to `mod.hql` and drops the initialization role.
-- [`std/`](../../../../std/README.md) already maps one file to one module and a folder to a module with submodules, with `io/init.hql` representing `io`.
-- Nothing is currently parsed as a module: the parser reads one program, and declarations in `std/` are checked file by file by `tests/declarations.rs`.
+- `init.hql` is the file that defines the module corresponding to its directory, `lib/std/io/init.hql` defining `io`. The extensions card and [HQL-0020](../../HQL-0020/README.md) also sketch it as a namespace initialization entry point; this proposal renames the file to `mod.hql` and drops the initialization role.
+- [`lib/std/`](../../../../lib/std/README.md) already maps one file to one module and a folder to a module with submodules, with `io/init.hql` representing `io`.
+- Nothing is currently parsed as a module: the parser reads one program, and declarations in `lib/std/` are checked file by file by `tests/declarations.rs`.
 - No general module path or effective module registry currently exists.
-- The direction of authority is the reverse of this part: the binary holds the type lattice and every step signature in Rust (`OperationSpec`), and `std/` **restates** them. `declarations.rs` checks that a declaration agrees with the lattice, `tests/declarations.rs` pins that a declaration may restate a built-in but not contradict it, and function signatures in `std/` are comments beside the declarations. No declaration is external, and no extension states which modules it implements.
+- The direction of authority is the reverse of this part: the binary holds the type lattice and every step signature in Rust (`OperationSpec`), and `lib/std/` **restates** them. `declarations.rs` checks that a declaration agrees with the lattice, `tests/declarations.rs` pins that a declaration may restate a built-in but not contradict it, and function signatures in `lib/std/` are comments beside the declarations. No declaration is external, and no extension states which modules it implements.
 
 ---
 
@@ -1105,10 +1105,10 @@ from which the effective `ModuleRegistry` can be constructed.
 - Authority inverts: the HQL contract is authoritative and the native
   implementation is checked against it at registry construction. The lattice
   and step signatures the binary holds in Rust become implementations of
-  declarations in `std/`, and the "restates" check becomes the binding
+  declarations in `lib/std/`, and the "restates" check becomes the binding
   cross-check.
 - A declaration without a body is an external declaration, so the signatures
-  written as comments in `std/` become declarations.
+  written as comments in `lib/std/` become declarations.
 - An extension carries a descriptor naming the modules it provides;
   `Extension.name` stops being what `import` names.
 - Module resolution, roots, origins and providers become compiler concepts,
@@ -1145,7 +1145,7 @@ from which the effective `ModuleRegistry` can be constructed.
 4. **External declarations**
    - a declaration without a body in the grammar;
    - the external type;
-   - `std/` signatures move from comments to declarations.
+   - `lib/std/` signatures move from comments to declarations.
 
 5. **Extension descriptors**
    - `id`, `abi`, `provides`;
@@ -1169,8 +1169,8 @@ from which the effective `ModuleRegistry` can be constructed.
    - distinction between module bodies and directly executable program files.
 
 9. **Standard library migration**
-   - migrate `std/io/init.hql` to `std/io/mod.hql`;
-   - `std/` stops restating the Rust lattice and defines it, with the Rust
+   - migrate `lib/std/io/init.hql` to `lib/std/io/mod.hql`;
+   - `lib/std/` stops restating the Rust lattice and defines it, with the Rust
      built-ins as its implementations;
    - update standard-library documentation.
 

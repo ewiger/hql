@@ -64,7 +64,7 @@ type Range { start? : Int, end? : Int }
 
 - `xs[a:b]` MUST mean the same as `xs[Range(start = a, end = b)]`; a missing
   bound is `none`.
-- `Range` is declared in [`std/core/mod.hql`](../../../std/core/mod.hql) and is in
+- `Range` is declared in [`lib/std/core/mod.hql`](../../../lib/std/core/mod.hql) and is in
   scope in every program.
 - A bracket whose index is neither `Int` nor `Range` is a type error: "an
   index is an Int position or a Range, not {T}".
@@ -139,7 +139,7 @@ trait Slice {
 ```
 
 - `Slice` is a language-owned core trait in
-  [`std/core/mod.hql`](../../../std/core/mod.hql), beside the operator traits.
+  [`lib/std/core/mod.hql`](../../../lib/std/core/mod.hql), beside the operator traits.
 - `String`, `Seq` and `Data` implement it natively with bodyless headers,
   `impl Slice for String` and `impl<T> Slice for Seq<T>`, the generic header
   of [HQL-0027](../HQL-0027/README.md); a List and a Ranking take `Seq`'s.
@@ -174,7 +174,7 @@ trait Slice {
 
 - `src/parser.rs`, `postfix`: the range form inside a touching bracket.
 - `src/ast.rs`: `Kind::Slice(receiver, start, end)` beside `Kind::Index`.
-- `std/core/mod.hql`: `Range`, `trait Slice`, and the native headers.
+- `lib/std/core/mod.hql`: `Range`, `trait Slice`, and the native headers.
 - `src/checker.rs`: `indexed` extended to String and to negative positions;
   a `sliced` counterpart giving [what each receiver gives](#4-what-each-receiver-gives),
   with the Stream rules and trait dispatch for declared types.

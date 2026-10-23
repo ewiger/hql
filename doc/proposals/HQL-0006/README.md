@@ -21,7 +21,7 @@ assumption.
 
 - HQL pipelines are meant to describe long-running computations over event
   sources, not only queries over a vault that already sits in memory. Before
-  this record every collection type in `std/collections/mod.hql` was finite, so
+  this record every collection type in `lib/std/collections/mod.hql` was finite, so
   such a source had no type.
 - [Queries](../../models/behavior/queries.md) already designs the hierarchy
   this needs — `Iterable`, `Collection`, `Stream`, `Seq`, and a lazy traversal
@@ -174,7 +174,7 @@ them.
 
 ## Reference Implementation
 
-- `std/collections/mod.hql` — `Stream<T>`, `Seq<T> : {Collection<T>, Stream<T>}`,
+- `lib/std/collections/mod.hql` — `Stream<T>`, `Seq<T> : {Collection<T>, Stream<T>}`,
   and the stream signatures as comments beside the collection ones
 - `src/types/` — `Stream` in the constructor table and the subtype relation
 - `src/extensions/collections.rs` — stream overloads for `map`, `filter`,

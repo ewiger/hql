@@ -23,7 +23,7 @@ implementations.
 - Purity: `effectful fn` before an external declaration; binding compares
   it with the extension's marking; checking reads the declaration. `io` and
   `io.logging` declare their operations.
-- Identities, first stage: `src/extensions/binding.rs` loads `std/` once,
+- Identities, first stage: `src/extensions/binding.rs` loads `lib/std/` once,
   allocating a module identity per module and a declaration identity per
   external declaration, and binds each declaration to its operation.
   Signatures, receivers and purity are read through it, and the execution

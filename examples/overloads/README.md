@@ -7,7 +7,7 @@ cargo build --locked
 target/debug/hql run examples/overloads/queries/positional-forms.hql
 ```
 
-A name declared more than once in `std/` is one operation with several
+A name declared more than once in `lib/std/` is one operation with several
 signatures, and a call takes the first declaration its input, its arity and
 its value arguments' types fit.
 

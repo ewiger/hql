@@ -18,14 +18,14 @@ before anything else:
 - [HQL-0026](../proposals/HQL-0026/README.md): `Index<T>` and the generic
   native header `impl Slice for List<T>`;
 - the open questions of the [type system card](../wiki/hql/type-system.hmd);
-- `std/core/mod.hql`, `std/format/mod.hql`, `src/extensions/traits.rs`,
+- `lib/std/core/mod.hql`, `lib/std/format/mod.hql`, `src/extensions/traits.rs`,
   `src/extensions/contract.rs`, `tests/traits.rs`, and `trait_declaration` and
   `implementation` in `src/parser.rs`.
 
 ## The order to work in
 
 1. Collect the cases: every contract in the issue, written as the HQL a
-   program or `std/` would declare. Bring them to me with your recommendation
+   program or `lib/std/` would declare. Bring them to me with your recommendation
    on the open points of the issue's scope (trait parameter or associated
    type for an output, how arguments are inferred, the overlap rule) before
    writing the proposal. The choice is mine; do not settle it in code.

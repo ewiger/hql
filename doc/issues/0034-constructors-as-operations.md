@@ -10,7 +10,7 @@ Related: [HQL-0018](../proposals/HQL-0018/README.md),
 HQL-0018's pipeline form, the refusal of an abstract type, `map(Set)` and
 the `UpperCamelCase` reservation were implemented with the record
 constructors. This issue finishes the record: the standard constructors are
-declared in `std/`, a program declares its own, several are told apart by
+declared in `lib/std/`, a program declares its own, several are told apart by
 their first parameter, a constructor value is resolved by the parameter type
 it is passed at, and text is parsed by construction. It also fixes a generic
 variadic parameter, which refused `f(1, 2)` for `fn f<T>(xs: ...T)`.
@@ -18,8 +18,8 @@ variadic parameter, which refused `f(1, 2)` for `fn f<T>(xs: ...T)`.
 ## Scope
 
 - `fn List`, `Set`, `Map`, `OrderedMap` and `SortedMap` in
-  `std/collections/mod.hql`, `fn Graph` in `std/graph/mod.hql`, `fn Channel` in
-  `std/io/mod.hql` and `fn Data` in `std/core/mod.hql`, each beside its type.
+  `lib/std/collections/mod.hql`, `fn Graph` in `lib/std/graph/mod.hql`, `fn Channel` in
+  `lib/std/io/mod.hql` and `fn Data` in `lib/std/core/mod.hql`, each beside its type.
   Binding holds them to `src/constructors.rs`: a declaration names a
   concrete type of its own module and returns it or a subtype, every
   constructor the binary implements is declared, and forms of one arity
@@ -44,7 +44,7 @@ variadic parameter, which refused `f(1, 2)` for `fn f<T>(xs: ...T)`.
 
 - **Checking a standard constructor.** The binary's own refinements run
   first, so a `List` over a stream or a set keeps its specific refusal; the
-  call must then fit a form `std/` declares, or it is refused naming each
+  call must then fit a form `lib/std/` declares, or it is refused naming each
   form's first parameter. The result type is the binary's, which also
   honours explicit type arguments, `List<Int>([])`.
 - **Forms of one arity.** "They MUST differ in the type of their first

@@ -133,6 +133,6 @@ pipeline step. It creates no step and is invisible to the planner (see
 2. Receiver type matching and the lookup algorithm, with the ambiguity
    diagnostic.
 3. Receiver modules for `String`, `Seq<T>`, `Map<K, V>`, `Option<T>` in
-   `std/`, and the prelude's selection of them.
+   `lib/std/`, and the prelude's selection of them.
 4. The result-type rule for generic receivers against the container rule of
    the type system card.

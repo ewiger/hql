@@ -44,7 +44,7 @@ type Ranking<T> : Seq<Hit<T>> {
 
 `retrieval` is the record of how the hits were produced, an open tree with
 the keys `query`, `index`, `model`, `revision`, `metric` and `approximate`.
-The declarations are `std/retrieval/mod.hql`.
+The declarations are `lib/std/retrieval/mod.hql`.
 
 `Ranking` narrows `Seq` the way a `Relation` narrows an `Edge`: it adds what
 makes the order meaningful — the query the order is relative to, and the rule

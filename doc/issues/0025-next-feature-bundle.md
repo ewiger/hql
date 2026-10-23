@@ -12,7 +12,7 @@ nothing here restates it.
    without failing. Needed by 2 and 6.
 2. **The naming lint** — [HQL-0011](../proposals/HQL-0011/README.md): a
    warning at every name a program introduces that breaks its kind's casing,
-   and a test that every registered step and every `std/` name passes. The
+   and a test that every registered step and every `lib/std/` name passes. The
    sum-type constructor rule is that record's open question and is not in
    scope.
 3. **Generic functions** — [0022](0022-generic-functions.md): rigid type
@@ -62,7 +62,7 @@ nothing here restates it.
 - [x] 1. Check-time warnings
 - [x] 2. The naming lint
 - [x] 3. Generic functions
-- [x] 4. `:=` aliases (the core's shorthands stay host steps; their longhands are stated in `std/collections/mod.hql`)
+- [x] 4. `:=` aliases (the core's shorthands stay host steps; their longhands are stated in `lib/std/collections/mod.hql`)
 - [x] 5. The reduction vocabulary (combiner properties in `hql builtins` and fold shapes wait on the planner, HQL-0004)
 - [x] 6. The open ends of type interpretation
 - [x] 7. Constructors as operations
