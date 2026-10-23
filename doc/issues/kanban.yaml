@@ -17,12 +17,9 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 46 # to be incremented when adding a new issue card
+  last_id: 47 # to be incremented when adding a new issue card
   items:
     backlog:
-      - id: "0046"
-        title: "Renovate `std/**` under the module, package and extension model"
-        file: 0046-renovate-std.md
       - id: "0043"
         title: "Contract validation: rules, structured errors and stream policies"
         file: 0043-contract-validation.md
@@ -39,6 +36,9 @@ board:
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
     todo:
+      - id: "0047"
+        title: "Cardinality is `size`: a String's `size` replaces `length`"
+        file: 0047-cardinality-is-size.md
       - id: "0029"
         title: "Binary formats, and codecs an extension or a package provides"
         file: 0029-binary-formats-and-codecs.md
@@ -49,6 +49,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0046"
+        title: "Renovate `std/**` under the module, package and extension model"
+        file: 0046-renovate-std.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md

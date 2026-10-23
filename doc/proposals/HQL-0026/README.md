@@ -64,7 +64,7 @@ type Range { start? : Int, end? : Int }
 
 - `xs[a:b]` MUST mean the same as `xs[Range(start = a, end = b)]`; a missing
   bound is `none`.
-- `Range` is declared in [`std/core.hql`](../../../std/core.hql) and is in
+- `Range` is declared in [`std/core/mod.hql`](../../../std/core/mod.hql) and is in
   scope in every program.
 - A bracket whose index is neither `Int` nor `Range` is a type error: "an
   index is an Int position or a Range, not {T}".
@@ -104,8 +104,10 @@ A slice is of its receiver's type; a position is an `Option` of its element.
 | `Set<T>`, `Map<K, V>` | refused, as today | refused, with the same messages |
 | a declared type | `Option<T>` through its `Index<T>`, refused without one | the type itself, through its `Slice`, refused without one |
 
-- A String's positions MUST count characters, as `length`, `char_at` and
-  `slice` do.
+- A String's positions MUST count code points: `s[i]` is the `i`-th element
+  of `s.chars()`, as `char_at` and `slice` count, and `s.size()` is the
+  number of positions ([HQL-0014](../HQL-0014/README.md), "Named aggregations
+  are aliases").
 - Data holding something other than a sequence is a runtime error naming its
   shape, as `xs[i]` is today.
 
@@ -137,7 +139,7 @@ trait Slice {
 ```
 
 - `Slice` is a language-owned core trait in
-  [`std/core.hql`](../../../std/core.hql), beside the operator traits.
+  [`std/core/mod.hql`](../../../std/core/mod.hql), beside the operator traits.
 - `String`, `Seq` and `Data` implement it natively with bodyless headers,
   `impl Slice for String` and `impl<T> Slice for Seq<T>`, the generic header
   of [HQL-0027](../HQL-0027/README.md); a List and a Ranking take `Seq`'s.
@@ -172,7 +174,7 @@ trait Slice {
 
 - `src/parser.rs`, `postfix`: the range form inside a touching bracket.
 - `src/ast.rs`: `Kind::Slice(receiver, start, end)` beside `Kind::Index`.
-- `std/core.hql`: `Range`, `trait Slice`, and the native headers.
+- `std/core/mod.hql`: `Range`, `trait Slice`, and the native headers.
 - `src/checker.rs`: `indexed` extended to String and to negative positions;
   a `sliced` counterpart giving [what each receiver gives](#4-what-each-receiver-gives),
   with the Stream rules and trait dispatch for declared types.
@@ -212,3 +214,5 @@ cargo test --locked --test corpus
 - 2026-10-22: implemented; `Range` is declared with `start? : Int` and
   `end? : Int`, and a Stream is sliced only with a written `a:b`
   ([issue 0035](../../issues/0035-positions-and-slices.md))
+- 2026-10-23: a String's positions are its code points, counted by
+  `s.size()`; `length` is withdrawn by HQL-0014. Decided, not yet implemented

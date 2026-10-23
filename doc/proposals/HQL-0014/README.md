@@ -120,6 +120,15 @@ concat_all  :=  reduce([], concat)
 - A shorthand is a pure function whose body is its longhand, and a planner
   inlines it, so it sees one fold whichever spelling the program used.
 - `count(xs)` stays the kept alias of `size(xs)`.
+- Cardinality MUST have one name, `size`, with `count(xs)` its one kept
+  alias. No other spelling of it, `length` or `len`, is declared.
+- A type that has a size and is not a `Collection` MUST declare `size(self)
+  : Int` in its own receiver module, told apart from the collection's `size`
+  by its input. A String's size is its number of code points:
+  `s.size() == s.chars().size()`, and its positions run from `0` to
+  `s.size() - 1`, the position law a `Seq` states. Its length in bytes is
+  `s.bytes().size()` and has no name of its own. A String does not thereby
+  become a `Collection<String>`: `filter` and `map` do not take text.
 - `min` and `max` each have two arities: binary `min(a, b)` is the combiner, and
   `xs | min` is the aggregation. They are one name at two arities, as `count` is.
 
@@ -263,11 +272,14 @@ reduce     N -> 1
 
 ## Backwards Compatibility
 
-Additive. `reduce` without `initial`, the combiners `+`, `*`, `min`, `max`,
+Additive, with one withdrawal. `reduce` without `initial`, the combiners `+`, `*`, `min`, `max`,
 `merge`, `union` and `concat` in the `by` position, and the aliases of
 *Named aggregations are aliases* are new. `reduce(initial, by)` with a lambda
 keeps HQL-0004's meaning and shape. `size`, `count` and `contains` keep their
 results. Those aliases are among the shorthands [HQL-0015](../HQL-0015/README.md) lists.
+
+`length` over a String is withdrawn in favour of `size`, which gives the same
+count; `s.length()` is refused with a message naming `s.size()`.
 
 ## Security Considerations
 
@@ -296,7 +308,7 @@ and exceeding one is an error, never a truncated result.
   and their properties, and the alias steps, beside HQL-0004's `reduce` and
   `group`
 - `src/builtins.rs` — the combiner property columns
-- `std/collections.hql` — the signatures beside the existing core operations
+- `std/collections/mod.hql` — the signatures beside the existing core operations
 - `examples/mapreduce/` — `total-pages` with `sum`, and a `merge` of two layers
   of metadata
 
@@ -352,7 +364,7 @@ None.
 - 2026-10-22: implemented; `variance`, `count_by`, `histogram(width)`,
   `top_k(k)`, `top_k(k, by)` and `approx_distinct` are host steps of shape
   `Reduction`, each with a state combiner that equals its sequential fold, and
-  `std/collections.hql` writes each one's longhand fold beside its signature,
+  `std/collections/mod.hql` writes each one's longhand fold beside its signature,
   with `average`'s. `variance` is the population variance, absent over an
   empty input; `histogram` keys each bucket by its lower bound in a
   `SortedMap`; `top_k` is greatest first, equal keys in input order;
@@ -364,3 +376,6 @@ None.
   fixes one element type, `reduce(0, +)` summing `Int` alone, where `sum`
   and `product` take `Int` and `Float`. `approx_distinct`'s longhand is not
   writable in HQL, which exposes no hash
+- 2026-10-23: cardinality has one name: `size`, with `count(xs)` its kept
+  alias; a String declares `size(self)`, its number of code points, and
+  `length` is withdrawn. Decided, not yet implemented
