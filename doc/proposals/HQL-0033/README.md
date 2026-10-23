@@ -2041,3 +2041,7 @@ There is no hidden exception channel, no validation-specific dead-letter control
   `"error"`, a stored `Invalid` read back with `| Invalid`, and `x | T` and
   `x | validate(T)` reporting the same violations; covers test plan items
   3, 4, 12 and 18
+- 2026-10-23: results inside collections (issue 0045, E2): `map`, `map_err`
+  and `match` over each `Result` of a `List`, `Seq` and `Stream`, and
+  `oks()` and `errs()` over a `Stream` keeping a stream; covers test plan
+  items 5 and 6

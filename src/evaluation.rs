@@ -1208,6 +1208,14 @@ impl Evaluator<'_> {
                     sink(self, Value::list(batch, element))
                 }
             }
+            Source::Side { input, ok } => {
+                self.run_traversal(input, &mut |evaluator, result| match (result, ok) {
+                    (Value::Ok(held, _), true) | (Value::Err(held, _), false) => {
+                        sink(evaluator, held.as_ref().clone())
+                    }
+                    _ => Ok(true),
+                })
+            }
             Source::Emit { input } => self.run_traversal(input, &mut |evaluator, batch| {
                 let members = match &batch {
                     Value::Traversal(inner) => {

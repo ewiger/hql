@@ -183,3 +183,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   `x | T` and `x | validate(T)` share one reading. Its cases checked at
   type level before the work, so they land as `valid-now` without a
   `proposed` step.
+- E2 done: `oks()` and `errs()` over `Stream<Result<T, E>>` give a stream,
+  lazily, through a traversal that keeps one side; `map`, `map_err` and
+  `match` over each result already held for all three kinds and are pinned
+  by a case.

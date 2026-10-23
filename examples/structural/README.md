@@ -33,6 +33,8 @@ reads holds every rule.
 | [original value](queries/validate-original-value.hql) | `e.value` is the `Data` validated, before defaults | the two rejected trees |
 | [one element per violation](queries/validate-flat-violations.hql) | `errs() \| flat_map(e => e.violations)` | three violations |
 | [stored `Invalid`](queries/stored-invalid.hql) | `stored \| Invalid` reads a written failure back, `severity` defaulting to `"error"` | `["UserData UserData.id_present error"]` |
+| [results in collections](queries/results-in-collections.hql) | `map`, `map_err` and `match` over each `Result` of a `List`, a `Seq` and a `Stream` | the ids, `-` or `not UserData` per value |
+| [`oks` and `errs` over a stream](queries/stream-oks-errs.hql) | over a `Stream` of results each keeps a stream, bounded afterwards by `take(n)` | `[["u-1", "u-3", "u-1"], ["UserData.id_present", "UserData.id_present"]]` |
 | [validating a closed value](queries/invalid-validate-closed-value.hql) | `validate(T)` reads `Data` or an open record | a type error |
 
 From the repository root:

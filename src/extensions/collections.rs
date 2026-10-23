@@ -110,7 +110,7 @@ pub static COMBINERS: &[Combiner] = &[
 
 /// The steps that consume a traversal one value at a time and so keep it
 /// lazy. Every other step receives a traversal's values, forced once.
-pub(crate) const LAZY: [&str; 18] = [
+pub(crate) const LAZY: [&str; 20] = [
     "map",
     "filter",
     "take",
@@ -129,6 +129,8 @@ pub(crate) const LAZY: [&str; 18] = [
     "d2",
     "mermaid",
     "sink",
+    "oks",
+    "errs",
 ];
 
 /// A traversal that has not been forced, which a lazy step wraps.
@@ -2121,6 +2123,13 @@ fn eval_oks(
     let success = element_type(&input)
         .as_result()
         .map_or(TypeRef::NEVER, |(value, _)| value.clone());
+    if let Some(traversal) = pending(&input) {
+        let source = Source::Side {
+            input: Arc::clone(traversal),
+            ok: true,
+        };
+        return Ok(wrapped(traversal, success, source));
+    }
     let kept = elements(&input, "oks", &span)?
         .into_iter()
         .filter_map(|value| match value {
@@ -2140,6 +2149,13 @@ fn eval_errs(
     let failure = element_type(&input)
         .as_result()
         .map_or(TypeRef::NEVER, |(_, error)| error.clone());
+    if let Some(traversal) = pending(&input) {
+        let source = Source::Side {
+            input: Arc::clone(traversal),
+            ok: false,
+        };
+        return Ok(wrapped(traversal, failure, source));
+    }
     let kept = elements(&input, "errs", &span)?
         .into_iter()
         .filter_map(|value| match value {

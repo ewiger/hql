@@ -55,6 +55,8 @@ The language continues to be in active development.
   `Violation.severity` defaults to `"error"`, so `| Invalid` reads a stored
   `Invalid` back. `x | T` and `x | validate(T)` derive their violations from
   one reading, so the fail-fast diagnostic says each error's message.
+  `oks()` and `errs()` take a `Stream` of results to a `Stream`, one value
+  at a time, as they take a `List`, `Seq` or `Set` to its own kind.
 
 - `Table<R>` ([issue 0044](doc/issues/0044-typed-tables.md), shown in the
   [constructors examples](examples/constructors/README.md)): a table is

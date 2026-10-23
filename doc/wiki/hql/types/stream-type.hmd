@@ -37,9 +37,10 @@ part of the value. See [[collections]] for the collection family.
 | `emit` | `Stream<Seq<T>>` | `Stream<T>`: every member of every batch, in order |
 | `emit` | `Seq<Seq<T>>` | `List<T>` |
 | `flat_map(by)` | `Stream<T>`, `by : T -> Seq<U>` | `Stream<U>`, which is `map(by) \| emit` |
+| `oks()`, `errs()` | `Stream<Result<T, E>>` | `Stream<T>`, `Stream<E>`: the payloads of one side, in order |
 | `format(F)`, `text`, `json`, … | `Stream<T>` | `Stream<F>`: one piece of text per value, see [[hql/presentation]] |
 
-`map`, `filter`, `take`, `drop`, `collect`, `emit` and `flat_map` consume one
+`map`, `filter`, `take`, `drop`, `collect`, `emit`, `flat_map`, `oks` and `errs` consume one
 value at a time, so a pipeline of them over a stream runs only as far as its
 consumer asks. `collect(n)` holds at most `n` values: it passes on each batch
 when the batch is full, and the last, shorter one when its input ends, so

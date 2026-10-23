@@ -54,6 +54,9 @@ pub(crate) enum Source {
     Collect { input: Arc<Traversal>, n: usize },
     /// The members of each sequence `input` produces, in order.
     Emit { input: Arc<Traversal> },
+    /// The payload of each `ok` of `input`, `oks()`, or of each `err`,
+    /// `errs()`, in order; the other side is dropped.
+    Side { input: Arc<Traversal>, ok: bool },
     /// Each value of `input` written as one piece of text in `format`.
     Format {
         input: Arc<Traversal>,

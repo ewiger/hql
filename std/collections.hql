@@ -99,6 +99,8 @@ elementwise fn somes<F<_> : Collection<_>, T>(self: F<Option<T>>) : F<T>
 // Keep the successes, and the failures, of a collection of results.
 elementwise fn oks<F<_> : Collection<_>, T, E>(self: F<Result<T, E>>) : F<T>
 elementwise fn errs<F<_> : Collection<_>, T, E>(self: F<Result<T, E>>) : F<E>
+elementwise fn oks<T, E>(self: Stream<Result<T, E>>) : Stream<T>
+elementwise fn errs<T, E>(self: Stream<Result<T, E>>) : Stream<E>
 elementwise fn map<F<_> : Iterable<_>, T, R>(self: F<T>, by: T -> R) : F<R>
 elementwise fn map<T, R>(self: Option<T>, by: T -> R) : Option<R>
 elementwise fn map<T, R, E>(self: Result<T, E>, by: T -> R) : Result<R, E>
