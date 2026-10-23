@@ -72,6 +72,13 @@ The language continues to be in active development.
   `errs() | sink(…)` read back with `| Invalid`, `null` for an absent
   `expected` or `actual`, and repair from `e.value`.
 
+- Fan-in over streams ([HQL-0037](doc/proposals/HQL-0037/README.md)):
+  `a | merge(b)` interleaves two streams, one value from each in turn,
+  `a | zip(b)` pairs them by position, and `a | concat(b)` produces one and
+  then the other. `merge` keeps its map form; over a `List`, `Seq`, `Set`
+  or `Table` it is a type error naming `concat` or `union`, and `f = merge`
+  with no expected function type is an ambiguous reference.
+
 - Validator types ([HQL-0034](doc/proposals/HQL-0034/README.md), shown in
   the [structural examples](examples/structural/README.md)): a trait may
   extend others, `trait Email : Validator { }`, and has their functions as

@@ -110,7 +110,7 @@ pub static COMBINERS: &[Combiner] = &[
 
 /// The steps that consume a traversal one value at a time and so keep it
 /// lazy. Every other step receives a traversal's values, forced once.
-pub(crate) const LAZY: [&str; 21] = [
+pub(crate) const LAZY: [&str; 22] = [
     "map",
     "filter",
     "take",
@@ -132,6 +132,7 @@ pub(crate) const LAZY: [&str; 21] = [
     "oks",
     "errs",
     "partition",
+    "zip",
 ];
 
 /// A traversal that has not been forced, which a lazy step wraps.

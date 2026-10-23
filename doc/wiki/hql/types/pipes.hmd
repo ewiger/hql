@@ -96,6 +96,15 @@ branch. `{ a, b } = xs | fork { … }` binds the branches by name, and
 upstream's order. Branches are separated by a line break or a comma; a branch
 continues over lines that open with `|`.
 
+**Fan-in** joins flows ([HQL-0037](../../../proposals/HQL-0037/README.md)).
+`a | merge(b)` over two streams takes one value from each in turn, skipping
+one that has ended, each keeping its own order; over two maps it is the map
+combiner, a later key winning. `a | zip(b)` pairs two streams by position and
+ends with the shorter, and `a | concat(b)` produces one and then the other.
+`merge` over a `List`, `Seq`, `Set` or `Table` is a type error that names
+`concat` or `union`, and `merge` named as a value takes the form its expected
+function type selects.
+
 `xs | partition(by = f)` redistributes values by key
 ([HQL-0036](../../../proposals/HQL-0036/README.md)): its type is its input's, a
 `Seq` or `Stream`, each value appears once, and the values of one key are in

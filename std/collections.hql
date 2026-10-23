@@ -244,6 +244,10 @@ reduction fn top_k<T, K : Orderable>(self: Collection<T>, k: Int, by: T -> K) : 
 reduction fn approx_distinct<T>(self: Collection<T>) : Int
 
 // The combiners: min(a, b), max(a, b), merge(m, n), union(s, t), concat(xs, ys).
+// merge combines two maps, a later key winning, or two streams, one value
+// from each in turn; concat joins two sequences, or two streams, one after
+// the other (HQL-0037). merge and concat are also steps, `m | merge(n)`, and
+// merge named as a value takes the form its expected function type selects.
 // Named as a whole argument, a combiner or `+` / `*` is the function that
 // combines two values with it: `reduce(0, +)`. A fold whose combiner ignores
 // order (+, *, min, max, union) accepts any collection; one that does not

@@ -47,6 +47,23 @@ pub(crate) enum Source {
         by: Value,
         span: Range<usize>,
     },
+    /// The values of two streams interleaved, one from each in turn, an
+    /// ended one skipped: `merge` over streams (HQL-0037).
+    Merge {
+        left: Arc<Traversal>,
+        right: Arc<Traversal>,
+    },
+    /// Each value of `left` with the value of `right` at its position, as a
+    /// `Pair`, until either ends: `zip` over streams.
+    Zip {
+        left: Arc<Traversal>,
+        right: Arc<Traversal>,
+    },
+    /// Every value of `left`, then every value of `right`: `concat`.
+    Concat {
+        left: Arc<Traversal>,
+        right: Arc<Traversal>,
+    },
     /// The values of `input` a predicate accepts.
     Filter {
         input: Arc<Traversal>,

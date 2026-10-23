@@ -680,6 +680,9 @@ pub(crate) struct Checked {
     pub constructor_values: HashMap<Range<usize>, (TypeRef, TypeRef)>,
     /// The calls that combine two values, by the combiner they name.
     pub combiners: HashMap<Range<usize>, &'static str>,
+    /// Each combiner named as a value, `f : … = merge`: the two-parameter
+    /// function that combines with it.
+    pub combiner_refs: HashMap<Range<usize>, &'static str>,
     /// The calls that construct a record, at the type they build.
     pub records: HashMap<Range<usize>, TypeRef>,
     /// The declaration each step call resolved to, by where the step is
@@ -984,6 +987,31 @@ impl Checked {
             A::Decimal(value) => Kind::Decimal(value.clone()),
             A::Bool(value) => Kind::Bool(*value),
             A::Str(value) => Kind::Str(value.clone()),
+            // A combiner named as a value is the function that combines two
+            // values with it, written as the parser writes `reduce(0, +)`.
+            A::Ident(_) if self.combiner_refs.contains_key(&span) => {
+                let parameters = vec!["%left".to_owned(), "%right".to_owned()];
+                let (inputs, result) = ty.as_function().unwrap_or((&[], &ty));
+                let operand = |name: &str, held: Option<&TypeRef>| Expr {
+                    kind: Kind::Ident(name.to_owned()),
+                    ty: held.cloned().unwrap_or(TypeRef::NEVER),
+                    span: span.clone(),
+                };
+                let body = Expr {
+                    kind: Kind::Combine {
+                        combiner: self.combiner_refs[&span],
+                        left: Box::new(operand(&parameters[0], inputs.first())),
+                        right: Box::new(operand(&parameters[1], inputs.get(1))),
+                    },
+                    ty: result.clone(),
+                    span: span.clone(),
+                };
+                Kind::Lambda {
+                    parameters,
+                    body: std::sync::Arc::new(body),
+                    function: Some(ty.clone()),
+                }
+            }
             A::Ident(_) if self.module_refs.contains_key(&span) => {
                 Kind::Ident(self.module_refs[&span].clone())
             }
@@ -1225,6 +1253,17 @@ impl Checked {
                         boxed(receiver)?,
                         Box::new(self.expression(&arguments[0].value)?),
                     )
+                }
+            }
+            // `a | merge(b)`: the input is the combiner's left value.
+            A::Pipe(input, written) if self.combiners.contains_key(&span) => {
+                let A::Call { arguments, .. } = &written.kind else {
+                    return Err(Diagnostic::typing(span, "a combiner step is a call"));
+                };
+                Kind::Combine {
+                    combiner: self.combiners[&span],
+                    left: boxed(input)?,
+                    right: Box::new(self.expression(&arguments[0].value)?),
                 }
             }
             A::Call { arguments, .. } if self.combiners.contains_key(&span) => Kind::Combine {

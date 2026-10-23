@@ -20,6 +20,10 @@ however many pipelines and branches read it.
 | [partition by key](queries/partition-by-key.hql) | `partition(by = …)` keeps the type and every value, in order, over a list and a stream | `[[5, 3, 8, 1], [1, 2, 3, 4]]` |
 | [complementary filters](queries/fork-complementary-filters.hql) | a predicate's accepted and rejected values as two `fork` branches | `{large: [5, 8], small: [3, 1]}` |
 | [no pair from `partition`](queries/invalid-partition-pair.hql) | `partition` keeps its input's type, so it has no `.first` | a name error |
+| [fan-in over streams](queries/fan-in-streams.hql) | `merge` interleaves two streams, `zip` pairs them by position, `concat` plays one then the other | the three prefixes |
+| [`merge` of maps](queries/merge-maps.hql) | the map form keeps its meaning in `reduce({:}, merge)`, as a step and as an annotated value | three merged maps |
+| [`merge` of lists](queries/invalid-merge-list.hql) | two lists are joined with `concat` | a type error |
+| [ambiguous `merge`](queries/invalid-merge-reference.hql) | `f = merge` selects no form | a type error |
 | [branch named twice](queries/invalid-fork-branch-twice.hql) | a branch name is written once | a syntax error |
 
 From the repository root:

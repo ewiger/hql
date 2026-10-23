@@ -1204,6 +1204,48 @@ impl Evaluator<'_> {
                     sink(evaluator, mapped)
                 })
             }
+            Source::Merge { left, right } => {
+                let mut sides = [Pulled::default(), Pulled::default()];
+                loop {
+                    let mut produced = false;
+                    for (side, input) in sides.iter_mut().zip([left, right]) {
+                        if let Some(value) = self.pull(input, side)? {
+                            produced = true;
+                            if !sink(self, value)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                    if !produced {
+                        return Ok(true);
+                    }
+                }
+            }
+            Source::Zip { left, right } => {
+                let (mut first, mut second) = (Pulled::default(), Pulled::default());
+                let (a, b) = match traversal.element.args.as_slice() {
+                    [a, b] => (a.clone(), b.clone()),
+                    _ => (left.element.clone(), right.element.clone()),
+                };
+                loop {
+                    let Some(x) = self.pull(left, &mut first)? else {
+                        return Ok(true);
+                    };
+                    let Some(y) = self.pull(right, &mut second)? else {
+                        return Ok(true);
+                    };
+                    let pair = crate::extensions::seq::pair(x, y, a.clone(), b.clone());
+                    if !sink(self, pair)? {
+                        return Ok(false);
+                    }
+                }
+            }
+            Source::Concat { left, right } => {
+                if !self.run_traversal(left, sink)? {
+                    return Ok(false);
+                }
+                self.run_traversal(right, sink)
+            }
             Source::Keyed { input, by, span } => {
                 self.run_traversal(input, &mut |evaluator, value| {
                     evaluator.call(by, vec![value.clone()], span)?;
@@ -1347,6 +1389,39 @@ impl Evaluator<'_> {
                 })
             }
         }
+    }
+
+    /// The next value of a traversal read one at a time beside another, as
+    /// `merge` and `zip` read two. The traversal is started again for each
+    /// portion, skipping what was taken, and each portion is as long as
+    /// everything taken so far, so a stream of n values is produced
+    /// O(n) times in all. A stream read from an endpoint replays what its
+    /// one read gave; an effect in its own pipeline runs again per portion.
+    fn pull(
+        &mut self,
+        traversal: &Traversal,
+        pulled: &mut Pulled,
+    ) -> Result<Option<Value>, Diagnostic> {
+        if pulled.ahead.is_empty() && !pulled.ended {
+            let skip = pulled.taken;
+            let wanted = pulled.taken.max(1);
+            let mut seen = 0;
+            let mut portion = Vec::with_capacity(wanted);
+            let more = self.run_traversal(traversal, &mut |_, value| {
+                seen += 1;
+                if seen > skip {
+                    portion.push(value);
+                }
+                Ok(portion.len() < wanted)
+            })?;
+            pulled.ended = more || portion.len() < wanted;
+            pulled.ahead.extend(portion);
+        }
+        let next = pulled.ahead.pop_front();
+        if next.is_some() {
+            pulled.taken += 1;
+        }
+        Ok(next)
     }
 
     /// Run an iterating function's statements. A binding lasts to the end of
@@ -1751,6 +1826,33 @@ pub(crate) fn combine(
             let mut values = left.elements().ok_or_else(failed)?;
             values.extend(right.elements().ok_or_else(failed)?);
             Ok(Value::set(values, ty.element().unwrap_or(TypeRef::NEVER)))
+        }
+        // Over a stream, the values one at a time (HQL-0037).
+        "merge" | "concat" if ty.constructor == crate::types::collections::STREAM => {
+            // A list beside a stream is the stream of its elements.
+            let traversed = |value: &Value| match value {
+                Value::Traversal(traversal) => Some(Arc::clone(traversal)),
+                other => other.elements().map(|values| {
+                    Arc::new(Traversal::kept(
+                        ty.element().unwrap_or(TypeRef::NEVER),
+                        values,
+                    ))
+                }),
+            };
+            let (Some(first), Some(second)) = (traversed(&left), traversed(&right)) else {
+                return Err(failed());
+            };
+            let (left, right) = (Arc::clone(&first), Arc::clone(&second));
+            let source = if combiner == "merge" {
+                Source::Merge { left, right }
+            } else {
+                Source::Concat { left, right }
+            };
+            Ok(Value::Traversal(Arc::new(Traversal::new(
+                ty.element().unwrap_or(TypeRef::NEVER),
+                first.finite && second.finite,
+                source,
+            ))))
         }
         "concat" => {
             let mut values = left.elements().ok_or_else(failed)?;
@@ -2584,6 +2686,17 @@ impl Evaluator<'_> {
             )),
         }
     }
+}
+
+/// What has been taken of a traversal read one value at a time.
+#[derive(Default)]
+struct Pulled {
+    /// How many values have been taken.
+    taken: usize,
+    /// Values produced and not yet taken.
+    ahead: std::collections::VecDeque<Value>,
+    /// Whether the traversal has no more.
+    ended: bool,
 }
 
 /// A rule a value does not hold, and where.

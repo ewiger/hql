@@ -212,3 +212,9 @@ refresh, caching, versioning and boundary events are not in this portion.
   `partition fn` over `S : Seq<T>` and `Stream<T>`, a stage boundary in the
   plan, passing values on in order on the local backend through a lazy
   keyed traversal. HQL-0037 marked accepted.
+- D3 done: `merge`, `zip` and `concat` over streams through lazy merge,
+  zip and concat traversals that read their inputs a portion at a time;
+  `merge` and `concat` also as steps. `merge`'s two forms are resolved by
+  type, with the list, set and table refusals and the ambiguous reference;
+  it stays in the core's combiner table, which `reduce`'s split relies on,
+  as HQL-0037's changelog records.

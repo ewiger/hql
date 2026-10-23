@@ -256,6 +256,21 @@ fn eval_zip(
         .ok_or_else(|| wrong("zip", "another sequence", &span))?;
     let other_value = cx.evaluate(&other.value)?;
     let (a, b) = (element_of(&input), element_of(&other_value));
+    // A stream on either side is zipped one position at a time.
+    if let (Value::Traversal(left), Value::Traversal(right)) = (&input, &other_value)
+        && !(left.finite && right.finite)
+    {
+        return Ok(Value::Traversal(Arc::new(
+            crate::traversal::Traversal::new(
+                PAIR.apply([a, b]),
+                left.finite || right.finite,
+                crate::traversal::Source::Zip {
+                    left: Arc::clone(left),
+                    right: Arc::clone(right),
+                },
+            ),
+        )));
+    }
     let pairs = elements(&input, "zip", &span)?
         .into_iter()
         .zip(elements(&other_value, "zip", &span)?)

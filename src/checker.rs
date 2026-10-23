@@ -308,25 +308,43 @@ fn combined(combiner: &str, left: &TypeRef, right: &TypeRef) -> Result<TypeRef, 
             "`{combiner}` combines two values of one type, not {left} and {right}"
         ));
     };
+    let stream = joined.constructor == collections::STREAM;
     let fits = match combiner {
         "min" | "max" => joined.is_orderable(),
         "union" => joined.constructor == collections::SET || joined == TypeRef::NEVER,
+        // A homogeneous fan-in of two maps or two streams (HQL-0037).
         "merge" => {
-            crate::types::MapKind::of(joined.constructor).is_some() || joined == TypeRef::DATA
+            crate::types::MapKind::of(joined.constructor).is_some()
+                || joined == TypeRef::DATA
+                || stream
         }
-        "concat" => joined.is_sequence(),
+        "concat" => joined.is_sequence() || stream,
         _ => false,
     };
     if !fits {
+        if combiner == "merge" {
+            let instead = if joined.constructor == collections::SET {
+                "; two sets are joined with `union`"
+            } else if joined.constructor == crate::types::TypeRef::TABLE.constructor {
+                "; two tables are joined with `union` or `join`"
+            } else if joined.is_sequence() {
+                "; a sequence keeps its order, so two are joined with `concat`"
+            } else {
+                ""
+            };
+            return Err(format!(
+                "`merge` combines two maps or two streams, not {joined}{instead}"
+            ));
+        }
         let wanted = match combiner {
             "min" | "max" => "two values of one Orderable type",
             "union" => "two sets",
-            "merge" => "two maps",
-            _ => "two sequences",
+            _ => "two sequences or two streams",
         };
         return Err(format!("`{combiner}` combines {wanted}, not {joined}"));
     }
     Ok(match combiner {
+        "concat" if stream => joined,
         "concat" => TypeRef::list(joined.element().unwrap_or(TypeRef::NEVER)),
         _ => joined,
     })
@@ -1659,6 +1677,22 @@ impl<'a> Checker<'a> {
         expression: &Expr,
         expected: Option<&TypeRef>,
     ) -> Result<TypeRef, Diagnostic> {
+        // `merge` named as a value is the form its expected function type
+        // selects (HQL-0037).
+        if let (Kind::Ident(name), Some(expected)) = (&expression.kind, expected)
+            && name == "merge"
+            && !self.scope.contains_key(name)
+            && let Some(([left, right], result)) = expected.as_function()
+            && combined(name, left, right).is_ok_and(|ty| ty == *result)
+        {
+            self.checked
+                .combiner_refs
+                .insert(expression.span.clone(), "merge");
+            self.checked
+                .types
+                .insert(expression.span.clone(), expected.clone());
+            return Ok(expected.clone());
+        }
         if let (Kind::Lambda { .. }, Some((parameters, _))) =
             (&expression.kind, expected.and_then(TypeRef::as_function))
         {
@@ -4715,6 +4749,14 @@ impl<'a> Checker<'a> {
                              extension implements it"
                         ),
                     )
+                } else if name == "merge" {
+                    Diagnostic::typing(
+                        span,
+                        "`merge` is overloaded, for two maps and for two streams, and nothing \
+                         here selects one: annotate the binding with the function type, \
+                         `(Map<K, V>, Map<K, V>) -> Map<K, V>` or \
+                         `(Stream<T>, Stream<T>) -> Stream<T>`",
+                    )
                 } else if builtins::exists(name) {
                     Diagnostic::typing(
                         span,
@@ -5140,6 +5182,22 @@ impl<'a> Checker<'a> {
                 }
                 if let Some(produced) = self.validating(step, &input_type, &span)? {
                     return Ok(produced);
+                }
+                // `a | merge(b)` and `a | concat(b)`: a combiner no step
+                // shares a name with, the input its left value.
+                if let Kind::Call { callee, arguments } = &step.kind
+                    && let Kind::Ident(name) = &callee.kind
+                    && let [right] = arguments.as_slice()
+                    && right.name.is_none()
+                    && !self.scope.contains_key(name)
+                    && !builtins::exists(name)
+                    && let Some(combiner) = crate::extensions::combiner(name).map(|held| held.name)
+                {
+                    let right = self.expression(&right.value)?;
+                    let ty = combined(combiner, &input_type, &right)
+                        .map_err(|message| Diagnostic::typing(span.clone(), message))?;
+                    self.checked.combiners.insert(span.clone(), combiner);
+                    return Ok(ty);
                 }
                 // `x | f` and `x | f(a)` apply a bound function to the input.
                 // The step's operation is the function's type: an operation

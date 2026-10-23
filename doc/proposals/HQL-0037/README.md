@@ -2004,6 +2004,20 @@ The planner lowers this logical DAG into physical stages, partitions, channels, 
 - 2026-10-23: proposed
 - 2026-10-23: `merge` is overloaded for `Map` and `Stream`, resolved by static type
 - 2026-10-23: accepted
+- 2026-10-23: fan-in over streams built (issue 0045, D3): `merge` and
+  `concat` of two streams, also written `a | merge(b)` and `a | concat(b)`,
+  and `zip` of two streams. On the local backend `merge` takes one value
+  from each input in turn and skips one that has ended; `zip` ends with the
+  shorter input; `concat` produces the first input and then the second. A
+  list beside a stream is the stream of its elements. `merge` keeps its map
+  form, selected by argument type in a call and by the expected function
+  type where it is named as a value, `f = merge` alone being a type error;
+  over a `List`, `Seq`, `Set` or `Table` it is a type error naming `concat`
+  or `union`. Both forms remain one entry of the core's combiners rather
+  than two `std/` declarations, since the combiner is what lets
+  `reduce({:}, merge)` be split; the form is resolved by the argument types
+  as an overload's would be. A call takes two inputs; `a | merge(b) |
+  merge(c)` writes more
 - 2026-10-23: shared evaluation built (issue 0045, D2): a binding is
   evaluated once, and a stream read from a file, standard input, a socket
   or a WebSocket keeps what one read gave, so every later traversal of
