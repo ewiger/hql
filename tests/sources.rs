@@ -475,3 +475,101 @@ fn a_null_reads_as_absent_unless_the_boundary_says_otherwise() {
         "{error}"
     );
 }
+
+/// HQL-0035: `target("id")` writes a `Table<R>` or `Seq<R>` through the
+/// boundary, the columns in position order, a field with `write = false`
+/// left out, in the target's write mode.
+#[test]
+fn a_configured_target_is_written_through_its_boundary() {
+    let dir = tempdir().unwrap();
+    fs::create_dir(dir.path().join("out")).unwrap();
+    fs::write(
+        dir.path().join("hql.toml"),
+        r#"
+[sources.ledger]
+kind = "csv"
+path = "out/ledger.csv"
+mode = "append"
+[sources.ledger.fields.count]
+name = "Total"
+position = 1
+
+[sources.people]
+kind = "json"
+path = "out/people.json"
+[sources.people.fields.name]
+path = "profile.display_name"
+
+[sources.birds]
+kind = "sqlite"
+path = "out/birds.sqlite"
+table = "birds"
+[sources.birds.fields.note]
+write = false
+
+[sources.fresh]
+kind = "json_lines"
+path = "out/fresh.jsonl"
+mode = "create"
+"#,
+    )
+    .unwrap();
+    let vault = vault::load(dir.path()).unwrap();
+    let types = "type Tally {\n    species : String\n    count : Int\n}\n\
+                 type Person {\n    id : String\n    name : String\n    balance : Decimal\n}\n\
+                 type Bird {\n    id : Int\n    name : String\n    note? : String\n}\n";
+    let program = format!(
+        "{types}a = [Tally(species = \"wren\", count = 2)] | target(\"ledger\")\n\
+         b = [Tally(species = \"kite\", count = 5)] | Table | target(\"ledger\")\n\
+         c = [Person(id = \"u-1\", name = \"Ada\", balance = 12.50)] | target(\"people\")\n\
+         d = [Bird(id = 1, name = \"kite\", note = \"x\"), Bird(id = 2, name = \"owl\")] \
+         | target(\"birds\")\n\
+         e = [Tally(species = \"owl\", count = 1)] | target(\"fresh\")\n\"written\""
+    );
+    assert_eq!(value(&program, &vault), "written");
+    let read = |file: &str| fs::read_to_string(dir.path().join("out").join(file)).unwrap();
+    assert_eq!(read("ledger.csv"), "Total,species\n2,wren\n5,kite\n");
+    let people: serde_json::Value = serde_json::from_str(&read("people.json")).unwrap();
+    assert_eq!(
+        people,
+        serde_json::json!([{"id": "u-1", "balance": "12.50", "profile": {"display_name": "Ada"}}])
+    );
+    let database = rusqlite::Connection::open(dir.path().join("out/birds.sqlite")).unwrap();
+    let columns: Vec<String> = database
+        .prepare("SELECT * FROM birds")
+        .unwrap()
+        .column_names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(columns, ["id", "name"]);
+    // `create` refuses what exists; `append` adds rows after the header;
+    // `replace`, the default, writes the table again.
+    let again = format!(
+        "{types}a = [Tally(species = \"owl\", count = 1)] | target(\"ledger\")\n\
+         d = [Bird(id = 3, name = \"heron\")] | target(\"birds\")\n\"written\""
+    );
+    assert_eq!(value(&again, &vault), "written");
+    assert_eq!(read("ledger.csv"), "Total,species\n2,wren\n5,kite\n1,owl\n");
+    let rows: i64 = database
+        .query_row("SELECT count(*) FROM birds", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(rows, 1);
+    let error = refusal(
+        &format!("{types}[Tally(species = \"owl\", count = 1)] | target(\"fresh\")"),
+        &vault,
+    );
+    assert!(error.contains("`mode = \"create\"`"), "{error}");
+    for (program, says) in [
+        ("[1, 2] | target(\"ledger\")", "declared record"),
+        (
+            "[Tally(species = \"a\", count = 1)] | target(\"ledger\", Json)",
+            "format is its kind's",
+        ),
+    ] {
+        let refused = hql::check_in(&format!("{types}{program}"), &vault)
+            .unwrap_err()
+            .message();
+        assert!(refused.contains(says), "{program}: {refused}");
+    }
+}

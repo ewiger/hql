@@ -120,7 +120,10 @@ The language continues to be in active development.
   `absent` lists, each format's default or the boundary's own. A
   `Decimal` field is a JSON and YAML `string` by default and reads a
   string's digits; a representation that may not keep its value needs
-  `lossy = true`.
+  `lossy = true`. `xs | target("id")` writes a `Table<R>` or a sequence of
+  a declared record through the boundary to CSV, JSON, JSON Lines, YAML or
+  SQLite, the columns in position order and a field with `write = false`
+  left out, as the target's `mode`, `create`, `append` or `replace`, says.
 
 ### Changed
 

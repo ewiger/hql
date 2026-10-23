@@ -849,7 +849,57 @@ impl Environment {
                 // One native signature holds to several declarations only
                 // where its input is a choice, each declaration stating one
                 // of it: `source(endpoint: Readable, …)` and
-                // `source(id: String, …)`.
+                // `source(id: String, …)`; or where one argument is,
+                // `target(x, endpoint: Writable, …)` and
+                // `target(x, id: String, …)`.
+                let argument_choice =
+                    native
+                        .arguments
+                        .iter()
+                        .enumerate()
+                        .find_map(|(position, argument)| match argument.kind {
+                            spec::ArgumentKind::Value(spec::TypePattern::OneOf(alternatives)) => {
+                                Some((position, alternatives))
+                            }
+                            _ => None,
+                        });
+                if let (Some((position, choices)), true) = (argument_choice, overloads.len() > 1)
+                    && overloads.len() == choices.len()
+                {
+                    let chosen = declared.arguments.get(position).and_then(|written| {
+                        choices
+                            .iter()
+                            .find(|choice| written.kind == spec::ArgumentKind::Value(**choice))
+                    });
+                    let found = match chosen {
+                        Some(choice) => {
+                            let mut arguments = native.arguments.to_vec();
+                            arguments[position].kind = spec::ArgumentKind::Value(*choice);
+                            arguments[position].name = declared.arguments[position].name;
+                            // Built once, when the library is bound.
+                            let arguments: &'static [spec::ArgumentSpec] =
+                                Box::leak(arguments.into_boxed_slice());
+                            contract::departures(
+                                &spec::OperationSpec {
+                                    arguments,
+                                    ..*native
+                                },
+                                declared,
+                            )
+                        }
+                        None => contract::departures(native, declared),
+                    };
+                    if !found.is_empty() {
+                        return Err(format!(
+                            "`{}` is declared with other types than the extension `{}` \
+                             implements: {}",
+                            self.qualified(id),
+                            provider.name,
+                            found.join("; ")
+                        ));
+                    }
+                    continue;
+                }
                 let alternatives = match native.input {
                     spec::TypePattern::OneOf(alternatives) => alternatives,
                     _ => &[],
@@ -1260,9 +1310,10 @@ mod tests {
             ("file", Purity::Pure),
         ] {
             let step = super::super::IO.step(name).unwrap();
-            // `source` and `tap` read an endpoint or a configured source's id.
+            // `source` and `tap` read, and `target` writes, an endpoint or a
+            // configured source's id.
             let forms = environment.of(step);
-            let count = if matches!(name, "source" | "tap") {
+            let count = if matches!(name, "source" | "tap" | "target") {
                 2
             } else {
                 1

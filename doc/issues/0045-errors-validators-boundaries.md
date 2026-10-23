@@ -257,3 +257,10 @@ refresh, caching, versioning and boundary events are not in this portion.
   field key; a `Decimal` defaults to a JSON and YAML `string` and reads
   one; the lossy pairs are a resolver error unless permitted. Closes
   0042's open item.
+- B6 done: HQL-0035's sections on configured targets and write modes
+  replace the placeholder; `mode` in the source's table; `target("id")`
+  declared beside `target(endpoint)`, which binding now allows where one
+  argument of a native signature is a choice; `write_configured` writes
+  CSV, JSON, JSON Lines, YAML and SQLite through the boundary. Pinned in
+  `tests/sources.rs`, since a corpus case would write into the checkout.
+  Closes 0044's SQLite item.

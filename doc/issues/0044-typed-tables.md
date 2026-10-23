@@ -28,5 +28,7 @@ particular columns.
 
 ## Left open
 
-- Writing a `Table<R>` to SQLite or Postgres, with
-  [HQL-0035](../proposals/HQL-0035/README.md).
+- Writing a `Table<R>` to Postgres. Writing one to SQLite, CSV and JSON
+  through a configured target is built with
+  [HQL-0035](../proposals/HQL-0035/README.md)
+  ([issue 0045](0045-errors-validators-boundaries.md), B6).

@@ -189,6 +189,31 @@ impl Kind {
     }
 }
 
+/// How a write to a configured target treats what it already holds
+/// (HQL-0035).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WriteMode {
+    /// Written only where nothing is held yet.
+    Create,
+    /// Added after what is held, created where nothing is.
+    Append,
+    /// What is held replaced whole.
+    #[default]
+    Replace,
+}
+
+impl WriteMode {
+    /// The word `mode =` writes it as.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Create => "create",
+            Self::Append => "append",
+            Self::Replace => "replace",
+        }
+    }
+}
+
 /// Where an HQL field is held outside: a name, or a path into nested data.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum External {
@@ -265,6 +290,8 @@ pub struct Configured {
     pub element: Option<String>,
     /// The boundary it configures, field by field, `[sources.<id>.fields]`.
     pub fields: BTreeMap<String, FieldMapping>,
+    /// How a write to it treats what it holds, `mode =`.
+    pub mode: WriteMode,
     /// A vault source, loaded once: every use in a run sees one snapshot.
     loaded: Arc<std::sync::OnceLock<Result<Arc<crate::vault::Vault>, String>>>,
 }
@@ -435,7 +462,7 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
     };
     if let Some(key) = table.keys().find(|key| {
         !matches!(key.as_str(), "kind" | "element")
-            && !(key.as_str() == "fields" && *kind != "vault")
+            && !(matches!(key.as_str(), "fields" | "mode") && *kind != "vault")
             && !keys.contains(&key.as_str())
             && !key.ends_with("_env")
     }) {
@@ -486,11 +513,22 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
         None => BTreeMap::new(),
         Some(fields) => boundary(id, kind.name(), fields)?,
     };
+    let mode = match text("mode")?.as_deref() {
+        None | Some("replace") => WriteMode::Replace,
+        Some("append") => WriteMode::Append,
+        Some("create") => WriteMode::Create,
+        Some(other) => {
+            return Err(format!(
+                "`[sources.{id}] mode` is `create`, `append` or `replace`, not `{other}`"
+            ));
+        }
+    };
     Ok(Configured {
         id: id.to_owned(),
         kind,
         element: text("element")?,
         fields,
+        mode,
         loaded: Arc::default(),
     })
 }
@@ -729,4 +767,76 @@ pub fn sqlite_rows(
         read.push(Data::Map(fields));
     }
     Ok(read)
+}
+
+/// Write rows to one SQLite table as `mode` says, the table's columns each
+/// a name and the type it is declared with, the rows in one transaction.
+///
+/// # Errors
+/// Names the database and what failed: opening it, a table `create` finds
+/// already there, or a statement.
+pub fn sqlite_write(
+    path: &Path,
+    table: &str,
+    mode: WriteMode,
+    columns: &[(String, String)],
+    rows: &[Vec<rusqlite::types::Value>],
+) -> Result<(), String> {
+    let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
+    let quoted = |name: &str| format!("\"{}\"", name.replace('"', "\"\""));
+    let mut connection = rusqlite::Connection::open(path).map_err(located)?;
+    let held: i64 = connection
+        .query_row(
+            "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+            [table],
+            |row| row.get(0),
+        )
+        .map_err(located)?;
+    let transaction = connection.transaction().map_err(located)?;
+    match mode {
+        WriteMode::Create if held > 0 => {
+            return Err(format!(
+                "{}: the table `{table}` exists, and `mode = \"create\"` writes only a new one",
+                path.display()
+            ));
+        }
+        WriteMode::Replace => {
+            transaction
+                .execute(&format!("DROP TABLE IF EXISTS {}", quoted(table)), [])
+                .map_err(located)?;
+        }
+        WriteMode::Create | WriteMode::Append => {}
+    }
+    let declared: Vec<String> = columns
+        .iter()
+        .map(|(name, ty)| format!("{} {ty}", quoted(name)))
+        .collect();
+    transaction
+        .execute(
+            &format!(
+                "CREATE TABLE IF NOT EXISTS {} ({})",
+                quoted(table),
+                declared.join(", ")
+            ),
+            [],
+        )
+        .map_err(located)?;
+    {
+        let names: Vec<String> = columns.iter().map(|(name, _)| quoted(name)).collect();
+        let slots: Vec<String> = (1..=columns.len()).map(|n| format!("?{n}")).collect();
+        let mut insert = transaction
+            .prepare(&format!(
+                "INSERT INTO {} ({}) VALUES ({})",
+                quoted(table),
+                names.join(", "),
+                slots.join(", ")
+            ))
+            .map_err(located)?;
+        for row in rows {
+            insert
+                .execute(rusqlite::params_from_iter(row.iter()))
+                .map_err(located)?;
+        }
+    }
+    transaction.commit().map_err(located)
 }

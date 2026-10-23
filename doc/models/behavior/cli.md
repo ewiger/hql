@@ -105,6 +105,7 @@ kind = "sqlite"         # one table, a Data row per element
 path = "data/birds.sqlite"
 table = "birds"
 order = ["id"]          # optional: the row order; rowid by default
+mode = "replace"        # how target("birds") writes: create, append or replace
 
 [sources.counts.fields.species]
 name = "Species"        # the external field: a header, a key or a column
@@ -141,8 +142,12 @@ a string's digits, and a representation that may not keep a value, a
 is a boundary error unless the field writes `lossy = true`; a `null` it does not list is an evaluation error, and empty text
 it does not list is read as text. A CSV header and a table's columns are checked against the
 boundary before any element decodes, and a boundary naming a field the
-configured `element` lacks is a type error. Writing through a boundary is
-design direction. Exceeding a
+configured `element` lacks is a type error. `xs | target("id")` writes a
+`Table<R>` or a sequence of a declared record through the same boundary: the
+fields it writes, under their external names, in position order, each in its
+external type. `mode` says what a write does with what the target holds:
+`create` writes only where nothing exists, `append` adds after it, and
+`replace`, the default, writes it again. Exceeding a
 bound is an evaluation error naming the source and the bound; a source is
 never truncated.
 

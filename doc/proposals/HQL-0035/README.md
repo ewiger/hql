@@ -3077,10 +3077,42 @@ When a document is read through its boundary:
 - a required field holding a representation in its `absent` is missing, and
   the value does not read, as a missing field does not.
 
+### Configured targets
+
+A configured source is also a target: `xs | target("id")` writes to what
+`[sources.<id>]` configures, through the same boundary and the same
+resolver as a read. The value written is a `Table<R>`, or a `List<R>` or
+`Seq<R>`, of a declared record `R`; anything else, and a `vault` source, is
+a type error, as is a format named beside the id, since the kind fixes one.
+
+Each row writes the fields its boundary writes, a field with `write = false`
+left out, under their external names, in the order of their positions: `R`'s
+declaration order unless the boundary gives a field another `position`. Each
+cell is written in its external type: a `Decimal` as a JSON `string` writes
+its digits as text, and as a permitted JSON `number` writes them as a
+number. An absent optional field is left out of a JSON or YAML document, an
+empty cell in CSV, and `NULL` in SQLite.
+
+| Kind | What a write produces |
+| --- | --- |
+| `csv` | a header of the external names, then a row per element |
+| `json` | one array of objects, a field with a `path` nested within its object |
+| `json_lines`, `yaml` | one document per element |
+| `sqlite` | rows of the configured table, its columns the external names, each declared with its external type |
+
 ### Write modes
 
-*Placeholder; specified separately.* How `Table<R>` is created, appended to
-and replaced in a SQL database.
+The source's table takes `mode`, how a write treats what the target already
+holds. It is `replace` unless written:
+
+| Mode | A file | A SQLite table |
+| --- | --- | --- |
+| `create` | written where none exists; an existing file is an evaluation error | created where none exists; an existing table is an evaluation error |
+| `append` | the elements added after the ones held: rows after a CSV header, documents after JSON Lines or YAML documents, and the array's elements extended; created where none exists | rows inserted, the table created where none exists |
+| `replace` | rewritten whole | dropped and created again with the rows written |
+
+A document being rendered writes nothing, as with every other write, and
+reading a target the same evaluation has replaced is refused.
 
 ## Changelog
 
@@ -3103,3 +3135,7 @@ and replaced in a SQL database.
 - 2026-10-23: representation and loss specified and built (issue 0045, B5):
   a `Decimal` is a JSON and YAML `string` by default and reads from one, and
   a lossy representation needs `lossy = true`
+- 2026-10-23: configured targets and write modes specified and built (issue
+  0045, B6): `target("id")` writes a `Table<R>` or `Seq<R>` through the
+  boundary to CSV, JSON, JSON Lines, YAML and SQLite, in `create`, `append`
+  or `replace` mode

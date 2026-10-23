@@ -47,6 +47,15 @@ const FORMAT_PARAMETER: TypeParameter = TypeParameter {
 const ENDPOINT: ArgumentSpec =
     ArgumentSpec::value("endpoint", P::Type(TypeConstructor("Writable")));
 
+/// A write's endpoint, or the id of a configured target (HQL-0035).
+const TARGET: ArgumentSpec = ArgumentSpec::value(
+    "endpoint",
+    P::OneOf(&[
+        P::Type(TypeConstructor("Writable")),
+        P::Type(TypeConstructor("String")),
+    ]),
+);
+
 /// Every operation the `io` extension provides.
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
@@ -112,11 +121,11 @@ pub(crate) static STEPS: &[Operation] = &[
                 FORMAT_PARAMETER,
             ],
             input: P::Var("T"),
-            arguments: &[ENDPOINT, FORMAT],
+            arguments: &[TARGET, FORMAT],
             output: O::Type(P::Type(TypeConstructor("Unit"))),
         }),
         summary: "Write one completed value as one document; a file is replaced, its `.end` \
-                  appended to.",
+                  appended to. Given an id, the target the run context configures under it.",
         purity: Purity::Effectful,
         shape: super::Shape::Barrier,
         check: Some(check_target),
@@ -439,6 +448,13 @@ fn check_target(
     if check_channel_write(cx, call, call.input, &span)? {
         return Ok(());
     }
+    if let Some(Expr {
+        kind: Kind::Str(id),
+        ..
+    }) = written_endpoint(call)
+    {
+        return check_configured_target(cx.vault(), id, call, &span);
+    }
     if call.input.is_stream() && !call.input.is_collection() {
         return Err(Diagnostic::typing(
             span,
@@ -453,6 +469,60 @@ fn check_target(
         .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     crate::extensions::format::writable(call.input, format.0)
         .map_err(|message| Diagnostic::typing(span, message))
+}
+
+/// `xs | target("id")`: the id names a configured target that is not a
+/// vault, no format is named beside it, and what is written is a table or a
+/// sequence of a declared record, which the boundary accepts.
+fn check_configured_target(
+    vault: &crate::vault::Vault,
+    id: &str,
+    call: &CheckedCall<'_>,
+    span: &Range<usize>,
+) -> Result<(), Diagnostic> {
+    let configured = configured(id, vault).map_err(|message| {
+        if crate::sources::is_id(id) {
+            Diagnostic::name(span.clone(), message)
+        } else {
+            Diagnostic::typing(span.clone(), message)
+        }
+    })?;
+    if matches!(configured.kind, crate::sources::Kind::Vault { .. }) {
+        return Err(Diagnostic::typing(
+            span.clone(),
+            format!("source `{id}` is a vault, which is read and never written"),
+        ));
+    }
+    if call.bindings.contains_key("F") {
+        return Err(Diagnostic::typing(
+            span.clone(),
+            "a configured target's format is its kind's, set in its configuration; name none",
+        ));
+    }
+    let element = if call.input.constructor.0 == "Table" {
+        call.input.args.first().cloned()
+    } else {
+        call.input.element().filter(|_| call.input.is_collection())
+    }
+    .ok_or_else(|| {
+        Diagnostic::typing(
+            span.clone(),
+            format!(
+                "`target(\"{id}\")` writes a Table or a sequence of a declared record, not {}",
+                call.input
+            ),
+        )
+    })?;
+    match boundary_for(configured, &element, None) {
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => Err(Diagnostic::typing(
+            span.clone(),
+            format!(
+                "`target(\"{id}\")` writes rows of a declared record, and {element} is not one"
+            ),
+        )),
+        Err(message) => Err(Diagnostic::typing(span.clone(), message)),
+    }
 }
 
 fn check_sink(
@@ -1073,12 +1143,282 @@ fn written_to(
     endpoint(&value, span)
 }
 
+/// One cell of a row written through a boundary, in its external type: a
+/// `Decimal` as text where its representation is text, and nothing for an
+/// absent field.
+fn written_cell(value: Option<&Value>, external_type: &str) -> Option<crate::data::Data> {
+    use crate::data::Data;
+    let value = match value? {
+        Value::Present(held) => held.as_ref(),
+        Value::Absent(_) => return None,
+        other => other,
+    };
+    Some(match value {
+        Value::Int(n) => Data::Int(*n),
+        Value::Float(x) => Data::Float(*x),
+        Value::Decimal(d)
+            if matches!(
+                external_type.to_ascii_lowercase().as_str(),
+                "string" | "text"
+            ) =>
+        {
+            Data::Str(d.to_string())
+        }
+        Value::Decimal(d) => Data::Decimal(d.clone()),
+        Value::Bool(b) => Data::Bool(*b),
+        Value::Str(text) => Data::Str(text.to_string()),
+        Value::Data(tree) => tree.as_ref().clone(),
+        other => Data::Str(other.to_string()),
+    })
+}
+
+/// The fields a boundary writes, in order: each the boundary places takes
+/// its position, and the rest fill the places left in declaration order.
+fn written_order(
+    boundary: &crate::boundary::EffectiveBoundary,
+) -> Vec<&crate::boundary::EffectiveField> {
+    let written: Vec<&crate::boundary::EffectiveField> = boundary
+        .fields
+        .iter()
+        .filter(|field| field.writable.value)
+        .collect();
+    let mut places: Vec<Option<&crate::boundary::EffectiveField>> = vec![None; written.len()];
+    let mut rest = Vec::new();
+    for field in &written {
+        let place = field.position.value.checked_sub(1);
+        match place {
+            Some(place)
+                if field.position.origin != crate::boundary::Origin::Format
+                    && place < places.len()
+                    && places[place].is_none() =>
+            {
+                places[place] = Some(field);
+            }
+            _ => rest.push(*field),
+        }
+    }
+    let mut rest = rest.into_iter();
+    places
+        .into_iter()
+        .map(|place| place.or_else(|| rest.next()))
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or(written)
+}
+
+/// `xs | target("id")`: a `Table<R>` or `Seq<R>` written to a configured
+/// target through its boundary, as its `mode` says (HQL-0035).
+fn write_configured(
+    cx: &mut dyn EvalCx,
+    id: &str,
+    input: Value,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    use crate::data::Data;
+    use crate::sources::{External, Kind as Source, WriteMode};
+    let failed = |message: String| Diagnostic::runtime(span.clone(), message);
+    let configured = configured(id, cx.vault()).map_err(failed)?.clone();
+    let (element, rows) = match &input {
+        Value::Table(table) => (table.row.clone(), table.rows.clone()),
+        Value::Traversal(traversal) => {
+            let mut values = Vec::new();
+            cx.traverse(traversal, &mut |_, value| {
+                values.push(value);
+                Ok(true)
+            })?;
+            (traversal.element.clone(), values)
+        }
+        other => (
+            other.type_of().element().unwrap_or(TypeRef::DATA),
+            other.elements().unwrap_or_default(),
+        ),
+    };
+    let boundary = boundary_for(&configured, &element, None)
+        .map_err(failed)?
+        .ok_or_else(|| {
+            failed(format!(
+                "`target(\"{id}\")` writes rows of a declared record"
+            ))
+        })?;
+    let fields = written_order(&boundary);
+    let cell = |row: &Value, field: &crate::boundary::EffectiveField| {
+        let held = match row {
+            Value::Record(record) => record.field(&field.field.name).cloned(),
+            Value::Data(tree) => match tree.as_ref() {
+                Data::Map(entries) => entries
+                    .get(&field.field.name)
+                    .map(|entry| Value::Data(Arc::new(entry.clone()))),
+                _ => None,
+            },
+            _ => None,
+        };
+        written_cell(held.as_ref(), &field.external_type.value)
+    };
+    // A row as a document: each field under its external name, nested
+    // where its external field is a path.
+    let document = |row: &Value| {
+        let mut entries = std::collections::BTreeMap::new();
+        for field in &fields {
+            let Some(value) = cell(row, field) else {
+                continue;
+            };
+            let path = match &field.external.value {
+                External::Name(name) => vec![name.clone()],
+                External::Path(segments) => segments.clone(),
+            };
+            let mut at = &mut entries;
+            for segment in &path[..path.len() - 1] {
+                let next = at
+                    .entry(segment.clone())
+                    .or_insert_with(|| Data::Map(std::collections::BTreeMap::new()));
+                if !matches!(next, Data::Map(_)) {
+                    *next = Data::Map(std::collections::BTreeMap::new());
+                }
+                let Data::Map(inner) = next else {
+                    unreachable!("made a map above");
+                };
+                at = inner;
+            }
+            at.insert(path[path.len() - 1].clone(), value);
+        }
+        Value::Data(Arc::new(Data::Map(entries)))
+    };
+    let mode = configured.mode;
+    match &configured.kind {
+        Source::Vault { .. } => Err(failed(format!(
+            "source `{id}` is a vault, which is read and never written"
+        ))),
+        Source::Sqlite { path, table, .. } => {
+            if let Policy::Document { .. } = io::policy() {
+                return Err(failed(format!(
+                    "source `{id}`: a document writes nothing outside itself"
+                )));
+            }
+            let columns: Vec<(String, String)> = fields
+                .iter()
+                .map(|field| {
+                    (
+                        crate::boundary::written(&field.external.value),
+                        field.external_type.value.to_ascii_uppercase(),
+                    )
+                })
+                .collect();
+            let values: Vec<Vec<rusqlite::types::Value>> = rows
+                .iter()
+                .map(|row| {
+                    fields
+                        .iter()
+                        .map(|field| match cell(row, field) {
+                            None | Some(Data::Empty) => rusqlite::types::Value::Null,
+                            Some(Data::Int(n)) => rusqlite::types::Value::Integer(n),
+                            Some(Data::Bool(b)) => rusqlite::types::Value::Integer(i64::from(b)),
+                            Some(Data::Float(x)) => rusqlite::types::Value::Real(x),
+                            Some(Data::Decimal(d)) => d.to_float().map_or_else(
+                                || rusqlite::types::Value::Text(d.to_string()),
+                                rusqlite::types::Value::Real,
+                            ),
+                            Some(Data::Str(text)) => rusqlite::types::Value::Text(text),
+                            Some(other) => rusqlite::types::Value::Text(other.to_string()),
+                        })
+                        .collect()
+                })
+                .collect();
+            crate::sources::sqlite_write(path, table, mode, &columns, &values)
+                .map_err(|message| failed(format!("source `{id}`: {message}")))?;
+            Ok(Value::Unit)
+        }
+        Source::File { path, format } => {
+            let format = TypeConstructor(format);
+            let exists = path.exists();
+            if mode == WriteMode::Create && exists {
+                return Err(failed(format!(
+                    "source `{id}`: {} exists, and `mode = \"create\"` writes only a new file",
+                    path.display()
+                )));
+            }
+            let documents: Vec<Value> = rows.iter().map(document).collect();
+            let appending = mode == WriteMode::Append;
+            let held = exists && std::fs::metadata(path).is_ok_and(|metadata| metadata.len() > 0);
+            let rendered = |values: Vec<Value>| -> Result<String, Diagnostic> {
+                let text = match format.0 {
+                    "Csv" => {
+                        let columns = fields
+                            .iter()
+                            .map(|field| crate::boundary::written(&field.external.value))
+                            .collect();
+                        let table = crate::types::Table::new(values, Some(columns), TypeRef::DATA)
+                            .map_err(failed)?;
+                        crate::extensions::format::render(
+                            &Value::Table(Arc::new(table)),
+                            format,
+                            0,
+                            None,
+                            &cx.vault().formats,
+                        )
+                    }
+                    "Json" => crate::extensions::format::render(
+                        &Value::list(values, TypeRef::DATA),
+                        format,
+                        0,
+                        None,
+                        &cx.vault().formats,
+                    ),
+                    _ => values
+                        .iter()
+                        .map(|value| crate::extensions::format::piece(value, format, false))
+                        .collect::<Result<Vec<_>, _>>()
+                        .map(|pieces| pieces.join("\n")),
+                }
+                .map_err(failed)?;
+                // One line ending throughout, as a sink's pieces have it.
+                Ok(text.lines().collect::<Vec<_>>().join("\n"))
+            };
+            match (format.0, appending) {
+                // A JSON file is one array: appending extends it and writes
+                // it again.
+                ("Json", true) if held => {
+                    let mut held = io::read_configured(path, format, true)
+                        .map_err(|message| failed(format!("source `{id}`: {message}")))?;
+                    held.extend(documents);
+                    let text = rendered(held)?;
+                    io::write_whole(&Endpoint::File(path.clone()), &text).map_err(failed)?;
+                }
+                (_, true) => {
+                    let mut text = rendered(documents)?;
+                    // A CSV file already has its header.
+                    if format.0 == "Csv" && held {
+                        text = text.lines().skip(1).collect::<Vec<_>>().join("\n");
+                    }
+                    if !text.is_empty() {
+                        let (mut destination, _) =
+                            Destination::open(&Endpoint::FileEnd(path.clone())).map_err(failed)?;
+                        destination.line(&text).map_err(failed)?;
+                    }
+                }
+                (_, false) => {
+                    let text = rendered(documents)?;
+                    io::write_whole(&Endpoint::File(path.clone()), &text).map_err(failed)?;
+                }
+            }
+            Ok(Value::Unit)
+        }
+    }
+}
+
 fn eval_target(
     cx: &mut dyn EvalCx,
     input: Value,
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    let argument = arguments
+        .iter()
+        .find(|argument| argument.name.as_deref() == Some("endpoint"))
+        .or_else(|| arguments.iter().find(|argument| argument.name.is_none()));
+    if let Some(argument) = argument
+        && let TypedKind::Str(id) = &argument.value.kind
+    {
+        return write_configured(cx, id, input, &span);
+    }
     let endpoint = written_to(cx, arguments, &span)?;
     if let Endpoint::Channel(name, _) = endpoint.as_ref() {
         io::push(name, settled(cx, input)?)

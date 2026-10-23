@@ -172,7 +172,7 @@ fn an_endpoint_is_used_only_for_what_it_can_do() {
     );
     refused(
         &hql_in(dir.path(), &["42 | target(stdin, Json)"]),
-        "needs Writable",
+        "needs (Writable | String), not Stdin",
     );
     refused(
         &hql_in(dir.path(), &[r#"source(file("log.txt").end)"#]),
