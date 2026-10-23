@@ -848,6 +848,38 @@ oks  = ok(a), ok(b)
 errs = err(x), err(y)
 ```
 
+## 16.1 Splitting by a predicate
+
+`split(by = p)` separates a collection of any element type by a predicate:
+
+```hql
+F<T>
+| split(by = p : T -> Bool)
+    : { oks: F<T>, errs: F<T> }
+```
+
+It is defined as:
+
+```hql
+xs | split(by = p)
+    ==
+xs
+| map(x => if p(x) then ok(x) else err(x))
+| split()
+```
+
+The values for which `p` holds are on `oks`; the others are on `errs`. Every semantic rule of `split()` holds unchanged: each value appears on exactly one side, each side keeps source order, and a live upstream is evaluated once.
+
+The result has the same record shape as `split()`, so application-specific names are given by destructuring:
+
+```hql
+{ oks: adults, errs: minors } =
+    people
+    | split(by = p => p.age >= 18)
+```
+
+`split(by = p)` replaces the former `partition(by = p) : Pair<List<T>, List<T>>`. The name `partition` belongs to same-type redistribution by key ([HQL-0036](../HQL-0036/README.md)).
+
 ---
 
 # 17. Stream execution semantics of `split`
@@ -1894,6 +1926,9 @@ errs()
 split()
     expose both alternatives as independent typed flows
 
+split(by = p)
+    the same, for the values that do and do not satisfy p
+
 tee
     duplicate a logical flow into a side computation
 
@@ -2001,7 +2036,8 @@ Implementations should cover at least:
 15. retry reinvoking the fallible operation rather than operating on a completed `Result`;
 16. exhausted retry producing a normal final `err(E)`;
 17. `split` followed by `partition` remaining two distinct graph operations;
-18. fail-fast `x | T` and recoverable `x | validate(T)` deriving equivalent violation information.
+18. fail-fast `x | T` and recoverable `x | validate(T)` deriving equivalent violation information;
+19. `split(by = p)` giving the same sides, in the same order, as mapping to `ok` and `err` by `p` and then `split()`.
 
 ---
 

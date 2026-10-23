@@ -1,0 +1,151 @@
+# 0045 — Errors as values, validator types and schema boundaries
+
+Status: todo
+Related: [HQL-0032](../proposals/HQL-0032/README.md),
+[HQL-0033](../proposals/HQL-0033/README.md),
+[HQL-0034](../proposals/HQL-0034/README.md),
+[HQL-0035](../proposals/HQL-0035/README.md),
+[HQL-0036](../proposals/HQL-0036/README.md),
+[0043](0043-contract-validation.md),
+[0044](0044-typed-tables.md),
+[the structural examples](../../examples/structural/README.md)
+
+The next portion of the type system after contract rules,
+`x | validate(T)`, `Table<R>` and `Decimal`. It is a list of work items for
+an implementation loop, ordered by dependency: one item is finished and
+committed before the next starts.
+
+## Loop protocol
+
+Each item runs the same cycle.
+
+1. Run `git status doc/proposals/` and re-read any proposal that changed: the
+   proposals are edited while the loop runs, and an edit is followed as
+   written.
+2. Write the item's cases under `examples/` first, headed
+   `status: proposed` with the `proposal:` they come from, and add them to
+   the folder's README table. The corpus test asserts that a proposed case
+   does not check yet.
+3. Implement until each case checks, then promote it to `valid-now` with the
+   verified `expected-type` and `expected`.
+4. `cargo test` and `cargo clippy --all-targets` pass with no warnings.
+5. Update the proposal's status line and changelog, the
+   [proposal index](../proposals/README.md), `CHANGELOG.md`, the wiki card
+   that states the feature, and this issue's Progress.
+6. Commit the item on its own.
+
+Where a proposal leaves a point as a placeholder that an item needs, the
+item states it in the proposal first, as a short specification, and names
+that in its commit. It does not add open questions.
+
+## Work items
+
+### Errors as values ([HQL-0033](../proposals/HQL-0033/README.md))
+
+`Result`, `map_err`, `oks()`, `errs()`, `Violation` and `Invalid` exist.
+
+- **E1 — `Invalid` and `Violation` as the proposal declares them.**
+  `Invalid` carries the original rejected `Data` as `value` and its
+  `violations`; `Violation`'s `expected` and `actual` are filled; a stored
+  `Invalid` reads back with `| Invalid`. `x | T` and `x | validate(T)`
+  derive the same violations. Covers the test plan's cases on multiple
+  violations, the original `Data`, fail-fast equivalence, and
+  `flat_map(e => e.violations)`.
+- **E2 — Mapping results inside streams.** `map`, `map_err` and `match` over
+  each `Result` of a `List`, `Seq` and `Stream`, as the sections on handling
+  one `Result` and on mapping results inside streams state; `oks()` and
+  `errs()` over all three collection kinds.
+- **E3 — `split()`.** The record-returning form the proposal prefers:
+  `split()` over `F<Result<T, E>>` gives both sides as typed flows. Every
+  value lands in exactly one side, each side keeps source order, and a live
+  source is evaluated once when both sides are consumed. `split` stays
+  distinct from `tee`. With it, `split(by = p)` over any `F<T>`, as the
+  subsection on splitting by a predicate defines it; the predicate
+  `partition` in `std/seq.hql` and `src/extensions/seq.rs` is removed, and
+  the name is left for P1.
+- **E4 — Rejected values as ordinary data.** `errs()` or a `split` side
+  written with `sink` and read back as `Invalid`; repair from `e.value` into
+  another pipeline. Broker provenance (`Message<T>`) stays outside `Invalid`.
+- **E5 — `retry`.** `retry` reinvokes a fallible operation under a policy;
+  exhausted retries give an ordinary final `err(E)`. It never operates on a
+  completed `Result`. State the policy's form in HQL-0033 first if the
+  proposal leaves it open.
+- **E6 — HQL-0032 aligned.** HQL-0032's conceptual `ValidationResult<T>` and
+  its stream-routing items are marked superseded by HQL-0033 where they
+  conflict; [0043](0043-contract-validation.md)'s stream policies are closed
+  by E2 to E4. HQL-0033 is marked accepted once E1 to E4 are built.
+
+### Validator types ([HQL-0034](../proposals/HQL-0034/README.md))
+
+- **V1 — `Validator` and validator types.** `trait Validator` in `std/`; a
+  type with `Validator` among its supertypes is a validator type;
+  `validate f with V` and a field `f: V` hold where `V`'s `validate(self)`
+  for the field's type is `true`. A type that does not implement it is a
+  type error.
+- **V2 — The placeholders.** State in HQL-0034, then build: the module that
+  declares the standard validators and the first set (`Email`, `NonEmpty`,
+  and others the examples need), a validator for more than one value type,
+  and the identity and message of the `Violation` a validator type reports,
+  consistent with the rule identities `as name` gives.
+
+### Schema boundaries ([HQL-0035](../proposals/HQL-0035/README.md))
+
+Scope is the kinds that exist: `csv`, `json`, `json_lines`, `yaml` and
+`sqlite`. Registries, catalog providers other than SQLite's, Postgres,
+refresh, caching, versioning and boundary events are not in this portion.
+
+- **B1 — The configuration form.** State in HQL-0035 how a boundary is
+  written in `hql.toml` under `[sources.<id>]`: per field an external name
+  or path, an external type, a position, readable and writable, and a
+  null or missing policy; extension-owned keys under the kind's prefix.
+  Refused at load when malformed, like every other source key.
+- **B2 — The resolver.** One resolver in `src/` merges format defaults,
+  configuration and an invocation override by field-level recursive
+  override into one effective boundary, keeping where each property came
+  from. Boundary errors are structured diagnostics: a required field with no
+  external column, two fields on one column, a configured column that does
+  not exist, an external type with no decoder.
+- **B3 — Reading through a boundary.** A CSV header, a JSON path such as
+  `profile.display_name`, and a SQLite column map onto a declared field; the
+  expected type decides which fields are read, and SQLite reads only those
+  columns.
+- **B4 — Nullability.** Each format's default for an optional field (an
+  empty CSV cell, a missing JSON field, JSON `null`, SQL `NULL`) and a
+  boundary override of it.
+- **B5 — Representation overrides and loss.** A `Decimal` field written as a
+  JSON string (left open in [0042](0042-decimal.md)); a lossy
+  representation, such as `Decimal` as a JSON number, refused unless the
+  boundary permits it.
+- **B6 — Configured targets.** `target("id")` over a configured target,
+  writing `Table<R>` and `Seq<R>` to CSV, JSON and SQLite through the same
+  resolver: column order from `R` unless the boundary orders it, a field
+  marked not writable left out. State the write modes (create, append,
+  replace) in HQL-0035's Write modes placeholder first; closes
+  [0044](0044-typed-tables.md)'s open item.
+- **B7 — Strictness.** `strict`, `compatible`, `open` and `warn` for how
+  external fields beyond the mapping are treated, without changing the
+  openness of the HQL type.
+- **B8 — Inspecting a boundary.** A CLI command prints a source's effective
+  boundary: field, external field, both types, origin of each property, and
+  read and write status.
+
+### Partitioning ([HQL-0036](../proposals/HQL-0036/README.md))
+
+- **P1 — `partition(by = …)`.** Starts after E3 has removed the predicate
+  `partition`, which becomes `split(by = p)`. Type-preserving over `Seq` and `Stream`; the
+  local backend keeps one logical partition per key; the plan in
+  `src/backends/plan.rs` records it as a stage boundary. `split` followed by
+  `partition` stays two graph operations.
+
+## Done when
+
+- HQL-0033's test plan is covered by `tests/` and the corpus, and HQL-0033
+  is accepted.
+- HQL-0034 has no placeholder and its validator types are built.
+- A CSV, JSON and SQLite source and target read and write a declared record
+  through a configured boundary, and HQL-0035 states what is built.
+- `partition` has one meaning, and HQL-0036's form runs on the local backend.
+
+## Progress
+
+- Not started.
