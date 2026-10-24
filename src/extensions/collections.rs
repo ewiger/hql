@@ -1840,13 +1840,33 @@ fn eval_variance(
 pub(crate) type Tally = Vec<(Value, i64)>;
 
 /// Add `n` to a key's count.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn tally(counts: &mut Tally, key: Value, n: i64) {
-    match counts
-        .iter_mut()
-        .find(|(held, _)| crate::evaluation::same_key(held, &key))
-    {
-        Some((_, count)) => *count += n,
-        None => counts.push((key, n)),
+    let mut index = indexed(counts);
+    tally_in(counts, &mut index, key, n);
+}
+
+/// The positions of a tally's keys.
+fn indexed(counts: &Tally) -> Positions {
+    let mut index = Positions::default();
+    for (position, (key, _)) in counts.iter().enumerate() {
+        index.insert(key, position);
+    }
+    index
+}
+
+/// Add `n` to a key's count, `index` holding the positions of `counts`.
+fn tally_in(counts: &mut Tally, index: &mut Positions, key: Value, n: i64) {
+    match index.find(
+        &key,
+        |position| &counts[position].0,
+        crate::evaluation::same_key,
+    ) {
+        Some(position) => counts[position].1 += n,
+        None => {
+            index.insert(&key, counts.len());
+            counts.push((key, n));
+        }
     }
 }
 
@@ -1855,8 +1875,9 @@ pub(crate) fn tally(counts: &mut Tally, key: Value, n: i64) {
 // states; `localhost` folds sequentially, and the tests hold the two equal.
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn combine_tallies(mut left: Tally, right: Tally) -> Tally {
+    let mut index = indexed(&left);
     for (key, n) in right {
-        tally(&mut left, key, n);
+        tally_in(&mut left, &mut index, key, n);
     }
     left
 }
@@ -1890,8 +1911,9 @@ fn eval_count_by(
         )
     })?;
     let mut counts = Tally::new();
+    let mut index = Positions::default();
     for element in elements(&input, "count_by", &span)? {
-        tally(&mut counts, cx.apply_lambda(by, element)?, 1);
+        tally_in(&mut counts, &mut index, cx.apply_lambda(by, element)?, 1);
     }
     tally_map(
         crate::types::MapKind::Unordered,
@@ -1945,12 +1967,10 @@ fn eval_histogram(
     let width = cx.evaluate(&argument.value)?;
     let key = width.type_of();
     let mut counts = Tally::new();
+    let mut index = Positions::default();
     for value in elements(&input, "histogram", &span)? {
-        tally(
-            &mut counts,
-            bucket(&value, &width, &argument.value.span)?,
-            1,
-        );
+        let key = bucket(&value, &width, &argument.value.span)?;
+        tally_in(&mut counts, &mut index, key, 1);
     }
     tally_map(crate::types::MapKind::Sorted, counts, key, &span)
 }
@@ -2091,6 +2111,35 @@ impl Sketch {
 }
 
 /// The first 64 bits of a value's SHA-256 digest.
+/// Positions of values by digest: equal values share a digest, so the
+/// values `==` may call equal to one are found among a few positions,
+/// not all of them.
+#[derive(Default)]
+pub(crate) struct Positions(std::collections::HashMap<u64, Vec<usize>>);
+
+impl Positions {
+    /// The position of a held value `same` as `value`, `held(i)` reading
+    /// the value at position `i`. `same` holds of no two values with
+    /// different digests.
+    pub(crate) fn find<'a>(
+        &self,
+        value: &Value,
+        held: impl Fn(usize) -> &'a Value,
+        same: impl Fn(&Value, &Value) -> bool,
+    ) -> Option<usize> {
+        self.0
+            .get(&digest(value))?
+            .iter()
+            .copied()
+            .find(|position| same(held(*position), value))
+    }
+
+    /// Record `value` at `position`.
+    pub(crate) fn insert(&mut self, value: &Value, position: usize) {
+        self.0.entry(digest(value)).or_default().push(position);
+    }
+}
+
 fn digest(value: &Value) -> u64 {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
@@ -2166,7 +2215,15 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
             out.update(b"g");
             encode(&group.key, out);
         }
-        Value::Data(tree) => text(out, b"d", &format!("{tree:?}")),
+        // A scalar leaf equals the plain value it holds, so it encodes alike.
+        Value::Data(tree) => match tree.as_ref() {
+            crate::data::Data::Int(n) => encode(&Value::Int(*n), out),
+            crate::data::Data::Float(x) => encode(&Value::Float(*x), out),
+            crate::data::Data::Decimal(x) => encode(&Value::Decimal(x.clone()), out),
+            crate::data::Data::Bool(b) => encode(&Value::Bool(*b), out),
+            crate::data::Data::Str(held) => text(out, b"s", held),
+            other => text(out, b"t", &format!("{other:?}")),
+        },
         Value::Doc(doc) => text(out, b"D", &doc.path.to_string_lossy()),
         Value::Card(card) => text(out, b"c", &card.document.path.to_string_lossy()),
         other => text(out, b"o", &other.to_string()),

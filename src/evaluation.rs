@@ -1974,10 +1974,17 @@ fn merged(left: Value, right: Value, span: &Range<usize>) -> Result<Value, Diagn
     match (&left, &right) {
         (Value::Map(l), Value::Map(r)) => {
             let mut entries: Vec<(Value, Value)> = l.entries().to_vec();
+            let mut keys = crate::extensions::collections::Positions::default();
+            for (position, (key, _)) in entries.iter().enumerate() {
+                keys.insert(key, position);
+            }
             for (key, value) in r.entries() {
-                match entries.iter_mut().find(|(held, _)| held == key) {
-                    Some(entry) => entry.1 = value.clone(),
-                    None => entries.push((key.clone(), value.clone())),
+                match keys.find(key, |position| &entries[position].0, Value::eq) {
+                    Some(position) => entries[position].1 = value.clone(),
+                    None => {
+                        keys.insert(key, entries.len());
+                        entries.push((key.clone(), value.clone()));
+                    }
                 }
             }
             let ty = l.type_of();

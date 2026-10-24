@@ -237,8 +237,13 @@ fn eval_distinct(
 ) -> Result<Value, Diagnostic> {
     let element = element_of(&input);
     let mut kept: Vec<Value> = Vec::new();
+    let mut seen = super::collections::Positions::default();
     for value in elements(&input, "distinct", &span)? {
-        if !kept.contains(&value) {
+        if seen
+            .find(&value, |position| &kept[position], Value::eq)
+            .is_none()
+        {
+            seen.insert(&value, kept.len());
             kept.push(value);
         }
     }
