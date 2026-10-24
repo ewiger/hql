@@ -530,10 +530,13 @@ fn eval_count(
     let count = match args.first() {
         Some(arg) => {
             let wanted = cx.evaluate(&arg.value)?;
-            elements
-                .iter()
-                .filter(|element| **element == wanted)
-                .count()
+            let mut count = 0;
+            for element in &elements {
+                if cx.equal_values(element, &wanted, &span)? {
+                    count += 1;
+                }
+            }
+            count
         }
         None => elements.len(),
     };
@@ -658,7 +661,7 @@ fn eval_join(
             return Ok(true);
         }
         if let (Some(left), Some(right)) = (&left_keys, &right_keys)
-            && left[i] != right[j]
+            && !cx.equal_values(&left[i], &right[j], &span)?
         {
             return Ok(false);
         }
@@ -1425,7 +1428,10 @@ fn eval_group(
     let mut groups: Vec<(Value, Vec<Value>)> = Vec::new();
     for element in elements(&input, "group", &span)? {
         let key = cx.apply_lambda(argument, element.clone())?;
-        match groups.iter_mut().find(|(seen, _)| *seen == key) {
+        match groups
+            .iter_mut()
+            .find(|(seen, _)| crate::evaluation::same_key(seen, &key))
+        {
             Some((_, items)) => items.push(element),
             None => groups.push((key, vec![element])),
         }
@@ -1835,7 +1841,10 @@ pub(crate) type Tally = Vec<(Value, i64)>;
 
 /// Add `n` to a key's count.
 pub(crate) fn tally(counts: &mut Tally, key: Value, n: i64) {
-    match counts.iter_mut().find(|(held, _)| *held == key) {
+    match counts
+        .iter_mut()
+        .find(|(held, _)| crate::evaluation::same_key(held, &key))
+    {
         Some((_, count)) => *count += n,
         None => counts.push((key, n)),
     }
@@ -2111,10 +2120,12 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
         }
     };
     match value {
-        Value::Int(n) => {
-            out.update(b"i");
-            out.update(n.to_le_bytes());
-        }
+        // An Int equals the Decimal of its value, `1 == 1.0`.
+        Value::Int(n) => text(
+            out,
+            b"d",
+            &crate::decimal::Decimal::from_int(*n).canonical(),
+        ),
         Value::Float(x) => {
             out.update(b"f");
             out.update((x + 0.0).to_bits().to_le_bytes());
@@ -2124,11 +2135,10 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
         Value::Bool(b) => out.update([b'b', u8::from(*b)]),
         Value::Str(held) => text(out, b"s", held),
         Value::Formatted(formatted) => text(out, b"s", &formatted.text),
-        Value::Absent(ty) => text(out, b"n", &ty.to_string()),
-        Value::Present(held) => {
-            out.update(b"p");
-            encode(held, out);
-        }
+        // Equality looks through `Option`: every `none` is one value, and
+        // `some(x)` is `x`.
+        Value::Absent(_) => out.update(b"n"),
+        Value::Present(held) => encode(held, out),
         Value::List(values, _) => {
             out.update(b"l");
             out.update(values.len().to_le_bytes());
@@ -2329,8 +2339,8 @@ mod tests {
         assert_eq!(sketch(&reversed), whole);
         assert_eq!(Sketch::default().estimate(), 0);
         assert_eq!(sketch(&[7, 7, 7]).estimate(), 1);
-        // Approximate, and the same on every run: 120 distinct values read as 121.
-        assert_eq!(whole.estimate(), 121);
+        // Approximate, and the same on every run: 120 distinct values read as 122.
+        assert_eq!(whole.estimate(), 122);
     }
 
     #[test]
@@ -2342,6 +2352,16 @@ mod tests {
         );
         assert_eq!(digest(&Value::Float(0.0)), digest(&Value::Float(-0.0)));
         assert_ne!(digest(&Value::Int(1)), digest(&Value::Float(1.0)));
+        let decimal = |text: &str| Value::Decimal(crate::decimal::Decimal::parse(text).unwrap());
+        assert_eq!(digest(&Value::Int(1)), digest(&decimal("1.0")));
+        assert_eq!(
+            digest(&Value::Absent(TypeRef::INT)),
+            digest(&Value::Absent(TypeRef::NEVER))
+        );
+        assert_eq!(
+            digest(&Value::Present(Arc::new(Value::Int(1)))),
+            digest(&Value::Int(1))
+        );
         assert_ne!(
             digest(&Value::list(
                 vec![Value::Int(1), Value::Int(2)],

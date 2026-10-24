@@ -172,6 +172,14 @@ pub(crate) trait EvalCx: Send {
         right: &Value,
         span: &Range<usize>,
     ) -> Result<std::cmp::Ordering, Diagnostic>;
+    /// Whether two values are equal as `==` says: through `Option`, and by
+    /// the `eq` an implementation of `Eq` provides where one applies.
+    fn equal_values(
+        &mut self,
+        left: &Value,
+        right: &Value,
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic>;
     /// A function argument applied to any number of values, none included.
     fn apply_function(
         &mut self,

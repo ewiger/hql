@@ -893,12 +893,7 @@ impl Evaluator<'_> {
                     }
                 }
             }
-            (Some(left), Some(right))
-                if matches!(left, Value::Data(_)) || matches!(right, Value::Data(_)) =>
-            {
-                as_data(&left) == as_data(&right)
-            }
-            (Some(left), Some(right)) => left == right,
+            (Some(left), Some(right)) => same_present(&left, &right),
             _ => false,
         })
     }
@@ -1886,6 +1881,15 @@ impl EvalCx for Evaluator<'_> {
         self.ordering(left, right, span)
     }
 
+    fn equal_values(
+        &mut self,
+        left: &Value,
+        right: &Value,
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        self.equal(left.clone(), right.clone(), span)
+    }
+
     fn apply_comparator(
         &mut self,
         argument: &Arg,
@@ -2233,6 +2237,25 @@ pub(crate) fn data_key(data: &Data, key: &str, span: &Range<usize>) -> Result<Va
 }
 
 /// The value under any number of `Option` layers, or `None` when it is absent.
+/// Whether two values are one key: equal as `==` says, through `Option`,
+/// with no implementation of `Eq` consulted. A map's keys and a group's are
+/// told apart this way.
+pub(crate) fn same_key(left: &Value, right: &Value) -> bool {
+    match (present(left.clone()), present(right.clone())) {
+        (None, None) => true,
+        (Some(left), Some(right)) => same_present(&left, &right),
+        _ => false,
+    }
+}
+
+fn same_present(left: &Value, right: &Value) -> bool {
+    if matches!(left, Value::Data(_)) || matches!(right, Value::Data(_)) {
+        as_data(left) == as_data(right)
+    } else {
+        left == right
+    }
+}
+
 fn present(value: Value) -> Option<Value> {
     match value {
         Value::Absent(_) => None,
