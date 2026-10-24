@@ -742,6 +742,27 @@ pub fn sqlite_columns(path: &Path, table: &str) -> Result<Vec<String>, String> {
     Ok(columns)
 }
 
+/// The type each column of one SQLite table or view is declared with, by
+/// column name; a column declared without one maps to the empty string.
+///
+/// # Errors
+/// Names the database and what failed: opening it, or the query.
+pub fn sqlite_column_types(path: &Path, table: &str) -> Result<BTreeMap<String, String>, String> {
+    let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
+    let connection =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(located)?;
+    let mut statement = connection
+        .prepare("SELECT name, type FROM pragma_table_info(?1)")
+        .map_err(located)?;
+    let rows = statement
+        .query_map([table], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(located)?;
+    rows.collect::<Result<_, _>>().map_err(located)
+}
+
 /// The rows of one SQLite table, in the order the configuration states, each
 /// a `Data` map from column to value: every column, or only `columns` where
 /// a boundary names the ones read. The database is opened read-only.
@@ -761,14 +782,22 @@ pub fn sqlite_rows(
         rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(located)?;
     let quoted = |name: &str| format!("\"{}\"", name.replace('"', "\"\""));
-    let order = if order.is_empty() {
-        "rowid".to_owned()
-    } else {
-        order
+    // Unordered, a table reads in `rowid` order; a view or a `WITHOUT ROWID`
+    // table has none, and reads in the order SQLite scans it.
+    let has_rowid = connection
+        .prepare(&format!("SELECT rowid FROM {} LIMIT 0", quoted(table)))
+        .is_ok();
+    let order = if !order.is_empty() {
+        let columns = order
             .iter()
             .map(|column| quoted(column))
             .collect::<Vec<_>>()
-            .join(", ")
+            .join(", ");
+        format!(" ORDER BY {columns}")
+    } else if has_rowid {
+        " ORDER BY rowid".to_owned()
+    } else {
+        String::new()
     };
     let selected = columns.filter(|columns| !columns.is_empty()).map_or_else(
         || "*".to_owned(),
@@ -781,10 +810,7 @@ pub fn sqlite_rows(
         },
     );
     let mut statement = connection
-        .prepare(&format!(
-            "SELECT {selected} FROM {} ORDER BY {order}",
-            quoted(table)
-        ))
+        .prepare(&format!("SELECT {selected} FROM {}{order}", quoted(table)))
         .map_err(located)?;
     let columns: Vec<String> = statement
         .column_names()
@@ -801,7 +827,12 @@ pub fn sqlite_rows(
                 ValueRef::Integer(n) => Data::Int(n),
                 ValueRef::Real(x) => Data::Float(x),
                 ValueRef::Text(bytes) | ValueRef::Blob(bytes) => {
-                    Data::Str(String::from_utf8_lossy(bytes).into_owned())
+                    Data::Str(String::from_utf8(bytes.to_vec()).map_err(|_| {
+                        format!(
+                            "{}: column `{column}` holds bytes that are not UTF-8 text",
+                            path.display()
+                        )
+                    })?)
                 }
             };
             fields.insert(column.clone(), value);

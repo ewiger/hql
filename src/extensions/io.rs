@@ -727,6 +727,12 @@ pub(crate) fn boundary_for(
     element: &TypeRef,
     external: Option<&[String]>,
 ) -> Result<Option<crate::boundary::EffectiveBoundary>, String> {
+    let declared = match &configured.kind {
+        crate::sources::Kind::Sqlite { path, table, .. } if external.is_some() => {
+            Some(crate::sources::sqlite_column_types(path, table)?)
+        }
+        _ => None,
+    };
     let Some(fields) = declared_fields(element) else {
         return Ok(None);
     };
@@ -738,6 +744,7 @@ pub(crate) fn boundary_for(
         crate::boundary::Layers {
             configuration: &configured.fields,
             invocation: &none,
+            declared: declared.as_ref(),
         },
         external,
     )
@@ -847,6 +854,7 @@ pub(crate) fn remapped(
     };
     use crate::sources::Strictness;
     let mut mapped = entries.clone();
+    let sqlite = boundary.kind == "sqlite";
     // A strict source's unmapped fields were refused before; an open one's
     // are not read.
     if matches!(boundary.strictness, Strictness::Open | Strictness::Warn) {
@@ -899,6 +907,46 @@ pub(crate) fn remapped(
                         .map(|absence| format!("`{}`", absence.name()))
                         .collect::<Vec<_>>()
                         .join(", ")
+                ));
+            }
+            // SQLite has no boolean storage: a `Bool` is the `INTEGER` 0 or 1.
+            (Some(Data::Int(n)), _) if sqlite && field.field.ty == TypeRef::BOOL => {
+                let truth = match n {
+                    0 => false,
+                    1 => true,
+                    _ => {
+                        return Err(format!(
+                            "source `{}`, field `{name}`: {n} is not a Bool, which a table \
+                             holds as 0 or 1",
+                            boundary.source
+                        ));
+                    }
+                };
+                mapped.insert(name.clone(), Data::Bool(truth));
+            }
+            // An integer is a number the external type decodes to `Float`,
+            // where the Float holds it exactly.
+            (Some(Data::Int(n)), _) if field.field.ty == TypeRef::FLOAT => {
+                #[allow(clippy::cast_precision_loss)]
+                let real = *n as f64;
+                if n.unsigned_abs() > 1 << f64::MANTISSA_DIGITS {
+                    return Err(format!(
+                        "source `{}`, field `{name}`: {n} has more digits than a Float holds",
+                        boundary.source
+                    ));
+                }
+                mapped.insert(name.clone(), Data::Float(real));
+            }
+            // A table's REAL storage may have lost a decimal's digits before
+            // it was read, so a `Decimal` takes it only where it may.
+            (Some(Data::Float(real)), _)
+                if sqlite && field.field.ty == TypeRef::DECIMAL && !field.lossy.value =>
+            {
+                return Err(format!(
+                    "source `{}`, field `{name}`: lossy representation: the column holds the \
+                     REAL {real}, which may not keep a Decimal's digits; store it as TEXT, or \
+                     set `lossy = true`",
+                    boundary.source
                 ));
             }
             // A `Decimal` written as text reads the text's digits.

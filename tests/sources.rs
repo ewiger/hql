@@ -616,3 +616,96 @@ fn strictness_decides_what_an_unmapped_field_does() {
     let error = refusal(birds, &vault);
     assert!(error.contains("`wing`"), "{error}");
 }
+
+#[test]
+fn a_table_reads_as_its_column_types_say() {
+    let extra = r#"
+[sources.flags]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "flags"
+
+[sources.prices]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "prices"
+
+[sources.texts]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "texts"
+
+[sources.named]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "named"
+
+[sources.keyed]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "keyed"
+
+[sources.blobs]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "blobs"
+"#;
+    let (dir, vault) = configured(extra);
+    rusqlite::Connection::open(dir.path().join("data/birds.sqlite"))
+        .unwrap()
+        .execute_batch(
+            "create table flags(id integer, ok integer, wing integer);
+             insert into flags values (1, 1, 3), (2, 0, 4);
+             create table prices(id integer, price numeric);
+             insert into prices values (1, '12345678901234567.89');
+             create table texts(id integer, price text);
+             insert into texts values (1, '12345678901234567.89');
+             create view named as select id, name from birds;
+             create table keyed(id integer primary key, name text) without rowid;
+             insert into keyed values (2, 'b'), (1, 'a');
+             create table blobs(id integer, data blob);
+             insert into blobs values (1, x'ff00c3');",
+        )
+        .unwrap();
+    let flag = "type F { id : Int, ok : Bool, wing : Float }\n";
+    assert_eq!(
+        value(
+            &format!(
+                "{flag}fs : Seq<F> = source(\"flags\")\nfs | map(f => [str(f.ok), str(f.wing)]) | List"
+            ),
+            &vault
+        ),
+        r#"[["true", "3.0"], ["false", "4.0"]]"#
+    );
+    let price = "type P { id : Int, price : Decimal }\n";
+    assert!(
+        refusal(
+            &format!("{price}ps : Seq<P> = source(\"prices\")\nps | List"),
+            &vault
+        )
+        .contains("lossy representation")
+    );
+    assert_eq!(
+        value(
+            &format!("{price}ps : Seq<P> = source(\"texts\")\nps | map(p => p.price) | List"),
+            &vault
+        ),
+        "[12345678901234567.89]"
+    );
+    assert_eq!(
+        value("xs : Seq<Data> = source(\"named\")\nxs | size", &vault),
+        "2"
+    );
+    assert_eq!(
+        value("xs : Seq<Data> = source(\"keyed\")\nxs | size", &vault),
+        "2"
+    );
+    let blob = "type B { id : Int, data : String }\n";
+    assert!(
+        refusal(
+            &format!("{blob}bs : Seq<B> = source(\"blobs\")\nbs | List"),
+            &vault
+        )
+        .contains("not UTF-8")
+    );
+}
