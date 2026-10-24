@@ -227,16 +227,25 @@ impl Parser {
         if !matches!(self.tokens[self.index].token, Token::OpenBrace) {
             return None;
         }
+        // Inside the braces line breaks are insignificant, and a trailing
+        // comma is allowed, as in every other braced list.
+        let skip = |mut index: usize| {
+            while matches!(self.tokens[index].token, Token::Newline) {
+                index += 1;
+            }
+            index
+        };
         let mut names = Vec::new();
-        let mut index = self.index + 1;
+        let mut index = skip(self.index + 1);
         loop {
-            let Token::Ident(name) = &self.tokens[index].token else {
-                return None;
-            };
-            names.push((name.clone(), self.tokens[index].span.clone()));
-            index += 1;
             match &self.tokens[index].token {
-                Token::Comma => index += 1,
+                Token::Ident(name) => names.push((name.clone(), self.tokens[index].span.clone())),
+                Token::CloseBrace if !names.is_empty() => break,
+                _ => return None,
+            }
+            index = skip(index + 1);
+            match &self.tokens[index].token {
+                Token::Comma => index = skip(index + 1),
                 Token::CloseBrace => break,
                 _ => return None,
             }

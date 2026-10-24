@@ -679,3 +679,11 @@ fn an_alias_whose_body_fixes_no_type_is_refused() {
             .any(|report| report.message.contains("shadows the step"))
     );
 }
+
+#[test]
+fn a_destructuring_pattern_breaks_lines_and_ends_in_a_comma() {
+    for pattern in ["{a, b}", "{a,\n b}", "{ a, b, }", "{\n  a,\n  b,\n}"] {
+        let source = format!("type P = {{a: Int, b: Int}}\n{pattern} = P(a = 1, b = 2)\na + b");
+        assert_eq!(eval(&source), Ok(Value::Int(3)), "{source}");
+    }
+}
