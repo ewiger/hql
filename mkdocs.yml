@@ -91,7 +91,6 @@ plugins:
 nav:
   - Home: index.md
   - Learn:
-      - Introduction: public/introduction.md
       - Install: public/install.md
       - The HQL book:
           - public/learn/index.md

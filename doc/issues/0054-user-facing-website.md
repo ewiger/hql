@@ -54,11 +54,9 @@ HQL
    are excluded from the build, the `hypermarkdown` plugin is gone, and the
    public pages no longer link to them. The five `Reference` pages are still
    behavior models and link into the design corpus; step 4 replaces them.
-2. **Home is the introduction.** Delete the separate Introduction page. Home
-   states in two sentences that HQL is a typed language for querying and
-   transforming data, combining functional expressions with pipelines over
-   files, streams, structured data and HyperMarkDown documents; then shows a
-   pipeline and an I/O example; then links Install, Learn and Reference.
+2. **Home is the introduction.** Done: the Introduction page is gone, and
+   Home states what HQL is in two sentences, shows a pipeline and a
+   `source`/`target` example, and links Install, Learn and Reference.
 3. **Restructure the book before filling it.** Order the early chapters by
    programs, not by feature category, so a lambda appears in use before it is
    explained:
