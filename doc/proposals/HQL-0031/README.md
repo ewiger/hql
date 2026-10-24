@@ -47,12 +47,14 @@ n = 12               // Int, unchanged
 
 ### 2. Precision
 
-A `Decimal` is an arbitrary-precision decimal: an integer significand of
-any size and a scale.
+A `Decimal` is a bounded exact decimal: an integer significand of at most
+512 bits and a scale from 0 to 154, `floor(512 * log10(2))`.
 
-- The significand MUST be unbounded by the representation; an
-  implementation MUST NOT limit it below 256 bits (77 decimal digits).
-- Every literal, sum, difference and product is exact.
+- A value outside either bound is refused: a literal is a syntax error, a
+  reading such as `to_decimal` is absent, and a result of arithmetic or
+  `round` is a numeric overflow. No operation expands digits past the bounds
+  before refusing.
+- Every literal, sum, difference and product within the bounds is exact.
 
 ### 3. Type and lattice
 
@@ -124,3 +126,6 @@ compute with such literals give the same digits, now exact.
   the [decimal examples](../../../examples/decimal/README.md); `str(d)` is the
   `string(d)` this record names, and a boundary declaring a decimal field as
   a JSON string waits on HQL-0035's schema
+- 2026-10-24: the significand is bounded at 512 bits and the scale at 154,
+  so a literal such as `1.0e1000000000` or `round` to a trillion places is
+  refused instead of exhausting memory

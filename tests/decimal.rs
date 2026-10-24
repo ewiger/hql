@@ -143,7 +143,9 @@ fn csv_carries_the_digits_through_a_read_and_a_write() {
 #[test]
 fn a_decimal_converts_to_and_from_text_and_the_other_numbers() {
     assert_eq!(shown("\"12.50\".to_decimal()"), "12.50");
-    assert_eq!(shown("\"1e400\".to_decimal().is_some()"), "true");
+    assert_eq!(shown("\"1e150\".to_decimal().is_some()"), "true");
+    // Past the 512-bit significand a reading is absent.
+    assert_eq!(shown("\"1e400\".to_decimal()"), "none");
     assert_eq!(shown("\"twelve\".to_decimal()"), "none");
     assert_eq!(shown("decimal(0.1f)"), "0.1");
     assert_eq!(shown("float(0.1)"), "0.1");

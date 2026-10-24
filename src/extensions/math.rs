@@ -150,7 +150,9 @@ fn eval_round(
                 },
                 None => 0,
             };
-            Ok(Value::Decimal(x.round(places)))
+            x.round(places)
+                .map(Value::Decimal)
+                .map_err(|refusal| refusal.diagnostic(&span))
         }
         _ => finite(float_of(&input, "round", &span)?.round(), &span),
     }

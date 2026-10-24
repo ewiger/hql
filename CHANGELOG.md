@@ -8,6 +8,21 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Changed
+
+- A `Decimal`'s significand is bounded at 512 bits and its scale at 154
+  digits ([HQL-0031](doc/proposals/HQL-0031/README.md)). A literal outside the
+  bounds is a syntax error, `to_decimal` gives none, and arithmetic or
+  `round` past them is a numeric overflow, where before a large exponent or
+  place count exhausted memory.
+
+### Fixed
+
+- `zip` of a stream with a list, in either order, is a `Seq` traversed one
+  position at a time; it failed with "needs a collection".
+- `Data` number leaves compare transitively: an integer and a float leaf of
+  one value are equal, as each already was to a decimal leaf.
+
 ### Added
 
 - A value block as a function body ([HQL-0038](doc/proposals/HQL-0038/README.md);

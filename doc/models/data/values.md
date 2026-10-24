@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | `Int` | Integer | Rust `i64`; checked addition |
 | `Float` | Finite double-precision number | Rust `f64`; non-finite results are overflow |
-| `Decimal` | Exact decimal number and its scale | `bigdecimal` significand of any size; scale never below 0 |
+| `Decimal` | Exact decimal number and its scale | `bigdecimal` significand of at most 512 bits; scale from 0 to 154 |
 | `Bool` | `true` or `false` | Rust `bool` |
 | `String` | Sequence of Unicode scalar values | Rust `Arc<str>`; always valid UTF-8 |
 

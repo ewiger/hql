@@ -4,6 +4,11 @@
 //! The scale is the number of digits after the point. It is kept for
 //! display, so `1.50` prints as `1.50`, and never below 0. Equality and order
 //! are by value, so `1.0 == 1.00`.
+//!
+//! A value is bounded: its significand fits in [`MAX_BITS`] bits and its
+//! scale is at most [`MAX_SCALE`]. A literal, a reading or a result outside
+//! those bounds is refused rather than computed, so no digit string grows
+//! without limit.
 
 use bigdecimal::num_bigint::{BigInt, Sign};
 use bigdecimal::{BigDecimal, RoundingMode, Signed, ToPrimitive, Zero};
@@ -13,20 +18,62 @@ use std::str::FromStr;
 /// How many significant digits a quotient that does not terminate keeps.
 pub const DIVISION_DIGITS: u64 = 100;
 
+/// The bits a significand may take, its sign aside.
+pub const MAX_BITS: u64 = 512;
+
+/// The most digits after the point: as many as a [`MAX_BITS`] significand
+/// holds in full, `floor(512 * log10(2))`.
+pub const MAX_SCALE: i64 = 154;
+
+/// Why an operation on decimals gives no value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refusal {
+    /// The divisor is zero.
+    DivisionByZero,
+    /// The result lies outside [`MAX_BITS`] or [`MAX_SCALE`].
+    OutOfRange,
+}
+
+impl Refusal {
+    /// The failure an evaluation reports for it at `span`.
+    pub(crate) fn diagnostic(
+        self,
+        span: &std::ops::Range<usize>,
+    ) -> crate::diagnostics::Diagnostic {
+        match self {
+            Self::DivisionByZero => {
+                crate::diagnostics::Diagnostic::runtime(span.clone(), "division by zero")
+            }
+            Self::OutOfRange => crate::diagnostics::Diagnostic::Overflow { span: span.clone() },
+        }
+    }
+}
+
 /// An exact decimal number with the scale it was written or computed with.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Decimal(BigDecimal);
 
 impl Decimal {
     /// A value whose scale is raised to 0 when it is negative, so `1.5e3`
-    /// holds `1500`.
-    fn scaled(value: BigDecimal) -> Self {
-        let (_, scale) = value.as_bigint_and_exponent();
-        if scale < 0 {
-            Self(value.with_scale(0))
-        } else {
-            Self(value)
+    /// holds `1500`, or `None` outside the bounds. A negative scale is
+    /// checked before it is raised, so a large exponent is never expanded.
+    fn bounded(value: BigDecimal) -> Option<Self> {
+        let (significand, scale) = value.as_bigint_and_exponent();
+        if scale > MAX_SCALE || significand.bits() > MAX_BITS {
+            return None;
         }
+        if scale >= 0 {
+            return Some(Self(value));
+        }
+        if significand.is_zero() {
+            return Some(Self(BigDecimal::zero()));
+        }
+        // Each power of ten adds more than three bits.
+        if -scale > MAX_SCALE + 1 {
+            return None;
+        }
+        let raised = value.with_scale(0);
+        (raised.as_bigint_and_exponent().0.bits() <= MAX_BITS).then_some(Self(raised))
     }
 
     /// Read decimal text: an optional sign, digits with an optional point,
@@ -51,7 +98,7 @@ impl Decimal {
         {
             return None;
         }
-        BigDecimal::from_str(text).ok().map(Self::scaled)
+        BigDecimal::from_str(text).ok().and_then(Self::bounded)
     }
 
     /// The scale: how many digits follow the point.
@@ -123,44 +170,37 @@ impl Decimal {
     }
 
     /// The sum, at the larger of the two scales.
-    #[must_use]
-    pub fn add(&self, other: &Self) -> Self {
-        Self::scaled(&self.0 + &other.0).at_least(self.scale().max(other.scale()))
+    pub fn add(&self, other: &Self) -> Result<Self, Refusal> {
+        Self::at(&self.0 + &other.0, self.scale().max(other.scale()))
     }
 
     /// The difference, at the larger of the two scales.
-    #[must_use]
-    pub fn sub(&self, other: &Self) -> Self {
-        Self::scaled(&self.0 - &other.0).at_least(self.scale().max(other.scale()))
+    pub fn sub(&self, other: &Self) -> Result<Self, Refusal> {
+        Self::at(&self.0 - &other.0, self.scale().max(other.scale()))
     }
 
     /// The product, at the sum of the two scales.
-    #[must_use]
-    pub fn mul(&self, other: &Self) -> Self {
-        Self::scaled(&self.0 * &other.0).at_least(self.scale() + other.scale())
+    pub fn mul(&self, other: &Self) -> Result<Self, Refusal> {
+        Self::at(&self.0 * &other.0, self.scale() + other.scale())
     }
 
     /// The remainder of a division truncated toward zero, with the sign of
-    /// the dividend, at the larger of the two scales. `None` when `other`
-    /// is zero.
-    #[must_use]
-    pub fn rem(&self, other: &Self) -> Option<Self> {
+    /// the dividend, at the larger of the two scales.
+    pub fn rem(&self, other: &Self) -> Result<Self, Refusal> {
         if other.is_zero() {
-            return None;
+            return Err(Refusal::DivisionByZero);
         }
         let scale = self.scale().max(other.scale());
         let (a, _) = self.0.with_scale(scale).into_bigint_and_exponent();
         let (b, _) = other.0.with_scale(scale).into_bigint_and_exponent();
-        Some(Self(BigDecimal::new(a % b, scale)))
+        Self::bounded(BigDecimal::new(a % b, scale)).ok_or(Refusal::OutOfRange)
     }
 
     /// The quotient: exact where it terminates, and otherwise rounded half
-    /// to even to [`DIVISION_DIGITS`] significant digits. `None` when
-    /// `other` is zero.
-    #[must_use]
-    pub fn div(&self, other: &Self) -> Option<Self> {
+    /// to even to [`DIVISION_DIGITS`] significant digits.
+    pub fn div(&self, other: &Self) -> Result<Self, Refusal> {
         if other.is_zero() {
-            return None;
+            return Err(Refusal::DivisionByZero);
         }
         let (a, a_scale) = self.0.as_bigint_and_exponent();
         let (b, b_scale) = other.0.as_bigint_and_exponent();
@@ -175,23 +215,31 @@ impl Decimal {
             None => rounded_quotient(&numerator, &denominator, shift),
         };
         let significand = if negative { -significand } else { significand };
-        Some(Self::scaled(BigDecimal::new(significand, scale)))
+        Self::bounded(BigDecimal::new(significand, scale)).ok_or(Refusal::OutOfRange)
     }
 
     /// The value rounded half to even to `places` digits after the point,
-    /// at scale `places`, or at scale 0 when `places` is negative.
-    #[must_use]
-    pub fn round(&self, places: i64) -> Self {
-        Self::scaled(self.0.with_scale_round(places, RoundingMode::HalfEven))
+    /// at scale `places`, or at scale 0 when `places` is negative. Places
+    /// beyond [`MAX_SCALE`] are out of range; places far enough below zero
+    /// round every bounded value to zero.
+    pub fn round(&self, places: i64) -> Result<Self, Refusal> {
+        if places > MAX_SCALE {
+            return Err(Refusal::OutOfRange);
+        }
+        let places = places.max(-(MAX_SCALE + 2));
+        Self::bounded(self.0.with_scale_round(places, RoundingMode::HalfEven))
+            .ok_or(Refusal::OutOfRange)
     }
 
-    /// The same value at `scale` or more digits after the point.
-    fn at_least(self, scale: i64) -> Self {
-        if self.scale() < scale {
-            Self(self.0.with_scale(scale))
+    /// `value` at `scale` or more digits after the point. The operands are
+    /// bounded, so neither the value nor the scale is large before the check.
+    fn at(value: BigDecimal, scale: i64) -> Result<Self, Refusal> {
+        let value = if value.as_bigint_and_exponent().1 < scale {
+            value.with_scale(scale)
         } else {
-            self
-        }
+            value
+        };
+        Self::bounded(value).ok_or(Refusal::OutOfRange)
     }
 
     /// The value with its trailing zeros removed, which every equal value
@@ -201,7 +249,13 @@ impl Decimal {
         if self.0.is_zero() {
             return "0".to_owned();
         }
-        Self::scaled(self.0.normalized()).to_string()
+        let normal = self.0.normalized();
+        // Trailing zeros removed, a whole number keeps its digits.
+        if normal.as_bigint_and_exponent().1 < 0 {
+            normal.with_scale(0).to_string()
+        } else {
+            normal.to_string()
+        }
     }
 }
 
@@ -307,11 +361,11 @@ mod tests {
 
     #[test]
     fn arithmetic_states_its_scale() {
-        assert_eq!(d("0.1").add(&d("0.2")).to_string(), "0.3");
-        assert_eq!(d("1.50").add(&d("1")).to_string(), "2.50");
-        assert_eq!(d("1.50").sub(&d("1.50")).to_string(), "0.00");
-        assert_eq!(d("1.5").mul(&d("2.25")).to_string(), "3.375");
-        assert_eq!(d("2.0").mul(&d("3.00")).to_string(), "6.000");
+        assert_eq!(d("0.1").add(&d("0.2")).unwrap().to_string(), "0.3");
+        assert_eq!(d("1.50").add(&d("1")).unwrap().to_string(), "2.50");
+        assert_eq!(d("1.50").sub(&d("1.50")).unwrap().to_string(), "0.00");
+        assert_eq!(d("1.5").mul(&d("2.25")).unwrap().to_string(), "3.375");
+        assert_eq!(d("2.0").mul(&d("3.00")).unwrap().to_string(), "6.000");
         assert_eq!(d("7.5").rem(&d("2")).unwrap().to_string(), "1.5");
     }
 
@@ -322,7 +376,7 @@ mod tests {
         assert_eq!(d("10").div(&d("4")).unwrap().to_string(), "2.5");
         assert_eq!(d("6").div(&d("3")).unwrap().to_string(), "2");
         assert_eq!(d("-1").div(&d("8")).unwrap().to_string(), "-0.125");
-        assert!(d("1").div(&d("0")).is_none());
+        assert_eq!(d("1").div(&d("0")), Err(Refusal::DivisionByZero));
     }
 
     #[test]
@@ -337,11 +391,28 @@ mod tests {
 
     #[test]
     fn round_is_half_to_even() {
-        assert_eq!(d("2.345").round(2).to_string(), "2.34");
-        assert_eq!(d("2.355").round(2).to_string(), "2.36");
-        assert_eq!(d("2.5").round(0).to_string(), "2");
-        assert_eq!(d("3.5").round(0).to_string(), "4");
-        assert_eq!(d("1.2").round(3).to_string(), "1.200");
+        assert_eq!(d("2.345").round(2).unwrap().to_string(), "2.34");
+        assert_eq!(d("2.355").round(2).unwrap().to_string(), "2.36");
+        assert_eq!(d("2.5").round(0).unwrap().to_string(), "2");
+        assert_eq!(d("3.5").round(0).unwrap().to_string(), "4");
+        assert_eq!(d("1.2").round(3).unwrap().to_string(), "1.200");
+    }
+
+    #[test]
+    fn a_value_is_bounded_by_its_bits_and_its_scale() {
+        let widest = format!("{}", BigInt::from(2).pow(512) - 1);
+        assert!(Decimal::parse(&widest).is_some());
+        assert!(Decimal::parse(&format!("{widest}0")).is_none());
+        assert!(Decimal::parse("1.0e1000000000").is_none());
+        assert!(Decimal::parse("1e-9000000000000").is_none());
+        assert!(Decimal::parse(&format!("0.{}1", "0".repeat(153))).is_some());
+        assert!(Decimal::parse(&format!("0.{}1", "0".repeat(154))).is_none());
+        let big = d(&widest);
+        assert_eq!(big.add(&big), Err(Refusal::OutOfRange));
+        assert_eq!(big.mul(&d("2")), Err(Refusal::OutOfRange));
+        assert_eq!(d("1.5").round(1_000_000_000_000), Err(Refusal::OutOfRange));
+        assert_eq!(d("1.5").round(-1_000_000_000_000).unwrap().to_string(), "0");
+        assert_eq!(d("1e150").canonical(), format!("1{}", "0".repeat(150)));
     }
 
     #[test]

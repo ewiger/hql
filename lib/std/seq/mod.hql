@@ -16,7 +16,10 @@ fn last(self) : Option<T>
 fn reverse<F<_> : Seq<_>>(self: F<T>) : F<T>
 fn distinct<S : Seq<T>>(self: S) : S
 fn zip<U>(self, other: Seq<U>) : List<Pair<T, U>>
-// Over streams, by position until either ends (HQL-0037).
+// Over streams, by position until either ends (HQL-0037): a stream beside a
+// sequence ends with it.
+fn zip<U>(self: Stream<T>, other: Seq<U>) : Seq<Pair<T, U>>
+fn zip<U>(self, other: Stream<U>) : Seq<Pair<T, U>>
 fn zip<U>(self: Stream<T>, other: Stream<U>) : Stream<Pair<T, U>>
 fn enumerate(self) : List<Pair<Int, T>>
 reduction fn any(self: Collection<T>, by: T -> Bool) : Bool

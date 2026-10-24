@@ -2349,16 +2349,16 @@ pub(crate) fn arithmetic_of(
         (Value::Int(a), Value::Decimal(b)) => {
             return arithmetic_of(operator, widened(a), Value::Decimal(b), span);
         }
-        (Value::Decimal(a), Value::Decimal(b)) => {
-            let zero = || Diagnostic::runtime(span.clone(), "division by zero");
-            Value::Decimal(match operator {
+        (Value::Decimal(a), Value::Decimal(b)) => Value::Decimal(
+            match operator {
                 Arith::Add => a.add(&b),
                 Arith::Sub => a.sub(&b),
                 Arith::Mul => a.mul(&b),
-                Arith::Div => a.div(&b).ok_or_else(zero)?,
-                Arith::Rem => a.rem(&b).ok_or_else(zero)?,
-            })
-        }
+                Arith::Div => a.div(&b),
+                Arith::Rem => a.rem(&b),
+            }
+            .map_err(|refusal| refusal.diagnostic(span))?,
+        ),
         _ => {
             return Err(Diagnostic::runtime(
                 span.clone(),

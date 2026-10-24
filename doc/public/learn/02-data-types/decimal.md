@@ -1,7 +1,8 @@
 # Decimal
 
-A `Decimal` is an exact decimal number: an integer significand of any size and
-a scale, the number of digits after the point. A number written with a decimal
+A `Decimal` is an exact decimal number: an integer significand of up to 512
+bits, about 154 digits, and a scale, the number of digits after the point, from
+0 to 154. A number written with a decimal
 point is a `Decimal`, so arithmetic on it loses nothing to binary rounding:
 
 ```hql

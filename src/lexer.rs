@@ -435,7 +435,12 @@ impl Scanner<'_> {
             Token::Float(value)
         } else if fraction {
             let value = crate::decimal::Decimal::parse(text).ok_or_else(|| {
-                Diagnostic::syntax(start..self.offset, "malformed decimal literal")
+                // The digits are already scanned, so only the bounds refuse it.
+                Diagnostic::syntax(
+                    start..self.offset,
+                    "decimal literal is outside the Decimal range: a significand of at most \
+                     512 bits, at most 154 digits after the point",
+                )
             })?;
             Token::Decimal(value)
         } else {

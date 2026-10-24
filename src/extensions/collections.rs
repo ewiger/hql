@@ -1594,7 +1594,9 @@ fn eval_product(
     if element_type(&input) == TypeRef::DECIMAL {
         let mut exact = Decimal::from_int(1);
         for value in elements(&input, "product", &span)? {
-            exact = exact.mul(&decimal_of(value, "product", &span)?);
+            exact = exact
+                .mul(&decimal_of(value, "product", &span)?)
+                .map_err(|refusal| refusal.diagnostic(&span))?;
         }
         return Ok(Value::Decimal(exact));
     }
@@ -1634,11 +1636,13 @@ fn eval_average(
             i64::try_from(values.len()).map_err(|_| Diagnostic::Overflow { span: span.clone() })?;
         let mut total = Decimal::from_int(0);
         for value in values {
-            total = total.add(&decimal_of(value, "average", &span)?);
+            total = total
+                .add(&decimal_of(value, "average", &span)?)
+                .map_err(|refusal| refusal.diagnostic(&span))?;
         }
         let mean = total
             .div(&Decimal::from_int(count))
-            .ok_or_else(|| Diagnostic::runtime(span.clone(), "division by zero"))?;
+            .map_err(|refusal| refusal.diagnostic(&span))?;
         return Ok(Value::Present(Arc::new(Value::Decimal(mean))));
     }
     if values.is_empty() {
@@ -1667,7 +1671,9 @@ fn eval_sum(
     if element_type(&input) == TypeRef::DECIMAL {
         let mut exact = Decimal::from_int(0);
         for value in elements(&input, "sum", &span)? {
-            exact = exact.add(&decimal_of(value, "sum", &span)?);
+            exact = exact
+                .add(&decimal_of(value, "sum", &span)?)
+                .map_err(|refusal| refusal.diagnostic(&span))?;
         }
         return Ok(Value::Decimal(exact));
     }

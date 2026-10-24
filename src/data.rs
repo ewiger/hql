@@ -8,8 +8,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 impl PartialEq for Data {
-    /// Structural equality, except that a decimal leaf equals a float leaf
-    /// written with the same digits and an integer leaf of the same value.
+    /// Structural equality, except that number leaves compare by value: a
+    /// decimal, a float and an integer leaf are equal when each reads as the
+    /// same `Decimal`, a float by its shortest digits. Comparing all three
+    /// through one value keeps the equality transitive.
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Empty, Self::Empty) => true,
@@ -22,6 +24,9 @@ impl PartialEq for Data {
             }
             (Self::Decimal(a), Self::Int(b)) | (Self::Int(b), Self::Decimal(a)) => {
                 *a == Decimal::from_int(*b)
+            }
+            (Self::Int(a), Self::Float(b)) | (Self::Float(b), Self::Int(a)) => {
+                Decimal::from_float(*b).is_some_and(|b| Decimal::from_int(*a) == b)
             }
             (Self::Str(a), Self::Str(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
@@ -348,6 +353,23 @@ pub fn parse_header(source: &str) -> Result<Data, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn number_leaves_are_equal_by_value_and_transitively() {
+        let (int, decimal, float) = (
+            Data::Int(1),
+            Data::Decimal(Decimal::parse("1.0").unwrap()),
+            Data::Float(1.0),
+        );
+        assert_eq!(int, decimal);
+        assert_eq!(decimal, float);
+        assert_eq!(int, float);
+        assert_ne!(Data::Int(1), Data::Float(1.5));
+        assert_ne!(
+            Data::Int(9_007_199_254_740_993),
+            Data::Float(9_007_199_254_740_992.0)
+        );
+    }
 
     #[test]
     fn parses_scalars_nesting_and_lists() {

@@ -77,6 +77,15 @@ const NATURALS: &str = "fn naturals(from: Int) : Stream<Int> {
 ";
 
 #[test]
+fn a_stream_zipped_with_a_list_ends_with_the_list() {
+    let source = format!(
+        "{NATURALS}[naturals(1) | zip([\"a\", \"b\"]) | List | map(p => p.first), \
+         [\"x\", \"y\", \"z\"] | zip(naturals(10)) | List | map(p => p.second)]"
+    );
+    assert_eq!(eval(&source), eval("[[1, 2], [10, 11, 12]]"));
+}
+
+#[test]
 fn take_ends_a_traversal_that_would_not_end_by_itself() {
     let source = format!("{NATURALS}naturals(1) | take(4)");
     assert_eq!(check(&source), Ok(TypeRef::list(TypeRef::INT)));
