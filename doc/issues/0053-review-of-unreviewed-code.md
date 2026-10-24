@@ -1,6 +1,6 @@
 # 0053 — Bugs found reviewing the complete type system branch
 
-Status: doing
+Status: done
 Related: [issue 0052](0052-review-follow-ups.md),
 [HQL-0031, Decimal](../proposals/HQL-0031/README.md),
 [HQL-0035, schema boundaries](../proposals/HQL-0035/README.md)

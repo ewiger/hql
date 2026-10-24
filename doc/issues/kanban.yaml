@@ -36,9 +36,6 @@ board:
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
     todo:
-      - id: "0052"
-        title: "Review follow-ups: Decimal in SQLite, quadratic steps, unreviewed code"
-        file: 0052-review-follow-ups.md
       - id: "0049"
         title: "One extension per package: fold the descriptors into `std` and `search`"
         file: 0049-one-extension-per-package.md
@@ -55,9 +52,6 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
-      - id: "0053"
-        title: "Bugs found reviewing the complete type system branch"
-        file: 0053-review-of-unreviewed-code.md
       - id: "0046"
         title: "Renovate `lib/std/**` under the module, package and extension model"
         file: 0046-renovate-std.md
@@ -65,6 +59,12 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
+      - id: "0053"
+        title: "Bugs found reviewing the complete type system branch"
+        file: 0053-review-of-unreviewed-code.md
+      - id: "0052"
+        title: "Review follow-ups: Decimal in SQLite, quadratic steps, unreviewed code"
+        file: 0052-review-follow-ups.md
       - id: "0051"
         title: "A value block as a function body: bindings, then the value"
         file: 0051-value-block.md
