@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 51 # to be incremented when adding a new issue card
+  last_id: 52 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0043"
@@ -36,6 +36,9 @@ board:
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
     todo:
+      - id: "0052"
+        title: "Review follow-ups: Decimal in SQLite, quadratic steps, unreviewed code"
+        file: 0052-review-follow-ups.md
       - id: "0049"
         title: "One extension per package: fold the descriptors into `std` and `search`"
         file: 0049-one-extension-per-package.md
