@@ -179,6 +179,12 @@ impl MapValue {
             .apply([self.key.clone(), self.value.clone()])
     }
 
+    /// Whether the map's entries are in an order its equality compares:
+    /// an ordered or sorted map's are, an unordered one's are not.
+    pub fn ordered(&self) -> bool {
+        self.view != MapKind::Unordered
+    }
+
     /// Borrow the associations for runtime traversal; unordered maps promise no order.
     pub fn entries(&self) -> &[(Value, Value)] {
         &self.entries

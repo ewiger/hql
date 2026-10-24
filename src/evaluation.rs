@@ -880,22 +880,113 @@ impl Evaluator<'_> {
         right: Value,
         span: &Range<usize>,
     ) -> Result<bool, Diagnostic> {
-        Ok(match (present(left), present(right)) {
-            (None, None) => true,
-            (Some(left), Some(right)) if self.implements_eq(&left) => {
-                match self.dispatch("Eq", "eq", left, vec![right], span)? {
-                    Value::Bool(equal) => equal,
-                    other => {
-                        return Err(Diagnostic::runtime(
-                            span.clone(),
-                            format!("`eq` returned {}, not a Bool", other.type_of()),
-                        ));
+        // Without an implementation of `Eq` in the program, every value
+        // compares structurally, and no element needs looking into.
+        if !self.impls.iter().any(|held| held.trait_name == "Eq") {
+            return Ok(same_key(&left, &right));
+        }
+        // A finished traversal compares as the list it holds.
+        let left = left.settled().unwrap_or(left);
+        let right = right.settled().unwrap_or(right);
+        let (Some(left), Some(right)) = (present(left.clone()), present(right.clone())) else {
+            return Ok(present(left).is_none() && present(right).is_none());
+        };
+        if self.implements_eq(&left) {
+            return match self.dispatch("Eq", "eq", left, vec![right], span)? {
+                Value::Bool(equal) => Ok(equal),
+                other => Err(Diagnostic::runtime(
+                    span.clone(),
+                    format!("`eq` returned {}, not a Bool", other.type_of()),
+                )),
+            };
+        }
+        // A container is equal by its own type's rule, its elements by
+        // theirs: a list position by position, a set by membership both
+        // ways, a map key by key, a record field by field.
+        match (&left, &right) {
+            (Value::List(a, _), Value::List(b, _)) => self.equal_all(a, b, span),
+            (Value::Set(a, _), Value::Set(b, _)) => Ok(a.len() == b.len()
+                && self.each_found(a, b, span)?
+                && self.each_found(b, a, span)?),
+            (Value::Map(a), Value::Map(b)) => {
+                if a.entries().len() != b.entries().len() || a.ordered() != b.ordered() {
+                    return Ok(false);
+                }
+                if a.ordered() {
+                    for ((ka, va), (kb, vb)) in a.entries().iter().zip(b.entries()) {
+                        if !same_key(ka, kb) || !self.equal(va.clone(), vb.clone(), span)? {
+                            return Ok(false);
+                        }
+                    }
+                    return Ok(true);
+                }
+                for (key, value) in a.entries() {
+                    let Some((_, other)) = b.entries().iter().find(|(held, _)| same_key(held, key))
+                    else {
+                        return Ok(false);
+                    };
+                    if !self.equal(value.clone(), other.clone(), span)? {
+                        return Ok(false);
                     }
                 }
+                Ok(true)
             }
-            (Some(left), Some(right)) => same_present(&left, &right),
-            _ => false,
-        })
+            (Value::Record(a), Value::Record(b)) => {
+                if a.ty.constructor != b.ty.constructor || a.fields.len() != b.fields.len() {
+                    return Ok(false);
+                }
+                for ((na, va), (nb, vb)) in a.fields.iter().zip(&b.fields) {
+                    if na != nb || !self.equal(va.clone(), vb.clone(), span)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Value::Ok(a, _), Value::Ok(b, _)) | (Value::Err(a, _), Value::Err(b, _)) => {
+                self.equal(a.as_ref().clone(), b.as_ref().clone(), span)
+            }
+            _ => Ok(same_present(&left, &right)),
+        }
+    }
+
+    /// Whether two sequences are equal position by position.
+    fn equal_all(
+        &mut self,
+        left: &[Value],
+        right: &[Value],
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        if left.len() != right.len() {
+            return Ok(false);
+        }
+        for (a, b) in left.iter().zip(right) {
+            if !self.equal(a.clone(), b.clone(), span)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    /// Whether every value of `held` has an equal among `among`.
+    fn each_found(
+        &mut self,
+        held: &[Value],
+        among: &[Value],
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        for value in held {
+            let mut found = false;
+            for other in among {
+                if self.equal(value.clone(), other.clone(), span)? {
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     /// Whether a program's implementation of `Eq` decides this value's

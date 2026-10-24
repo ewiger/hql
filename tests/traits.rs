@@ -333,3 +333,25 @@ fn equality_looks_through_option_to_an_implementation_of_eq() {
         "[true, true, true, true, false, true, false]"
     );
 }
+
+#[test]
+fn a_container_is_equal_by_its_rule_and_its_elements_by_their_eq() {
+    let declared = "type V { x : Int }\n\
+                    impl Eq for V { fn eq(self, o: V) : Bool = self.x % 2 == o.x % 2 }\n\
+                    type W { v : V, n : Int }\n\
+                    a = V(x = 1)\nb = V(x = 3)\nc = V(x = 2)\n";
+    for (query, expected) in [
+        ("[a] == [b]", "true"),
+        ("[a] == [c]", "false"),
+        ("[a, c] == [c, a]", "false"),
+        ("Set([a, c]) == Set([c, b])", "true"),
+        ("W(v = a, n = 1) == W(v = b, n = 1)", "true"),
+        ("W(v = a, n = 1) == W(v = b, n = 2)", "false"),
+        ("some([a]) == some([b])", "true"),
+        ("[[a]] == [[b]]", "true"),
+        ("[[a]] | contains([b])", "true"),
+        ("[a] != [c]", "true"),
+    ] {
+        assert_eq!(shown(&format!("{declared}{query}")), expected, "{query}");
+    }
+}
