@@ -61,6 +61,6 @@ and one claim about which book inspired which.
     channels, and structured logging.
 15. [Agents and runs](15-agents-and-runs.md) — agents as cards, context and
     prompts, tools, and runs kept as values.
-16. [Types, traits and modules](16-types-traits-and-modules.md) — records,
+16. [Types, traits and modules](16-types-traits-and-modules/index.md) — records,
     unions, results, receiver calls, traits and operators, and modules of
     your own.

@@ -46,6 +46,6 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0036](HQL-0036/README.md) | proposed, implemented in part | Partitioning, shuffle boundaries and execution scheduling |
 | [HQL-0037](HQL-0037/README.md) | accepted, implemented in part | Dataflow DAG, fan-out, fan-in, fork and merge |
 | [HQL-0038](HQL-0038/README.md) | implemented | Functions |
-| [HQL-0039](HQL-0039/README.md) | drafted | Traits, validator traits, and traits a module implements |
+| [HQL-0039](HQL-0039/README.md) | drafted | Traits, validator traits, a trait's type, and traits a module implements |
 | [HQL-0040](HQL-0040/README.md) | drafted | `io.fs`: paths, folders, globs and entries |
 | [HQL-0041](HQL-0041/README.md) | drafted | Time, statistics, digests and encodings, randomness, and the environment |

@@ -101,9 +101,8 @@ collection's, told apart by the receiver. A function declared without
 
 A `trait` is a compile-time contract: the functions a type provides to
 satisfy it, some with a default body. `impl Name for Type` provides it once
-per trait and type, and a call on a value dispatches on the value's own type.
-The operators resolve through the core traits: `+` through `Add`, `==`
-through `Eq`, and a type implementing `Ord` sorts.
+per trait and type, and the operators resolve through the core traits: `+`
+through `Add`, `==` through `Eq`, and a type implementing `Ord` sorts.
 
 ```hql
 type Vec2 { x : Int, y : Int }
@@ -119,51 +118,9 @@ Vec2(x = 1, y = 2) + Vec2(x = 3, y = 4)
 Vec2(x = 4, y = 6)
 ```
 
-A bound, `T : Named`, is checked at every call, and inside the body `x.name()`
-resolves through it:
-
-```hql
-trait Named {
-    fn name(self) : String
-}
-
-type Dog { tag : String }
-type Rock { weight : Int }
-
-impl Named for Dog {
-    fn name(self) : String = self.tag
-}
-
-impl Named for Rock {
-    fn name(self) : String = fmt("rock of {}", self.weight)
-}
-
-fn names<T : Named>(xs: List<T>) : List<String> = xs | map(x => x.name())
-
-[names([Dog(tag = "rex")]), names([Rock(weight = 3)])]
-```
-
-```text
-[["rex"], ["rock of 3"]]
-```
-
-`impl Ord for Version` supplies `compare`, and with it `<`, `sort`, `min` and
-`max` take the type:
-
-```hql
-type Version { major : Int, minor : Int }
-
-impl Ord for Version {
-    fn compare(self, other: Version) : Ordering =
-        compare(self.major * 100 + self.minor, other.major * 100 + other.minor)
-}
-
-[Version(major = 1, minor = 10), Version(major = 1, minor = 2)] | sort | map(v => v.minor)
-```
-
-```text
-[2, 10]
-```
+[Traits](traits.md) has a page of its own: required functions and default
+bodies, bounds, a trait extending a trait, and how a trait differs from
+class inheritance.
 
 ## Modules
 

@@ -1,4 +1,4 @@
-# HQL-0039: Traits, validator traits, and traits a module implements
+# HQL-0039: Traits, validator traits, a trait's type, and traits a module implements
 
 **Status**: drafted
 **Created**: 2026-10-23
@@ -12,7 +12,9 @@ A trait is a compile-time contract: a named set of function signatures over
 `Self`, declared in a module's `mod.hql`, that a type satisfies through one
 implementation. A trait is not a type. Its name appears only in a fixed set
 of positions: a bound, an implementation, an extension, a receiver module's
-trait list, and the two validator positions. There are three kinds of trait,
+trait list, and the two validator positions. Its declaration MAY name a type:
+`trait Shape as Figure` declares `Figure`, the union of the types that
+implement `Shape`. There are three kinds of trait,
 all one construct: capability traits, operator traits and validator traits.
 A validator trait, which extends `Validator`, is the form HQL-0034 calls a
 validator type. A field `f: V` declared with one is of the type that
@@ -37,11 +39,15 @@ functions are that implementation.
 - Strings, sequences and streams share capabilities, but each has its own
   receiver module. A trait list on a receiver module states which capability
   each one has, in the place the functions are written.
+- Values of several types that share a capability have no common type. A
+  list of them needs a union declared by hand, which restates the
+  implementing types, and a `match` whose every arm forwards the same call.
 
 ## Non-goals
 
 - Trait objects, existential types, associated types, `derive`, or dynamic
-  registration. None of these exist, and this record adds none.
+  registration. None of these exist, and this record adds none. A trait's
+  named type is a union of declared types, not an existential.
 - New standard traits. Which capabilities of strings, sequences and streams
   become traits is a later record. This one supplies the mechanism.
 - A receiver pattern over a capability, `module math for T where T : Numeric`,
@@ -65,7 +71,8 @@ trait Shape {
 - A trait MUST NOT be the type of a value, a binding, a parameter or a
   result. `s: Shape` as a parameter is refused, with a diagnostic naming the
   bound form `<T : Shape>(s: T)`. The one exception is the validator field described
-  under "Validator traits".
+  under "Validator traits". A type that a trait's declaration names with
+  `as` is a type of its own (see "A trait's type").
 - A trait is checked at compile time. Calling a trait function dispatches on
   the value's own type at run time, so a value held at a wider type still
   takes its own implementation.
@@ -79,6 +86,7 @@ A trait's name is written in exactly these positions.
 | Position | Form | Meaning |
 | --- | --- | --- |
 | declaration | `trait A { … }` | declares `A` |
+| declaration with a type | `trait A as F { … }` | declares `A`, and the type `F` (see "A trait's type") |
 | extension | `trait A : B, C { … }` | `A` has the functions of `B` and `C` as its own |
 | bound | `fn f<T : A>(x: T)` | every call's `T` implements `A`; `x.g()` resolves through `A` |
 | implementation | `impl A for T { … }` | `T` implements `A` |
@@ -86,7 +94,9 @@ A trait's name is written in exactly these positions.
 | validator rule | `validate f with V` | `f`'s value passes `V` (see "Validator traits") |
 | validator field | `f: V` | `f` is of the type that implements `V` and passes `V` (see "Validator traits") |
 
-- A trait's name written in any other type position is refused.
+- A trait's name written in any other type position is refused, unless the
+  trait names its type with its own name, `trait A as A`: that name in a type
+  position is then the type.
 
 ### 3. Kinds of trait
 
@@ -222,6 +232,54 @@ A trait belongs to a module and is declared in that module's `mod.hql`.
 - A trait and the receiver modules implementing it MAY be declared in
   different modules, subject to the ownership rule of "One implementation, either declaration".
 
+### 9. A trait's type
+
+The types that implement a trait form a union. The union has no name unless
+the trait's declaration gives it one with `as`.
+
+```hql
+trait Shape as Figure {
+    fn area(self) : Float
+    fn describe(self) : String = fmt("area {}", self.area())
+}
+
+figures : List<Figure> = [Rect(width = 2.0f, height = 3.0f), Circle(radius = 1.0f)]
+
+figures | map(f => f.describe())    // ["area 6.0", "area 3.0"]
+```
+
+- `trait A as F` declares the trait `A` and the type `F`. `F` is a type in
+  every type position: of a value, a binding, a parameter, a result and an
+  element.
+- The members of `F` are the types that implement `A` in the effective
+  environment, by `impl` or by a module's trait list: the set the coherence
+  rule of "One implementation, either declaration" ranges over. A value of
+  `F` is a value of one member.
+- `F` is a union and is checked as one. A literal is held at `F` by an
+  annotation, as at any union. A `match` over `F` binds each member at its
+  own type and MUST cover every member, so an implementation for a further
+  type makes a `match` without a wildcard arm incomplete.
+- A function of `A`, its own or one of a trait it extends, is a function of
+  `F`. `f.g()` dispatches on the value's own type to that type's
+  implementation.
+- `F` implements `A`, so `F` satisfies a bound `T : A`. The implementation
+  is the union's own, and `impl A for F` is refused.
+- A trait that names its type MUST write `Self` only as the receiver, in its
+  own functions and in those of every trait it extends. Any other `Self`, a
+  parameter `other: Self` or a result `Self`, is refused against the
+  declaration, and the diagnostic names the function. Two values held at `F`
+  may be of two members, so a function relating two values of `Self` has no
+  meaning over `F`.
+- A trait that names its type MUST NOT take type parameters, and MUST NOT be
+  a validator trait. An implementation with type parameters,
+  `impl<T> A for Ring<T>`, of a trait that names its type is refused.
+- `F` MAY be the trait's own name, `trait Named as Named`. A trait position,
+  a bound, an implementation, an extension or a module trait list, reads the
+  trait; a type position reads the type. A validator trait is the one trait
+  written in a type position, and it never names its type, so the two
+  readings never meet.
+- `F` is visible where `A` is, and is private where `A` is private.
+
 ## Backwards Compatibility
 
 Every `trait` and `impl` that checks today checks unchanged. `module m for P`
@@ -229,15 +287,21 @@ without a trait list keeps its meaning. A parameter, binding or result typed
 by a trait is refused, which no existing example writes. "Validator type"
 becomes "validator trait" in HQL-0034, in the type system card and in the
 comments of `lib/std/core/mod.hql` and `lib/std/validators/mod.hql`. Their behaviour
-is unchanged.
+is unchanged. `as` after a trait's name is new syntax, and a trait without it
+declares no type.
 
 ## Reference Implementation
 
-- `src/parser.rs`: the trait list after `module <name> for <pattern>`
+- `src/parser.rs`: the trait list after `module <name> for <pattern>`, and
+  `as <Name>` after a trait's name
 - `src/checker.rs`, `src/declarations.rs`: implementations collected from a
   module's trait list into the same registry as `impl`; the missing-function,
   shared-name and coherence diagnostics; refusal of a trait in a type
   position other than a validator field
+- `src/checker.rs`: a trait's named type as the union of the trait's
+  implementing types, its own implementation of the trait, and the
+  diagnostics for `Self` outside the receiver, a type parameter, a validator
+  trait, a generic implementation and `impl A for F`
 - `src/extensions/binding.rs`: native implementations from a module's
   bodyless functions
 - `lib/std/string/mod.hql`, `lib/std/seq/mod.hql`: `Index` and `Slice` stated in the
@@ -262,6 +326,14 @@ Proposed cases under `examples/`, with `status: proposed` and
 - invalid: a module listing two traits that require the same function
 - invalid: `impl Shape for Circle` beside `module shapes.circle for Circle : Shape`
 - invalid: a parameter typed by a trait
+- `trait Shape as Figure`: a `List<Figure>` holding two implementing types,
+  `f.describe()` through it, `Figure` satisfying `T : Shape`, and a `match`
+  over its members ([`examples/traits/`](../../../examples/traits/README.md))
+- `trait Named as Named`: one name read as the trait in a bound and as the
+  type elsewhere
+- invalid: a trait naming its type with `other: Self` in one of its functions
+- invalid: a `match` over a trait's named type missing one implementing type
+- invalid: `impl Shape for Figure`
 
 ```bash
 cargo test --locked --test traits --test corpus --test structural --test extension_contracts
