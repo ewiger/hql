@@ -864,10 +864,35 @@ impl Evaluator<'_> {
     /// absence and nothing present.
     #[inline(never)]
     fn equality(&mut self, left: &Expr, right: &Expr, negated: bool) -> Result<Value, Diagnostic> {
+        let span = left.span.start..right.span.end;
         let left = self.expression(left)?;
         let right = self.expression(right)?;
-        let equal = match (present(left), present(right)) {
+        let equal = self.equal(left, right, &span)?;
+        Ok(Value::Bool(equal != negated))
+    }
+
+    /// Whether two values are equal as `==` says: through `Option`, with a
+    /// `Data` leaf against its plain value, and by the `eq` an implementation
+    /// of `Eq` provides where one applies to the left value.
+    fn equal(
+        &mut self,
+        left: Value,
+        right: Value,
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        Ok(match (present(left), present(right)) {
             (None, None) => true,
+            (Some(left), Some(right)) if self.implements_eq(&left) => {
+                match self.dispatch("Eq", "eq", left, vec![right], span)? {
+                    Value::Bool(equal) => equal,
+                    other => {
+                        return Err(Diagnostic::runtime(
+                            span.clone(),
+                            format!("`eq` returned {}, not a Bool", other.type_of()),
+                        ));
+                    }
+                }
+            }
             (Some(left), Some(right))
                 if matches!(left, Value::Data(_)) || matches!(right, Value::Data(_)) =>
             {
@@ -875,8 +900,18 @@ impl Evaluator<'_> {
             }
             (Some(left), Some(right)) => left == right,
             _ => false,
-        };
-        Ok(Value::Bool(equal != negated))
+        })
+    }
+
+    /// Whether a program's implementation of `Eq` decides this value's
+    /// equality.
+    fn implements_eq(&self, value: &Value) -> bool {
+        let ty = value.type_of();
+        self.impls.iter().any(|held| {
+            held.trait_name == "Eq"
+                && held.methods.contains_key("eq")
+                && (ty.is(&held.target) || ty.constructor == held.target.constructor)
+        })
     }
 
     /// A function value applied to its arguments, the trailing ones packed

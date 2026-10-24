@@ -718,3 +718,8 @@ fn empty_brackets_are_refused_alike_across_a_line_break() {
         }
     }
 }
+
+#[test]
+fn none_alone_covers_an_option_of_never() {
+    assert_eq!(eval("match none { none => 1 }"), Ok(Value::Int(1)));
+}

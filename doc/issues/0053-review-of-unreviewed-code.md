@@ -133,7 +133,7 @@ commit that closes it. Issue 0052's items are folded in as the last units.
 - [x] U6 — checker: operators dispatch through their own trait (8)
 - [x] U7 — checker: `Self` is the implementing type (9)
 - [x] U8 — checker: a widened record parameter re-checks its fields (10)
-- [ ] U9 — checker: `Option` equality, `match none`, parameter limit text (11, 12, 13)
+- [x] U9 — checker: `Option` equality, `match none`, parameter limit text (11, 12, 13)
 - [ ] U10 — collections: HQL equality in `approx_distinct`, `join`, `tally`, `group`, `count`, `contains` (15, 16, 17, 19)
 - [ ] U11 — collections: `take` on a `Set` by its order (14)
 - [ ] U12 — collections: finite iterating functions in `collect`, `emit`, `flat_map` (18)

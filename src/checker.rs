@@ -2368,7 +2368,7 @@ impl<'a> Checker<'a> {
         if alias.parameters.len() > 4 {
             return Err(Diagnostic::typing(
                 alias.span.clone(),
-                "a function takes at most eight parameters",
+                "a function written `f(…) := body` takes at most four parameters",
             ));
         }
         let candidates: Vec<TypeRef> = if implicit {
@@ -4942,24 +4942,30 @@ impl<'a> Checker<'a> {
                         return Err(Diagnostic::typing(span, message));
                     }
                 }
-                // A type implementing `Eq` decides its own equality.
-                if left_type.constructor.0 != "Option"
-                    && let Some(signatures) = self.trait_method(&left_type, "Eq", "eq")
+                // A type implementing `Eq` decides its own equality, through
+                // `Option` on either side as every equality looks.
+                let (left_present, right_present) = (left_type.present(), right_type.present());
+                if let Some(signatures) = self.trait_method(left_present, "Eq", "eq")
                     && self
                         .impls
                         .iter()
-                        .any(|held| held.trait_name == "Eq" && left_type.is(&held.target))
+                        .any(|held| held.trait_name == "Eq" && left_present.is(&held.target))
                 {
                     let parameter = signatures[0].parameters[0].clone();
-                    if !right_type.is(&parameter) {
+                    if !right_present.is(&parameter) {
                         return Err(Diagnostic::typing(
                             span,
                             format!(
-                                "`Eq` for {left_type} compares with {parameter}, not {right_type}"
+                                "`Eq` for {left_present} compares with {parameter}, not {right_present}"
                             ),
                         ));
                     }
-                    self.checked.operator_calls.insert(span, "Eq");
+                    // A present value on each side is a call of `eq`; an
+                    // `Option` is compared by the evaluator's equality, which
+                    // calls it once both are present.
+                    if left_present == &left_type && right_present == &right_type {
+                        self.checked.operator_calls.insert(span, "Eq");
+                    }
                     return Ok(TypeRef::BOOL);
                 }
                 // An open tree's leaf may be compared with a literal: that is
@@ -6094,7 +6100,9 @@ fn exhaustive(patterns: &[&Pattern], subject: &TypeRef) -> bool {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        return patterns.contains(&&Pattern::None) && exhaustive(&present, subject.present());
+        // `Option<Never>` has no present value, so `none` alone covers it.
+        return patterns.contains(&&Pattern::None)
+            && (*subject.present() == TypeRef::NEVER || exhaustive(&present, subject.present()));
     }
     if *subject == TypeRef::BOOL {
         return patterns.contains(&&Pattern::Bool(true))

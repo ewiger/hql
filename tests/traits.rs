@@ -319,3 +319,17 @@ fn self_in_a_trait_function_is_the_implementing_type() {
         "[true, true]"
     );
 }
+
+#[test]
+fn equality_looks_through_option_to_an_implementation_of_eq() {
+    let declared = "type V { x : Int }\n\
+                    impl Eq for V { fn eq(self, o: V) : Bool = true }\n\
+                    a = V(x = 1)\nb = V(x = 2)\n\
+                    o : Option<V> = some(a)\nn : Option<V> = none\n";
+    assert_eq!(
+        shown(&format!(
+            "{declared}[a == b, o == b, b == o, o == some(b), n == b, n == n, o != b]"
+        )),
+        "[true, true, true, true, false, true, false]"
+    );
+}

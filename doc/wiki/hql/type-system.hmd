@@ -490,7 +490,7 @@ names only introducing a type parameter
 ([bind versus apply](../../models/behavior/bind-vs-apply-in-generic-types.md)).
 
 Function types, function values and variadic parameters are implemented, up
-to four parameters. A lambda written as a value types its parameters, by
+to eight parameters, and up to four for a function written `f(…) := body`. A lambda written as a value types its parameters, by
 annotation, `(c: Card) => c.title`, or from the function type it is bound
 at, `f : Card -> String = c => c.title`. `fn name(p: T) : R = body` declares a
 function; its name is bound before the body is checked, so it may recurse.
