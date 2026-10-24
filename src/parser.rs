@@ -1846,21 +1846,27 @@ impl Parser {
                 kind: Kind::Ident(FORK_INPUT.to_owned()),
                 span: named.span.clone(),
             };
-            let first = self.link()?;
-            let mut branch = Expr {
-                span: named.span.start..first.span.end,
-                kind: Kind::Pipe(Box::new(input), Box::new(first)),
-            };
+            let column = self.column(named.span.start);
+            let first = self.step(column)?;
+            let mut branch = piped(input, first);
             while self.at_infix(&Token::Pipe) {
+                let pipe_column = self.column(self.tokens[self.index - 1].span.start);
                 self.continuation();
-                let next = self.link()?;
-                branch = Expr {
-                    span: branch.span.start..next.span.end,
-                    kind: Kind::Pipe(Box::new(branch), Box::new(next)),
-                };
+                let next = self.step(pipe_column)?;
+                branch = piped(branch, next);
             }
             branches.push((name, branch));
-            self.eat(&Token::Comma);
+            if !self.eat(&Token::Comma)
+                && !matches!(
+                    self.tokens[self.index].token,
+                    Token::Newline | Token::CloseBrace
+                )
+            {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    "branches of a `fork` are separated by a line break or a comma",
+                ));
+            }
         };
         if branches.is_empty() {
             return Err(Diagnostic::syntax(
@@ -1890,28 +1896,34 @@ impl Parser {
         while self.at_infix(&Token::Pipe) {
             let pipe_column = self.column(self.tokens[self.index - 1].span.start);
             self.continuation();
-            let right = if self.at_tee() {
-                self.tee(pipe_column)?
-            } else if self.at_fork() {
-                self.fork()?
-            } else if self.at_type_step() {
-                // `xs | List<Int>`: a constructor with its type arguments and
-                // no argument list of its own.
-                let annotation = self.simple_type()?;
-                let span = annotation.span.clone();
-                Expr {
-                    kind: Kind::Construct {
-                        annotation,
-                        arguments: Vec::new(),
-                    },
-                    span,
-                }
-            } else {
-                self.link()?
-            };
+            let right = self.step(pipe_column)?;
             left = piped(left, right);
         }
         Ok(left)
+    }
+
+    /// One step of a pipeline after a `|`: a `tee`, a `fork`, a type step
+    /// such as `List<Int>`, or an expression.
+    fn step(&mut self, pipe_column: usize) -> Result<Expr, Diagnostic> {
+        if self.at_tee() {
+            self.tee(pipe_column)
+        } else if self.at_fork() {
+            self.fork()
+        } else if self.at_type_step() {
+            // `xs | List<Int>`: a constructor with its type arguments and
+            // no argument list of its own.
+            let annotation = self.simple_type()?;
+            let span = annotation.span.clone();
+            Ok(Expr {
+                kind: Kind::Construct {
+                    annotation,
+                    arguments: Vec::new(),
+                },
+                span,
+            })
+        } else {
+            self.link()
+        }
     }
 
     /// Whether the next step is a type name with type arguments and no

@@ -126,7 +126,7 @@ carries a regression test for every item it closes. A unit is ticked here in the
 commit that closes it. Issue 0052's items are folded in as the last units.
 
 - [x] U1 — parser: an argument list cut off at the end of input (1)
-- [ ] U2 — parser: `fork` branches are pipelines and need a separator (2, 3)
+- [x] U2 — parser: `fork` branches are pipelines and need a separator (2, 3)
 - [ ] U3 — parser: destructuring across lines and with a trailing comma (4)
 - [ ] U4 — parser: `import` and `impl` usable as names (5)
 - [ ] U5 — parser: `type X =` and a line break; empty brackets (6, 7)

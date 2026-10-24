@@ -531,3 +531,16 @@ fn the_localhost_plan_puts_every_step_in_one_stage() {
         );
     }
 }
+
+#[test]
+fn a_fork_branch_is_a_pipeline_and_branches_are_separated() {
+    holds("([1, 2, 3] | fork { a = take(2) | List<Int> }).a == [1, 2]");
+    holds("([1, 2, 3] | fork { a = fork { b = take(1) } }).a.b == [1]");
+    holds("([1, 2, 3] | fork { a = take(1) | fork { b = size() } }).a.b == 1");
+    holds("([1, 2, 3] | fork { a = take(2), b = take(1) }).b == [1]");
+    holds("([1, 2, 3] | fork {\n  a = take(2)\n  b = take(1)\n}).b == [1]");
+    assert!(matches!(
+        check("[1, 2, 3] | fork { a = take(2) b = take(1) }"),
+        Err(hql::diagnostics::Diagnostic::Syntax { .. })
+    ));
+}
