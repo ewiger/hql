@@ -807,10 +807,12 @@ pub fn sqlite_rows(
     };
     let selected = columns.filter(|columns| !columns.is_empty()).map_or_else(
         || "*".to_owned(),
+        // Each under the name the boundary reads it by: SQLite matches a
+        // column name without regard to case, and gives back its own.
         |columns| {
             columns
                 .iter()
-                .map(|column| quoted(column))
+                .map(|column| format!("{} AS {}", quoted(column), quoted(column)))
                 .collect::<Vec<_>>()
                 .join(", ")
         },
@@ -861,6 +863,13 @@ pub fn sqlite_write(
     columns: &[(String, String)],
     rows: &[Vec<rusqlite::types::Value>],
 ) -> Result<(), String> {
+    if columns.is_empty() {
+        return Err(format!(
+            "{}: no field of the record is written to table `{table}`; a field with \
+             `write = false` is not a column",
+            path.display()
+        ));
+    }
     let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
     let quoted = |name: &str| format!("\"{}\"", name.replace('"', "\"\""));
     let mut connection = rusqlite::Connection::open(path).map_err(located)?;

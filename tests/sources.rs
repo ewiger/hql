@@ -725,3 +725,42 @@ fn an_unreadable_configuration_is_an_error_not_an_empty_one() {
     assert!(error.contains("hql.toml"), "{error}");
     assert!(!error.contains("no source"), "{error}");
 }
+
+#[test]
+fn a_column_name_matches_without_regard_to_case_and_a_write_needs_a_column() {
+    let extra = r#"
+[sources.cased]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "cased"
+
+[sources.out]
+kind = "sqlite"
+path = "data/out.sqlite"
+table = "o"
+[sources.out.fields.id]
+write = false
+"#;
+    let (dir, vault) = configured(extra);
+    rusqlite::Connection::open(dir.path().join("data/birds.sqlite"))
+        .unwrap()
+        .execute_batch(
+            "create table cased(ID integer, Name text); insert into cased values (1, 'a');",
+        )
+        .unwrap();
+    assert_eq!(
+        value(
+            "type T { id : Int, name : String }\nts : Seq<T> = source(\"cased\")\nts | map(t => t.name) | List",
+            &vault
+        ),
+        r#"["a"]"#
+    );
+    let refused = refusal(
+        "type O { id : Int }\nw = [O(id = 1)] | target(\"out\")\n1",
+        &vault,
+    );
+    assert!(
+        refused.contains("no field of the record is written"),
+        "{refused}"
+    );
+}

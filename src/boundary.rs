@@ -170,6 +170,29 @@ pub fn written(external: &External) -> String {
     }
 }
 
+/// Whether two external fields are one: a name and a path of one segment
+/// are, a name holding a dot and a path through two levels are not.
+fn same_external(left: &External, right: &External) -> bool {
+    match (left, right) {
+        (External::Name(name), External::Path(segments))
+        | (External::Path(segments), External::Name(name)) => {
+            matches!(segments.as_slice(), [only] if only == name)
+        }
+        _ => left == right,
+    }
+}
+
+/// Whether two names of an external field are one in `kind`: SQLite column
+/// names compare without regard to ASCII case, every other format's exactly.
+#[must_use]
+pub fn same_name(kind: &str, left: &str, right: &str) -> bool {
+    if family(kind) == "sqlite" {
+        left.eq_ignore_ascii_case(right)
+    } else {
+        left == right
+    }
+}
+
 /// The layers of one boundary, earliest first after the format's defaults.
 #[derive(Debug, Clone, Copy)]
 pub struct Layers<'a> {
@@ -309,7 +332,7 @@ pub fn resolve(
         }
         if let Some(known) = external
             && held.readable.value
-            && !known.contains(&outside)
+            && !known.iter().any(|name| same_name(kind, name, &outside))
         {
             if held.external.origin != Origin::Format {
                 errors.push(error(
@@ -333,9 +356,9 @@ pub fn resolve(
             }
         }
         if held.readable.value
-            && let Some(first) = resolved
-                .iter()
-                .find(|other| other.readable.value && written(&other.external.value) == outside)
+            && let Some(first) = resolved.iter().find(|other| {
+                other.readable.value && same_external(&other.external.value, &held.external.value)
+            })
             && first.field.name != *name
         {
             errors.push(error(
@@ -669,6 +692,27 @@ mod tests {
             "{}",
             errors[0]
         );
+        // A name holding a dot is not the path through two levels.
+        let fields = [
+            declared("flat", TypeRef::STR, false),
+            declared("deep", TypeRef::STR, false),
+        ];
+        let configuration = BTreeMap::from([
+            ("flat".to_owned(), mapping("a.b")),
+            (
+                "deep".to_owned(),
+                FieldMapping {
+                    external: Some(External::Path(vec!["a".to_owned(), "b".to_owned()])),
+                    ..FieldMapping::default()
+                },
+            ),
+        ]);
+        let layers = Layers {
+            configuration: &configuration,
+            invocation: &none,
+            declared: None,
+        };
+        assert!(resolve("dotted", "json", &fields, layers, None).is_ok());
     }
 
     #[test]

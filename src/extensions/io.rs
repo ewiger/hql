@@ -826,7 +826,7 @@ fn boundary_reads(boundary: &crate::boundary::EffectiveBoundary, key: &str) -> b
     boundary.fields.iter().any(|field| {
         field.readable.value
             && match &field.external.value {
-                External::Name(name) => name == key,
+                External::Name(name) => crate::boundary::same_name(&boundary.kind, name, key),
                 External::Path(segments) => segments.first().is_some_and(|first| first == key),
             }
     })
