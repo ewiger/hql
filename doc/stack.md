@@ -133,7 +133,7 @@ contrib/semantics && pytest` is the command.
 
 ## Documentation site
 
-[hql.hypermarkdown.org](https://hql.hypermarkdown.org/) is `doc/` built by
+[hql.hypermarkdown.org](https://hql.hypermarkdown.org/) is `doc/public/` built by
 [MkDocs](https://www.mkdocs.org/) with the Material theme, the same
 arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
 `contrib/`, it is Python tooling that the crate never depends on.
@@ -141,14 +141,13 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
 - `mkdocs.yml` is the site. `pyproject.toml` exists only to install the
   `hypermarkdown[mkdocs]` package with [uv](https://docs.astral.sh/uv/), and
   `uv.lock` pins what the site is built with.
-- The site is for people using HQL, not for people designing it. The wiki,
-  the proposals, the models other than the `Reference` pages, `DEVELOP.md`,
-  this file, `doc/issues/`, `doc/memory/` and `doc/status/` are excluded from
-  the build, and a public page does not link to them.
+- The site is for people using HQL, not for people designing it. Only
+  `doc/public/` is published; the wiki, the models, the proposals and the rest
+  of `doc/` stay in the repository, and a public page does not link to them.
+  A link to a repository file outside `doc/public/` is a GitHub URL.
 - The site describes the latest release only; there is no archive of older
   versions. Before 1.0 a release may break the previous one.
-- `Learn` pages live in `doc/public/`, written for a reader new to HQL. The
-  `Reference` tab lists the behavior models a reader consults.
+- `doc/public/` is written for a reader new to HQL.
 - Every program on a `Learn` page is run against the current binary before it
   is published, and its printed output is copied from that run.
 - Prose on the site states semantics. A descriptive sentence names an

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/ewiger/hql/main/doc/assets/logo.svg" width="76" height="76" alt="">
+<img src="https://raw.githubusercontent.com/ewiger/hql/main/doc/public/assets/logo.svg" width="76" height="76" alt="">
 
 # HQL
 

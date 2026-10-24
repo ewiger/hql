@@ -34,10 +34,10 @@ source(file("sightings.jsonl"), Json)
 
 <div class="grid cards" markdown>
 
-- **[Install](public/install.md)** — a release binary or `cargo install hql`.
-- **[Learn HQL](public/learn/index.md)** — the book, one runnable program at a
+- **[Install](install.md)** — a release binary or `cargo install hql`.
+- **[Learn HQL](learn/index.md)** — the book, one runnable program at a
   time.
-- **[Reference](public/reference.md)** — the grammar, the command line, and
+- **[Reference](reference.md)** — the grammar, the command line, and
   reporting.
 
 </div>

@@ -1,16 +1,5 @@
 # Reference
 
-These pages describe what the binary implements. Where a page describes
-language the binary does not run yet, its status line says so.
-
-| Page | Covers |
-| --- | --- |
-| [Expressions](../models/behavior/expressions.md) | The grammar the parser accepts, and how expressions are checked |
-| [Command line](../models/behavior/cli.md) | `hql`'s commands, options, exit codes and configuration |
-| [Reporting](../models/behavior/reporting.md) | Warnings, errors and failures, and the `strict` and `collect` modes |
-| [Queries](../models/behavior/queries.md) | How a query is sourced and traversed |
-| [Program values](../models/behavior/program-values.md) | What a program returns, and what the host does with it |
-
 ## Commands at a glance
 
 | Command | What it does |

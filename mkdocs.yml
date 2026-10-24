@@ -9,34 +9,16 @@ site_url: https://hql.hypermarkdown.org/
 
 repo_url: https://github.com/ewiger/hql
 repo_name: ewiger/hql
-edit_uri: edit/main/doc/
+edit_uri: edit/main/doc/public/
 
 # Everything in this repository is MIT, code and prose alike, so one string
 # states the whole claim and no footer template has to carry two.
 copyright: © 2026 Yauhen Yakimovich · <a href="https://github.com/ewiger/hql/blob/main/LICENSE">MIT</a>
 
-docs_dir: doc
-
-# The site is for people using HQL. The design of the language — the wiki
-# cards, the proposals, the working memory and the build notes — stays in the
-# repository and is not published.
-exclude_docs: |
-  *.hmd
-  wiki/
-  issues/
-  memory/
-  status/
-  proposals/
-  DEVELOP.md
-  stack.md
-  models/*
-  !models/behavior/
-  models/behavior/*
-  !models/behavior/expressions.md
-  !models/behavior/cli.md
-  !models/behavior/reporting.md
-  !models/behavior/queries.md
-  !models/behavior/program-values.md
+# The site is for people using HQL, and only `doc/public/` is published. The
+# design of the language — the wiki, the models, the proposals and the working
+# memory — stays in the repository.
+docs_dir: doc/public
 
 # A card and its folder note share one URL, so directory URLs are required.
 use_directory_urls: true
@@ -87,52 +69,46 @@ plugins:
   - search
 
 # `Learn` is the prose read cold, in reading order. `Reference` is what is
-# consulted afterwards: the implemented grammar and host.
+# consulted afterwards.
 nav:
   - Home: index.md
   - Learn:
-      - Install: public/install.md
+      - Install: install.md
       - The HQL book:
-          - public/learn/index.md
-          - 1. Hello world: public/learn/01-hello-world.md
+          - learn/index.md
+          - 1. Hello world: learn/01-hello-world.md
           - 2. Data types:
-              - public/learn/02-data-types/index.md
-              - Int: public/learn/02-data-types/int.md
-              - Float: public/learn/02-data-types/float.md
-              - Decimal: public/learn/02-data-types/decimal.md
-              - String: public/learn/02-data-types/string.md
-              - Bool: public/learn/02-data-types/bool.md
-              - Data: public/learn/02-data-types/data.md
-              - Option: public/learn/02-data-types/option.md
-              - Sets, Data and maps: public/learn/02-data-types/sets-data-and-maps.md
-          - 3. Collections: public/learn/03-collections.md
-          - 4. Functions: public/learn/04-functions.md
-          - 5. Asking questions: public/learn/05-questions.md
-          - 6. A vault of documents: public/learn/06-a-vault.md
-          - 7. Links and graphs: public/learn/07-graphs.md
-          - 8. Finding cards by meaning: public/learn/08-retrieval.md
-          - 9. Streams that do not end: public/learn/09-streams.md
-          - 10. Writing results out: public/learn/10-output.md
-          - 11. Queries inside documents: public/learn/11-documents.md
-          - 12. Working with hql: public/learn/12-working-with-hql.md
-          - 13. Reading and writing data: public/learn/13-reading-and-writing.md
-          - 14. Channels and logs: public/learn/14-channels-and-logs.md
-          - 15. Agents and runs: public/learn/15-agents-and-runs.md
+              - learn/02-data-types/index.md
+              - Int: learn/02-data-types/int.md
+              - Float: learn/02-data-types/float.md
+              - Decimal: learn/02-data-types/decimal.md
+              - String: learn/02-data-types/string.md
+              - Bool: learn/02-data-types/bool.md
+              - Data: learn/02-data-types/data.md
+              - Option: learn/02-data-types/option.md
+              - Sets, Data and maps: learn/02-data-types/sets-data-and-maps.md
+          - 3. Collections: learn/03-collections.md
+          - 4. Functions: learn/04-functions.md
+          - 5. Asking questions: learn/05-questions.md
+          - 6. A vault of documents: learn/06-a-vault.md
+          - 7. Links and graphs: learn/07-graphs.md
+          - 8. Finding cards by meaning: learn/08-retrieval.md
+          - 9. Streams that do not end: learn/09-streams.md
+          - 10. Writing results out: learn/10-output.md
+          - 11. Queries inside documents: learn/11-documents.md
+          - 12. Working with hql: learn/12-working-with-hql.md
+          - 13. Reading and writing data: learn/13-reading-and-writing.md
+          - 14. Channels and logs: learn/14-channels-and-logs.md
+          - 15. Agents and runs: learn/15-agents-and-runs.md
           - 16. Types, traits and modules:
-              - public/learn/16-types-traits-and-modules/index.md
-              - Traits: public/learn/16-types-traits-and-modules/traits.md
-      - Examples: public/examples.md
-  - Reference:
-      - Overview: public/reference.md
-      - Expressions: models/behavior/expressions.md
-      - Command line: models/behavior/cli.md
-      - Reporting: models/behavior/reporting.md
-      - Queries: models/behavior/queries.md
-      - Program values: models/behavior/program-values.md
+              - learn/16-types-traits-and-modules/index.md
+              - Traits: learn/16-types-traits-and-modules/traits.md
+      - Examples: examples.md
+  - Reference: reference.md
 
 # The roadmap is reached from the book's closing pages, not from the nav.
 not_in_nav: |
-  public/roadmap.md
+  roadmap.md
 
 extra:
   generator: false
@@ -147,10 +123,8 @@ extra:
 extra_css:
   - assets/hql.css
 
-# Cards and models link out to the repository — source, `contrib/`, `.grem/`
-# styles — with ordinary relative links. Those targets are real files but not
-# site pages, so a miss is reported rather than fatal. Wikilinks are checked by
-# `hmd lint`, not by MkDocs.
+# A miss is reported rather than fatal; `doc/stack.md` asks public pages to
+# link to the repository by URL, so a miss is a page to fix.
 validation:
   links:
     not_found: info

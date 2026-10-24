@@ -351,7 +351,7 @@ expected, as above. The type comes from the configuration, so checking reads
 computed `id` is a type error, and `source("postgres://db/birds")` is refused
 with a diagnostic saying connection details belong in configuration. An id
 the configuration does not declare is a name error that suggests the nearest
-one. The [data sources examples](../../../examples/sources/README.md) read
+one. The [data sources examples](https://github.com/ewiger/hql/tree/main/examples/sources) read
 two vaults side by side.
 
 ## What is next

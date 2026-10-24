@@ -49,11 +49,9 @@ HQL
 
 ## Work
 
-1. **Take the design corpus off the site.** Done: the wiki, proposals,
-   `DEVELOP.md`, `stack.md` and the models other than the `Reference` pages
-   are excluded from the build, the `hypermarkdown` plugin is gone, and the
-   public pages no longer link to them. The five `Reference` pages are still
-   behavior models and link into the design corpus; step 4 replaces them.
+1. **Take the design corpus off the site.** Done: only `doc/public/` is
+   published, and the `hypermarkdown` plugin is gone. Reference is down to its
+   overview page until step 4 writes it.
 2. **Home is the introduction.** Done: the Introduction page is gone, and
    Home states what HQL is in two sentences, shows a pipeline and a
    `source`/`target` example, and links Install, Learn and Reference.
