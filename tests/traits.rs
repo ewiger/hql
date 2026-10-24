@@ -284,3 +284,21 @@ fn the_codec_headers_are_the_decoder_and_encoder_tables() {
         .count();
     assert_eq!(encoders, 2, "a Graph, or a document holding one");
 }
+
+#[test]
+fn an_operator_resolves_through_its_own_trait_only() {
+    let foo = "type V { x : Int }\n\
+               trait Foo { fn add(self, o: V) : V\n fn eq(self, o: V) : Bool }\n\
+               impl Foo for V {\n\
+                 fn add(self, o: V) : V = V(x = self.x + o.x)\n\
+                 fn eq(self, o: V) : Bool = true\n\
+               }\n";
+    assert!(refused(&format!("{foo}(V(x = 1) + V(x = 1)).x")).contains("implementing `Add`"));
+    assert_eq!(shown(&format!("{foo}V(x = 1) == V(x = 2)")), "false");
+    let both = format!(
+        "{foo}impl Add for V {{ fn add(self, o: V) : V = V(x = self.x * 10 + o.x) }}\n\
+         impl Eq for V {{ fn eq(self, o: V) : Bool = self.x % 2 == o.x % 2 }}\n"
+    );
+    assert_eq!(shown(&format!("{both}(V(x = 1) + V(x = 1)).x")), "11");
+    assert_eq!(shown(&format!("{both}V(x = 1) == V(x = 3)")), "true");
+}

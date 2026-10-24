@@ -4204,6 +4204,26 @@ impl<'a> Checker<'a> {
         })
     }
 
+    /// The signatures of `trait_name`'s function `name` for `receiver`, one
+    /// per implementation that applies; `None` when none does. An operator
+    /// resolves through its own trait this way, never through another
+    /// trait's function of the same name.
+    fn trait_method(
+        &self,
+        receiver: &TypeRef,
+        trait_name: &str,
+        name: &str,
+    ) -> Option<Vec<MethodSig>> {
+        let info = self.traits.get(trait_name)?;
+        let signature = info.methods.iter().find(|method| method.name == name)?;
+        let signatures: Vec<MethodSig> = self
+            .applicable(receiver, trait_name)
+            .iter()
+            .map(|applies| signature_in_place(signature, receiver, info, &applies.arguments))
+            .collect();
+        (!signatures.is_empty()).then_some(signatures)
+    }
+
     fn method_for(
         &self,
         receiver: &TypeRef,
@@ -4214,16 +4234,7 @@ impl<'a> Checker<'a> {
         let mut names: Vec<&String> = self.traits.keys().collect();
         names.sort();
         for trait_name in names {
-            let info = &self.traits[trait_name];
-            let Some(signature) = info.methods.iter().find(|method| method.name == name) else {
-                continue;
-            };
-            let signatures: Vec<MethodSig> = self
-                .applicable(receiver, trait_name)
-                .iter()
-                .map(|applies| signature_in_place(signature, receiver, info, &applies.arguments))
-                .collect();
-            if !signatures.is_empty() {
+            if let Some(signatures) = self.trait_method(receiver, trait_name, name) {
                 found.push((trait_name.clone(), signatures));
             }
         }
@@ -4907,7 +4918,7 @@ impl<'a> Checker<'a> {
                 }
                 // A type implementing `Eq` decides its own equality.
                 if left_type.constructor.0 != "Option"
-                    && let Some((_, signatures)) = self.method_for(&left_type, "eq", &span)?
+                    && let Some(signatures) = self.trait_method(&left_type, "Eq", "eq")
                     && self
                         .impls
                         .iter()
@@ -5300,7 +5311,7 @@ impl<'a> Checker<'a> {
             // Any other type resolves the operator through its trait: a
             // declared type implementing `Add` has an addition of its own.
             let (trait_name, method) = operator_trait(operator);
-            let Some((_, signatures)) = self.method_for(&expected, method, &node)? else {
+            let Some(signatures) = self.trait_method(&expected, trait_name, method) else {
                 return Err(Diagnostic::typing(
                     left.span.clone(),
                     format!(
