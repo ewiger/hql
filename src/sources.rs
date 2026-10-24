@@ -373,8 +373,14 @@ impl Sources {
     /// the reserved id `vault`, a literal secret, an unknown kind, a missing
     /// or unknown key.
     pub fn read(root: &Path) -> Result<Self, String> {
-        let Ok(text) = std::fs::read_to_string(root.join(crate::reporting::CONFIG_FILE)) else {
-            return Ok(Self::default());
+        // Only a missing file means no sources; one that cannot be read is
+        // an error, never an empty configuration.
+        let text = match std::fs::read_to_string(root.join(crate::reporting::CONFIG_FILE)) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self::default());
+            }
+            Err(error) => return Err(format!("{}: {error}", crate::reporting::CONFIG_FILE)),
         };
         let parsed: toml::Value = toml::from_str(&text)
             .map_err(|error| format!("{}: {error}", crate::reporting::CONFIG_FILE))?;

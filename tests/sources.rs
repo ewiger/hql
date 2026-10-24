@@ -709,3 +709,19 @@ table = "blobs"
         .contains("not UTF-8")
     );
 }
+
+#[test]
+fn an_unreadable_configuration_is_an_error_not_an_empty_one() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("hql.toml"),
+        b"# caf\xe9\n[sources.prices]\nkind = \"json\"\npath = \"p.json\"\n",
+    )
+    .unwrap();
+    let error = match vault::load(dir.path()) {
+        Err(error) => error.to_string(),
+        Ok(vault) => refusal("xs : Seq<Data> = source(\"prices\")\nxs | List", &vault),
+    };
+    assert!(error.contains("hql.toml"), "{error}");
+    assert!(!error.contains("no source"), "{error}");
+}

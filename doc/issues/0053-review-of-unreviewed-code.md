@@ -138,7 +138,7 @@ commit that closes it. Issue 0052's items are folded in as the last units.
 - [x] U11 — collections: `take` on a `Set` by its order (14)
 - [x] U12 — collections: finite iterating functions in `collect`, `emit`, `flat_map` (18)
 - [x] U13 — SQLite read: `Bool`, `Float` from integers, declared `Decimal` columns, no `rowid`, `BLOB` (20–24)
-- [ ] U14 — sources: an unreadable `hql.toml` is an error (25)
+- [x] U14 — sources: an unreadable `hql.toml` is an error (25)
 - [ ] U15 — boundary: name and path collision, column case, no writable column (26, 27, 28)
 - [ ] U16 — io: swapped external names, `path` in a closed record (29, 30)
 - [ ] U17 — SQLite write: a `Decimal` keeps its digits (0052, item 1)
