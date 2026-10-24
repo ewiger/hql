@@ -14,7 +14,7 @@ evaluating anything:
 
 ```text
 $ hql repl
-hql 0.4.2. `:help` for commands, `:quit` to leave.
+hql 0.5.0. `:help` for commands, `:quit` to leave.
 hql> pages = 412
 ()
 hql> pages / 3
@@ -96,6 +96,7 @@ Int
 | `String` | text | [String](string.md) |
 | `Bool` | `true` or `false` | [Bool](bool.md) |
 | `Data` | a tree of records, lists and scalars | [Data](data.md) |
+| `Option<T>` | a `T`, or nothing | [Option](option.md) |
 
 Braces write three different things — a set, a `Data` record and, where one
 is declared, a map — and [sets, Data and maps](sets-data-and-maps.md) tells

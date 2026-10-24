@@ -33,8 +33,8 @@ and one claim about which book inspired which.
 1. [Hello world](01-hello-world.md) — the first program, running it, and
    the check before a program runs.
 2. [Data types](02-data-types/index.md) — `Int`, `Float`, `String` and
-   `Bool` in the REPL, `Data` and its JSON-shaped trees, and how sets, `Data`
-   and maps differ.
+   `Bool` in the REPL, `Data` and its JSON-shaped trees, `Option` for a value
+   that may be missing, and how sets, `Data` and maps differ.
 3. [Collections](03-collections.md) — lists, sets and maps, and the steps they
    share.
 4. [Functions](04-functions.md) — lambdas, declared and generic functions,

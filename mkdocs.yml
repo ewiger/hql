@@ -103,6 +103,7 @@ nav:
               - String: public/learn/02-data-types/string.md
               - Bool: public/learn/02-data-types/bool.md
               - Data: public/learn/02-data-types/data.md
+              - Option: public/learn/02-data-types/option.md
               - Sets, Data and maps: public/learn/02-data-types/sets-data-and-maps.md
           - 3. Collections: public/learn/03-collections.md
           - 4. Functions: public/learn/04-functions.md
