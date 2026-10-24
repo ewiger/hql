@@ -49,7 +49,5 @@ features that lean on it.
   the local one.
 - **Generic graphs** — `Graph<N, E>` beyond the vault's cards.
 
-The designs are recorded as numbered proposals, and the
-[design status](../wiki/hql/design-status.hmd) card tracks what is built.
 Releases and their changes are in the
 [changelog](https://github.com/ewiger/hql/blob/main/CHANGELOG.md).

@@ -154,6 +154,4 @@ A non-empty map is built with the constructor, `Map(["a"], [1])`.
 ## What is next
 
 [Chapter 3](../03-collections.md) uses lists, sets and maps as collections, and
-the steps they share. The rules this page follows are stated in
-[HQL-0029](../../../proposals/HQL-0029/README.md) and its note on
-[Data and type boundaries](../../../proposals/HQL-0029/data-and-type-boundaries.md).
+the steps they share.

@@ -15,21 +15,28 @@ edit_uri: edit/main/doc/
 # states the whole claim and no footer template has to carry two.
 copyright: © 2026 Yauhen Yakimovich · <a href="https://github.com/ewiger/hql/blob/main/LICENSE">MIT</a>
 
-# The site is the documentation tree, while the `[[…]]` namespace is restricted
-# to `doc/wiki` by the plugin's `root` below. The book, the reference and the
-# wiki build together; only the wiki is a namespace.
 docs_dir: doc
 
-# The working memory of the project, not part of the published site: where the
-# work is argued, not what a reader is taught. `*.hmd` is excluded because the
-# plugin renders the cards under its root itself; MkDocs would otherwise
-# try to treat them as static files.
+# The site is for people using HQL. The design of the language — the wiki
+# cards, the proposals, the working memory and the build notes — stays in the
+# repository and is not published.
 exclude_docs: |
   *.hmd
+  wiki/
   issues/
   memory/
   status/
-  proposals/TEMPLATE.md
+  proposals/
+  DEVELOP.md
+  stack.md
+  models/*
+  !models/behavior/
+  models/behavior/*
+  !models/behavior/expressions.md
+  !models/behavior/cli.md
+  !models/behavior/reporting.md
+  !models/behavior/queries.md
+  !models/behavior/program-values.md
 
 # A card and its folder note share one URL, so directory URLs are required.
 use_directory_urls: true
@@ -78,15 +85,9 @@ theme:
 
 plugins:
   - search
-  - hypermarkdown:
-      root: doc/wiki
 
-# The authored nav wins everywhere except where it asks for the wiki by name.
-# `hmd://wiki` is replaced by the section derived from the namespace tree.
-#
 # `Learn` is the prose read cold, in reading order. `Reference` is what is
-# consulted afterwards: the implemented grammar and host, led by what runs
-# today. `Wiki` is the design itself, card by card.
+# consulted afterwards: the implemented grammar and host.
 nav:
   - Home: index.md
   - Learn:
@@ -129,31 +130,10 @@ nav:
       - Reporting: models/behavior/reporting.md
       - Queries: models/behavior/queries.md
       - Program values: models/behavior/program-values.md
-      - Design status: wiki/hql/design-status.md
-  - Wiki:
-      - Overview: wiki/README.md
-      # Listed by hand, not left to `hmd://wiki`: the plugin derives a folder's
-      # page from `index.hmd` only, so a card beside a folder of the same name
-      # (`hql.hmd` beside `hql/`, `extensions.hmd` beside `extensions/`)
-      # collides with that folder in the derived nav and the build fails. A
-      # page the authored nav claims is not derived.
-      - HQL: wiki/hql.md
-      - Extensions: wiki/hql/extensions.md
-      - hmd://wiki
-  - Develop:
-      - Build and run: DEVELOP.md
-      - Stack and conventions: stack.md
-      - Roadmap: public/roadmap.md
 
-# The models and proposals are design records. The reference tab lists the few
-# a reader consults; the rest stay in the build because wiki cards link to them
-# with ordinary relative links, and excluding them would turn those links into
-# 404s. Unlisted and reachable costs nothing; `not_in_nav` tells MkDocs the
-# omission is deliberate.
+# The roadmap is reached from the book's closing pages, not from the nav.
 not_in_nav: |
-  models/
-  proposals/
-  wiki/hql/types/collections/
+  public/roadmap.md
 
 extra:
   generator: false

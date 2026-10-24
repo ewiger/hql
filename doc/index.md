@@ -72,13 +72,11 @@ providers of typed steps registered in the binary — `core`, `graph`, `format`,
 release. The same mechanism carries HQL to further sources, so that one program
 queries and moves data across SQL databases such as Postgres, JSON and YAML
 documents, message queues such as Kafka, and REST APIs. HQL's operations take their inspiration from jq and SQL,
-among others; see [extensions](wiki/hql/extensions.md).
+among others.
 
 ## HQL and HyperMarkDown
 
 HyperMarkDown is the document format most HQL vaults are written in. HQL does
 not define or change that format; it reads
 [HyperMarkDown](https://hypermarkdown.org/), plain Markdown, YAML and JSON,
-and is a separate language in its own repository. This site is itself a
-HyperMarkDown vault: the [wiki](wiki/README.md) is the language's design, one
-card per concept.
+and is a separate language in its own repository.

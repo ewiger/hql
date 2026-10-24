@@ -234,8 +234,7 @@ figures | map(f => match f {
 ["area 6.0", "area 3.0"]
 ```
 
-[HQL-0039](https://github.com/ewiger/hql/tree/main/doc/proposals/HQL-0039)
-proposes naming that union in the trait's declaration, `trait Shape as
+A later release names that union in the trait's declaration, `trait Shape as
 Figure`, so that `List<Figure>` holds every implementing type and
 `f.describe()` needs no `match`. The current release does not parse it yet.
 
@@ -397,8 +396,7 @@ type gains that nothing quantifies over.
 
 ## A module that implements a trait
 
-[HQL-0039](https://github.com/ewiger/hql/tree/main/doc/proposals/HQL-0039)
-joins the two forms: a receiver module lists traits after its pattern, and its
+A later release joins the two forms: a receiver module lists traits after its pattern, and its
 `self` functions are the implementation of those traits. The current release
 does not parse the trait list yet:
 

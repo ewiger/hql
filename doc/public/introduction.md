@@ -230,6 +230,5 @@ written piece by piece as it arrives.
 
 - **See what is coming.** The [roadmap](roadmap.md) lists what is next.
 
-- **Build or contribute.** [Build and run](../DEVELOP.md) covers building from
-  a clone, the tests and the lints; the source is at
+- **Build or contribute.** The source, and how to build it, is at
   [github.com/ewiger/hql](https://github.com/ewiger/hql).

@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 53 # to be incremented when adding a new issue card
+  last_id: 54 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0043"
@@ -52,6 +52,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0054"
+        title: "The website is for HQL users: Learn, Guides, Reference"
+        file: 0054-user-facing-website.md
       - id: "0046"
         title: "Renovate `lib/std/**` under the module, package and extension model"
         file: 0046-renovate-std.md

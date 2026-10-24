@@ -1,7 +1,7 @@
 # Reference
 
-These pages describe what the binary implements. Where a model or card
-describes language the binary does not run yet, its status line says so.
+These pages describe what the binary implements. Where a page describes
+language the binary does not run yet, its status line says so.
 
 | Page | Covers |
 | --- | --- |
@@ -10,7 +10,6 @@ describes language the binary does not run yet, its status line says so.
 | [Reporting](../models/behavior/reporting.md) | Warnings, errors and failures, and the `strict` and `collect` modes |
 | [Queries](../models/behavior/queries.md) | How a query is sourced and traversed |
 | [Program values](../models/behavior/program-values.md) | What a program returns, and what the host does with it |
-| [Design status](../wiki/hql/design-status.hmd) | Every design card, and the decisions still open |
 
 ## Commands at a glance
 

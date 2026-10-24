@@ -3,8 +3,7 @@
 The chapters so far query and transform data. This one is about the pieces a
 program of its own needs: records, unions, results, receiver calls, traits and
 modules. The [Mighty Types corpus](https://github.com/ewiger/hql/tree/main/examples/mighty-types)
-has one program per topic; the design is
-[HQL-0024](https://github.com/ewiger/hql/tree/main/doc/proposals/HQL-0024).
+has one program per topic.
 
 ## Records
 
