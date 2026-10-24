@@ -129,7 +129,7 @@ commit that closes it. Issue 0052's items are folded in as the last units.
 - [x] U2 — parser: `fork` branches are pipelines and need a separator (2, 3)
 - [x] U3 — parser: destructuring across lines and with a trailing comma (4)
 - [x] U4 — parser: `import` and `impl` usable as names (5)
-- [ ] U5 — parser: `type X =` and a line break; empty brackets (6, 7)
+- [x] U5 — parser: `type X =` and a line break; empty brackets (6, 7)
 - [ ] U6 — checker: operators dispatch through their own trait (8)
 - [ ] U7 — checker: `Self` is the implementing type (9)
 - [ ] U8 — checker: a widened record parameter re-checks its fields (10)

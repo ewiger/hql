@@ -694,3 +694,27 @@ fn import_and_impl_are_keywords_only_by_position() {
     assert_eq!(eval("impl = 2\nimpl < 3"), Ok(Value::Bool(true)));
     assert_eq!(eval("module = 1\nmodule"), Ok(Value::Int(1)));
 }
+
+#[test]
+fn a_structural_body_may_follow_a_line_break_after_equals() {
+    assert_eq!(eval("type X =\n{ a: Int }\nX(a = 1).a"), Ok(Value::Int(1)));
+    assert_eq!(
+        eval("type X : Data =\n{ a: Int }\nX(a = 1).a"),
+        Ok(Value::Int(1))
+    );
+}
+
+#[test]
+fn empty_brackets_are_refused_alike_across_a_line_break() {
+    for source in ["[1, 2, 3][ ]", "[1, 2, 3][\n]"] {
+        match check(source) {
+            Err(Diagnostic::Syntax { message, .. }) => {
+                assert!(
+                    message.contains("a bracket holds a position"),
+                    "{source}: {message}"
+                )
+            }
+            other => panic!("{source}: {other:?}"),
+        }
+    }
+}

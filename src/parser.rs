@@ -532,8 +532,7 @@ impl Parser {
         // not combined. `= {…}` is a structural body, written after the
         // supertypes where there are any: `type User : Data = {…}`.
         let mut union = None;
-        let structural = matches!(self.peek(), Token::Equals)
-            && matches!(self.tokens[self.index + 1].token, Token::OpenBrace);
+        let structural = self.at_structural_body();
         if !structural && self.eat(&Token::Equals) {
             self.continuation();
             self.expect(&Token::Ident("union".to_owned()), "after `=` in a type")?;
@@ -584,11 +583,9 @@ impl Parser {
 
         // A structural body is written `= {…}` or `{…}`, one meaning: whether
         // it is closed or open is the supertype's to say.
-        if union.is_none()
-            && matches!(self.tokens[self.index].token, Token::Equals)
-            && matches!(self.tokens[self.index + 1].token, Token::OpenBrace)
-        {
+        if union.is_none() && self.at_structural_body() {
             self.advance();
+            self.continuation();
         }
         let mut fields = Vec::new();
         let mut rules = Vec::new();
@@ -1255,6 +1252,19 @@ impl Parser {
 
     /// `impl<T> Name<A> for Type { fn m(self, p: T) : R = body … }`, or the
     /// header alone for a native implementation.
+    /// Whether `= {` follows, a structural body, with any line breaks
+    /// between the two.
+    fn at_structural_body(&self) -> bool {
+        if !matches!(self.tokens[self.index].token, Token::Equals) {
+            return false;
+        }
+        let mut index = self.index + 1;
+        while matches!(self.tokens[index].token, Token::Newline) {
+            index += 1;
+        }
+        matches!(self.tokens[index].token, Token::OpenBrace)
+    }
+
     /// Whether `impl` opens a declaration: a trait name follows, or type
     /// parameters `<T>`, `<T, U>` or `<T: Bound>`. Otherwise `impl` is a name,
     /// and `impl < 3` compares it.
@@ -2160,13 +2170,13 @@ impl Parser {
                 && self.tokens[self.index].span.start == expression.span.end
             {
                 let open = self.advance();
+                self.nesting += 1;
                 if matches!(self.peek(), Token::CloseBracket) {
                     return Err(Diagnostic::syntax(
-                        open.span.start..self.tokens[self.index].span.end,
+                        open.span.start..self.peek_span().end,
                         "a bracket holds a position or a range, `xs[i]` or `xs[a:b]`",
                     ));
                 }
-                self.nesting += 1;
                 // `xs[a:b]`: either bound may be left out.
                 let start = if matches!(self.peek(), Token::Colon) {
                     None
