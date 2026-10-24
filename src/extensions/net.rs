@@ -6,6 +6,7 @@
 //! imports the extension, `import net`, so network access is visible in its
 //! first lines. See [HQL-0021](../../doc/proposals/HQL-0021/README.md).
 
+use super::Signature;
 use super::spec::{ArgumentSpec, CheckedCall, OperationSpec, Output as O, TypePattern as P};
 use super::{CheckCx, EvalCx, Operation, Purity};
 use crate::data::Data;
@@ -23,7 +24,7 @@ const STRING: P = P::Type(TypeConstructor("String"));
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "http",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[],
             input: STRING,
             arguments: &[
@@ -37,37 +38,40 @@ pub(crate) static STEPS: &[Operation] = &[
                 },
             ],
             output: O::Type(P::Type(TypeConstructor("Http"))),
-        },
+        }),
         summary: "An HTTP resource, as an endpoint: read by a GET once per evaluation, \
                   written by one request per document.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(refuse_in_documents),
         eval: eval_http,
     },
     Operation {
         name: "websocket",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[],
             input: STRING,
             arguments: &[],
             output: O::Type(P::Type(TypeConstructor("WebSocket"))),
-        },
+        }),
         summary: "A WebSocket connection, as an endpoint: one document per message.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(refuse_in_documents),
         eval: eval_websocket,
     },
     Operation {
         name: "socket",
-        spec: OperationSpec {
+        spec: Signature::Native(OperationSpec {
             parameters: &[],
             input: STRING,
             arguments: &[ArgumentSpec::value("port", P::Type(TypeConstructor("Int")))],
             output: O::Type(P::Type(TypeConstructor("Socket"))),
-        },
+        }),
         summary: "A TCP connection, as an endpoint: documents separated as their format \
                   separates them.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(refuse_in_documents),
         eval: eval_socket,
     },

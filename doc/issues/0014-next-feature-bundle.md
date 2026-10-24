@@ -28,10 +28,10 @@ issues, proposals and cards; nothing here restates it.
    [0018](0018-operator-synonymy-audit.md), against the
    [operation signatures](../models/behavior/operation-signatures.md)
    comparison. `take`, `sort` and `map` read the same in `hql builtins`,
-   `std/collections.hql`, the queries model and HQL-0006; "the input's kind"
+   `lib/std/collections/mod.hql`, the queries model and HQL-0006; "the input's kind"
    gets a written result type; the shorthand rule and tree go on the pipes
    card; `somes` gets its declaration on the option-type card. `Iterable<T>`,
-   the bound the signatures use, is declared in `std/collections.hql`. The
+   the bound the signatures use, is declared in `lib/std/collections/mod.hql`. The
    checker follows the signatures: `map` over a `Set` returns a `Set`, `sort`
    keeps a concrete `Seq`'s type, and `sort` over a `Ranking<T>` returns
    `Seq<Hit<T>>`. The registry's output forms already express "the input's
@@ -89,7 +89,7 @@ issues, proposals and cards; nothing here restates it.
 9. **The `debug` operator** — the
    [debug-op](../wiki/hql/operators/debug-op.hmd) card, with the `debug` and
    `info` severities and the `level` setting from the
-   [error-reporting](../wiki/hql/error-reporting.hmd) card. An identity step
+   [error-handling](../wiki/hql/error-handling.hmd) card. An identity step
    whose capture goes to the report log, ordered by trace. Done; `fail` and
    the language's own `code` / `trace` fields stay designed.
 10. **Pipeline vocabulary rename** — step 1 of 0013,

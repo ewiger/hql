@@ -246,12 +246,15 @@ at run time, so no test over it is either.
 
 `is`, the narrowing `filter`, `of_type` and the type arm of `match` are
 implemented, with the nominal test for declared values and the structural
-test for `Data` leaves and sequences of leaves. A record schema such as `Book`
-waits for declared record types to be members of the lattice, the roadblock
-"record and pair values" of
-[issue 0016](../../issues/0016-sql-parity-analysis.md); until then a tree is
-read as a scalar, a `Seq` of scalars or `Data`. The
+test for `Data`. A leaf is read as the scalar it holds and a sequence as a
+`List` of what its items are read as. A map is read as a record the program
+declared without type parameters: it is a `Book` when it has an entry for
+every required field, each read at the field's type; an optional field
+without an entry, or with an empty one, is absent, and an entry the record
+does not name is ignored. The value bound or kept is then a `Book`, equal to
+the one its constructor builds from the same fields. A built-in record, a card
+kind among them, is never read from a tree: the vault establishes it. The
 constructors are implemented, in both forms, `List(xs)` and `xs | List`;
-`List` still accepts a `Set`. See [[data-type]] for the tree being interpreted, [[doc-type]] for the
+`List` refuses a `Set` and names `sort`. See [[data-type]] for the tree being interpreted, [[doc-type]] for the
 document whose header it is, [[option-type]] for the `none` the card example
 returns, and [[hql/design-status]] for what remains undecided.

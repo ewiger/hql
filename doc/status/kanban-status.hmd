@@ -1,0 +1,59 @@
+# Kanban status
+
+Every issue under [`doc/issues/`](../issues/README.hmd), read from its file:
+the lane its `Status:` line names, then the board with one column per lane.
+`in progress` reads as `doing`, and a status with a trailing note reads as its
+first word. Within a lane, issues run newest first; the priority order lives
+only in [`kanban.yaml`](../issues/kanban.yaml), which a document outside
+`doc/issues/` cannot read.
+
+```hql#eval
+import regex
+
+// The text after `Status:` on the issue's status line.
+fn status_of(body: String) : String =
+    regex.find(body, "(?m)^Status:[^\\n]*")
+    | map(s => regex.replace_first(s, "^Status: *", ""))
+    | unwrap_or("unknown")
+
+// The lane a status names: its first word, with `in progress` as `doing`.
+fn lane_of(status: String) : String =
+    "doing" given status.starts_with("in progress")
+    otherwise regex.find(status, "^[a-z]+").unwrap_or("unknown")
+
+issues = cards
+    | filter(c => c.path.contains("issues/0") and not c.path.ends_with(".prompt.md"))
+    | sort(by = c => c.path, descending = true)
+    | map(c => {
+        id: regex.find(c.path, "[0-9]{4}").unwrap_or(c.name),
+        title: regex.replace_first(c.title, "^[0-9]{4} — *", ""),
+        lane: lane_of(status_of(c.body))
+      })
+
+lanes = ["backlog", "todo", "doing", "done"]
+
+lanes
+| map(l => { lane: l, issues: issues | filter(i => i.lane == l) | size })
+| Table(columns = ["lane", "issues"])
+| format(as = Markdown)
+```
+
+```hql#eval
+// The issues of one lane, each as its id and title.
+fn lane(name: String) : List<String> =
+    issues | filter(i => i.lane == name) | map(i => i.id ++ " " ++ i.title)
+
+// The entry at a rank in a lane, or empty below its last issue.
+fn at(xs: List<String>, rank: Int) : String = xs[rank:rank + 1] | first | unwrap_or("")
+
+backlog = lane("backlog")
+todo = lane("todo")
+doing = lane("doing")
+done = lane("done")
+depth = max([backlog, todo, doing, done] | map(xs => xs | size))
+
+range(0, depth)
+| map(r => { backlog: at(backlog, r), todo: at(todo, r), doing: at(doing, r), done: at(done, r) })
+| Table(columns = lanes)
+| format(as = Markdown)
+```

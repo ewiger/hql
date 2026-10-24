@@ -17,14 +17,20 @@ binary can reach is logic that cannot be tested.
 | `hql eval <program>` | check and evaluate an argument |
 | `hql check <file>` | print the type without evaluating |
 | `hql run <file>` | check and evaluate a file |
+| `hql plan <file>` | check a file and print its plan on the backend in force without evaluating: per pipeline a statement is, the line and the expression its first step reads, then each step with its operation, shape, purity, stage and strategy; `--envelope json` writes the same as one JSON document |
+| `hql boundary <file> <id> [--as T]` | print the effective boundary of source `id` read as `T`, or as its `element`, declared in `file`: per field, its external field, both types, position, read and write, what reads as absent, and the layer each comes from; every boundary error otherwise, with exit status 1 |
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
-| `hql builtins` | list the steps a pipeline may use, grouped by provider |
-| `hql config` | the reporting mode and shown level in force, and where each came from |
+| `hql builtins` | list the steps a pipeline may use, grouped by provider, each with its signature, purity and shape, then the combiners a fold names with the laws each holds |
+| `hql config` | the reporting mode, the shown level and the execution backend in force, and where each came from |
 | `hql doctor` | check the semantic-search chain in order — vault, `hql.toml`, index, model, query vectors, card coverage — printing one line per part; it stops at the first missing part, names the command to run next, and exits `1` when any part is missing |
 
 `-` reads standard input wherever a file is taken, so `hql` composes in a
-pipeline.
+pipeline. A first argument that is not a command name is a program:
+`hql '<program>'` is `hql eval '<program>'`. The command line names no input
+and no output of a program's own: a program reads with `source` or `tap` and
+writes with `target` or `sink` ([HQL-0021](../../proposals/HQL-0021/README.md)),
+and a result of type `Unit` is written as nothing.
 
 ## Options
 
@@ -33,8 +39,12 @@ pipeline.
 | `--vault <DIR>` | the namespace `cards`, traversal and retrieval run against; without it, the nearest directory at or above the current one that holds `.hmd/` or `hql.toml` |
 | `--envelope text\|json` | what the answer is wrapped in: the value alone on stdout, written in the `--to` format, or one JSON document with the type, the value and the reports |
 | `--to <format>` | the [presentation format](../../wiki/hql/presentation.hmd) a result is written in when the program did not format it: `hql` (the default), `text`, `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2`, `mermaid`; `none` evaluates and writes no value |
+| `--from <format>` | the format standard input is read in where a program reads `stdin` and names none: `json`, `jsonlines`, `yaml`, `csv`, `lines` or `text`; a format the program names wins, and a format that is only written is refused |
+| `--compact` | a `Json` result written one document per line, as `jq -c` does; without it each document is pretty-printed, as `jq .` does |
+| `--log-level trace\|debug\|info\|warn\|error` | every logger's threshold, overriding the one it was constructed with |
 | `--report-level debug\|info\|warning\|error` | the lowest severity shown in `text`; see [reporting](reporting.md) |
 | `--report strict\|collect` | when the run stops; see [reporting](reporting.md) |
+| `--backend <name>` | the execution backend that runs a checked program; see *Backends* below |
 
 The vault is found the way `hmd` finds a project: walking up from the current
 directory, the first directory holding `.hmd/` — or `hql.toml`, for a vault
@@ -47,6 +57,105 @@ card-ness is a place in a namespace, and a vault is a directory marked as one by
 for it are assumed.
 See [Card](../../wiki/hql/types/card-type.hmd) and
 [the semantic-search requirements](../requirements/semantic-search.md).
+
+## Backends
+
+A checked program runs on an execution backend
+([HQL-0004](../../proposals/HQL-0004/README.md)). The backend changes how a
+program runs and never its answer, so it is host configuration and never
+syntax, resolved with the precedence [reporting](reporting.md) uses:
+
+1. the query — `--backend <name>`
+2. the vault — `hql.toml`, `[execution] backend = "<name>"`
+3. the user — `HQL_BACKEND` in the environment
+4. the default — `localhost`
+
+```toml
+[execution]
+backend = "localhost"
+```
+
+`localhost` is the only registered backend: the in-memory evaluator, each step
+run to completion before the next. Before a backend runs a program, the planner
+annotates every step with its stage
+([HQL-0005](../../proposals/HQL-0005/README.md)); `localhost`'s plan is one
+stage per pipeline, in process, and `hql plan` prints it. A name that is not registered fails every
+program, and `hql config`, with a message naming the flag, the file or the
+variable that supplied it. `hql render` runs its cells on `localhost`.
+
+## Data sources
+
+A vault declares the data sources its programs read under `[sources.<id>]`
+in `hql.toml` ([HQL-0012](../../proposals/HQL-0012/README.md)). A program
+names a source by its id, `source("field_notes")`, and nothing else: paths,
+hosts and credentials are configuration. Paths resolve against the vault
+root.
+
+```toml
+[sources.field_notes]
+kind = "vault"          # a Vault: documents read as cards
+root = "notes"
+
+[sources.counts]
+kind = "csv"            # also json (one array's elements), json_lines, yaml
+path = "data/counts.csv"
+element = "Tally"       # optional: the element type; Data by default
+
+[sources.birds]
+kind = "sqlite"         # one table, a Data row per element
+path = "data/birds.sqlite"
+table = "birds"
+order = ["id"]          # optional: the row order; rowid by default
+mode = "replace"        # how target("birds") writes: create, append or replace
+strictness = "compatible"  # an unmapped column: compatible, open, warn or strict
+
+[sources.counts.fields.species]
+name = "Species"        # the external field: a header, a key or a column
+type = "TEXT"           # its external type, as the format names it
+position = 1            # its place in the record, from 1
+write = false           # read, never written; `read` likewise
+absent = ["empty"]      # what reads as an absent optional field: missing, empty, null
+lossy = false           # whether a representation that may not keep the value is permitted
+
+[execution]
+max_elements = 100000   # the most elements of one source an evaluation holds
+max_bytes = 50000000    # the most bytes of one source an evaluation reads
+```
+
+Loading the vault refuses a malformed entry, and so fails every program in
+it: an id off `[a-z][a-z0-9_]*`, the id `vault` (the vault the program runs
+against), an unknown kind, a missing or unknown key, and a literal secret in
+`password`, `token`, `secret` or `api_key`. A secret is given as the name of
+the environment variable holding it, in a key ending `_env`. A source's
+**boundary** ([HQL-0035](../../proposals/HQL-0035/README.md)) maps its fields
+under `[sources.<id>.fields.<field>]`: `name` or a dotted `path`, the latter
+only for `json`, `json_lines` and `yaml`, with `type`, `position`, `read`,
+`write` and `absent`, and keys the kind's extension owns in a subtable named
+by the kind. A malformed boundary refuses the vault like any other key. A source
+read where a `Seq` of a declared record is expected, by `source("id")` or
+`tap("id")`, is read through its boundary: each field reads its external
+field, a nested `path` included, and a table selects only the columns the
+boundary reads. An optional field is absent where its external field holds
+what its `absent` lists, by default an empty cell or a missing column in
+`csv`, a missing key or `null` in `json`, `json_lines` and `yaml`, and `NULL`
+in `sqlite`; a `Decimal` is a `string` in JSON and YAML by default and reads
+a string's digits, and a representation that may not keep a value, a
+`Decimal` as a JSON `number`, a CSV `float` or a SQLite `REAL` or `NUMERIC`,
+is a boundary error unless the field writes `lossy = true`; a `null` it does not list is an evaluation error, and empty text
+it does not list is read as text. A CSV header and a table's columns are checked against the
+boundary before any element decodes, and a boundary naming a field the
+configured `element` lacks is a type error. `xs | target("id")` writes a
+`Table<R>` or a sequence of a declared record through the same boundary: the
+fields it writes, under their external names, in position order, each in its
+external type. `mode` says what a write does with what the target holds:
+`create` writes only where nothing exists, `append` adds after it, and
+`replace`, the default, writes it again. `strictness` says what a read does
+with an external field no HQL field reads: under `compatible`, the default,
+it passes to the HQL type, an open record keeping it and a closed one
+refusing it; under `open` it is not read; under `warn` it is not read and is
+reported once per read; under `strict` it is an evaluation error. Exceeding a
+bound is an evaluation error naming the source and the bound; a source is
+never truncated.
 
 ## Extensions
 

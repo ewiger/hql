@@ -376,7 +376,7 @@ partiality is in the type, an editor can say *this predicate is partial because
 
 Absence is resolved by operations on `Option<T>` itself, not by syntax and not
 by an extension. They are core: declared beside `type Option<T>` in
-[`std/core.hql`](../../../std/core.hql) and always available, because `Option`
+[`lib/std/core/mod.hql`](../../../lib/std/core/mod.hql) and always available, because `Option`
 is a core type and every program that reads an optional field needs them.
 
 The vocabulary is the established one for an option type, the set Rust's
@@ -435,7 +435,7 @@ cards
 The three channels stay apart. **Absence** is `Option`, **a failure the program
 may recover from** is `Result`, and **an error the program has no business
 recovering from** — a type error, an unparseable source — is a report in the
-[report queue](../../wiki/hql/error-reporting.hmd), which no value ever holds.
+[report queue](../../wiki/hql/error-handling.hmd), which no value ever holds.
 
 ## What this does not settle
 

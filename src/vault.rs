@@ -33,6 +33,8 @@ pub struct Vault {
     pub semantics: Semantics,
     /// Which renderer writes a type in a presentation format.
     pub formats: crate::extensions::format::Renderers,
+    /// The data sources its `hql.toml` configures, by id.
+    pub sources: crate::sources::Sources,
 }
 
 impl Vault {
@@ -48,6 +50,7 @@ impl Vault {
             extensions: Config::default(),
             semantics: Semantics::default(),
             formats: crate::extensions::format::Renderers::default(),
+            sources: crate::sources::Sources::default(),
         }
     }
 
@@ -153,6 +156,9 @@ pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault
         semantics: source.semantics(),
         formats: source
             .formats()
+            .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,
+        sources: source
+            .sources()
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,
         root,
         cards,

@@ -12,16 +12,17 @@ the **element**, never of a collection holding it.
 ```hql
 abstract type Orderable
 
-type Int    : {Scalar, Orderable}
-type Float  : {Scalar, Orderable}
-type String : {Scalar, Orderable}
-type Date   : {Scalar, Orderable}
+type Int     : {Scalar, Orderable}
+type Float   : {Scalar, Orderable}
+type Decimal : {Scalar, Orderable}
+type String  : {Scalar, Orderable}
+type Date    : {Scalar, Orderable}
 
 abstract type Doc : Orderable { … }   // ordered by its name
 ```
 
 It is an [[type-system|abstract type of law]], declared in
-[`std/core.hql`](../../../../std/core.hql). Sorting expects the order to be total.
+[`lib/std/core/mod.hql`](../../../../lib/std/core/mod.hql). Sorting expects the order to be total.
 
 ## Order is not position
 
@@ -43,7 +44,7 @@ has a first element, and booleans have no order. An `Orderable` element in a
 
 | Type | Its key |
 | --- | --- |
-| `Int`, `Float` | the number |
+| `Int`, `Float`, `Decimal` | the number; an `Int` and a `Decimal` compare by value |
 | `String` | the text |
 | `Doc`, and so every `Card` | its name |
 | `Hit<T>` | best score first, then the card's name |

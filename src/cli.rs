@@ -48,6 +48,11 @@ pub struct Options {
     /// `hql.toml` is the vault.
     #[arg(long, global = true, value_name = "DIR")]
     pub vault: Option<PathBuf>,
+    /// A module root: a directory whose `.hql` files are the modules a program
+    /// imports by their position, `lib/a/b.hql` as `import a.b`. May be
+    /// repeated, and adds to the roots the vault's `hql.toml` names.
+    #[arg(long, global = true, value_name = "DIR")]
+    pub modules: Vec<PathBuf>,
     /// What the answer is wrapped in: the value alone, or one JSON document
     /// carrying the type, the value and the reports. How the value itself is
     /// written is `--to`.
@@ -58,6 +63,10 @@ pub struct Options {
     /// `yaml`, `csv`, `d2` or `mermaid`; `none` evaluates and writes no value.
     #[arg(long, global = true, value_name = "FORMAT")]
     pub to: Option<String>,
+    /// The format standard input is read in where a program reads `stdin`
+    /// and names none: `json`, `jsonlines`, `yaml`, `csv`, `lines` or `text`.
+    #[arg(long, global = true, value_name = "FORMAT")]
+    pub from: Option<String>,
     /// Write each JSON document of a result on one line, as `jq -c` does; a
     /// stream is then JSON Lines.
     #[arg(long, global = true)]
@@ -69,6 +78,11 @@ pub struct Options {
     /// When to stop: `strict` at the first error, `collect` to report them all.
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
+    /// The execution backend that runs a checked program: `localhost`, the
+    /// in-memory evaluator, unless `hql.toml` or `HQL_BACKEND` names
+    /// another. The answer does not depend on it.
+    #[arg(long, global = true, value_name = "NAME")]
+    pub backend: Option<String>,
     /// The lowest severity shown: `debug`, `info`, `warning` or `error`.
     /// `--envelope json` carries every entry whatever this says.
     #[arg(long, global = true, value_name = "LEVEL")]
@@ -87,6 +101,27 @@ enum Command {
     Check {
         /// A file, or `-` for standard input.
         file: String,
+    },
+    /// Print the plan of a program from a file without evaluating it: each
+    /// pipeline's steps, with the stage the planner gives each on the
+    /// backend in force.
+    Plan {
+        /// A file, or `-` for standard input.
+        file: String,
+    },
+    /// Print a configured source's effective boundary: for each field of
+    /// the type it is read as, its external field, both types, its position,
+    /// whether it is read and written, what reads as absent, and the layer
+    /// each property comes from.
+    Boundary {
+        /// A program declaring the type the source is read as, or `-` for
+        /// standard input.
+        file: String,
+        /// The source's id, `[sources.<id>]` in the vault's hql.toml.
+        id: String,
+        /// The type the source is read as; the source's `element` without it.
+        #[arg(long = "as", value_name = "TYPE")]
+        element: Option<String>,
     },
     /// Type-check and evaluate a program from a file.
     Run {
@@ -171,18 +206,22 @@ fn directory_of(file: &str) -> PathBuf {
 }
 
 /// The commands a first argument may name; anything else is a program.
-const COMMANDS: [&str; 9] = [
-    "eval", "check", "run", "repl", "render", "builtins", "config", "doctor", "help",
+const COMMANDS: [&str; 11] = [
+    "eval", "check", "plan", "boundary", "run", "repl", "render", "builtins", "config", "doctor",
+    "help",
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 6] = [
+const VALUED: [&str; 9] = [
     "--vault",
     "--envelope",
     "--to",
+    "--from",
     "--report",
     "--report-level",
     "--log-level",
+    "--modules",
+    "--backend",
 ];
 
 /// `hql '<program>'` is `hql eval '<program>'`: insert `eval` before a first
@@ -251,12 +290,29 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         ));
     }
     crate::io::set_log_level(cli.options.log_level.clone());
+    crate::io::set_stdin_format(match cli.options.from.as_deref() {
+        None => None,
+        Some(name) => {
+            let format = crate::extensions::format::format_named(name)
+                .ok_or_else(|| format!("unknown format `{name}` for --from"))?;
+            crate::io::document_type(format).map_err(|_| {
+                format!(
+                    "--from names a format standard input is read in; {name} is written, not read"
+                )
+            })?;
+            Some(format)
+        }
+    });
     let root = cli.options.vault.clone().or_else(|| {
         std::env::current_dir()
             .ok()
             .and_then(|here| vault::discover(&here))
     });
-    let vault = load_vault(root.as_deref())?;
+    let mut vault = load_vault(root.as_deref())?;
+    vault
+        .extensions
+        .module_roots
+        .extend(cli.options.modules.iter().cloned());
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
             format!("unknown report mode `{name}`; expected `strict` or `collect`")
@@ -272,6 +328,16 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     };
     let level = Level::resolve(level, root.as_deref());
     let shown = level.severity;
+    // An unregistered backend fails every program, and `hql config`, naming
+    // the layer that supplied it; listing the builtins needs none.
+    let backend =
+        crate::backends::Selection::resolve(cli.options.backend.as_deref(), root.as_deref());
+    if !matches!(cli.command, Command::Builtins)
+        && let Err(refused) = &backend
+    {
+        return Err(refused.clone());
+    }
+    let backend = backend.unwrap_or_else(|_| crate::backends::Selection::standard());
 
     match &cli.command {
         Command::Builtins => {
@@ -287,13 +353,38 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                 for step in provider.steps {
                     writeln!(
                         out,
-                        "  {}\n    {}\n    {}",
+                        "  {}\n    {}\n    {}, {}\n    {}",
                         step.name,
                         step.signature.replace('\n', "\n    "),
+                        step.purity.label(),
+                        step.shape.label(),
                         step.summary
                     )
                     .map_err(|error| error.to_string())?;
                 }
+            }
+            // The combiners a fold may name in its `by` position, with the
+            // laws a planner reads to split it.
+            writeln!(out, "combiners").map_err(|error| error.to_string())?;
+            for combiner in crate::extensions::COMBINERS {
+                let laws: Vec<&str> = [
+                    (combiner.associative, "associative"),
+                    (combiner.commutative, "commutative"),
+                    (!combiner.commutative, "order-sensitive"),
+                ]
+                .into_iter()
+                .filter_map(|(holds, law)| holds.then_some(law))
+                .collect();
+                writeln!(
+                    out,
+                    "  {}\n    over {}, identity {}\n    {}; folds {}",
+                    combiner.name,
+                    combiner.over,
+                    combiner.identity.unwrap_or("none"),
+                    laws.join(", "),
+                    combiner.input()
+                )
+                .map_err(|error| error.to_string())?;
             }
             Ok(0)
         }
@@ -314,11 +405,13 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         Command::Config => {
             writeln!(
                 out,
-                "report mode: {} (from {})\nreport level: {} (from {})\nvault: {}",
+                "report mode: {} (from {})\nreport level: {} (from {})\nbackend: {} (from {})\nvault: {}",
                 settings.mode.label(),
                 settings.origin,
                 level.severity.label(),
                 level.origin,
+                backend.backend.name,
+                backend.origin.label(),
                 if vault.is_present() {
                     format!("{} ({} cards)", vault.root.display(), vault.cards.len())
                 } else {
@@ -330,7 +423,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         }
         Command::Eval { expression } => {
             crate::io::set_host(crate::io::Policy::Open, PathBuf::from("."));
-            let outcome = crate::run(expression, &vault, settings.mode);
+            let outcome = crate::run_on(expression, &vault, settings.mode, backend);
             emit(
                 &outcome,
                 expression,
@@ -349,7 +442,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             if file == "-" {
                 crate::io::set_program_on_stdin();
             }
-            let outcome = crate::run(&source, &vault, settings.mode);
+            let outcome = crate::run_on(&source, &vault, settings.mode, backend);
             emit(
                 &outcome,
                 &source,
@@ -376,6 +469,39 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                 out,
                 err,
             )
+        }
+        Command::Plan { file } => {
+            let (source, origin) = read(file)?;
+            let Ok(planned) = crate::plan(&source, &vault, backend.backend) else {
+                // What stopped it is what checking reports.
+                let outcome = crate::check_reported(&source, &vault, settings.mode);
+                return emit(
+                    &outcome,
+                    &source,
+                    &origin,
+                    TEXT,
+                    &cli.options,
+                    &vault,
+                    shown,
+                    out,
+                    err,
+                );
+            };
+            write_plan(&planned, &source, backend.backend.name, &cli.options, out)?;
+            Ok(0)
+        }
+        Command::Boundary { file, id, element } => {
+            let (source, _) = read(file)?;
+            match crate::inspect_boundary(&source, &vault, id, element.as_deref()) {
+                Ok(inspected) => {
+                    write_boundary(&inspected, &cli.options, out)?;
+                    Ok(0)
+                }
+                Err(message) => {
+                    writeln!(err, "error: {message}").map_err(|error| error.to_string())?;
+                    Ok(1)
+                }
+            }
         }
         Command::Render {
             file,
@@ -457,8 +583,241 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             }
             Ok(u8::from(rendered.reports.has_errors()))
         }
-        Command::Repl => repl(&vault, settings.mode, shown, &cli.options, out, err),
+        Command::Repl => repl(
+            &vault,
+            settings.mode,
+            backend,
+            shown,
+            &cli.options,
+            out,
+            err,
+        ),
     }
+}
+
+/// Write a program's plan: per pipeline, the line it is written on and the
+/// expression its first step reads, then one line per step with its
+/// operation, shape, purity and stage annotation. `--envelope json` writes
+/// the same as one JSON document.
+/// A source's effective boundary as `hql boundary` prints it: a line for
+/// the source, then each field with each property's value and origin.
+fn write_boundary(
+    inspected: &crate::InspectedBoundary,
+    options: &Options,
+    out: &mut impl Write,
+) -> Result<(), String> {
+    use crate::boundary::Held;
+    let boundary = &inspected.boundary;
+    let absent = |held: &Held<Vec<crate::sources::Absence>>| {
+        held.value
+            .iter()
+            .map(|absence| absence.name())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    if options.envelope == Shape::Json {
+        let held = |value: serde_json::Value, origin: crate::boundary::Origin| serde_json::json!({ "value": value, "origin": origin.label() });
+        let fields: Vec<_> = boundary
+            .fields
+            .iter()
+            .map(|field| {
+                serde_json::json!({
+                    "field": field.field.name,
+                    "type": field.field.ty.to_string(),
+                    "optional": field.field.optional,
+                    "external": held(
+                        crate::boundary::written(&field.external.value).into(),
+                        field.external.origin
+                    ),
+                    "external_type": held(
+                        field.external_type.value.clone().into(),
+                        field.external_type.origin
+                    ),
+                    "position": held(field.position.value.into(), field.position.origin),
+                    "read": held(field.readable.value.into(), field.readable.origin),
+                    "write": held(field.writable.value.into(), field.writable.origin),
+                    "absent": held(absent(&field.absent).into(), field.absent.origin),
+                    "lossy": held(field.lossy.value.into(), field.lossy.origin),
+                })
+            })
+            .collect();
+        let document = serde_json::json!({
+            "source": boundary.source,
+            "kind": boundary.kind,
+            "element": inspected.element,
+            "strictness": boundary.strictness.name(),
+            "mode": inspected.mode.name(),
+            "fields": fields,
+        });
+        let text = if options.compact {
+            serde_json::to_string(&document)
+        } else {
+            serde_json::to_string_pretty(&document)
+        }
+        .map_err(|error| error.to_string())?;
+        return writeln!(out, "{text}").map_err(|error| error.to_string());
+    }
+    writeln!(
+        out,
+        "source {} ({}), read as {}; strictness {}, mode {}",
+        boundary.source,
+        boundary.kind,
+        inspected.element,
+        boundary.strictness.name(),
+        inspected.mode.name()
+    )
+    .map_err(|error| error.to_string())?;
+    for field in &boundary.fields {
+        let optional = if field.field.optional { "?" } else { "" };
+        writeln!(out, "{}{optional} : {}", field.field.name, field.field.ty)
+            .map_err(|error| error.to_string())?;
+        let rows = [
+            (
+                "external",
+                crate::boundary::written(&field.external.value),
+                field.external.origin,
+            ),
+            (
+                "type",
+                field.external_type.value.clone(),
+                field.external_type.origin,
+            ),
+            (
+                "position",
+                field.position.value.to_string(),
+                field.position.origin,
+            ),
+            (
+                "read",
+                field.readable.value.to_string(),
+                field.readable.origin,
+            ),
+            (
+                "write",
+                field.writable.value.to_string(),
+                field.writable.origin,
+            ),
+            ("absent", absent(&field.absent), field.absent.origin),
+        ];
+        let width = rows
+            .iter()
+            .map(|(_, value, _)| value.len())
+            .max()
+            .unwrap_or(0);
+        for (property, value, origin) in rows {
+            writeln!(out, "  {property:<9}{value:<width$}  {}", origin.label())
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+fn write_plan(
+    planned: &[crate::PlannedPipeline],
+    source: &str,
+    backend: &str,
+    options: &Options,
+    out: &mut impl Write,
+) -> Result<(), String> {
+    let line_of = |at: usize| source[..at.min(source.len())].matches('\n').count() + 1;
+    if options.envelope == Shape::Json {
+        let pipelines: Vec<_> = planned
+            .iter()
+            .map(|pipeline| {
+                serde_json::json!({
+                    "line": line_of(pipeline.span.start),
+                    "span": [pipeline.span.start, pipeline.span.end],
+                    "input": pipeline.input,
+                    "steps": steps_json(&pipeline.steps),
+                })
+            })
+            .collect();
+        let document = serde_json::json!({ "backend": backend, "pipelines": pipelines });
+        let text = if options.compact {
+            serde_json::to_string(&document)
+        } else {
+            serde_json::to_string_pretty(&document)
+        }
+        .map_err(|error| error.to_string())?;
+        return writeln!(out, "{text}").map_err(|error| error.to_string());
+    }
+    writeln!(out, "backend {backend}").map_err(|error| error.to_string())?;
+    for pipeline in planned {
+        writeln!(
+            out,
+            "line {}: {}",
+            line_of(pipeline.span.start),
+            pipeline
+                .input
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
+        .map_err(|error| error.to_string())?;
+        write_steps(out, &pipeline.steps, "  ")?;
+    }
+    Ok(())
+}
+
+/// Planned steps as `hql plan --to json` writes them, a fan-out's branches
+/// within the step.
+fn steps_json(steps: &[crate::PlannedStep]) -> Vec<serde_json::Value> {
+    steps
+        .iter()
+        .map(|step| {
+            let mut written = serde_json::json!({
+                "name": step.name,
+                "shape": step.shape.label(),
+                "purity": step.purity.label(),
+                "stage": step.stage.index,
+                "strategy": step.stage.strategy.label(),
+            });
+            if let Some(topology) = step.topology {
+                written["topology"] = serde_json::json!(topology);
+            }
+            if !step.branches.is_empty() {
+                written["branches"] = step
+                    .branches
+                    .iter()
+                    .map(|branch| {
+                        serde_json::json!({ "name": branch.name, "steps": steps_json(&branch.steps) })
+                    })
+                    .collect();
+            }
+            written
+        })
+        .collect()
+}
+
+/// Planned steps, one per line under `indent`, each fan-out's branches
+/// beneath it as the stages that read the step's input.
+fn write_steps(
+    out: &mut dyn Write,
+    steps: &[crate::PlannedStep],
+    indent: &str,
+) -> Result<(), String> {
+    let width = steps.iter().map(|step| step.name.len()).max().unwrap_or(0);
+    for step in steps {
+        let topology = step
+            .topology
+            .map(|topology| format!(", {topology}"))
+            .unwrap_or_default();
+        writeln!(
+            out,
+            "{indent}| {:<width$}  stage {}  {:<12}  {}, {}{topology}",
+            step.name,
+            step.stage.index,
+            step.stage.strategy.label(),
+            step.shape.label(),
+            step.purity.label(),
+        )
+        .map_err(|error| error.to_string())?;
+        for branch in &step.branches {
+            writeln!(out, "{indent}    {} =", branch.name).map_err(|error| error.to_string())?;
+            write_steps(out, &branch.steps, &format!("{indent}      "))?;
+        }
+    }
+    Ok(())
 }
 
 fn load_vault(root: Option<&Path>) -> Result<Vault, String> {
@@ -700,6 +1059,7 @@ fn report_all(
 fn repl(
     vault: &Vault,
     mode: Mode,
+    backend: crate::backends::Selection,
     shown: Severity,
     options: &Options,
     out: &mut impl Write,
@@ -789,7 +1149,7 @@ fn repl(
         let outcome = if typing {
             crate::check_reported(&source, vault, mode)
         } else {
-            crate::run(&source, vault, mode)
+            crate::run_on(&source, vault, mode, backend)
         };
         emit(
             &outcome, &source, "<repl>", HQL, options, vault, shown, out, err,

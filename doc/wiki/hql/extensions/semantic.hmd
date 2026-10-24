@@ -3,12 +3,13 @@ tags: [hql, extensions, retrieval, embeddings]
 nav:
   visibility: public
 ---
-# The semantic extension
+# The semantic module
 
 `semantic` ranks a corpus against a query by the meaning a language model found
 in both. The model is not in this binary and will not be: an index is built
 ahead of time by [`contrib/semantics/`](../../../../contrib/semantics/README.md),
-and this extension reads it.
+and this module reads it. It is a module of the builtin `search` package,
+implemented by its internal extension, `search`.
 
 ```hql
 import semantic
@@ -60,7 +61,7 @@ score nobody can reproduce.
 ## Staleness and coverage
 
 Neither is silent and neither is fatal; both go through the
-[report queue](../error-reporting.hmd).
+[report queue](../error-handling.hmd).
 
 - A card whose text has changed since the build has a vector for text that no
   longer exists. It **ranks anyway**, with a warning naming it. A stale score is

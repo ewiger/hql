@@ -20,8 +20,9 @@ function    ::= "fn" ident generics? "(" (param ("," param)*)? ")" ":" type ("="
 generics    ::= "<" generic ("," generic)* ">"
 generic     ::= letter (":" simple)?                                one capital letter, optionally bounded
 param       ::= ident ":" "..."? type
-block       ::= "{" (inner NEWLINE+)* "}"                           the body of an iterating function
-inner       ::= "yield" expression | "for" ident "in" expression block | ident "=" expression
+block       ::= "{" NEWLINE* (binding NEWLINE+)* (expression | iterating) NEWLINE* "}"
+iterating   ::= inner (NEWLINE+ inner)*                             a block containing `yield`
+inner       ::= "yield" expression | "for" ident "in" expression "{" iterating "}" | binding
 alias       ::= ident ("(" aliased ("," aliased)* ")")? ":=" expression
 aliased     ::= ident (":" type)?
 
@@ -48,9 +49,9 @@ arm         ::= pattern ("given" pipeline)? "=>" expression
 pattern     ::= "_" | ident | int | float | string | bool
               | "some" "(" pattern ")" | "none" | type ("_" | ident)
 lambda      ::= (ident | "(" (ident (":" type)? ("," ident (":" type)?)*)? ")") "=>" expression
-data        ::= "{" (key ":" expression ("," key ":" expression)*)? "}"
+data        ::= "{" ":" "}" | "{" key ":" expression ("," key ":" expression)* "}"
 list        ::= "[" (expression ("," expression)* ","?)? "]"
-set         ::= "{" expression ("," expression)* ","? "}"
+set         ::= "{" (expression ("," expression)* ","?)? "}"
 docref      ::= "@[[" name "]]"
 type        ::= simple ("->" type)? | "(" (type ("," type)*)? ")" "->" type
 simple      ::= ident ("<" type ("," type)* ">")?
@@ -68,8 +69,12 @@ error.
 
 Generics are written with angle brackets, so an angle bracket always means the
 type world. A square bracket stays value-level: `[1, 2, 1]` materializes a
-`List<Int>`. `{1, 2, 1}` materializes a `Set<Int>` with two distinct elements;
-`{}` remains an empty `Data` literal, so an empty typed set is `Set<Int>([])`.
+`List<Int>`. `{1, 2, 1}` materializes a `Set<Int>` with two distinct elements. The colon
+tells braces apart: braces without one denote a set, and braces holding
+`key: value` entries denote `Data`. `{}` is the empty set, a `Set<Never>`
+that a declared type such as `Set<Int>` accepts, and `{:}` is the empty
+`Data`; `d : Data = {}` is a type error
+([HQL-0029](../../proposals/HQL-0029/README.md)).
 
 `abstract type` declares a contract with no independent runtime constructor.
 `Collection` and `Seq` are abstract; `List` and `Set` are concrete. Type arguments
@@ -149,33 +154,42 @@ directly before the argument list; otherwise `<` is the comparison, so
 | Written | Type |
 | --- | --- |
 | `42`, `-1` | `Int` |
-| `1.5` | `Float` |
+| `1.5`, `1.5e-3` | `Decimal`, with the scale it is written with |
+| `1.5f`, `6.02e23f`, `2f` | `Float` |
 | `true`, `false` | `Bool` |
 | `"text"` | `String` |
 | `{ key: value }` | `Data` |
-| `true`, `42`, `1.5`, `"text"` | also `Scalar`, and so also `Data` |
+| `true`, `42`, `1.5`, `1.5f`, `"text"` | also `Scalar`, and so also `Data` |
 | `@[[name]]` | `Option<Card>` |
 | `@[[a]] -> @[[b]] {..}` | `Edge` |
 | `cards` | `Seq<Card>`, bound when a vault is present |
 
-`cards` is the standard-library binding `cards = vault.cards`, declared in
-`std/vault.hql`; the host seeds `vault`, of type `Vault`, from the vault. Its
+`cards` is the program module's binding `cards = vault.cards`; the host seeds
+`vault`, of type `Vault`, from the vault into the program module, and no
+module sees either. Its
 cards arrive in sorted-walk order: the entries of each directory sorted by name,
 depth first. A program may shadow it like any other name. Without a vault it is
 unbound, and the checker says that it needs a vault rather than that it does
 not exist.
 
-Arithmetic is homogeneous: `+`, `-`, `*`, `/` and `%` take two `Int` or two
-`Float`, never mixed, and `Int` never widens. `Int` division truncates toward
+Arithmetic is homogeneous: `+`, `-`, `*`, `/` and `%` take two `Int`, two
+`Float` or two `Decimal`, except that an `Int` beside a `Decimal` widens to a
+`Decimal` of scale 0. A `Float` beside a `Decimal` is a type error naming the
+conversions `decimal(x)` and `float(d)`. `Int` division truncates toward
 zero and `%` keeps the dividend's sign, so `a == (a / b) * b + a % b`.
+`Decimal` `+` and `-` have the larger scale of their operands and `*` the sum
+of their scales; `/` is exact where the quotient terminates and otherwise
+rounded half to even to 100 significant digits
+([HQL-0031](../../proposals/HQL-0031/README.md)).
 Division or remainder by zero is an evaluation failure. Overflow — an `i64`
 that wraps, or a result that leaves the finite floats — is an evaluation
 failure rather than a wrapped or infinite value.
 
 `==` and `!=` compare scalars; either side may be a `Data` leaf, which is what
 asking a header a question looks like. `<`, `<=`, `>` and `>=` take two values
-of one `Orderable` type, as `compare` does, with no widening and no looking
-through `Option` or into `Data`. No comparison chains: `a < b < c` is a syntax
+of one `Orderable` type, as `compare` does, with no looking through `Option`
+or into `Data`, and no widening but an `Int`'s beside a `Decimal`, which
+compares by value as `==` does. No comparison chains: `a < b < c` is a syntax
 error, and is written `a < b and b < c`.
 
 `and`, `or` and `not` take `Bool` operands and return `Bool`; an
@@ -195,7 +209,8 @@ and **warns**; the exit status does not change.
 
 Absence propagates through a field — `@[[nowhere]].title` is `Option<String>` —
 and a pipeline step applied to absence is one applied to nothing rather than a
-failure. `match` and `given … otherwise` consume absence explicitly; the
+failure: a step over a collection takes absence as the empty collection, and
+a step over any other value gives absence, `none | abs` an `Option<Int>`. `match` and `given … otherwise` consume absence explicitly; the
 implicit lifting stays beside them until the corpus no longer needs it.
 
 ## Steps
@@ -212,11 +227,29 @@ value is its first argument: `x | T` is `T(x)`, `x | T(a)` is `T(x, a)`, and
 refused with its concrete subtypes, `[1] | Seq` naming `List`, and a lowercase
 spelling of a type, `list`, is not a step and names the constructor.
 
+A constructor is a function named after its type, declared in the module
+that declares the type and returning that type or a subtype of it:
+`fn Set<T>(xs: Collection<T>) : Set<T>` in `lib/std/core/mod.hql`, or a
+program's own `fn Temp(celsius: Float) : Temp` beside `type Temp`. A `fn`
+named in `UpperCamelCase` that names no concrete type declared in its source
+unit, or returns another type, is refused, and so is an alias so named. A
+type may have several constructors; forms of one arity differ in their first
+parameter, and a call takes the first form its first argument fits. Fields
+given by name build a record type's value itself, `Temp(kelvin = 0.0)`.
+
 A constructor passed where a function is expected is that function:
-`groups | map(Set)` builds a set from each group. A `fn` or alias named in
-`UpperCamelCase` is refused, since that casing is a type's constructor's, which
-only the module declaring the type provides
+`groups | map(Set)` builds a set from each group. Where a type has several
+forms, the parameter type the receiving operation passes selects the one
+form whose first parameter takes it; none, or more than one, is refused
+naming the candidates' first parameters, so `[] | map(Temp)` is refused when
+`Temp` takes a Float and a String
 ([HQL-0018](../../proposals/HQL-0018/README.md)).
+
+Text is parsed by construction: `Data(s, Json)`, or `s | Data(Json)`, gives
+the tree the text holds in a format whose decoder reads `Data`, Json,
+JsonLines, Yaml or Csv. A framed format gives the list of its records. A
+format type has no constructor, since a format is a value of `Format` and not
+the text it encodes.
 
 ## Type declarations
 
@@ -275,7 +308,7 @@ What is checked:
 - a parameter is a name no type already has, so a reader can tell which is
   meant, and inside the body it takes no arguments of its own;
 - a declaration may **restate** a type this binary already has — that is what
-  [`std/`](../../../std/README.md) is — but it may not contradict one.
+  [`lib/std/`](../../../lib/std/README.md) is — but it may not contradict one.
   `type Card : Doc` holds and `type Card : Edge` does not;
 - a supertype set holding two concrete types that share nothing declares a
   type no value can have, and is refused: `type X : {Int, String}`. A contract

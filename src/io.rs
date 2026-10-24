@@ -158,6 +158,9 @@ struct Host {
     /// Whether the program itself was read from standard input, which then
     /// holds no data.
     program_on_stdin: bool,
+    /// The format `--from` names for standard input, read where a program
+    /// names none.
+    stdin_format: Option<TypeConstructor>,
 }
 
 thread_local! {
@@ -169,6 +172,7 @@ thread_local! {
         log_level: None,
         fetched: HashMap::new(),
         program_on_stdin: false,
+        stdin_format: None,
     });
 }
 
@@ -193,6 +197,18 @@ pub fn set_program_on_stdin() {
 #[must_use]
 pub fn program_on_stdin() -> bool {
     HOST.with(|host| host.borrow().program_on_stdin)
+}
+
+/// Name the format standard input is read in where a program names none:
+/// `--from json`.
+pub fn set_stdin_format(format: Option<TypeConstructor>) {
+    HOST.with(|host| host.borrow_mut().stdin_format = format);
+}
+
+/// The format `--from` named for standard input, if any.
+#[must_use]
+pub fn stdin_format() -> Option<TypeConstructor> {
+    HOST.with(|host| host.borrow().stdin_format)
 }
 
 /// The most values one channel holds in a scope.
@@ -372,10 +388,12 @@ fn record(path: &Path, how: Written) -> Result<PathBuf, String> {
 pub fn format_of_extension(path: &Path) -> Option<TypeConstructor> {
     let extension = path.extension()?.to_str()?;
     let format = match extension {
-        "json" | "jsonl" | "ndjson" => "Json",
+        "json" => "Json",
+        "jsonl" | "ndjson" => "JsonLines",
         "yaml" | "yml" => "Yaml",
         "csv" => "Csv",
-        "txt" | "log" => "Text",
+        // A plain text file is read as lines unless a format says otherwise.
+        "txt" | "log" => "Lines",
         "md" => "Markdown",
         "hmd" => "Hmd",
         "hql" => "Hql",
@@ -392,16 +410,17 @@ pub fn format_of_extension(path: &Path) -> Option<TypeConstructor> {
 /// Names a format that describes a whole picture and is written only.
 pub fn document_type(format: TypeConstructor) -> Result<TypeRef, String> {
     match format.0 {
-        "Json" | "Yaml" | "Csv" => Ok(TypeRef::DATA),
-        "Text" => Ok(TypeRef::STR),
-        "Markdown" | "Hmd" | "Hql" => Ok(TypeRef::from(format)),
+        "Json" | "JsonLines" | "Yaml" | "Csv" => Ok(TypeRef::DATA),
+        // Text is a String; a document in a text format is its text.
+        "Text" | "Lines" | "Markdown" | "Hmd" | "Hql" => Ok(TypeRef::STR),
         other => Err(format!("{other} is written, not read")),
     }
 }
 
 /// Whether a format's documents can be separated, so read one at a time.
+/// `Text` is one whole document; `Lines` frames it one record per line.
 fn separable(format: TypeConstructor) -> bool {
-    matches!(format.0, "Json" | "Yaml" | "Csv" | "Text")
+    matches!(format.0, "Json" | "JsonLines" | "Yaml" | "Csv" | "Lines")
 }
 
 /// A tree read from JSON or YAML.
@@ -409,9 +428,12 @@ fn data_of(json: serde_json::Value) -> Data {
     match json {
         serde_json::Value::Null => Data::Empty,
         serde_json::Value::Bool(value) => Data::Bool(value),
+        // A number keeps the digits it is written with, so it reads exactly
+        // as a Decimal (HQL-0031).
         serde_json::Value::Number(number) => number
             .as_i64()
             .map(Data::Int)
+            .or_else(|| crate::decimal::Decimal::parse(number.as_str()).map(Data::Decimal))
             .or_else(|| number.as_f64().map(Data::Float))
             .unwrap_or(Data::Empty),
         serde_json::Value::String(text) => Data::Str(text),
@@ -479,6 +501,30 @@ fn row(header: &[String], fields: Vec<String>) -> Value {
     Value::Data(Arc::new(Data::Map(map)))
 }
 
+/// Every document of a configured file source, in file order. `spread`
+/// reads a Json file as the elements of the one array it holds.
+/// Configuration is the access boundary, so the document policy that
+/// confines a document's own reads does not apply.
+pub(crate) fn read_configured(
+    path: &Path,
+    format: TypeConstructor,
+    spread: bool,
+) -> Result<Vec<Value>, String> {
+    let file = fs::File::open(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    if spread {
+        let json: serde_json::Value = serde_json::from_reader(BufReader::new(file))
+            .map_err(|error| format!("{}: not JSON: {error}", path.display()))?;
+        let serde_json::Value::Array(elements) = json else {
+            return Err(format!(
+                "{}: a `json` source holds one array, whose elements it reads",
+                path.display()
+            ));
+        };
+        return Ok(elements.into_iter().map(tree).collect());
+    }
+    pieces(Box::new(file), format, path.display().to_string()).collect()
+}
+
 /// Documents read one at a time from a reader.
 type Pieces = Box<dyn Iterator<Item = Result<Value, String>> + Send>;
 
@@ -499,10 +545,28 @@ fn pieces(reader: Box<dyn Read + Send>, format: TypeConstructor, origin: String)
                     })
                 }),
         ),
-        "Text" => Box::new(BufReader::new(reader).lines().map(move |line| {
+        // Line framing: the terminator belongs to the representation, so a
+        // record is the line without it.
+        "Lines" => Box::new(BufReader::new(reader).lines().map(move |line| {
             line.map(|line| Value::Str(line.into()))
                 .map_err(|error| located(error.to_string()))
         })),
+        // One JSON document per line: the line is the frame.
+        "JsonLines" => Box::new(BufReader::new(reader).lines().enumerate().filter_map(
+            move |(index, line)| {
+                match line {
+                    Err(error) => Some(Err(located(error.to_string()))),
+                    Ok(line) if line.trim().is_empty() => None,
+                    Ok(line) => Some(
+                        serde_json::from_str::<serde_json::Value>(&line)
+                            .map(tree)
+                            .map_err(|error| {
+                                located(format!("not JSON at line {}: {error}", index + 1))
+                            }),
+                    ),
+                }
+            },
+        )),
         "Csv" => {
             let mut lines = BufReader::new(reader).lines();
             let header = csv_record(&mut lines);
@@ -540,15 +604,134 @@ fn pieces(reader: Box<dyn Read + Send>, format: TypeConstructor, origin: String)
     }
 }
 
+/// Text parsed in a format whose decoder reads `Data`: the one document of a
+/// whole-text format, Json or Yaml, or the list of the records of a framed
+/// one, JsonLines or Csv.
+///
+/// # Errors
+/// Text that does not parse in the format, or a whole-text format holding
+/// other than one document.
+pub(crate) fn parse_text(text: &str, format: TypeConstructor) -> Result<Data, String> {
+    let reader = Box::new(std::io::Cursor::new(text.as_bytes().to_vec()));
+    let documents = pieces(reader, format, format!("Data(…, {format})"))
+        .map(|document| match document? {
+            Value::Data(data) => Ok(data.as_ref().clone()),
+            Value::Str(text) => Ok(Data::Str(text.to_string())),
+            other => Err(format!("{format} decodes no Data here, but {other:?}")),
+        })
+        .collect::<Result<Vec<Data>, String>>()?;
+    match format.0 {
+        "JsonLines" | "Csv" => Ok(Data::List(documents)),
+        _ => {
+            let count = documents.len();
+            let mut documents = documents.into_iter();
+            match (documents.next(), count) {
+                (Some(document), 1) => Ok(document),
+                _ => Err(format!(
+                    "the text holds {count} {format} documents, and `Data(s, {format})` parses one"
+                )),
+            }
+        }
+    }
+}
+
+/// Whether a tree holds a number that is not an integer.
+fn has_fraction(json: &serde_json::Value) -> bool {
+    match json {
+        serde_json::Value::Number(number) => number.as_i64().is_none(),
+        serde_json::Value::Array(items) => items.iter().any(has_fraction),
+        serde_json::Value::Object(entries) => entries.values().any(has_fraction),
+        _ => false,
+    }
+}
+
+/// A second read of a YAML document, guided by the tree the first read
+/// gave: each number that is not an integer is read as the text it is
+/// written with, and becomes a JSON number of exactly those digits.
+struct YamlDigits<'a>(&'a serde_json::Value);
+
+impl<'de> serde::de::DeserializeSeed<'de> for YamlDigits<'_> {
+    type Value = serde_json::Value;
+
+    fn deserialize<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error> {
+        use serde::Deserialize;
+        match self.0 {
+            serde_json::Value::Number(number) if number.as_i64().is_none() => {
+                let written = String::deserialize(deserializer)?;
+                Ok(written
+                    .parse::<serde_json::Number>()
+                    .map_or_else(|_| self.0.clone(), serde_json::Value::Number))
+            }
+            serde_json::Value::Array(_) => deserializer.deserialize_seq(self),
+            serde_json::Value::Object(_) => deserializer.deserialize_map(self),
+            _ => serde_json::Value::deserialize(deserializer),
+        }
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for YamlDigits<'_> {
+    type Value = serde_json::Value;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("the YAML document read before")
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(
+        self,
+        mut items: A,
+    ) -> Result<Self::Value, A::Error> {
+        let serde_json::Value::Array(guide) = self.0 else {
+            return Err(serde::de::Error::custom("a sequence where none was read"));
+        };
+        let mut read = Vec::with_capacity(guide.len());
+        for item in guide {
+            match items.next_element_seed(YamlDigits(item))? {
+                Some(value) => read.push(value),
+                None => return Err(serde::de::Error::custom("a shorter sequence")),
+            }
+        }
+        Ok(serde_json::Value::Array(read))
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(
+        self,
+        mut entries: A,
+    ) -> Result<Self::Value, A::Error> {
+        let serde_json::Value::Object(guide) = self.0 else {
+            return Err(serde::de::Error::custom("a mapping where none was read"));
+        };
+        let mut read = serde_json::Map::new();
+        while let Some(key) = entries.next_key::<String>()? {
+            let value = match guide.get(&key) {
+                Some(held) => entries.next_value_seed(YamlDigits(held))?,
+                None => entries.next_value::<serde_json::Value>()?,
+            };
+            read.insert(key, value);
+        }
+        Ok(serde_json::Value::Object(read))
+    }
+}
+
 /// The documents of a whole text in a format that is not read piece by piece.
 fn whole(text: &str, format: TypeConstructor) -> Result<Vec<Result<Value, String>>, String> {
     use serde::Deserialize;
     match format.0 {
         "Yaml" => Ok(serde_yaml_ng::Deserializer::from_str(text)
-            .map(|document| {
-                serde_json::Value::deserialize(document)
-                    .map(tree)
-                    .map_err(|error| format!("not YAML: {error}"))
+            .zip(serde_yaml_ng::Deserializer::from_str(text))
+            .map(|(document, again)| {
+                let read = serde_json::Value::deserialize(document)
+                    .map_err(|error| format!("not YAML: {error}"))?;
+                // YAML reads a number with a point as a binary float; read
+                // once more for the text of each, so its digits are kept.
+                Ok(tree(if has_fraction(&read) {
+                    serde::de::DeserializeSeed::deserialize(YamlDigits(&read), again)
+                        .unwrap_or(read)
+                } else {
+                    read
+                }))
             })
             .collect()),
         _ => Ok(vec![Ok(Value::Formatted(Arc::new(Formatted {
@@ -667,12 +850,6 @@ pub(crate) enum Reading {
     /// Standard input, read once: what has been read is kept, so a second use
     /// of one binding sees the same documents.
     Shared(Mutex<Shared>),
-    /// A file, opened afresh on each traversal and read one document at a
-    /// time.
-    File {
-        path: PathBuf,
-        format: TypeConstructor,
-    },
     /// The end of a file: documents appended after the traversal began.
     Follow {
         path: PathBuf,
@@ -698,9 +875,6 @@ impl fmt::Debug for Reading {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Shared(_) => f.write_str("Reading::Shared(<stdin>)"),
-            Self::File { path, format } => {
-                write!(f, "Reading::File({}, {})", path.display(), format.0)
-            }
             Self::Follow { path, format } => {
                 write!(f, "Reading::Follow({}, {})", path.display(), format.0)
             }
@@ -754,6 +928,24 @@ impl Reading {
         }
     }
 
+    /// A file, opened when a traversal first asks and read one document at
+    /// a time, once: every traversal of the stream, the branches of a
+    /// `fork` among them, sees the documents that one read gave
+    /// (HQL-0037).
+    pub(crate) fn file(path: PathBuf, format: TypeConstructor) -> Self {
+        let named = path.display().to_string();
+        let reader = Lazy {
+            connect: Some(Box::new(move || {
+                let full = readable(&path)?;
+                fs::File::open(&full)
+                    .map(|file| Box::new(file) as Box<dyn Read + Send>)
+                    .map_err(|error| format!("{}: {error}", path.display()))
+            })),
+            inner: None,
+        };
+        Self::shared(pieces(Box::new(reader), format, named))
+    }
+
     fn shared(rest: Pieces) -> Self {
         Self::Shared(Mutex::new(Shared {
             seen: Vec::new(),
@@ -804,17 +996,6 @@ impl Reading {
                         return Ok(false);
                     }
                 }
-            }
-            Self::File { path, format } => {
-                let full = readable(path).map_err(&failed)?;
-                let file = fs::File::open(&full)
-                    .map_err(|error| failed(format!("{}: {error}", path.display())))?;
-                for document in pieces(Box::new(file), *format, path.display().to_string()) {
-                    if !sink(document.map_err(&failed)?)? {
-                        return Ok(false);
-                    }
-                }
-                Ok(true)
             }
             Self::Follow { path, format } => follow(path, *format, sink, failed),
             Self::Http {
@@ -930,7 +1111,7 @@ fn complete(
 ) -> Result<Vec<Value>, String> {
     let mut values = Vec::new();
     match format.0 {
-        "Json" => {
+        "Json" | "JsonLines" => {
             let mut stream =
                 serde_json::Deserializer::from_str(pending).into_iter::<serde_json::Value>();
             let mut consumed = 0;

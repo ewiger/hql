@@ -1,6 +1,6 @@
 # HQL-0004: MapReduce: pipeline steps, stages and execution backends
 
-**Status**: accepted
+**Status**: implemented
 **Created**: 2026-09-20
 **Source**: [map/reduce for queries](../../models/behavior/map-reduce.md)
 **Amended by**: [HQL-0005](../HQL-0005/README.md) (a step is not a stage),
@@ -153,9 +153,15 @@ Shape
 - `Barrier` permits nothing. `sort`, `take`, `reduce`, `get`, materialization
   by `List`, and every retrieval and presentation step are barriers. `take` is a barrier
   because a prefix of a split is not a prefix of the whole.
-- Shape is host metadata. It MUST be printed by `hql builtins` beside purity,
-  and it MUST NOT be writable in HQL. The [type system](../../wiki/hql/type-system.hmd)
-  rule that a trait is a host mechanism applies to shape unchanged.
+- Shape is stated where purity is: by the operation's external declaration in
+  the standard library, as a word before `fn` — `elementwise fn`,
+  `partition fn`, `reduction fn` — and a plain `fn` is a barrier, which grants
+  nothing. Every form of an overloaded name states one shape, and binding
+  refuses an extension whose own marking differs. An operation without a
+  declaration keeps its extension's marking. It MUST be printed by
+  `hql builtins` beside purity. A program's own function states no shape; the
+  [type system](../../wiki/hql/type-system.hmd) rule that a trait is a host
+  mechanism applies to shape unchanged.
 
 The core operations and their shapes:
 
@@ -331,7 +337,7 @@ cards
 - `hql builtins` MUST show shape beside purity for every step, so that what a
   backend may do to a step is visible where the step is documented.
 - The signature lines for `reduce` and `group` appear in
-  `std/collections.hql`, beside `Group<K, T>`.
+  `lib/std/collections/mod.hql`, beside `Group<K, T>`.
 
 ### 7. The corpus
 
@@ -392,18 +398,21 @@ observably a no-op.
 
 ## Reference Implementation
 
-- `src/extensions/spec.rs`, `src/extensions/mod.rs` — `Shape`, declared on
-  `Step` beside `Purity`
+- `src/extensions/mod.rs`, `src/extensions/binding.rs` — `Shape` beside
+  `Purity` on `Operation`, read from the declaration and checked against the
+  extension's marking; `lib/std/collections/mod.hql` and `lib/std/seq/mod.hql` write the
+  shape words
 - `src/extensions/collections.rs` — `reduce` and `group`, registered in
   `CORE` with the other collection operations
 - `src/types/mod.rs`, `src/types/value.rs`, `src/execution.rs` — the `Group`
   constructor, its value carrier, and `key` and `items` as resolved fields
 - `src/backends/mod.rs`, `src/backends/localhost.rs` — the `Backend` trait,
   the registry, and `localhost` over `evaluation::evaluate`
-- `src/lib.rs` — `run` selects a backend; `src/cli.rs` — `--backend`,
-  `[execution]`, `hql config`
+- `src/lib.rs` — `run` goes through `localhost`, `run_on` through a selected
+  backend, and `pipeline` lists a program's steps with their shapes;
+  `src/cli.rs` — `--backend`, `[execution]`, `hql config`
 - `src/builtins.rs` — the shape column
-- `std/collections.hql` — `Group<K, T>` and the two signatures
+- `lib/std/collections/mod.hql` — `Group<K, T>` and the two signatures
 - `tests/corpus.rs` — already admits proposed cases; gains the conformance
   test over registered backends
 
@@ -477,3 +486,9 @@ resolved before they are.
 - 2026-10-19: accepted; `group`, `reduce`, `Group<K, T>` and the
   `examples/mapreduce/` corpus are implemented, and `Shape` metadata, backends
   and `--backend` are not yet
+- 2026-10-22: implemented; shape is a word before `fn` in the standard
+  library's declarations, checked against the extension at binding and
+  printed by `hql builtins`; `src/backends/` holds the `Backend` trait and
+  `localhost`, selected by `--backend`, `[execution] backend` and
+  `HQL_BACKEND`, reported by `hql config`, with a conformance test over every
+  registered backend ([issue 0012](../../issues/0012-mapreduce-backends.md))

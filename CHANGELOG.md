@@ -8,7 +8,410 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Changed
+
+- A `Decimal`'s significand is bounded at 512 bits and its scale at 154
+  digits ([HQL-0031](doc/proposals/HQL-0031/README.md)). A literal outside the
+  bounds is a syntax error, `to_decimal` gives none, and arithmetic or
+  `round` past them is a numeric overflow, where before a large exponent or
+  place count exhausted memory.
+
+### Fixed
+
+- `zip` of a stream with a list, in either order, is a `Seq` traversed one
+  position at a time; it failed with "needs a collection".
+- `Data` number leaves compare transitively: an integer and a float leaf of
+  one value are equal, as each already was to a decimal leaf.
+
 ### Added
+
+- A value block as a function body ([HQL-0038](doc/proposals/HQL-0038/README.md);
+  [issue 0051](doc/issues/0051-value-block.md), shown in the
+  [function examples](examples/functions/README.md)): `{ … }` written without
+  `=` is bindings followed by a final expression, which is the function's
+  value and has its declared result type. Any `fn` takes one, a trait's
+  default body and an `impl` function included. A block containing `yield`
+  stays an iterating block; a block that yields and ends in an expression,
+  one that only binds, and `for` in a value block are refused.
+
+- `Decimal`, an exact decimal number ([HQL-0031](doc/proposals/HQL-0031/README.md);
+  [issue 0042](doc/issues/0042-decimal.md), shown in the
+  [decimal examples](examples/decimal/README.md)): a number written with a
+  decimal point, `12.50` or `1.5e-3`, is an arbitrary-precision `Decimal`
+  whose scale is kept for display and whose equality and order are by value;
+  a `Float` is written with the suffix `f`, `0.5f`, `6.02e23f` or `2f`.
+  `+`, `-` and `*` are exact, `/` is exact where the quotient terminates and
+  otherwise rounded half to even to 100 significant digits, and
+  `round(x, places)` rounds half to even. `Decimal` is `Scalar` and
+  `Orderable`, and `min`, `max`, `sum`, `product`, `average`, `abs` and
+  `sign` take it. An `Int` beside a `Decimal` widens to one; a `Float` beside
+  one is a type error naming `decimal(x)` and `float(d)`. `decimal`, `float`,
+  `int` and `s.to_decimal()` convert. A JSON or YAML number or a CSV cell
+  read as a `Decimal` keeps its digits, and a `Decimal` is written to JSON
+  and YAML as a number with its scale, and to CSV and text as its digits.
+  A program that passes a literal with a decimal point to a `Float`
+  parameter, or mixes one with a `Float`, now writes the suffix `f`.
+- Contract rules and defaults ([HQL-0032](doc/proposals/HQL-0032/README.md);
+  [issue 0043](doc/issues/0043-contract-validation.md), shown in the
+  [structural examples](examples/structural/README.md)): a `TypeContract` or
+  `DataContract` body takes `require P` and `validate f with V` beside its
+  fields, and `name: T = literal` defaults. In a rule `f?` reads an optional
+  field, applying the rule only where it is present, or tests its presence
+  as a condition, and `=>` is implication. `x | T` and a decoded stream
+  check every rule, and a value that breaks some is an evaluation error
+  naming each as written. A contract's constructor, `T(…)`, fills its
+  defaults and checks its rules too. `warn P` is a rule whose violation
+  leaves the value valid, and `as name` names a rule, reported as
+  `Contract.name`. A default may be a list, set or `Data` literal of
+  literals, never a call.
+
+- Errors as values ([HQL-0033](doc/proposals/HQL-0033/README.md), shown in
+  the [structural examples](examples/structural/README.md)):
+  `x | validate(T)` reads a `Data`, a collection or a stream as `T` and
+  gives a `Result<T, Invalid>` for each value instead of stopping. An
+  `Invalid` holds the value and every `Violation` of it, each with its
+  contract, path, kind (`missing`, `undeclared`, `type` or `rule`), rule
+  identity, the rule as written and a message; a value that breaks only
+  warnings is `ok`. `oks()` and `errs()` keep the successes and the
+  failures of a collection of results. A `missing` or `type` violation
+  fills `expected` with the type the field was read as, and a `type` or
+  `undeclared` one fills `actual` with the tree the field holds;
+  `Violation.severity` defaults to `"error"`, so `| Invalid` reads a stored
+  `Invalid` back. `x | T` and `x | validate(T)` derive their violations from
+  one reading, so the fail-fast diagnostic says each error's message.
+  `oks()` and `errs()` take a `Stream` of results to a `Stream`, one value
+  at a time, as they take a `List`, `Seq` or `Set` to its own kind.
+
+- `fork`, broadcast fan-out ([HQL-0037](doc/proposals/HQL-0037/README.md),
+  shown in the [dataflow examples](examples/dataflow/README.md)):
+  `xs | fork { a = …, b = … }` gives every branch the same input, evaluated
+  once, and its value is the record of the branches' results, typed
+  `{a: A, b: B}`. `{ a, b } = xs | fork { … }` binds the branches, and
+  over a `Stream` each branch is a stream in the upstream's order.
+  A producer bound once is evaluated once: a `tap` of a file is read once
+  and replayed for every later traversal, as standard input and sockets
+  were, and a pure branch of a bound `fork` that nothing reads is not run.
+  `fork { accepted = oks(), rejected = errs() }` gives both sides of a
+  `List`, `Seq` or `Stream` of results. Rejected values written with
+  `errs() | sink(…)` read back with `| Invalid`, `null` for an absent
+  `expected` or `actual`, and repair from `e.value`.
+  `xs | retry(operation, attempts = n, when = …)` reinvokes a fallible
+  operation for each value while it fails, up to `attempts` invocations,
+  the last failure standing; over a stream it is a stream. HQL-0033 is
+  accepted, and HQL-0032's validation result and stream-routing sections
+  are marked superseded by it.
+
+- Fan-in over streams ([HQL-0037](doc/proposals/HQL-0037/README.md)):
+  `a | merge(b)` interleaves two streams, one value from each in turn,
+  `a | zip(b)` pairs them by position, and `a | concat(b)` produces one and
+  then the other. `merge` keeps its map form; over a `List`, `Seq`, `Set`
+  or `Table` it is a type error naming `concat` or `union`, and `f = merge`
+  with no expected function type is an ambiguous reference.
+  `hql plan` names each step's topology, `fan-out` or `fan-in`, and lists a
+  `fork`'s or `tee`'s branches beneath it.
+
+- Validator types ([HQL-0034](doc/proposals/HQL-0034/README.md), shown in
+  the [structural examples](examples/structural/README.md)): a trait may
+  extend others, `trait Email : Validator { }`, and has their functions as
+  its own. A trait extending the core trait `Validator` is a validator type.
+  `validate f with V` holds where `V`'s `validate` of the field is true, and
+  is a type error where the field's type does not implement `V`; a field
+  declared `f: V` is of the type implementing `V` and is held to it,
+  reported as the violation `Contract.f`. `import validators` gives the
+  standard validator types, `Email` and `NonEmpty`, the first module of
+  the standard library written in HQL rather than declared for an
+  extension; a validator implemented for several types is named in a rule.
+
+- `Table<R>` ([issue 0044](doc/issues/0044-typed-tables.md), shown in the
+  [constructors examples](examples/constructors/README.md)): a table is
+  typed by its row, `[Book(…)] | Table` a `Table<Book>` and a table of
+  `Data` maps a `Table<Data>`. `Table` written without its row is
+  `Table<Data>`, and a `Table<Book>` is not a `Table<Film>`.
+
+- Schema boundaries in `hql.toml` ([HQL-0035](doc/proposals/HQL-0035/README.md)):
+  a configured source maps its fields under
+  `[sources.<id>.fields.<field>]` with `name` or a dotted `path`, `type`,
+  `position`, `read`, `write` and `absent`, and keys its kind's extension
+  owns in a subtable named by the kind; a malformed boundary refuses the
+  vault. One resolver merges the format's defaults, the configuration and
+  an invocation's override field by field, each property keeping its
+  origin, and reports every boundary error at once: an undeclared or
+  unmapped field, a shared or missing external field, and an external type
+  with no decoder. A source read as a declared record is read through its
+  boundary: a CSV header, a nested JSON `path` and a SQLite column map onto
+  a field, and a SQLite source selects only the columns the record reads.
+  An optional field is absent where its external field holds what its
+  `absent` lists, each format's default or the boundary's own. A
+  `Decimal` field is a JSON and YAML `string` by default and reads a
+  string's digits; a representation that may not keep its value needs
+  `lossy = true`. `xs | target("id")` writes a `Table<R>` or a sequence of
+  a declared record through the boundary to CSV, JSON, JSON Lines, YAML or
+  SQLite, the columns in position order and a field with `write = false`
+  left out, as the target's `mode`, `create`, `append` or `replace`, says.
+  A source's `strictness` says what a read does with an external field no
+  HQL field reads: `compatible` passes it to the type, `open` does not read
+  it, `warn` does not read it and reports it, and `strict` refuses it.
+  `hql boundary <file> <id> [--as T]` prints a source's effective
+  boundary, each property with the layer it comes from, or every boundary
+  error.
+
+### Changed
+
+- `partition` redistributes by key ([HQL-0036](doc/proposals/HQL-0036/README.md),
+  shown in the [dataflow examples](examples/dataflow/README.md)):
+  `xs | partition(by = f)` over a `Seq` or a `Stream` keeps the input's
+  type and every value, and is a stage boundary in a plan; the local
+  backend passes the values on in order. The predicate
+  `partition(by: T -> Bool) : Pair<List<T>, List<T>>` is removed: its
+  values are two branches of a `fork`,
+  `fork { yes = filter(p), no = filter(x => not p(x)) }`.
+
+### Fixed
+
+- A record declared under another record, `type Sub : Base = {…}`, has its
+  parent's fields, the parent's first: `Sub(n = 1, m = 2)` builds and
+  `(d | Sub).n` reads. A contract's rules read inherited fields, and a value
+  read as `Sub` holds `Base`'s rules before its own.
+- `Table` ([HQL-0017](doc/proposals/HQL-0017/README.md);
+  [issue 0039](doc/issues/0039-table-shape-and-presentation-review.md), shown
+  in the [constructors examples](examples/constructors/README.md)):
+  `Table(xs, columns = [...])` builds rows from records or `Data` maps, the
+  columns in the order named, or the first row's fields. Each format writes a
+  `Table` with its own encoder, with no renderer named: `Text` aligned
+  columns, `Markdown` and `Hmd` a pipe table, `Csv` rows header first, `Json`
+  and `Yaml` an array of objects, keys in column order. A column naming no
+  field of a declared record is a type error. The
+  [presentation](doc/wiki/hql/presentation.hmd) card states the
+  presentation model.
+- Declaration visibility ([HQL-0028](doc/proposals/HQL-0028/README.md);
+  [issue 0038](doc/issues/0038-import-units-and-visibility.md), shown in the
+  [Mighty Types programs](examples/mighty-types/README.md)): `private` before
+  a function, a type, a trait or a binding of a module makes it visible
+  within that module only. No importer reaches it, by name, as a receiver
+  call or as a step; a private type is named by no importer; a public
+  signature that mentions a private type or trait is refused. `private` is
+  refused on an `impl` and in a program, and `internal` is reserved. A
+  module's public bindings are read as `m.name`.
+- Typed decoding ([HQL-0021](doc/proposals/HQL-0021/README.md), accepted,
+  implemented in part; [issue 0037](doc/issues/0037-io-typed-decoding.md),
+  shown in the [I/O examples](examples/io/README.md)): the declared type of a
+  binding or a function result decodes each document of a read as a declared
+  record, `s : Seq<Sighting> = source(file("birds.jsonl"))`, a live read one
+  document at a time. A CSV cell is parsed as the scalar its field declares.
+  A document that does not decode is an evaluation error naming the
+  endpoint, the document and the field.
+
+- Purity is declared in HQL ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.md),
+  [issue 0036](doc/issues/0036-contracts-receivers-purity-identities.md)):
+  `effectful fn source(…)` declares an external operation effectful and a
+  plain `fn` pure, and binding refuses an extension whose own marking
+  differs. `std/io/mod.hql` and `std/io/logging.hql` declare `file`,
+  `source`, `tap`, `target`, `sink`, `Logger` and the five log levels.
+  `effectful` before a function with a body is a syntax error: such a
+  function is effectful exactly when its body uses an effectful operation.
+
+- Slices ([HQL-0026](doc/proposals/HQL-0026/README.md), shown in the
+  [slicing corpus](examples/slicing/README.md) and stated in
+  [the bracket operator](doc/wiki/hql/operators/bracket-op.hmd)): `xs[a:b]`,
+  either bound left out, takes the part between two positions, of the
+  receiver's own type, its bounds clamped so a slice never fails. `a:b` is a
+  `Range`, a core record a program also builds and passes to the bracket. A
+  String is indexed and sliced by character, `"hello"[1:3]`. A Stream's
+  bounded slice is a List and an open one a Stream, produced lazily. The core
+  trait `Slice` gives a declared type the bracket, and `Seq`, `String` and
+  `Data` implement it natively.
+
+- A type's constructor is an operation declared in HQL
+  ([HQL-0018](doc/proposals/HQL-0018/README.md), shown in the
+  [constructors corpus](examples/constructors/README.md)): `List`, `Set`,
+  `Map`, `OrderedMap`, `SortedMap`, `Graph`, `Channel` and `Data` are
+  declared as `fn` beside their types in `std/` and bound to the binary's
+  constructors. A program declares its own, `fn Temp(celsius: Float) : Temp`
+  beside `type Temp`, several told apart by their first parameter, called,
+  piped or passed to `map`; a constructor value whose expected parameter
+  fits no form or several is refused naming them. Text is parsed by
+  construction: `Data(s, Json)`, `s | Data(Csv)`.
+
+- A `Data` tree is read as a record the program declares, by its shape
+  ([HQL-0016](doc/proposals/HQL-0016/README.md), shown in
+  [reading records](examples/mighty-types/queries/26-reading-records.hql)):
+  `d | is(Book)`, `of_type(Book)` and a `Book b` arm of `match` take a map
+  with an entry for every required field at its type, ignore the entries
+  `Book` does not name, and bind or keep the `Book` its constructor builds.
+  A built-in record, a card kind among them, is not read from a tree.
+
+- Generic traits ([HQL-0027](doc/proposals/HQL-0027/README.md), shown in the
+  [generic traits corpus](examples/generic-traits/README.md)): a trait takes
+  type parameters, `trait Index<T>`, an implementation its own,
+  `impl<T> Index<T> for Ring<T>`, and a bound names a generic trait,
+  `E : Index<T>`, a call filling `T` from the implementation that applies.
+  One type may implement a trait at several arguments, chosen by a call's
+  argument types; overlapping implementations are refused, generic or
+  concrete. `Index<T>` is a core trait: `xs[i]` over a declared type is its
+  `xs.at(i)`, and a sequence and Data implement it natively. The codec
+  contracts are the traits `Decoder<T>` and `Encoder<T>` over the format,
+  their native headers bound to the decoder and encoder tables.
+
+- Overloaded declarations in the standard library: one name declared more
+  than once in a `std/` module is one operation with several signatures, and
+  a call takes the first its input and arguments fit. A bound written with
+  arguments, `S : Seq<T>`, holds the input at its own type, and a constructor
+  parameter, `F<_> : Iterable<_>`, rebuilds it around another element as
+  `F<U>`; `Type<U>` takes a type name. The core's collection operations,
+  `std/collections.hql`, are declared this way rather than described in
+  comments: `take`, `sort`, `collect`, `emit`, `flat_map`, `reduce`, `count`,
+  `sum`, `product` and `average` by overload, `map`, `of_type` and `somes`
+  over `F<_>`, `filter` and `drop` over `S`, and `map` and `filter` over one
+  `Option` and `map` over a `Result` as overloads of their own. So are `reverse`, `distinct`,
+  `take_while`, `drop_while`, `min_by`, `max_by`, `with`, `without`,
+  `intersection` and `difference` of `seq`, and `abs`, `pow` and `sign` of
+  `math`, over an `Int` or a `Float`. `hql builtins` prints each overload.
+  Every core, `seq`, `math`, `string` and `format` operation now takes its
+  types from its declaration ([issue 0033](doc/issues/0033-overloaded-declarations.md),
+  shown in the [overloads corpus](examples/overloads/README.md)):
+  - A `/` in an external declaration ends the parameters a call supplies by
+    position only, and a `*` opens those it supplies by name only:
+    `count(value = 1)`, `contains(value = 1)`, `get(key = …)` and
+    `pow(exponent = 2)` are refused, and `format`'s `limit` and `renderer`
+    are named.
+  - An overload is chosen by its value arguments' types where the input and
+    the arity leave several; a call that fits no form, `2 | pow(2.0)`, is
+    refused naming every form of that arity.
+  - Binding refuses an overload declared after one that takes every call it
+    fits.
+  - `format` and its shorthands are declared in `std/format.hql`, a stream
+    giving a `Stream<String>` and a collection or any other value a `String`.
+  - `fmt` is declared `fmt(self, args: ...Any)`: `...Any` takes a value of
+    any type in each position, where `...T` binds one type for them all.
+  - A constructor parameter takes as many arguments as its bound,
+    `M<_, _> : Map<_, _>`.
+  - The narrowing `filter(x => x | is(U))` is a declaration whose predicate is
+    a `T -> Is<U>`, binding `U` to the type tested.
+
+- String functions in the prelude
+  ([issue 0031](doc/issues/0031-missing-string-functions.md)):
+  `last_index_of`, `occurrences`, `strip_prefix` and `strip_suffix` (an
+  `Option`), `trim_prefix` and `trim_suffix` (the text unchanged when the part
+  is missing), `is_blank`, `equals_ignore_case`, `to_bool`, `ord`, `chr`,
+  `bytes` (UTF-8), `truncate` and `center`. `split` takes an optional
+  `limit` that keeps at most that many pieces, the last holding the rest.
+
+- A complete type system and the language model around it, from
+  [HQL-0024](doc/proposals/HQL-0024/README.md), shown program by program in
+  the [Mighty Types corpus](examples/mighty-types/README.md):
+  - Records: `type Point { x : Int, y : Int }` is a type of the program,
+    constructed as `Point(x = 1, y = 2)` or `Point(1, 2)`, read with `p.x`,
+    generic over its fields, `Stack(items = [1])` being a `Stack<Int>`, and
+    matched by type inside a union, which a `match` must cover.
+  - Receiver calls: `value.f(args)` calls `f` with the value first, resolved
+    among the visible modules by the receiver's type; `module.f(x)` qualifies
+    one. Two modules may declare one name, `contains` of a String and of a
+    collection, told apart at the call.
+  - The `string`, `seq`, `math`, `option` and `result` modules of the
+    prelude, which is the import list of `std/prelude.hql`: `str`, `fmt`,
+    `trim`, `split`, `join`, `first`, `last`, `zip`, `enumerate`, `range`,
+    `any`, `all`, `find`, `take_while`, `window`, `distinct`, `to_map`,
+    `with`, `entries`, `join` of two collections, `sqrt`, `pow`, `int`,
+    `float`, `unwrap_or`, `and_then` and the rest; `Pair<A, B>`; a step as a
+    function value, `map(str)`.
+  - `Result<T, E>`: `ok(v)` and `err(e)` as values and patterns, with
+    `is_ok`, `map_err`, `and_then` and the ways out beside `Option`'s.
+  - Traits: `trait Shape { fn area(self) : Float }` with default bodies,
+    `impl Shape for Circle { … }` once per trait and type, `T : Shape` bounds
+    checked at every call, dispatch on the value's own type; the operators
+    resolve through `Add`, `Sub`, `Mul`, `Div`, `Rem` and `Eq`, and a type
+    implementing `Ord` is `Orderable` for `<`, `sort`, `min` and `max`.
+  - Strict traits: `std/core.hql` declares the built-in types' native
+    implementations as bodyless headers, `impl Ord for Int`, so `T : Eq`
+    takes `Int` and `T : Add` refuses `String`; binding refuses a header
+    without a native body and a native body without a header; one
+    implementation per trait and type across the standard library, imported
+    modules and the program, the error naming both; an implementation is
+    declared with its trait or its type ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.md)).
+  - A standard module's `.hql` declaration is its functions' signature: an
+    operation implementing one writes no type in Rust, binding derives what
+    the checker uses, and an operation that keeps a native signature is
+    compared with its declaration in full, so the two cannot drift. A
+    declaration may write its receiver's type, `fn join(self: Collection<String>, …)`,
+    and a default for an argument that may be omitted, `step: Int = 1`.
+  - Modules: `import a.b as c` binds one module under a local name, builtin
+    (`io.net`) or a workspace module found by its position under a module
+    root, `hql.toml` `[modules] roots` or `--modules`; a module file declares
+    functions, types, traits and implementations, may open with `module for
+    T` to make its `self` functions receiver functions, and imports for
+    itself. Imports sit at the head of a unit.
+  - The `regex` module, imported where it is used: `is_match`, `find`,
+    `find_all`, `captures`, `replace` and `split`.
+  - Function types reach eight parameters; an argument list takes a trailing
+    comma; an integer literal takes a call, `7.max(3)`.
+
+### Changed
+
+- The table renderers `aligned`, `pipe`, `rows` and `records` write only a
+  `Table`. Named for another value, in `format(..., renderer = ...)` or in a
+  vault's `[format.<Type>]`, they are refused before the program runs;
+  `xs | format(Markdown, renderer = "pipe")` is written
+  `xs | Table(columns = [...]) | markdown`.
+- A module is a closure ([HQL-0028](doc/proposals/HQL-0028/README.md)): it
+  sees its own declarations and imports and no host binding, so `vault`,
+  `cards`, `graph`, `stdin` and the vault's configured imports belong to the
+  program module alone. `cards = vault.cards` and `graph = vault.graph` moved
+  out of `std/vault.hql` into the program module. A module that read one of
+  them takes it as a parameter.
+- Two imports declaring one receiver function are an ambiguity, the
+  prelude's modules included: with `mighty.text` imported,
+  `"   ".is_blank()` names `text.is_blank` and `string.is_blank` and is
+  qualified. A unit's own declaration wins over every import's; a use above
+  that declaration is refused, and a receiver call of the name of an own
+  function without `self` is refused rather than reaching an import's.
+- A receiver call, `value.f()`, reaches only a declaration that takes `self`
+  ([issue 0036](doc/issues/0036-contracts-receivers-purity-identities.md),
+  shown in the [receivers corpus](examples/receivers/README.md)). The core's
+  collection operations, `math`, and `seq`'s map and set functions write
+  their receiver, `fn size<T>(self: Collection<T>)`, `fn abs(self: Int)`, so
+  `xs.size()` and `42.abs()` still call them; `1.range(3)` and
+  `"ab".is_match("a")` are refused naming the call and pipeline forms, which
+  still reach them.
+
+- A negative position counts from the end: `xs[-1]` is the last element, not
+  absence, and `s.slice(start, end)` counts a negative bound from the end
+  ([HQL-0026](doc/proposals/HQL-0026/README.md)). An index that is neither an
+  `Int` nor a `Range` is refused as "an index is an Int position or a Range".
+
+- A generic variadic parameter binds its type from the trailing arguments:
+  `fn pack<T>(xs: ...T)` makes `pack(1, 2)` a `List<Int>`, and refuses
+  `pack(1, "owl")`, whose arguments share no declared ancestor.
+
+- A step over a value applied to an optional input is lifted over it
+  ([issue 0033](doc/issues/0033-overloaded-declarations.md)): `none | abs`,
+  `none | sqrt` and `none | upper` check and evaluate to absence, and
+  `some(-2) | abs` is an `Option<Int>`. A step over a collection still takes
+  absence as the empty collection.
+- `collect(for = …)` is refused as an argument `collect` does not declare.
+
+- `string.replace` and `regex.replace` are now `replace_all`, and each has a
+  `replace_first` beside it, so a replacement names whether it applies to
+  the first occurrence or to every occurrence.
+
+- A format is a `Format`, a category of its own, not a `String` subtype
+  ([HQL-0024 part 7](doc/proposals/HQL-0024/parts/07-formats-and-codecs.md),
+  from [encode, decode and format](doc/proposals/HQL-0024/encode-decode-format.md)).
+  `format(x, Json)` and its shorthands give a `String` that keeps its format
+  for presentation, so `xs | json` is a `String` and encoding it again in
+  another format encodes that text. `Lines` and `JsonLines` are framing
+  formats: `source(file(p), Lines)` is a `Seq<String>` and `source(stdin,
+  JsonLines)` a `Stream<Data>`; `.jsonl` and `.ndjson` imply `JsonLines`.
+  `std/format.hql` declares the codec contracts `Decoder<F, T>` and
+  `Encoder<T, F>`. `Text` is one whole document; a `.txt` or `.log` path
+  implies `Lines`; and `lines` and `jsonlines` encode one record per line.
+  `sink` writes a stream, one document per value, and `target` one whole
+  document, as before. The Mighty Types corpus
+  shows `source(file, Lines)`, `target(file, Lines)` and
+  `sink(file(p).end, Lines)`.
+- `import` names a module, not an extension; `import nonesuch` is refused as
+  "no module named".
+- The binary runs on a thread with a large stack, so a program may recurse
+  thousands of calls deep.
 
 - Endpoints, from [HQL-0021](doc/proposals/HQL-0021/README.md): `stdin`,
   `stdout` and `stderr`, `file(path)`, and a file's `.end`. `source(e, F)`

@@ -21,8 +21,10 @@ and `_`; letters are Unicode alphabetic. Names are case-sensitive: `Card` and
 no rule reads an uppercase initial as a type or a constructor — so casing is a
 convention and never a syntax error. A checker warning for a departure is
 design direction, specified by HQL-0011. `true` and `false`
-are the only words the lexer reserves; `type`, `abstract`, `import` and the
-other keywords are recognized by position.
+are the only words the lexer reserves; `type`, `abstract`, `import`, `private`
+and the other keywords are recognized by position. `internal`, before a
+declaration, is reserved and refused
+([HQL-0028](../../proposals/HQL-0028/README.md)).
 
 ## Casing
 
@@ -33,7 +35,7 @@ other keywords are recognized by position.
 | Step, operation, function | `snake_case` | `size`, `unwrap_or`, `and_then`, `downlinks` |
 | Binding, parameter, named argument | `snake_case` | `bird_cards`, `first_two`, `by`, `default` |
 | Declared field | `snake_case` | `metadata`, `provenance`, `approximate` |
-| Extension | one lowercase word | `graph`, `format`, `lexical`, `semantic` |
+| Extension | the name of its package | `std`, `search`, `hql-ext-postgres` |
 | Keyword | lowercase | `type`, `abstract`, `import`, `match`, `given` |
 
 An acronym inside a type name is written as a word: `HmdCard`, `IndexRef`,
@@ -47,7 +49,7 @@ The checker lints each name where a program introduces it — a binding, a
 parameter, a `fn`, a `type`, a type parameter and a declared field. A name off
 its kind's convention is a warning at the name, naming the kind and the
 convention, and never changes the exit status. Every step the binary registers
-and every name in `std/` follows the convention, which a test enforces
+and every name in `lib/std/` follows the convention, which a test enforces
 ([HQL-0011](../../proposals/HQL-0011/README.md)).
 
 Three kinds of name are not HQL identifiers. The first two follow no HQL
@@ -64,31 +66,46 @@ convention:
 - **Source ids and kinds.** A data source is named in the run context's
   configuration, and a program reaches it with a string, `source("field_notes")`.
   Ids and kind names (`vault`, `git_vault`, `postgres`) are `snake_case`, so a
-  binding can carry the id's name: `field_notes = source("field_notes")`. Data
-  sources are design direction, specified by
-  [HQL-0012](../../proposals/HQL-0012/README.md).
+  binding can carry the id's name: `field_notes = source("field_notes")`. The
+  kinds `vault`, `csv`, `json`, `json_lines`, `yaml` and `sqlite` are
+  implemented; [HQL-0012](../../proposals/HQL-0012/README.md) specifies the
+  rest.
 
 The value constructors of the core's sum types are spelled two ways today:
 `some`, `none`, `ok` and `err` in lowercase, `Less`, `Equal` and `Greater` in
-`PascalCase`. One convention for constructors is not yet stated.
+`PascalCase`. One convention for constructors is not yet stated. A record's
+constructor is its type's name, `Point(x = 1, y = 2)`.
+
+Three names are reserved by position, not by the lexer: `self`, the first
+parameter of a receiver function or a trait's function, which `value.f()`
+supplies; `Self`, the implementing type inside a `trait` or an `impl`; and a
+module's local name, the last segment of `import a.b` or its `as` alias, which
+qualifies the module's functions as `b.f(…)` and may not be a binding at the
+same time ([HQL-0024](../../proposals/HQL-0024/README.md)).
 
 ## Providers
 
 **The core** provides the type lattice and the collection steps. The lattice is
-declared in [`std/`](../../../std/README.md), one file per module, and the core
+declared in [`lib/std/`](../../../lib/std/README.md), one file per module, and the core
 steps — `size`, `contains`, `get`, `count`, `sort`, `take`, `filter`, `map`,
 `of_type`, `is`, `group`, `reduce`, `sum`, `min`, `max`, `debug` — are always in
 scope. See [[hql/std-lib]] and [[hql/core]].
 
-**An extension** provides steps, registered in the binary and bound by
-`import`. Today an extension names types the lattice already has and adds no
+**An extension** implements the external declarations of its package's
+modules, and is named as that package is: `std`, `search`. A program imports
+a module, never an extension.
+Today the binary still registers one entry per Rust source module, named as
+the module it backs, and `import` binds that entry. Today an extension names types the lattice already has and adds no
 case to it. Design direction in HQL-0012 widens this by one thing: an extension
 provides source kinds and their concrete types, such as `Vault` under the core's
 abstract `VaultSource`. See [[hql/extensions]].
 
 **The run context** — the configuration and host the binary runs in — provides
-context values before a program starts: `cards` and `knowledge` today, and by
-HQL-0012 the default source `vault` and every source named in configuration.
+context values before a program starts, into the **program module** alone:
+`vault`, `stdin`, `stdout`, `stderr` and `file`, and the program module's
+bindings over `vault`, `cards` and `graph`; by HQL-0012 every source named in
+configuration. No module sees them
+([HQL-0028](../../proposals/HQL-0028/README.md)).
 
 **The program** provides bindings: `bird_cards = cards | filter(…)` introduces
 `bird_cards` for the statements after it. A lambda's parameter — `c` in
@@ -103,18 +120,43 @@ declarations are not in the grammar.
 
 | Namespace | Holds | Resolved by |
 | --- | --- | --- |
-| Types | every type name, one lattice | the `std/` declarations and the binary's registry |
-| Steps | step names, per extension | `import`; `extension.step(…)` qualifies one |
+| Types | every type name, one lattice | the `lib/std/` declarations and the binary's registry |
+| Steps and functions | step and function names, per module | the prelude and `import`; `module.f(…)` qualifies one, and the receiver's type tells two modules declaring one name apart |
+| Modules | the local names of imported modules | `import a.b [as c]`, the prelude's modules, and the standard library's canonical names |
+| Traits | trait names, with their functions | the core's operator traits, the program's `trait` declarations, and the traits of imported modules |
 | Bindings | program bindings and host-seeded context values | lexical scope: a binding is visible after the statement that makes it |
 | Fields | declared fields, per type | the type of the value the `.` path is read from |
 | Documents | file stems in the vault | the HyperMarkDown resolver — see [[hypermarkdown]] |
 | Sources | ids in the run context's configuration | `source(id)`, at check time and offline (design direction) |
 
-Two imported extensions that provide the same step name fail at the import,
-naming both; the qualified form `extension.step(…)` is how a program reaches
-one of them. The host seeds context values into the binding namespace before a
-program runs: `vault`, of type `Vault`, and `knowledge`. `cards` is the
-standard-library binding `cards = vault.cards` — see [[card-type]].
+Two visible modules may declare one function name, `contains` of a String and
+of a collection: the receiver's type tells them apart at the call, a call that
+fits both is refused naming both, and the qualified form `module.f(…)` reaches
+one of them. Two imports may not share a local name; `as` renames one. The host seeds context values into the binding namespace of the
+program module before a program runs: `vault`, of type `Vault`, and
+`knowledge`. `cards` is the program module's binding `cards = vault.cards` —
+see [[card-type]].
+
+## Import units and visibility
+
+Every module, and the program module of an invocation, is one **import
+unit**: its own imports and the prelude are visible in it and nowhere else. A
+module is a closure: a free name in it resolves through its own declarations
+and its own imports, never through the program module or a host binding.
+
+A unit's own declaration wins over an imported one of the same name, in every
+spelling — `s.f()`, `s | f` and `f(s)` — and a use written above that
+declaration is refused rather than reaching the import's. Two imported
+declarations of one name, neither the unit's own, are an ambiguity whatever
+the import order, the prelude's modules included; qualifying the call,
+`string.trim(s)`, resolves it.
+
+Inside a module a declaration is public unless it is marked `private`. A
+private function, receiver function, type, trait or binding is visible within
+its own module only: no importer reaches it by name, as a receiver call or as
+a step, and a public signature may not mention a private type or trait.
+`private` is refused on an `impl` and in the program module, whose
+declarations are all public. See [HQL-0028](../../proposals/HQL-0028/README.md).
 
 See [[type-system]] for how a type name relates to another, and [[pipes]] for
 what a step is.

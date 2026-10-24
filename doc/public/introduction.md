@@ -213,7 +213,7 @@ written piece by piece as it arrives.
 
 - **Learn the language.** [The HQL book](learn/index.md) is fifteen chapters
   read in order, from a first value to an agent whose run is a value. If you
-  know `jq`, start at [Data](learn/02-data.md) and
+  know `jq`, start at [Data](learn/02-data-types/data.md) and
   [Reading and writing data](learn/13-reading-and-writing.md); if you know SQL,
   at [Asking questions](learn/05-questions.md); if you keep notes in a vault,
   at [A vault of documents](learn/06-a-vault.md); if you build with language

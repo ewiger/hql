@@ -1,15 +1,14 @@
 //! The `format` extension: writing a value as text in a presentation format.
 //!
-//! A presentation format is a subtype of `String` with a known syntax:
-//! `Markdown`, `Json`, `D2` and the rest. `format(x, F)` writes any value as
-//! text of format `F`, and the result is ordinary text a later step may read.
-//! Which renderer writes a type in a format is chosen per vault in `hql.toml`,
-//! over built-in defaults. See [HQL-0017](../../doc/proposals/HQL-0017/README.md).
+//! A format is a value of `Format`: `Markdown`, `Json`, `D2` and the rest.
+//! `format(x, F)` applies the encoder for `x`'s type in `F` and gives the
+//! encoded text, a `String` a later step may read. A renderer is one of a
+//! format's encoders for one shape, `Graph` or `Table`; which one writes a
+//! type in a format is chosen per vault in `hql.toml`, over built-in
+//! defaults. The model is stated in
+//! [presentation](../../doc/wiki/hql/presentation.hmd).
 
-use super::spec::{
-    ArgumentKind as A, ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern,
-    TypePattern as P,
-};
+use super::Signature;
 use super::{EvalCx, Operation, Purity, named};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
@@ -22,12 +21,14 @@ use std::sync::Arc;
 
 /// The presentation formats, each a subtype of `String`, with the name a
 /// configuration and `--to` write it in.
-pub const FORMATS: [(&str, &str); 9] = [
+pub const FORMATS: [(&str, &str); 11] = [
     ("Text", "text"),
+    ("Lines", "lines"),
     ("Hql", "hql"),
     ("Markdown", "markdown"),
     ("Hmd", "hmd"),
     ("Json", "json"),
+    ("JsonLines", "jsonlines"),
     ("Yaml", "yaml"),
     ("Csv", "csv"),
     ("D2", "d2"),
@@ -51,6 +52,20 @@ const RENDERERS: [(&str, &[&str]); 9] = [
 /// Graph renderers write only a `Graph`.
 const GRAPH_RENDERERS: [&str; 4] = ["adjacency", "node-link", "d2", "mermaid"];
 
+/// Table renderers write only a `Table`.
+const TABLE_RENDERERS: [&str; 4] = ["aligned", "pipe", "rows", "records"];
+
+/// The shape a renderer writes, when it writes one shape only.
+fn shape_of(renderer: &str) -> Option<&'static str> {
+    if GRAPH_RENDERERS.contains(&renderer) {
+        Some("Graph")
+    } else if TABLE_RENDERERS.contains(&renderer) {
+        Some("Table")
+    } else {
+        None
+    }
+}
+
 /// Whether some renderer writes a value of type `input` as `format`: a graph
 /// in any format, text of one format as itself, as `Text`, or fenced in
 /// `Markdown` and `Hmd`, and anything else in every format but `D2` and
@@ -71,17 +86,8 @@ pub fn writable(input: &TypeRef, format: &str) -> Result<(), String> {
         }
         return Ok(());
     }
-    let from = input.constructor.0;
-    let refused = || Err(format!("no renderer writes {input} as {format}"));
-    if FORMATS.iter().any(|(name, _)| *name == from) {
-        return match (from, format) {
-            (from, to) if from == to => Ok(()),
-            (_, "Text" | "Hql" | "Markdown" | "Hmd") => Ok(()),
-            _ => refused(),
-        };
-    }
     if matches!(format, "D2" | "Mermaid") && !input.is(&TypeRef::GRAPH) && *input != TypeRef::DATA {
-        return refused();
+        return Err(format!("no renderer writes {input} as {format}"));
     }
     Ok(())
 }
@@ -152,9 +158,11 @@ impl Renderers {
                         format.0
                     ));
                 }
-                if GRAPH_RENDERERS.contains(&renderer) && ty != "Graph" {
+                if let Some(shape) = shape_of(renderer)
+                    && ty != shape
+                {
                     return Err(format!(
-                        "the renderer `{renderer}` writes a Graph, not {ty}"
+                        "the renderer `{renderer}` writes a {shape}, not {ty}"
                     ));
                 }
                 chosen.insert((ty.clone(), format.0.to_owned()), renderer.to_owned());
@@ -193,16 +201,20 @@ pub fn render(
     let settled = value.settled();
     let (value, cut) = capped(settled.as_ref().unwrap_or(value), limit);
     writable(&value.type_of(), format.0)?;
-    // A value already in a format: the identity, a widening, plain text, or a
-    // fence.
+    // Text already encoded in a format: the identity in its own format and
+    // as plain text, a fence in Markdown, and otherwise the String it is,
+    // encoded again, `markdown | json` being a JSON string.
     if let Value::Formatted(formatted) = &value {
-        return Ok(match (formatted.format.0, format.0) {
-            ("Markdown" | "Hmd", "Markdown" | "Hmd") | (_, "Text") => formatted.text.clone(),
-            // Text of another format is, to HQL, a string.
-            (from, "Hql") if from != "Hql" => format!("{:?}", formatted.text),
-            (from, to) if from == to => formatted.text.clone(),
-            _ => value.to_markdown(),
-        });
+        match (formatted.format.0, format.0) {
+            ("Markdown" | "Hmd", "Markdown" | "Hmd") | (_, "Text" | "Lines") => {
+                return Ok(formatted.text.clone());
+            }
+            (from, to) if from == to => return Ok(formatted.text.clone()),
+            (_, "Markdown" | "Hmd") => return Ok(value.to_markdown()),
+            _ => {}
+        }
+        let plain = Value::Str(formatted.text.as_str().into());
+        return render(&plain, format, limit, renderer, renderers);
     }
     let chosen = renderer
         .map(str::to_owned)
@@ -227,13 +239,18 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
     if let Value::Formatted(_) = value {
         return render(value, format, 0, None, &Renderers::default());
     }
+    if let Value::Table(_) = unwrapped(value) {
+        return render(value, format, 0, None, &Renderers::default());
+    }
     let one = Value::list(vec![value.clone()], value.type_of());
     match format.0 {
-        "Text" | "String" => Ok(text(value)),
+        "Text" | "Lines" | "String" => Ok(text(value)),
         "Hql" => Ok(value.to_literal()),
         "Markdown" | "Hmd" => Ok(one.to_markdown()),
-        "Json" => serde_json::to_string(&value.to_json()).map_err(|error| error.to_string()),
-        "Yaml" => serde_yaml_ng::to_string(&value.to_json())
+        "Json" | "JsonLines" => {
+            serde_json::to_string(&value.to_json()).map_err(|error| error.to_string())
+        }
+        "Yaml" => crate::data::yaml_text(&value.to_json())
             .map(|document| format!("---\n{}", document.trim_end()))
             .map_err(|error| error.to_string()),
         "Csv" => {
@@ -251,8 +268,22 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
     }
 }
 
-/// The built-in choice for a type in a format.
+/// The built-in choice for a type in a format: a `Graph` by its graph
+/// renderers, a `Table` by each format's table encoder, and any other value
+/// as its own rendering or its data.
 fn default(value: &Value, format: TypeConstructor) -> Result<String, String> {
+    if let Value::Table(table) = unwrapped(value) {
+        return match format.0 {
+            "Text" | "String" | "Lines" => Ok(table.aligned()),
+            "Markdown" | "Hmd" => Ok(table.piped()),
+            "Csv" => Ok(table.csv()),
+            "Json" => Ok(table.json()),
+            "JsonLines" => Ok(table.json_lines()),
+            "Yaml" => Ok(table.yaml()),
+            "Hql" => Ok(value.to_literal()),
+            other => Err(format!("no renderer writes Table as {other}")),
+        };
+    }
     let graph = matches!(unwrapped(value), Value::Graph(_));
     match format.0 {
         "Text" | "String" | "Hql" if graph => by_name("adjacency", value, format),
@@ -260,10 +291,27 @@ fn default(value: &Value, format: TypeConstructor) -> Result<String, String> {
         "Markdown" | "Hmd" | "D2" if graph => by_name("d2", value, format),
         "Mermaid" if graph => by_name("mermaid", value, format),
         "Text" | "String" => Ok(text(value)),
+        // Line framing: one record per line, each a value's text or its
+        // compact JSON; a value that is not a collection is one record.
+        "Lines" => Ok(value
+            .elements()
+            .unwrap_or_else(|| vec![value.clone()])
+            .iter()
+            .map(text)
+            .collect::<Vec<_>>()
+            .join("\n")),
+        "JsonLines" => value
+            .elements()
+            .unwrap_or_else(|| vec![value.clone()])
+            .iter()
+            .map(|record| serde_json::to_string(&record.to_json()))
+            .collect::<Result<Vec<_>, _>>()
+            .map(|lines| lines.join("\n"))
+            .map_err(|error| error.to_string()),
         "Hql" => Ok(value.to_literal()),
         "Markdown" | "Hmd" => Ok(value.to_markdown()),
         "Json" => Ok(json(value)),
-        "Yaml" => serde_yaml_ng::to_string(&value.to_json()).map_err(|error| error.to_string()),
+        "Yaml" => crate::data::yaml_text(&value.to_json()).map_err(|error| error.to_string()),
         "Csv" => Ok(value.to_csv()),
         other => Err(format!("no renderer writes {} as {other}", value.type_of())),
     }
@@ -286,12 +334,15 @@ fn by_name(name: &str, value: &Value, format: TypeConstructor) -> Result<String,
         ("node-link", Value::Graph(graph)) => Ok(node_link(graph)),
         ("d2", Value::Graph(graph)) => Ok(fenced("d2", d2(graph))),
         ("mermaid", Value::Graph(graph)) => Ok(fenced("mermaid", mermaid(graph))),
-        ("aligned", _) => Ok(value.to_table()),
-        ("pipe", _) => Ok(value.to_markdown_table()),
-        ("rows", _) => Ok(value.to_csv()),
-        ("records", _) => Ok(json(value)),
+        ("aligned", Value::Table(table)) => Ok(table.aligned()),
+        ("pipe", Value::Table(table)) => Ok(table.piped()),
+        ("rows", Value::Table(table)) => Ok(table.csv()),
+        ("records", Value::Table(table)) => Ok(table.json()),
         ("list", _) => Ok(value.to_markdown()),
-        ("adjacency" | "node-link" | "d2" | "mermaid", _) => Err(refused()),
+        (
+            "adjacency" | "node-link" | "d2" | "mermaid" | "aligned" | "pipe" | "rows" | "records",
+            _,
+        ) => Err(refused()),
         _ => Err(format!("no renderer is named `{name}`")),
     }
 }
@@ -426,6 +477,14 @@ fn capped(value: &Value, limit: usize) -> (Value, usize) {
             kept.hits.truncate(limit);
             (Value::Ranking(Arc::new(kept)), ranking.hits.len() - limit)
         }
+        Value::Table(table) if table.rows.len() > limit => (
+            Value::Table(Arc::new(crate::types::Table {
+                row: table.row.clone(),
+                columns: table.columns.clone(),
+                rows: table.rows[..limit].to_vec(),
+            })),
+            table.rows.len() - limit,
+        ),
         Value::Graph(graph) if graph.nodes.len() > limit => {
             let kept: std::collections::BTreeSet<&String> =
                 graph.nodes.iter().take(limit).collect();
@@ -465,105 +524,25 @@ fn cut_marker(format: TypeConstructor, cut: usize) -> String {
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "format",
-        spec: OperationSpec {
-            parameters: &[TypeParameter {
-                name: "F",
-                bound: Some(TypeConstructor("String")),
-            }],
-            input: P::Any,
-            arguments: &[
-                ArgumentSpec {
-                    name: "as",
-                    kind: A::TypeName("F"),
-                    required: true,
-                    positional: true,
-                    named: true,
-                },
-                ArgumentSpec {
-                    required: false,
-                    positional: false,
-                    ..ArgumentSpec::value("limit", P::Type(TypeConstructor("Int")))
-                },
-                ArgumentSpec {
-                    required: false,
-                    positional: false,
-                    ..ArgumentSpec::value("renderer", P::Type(TypeConstructor("String")))
-                },
-            ],
-            output: O::Finite {
-                finite: P::Var("F"),
-                open: P::Apply(crate::types::collections::STREAM, &[P::Var("F")]),
-            },
-        },
-        summary: "Write any value as text of a presentation format, chosen by its type; \
-                  a stream piece by piece.",
+        spec: Signature::Declared,
+        summary: "Encode any value as text in a format, chosen by its type; a stream \
+                  piece by piece.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check_format),
         eval: eval_format,
     },
-    shorthand(
-        "text",
-        "Text",
-        &[P::Type(TypeConstructor("Text"))],
-        check_text,
-        eval_text,
-    ),
-    shorthand(
-        "hql",
-        "Hql",
-        &[P::Type(TypeConstructor("Hql"))],
-        check_hql,
-        eval_hql,
-    ),
-    shorthand(
-        "markdown",
-        "Markdown",
-        &[P::Type(TypeConstructor("Markdown"))],
-        check_markdown,
-        eval_markdown,
-    ),
-    shorthand(
-        "hmd",
-        "Hmd",
-        &[P::Type(TypeConstructor("Hmd"))],
-        check_hmd,
-        eval_hmd,
-    ),
-    shorthand(
-        "json",
-        "Json",
-        &[P::Type(TypeConstructor("Json"))],
-        check_json,
-        eval_json,
-    ),
-    shorthand(
-        "yaml",
-        "Yaml",
-        &[P::Type(TypeConstructor("Yaml"))],
-        check_yaml,
-        eval_yaml,
-    ),
-    shorthand(
-        "csv",
-        "Csv",
-        &[P::Type(TypeConstructor("Csv"))],
-        check_csv,
-        eval_csv,
-    ),
-    shorthand(
-        "d2",
-        "D2",
-        &[P::Type(TypeConstructor("D2"))],
-        check_d2,
-        eval_d2,
-    ),
-    shorthand(
-        "mermaid",
-        "Mermaid",
-        &[P::Type(TypeConstructor("Mermaid"))],
-        check_mermaid,
-        eval_mermaid,
-    ),
+    shorthand("text", check_text, eval_text),
+    shorthand("hql", check_hql, eval_hql),
+    shorthand("markdown", check_markdown, eval_markdown),
+    shorthand("hmd", check_hmd, eval_hmd),
+    shorthand("json", check_json, eval_json),
+    shorthand("yaml", check_yaml, eval_yaml),
+    shorthand("csv", check_csv, eval_csv),
+    shorthand("lines", check_lines, eval_lines),
+    shorthand("jsonlines", check_jsonlines, eval_jsonlines),
+    shorthand("d2", check_d2, eval_d2),
+    shorthand("mermaid", check_mermaid, eval_mermaid),
 ];
 
 /// One check and one evaluation per shorthand, each with its format fixed.
@@ -596,6 +575,8 @@ shorthands! {
     check_json, eval_json => "Json",
     check_yaml, eval_yaml => "Yaml",
     check_csv, eval_csv => "Csv",
+    check_lines, eval_lines => "Lines",
+    check_jsonlines, eval_jsonlines => "JsonLines",
     check_d2, eval_d2 => "D2",
     check_mermaid, eval_mermaid => "Mermaid",
 }
@@ -636,7 +617,25 @@ fn check_format(
                     format!("the renderer `{renderer}` does not write {format}"),
                 ));
             }
-            Some(_) => {}
+            Some(_) => {
+                // A table renderer writes a `Table`, so over a value whose
+                // type is known it is refused before the program runs.
+                let input = call.input.present();
+                let known =
+                    !input.has_variable() && !input.has_placeholder() && *input != TypeRef::NEVER;
+                if TABLE_RENDERERS.contains(&renderer.as_str())
+                    && known
+                    && input.constructor != TypeRef::TABLE.constructor
+                {
+                    return Err(Diagnostic::typing(
+                        argument.value.span.clone(),
+                        format!(
+                            "the renderer `{renderer}` writes a Table, not {input}; build one \
+                             with `Table(xs, columns = [...])`"
+                        ),
+                    ));
+                }
+            }
         }
     }
     writable(call.input, format).map_err(|message| Diagnostic::typing(span, message))
@@ -652,26 +651,13 @@ fn unwrapped(value: &Value) -> &Value {
 }
 
 /// `name := format(Format)`: fixes the format and nothing else.
-const fn shorthand(
-    name: &'static str,
-    format: &'static str,
-    piece: &'static [TypePattern],
-    check: super::Check,
-    eval: super::Eval,
-) -> Operation {
+const fn shorthand(name: &'static str, check: super::Check, eval: super::Eval) -> Operation {
     Operation {
         name,
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::Any,
-            arguments: &[],
-            output: O::Finite {
-                finite: P::Type(TypeConstructor(format)),
-                open: P::Apply(crate::types::collections::STREAM, piece),
-            },
-        },
+        spec: Signature::Declared,
         summary: "Shorthand for format with its format fixed.",
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check),
         eval,
     }

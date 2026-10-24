@@ -1,17 +1,37 @@
 //! Parse tokens into a program: statements, bindings, pipelines and calls.
 
 use crate::ast::{
-    ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, Field, FnDecl, Kind,
-    Logic, Param, Pattern, Program, Relation, Stmt, TEE_INPUT, TypeAnn, TypeDecl,
+    ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, ExternalDecl, FORK_INPUT,
+    Field, FnDecl, ImplDecl, Kind, Logic, MethodDecl, Param, Passing, Pattern, Program, Relation,
+    Rule, Severity, Stmt, TEE_INPUT, TraitDecl, TypeAnn, TypeDecl, optional_read, presence,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
 use std::ops::Range;
 
+/// Type parameter bounds, each by the parameter it constrains.
+type Bounds = Vec<(String, TypeAnn)>;
+
 // Bound the left-deep operator chains, including their traversal and destruction.
 const MAX_OPERATORS: usize = 255;
 // Bound recursion through parentheses, calls, data literals and lambdas.
 const MAX_DEPTH: usize = 128;
+
+/// One line of a block: a statement, with its span, or an expression on a
+/// line of its own.
+enum Line {
+    Statement(BlockStmt, Range<usize>),
+    Value(Expr),
+}
+
+/// Whether a block yields, directly or within a `for`.
+fn yields(statements: &[BlockStmt]) -> bool {
+    statements.iter().any(|statement| match statement {
+        BlockStmt::Yield(_) => true,
+        BlockStmt::For { body, .. } => yields(body),
+        BlockStmt::Bind { .. } => false,
+    })
+}
 
 /// Parse a whole program. The entire input must be consumed.
 pub(crate) fn parse(source: &str) -> Result<Program, Diagnostic> {
@@ -22,6 +42,9 @@ pub(crate) fn parse(source: &str) -> Result<Program, Diagnostic> {
         nesting: 0,
         operators: 0,
         depth: 0,
+        rule_nesting: None,
+        source: source.to_owned(),
+        rule_reads: Vec::new(),
         line_starts: std::iter::once(0)
             .chain(source.match_indices('\n').map(|(index, _)| index + 1))
             .collect(),
@@ -39,9 +62,23 @@ struct Parser {
     depth: usize,
     /// Where each line of the source starts, for the columns `tee` reads.
     line_starts: Vec<usize>,
+    /// The bracket nesting of the contract rule being parsed, if any: at it,
+    /// `f?` reads an optional field and `=>` is implication, not a lambda.
+    rule_nesting: Option<usize>,
+    /// The program text, which a rule keeps as written for its diagnostic.
+    source: String,
+    /// The optional fields the rule being parsed reads as `f?`, once per
+    /// time it is written.
+    rule_reads: Vec<String>,
 }
 
 impl Parser {
+    /// Whether parsing is at the top of a contract rule, where `=>` is
+    /// implication.
+    fn at_rule_level(&self) -> bool {
+        self.rule_nesting == Some(self.nesting)
+    }
+
     fn peek(&self) -> &Token {
         // Inside brackets, newlines are insignificant and skipped on sight.
         let mut index = self.index;
@@ -74,6 +111,18 @@ impl Parser {
             self.index += 1;
         }
         token
+    }
+
+    /// The `_` of a constructor parameter, `F<_>`.
+    fn hole(&mut self) -> Result<(), Diagnostic> {
+        let written = self.advance();
+        match written.token {
+            Token::Ident(name) if name == "_" => Ok(()),
+            _ => Err(Diagnostic::syntax(
+                written.span,
+                "a constructor parameter takes `_`: `F<_>`",
+            )),
+        }
     }
 
     fn eat(&mut self, expected: &Token) -> bool {
@@ -147,7 +196,11 @@ impl Parser {
         let mut statements = Vec::new();
         self.continuation();
         while !matches!(self.peek(), Token::End) {
-            statements.push(self.statement()?);
+            if let Some(names) = self.destructured_names() {
+                statements.extend(self.destructuring(names)?);
+            } else {
+                statements.push(self.statement()?);
+            }
             if matches!(self.tokens[self.index].token, Token::Newline) {
                 self.continuation();
             } else if !matches!(self.peek(), Token::End) {
@@ -169,7 +222,112 @@ impl Parser {
         })
     }
 
+    /// The names of `{ a, b } = value` when a statement opens with them.
+    fn destructured_names(&self) -> Option<Vec<(String, Range<usize>)>> {
+        if !matches!(self.tokens[self.index].token, Token::OpenBrace) {
+            return None;
+        }
+        let mut names = Vec::new();
+        let mut index = self.index + 1;
+        loop {
+            let Token::Ident(name) = &self.tokens[index].token else {
+                return None;
+            };
+            names.push((name.clone(), self.tokens[index].span.clone()));
+            index += 1;
+            match &self.tokens[index].token {
+                Token::Comma => index += 1,
+                Token::CloseBrace => break,
+                _ => return None,
+            }
+        }
+        matches!(self.tokens[index + 1].token, Token::Equals).then_some(names)
+    }
+
+    /// `{ a, b } = value`: the value bound under a name no program writes,
+    /// and each name bound to the field of that name.
+    fn destructuring(
+        &mut self,
+        names: Vec<(String, Range<usize>)>,
+    ) -> Result<Vec<Stmt>, Diagnostic> {
+        let open = self.advance().span;
+        while !matches!(self.advance().token, Token::CloseBrace) {}
+        self.expect(&Token::Equals, "in a binding")?;
+        self.continuation();
+        let value = self.expression()?;
+        let whole = format!("%destructured@{}", open.start);
+        let mut statements = vec![Stmt::Bind {
+            name: whole.clone(),
+            name_span: open.clone(),
+            annotation: None,
+            value,
+            private: None,
+        }];
+        for (name, span) in names {
+            let receiver = Expr {
+                kind: Kind::Ident(whole.clone()),
+                span: span.start..span.start,
+            };
+            statements.push(Stmt::Bind {
+                name: name.clone(),
+                name_span: span.clone(),
+                annotation: None,
+                value: Expr {
+                    kind: Kind::Field(Box::new(receiver), name),
+                    span,
+                },
+                private: None,
+            });
+        }
+        Ok(statements)
+    }
+
     fn statement(&mut self) -> Result<Stmt, Diagnostic> {
+        // `private` and `internal` mark a declaration when a name follows
+        // them, so neither word is reserved: `private = 1` binds it.
+        if let Token::Ident(marker) = self.peek().clone()
+            && (marker == "private" || marker == "internal")
+            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+        {
+            let span = self.advance().span;
+            if marker == "internal" {
+                return Err(Diagnostic::syntax(
+                    span,
+                    "`internal` is reserved: visibility across one package is admitted once \
+                     every module records its package; mark the declaration `private`, or \
+                     leave it public",
+                ));
+            }
+            let mut statement = self.statement()?;
+            let target = match &mut statement {
+                Stmt::Fn(declaration) => &mut declaration.private,
+                Stmt::External(declaration) => &mut declaration.private,
+                Stmt::Alias(declaration) => &mut declaration.private,
+                Stmt::Type(declaration) => &mut declaration.private,
+                Stmt::Trait(declaration) => &mut declaration.private,
+                Stmt::Bind { private, .. } => private,
+                Stmt::Impl(_) => {
+                    return Err(Diagnostic::syntax(
+                        span,
+                        "an `impl` is never private: coherence holds across every module, so \
+                         an implementation hidden from importers would hide the overlap it is \
+                         checked for",
+                    ));
+                }
+                Stmt::Import { .. } | Stmt::Module { .. } | Stmt::Expr(_) => {
+                    return Err(Diagnostic::syntax(
+                        span,
+                        "`private` marks a declaration: a function, a type, a trait or a \
+                         binding",
+                    ));
+                }
+            };
+            if target.is_some() {
+                return Err(Diagnostic::syntax(span, "`private` is written once"));
+            }
+            *target = Some(span);
+            return Ok(statement);
+        }
         if self.peek() == &Token::Ident("abstract".to_owned()) {
             self.advance();
             self.expect(&Token::Ident("type".to_owned()), "after abstract")?;
@@ -186,16 +344,84 @@ impl Parser {
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "import"
-            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
         {
             let head = self.advance();
-            let named = self.advance();
-            let Token::Ident(name) = named.token else {
-                return Err(Diagnostic::syntax(named.span, "expected an extension name"));
+            if matches!(self.peek(), Token::Str(_)) {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    "an import names a module, `import io.file`, never a file",
+                ));
+            }
+            let mut path = Vec::new();
+            let mut end;
+            loop {
+                let named = self.advance();
+                let Token::Ident(name) = named.token else {
+                    return Err(Diagnostic::syntax(named.span, "expected a module name"));
+                };
+                end = named.span.end;
+                path.push(name);
+                if !self.eat(&Token::Dot) {
+                    break;
+                }
+            }
+            let alias = if matches!(self.peek(), Token::Ident(word) if word == "as") {
+                self.advance();
+                let named = self.advance();
+                let Token::Ident(name) = named.token else {
+                    return Err(Diagnostic::syntax(
+                        named.span,
+                        "expected a local name after `as`",
+                    ));
+                };
+                end = named.span.end;
+                Some(name)
+            } else {
+                None
             };
             return Ok(Stmt::Import {
-                name,
-                span: head.span.start..named.span.end,
+                path,
+                alias,
+                span: head.span.start..end,
+            });
+        }
+        if let Token::Ident(keyword) = self.peek().clone()
+            && keyword == "module"
+            && matches!(&self.tokens[self.index + 1].token, Token::Ident(_))
+        {
+            let head = self.advance();
+            if matches!(self.peek(), Token::Ident(word) if word == "for") {
+                return Err(Diagnostic::syntax(
+                    head.span.start..self.peek_span().end,
+                    "a module declaration names its module before its pattern: \
+                     `module string for String`",
+                ));
+            }
+            let mut path = Vec::new();
+            let mut end;
+            loop {
+                let named = self.advance();
+                let Token::Ident(name) = named.token else {
+                    return Err(Diagnostic::syntax(named.span, "expected a module name"));
+                };
+                end = named.span.end;
+                path.push(name);
+                if !self.eat(&Token::Dot) {
+                    break;
+                }
+            }
+            let pattern = if matches!(self.peek(), Token::Ident(word) if word == "for") {
+                self.advance();
+                let pattern = self.simple_type()?;
+                end = pattern.span.end;
+                Some(pattern)
+            } else {
+                None
+            };
+            return Ok(Stmt::Module {
+                path,
+                pattern,
+                span: head.span.start..end,
             });
         }
         if let Some(alias) = self.alias()? {
@@ -205,7 +431,29 @@ impl Parser {
             && keyword == "fn"
             && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
         {
-            return Ok(Stmt::Fn(self.function()?));
+            return self.function();
+        }
+        // `effectful fn f(…) : T`, `elementwise fn f(…) : T`: an external
+        // declaration whose evaluation reads or changes something outside
+        // its result, or whose input an executor may split as the shape
+        // names. Each word is one only before `fn` or another such word.
+        if let Some(statement) = self.marked_external()? {
+            return Ok(statement);
+        }
+        if let Token::Ident(keyword) = self.peek().clone()
+            && keyword == "trait"
+            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+        {
+            return Ok(Stmt::Trait(self.trait_declaration()?));
+        }
+        if let Token::Ident(keyword) = self.peek().clone()
+            && keyword == "impl"
+            && matches!(
+                self.tokens[self.index + 1].token,
+                Token::Ident(_) | Token::Less
+            )
+        {
+            return Ok(Stmt::Impl(self.implementation()?));
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "type"
@@ -229,6 +477,7 @@ impl Parser {
                     name_span,
                     annotation,
                     value: self.expression()?,
+                    private: None,
                 });
             }
         }
@@ -268,10 +517,14 @@ impl Parser {
             self.nesting -= 1;
         }
 
-        // `=` defines the type as a choice among others. It says what the type
-        // is, where `:` says what it narrows, so the two are not combined.
+        // `= union {…}` defines the type as a choice among others. It says
+        // what the type is, where `:` says what it narrows, so the two are
+        // not combined. `= {…}` is a structural body, written after the
+        // supertypes where there are any: `type User : Data = {…}`.
         let mut union = None;
-        if self.eat(&Token::Equals) {
+        let structural = matches!(self.peek(), Token::Equals)
+            && matches!(self.tokens[self.index + 1].token, Token::OpenBrace);
+        if !structural && self.eat(&Token::Equals) {
             self.continuation();
             self.expect(&Token::Ident("union".to_owned()), "after `=` in a type")?;
             self.expect(&Token::OpenBrace, "to open a union")?;
@@ -319,12 +572,25 @@ impl Parser {
             }
         }
 
+        // A structural body is written `= {…}` or `{…}`, one meaning: whether
+        // it is closed or open is the supertype's to say.
+        if union.is_none()
+            && matches!(self.tokens[self.index].token, Token::Equals)
+            && matches!(self.tokens[self.index + 1].token, Token::OpenBrace)
+        {
+            self.advance();
+        }
         let mut fields = Vec::new();
+        let mut rules = Vec::new();
         if union.is_none() && matches!(self.tokens[self.index].token, Token::OpenBrace) {
             self.advance();
             self.nesting += 1;
             while !matches!(self.peek(), Token::CloseBrace) {
-                fields.push(self.field()?);
+                if self.at_rule() {
+                    rules.push(self.rule()?);
+                } else {
+                    fields.push(self.field()?);
+                }
                 // A record body separates its fields by line, and a comma is
                 // accepted for anyone who writes one.
                 self.eat(&Token::Comma);
@@ -358,6 +624,7 @@ impl Parser {
             }
         }
         Ok(TypeDecl {
+            private: None,
             name,
             abstract_type: false,
             bounds,
@@ -365,7 +632,128 @@ impl Parser {
             supertypes,
             fields,
             union,
+            rules,
             span: keyword.span.start..end,
+        })
+    }
+
+    /// Whether a record body continues with a rule rather than a field: the
+    /// word `require`, `warn` or `validate` not followed by a field's `:` or
+    /// `?:`, so a field may still be called any of them.
+    fn at_rule(&self) -> bool {
+        let mut index = self.index;
+        while matches!(self.tokens[index].token, Token::Newline) {
+            index += 1;
+        }
+        matches!(&self.tokens[index].token, Token::Ident(word) if matches!(word.as_str(), "require" | "warn" | "validate"))
+            && !matches!(self.tokens[index + 1].token, Token::Colon | Token::Question)
+    }
+
+    /// `require P`, `warn P` or `validate f with V` in a contract's body,
+    /// each optionally named with `as name`.
+    fn rule(&mut self) -> Result<Rule, Diagnostic> {
+        let keyword = self.advance();
+        let Token::Ident(word) = &keyword.token else {
+            return Err(Diagnostic::syntax(keyword.span, "expected a rule"));
+        };
+        let severity = if word == "warn" {
+            Severity::Warning
+        } else {
+            Severity::Error
+        };
+        self.rule_reads.clear();
+        let outer = self.rule_nesting.replace(self.nesting);
+        let predicate = if word == "validate" {
+            self.validation(keyword.span.start)
+        } else {
+            self.implication()
+        };
+        self.rule_nesting = outer;
+        let mut predicate = predicate?;
+        let mut reads = std::mem::take(&mut self.rule_reads);
+        mark_presence(&mut predicate, &mut reads);
+        reads.sort();
+        reads.dedup();
+        let span = keyword.span.start..predicate.span.end;
+        let name = if matches!(&self.tokens[self.index].token, Token::Ident(word) if word == "as") {
+            self.advance();
+            let named = self.advance();
+            let Token::Ident(name) = named.token else {
+                return Err(Diagnostic::syntax(
+                    named.span,
+                    "expected the rule's name after `as`",
+                ));
+            };
+            Some(name)
+        } else {
+            None
+        };
+        Ok(Rule {
+            text: self.source[span.clone()].to_owned(),
+            predicate,
+            reads,
+            severity,
+            name,
+            span,
+        })
+    }
+
+    /// `a => b` within a rule: `a` implies `b`, which is `not a or b`. It
+    /// binds loosest and groups to the right.
+    fn implication(&mut self) -> Result<Expr, Diagnostic> {
+        let antecedent = self.expression()?;
+        if !self.eat(&Token::FatArrow) {
+            return Ok(antecedent);
+        }
+        self.continuation();
+        let consequent = self.nested(Self::implication)?;
+        let negated = Expr {
+            span: antecedent.span.clone(),
+            kind: Kind::Not(Box::new(antecedent)),
+        };
+        Ok(logic(Logic::Or, negated, consequent))
+    }
+
+    /// `validate f with V`, after the keyword: the call `V(f)`, spanning
+    /// the whole rule.
+    fn validation(&mut self, start: usize) -> Result<Expr, Diagnostic> {
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(
+                named.span,
+                "expected the field to validate",
+            ));
+        };
+        let mut read = Expr {
+            kind: Kind::Ident(name),
+            span: named.span.clone(),
+        };
+        if matches!(self.tokens[self.index].token, Token::Question)
+            && let Kind::Ident(name) = &mut read.kind
+        {
+            self.rule_reads.push(name.clone());
+            *name = optional_read(name);
+            read.span.end = self.advance().span.end;
+        }
+        self.expect(
+            &Token::Ident("with".to_owned()),
+            "after the validated field",
+        )?;
+        // The validator is an ordinary expression: `=>` there is a lambda's.
+        let outer = self.rule_nesting.take();
+        let validator = self.link();
+        self.rule_nesting = outer;
+        let validator = validator?;
+        let span = start..validator.span.end;
+        Ok(Expr {
+            kind: Kind::Call {
+                callee: Box::new(validator),
+                arguments: vec![Arg {
+                    name: None,
+                    value: read,
+                }],
+            },
+            span,
         })
     }
 
@@ -379,12 +767,20 @@ impl Parser {
         let optional = self.eat(&Token::Question);
         self.expect(&Token::Colon, "after a field name")?;
         let annotation = self.type_annotation()?;
-        let span = named.span.start..annotation.span.end;
+        let default = if self.eat(&Token::Equals) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        let end = default
+            .as_ref()
+            .map_or(annotation.span.end, |default| default.span.end);
         Ok(Field {
             name,
             optional,
             annotation,
-            span,
+            default,
+            span: named.span.start..end,
         })
     }
 
@@ -459,13 +855,117 @@ impl Parser {
         })
     }
 
-    /// `{ statement* }`, one statement per line: the block body of an
-    /// iterating function. Newlines separate statements here, as they do at
-    /// the top level, whatever brackets surround the declaration.
+    /// `{ statement* }`, one statement per line: the body of a `for`, which
+    /// holds `yield`, `for` and bindings.
     fn block(&mut self) -> Result<Vec<BlockStmt>, Diagnostic> {
+        self.lines()?
+            .into_iter()
+            .map(|line| match line {
+                Line::Statement(statement, _) => Ok(statement),
+                Line::Value(value) => Err(Diagnostic::syntax(
+                    value.span,
+                    "an iterating block holds `yield`, `for` and bindings",
+                )),
+            })
+            .collect()
+    }
+
+    /// `{ line* }` as a function body: a value block, bindings followed by
+    /// the expression that is the function's value, or an iterating block of
+    /// bindings, `yield` and `for`. A value block is its bindings nested
+    /// around its final expression, each a `match` with one name arm.
+    fn function_block(&mut self) -> Result<Expr, Diagnostic> {
+        let open = self.peek_span().start;
+        let mut lines = self.lines()?;
+        let close = self.tokens[self.index.saturating_sub(1)].span.end;
+        let yields = lines.iter().any(|line| match line {
+            Line::Statement(statement, _) => yields(std::slice::from_ref(statement)),
+            Line::Value(_) => false,
+        });
+        let looped = lines
+            .iter()
+            .find(|line| matches!(line, Line::Statement(BlockStmt::For { .. }, _)));
+        let value = lines.iter().position(|line| matches!(line, Line::Value(_)));
+        match value {
+            None if yields => {
+                let statements = lines
+                    .into_iter()
+                    .map(|line| match line {
+                        Line::Statement(statement, _) => statement,
+                        Line::Value(_) => unreachable!("a block without a value line"),
+                    })
+                    .collect();
+                return Ok(Expr {
+                    kind: Kind::Block(statements),
+                    span: open..close,
+                });
+            }
+            None => {
+                return Err(Diagnostic::syntax(
+                    open..close,
+                    "a block ends in a value or yields; this one holds only bindings",
+                ));
+            }
+            Some(at) if yields => {
+                let Line::Value(value) = &lines[at] else {
+                    unreachable!("a value line")
+                };
+                return Err(Diagnostic::syntax(
+                    value.span.clone(),
+                    "a block that yields holds no expression on a line of its own",
+                ));
+            }
+            Some(at) if at + 1 < lines.len() => {
+                let Line::Value(value) = &lines[at] else {
+                    unreachable!("a value line")
+                };
+                return Err(Diagnostic::syntax(
+                    value.span.clone(),
+                    "an expression on a line of its own ends a value block: it is the last line",
+                ));
+            }
+            Some(_) => {}
+        }
+        if let Some(Line::Statement(_, span)) = looped {
+            return Err(Diagnostic::syntax(
+                span.clone(),
+                "`for` belongs to an iterating block; a value block is bindings and a final \
+                 expression",
+            ));
+        }
+        let Some(Line::Value(mut body)) = lines.pop() else {
+            unreachable!("a value block ends in its value")
+        };
+        // Each `match` spans the final expression, so a diagnostic about the
+        // block's value points at the line that produces it.
+        let last = body.span.clone();
+        for line in lines.into_iter().rev() {
+            let Line::Statement(BlockStmt::Bind { name, value }, span) = line else {
+                unreachable!("a value block's other lines are bindings")
+            };
+            let end = body.span.end;
+            body = Expr {
+                kind: Kind::Match {
+                    subject: Box::new(value),
+                    arms: vec![Arm {
+                        pattern: Pattern::Bind(name),
+                        guard: None,
+                        span: span.start..end,
+                        body,
+                    }],
+                },
+                span: last.clone(),
+            };
+        }
+        Ok(body)
+    }
+
+    /// The lines of a block, one per line. Newlines separate them here, as
+    /// they do at the top level, whatever brackets surround the declaration.
+    fn lines(&mut self) -> Result<Vec<Line>, Diagnostic> {
         let saved = std::mem::replace(&mut self.nesting, 0);
         self.expect(&Token::OpenBrace, "to open the body")?;
-        let mut statements = Vec::new();
+        let mut lines = Vec::new();
         loop {
             self.continuation();
             if self.eat(&Token::CloseBrace) {
@@ -477,7 +977,7 @@ impl Parser {
                     "expected `}` to close the body",
                 ));
             }
-            statements.push(self.nested(Self::block_statement)?);
+            lines.push(self.nested(Self::line)?);
             if !matches!(
                 self.tokens[self.index].token,
                 Token::Newline | Token::CloseBrace
@@ -492,7 +992,22 @@ impl Parser {
             }
         }
         self.nesting = saved;
-        Ok(statements)
+        Ok(lines)
+    }
+
+    fn line(&mut self) -> Result<Line, Diagnostic> {
+        let start = self.peek_span().start;
+        let head = self.peek().clone();
+        let next = self.tokens[self.index + 1].token.clone();
+        let statement = match head {
+            Token::Ident(keyword) if keyword == "yield" || keyword == "for" => {
+                self.block_statement()?
+            }
+            Token::Ident(_) if next == Token::Equals => self.block_statement()?,
+            _ => return Ok(Line::Value(self.expression()?)),
+        };
+        let end = self.tokens[self.index.saturating_sub(1)].span.end;
+        Ok(Line::Statement(statement, start..end))
     }
 
     fn block_statement(&mut self) -> Result<BlockStmt, Diagnostic> {
@@ -532,7 +1047,7 @@ impl Parser {
             }
             _ => Err(Diagnostic::syntax(
                 self.peek_span(),
-                "a block body holds `yield`, `for` and bindings",
+                "an iterating block holds `yield`, `for` and bindings",
             )),
         }
     }
@@ -636,6 +1151,7 @@ impl Parser {
         };
         let span = start..body.span.end;
         Ok(Some(AliasDecl {
+            private: None,
             name,
             parameters,
             body,
@@ -643,13 +1159,10 @@ impl Parser {
         }))
     }
 
-    /// `fn name<T>(p: Type, xs: ...Type) : Result = body`.
-    fn function(&mut self) -> Result<FnDecl, Diagnostic> {
-        let start = self.advance().span.start;
-        let named = self.advance();
-        let Token::Ident(name) = named.token else {
-            return Err(Diagnostic::syntax(named.span, "expected a function name"));
-        };
+    /// `<T, E : Bound>` after a function, trait or `impl`: the type
+    /// parameters and the bounds they are written with. Nothing when no `<`
+    /// follows.
+    fn type_parameters(&mut self) -> Result<(Vec<String>, Bounds), Diagnostic> {
         let mut generics = Vec::new();
         let mut bounds = Vec::new();
         if self.eat(&Token::Less) {
@@ -661,8 +1174,36 @@ impl Parser {
                         "expected a type parameter",
                     ));
                 };
+                // `F<_> : Iterable<_>`, `M<_, _> : Map<_, _>`: a parameter
+                // that stands for a type constructor, bound by the
+                // constructor it refines, with as many holes as it has.
+                let constructor = self.eat(&Token::Less);
+                let mut holes = 0;
+                if constructor {
+                    loop {
+                        self.hole()?;
+                        holes += 1;
+                        if !self.eat(&Token::Comma) {
+                            break;
+                        }
+                    }
+                    self.expect(&Token::Greater, "after `_` in a constructor parameter")?;
+                }
                 if self.eat(&Token::Colon) {
-                    bounds.push((parameter.clone(), self.simple_type()?));
+                    let bound = self.simple_type()?;
+                    if constructor && (!bound.is_constructor() || bound.arguments.len() != holes) {
+                        return Err(Diagnostic::syntax(
+                            bound.span,
+                            "a constructor parameter is bound by a constructor of as many \
+                             arguments: `F<_> : Iterable<_>`, `M<_, _> : Map<_, _>`",
+                        ));
+                    }
+                    bounds.push((parameter.clone(), bound));
+                } else if constructor {
+                    return Err(Diagnostic::syntax(
+                        self.peek_span(),
+                        "a constructor parameter needs its bound: `F<_> : Iterable<_>`",
+                    ));
                 }
                 generics.push(parameter);
                 if !self.eat(&Token::Comma) {
@@ -671,8 +1212,127 @@ impl Parser {
             }
             self.expect(&Token::Greater, "after type parameters")?;
         }
+        Ok((generics, bounds))
+    }
+
+    /// `trait Name<T> : Super { fn m(self, p: T) : R [= body] … }`, one
+    /// function per line.
+    fn trait_declaration(&mut self) -> Result<TraitDecl, Diagnostic> {
+        let start = self.advance().span.start;
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(named.span, "expected a trait name"));
+        };
+        let (generics, bounds) = self.type_parameters()?;
+        let mut supertraits = Vec::new();
+        if self.eat(&Token::Colon) {
+            supertraits.push(self.simple_type()?);
+            while self.eat(&Token::Comma) {
+                supertraits.push(self.simple_type()?);
+            }
+        }
+        let (methods, end) = self.methods("a trait")?;
+        Ok(TraitDecl {
+            private: None,
+            name,
+            generics,
+            bounds,
+            supertraits,
+            methods,
+            span: start..end,
+        })
+    }
+
+    /// `impl<T> Name<A> for Type { fn m(self, p: T) : R = body … }`, or the
+    /// header alone for a native implementation.
+    fn implementation(&mut self) -> Result<ImplDecl, Diagnostic> {
+        let start = self.advance().span.start;
+        let (generics, bounds) = self.type_parameters()?;
+        let named = self.simple_type()?;
+        let trait_name = named.name;
+        let trait_arguments = named.arguments;
+        self.expect(
+            &Token::Ident("for".to_owned()),
+            "after the trait an impl provides",
+        )?;
+        let target = self.simple_type()?;
+        if !matches!(self.peek(), Token::OpenBrace) {
+            let end = target.span.end;
+            return Ok(ImplDecl {
+                generics,
+                bounds,
+                trait_name,
+                trait_arguments,
+                target,
+                native: true,
+                methods: Vec::new(),
+                span: start..end,
+            });
+        }
+        let (methods, end) = self.methods("an impl")?;
+        Ok(ImplDecl {
+            generics,
+            bounds,
+            trait_name,
+            trait_arguments,
+            target,
+            native: false,
+            methods,
+            span: start..end,
+        })
+    }
+
+    /// `{ fn … }` with one function per line, as a trait or an impl body.
+    fn methods(&mut self, context: &str) -> Result<(Vec<MethodDecl>, usize), Diagnostic> {
+        let saved = std::mem::replace(&mut self.nesting, 0);
+        self.expect(
+            &Token::OpenBrace,
+            &format!("to open the functions of {context}"),
+        )?;
+        let mut methods = Vec::new();
+        let end = loop {
+            self.continuation();
+            if matches!(self.peek(), Token::CloseBrace) {
+                break self.advance().span.end;
+            }
+            if !matches!(self.peek(), Token::Ident(keyword) if keyword == "fn") {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    format!(
+                        "expected `fn` or `}}` in {context}, found {}",
+                        self.peek().describe()
+                    ),
+                ));
+            }
+            methods.push(self.method()?);
+            if !matches!(self.tokens[self.index].token, Token::Newline)
+                && !matches!(self.peek(), Token::CloseBrace)
+            {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    format!(
+                        "expected a line break after a function, found {}",
+                        self.peek().describe()
+                    ),
+                ));
+            }
+        };
+        self.nesting = saved;
+        Ok((methods, end))
+    }
+
+    /// `fn name(self, p: Type) : Result [= body]`: a function of a trait or
+    /// an impl. The body is left out only in a trait, where the
+    /// implementation supplies it.
+    fn method(&mut self) -> Result<MethodDecl, Diagnostic> {
+        let start = self.advance().span.start;
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(named.span, "expected a function name"));
+        };
         self.expect(&Token::OpenParen, "to open the parameters")?;
         self.nesting += 1;
+        let mut has_self = false;
         let mut parameters: Vec<Param> = Vec::new();
         if !matches!(self.peek(), Token::CloseParen) {
             loop {
@@ -683,6 +1343,139 @@ impl Parser {
                         "expected a parameter name",
                     ));
                 };
+                if parameter == "self" {
+                    if has_self || !parameters.is_empty() {
+                        return Err(Diagnostic::syntax(
+                            written.span,
+                            "`self` is the first parameter, written once",
+                        ));
+                    }
+                    has_self = true;
+                } else {
+                    if parameters.iter().any(|seen| seen.name == parameter) {
+                        return Err(Diagnostic::syntax(
+                            written.span,
+                            "parameters must be distinct",
+                        ));
+                    }
+                    self.expect(
+                        &Token::Colon,
+                        "after a parameter name: every parameter is typed",
+                    )?;
+                    let annotation = self.type_annotation()?;
+                    parameters.push(Param {
+                        name: parameter,
+                        span: written.span,
+                        annotation,
+                        variadic: false,
+                        default: None,
+                        passing: Passing::Either,
+                    });
+                }
+                if !self.eat(&Token::Comma) {
+                    break;
+                }
+            }
+        }
+        self.expect(&Token::CloseParen, "to close the parameters")?;
+        self.nesting -= 1;
+        self.expect(&Token::Colon, "before the result type")?;
+        let result = self.type_annotation()?;
+        let body = if matches!(self.peek(), Token::OpenBrace) {
+            let body = self.function_block()?;
+            if let Kind::Block(_) = body.kind {
+                return Err(Diagnostic::syntax(
+                    body.span,
+                    "a trait or impl function's block ends in a value; only a user `fn` yields",
+                ));
+            }
+            Some(body)
+        } else if self.eat(&Token::Equals) {
+            self.continuation();
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        let end = body.as_ref().map_or(result.span.end, |body| body.span.end);
+        Ok(MethodDecl {
+            name,
+            has_self,
+            parameters,
+            result,
+            body,
+            span: start..end,
+        })
+    }
+
+    /// `fn name<T>(p: Type, xs: ...Type) : Result = body`, or without the
+    /// body an external declaration.
+    fn function(&mut self) -> Result<Stmt, Diagnostic> {
+        let start = self.advance().span.start;
+        let named = self.advance();
+        let Token::Ident(name) = named.token else {
+            return Err(Diagnostic::syntax(named.span, "expected a function name"));
+        };
+        let (generics, bounds) = self.type_parameters()?;
+        self.expect(&Token::OpenParen, "to open the parameters")?;
+        self.nesting += 1;
+        let mut parameters: Vec<Param> = Vec::new();
+        let mut has_self = false;
+        let mut receiver = None;
+        // Where `/` and `*` are written: an external declaration's parameters
+        // passed by position only, and those passed by name only.
+        let mut by_position: Option<Range<usize>> = None;
+        let mut by_name: Option<Range<usize>> = None;
+        if !matches!(self.peek(), Token::CloseParen) {
+            loop {
+                if matches!(self.peek(), Token::Slash) {
+                    let marker = self.advance().span;
+                    if parameters.is_empty() || by_position.is_some() || by_name.is_some() {
+                        return Err(Diagnostic::syntax(
+                            marker,
+                            "`/` follows the parameters passed by position only, once, \
+                             before any `*`",
+                        ));
+                    }
+                    for parameter in &mut parameters {
+                        parameter.passing = Passing::Position;
+                    }
+                    by_position = Some(marker);
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                    continue;
+                }
+                if matches!(self.peek(), Token::Star) {
+                    let marker = self.advance().span;
+                    if by_name.is_some() {
+                        return Err(Diagnostic::syntax(marker, "`*` is written once"));
+                    }
+                    by_name = Some(marker);
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                    continue;
+                }
+                let written = self.advance();
+                let Token::Ident(parameter) = written.token else {
+                    return Err(Diagnostic::syntax(
+                        written.span,
+                        "expected a parameter name",
+                    ));
+                };
+                // `self` opens a receiver function: its type is the module's
+                // receiver pattern, or, in an external declaration, the type
+                // written after it, `self: Collection<T>`.
+                if parameter == "self" && parameters.is_empty() && !has_self {
+                    has_self = true;
+                    if self.eat(&Token::Colon) {
+                        receiver = Some(self.type_annotation()?);
+                    }
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                    continue;
+                }
                 if parameters.iter().any(|seen| seen.name == parameter) {
                     return Err(Diagnostic::syntax(
                         written.span,
@@ -699,11 +1492,22 @@ impl Parser {
                     self.expect(&Token::Dot, "in `...`")?;
                 }
                 let annotation = self.type_annotation()?;
+                let default = if self.eat(&Token::Equals) {
+                    Some(self.expression()?)
+                } else {
+                    None
+                };
                 parameters.push(Param {
                     name: parameter,
                     span: written.span,
                     annotation,
                     variadic,
+                    default,
+                    passing: if by_name.is_some() {
+                        Passing::Name
+                    } else {
+                        Passing::Either
+                    },
                 });
                 if !self.eat(&Token::Comma) {
                     break;
@@ -722,29 +1526,70 @@ impl Parser {
         }
         self.expect(&Token::Colon, "before the result type")?;
         let result = self.type_annotation()?;
+        // A signature alone is an external declaration: the module's
+        // extension implements it.
+        if matches!(
+            self.tokens[self.index].token,
+            Token::Newline | Token::End | Token::CloseBrace
+        ) {
+            let span = start..result.span.end;
+            return Ok(Stmt::External(ExternalDecl {
+                private: None,
+                name,
+                effectful: false,
+                shape: None,
+                has_self,
+                receiver,
+                generics,
+                bounds,
+                parameters,
+                result,
+                span,
+            }));
+        }
+        if let Some(marker) = by_position.or(by_name) {
+            return Err(Diagnostic::syntax(
+                marker,
+                "`/` and `*` belong to an external declaration; a function with a body \
+                 takes its arguments by position",
+            ));
+        }
+        if let Some(default) = parameters
+            .iter()
+            .find_map(|parameter| parameter.default.as_ref())
+        {
+            return Err(Diagnostic::syntax(
+                default.span.clone(),
+                "a default belongs to an external declaration; a function with a body takes \
+                 every argument it declares",
+            ));
+        }
+        if let Some(receiver) = receiver {
+            return Err(Diagnostic::syntax(
+                receiver.span,
+                "a function with a body takes its receiver at the module's pattern: write \
+                 `self` untyped",
+            ));
+        }
         let body = if matches!(self.peek(), Token::OpenBrace) {
-            let open = self.peek_span().start;
-            let statements = self.block()?;
-            let close = self.tokens[self.index.saturating_sub(1)].span.end;
-            Expr {
-                kind: Kind::Block(statements),
-                span: open..close,
-            }
+            self.function_block()?
         } else {
             self.expect(&Token::Equals, "before the function body")?;
             self.continuation();
             self.expression()?
         };
         let span = start..body.span.end;
-        Ok(FnDecl {
+        Ok(Stmt::Fn(FnDecl {
+            private: None,
             name,
+            has_self,
             generics,
             bounds,
             parameters,
             result,
             body,
             span,
-        })
+        }))
     }
 
     fn expression(&mut self) -> Result<Expr, Diagnostic> {
@@ -852,11 +1697,13 @@ impl Parser {
         Ok(match head.token {
             Token::Int(value) => Pattern::Int(value),
             Token::Float(value) => Pattern::Float(value),
+            Token::Decimal(value) => Pattern::Decimal(value),
             Token::Bool(value) => Pattern::Bool(value),
             Token::Str(text) => Pattern::Str(text),
             Token::Minus => match self.advance().token {
                 Token::Int(value) => Pattern::Int(-value),
                 Token::Float(value) => Pattern::Float(-value),
+                Token::Decimal(value) => Pattern::Decimal(value.negated()),
                 _ => return Err(Diagnostic::syntax(head.span, "expected a number after `-`")),
             },
             Token::Ident(name) if name == "_" => Pattern::Wildcard,
@@ -866,6 +1713,18 @@ impl Parser {
                 let inner = self.pattern()?;
                 self.expect(&Token::CloseParen, "to close `some(…)`")?;
                 Pattern::Some(Box::new(inner))
+            }
+            Token::Ident(name)
+                if (name == "ok" || name == "err") && self.peek() == &Token::OpenParen =>
+            {
+                self.advance();
+                let inner = self.pattern()?;
+                self.expect(&Token::CloseParen, "to close the result pattern")?;
+                if name == "ok" {
+                    Pattern::Ok(Box::new(inner))
+                } else {
+                    Pattern::Err(Box::new(inner))
+                }
             }
             // `U name`: a type name, capitalised, followed by what it binds.
             Token::Ident(name)
@@ -956,6 +1815,70 @@ impl Parser {
         })
     }
 
+    /// `fork { a = branch, b = branch }`: each branch a name and a pipeline
+    /// over the value arriving at the step, separated by a line break or a
+    /// comma.
+    fn fork(&mut self) -> Result<Expr, Diagnostic> {
+        let keyword = self.advance();
+        self.expect(&Token::OpenBrace, "after `fork`")?;
+        let mut branches: Vec<(String, Expr)> = Vec::new();
+        let end = loop {
+            self.continuation();
+            if matches!(self.peek(), Token::CloseBrace) {
+                break self.advance().span.end;
+            }
+            let named = self.advance();
+            let Token::Ident(name) = named.token else {
+                return Err(Diagnostic::syntax(
+                    named.span,
+                    "expected a branch name in a `fork`",
+                ));
+            };
+            if branches.iter().any(|(held, _)| *held == name) {
+                return Err(Diagnostic::syntax(
+                    named.span,
+                    format!("the branch `{name}` is named twice in this `fork`"),
+                ));
+            }
+            self.expect(&Token::Equals, "after the name of a `fork` branch")?;
+            self.continuation();
+            let input = Expr {
+                kind: Kind::Ident(FORK_INPUT.to_owned()),
+                span: named.span.clone(),
+            };
+            let first = self.link()?;
+            let mut branch = Expr {
+                span: named.span.start..first.span.end,
+                kind: Kind::Pipe(Box::new(input), Box::new(first)),
+            };
+            while self.at_infix(&Token::Pipe) {
+                self.continuation();
+                let next = self.link()?;
+                branch = Expr {
+                    span: branch.span.start..next.span.end,
+                    kind: Kind::Pipe(Box::new(branch), Box::new(next)),
+                };
+            }
+            branches.push((name, branch));
+            self.eat(&Token::Comma);
+        };
+        if branches.is_empty() {
+            return Err(Diagnostic::syntax(
+                keyword.span.start..end,
+                "a `fork` has at least one branch",
+            ));
+        }
+        Ok(Expr {
+            kind: Kind::Fork { branches },
+            span: keyword.span.start..end,
+        })
+    }
+
+    fn at_fork(&self) -> bool {
+        matches!(self.peek(), Token::Ident(word) if word == "fork")
+            && matches!(self.tokens[self.index + 1].token, Token::OpenBrace)
+    }
+
     fn at_tee(&self) -> bool {
         matches!(self.peek(), Token::Ident(word) if word == "tee")
             && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
@@ -969,6 +1892,8 @@ impl Parser {
             self.continuation();
             let right = if self.at_tee() {
                 self.tee(pipe_column)?
+            } else if self.at_fork() {
+                self.fork()?
             } else if self.at_type_step() {
                 // `xs | List<Int>`: a constructor with its type arguments and
                 // no argument list of its own.
@@ -1195,16 +2120,34 @@ impl Parser {
             if matches!(self.peek(), Token::OpenBracket)
                 && self.tokens[self.index].span.start == expression.span.end
             {
-                self.advance();
+                let open = self.advance();
+                if matches!(self.peek(), Token::CloseBracket) {
+                    return Err(Diagnostic::syntax(
+                        open.span.start..self.tokens[self.index].span.end,
+                        "a bracket holds a position or a range, `xs[i]` or `xs[a:b]`",
+                    ));
+                }
                 self.nesting += 1;
-                let index = self.expression()?;
+                // `xs[a:b]`: either bound may be left out.
+                let start = if matches!(self.peek(), Token::Colon) {
+                    None
+                } else {
+                    Some(Box::new(self.expression()?))
+                };
+                let range = self.eat(&Token::Colon);
+                let end = if range && !matches!(self.peek(), Token::CloseBracket) {
+                    Some(Box::new(self.expression()?))
+                } else {
+                    None
+                };
                 self.nesting -= 1;
                 let close = self.expect(&Token::CloseBracket, "after an index")?;
                 let span = expression.span.start..close.span.end;
-                expression = Expr {
-                    kind: Kind::Index(Box::new(expression), Box::new(index)),
-                    span,
+                let kind = match start {
+                    Some(index) if !range => Kind::Index(Box::new(expression), index),
+                    start => Kind::Slice(Box::new(expression), start, end),
                 };
+                expression = Expr { kind, span };
                 continue;
             }
             if matches!(self.peek(), Token::OpenParen) {
@@ -1223,6 +2166,63 @@ impl Parser {
         }
     }
 
+    /// The words an external declaration may carry before `fn`, `effectful`
+    /// and a shape, then the declaration; none when the words do not lead
+    /// to `fn`.
+    fn marked_external(&mut self) -> Result<Option<Stmt>, Diagnostic> {
+        let is_marker = |token: &Token| {
+            matches!(token, Token::Ident(word)
+                if word == "effectful" || crate::extensions::Shape::parse(word).is_some())
+        };
+        let mut at = self.index;
+        while is_marker(&self.tokens[at].token) {
+            at += 1;
+        }
+        if at == self.index || !matches!(&self.tokens[at].token, Token::Ident(word) if word == "fn")
+        {
+            return Ok(None);
+        }
+        let first = self.tokens[self.index].span.clone();
+        let mut effectful = false;
+        let mut shape = None;
+        while self.index < at {
+            let marker = self.advance();
+            let Token::Ident(word) = &marker.token else {
+                continue;
+            };
+            let repeated = if word == "effectful" {
+                std::mem::replace(&mut effectful, true)
+            } else {
+                shape
+                    .replace(crate::extensions::Shape::parse(word))
+                    .is_some()
+            };
+            if repeated {
+                return Err(Diagnostic::syntax(
+                    marker.span.clone(),
+                    "a declaration states its purity once and its shape once",
+                ));
+            }
+        }
+        match self.function()? {
+            Stmt::External(mut declaration) => {
+                declaration.effectful = effectful;
+                declaration.shape = shape.flatten();
+                declaration.span.start = first.start;
+                Ok(Some(Stmt::External(declaration)))
+            }
+            _ => Err(Diagnostic::syntax(
+                first,
+                if effectful {
+                    "`effectful` belongs to an external declaration; a function with a body \
+                     is effectful exactly when its body uses an effectful operation"
+                } else {
+                    "a shape belongs to an external declaration, which the host implements"
+                },
+            )),
+        }
+    }
+
     fn arguments(&mut self) -> Result<(Vec<Arg>, usize), Diagnostic> {
         self.expect(&Token::OpenParen, "to open an argument list")?;
         self.nesting += 1;
@@ -1230,7 +2230,8 @@ impl Parser {
         if !matches!(self.peek(), Token::CloseParen) {
             loop {
                 arguments.push(self.argument()?);
-                if !self.eat(&Token::Comma) {
+                // A trailing comma closes a list written one argument per line.
+                if !self.eat(&Token::Comma) || matches!(self.peek(), Token::CloseParen) {
                     break;
                 }
             }
@@ -1284,11 +2285,8 @@ impl Parser {
         let (name, commutative) = match &head.token {
             Token::Plus => ("+", true),
             Token::Star => ("*", true),
-            Token::Ident(name) => match crate::ast::COMBINERS
-                .iter()
-                .find(|(combiner, _)| combiner == name)
-            {
-                Some((combiner, commutative)) => (*combiner, *commutative),
+            Token::Ident(name) => match crate::extensions::combiner(name) {
+                Some(combiner) => (combiner.name, combiner.commutative),
                 None => return Ok(None),
             },
             _ => return Ok(None),
@@ -1341,6 +2339,21 @@ impl Parser {
         let open = self.expect(&Token::OpenBrace, "to open a data literal")?;
         self.nesting += 1;
         let mut entries = Vec::new();
+        // `{:}` is the empty Data; `{}` is the empty set.
+        if self.eat(&Token::Colon) {
+            let close = self.expect(&Token::CloseBrace, "to close the empty data literal `{:}`")?;
+            self.nesting -= 1;
+            return Ok(Expr {
+                kind: Kind::Data(entries),
+                span: open.span.start..close.span.end,
+            });
+        }
+        if matches!(self.peek(), Token::CloseBrace) {
+            return Err(Diagnostic::syntax(
+                open.span.start..self.peek_span().end,
+                "`{}` is the empty set; the empty data literal is `{:}`",
+            ));
+        }
         while !matches!(self.peek(), Token::CloseBrace) {
             let key = self.advance();
             let name = match key.token {
@@ -1409,11 +2422,15 @@ impl Parser {
             {
                 after += 1;
             }
-            if !matches!(self.tokens[next].token, Token::CloseBrace | Token::End)
-                && !self
-                    .tokens
-                    .get(after)
-                    .is_some_and(|token| matches!(token.token, Token::Colon))
+            // The colon tells the two apart: braces holding values are a
+            // set, `{}` the empty one; braces holding `key: value` entries
+            // are Data, `{:}` the empty one.
+            if matches!(self.tokens[next].token, Token::CloseBrace)
+                || (!matches!(self.tokens[next].token, Token::End | Token::Colon)
+                    && !self
+                        .tokens
+                        .get(after)
+                        .is_some_and(|token| matches!(token.token, Token::Colon)))
             {
                 return self.collection_literal(true);
             }
@@ -1443,7 +2460,10 @@ impl Parser {
                 }
                 look += 1;
             }
-            if depth == 0 && matches!(self.tokens[look].token, Token::FatArrow) {
+            if depth == 0
+                && matches!(self.tokens[look].token, Token::FatArrow)
+                && !self.at_rule_level()
+            {
                 let start = self.advance().span.start;
                 self.nesting += 1;
                 let mut parameters = Vec::new();
@@ -1500,12 +2520,23 @@ impl Parser {
             }
             Token::Int(value) => Kind::Int(value),
             Token::Float(value) => Kind::Float(value),
+            Token::Decimal(value) => Kind::Decimal(value),
             Token::Bool(value) => Kind::Bool(value),
             Token::Str(text) => Kind::Str(text),
             Token::DocRef(name) => Kind::DocRef(name),
             Token::Match => return self.match_expression(head.span.start),
             Token::Ident(name) => {
-                if matches!(self.peek(), Token::FatArrow) {
+                if self.rule_nesting.is_some()
+                    && matches!(self.tokens[self.index].token, Token::Question)
+                {
+                    let mark = self.advance();
+                    self.rule_reads.push(name.clone());
+                    return Ok(Expr {
+                        kind: Kind::Ident(optional_read(&name)),
+                        span: head.span.start..mark.span.end,
+                    });
+                }
+                if matches!(self.peek(), Token::FatArrow) && !self.at_rule_level() {
                     self.advance();
                     self.continuation();
                     let body = self.nested(Self::given)?;
@@ -1602,6 +2633,28 @@ fn arith(operator: Arith, left: Expr, right: Expr) -> Expr {
     Expr {
         kind: Kind::Arith(operator, Box::new(left), Box::new(right)),
         span,
+    }
+}
+
+/// Rename each `f?` that stands as a condition, the whole rule or an operand
+/// of `and`, `or` or `not`, to the presence of `f`, which is then not among
+/// the `reads` the rule depends on.
+fn mark_presence(condition: &mut Expr, reads: &mut Vec<String>) {
+    match &mut condition.kind {
+        Kind::Ident(name) => {
+            if let Some(field) = name.strip_suffix('?') {
+                if let Some(index) = reads.iter().position(|read| read == field) {
+                    reads.remove(index);
+                }
+                *name = presence(field);
+            }
+        }
+        Kind::Logic(_, left, right) => {
+            mark_presence(left, reads);
+            mark_presence(right, reads);
+        }
+        Kind::Not(operand) => mark_presence(operand, reads),
+        _ => {}
     }
 }
 

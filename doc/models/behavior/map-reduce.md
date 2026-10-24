@@ -9,7 +9,7 @@ the intended results is [`examples/mapreduce/`](../../../examples/mapreduce/READ
 
 HQL does not implement MapReduce in the Hadoop sense. The claim is narrower and
 more useful: **the pipe is a map/reduce-like execution boundary.** A chain of
-pipes is a region in which the executor may treat the program as a graph of
+pipes is a pipeline in which the executor may treat the program as a graph of
 transformations and reductions rather than as nested function calls, as long as
 the typed semantics are preserved.
 
@@ -90,11 +90,18 @@ its diagnostic. Selection is configuration (`[execution] backend` in `hql.toml`,
 `--backend`, `HQL_BACKEND`), never syntax, because the answer does not depend on
 it.
 
-Within a region a backend may fuse adjacent elementwise steps into one stage,
+Within a pipeline a backend may fuse adjacent elementwise steps into one stage,
 split a run of elementwise steps and one reduction across partitions,
 repartition at a group and run what follows per group, and must assemble
 everything at a barrier. `localhost` takes none of these permissions. That is
 what lets a vault of fifty cards and a vault of a million run the same program.
+
+The planner records which of them a backend takes: before the backend runs a
+program, every step is annotated with its stage, derived from the shape and
+purity of the operation the step invokes and from what the backend executes
+([HQL-0005](../../proposals/HQL-0005/README.md)). `localhost`'s plan is one
+stage per pipeline. A backend refuses a pipeline that is not fully annotated,
+and no annotation changes a value. `hql plan` prints the plan.
 
 See [queries](queries.md) for the collection hierarchy that says which
 reductions are legal — `size` needs finiteness, `take` needs order — and

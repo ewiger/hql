@@ -102,7 +102,7 @@ fn a_renderer_argument_overrides_the_default() {
 fn a_type_no_renderer_writes_in_a_format_is_refused() {
     let vault = fixture();
     assert!(refused("1 | format(D2)", &vault).contains("no renderer writes Int as D2"));
-    assert!(refused("1 | format(Int)", &vault).contains("String"));
+    assert!(refused("1 | format(Int)", &vault).contains("Format"));
     // Refused before the program runs, so nothing is evaluated.
     let refusal = hql::check_in("1 | mermaid", &vault).expect_err("checked");
     assert!(
@@ -127,8 +127,12 @@ fn text_of_one_format_is_itself_plain_text_or_a_fence() {
     assert_eq!(written("[1, 2] | hmd | markdown", &vault).0, markdown);
     let (json, _) = written("[1, 2] | json", &vault);
     assert_eq!(written("[1, 2] | json | text", &vault).0, json);
-    assert!(refused("[1, 2] | json | d2", &vault).contains("no renderer writes Json as D2"));
-    assert!(refused("[1, 2] | json | csv", &vault).contains("no renderer writes Json as Csv"));
+    // Encoded text is a String, whatever it was encoded in.
+    assert!(refused("[1, 2] | json | d2", &vault).contains("no renderer writes String as D2"));
+    // Encoded again in another format, the text is one String value.
+    let (again, format) = written("[1, 2] | markdown | json", &vault);
+    assert_eq!(again, "\"- 1\\n- 2\"");
+    assert_eq!(format, "Json");
 }
 
 fn configured(toml: &str) -> std::io::Result<Vault> {
@@ -206,4 +210,110 @@ fn limit_applies_to_a_sequence_the_vault_produced() {
     let vault = fixture();
     let (text, _) = written("cards | map(c => c.name) | format(Text, limit = 2)", &vault);
     assert!(text.ends_with("more not shown"), "{text}");
+}
+
+/// Two rows of a declared record, the table's columns named against the
+/// order the record declares them in.
+const BOOKS: &str = "type Book { title: String, pages: Int, year: Int }\n\
+    Table([Book(title = \"Dune\", pages = 412, year = 1965), \
+    Book(title = \"Hobbit, The\", pages = 310, year = 1937)], columns = [\"year\", \"title\"])";
+
+#[test]
+fn a_table_writes_its_columns_in_the_order_named_in_every_format() {
+    let vault = fixture();
+    let (text, format) = written(&format!("{BOOKS} | markdown"), &vault);
+    assert_eq!(format, "Markdown");
+    assert_eq!(
+        text,
+        "| year | title       |\n| ---- | ----------- |\n| 1965 | Dune        |\n| 1937 | Hobbit, The |"
+    );
+    let (text, _) = written(&format!("{BOOKS} | csv"), &vault);
+    assert_eq!(text, "year,title\r\n1965,Dune\r\n1937,\"Hobbit, The\"");
+    let (text, _) = written(&format!("{BOOKS} | json"), &vault);
+    assert_eq!(
+        text,
+        "[\n  {\n    \"year\": 1965,\n    \"title\": \"Dune\"\n  },\n  {\n    \"year\": 1937,\n    \"title\": \"Hobbit, The\"\n  }\n]"
+    );
+    let (text, _) = written(&format!("{BOOKS} | text"), &vault);
+    assert_eq!(
+        text,
+        "year  title\n----  -----------\n1965  Dune\n1937  Hobbit, The"
+    );
+}
+
+#[test]
+fn a_table_without_columns_takes_the_first_rows_fields_in_declared_order() {
+    let vault = fixture();
+    let (text, _) = written(
+        "type Book { title: String, pages: Int }\n\
+         [Book(title = \"Dune\", pages = 412)] | Table | csv",
+        &vault,
+    );
+    assert_eq!(text, "title,pages\r\nDune,412");
+    // Over Data, a field a row does not have is an empty cell.
+    let (text, _) = written(
+        "Table([{a: 1, b: 2}, {a: 3}], columns = [\"b\", \"a\"]) | csv",
+        &vault,
+    );
+    assert_eq!(text, "b,a\r\n2,1\r\n,3");
+}
+
+#[test]
+fn a_table_column_naming_no_field_of_the_record_is_refused() {
+    let vault = fixture();
+    let refusal = hql::check_in(
+        "type Book { title: String }\nTable([Book(title = \"Dune\")], columns = [\"title\", \"isbn\"])",
+        &vault,
+    )
+    .expect_err("checked");
+    assert!(
+        refusal
+            .message()
+            .contains("the column `isbn` names no field of Book"),
+        "{}",
+        refusal.message()
+    );
+    assert!(refused("Table([1, 2])", &vault).contains("a Table row is a record"));
+}
+
+#[test]
+fn a_table_renderer_writes_only_a_table() {
+    let vault = fixture();
+    let (text, _) = written(
+        "Table([{a: 1}]) | format(Markdown, renderer = \"pipe\")",
+        &vault,
+    );
+    assert_eq!(text, "| a   |\n| --- |\n| 1   |");
+    for (renderer, format) in [
+        ("pipe", "Markdown"),
+        ("aligned", "Text"),
+        ("rows", "Csv"),
+        ("records", "Json"),
+    ] {
+        let source = format!("[{{a: 1}}] | format({format}, renderer = \"{renderer}\")");
+        let refusal = hql::check_in(&source, &vault).expect_err(&source);
+        assert!(
+            refusal
+                .message()
+                .contains(&format!("the renderer `{renderer}` writes a Table")),
+            "{}",
+            refusal.message()
+        );
+    }
+    let error = configured("[format.Data]\nmarkdown = \"pipe\"\n").expect_err("refused");
+    assert!(
+        error.to_string().contains("writes a Table, not Data"),
+        "{error}"
+    );
+    let vault = configured("[format.Table]\njson = \"records\"\n").unwrap();
+    let (text, _) = written("Table([{a: 1}]) | json", &vault);
+    assert_eq!(text, "[\n  {\n    \"a\": 1\n  }\n]");
+}
+
+#[test]
+fn table_as_a_step_is_refused_naming_the_constructor() {
+    let vault = fixture();
+    let refusal = refused("[{a: 1}] | table", &vault);
+    assert!(refusal.contains("Table(xs, columns = [...])"), "{refusal}");
+    assert_eq!(hql::builtins::nearest("table"), Some("Table"));
 }

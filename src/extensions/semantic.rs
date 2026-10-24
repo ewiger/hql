@@ -10,6 +10,7 @@
 //! version, the vault it was built for, the dimension count, and the length of
 //! every vector.
 
+use super::Signature;
 use super::collections::{elements, wrong};
 use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P};
 use super::{EvalCx, Operation, Purity, named_or_first};
@@ -69,7 +70,7 @@ impl Semantics {
 /// Every step the `semantic` extension provides.
 pub(crate) static STEPS: &[Operation] = &[Operation {
     name: "semantic",
-    spec: OperationSpec {
+    spec: Signature::Native(OperationSpec {
         parameters: &[TypeParameter {
             name: "T",
             bound: Some(crate::types::TypeConstructor("Doc")),
@@ -83,9 +84,10 @@ pub(crate) static STEPS: &[Operation] = &[Operation {
             crate::types::TypeConstructor("Ranking"),
             &[P::Type(crate::types::TypeConstructor("Card"))],
         )),
-    },
+    }),
     summary: "Rank a corpus against a query by the meaning a model found in both.",
     purity: Purity::Pure,
+    shape: super::Shape::Barrier,
     check: Some(check_semantic),
     eval: eval_semantic,
 }];

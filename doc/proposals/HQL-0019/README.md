@@ -124,7 +124,7 @@ fn Graph<N>(nodes: Collection<N>, by: (N, N) -> Bool) : Graph<N, Edge<N, N>>
 ```text
 xs | Graph(by = p)
     ≡  Graph(xs, {a: xs, b: xs} | join(on = r => r.a != r.b and p(r.a, r.b))
-                                | map(r => Edge(source = r.a, target = r.b, data = {})))
+                                | map(r => Edge(source = r.a, target = r.b, data = {:})))
 ```
 
 - It MUST equal its longhand above: an edge from `a` to `b` for every ordered
@@ -203,9 +203,9 @@ apart from refusing depth `0`.
 
 - `src/extensions/graph.rs` — the constructors; `project` keeping only induced
   edges; `expand` over a graph or cards
-- `std/graph.hql` — the constructor signatures beside `Graph` and `Edge`;
+- `lib/std/graph/mod.hql` — the constructor signatures beside `Graph` and `Edge`;
   `nodes` and `edges` as fields
-- `std/knowledge.hql` — `KnowledgeGraph`'s constructor
+- `lib/std/knowledge/mod.hql` — `KnowledgeGraph`'s constructor
 - `src/checker.rs`, `field_type` — `nodes` and `edges` on `Graph`
 - `doc/wiki/hql/types/graph-type.hmd` — construction, the readable node and
   edge sets, and the projection section rewritten around `Graph(…)`

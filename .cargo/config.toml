@@ -1,0 +1,5 @@
+# A deeply recursive HQL program is a deeply recursive evaluation. The binary
+# runs on a thread with a large stack (src/main.rs); the processes cargo
+# starts, the test harness among them, get the same room for every thread.
+[env]
+RUST_MIN_STACK = "268435456"

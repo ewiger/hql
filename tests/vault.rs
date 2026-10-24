@@ -94,7 +94,7 @@ fn a_filtered_card_pipeline_needs_no_annotations_or_conversions() {
         ),
         (
             "open | sort(by = c => c.title) | map(c => c.title) | markdown",
-            hql::types::builtin::named("Markdown", &[]).expect("Markdown is built in"),
+            TypeRef::STR,
         ),
     ] {
         assert_eq!(

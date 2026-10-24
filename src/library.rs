@@ -1,7 +1,7 @@
-//! The standard library: the declarations in `std/`, compiled into the binary.
+//! The standard library: the declarations in `lib/std/`, compiled into the binary.
 //!
 //! A built-in record's fields are read from its declaration here, so what a
-//! program may read on a `Hit` or a `Card` is what `std/` says and nothing
+//! program may read on a `Hit` or a `Card` is what `lib/std/` says and nothing
 //! else. The library is checked as one program when it is first needed, the
 //! same way a program's own declarations are.
 
@@ -12,24 +12,101 @@ use crate::types::{self, TypeRef};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-/// Every module of the standard library, by name, in loading order: the path
-/// below `std/` with folders joined by `.`, and a folder's `init.hql` named for
-/// the folder.
+/// Every module of the builtin packages, by name, in loading order: the
+/// standard package's, then `search`'s, which imports from it.
 ///
-/// A module may refer only to what an earlier one declares.
-pub const MODULES: &[(&str, &str)] = &[
-    ("core", include_str!("../std/core.hql")),
-    ("collections", include_str!("../std/collections.hql")),
-    ("doc", include_str!("../std/doc.hql")),
-    ("graph", include_str!("../std/graph.hql")),
-    ("knowledge", include_str!("../std/knowledge.hql")),
-    ("retrieval", include_str!("../std/retrieval.hql")),
-    ("format", include_str!("../std/format.hql")),
-    ("io", include_str!("../std/io/init.hql")),
-    ("io.net", include_str!("../std/io/net.hql")),
-    ("io.logging", include_str!("../std/io/logging.hql")),
-    ("vault", include_str!("../std/vault.hql")),
+/// Each module is its own import unit: it names, with `import`, every module
+/// whose types or traits it writes, and a module imports only modules listed
+/// before it, so the order is the import graph's and the graph is acyclic
+/// ([`closure`]).
+///
+/// A `static`, so it has one address: the binding cache keys by it.
+pub static MODULES: &[(&str, &str)] = &concat::<{ STD.len() + SEARCH.len() }>(STD, SEARCH);
+
+/// Every module of the standard package, by name, in loading order: the
+/// folder below `lib/std/` with its segments joined by `.`, each module's
+/// declarations in that folder's `mod.hql`.
+pub const STD: &[(&str, &str)] = &[
+    ("prelude", PRELUDE),
+    ("core", include_str!("../lib/std/core/mod.hql")),
+    ("doc", include_str!("../lib/std/doc/mod.hql")),
+    ("retrieval", include_str!("../lib/std/retrieval/mod.hql")),
+    ("graph", include_str!("../lib/std/graph/mod.hql")),
+    ("knowledge", include_str!("../lib/std/knowledge/mod.hql")),
+    (
+        "collections",
+        include_str!("../lib/std/collections/mod.hql"),
+    ),
+    ("string", include_str!("../lib/std/string/mod.hql")),
+    ("seq", include_str!("../lib/std/seq/mod.hql")),
+    ("math", include_str!("../lib/std/math/mod.hql")),
+    ("option", include_str!("../lib/std/option/mod.hql")),
+    ("result", include_str!("../lib/std/result/mod.hql")),
+    ("regex", include_str!("../lib/std/regex/mod.hql")),
+    ("format", include_str!("../lib/std/format/mod.hql")),
+    ("io", include_str!("../lib/std/io/mod.hql")),
+    ("io.net", include_str!("../lib/std/io/net/mod.hql")),
+    ("io.logging", include_str!("../lib/std/io/logging/mod.hql")),
+    ("vault", include_str!("../lib/std/vault/mod.hql")),
 ];
+
+/// Every module of the `search` package, by name, in loading order, laid out
+/// below `lib/search/` as the standard package's are below `lib/std/`.
+pub const SEARCH: &[(&str, &str)] = &[
+    ("lexical", include_str!("../lib/search/lexical/mod.hql")),
+    ("semantic", include_str!("../lib/search/semantic/mod.hql")),
+];
+
+/// Two module tables as one, in order.
+const fn concat<const N: usize>(
+    first: &[(&'static str, &'static str)],
+    second: &[(&'static str, &'static str)],
+) -> [(&'static str, &'static str); N] {
+    let mut joined = [("", ""); N];
+    let mut at = 0;
+    while at < first.len() {
+        joined[at] = first[at];
+        at += 1;
+    }
+    while at < N {
+        joined[at] = second[at - first.len()];
+        at += 1;
+    }
+    joined
+}
+
+/// A builtin module as diagnostics name it: its package, then its name,
+/// `std/core` or `search/lexical`.
+#[must_use]
+pub fn path(module: &str) -> String {
+    let package = if SEARCH.iter().any(|(name, _)| *name == module) {
+        "search"
+    } else {
+        "std"
+    };
+    format!("{package}/{module}")
+}
+
+/// The modules of the standard library written in HQL rather than declared
+/// for an extension: a program imports one by name, `import validators`,
+/// and it is loaded as a workspace module is, its bodies run.
+pub const WRITTEN: &[(&str, &str)] =
+    &[("validators", include_str!("../lib/std/validators/mod.hql"))];
+
+/// The source of a written module of the standard library.
+#[must_use]
+pub fn written(name: &str) -> Option<&'static str> {
+    WRITTEN
+        .iter()
+        .find(|(module, _)| *module == name)
+        .map(|(_, source)| *source)
+}
+
+/// The standard library's implicit import list, `lib/std/prelude.hql`: not a
+/// module, but the package's global space, run when the builtin package
+/// loads; its imports are what every source unit outside the package starts
+/// with unless the vault declines them.
+pub const PRELUDE: &str = include_str!("../lib/std/prelude.hql");
 
 /// One declaration, kept for reading its fields.
 #[derive(Debug)]
@@ -39,14 +116,382 @@ struct Record {
     fields: Vec<Field>,
 }
 
-/// The whole library as one program's source.
+/// One external declaration of a standard module: the signature an extension
+/// implements, reduced to what binding cross-checks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Contract {
+    /// The declared name, which is the operation's name.
+    pub name: String,
+    /// Whether the declaration takes `self`: a receiver, which `value.f()`
+    /// reaches. Without it the first parameter is an ordinary argument.
+    pub has_self: bool,
+    /// How many parameters are written, `self` excluded.
+    pub parameters: usize,
+    /// Whether the last parameter collects trailing arguments.
+    pub variadic: bool,
+    /// The constructor of the declared result type.
+    pub result: String,
+}
+
+/// Each module written as external declarations, by canonical name, with its
+/// declarations in order.
+pub type Contracts = Vec<(&'static str, Vec<Contract>)>;
+
+/// The contracts of the standard library: each module written as external
+/// declarations, with its declarations in order. A module with none is
+/// implemented by the runtime, or documents its operations in comments, and
+/// does not appear.
+///
+/// # Errors
+///
+/// Returns the first module that does not parse, a defect of the binary.
+pub fn contracts() -> Result<Contracts, String> {
+    static CONTRACTS: OnceLock<Result<Contracts, String>> = OnceLock::new();
+    CONTRACTS
+        .get_or_init(|| {
+            let mut found = Vec::new();
+            for (name, source) in MODULES {
+                let program = crate::parser::parse(source).map_err(|error| {
+                    format!("{name}: {}", error.message(), name = self::path(name))
+                })?;
+                let declared: Vec<Contract> = program
+                    .statements
+                    .iter()
+                    .filter_map(|statement| match statement {
+                        // A constructor is bound to the binary's
+                        // constructors, not to an extension's step.
+                        Stmt::External(declaration)
+                            if !crate::constructors::is_table_constructor(
+                                name,
+                                &declaration.name,
+                            ) =>
+                        {
+                            Some(Contract {
+                                name: declaration.name.clone(),
+                                has_self: declaration.has_self,
+                                parameters: declaration.parameters.len(),
+                                variadic: declaration
+                                    .parameters
+                                    .last()
+                                    .is_some_and(|parameter| parameter.variadic),
+                                result: declaration.result.name.clone(),
+                            })
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                if !declared.is_empty() {
+                    found.push((*name, declared));
+                }
+            }
+            Ok(found)
+        })
+        .clone()
+}
+
+/// A bodyless `impl` header of a standard module: the declaration that a
+/// type implements a trait natively, which an extension's function bodies
+/// satisfy.
+#[derive(Debug, Clone)]
+pub struct NativeHeader {
+    /// The canonical name of the module declaring it.
+    pub module: &'static str,
+    pub trait_name: String,
+    /// The implementing type's name.
+    pub target: String,
+}
+
+/// Every native implementation the standard library declares, in order.
+/// These are the only implementations of a trait for a built-in type: the
+/// runtime supplies the bodies, and the headers say which exist.
+///
+/// # Errors
+///
+/// Returns the first module that does not parse, a defect of the binary.
+pub fn native_impls() -> Result<Vec<NativeHeader>, String> {
+    static HEADERS: OnceLock<Result<Vec<NativeHeader>, String>> = OnceLock::new();
+    HEADERS
+        .get_or_init(|| {
+            let mut found = Vec::new();
+            for (name, source) in MODULES {
+                let program = crate::parser::parse(source).map_err(|error| {
+                    format!("{name}: {}", error.message(), name = self::path(name))
+                })?;
+                found.extend(
+                    program
+                        .statements
+                        .iter()
+                        .filter_map(|statement| match statement {
+                            Stmt::Impl(declaration) if declaration.native => Some(NativeHeader {
+                                module: name,
+                                trait_name: declaration.trait_name.clone(),
+                                target: declaration.target.name.clone(),
+                            }),
+                            _ => None,
+                        }),
+                );
+            }
+            Ok(found)
+        })
+        .clone()
+}
+
+/// Hold a module graph to the import-unit rules: each module is a closure.
+///
+/// A type or trait name a module writes, in a declaration's parents, fields,
+/// bounds, parameters, result, receiver pattern or `impl` header, resolves
+/// to the module's own declaration or to one of a module it imports, and to
+/// nothing else. A name no module of the graph declares, `Any`, `Unit` or a
+/// function type, is the language's and needs no import. A module imports
+/// only modules listed before it, so the listed order is a topological order
+/// of the import graph and the graph is acyclic; a module never imports its
+/// own child, and the prelude, which is not a module, imports only modules.
+/// Each module opens with `module` and the name its row gives, which is its
+/// path under `lib/std/`; the prelude declares no module.
+///
+/// # Errors
+///
+/// Returns the first module that does not parse or breaks a rule, naming
+/// the module, the name and the module declaring it.
+pub fn closure(graph: &[(&str, &str)]) -> Result<(), String> {
+    let mut parsed = Vec::new();
+    for (name, source) in graph {
+        let program = crate::parser::parse(source)
+            .map_err(|error| format!("{name}: {}", error.message(), name = self::path(name)))?;
+        parsed.push((*name, program));
+    }
+    for (module, program) in &parsed {
+        // The prelude is not a module and states no name; every module
+        // states the one its row gives, as its file under `lib/std/` does.
+        if *module == "prelude" {
+            if program
+                .statements
+                .iter()
+                .any(|statement| matches!(statement, Stmt::Module { .. }))
+            {
+                return Err("`std/prelude` declares a module, and the prelude is none".to_owned());
+            }
+        } else {
+            crate::modules::declared(program, module).map_err(|(_, message)| {
+                format!("{module}: {message}", module = self::path(module))
+            })?;
+        }
+    }
+    let mut owners: HashMap<&str, &str> = HashMap::new();
+    for (module, program) in &parsed {
+        for statement in &program.statements {
+            let declared = match statement {
+                Stmt::Type(declaration) => &declaration.name,
+                Stmt::Trait(declaration) => &declaration.name,
+                _ => continue,
+            };
+            if let Some(owner) = owners.insert(declared, module)
+                && owner != *module
+            {
+                return Err(format!(
+                    "`{declared}` is declared by both `{owner}` and `{module}`: a \
+                     declaration has one owner",
+                    module = self::path(module),
+                    owner = self::path(owner)
+                ));
+            }
+        }
+    }
+    for (position, (module, program)) in parsed.iter().enumerate() {
+        let mut visible: Vec<&str> = vec![module];
+        for statement in &program.statements {
+            let Stmt::Import { path, .. } = statement else {
+                continue;
+            };
+            let imported = path.join(".");
+            // The prelude is not a module and runs once the package has
+            // loaded, so it may name any module of the graph.
+            let reachable = if *module == "prelude" {
+                &parsed[..]
+            } else {
+                &parsed[..position]
+            };
+            let Some((found, _)) = reachable
+                .iter()
+                .find(|(held, _)| *held == imported && *held != "prelude")
+            else {
+                let why = if parsed.iter().any(|(held, _)| *held == imported) {
+                    "which is listed after it: a module imports only the modules before it, so \
+                     the import graph has no cycle"
+                } else {
+                    "which is no module of the standard library"
+                };
+                return Err(format!(
+                    "`{module}` imports `{imported}`, {why}",
+                    module = self::path(module)
+                ));
+            };
+            if imported.starts_with(&format!("{module}.")) {
+                return Err(format!(
+                    "`{module}` imports its own child `{imported}`: what a parent needs from \
+                     a child belongs in the parent, or in a module both import",
+                    module = self::path(module)
+                ));
+            }
+            visible.push(found);
+        }
+        if *module == "prelude" {
+            continue;
+        }
+        let mut written = Vec::new();
+        let receiver: Vec<&str> = program
+            .statements
+            .iter()
+            .find_map(|statement| match statement {
+                Stmt::Module { pattern, .. } => pattern.as_ref(),
+                _ => None,
+            })
+            .map(|pattern| {
+                written.push(pattern);
+                pattern
+                    .arguments
+                    .iter()
+                    .map(|argument| argument.name.as_str())
+                    .collect()
+            })
+            .unwrap_or_default();
+        for statement in &program.statements {
+            let mut variables: Vec<&str> = receiver.clone();
+            match statement {
+                Stmt::Type(declaration) => {
+                    variables.extend(declaration.parameters.iter().map(String::as_str));
+                    let mut names = declaration.supertypes.iter().collect::<Vec<_>>();
+                    names.extend(declaration.fields.iter().map(|field| &field.annotation));
+                    names.extend(declaration.bounds.iter().map(|(_, bound)| bound));
+                    names.extend(declaration.union.iter().flatten());
+                    check_names(module, &names, &variables, &visible, &owners)?;
+                }
+                Stmt::Trait(declaration) => {
+                    variables.extend(declaration.generics.iter().map(String::as_str));
+                    let mut names = declaration.supertraits.iter().collect::<Vec<_>>();
+                    names.extend(declaration.bounds.iter().map(|(_, bound)| bound));
+                    for method in &declaration.methods {
+                        names.extend(
+                            method
+                                .parameters
+                                .iter()
+                                .map(|parameter| &parameter.annotation),
+                        );
+                        names.push(&method.result);
+                    }
+                    check_names(module, &names, &variables, &visible, &owners)?;
+                }
+                Stmt::Impl(declaration) => {
+                    variables.extend(declaration.generics.iter().map(String::as_str));
+                    let header = TypeAnn {
+                        name: declaration.trait_name.clone(),
+                        arguments: declaration.trait_arguments.clone(),
+                        span: declaration.span.clone(),
+                    };
+                    let mut names = vec![&header, &declaration.target];
+                    names.extend(declaration.bounds.iter().map(|(_, bound)| bound));
+                    for method in &declaration.methods {
+                        names.extend(
+                            method
+                                .parameters
+                                .iter()
+                                .map(|parameter| &parameter.annotation),
+                        );
+                        names.push(&method.result);
+                    }
+                    check_names(module, &names, &variables, &visible, &owners)?;
+                }
+                Stmt::External(declaration) => {
+                    variables.extend(declaration.generics.iter().map(String::as_str));
+                    let mut names = declaration.receiver.iter().collect::<Vec<_>>();
+                    names.extend(declaration.bounds.iter().map(|(_, bound)| bound));
+                    names.extend(
+                        declaration
+                            .parameters
+                            .iter()
+                            .map(|parameter| &parameter.annotation),
+                    );
+                    names.push(&declaration.result);
+                    check_names(module, &names, &variables, &visible, &owners)?;
+                }
+                Stmt::Fn(declaration) => {
+                    variables.extend(declaration.generics.iter().map(String::as_str));
+                    let mut names = declaration
+                        .bounds
+                        .iter()
+                        .map(|(_, bound)| bound)
+                        .collect::<Vec<_>>();
+                    names.extend(
+                        declaration
+                            .parameters
+                            .iter()
+                            .map(|parameter| &parameter.annotation),
+                    );
+                    names.push(&declaration.result);
+                    check_names(module, &names, &variables, &visible, &owners)?;
+                }
+                Stmt::Bind {
+                    annotation: Some(annotation),
+                    ..
+                } => check_names(module, &[annotation], &variables, &visible, &owners)?,
+                _ => {}
+            }
+        }
+        check_names(module, &written, &[], &visible, &owners)?;
+    }
+    Ok(())
+}
+
+/// Each name the written types mention, and their arguments', is a variable
+/// in scope, visible in the module, or declared by no module of the graph.
+fn check_names(
+    module: &str,
+    written: &[&TypeAnn],
+    variables: &[&str],
+    visible: &[&str],
+    owners: &HashMap<&str, &str>,
+) -> Result<(), String> {
+    for annotation in written {
+        let name = annotation.name.as_str();
+        if !variables.contains(&name)
+            && let Some(owner) = owners.get(name)
+            && !visible.contains(owner)
+        {
+            return Err(format!(
+                "`{module}` writes `{name}`, which `{owner}` declares, and does not import \
+                 `{owner}`: a module sees its own declarations and its imports' and nothing else",
+                module = self::path(module)
+            ));
+        }
+        let arguments: Vec<&TypeAnn> = annotation.arguments.iter().collect();
+        check_names(module, &arguments, variables, visible, owners)?;
+    }
+    Ok(())
+}
+
+/// The whole library as one program's source: every module's imports at the
+/// head, as one source unit holds them, then every module's declarations in
+/// loading order.
 #[must_use]
 pub fn source() -> String {
-    MODULES
-        .iter()
-        .map(|(_, module)| *module)
-        .collect::<Vec<_>>()
-        .join("\n")
+    let mut heads: Vec<&str> = Vec::new();
+    let mut bodies = String::new();
+    for (_, module) in MODULES {
+        for line in module.lines() {
+            if line.starts_with("import ") {
+                if !heads.contains(&line) {
+                    heads.push(line);
+                }
+            } else {
+                bodies.push_str(line);
+                bodies.push('\n');
+            }
+        }
+    }
+    let mut source = heads.join("\n");
+    source.push('\n');
+    source.push_str(&bodies);
+    source
 }
 
 /// Check every declaration in the library.
@@ -56,13 +501,22 @@ pub fn source() -> String {
 /// Returns the first declaration that does not hold, which is a defect of the
 /// binary rather than of any program.
 pub fn check() -> Result<(), Diagnostic> {
+    let mut graph = MODULES.to_vec();
+    graph.extend_from_slice(WRITTEN);
+    closure(&graph).map_err(|message| Diagnostic::name(0..0, message))?;
     load().map(drop)
 }
 
-/// The library's bindings, `cards = vault.cards` among them, in the order
-/// written. Each is checked and evaluated as its own program over `vault`.
+/// The bindings the program module starts with over the host's `vault`.
+/// They belong to the program module and to no module of the library: a
+/// module is a closure and never sees a host binding.
+const PROGRAM_BINDINGS: &str = "cards = vault.cards\ngraph = vault.graph\n";
+
+/// The program module's bindings over `vault`, `cards = vault.cards` among
+/// them, in the order written. Each is checked and evaluated as its own
+/// program over `vault`.
 pub(crate) fn bindings() -> Vec<(String, crate::ast::Expr)> {
-    let Ok(program) = crate::parser::parse(&source()) else {
+    let Ok(program) = crate::parser::parse(PROGRAM_BINDINGS) else {
         return Vec::new();
     };
     program
@@ -99,6 +553,55 @@ fn load() -> Result<HashMap<String, Record>, Diagnostic> {
         );
     }
     Ok(records)
+}
+
+/// The shape of a record the library declares, with its parameters standing
+/// as nullary applications of their names, as
+/// [`program`](crate::types::program) reads one.
+pub(crate) fn shape(name: &str) -> Option<crate::types::program::RecordShape> {
+    use crate::types::program::{RecordField, RecordShape, intern};
+    let record = records()?.get(name)?;
+    let parameters: Vec<&'static str> = record
+        .parameters
+        .iter()
+        .map(|parameter| intern(parameter))
+        .collect();
+    let structural = |written: &TypeAnn| structural(written, &parameters);
+    Some(RecordShape {
+        parents: record.parents.iter().filter_map(structural).collect(),
+        fields: record
+            .fields
+            .iter()
+            .map(|field| {
+                Some(RecordField {
+                    name: field.name.clone(),
+                    ty: structural(&field.annotation)?,
+                    optional: field.optional,
+                    default: field
+                        .default
+                        .as_ref()
+                        .and_then(crate::declarations::literal),
+                    validator: None,
+                })
+            })
+            .collect::<Option<Vec<_>>>()?,
+        parameters,
+    })
+}
+
+/// A written type as a reference built from names alone: a parameter stays a
+/// nullary application of itself, and nothing is validated, since the record's
+/// arguments are bound later.
+fn structural(written: &TypeAnn, parameters: &[&'static str]) -> Option<TypeRef> {
+    if let Some(parameter) = parameters.iter().find(|held| **held == written.name) {
+        return Some(crate::types::TypeConstructor(parameter).apply([]));
+    }
+    let args = written
+        .arguments
+        .iter()
+        .map(|argument| structural(argument, parameters))
+        .collect::<Option<Vec<_>>>()?;
+    Some(crate::types::builtin::constructor(&written.name)?.apply(args))
 }
 
 /// The type of `field` on a value of `receiver`'s type, as the library
@@ -155,6 +658,110 @@ mod tests {
     fn the_library_checks() {
         assert_eq!(check(), Ok(()));
         assert!(records().is_some());
+    }
+
+    #[test]
+    fn the_search_package_follows_the_standard_one_and_names_its_modules() {
+        assert_eq!(&MODULES[..STD.len()], STD);
+        assert_eq!(&MODULES[STD.len()..], SEARCH);
+        assert_eq!(path("core"), "std/core");
+        assert_eq!(path("lexical"), "search/lexical");
+        let contracts = contracts().unwrap();
+        for module in ["lexical", "semantic"] {
+            let (_, declared) = contracts.iter().find(|(name, _)| *name == module).unwrap();
+            assert_eq!(declared.len(), 1, "{module}");
+            assert!(
+                declared[0].has_self && declared[0].result == "Ranking",
+                "{module}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_module_of_the_library_is_closed_over_its_imports() {
+        let mut graph = MODULES.to_vec();
+        graph.extend_from_slice(WRITTEN);
+        assert_eq!(closure(&graph), Ok(()));
+    }
+
+    #[test]
+    fn a_module_sees_its_own_declarations_and_its_imports_and_nothing_else() {
+        let base = ("base", "module base\ntype Thing\ntrait Shape {}\n");
+        // Neither declared here nor imported: refused, naming the owner.
+        let refused =
+            closure(&[base, ("user", "module user\ntype Box { inner : Thing }\n")]).unwrap_err();
+        assert!(
+            refused.contains("`std/user` writes `Thing`, which `base` declares"),
+            "{refused}"
+        );
+        // A bound, a parameter, an `impl` header and a receiver pattern are
+        // written names as much as a field is.
+        for source in [
+            "module user\nfn f<T : Shape>(x: T) : T\n",
+            "module user\nfn f(x: Thing) : Unit\n",
+            "module user\nimpl Shape for Int\n",
+            "module user for Thing\nfn f(self) : Unit\n",
+        ] {
+            assert!(closure(&[base, ("user", source)]).is_err(), "{source}");
+        }
+        // Imported, it resolves; a name no module declares is the language's.
+        assert_eq!(
+            closure(&[
+                base,
+                (
+                    "user",
+                    "module user\nimport base\ntype Box { inner : Thing, any : Any }\n"
+                )
+            ]),
+            Ok(())
+        );
+        // A type parameter shadows nothing it does not name.
+        assert_eq!(
+            closure(&[
+                base,
+                ("user", "module user\ntype Box<Thing> { inner : Thing }\n")
+            ]),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn every_module_states_the_name_its_row_gives_and_the_prelude_states_none() {
+        let misnamed = closure(&[("a", "module b\ntype A\n")]).unwrap_err();
+        assert!(
+            misnamed.contains("`module b` names another module"),
+            "{misnamed}"
+        );
+        let missing = closure(&[("a", "type A\n")]).unwrap_err();
+        assert!(missing.contains("write `module a`"), "{missing}");
+        let prelude = closure(&[("prelude", "module prelude\n")]).unwrap_err();
+        assert!(prelude.contains("the prelude is none"), "{prelude}");
+    }
+
+    #[test]
+    fn the_import_graph_is_listed_in_order_and_has_no_cycle() {
+        let later =
+            closure(&[("a", "module a\nimport b\n"), ("b", "module b\ntype B\n")]).unwrap_err();
+        assert!(later.contains("listed after it"), "{later}");
+        let unknown = closure(&[("a", "module a\nimport nowhere\n")]).unwrap_err();
+        assert!(
+            unknown.contains("no module of the standard library"),
+            "{unknown}"
+        );
+        let child = closure(&[
+            ("a.b", "module a.b\ntype B\n"),
+            ("a", "module a\nimport a.b\n"),
+        ])
+        .unwrap_err();
+        assert!(child.contains("imports its own child"), "{child}");
+        // The prelude is not a module: it may name any module of the graph.
+        assert_eq!(
+            closure(&[("prelude", "import a\n"), ("a", "module a\ntype A\n")]),
+            Ok(())
+        );
+        let twice =
+            closure(&[("a", "module a\ntype A\n"), ("b", "module b\ntype A\n")]).unwrap_err();
+        assert!(twice.contains("declared by both"), "{twice}");
     }
 
     #[test]

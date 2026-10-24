@@ -1,8 +1,8 @@
 # 13. Reading and writing data
 
-!!! note "The `io` extension"
+!!! note "The `io` module"
 
-    This chapter covers the `io` extension, which ships in the next release.
+    This chapter covers the `io` module, which ships in the next release.
     It is part of the prelude, so a program needs no `import` to use it.
 
 Every program so far read a vault, or values written into the program itself.
@@ -88,8 +88,43 @@ source(file("examples/io/sightings.jsonl"))
 ```
 
 Each document is `Data`, the type of a dynamically structured value from
-[chapter 2](02-data.md). A CSV row is a record of strings, keyed by the
+[chapter 2](02-data-types/data.md). A CSV row is a record of strings, keyed by the
 header.
+
+## Reading as a declared record
+
+A binding whose declared type names an element decodes each document as that
+element. A tree is read as a declared record by its shape: every field at its
+type. A plain record, `type Sighting {…}`, is closed, so a document with an
+entry it does not declare does not decode; a record narrowing `Data`,
+`type Sighting : Data {…}`, is an open view that tolerates such entries and
+keeps them ([HQL-0030](../../proposals/HQL-0030/README.md)). The same reading
+is written as a step, `source(file(p), Json) | Sighting`.
+
+<!-- run: skip -->
+```hql
+type Sighting {
+    species : String
+    site    : String
+    seen    : String
+}
+
+sightings : Seq<Sighting> = source(file("examples/io/sightings.jsonl"))
+sightings | filter(s => s.seen == "morning") | map(s => s.species)
+```
+
+```text
+["wren", "kingfisher"]
+```
+
+A function's declared result is an expected type in the same way. A CSV cell
+is text, so it is read as the `Int`, `Float` or `Bool` its field declares; a
+JSON leaf keeps the type it was written with. A document that does not decode
+stops the evaluation with an error naming the document and the field:
+
+```text
+counts.csv: document 2 does not decode as Tally: field `count`: "many" is not an Int
+```
 
 ## Finite or live: the type decides
 
@@ -127,7 +162,7 @@ file's end, `file(p).end`, it follows what is appended, as `tail -F` does:
 
 <!-- run: skip -->
 ```hql
-tap(file("app.log").end, Text) | take(1)
+tap(file("app.log").end, Lines) | take(1)
 ```
 
 waits for the next line written to `app.log`, and returns it.
@@ -243,6 +278,17 @@ $ head -2 examples/io/sightings.jsonl | hql 'source(stdin, Json)' --to json --co
 {"seen":"morning","site":"hedge","species":"wren"}
 ```
 
+`--from` names the format of standard input once, on the command line, so the
+program reads `stdin` without naming one; a format the program names wins:
+
+```text
+$ cat examples/io/sightings.jsonl | hql --from json 'source(stdin) | map(s => s.site)'
+"meadow"
+"hedge"
+"barn"
+"river"
+```
+
 Converting between formats is a source and a `--to`:
 
 ```text
@@ -276,6 +322,37 @@ type error: a document writes nothing outside itself, so `target` and `sink` are
 
 The same program runs under different capability policies without changing
 its model: a terminal may write files, and a document being rendered may not.
+
+## Configured sources
+
+A program that names a file path is tied to one machine's files. A vault can
+instead declare its sources in `hql.toml`, each under an id, and a program
+names only the id:
+
+```toml
+[sources.journal]
+kind = "vault"
+root = "journal"
+
+[sources.counts]
+kind = "csv"
+path = "data/counts.csv"
+```
+
+```hql
+journal = source("journal")
+journal.cards | map(c => c.name)
+```
+
+`source("journal")` is a `Vault`, with its own `cards`; `source("counts")` is
+a `Seq<Data>`, a row per element, decoded as a declared record where one is
+expected, as above. The type comes from the configuration, so checking reads
+`hql.toml` and opens nothing. The id is a literal: `source(id)` with a
+computed `id` is a type error, and `source("postgres://db/birds")` is refused
+with a diagnostic saying connection details belong in configuration. An id
+the configuration does not declare is a name error that suggests the nearest
+one. The [data sources examples](../../../examples/sources/README.md) read
+two vaults side by side.
 
 ## What is next
 

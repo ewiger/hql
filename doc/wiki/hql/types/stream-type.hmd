@@ -9,7 +9,7 @@ nav:
 `x0, x1, x2, …`, whose production need not end. A stream has no size, no
 membership and no global order, because each of those needs the end. The
 design is [HQL-0006](../../../proposals/HQL-0006/README.md); the declaration
-is `std/collections.hql`.
+is `lib/std/core/mod.hql`, and the operations over it are `lib/std/collections/mod.hql`'s.
 
 ```hql
 abstract type Iterable<T>
@@ -37,9 +37,10 @@ part of the value. See [[collections]] for the collection family.
 | `emit` | `Stream<Seq<T>>` | `Stream<T>`: every member of every batch, in order |
 | `emit` | `Seq<Seq<T>>` | `List<T>` |
 | `flat_map(by)` | `Stream<T>`, `by : T -> Seq<U>` | `Stream<U>`, which is `map(by) \| emit` |
+| `oks()`, `errs()` | `Stream<Result<T, E>>` | `Stream<T>`, `Stream<E>`: the payloads of one side, in order |
 | `format(F)`, `text`, `json`, … | `Stream<T>` | `Stream<F>`: one piece of text per value, see [[hql/presentation]] |
 
-`map`, `filter`, `take`, `drop`, `collect`, `emit` and `flat_map` consume one
+`map`, `filter`, `take`, `drop`, `collect`, `emit`, `flat_map`, `oks` and `errs` consume one
 value at a time, so a pipeline of them over a stream runs only as far as its
 consumer asks. `collect(n)` holds at most `n` values: it passes on each batch
 when the batch is full, and the last, shorter one when its input ends, so
@@ -90,6 +91,6 @@ naturals(1)
 - A `Seq<T>` result promises that production ends. A step that needs the whole
   input produces a finite traversal's values once and keeps them.
 
-`cards` is such a sequence: the library binding
+`cards` is such a sequence: the program module's binding
 `cards = vault.cards`, a `Seq<Card>` in the order a sorted walk of the vault
 reaches each card.

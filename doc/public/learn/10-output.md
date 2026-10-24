@@ -5,10 +5,12 @@ a **presentation format** — plain text, HQL, Markdown, JSON, YAML, CSV, or a d
 — and the format is a type, so a program that formats a value knows what kind
 of text it holds.
 
-## Formats are types
+## Formats are a category of their own
 
-Each format is a subtype of `String`: `Text`, `Hql`, `Markdown`, `Hmd`, `Json`,
-`Yaml`, `Csv`, `D2` and `Mermaid`. A step named for a format writes any value in it:
+Each format is a `Format`: `Text`, `Lines`, `Hql`, `Markdown`, `Hmd`, `Json`,
+`JsonLines`, `Yaml`, `Csv`, `D2` and `Mermaid`. A format describes how values
+are written, not the text itself: a step named for a format encodes any value
+in it, and what comes out is a `String`:
 
 ```hql
 cards | filter(c => c.metadata.status == "todo") | map(c => c.title) | markdown
@@ -26,11 +28,12 @@ cards | filter(c => c.metadata.status == "todo") | map(c => c.title) | markdown
 ```
 
 ```text
-Markdown
+String
 ```
 
-A formatted value is still a value. A later step may read it, and comparing it
-with a string compares the text:
+A formatted value is a string that remembers its format, so a host prints it
+as it is. A later step may read it, and comparing it with a string compares
+the text:
 
 ```hql
 ([1, 2] | json) == "[\n  1,\n  2\n]"
@@ -71,27 +74,36 @@ cards
 … 4 more not shown
 ```
 
-`renderer` chooses how a value is written in the format. A list of records in
-Markdown is a list by default, and a table with `renderer = "pipe"`:
+A list of records in Markdown is a bullet list. A table is a value of its own
+type, `Table`: `Table(xs, columns = [...])` takes one row per record and the
+columns in the order written, and every format writes it as a table, a pipe
+table in Markdown:
 
 ```hql
 cards
 | filter(c => c.metadata.category == "book")
 | map(c => {title: c.title, pages: c.metadata.pages})
-| format(Markdown, renderer = "pipe")
+| Table(columns = ["title", "pages"])
+| markdown
 ```
 
 ```text
-| pages | title               |
-| ----- | ------------------- |
-| 112   | A Room of One's Own |
-| 412   | Dune                |
-| 280   | Frankenstein        |
-| 145   | Leaves of Grass     |
-| 194   | Mrs Dalloway        |
-| 304   | The Common Reader   |
-| 310   | The Hobbit          |
+| title               | pages |
+| ------------------- | ----- |
+| A Room of One's Own | 112   |
+| Dune                | 412   |
+| Frankenstein        | 280   |
+| Leaves of Grass     | 145   |
+| Mrs Dalloway        | 194   |
+| The Common Reader   | 304   |
+| The Hobbit          | 310   |
 ```
+
+The same table in `Csv` is a header row and one row per record, in `Json` an
+array of objects with their keys in column order, and in `Text` space-aligned
+columns. `renderer` names one of a format's encoders for a shape over the
+vault's choice, `format(Markdown, renderer = "mermaid")` for a graph; a table
+renderer, such as `pipe`, writes only a `Table`.
 
 A format that cannot write a value is refused before the program runs:
 

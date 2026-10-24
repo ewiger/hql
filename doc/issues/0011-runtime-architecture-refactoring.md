@@ -48,7 +48,7 @@ Final validation: 165 tests pass across 17 suites; `cargo fmt --check`,
   narrowing, vault availability, and semantic-index configuration.
 - Contract tests exposed and fixed result-shape mismatches in `typed` on lists
   and `filter` on rankings; filtered rankings retain their provenance and fields.
-- Baseline repairs: corrected `Cocept` in `std/knowledge.hql` and supplied its
+- Baseline repairs: corrected `Cocept` in `lib/std/knowledge/mod.hql` and supplied its
   document declarations in the individual-file standard-library test.
 
 ## Compatibility and boundaries

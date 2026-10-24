@@ -1,6 +1,6 @@
 # HQL-0005: Pipeline vocabulary and the logical/physical separation
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-09-28
 **Source**: [typed pipeline operations](../../issues/0013-typed-pipeline-operations.md)
 
@@ -66,7 +66,7 @@ room to.
 
 ### The six terms
 
-The terms are normative across `doc/`, `src/`, `std/` and `examples/`.
+The terms are normative across `doc/`, `src/`, `lib/std/` and `examples/`.
 
 ```text
 Pipeline      ordered logical program: a maximal chain of steps joined by |
@@ -97,6 +97,8 @@ Plan
   operation.
 - `map`, `filter` and every other named thing after `|` MUST NOT be called an
   operator. `|` is the operator that forms a pipeline.
+- A receiver call, `x.trim()` in `map(x => x.trim())`, is expression
+  evaluation inside the step that holds it, never a step of its own.
 - **Stage** MUST NOT be used as a synonym for step. A stage exists only in an
   execution plan; its boundaries are chosen by a planner and are not visible in
   HQL source.
@@ -269,11 +271,16 @@ change; see Open Questions.
 
 - `src/extensions/mod.rs`, `src/extensions/spec.rs` — `Step` to `Operation`,
   `StepSpec` to `OperationSpec`, and every call site
-- `std/core.hql` — declares the reserved operation types
+- `lib/std/core/mod.hql` — declares the reserved operation types
 - the checker — accepts a user function of an operation type as a step, and
   verifies an `Elementwise` body
 - the step node — gains a stage annotation; the `localhost` planner puts every
   step in one stage, and the backend refuses an unannotated pipeline
+  (`src/execution.rs`, `src/backends/plan.rs`)
+- `src/types/builtin.rs` — the operation types as function types carrying a
+  shape; `src/checker.rs` — a lambda or a program's own function bound at one,
+  and the `Elementwise` body check
+- `src/cli.rs` — `hql plan`
 - `doc/wiki/hql/types/pipes.hmd` — states the six terms and the sentence in the
   Abstract; stops calling a step a stage
 - `doc/models/behavior/map-reduce.md`, `doc/proposals/HQL-0004/README.md` —
@@ -330,3 +337,19 @@ separate uses listed under Open Questions.
   ([HQL-0015](../HQL-0015/README.md)) and presentations are ordinary operations
   ([HQL-0017](../HQL-0017/README.md)); the reserved operation types, stage
   annotations and the planner are not yet implemented
+- 2026-10-22: implemented in part; `lib/std/core/mod.hql` declares the reserved
+  operation types and a program declaring one is refused, a receiver call is
+  evaluated inside its step, and the shape of every operation is declared
+  ([HQL-0004](../HQL-0004/README.md)). An operation type is not yet a function
+  type a user operation is written at, so the `Elementwise` body check, stage
+  annotations and the planner are not built
+  ([issue 0012](../../issues/0012-mapreduce-backends.md))
+- 2026-10-22: implemented; each operation type is a function type `I -> O`
+  carrying its shape, and a lambda or a program's own function bound at one
+  is a user operation: an `Elementwise` piped a collection runs over each
+  element, and its body is verified to read its one element only. Every step
+  node carries the operation type the planner reads and a stage annotation,
+  empty until the planner fills it from shape, purity and what the backend
+  executes; `localhost`'s plan is one stage per pipeline, a backend refuses an
+  unannotated pipeline, and `hql plan` prints the plan. The Plan IR stays a
+  placeholder

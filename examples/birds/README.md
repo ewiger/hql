@@ -30,7 +30,7 @@ result. Rendering without `--write` prints the card with computed answers.
 | [sorting](queries/sorting.hql) | An explicit comparison of lists by size | One-observation groups before the two-observation group |
 | [empty collections](queries/empty.hql) | Empty lists and explicitly typed constructors | Zero occurrences and no membership |
 | [tree](queries/tree.hql) | `Data` as a union: leaves, a list, a string-keyed map, and a tree literal held together | A `List<Data>` of six trees, each still the value it was |
-| [indexing](queries/indexing.hql) | `xs[i]` on a `List` and on a tree, as `Option<T>` | The first and last sighting, `none` past the end, and a count inside a tree |
+| [indexing](queries/indexing.hql) | `xs[i]` on a `List` and on a tree, as `Option<T>`; `xs[-1]` is the last | The first and last sighting, the last counted from the end, `none` past the end, and a count inside a tree |
 
 Binding types are inferred from their expressions. Annotations are optional;
 the examples use them when illustrating an abstract view or typing an empty
@@ -68,7 +68,7 @@ belong in a list; one aggregate count per species belongs in a map.
 `tally : Data = Map(["barn-owl"], [2])` needs no conversion and stays the map it
 was. A `Set` has no positions and a map keyed by `Int` has no string keys, so
 neither is a tree. Trees of different types are held together as `Data`, so
-`[3, "barn-owl", true]` is a `List<Data>`, as it is in JSON. See [std/core.hql](../../std/core.hql).
+`[3, "barn-owl", true]` is a `List<Data>`, as it is in JSON. See [lib/std/core/mod.hql](../../lib/std/core/mod.hql).
 
-The declarations are in [std/collections.hql](../../std/collections.hql), with
+The types are declared in [lib/std/core/mod.hql](../../lib/std/core/mod.hql) and the operations in [lib/std/collections/mod.hql](../../lib/std/collections/mod.hql), with
 the laws explained in the [collection model](../../doc/wiki/hql/types/collections/collection-types.md).

@@ -1,6 +1,6 @@
 # HQL-0023: A document reference is written `@[[..]]`
 
-- **Status**: drafted
+- **Status**: implemented
 - **Created**: 2026-10-19
 - **Source**: the [link operator](../../wiki/hql/operators/link-op.hmd) card,
   which defines `[[..]]` as HQL's document reference
@@ -95,7 +95,7 @@ The link operator takes references in the new spelling:
 - `->` MUST accept a reference on either side as before, and refuse anything
   else with `` a link endpoint is a document reference, `@[[name]]`, not T ``.
 - A reference written as a field value MUST use the same form:
-  `Edge { source: @[[alice]], target: @[[bob]], data: {} }`.
+  `Edge { source: @[[alice]], target: @[[bob]], data: {:} }`.
 - The implicit source is written `@[[this]]` wherever HQL source names it.
 
 ### 4. HMD bodies
@@ -120,7 +120,7 @@ The spelling in document bodies is HMD's, and this record does not change it.
 
 This breaks every HQL program that writes a reference as `[[name]]`. Such a
 program now builds a nested list around an unbound name and is refused, with the
-section 2 diagnostic naming the fix. HMD documents and vaults do not change. A
+diagnostic of *`[[` is two brackets* naming the fix. HMD documents and vaults do not change. A
 card whose code examples used to author edges to their endpoints stops doing
 so. Its uplinks and downlinks lose those edges, and the warnings for those edges
 as unresolved forward links go away.
@@ -156,8 +156,8 @@ Unit tests MUST include:
   `@[[A Room of One's Own]]` each lex to one reference with the trimmed target
 - `[[1, 2], [3]]` checks as `List<List<Int>>`, `[[]]` as `List<List<T>>`, and
   `[[1, 2], [3]] | emit` yields `1, 2, 3`
-- `@[[]]`, `@[[alice` and `@alice` are refused with the exact messages in
-  sections 1 and 2
+- `@[[]]`, `@[[alice` and `@alice` are refused with the exact messages of *The
+  reference form* and *`[[` is two brackets*
 - `[[alice]]` with `alice` unbound is refused, and the diagnostic suggests
   `@[[alice]]`
 - `@[[alice]] -> @[[bob]]` checks as `Edge`, and `1 -> @[[bob]]` is refused with
@@ -173,3 +173,6 @@ cargo clippy --locked --all-targets -- -D warnings
 ## Changelog
 
 - 2026-10-19: drafted
+- 2026-10-22: implemented; the lexer's `@[[` token and its refusals, the hint
+  for `[[alice]]`, the endpoint message and the scanner that skips code are
+  covered by `tests/core.rs` and the `document` unit tests

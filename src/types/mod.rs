@@ -11,13 +11,17 @@ pub mod builtin;
 pub mod collections;
 pub mod display;
 mod mapping;
+pub mod program;
 mod system;
 mod value;
 
 pub use builtin::named;
 pub use mapping::{CollectionError, MapKind, MapValue};
 pub use system::{TypeDefinition, TypeError, TypeKind, TypeParameter, TypeSystem, Variance};
-pub use value::{Closure, Formatted, Group, Key, Value};
+pub use value::{
+    Closure, Formatted, Group, Key, Leaves, Mismatch, MismatchKind, Mismatches, Record, Table,
+    Value,
+};
 
 use std::fmt;
 
@@ -63,7 +67,8 @@ impl fmt::Display for TypeConstructor {
 impl fmt::Display for TypeRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // A function type is written with an arrow, never by its constructor.
-        if let Some((parameters, result)) = self.as_function() {
+        // An operation type keeps its name, which states its shape.
+        if let Some((parameters, result)) = self.as_function().filter(|_| !self.is_operation()) {
             return match parameters {
                 [only] if only.as_function().is_none() => write!(f, "{only} -> {result}"),
                 _ => {

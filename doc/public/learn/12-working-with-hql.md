@@ -13,7 +13,7 @@ the messages `hql` writes when a program is wrong.
 | `hql check <file>` | write the program's type, and the signature of every alias, without evaluating |
 | `hql repl` | read, evaluate and print, keeping bindings between lines |
 | `hql render <file>` | build a document from its cells ([chapter 11](11-documents.md)) |
-| `hql builtins` | list every step, by the extension that provides it, with its signature |
+| `hql builtins` | list every step, by the provider that implements it, with its signature |
 | `hql config` | the settings in force, and where each came from |
 | `hql doctor` | check the semantic-search chain and name the first missing part |
 
@@ -56,11 +56,13 @@ core 0.4.0 (always available)
   …
 ```
 
-A step from an extension that the program has not imported is listed too, so
-the import it needs can be looked up. `import lexical` brings in a step;
-`lexical.lexical(…)` names one with its extension, when two extensions provide
-the same name. `graph` and `format` are imported for every program unless the
-vault's `hql.toml` says `prelude = false`.
+A function of a module that the program has not imported is listed too, so
+the import it needs can be looked up. `import lexical` makes a module visible;
+`lexical.lexical(…)` names a function with its module, when two visible modules
+declare one name and the input does not tell them apart. The modules of
+`lib/std/prelude.hql`, `string`, `seq`, `math`, `option`, `result`, `graph`,
+`format` and `io` among them, are visible in every program unless the vault's
+`hql.toml` says `prelude = false`.
 
 ## Reports
 

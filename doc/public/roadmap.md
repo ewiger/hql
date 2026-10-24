@@ -5,8 +5,9 @@ features that lean on it.
 
 ## Built
 
-- **Aggregation** — `group`, `reduce`, `sum`, `product`, `average`, `min` and
-  `max` over finite inputs; combiners `merge`, `union` and `concat`, and
+- **Aggregation** — `group`, `reduce`, `sum`, `product`, `average`, `min`,
+  `max`, `variance`, `count_by`, `histogram`, `top_k` and `approx_distinct`
+  over finite inputs; combiners `merge`, `union` and `concat`, and
   `reduce(0, +)` with a combiner named directly.
 - **Functions as values** — function types, `T -> U`, named, recursive and
   generic functions (`fn first<T>`), aliases whose types the checker writes
@@ -41,8 +42,7 @@ features that lean on it.
 
 ## Next
 
-- **Record values** — records, the `Table` shape type, typed decoding of a
-  source, and the joins that read them.
+- **Joins** — joins over named sides, reading records.
 - **The network** — `http`, `websocket` and `socket` endpoints, and configured
   sources and targets by id.
 - **Execution backends** — operation shapes, a planner and backends beyond

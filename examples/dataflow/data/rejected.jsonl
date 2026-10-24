@@ -1,0 +1,2 @@
+{"contract":"UserData","value":{"id":"","name":"Nobody"},"violations":[{"actual":null,"contract":"UserData","expected":null,"kind":"rule","message":"`require id != \"\"` (UserData.id_present) does not hold","path":[],"rule":"UserData.id_present","severity":"error","text":"require id != \"\""}]}
+{"contract":"UserData","value":{"name":"Anon"},"violations":[{"actual":null,"contract":"UserData","expected":"String","kind":"missing","message":"field `id`: it is missing","path":["id"],"rule":"UserData.id.missing","severity":"error","text":"it is missing"}]}

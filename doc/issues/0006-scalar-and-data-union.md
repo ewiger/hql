@@ -49,7 +49,7 @@ what makes `Data` the type for querying them.
   restated member for member. `union` is contextual and stays an ordinary name.
 - **Supertype sets of contracts.** Only two concrete types can share nothing,
   so `{Scalar, Orderable}` holds and `{Int, String}` is still refused.
-- `std/core.hql`, the [data-type](../wiki/hql/types/data-type.hmd) and
+- `lib/std/core/mod.hql`, the [data-type](../wiki/hql/types/data-type.hmd) and
   [type-system](../wiki/hql/type-system.hmd) cards, the grammar in
   [expressions](../models/behavior/expressions.md), and a runnable
   [tree example](../../examples/birds/queries/tree.hql).
@@ -71,8 +71,8 @@ what makes `Data` the type for querying them.
 
 ## Done when
 
-- `cargo test` passes, and every file under `std/` still parses and checks.
-- `hql check std/core.hql` prints `Unit`.
+- `cargo test` passes, and every file under `lib/std/` still parses and checks.
+- `hql check lib/std/core/mod.hql` prints `Unit`.
 - Tests pin the membership of `Data` in both directions, the scalar parents,
   diamond ancestry, and the refusals of a malformed union.
 - A program the checker accepts through a `Scalar` or `Data` view also
@@ -83,7 +83,7 @@ what makes `Data` the type for querying them.
 - `cargo test --offline --locked`: 150 tests pass.
 - `cargo clippy --offline --locked --all-targets -- -D warnings`: clean.
 - `cargo fmt --all -- --check`: clean.
-- `hql check` prints `Unit` for every file under `std/`.
+- `hql check` prints `Unit` for every file under `lib/std/`.
 - `hql run examples/birds/queries/tree.hql` prints a `List<Data>` of six trees.
 
 Evaluating a list literal re-infers its element type from runtime values, which

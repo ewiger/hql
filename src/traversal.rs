@@ -40,6 +40,40 @@ pub(crate) enum Source {
         by: Value,
         span: Range<usize>,
     },
+    /// The values of `input`, each assigned its partition key by `by`:
+    /// `partition(by = …)` on the local backend (HQL-0036).
+    Keyed {
+        input: Arc<Traversal>,
+        by: Value,
+        span: Range<usize>,
+    },
+    /// The values of two streams interleaved, one from each in turn, an
+    /// ended one skipped: `merge` over streams (HQL-0037).
+    Merge {
+        left: Arc<Traversal>,
+        right: Arc<Traversal>,
+    },
+    /// Each value of `left` with the value of `right` at its position, as a
+    /// `Pair`, until either ends: `zip` over streams.
+    Zip {
+        left: Arc<Traversal>,
+        right: Arc<Traversal>,
+    },
+    /// Every value of `left`, then every value of `right`: `concat`.
+    Concat {
+        left: Arc<Traversal>,
+        right: Arc<Traversal>,
+    },
+    /// Each value of `input` through a fallible operation, invoked again
+    /// while it fails with an error `when` accepts and fewer than
+    /// `attempts` invocations have run: `retry` (HQL-0033).
+    Retry {
+        input: Arc<Traversal>,
+        operation: Value,
+        attempts: usize,
+        when: Option<Value>,
+        span: Range<usize>,
+    },
     /// The values of `input` a predicate accepts.
     Filter {
         input: Arc<Traversal>,
@@ -54,6 +88,9 @@ pub(crate) enum Source {
     Collect { input: Arc<Traversal>, n: usize },
     /// The members of each sequence `input` produces, in order.
     Emit { input: Arc<Traversal> },
+    /// The payload of each `ok` of `input`, `oks()`, or of each `err`,
+    /// `errs()`, in order; the other side is dropped.
+    Side { input: Arc<Traversal>, ok: bool },
     /// Each value of `input` written as one piece of text in `format`.
     Format {
         input: Arc<Traversal>,
@@ -62,6 +99,25 @@ pub(crate) enum Source {
     },
     /// Values already produced, kept at a sequence type.
     Kept,
+    /// Each document of `input` decoded as the traversal's element type, a
+    /// declared record the read is expected to give.
+    Decode {
+        input: Arc<Traversal>,
+        leaves: crate::types::Leaves,
+        /// The boundary a configured source's documents are read through
+        /// first (HQL-0035).
+        boundary: Option<Arc<crate::boundary::EffectiveBoundary>>,
+        /// The endpoint read, as an error names it.
+        from: String,
+        span: Range<usize>,
+    },
+    /// Each value of `input` validated as `element`, `x | validate(T)`:
+    /// the traversal's element is `Result<T, Invalid>`.
+    Validate {
+        input: Arc<Traversal>,
+        element: crate::types::TypeRef,
+        span: Range<usize>,
+    },
     /// Documents read from an endpoint as they arrive.
     Read {
         reading: Arc<crate::io::Reading>,

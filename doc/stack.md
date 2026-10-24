@@ -103,6 +103,8 @@ Reach for these before introducing an alternative:
 | Errors | thiserror (library), anyhow (binary) |
 | Logging | tracing |
 | Version numbers | SemVer 2 (`semver`) |
+| Exact decimals (`Decimal`) | bigdecimal; serde_json with `arbitrary_precision`, so a JSON number keeps its digits |
+
 
 Changing the stack is a decision, not a detail. Record a small one in
 `doc/memory/` and a substantial one as a numbered proposal under

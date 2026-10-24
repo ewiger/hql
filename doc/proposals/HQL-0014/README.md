@@ -1,6 +1,6 @@
 # HQL-0014: `reduce` as the aggregation primitive, and `merge` as a combiner
 
-- **Status**: accepted
+- **Status**: implemented
 - **Created**: 2026-10-18
 - **Source**: [MapReduce: pipeline steps, stages and execution backends](../HQL-0004/README.md)
 
@@ -12,7 +12,7 @@ of one. `sum` is the shorthand for `reduce(0, +)`: a fold, as
 **combiner** is an ordinary binary operation on two values of one type — `+`,
 `min`, `merge`, `union`, `concat` — and the host knows its algebraic
 properties. `merge(a, b)` combines two maps, the right one winning a conflicting
-key, and `maps | reduce({}, merge)` is the same operation over a sequence of
+key, and `maps | reduce({:}, merge)` is the same operation over a sequence of
 maps. A fold whose combiner is one of these has shape `Reduction` and may be
 computed from partial results; a fold with a lambda stays a `Barrier`, since
 nothing is known about it. `reduce` without an initial value folds from the
@@ -79,7 +79,7 @@ reduce<T>(xs: Seq<T>, by: (T, T) -> T)                 : Option<T>  from the fir
 ```hql
 values | reduce(0, +)
 values | reduce(max)
-maps   | reduce({}, merge)
+maps   | reduce({:}, merge)
 values | reduce(initial = 0, by = (acc, x) => acc + x * x)
 ```
 
@@ -109,7 +109,7 @@ min         :=  reduce(min)
 max         :=  reduce(max)
 size        :=  map(x => 1) | reduce(0, +)
 count(v)    :=  filter(x => x == v) | size
-merge_all   :=  reduce({}, merge)
+merge_all   :=  reduce({:}, merge)
 union_all   :=  reduce(Set([]), union)
 concat_all  :=  reduce([], concat)
 ```
@@ -120,6 +120,15 @@ concat_all  :=  reduce([], concat)
 - A shorthand is a pure function whose body is its longhand, and a planner
   inlines it, so it sees one fold whichever spelling the program used.
 - `count(xs)` stays the kept alias of `size(xs)`.
+- Cardinality MUST have one name, `size`, with `count(xs)` its one kept
+  alias. No other spelling of it, `length` or `len`, is declared.
+- A type that has a size and is not a `Collection` MUST declare `size(self)
+  : Int` in its own receiver module, told apart from the collection's `size`
+  by its input. A String's size is its number of code points:
+  `s.size() == s.chars().size()`, and its positions run from `0` to
+  `s.size() - 1`, the position law a `Seq` states. Its length in bytes is
+  `s.bytes().size()` and has no name of its own. A String does not thereby
+  become a `Collection<String>`: `filter` and `map` do not take text.
 - `min` and `max` each have two arities: binary `min(a, b)` is the combiner, and
   `xs | min` is the aggregation. They are one name at two arities, as `count` is.
 
@@ -135,7 +144,7 @@ merge(left: Data, right: Data)                               : Data
 
 ```hql
 merge({a: 1, b: 2}, {b: 3, c: 4})            // {a: 1, b: 3, c: 4}
-[{a: 1}, {b: 2}, {c: 3}] | reduce({}, merge)  // {a: 1, b: 2, c: 3}
+[{a: 1}, {b: 2}, {c: 3}] | reduce({:}, merge)  // {a: 1, b: 2, c: 3}
 ```
 
 - The result holds every key of either input. A key in both takes the value
@@ -147,10 +156,10 @@ merge({a: 1, b: 2}, {b: 3, c: 4})            // {a: 1, b: 3, c: 4}
   their top-level keys; a value that is itself a map is replaced, not merged.
   Merging a `Data` value that is not a map is an evaluation error naming the
   value's kind, reported through the
-  [structured log](../../wiki/hql/error-reporting.hmd).
+  [structured log](../../wiki/hql/error-handling.hmd).
 - As a combiner, `merge` has the empty map as its identity, is associative, and
   is order-sensitive: which value wins depends on which map comes later. So
-  `Seq<Map<K, V>> | reduce({}, merge)` is deterministic, and a `Set` of maps is
+  `Seq<Map<K, V>> | reduce({:}, merge)` is deterministic, and a `Set` of maps is
   refused.
 
 ### 5. Combiner properties
@@ -263,11 +272,14 @@ reduce     N -> 1
 
 ## Backwards Compatibility
 
-Additive. `reduce` without `initial`, the combiners `+`, `*`, `min`, `max`,
+Additive, with one withdrawal. `reduce` without `initial`, the combiners `+`, `*`, `min`, `max`,
 `merge`, `union` and `concat` in the `by` position, and the aliases of
 *Named aggregations are aliases* are new. `reduce(initial, by)` with a lambda
 keeps HQL-0004's meaning and shape. `size`, `count` and `contains` keep their
 results. Those aliases are among the shorthands [HQL-0015](../HQL-0015/README.md) lists.
+
+`length` over a String is withdrawn in favour of `size`, which gives the same
+count; `s.length()` is refused with a message naming `s.size()`.
 
 ## Security Considerations
 
@@ -296,7 +308,7 @@ and exceeding one is an error, never a truncated result.
   and their properties, and the alias steps, beside HQL-0004's `reduce` and
   `group`
 - `src/builtins.rs` — the combiner property columns
-- `std/collections.hql` — the signatures beside the existing core operations
+- `lib/std/collections/mod.hql` — the signatures beside the existing core operations
 - `examples/mapreduce/` — `total-pages` with `sum`, and a `merge` of two layers
   of metadata
 
@@ -311,7 +323,7 @@ Unit tests MUST include:
   order as *`merge` combines two maps* states
 - a split fold with a non-identity `initial`, `reduce(10, +)`, giving the
   sequential result
-- `reduce({}, merge)` and `reduce([], concat)` over a `Set`, refused with the
+- `reduce({:}, merge)` and `reduce([], concat)` over a `Set`, refused with the
   message saying to sort first
 
 Integration tests MUST include:
@@ -341,3 +353,29 @@ None.
   `product` and `average` (`[] | sum` is `0`) are implemented, and combiner
   properties in `hql builtins` and the `Reduction` shape of known folds are not
   yet
+- 2026-10-22: implemented in part; combiner properties are host metadata
+  printed by `hql builtins`, each declared law and the split fold are tested,
+  a fold naming an associative combiner is a `Reduction`, an unresolved name
+  in a fold suggests a combiner, and `examples/mapreduce/` gains a `merge` of
+  metadata layers. The named aggregations remain host operations rather than
+  `:=` declarations in `lib/std/`, and `variance`, `histogram`, `top_k`,
+  `count_by` and `approx_distinct` are not built
+  ([issue 0012](../../issues/0012-mapreduce-backends.md))
+- 2026-10-22: implemented; `variance`, `count_by`, `histogram(width)`,
+  `top_k(k)`, `top_k(k, by)` and `approx_distinct` are host steps of shape
+  `Reduction`, each with a state combiner that equals its sequential fold, and
+  `lib/std/collections/mod.hql` writes each one's longhand fold beside its signature,
+  with `average`'s. `variance` is the population variance, absent over an
+  empty input; `histogram` keys each bucket by its lower bound in a
+  `SortedMap`; `top_k` is greatest first, equal keys in input order;
+  `approx_distinct` is HyperLogLog over 4096 registers and an unseeded
+  SHA-256 digest of each value. The named aggregations stay host steps rather
+  than `:=` or bodied declarations in `lib/std/`: a declaration with a body is not
+  external, and only an external declaration carries the `reduction` shape,
+  so moving one would make it a `Barrier`; a `:=` longhand's literal also
+  fixes one element type, `reduce(0, +)` summing `Int` alone, where `sum`
+  and `product` take `Int` and `Float`. `approx_distinct`'s longhand is not
+  writable in HQL, which exposes no hash
+- 2026-10-23: cardinality has one name: `size`, with `count(xs)` its kept
+  alias; a String declares `size(self)`, its number of code points, and
+  `length` is withdrawn. Decided, not yet implemented

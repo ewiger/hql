@@ -14,3 +14,7 @@ __pycache__/
 # as a Pages artifact rather than committing it.
 /.venv
 /site
+
+# Files the Mighty Types I/O programs write when run from the repository.
+/examples/mighty-types/data/shout.txt
+/examples/mighty-types/data/journal.txt

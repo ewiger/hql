@@ -8,6 +8,10 @@ use hql::{
 };
 use std::ops::Range;
 
+fn decimal(text: &str) -> Value {
+    Value::Decimal(hql::decimal::Decimal::parse(text).expect("a decimal literal"))
+}
+
 fn type_error(source: &str) -> Range<usize> {
     match check(source).or_else(|_| eval(source).map(|_| TypeRef::UNIT)) {
         Err(Diagnostic::Type { span, .. }) => span,
@@ -33,10 +37,17 @@ fn literals_and_addition() {
         ("-9223372036854775808", Value::Int(i64::MIN), TypeRef::INT),
         ("9223372036854775807", Value::Int(i64::MAX), TypeRef::INT),
         ("\u{2003}1 +\n2", Value::Int(3), TypeRef::INT),
-        ("1.5", Value::Float(1.5), TypeRef::FLOAT),
-        ("-0.25 + 0.5", Value::Float(0.25), TypeRef::FLOAT),
-        ("1.0 + 2.0", Value::Float(3.0), TypeRef::FLOAT),
-        ("007.50", Value::Float(7.5), TypeRef::FLOAT),
+        ("1.5f", Value::Float(1.5), TypeRef::FLOAT),
+        ("-0.25f + 0.5f", Value::Float(0.25), TypeRef::FLOAT),
+        ("1.0f + 2.0f", Value::Float(3.0), TypeRef::FLOAT),
+        ("007.50f", Value::Float(7.5), TypeRef::FLOAT),
+        ("2f", Value::Float(2.0), TypeRef::FLOAT),
+        ("6.02e23f", Value::Float(6.02e23), TypeRef::FLOAT),
+        ("1.5", decimal("1.5"), TypeRef::DECIMAL),
+        ("-0.25 + 0.5", decimal("0.25"), TypeRef::DECIMAL),
+        ("0.1 + 0.2", decimal("0.3"), TypeRef::DECIMAL),
+        ("1.5e-3", decimal("0.0015"), TypeRef::DECIMAL),
+        ("1.5 + 2", decimal("3.5"), TypeRef::DECIMAL),
     ] {
         assert_eq!(check(source), Ok(ty), "{source}");
         assert_eq!(eval(source), Ok(value), "{source}");
@@ -60,7 +71,9 @@ fn rejects_incomplete_or_unsupported_syntax() {
         ".5",
         "1.2.3",
         "1e3",
-        "1.5e3",
+        "1.5e",
+        "1.5fx",
+        "1.5f2",
         "-",
         "- 1",
         "1 ++ 2",
@@ -94,20 +107,21 @@ fn an_unknown_name_is_a_name_error_rather_than_a_syntax_one() {
 
 #[test]
 fn addition_does_not_mix_int_and_float() {
-    assert_eq!(type_error("1 + 2.0"), 4..7);
-    assert_eq!(type_error("1.0 + 2"), 6..7);
-    assert_eq!(eval_type_error("1.0 + true"), 6..10);
-    assert_eq!(eval_type_error("true + 1.0"), 0..4);
+    assert_eq!(type_error("1 + 2.0f"), 4..8);
+    assert_eq!(type_error("1.0f + 2"), 7..8);
+    assert_eq!(eval_type_error("1.0f + true"), 7..11);
+    assert_eq!(eval_type_error("true + 1.0f"), 0..4);
+    assert_eq!(type_error("1.0 + 2.0f"), 6..10);
 }
 
 #[test]
 fn float_addition_reports_overflow_instead_of_infinity() {
-    let large = format!("{}.0", "1".repeat(309));
+    let large = format!("{}.0f", "1".repeat(309));
     assert_eq!(check(&large), Ok(TypeRef::FLOAT));
     let source = format!("{large} + {large}");
     assert!(matches!(eval(&source), Err(Diagnostic::Overflow { .. })));
     assert!(matches!(
-        check(&format!("{}.0", "1".repeat(400))),
+        check(&format!("{}.0f", "1".repeat(400))),
         Err(Diagnostic::Syntax { .. })
     ));
 }
@@ -318,10 +332,10 @@ fn a_direct_step_call_takes_its_input_as_the_first_argument() {
 
 #[test]
 fn long_addition_chains_preserve_grouping_and_diagnostics() {
-    let floats = vec!["0.5"; 256].join(" + ");
+    let floats = vec!["0.5f"; 256].join(" + ");
     assert_eq!(eval(&floats), Ok(Value::Float(128.0)));
     assert_eq!(
-        eval("1.0 + (10000000000000000.0 + -10000000000000000.0)"),
+        eval("1.0f + (10000000000000000.0f + -10000000000000000.0f)"),
         Ok(Value::Float(1.0))
     );
     let prefix = vec!["1"; 255].join(" + ");
@@ -380,9 +394,9 @@ fn an_unimported_step_reports_the_import_rather_than_a_misspelling() {
 
 #[test]
 fn an_import_names_a_registered_extension() {
-    let failed = check("import nonesuch\n1").expect_err("no such extension");
+    let failed = check("import nonesuch\n1").expect_err("no such module");
     assert!(
-        failed.message().contains("no extension named `nonesuch`"),
+        failed.message().contains("no module named `nonesuch`"),
         "{}",
         failed.message()
     );
@@ -402,9 +416,9 @@ fn a_binding_shadows_the_namespace_and_not_the_step() {
         "{}",
         shadowed.message()
     );
-    let text = hql::types::builtin::named("Text", &[]).expect("Text is built in");
-    assert_eq!(check("format = 1\n1 | text"), Ok(text.clone()));
-    assert_eq!(check("1 | format.text"), Ok(text));
+    // Encoded text is a String, whatever the format.
+    assert_eq!(check("format = 1\n1 | text"), Ok(TypeRef::STR));
+    assert_eq!(check("1 | format.text"), Ok(TypeRef::STR));
 }
 
 #[test]
@@ -418,15 +432,22 @@ fn arithmetic_has_precedence_and_truncates_integer_division() {
         ("-7 / 2", Value::Int(-3)),
         ("7 % 3", Value::Int(1)),
         ("-7 % 3", Value::Int(-1)),
-        ("7.0 / 2.0", Value::Float(3.5)),
-        ("1.5 * 2.0 - 0.5", Value::Float(2.5)),
+        ("7.0f / 2.0f", Value::Float(3.5)),
+        ("1.5f * 2.0f - 0.5f", Value::Float(2.5)),
+        ("7.0 / 2.0", decimal("3.5")),
+        ("1.5 * 2.0 - 0.5", decimal("2.5")),
+        ("7 / 2.0", decimal("3.5")),
     ] {
         assert_eq!(eval(source), Ok(value), "{source}");
     }
-    assert_eq!(type_error("7 / 2.0"), 4..7);
+    assert_eq!(type_error("7 / 2.0f"), 4..8);
     assert!(matches!(eval("1 / 0"), Err(Diagnostic::Runtime { .. })));
     assert!(matches!(eval("1 % 0"), Err(Diagnostic::Runtime { .. })));
-    assert!(matches!(eval("1.0 / 0.0"), Err(Diagnostic::Runtime { .. })));
+    assert!(matches!(
+        eval("1.0f / 0.0f"),
+        Err(Diagnostic::Runtime { .. })
+    ));
+    assert!(matches!(eval("1.0 / 0"), Err(Diagnostic::Runtime { .. })));
     assert!(matches!(
         eval("-9223372036854775808 / -1"),
         Err(Diagnostic::Overflow { .. })
@@ -450,8 +471,11 @@ fn ordering_relations_compare_one_orderable_type() {
         assert_eq!(check(source), Ok(TypeRef::BOOL), "{source}");
         assert_eq!(eval(source), Ok(Value::Bool(value)), "{source}");
     }
-    // No widening, and no comparing what has no order.
-    assert!(matches!(check("1 < 2.0"), Err(Diagnostic::Type { .. })));
+    // No widening but an Int's to a Decimal, and no comparing what has no
+    // order.
+    assert_eq!(eval("1 < 2.0"), Ok(Value::Bool(true)));
+    assert!(matches!(check("1 < 2.0f"), Err(Diagnostic::Type { .. })));
+    assert!(matches!(check("1.0 < 2.0f"), Err(Diagnostic::Type { .. })));
     assert!(matches!(
         check("true < false"),
         Err(Diagnostic::Type { .. })

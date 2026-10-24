@@ -17,25 +17,132 @@ pub(crate) enum Stmt {
         name_span: Range<usize>,
         annotation: Option<TypeAnn>,
         value: Expr,
+        /// Where `private` is written before it.
+        private: Option<Range<usize>>,
     },
-    /// `import <extension>` — bind an extension's steps into the program.
+    /// `import a.b [as c]` — make one module visible under a local name:
+    /// its last segment, or the alias.
     Import {
-        name: String,
+        path: Vec<String>,
+        alias: Option<String>,
+        span: Range<usize>,
+    },
+    /// `module a.b`, or `module a.b for T` — the declaration a module file
+    /// opens with: its canonical name, checked against the file's position,
+    /// and the receiver pattern of a receiver module.
+    Module {
+        path: Vec<String>,
+        pattern: Option<TypeAnn>,
         span: Range<usize>,
     },
     /// `type Name<P> : Parent { field : Type }`, or `type Name = union { A, B }`.
     Type(TypeDecl),
     /// `fn name(p: T, ..) : R = body`.
     Fn(FnDecl),
+    /// `fn name(p: T, ..) : R` with no body: an external declaration, which
+    /// the module's extension implements.
+    External(ExternalDecl),
     /// `name(p, ..) := body`: a function whose types the checker writes.
     Alias(AliasDecl),
+    /// `trait Name<T> { fn m(self, ..) : R [= body] .. }`: a capability
+    /// contract.
+    Trait(TraitDecl),
+    /// `impl<T> Name<A> for Type { fn m(self, ..) : R = body .. }`: a type's
+    /// implementation of a trait; the header alone declares one an extension
+    /// implements.
+    Impl(ImplDecl),
     Expr(Expr),
+}
+
+impl Stmt {
+    /// Where `private` is written before the declaration, when it is.
+    pub(crate) fn private(&self) -> Option<&Range<usize>> {
+        match self {
+            Self::Fn(declaration) => declaration.private.as_ref(),
+            Self::External(declaration) => declaration.private.as_ref(),
+            Self::Alias(declaration) => declaration.private.as_ref(),
+            Self::Type(declaration) => declaration.private.as_ref(),
+            Self::Trait(declaration) => declaration.private.as_ref(),
+            Self::Bind { private, .. } => private.as_ref(),
+            Self::Import { .. } | Self::Module { .. } | Self::Impl(_) | Self::Expr(_) => None,
+        }
+    }
+
+    /// The name a declaration binds, when it is a declaration with one.
+    pub(crate) fn declared_name(&self) -> Option<&str> {
+        match self {
+            Self::Fn(declaration) => Some(&declaration.name),
+            Self::External(declaration) => Some(&declaration.name),
+            Self::Alias(declaration) => Some(&declaration.name),
+            Self::Type(declaration) => Some(&declaration.name),
+            Self::Trait(declaration) => Some(&declaration.name),
+            Self::Bind { name, .. } => Some(name),
+            Self::Import { .. } | Self::Module { .. } | Self::Impl(_) | Self::Expr(_) => None,
+        }
+    }
+}
+
+/// A declared trait: a name and the functions a type implements to satisfy
+/// it, some with a default body.
+#[derive(Debug)]
+pub(crate) struct TraitDecl {
+    /// Where `private` is written before it: visible only within its own
+    /// module.
+    pub private: Option<Range<usize>>,
+    pub name: String,
+    /// The trait's type parameters, `T` in `trait Index<T>`.
+    pub generics: Vec<String>,
+    /// The bound a type parameter is written with, `T : Data`.
+    pub bounds: Vec<(String, TypeAnn)>,
+    /// The traits it extends, `Validator` in `trait Email : Validator`:
+    /// their functions are its own.
+    pub supertraits: Vec<TypeAnn>,
+    pub methods: Vec<MethodDecl>,
+    pub span: Range<usize>,
+}
+
+/// An implementation of a trait for a type.
+#[derive(Debug)]
+pub(crate) struct ImplDecl {
+    /// The implementation's own type parameters, `T` in `impl<T>`.
+    pub generics: Vec<String>,
+    pub bounds: Vec<(String, TypeAnn)>,
+    pub trait_name: String,
+    /// The trait's arguments, `T` in `Index<T>`.
+    pub trait_arguments: Vec<TypeAnn>,
+    pub target: TypeAnn,
+    /// Whether the header stands alone: the implementation is native, and an
+    /// extension supplies every function of it.
+    pub native: bool,
+    pub methods: Vec<MethodDecl>,
+    pub span: Range<usize>,
+}
+
+/// One function of a trait or an implementation: `self` first, then the
+/// typed parameters, the result, and a body unless the trait leaves it to
+/// the implementation. `Self` in a signature is the implementing type.
+#[derive(Debug)]
+pub(crate) struct MethodDecl {
+    pub name: String,
+    /// Whether the function takes `self`, and so is reached as `value.f()`.
+    pub has_self: bool,
+    /// The parameters after `self`.
+    pub parameters: Vec<Param>,
+    pub result: TypeAnn,
+    pub body: Option<Expr>,
+    pub span: Range<usize>,
 }
 
 /// A declared function: a name, typed parameters, a result type and a body.
 #[derive(Debug)]
 pub(crate) struct FnDecl {
+    /// Where `private` is written before it: visible only within its own
+    /// module.
+    pub private: Option<Range<usize>>,
     pub name: String,
+    /// Whether the first parameter is `self`: a receiver function of the
+    /// module the declaration is in, reached as `value.name(…)`.
+    pub has_self: bool,
     /// Generic parameters, `T` in `fn first<T>(…)`.
     pub generics: Vec<String>,
     /// The bound a generic parameter is written with, `T : Orderable`.
@@ -43,6 +150,31 @@ pub(crate) struct FnDecl {
     pub parameters: Vec<Param>,
     pub result: TypeAnn,
     pub body: Expr,
+    pub span: Range<usize>,
+}
+
+/// A declared function without a body: its signature, implemented outside
+/// HQL by the extension providing the module.
+#[derive(Debug)]
+pub(crate) struct ExternalDecl {
+    /// Where `private` is written before it: visible only within its own
+    /// module.
+    pub private: Option<Range<usize>>,
+    pub name: String,
+    /// Whether it is written `effectful fn`: its evaluation reads or changes
+    /// something outside its result, so it runs once, where it is written.
+    pub effectful: bool,
+    /// The shape written before `fn`, `elementwise fn`, where one is: how
+    /// an executor may split the operation's input.
+    pub shape: Option<crate::extensions::Shape>,
+    pub has_self: bool,
+    /// The receiver's type where it is written, `self: Collection<T>`: a
+    /// receiver the module's pattern does not describe exactly.
+    pub receiver: Option<TypeAnn>,
+    pub generics: Vec<String>,
+    pub bounds: Vec<(String, TypeAnn)>,
+    pub parameters: Vec<Param>,
+    pub result: TypeAnn,
     pub span: Range<usize>,
 }
 
@@ -66,6 +198,9 @@ pub(crate) enum BlockStmt {
 /// input and is annotated.
 #[derive(Debug)]
 pub(crate) struct AliasDecl {
+    /// Where `private` is written before it: visible only within its own
+    /// module.
+    pub private: Option<Range<usize>>,
     pub name: String,
     /// The input first, then the written parameters.
     pub parameters: Vec<AliasParam>,
@@ -81,16 +216,6 @@ pub(crate) struct AliasParam {
     pub span: Range<usize>,
 }
 
-/// The combiners a host provides, by name, and whether each is commutative:
-/// an order-independent fold over one may visit any collection.
-pub(crate) const COMBINERS: [(&str, bool); 5] = [
-    ("min", true),
-    ("max", true),
-    ("union", true),
-    ("merge", false),
-    ("concat", false),
-];
-
 /// The name a fragment alias's implicit input takes. It cannot be written.
 pub(crate) const ALIAS_INPUT: &str = "%input";
 
@@ -103,11 +228,32 @@ pub(crate) struct Param {
     pub annotation: TypeAnn,
     /// `xs: ...T`: the trailing arguments of a call, collected.
     pub variadic: bool,
+    /// `step: Int = 1`: the value an omitted argument takes, written only in
+    /// an external declaration.
+    pub default: Option<Expr>,
+    /// How a call may supply it: `/` after a parameter makes it and those
+    /// before it positional, and `*` before one makes it and those after it
+    /// named, both written only in an external declaration.
+    pub passing: Passing,
+}
+
+/// How a call may supply an argument of an external declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Passing {
+    /// By position or by name.
+    Either,
+    /// By position only: declared before `/`.
+    Position,
+    /// By name only: declared after `*`.
+    Name,
 }
 
 /// A declared type: what it is called, what it narrows, and what it holds.
 #[derive(Debug)]
 pub(crate) struct TypeDecl {
+    /// Where `private` is written before it: visible only within its own
+    /// module.
+    pub private: Option<Range<usize>>,
     pub name: String,
     pub abstract_type: bool,
     pub bounds: Vec<(String, TypeAnn)>,
@@ -121,6 +267,9 @@ pub(crate) struct TypeDecl {
     /// rather than what it narrows, so the parser leaves `supertypes` and
     /// `fields` empty whenever this is present.
     pub union: Option<Vec<TypeAnn>>,
+    /// The `require` and `validate` rules of a contract's body, in the order
+    /// written (HQL-0032).
+    pub rules: Vec<Rule>,
     pub span: Range<usize>,
 }
 
@@ -131,7 +280,52 @@ pub(crate) struct Field {
     /// Whether the field is written `name? : Type`.
     pub optional: bool,
     pub annotation: TypeAnn,
+    /// The literal written `name: Type = literal`, which a contract reads
+    /// where the data holds no entry.
+    pub default: Option<Expr>,
     pub span: Range<usize>,
+}
+
+/// A contract rule: `require P`, or `validate f with V`, which is
+/// `require V(f)`.
+///
+/// Within a rule, an optional field is written `f?`. Read as a value, it
+/// makes the rule apply only where `f` is present; standing as a condition,
+/// an operand of `and`, `or`, `not` or `=>`, it is the presence of `f` and
+/// is named [`presence`] here, so the two never share a binding.
+#[derive(Debug)]
+pub(crate) struct Rule {
+    /// The rule as written, for the diagnostic that reports it broken.
+    pub text: String,
+    /// The condition, `Bool`, with `a => b` written as `not a or b`.
+    pub predicate: Expr,
+    /// The optional fields it reads as `f?`: it applies where all are
+    /// present.
+    pub reads: Vec<String>,
+    /// `require` and `validate` give errors, `warn` warnings.
+    pub severity: Severity,
+    /// The name written after `as`, the rule's stable identity.
+    pub name: Option<String>,
+    pub span: Range<usize>,
+}
+
+/// What breaking a rule makes of a value (HQL-0033): an error makes it
+/// invalid, a warning leaves it valid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Severity {
+    Error,
+    Warning,
+}
+
+/// The name a rule reads optional field `field` by: `field?`.
+pub(crate) fn optional_read(field: &str) -> String {
+    format!("{field}?")
+}
+
+/// The name a rule tests the presence of optional field `field` by. It
+/// cannot be written in a program, so no binding can shadow it.
+pub(crate) fn presence(field: &str) -> String {
+    format!("?{field}")
 }
 
 /// A written type, such as `Card` or `Set<Card>`.
@@ -140,6 +334,18 @@ pub(crate) struct TypeAnn {
     pub name: String,
     pub arguments: Vec<TypeAnn>,
     pub span: Range<usize>,
+}
+
+impl TypeAnn {
+    /// Whether this is a constructor with its arguments left open,
+    /// `Iterable<_>`: the bound of a constructor parameter.
+    pub(crate) fn is_constructor(&self) -> bool {
+        !self.arguments.is_empty()
+            && self
+                .arguments
+                .iter()
+                .all(|argument| argument.name == "_" && argument.arguments.is_empty())
+    }
 }
 
 #[derive(Debug)]
@@ -170,6 +376,7 @@ pub(crate) enum Kind {
     Block(Vec<BlockStmt>),
     Int(i64),
     Float(f64),
+    Decimal(crate::decimal::Decimal),
     Bool(bool),
     Str(String),
     /// A bound name. `cards` is one, seeded from the vault.
@@ -207,6 +414,9 @@ pub(crate) enum Kind {
     Field(Box<Expr>, String),
     /// `xs[i]` — the element at a position of a sequence, or of a tree.
     Index(Box<Expr>, Box<Expr>),
+    /// `xs[a:b]` — the part of a value between two positions, either one
+    /// left out.
+    Slice(Box<Expr>, Option<Box<Expr>>, Option<Box<Expr>>),
     Call {
         callee: Box<Expr>,
         arguments: Vec<Arg>,
@@ -228,6 +438,12 @@ pub(crate) enum Kind {
         name: String,
         branch: Box<Expr>,
     },
+    /// `fork { a = branch, b = branch }` as a pipeline step: each branch is
+    /// a pipeline over [`FORK_INPUT`], the value arriving at the step, and
+    /// the step's value is the record of the branches' results (HQL-0037).
+    Fork {
+        branches: Vec<(String, Expr)>,
+    },
     /// `value given condition`, and `value given condition otherwise other`.
     Given {
         value: Box<Expr>,
@@ -239,6 +455,9 @@ pub(crate) enum Kind {
 /// The name a `tee` branch reads its input by. It cannot be written in a
 /// program, so no binding can shadow it.
 pub(crate) const TEE_INPUT: &str = "%tee";
+
+/// The name a `fork` branch reads its input by, which no binding can shadow.
+pub(crate) const FORK_INPUT: &str = "%fork";
 
 /// One case of a `match`: the first arm whose pattern fits, and whose guard
 /// holds, produces the result.
@@ -259,12 +478,17 @@ pub(crate) enum Pattern {
     Bind(String),
     Int(i64),
     Float(f64),
+    Decimal(crate::decimal::Decimal),
     Str(String),
     Bool(bool),
     /// `some(p)`: a present option whose value fits `p`.
     Some(Box<Pattern>),
     /// `none`: an absent option.
     None,
+    /// `ok(p)`: a result that succeeded with a value fitting `p`.
+    Ok(Box<Pattern>),
+    /// `err(p)`: a result that failed with an error fitting `p`.
+    Err(Box<Pattern>),
     /// `U name` or `U _`: a value that is a `U`, bound at that type.
     Type(String, Box<Pattern>),
 }

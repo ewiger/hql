@@ -1,6 +1,6 @@
 # HQL-0012: Data sources
 
-- **Status**: drafted
+- **Status**: accepted, implemented in part
 - **Created**: 2026-10-18
 - **Source**: [HQL is not an HMD query language](../../wiki/hmd-integration.hmd)
 
@@ -67,8 +67,10 @@ order of a sorted walk.
 - **No native query strings in the core.** A `filter` over a table is
   HQL, and pushing it into SQL is the planner's work under HQL-0004. An
   extension MAY offer an escape hatch, which the section "Native queries" bounds.
-- **No implementation of any network source.** Every kind in the section "Source kinds" except
-  the filesystem vault is design direction.
+- **No implementation of any network source.** The kinds read from local
+  files, `vault`, `csv`, `json`, `json_lines`, `yaml` and `sqlite`, are
+  implemented; every network kind in the section "Source kinds" is design
+  direction.
 - **No dynamic sources.** A program cannot create a source at evaluation time
   from a computed string.
 
@@ -277,7 +279,7 @@ Each term below has one meaning.
 
 ### 2. The abstract types
 
-The core declares the contracts in a new module, `std/sources.hql`. Each source
+The core declares the contracts in the `io` module, `lib/std/io/mod.hql`. Each source
 contract is also the type of the source's contents, so a source stands wherever
 its contents would.
 
@@ -302,9 +304,10 @@ abstract type LiveSource<T> : {DataSource, Stream<Message<T>>}
 // An endpoint that contains sources: a database of tables, a cluster of topics.
 abstract type Catalog<S> : DataSource
 
-// Documents read as cards, keyed by card name. What the documents sit on — a
-// filesystem, a git revision, an HTTP server — is the concrete type's.
-abstract type VaultSource : KeyedSource<String, Card>
+// A vault: its cards, knowledge and graph as fields (HQL-0020). What the
+// documents sit on — a filesystem, a git revision, an HTTP server — is the
+// concrete type's.
+abstract type VaultSource : DataSource
 
 // One element of a stream, with where and when it sits in it.
 type Message<T> {
@@ -323,14 +326,13 @@ type Position : Orderable
   consumer demands, as for any lazy `Seq` or `Stream` in the
   [queries model](../../models/behavior/queries.md).
 - A concrete source type MUST narrow exactly one of `FiniteSource`,
-  `StreamSource`, `LiveSource` or `Catalog`. The contract fixes what the
+  `StreamSource`, `LiveSource`, `Catalog` or `VaultSource`. The contract fixes what the
   source's contents are, so it is not optional.
 - `VaultSource` is the one domain contract the core declares, because `cards`
   is defined over it (the section "The default source and the `cards` anchor"). It is abstract, so it has no runtime
   constructor: every vault value is of a concrete type an extension provides,
   and a program written against `VaultSource` runs unchanged on each of them.
-  It is a contract in the sense of an abstract type, not a trait; HQL has no
-  traits, per the [type system](../../wiki/hql/type-system.hmd).
+  It is a contract in the sense of an abstract type, not a trait.
 - `Message<T>` carries `position` and `time` because a program filters on them
   to choose where a stream starts (the section "Using a source").
 - `StreamSource` and `LiveSource` depend on `Stream<T>`, which
@@ -456,7 +458,7 @@ typed `LiveSource`, so that its use is `Effectful`.
 the catalog defines — a table, a topic, a subject. Its existence is not checked
 offline. A missing member is an evaluation error naming the catalog's id and
 the member, reported through the
-[structured log](../../wiki/hql/error-reporting.hmd). Its type is the catalog's
+[structured log](../../wiki/hql/error-handling.hmd). Its type is the catalog's
 member type `S`.
 
 ### 6. The default source and the `cards` anchor
@@ -499,7 +501,9 @@ warehouse | postgres.sql("select species, count(*) from sightings group by 1")
 ### 8. Source kinds
 
 Each kind below is provided by an extension, which provides the HQL type and the
-reader. Only `vault` is implemented; every other row is design direction.
+reader. `vault`, `csv`, `json`, `json_lines`, `yaml` and `sqlite` with one
+`table` are implemented, by the binary's `io` extension; every other row is
+design direction.
 
 **Documents.**
 
@@ -520,6 +524,7 @@ source whose snapshot is the same on every machine and every day.
 | `csv` | `CsvFile` | `FiniteSource<Data>` | a row keyed by header | file order |
 | `json_lines` | `JsonLinesFile` | `FiniteSource<Data>` | one line | file order |
 | `json` | `JsonFile` | `FiniteSource<Data>` | one array element | array order |
+| `yaml` | `YamlFile` | `FiniteSource<Data>` | one document | file order |
 | `parquet` | `ParquetFile` | `FiniteSource<Data>` | a row | file order |
 
 **Relational and analytical databases.**
@@ -649,7 +654,7 @@ MUST NOT appear to the program as fewer elements.
 
 ## Deployment / Activation
 
-1. Declare `std/sources.hql`, and expose the filesystem vault as
+1. Declare `lib/std/sources/mod.hql`, and expose the filesystem vault as
    `vault : VaultSource`, with `cards` bound to `vault.cards`; no
    configuration change.
 2. Add `[sources.<id>]` and `source(id)` with a second `vault` kind source, so
@@ -661,7 +666,7 @@ MUST NOT appear to the program as fewer elements.
 
 ## Reference Implementation
 
-- `std/sources.hql` — the declarations of the section "The abstract types"
+- `lib/std/sources/mod.hql` — the declarations of the section "The abstract types"
 - `src/sources.rs` — configuration loading, id validation, the secret-key
   refusal and the bounds of the section "Run-context bounds"
 - `src/checker.rs` — typing `source(id)` from configuration
@@ -712,3 +717,21 @@ None.
 - 2026-10-19: `cards` is stated as `vault.cards` in sorted-walk order
   (HQL-0020); no part of this record is implemented yet beyond the filesystem
   vault
+- 2026-10-22: accepted, implemented in part. `[sources.<id>]` in `hql.toml`
+  is read with the vault and refused at load for an id off `snake_case`, the
+  id `vault`, an unknown kind, a missing or unknown key and a literal secret.
+  `source("id")` is typed at check time from the configuration alone, needs a
+  literal id, refuses a connection string and a format, and names the
+  nearest configured id. The kinds `vault` (a `Vault` with its own `cards`,
+  loaded once per run), `csv`, `json` (the elements of one array),
+  `json_lines`, `yaml` and `sqlite` (one table, ordered by `order`, else by
+  `rowid`) are implemented; `element` types a file or table's elements, and
+  `[execution] max_elements` and `max_bytes` bound a source. `lib/std/io/mod.hql`
+  declares `KeyedSource`, `StreamSource`, `Catalog`, `Message` and
+  `Position`, and `VaultSource` as [HQL-0020](../HQL-0020/README.md) states
+  it, a `DataSource` and not a `Seq<Card>`. A file or table is typed `Seq<T>` rather than a
+  concrete source type, `Vault` does not narrow `VaultSource`, and
+  `member`, the stream, live and network kinds and native queries are not
+  built
+- 2026-10-22: `tap("id")` gives a finite source's elements as a `Stream`,
+  and a vault source's cards are keyed by name, `notes.cards.get("owl")`

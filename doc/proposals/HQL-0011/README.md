@@ -17,11 +17,11 @@ and `Data` keys are not HQL identifiers and are exempt.
 
 ## Motivation
 
-- The convention exists in practice — every file in `std/`, every registered
+- The convention exists in practice — every file in `lib/std/`, every registered
   step and every example under `examples/` already follows it — but no document
   states it, so a design note written in `camelCase` reads as a different
   language and nothing flags it.
-- `std/` declares functions such as `unwrap_or`, extensions register steps such
+- `lib/std/` declares functions such as `unwrap_or`, extensions register steps such
   as `downlinks`, and examples bind values such as `bird_cards`. A reader cannot
   tell from the spelling which is core and which is a program's, and should not
   need to: the provider is the import's business.
@@ -45,7 +45,7 @@ and `Data` keys are not HQL identifiers and are exempt.
 - **No program-defined steps.** A program function that acts as a pipeline step
   is the operation of HQL-0005 and needs `fn` in the grammar. When it arrives
   it takes the `snake_case` rule; nothing here designs it.
-- **No enforcement of type provenance.** Telling a `std/` file from a program
+- **No enforcement of type provenance.** Telling a `lib/std/` file from a program
   file needs module resolution, which does not exist.
 
 ## Specification
@@ -100,7 +100,7 @@ Each kind of name has a fixed set of providers.
 
 | Kind | Provided by |
 | --- | --- |
-| type | the core (`std/`), or an extension once one may contribute types |
+| type | the core (`lib/std/`), or an extension once one may contribute types |
 | step | the core, or an extension |
 | binding | the program, or the host as a context value (`cards`, `knowledge`) |
 | declared field | the type that declares it |
@@ -130,12 +130,12 @@ extension name               no uppercase letter, and no `_`
 - The lint runs where a name is introduced: a binding, a lambda parameter, a
   `type` declaration, a type parameter and a declared field. A use of a name is
   not linted again.
-- A step name the binary registers, and every name declared in `std/`, MUST pass
+- A step name the binary registers, and every name declared in `lib/std/`, MUST pass
   the lint. The core's own names are a test failure, not a warning.
 
 ## Backwards Compatibility
 
-Nothing is refused that was accepted. Every file in `std/`, every registered
+Nothing is refused that was accepted. Every file in `lib/std/`, every registered
 step and every example under `examples/` passes the lint as written. A program
 with a `camelCase` binding keeps its result and gains one warning.
 
@@ -146,7 +146,7 @@ with a `camelCase` binding keeps its result and gains one warning.
 - `src/checker.rs` — lint bindings and lambda parameters where they enter scope
 - `src/declarations.rs` — lint type names, type parameters and declared fields
 - `src/extensions/mod.rs` — a unit test that every registered step name passes
-- `tests/declarations.rs` — the existing walk over `std/` also fails on a naming
+- `tests/declarations.rs` — the existing walk over `lib/std/` also fails on a naming
   warning
 
 ## Test Plan
@@ -181,5 +181,5 @@ cargo test --test corpus
 
 - 2026-10-18: drafted
 - 2026-10-19: implemented; the per-kind casing rules warn on a departing name
-  where it is introduced, and every registered step name and `std/` declaration
+  where it is introduced, and every registered step name and `lib/std/` declaration
   passes them

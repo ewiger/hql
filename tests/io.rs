@@ -168,11 +168,11 @@ fn an_endpoint_is_used_only_for_what_it_can_do() {
     let dir = tempdir().unwrap();
     refused(
         &hql_in(dir.path(), &["source(stdout, Json)"]),
-        "needs Readable",
+        "needs (Readable | String), not Stdout",
     );
     refused(
         &hql_in(dir.path(), &["42 | target(stdin, Json)"]),
-        "needs Writable",
+        "needs (Writable | String), not Stdin",
     );
     refused(
         &hql_in(dir.path(), &[r#"source(file("log.txt").end)"#]),
@@ -396,7 +396,7 @@ fn tapping_the_end_of_a_file_follows_what_is_appended() {
     let child = Command::new(env!("CARGO_BIN_EXE_hql"))
         .current_dir(dir.path())
         .args([
-            r#"tap(file("app.log").end, Text) | take(1)"#,
+            r#"tap(file("app.log").end, Lines) | take(1)"#,
             "--to",
             "json",
             "--compact",
@@ -528,4 +528,257 @@ fn each_tee_branch_writes_its_own_output() {
         input,
     );
     refused(&failed, "no/x.jsonl");
+}
+
+#[test]
+fn lines_frame_text_by_line_and_text_is_one_document() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("notes.txt"), "a\nb\n").unwrap();
+    let json = |program: &str| ok(&hql_in(dir.path(), &[program, "--to", "json", "--compact"]));
+    // The terminator belongs to the representation.
+    assert_eq!(
+        json(r#"source(file("notes.txt"), Lines)"#),
+        "[\"a\",\"b\"]\n"
+    );
+    // Text is the whole document, terminators and all.
+    assert_eq!(
+        json(r#"source(file("notes.txt"), Text)"#),
+        "[\"a\\nb\\n\"]\n"
+    );
+    // A plain text file is lines unless a format says otherwise.
+    assert_eq!(json(r#"source(file("notes.txt")) | size"#), "2\n");
+    // Writing puts the terminators back.
+    ok(&hql_in(
+        dir.path(),
+        &[r#"["x", "y"] | sink(file("out.txt"), Lines)"#],
+    ));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("out.txt")).unwrap(),
+        "x\ny\n"
+    );
+    // A sink writes a stream, one record per value; one value is one whole
+    // document, written by target.
+    refused(
+        &hql_in(dir.path(), &[r#""solo" | sink(file("one.txt"), Lines)"#]),
+        "`sink` needs",
+    );
+    ok(&hql_in(
+        dir.path(),
+        &[r#""solo" | target(file("one.txt"), Lines)"#],
+    ));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("one.txt")).unwrap(),
+        "solo\n"
+    );
+    // The shorthands encode in memory: one line per element.
+    assert_eq!(
+        ok(&hql_in(dir.path(), &[r#"["a", "b"] | lines"#])),
+        "a\nb\n"
+    );
+    assert_eq!(
+        ok(&hql_in(dir.path(), &[r#"[{a: 1}, {a: 2}] | jsonlines"#])),
+        "{\"a\":1}\n{\"a\":2}\n"
+    );
+    // JsonLines reads one document per line, and a stream of them taps.
+    fs::write(dir.path().join("events.jsonl"), "{\"n\":1}\n{\"n\":2}\n").unwrap();
+    assert_eq!(
+        json(r#"source(file("events.jsonl"), JsonLines) | map(e => e.n)"#),
+        "[1,2]\n"
+    );
+}
+
+#[test]
+fn a_read_decodes_each_document_as_the_type_it_is_expected_to_give() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("sightings.jsonl"),
+        "{\"species\": \"owl\", \"count\": 3, \"site\": \"barn\"}\n{\"species\": \"wren\", \"count\": 5}\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("one.json"),
+        r#"{"species": "owl", "count": 3}"#,
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("rows.csv"),
+        "species,count\nowl,4\nwren,7\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("bad.csv"),
+        "species,count\nowl,4\nwren,many\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("notes.txt"), "a\n").unwrap();
+    const SIGHTING: &str = "type Sighting : Data {\n    species : String\n    count   : Int\n}\n";
+    let run = |program: &str| {
+        hql_in(
+            dir.path(),
+            &[&format!("{SIGHTING}{program}"), "--to", "json", "--compact"],
+        )
+    };
+    // A binding's declared element type is what each document decodes as;
+    // an entry the record does not name is ignored.
+    assert_eq!(
+        ok(&run(
+            "s : Seq<Sighting> = source(file(\"sightings.jsonl\"))\ns | map(x => x.count + 1)"
+        )),
+        "[4,6]\n"
+    );
+    assert_eq!(
+        ok(&run(
+            "s : Seq<Sighting> = file(\"one.json\") | source\ns | map(x => x.species)"
+        )),
+        "[\"owl\"]\n"
+    );
+    // A function's declared result is an expected type too, and `tap` decodes
+    // one document at a time.
+    assert_eq!(
+        ok(&run(
+            "fn load() : Stream<Sighting> = tap(file(\"sightings.jsonl\"))\nload() | map(x => x.species)"
+        )),
+        "\"owl\"\n\"wren\"\n"
+    );
+    // A CSV cell is text, read as the scalar its field wants.
+    assert_eq!(
+        ok(&run(
+            "s : Seq<Sighting> = source(file(\"rows.csv\"))\ns | map(x => x.count) | sum"
+        )),
+        "11\n"
+    );
+    // A document that does not decode is refused as it is read, naming the
+    // document and the field.
+    refused(
+        &run("s : Seq<Sighting> = source(file(\"bad.csv\"))\ns"),
+        "document 2 does not decode as Sighting: field `count`: \"many\" is not an Int",
+    );
+    // A Json leaf keeps the type it was written with.
+    fs::write(
+        dir.path().join("text.json"),
+        r#"{"species": "owl", "count": "3"}"#,
+    )
+    .unwrap();
+    refused(
+        &run("s : Seq<Sighting> = source(file(\"text.json\"))\ns"),
+        "document 1 does not decode as Sighting: field `count`: \"3\" is not Int",
+    );
+    let missing = piped_in(
+        dir.path(),
+        &[&format!(
+            "{SIGHTING}s : Stream<Sighting> = source(stdin, Json)\ns | map(x => x.species)"
+        )],
+        "{\"species\": \"owl\", \"count\": 1}\n{\"species\": \"wren\"}\n",
+    );
+    refused(
+        &missing,
+        "document 2 does not decode as Sighting: field `count`: it is missing",
+    );
+    assert!(stdout(&missing).contains("owl"), "{}", stdout(&missing));
+    // A text document is a String, and no record is read from one.
+    refused(
+        &run("s : Seq<Sighting> = source(file(\"notes.txt\"))\ns"),
+        "declared Seq<Sighting> but its value is Seq<String>",
+    );
+}
+
+#[test]
+fn from_names_the_format_of_standard_input() {
+    let dir = tempdir().unwrap();
+    assert_eq!(
+        ok(&piped_in(
+            dir.path(),
+            &[
+                "--from",
+                "json",
+                "source(stdin) | map(d => d.a) | take(2) | List"
+            ],
+            "{\"a\": 1}\n{\"a\": 2}\n"
+        ))
+        .trim(),
+        "[1, 2]"
+    );
+    assert_eq!(
+        ok(&piped_in(
+            dir.path(),
+            &[
+                "--from",
+                "csv",
+                "tap(stdin) | map(r => r.b) | take(1) | List"
+            ],
+            "a,b\n1,2\n3,4\n"
+        ))
+        .trim(),
+        "[\"2\"]"
+    );
+    // A format named in the program wins over `--from`.
+    assert_eq!(
+        ok(&piped_in(
+            dir.path(),
+            &["--from", "csv", "source(stdin, Lines) | take(1) | List"],
+            "a,b\n"
+        ))
+        .trim(),
+        "[\"a,b\"]"
+    );
+    refused(
+        &piped_in(dir.path(), &["source(stdin)"], "{}"),
+        "`--from json`",
+    );
+    refused(
+        &piped_in(dir.path(), &["--from", "d2", "source(stdin)"], "x"),
+        "written, not read",
+    );
+}
+
+/// HQL-0037: a `fork` branch with an effect runs though nothing reads it,
+/// and a pure one nothing reads does not.
+#[test]
+fn an_effectful_fork_branch_runs_unread() {
+    let dir = tempdir().unwrap();
+    let output = hql_in(
+        dir.path(),
+        &[
+            r#"parts = [{a: 1}, {a: 2}] | fork { count = size(), copy = sink(file("copy.jsonl")), inverse = map(d => 1 / 0) }
+parts.count"#,
+        ],
+    );
+    assert_eq!(ok(&output), "2\n");
+    assert_eq!(
+        fs::read_to_string(dir.path().join("copy.jsonl")).unwrap(),
+        "{\"a\":1}\n{\"a\":2}\n"
+    );
+}
+
+/// HQL-0033: rejected values are ordinary data. `errs()` written to a sink
+/// in one run is read back as `Invalid` in the next, with the original
+/// `value` to repair from.
+#[test]
+fn rejected_values_are_written_and_read_back_as_invalid() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("users.jsonl"),
+        "{\"id\": \"u-1\"}\n{\"id\": \"\"}\n{\"name\": \"Anon\"}\n",
+    )
+    .unwrap();
+    let contract = "type UserData : DataContract = {\n    id: String\n    require id != \"\" as id_present\n}\n";
+    ok(&hql_in(
+        dir.path(),
+        &[&format!(
+            "{contract}tap(file(\"users.jsonl\"), JsonLines) | validate(UserData) | errs() | sink(file(\"rejected.jsonl\"), JsonLines)"
+        )],
+    ));
+    let read = hql_in(
+        dir.path(),
+        &[
+            "source(file(\"rejected.jsonl\"), JsonLines) | Invalid | map(e => [e.contract, fmt(\"{}\", e.value), e.violations[0] | map(v => v.rule) | unwrap_or(\"\")])",
+            "--to",
+            "json",
+            "--compact",
+        ],
+    );
+    assert_eq!(
+        ok(&read),
+        "[[\"UserData\",\"{id: \\\"\\\"}\",\"UserData.id_present\"],[\"UserData\",\"{name: \\\"Anon\\\"}\",\"UserData.id.missing\"]]\n"
+    );
 }

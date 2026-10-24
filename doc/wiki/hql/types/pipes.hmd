@@ -19,7 +19,7 @@ cards
 ```
 
 This selects relation cards and projects them into a graph. `cards` is the
-standard-library binding `cards = vault.cards`, the namespace vault's cards as a
+program module's binding `cards = vault.cards`, the namespace vault's cards as a
 `Seq<Card>`; see [[card-type]].
 `of_type(RelationCard)` checks the contract, not the `metadata.knowledge.type`
 label alone; an authored entry does not establish conformance.
@@ -66,6 +66,8 @@ drop                                designed (HQL-0006)
 get
 debug
 tee                                 binds a branch, passes the input on
+fork                                the record of branches over one input
+partition(by)                       the same values, redistributed by key
 uplinks
 downlinks
 expand
@@ -84,6 +86,40 @@ format-named steps are shorthands of `format`, each writing its input in one
 [[hql/presentation|presentation format]]
 ([HQL-0017](../../../proposals/HQL-0017/README.md)). The rule and its list are owned
 by [HQL-0015](../../../proposals/HQL-0015/README.md).
+
+`xs | fork { a = …, b = … }` is broadcast fan-out
+([HQL-0037](../../../proposals/HQL-0037/README.md)): every branch is a pipeline
+over the same input, the input is evaluated once, and the step's value is the
+record of the branches' results, `{a: A, b: B}`, each field typed by its own
+branch. `{ a, b } = xs | fork { … }` binds the branches by name, and
+`parts.a` reads one. Over a `Stream` each branch is a stream that keeps the
+upstream's order. Branches are separated by a line break or a comma; a branch
+continues over lines that open with `|`.
+
+**Fan-in** joins flows ([HQL-0037](../../../proposals/HQL-0037/README.md)).
+`a | merge(b)` over two streams takes one value from each in turn, skipping
+one that has ended, each keeping its own order; over two maps it is the map
+combiner, a later key winning. `a | zip(b)` pairs two streams by position and
+ends with the shorter, and `a | concat(b)` produces one and then the other.
+`merge` over a `List`, `Seq`, `Set` or `Table` is a type error that names
+`concat` or `union`, and `merge` named as a value takes the form its expected
+function type selects.
+
+`xs | partition(by = f)` redistributes values by key
+([HQL-0036](../../../proposals/HQL-0036/README.md)): its type is its input's, a
+`Seq` or `Stream`, each value appears once, and the values of one key are in
+one logical partition. It is a stage boundary in a plan. The local backend
+holds every partition on one worker and passes the values on in their order.
+Separating the values a predicate accepts from those it rejects is a `fork`
+with complementary filters, not a `partition`.
+
+A producer bound once is **evaluated once**: a binding's value is computed
+once, and a stream read from a file, standard input, a socket or a WebSocket
+keeps what its one read gave, so every later traversal of that stream, each
+branch of a `fork` among them, replays it. Two `tap` or `source` expressions
+are two reads. A pure branch of a bound `fork` that no later statement reads
+is not run, so a failure inside it does not happen; an effectful branch,
+one that writes with `sink`, runs whether read or not.
 
 ## Functions as steps
 
@@ -108,7 +144,7 @@ without importing Rust's syntax or extension mechanisms.
 
 Pure collection steps should leave room for lazy evaluation, step fusion,
 source-side query execution and partitioned work. These are executor options,
-not promises that every pipe runs in parallel or that a query planner exists.
+not promises that every pipe runs in parallel.
 
 An optimization must preserve observable values, sequence order and failures.
 Parallel reduction needs a suitable combining operation; arbitrary functions
@@ -117,19 +153,150 @@ require coordination or materialization. Effects must not be reordered or
 duplicated merely because they appear in a pipeline.
 
 [HQL-0004](../../../proposals/HQL-0004/README.md) gives this freedom a shape.
-`x | f(a)` is typed as `f(x, a)` and lowers to a step the executor still sees; a
-chain of steps is a region, and a planner groups steps into stages. Every step
-declares, beside its purity, whether it is elementwise, a partition, a reduction
-with a known combiner, or a barrier, and that is the whole of what a backend may
-assume about splitting it. A checked program runs on a backend; `localhost` is
-the in-memory evaluator, one step after another with no parallelism, and the
-oracle every other backend has to match. The reduce side — `reduce`, `group`,
-`collect` — is specified there and shown in [the mapreduce
-example](../../../../examples/mapreduce/README.md).
+`x | f(a)` is typed as `f(x, a)` and lowers to a step the executor still sees.
+[HQL-0005](../../../proposals/HQL-0005/README.md) gives each word one meaning:
+
+```text
+Pipeline      ordered logical program: a maximal chain of steps joined by |
+Step          one occurrence, at one position, in a pipeline
+Operation     the semantics a step invokes: map, filter, group, reduce, ...
+Presentation  consumer-facing rendering a step may invoke instead: format, markdown, json, ...
+Operator      syntax: |  +  :  ->  and the rest of the operator table
+Stage         physical, planned execution unit; one or more steps
+Backend       the mechanism that executes stages
+```
+
+An HQL pipeline is an ordered sequence of typed steps, and the logical
+pipeline does not prescribe a particular execution strategy. `filter` written
+twice is two steps and one operation. A stage is never source syntax. A
+receiver call, `x.trim()` inside `map(x => x.trim())`, is expression
+evaluation inside the step that holds it, never a step of its own.
+
+Every operation declares a **shape** beside its purity, and the shape is the
+whole of what a backend may assume about splitting it:
+
+| Shape | Meaning | Core operations |
+| --- | --- | --- |
+| elementwise | each element's result depends on that element alone; any split runs separately and is recombined in input order | `filter`, `map`, `of_type`, `somes`, `emit`, `flat_map` |
+| partition | the input is regrouped by a key; groups complete in any order | `group`, `partition` |
+| reduction | the input collapses to one value through a combiner the executor holds | `size`, `count`, `contains`, `sum`, `product`, `average`, `variance`, `count_by`, `histogram`, `top_k`, `approx_distinct`, `min`, `max`, `merge_all`, `union_all`, `concat_all`, and `seq`'s `any`, `all`, `is_empty` |
+| barrier | the whole input is needed first; nothing is split | every other step: `sort`, `take`, `drop`, `get`, `collect`, `reduce`, presentation and retrieval |
+
+The declaration states it before `fn`, as `effectful` states purity:
+`elementwise fn map<…>(…)`, and a plain `fn` is a barrier. Binding refuses an
+extension whose own marking differs, and `hql builtins` prints purity and shape
+for every step. A `reduce` whose `by` names a combiner directly,
+`reduce(0, +)`, is a reduction, because the host states that combiner's laws
+([HQL-0014](../../../proposals/HQL-0014/README.md)); with a lambda it stays a
+barrier, since nothing is known about the lambda. The combiners and their laws
+are listed by `hql builtins` too. An aggregation whose state is not its
+element — `average`, `variance`, `count_by`, `histogram`, `top_k`,
+`approx_distinct` — is a reduction because its state combines by a combiner
+the host holds, and its answer is a projection of that state; its longhand
+fold is written beside its signature in `lib/std/collections/mod.hql`.
+`approx_distinct` is approximate and deterministic: an unseeded SHA-256
+digest feeds a HyperLogLog sketch whose registers combine by `max`.
+
+## Operations of a program's own
+
+`Operation<I, O>` and its four shape subtypes, `Elementwise<I, O>`,
+`Partition<I, O>`, `Reduction<I, O>` and `Barrier<I, O>`, are reserved types
+in `lib/std/core/mod.hql`; a program declares no type of these names. Each is a
+function type from `I` to `O` that also carries the shape its name states, and
+a value of one is called exactly as an `I -> O` function is. A lambda or a
+function of the program's own, bound at one of them, is a **user operation**:
+
+```hql
+fn minutes(pages: Int) : Int = pages * 2
+reading : Elementwise<Int, Int> = minutes
+long : Elementwise<Int, Bool> = n => n > 300
+total : Reduction<List<Int>, Int> = xs => xs | sum
+
+[412, 280, 310] | filter(long) | reading | total
+```
+
+- An `Elementwise<I, O>` piped a collection of `I` runs over each element and
+  gives the collection of `O` that `map` gives; piped one `I`, it is applied
+  to it. The other operation types, and a plain function, are applied to
+  their input whole.
+- The checker verifies the shape it can: the body of an `Elementwise` reads
+  its one element and nothing else. A value bound outside the body, `cards`
+  among them, or a document by `@[[name]]` is a type error; its parameters,
+  its own lambdas' parameters, literals, and functions and steps named in it
+  are within the element. A shape the checker cannot verify, such as an
+  associative `Reduction`, is the author's claim.
+- A user operation is pure only if every call in its body is; an effectful
+  one is a barrier to reordering whatever its shape.
+- A plain function piped as a step, `x | f`, is a barrier.
+
+A checked program runs on a **backend**. `localhost` is the in-memory
+evaluator, one step after another with no fusion, partitioning or parallelism,
+always registered, the default, and the oracle every other backend has to
+match; a conformance test runs the corpus through every registered backend
+against it. Which backend runs a program is host configuration —
+`--backend`, `[execution] backend` in `hql.toml`, `HQL_BACKEND`, then the
+default — never syntax. The reduce side — `reduce`, `group`, `collect` — is
+shown in [the mapreduce example](../../../../examples/mapreduce/README.md).
+
+## Plans and stages
+
+Before a backend runs a checked program, the **planner** annotates every step
+node with the stage it belongs to. A **plan** is the checked pipeline with
+every step carrying a stage annotation; the steps, their order and their
+operations are unchanged, and the steps of one stage are contiguous. An
+annotation names the stage, counted from `0` within its pipeline, and its
+strategy. The planner derives it from the shape and purity of the operation
+type each step invokes, a user operation's exactly as a host operation's, and
+from what the backend executes; nothing in the program names one.
+
+- `localhost` executes in process, so its plan is the trivial one: the whole
+  pipeline is one stage, `in process`.
+- A backend that splits work is planned by shape: adjacent pure elementwise
+  steps are fused into one `parallel` stage, which one pure reduction may
+  close; a partition opens a `partitioned` stage the pure elementwise and
+  reduction steps after it join; a barrier is an `assembled` stage of its own
+  and ends the one before it, as an effectful step (`effect`) and a
+  presentation (`presentation`) do.
+- A backend refuses a pipeline a step of which carries no annotation; there
+  is no unplanned execution path.
+- An annotation never changes the value a pipeline produces.
+
+`hql plan <file>` prints the plan on the backend in force without running
+anything; for the program above:
+
+```text
+backend localhost
+line 6: [412, 280, 310]
+  | filter   stage 0  in process    elementwise, pure
+  | reading  stage 0  in process    elementwise, pure
+  | total    stage 0  in process    reduction, pure
+```
+
+A step that splits or joins the dataflow graph names its **topology** after
+its purity ([HQL-0037](../../../proposals/HQL-0037/README.md)): `fork` and
+`tee` are `fan-out`, and their branches are listed beneath them, each by its
+name, as the stages that read the step's input; `merge`, `zip`, `concat` and
+the joins are `fan-in`. A `fork` followed by `partition` is two steps, a
+fan-out and a partition:
+
+```text
+line 1: [5, 3, 8]
+  | fork  stage 0  in process    barrier, pure, fan-out
+      odd =
+        | filter  stage 0  in process    elementwise, pure
+      n =
+        | size  stage 0  in process    reduction, pure
+line 2: parts.odd
+  | partition  stage 0  in process    partition, pure
+  | concat     stage 0  in process    barrier, pure, fan-in
+```
+
+`hql plan --envelope json` writes the same as a `topology` field and a
+`branches` list on the step.
 
 Unknown extension functions remain ordinary calls unless their declared contract
-allows more. Purity, failure and execution metadata, plus the eager/lazy boundary,
-are open design work shared with [[hql/extensions]].
+allows more. Failure metadata and the eager/lazy boundary are open design work
+shared with [[hql/extensions]].
 
 See [[hql/collections]] for ordering, [[hql/knowledge]] for terminal presenters,
 and [[card-type]], [[doc-type]] and [[data-type]] for the values that flow through

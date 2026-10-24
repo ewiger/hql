@@ -1,9 +1,9 @@
 # 14. Channels and logs
 
-!!! note "The `io` and `logging` extensions"
+!!! note "The `io` and `io.logging` modules"
 
-    This chapter covers channels from the `io` extension and the `logging`
-    extension, both shipping in the next release.
+    This chapter covers channels from the `io` module and the `io.logging`
+    module, both shipping in the next release.
 
 An endpoint in [chapter 13](13-reading-and-writing.md) held bytes, and a format
 said how they were documents. A **channel** holds values. A **logger** writes

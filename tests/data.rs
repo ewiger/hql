@@ -271,7 +271,7 @@ fn a_union_needs_members_that_exist_and_are_not_itself() {
 
 #[test]
 fn a_key_of_a_tree_is_optional_and_a_missing_one_is_absence() {
-    let tree = "tree = {genre: \"novel\", pages: 412, note: {}}\n";
+    let tree = "tree = {genre: \"novel\", pages: 412, note: {:}}\n";
     // `field? : T` is exactly `Option<T>`: reading a key says it may be missing.
     assert_eq!(
         check(&format!("{tree}tree.genre")),
@@ -415,6 +415,56 @@ fn a_tree_leaf_is_read_by_its_shape_as_the_scalar_it_holds() {
 }
 
 #[test]
+fn a_tree_is_read_as_a_declared_record_by_its_shape() {
+    // An open view (HQL-0030): a tree with more entries than Book names is a
+    // Book, and the entries Book does not name are kept beneath it.
+    let book = "type Book : Data {\n    title: String\n    pages: Int\n    genre?: String\n}\n";
+    for (body, expected) in [
+        (
+            "d : Data = {title: \"Dune\", pages: 412}\nd | is(Book)",
+            "true",
+        ),
+        ("d : Data = {title: \"Dune\"}\nd | is(Book)", "false"),
+        (
+            "d : Data = {title: \"Dune\", pages: \"many\"}\nd | is(Book)",
+            "false",
+        ),
+        (
+            "d : Data = {title: \"Dune\", pages: 412, year: 1965}\nmatch d { Book b => b.pages + 1, _ => 0 }",
+            "413",
+        ),
+        (
+            "d : Data = {title: \"Dune\", pages: 412}\nmatch d { Book b => b.genre, _ => none }",
+            "none",
+        ),
+        (
+            "ds : List<Data> = [{title: \"Dune\", pages: 412}, {title: \"Emma\"}, 3]\nds | of_type(Book)",
+            "[Book(title = \"Dune\", pages = 412, genre = none)]",
+        ),
+        (
+            "ds : List<Data> = [{title: \"Dune\", pages: 412, genre: \"sf\"}]\n(ds | of_type(Book)) == [Book(title = \"Dune\", pages = 412, genre = \"sf\")]",
+            "true",
+        ),
+    ] {
+        let source = format!("{book}{body}");
+        assert_eq!(eval(&source).unwrap().to_string(), expected, "{source}");
+    }
+    let nested = "type Inner {n: Int}\ntype Outer {inner: Inner, tags: List<String>}\n\
+                  d : Data = {inner: {n: 2}, tags: [\"a\"]}\nmatch d { Outer o => o.inner.n, _ => 0 }";
+    assert_eq!(eval(nested).unwrap().to_string(), "2");
+    // A built-in record is established by its source, and a generic record
+    // has no single shape to test against.
+    for refused in [
+        "d : Data = {name: \"x\"}\nd | is(Card)",
+        "type Box<T> {v: T}\nd : Data = {v: 1}\nd | is(Box)",
+        "type Point {x: Int}\n3 | is(Point)",
+    ] {
+        let error = check(refused).unwrap_err().to_string();
+        assert!(error.contains("always false"), "{refused}: {error}");
+    }
+}
+
+#[test]
 fn a_type_arm_covers_its_subject_and_refuses_a_type_that_cannot_fit() {
     assert_eq!(
         hql::eval("match 3 { Int n => n * 2 }").unwrap().to_string(),
@@ -466,4 +516,36 @@ fn a_record_may_open_a_line_inside_a_list() {
         hql::eval("[\n    {1, 2},\n]").unwrap().to_string(),
         "[{1, 2}]"
     );
+}
+
+#[test]
+fn braces_without_a_colon_are_a_set_and_with_one_data() {
+    for (source, ty) in [
+        ("{}", "Set<Never>"),
+        ("{1, 2, 3}", "Set<Int>"),
+        ("{\"a\", \"b\"}", "Set<String>"),
+        ("{:}", "Data"),
+        ("{name: \"Alice\"}", "Data"),
+        ("{name: \"Alice\", age: 42}", "Data"),
+        ("x : Set<Int> = {}\nx", "Set<Int>"),
+        ("d : Data = {:}\nd", "Data"),
+    ] {
+        assert_eq!(check(source).unwrap().to_string(), ty, "{source}");
+    }
+    let refused = check("d : Data = {}\nd").unwrap_err().message();
+    assert!(
+        refused.contains("declared Data but its value is Set<Never>"),
+        "{refused}"
+    );
+    // Each prints as the literal that writes it.
+    assert_eq!(eval("{}").unwrap().to_string(), "{}");
+    assert_eq!(eval("{:}").unwrap().to_string(), "{:}");
+    assert_eq!(eval("{a: {:}}").unwrap().to_string(), "{a: {:}}");
+    assert_eq!(
+        eval("x : Set<Int> = {}\nx").unwrap().to_string(),
+        "Set<Int>([])"
+    );
+    // A link's annotation is a data literal, so `{}` there is refused.
+    let link = hql::check("@[[a]] -> @[[b]] {}").unwrap_err().message();
+    assert!(link.contains("`{:}`"), "{link}");
 }

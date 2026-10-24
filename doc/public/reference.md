@@ -33,7 +33,7 @@ language or I/O failure `1`, a usage error `2`.
 ## The standard library
 
 HQL's types are declared in HQL itself, under
-[`std/`](https://github.com/ewiger/hql/tree/main/std): `core`, `collections`,
+[`lib/std/`](https://github.com/ewiger/hql/tree/main/std): `core`, `collections`,
 `doc`, `graph`, `knowledge` and `retrieval`, joined in the next release by `io`
 (endpoints, sources, targets, channels and logging) and `ai` (agents, contexts,
 prompts, tools and runs). The checker reads those

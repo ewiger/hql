@@ -230,6 +230,31 @@ impl TypeSystem {
         Ok(())
     }
 
+    /// Give a declared constructor one more parent, after the fact: what an
+    /// implementation of `Ord` does for `Orderable`. The parent must exist
+    /// and take no parameters of its own.
+    pub fn adopt(
+        &mut self,
+        constructor: TypeConstructor,
+        parent: TypeConstructor,
+    ) -> Result<(), TypeError> {
+        let ancestor = self.definition(parent)?;
+        if !ancestor.parameters.is_empty() {
+            return Err(TypeError::IncompatibleParent {
+                constructor,
+                parent,
+            });
+        }
+        let definition = self
+            .definitions
+            .get_mut(&constructor)
+            .ok_or(TypeError::UnknownConstructor(constructor))?;
+        if !definition.parents.contains(&parent) {
+            definition.parents.push(parent);
+        }
+        Ok(())
+    }
+
     /// Look up the declaration identified by a constructor.
     pub fn definition(&self, constructor: TypeConstructor) -> Result<&TypeDefinition, TypeError> {
         self.definitions

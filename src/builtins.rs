@@ -1,4 +1,5 @@
-//! The suggestion index over every registered step name.
+//! The suggestion index over every registered step name, and over the
+//! combiners a fold names.
 //!
 //! The names themselves live with the extensions that provide them, in
 //! [`crate::extensions`]. What stays here is the question a diagnostic asks:
@@ -21,8 +22,8 @@ const RETIRED: &[(&str, &str)] = &[("typed", "of_type"), ("flatten", "emit")];
 /// instead.
 const EXPLAINED: &[(&str, &str)] = &[(
     "table",
-    "a table is the type `Table`, which arrives with record values; \
-     `text` and `markdown` lay a collection out in rows",
+    "a table is a value of the type `Table`, built by its constructor: \
+     `Table(xs, columns = [...])`",
 )];
 
 /// The hint a diagnostic appends for a name that is not a step: what to write
@@ -67,7 +68,31 @@ pub fn nearest(name: &str) -> Option<&'static str> {
         .map(|(_, name)| name)
 }
 
-fn distance(left: &str, right: &str) -> usize {
+/// The hint for a name a fold's `by` position does not resolve: the
+/// closest combiner, or the list of them. A fold names a combiner or a
+/// function, so a step or a math function is no suggestion there.
+#[must_use]
+pub fn combiner_hint(name: &str) -> String {
+    let near = extensions::COMBINERS
+        .iter()
+        .filter(|combiner| combiner.name.chars().all(char::is_alphabetic))
+        .map(|combiner| (distance(name, combiner.name), combiner.name))
+        .filter(|(distance, _)| *distance <= 2)
+        .min_by_key(|(distance, name)| (*distance, *name));
+    if let Some((_, combiner)) = near {
+        return format!("; a fold names a combiner or a function: did you mean `{combiner}`?");
+    }
+    let all: Vec<String> = extensions::COMBINERS
+        .iter()
+        .map(|combiner| format!("`{}`", combiner.name))
+        .collect();
+    format!(
+        "; a fold names a function or one of the combiners {}",
+        all.join(", ")
+    )
+}
+
+pub(crate) fn distance(left: &str, right: &str) -> usize {
     let right: Vec<char> = right.chars().collect();
     let mut previous: Vec<usize> = (0..=right.len()).collect();
     for (row, from) in left.chars().enumerate() {
@@ -94,6 +119,18 @@ mod tests {
         assert_eq!(nearest("tabel"), Some("take"));
         assert_eq!(nearest("lexicl"), Some("lexical"));
         assert_eq!(nearest("qwertyuiop"), None);
+    }
+
+    #[test]
+    fn a_fold_suggests_among_the_combiners_only() {
+        assert!(combiner_hint("mn").contains("`min`"));
+        assert!(combiner_hint("merg").contains("`merge`"));
+        let listed = combiner_hint("foo");
+        assert!(!listed.contains("cos"), "{listed}");
+        assert!(
+            listed.contains("`+`") && listed.contains("`concat`"),
+            "{listed}"
+        );
     }
 
     #[test]

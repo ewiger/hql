@@ -5,7 +5,7 @@
 ```text
 source string → lexer/parser → private AST → checker → typed execution IR
                                                         ↓
-                                                    evaluation → Value
+                                              backend (localhost: evaluation) → Value
                     └────────────── diagnostics ──────────────────────┘
 CLI: arguments + file I/O + output, calling the public library API
 ```
@@ -26,8 +26,17 @@ add source requirements or ordering constraints after ordinary checking.
 
 Runtime values, cards, graph values, and retrieval provenance share immutable
 storage through `Arc`. Runtime and extension carriers are checked for `Send + Sync`.
-Execution is still sequential: a planner, parallel scheduling, and backend
-pushdown are future consumers of the typed execution boundary.
+A checked program is handed to an execution backend (`backends/`), selected by
+host configuration and registered in one table. `localhost`, the only backend,
+is the evaluator: sequential by definition, one step after another, and the
+oracle a later backend is tested against. Every step's operation declares a
+purity and a shape, which say what a backend may move and split. Before a
+backend runs a program, the planner (`backends/plan.rs`) annotates every step
+node with its stage, derived from the shape and purity of the operation type
+the step invokes and from what the backend executes; a backend refuses a
+pipeline a step of which carries no annotation. `localhost`'s plan puts the
+whole pipeline in one stage. Parallel scheduling and pushdown are later
+backends that consume the plan.
 
 ## Source and knowledge assembly
 
@@ -43,7 +52,7 @@ VaultSource → source snapshot → DocumentStore → card and knowledge assembl
 `document.rs` assigns names, parses headers and references, and reports bad
 documents. `knowledge.rs` assembles effective metadata, verifies relation
 endpoints, and builds link and relation edges. The extension registry dispatches
-metadata contributions; lexical metadata is owned by the lexical extension.
+metadata contributions; lexical metadata is owned by the `lexical` module, which the `search` extension implements.
 `vault.rs` coordinates these stages and exposes their aggregate to HQL.
 
 YAML syntax belongs to the YAML library. Conversion to HQL `Data` is fallible:

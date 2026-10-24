@@ -3,11 +3,41 @@
 //! The keys belong to whoever wrote them. Nothing here knows what any of them
 //! mean, which is the whole point of the type.
 
+use crate::decimal::Decimal;
 use std::collections::BTreeMap;
 use std::fmt;
 
+impl PartialEq for Data {
+    /// Structural equality, except that number leaves compare by value: a
+    /// decimal, a float and an integer leaf are equal when each reads as the
+    /// same `Decimal`, a float by its shortest digits. Comparing all three
+    /// through one value keeps the equality transitive.
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Empty, Self::Empty) => true,
+            (Self::Bool(a), Self::Bool(b)) => a == b,
+            (Self::Int(a), Self::Int(b)) => a == b,
+            (Self::Float(a), Self::Float(b)) => a == b,
+            (Self::Decimal(a), Self::Decimal(b)) => a == b,
+            (Self::Decimal(a), Self::Float(b)) | (Self::Float(b), Self::Decimal(a)) => {
+                Decimal::from_float(*b).is_some_and(|b| *a == b)
+            }
+            (Self::Decimal(a), Self::Int(b)) | (Self::Int(b), Self::Decimal(a)) => {
+                *a == Decimal::from_int(*b)
+            }
+            (Self::Int(a), Self::Float(b)) | (Self::Float(b), Self::Int(a)) => {
+                Decimal::from_float(*b).is_some_and(|b| Decimal::from_int(*a) == b)
+            }
+            (Self::Str(a), Self::Str(b)) => a == b,
+            (Self::List(a), Self::List(b)) => a == b,
+            (Self::Map(a), Self::Map(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
 /// A tree of scalars, lists and string-keyed maps.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Data {
     /// An explicitly empty entry.
     Empty,
@@ -17,6 +47,10 @@ pub enum Data {
     Int(i64),
     /// A finite double-precision number.
     Float(f64),
+    /// A number with a decimal point whose digits are kept as written: a
+    /// JSON number, or a `Decimal` value. Read as a `Decimal` it is those
+    /// digits; read as anything else it is the nearest `Float`.
+    Decimal(Decimal),
     /// Text.
     Str(String),
     /// An ordered list.
@@ -81,6 +115,7 @@ impl Data {
             Self::Bool(_) => "bool",
             Self::Int(_) => "int",
             Self::Float(_) => "float",
+            Self::Decimal(_) => "decimal",
             Self::Str(_) => "string",
             Self::List(_) => "list",
             Self::Map(_) => "map",
@@ -107,6 +142,7 @@ impl Data {
             Self::Int(value) => serde_json::Value::from(*value),
             Self::Float(value) => serde_json::Number::from_f64(*value)
                 .map_or(serde_json::Value::Null, serde_json::Value::Number),
+            Self::Decimal(value) => decimal_json(value),
             Self::Str(text) => serde_json::Value::String(text.clone()),
             Self::List(items) => {
                 serde_json::Value::Array(items.iter().map(Self::to_json).collect())
@@ -121,6 +157,103 @@ impl Data {
     }
 }
 
+/// A JSON number with a decimal's digits and scale exactly: `1.50` stays
+/// `1.50`.
+#[must_use]
+pub fn decimal_json(value: &Decimal) -> serde_json::Value {
+    value
+        .to_string()
+        .parse::<serde_json::Number>()
+        .map_or(serde_json::Value::Null, serde_json::Value::Number)
+}
+
+/// Stands in for a number YAML has no scalar of its own for, so the YAML
+/// writer passes it through as text to be replaced by its digits. A suffix
+/// is added until no key or string of the tree contains it.
+const YAML_NUMBER: &str = "hql-yaml-number-6f1d2a";
+
+/// A JSON tree in YAML. Every number is written with the digits it holds,
+/// a decimal's scale included, which YAML's own float writing would round.
+///
+/// # Errors
+/// The YAML writer's own failure.
+pub fn yaml_text(value: &serde_json::Value) -> Result<String, serde_yaml_ng::Error> {
+    let mut marker = YAML_NUMBER.to_owned();
+    let mut suffix = 0_u32;
+    while mentions(value, &marker) {
+        suffix += 1;
+        marker = format!("{YAML_NUMBER}{suffix}");
+    }
+    let text = serde_yaml_ng::to_string(&YamlTree(value, &marker))?;
+    if !text.contains(&marker) {
+        return Ok(text);
+    }
+    let pattern = regex::Regex::new(&format!("{marker}_([-+.0-9eE]+)_"))
+        .map_err(<serde_yaml_ng::Error as serde::ser::Error>::custom)?;
+    Ok(pattern.replace_all(&text, "$1").into_owned())
+}
+
+/// Whether a key or a string of the tree contains `marker`.
+fn mentions(value: &serde_json::Value, marker: &str) -> bool {
+    match value {
+        serde_json::Value::String(text) => text.contains(marker),
+        serde_json::Value::Array(items) => items.iter().any(|item| mentions(item, marker)),
+        serde_json::Value::Object(entries) => entries
+            .iter()
+            .any(|(key, item)| key.contains(marker) || mentions(item, marker)),
+        _ => false,
+    }
+}
+
+/// A JSON tree as YAML serializes it, with its numbers written exactly, each
+/// passed through the writer behind the marker.
+struct YamlTree<'a>(&'a serde_json::Value, &'a str);
+
+impl serde::Serialize for YamlTree<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{SerializeMap, SerializeSeq};
+        use serde_json::Value as J;
+        match self.0 {
+            J::Null => serializer.serialize_unit(),
+            J::Bool(value) => serializer.serialize_bool(*value),
+            J::Number(number) => {
+                if let Some(whole) = number.as_i64() {
+                    return serializer.serialize_i64(whole);
+                }
+                if let Some(whole) = number.as_u64() {
+                    return serializer.serialize_u64(whole);
+                }
+                // A Float's digits are the ones YAML writes for it too.
+                let text = number.as_str();
+                match number.as_f64() {
+                    Some(real)
+                        if serde_json::Number::from_f64(real)
+                            .is_some_and(|written| written.as_str() == text) =>
+                    {
+                        serializer.serialize_f64(real)
+                    }
+                    _ => serializer.serialize_str(&format!("{}_{text}_", self.1)),
+                }
+            }
+            J::String(text) => serializer.serialize_str(text),
+            J::Array(items) => {
+                let mut sequence = serializer.serialize_seq(Some(items.len()))?;
+                for item in items {
+                    sequence.serialize_element(&YamlTree(item, self.1))?;
+                }
+                sequence.end()
+            }
+            J::Object(entries) => {
+                let mut map = serializer.serialize_map(Some(entries.len()))?;
+                for (key, item) in entries {
+                    map.serialize_entry(key, &YamlTree(item, self.1))?;
+                }
+                map.end()
+            }
+        }
+    }
+}
+
 impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -128,6 +261,7 @@ impl fmt::Display for Data {
             Self::Bool(value) => write!(f, "{value}"),
             Self::Int(value) => write!(f, "{value}"),
             Self::Float(value) => write!(f, "{value:?}"),
+            Self::Decimal(value) => write!(f, "{value}"),
             Self::Str(text) => write!(f, "{text:?}"),
             Self::List(items) => {
                 f.write_str("[")?;
@@ -139,6 +273,8 @@ impl fmt::Display for Data {
                 }
                 f.write_str("]")
             }
+            // The empty map is `{:}`: `{}` is the empty set.
+            Self::Map(entries) if entries.is_empty() => f.write_str("{:}"),
             Self::Map(entries) => {
                 f.write_str("{")?;
                 for (index, (key, value)) in entries.iter().enumerate() {
@@ -237,6 +373,34 @@ pub fn parse_header(source: &str) -> Result<Data, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_string_like_the_number_marker_is_written_as_text() {
+        let tree = serde_json::json!({
+            "note": "hql-yaml-number-6f1d2a_1.5_",
+            "amount": serde_json::Number::from_string_unchecked("1.50".to_owned()),
+        });
+        let text = yaml_text(&tree).unwrap();
+        assert!(text.contains("amount: 1.50"), "{text}");
+        assert!(text.contains("hql-yaml-number-6f1d2a_1.5_"), "{text}");
+    }
+
+    #[test]
+    fn number_leaves_are_equal_by_value_and_transitively() {
+        let (int, decimal, float) = (
+            Data::Int(1),
+            Data::Decimal(Decimal::parse("1.0").unwrap()),
+            Data::Float(1.0),
+        );
+        assert_eq!(int, decimal);
+        assert_eq!(decimal, float);
+        assert_eq!(int, float);
+        assert_ne!(Data::Int(1), Data::Float(1.5));
+        assert_ne!(
+            Data::Int(9_007_199_254_740_993),
+            Data::Float(9_007_199_254_740_992.0)
+        );
+    }
 
     #[test]
     fn parses_scalars_nesting_and_lists() {

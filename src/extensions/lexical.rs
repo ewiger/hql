@@ -6,6 +6,7 @@
 //! models no meaning, and its name says so — a query and a document that share
 //! no word score zero however plainly one answers the other.
 
+use super::Signature;
 use super::collections::{elements, wrong};
 use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypePattern as P};
 use super::{EvalCx, Operation, Purity, named_or_first};
@@ -27,7 +28,7 @@ const DIMENSIONS: usize = 256;
 /// Every step the `lexical` extension provides.
 pub(crate) static STEPS: &[Operation] = &[Operation {
     name: "lexical",
-    spec: OperationSpec {
+    spec: Signature::Native(OperationSpec {
         parameters: &[TypeParameter {
             name: "T",
             bound: Some(crate::types::TypeConstructor("Doc")),
@@ -41,9 +42,10 @@ pub(crate) static STEPS: &[Operation] = &[Operation {
             crate::types::TypeConstructor("Ranking"),
             &[P::Type(crate::types::TypeConstructor("Card"))],
         )),
-    },
+    }),
     summary: "Rank a corpus by the words it shares with a query.",
     purity: Purity::Pure,
+    shape: super::Shape::Barrier,
     check: None,
     eval: eval_lexical,
 }];

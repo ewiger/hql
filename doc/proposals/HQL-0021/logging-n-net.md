@@ -31,14 +31,14 @@ tap("events")
 The I/O extension namespace should be structured by concern:
 
 ```text
-io                  the prelude: std/io/init.hql
+io                  the prelude: lib/std/io/init.hql
 
-io.net              import net: std/io/net.hql
+io.net              import net: lib/std/io/net/mod.hql
     http
     socket
     websocket
 
-io.logging          import logging: std/io/logging.hql
+io.logging          import logging: lib/std/io/logging/mod.hql
     Logger
     LogEvent
     LogLevel
@@ -940,7 +940,7 @@ A logging API does not become a way around the normal HQL capability rules.
 The proposed namespace structure is:
 
 ```text
-io                    std/io/init.hql, the prelude
+io                    lib/std/io/init.hql, the prelude
 ├── source
 ├── target
 ├── tap
@@ -948,12 +948,12 @@ io                    std/io/init.hql, the prelude
 ├── file
 ├── Channel
 │
-├── net               std/io/net.hql, import net
+├── net               lib/std/io/net/mod.hql, import net
 │   ├── http
 │   ├── websocket
 │   └── socket
 │
-└── logging           std/io/logging.hql, import logging
+└── logging           lib/std/io/logging/mod.hql, import logging
     ├── Logger
     ├── LogEvent
     └── LogLevel

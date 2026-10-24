@@ -1,6 +1,6 @@
 # HQL-0017: Presentation formats
 
-- **Status**: accepted
+- **Status**: accepted, implemented in part; superseded in one rule by [HQL-0024 part 7](../HQL-0024/parts/07-formats-and-codecs.md): a format is a `Format`, not a `String`, and `format(x, F)` gives a `String`
 - **Created**: 2026-10-18
 - **Source**: [presentation](../../wiki/hql/presentation.hmd),
   [issue 0017](../../issues/0017-graph-projection-and-view.md)
@@ -15,7 +15,7 @@ written in** is a **presentation format**, a subtype of `String` such as
 `Markdown`, `Json` or `D2`. The operation `format(x, F)` turns any value into
 text of format `F`; it is an ordinary operation whose result type is the
 format, so a step after it is checked like any other. `markdown`, `json`, `yaml`, `csv`, `d2`, `mermaid`, `hmd` and
-`text` are its shorthands, each a host step whose longhand `std/format.hql`
+`text` are its shorthands, each a host step whose longhand `lib/std/format/mod.hql`
 states as a `:=` line ([HQL-0015](../HQL-0015/README.md)). **How a type is written in a format** is
 a **renderer**, chosen per type and format from configuration: a `Graph` in
 `Json` is node-link JSON, in `Markdown` and `Hmd` a fenced D2 block. All of it lives in the `format` extension,
@@ -47,8 +47,6 @@ context.
 
 - **No new rendering engine.** D2 and Mermaid are emitted as their own source
   text; HQL does not lay out or draw a graph.
-- **No record values.** `Table` needs them and waits for them; see
-  "Shape types".
 - **No file effects.** Writing the formatted text to a file stays the host's,
   as it is today.
 
@@ -69,15 +67,17 @@ and is not the operation; a field and an operation do not share a namespace.
 ### 2. Shape types
 
 The shapes a renderer targets are data types, built by construction as
-[HQL-0016](../HQL-0016/README.md) builds every conversion.
+[HQL-0016](../HQL-0016/README.md) builds every conversion. The shape types
+and the rules of each are stated in
+[presentation](../../wiki/hql/presentation.hmd), under "Shape types".
 
 | Type | Declared | Built by |
 | --- | --- | --- |
-| `Graph<N, E>` | `std/graph.hql` | `Graph(xs)`: the elements as nodes, the links among them as edges |
-| `Table` | new | `Table(xs, columns = …)`: one row per element |
+| `Graph<N, E>` | `lib/std/graph/mod.hql` | `Graph(xs)`: the elements as nodes, the links among them as edges |
+| `Table` | `lib/std/format/mod.hql` | `Table(xs, columns = [...])`: one row per record |
 | `Tree<T>` | new | `Tree(root, children = …)`: a node and its subtrees |
-| `Data` | `std/core.hql` | parsing, see "Reading a format" |
-| `Doc` | `std/doc.hql` | the vault |
+| `Data` | `lib/std/core/mod.hql` | parsing, see "Reading a format" |
+| `Doc` | `lib/std/doc/mod.hql` | the vault |
 
 - `Graph(xs)` MUST be the projection from cards, hits or a ranking to a graph.
   `graph` is not an operation: it is the binding `graph = vault.graph`, the
@@ -85,11 +85,11 @@ The shapes a renderer targets are data types, built by construction as
   a step, `cards | graph` MUST be refused with a diagnostic naming `Graph`.
 - `expand(xs, depth)` grows a graph from its input. `depth` MUST be at least
   `1`, since `expand(depth = 0)` would be `Graph` under a second name.
-- `Table` MUST be declared when record values exist
-  ([issue 0016](../../issues/0016-sql-parity-analysis.md), roadblock "record
-  and pair values"): a row is a record, and `columns` names its fields in
-  order. Until then a collection of cards is rendered by the renderer for its
-  own type.
+- `Table(xs, columns = [...])` MUST build one row per element, each a
+  record or a `Data` map, and `columns` MUST name the columns in the order
+  every format writes them; without it, the columns are the first row's
+  fields in the order the row holds them. Over a declared record, a column
+  naming no field MUST be a type error.
 - The step `table` MUST be an unknown operation whose diagnostic names `Table`.
 - There is no `Presentation` type. A value keeps its type until it is
   formatted.
@@ -155,58 +155,35 @@ mermaid  := format(Mermaid)
 
 ### 6. Renderers and their configuration
 
-The `format` extension registers the built-in renderers; another extension MAY
-register more. A vault's configuration maps each type and format to a
-renderer, over built-in defaults:
-
-```yaml
-format:
-  Graph:
-    text: adjacency
-    json: node-link
-    markdown: d2
-    hmd: d2
-  Table:
-    text: aligned
-    markdown: pipe
-    csv: rows
-    json: records
-```
-
-| Renderer | Type | Format | Writes |
-| --- | --- | --- | --- |
-| `adjacency` | `Graph` | `Text` | one line per node, its edges indented |
-| `node-link` | `Graph` | `Json` | `{"nodes": [{"data": {"id": …}}], "edges": [{"data": {"source": …, "target": …}}]}`, the Cytoscape elements form |
-| `d2` | `Graph` | `D2`, `Markdown`, `Hmd` | D2 source; in `Markdown`, fenced as `d2` |
-| `mermaid` | `Graph` | `Mermaid`, `Markdown`, `Hmd` | a Mermaid `graph` block |
-| `aligned` | `Table` | `Text` | space-aligned columns |
-| `pipe` | `Table` | `Markdown` | a pipe table with header and delimiter rows |
-| `rows` | `Table` | `Csv` | RFC 4180 rows, header first |
-| `records` | `Table` | `Json` | an array of objects |
+A renderer is one of a format's encoders for one shape
+([HQL-0024 part 7](../HQL-0024/parts/07-formats-and-codecs.md)). The
+`format` extension registers the built-in renderers; another extension MAY
+register more. A vault's `hql.toml` maps each type and format to a renderer,
+over built-in defaults. The renderers, the encoder each format applies to a
+`Graph` and a `Table` with no renderer named, and the `[format.<Type>]`
+configuration are stated in [presentation](../../wiki/hql/presentation.hmd),
+under "Renderers".
 
 - A value whose type has no entry MUST fall back to the entry of its nearest
-  supertype that has one, and then to the built-in renderer for its format:
-  `Text` and `Markdown` write the value's own rendering, `Json` and `Yaml`
-  its data.
+  supertype that has one, and then to the built-in encoder for its format.
+- Each format MUST write a `Table` with its own encoder when no renderer is
+  named, its columns in the table's order.
+- A graph renderer MUST write only a `Graph` and a table renderer only a
+  `Table`. Naming one for another value MUST be refused when the program is
+  checked, where the value's type is known, and when the configuration is
+  read.
 - An unknown renderer name in the configuration MUST be reported when the
   configuration is read, not when a query reaches it.
 
 ### 7. The presentation context
 
-A result whose type is not a format type is formatted in the context, as if
-the pipeline ended in `| format(<context>)`. The context comes from, first
-match wins:
+A result that is not already formatted is formatted in the context, as if
+the pipeline ended in `| format(<context>)`. Which context applies, first
+match wins, and how a host places a result already formatted are stated in
+[presentation](../../wiki/hql/presentation.hmd), under "The presentation
+context".
 
-1. a final `format` step in the query, which makes the result already
-   formatted;
-2. the command line, `--to <format>`;
-3. the host: `hql render` is `hmd`; a terminal is `text`;
-4. `text`.
-
-- A result already of a format type MUST be written as it is. In a document
-  host it is placed as [issue 0020](../../issues/0020-render-as-compilation.md)
-  specifies: `Markdown` spliced in, any other format fenced with its info
-  string.
+- A result already formatted MUST be written as it is.
 - `--to none` MUST evaluate the query and write no value.
 - The flag that chooses the envelope, today `--format text|json`, MUST become
   `--envelope text|json`, so `--format` names nothing and `--to` names the
@@ -219,9 +196,11 @@ match wins:
 
 - `--from <format>` MUST name the format of standard input when it is a query
   source ([issue 0015](../../issues/0015-jq-parity-analysis.md)).
-- Text is parsed by construction: `s | Data` parses a `Json` or `Yaml` value,
-  `s | Table` a `Csv` value once `Table` exists. A plain `String` is parsed as
-  the format `--from` names, or refused.
+- Text is parsed by construction, the format named:
+  `s | Data(Json)` parses a `Json` or `Yaml` value
+  ([HQL-0018](../HQL-0018/README.md)); `s | Table` parsing a `Csv` value is
+  not implemented. A plain `String` is parsed as the format `--from` names, or
+  refused.
 
 ### 9. Streams
 
@@ -252,14 +231,16 @@ projection change to `Graph`.
 `json`, `text` and `markdown` keep their names and become shorthands, and their
 results become readable text, so a step after them that used to be refused now
 checks. `tree`, `value` and `empty` were never implemented and are dropped.
-`--format` is renamed `--envelope`. `Table` arrives with record values; until
-then no program builds one.
+`--format` is renamed `--envelope`. A table is built as
+`Table(xs, columns = [...])`.
 
 ## Reference Implementation
 
 - `src/extensions/format.rs` — the `format` operation, the renderer table, the
   built-in renderers; replaces `src/extensions/present.rs`
-- `std/format.hql` — the format types and the shorthands
+- `lib/std/format/mod.hql` — the format types and the shorthands
+- `src/constructors.rs` and `lib/std/format/mod.hql` — `Table` and its constructor
+- `src/types/display.rs` — each format's encoder for a `Table`
 - `src/extensions/graph.rs` — the `graph` step removed; `Graph` as a
   constructor; `expand` refusing depth `0`
 - `src/extensions/mod.rs` — `format` in the prelude in place of `present`
@@ -286,6 +267,9 @@ Unit tests MUST include:
 - `cards | graph` refused naming `Graph`; `cards | table` refused naming
   `Table`; `expand(depth = 0)` refused
 - a configuration naming an unknown renderer is reported when read
+- `Table(xs, columns = [...])` writes its columns in the order named in
+  `Markdown`, `Csv`, `Json` and `Text`; a column naming no field of a record
+  is refused; a table renderer over a value that is not a `Table` is refused
 
 Integration tests MUST include:
 
@@ -309,3 +293,13 @@ cargo clippy --locked --all-targets -- -D warnings
   their configuration, the presentation context, `--to`, `--envelope` and
   streams are implemented; `--from`, `Table`, `Tree` and parsing by
   construction (`s | Data`) are not yet
+- 2026-10-22: parsing by construction is implemented as `Data(s, F)`, the
+  format written, by HQL-0018
+- 2026-10-22: `--from <format>` is implemented: it names the format of
+  standard input where a program reads `stdin` and names none
+- 2026-10-22: `Table` is implemented: `Table(xs, columns = [...])`, declared
+  in `lib/std/format/mod.hql`, written by each format's encoder in column order; the
+  table renderers write only a `Table`. "Shape types", "Renderers and their
+  configuration" and "The presentation context" point to the
+  [presentation](../../wiki/hql/presentation.hmd) card, which states the
+  model

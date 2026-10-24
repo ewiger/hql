@@ -4,7 +4,7 @@ use super::{
     TypeConstructor, TypeDefinition, TypeError, TypeKind, TypeParameter, TypeRef, TypeSystem,
     Variance, collections,
 };
-use std::sync::OnceLock;
+use std::sync::Arc;
 
 macro_rules! atoms {
     ($($constant:ident => $name:literal),* $(,)?) => {
@@ -16,7 +16,7 @@ macro_rules! atoms {
 }
 
 atoms! {
-    NEVER => "Never", UNIT => "Unit", INT => "Int", FLOAT => "Float",
+    NEVER => "Never", UNIT => "Unit", INT => "Int", FLOAT => "Float", DECIMAL => "Decimal",
     BOOL => "Bool", STR => "String", DATA => "Data", DOC => "Doc", CARD => "Card",
     CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
@@ -27,7 +27,9 @@ atoms! {
     HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
-    CELL => "Cell",
+    CELL => "Cell", RANGE => "Range", TABLE => "Table",
+    TYPE_CONTRACT => "TypeContract", DATA_CONTRACT => "DataContract",
+    VIOLATION => "Violation", INVALID => "Invalid",
 }
 
 macro_rules! applications {
@@ -41,7 +43,7 @@ macro_rules! applications {
     };
 }
 
-applications! { list => "List", seq => "Seq", set => "Set", hit => "Hit", ranking => "Ranking", optional => "Option", collection => "Collection" }
+applications! { list => "List", seq => "Seq", set => "Set", hit => "Hit", ranking => "Ranking", optional => "Option", collection => "Collection", table => "Table" }
 
 /// The type variables a generic function's parameters stand for, one per
 /// capital letter.
@@ -97,13 +99,15 @@ impl TypeRef {
     }
 }
 
-/// The shared built-in declaration registry.
-pub fn system() -> Result<&'static TypeSystem, TypeError> {
-    static SYSTEM: OnceLock<Result<TypeSystem, TypeError>> = OnceLock::new();
-    SYSTEM.get_or_init(build).as_ref().map_err(Clone::clone)
+/// The declaration registry in force: the built-in lattice, plus whatever
+/// the program being checked or run has declared
+/// ([`program`](super::program)).
+pub fn system() -> Result<Arc<TypeSystem>, TypeError> {
+    super::program::current().map(|lattice| Arc::clone(&lattice.system))
 }
 
-fn build() -> Result<TypeSystem, TypeError> {
+/// Build the built-in lattice alone.
+pub(crate) fn build() -> Result<TypeSystem, TypeError> {
     let mut system = collections::type_system()?;
     // A leaf of a tree: a value with no parts of its own. `Bool` is one and is
     // not `Orderable`, which is why the two contracts are separate parents.
@@ -115,6 +119,7 @@ fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::BOOL, TypeKind::Concrete, &[TypeRef::SCALAR]),
         (TypeRef::INT, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::FLOAT, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::DECIMAL, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::STR, TypeKind::Concrete, &ordered_scalar),
         // Declared so a schema can name it; no literal produces one yet.
         (TypeRef::DATE, TypeKind::Concrete, &ordered_scalar),
@@ -127,6 +132,22 @@ fn build() -> Result<TypeSystem, TypeError> {
             ]),
             &[],
         ),
+        // The structural categories of `lib/std/core/mod.hql` (HQL-0030): a
+        // contract closed as a plain record is, and one open by being Data.
+        (TypeRef::TYPE_CONTRACT, TypeKind::Abstract, &[]),
+        (TypeRef::DATA_CONTRACT, TypeKind::Abstract, &[TypeRef::DATA]),
+        // What `validate(T)` gives where a value does not read (HQL-0033):
+        // `type Violation` and `type Invalid` in `lib/std/core/mod.hql`.
+        (
+            TypeRef::VIOLATION,
+            TypeKind::Concrete,
+            &[TypeRef::DATA_CONTRACT],
+        ),
+        (
+            TypeRef::INVALID,
+            TypeKind::Concrete,
+            &[TypeRef::DATA_CONTRACT],
+        ),
         (TypeRef::DOC, TypeKind::Concrete, &[TypeRef::ORDERABLE]),
         (TypeRef::CARD, TypeKind::Concrete, &[TypeRef::DOC]),
         (TypeRef::CONCEPT_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
@@ -135,7 +156,7 @@ fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::GRAPH, TypeKind::Concrete, &[]),
         (TypeRef::VAULT, TypeKind::Concrete, &[]),
         (TypeRef::ORDERING, TypeKind::Concrete, &[]),
-        // Where values come from and go to: `std/io/init.hql`. A capability
+        // Where values come from and go to: `lib/std/io/mod.hql`. A capability
         // is a supertype, so the checker reads it off the endpoint's type.
         (TypeRef::ENDPOINT, TypeKind::Abstract, &[]),
         (TypeRef::READABLE, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
@@ -158,7 +179,7 @@ fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Concrete,
             &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
         ),
-        // Transports: `std/io/net.hql`.
+        // Transports: `lib/std/io/net/mod.hql`.
         (
             TypeRef::HTTP,
             TypeKind::Concrete,
@@ -174,7 +195,7 @@ fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Concrete,
             &[TypeRef::READABLE, TypeRef::WRITABLE],
         ),
-        // Logging: `std/io/logging.hql`. A level is a type, so a threshold is
+        // Logging: `lib/std/io/logging/mod.hql`. A level is a type, so a threshold is
         // passed as one and an event's level is tested with `is`.
         (TypeRef::LOG_LEVEL, TypeKind::Abstract, &[]),
         (TypeRef::TRACE, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
@@ -212,7 +233,7 @@ fn build() -> Result<TypeSystem, TypeError> {
         }
     }
     // A ranking is a sequence of hits that also states where its order came
-    // from: `type Ranking<T> : Seq<Hit<T>>` in `std/retrieval.hql`.
+    // from: `type Ranking<T> : Seq<Hit<T>>` in `lib/std/retrieval/mod.hql`.
     let parameter = TypeConstructor("T").apply([]);
     for (name, parent, applied) in [
         ("Option", None, None),
@@ -259,17 +280,66 @@ fn build() -> Result<TypeSystem, TypeError> {
             applied: Vec::new(),
         })?;
     }
-    // The presentation formats: text with a known syntax, each a `String`.
+    // The operation types, `lib/std/core/mod.hql`: each a function from `I` to `O`
+    // that also carries the shape its name states, under their common
+    // supertype. The input is contravariant and the output covariant, as a
+    // function's are.
+    let operation_parameters = || {
+        vec![
+            TypeParameter {
+                name: "I",
+                variance: Variance::Contravariant,
+                bound: None,
+            },
+            TypeParameter {
+                name: "O",
+                variance: Variance::Covariant,
+                bound: None,
+            },
+        ]
+    };
+    system.declare(TypeDefinition {
+        constructor: OPERATION,
+        kind: TypeKind::Abstract,
+        parameters: operation_parameters(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    let (input, output) = (
+        TypeConstructor("I").apply([]),
+        TypeConstructor("O").apply([]),
+    );
+    for (constructor, _) in &OPERATION_SHAPES {
+        system.declare(TypeDefinition {
+            constructor: *constructor,
+            kind: TypeKind::Abstract,
+            parameters: operation_parameters(),
+            parents: Vec::new(),
+            applied: vec![OPERATION.apply([input.clone(), output.clone()])],
+        })?;
+    }
+    // The formats: a category of its own, `lib/std/format/mod.hql`. A format
+    // describes an external representation and its framing; it is not the
+    // text it encodes, so none narrows `String`.
+    system.declare(TypeDefinition {
+        constructor: FORMAT,
+        kind: TypeKind::Abstract,
+        parameters: Vec::new(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     for (format, parent) in [
-        ("Text", "String"),
-        ("Hql", "String"),
-        ("Markdown", "String"),
+        ("Text", "Format"),
+        ("Lines", "Format"),
+        ("Hql", "Format"),
+        ("Markdown", "Format"),
         ("Hmd", "Markdown"),
-        ("Json", "String"),
-        ("Yaml", "String"),
-        ("Csv", "String"),
-        ("D2", "String"),
-        ("Mermaid", "String"),
+        ("Json", "Format"),
+        ("JsonLines", "Format"),
+        ("Yaml", "Format"),
+        ("Csv", "Format"),
+        ("D2", "Format"),
+        ("Mermaid", "Format"),
     ] {
         system.declare(TypeDefinition {
             constructor: TypeConstructor(format),
@@ -292,6 +362,60 @@ fn build() -> Result<TypeSystem, TypeError> {
         parents: vec![TypeRef::READABLE.constructor, TypeRef::WRITABLE.constructor],
         applied: Vec::new(),
     })?;
+    // A computation that may have failed: `type Result<T, E>`, `ok(value)`
+    // or `err(error)`, each covariant.
+    system.declare(TypeDefinition {
+        constructor: RESULT,
+        kind: TypeKind::Concrete,
+        parameters: ["T", "E"]
+            .into_iter()
+            .map(|name| TypeParameter {
+                name,
+                variance: Variance::Covariant,
+                bound: None,
+            })
+            .collect(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    // Rows under ordered columns: `type Table<R>` in `lib/std/format/mod.hql`, `R`
+    // the row, a record type or `Data`.
+    system.declare(TypeDefinition {
+        constructor: TypeRef::TABLE.constructor,
+        kind: TypeKind::Concrete,
+        parameters: vec![TypeParameter {
+            name: "R",
+            variance: Variance::Covariant,
+            bound: None,
+        }],
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    // Two values held together: `type Pair<A, B> { first : A, second : B }`,
+    // the element of `zip`, `enumerate`, `entries` and `join`.
+    system.declare(TypeDefinition {
+        constructor: crate::extensions::seq::PAIR,
+        kind: TypeKind::Concrete,
+        parameters: ["A", "B"]
+            .into_iter()
+            .map(|name| TypeParameter {
+                name,
+                variance: Variance::Covariant,
+                bound: None,
+            })
+            .collect(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    // A window of positions: `type Range { start? : Int, end? : Int }`, the
+    // index of `xs[a:b]`.
+    system.declare(TypeDefinition {
+        constructor: TypeRef::RANGE.constructor,
+        kind: TypeKind::Concrete,
+        parameters: Vec::new(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     // One partition of a `group`: `type Group<K, T> { key: K, items: List<T> }`.
     system.declare(TypeDefinition {
         constructor: GROUP,
@@ -311,14 +435,18 @@ fn build() -> Result<TypeSystem, TypeError> {
 }
 
 /// The function type constructors, indexed by arity.
-pub const FUNCTIONS: [TypeConstructor; 5] = [
+pub const FUNCTIONS: [TypeConstructor; 9] = [
     TypeConstructor("Fn0"),
     TypeConstructor("Fn1"),
     TypeConstructor("Fn2"),
     TypeConstructor("Fn3"),
     TypeConstructor("Fn4"),
+    TypeConstructor("Fn5"),
+    TypeConstructor("Fn6"),
+    TypeConstructor("Fn7"),
+    TypeConstructor("Fn8"),
 ];
-const ARGUMENT_NAMES: [&str; 4] = ["A", "B", "C", "D"];
+const ARGUMENT_NAMES: [&str; 8] = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
 impl TypeRef {
     /// The type of a function from `parameters` to `result`, or `None` past
@@ -331,22 +459,103 @@ impl TypeRef {
         Some(constructor.apply(args))
     }
 
-    /// A function type's parameters and result.
+    /// A function type's parameters and result. An operation type,
+    /// `Elementwise<I, O>`, is a function from `I` to `O` and is called as
+    /// one.
     #[must_use]
     pub fn as_function(&self) -> Option<(&[Self], &Self)> {
-        if !FUNCTIONS.contains(&self.constructor) {
+        if !FUNCTIONS.contains(&self.constructor) && !self.is_operation() {
             return None;
         }
         let (result, parameters) = self.args.split_last()?;
         Some((parameters, result))
     }
+
+    /// Whether this is one of the reserved operation types.
+    #[must_use]
+    pub fn is_operation(&self) -> bool {
+        self.args.len() == 2
+            && (self.constructor == OPERATION
+                || OPERATION_SHAPES
+                    .iter()
+                    .any(|(constructor, _)| *constructor == self.constructor))
+    }
+
+    /// The shape an operation type states: `Some` for one of the four
+    /// shape types, `None` for `Operation<I, O>` itself and for any other
+    /// type.
+    #[must_use]
+    pub fn operation_shape(&self) -> Option<crate::extensions::Shape> {
+        if self.args.len() != 2 {
+            return None;
+        }
+        OPERATION_SHAPES
+            .iter()
+            .find(|(constructor, _)| *constructor == self.constructor)
+            .map(|(_, shape)| *shape)
+    }
+
+    /// The plain function type an operation type is: `I -> O`.
+    #[must_use]
+    pub fn operation_function(&self) -> Option<Self> {
+        if !self.is_operation() {
+            return None;
+        }
+        Self::function(vec![self.args[0].clone()], self.args[1].clone())
+    }
 }
+
+/// The common supertype of the operation types.
+pub const OPERATION: TypeConstructor = TypeConstructor("Operation");
+
+/// The operation type of each shape.
+pub const OPERATION_SHAPES: [(TypeConstructor, crate::extensions::Shape); 4] = [
+    (
+        TypeConstructor("Elementwise"),
+        crate::extensions::Shape::Elementwise,
+    ),
+    (
+        TypeConstructor("Partition"),
+        crate::extensions::Shape::Partition,
+    ),
+    (
+        TypeConstructor("Reduction"),
+        crate::extensions::Shape::Reduction,
+    ),
+    (
+        TypeConstructor("Barrier"),
+        crate::extensions::Shape::Barrier,
+    ),
+];
 
 /// The constructor of an in-memory channel.
 pub const CHANNEL: TypeConstructor = TypeConstructor("Channel");
 
 /// The constructor of one `group` partition.
 pub const GROUP: TypeConstructor = TypeConstructor("Group");
+
+/// The constructor of a computation that may have failed.
+pub const RESULT: TypeConstructor = TypeConstructor("Result");
+
+/// The category every format narrows.
+pub const FORMAT: TypeConstructor = TypeConstructor("Format");
+
+impl TypeRef {
+    /// `Result<T, E>`.
+    #[must_use]
+    pub fn result(value: Self, error: Self) -> Self {
+        RESULT.apply([value, error])
+    }
+
+    /// The value and error types of a `Result`.
+    #[must_use]
+    pub fn as_result(&self) -> Option<(&Self, &Self)> {
+        if self.constructor != RESULT {
+            return None;
+        }
+        Some((self.args.first()?, self.args.get(1)?))
+    }
+}
 
 /// Resolve a constructor's spelling without instantiating its parameters.
 pub fn constructor(name: &str) -> Option<TypeConstructor> {
@@ -368,12 +577,23 @@ pub fn named(name: &str, args: &[TypeRef]) -> Option<TypeRef> {
     } else {
         args
     };
+    // `Table` written without its row is a table of `Data` rows.
+    if constructor.0 == "Table" && args.is_empty() {
+        return Some(TypeRef::table(TypeRef::DATA));
+    }
     system().ok()?.apply(constructor, args.iter().cloned()).ok()
 }
 
 impl TypeRef {
     /// Whether this type satisfies the expected type's contract.
     pub fn is(&self, expected: &Self) -> bool {
+        // A value of an operation type is callable exactly as the function
+        // it is, so it satisfies that function type.
+        if FUNCTIONS.contains(&expected.constructor)
+            && let Some(function) = self.operation_function()
+        {
+            return function.is(expected);
+        }
         system().is_ok_and(|system| system.is_subtype(self, expected).unwrap_or(false))
     }
 
@@ -387,6 +607,25 @@ impl TypeRef {
         })
     }
 
+    /// Whether this type is a union: its values are those of its members.
+    pub fn is_union(&self) -> bool {
+        system().is_ok_and(|system| {
+            system
+                .definition(self.constructor)
+                .is_ok_and(|definition| matches!(definition.kind, TypeKind::Union(_)))
+        })
+    }
+
+    /// Whether an implementation for `target` is one for this type: the
+    /// type narrows it, and a union's is the union's own, not each member's.
+    /// `Int` narrows `Data`, and `Data`'s implementations are not `Int`'s.
+    pub fn takes_implementation_of(&self, target: &Self) -> bool {
+        if target.is_union() {
+            return self.constructor == target.constructor;
+        }
+        self.is(target)
+    }
+
     /// Whether values of this type carry an intrinsic total ordering.
     pub fn is_orderable(&self) -> bool {
         self.is(&Self::ORDERABLE)
@@ -394,7 +633,8 @@ impl TypeRef {
 
     /// The occurrence type of a collection, including a retrieval's hits.
     pub fn element(&self) -> Option<Self> {
-        collections::element_type(system().ok()?, self).ok()
+        let system = system().ok()?;
+        collections::element_type(&system, self).ok()
     }
 
     /// The element of anything that can be traversed, a stream included.
@@ -510,7 +750,8 @@ impl TypeRef {
             return Some(Self::CARD);
         }
         if self.constructor == other.constructor && self.args.len() == other.args.len() {
-            let definition = system().ok()?.definition(self.constructor).ok()?;
+            let system = system().ok()?;
+            let definition = system.definition(self.constructor).ok()?;
             let args = self
                 .args
                 .iter()

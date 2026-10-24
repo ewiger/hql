@@ -24,7 +24,7 @@ nowhere = @[[nowhere]]   // Option<Card>, and absent
 Evaluating an unresolved reference yields absence and queues a warning; the exit
 status does not change. A forward link to a document nobody has written yet is
 ordinary, which is why it is a warning rather than an error — see
-[[error-reporting]] and [[link-op]].
+[[error-handling]] and [[link-op]].
 
 ## Absence propagates
 
@@ -36,6 +36,11 @@ Absence lifts through a field access and through a step:
 ```
 
 A step applied to absence is a step applied to nothing rather than a failure.
+A step over a collection takes absence as the empty collection, so
+`@[[nowhere]] | downlinks` is an empty `List<Edge>`. A step over any other
+value is lifted over the option: `none | abs` is an absent `Option<Int>`,
+`some(-2) | abs` the present `Option<Int>` holding `2`, and a step whose
+result is already an `Option` gives that `Option`.
 
 **This lifting is a stopgap.** Absence is an ordinary sum type consumed
 explicitly — by an exhaustive [[match-op|match]], by `given … otherwise`, by
@@ -55,12 +60,12 @@ card with no genre — see [[fields]].
 
 Absence is not the answer to a wrong shape. A value that is present but is not
 the type it was read as fails as a type error in the
-[[error-reporting|report queue]].
+[[error-handling|report queue]].
 
 ## Resolving absence
 
 `Option<T>` comes with the established option vocabulary, declared beside it in
-[`std/core.hql`](../../../../std/core.hql): `is_some`, `is_none`, `unwrap_or`,
+[`lib/std/core/mod.hql`](../../../../lib/std/core/mod.hql): `is_some`, `is_none`, `unwrap_or`,
 `unwrap_or_else`, `alternative`, `map`, `and_then` and `filter`. There is no `unwrap`;
 every way out of an `Option` says what absence means:
 

@@ -13,7 +13,17 @@ struct Case {
 impl Case {
     fn vault(&self) -> vault::Vault {
         match self.metadata["environment"].as_str() {
-            "pure" => vault::Vault::empty(),
+            "pure" => {
+                let mut vault = vault::Vault::empty();
+                if let Some(modules) = self.metadata.get("modules") {
+                    vault.extensions.module_roots.push(
+                        Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join("examples")
+                            .join(modules),
+                    );
+                }
+                vault
+            }
             "knowledge-v1" => {
                 let path = Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("examples")
@@ -21,6 +31,20 @@ impl Case {
                 vault::load(&path).unwrap_or_else(|e| panic!("{}: {e}", self.path))
             }
             other => panic!("{}: unsupported environment {other}", self.path),
+        }
+    }
+}
+
+/// Copy a directory tree, for a case that writes beside what it reads.
+fn copy_tree(from: &Path, to: &Path) {
+    fs::create_dir_all(to).unwrap();
+    for entry in fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), target).unwrap();
         }
     }
 }
@@ -33,7 +57,10 @@ fn load_cases() -> Vec<Case> {
                 continue;
             }
             if path.is_dir() {
-                visit(root, &path, cases);
+                // A module root holds modules a case imports, not cases.
+                if path.file_name().and_then(|name| name.to_str()) != Some("lib") {
+                    visit(root, &path, cases);
+                }
                 continue;
             }
             // Preserve the original header-free CLI smoke fixture.
@@ -104,6 +131,9 @@ fn corpus_metadata_and_index_cover_every_case() {
             assert_eq!(m["implementation"], "implemented", "{}", case.path);
             assert!(!m.contains_key("proposal"), "{}", case.path);
         }
+        if let Some(modules) = m.get("modules") {
+            assert!(root.join(modules).is_dir(), "{}: no module root", case.path);
+        }
         match m["environment"].as_str() {
             "pure" => assert!(!m.contains_key("vault"), "{}", case.path),
             "knowledge-v1" => assert!(root.join(&m["vault"]).is_dir(), "{}", case.path),
@@ -159,7 +189,31 @@ fn valid_now_cases_check_and_evaluate() {
         count += 1;
         let vault = case.vault();
         let ty = check_in(&case.source, &vault).unwrap_or_else(|e| panic!("{}: {e}", case.path));
+        // A program that reads and writes files runs in a temporary copy of
+        // its example, with paths resolving against its own directory as
+        // `hql run` has them, so the checkout is left as it was.
+        let sandbox = case.metadata.get("io").map(|io| {
+            assert_eq!(io, "sandbox", "{}", case.path);
+            let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
+            let example = Path::new(&case.path)
+                .components()
+                .next()
+                .expect("an example directory")
+                .as_os_str()
+                .to_owned();
+            let copy = tempfile::tempdir().expect("a temporary directory");
+            copy_tree(&root.join(&example), &copy.path().join(&example));
+            let base = copy
+                .path()
+                .join(Path::new(&case.path).parent().expect("a directory"));
+            hql::io::set_host(hql::io::Policy::Open, base);
+            copy
+        });
         let outcome = run(&case.source, &vault, Mode::Strict);
+        if sandbox.is_some() {
+            hql::io::set_host(hql::io::Policy::Open, std::path::PathBuf::from("."));
+        }
+        drop(sandbox);
         assert!(
             outcome.reports.is_empty(),
             "{}: {:?}",
@@ -193,6 +247,31 @@ fn valid_now_cases_check_and_evaluate() {
         }
     }
     assert!(count > 0);
+}
+
+/// Every registered backend gives every corpus case the value, the type and
+/// the reports `localhost` gives: the contract that makes a backend a
+/// backend. With `localhost` alone it compares the oracle with itself; it is
+/// written so that a second backend arrives into it.
+#[test]
+fn every_backend_agrees_with_localhost_on_every_case() {
+    let mut compared = 0;
+    for case in load_cases() {
+        if case.metadata["status"] != "valid-now" || case.metadata.contains_key("io") {
+            continue;
+        }
+        let vault = case.vault();
+        let oracle = run(&case.source, &vault, Mode::Strict);
+        for backend in hql::backends::REGISTERED {
+            let selection =
+                hql::backends::Selection::of(backend.name, hql::backends::Origin::Query)
+                    .expect("a registered backend");
+            let outcome = hql::run_on(&case.source, &vault, Mode::Strict, selection);
+            assert_eq!(outcome, oracle, "{} on {}", case.path, backend.name);
+            compared += 1;
+        }
+    }
+    assert!(compared > 0);
 }
 
 /// A proposed case is a design input, not a regression test. It stays

@@ -4,7 +4,7 @@ This is a book about HQL, read from the first page to the last. It starts with
 a number and ends with an agent whose run is a value, and every chapter builds
 on the ones before it. Every program in it prints what the book shows.
 Chapters 1 to 12 run with the current release; chapters 13 to 15 cover the
-`io`, `logging` and `ai` extensions, which ship in the next one.
+`io`, `io.logging` and `ai` modules, which ship in the next one.
 
 HQL is a statically typed language for querying, transforming, connecting and
 computing over data, knowledge and AI workflows. A program is checked before it
@@ -30,10 +30,11 @@ and one claim about which book inspired which.
 
 ## Chapters
 
-1. [First steps](01-first-steps.md) — values, types, and the check before a
-   program runs.
-2. [Data: records and lists](02-data.md) — JSON-shaped trees: reading into
-   them, reshaping them, writing them out.
+1. [Hello world](01-hello-world.md) — the first program, running it, and
+   the check before a program runs.
+2. [Data types](02-data-types/index.md) — `Int`, `Float`, `String` and
+   `Bool` in the REPL, `Data` and its JSON-shaped trees, and how sets, `Data`
+   and maps differ.
 3. [Collections](03-collections.md) — lists, sets and maps, and the steps they
    share.
 4. [Functions](04-functions.md) — lambdas, declared and generic functions,
@@ -60,3 +61,6 @@ and one claim about which book inspired which.
     channels, and structured logging.
 15. [Agents and runs](15-agents-and-runs.md) — agents as cards, context and
     prompts, tools, and runs kept as values.
+16. [Types, traits and modules](16-types-traits-and-modules/index.md) — records,
+    unions, results, receiver calls, traits and operators, and modules of
+    your own.

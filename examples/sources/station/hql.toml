@@ -1,0 +1,77 @@
+# The field station's run context: the sources its programs may read, each
+# by an id. Paths resolve against this directory.
+
+[sources.journal]
+kind = "vault"
+root = "journal"
+
+[sources.archive]
+kind = "vault"
+root = "archive"
+
+[sources.counts]
+kind = "csv"
+path = "data/counts.csv"
+
+[sources.sightings]
+kind = "json"
+path = "data/sightings.json"
+
+# A ledger whose headers are not the names a program reads: its boundary
+# maps each field of `Tally` to its column.
+[sources.ledger]
+kind = "csv"
+path = "data/ledger.csv"
+
+[sources.ledger.fields.species]
+name = "Species Name"
+
+[sources.ledger.fields.count]
+name = "Total"
+
+# Profiles whose display name sits below the top level.
+[sources.profiles]
+kind = "json"
+path = "data/profiles.json"
+
+[sources.profiles.fields.id]
+name = "user_id"
+
+[sources.profiles.fields.name]
+path = "profile.display_name"
+
+# Notes whose empty cells are absent by default, and whose `note` column
+# keeps an empty cell as the empty text it is.
+[sources.notes]
+kind = "csv"
+path = "data/notes.csv"
+
+[sources.notes.fields.note]
+absent = ["missing"]
+
+# Readings in which `null` is no value for `note` and not one for `reading`.
+[sources.readings]
+kind = "json"
+path = "data/readings.json"
+
+[sources.readings.fields.reading]
+absent = ["missing"]
+
+# Prices whose `price` is a decimal written as a JSON string, as a `Decimal`
+# is by default; the third is a JSON number, which reads with its digits.
+[sources.prices]
+kind = "json"
+path = "data/prices.json"
+
+# The ledger again, read by a narrower record: under `strictness = "open"`
+# the `Observer` column no field reads is not read.
+[sources.ledger_open]
+kind = "csv"
+path = "data/ledger.csv"
+strictness = "open"
+
+[sources.ledger_open.fields.species]
+name = "Species Name"
+
+[sources.ledger_open.fields.count]
+name = "Total"

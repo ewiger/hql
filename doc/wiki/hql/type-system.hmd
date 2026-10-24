@@ -20,9 +20,11 @@ at exactly one place — a **bound**, `T : Doc`, where a generic unknown is
 restricted by the subtype relation — and that single meeting point is why one
 relation symbol is enough for the whole language.
 
-There is no fourth mechanism for hiding anything. HQL has no field visibility:
-values are data and declared fields are queryable data, so a type exposes
-everything it declares. What a type *can* say is that a field may be absent —
+There is no fourth mechanism for hiding anything in a value. HQL has no field
+visibility: values are data and declared fields are queryable data, so a type
+exposes everything it declares. Visibility is a property of a module's
+declarations, `private`, and not of a type's fields
+([HQL-0028](../../proposals/HQL-0028/README.md)). What a type *can* say is that a field may be absent —
 see [[fields]].
 
 # Inhabitation, Subtyping, and Inheritance
@@ -169,14 +171,12 @@ used at a stronger type, and none of them is subtyping.
 **Capability is not ancestry.** `Graph : Renderable<Html>` is tempting and
 wrong in the same way for every renderable type: it declares a parent whose
 implementation does not exist anywhere in the type graph, and the checker is
-left asking where `render` comes from. A capability is supplied *for* a type, by
-an [[hql/extensions|extension]] registering `render(Graph) -> Html`, not
-inherited by it. HQL knows the type; the extension knows what can be done with
-it. A capability is therefore a **registration the checker consults**, not a
-type participating in `:`. That follows from HQL having no traits: there is
-nothing for `Renderable<T>` to be except a registration — see *There are no
-traits* below. What a parameterized registration looks like is still a design
-question; whether it is a type is not.
+left asking where `render` comes from. A capability is supplied *for* a type,
+not inherited by it: it is an **implementation of a trait the checker
+consults**, not a type participating in `:`. Writing a value in a format is an
+encoder, `impl Encoder<Graph> for D2` in `lib/std/format/mod.hql`, a native
+implementation an [[hql/extensions|extension]] binds; a renderer chosen for a
+type in a format is one of a format's encoders ([[hql/presentation]]).
 
 `Orderable` is the contrasting case and is genuine ancestry. A card's ordering
 key is its own name, not something an extension supplies, so `Card : Orderable`
@@ -191,27 +191,94 @@ projection is a function — see [[graph-type]]. What a projection's *result* ma
 do is declare both parents for itself, which is a claim about that one type and
 leaves the two domains peers; that case is below.
 
-### There are no traits
+### Traits are capability contracts, not a host mechanism
 
-A trait is a **host-language** mechanism. An extension is written in Rust and may
-use traits internally, as any Rust program does; none of that reaches HQL's
-surface. "Rust does it this way" is never an argument for an HQL feature — see
-[the stack scope note](../../stack.md) and [[hql/extensions]].
+A Rust trait is a **host-language** mechanism, and none of it reaches HQL's
+surface: "Rust does it this way" is never an argument for an HQL feature — see
+[the stack scope note](../../stack.md) and [[hql/extensions]]. HQL's `trait` is
+its own construct ([HQL-0024 part 5](../../proposals/HQL-0024/parts/05-traits.md)):
+a compile-time contract, a named set of functions a type satisfies through an
+`impl`, written for what generic code quantifies over and for the operators,
+and for nothing else. `String.trim()` needs no `Trimmable`; it is a function
+of the `string` receiver module.
 
-Three different things had been collapsed into one mechanism, and separating
-them is why none of them needs a trait:
+Three different things are kept apart:
 
 | What is being said | The mechanism |
 | --- | --- |
 | The value genuinely **is** the thing | ordinary `:` — `Card : Doc`, `Card : Orderable` |
-| Something can be **done with** the value, by someone else | an [[hql/extensions|extension]] registers `render(Graph) -> Html` |
+| A capability generic code or an operator **quantifies over** | a `trait`, and one `impl` per trait, arguments and type: `T : Shape`, `impl Add for Vec2`, `impl<T> Index<T> for Ring<T>` |
+| Something can be **done with** the value, by someone else | a codec, `Decoder<T>` or `Encoder<T>` implemented natively for a format ([[hql/presentation]]) |
 | Several types happen to have **the same fields** | a partial schema over an open [[data-type|Data]] tree — see [[fields]] |
 
-Typing is strict, not duck typing, and that is *why* no trait is needed: the
-checker asks about structure it can see. A record declares its shape and an
-incomplete literal fails at construction; a `Data` tree earns a stronger type by
-established structure, checked only where the evidence holds, and refinement
-never converts the value.
+`T : Shape` uses the one relation symbol a bound has; it is checked at every
+call, and inside the body `x.area()` resolves through the bound. A trait may
+give a function a default body an implementation inherits. The core traits are
+`Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index`, `Slice` and `Validator`, in scope
+everywhere and restated in `lib/std/core/mod.hql`: `a + b` over a declared type resolves
+`Add` for it, `==` resolves `Eq`, `xs[i]` resolves `Index`, `xs[a:b]` resolves
+`Slice` ([[bracket-op]]), and a type implementing `Ord`
+is `Orderable`, its `compare` deciding `<`, `sort`, `min` and `max`. Dispatch is on the value's own
+type at run time, so a value held at a wider type still takes its own
+implementation. No trait object, no existential type and no dynamic
+registration exist.
+
+A trait may **extend** others, `trait Email : Validator { }`: the functions of
+the traits it extends are its own, and an implementation of it supplies them;
+it implements none of the traits it extends by doing so. A trait extending
+`Validator` is a **validator type** ([HQL-0034](../../proposals/HQL-0034/README.md)),
+whose `validate(self) : Bool` is a check a value passes. A contract names one
+in a rule, `validate contact? with Email`, which holds where `Email`'s
+`validate` of the field is true and is a type error where the field's type
+does not implement `Email`. A field declared with one, `work_email: Email`, is
+of the one type implementing it and is held to its `validate` wherever the
+record is read or built, a broken one reported as the violation
+`UserData.work_email`. `import validators` gives the standard ones: `Email`
+for text and `NonEmpty`, implemented for text and for lists, so it is named in
+a rule, `validate tags with NonEmpty`; a validator type implemented for
+several types has no one type to give a field.
+
+A **generic trait** takes type parameters, and an implementation takes its own
+([HQL-0027](../../proposals/HQL-0027/README.md)). `trait Index<T>` names the
+element type its `at(self, position: Int) : Option<T>` returns, and
+`impl<T> Index<T> for Ring<T>` gives it for every `Ring`. A bound names a
+generic trait with its arguments, `E : Index<T>`, and a call fills a parameter
+its arguments leave open from the one implementation that applies:
+`first_of([1, 2])` has `T = Int` through `impl<T> Index<T> for Seq<T>`. There
+are no associated types; a parameter the implementing type decides is a trait
+parameter that inference fills. A type may implement one trait at several
+arguments, `Scale<Int>` and `Scale<Float>`, and a call's argument types choose
+between them; a generic body reaches an implementation through its receiver
+alone, so a bound over a trait with functions needs a type implementing it
+once. An implementation for a type applies to the types narrowing it, and
+where two apply the narrower type's is the one: a List takes `Seq`'s `Index`. A
+union's implementation is the union's own, not each member's, so
+`impl Index<Data> for Data` makes a document indexed and not a `String`.
+
+Traits are strict. That a built-in type implements a core trait is declared,
+not assumed: `lib/std/core/mod.hql` writes `impl Ord for Int` as a header without a
+body, a native implementation the runtime binds, and a built-in type
+implements exactly what its headers name, so `T : Add` takes `Int` and
+refuses `String`. Two implementations of one trait **overlap** when one
+assignment of their parameters makes their arguments and their types the same,
+and overlap is refused, generic or concrete, across the standard library, the
+imported modules and the program; the error names both. An implementation is declared with its trait or with its type: a
+program implements its own trait for any type and any trait for its own type.
+See [[hql/extensions]] for the binding.
+
+Typing is strict, not duck typing: the checker asks about structure it can see.
+A record declares its shape and an incomplete literal fails at construction; a
+`Data` tree earns a stronger type by established structure, checked only where
+the evidence holds, and refinement never converts the value.
+
+A value of a concrete type is built by its **constructor**, a function named
+after the type, declared beside it and returning it: `fn Set<T>(xs:
+Collection<T>) : Set<T>` in `lib/std/core/mod.hql`, `fn Temp(celsius: Float) :
+Temp` in a program that declares `type Temp`. `T(x, a)` and `x | T(a)` are one
+call. A type's forms of one arity differ in their first parameter, which is
+how a call, and a constructor passed as a function value, selects one; an
+abstract type has none. A record's fields given by name build its value
+directly ([HQL-0018](../../proposals/HQL-0018/README.md)).
 
 Absence is not part of this. `Option` is an ordinary sum type, not a trait — see
 [[option-type]].
@@ -259,7 +326,7 @@ the type:
 
 | Part | Where it sits |
 | --- | --- |
-| the declaration | one short line in [`std/`](../../../std/README.md) — `abstract type Seq<T> : Collection<T>` in `collections.hql` |
+| the declaration | one short line in [`lib/std/`](../../../lib/std/README.md) — `abstract type Seq<T> : Collection<T>` in `collections.hql` |
 | the law it stands for | the comment beside that line, and the card arguing it |
 | enforcement | the Rust implementation under `src/` |
 
@@ -270,7 +337,7 @@ kind: nothing verifies that positions exist, and everything that builds a `Seq`
 supplies them.
 
 The binary carries the built-in declarations in Rust. Tests check the source
-declarations in `std/` against those built-ins, while evaluation enforces the
+declarations in `lib/std/` against those built-ins, while evaluation enforces the
 behavioral laws. See [issue 0003](../../issues/0003-type-declarations.md).
 
 ### What this decides about `Seq` and `List`
@@ -385,6 +452,13 @@ coalesce<T>(os: ...Option<T>) : Option<T>   // Seq<Option<T>> -> Option<T>
 coalesce(card.summary, card.description)
 ```
 
+Where the element is a type parameter, the trailing arguments fill it as
+repeated parameters of that type do: the first binds it, and a later one
+widens it only to a declared ancestor of what is bound. `pack<T>(xs: ...T)`
+makes `pack(1, 2)` a `List<Int>` and refuses `pack(1, "owl")`, since `Int`
+and `String` share no declared ancestor; a list literal, `[1, "owl"]`, is the
+place their common type `Data` is taken.
+
 A variadic function is therefore an ordinary one-parameter function and needs no
 constructor of its own. An operation generic over arity itself, such as `curry`,
 is not expressible.
@@ -477,7 +551,7 @@ lookup accepts them. Function types follow the same rule from both ends:
 covariant in both, so a function written over `Graph<Doc, Edge>` accepts a
 `Graph<Card, Link>` — see [[graph-type]]. Each built-in declaration states its
 parameters' variance once, in Rust, and the checker applies it; a declaration in
-[`std/`](../../../std/README.md) has no variance marker, so `type Map<K, V>`
+[`lib/std/`](../../../lib/std/README.md) has no variance marker, so `type Map<K, V>`
 names the shape and the built-in fixes `K` invariant and `V` covariant.
 
 ## An operation returns the container it was given
@@ -521,7 +595,7 @@ map<F<_> : Iterable<_>, T, U>(xs: F<T>, f: T -> U) : F<U>
 `F<_> : Iterable<_>` admits a constructor whose argument is its element type,
 `F<X> : Iterable<X>` for every `X`. `List`, `Seq`, `Set` and `Stream` are
 such constructors. `Option` is not an `Iterable`; its `map` and `filter` are
-overloads of their own in [`std/core.hql`](../../../std/core.hql), with the
+overloads of their own in [`lib/std/core/mod.hql`](../../../lib/std/core/mod.hql), with the
 same shape. `Ranking` is not one either: `Ranking<T> : Seq<Hit<T>>`
 has `Hit<T>` as its element type, so a `Ranking` is mapped as the
 `Seq<Hit<T>>` it is.
@@ -630,7 +704,7 @@ author's claim, and `of_type(RelationCard)` has to verify the contract. An unche
 narrowing would let any authored key mint a type, which is the same rule that
 stops `relation: parent` on an edge from making it a `Parent` — see
 [[card-type]] and [[graph-type]]. A failed narrowing is a type error in the
-[[error-reporting|report queue]], not an absence: absence means nothing was
+[[error-handling|report queue]], not an absence: absence means nothing was
 written, and a failed narrowing means something was written that is not the
 type. Only a value that is missing yields `Option` — see [[fields]].
 
@@ -761,15 +835,13 @@ language's central value cannot be the place where the rule is improvised.
 
 ## Open questions
 
-- Whether narrowing is nominal or structural.
+- Whether narrowing is nominal or structural. A record declared by a program
+  is nominal: `Point(x = 1, y = 2)` is a `Point` and nothing else is.
 - The spelling of validation and refinement at the call site: `validate<Person>(card)`,
   a `where` clause, or a predicate that the checker records.
 - How conflicting requirements from parents in a supertype set are diagnosed.
   Every declared parent must hold; the set notation and its normalization stay
   the same.
-- What a parameterized capability registration such as `Renderable<T>` looks
-  like. That it is a registration rather than a type is decided; its shape is
-  not.
 - How much refinement survives a boundary: a value passed to an extension, a
   cell, or a host and back.
 - Whether a subtype may change a field's optionality — tracked on [[fields]].

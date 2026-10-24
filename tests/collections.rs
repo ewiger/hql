@@ -102,14 +102,14 @@ fn the_type_system_accepts_sorting_every_collection_view() {
         TypeRef::list(TypeRef::INT),
     ] {
         assert_eq!(
-            collections::sort_type(system, &input, SortOrder::Intrinsic),
+            collections::sort_type(&system, &input, SortOrder::Intrinsic),
             Ok(TypeRef::list(TypeRef::INT))
         );
     }
     let input = TypeRef::set(TypeRef::list(TypeRef::STR));
-    assert!(collections::sort_type(system, &input, SortOrder::Intrinsic).is_err());
+    assert!(collections::sort_type(&system, &input, SortOrder::Intrinsic).is_err());
     assert_eq!(
-        collections::sort_type(system, &input, SortOrder::ExplicitComparison),
+        collections::sort_type(&system, &input, SortOrder::ExplicitComparison),
         Ok(TypeRef::list(TypeRef::list(TypeRef::STR)))
     );
 }
@@ -197,7 +197,11 @@ fn group_partitions_by_key_and_keeps_input_order_within_a_group() {
 #[test]
 fn sum_min_and_max_equal_their_folds_and_have_empty_results() {
     assert_eq!(eval("[1, 2, 3] | sum"), Ok(Value::Int(6)));
-    assert_eq!(eval("{1.5, 2.5} | sum"), Ok(Value::Float(4.0)));
+    assert_eq!(eval("{1.5f, 2.5f} | sum"), Ok(Value::Float(4.0)));
+    assert_eq!(
+        eval("{1.5, 2.5} | sum").map(|sum| sum.to_string()),
+        Ok("4.0".to_owned())
+    );
     assert_eq!(
         eval("empty : List<Int> = []\nempty | sum"),
         Ok(Value::Int(0))
@@ -365,7 +369,7 @@ fn a_combiner_names_how_two_values_become_one() {
         ("[2, 3, 4] | reduce(*)", "24"),
         ("[4, 9, 2] | reduce(max)", "9"),
         ("[ [1], [2] ] | reduce([], concat)", "[1, 2]"),
-        ("[{a: 1}, {b: 2}] | reduce({}, merge)", "{a: 1, b: 2}"),
+        ("[{a: 1}, {b: 2}] | reduce({:}, merge)", "{a: 1, b: 2}"),
         // A combiner that ignores order folds a set; one that does not, a sequence.
         ("{3, 1, 2} | reduce(0, +)", "6"),
     ] {
@@ -373,7 +377,7 @@ fn a_combiner_names_how_two_values_become_one() {
         assert_eq!(value.to_string(), expected, "{source}");
     }
     let ordered =
-        hql::check("{ {a: 1} } | reduce({}, merge)").expect_err("merge cares about order");
+        hql::check("{ {a: 1} } | reduce({:}, merge)").expect_err("merge cares about order");
     assert!(
         ordered.message().contains("sort it first"),
         "{}",

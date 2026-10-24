@@ -20,13 +20,17 @@ mod evaluation;
 mod execution;
 mod knowledge;
 mod lexer;
+pub mod modules;
 pub mod naming;
 mod net;
 mod parser;
 
+pub mod backends;
+pub mod boundary;
 pub mod builtins;
 pub mod cli;
 pub mod data;
+pub mod decimal;
 pub mod diagnostics;
 pub mod document;
 pub mod extensions;
@@ -85,6 +89,221 @@ pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
     checker::check(&parser::parse(source)?, vault).map(|program| program.result)
 }
 
+/// The steps of the pipeline a program's last expression ends, first to
+/// last, each with the shape it was checked to: what a planner may assume
+/// about splitting it. A direct call is a one-step pipeline; an expression
+/// inside a step's arguments, a receiver call in a lambda among them, is
+/// evaluated within that step and is not one.
+///
+/// # Errors
+///
+/// Returns the first syntax, type or name failure.
+pub fn pipeline(source: &str) -> Result<Vec<(String, extensions::Shape)>, Diagnostic> {
+    let program = checker::check(&parser::parse(source)?, &Vault::empty())?;
+    let last = program
+        .statements
+        .iter()
+        .rev()
+        .find_map(|statement| match statement {
+            execution::Stmt::Expr(expression) => Some(expression),
+            _ => None,
+        });
+    Ok(last
+        .map(execution::Expr::pipeline)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, shape)| (name.to_owned(), shape))
+        .collect())
+}
+
+/// One step of a planned pipeline: the operation it invokes, the shape and
+/// purity the planner read off the operation's type, and the stage
+/// annotation it wrote.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedStep {
+    /// The operation the step invokes, a program's own function among them.
+    pub name: String,
+    /// How the operation may be split.
+    pub shape: extensions::Shape,
+    /// Whether the operation may be moved.
+    pub purity: extensions::Purity,
+    /// The stage annotation.
+    pub stage: backends::Stage,
+    /// `fan-out` or `fan-in` for a step that joins or splits the dataflow
+    /// graph (HQL-0037).
+    pub topology: Option<&'static str>,
+    /// The branches of a `fork` or a `tee`, each by its name, which read
+    /// the step's own input.
+    pub branches: Vec<PlannedBranch>,
+}
+
+/// One branch of a fan-out step: its name and its steps over the input the
+/// step reads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedBranch {
+    /// The name the branch is bound by.
+    pub name: String,
+    /// Its steps, first to last.
+    pub steps: Vec<PlannedStep>,
+}
+
+/// A planned pipeline: the expression its first step reads, and its steps.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedPipeline {
+    /// Where the pipeline is written, as a byte range of the source.
+    pub span: std::ops::Range<usize>,
+    /// The source text of the expression the first step reads.
+    pub input: String,
+    /// The steps, first to last.
+    pub steps: Vec<PlannedStep>,
+}
+
+/// The plan of a program on a backend: each pipeline a statement of the
+/// program is, with every step annotated by the stage the planner gave it.
+/// A pipeline inside a step's arguments, or in a function's body, is
+/// planned too, and not listed.
+///
+/// # Errors
+///
+/// Returns the first syntax, type or name failure.
+pub fn plan(
+    source: &str,
+    vault: &Vault,
+    backend: &backends::Registered,
+) -> Result<Vec<PlannedPipeline>, Diagnostic> {
+    let program = checker::check(&parser::parse(source)?, vault)?;
+    backend.plan(&program);
+    let mut planned = Vec::new();
+    for statement in &program.statements {
+        let (execution::Stmt::Bind { value, .. } | execution::Stmt::Expr(value)) = statement else {
+            continue;
+        };
+        let (steps, input) = planned_steps(value);
+        if steps.is_empty() {
+            continue;
+        }
+        planned.push(PlannedPipeline {
+            span: value.span.clone(),
+            input: source
+                .get(input.span.clone())
+                .unwrap_or_default()
+                .to_owned(),
+            steps,
+        });
+    }
+    Ok(planned)
+}
+
+/// What `hql boundary` prints of a configured source (HQL-0035): its
+/// effective boundary for an element type, with the source's own policies.
+#[derive(Debug, Clone)]
+pub struct InspectedBoundary {
+    /// The element type the boundary maps.
+    pub element: String,
+    /// The boundary, each property with its origin.
+    pub boundary: boundary::EffectiveBoundary,
+    /// How a write treats what the target holds.
+    pub mode: sources::WriteMode,
+}
+
+/// The effective boundary of the configured source `id` read as
+/// `element`, or as the type its configuration names, the type declared by
+/// `types`, a program the boundary's type is checked in. The external
+/// fields are read where the format knows them before reading: a CSV
+/// file's header and a table's columns.
+///
+/// # Errors
+///
+/// Returns why the boundary cannot be inspected: the program does not
+/// check, the source or the type is unknown, or every boundary error.
+pub fn inspect_boundary(
+    types: &str,
+    vault: &Vault,
+    id: &str,
+    element: Option<&str>,
+) -> Result<InspectedBoundary, String> {
+    let program = checker::check(
+        &parser::parse(types).map_err(|error| error.message())?,
+        vault,
+    )
+    .map_err(|error| error.message())?;
+    types::program::install(std::sync::Arc::clone(&program.lattice));
+    let configured = vault.sources.get(id).ok_or_else(|| {
+        format!("no source `{id}` is configured; a source is declared under `[sources.<id>]`")
+    })?;
+    let written = element
+        .map(str::to_owned)
+        .or_else(|| configured.element.clone())
+        .ok_or_else(|| {
+            format!("source `{id}` names no `element`; name the type it is read as with `--as`")
+        })?;
+    let ty = types::named(&written, &[])
+        .ok_or_else(|| format!("`{written}` is not a type the program declares"))?;
+    let external = match &configured.kind {
+        sources::Kind::Sqlite { path, table, .. } => Some(sources::sqlite_columns(path, table)?),
+        sources::Kind::File { path, format } if *format == "Csv" => {
+            io::read_configured(path, types::TypeConstructor(format), false)?
+                .first()
+                .and_then(|row| match row {
+                    Value::Data(tree) => match tree.as_ref() {
+                        data::Data::Map(entries) => Some(entries.keys().cloned().collect()),
+                        _ => None,
+                    },
+                    _ => None,
+                })
+        }
+        _ => None,
+    };
+    let boundary = extensions::io::boundary_for(configured, &ty, external.as_deref())?
+        .ok_or_else(|| format!("`{written}` is not a record, so it has no boundary"))?;
+    Ok(InspectedBoundary {
+        element: written,
+        boundary,
+        mode: configured.mode,
+    })
+}
+
+/// The planned steps of the pipeline `end` ends, first to last, and the
+/// expression the first reads; a `fork`'s or a `tee`'s branches with it.
+fn planned_steps(end: &execution::Expr) -> (Vec<PlannedStep>, &execution::Expr) {
+    let mut nodes = Vec::new();
+    let mut at = end;
+    while let Some((_, input)) = at.as_step() {
+        nodes.push(at);
+        at = input;
+    }
+    nodes.reverse();
+    let steps = nodes
+        .into_iter()
+        .filter_map(|node| {
+            let (plan, _) = node.as_step()?;
+            let branches = match &node.kind {
+                execution::Kind::Fork { branches, .. } => branches
+                    .iter()
+                    .map(|(name, branch)| PlannedBranch {
+                        name: name.clone(),
+                        steps: planned_steps(branch).0,
+                    })
+                    .collect(),
+                execution::Kind::Tee { name, branch, .. } => vec![PlannedBranch {
+                    name: name.clone(),
+                    steps: planned_steps(branch).0,
+                }],
+                _ => Vec::new(),
+            };
+            Some(PlannedStep {
+                name: plan.invokes.name.clone(),
+                shape: plan.invokes.shape,
+                purity: plan.invokes.purity,
+                stage: *plan.stage.get()?,
+                topology: backends::topology(&plan.invokes.name),
+                branches,
+            })
+        })
+        .collect();
+    (steps, at)
+}
+
 /// Write a stream a program returned as it arrives: each value goes to
 /// `sink`, which answers whether it wants another.
 ///
@@ -107,7 +326,9 @@ pub fn stream(
 pub fn eval(source: &str) -> Result<Value, Diagnostic> {
     let program = parser::parse(source)?;
     let program = checker::check(&program, &Vault::empty())?;
-    evaluation::evaluate(&program, &Vault::empty()).0
+    backends::LOCALHOST
+        .run(&program, &Vault::empty(), Vec::new())
+        .0
 }
 
 /// Type-check a program, reporting under a mode.
@@ -157,13 +378,21 @@ pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
     }
 }
 
-/// Run a program against a vault under a reporting mode.
+/// Run a program against a vault under a reporting mode, on `localhost`.
 ///
 /// Checking runs over the whole program before anything is evaluated. In
 /// [`Mode::Collect`] every statement is checked even after one fails, so the
 /// queue holds the whole list rather than only the first entry.
 #[must_use]
 pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
+    run_on(source, vault, mode, backends::Selection::standard())
+}
+
+/// Run a program against a vault under a reporting mode, on a selected
+/// backend. The backend receives the checked program and nothing earlier:
+/// parsing and checking have run before it is reached.
+#[must_use]
+pub fn run_on(source: &str, vault: &Vault, mode: Mode, selection: backends::Selection) -> Outcome {
     let program = match parser::parse(source) {
         Ok(program) => program,
         Err(diagnostic) => return failed(&diagnostic),
@@ -188,7 +417,7 @@ pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
         reports.push(Report::of_check_warning(warning));
     }
     let inferred = program.result.clone();
-    let (value, log) = evaluation::evaluate(&program, vault);
+    let (value, log) = selection.backend.run(&program, vault, Vec::new());
     for entry in log {
         reports.push(entry);
     }
@@ -239,13 +468,14 @@ pub(crate) fn check_cell(
     (checked, reports)
 }
 
-/// Evaluate one checked cell with the values of the cells it reads.
+/// Evaluate one checked cell with the values of the cells it reads, on
+/// `localhost`.
 pub(crate) fn evaluate_cell(
     program: &execution::Program,
     vault: &Vault,
     bound: Vec<(String, Value)>,
 ) -> (Result<Value, Diagnostic>, Reports) {
-    let (value, log) = evaluation::evaluate_with(program, vault, bound);
+    let (value, log) = backends::LOCALHOST.run(program, vault, bound);
     (value, log.into_iter().collect())
 }
 

@@ -6,6 +6,7 @@
 //! to a file, a standard stream or the network, or the `LogEvent` value itself
 //! to a channel. See [HQL-0021](../../doc/proposals/HQL-0021/README.md).
 
+use super::Signature;
 use super::spec::{
     ArgumentKind as A, ArgumentSpec, CheckedCall, OperationSpec, Output as O, TypeParameter,
     TypePattern as P,
@@ -207,7 +208,7 @@ macro_rules! levels {
     ($($name:literal => $eval:ident, $level:expr, $summary:literal),* $(,)?) => {
         [$(Operation {
             name: $name,
-            spec: OperationSpec {
+            spec: Signature::Native(OperationSpec {
                 parameters: &[],
                 input: P::Type(TypeConstructor("Logger")),
                 arguments: &[
@@ -218,9 +219,10 @@ macro_rules! levels {
                     },
                 ],
                 output: O::Type(P::Type(TypeConstructor("Unit"))),
-            },
+            }),
             summary: $summary,
             purity: Purity::Effectful,
+            shape: super::Shape::Barrier,
             check: None,
             eval: $eval,
         }),*]
@@ -239,11 +241,11 @@ pub(crate) static STEPS: &[Operation] = &{
     [
         Operation {
             name: "Logger",
-            spec: OperationSpec {
+            spec: Signature::Native(OperationSpec {
                 parameters: &[
                     TypeParameter {
                         name: "F",
-                        bound: Some(TypeConstructor("String")),
+                        bound: Some(crate::types::builtin::FORMAT),
                     },
                     LEVEL_PARAMETER,
                 ],
@@ -255,6 +257,7 @@ pub(crate) static STEPS: &[Operation] = &{
                         required: false,
                         positional: true,
                         named: true,
+                        variadic: false,
                     },
                     ArgumentSpec {
                         positional: false,
@@ -266,13 +269,15 @@ pub(crate) static STEPS: &[Operation] = &{
                         required: false,
                         positional: false,
                         named: true,
+                        variadic: false,
                     },
                 ],
                 output: O::Type(P::Type(TypeConstructor("Logger"))),
-            },
+            }),
             summary: "A logger that writes LogEvents to an endpoint in a format, or to a \
                       Channel<LogEvent> as values; `level` is the least severe it writes.",
             purity: Purity::Pure,
+            shape: super::Shape::Barrier,
             check: Some(check_logger),
             eval: eval_logger,
         },

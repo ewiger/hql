@@ -1,8 +1,15 @@
-//! Checking and evaluating explicit construction of materialized collections,
-//! and of a graph projected from cards.
+//! Checking and evaluating the standard constructors: materialized
+//! collections, a graph projected from cards, a table of records, a
+//! channel, and a tree parsed from text.
+//!
+//! A constructor is declared in `lib/std/` as a function named after its type,
+//! beside the type, and binding holds each declaration to the table here:
+//! the declarations state the forms a call selects among by its first
+//! argument, and this module implements them.
 
 use crate::ast::Arg;
 use crate::diagnostics::Diagnostic;
+use crate::extensions::spec::OperationSpec;
 use crate::extensions::{CheckCx, EvalCx};
 use crate::types::{MapKind, MapValue, TypeConstructor, TypeRef, Value, builtin, collections};
 use std::ops::Range;
@@ -10,7 +17,7 @@ use std::sync::Arc;
 
 /// The types a program may name as constructors, abstract ones included so
 /// that naming one is refused with its concrete subtypes.
-const CONSTRUCTORS: [TypeConstructor; 10] = [
+const CONSTRUCTORS: [TypeConstructor; 12] = [
     collections::COLLECTION,
     collections::SEQ,
     collections::LIST,
@@ -20,10 +27,16 @@ const CONSTRUCTORS: [TypeConstructor; 10] = [
     collections::SORTED_MAP,
     collections::ORDERABLE,
     GRAPH,
+    TABLE,
     builtin::CHANNEL,
+    DATA,
 ];
 
+const DATA: TypeConstructor = TypeConstructor("Data");
+
 const GRAPH: TypeConstructor = TypeConstructor("Graph");
+
+const TABLE: TypeConstructor = TypeConstructor("Table");
 
 pub(crate) fn named(name: &str) -> Option<TypeConstructor> {
     CONSTRUCTORS
@@ -31,6 +44,223 @@ pub(crate) fn named(name: &str) -> Option<TypeConstructor> {
         .find(|constructor| constructor.0 == name)
 }
 
+/// Whether a declared name is a constructor's: `UpperCamelCase`, as only a
+/// type's name is.
+pub(crate) fn is_constructor_name(name: &str) -> bool {
+    name.chars().next().is_some_and(char::is_uppercase)
+}
+
+/// Whether a standard module's declaration of a name is a constructor the
+/// binary's table implements: named as a type is, and not an operation of
+/// the extension providing the module, as `Logger` of `io.logging` is.
+pub(crate) fn is_table_constructor(module: &str, name: &str) -> bool {
+    is_constructor_name(name)
+        && crate::extensions::builtin_module(module)
+            .and_then(|extension| extension.step(name))
+            .is_none()
+}
+
+/// The forms `lib/std/` declares for a constructor, in the order written: the
+/// constructor declarations of the type identity binding bound it to.
+pub(crate) fn forms(constructor: TypeConstructor) -> Vec<&'static OperationSpec> {
+    crate::extensions::binding::Environment::get()
+        .map(|environment| environment.constructor_forms(constructor.0))
+        .unwrap_or_default()
+}
+
+/// Validate the constructors an environment declares against the table
+/// here: every declaration is bound to a concrete type its own module
+/// declares, states a form, and returns that type or a subtype of it; each
+/// has an implementation here, and each concrete type here is bound to a
+/// type identity with a declaration; and two forms of one arity differ in
+/// their first parameter.
+///
+/// # Errors
+///
+/// The first disagreement, a defect of the binary.
+pub(crate) fn bind(environment: &crate::extensions::binding::Environment) -> Result<(), String> {
+    let system = builtin::system().map_err(|error| error.to_string())?;
+    for constructor in environment.constructors() {
+        let module = environment.module(constructor.module).name;
+        let name = constructor.name.as_str();
+        if constructor.ty.is_none() {
+            return Err(format!(
+                "`{module}` declares the constructor `{name}`, and declares no concrete \
+                 type `{name}`: a constructor is declared beside its type",
+                module = crate::library::path(module)
+            ));
+        }
+        let Some(table) = named(name) else {
+            return Err(format!(
+                "`{module}` declares the constructor `{name}`, and the binary implements \
+                 no such constructor",
+                module = crate::library::path(module)
+            ));
+        };
+        if environment.table(table.0) != constructor.ty {
+            return Err(format!(
+                "`{module}` declares the constructor `{name}`, and the binary's `{name}` \
+                 is bound to another module's type `{name}`",
+                module = crate::library::path(module)
+            ));
+        }
+        if let Err(why) = &constructor.signature {
+            return Err(format!(
+                "`{module}.{name}` states no signature a constructor can take: {why}"
+            ));
+        }
+        let result = crate::types::builtin::constructor(&constructor.result.name)
+            .ok_or_else(|| format!("`{module}.{name}` returns an unknown type"))?;
+        let arguments = vec![TypeRef::DATA; constructor.result.arguments.len()];
+        let builds = result == table
+            || system
+                .as_supertype(&result.apply(arguments), table)
+                .ok()
+                .flatten()
+                .is_some();
+        if !builds {
+            return Err(format!(
+                "`{module}` declares `{name}` returning {}, which is not a {name}",
+                constructor.result.name,
+                module = crate::library::path(module)
+            ));
+        }
+    }
+    for constructor in CONSTRUCTORS {
+        let concrete = constructor == DATA
+            || constructor == GRAPH
+            || constructor == TABLE
+            || system
+                .definition(constructor)
+                .is_ok_and(|definition| definition.kind == crate::types::TypeKind::Concrete);
+        let declared = !environment.constructor_forms(constructor.0).is_empty();
+        if concrete && !declared {
+            return Err(format!(
+                "the binary constructs {constructor}, and no module under lib/std/ declares \
+                 `fn {constructor}(…)`"
+            ));
+        }
+        if !concrete && declared {
+            return Err(format!(
+                "lib/std/ declares a constructor of {constructor}, which is abstract"
+            ));
+        }
+        let held = environment.constructor_forms(constructor.0);
+        for (index, later) in held.iter().enumerate() {
+            if let Some(earlier) = held[..index].iter().find(|earlier| {
+                earlier.arguments.len() == later.arguments.len()
+                    && earlier.input.to_string() == later.input.to_string()
+            }) {
+                return Err(format!(
+                    "lib/std/ declares `{}` after `{}`: forms of one arity differ in their first \
+                     parameter",
+                    later.signature(constructor.0),
+                    earlier.signature(constructor.0)
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The form a call takes: the first whose first parameter, arity and
+/// argument types it fits. A call no form takes is refused naming each
+/// form's first parameter.
+fn select(
+    cx: &mut dyn CheckCx,
+    constructor: TypeConstructor,
+    args: &[Arg],
+    span: &Range<usize>,
+) -> Result<(), Diagnostic> {
+    let forms = forms(constructor);
+    let Some((first, rest)) = args.split_first() else {
+        return Ok(());
+    };
+    if forms.is_empty() || first.name.is_some() {
+        return Ok(());
+    }
+    let inferred = cx.infer(&first.value)?;
+    for input in [&inferred, inferred.present()] {
+        for form in &forms {
+            if form.fits(cx, input, rest) && form.fits_types(cx, Some(input), rest)? {
+                return Ok(());
+            }
+        }
+    }
+    Err(Diagnostic::typing(
+        span.clone(),
+        format!(
+            "{constructor} has no form taking {inferred}{}: its forms take {}",
+            if rest.is_empty() {
+                String::new()
+            } else {
+                format!(" and {} more", rest.len())
+            },
+            first_parameters(&forms)
+        ),
+    ))
+}
+
+/// The first parameter of each form, as a refusal names them.
+fn first_parameters(forms: &[&OperationSpec]) -> String {
+    let mut written: Vec<String> = Vec::new();
+    for form in forms {
+        let input = form.input.to_string();
+        if !written.contains(&input) {
+            written.push(input);
+        }
+    }
+    written
+        .iter()
+        .map(|input| format!("`{input}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// A constructor passed as a function value takes the one form of one
+/// parameter whose first parameter takes the type the receiving operation
+/// passes. None, or several, is refused naming every candidate.
+pub(crate) fn resolve_value(
+    constructor: TypeConstructor,
+    parameter: &TypeRef,
+    span: &Range<usize>,
+) -> Result<(), Diagnostic> {
+    let forms: Vec<&OperationSpec> = forms(constructor)
+        .into_iter()
+        .filter(|form| form.arguments.iter().all(|argument| !argument.required))
+        .collect();
+    if forms.len() < 2 {
+        return Ok(());
+    }
+    let taking: Vec<&&OperationSpec> = forms
+        .iter()
+        .filter(|form| form.input.accepts(parameter))
+        .collect();
+    if taking.len() == 1 {
+        return Ok(());
+    }
+    Err(Diagnostic::typing(
+        span.clone(),
+        if taking.is_empty() {
+            format!(
+                "`{constructor}` passed here takes {parameter}, and no form of it does: its \
+                 forms take {}",
+                first_parameters(&forms)
+            )
+        } else {
+            let candidates: Vec<&OperationSpec> = taking.into_iter().copied().collect();
+            format!(
+                "`{constructor}` passed here is ambiguous: {parameter} fits its forms taking {}; \
+                 write the call, `x => {constructor}(x)`, or give the elements a type",
+                first_parameters(&candidates)
+            )
+        },
+    ))
+}
+
+/// Check a call of a standard constructor: the binary's own refinements
+/// first, a finite input and positions where a `List` needs them, then the
+/// form `lib/std/` declares that the call takes.
 pub(crate) fn check(
     cx: &mut dyn CheckCx,
     constructor: TypeConstructor,
@@ -38,8 +268,26 @@ pub(crate) fn check(
     expected: Option<&TypeRef>,
     span: Range<usize>,
 ) -> Result<TypeRef, Diagnostic> {
+    let built = check_native(cx, constructor, args, expected, span.clone())?;
+    select(cx, constructor, args, &span)?;
+    Ok(built)
+}
+
+fn check_native(
+    cx: &mut dyn CheckCx,
+    constructor: TypeConstructor,
+    args: &[Arg],
+    expected: Option<&TypeRef>,
+    span: Range<usize>,
+) -> Result<TypeRef, Diagnostic> {
+    if constructor == DATA {
+        return check_data(cx, args, span);
+    }
     if constructor == GRAPH {
         return check_graph(cx, args, span);
+    }
+    if constructor == TABLE {
+        return check_table(cx, args, span);
     }
     if constructor == builtin::CHANNEL {
         return check_channel(cx, args, expected, span);
@@ -141,6 +389,123 @@ pub(crate) fn check(
         .map_err(|error| Diagnostic::typing(span, error.to_string()))
 }
 
+/// `Data(s, F)`: text parsed in a format whose decoder reads `Data`.
+fn check_data(
+    cx: &mut dyn CheckCx,
+    args: &[Arg],
+    span: Range<usize>,
+) -> Result<TypeRef, Diagnostic> {
+    let [text, format] = args else {
+        return Err(Diagnostic::typing(
+            span,
+            "`Data` parses text in a format: `Data(s, Json)`, or `s | Data(Json)`",
+        ));
+    };
+    if text.name.is_some() || format.name.as_deref().is_some_and(|name| name != "as") {
+        return Err(Diagnostic::typing(
+            span,
+            "`Data` takes its text by position and its format as `as`",
+        ));
+    }
+    let ty = cx.infer(&text.value)?;
+    if !ty.is(&TypeRef::STR) {
+        return Err(Diagnostic::typing(
+            text.value.span.clone(),
+            format!("`Data` parses a String, not {ty}"),
+        ));
+    }
+    let named = cx.type_argument(format)?;
+    match crate::io::document_type(named.constructor) {
+        Ok(read) if read == TypeRef::DATA => Ok(TypeRef::DATA),
+        Ok(read) => Err(Diagnostic::typing(
+            format.value.span.clone(),
+            format!(
+                "{} decodes {read}, not Data: `Data` parses Json, JsonLines, Yaml or Csv",
+                named.constructor
+            ),
+        )),
+        Err(_) => Err(Diagnostic::typing(
+            format.value.span.clone(),
+            format!(
+                "{} is no format a Decoder reads: `Data` parses Json, JsonLines, Yaml or Csv",
+                named.constructor
+            ),
+        )),
+    }
+}
+
+/// `Table(xs, columns = [...])`: one row per element, each a record or a
+/// `Data` map. Over a declared record, a column written as a literal must
+/// name one of its fields.
+fn check_table(
+    cx: &mut dyn CheckCx,
+    args: &[Arg],
+    span: Range<usize>,
+) -> Result<TypeRef, Diagnostic> {
+    let Some((rows, rest)) = args.split_first().filter(|(rows, _)| rows.name.is_none()) else {
+        return Err(Diagnostic::typing(
+            span,
+            "`Table` takes its rows by position: `Table(xs, columns = [...])`",
+        ));
+    };
+    let input = cx.infer(&rows.value)?;
+    let input = input.present();
+    if input.is_stream() && !input.is_collection() {
+        return Err(Diagnostic::typing(
+            rows.value.span.clone(),
+            format!(
+                "a Table needs a finite input, and {input} may not end; bound it with \
+                 `take(n)` or batch it with `collect(n)`"
+            ),
+        ));
+    }
+    let Some(element) = input.element() else {
+        return Err(Diagnostic::typing(
+            rows.value.span.clone(),
+            format!("a Table is built from a collection of records, not {input}"),
+        ));
+    };
+    let row = element.present().clone();
+    let record = crate::types::program::is_record_valued(row.constructor.0);
+    let open = row == TypeRef::DATA
+        || row == TypeRef::NEVER
+        || row.has_variable()
+        || row.has_placeholder()
+        || row.is_union();
+    if !record && !open {
+        return Err(Diagnostic::typing(
+            rows.value.span.clone(),
+            format!(
+                "a Table row is a record or a Data map, not {row}; `map` each element to a \
+                 record first"
+            ),
+        ));
+    }
+    let columns = rest
+        .iter()
+        .enumerate()
+        .find(|(index, argument)| {
+            argument.name.as_deref() == Some("columns") || (*index == 0 && argument.name.is_none())
+        })
+        .map(|(_, argument)| argument);
+    if record
+        && let Some(columns) = columns
+        && let crate::ast::Kind::List(written) = &columns.value.kind
+    {
+        for column in written {
+            if let crate::ast::Kind::Str(name) = &column.kind
+                && crate::types::program::field_type(&row, name).is_none()
+            {
+                return Err(Diagnostic::typing(
+                    column.span.clone(),
+                    format!("the column `{name}` names no field of {row}"),
+                ));
+            }
+        }
+    }
+    Ok(TypeRef::table(if record { row } else { TypeRef::DATA }))
+}
+
 /// `Channel<T>(name)`: a name, and the element type written out, since
 /// nothing written to the channel yet can say it.
 fn check_channel(
@@ -234,21 +599,16 @@ pub(crate) fn evaluate(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let constructor = expected.constructor;
+    if constructor == DATA {
+        return evaluate_data(cx, args, span);
+    }
+    if constructor == TABLE {
+        return evaluate_table(cx, args, expected, span);
+    }
     let mut inputs = Vec::new();
     for argument in args {
         let input = cx.evaluate(&argument.value)?;
-        // A constructor materializes, so a traversal's values are produced.
-        inputs.push(match input {
-            Value::Traversal(traversal) if traversal.forced().is_none() => {
-                let mut values = Vec::new();
-                cx.traverse(&traversal, &mut |_, value| {
-                    values.push(value);
-                    Ok(true)
-                })?;
-                Value::list(values, traversal.element.clone())
-            }
-            other => other,
-        });
+        inputs.push(materialized(cx, input)?);
     }
     if constructor == builtin::CHANNEL {
         let (Some(Value::Str(name)), Some(element)) = (inputs.first(), expected.args.first())
@@ -293,4 +653,87 @@ pub(crate) fn evaluate(
             format!("{constructor} has no runtime constructor"),
         )),
     }
+}
+
+/// A constructor materializes, so a traversal's values are produced.
+fn materialized(cx: &mut dyn EvalCx, input: Value) -> Result<Value, Diagnostic> {
+    Ok(match input {
+        Value::Traversal(traversal) if traversal.forced().is_none() => {
+            let mut values = Vec::new();
+            cx.traverse(&traversal, &mut |_, value| {
+                values.push(value);
+                Ok(true)
+            })?;
+            Value::list(values, traversal.element.clone())
+        }
+        other => other,
+    })
+}
+
+/// `Table(xs, columns = [...])`: the rows, under the columns named or the
+/// first row's fields.
+fn evaluate_table(
+    cx: &mut dyn EvalCx,
+    args: &[crate::execution::Arg],
+    expected: &TypeRef,
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let Some((rows, rest)) = args.split_first() else {
+        return Err(Diagnostic::runtime(span, "`Table` needs its rows"));
+    };
+    let rows = cx.evaluate(&rows.value)?;
+    let rows = match materialized(cx, rows)? {
+        Value::Present(held) => held.as_ref().clone(),
+        other => other,
+    };
+    let rows = rows.elements().ok_or_else(|| {
+        Diagnostic::runtime(
+            span.clone(),
+            "a Table is built from a collection of records",
+        )
+    })?;
+    let columns = match rest.iter().find(|argument| {
+        argument
+            .name
+            .as_deref()
+            .is_none_or(|name| name == "columns")
+    }) {
+        Some(argument) => {
+            let written = cx.evaluate(&argument.value)?;
+            let names = materialized(cx, written)?
+                .elements()
+                .unwrap_or_default()
+                .iter()
+                .map(|name| match name {
+                    Value::Str(name) => name.to_string(),
+                    other => other.to_string(),
+                })
+                .collect::<Vec<_>>();
+            // `columns = []`, the default, names no columns: the first row's
+            // fields are the columns.
+            (!names.is_empty()).then_some(names)
+        }
+        None => None,
+    };
+    let row = expected.args.first().cloned().unwrap_or(TypeRef::DATA);
+    let table = crate::types::Table::new(rows, columns, row)
+        .map_err(|message| Diagnostic::runtime(span, message))?;
+    Ok(Value::Table(Arc::new(table)))
+}
+
+/// `Data(s, F)`: the text, parsed in the format the checked call names.
+fn evaluate_data(
+    cx: &mut dyn EvalCx,
+    args: &[crate::execution::Arg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let [text, format] = args else {
+        return Err(Diagnostic::runtime(span, "`Data` needs text and a format"));
+    };
+    let Value::Str(text) = cx.evaluate(&text.value)? else {
+        return Err(Diagnostic::runtime(span, "`Data` parses a String"));
+    };
+    let parsed = crate::io::parse_text(&text, format.value.ty.constructor)
+        .map_err(|message| Diagnostic::runtime(span, message))?;
+    Ok(Value::Data(Arc::new(parsed)))
 }
