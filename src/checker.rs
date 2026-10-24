@@ -4403,6 +4403,7 @@ impl<'a> Checker<'a> {
             }
         }
         let mut bound: HashMap<&'static str, TypeRef> = HashMap::new();
+        let mut generic = Vec::new();
         for (field, argument) in shape.fields.iter().zip(given) {
             let Some(argument) = argument else {
                 if field.optional || field.default.is_some() {
@@ -4432,12 +4433,32 @@ impl<'a> Checker<'a> {
                         ),
                     ));
                 }
+                generic.push((field, actual, argument.value.span.clone()));
             } else if !actual.is(&field.ty) {
                 return Err(Diagnostic::typing(
                     argument.value.span.clone(),
                     format!(
                         "`{}` of `{name}` is {}, and this is {actual}",
                         field.name, field.ty
+                    ),
+                ));
+            }
+        }
+        // A later field may widen a parameter an earlier one bound, so each
+        // generic field is held again to the parameters as finally bound:
+        // `Box(f = (n: Int) => n, x = "s")` cannot make `T` `Data` under `f`.
+        let fixed: HashMap<crate::types::TypeConstructor, TypeRef> = bound
+            .iter()
+            .map(|(parameter, ty)| (crate::types::TypeConstructor(parameter), ty.clone()))
+            .collect();
+        for (field, actual, field_span) in generic {
+            let expected = substituted_placeholders(&field.ty, &fixed);
+            if !actual.is(&expected) {
+                return Err(Diagnostic::typing(
+                    field_span,
+                    format!(
+                        "`{}` of `{name}` is {expected} by the other fields, and this is {actual}",
+                        field.name
                     ),
                 ));
             }

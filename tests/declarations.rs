@@ -608,3 +608,28 @@ fn every_external_declaration_has_an_implementation_and_every_implementation_a_d
         "only {checked} modules are declared externally"
     );
 }
+
+#[test]
+fn a_generic_record_holds_its_fields_to_the_parameter_as_finally_bound() {
+    assert!(
+        refused(
+            "type Box<T> { f : T -> Int, x : T }\nb = Box(f = (n: Int) => n + 1, x = \"s\")\nb"
+        )
+        .contains("`f` of `Box`")
+    );
+    // A parameter a field's function takes is not covariant.
+    assert!(
+        refused("type Box<T> { f : T -> Int }\nb : Box<Data> = Box(f = (n: Int) => n + 1)\nb")
+            .contains("declared Box<Data>")
+    );
+    for source in [
+        "type Box<T> { x : T }\nb : Box<Data> = Box(x = 1)\nb.x",
+        "type Sink<T> { f : T -> Int }\ns : Sink<Int> = Sink(f = (d: Data) => 1)\ng = s.f\ng(3)",
+    ] {
+        assert_eq!(
+            eval(source).map(|value| value.to_string()),
+            Ok("1".to_owned()),
+            "{source}"
+        );
+    }
+}
