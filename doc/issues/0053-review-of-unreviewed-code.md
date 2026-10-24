@@ -135,7 +135,7 @@ commit that closes it. Issue 0052's items are folded in as the last units.
 - [x] U8 — checker: a widened record parameter re-checks its fields (10)
 - [x] U9 — checker: `Option` equality, `match none`, parameter limit text (11, 12, 13)
 - [x] U10 — collections: HQL equality in `approx_distinct`, `join`, `tally`, `group`, `count`, `contains` (15, 16, 17, 19)
-- [ ] U11 — collections: `take` on a `Set` by its order (14)
+- [x] U11 — collections: `take` on a `Set` by its order (14)
 - [ ] U12 — collections: finite iterating functions in `collect`, `emit`, `flat_map` (18)
 - [ ] U13 — SQLite read: `Bool`, `Float` from integers, declared `Decimal` columns, no `rowid`, `BLOB` (20–24)
 - [ ] U14 — sources: an unreadable `hql.toml` is an error (25)

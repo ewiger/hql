@@ -469,3 +469,21 @@ fn collection_steps_compare_as_equality_does() {
         assert_eq!(shown(&format!("{declared}{query}")), expected, "{query}");
     }
 }
+
+#[test]
+fn take_orders_a_set_by_an_implementation_of_ord() {
+    let source = "type Version { major : Int, minor : Int }\n\
+                  impl Ord for Version {\n\
+                    fn compare(self, other: Version) : Ordering =\n\
+                      compare(self.major * 100 + self.minor, other.major * 100 + other.minor)\n\
+                  }\n\
+                  vs = Set([Version(major = 3, minor = 0), Version(major = 1, minor = 10),\n\
+                            Version(major = 0, minor = 9), Version(major = 2, minor = 0)])\n\
+                  vs | take(2) | map(v => v.major)";
+    assert_eq!(
+        eval(source)
+            .unwrap_or_else(|error| panic!("{}", error.message()))
+            .to_string(),
+        "[0, 1]"
+    );
+}

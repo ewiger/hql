@@ -893,7 +893,11 @@ fn eval_take(
     // sequence already has one, and imposing another here would discard the
     // `sort` that produced it.
     if matches!(input, Value::Set(..)) {
-        elements.sort_by(|left, right| compare(&left.order_key(), &right.order_key()));
+        if elements.iter().all(|element| element.order_key().is_some()) {
+            elements.sort_by(|left, right| compare(&left.order_key(), &right.order_key()));
+        } else {
+            sort_through(cx, &mut elements, &span, |element| element)?;
+        }
     }
     elements.truncate(count);
     Ok(Value::list(elements, element_type(&input)))
