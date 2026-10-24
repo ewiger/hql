@@ -727,6 +727,12 @@ pub(crate) fn boundary_for(
     element: &TypeRef,
     external: Option<&[String]>,
 ) -> Result<Option<crate::boundary::EffectiveBoundary>, String> {
+    let declared = match &configured.kind {
+        crate::sources::Kind::Sqlite { path, table, .. } if external.is_some() => {
+            Some(crate::sources::sqlite_column_types(path, table)?)
+        }
+        _ => None,
+    };
     let Some(fields) = declared_fields(element) else {
         return Ok(None);
     };
@@ -738,6 +744,7 @@ pub(crate) fn boundary_for(
         crate::boundary::Layers {
             configuration: &configured.fields,
             invocation: &none,
+            declared: declared.as_ref(),
         },
         external,
     )
@@ -819,7 +826,7 @@ fn boundary_reads(boundary: &crate::boundary::EffectiveBoundary, key: &str) -> b
     boundary.fields.iter().any(|field| {
         field.readable.value
             && match &field.external.value {
-                External::Name(name) => name == key,
+                External::Name(name) => crate::boundary::same_name(&boundary.kind, name, key),
                 External::Path(segments) => segments.first().is_some_and(|first| first == key),
             }
     })
@@ -847,6 +854,7 @@ pub(crate) fn remapped(
     };
     use crate::sources::Strictness;
     let mut mapped = entries.clone();
+    let sqlite = boundary.kind == "sqlite";
     // A strict source's unmapped fields were refused before; an open one's
     // are not read.
     if matches!(boundary.strictness, Strictness::Open | Strictness::Warn) {
@@ -854,14 +862,20 @@ pub(crate) fn remapped(
             mapped.remove(key);
         }
     }
+    // Every entry a field reads, and every field's own name, is cleared
+    // before any is filled, so two fields that swap names keep both values,
+    // and a path's top-level container is not left behind as a field.
+    for field in &boundary.fields {
+        match &field.external.value {
+            External::Name(external) => mapped.remove(external),
+            External::Path(segments) => segments
+                .first()
+                .and_then(|container| mapped.remove(container)),
+        };
+        mapped.remove(&field.field.name);
+    }
     for field in &boundary.fields {
         let name = &field.field.name;
-        if let External::Name(external) = &field.external.value
-            && external != name
-        {
-            mapped.remove(external);
-        }
-        mapped.remove(name);
         if !field.readable.value {
             continue;
         }
@@ -899,6 +913,46 @@ pub(crate) fn remapped(
                         .map(|absence| format!("`{}`", absence.name()))
                         .collect::<Vec<_>>()
                         .join(", ")
+                ));
+            }
+            // SQLite has no boolean storage: a `Bool` is the `INTEGER` 0 or 1.
+            (Some(Data::Int(n)), _) if sqlite && field.field.ty == TypeRef::BOOL => {
+                let truth = match n {
+                    0 => false,
+                    1 => true,
+                    _ => {
+                        return Err(format!(
+                            "source `{}`, field `{name}`: {n} is not a Bool, which a table \
+                             holds as 0 or 1",
+                            boundary.source
+                        ));
+                    }
+                };
+                mapped.insert(name.clone(), Data::Bool(truth));
+            }
+            // An integer is a number the external type decodes to `Float`,
+            // where the Float holds it exactly.
+            (Some(Data::Int(n)), _) if field.field.ty == TypeRef::FLOAT => {
+                #[allow(clippy::cast_precision_loss)]
+                let real = *n as f64;
+                if n.unsigned_abs() > 1 << f64::MANTISSA_DIGITS {
+                    return Err(format!(
+                        "source `{}`, field `{name}`: {n} has more digits than a Float holds",
+                        boundary.source
+                    ));
+                }
+                mapped.insert(name.clone(), Data::Float(real));
+            }
+            // A table's REAL storage may have lost a decimal's digits before
+            // it was read, so a `Decimal` takes it only where it may.
+            (Some(Data::Float(real)), _)
+                if sqlite && field.field.ty == TypeRef::DECIMAL && !field.lossy.value =>
+            {
+                return Err(format!(
+                    "source `{}`, field `{name}`: lossy representation: the column holds the \
+                     REAL {real}, which may not keep a Decimal's digits; store it as TEXT, or \
+                     set `lossy = true`",
+                    boundary.source
                 ));
             }
             // A `Decimal` written as text reads the text's digits.
@@ -1410,10 +1464,24 @@ fn write_configured(
                             Some(Data::Int(n)) => rusqlite::types::Value::Integer(n),
                             Some(Data::Bool(b)) => rusqlite::types::Value::Integer(i64::from(b)),
                             Some(Data::Float(x)) => rusqlite::types::Value::Real(x),
-                            Some(Data::Decimal(d)) => d.to_float().map_or_else(
-                                || rusqlite::types::Value::Text(d.to_string()),
-                                rusqlite::types::Value::Real,
-                            ),
+                            // A decimal keeps its digits as text; it is a REAL
+                            // only in a column the boundary permits to lose them,
+                            // and an INTEGER only where it is whole.
+                            Some(Data::Decimal(d)) => {
+                                match field.external_type.value.to_ascii_uppercase().as_str() {
+                                    "REAL" | "NUMERIC" if field.lossy.value => {
+                                        d.to_float().map_or_else(
+                                            || rusqlite::types::Value::Text(d.to_string()),
+                                            rusqlite::types::Value::Real,
+                                        )
+                                    }
+                                    "INTEGER" if d.scale() <= 0 => d.to_int().map_or_else(
+                                        || rusqlite::types::Value::Text(d.to_string()),
+                                        rusqlite::types::Value::Integer,
+                                    ),
+                                    _ => rusqlite::types::Value::Text(d.to_string()),
+                                }
+                            }
                             Some(Data::Str(text)) => rusqlite::types::Value::Text(text),
                             Some(other) => rusqlite::types::Value::Text(other.to_string()),
                         })

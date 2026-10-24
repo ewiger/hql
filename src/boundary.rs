@@ -170,6 +170,29 @@ pub fn written(external: &External) -> String {
     }
 }
 
+/// Whether two external fields are one: a name and a path of one segment
+/// are, a name holding a dot and a path through two levels are not.
+fn same_external(left: &External, right: &External) -> bool {
+    match (left, right) {
+        (External::Name(name), External::Path(segments))
+        | (External::Path(segments), External::Name(name)) => {
+            matches!(segments.as_slice(), [only] if only == name)
+        }
+        _ => left == right,
+    }
+}
+
+/// Whether two names of an external field are one in `kind`: SQLite column
+/// names compare without regard to ASCII case, every other format's exactly.
+#[must_use]
+pub fn same_name(kind: &str, left: &str, right: &str) -> bool {
+    if family(kind) == "sqlite" {
+        left.eq_ignore_ascii_case(right)
+    } else {
+        left == right
+    }
+}
+
 /// The layers of one boundary, earliest first after the format's defaults.
 #[derive(Debug, Clone, Copy)]
 pub struct Layers<'a> {
@@ -177,6 +200,10 @@ pub struct Layers<'a> {
     pub configuration: &'a BTreeMap<String, FieldMapping>,
     /// An invocation's override.
     pub invocation: &'a BTreeMap<String, FieldMapping>,
+    /// The type the source itself declares for each external field, where
+    /// it declares one: a table's column types. It refines the format's
+    /// default where it decodes to the field's type.
+    pub declared: Option<&'a BTreeMap<String, String>>,
 }
 
 /// Resolve a source's boundary for `fields`, the element type's, against
@@ -241,17 +268,22 @@ pub fn resolve(
                 );
             }
         }
+        let external = pick(
+            &written_layers,
+            External::Name(field.name.clone()),
+            |mapping| mapping.external.clone(),
+        );
+        let format_type = layers
+            .declared
+            .and_then(|declared| declared.get(&written(&external.value)))
+            .map(|declared| affinity(kind, declared))
+            .filter(|affinity| decodes(kind, affinity, &field.ty) == Some(true))
+            .unwrap_or_else(|| default_type(kind, &field.ty).to_owned());
         resolved.push(EffectiveField {
-            external: pick(
-                &written_layers,
-                External::Name(field.name.clone()),
-                |mapping| mapping.external.clone(),
-            ),
-            external_type: pick(
-                &written_layers,
-                default_type(kind, &field.ty).to_owned(),
-                |mapping| mapping.external_type.clone(),
-            ),
+            external,
+            external_type: pick(&written_layers, format_type, |mapping| {
+                mapping.external_type.clone()
+            }),
             position: pick(&written_layers, index + 1, |mapping| mapping.position),
             readable: pick(&written_layers, true, |mapping| mapping.readable),
             writable: pick(&written_layers, true, |mapping| mapping.writable),
@@ -300,7 +332,7 @@ pub fn resolve(
         }
         if let Some(known) = external
             && held.readable.value
-            && !known.contains(&outside)
+            && !known.iter().any(|name| same_name(kind, name, &outside))
         {
             if held.external.origin != Origin::Format {
                 errors.push(error(
@@ -324,9 +356,9 @@ pub fn resolve(
             }
         }
         if held.readable.value
-            && let Some(first) = resolved
-                .iter()
-                .find(|other| other.readable.value && written(&other.external.value) == outside)
+            && let Some(first) = resolved.iter().find(|other| {
+                other.readable.value && same_external(&other.external.value, &held.external.value)
+            })
             && first.field.name != *name
         {
             errors.push(error(
@@ -436,6 +468,28 @@ fn default_type(kind: &str, ty: &TypeRef) -> &'static str {
     }
 }
 
+/// The format's type for a type the source declares: of a SQLite column,
+/// its affinity by SQLite's rules, `DECIMAL(10, 2)` being `NUMERIC`.
+fn affinity(kind: &str, declared: &str) -> String {
+    if family(kind) != "sqlite" {
+        return declared.to_owned();
+    }
+    let upper = declared.to_ascii_uppercase();
+    let has = |part: &str| upper.contains(part);
+    if has("INT") {
+        "INTEGER"
+    } else if has("CHAR") || has("CLOB") || has("TEXT") {
+        "TEXT"
+    } else if has("BLOB") || upper.trim().is_empty() {
+        "BLOB"
+    } else if has("REAL") || has("FLOA") || has("DOUB") {
+        "REAL"
+    } else {
+        "NUMERIC"
+    }
+    .to_owned()
+}
+
 /// What reads as an absent optional field unless the boundary says.
 fn default_absent(kind: &str) -> Vec<Absence> {
     match family(kind) {
@@ -524,6 +578,7 @@ mod tests {
         let layers = Layers {
             configuration: &none,
             invocation: &none,
+            declared: None,
         };
         let boundary = resolve("users", "sqlite", &user_row(), layers, None).unwrap();
         let balance = boundary.field("balance").unwrap();
@@ -558,6 +613,7 @@ mod tests {
         let layers = Layers {
             configuration: &configuration,
             invocation: &invocation,
+            declared: None,
         };
         let boundary = resolve("users", "sqlite", &user_row(), layers, None).unwrap();
         let balance = boundary.field("balance").unwrap();
@@ -595,6 +651,7 @@ mod tests {
         let layers = Layers {
             configuration: &configuration,
             invocation: &none,
+            declared: None,
         };
         let header = ["user_id".to_owned()];
         let errors = resolve("users", "csv", &user_row(), layers, Some(&header)).unwrap_err();
@@ -623,6 +680,7 @@ mod tests {
         let layers = Layers {
             configuration: &configuration,
             invocation: &none,
+            declared: None,
         };
         let header = ["id".to_owned(), "balance".to_owned()];
         let errors = resolve("users", "csv", &user_row(), layers, Some(&header)).unwrap_err();
@@ -634,6 +692,27 @@ mod tests {
             "{}",
             errors[0]
         );
+        // A name holding a dot is not the path through two levels.
+        let fields = [
+            declared("flat", TypeRef::STR, false),
+            declared("deep", TypeRef::STR, false),
+        ];
+        let configuration = BTreeMap::from([
+            ("flat".to_owned(), mapping("a.b")),
+            (
+                "deep".to_owned(),
+                FieldMapping {
+                    external: Some(External::Path(vec!["a".to_owned(), "b".to_owned()])),
+                    ..FieldMapping::default()
+                },
+            ),
+        ]);
+        let layers = Layers {
+            configuration: &configuration,
+            invocation: &none,
+            declared: None,
+        };
+        assert!(resolve("dotted", "json", &fields, layers, None).is_ok());
     }
 
     #[test]
@@ -653,6 +732,7 @@ mod tests {
         let layers = Layers {
             configuration: &refused,
             invocation: &none,
+            declared: None,
         };
         let errors = resolve("users", "json", &user_row(), layers, None).unwrap_err();
         assert_eq!(errors[0].kind, ErrorKind::LossyRepresentation);
@@ -661,12 +741,14 @@ mod tests {
         let layers = Layers {
             configuration: &permitted,
             invocation: &none,
+            declared: None,
         };
         assert!(resolve("users", "json", &user_row(), layers, None).is_ok());
         // Unwritten, a JSON `Decimal` is a string, which keeps its digits.
         let layers = Layers {
             configuration: &none,
             invocation: &none,
+            declared: None,
         };
         let boundary = resolve("users", "json", &user_row(), layers, None).unwrap();
         assert_eq!(
@@ -688,6 +770,7 @@ mod tests {
         let layers = Layers {
             configuration: &configuration,
             invocation: &none,
+            declared: None,
         };
         let errors = resolve("users", "json", &user_row(), layers, None).unwrap_err();
         assert_eq!(errors[0].kind, ErrorKind::NoDecoder);

@@ -530,10 +530,13 @@ fn eval_count(
     let count = match args.first() {
         Some(arg) => {
             let wanted = cx.evaluate(&arg.value)?;
-            elements
-                .iter()
-                .filter(|element| **element == wanted)
-                .count()
+            let mut count = 0;
+            for element in &elements {
+                if cx.equal_values(element, &wanted, &span)? {
+                    count += 1;
+                }
+            }
+            count
         }
         None => elements.len(),
     };
@@ -658,7 +661,7 @@ fn eval_join(
             return Ok(true);
         }
         if let (Some(left), Some(right)) = (&left_keys, &right_keys)
-            && left[i] != right[j]
+            && !cx.equal_values(&left[i], &right[j], &span)?
         {
             return Ok(false);
         }
@@ -890,7 +893,11 @@ fn eval_take(
     // sequence already has one, and imposing another here would discard the
     // `sort` that produced it.
     if matches!(input, Value::Set(..)) {
-        elements.sort_by(|left, right| compare(&left.order_key(), &right.order_key()));
+        if elements.iter().all(|element| element.order_key().is_some()) {
+            elements.sort_by(|left, right| compare(&left.order_key(), &right.order_key()));
+        } else {
+            sort_through(cx, &mut elements, &span, |element| element)?;
+        }
     }
     elements.truncate(count);
     Ok(Value::list(elements, element_type(&input)))
@@ -913,9 +920,7 @@ fn eval_collect(
             "a batch holds at least one value: `collect(n)` needs n of 1 or more",
         )
     })?;
-    if let Some(traversal) = pending(&input)
-        && !traversal.finite
-    {
+    if let Some(traversal) = pending(&input) {
         let element = TypeRef::list(traversal.element.clone());
         let source = Source::Collect {
             input: Arc::clone(traversal),
@@ -937,9 +942,7 @@ fn eval_emit(
     _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    if let Some(traversal) = pending(&input)
-        && !traversal.finite
-    {
+    if let Some(traversal) = pending(&input) {
         let element = traversal.element.iterated().unwrap_or(TypeRef::DATA);
         let source = Source::Emit {
             input: Arc::clone(traversal),
@@ -1425,7 +1428,10 @@ fn eval_group(
     let mut groups: Vec<(Value, Vec<Value>)> = Vec::new();
     for element in elements(&input, "group", &span)? {
         let key = cx.apply_lambda(argument, element.clone())?;
-        match groups.iter_mut().find(|(seen, _)| *seen == key) {
+        match groups
+            .iter_mut()
+            .find(|(seen, _)| crate::evaluation::same_key(seen, &key))
+        {
             Some((_, items)) => items.push(element),
             None => groups.push((key, vec![element])),
         }
@@ -1834,10 +1840,33 @@ fn eval_variance(
 pub(crate) type Tally = Vec<(Value, i64)>;
 
 /// Add `n` to a key's count.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn tally(counts: &mut Tally, key: Value, n: i64) {
-    match counts.iter_mut().find(|(held, _)| *held == key) {
-        Some((_, count)) => *count += n,
-        None => counts.push((key, n)),
+    let mut index = indexed(counts);
+    tally_in(counts, &mut index, key, n);
+}
+
+/// The positions of a tally's keys.
+fn indexed(counts: &Tally) -> Positions {
+    let mut index = Positions::default();
+    for (position, (key, _)) in counts.iter().enumerate() {
+        index.insert(key, position);
+    }
+    index
+}
+
+/// Add `n` to a key's count, `index` holding the positions of `counts`.
+fn tally_in(counts: &mut Tally, index: &mut Positions, key: Value, n: i64) {
+    match index.find(
+        &key,
+        |position| &counts[position].0,
+        crate::evaluation::same_key,
+    ) {
+        Some(position) => counts[position].1 += n,
+        None => {
+            index.insert(&key, counts.len());
+            counts.push((key, n));
+        }
     }
 }
 
@@ -1846,8 +1875,9 @@ pub(crate) fn tally(counts: &mut Tally, key: Value, n: i64) {
 // states; `localhost` folds sequentially, and the tests hold the two equal.
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn combine_tallies(mut left: Tally, right: Tally) -> Tally {
+    let mut index = indexed(&left);
     for (key, n) in right {
-        tally(&mut left, key, n);
+        tally_in(&mut left, &mut index, key, n);
     }
     left
 }
@@ -1881,8 +1911,9 @@ fn eval_count_by(
         )
     })?;
     let mut counts = Tally::new();
+    let mut index = Positions::default();
     for element in elements(&input, "count_by", &span)? {
-        tally(&mut counts, cx.apply_lambda(by, element)?, 1);
+        tally_in(&mut counts, &mut index, cx.apply_lambda(by, element)?, 1);
     }
     tally_map(
         crate::types::MapKind::Unordered,
@@ -1936,12 +1967,10 @@ fn eval_histogram(
     let width = cx.evaluate(&argument.value)?;
     let key = width.type_of();
     let mut counts = Tally::new();
+    let mut index = Positions::default();
     for value in elements(&input, "histogram", &span)? {
-        tally(
-            &mut counts,
-            bucket(&value, &width, &argument.value.span)?,
-            1,
-        );
+        let key = bucket(&value, &width, &argument.value.span)?;
+        tally_in(&mut counts, &mut index, key, 1);
     }
     tally_map(crate::types::MapKind::Sorted, counts, key, &span)
 }
@@ -2082,6 +2111,35 @@ impl Sketch {
 }
 
 /// The first 64 bits of a value's SHA-256 digest.
+/// Positions of values by digest: equal values share a digest, so the
+/// values `==` may call equal to one are found among a few positions,
+/// not all of them.
+#[derive(Default)]
+pub(crate) struct Positions(std::collections::HashMap<u64, Vec<usize>>);
+
+impl Positions {
+    /// The position of a held value `same` as `value`, `held(i)` reading
+    /// the value at position `i`. `same` holds of no two values with
+    /// different digests.
+    pub(crate) fn find<'a>(
+        &self,
+        value: &Value,
+        held: impl Fn(usize) -> &'a Value,
+        same: impl Fn(&Value, &Value) -> bool,
+    ) -> Option<usize> {
+        self.0
+            .get(&digest(value))?
+            .iter()
+            .copied()
+            .find(|position| same(held(*position), value))
+    }
+
+    /// Record `value` at `position`.
+    pub(crate) fn insert(&mut self, value: &Value, position: usize) {
+        self.0.entry(digest(value)).or_default().push(position);
+    }
+}
+
 fn digest(value: &Value) -> u64 {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
@@ -2111,10 +2169,12 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
         }
     };
     match value {
-        Value::Int(n) => {
-            out.update(b"i");
-            out.update(n.to_le_bytes());
-        }
+        // An Int equals the Decimal of its value, `1 == 1.0`.
+        Value::Int(n) => text(
+            out,
+            b"d",
+            &crate::decimal::Decimal::from_int(*n).canonical(),
+        ),
         Value::Float(x) => {
             out.update(b"f");
             out.update((x + 0.0).to_bits().to_le_bytes());
@@ -2124,11 +2184,10 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
         Value::Bool(b) => out.update([b'b', u8::from(*b)]),
         Value::Str(held) => text(out, b"s", held),
         Value::Formatted(formatted) => text(out, b"s", &formatted.text),
-        Value::Absent(ty) => text(out, b"n", &ty.to_string()),
-        Value::Present(held) => {
-            out.update(b"p");
-            encode(held, out);
-        }
+        // Equality looks through `Option`: every `none` is one value, and
+        // `some(x)` is `x`.
+        Value::Absent(_) => out.update(b"n"),
+        Value::Present(held) => encode(held, out),
         Value::List(values, _) => {
             out.update(b"l");
             out.update(values.len().to_le_bytes());
@@ -2156,7 +2215,15 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
             out.update(b"g");
             encode(&group.key, out);
         }
-        Value::Data(tree) => text(out, b"d", &format!("{tree:?}")),
+        // A scalar leaf equals the plain value it holds, so it encodes alike.
+        Value::Data(tree) => match tree.as_ref() {
+            crate::data::Data::Int(n) => encode(&Value::Int(*n), out),
+            crate::data::Data::Float(x) => encode(&Value::Float(*x), out),
+            crate::data::Data::Decimal(x) => encode(&Value::Decimal(x.clone()), out),
+            crate::data::Data::Bool(b) => encode(&Value::Bool(*b), out),
+            crate::data::Data::Str(held) => text(out, b"s", held),
+            other => text(out, b"t", &format!("{other:?}")),
+        },
         Value::Doc(doc) => text(out, b"D", &doc.path.to_string_lossy()),
         Value::Card(card) => text(out, b"c", &card.document.path.to_string_lossy()),
         other => text(out, b"o", &other.to_string()),
@@ -2329,8 +2396,8 @@ mod tests {
         assert_eq!(sketch(&reversed), whole);
         assert_eq!(Sketch::default().estimate(), 0);
         assert_eq!(sketch(&[7, 7, 7]).estimate(), 1);
-        // Approximate, and the same on every run: 120 distinct values read as 121.
-        assert_eq!(whole.estimate(), 121);
+        // Approximate, and the same on every run: 120 distinct values read as 122.
+        assert_eq!(whole.estimate(), 122);
     }
 
     #[test]
@@ -2342,6 +2409,16 @@ mod tests {
         );
         assert_eq!(digest(&Value::Float(0.0)), digest(&Value::Float(-0.0)));
         assert_ne!(digest(&Value::Int(1)), digest(&Value::Float(1.0)));
+        let decimal = |text: &str| Value::Decimal(crate::decimal::Decimal::parse(text).unwrap());
+        assert_eq!(digest(&Value::Int(1)), digest(&decimal("1.0")));
+        assert_eq!(
+            digest(&Value::Absent(TypeRef::INT)),
+            digest(&Value::Absent(TypeRef::NEVER))
+        );
+        assert_eq!(
+            digest(&Value::Present(Arc::new(Value::Int(1)))),
+            digest(&Value::Int(1))
+        );
         assert_ne!(
             digest(&Value::list(
                 vec![Value::Int(1), Value::Int(2)],

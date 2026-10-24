@@ -312,6 +312,11 @@ pub(crate) fn enter_lattice(declaration: &TypeDecl) -> Result<(), Diagnostic> {
         })
     });
     let shape = shape.transpose()?;
+    if let Some(shape) = &shape {
+        for parameter in &mut typed_parameters {
+            parameter.variance = variance_in(parameter.name, &shape.fields);
+        }
+    }
     program::declare(
         TypeDefinition {
             constructor: program::constructor(&declaration.name),
@@ -323,6 +328,63 @@ pub(crate) fn enter_lattice(declaration: &TypeDecl) -> Result<(), Diagnostic> {
         shape,
     )
     .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))
+}
+
+/// How a record's parameter takes part in subtyping, from where its fields
+/// hold it: covariant where it is only read out, as `T` in `x : T`;
+/// contravariant where only a function takes it, as in `f : T -> Int`;
+/// invariant where both. `Box<Int>` is a `Box<Data>` only when nothing in
+/// it takes a `T`.
+fn variance_in(parameter: &str, fields: &[types::program::RecordField]) -> types::Variance {
+    let system = types::builtin::system().ok();
+    let (mut read, mut taken) = (false, false);
+    for field in fields {
+        occurrences(
+            &field.ty,
+            parameter,
+            true,
+            system.as_deref(),
+            &mut read,
+            &mut taken,
+        );
+    }
+    match (read, taken) {
+        (_, false) => types::Variance::Covariant,
+        (false, true) => types::Variance::Contravariant,
+        (true, true) => types::Variance::Invariant,
+    }
+}
+
+fn occurrences(
+    ty: &TypeRef,
+    parameter: &str,
+    positive: bool,
+    system: Option<&types::TypeSystem>,
+    read: &mut bool,
+    taken: &mut bool,
+) {
+    if ty.constructor.0 == parameter && ty.args.is_empty() {
+        *if positive { &mut *read } else { &mut *taken } = true;
+        return;
+    }
+    let definition = system.and_then(|system| system.definition(ty.constructor).ok());
+    for (index, arg) in ty.args.iter().enumerate() {
+        let variance = definition
+            .and_then(|definition| definition.parameters.get(index))
+            .map_or(types::Variance::Covariant, |held| held.variance);
+        match variance {
+            types::Variance::Covariant => {
+                occurrences(arg, parameter, positive, system, read, taken)
+            }
+            types::Variance::Contravariant => {
+                occurrences(arg, parameter, !positive, system, read, taken)
+            }
+            types::Variance::Invariant => {
+                occurrences(arg, parameter, true, system, read, taken);
+                occurrences(arg, parameter, false, system, read, taken);
+            }
+        }
+    }
 }
 
 /// A written type as a reference built from names: a parameter of the

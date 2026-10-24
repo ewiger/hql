@@ -227,16 +227,25 @@ impl Parser {
         if !matches!(self.tokens[self.index].token, Token::OpenBrace) {
             return None;
         }
+        // Inside the braces line breaks are insignificant, and a trailing
+        // comma is allowed, as in every other braced list.
+        let skip = |mut index: usize| {
+            while matches!(self.tokens[index].token, Token::Newline) {
+                index += 1;
+            }
+            index
+        };
         let mut names = Vec::new();
-        let mut index = self.index + 1;
+        let mut index = skip(self.index + 1);
         loop {
-            let Token::Ident(name) = &self.tokens[index].token else {
-                return None;
-            };
-            names.push((name.clone(), self.tokens[index].span.clone()));
-            index += 1;
             match &self.tokens[index].token {
-                Token::Comma => index += 1,
+                Token::Ident(name) => names.push((name.clone(), self.tokens[index].span.clone())),
+                Token::CloseBrace if !names.is_empty() => break,
+                _ => return None,
+            }
+            index = skip(index + 1);
+            match &self.tokens[index].token {
+                Token::Comma => index = skip(index + 1),
                 Token::CloseBrace => break,
                 _ => return None,
             }
@@ -344,6 +353,10 @@ impl Parser {
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "import"
+            && matches!(
+                self.tokens[self.index + 1].token,
+                Token::Ident(_) | Token::Str(_)
+            )
         {
             let head = self.advance();
             if matches!(self.peek(), Token::Str(_)) {
@@ -448,10 +461,7 @@ impl Parser {
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "impl"
-            && matches!(
-                self.tokens[self.index + 1].token,
-                Token::Ident(_) | Token::Less
-            )
+            && self.at_implementation()
         {
             return Ok(Stmt::Impl(self.implementation()?));
         }
@@ -522,8 +532,7 @@ impl Parser {
         // not combined. `= {…}` is a structural body, written after the
         // supertypes where there are any: `type User : Data = {…}`.
         let mut union = None;
-        let structural = matches!(self.peek(), Token::Equals)
-            && matches!(self.tokens[self.index + 1].token, Token::OpenBrace);
+        let structural = self.at_structural_body();
         if !structural && self.eat(&Token::Equals) {
             self.continuation();
             self.expect(&Token::Ident("union".to_owned()), "after `=` in a type")?;
@@ -574,11 +583,9 @@ impl Parser {
 
         // A structural body is written `= {…}` or `{…}`, one meaning: whether
         // it is closed or open is the supertype's to say.
-        if union.is_none()
-            && matches!(self.tokens[self.index].token, Token::Equals)
-            && matches!(self.tokens[self.index + 1].token, Token::OpenBrace)
-        {
+        if union.is_none() && self.at_structural_body() {
             self.advance();
+            self.continuation();
         }
         let mut fields = Vec::new();
         let mut rules = Vec::new();
@@ -1245,6 +1252,36 @@ impl Parser {
 
     /// `impl<T> Name<A> for Type { fn m(self, p: T) : R = body … }`, or the
     /// header alone for a native implementation.
+    /// Whether `= {` follows, a structural body, with any line breaks
+    /// between the two.
+    fn at_structural_body(&self) -> bool {
+        if !matches!(self.tokens[self.index].token, Token::Equals) {
+            return false;
+        }
+        let mut index = self.index + 1;
+        while matches!(self.tokens[index].token, Token::Newline) {
+            index += 1;
+        }
+        matches!(self.tokens[index].token, Token::OpenBrace)
+    }
+
+    /// Whether `impl` opens a declaration: a trait name follows, or type
+    /// parameters `<T>`, `<T, U>` or `<T: Bound>`. Otherwise `impl` is a name,
+    /// and `impl < 3` compares it.
+    fn at_implementation(&self) -> bool {
+        match self.tokens[self.index + 1].token {
+            Token::Ident(_) => true,
+            Token::Less => {
+                matches!(self.tokens[self.index + 2].token, Token::Ident(_))
+                    && matches!(
+                        self.tokens[self.index + 3].token,
+                        Token::Greater | Token::Comma | Token::Colon
+                    )
+            }
+            _ => false,
+        }
+    }
+
     fn implementation(&mut self) -> Result<ImplDecl, Diagnostic> {
         let start = self.advance().span.start;
         let (generics, bounds) = self.type_parameters()?;
@@ -1846,21 +1883,27 @@ impl Parser {
                 kind: Kind::Ident(FORK_INPUT.to_owned()),
                 span: named.span.clone(),
             };
-            let first = self.link()?;
-            let mut branch = Expr {
-                span: named.span.start..first.span.end,
-                kind: Kind::Pipe(Box::new(input), Box::new(first)),
-            };
+            let column = self.column(named.span.start);
+            let first = self.step(column)?;
+            let mut branch = piped(input, first);
             while self.at_infix(&Token::Pipe) {
+                let pipe_column = self.column(self.tokens[self.index - 1].span.start);
                 self.continuation();
-                let next = self.link()?;
-                branch = Expr {
-                    span: branch.span.start..next.span.end,
-                    kind: Kind::Pipe(Box::new(branch), Box::new(next)),
-                };
+                let next = self.step(pipe_column)?;
+                branch = piped(branch, next);
             }
             branches.push((name, branch));
-            self.eat(&Token::Comma);
+            if !self.eat(&Token::Comma)
+                && !matches!(
+                    self.tokens[self.index].token,
+                    Token::Newline | Token::CloseBrace
+                )
+            {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    "branches of a `fork` are separated by a line break or a comma",
+                ));
+            }
         };
         if branches.is_empty() {
             return Err(Diagnostic::syntax(
@@ -1890,28 +1933,34 @@ impl Parser {
         while self.at_infix(&Token::Pipe) {
             let pipe_column = self.column(self.tokens[self.index - 1].span.start);
             self.continuation();
-            let right = if self.at_tee() {
-                self.tee(pipe_column)?
-            } else if self.at_fork() {
-                self.fork()?
-            } else if self.at_type_step() {
-                // `xs | List<Int>`: a constructor with its type arguments and
-                // no argument list of its own.
-                let annotation = self.simple_type()?;
-                let span = annotation.span.clone();
-                Expr {
-                    kind: Kind::Construct {
-                        annotation,
-                        arguments: Vec::new(),
-                    },
-                    span,
-                }
-            } else {
-                self.link()?
-            };
+            let right = self.step(pipe_column)?;
             left = piped(left, right);
         }
         Ok(left)
+    }
+
+    /// One step of a pipeline after a `|`: a `tee`, a `fork`, a type step
+    /// such as `List<Int>`, or an expression.
+    fn step(&mut self, pipe_column: usize) -> Result<Expr, Diagnostic> {
+        if self.at_tee() {
+            self.tee(pipe_column)
+        } else if self.at_fork() {
+            self.fork()
+        } else if self.at_type_step() {
+            // `xs | List<Int>`: a constructor with its type arguments and
+            // no argument list of its own.
+            let annotation = self.simple_type()?;
+            let span = annotation.span.clone();
+            Ok(Expr {
+                kind: Kind::Construct {
+                    annotation,
+                    arguments: Vec::new(),
+                },
+                span,
+            })
+        } else {
+            self.link()
+        }
     }
 
     /// Whether the next step is a type name with type arguments and no
@@ -2121,13 +2170,13 @@ impl Parser {
                 && self.tokens[self.index].span.start == expression.span.end
             {
                 let open = self.advance();
+                self.nesting += 1;
                 if matches!(self.peek(), Token::CloseBracket) {
                     return Err(Diagnostic::syntax(
-                        open.span.start..self.tokens[self.index].span.end,
+                        open.span.start..self.peek_span().end,
                         "a bracket holds a position or a range, `xs[i]` or `xs[a:b]`",
                     ));
                 }
-                self.nesting += 1;
                 // `xs[a:b]`: either bound may be left out.
                 let start = if matches!(self.peek(), Token::Colon) {
                     None
@@ -2278,8 +2327,12 @@ impl Parser {
         while self.nesting > 0 && matches!(self.tokens[at].token, Token::Newline) {
             at += 1;
         }
-        let (head, next) = (&self.tokens[at], &self.tokens[at + 1]);
-        if !matches!(next.token, Token::CloseParen | Token::Comma) {
+        let head = &self.tokens[at];
+        if !self
+            .tokens
+            .get(at + 1)
+            .is_some_and(|next| matches!(next.token, Token::CloseParen | Token::Comma))
+        {
             return Ok(None);
         }
         let (name, commutative) = match &head.token {

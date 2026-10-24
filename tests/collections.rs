@@ -429,3 +429,61 @@ fn a_constructor_is_a_function_value_where_one_is_expected() {
         named.message()
     );
 }
+
+#[test]
+fn collection_steps_compare_as_equality_does() {
+    let shown = |source: &str| {
+        eval(source)
+            .unwrap_or_else(|error| panic!("{source}: {}", error.message()))
+            .to_string()
+    };
+    let filtered_none = "[none, some(1) | filter(x => x > 5)]";
+    for (source, expected) in [
+        ("[1, 1.0] | approx_distinct".to_owned(), "1"),
+        ("[[1, 2.5], [1.0, 2.5]] | approx_distinct".to_owned(), "1"),
+        (format!("{filtered_none} | approx_distinct"), "1"),
+        (
+            format!("{filtered_none} | count_by(x => x)"),
+            "Map {none: 2}",
+        ),
+        (format!("{filtered_none} | group(x => x) | size"), "1"),
+    ] {
+        assert_eq!(shown(&source), expected, "{source}");
+    }
+    let declared = "type P { a : Int, b : Int }\n\
+                    impl Eq for P { fn eq(self, other: P) : Bool = self.a == other.a }\n\
+                    xs = [P(a = 1, b = 1), P(a = 2, b = 2)]\n\
+                    ys = [P(a = 1, b = 9)]\n";
+    for (query, expected) in [
+        ("xs | count(P(a = 1, b = 9))", "1"),
+        ("xs | contains(P(a = 1, b = 9))", "true"),
+        (
+            "xs | join(ys, left = x => x, right = y => y, into = (x, y) => 1) | size",
+            "1",
+        ),
+        (
+            "xs | semi_join(ys, left = x => x, right = y => y) | size",
+            "1",
+        ),
+    ] {
+        assert_eq!(shown(&format!("{declared}{query}")), expected, "{query}");
+    }
+}
+
+#[test]
+fn take_orders_a_set_by_an_implementation_of_ord() {
+    let source = "type Version { major : Int, minor : Int }\n\
+                  impl Ord for Version {\n\
+                    fn compare(self, other: Version) : Ordering =\n\
+                      compare(self.major * 100 + self.minor, other.major * 100 + other.minor)\n\
+                  }\n\
+                  vs = Set([Version(major = 3, minor = 0), Version(major = 1, minor = 10),\n\
+                            Version(major = 0, minor = 9), Version(major = 2, minor = 0)])\n\
+                  vs | take(2) | map(v => v.major)";
+    assert_eq!(
+        eval(source)
+            .unwrap_or_else(|error| panic!("{}", error.message()))
+            .to_string(),
+        "[0, 1]"
+    );
+}

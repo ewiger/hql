@@ -223,6 +223,15 @@ type at run time, so a value held at a wider type still takes its own
 implementation. No trait object, no existential type and no dynamic
 registration exist.
 
+**Equality** is decided by the type. A type implementing `Eq` is equal as its
+`eq` says. Otherwise a container is equal by its own type's rule, and its
+elements by their own `==`: a `List` position by position, a `Set` when each
+holds an equal of every element of the other, a `Map` key by key with equal
+values (an ordered or sorted map also in order), a record of one type field by
+field, and an `Option` or a `Result` by its case and its payload. So `[a] == [b]`
+whenever `a == b`. A map's keys and a set's members are told apart when the
+map or set is built, structurally, with no `eq` consulted.
+
 A trait may **extend** others, `trait Email : Validator { }`: the functions of
 the traits it extends are its own, and an implementation of it supplies them;
 it implements none of the traits it extends by doing so. A trait extending
@@ -490,7 +499,7 @@ names only introducing a type parameter
 ([bind versus apply](../../models/behavior/bind-vs-apply-in-generic-types.md)).
 
 Function types, function values and variadic parameters are implemented, up
-to four parameters. A lambda written as a value types its parameters, by
+to eight parameters, and up to four for a function written `f(…) := body`. A lambda written as a value types its parameters, by
 annotation, `(c: Card) => c.title`, or from the function type it is bound
 at, `f : Card -> String = c => c.title`. `fn name(p: T) : R = body` declares a
 function; its name is bound before the body is checked, so it may recurse.

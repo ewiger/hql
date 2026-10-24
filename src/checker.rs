@@ -747,6 +747,9 @@ pub(crate) struct Bounded {
 struct Applies {
     arguments: Vec<TypeRef>,
     open: Vec<&'static str>,
+    /// The implementing type, which a trait function's `Self` stands for:
+    /// a `Sub` reaching `Base`'s implementation gets `Base`'s functions.
+    target: TypeRef,
 }
 
 /// One function of a trait.
@@ -2365,7 +2368,7 @@ impl<'a> Checker<'a> {
         if alias.parameters.len() > 4 {
             return Err(Diagnostic::typing(
                 alias.span.clone(),
-                "a function takes at most eight parameters",
+                "a function written `f(…) := body` takes at most four parameters",
             ));
         }
         let candidates: Vec<TypeRef> = if implicit {
@@ -4149,6 +4152,7 @@ impl<'a> Checker<'a> {
                             !fixed.contains_key(&crate::types::TypeConstructor(parameter))
                         })
                         .collect(),
+                    target: applied.clone(),
                 },
                 applied,
             ));
@@ -4159,6 +4163,7 @@ impl<'a> Checker<'a> {
                     Applies {
                         arguments: bounded.arguments.clone(),
                         open: Vec::new(),
+                        target: ty.clone(),
                     },
                     ty.clone(),
                 ));
@@ -4204,6 +4209,26 @@ impl<'a> Checker<'a> {
         })
     }
 
+    /// The signatures of `trait_name`'s function `name` for `receiver`, one
+    /// per implementation that applies; `None` when none does. An operator
+    /// resolves through its own trait this way, never through another
+    /// trait's function of the same name.
+    fn trait_method(
+        &self,
+        receiver: &TypeRef,
+        trait_name: &str,
+        name: &str,
+    ) -> Option<Vec<MethodSig>> {
+        let info = self.traits.get(trait_name)?;
+        let signature = info.methods.iter().find(|method| method.name == name)?;
+        let signatures: Vec<MethodSig> = self
+            .applicable(receiver, trait_name)
+            .iter()
+            .map(|applies| signature_in_place(signature, &applies.target, info, &applies.arguments))
+            .collect();
+        (!signatures.is_empty()).then_some(signatures)
+    }
+
     fn method_for(
         &self,
         receiver: &TypeRef,
@@ -4214,16 +4239,7 @@ impl<'a> Checker<'a> {
         let mut names: Vec<&String> = self.traits.keys().collect();
         names.sort();
         for trait_name in names {
-            let info = &self.traits[trait_name];
-            let Some(signature) = info.methods.iter().find(|method| method.name == name) else {
-                continue;
-            };
-            let signatures: Vec<MethodSig> = self
-                .applicable(receiver, trait_name)
-                .iter()
-                .map(|applies| signature_in_place(signature, receiver, info, &applies.arguments))
-                .collect();
-            if !signatures.is_empty() {
+            if let Some(signatures) = self.trait_method(receiver, trait_name, name) {
                 found.push((trait_name.clone(), signatures));
             }
         }
@@ -4387,6 +4403,7 @@ impl<'a> Checker<'a> {
             }
         }
         let mut bound: HashMap<&'static str, TypeRef> = HashMap::new();
+        let mut generic = Vec::new();
         for (field, argument) in shape.fields.iter().zip(given) {
             let Some(argument) = argument else {
                 if field.optional || field.default.is_some() {
@@ -4416,12 +4433,32 @@ impl<'a> Checker<'a> {
                         ),
                     ));
                 }
+                generic.push((field, actual, argument.value.span.clone()));
             } else if !actual.is(&field.ty) {
                 return Err(Diagnostic::typing(
                     argument.value.span.clone(),
                     format!(
                         "`{}` of `{name}` is {}, and this is {actual}",
                         field.name, field.ty
+                    ),
+                ));
+            }
+        }
+        // A later field may widen a parameter an earlier one bound, so each
+        // generic field is held again to the parameters as finally bound:
+        // `Box(f = (n: Int) => n, x = "s")` cannot make `T` `Data` under `f`.
+        let fixed: HashMap<crate::types::TypeConstructor, TypeRef> = bound
+            .iter()
+            .map(|(parameter, ty)| (crate::types::TypeConstructor(parameter), ty.clone()))
+            .collect();
+        for (field, actual, field_span) in generic {
+            let expected = substituted_placeholders(&field.ty, &fixed);
+            if !actual.is(&expected) {
+                return Err(Diagnostic::typing(
+                    field_span,
+                    format!(
+                        "`{}` of `{name}` is {expected} by the other fields, and this is {actual}",
+                        field.name
                     ),
                 ));
             }
@@ -4905,24 +4942,30 @@ impl<'a> Checker<'a> {
                         return Err(Diagnostic::typing(span, message));
                     }
                 }
-                // A type implementing `Eq` decides its own equality.
-                if left_type.constructor.0 != "Option"
-                    && let Some((_, signatures)) = self.method_for(&left_type, "eq", &span)?
+                // A type implementing `Eq` decides its own equality, through
+                // `Option` on either side as every equality looks.
+                let (left_present, right_present) = (left_type.present(), right_type.present());
+                if let Some(signatures) = self.trait_method(left_present, "Eq", "eq")
                     && self
                         .impls
                         .iter()
-                        .any(|held| held.trait_name == "Eq" && left_type.is(&held.target))
+                        .any(|held| held.trait_name == "Eq" && left_present.is(&held.target))
                 {
                     let parameter = signatures[0].parameters[0].clone();
-                    if !right_type.is(&parameter) {
+                    if !right_present.is(&parameter) {
                         return Err(Diagnostic::typing(
                             span,
                             format!(
-                                "`Eq` for {left_type} compares with {parameter}, not {right_type}"
+                                "`Eq` for {left_present} compares with {parameter}, not {right_present}"
                             ),
                         ));
                     }
-                    self.checked.operator_calls.insert(span, "Eq");
+                    // A present value on each side is a call of `eq`; an
+                    // `Option` is compared by the evaluator's equality, which
+                    // calls it once both are present.
+                    if left_present == &left_type && right_present == &right_type {
+                        self.checked.operator_calls.insert(span, "Eq");
+                    }
                     return Ok(TypeRef::BOOL);
                 }
                 // An open tree's leaf may be compared with a literal: that is
@@ -5300,7 +5343,7 @@ impl<'a> Checker<'a> {
             // Any other type resolves the operator through its trait: a
             // declared type implementing `Add` has an addition of its own.
             let (trait_name, method) = operator_trait(operator);
-            let Some((_, signatures)) = self.method_for(&expected, method, &node)? else {
+            let Some(signatures) = self.trait_method(&expected, trait_name, method) else {
                 return Err(Diagnostic::typing(
                     left.span.clone(),
                     format!(
@@ -6057,7 +6100,9 @@ fn exhaustive(patterns: &[&Pattern], subject: &TypeRef) -> bool {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        return patterns.contains(&&Pattern::None) && exhaustive(&present, subject.present());
+        // `Option<Never>` has no present value, so `none` alone covers it.
+        return patterns.contains(&&Pattern::None)
+            && (*subject.present() == TypeRef::NEVER || exhaustive(&present, subject.present()));
     }
     if *subject == TypeRef::BOOL {
         return patterns.contains(&&Pattern::Bool(true))

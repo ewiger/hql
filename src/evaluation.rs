@@ -864,19 +864,140 @@ impl Evaluator<'_> {
     /// absence and nothing present.
     #[inline(never)]
     fn equality(&mut self, left: &Expr, right: &Expr, negated: bool) -> Result<Value, Diagnostic> {
+        let span = left.span.start..right.span.end;
         let left = self.expression(left)?;
         let right = self.expression(right)?;
-        let equal = match (present(left), present(right)) {
-            (None, None) => true,
-            (Some(left), Some(right))
-                if matches!(left, Value::Data(_)) || matches!(right, Value::Data(_)) =>
-            {
-                as_data(&left) == as_data(&right)
-            }
-            (Some(left), Some(right)) => left == right,
-            _ => false,
-        };
+        let equal = self.equal(left, right, &span)?;
         Ok(Value::Bool(equal != negated))
+    }
+
+    /// Whether two values are equal as `==` says: through `Option`, with a
+    /// `Data` leaf against its plain value, and by the `eq` an implementation
+    /// of `Eq` provides where one applies to the left value.
+    fn equal(
+        &mut self,
+        left: Value,
+        right: Value,
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        // Without an implementation of `Eq` in the program, every value
+        // compares structurally, and no element needs looking into.
+        if !self.impls.iter().any(|held| held.trait_name == "Eq") {
+            return Ok(same_key(&left, &right));
+        }
+        // A finished traversal compares as the list it holds.
+        let left = left.settled().unwrap_or(left);
+        let right = right.settled().unwrap_or(right);
+        let (Some(left), Some(right)) = (present(left.clone()), present(right.clone())) else {
+            return Ok(present(left).is_none() && present(right).is_none());
+        };
+        if self.implements_eq(&left) {
+            return match self.dispatch("Eq", "eq", left, vec![right], span)? {
+                Value::Bool(equal) => Ok(equal),
+                other => Err(Diagnostic::runtime(
+                    span.clone(),
+                    format!("`eq` returned {}, not a Bool", other.type_of()),
+                )),
+            };
+        }
+        // A container is equal by its own type's rule, its elements by
+        // theirs: a list position by position, a set by membership both
+        // ways, a map key by key, a record field by field.
+        match (&left, &right) {
+            (Value::List(a, _), Value::List(b, _)) => self.equal_all(a, b, span),
+            (Value::Set(a, _), Value::Set(b, _)) => Ok(a.len() == b.len()
+                && self.each_found(a, b, span)?
+                && self.each_found(b, a, span)?),
+            (Value::Map(a), Value::Map(b)) => {
+                if a.entries().len() != b.entries().len() || a.ordered() != b.ordered() {
+                    return Ok(false);
+                }
+                if a.ordered() {
+                    for ((ka, va), (kb, vb)) in a.entries().iter().zip(b.entries()) {
+                        if !same_key(ka, kb) || !self.equal(va.clone(), vb.clone(), span)? {
+                            return Ok(false);
+                        }
+                    }
+                    return Ok(true);
+                }
+                for (key, value) in a.entries() {
+                    let Some((_, other)) = b.entries().iter().find(|(held, _)| same_key(held, key))
+                    else {
+                        return Ok(false);
+                    };
+                    if !self.equal(value.clone(), other.clone(), span)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Value::Record(a), Value::Record(b)) => {
+                if a.ty.constructor != b.ty.constructor || a.fields.len() != b.fields.len() {
+                    return Ok(false);
+                }
+                for ((na, va), (nb, vb)) in a.fields.iter().zip(&b.fields) {
+                    if na != nb || !self.equal(va.clone(), vb.clone(), span)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            (Value::Ok(a, _), Value::Ok(b, _)) | (Value::Err(a, _), Value::Err(b, _)) => {
+                self.equal(a.as_ref().clone(), b.as_ref().clone(), span)
+            }
+            _ => Ok(same_present(&left, &right)),
+        }
+    }
+
+    /// Whether two sequences are equal position by position.
+    fn equal_all(
+        &mut self,
+        left: &[Value],
+        right: &[Value],
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        if left.len() != right.len() {
+            return Ok(false);
+        }
+        for (a, b) in left.iter().zip(right) {
+            if !self.equal(a.clone(), b.clone(), span)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    /// Whether every value of `held` has an equal among `among`.
+    fn each_found(
+        &mut self,
+        held: &[Value],
+        among: &[Value],
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        for value in held {
+            let mut found = false;
+            for other in among {
+                if self.equal(value.clone(), other.clone(), span)? {
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    /// Whether a program's implementation of `Eq` decides this value's
+    /// equality.
+    fn implements_eq(&self, value: &Value) -> bool {
+        let ty = value.type_of();
+        self.impls.iter().any(|held| {
+            held.trait_name == "Eq"
+                && held.methods.contains_key("eq")
+                && (ty.is(&held.target) || ty.constructor == held.target.constructor)
+        })
     }
 
     /// A function value applied to its arguments, the trailing ones packed
@@ -1851,6 +1972,15 @@ impl EvalCx for Evaluator<'_> {
         self.ordering(left, right, span)
     }
 
+    fn equal_values(
+        &mut self,
+        left: &Value,
+        right: &Value,
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        self.equal(left.clone(), right.clone(), span)
+    }
+
     fn apply_comparator(
         &mut self,
         argument: &Arg,
@@ -1935,10 +2065,17 @@ fn merged(left: Value, right: Value, span: &Range<usize>) -> Result<Value, Diagn
     match (&left, &right) {
         (Value::Map(l), Value::Map(r)) => {
             let mut entries: Vec<(Value, Value)> = l.entries().to_vec();
+            let mut keys = crate::extensions::collections::Positions::default();
+            for (position, (key, _)) in entries.iter().enumerate() {
+                keys.insert(key, position);
+            }
             for (key, value) in r.entries() {
-                match entries.iter_mut().find(|(held, _)| held == key) {
-                    Some(entry) => entry.1 = value.clone(),
-                    None => entries.push((key.clone(), value.clone())),
+                match keys.find(key, |position| &entries[position].0, Value::eq) {
+                    Some(position) => entries[position].1 = value.clone(),
+                    None => {
+                        keys.insert(key, entries.len());
+                        entries.push((key.clone(), value.clone()));
+                    }
                 }
             }
             let ty = l.type_of();
@@ -2198,6 +2335,25 @@ pub(crate) fn data_key(data: &Data, key: &str, span: &Range<usize>) -> Result<Va
 }
 
 /// The value under any number of `Option` layers, or `None` when it is absent.
+/// Whether two values are one key: equal as `==` says, through `Option`,
+/// with no implementation of `Eq` consulted. A map's keys and a group's are
+/// told apart this way.
+pub(crate) fn same_key(left: &Value, right: &Value) -> bool {
+    match (present(left.clone()), present(right.clone())) {
+        (None, None) => true,
+        (Some(left), Some(right)) => same_present(&left, &right),
+        _ => false,
+    }
+}
+
+fn same_present(left: &Value, right: &Value) -> bool {
+    if matches!(left, Value::Data(_)) || matches!(right, Value::Data(_)) {
+        as_data(left) == as_data(right)
+    } else {
+        left == right
+    }
+}
+
 fn present(value: Value) -> Option<Value> {
     match value {
         Value::Absent(_) => None,

@@ -1,6 +1,6 @@
 # 0052 — Review follow-ups: Decimal in SQLite, quadratic steps, unreviewed code
 
-Status: todo
+Status: done
 Related: [HQL-0031, Decimal](../proposals/HQL-0031/README.md),
 [HQL-0035, schema boundaries](../proposals/HQL-0035/README.md),
 [issue 0045](0045-errors-validators-boundaries.md)

@@ -284,3 +284,74 @@ fn the_codec_headers_are_the_decoder_and_encoder_tables() {
         .count();
     assert_eq!(encoders, 2, "a Graph, or a document holding one");
 }
+
+#[test]
+fn an_operator_resolves_through_its_own_trait_only() {
+    let foo = "type V { x : Int }\n\
+               trait Foo { fn add(self, o: V) : V\n fn eq(self, o: V) : Bool }\n\
+               impl Foo for V {\n\
+                 fn add(self, o: V) : V = V(x = self.x + o.x)\n\
+                 fn eq(self, o: V) : Bool = true\n\
+               }\n";
+    assert!(refused(&format!("{foo}(V(x = 1) + V(x = 1)).x")).contains("implementing `Add`"));
+    assert_eq!(shown(&format!("{foo}V(x = 1) == V(x = 2)")), "false");
+    let both = format!(
+        "{foo}impl Add for V {{ fn add(self, o: V) : V = V(x = self.x * 10 + o.x) }}\n\
+         impl Eq for V {{ fn eq(self, o: V) : Bool = self.x % 2 == o.x % 2 }}\n"
+    );
+    assert_eq!(shown(&format!("{both}(V(x = 1) + V(x = 1)).x")), "11");
+    assert_eq!(shown(&format!("{both}V(x = 1) == V(x = 3)")), "true");
+}
+
+#[test]
+fn self_in_a_trait_function_is_the_implementing_type() {
+    let declared = "type Base { x : Int }\n\
+                    type Sub : Base { y : Int }\n\
+                    trait Fresh { fn fresh(self) : Self }\n\
+                    impl Fresh for Base { fn fresh(self) : Base = Base(x = 0) }\n\
+                    impl Eq for Base { fn eq(self, o: Base) : Bool = self.x == o.x }\n\
+                    s = Sub(x = 1, y = 2)\n";
+    assert!(refused(&format!("{declared}s.fresh().y")).contains("no field"));
+    assert!(refused(&format!("{declared}t : Sub = s.fresh()\nt")).contains("Base"));
+    assert_eq!(shown(&format!("{declared}s.fresh().x")), "0");
+    assert_eq!(
+        shown(&format!("{declared}[s == Base(x = 1), Base(x = 1) == s]")),
+        "[true, true]"
+    );
+}
+
+#[test]
+fn equality_looks_through_option_to_an_implementation_of_eq() {
+    let declared = "type V { x : Int }\n\
+                    impl Eq for V { fn eq(self, o: V) : Bool = true }\n\
+                    a = V(x = 1)\nb = V(x = 2)\n\
+                    o : Option<V> = some(a)\nn : Option<V> = none\n";
+    assert_eq!(
+        shown(&format!(
+            "{declared}[a == b, o == b, b == o, o == some(b), n == b, n == n, o != b]"
+        )),
+        "[true, true, true, true, false, true, false]"
+    );
+}
+
+#[test]
+fn a_container_is_equal_by_its_rule_and_its_elements_by_their_eq() {
+    let declared = "type V { x : Int }\n\
+                    impl Eq for V { fn eq(self, o: V) : Bool = self.x % 2 == o.x % 2 }\n\
+                    type W { v : V, n : Int }\n\
+                    a = V(x = 1)\nb = V(x = 3)\nc = V(x = 2)\n";
+    for (query, expected) in [
+        ("[a] == [b]", "true"),
+        ("[a] == [c]", "false"),
+        ("[a, c] == [c, a]", "false"),
+        ("Set([a, c]) == Set([c, b])", "true"),
+        ("W(v = a, n = 1) == W(v = b, n = 1)", "true"),
+        ("W(v = a, n = 1) == W(v = b, n = 2)", "false"),
+        ("some([a]) == some([b])", "true"),
+        ("[[a]] == [[b]]", "true"),
+        ("[[a]] | contains([b])", "true"),
+        ("[a] != [c]", "true"),
+    ] {
+        assert_eq!(shown(&format!("{declared}{query}")), expected, "{query}");
+    }
+}

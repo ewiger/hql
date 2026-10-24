@@ -82,6 +82,9 @@ fn rejects_incomplete_or_unsupported_syntax() {
         "\u{1f600}",
         "@[[unterminated",
         "\"unterminated",
+        "max(",
+        "max(1,",
+        "[1] | reduce(0, +",
     ] {
         assert!(
             matches!(check(source), Err(Diagnostic::Syntax { .. })),
@@ -675,4 +678,48 @@ fn an_alias_whose_body_fixes_no_type_is_refused() {
             .iter()
             .any(|report| report.message.contains("shadows the step"))
     );
+}
+
+#[test]
+fn a_destructuring_pattern_breaks_lines_and_ends_in_a_comma() {
+    for pattern in ["{a, b}", "{a,\n b}", "{ a, b, }", "{\n  a,\n  b,\n}"] {
+        let source = format!("type P = {{a: Int, b: Int}}\n{pattern} = P(a = 1, b = 2)\na + b");
+        assert_eq!(eval(&source), Ok(Value::Int(3)), "{source}");
+    }
+}
+
+#[test]
+fn import_and_impl_are_keywords_only_by_position() {
+    assert_eq!(eval("import = 5\nimport"), Ok(Value::Int(5)));
+    assert_eq!(eval("impl = 2\nimpl < 3"), Ok(Value::Bool(true)));
+    assert_eq!(eval("module = 1\nmodule"), Ok(Value::Int(1)));
+}
+
+#[test]
+fn a_structural_body_may_follow_a_line_break_after_equals() {
+    assert_eq!(eval("type X =\n{ a: Int }\nX(a = 1).a"), Ok(Value::Int(1)));
+    assert_eq!(
+        eval("type X : Data =\n{ a: Int }\nX(a = 1).a"),
+        Ok(Value::Int(1))
+    );
+}
+
+#[test]
+fn empty_brackets_are_refused_alike_across_a_line_break() {
+    for source in ["[1, 2, 3][ ]", "[1, 2, 3][\n]"] {
+        match check(source) {
+            Err(Diagnostic::Syntax { message, .. }) => {
+                assert!(
+                    message.contains("a bracket holds a position"),
+                    "{source}: {message}"
+                )
+            }
+            other => panic!("{source}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn none_alone_covers_an_option_of_never() {
+    assert_eq!(eval("match none { none => 1 }"), Ok(Value::Int(1)));
 }

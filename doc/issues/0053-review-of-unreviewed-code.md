@@ -1,6 +1,6 @@
 # 0053 — Bugs found reviewing the complete type system branch
 
-Status: todo
+Status: done
 Related: [issue 0052](0052-review-follow-ups.md),
 [HQL-0031, Decimal](../proposals/HQL-0031/README.md),
 [HQL-0035, schema boundaries](../proposals/HQL-0035/README.md)
@@ -118,3 +118,29 @@ and expected result.
     is never removed, so `type P { id: String, name: String }` read from the
     station example fails with "P declares no such field profile", even under
     `strictness = "open"`.
+
+## Work plan
+
+Each unit is one commit, made once `cargo test` and `cargo clippy` pass, and
+carries a regression test for every item it closes. A unit is ticked here in the
+commit that closes it. Issue 0052's items are folded in as the last units.
+
+- [x] U1 — parser: an argument list cut off at the end of input (1)
+- [x] U2 — parser: `fork` branches are pipelines and need a separator (2, 3)
+- [x] U3 — parser: destructuring across lines and with a trailing comma (4)
+- [x] U4 — parser: `import` and `impl` usable as names (5)
+- [x] U5 — parser: `type X =` and a line break; empty brackets (6, 7)
+- [x] U6 — checker: operators dispatch through their own trait (8)
+- [x] U7 — checker: `Self` is the implementing type (9)
+- [x] U8 — checker: a widened record parameter re-checks its fields (10)
+- [x] U9 — checker: `Option` equality, `match none`, parameter limit text (11, 12, 13)
+- [x] U10 — collections: HQL equality in `approx_distinct`, `join`, `tally`, `group`, `count`, `contains` (15, 16, 17, 19)
+- [x] U11 — collections: `take` on a `Set` by its order (14)
+- [x] U12 — collections: finite iterating functions in `collect`, `emit`, `flat_map` (18)
+- [x] U13 — SQLite read: `Bool`, `Float` from integers, declared `Decimal` columns, no `rowid`, `BLOB` (20–24)
+- [x] U14 — sources: an unreadable `hql.toml` is an error (25)
+- [x] U15 — boundary: name and path collision, column case, no writable column (26, 27, 28)
+- [x] U16 — io: swapped external names, `path` in a closed record (29, 30)
+- [x] U17 — SQLite write: a `Decimal` keeps its digits (0052, item 1)
+- [x] U18 — `merge` and `distinct` in linear time (0052, items 2 and 3)
+- [x] U19 — `decimal.rs` cleanup (0052, item 4)

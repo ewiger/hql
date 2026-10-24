@@ -373,8 +373,14 @@ impl Sources {
     /// the reserved id `vault`, a literal secret, an unknown kind, a missing
     /// or unknown key.
     pub fn read(root: &Path) -> Result<Self, String> {
-        let Ok(text) = std::fs::read_to_string(root.join(crate::reporting::CONFIG_FILE)) else {
-            return Ok(Self::default());
+        // Only a missing file means no sources; one that cannot be read is
+        // an error, never an empty configuration.
+        let text = match std::fs::read_to_string(root.join(crate::reporting::CONFIG_FILE)) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self::default());
+            }
+            Err(error) => return Err(format!("{}: {error}", crate::reporting::CONFIG_FILE)),
         };
         let parsed: toml::Value = toml::from_str(&text)
             .map_err(|error| format!("{}: {error}", crate::reporting::CONFIG_FILE))?;
@@ -742,6 +748,27 @@ pub fn sqlite_columns(path: &Path, table: &str) -> Result<Vec<String>, String> {
     Ok(columns)
 }
 
+/// The type each column of one SQLite table or view is declared with, by
+/// column name; a column declared without one maps to the empty string.
+///
+/// # Errors
+/// Names the database and what failed: opening it, or the query.
+pub fn sqlite_column_types(path: &Path, table: &str) -> Result<BTreeMap<String, String>, String> {
+    let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
+    let connection =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(located)?;
+    let mut statement = connection
+        .prepare("SELECT name, type FROM pragma_table_info(?1)")
+        .map_err(located)?;
+    let rows = statement
+        .query_map([table], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(located)?;
+    rows.collect::<Result<_, _>>().map_err(located)
+}
+
 /// The rows of one SQLite table, in the order the configuration states, each
 /// a `Data` map from column to value: every column, or only `columns` where
 /// a boundary names the ones read. The database is opened read-only.
@@ -761,30 +788,37 @@ pub fn sqlite_rows(
         rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(located)?;
     let quoted = |name: &str| format!("\"{}\"", name.replace('"', "\"\""));
-    let order = if order.is_empty() {
-        "rowid".to_owned()
-    } else {
-        order
+    // Unordered, a table reads in `rowid` order; a view or a `WITHOUT ROWID`
+    // table has none, and reads in the order SQLite scans it.
+    let has_rowid = connection
+        .prepare(&format!("SELECT rowid FROM {} LIMIT 0", quoted(table)))
+        .is_ok();
+    let order = if !order.is_empty() {
+        let columns = order
             .iter()
             .map(|column| quoted(column))
             .collect::<Vec<_>>()
-            .join(", ")
+            .join(", ");
+        format!(" ORDER BY {columns}")
+    } else if has_rowid {
+        " ORDER BY rowid".to_owned()
+    } else {
+        String::new()
     };
     let selected = columns.filter(|columns| !columns.is_empty()).map_or_else(
         || "*".to_owned(),
+        // Each under the name the boundary reads it by: SQLite matches a
+        // column name without regard to case, and gives back its own.
         |columns| {
             columns
                 .iter()
-                .map(|column| quoted(column))
+                .map(|column| format!("{} AS {}", quoted(column), quoted(column)))
                 .collect::<Vec<_>>()
                 .join(", ")
         },
     );
     let mut statement = connection
-        .prepare(&format!(
-            "SELECT {selected} FROM {} ORDER BY {order}",
-            quoted(table)
-        ))
+        .prepare(&format!("SELECT {selected} FROM {}{order}", quoted(table)))
         .map_err(located)?;
     let columns: Vec<String> = statement
         .column_names()
@@ -801,7 +835,12 @@ pub fn sqlite_rows(
                 ValueRef::Integer(n) => Data::Int(n),
                 ValueRef::Real(x) => Data::Float(x),
                 ValueRef::Text(bytes) | ValueRef::Blob(bytes) => {
-                    Data::Str(String::from_utf8_lossy(bytes).into_owned())
+                    Data::Str(String::from_utf8(bytes.to_vec()).map_err(|_| {
+                        format!(
+                            "{}: column `{column}` holds bytes that are not UTF-8 text",
+                            path.display()
+                        )
+                    })?)
                 }
             };
             fields.insert(column.clone(), value);
@@ -824,6 +863,13 @@ pub fn sqlite_write(
     columns: &[(String, String)],
     rows: &[Vec<rusqlite::types::Value>],
 ) -> Result<(), String> {
+    if columns.is_empty() {
+        return Err(format!(
+            "{}: no field of the record is written to table `{table}`; a field with \
+             `write = false` is not a column",
+            path.display()
+        ));
+    }
     let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
     let quoted = |name: &str| format!("\"{}\"", name.replace('"', "\"\""));
     let mut connection = rusqlite::Connection::open(path).map_err(located)?;

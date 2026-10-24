@@ -616,3 +616,222 @@ fn strictness_decides_what_an_unmapped_field_does() {
     let error = refusal(birds, &vault);
     assert!(error.contains("`wing`"), "{error}");
 }
+
+#[test]
+fn a_table_reads_as_its_column_types_say() {
+    let extra = r#"
+[sources.flags]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "flags"
+
+[sources.prices]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "prices"
+
+[sources.texts]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "texts"
+
+[sources.named]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "named"
+
+[sources.keyed]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "keyed"
+
+[sources.blobs]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "blobs"
+"#;
+    let (dir, vault) = configured(extra);
+    rusqlite::Connection::open(dir.path().join("data/birds.sqlite"))
+        .unwrap()
+        .execute_batch(
+            "create table flags(id integer, ok integer, wing integer);
+             insert into flags values (1, 1, 3), (2, 0, 4);
+             create table prices(id integer, price numeric);
+             insert into prices values (1, '12345678901234567.89');
+             create table texts(id integer, price text);
+             insert into texts values (1, '12345678901234567.89');
+             create view named as select id, name from birds;
+             create table keyed(id integer primary key, name text) without rowid;
+             insert into keyed values (2, 'b'), (1, 'a');
+             create table blobs(id integer, data blob);
+             insert into blobs values (1, x'ff00c3');",
+        )
+        .unwrap();
+    let flag = "type F { id : Int, ok : Bool, wing : Float }\n";
+    assert_eq!(
+        value(
+            &format!(
+                "{flag}fs : Seq<F> = source(\"flags\")\nfs | map(f => [str(f.ok), str(f.wing)]) | List"
+            ),
+            &vault
+        ),
+        r#"[["true", "3.0"], ["false", "4.0"]]"#
+    );
+    let price = "type P { id : Int, price : Decimal }\n";
+    assert!(
+        refusal(
+            &format!("{price}ps : Seq<P> = source(\"prices\")\nps | List"),
+            &vault
+        )
+        .contains("lossy representation")
+    );
+    assert_eq!(
+        value(
+            &format!("{price}ps : Seq<P> = source(\"texts\")\nps | map(p => p.price) | List"),
+            &vault
+        ),
+        "[12345678901234567.89]"
+    );
+    assert_eq!(
+        value("xs : Seq<Data> = source(\"named\")\nxs | size", &vault),
+        "2"
+    );
+    assert_eq!(
+        value("xs : Seq<Data> = source(\"keyed\")\nxs | size", &vault),
+        "2"
+    );
+    let blob = "type B { id : Int, data : String }\n";
+    assert!(
+        refusal(
+            &format!("{blob}bs : Seq<B> = source(\"blobs\")\nbs | List"),
+            &vault
+        )
+        .contains("not UTF-8")
+    );
+}
+
+#[test]
+fn an_unreadable_configuration_is_an_error_not_an_empty_one() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("hql.toml"),
+        b"# caf\xe9\n[sources.prices]\nkind = \"json\"\npath = \"p.json\"\n",
+    )
+    .unwrap();
+    let error = match vault::load(dir.path()) {
+        Err(error) => error.to_string(),
+        Ok(vault) => refusal("xs : Seq<Data> = source(\"prices\")\nxs | List", &vault),
+    };
+    assert!(error.contains("hql.toml"), "{error}");
+    assert!(!error.contains("no source"), "{error}");
+}
+
+#[test]
+fn a_column_name_matches_without_regard_to_case_and_a_write_needs_a_column() {
+    let extra = r#"
+[sources.cased]
+kind = "sqlite"
+path = "data/birds.sqlite"
+table = "cased"
+
+[sources.out]
+kind = "sqlite"
+path = "data/out.sqlite"
+table = "o"
+[sources.out.fields.id]
+write = false
+"#;
+    let (dir, vault) = configured(extra);
+    rusqlite::Connection::open(dir.path().join("data/birds.sqlite"))
+        .unwrap()
+        .execute_batch(
+            "create table cased(ID integer, Name text); insert into cased values (1, 'a');",
+        )
+        .unwrap();
+    assert_eq!(
+        value(
+            "type T { id : Int, name : String }\nts : Seq<T> = source(\"cased\")\nts | map(t => t.name) | List",
+            &vault
+        ),
+        r#"["a"]"#
+    );
+    let refused = refusal(
+        "type O { id : Int }\nw = [O(id = 1)] | target(\"out\")\n1",
+        &vault,
+    );
+    assert!(
+        refused.contains("no field of the record is written"),
+        "{refused}"
+    );
+}
+
+#[test]
+fn fields_that_swap_names_or_read_a_path_decode_a_closed_record() {
+    let extra = r#"
+[sources.swap]
+kind = "json"
+path = "data/swap.json"
+[sources.swap.fields.x]
+name = "y"
+[sources.swap.fields.y]
+name = "x"
+
+[sources.profiles]
+kind = "json"
+path = "data/profiles.json"
+[sources.profiles.fields.id]
+name = "user_id"
+[sources.profiles.fields.name]
+path = "profile.display_name"
+"#;
+    let (dir, vault) = configured(extra);
+    fs::write(
+        dir.path().join("data/swap.json"),
+        r#"[{"x": "X", "y": "Y"}]"#,
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("data/profiles.json"),
+        r#"[{"user_id": "u-1", "profile": {"display_name": "Ada"}}]"#,
+    )
+    .unwrap();
+    assert_eq!(
+        value(
+            "type S { x : String, y : String }\nss : Seq<S> = source(\"swap\")\nss | map(s => [s.x, s.y]) | List",
+            &vault
+        ),
+        r#"[["Y", "X"]]"#
+    );
+    assert_eq!(
+        value(
+            "type P { id : String, name : String }\nps : Seq<P> = source(\"profiles\")\nps | map(p => p.name) | List",
+            &vault
+        ),
+        r#"["Ada"]"#
+    );
+}
+
+#[test]
+fn a_decimal_written_to_a_table_keeps_its_digits() {
+    let extra = r#"
+[sources.ledger]
+kind = "sqlite"
+path = "data/ledger.sqlite"
+table = "ledger"
+"#;
+    let (_dir, vault) = configured(extra);
+    let declared = "type L { id : Int, amount : Decimal }\n";
+    value(
+        &format!(
+            "{declared}w = [L(id = 1, amount = 12345678901234567.89)] | target(\"ledger\")\n1"
+        ),
+        &vault,
+    );
+    assert_eq!(
+        value(
+            &format!("{declared}ls : Seq<L> = source(\"ledger\")\nls | map(l => l.amount) | List"),
+            &vault
+        ),
+        "[12345678901234567.89]"
+    );
+}

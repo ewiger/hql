@@ -261,13 +261,33 @@ impl Decimal {
 
 /// The greatest common divisor of two non-negative integers, 1 for two zeros.
 fn num_gcd(a: &BigInt, b: &BigInt) -> BigInt {
-    let (mut a, mut b) = (a.clone(), b.clone());
-    while !b.is_zero() {
-        let next = &a % &b;
-        a = b;
-        b = next;
+    let common = num_integer::Integer::gcd(a, b);
+    if common.is_zero() {
+        BigInt::from(1)
+    } else {
+        common
     }
-    if a.is_zero() { BigInt::from(1) } else { a }
+}
+
+/// How many decimal digits `value`'s magnitude has, from its bit length:
+/// a number of `b` bits has `floor((b - 1) log10 2) + 1` digits or one more.
+fn decimal_digits(value: &BigInt) -> i64 {
+    let bits = value.bits();
+    if bits == 0 {
+        return 1;
+    }
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
+    let fewest = ((bits - 1) as f64 * std::f64::consts::LOG10_2) as u32 + 1;
+    let digits = if value.magnitude() >= &BigInt::from(10).pow(fewest).into_parts().1 {
+        fewest + 1
+    } else {
+        fewest
+    };
+    i64::from(digits)
 }
 
 /// `numerator / denominator` as a significand and its count of digits
@@ -296,7 +316,7 @@ fn terminating(numerator: &BigInt, denominator: &BigInt) -> Option<(BigInt, i64)
 /// [`DIVISION_DIGITS`] significant digits, as a significand and a scale.
 /// The quotient does not terminate, so its remainder is never zero.
 fn rounded_quotient(numerator: &BigInt, denominator: &BigInt, shift: i64) -> (BigInt, i64) {
-    let length = |value: &BigInt| i64::try_from(value.to_string().len()).unwrap_or(i64::MAX);
+    let length = decimal_digits;
     let wanted = i64::try_from(DIVISION_DIGITS).unwrap_or(i64::MAX);
     // Enough places that the integer quotient has more digits than wanted.
     let places = (wanted + 2 - (length(numerator) - length(denominator))).max(0);
@@ -340,6 +360,34 @@ impl fmt::Display for Decimal {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn digits_are_counted_from_the_bit_length() {
+        let mut value = BigInt::from(1);
+        for _ in 0..400 {
+            for probe in [
+                value.clone() - 1,
+                value.clone(),
+                value.clone() + 1,
+                -value.clone(),
+            ] {
+                let written = probe.magnitude().to_string().len();
+                assert_eq!(
+                    decimal_digits(&probe),
+                    i64::try_from(written).unwrap(),
+                    "{probe}"
+                );
+            }
+            value *= 7;
+        }
+        assert_eq!(decimal_digits(&BigInt::from(0)), 1);
+        assert_eq!(gcd_of(12, 18), BigInt::from(6));
+        assert_eq!(gcd_of(0, 0), BigInt::from(1));
+    }
+
+    fn gcd_of(a: i64, b: i64) -> BigInt {
+        num_gcd(&BigInt::from(a), &BigInt::from(b))
+    }
 
     fn d(text: &str) -> Decimal {
         Decimal::parse(text).unwrap()
