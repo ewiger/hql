@@ -26,11 +26,12 @@ the messages `hql` writes when a program is wrong.
 line and recall earlier inputs, from a history kept between sessions. An input
 goes on over several lines while a bracket is open, or while the next line
 opens with `|`, so every program in this book can be pasted in as it is
-written. `:type` asks for a type, and `:quit` leaves:
+written. `:type` asks for a type, and `:quit` leaves, as do `quit`, `exit`
+and Ctrl-D:
 
 ```text
 $ hql repl
-hql 0.4.0. `:help` for commands, `:quit` to leave.
+hql 0.5.0. `:help` for commands, `:quit` to leave.
 hql> shelf = [412, 280]
 ()
 hql> shelf | sum
@@ -46,7 +47,7 @@ hql> :quit
 
 ```text
 $ hql builtins
-core 0.4.0 (always available)
+core 0.5.0 (always available)
   size
     Collection<T> | size<T>() -> Int
     Count all element occurrences.

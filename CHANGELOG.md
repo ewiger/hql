@@ -25,6 +25,8 @@ The language continues to be in active development.
 
 ### Added
 
+- `hql repl` leaves on the bare words `exit` and `quit`, as it does on
+  `:quit` and Ctrl-D; they were unbound names.
 - A value block as a function body ([HQL-0038](doc/proposals/HQL-0038/README.md);
   [issue 0051](doc/issues/0051-value-block.md), shown in the
   [function examples](examples/functions/README.md)): `{ … }` written without

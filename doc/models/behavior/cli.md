@@ -228,7 +228,8 @@ One object carries everything:
 Bindings persist by replaying the statements that succeeded, which keeps a
 session a program rather than a sequence of unrelated runs. `:type <expression>`
 answers without evaluating, `:vault` says what the session runs against,
-`:reset` forgets the bindings, and `:quit` leaves.
+`:reset` forgets the bindings, and `:quit` leaves, as do the bare words `quit`
+and `exit`.
 
 An input continues on the next line while one of its brackets — `(`, `[` or
 `{` — is open, and is evaluated whole once they close; a string literal cannot

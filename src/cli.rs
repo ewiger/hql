@@ -1093,7 +1093,8 @@ fn repl(
             continue;
         }
         match line {
-            ":quit" | ":q" => {
+            // The bare words are what a REPL is commonly left with.
+            ":quit" | ":q" | "quit" | "exit" => {
                 input.close();
                 return Ok(0);
             }
@@ -1103,7 +1104,7 @@ fn repl(
                     ":type <expression>   the type, without evaluating\n\
                      :vault               what the session is running against\n\
                      :reset               forget the bindings made so far\n\
-                     :quit                leave"
+                     :quit, quit, exit    leave"
                 )
                 .map_err(|error| error.to_string())?;
                 continue;

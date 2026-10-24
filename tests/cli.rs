@@ -375,6 +375,18 @@ fn the_repl_keeps_bindings_and_answers_type_questions() {
 }
 
 #[test]
+fn the_repl_leaves_on_exit_and_quit() {
+    for word in ["exit", "quit"] {
+        let session = format!("{word}\n1 + 1\n");
+        let output = piped(&["repl"], &session);
+        let printed = stdout(&output);
+        assert!(!printed.contains('2'), "{word}: {printed}");
+        assert!(stderr(&output).is_empty(), "{word}: {}", stderr(&output));
+        assert!(output.status.success());
+    }
+}
+
+#[test]
 fn the_repl_continues_an_input_while_a_bracket_is_open() {
     let session = "xs = [\n    40,\n    2,\n]\nxs | sum\n";
     let output = piped(&["repl"], session);
