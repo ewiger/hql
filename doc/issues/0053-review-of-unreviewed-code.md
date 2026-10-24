@@ -141,6 +141,6 @@ commit that closes it. Issue 0052's items are folded in as the last units.
 - [x] U14 — sources: an unreadable `hql.toml` is an error (25)
 - [x] U15 — boundary: name and path collision, column case, no writable column (26, 27, 28)
 - [x] U16 — io: swapped external names, `path` in a closed record (29, 30)
-- [ ] U17 — SQLite write: a `Decimal` keeps its digits (0052, item 1)
+- [x] U17 — SQLite write: a `Decimal` keeps its digits (0052, item 1)
 - [ ] U18 — `merge` and `distinct` in linear time (0052, items 2 and 3)
 - [ ] U19 — `decimal.rs` cleanup (0052, item 4)

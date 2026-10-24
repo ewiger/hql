@@ -1464,10 +1464,24 @@ fn write_configured(
                             Some(Data::Int(n)) => rusqlite::types::Value::Integer(n),
                             Some(Data::Bool(b)) => rusqlite::types::Value::Integer(i64::from(b)),
                             Some(Data::Float(x)) => rusqlite::types::Value::Real(x),
-                            Some(Data::Decimal(d)) => d.to_float().map_or_else(
-                                || rusqlite::types::Value::Text(d.to_string()),
-                                rusqlite::types::Value::Real,
-                            ),
+                            // A decimal keeps its digits as text; it is a REAL
+                            // only in a column the boundary permits to lose them,
+                            // and an INTEGER only where it is whole.
+                            Some(Data::Decimal(d)) => {
+                                match field.external_type.value.to_ascii_uppercase().as_str() {
+                                    "REAL" | "NUMERIC" if field.lossy.value => {
+                                        d.to_float().map_or_else(
+                                            || rusqlite::types::Value::Text(d.to_string()),
+                                            rusqlite::types::Value::Real,
+                                        )
+                                    }
+                                    "INTEGER" if d.scale() <= 0 => d.to_int().map_or_else(
+                                        || rusqlite::types::Value::Text(d.to_string()),
+                                        rusqlite::types::Value::Integer,
+                                    ),
+                                    _ => rusqlite::types::Value::Text(d.to_string()),
+                                }
+                            }
                             Some(Data::Str(text)) => rusqlite::types::Value::Text(text),
                             Some(other) => rusqlite::types::Value::Text(other.to_string()),
                         })

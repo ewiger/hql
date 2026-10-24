@@ -810,3 +810,28 @@ path = "profile.display_name"
         r#"["Ada"]"#
     );
 }
+
+#[test]
+fn a_decimal_written_to_a_table_keeps_its_digits() {
+    let extra = r#"
+[sources.ledger]
+kind = "sqlite"
+path = "data/ledger.sqlite"
+table = "ledger"
+"#;
+    let (_dir, vault) = configured(extra);
+    let declared = "type L { id : Int, amount : Decimal }\n";
+    value(
+        &format!(
+            "{declared}w = [L(id = 1, amount = 12345678901234567.89)] | target(\"ledger\")\n1"
+        ),
+        &vault,
+    );
+    assert_eq!(
+        value(
+            &format!("{declared}ls : Seq<L> = source(\"ledger\")\nls | map(l => l.amount) | List"),
+            &vault
+        ),
+        "[12345678901234567.89]"
+    );
+}
