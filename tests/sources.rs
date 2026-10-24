@@ -764,3 +764,49 @@ write = false
         "{refused}"
     );
 }
+
+#[test]
+fn fields_that_swap_names_or_read_a_path_decode_a_closed_record() {
+    let extra = r#"
+[sources.swap]
+kind = "json"
+path = "data/swap.json"
+[sources.swap.fields.x]
+name = "y"
+[sources.swap.fields.y]
+name = "x"
+
+[sources.profiles]
+kind = "json"
+path = "data/profiles.json"
+[sources.profiles.fields.id]
+name = "user_id"
+[sources.profiles.fields.name]
+path = "profile.display_name"
+"#;
+    let (dir, vault) = configured(extra);
+    fs::write(
+        dir.path().join("data/swap.json"),
+        r#"[{"x": "X", "y": "Y"}]"#,
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("data/profiles.json"),
+        r#"[{"user_id": "u-1", "profile": {"display_name": "Ada"}}]"#,
+    )
+    .unwrap();
+    assert_eq!(
+        value(
+            "type S { x : String, y : String }\nss : Seq<S> = source(\"swap\")\nss | map(s => [s.x, s.y]) | List",
+            &vault
+        ),
+        r#"[["Y", "X"]]"#
+    );
+    assert_eq!(
+        value(
+            "type P { id : String, name : String }\nps : Seq<P> = source(\"profiles\")\nps | map(p => p.name) | List",
+            &vault
+        ),
+        r#"["Ada"]"#
+    );
+}

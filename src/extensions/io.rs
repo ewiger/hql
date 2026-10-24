@@ -862,14 +862,20 @@ pub(crate) fn remapped(
             mapped.remove(key);
         }
     }
+    // Every entry a field reads, and every field's own name, is cleared
+    // before any is filled, so two fields that swap names keep both values,
+    // and a path's top-level container is not left behind as a field.
+    for field in &boundary.fields {
+        match &field.external.value {
+            External::Name(external) => mapped.remove(external),
+            External::Path(segments) => segments
+                .first()
+                .and_then(|container| mapped.remove(container)),
+        };
+        mapped.remove(&field.field.name);
+    }
     for field in &boundary.fields {
         let name = &field.field.name;
-        if let External::Name(external) = &field.external.value
-            && external != name
-        {
-            mapped.remove(external);
-        }
-        mapped.remove(name);
         if !field.readable.value {
             continue;
         }
