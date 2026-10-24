@@ -82,6 +82,9 @@ fn rejects_incomplete_or_unsupported_syntax() {
         "\u{1f600}",
         "@[[unterminated",
         "\"unterminated",
+        "max(",
+        "max(1,",
+        "[1] | reduce(0, +",
     ] {
         assert!(
             matches!(check(source), Err(Diagnostic::Syntax { .. })),

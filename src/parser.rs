@@ -2278,8 +2278,12 @@ impl Parser {
         while self.nesting > 0 && matches!(self.tokens[at].token, Token::Newline) {
             at += 1;
         }
-        let (head, next) = (&self.tokens[at], &self.tokens[at + 1]);
-        if !matches!(next.token, Token::CloseParen | Token::Comma) {
+        let head = &self.tokens[at];
+        if !self
+            .tokens
+            .get(at + 1)
+            .is_some_and(|next| matches!(next.token, Token::CloseParen | Token::Comma))
+        {
             return Ok(None);
         }
         let (name, commutative) = match &head.token {
