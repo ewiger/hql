@@ -687,3 +687,10 @@ fn a_destructuring_pattern_breaks_lines_and_ends_in_a_comma() {
         assert_eq!(eval(&source), Ok(Value::Int(3)), "{source}");
     }
 }
+
+#[test]
+fn import_and_impl_are_keywords_only_by_position() {
+    assert_eq!(eval("import = 5\nimport"), Ok(Value::Int(5)));
+    assert_eq!(eval("impl = 2\nimpl < 3"), Ok(Value::Bool(true)));
+    assert_eq!(eval("module = 1\nmodule"), Ok(Value::Int(1)));
+}

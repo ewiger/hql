@@ -353,6 +353,10 @@ impl Parser {
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "import"
+            && matches!(
+                self.tokens[self.index + 1].token,
+                Token::Ident(_) | Token::Str(_)
+            )
         {
             let head = self.advance();
             if matches!(self.peek(), Token::Str(_)) {
@@ -457,10 +461,7 @@ impl Parser {
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "impl"
-            && matches!(
-                self.tokens[self.index + 1].token,
-                Token::Ident(_) | Token::Less
-            )
+            && self.at_implementation()
         {
             return Ok(Stmt::Impl(self.implementation()?));
         }
@@ -1254,6 +1255,23 @@ impl Parser {
 
     /// `impl<T> Name<A> for Type { fn m(self, p: T) : R = body … }`, or the
     /// header alone for a native implementation.
+    /// Whether `impl` opens a declaration: a trait name follows, or type
+    /// parameters `<T>`, `<T, U>` or `<T: Bound>`. Otherwise `impl` is a name,
+    /// and `impl < 3` compares it.
+    fn at_implementation(&self) -> bool {
+        match self.tokens[self.index + 1].token {
+            Token::Ident(_) => true,
+            Token::Less => {
+                matches!(self.tokens[self.index + 2].token, Token::Ident(_))
+                    && matches!(
+                        self.tokens[self.index + 3].token,
+                        Token::Greater | Token::Comma | Token::Colon
+                    )
+            }
+            _ => false,
+        }
+    }
+
     fn implementation(&mut self) -> Result<ImplDecl, Diagnostic> {
         let start = self.advance().span.start;
         let (generics, bounds) = self.type_parameters()?;
