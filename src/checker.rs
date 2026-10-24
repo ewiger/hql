@@ -747,6 +747,9 @@ pub(crate) struct Bounded {
 struct Applies {
     arguments: Vec<TypeRef>,
     open: Vec<&'static str>,
+    /// The implementing type, which a trait function's `Self` stands for:
+    /// a `Sub` reaching `Base`'s implementation gets `Base`'s functions.
+    target: TypeRef,
 }
 
 /// One function of a trait.
@@ -4149,6 +4152,7 @@ impl<'a> Checker<'a> {
                             !fixed.contains_key(&crate::types::TypeConstructor(parameter))
                         })
                         .collect(),
+                    target: applied.clone(),
                 },
                 applied,
             ));
@@ -4159,6 +4163,7 @@ impl<'a> Checker<'a> {
                     Applies {
                         arguments: bounded.arguments.clone(),
                         open: Vec::new(),
+                        target: ty.clone(),
                     },
                     ty.clone(),
                 ));
@@ -4219,7 +4224,7 @@ impl<'a> Checker<'a> {
         let signatures: Vec<MethodSig> = self
             .applicable(receiver, trait_name)
             .iter()
-            .map(|applies| signature_in_place(signature, receiver, info, &applies.arguments))
+            .map(|applies| signature_in_place(signature, &applies.target, info, &applies.arguments))
             .collect();
         (!signatures.is_empty()).then_some(signatures)
     }

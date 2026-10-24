@@ -302,3 +302,20 @@ fn an_operator_resolves_through_its_own_trait_only() {
     assert_eq!(shown(&format!("{both}(V(x = 1) + V(x = 1)).x")), "11");
     assert_eq!(shown(&format!("{both}V(x = 1) == V(x = 3)")), "true");
 }
+
+#[test]
+fn self_in_a_trait_function_is_the_implementing_type() {
+    let declared = "type Base { x : Int }\n\
+                    type Sub : Base { y : Int }\n\
+                    trait Fresh { fn fresh(self) : Self }\n\
+                    impl Fresh for Base { fn fresh(self) : Base = Base(x = 0) }\n\
+                    impl Eq for Base { fn eq(self, o: Base) : Bool = self.x == o.x }\n\
+                    s = Sub(x = 1, y = 2)\n";
+    assert!(refused(&format!("{declared}s.fresh().y")).contains("no field"));
+    assert!(refused(&format!("{declared}t : Sub = s.fresh()\nt")).contains("Base"));
+    assert_eq!(shown(&format!("{declared}s.fresh().x")), "0");
+    assert_eq!(
+        shown(&format!("{declared}[s == Base(x = 1), Base(x = 1) == s]")),
+        "[true, true]"
+    );
+}
