@@ -19,7 +19,9 @@ use std::sync::OnceLock;
 /// whose types or traits it writes, and a module imports only modules listed
 /// before it, so the order is the import graph's and the graph is acyclic
 /// ([`closure`]).
-pub const MODULES: &[(&str, &str)] = &concat::<{ STD.len() + SEARCH.len() }>(STD, SEARCH);
+///
+/// A `static`, so it has one address: the binding cache keys by it.
+pub static MODULES: &[(&str, &str)] = &concat::<{ STD.len() + SEARCH.len() }>(STD, SEARCH);
 
 /// Every module of the standard package, by name, in loading order: the
 /// folder below `lib/std/` with its segments joined by `.`, each module's

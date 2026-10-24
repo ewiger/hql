@@ -168,7 +168,8 @@ pub fn decimal_json(value: &Decimal) -> serde_json::Value {
 }
 
 /// Stands in for a number YAML has no scalar of its own for, so the YAML
-/// writer passes it through as text to be replaced by its digits.
+/// writer passes it through as text to be replaced by its digits. A suffix
+/// is added until no key or string of the tree contains it.
 const YAML_NUMBER: &str = "hql-yaml-number-6f1d2a";
 
 /// A JSON tree in YAML. Every number is written with the digits it holds,
@@ -177,17 +178,36 @@ const YAML_NUMBER: &str = "hql-yaml-number-6f1d2a";
 /// # Errors
 /// The YAML writer's own failure.
 pub fn yaml_text(value: &serde_json::Value) -> Result<String, serde_yaml_ng::Error> {
-    let text = serde_yaml_ng::to_string(&YamlTree(value))?;
-    if !text.contains(YAML_NUMBER) {
+    let mut marker = YAML_NUMBER.to_owned();
+    let mut suffix = 0_u32;
+    while mentions(value, &marker) {
+        suffix += 1;
+        marker = format!("{YAML_NUMBER}{suffix}");
+    }
+    let text = serde_yaml_ng::to_string(&YamlTree(value, &marker))?;
+    if !text.contains(&marker) {
         return Ok(text);
     }
-    let pattern = regex::Regex::new(&format!("{YAML_NUMBER}_([-+.0-9eE]+)_"))
+    let pattern = regex::Regex::new(&format!("{marker}_([-+.0-9eE]+)_"))
         .map_err(<serde_yaml_ng::Error as serde::ser::Error>::custom)?;
     Ok(pattern.replace_all(&text, "$1").into_owned())
 }
 
-/// A JSON tree as YAML serializes it, with its numbers written exactly.
-struct YamlTree<'a>(&'a serde_json::Value);
+/// Whether a key or a string of the tree contains `marker`.
+fn mentions(value: &serde_json::Value, marker: &str) -> bool {
+    match value {
+        serde_json::Value::String(text) => text.contains(marker),
+        serde_json::Value::Array(items) => items.iter().any(|item| mentions(item, marker)),
+        serde_json::Value::Object(entries) => entries
+            .iter()
+            .any(|(key, item)| key.contains(marker) || mentions(item, marker)),
+        _ => false,
+    }
+}
+
+/// A JSON tree as YAML serializes it, with its numbers written exactly, each
+/// passed through the writer behind the marker.
+struct YamlTree<'a>(&'a serde_json::Value, &'a str);
 
 impl serde::Serialize for YamlTree<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -212,21 +232,21 @@ impl serde::Serialize for YamlTree<'_> {
                     {
                         serializer.serialize_f64(real)
                     }
-                    _ => serializer.serialize_str(&format!("{YAML_NUMBER}_{text}_")),
+                    _ => serializer.serialize_str(&format!("{}_{text}_", self.1)),
                 }
             }
             J::String(text) => serializer.serialize_str(text),
             J::Array(items) => {
                 let mut sequence = serializer.serialize_seq(Some(items.len()))?;
                 for item in items {
-                    sequence.serialize_element(&YamlTree(item))?;
+                    sequence.serialize_element(&YamlTree(item, self.1))?;
                 }
                 sequence.end()
             }
             J::Object(entries) => {
                 let mut map = serializer.serialize_map(Some(entries.len()))?;
                 for (key, item) in entries {
-                    map.serialize_entry(key, &YamlTree(item))?;
+                    map.serialize_entry(key, &YamlTree(item, self.1))?;
                 }
                 map.end()
             }
@@ -353,6 +373,17 @@ pub fn parse_header(source: &str) -> Result<Data, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_string_like_the_number_marker_is_written_as_text() {
+        let tree = serde_json::json!({
+            "note": "hql-yaml-number-6f1d2a_1.5_",
+            "amount": serde_json::Number::from_string_unchecked("1.50".to_owned()),
+        });
+        let text = yaml_text(&tree).unwrap();
+        assert!(text.contains("amount: 1.50"), "{text}");
+        assert!(text.contains("hql-yaml-number-6f1d2a_1.5_"), "{text}");
+    }
 
     #[test]
     fn number_leaves_are_equal_by_value_and_transitively() {
