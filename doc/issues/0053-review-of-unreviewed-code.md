@@ -136,7 +136,7 @@ commit that closes it. Issue 0052's items are folded in as the last units.
 - [x] U9 — checker: `Option` equality, `match none`, parameter limit text (11, 12, 13)
 - [x] U10 — collections: HQL equality in `approx_distinct`, `join`, `tally`, `group`, `count`, `contains` (15, 16, 17, 19)
 - [x] U11 — collections: `take` on a `Set` by its order (14)
-- [ ] U12 — collections: finite iterating functions in `collect`, `emit`, `flat_map` (18)
+- [x] U12 — collections: finite iterating functions in `collect`, `emit`, `flat_map` (18)
 - [ ] U13 — SQLite read: `Bool`, `Float` from integers, declared `Decimal` columns, no `rowid`, `BLOB` (20–24)
 - [ ] U14 — sources: an unreadable `hql.toml` is an error (25)
 - [ ] U15 — boundary: name and path collision, column case, no writable column (26, 27, 28)

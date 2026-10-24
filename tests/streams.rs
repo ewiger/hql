@@ -307,3 +307,20 @@ fn the_small_diagnostics_name_what_to_write() {
         "{renderer}"
     );
 }
+
+#[test]
+fn collect_emit_and_flat_map_take_a_finite_iterating_function() {
+    let declared = "fn few() : Seq<Int> {\n  yield 3\n  yield 1\n  yield 2\n}\n\
+                    fn pairs() : Seq<List<Int>> {\n  yield [1, 2]\n  yield [3]\n}\n";
+    for (query, expected) in [
+        ("few() | collect(2)", "[[3, 1], [2]]"),
+        ("pairs() | emit", "[1, 2, 3]"),
+        ("few() | flat_map(n => [n, n])", "[3, 3, 1, 1, 2, 2]"),
+    ] {
+        assert_eq!(
+            eval(&format!("{declared}{query}")).to_string(),
+            expected,
+            "{query}"
+        );
+    }
+}

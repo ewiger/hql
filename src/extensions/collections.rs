@@ -920,9 +920,7 @@ fn eval_collect(
             "a batch holds at least one value: `collect(n)` needs n of 1 or more",
         )
     })?;
-    if let Some(traversal) = pending(&input)
-        && !traversal.finite
-    {
+    if let Some(traversal) = pending(&input) {
         let element = TypeRef::list(traversal.element.clone());
         let source = Source::Collect {
             input: Arc::clone(traversal),
@@ -944,9 +942,7 @@ fn eval_emit(
     _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    if let Some(traversal) = pending(&input)
-        && !traversal.finite
-    {
+    if let Some(traversal) = pending(&input) {
         let element = traversal.element.iterated().unwrap_or(TypeRef::DATA);
         let source = Source::Emit {
             input: Arc::clone(traversal),
