@@ -28,6 +28,22 @@ pub enum Phase {
 }
 
 impl Phase {
+    /// Every phase, in the order a run passes through them.
+    pub const ALL: [Self; 6] = [
+        Self::Load,
+        Self::Parse,
+        Self::Check,
+        Self::Plan,
+        Self::Execute,
+        Self::Render,
+    ];
+
+    /// The phase a lowercase word names.
+    #[must_use]
+    pub fn from_label(label: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|phase| phase.label() == label)
+    }
+
     /// The lowercase word a diagnostic is written with.
     #[must_use]
     pub fn label(self) -> &'static str {
@@ -116,6 +132,50 @@ pub enum Kind {
 }
 
 impl Kind {
+    /// Every kind, the set published with the reference.
+    pub const ALL: [Self; 34] = [
+        Self::UnclosedCollection,
+        Self::UnexpectedToken,
+        Self::UnknownName,
+        Self::UnknownStep,
+        Self::UnknownField,
+        Self::TypeMismatch,
+        Self::NonExhaustiveMatch,
+        Self::MissingImplementation,
+        Self::DuplicateImplementation,
+        Self::UnsatisfiedBound,
+        Self::AmbiguousCall,
+        Self::ImportCycle,
+        Self::ShapeMismatch,
+        Self::ContractViolation,
+        Self::DivisionByZero,
+        Self::NumericOverflow,
+        Self::IoFailure,
+        Self::SourceRefused,
+        Self::MalformedData,
+        Self::InvalidArgument,
+        Self::UnresolvedLink,
+        Self::SkippedDocument,
+        Self::BackendRefusal,
+        Self::DuplicateCell,
+        Self::CellCycle,
+        Self::OrphanedOutput,
+        Self::AlwaysTrueTest,
+        Self::ShadowedStep,
+        Self::StaleIndex,
+        Self::NamingConvention,
+        Self::ChildImport,
+        Self::BoundaryMapping,
+        Self::Signature,
+        Self::Effect,
+    ];
+
+    /// The kind a kebab-case name names.
+    #[must_use]
+    pub fn from_label(label: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.label() == label)
+    }
+
     /// The kebab-case name.
     #[must_use]
     pub fn label(self) -> &'static str {
@@ -186,6 +246,20 @@ impl Severity {
         }
     }
 
+    /// The severity a lowercase word names, `failure` included.
+    #[must_use]
+    pub fn from_label(label: &str) -> Option<Self> {
+        [
+            Self::Debug,
+            Self::Info,
+            Self::Warning,
+            Self::Error,
+            Self::Failure,
+        ]
+        .into_iter()
+        .find(|severity| severity.label() == label)
+    }
+
     /// Parse a configured level name. `failure` is not one: a failure is
     /// always shown, so hiding everything below it is not a level.
     #[must_use]
@@ -214,6 +288,14 @@ pub enum Disposition {
 }
 
 impl Disposition {
+    /// The disposition a lowercase word names.
+    #[must_use]
+    pub fn from_label(label: &str) -> Option<Self> {
+        [Self::Warning, Self::Recoverable, Self::Fatal]
+            .into_iter()
+            .find(|disposition| disposition.label() == label)
+    }
+
     /// The lowercase word a diagnostic is written with.
     #[must_use]
     pub fn label(self) -> &'static str {
@@ -700,6 +782,109 @@ impl std::fmt::Display for Diagnostic {
 
 impl std::error::Error for Diagnostic {}
 
+impl Diagnostic {
+    /// A diagnostic read back from its JSON form: the axes, the message,
+    /// the place, and the fields a text form shows. What it cannot place,
+    /// a label's or a frame's span, is kept as written.
+    ///
+    /// # Errors
+    /// Names an axis that is missing or not one of its words.
+    pub fn from_json(json: &serde_json::Value) -> Result<Self, String> {
+        // An optional field a record left absent is written `null`.
+        let field = |key: &str| json.get(key).filter(|value| !value.is_null());
+        let text = |key: &str| field(key).and_then(serde_json::Value::as_str);
+        let axis = |key: &str| text(key).ok_or_else(|| format!("a diagnostic has no `{key}`"));
+        let unknown = |key: &str, word: &str| format!("`{word}` is not a {key}");
+        let phase = axis("phase")?;
+        let kind = axis("kind")?;
+        let severity = axis("severity")?;
+        let disposition = axis("disposition")?;
+        let at = |span: Option<&serde_json::Value>| {
+            let bound = |key: &str| {
+                span.and_then(|span| span.get(key))
+                    .and_then(serde_json::Value::as_u64)
+                    .and_then(|offset| usize::try_from(offset).ok())
+                    .unwrap_or(0)
+            };
+            bound("start")..bound("end")
+        };
+        let mut diagnostic = Self::new(
+            Phase::from_label(phase).ok_or_else(|| unknown("phase", phase))?,
+            Kind::from_label(kind).ok_or_else(|| unknown("kind", kind))?,
+            Severity::from_label(severity).ok_or_else(|| unknown("severity", severity))?,
+            Disposition::from_label(disposition)
+                .ok_or_else(|| unknown("disposition", disposition))?,
+            at(field("span")),
+            text("message").unwrap_or_default(),
+        );
+        diagnostic.origin = text("origin").map(str::to_owned);
+        let context = &mut diagnostic.context;
+        let list = |key: &str| {
+            field(key)
+                .and_then(serde_json::Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+        };
+        context.help = list("help")
+            .iter()
+            .filter_map(|help| help.as_str().map(str::to_owned))
+            .collect();
+        context.labels = list("labels")
+            .iter()
+            .map(|label| Label {
+                origin: text_in(label, "origin").map(str::to_owned),
+                span: at(label.get("span")),
+                text: text_in(label, "text").unwrap_or_default().to_owned(),
+            })
+            .collect();
+        context.expected = text("expected").map(str::to_owned);
+        context.found = field("found").cloned();
+        context.element = field("element").map(|element| Element {
+            step: text_in(element, "step").unwrap_or_default().to_owned(),
+            position: count_in(element, "position").unwrap_or(0),
+            of: count_in(element, "of"),
+            value: element.get("value").cloned().unwrap_or_default(),
+        });
+        if let Some(serde_json::Value::Object(bound)) = field("bindings") {
+            context.bindings = bound.clone().into_iter().collect();
+        }
+        context.trace = list("trace")
+            .iter()
+            .map(|frame| Frame {
+                kind: if text_in(frame, "kind") == Some("step") {
+                    FrameKind::Step
+                } else {
+                    FrameKind::Call
+                },
+                name: text_in(frame, "name").unwrap_or_default().to_owned(),
+                origin: text_in(frame, "origin").map(str::to_owned),
+                span: at(frame.get("span")),
+                position: count_in(frame, "position"),
+                element: frame.get("element").cloned(),
+            })
+            .collect();
+        context.source = field("source").map(|source| Provenance {
+            path: text_in(source, "path").unwrap_or_default().to_owned(),
+            line: count_in(source, "line"),
+            key: text_in(source, "key").map(str::to_owned),
+        });
+        context.violations = list("violations");
+        Ok(diagnostic)
+    }
+}
+
+/// The text at `key` of a JSON object, when it holds text.
+fn text_in<'j>(json: &'j serde_json::Value, key: &str) -> Option<&'j str> {
+    json.get(key).and_then(serde_json::Value::as_str)
+}
+
+/// The count at `key` of a JSON object, when it holds one.
+fn count_in(json: &serde_json::Value, key: &str) -> Option<usize> {
+    json.get(key)
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|count| usize::try_from(count).ok())
+}
+
 /// The most serious severity among `diagnostics`.
 #[must_use]
 pub fn worst(diagnostics: &[Diagnostic]) -> Option<Severity> {
@@ -740,6 +925,17 @@ mod tests {
             Severity::Failure
         );
         assert_eq!(Diagnostic::typing(0..1, "no").phase, Phase::Check);
+    }
+
+    #[test]
+    fn the_json_form_reads_back_as_the_same_diagnostic() {
+        let written = Diagnostic::division_by_zero(4..9)
+            .with_help("divide by a count that is not zero")
+            .at_element("map", 2, Some(3), serde_json::json!(0))
+            .bound([("n".to_owned(), serde_json::json!(0))])
+            .called_from("share", 0..3);
+        assert_eq!(Diagnostic::from_json(&written.to_json()), Ok(written));
+        assert!(Diagnostic::from_json(&serde_json::json!({"phase": "lunch"})).is_err());
     }
 
     #[test]

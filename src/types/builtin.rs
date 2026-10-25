@@ -347,6 +347,7 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         ("Csv", "Format"),
         ("D2", "Format"),
         ("Mermaid", "Format"),
+        ("DiagnosticText", "Format"),
     ] {
         system.declare(TypeDefinition {
             constructor: TypeConstructor(format),

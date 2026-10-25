@@ -67,6 +67,7 @@ The sessions pin what `hql` prints for them, standard error included:
 | [collect stops at an overflow](diagnostics/collect-stops-at-overflow.hql) | `execute failure[numeric-overflow]` | `fatal` under both modes |
 | [errs are data](diagnostics/errs-are-data.hql) | none | `validate` keeps the failure as an `Invalid` value; the channel stays empty |
 | [read back](diagnostics/read-back.hql) | none | a later run reads delivered diagnostics, `run.jsonl`, as `Diagnostic` records |
+| [as text](diagnostics/as-text.hql) | none | `format(DiagnosticText)` writes delivered diagnostics as the report a run prints |
 | [call context](diagnostics/call-context.hql) | `execute failure[division-by-zero]` | the `call` frames that reached the failure, and the `bindings` where it failed |
 | [card provenance](diagnostics/card-provenance.hql) | `execute failure[division-by-zero]` | a failure over a card's value names the card's document as its `source`; runs against `diagnostics/vault` |
 
