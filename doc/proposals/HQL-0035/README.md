@@ -490,7 +490,7 @@ previously materialized schema state
 
 This is intentional.
 
-The architecture should not assume that all mappings are known at compile time.
+The architecture should not assume that all mappings are known when the program is checked.
 
 ### 12. Registry-backed mappings
 

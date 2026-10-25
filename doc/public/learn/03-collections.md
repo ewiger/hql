@@ -149,8 +149,9 @@ constructor builds a value of its type — `Set(xs)`, `List(xs)`,
 
 ## Positions are promises
 
-A list, a ranking and a sequence of cards have positions; a set does not. A
-step that needs positions refuses a set, and says what to write instead:
+A list, a ranking and a sequence of cards have positions; a set does not. The
+checker rejects a set given to a step that needs positions, and says what to
+write instead:
 
 ```hql
 {3, 1, 2} | drop(1)

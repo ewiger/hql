@@ -84,7 +84,8 @@ fn downlinks(xs: Collection<Hit<Card>>) : List<Edge>
 // being lifted over it.
 /// The graph reached from `x` by following links `depth` steps, `1` unless
 /// given, in `direction`: `"uplinks"`, `"downlinks"` or `"both"`, the
-/// default. A depth of `0` is refused: `Graph(xs)` is the graph with no
+/// default. A depth of `0` is a type error when it is a literal and an
+/// evaluation failure when it is computed: `Graph(xs)` is the graph with no
 /// traversal. It needs a vault.
 fn expand(x: Option<Doc>, depth: Int = 1, *, direction: String = "both") : Graph
 fn expand(x: Graph, depth: Int = 1, *, direction: String = "both") : Graph

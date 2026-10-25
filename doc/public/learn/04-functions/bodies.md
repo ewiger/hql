@@ -148,10 +148,10 @@ List(countdown(3))
 [Chapter 10](../10-streams.md) is about iterating functions and the streams
 they produce.
 
-## What a block refuses
+## What a block may not be
 
 A block ends either in a final expression or in yields, never in both and
-never in neither. Each of these is refused when the program is parsed.
+never in neither. The parser rejects each of these as a syntax failure.
 
 A block of bindings alone has no value:
 

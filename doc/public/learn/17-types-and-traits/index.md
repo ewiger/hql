@@ -89,8 +89,8 @@ declares them, and the prelude's `string`, `seq`, `math`, `option` and
 
 ## Traits and operators
 
-A `trait` is a compile-time contract: the functions a type provides to
-satisfy it, some with a default body. `impl Name for Type` provides it once
+A `trait` is a capability contract: the functions a type provides to
+satisfy it, some with a default body, verified by the type checker. `impl Name for Type` provides it once
 per trait and type, and the operators resolve through the core traits: `+`
 through `Add`, `==` through `Eq`, and a type implementing `Ord` sorts.
 

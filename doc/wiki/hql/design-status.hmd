@@ -21,6 +21,7 @@ the design, the card says so.
 | [[card-type]] | `Card` and its two kinds, the vault, and the `cards` binding |
 | [[data-type]] | `Data`, the tree type of headers and structured payloads |
 | [[type-system]] | `:`, generic parameters and progressive type refinement |
+| [[hql/compilation]] | Checking as the semantic boundary, the phases, and compilation as an execution strategy |
 | [[type-interpretation]] | Asking what a value is, from a `Data` tree to a card: `match` on a type, `is` and `of_type` over a collection, and the binding that asserts |
 | [[fields]] | Optional `?` fields, partial schemas, and the two metadata layers |
 | [[hql/naming]] | Identifier casing, the provider of each kind of name, and its namespace |
@@ -39,7 +40,7 @@ the design, the card says so.
 
 Prefer ordinary functions, bare bindings and fundamental pipe syntax. SQL
 clauses and Rust's trait machinery stay out of the design. HQL's own `trait` is
-a compile-time capability contract with an `impl` per type, written for what
+a capability contract with an `impl` per type, verified by the checker, written for what
 generic code and the operators quantify over and for nothing else; ancestry
 stays `:` and a shared shape stays a partial schema over `Data` — see
 [[type-system]] and [HQL-0024](../../proposals/HQL-0024/README.md). Records,

@@ -73,7 +73,7 @@ elementwise fn filter<T>(self: Option<T>, by: T -> Bool) : Option<T>
 elementwise fn of_type<F<_> : Collection<_>, T, U>(self: F<T>, type: Type<U>) : F<U>
 
 /// `true` when the runtime type of `self` is `type` or one of its subtypes.
-/// The checker refuses a test no `T` can pass, and warns about one every
+/// The checker rejects a test no `T` can pass, and warns about one every
 /// `T` passes. Used as a `filter` predicate, it narrows the result.
 fn is<T, U>(self: T, type: Type<U>) : Bool
 
@@ -124,7 +124,7 @@ fn take<T>(self: Stream<T>, n: Int) : List<T>
 fn take<T : Orderable>(self: Collection<T>, n: Int) : List<T>
 
 /// The elements after the first `n`, in the input's order and type:
-/// `[5, 3, 4] | drop(1)` is `[3, 4]`. The checker refuses an input without
+/// `[5, 3, 4] | drop(1)` is `[3, 4]`. The checker rejects an input without
 /// a stable order, such as a `Set`.
 fn drop<S : Iterable<T>, T>(self: S, n: Int) : S
 
@@ -222,7 +222,7 @@ fn anti_join<T, U>(self: Seq<T>, other: Seq<U>, *, on: (T, U) -> Bool) : Seq<T>
 
 /// The elements folded from the left by `by`, from `initial`, or without
 /// it from the first element, the result then `none` over `[]`:
-/// `[1, 2, 3] | reduce(0, (a, x) => a + x)` is `6`. The checker refuses a
+/// `[1, 2, 3] | reduce(0, (a, x) => a + x)` is `6`. The checker rejects a
 /// `Set`, which has no positions to fold in.
 fn reduce<T, R>(self: Collection<T>, initial: R, by: (R, T) -> R) : R
 fn reduce<T>(self: Collection<T>, by: (T, T) -> T) : Option<T>

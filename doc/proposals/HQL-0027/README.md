@@ -39,8 +39,9 @@ Four contracts stay outside the trait system because of it:
   parameter that inference fills; see [outputs are
   parameters](#7-outputs-are-parameters).
 - Specialization. An implementation never overrides a more general one.
-- Trait objects and dynamic dispatch through a trait. Traits stay
-  compile-time, as [HQL-0024, traits](../HQL-0024/parts/05-traits.md) has them.
+- Trait objects and dynamic dispatch through a trait. A trait keeps no
+  runtime representation, as [HQL-0024, traits](../HQL-0024/parts/05-traits.md)
+  has it.
 - A trait function without `self`. A codec trait has no functions until a
   format is a value a program can hold.
 - A codec written in HQL. The codec traits are implemented natively; an HQL

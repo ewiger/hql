@@ -8,6 +8,7 @@ fn file(path: String) : File
 ```
 
 The `File` at `path`. Constructing it is pure and opens nothing:
-`file("birds.json").path` is `"birds.json"`. A URL is refused; a network
+`file("birds.json").path` is `"birds.json"`. A URL is a type error when it
+is a literal and an evaluation failure when it is computed; a network
 resource is read with `http`.
 <!-- hql reference: end -->
