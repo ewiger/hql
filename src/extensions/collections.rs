@@ -929,7 +929,7 @@ fn eval_flat_map(
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    let mapped = eval_map(cx, input, arguments, span.clone())?;
+    let mapped = mapped_by(cx, input, arguments, span.clone(), "flat_map")?;
     eval_emit(cx, mapped, &[], span)
 }
 
@@ -987,8 +987,9 @@ fn eval_filter(
         return Ok(wrapped(traversal, element, source));
     }
     let mut kept = Vec::new();
-    for element in elements(&input, "filter", &span)? {
-        let verdict = cx.apply_lambda(argument, element.clone())?;
+    for (element, verdict) in
+        applied_each(cx, argument, "filter", elements(&input, "filter", &span)?)?
+    {
         if verdict.truth().ok_or_else(|| {
             Diagnostic::typing(
                 argument.value.span.clone(),
@@ -1017,8 +1018,19 @@ fn eval_map(
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    mapped_by(cx, input, arguments, span, "map")
+}
+
+/// `map`'s work, for `step`: `map` itself, or a step written in terms of it.
+fn mapped_by(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+    step: &str,
+) -> Result<Value, Diagnostic> {
     let argument =
-        named_or_first(arguments, "by").ok_or_else(|| wrong("map", "a function", &span))?;
+        named_or_first(arguments, "by").ok_or_else(|| wrong(step, "a function", &span))?;
     if let Some(traversal) = pending(&input) {
         let by = cx.evaluate(&argument.value)?;
         let source = Source::Map {
@@ -1028,21 +1040,39 @@ fn eval_map(
         };
         return Ok(wrapped(traversal, produced(argument), source));
     }
-    let mut mapped = Vec::new();
-    let all = elements(&input, "map", &span)?;
+    let mapped: Vec<Value> = applied_each(cx, argument, step, elements(&input, step, &span)?)?
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect();
+    // A set maps to its image, which collapses equal results.
+    Ok(match input {
+        Value::Set(..) => Value::set(mapped, produced(argument)),
+        _ => Value::list(mapped, produced(argument)),
+    })
+}
+
+/// A function argument applied to each element of a step's input, giving
+/// each element with its result. A failure names the element it was about.
+/// Under `collect`, an element whose function failed is lost and the step
+/// goes on, where the failure leaves something to go on with.
+fn applied_each(
+    cx: &mut dyn EvalCx,
+    argument: &TypedArg,
+    step: &str,
+    all: Vec<Value>,
+) -> Result<Vec<(Value, Value)>, Diagnostic> {
     let of = all.len();
+    let mut applied = Vec::with_capacity(of);
     for (index, element) in all.into_iter().enumerate() {
         match cx.apply_lambda(argument, element.clone()) {
-            Ok(value) => mapped.push(value),
+            Ok(value) => applied.push((element, value)),
             Err(failure) => {
                 // A card is shown by its name; its document is the `source`.
                 let shown = match &element {
                     Value::Card(card) => serde_json::Value::String(card.name().to_owned()),
                     other => other.to_json(),
                 };
-                let failure = failure.at_element("map", index + 1, Some(of), shown);
-                // Under `collect` the element is lost and the step goes on,
-                // where the failure leaves something to go on with.
+                let failure = failure.at_element(step, index + 1, Some(of), shown);
                 if cx.collecting() && failure.steppable() {
                     cx.warn(failure.with_disposition(crate::diagnostics::Disposition::Recoverable));
                     continue;
@@ -1051,11 +1081,7 @@ fn eval_map(
             }
         }
     }
-    // A set maps to its image, which collapses equal results.
-    Ok(match input {
-        Value::Set(..) => Value::set(mapped, produced(argument)),
-        _ => Value::list(mapped, produced(argument)),
-    })
+    Ok(applied)
 }
 
 fn eval_retry(

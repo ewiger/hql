@@ -316,7 +316,13 @@ fn implemented_invalid_cases_fail_with_the_declared_diagnostic() {
                 .find(|diagnostic| diagnostic.is_error())
                 .unwrap_or_else(|| panic!("{}: no error", case.path));
             assert_eq!(error.phase.label(), m["phase"], "{}", case.path);
-            assert_eq!(error.kind.label(), m["kind"], "{}: {}", case.path, error.message);
+            assert_eq!(
+                error.kind.label(),
+                m["kind"],
+                "{}: {}",
+                case.path,
+                error.message
+            );
             assert_eq!(error.severity.label(), m["severity"], "{}", case.path);
             continue;
         }

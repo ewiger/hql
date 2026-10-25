@@ -80,6 +80,7 @@ is what `--diagnostics-format json` wrote for `warning-then-failure.hql`.
 | [collect steps past an element](diagnostics/sessions/collect-steps-past-an-element.session) | `strict` ends the run; `collect` gives `[1, 2]` and the same diagnostic, recoverable; an overflow is fatal under both |
 | [help and labels](diagnostics/sessions/help-and-labels.session) | a nearest name is `help`, a second place a `note`, and neither is in the message |
 | [the vault skips a document](diagnostics/sessions/vault-skips-a-document.session) | `load warning[skipped-document]`, the rest of the vault read, exit `0` |
+| [collect through steps](diagnostics/sessions/collect-through-steps.session) | `filter` and `flat_map` step past a failing element under `collect`, each naming itself |
 | [call context](diagnostics/sessions/call-context.session) | `= bindings:`, `= trace:` and `= source:` under the caret |
 
 ## Parse

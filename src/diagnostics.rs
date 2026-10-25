@@ -464,7 +464,10 @@ impl Diagnostic {
     /// The same diagnostic with the bindings in scope where it failed,
     /// unless an inner scope already gave its own.
     #[must_use]
-    pub fn bound(mut self, bindings: impl IntoIterator<Item = (String, serde_json::Value)>) -> Self {
+    pub fn bound(
+        mut self,
+        bindings: impl IntoIterator<Item = (String, serde_json::Value)>,
+    ) -> Self {
         if self.context.bindings.is_empty() {
             self.context.bindings = bindings.into_iter().collect();
         }
