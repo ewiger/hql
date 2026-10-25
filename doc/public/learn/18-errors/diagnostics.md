@@ -74,10 +74,14 @@ range.
 What a field carries is not repeated in the message. Under the caret, the
 text form shows one `=` line per field that applies:
 
-- `help`: what to write instead, a nearest name or a conventional spelling;
+- `cell`: the cell of a document the diagnostic is about;
 - `note`: a second place in the source, with what is there;
+- `help`: what to write instead, a nearest name or a conventional spelling;
 - `expected` and `found`: the type a step needed, and what was there;
-- `element`: the element a step was applying its function to.
+- `element`: the element a step was applying its function to;
+- `source`: the document a card the failure was about was read from;
+- `bindings`: the parameters in scope where it failed;
+- `trace`: the functions it was reached through, outermost first.
 
 ```hql
 [1, 2] | mapp(n => n)
@@ -108,6 +112,46 @@ check error[duplicate-implementation]: `Shape` is already implemented for Circle
 4 | impl Shape for Circle { fn area(self) : Float = 4.0f }
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = note: the first implementation, at <expression>:3:1
+```
+
+A failure inside called functions names each call that reached it, and the
+parameters of the function it is in:
+
+```hql
+fn ratio(total: Int, parts: Int) : Int = total / parts
+
+fn share(xs: List<Int>) : Int = ratio(xs | sum, size(xs) - 3)
+
+share([4, 5, 6])
+```
+
+```text
+execute failure[division-by-zero]: division by zero
+ --> <expression>:1:42
+  |
+1 | fn ratio(total: Int, parts: Int) : Int = total / parts
+  |                                          ^^^^^^^^^^^^^
+  = bindings: parts = 0, total = 15
+  = trace: share (call) → ratio (call)
+```
+
+A failure over a card's value names the document the card was read from.
+Here the divisor is zero for the book of 112 pages:
+
+```hql
+cards
+| filter(c => c.metadata.category == "book")
+| map(c => match c.metadata.pages { some(Int n) => 1000 / (n - 112), _ => 0 })
+```
+
+```text
+execute failure[division-by-zero]: division by zero
+ --> <expression>:3:52
+  |
+3 | | map(c => match c.metadata.pages { some(Int n) => 1000 / (n - 112), _ => 0 })
+  |                                                    ^^^^^^^^^^^^^^^
+  = element: "a-room-of-ones-own", position 1 of 7 in `map`
+  = source: examples/tutorial/books/a-room-of-ones-own.hmd
 ```
 
 ## The diagnostic channel
@@ -174,6 +218,27 @@ standard output. The host's options change that wiring, not the program:
 A **report** is the channel's contents rendered in a format, followed by a
 count per severity when there is more than one. It names a presentation, not
 an object of the run.
+
+## Diagnostics as data in a later run
+
+A run never reads its own channel, and a later run reads what an earlier one
+delivered as it reads any data. `Diagnostic` is a record of the standard
+library, so a file written with `--diagnostics-format json` reads back with
+`| Diagnostic`, and `DiagnosticText` writes such records as the report a run
+prints, without the source line:
+
+<!-- run: skip -->
+```hql
+source(file("run.jsonl"), JsonLines)
+| Diagnostic
+| filter(d => d.severity == "error" or d.severity == "failure")
+| format(DiagnosticText)
+```
+
+```text
+execute failure[division-by-zero]: division by zero
+ --> examples/error-handling/diagnostics/warning-then-failure.hql
+```
 
 ## Continuation: `strict` and `collect`
 

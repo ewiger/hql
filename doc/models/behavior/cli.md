@@ -3,7 +3,7 @@
 Status: implemented.
 
 `hql` is one host among several. It supplies a vault from outside, chooses a
-reporting mode, and decides what to do with the value a program returns — which
+reporting mode, delivers the run's diagnostics, and decides what to do with the value a program returns — which
 is the execution context [program values](program-values.md) describes, not a
 privilege the language grants it.
 
@@ -37,13 +37,14 @@ and a result of type `Unit` is written as nothing.
 | Option | Effect |
 | --- | --- |
 | `--vault <DIR>` | the namespace `cards`, traversal and retrieval run against; without it, the nearest directory at or above the current one that holds `.hmd/` or `hql.toml` |
-| `--envelope text\|json` | what the answer is wrapped in: the value alone on stdout, written in the `--to` format, or one JSON document with the type, the value and the reports |
+| `--envelope text\|json` | what the answer is wrapped in: the value alone on stdout, written in the `--to` format, or one JSON document with the type, the value and the run's diagnostics |
+| `--diagnostics-format text\|json` | the format diagnostics are delivered to stderr in: `DiagnosticText`, or one JSON document per diagnostic per line; see [reporting](reporting.md) |
 | `--to <format>` | the [presentation format](../../wiki/hql/presentation.hmd) a result is written in when the program did not format it: `hql` (the default), `text`, `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2`, `mermaid`; `none` evaluates and writes no value |
 | `--from <format>` | the format standard input is read in where a program reads `stdin` and names none: `json`, `jsonlines`, `yaml`, `csv`, `lines` or `text`; a format the program names wins, and a format that is only written is refused |
 | `--compact` | a `Json` result written one document per line, as `jq -c` does; without it each document is pretty-printed, as `jq .` does |
 | `--log-level trace\|debug\|info\|warn\|error` | every logger's threshold, overriding the one it was constructed with |
-| `--report-level debug\|info\|warning\|error` | the lowest severity shown in `text`; see [reporting](reporting.md) |
-| `--report strict\|collect` | when the run stops; see [reporting](reporting.md) |
+| `--report-level debug\|info\|warning\|error` | the lowest severity delivered to stderr; see [reporting](reporting.md) |
+| `--report strict\|collect` | how much continuation the run asks its phases for; see [reporting](reporting.md) |
 | `--backend <name>` | the execution backend that runs a checked program; see *Backends* below |
 
 The vault is found the way `hmd` finds a project: walking up from the current
@@ -153,7 +154,8 @@ external type. `mode` says what a write does with what the target holds:
 with an external field no HQL field reads: under `compatible`, the default,
 it passes to the HQL type, an open record keeping it and a closed one
 refusing it; under `open` it is not read; under `warn` it is not read and is
-reported once per read; under `strict` it is an evaluation error. Exceeding a
+reported once per read as an `execute warning[boundary-mapping]`; under
+`strict` it is an execute error. Exceeding a
 bound is an evaluation error naming the source and the bound; a source is
 never truncated.
 
@@ -204,23 +206,24 @@ result, because a JSON envelope is one document.
 
 ## Exit status
 
-`0` succeeded, possibly with warnings. `1` is a language failure or an I/O one.
-`2` is a usage error, which clap reports.
+`0` succeeded, possibly with warnings. `1` is a diagnostic at or above
+`error`, or an I/O failure. `2` is a usage error, which clap reports.
 
 ## Output
 
-In `text`, the value goes to stdout and the report queue to stderr, so a
-pipeline downstream reads the answer and a person reads the complaints. Only
-entries at or above the shown level are written, `warning` by default, so a
-`debug` capture is silent until `--report-level debug` asks for it. More than
-one report is followed by a count of each severity.
+The CLI holds the run's diagnostic channel from before the vault loads until
+the exit status is decided. In `text`, the value goes to stdout and the
+channel's contents to stderr, so a pipeline downstream reads the answer and a
+person reads the diagnostics. Only diagnostics at or above the shown level are
+delivered, `warning` by default, and more than one is followed by a count of
+each severity. `--diagnostics-format json` delivers each as one JSON document
+per line instead.
 
-In `json`, the queue holds every entry whatever the shown level.
-
-One object carries everything:
+`--envelope json` carries every diagnostic whatever the shown level, under
+`diagnostics`:
 
 ```json
-{ "origin": "<expression>", "type": "Int", "value": 42, "reports": [] }
+{ "diagnostics": [], "origin": "<expression>", "type": "Int", "value": 42 }
 ```
 
 ## The REPL
@@ -229,7 +232,9 @@ Bindings persist by replaying the statements that succeeded, which keeps a
 session a program rather than a sequence of unrelated runs. `:type <expression>`
 answers without evaluating, `:vault` says what the session runs against,
 `:reset` forgets the bindings, and `:quit` leaves, as do the bare words `quit`
-and `exit`.
+and `exit`. Each line typed is its own run and its own origin, `<repl:N>`,
+counted in what was typed: a diagnostic of the second line points at
+`<repl:2>:1`, not into the replayed bindings.
 
 An input continues on the next line while one of its brackets — `(`, `[` or
 `{` — is open, and is evaluated whole once they close; a string literal cannot
@@ -265,7 +270,9 @@ hql render <FILE> [--write <OUT> | --in-place] [--emit replace|after] [--cell <I
 - `--cell <ID>` runs that cell and the cells it reads, and rewrites only its
   output. It needs `--emit after`. `--envelope json` prints one JSON object:
   the rendered document and, per cell in document order, its id, index, span,
-  hash, type, status, output and reports.
+  hash, type, status, output and diagnostics. A cell's diagnostics name the
+  cell as their origin, `path#id`, or `path#index` for a cell with no id, with
+  spans into the document.
 - Without `--write` or `--in-place` the built document goes to standard output.
   `--write <OUT>` writes it to `OUT`; `--in-place` writes it over `FILE` and is
   a usage error, exit `2`, unless `--emit after` is given, since replacing the

@@ -54,7 +54,7 @@ then the archive.
 | todo    | 7      |
 | doing   | 4      |
 | done    | 0      |
-| archive | 43     |
+| archive | 44     |
 <!-- /hql:output -->
 
 ## Board
@@ -107,6 +107,7 @@ issues
 <!-- hql:output hash=b0018109fe7b status=ok -->
 | id   | title                                                                                 |
 | ---- | ------------------------------------------------------------------------------------- |
+| 0057 | The error model's remainder: what HQL-0045 left open                                  |
 | 0053 | Bugs found reviewing the complete type system branch                                  |
 | 0052 | Review follow-ups: Decimal in SQLite, quadratic steps, unreviewed code                |
 | 0051 | A value block as a function body: bindings, then the value                            |

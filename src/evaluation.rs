@@ -2142,7 +2142,7 @@ fn merged(left: Value, right: Value, span: &Range<usize>) -> Result<Value, Diagn
             }
             (l, r) => {
                 let other = if matches!(l, Data::Map(_)) { r } else { l };
-                Err(Diagnostic::runtime(
+                Err(Diagnostic::shape_mismatch(
                     span.clone(),
                     format!(
                         "`merge` combines two maps, not Data of shape {}",
@@ -2265,7 +2265,7 @@ pub(crate) fn slice_of(
                 items[window(start, end, items.len())].to_vec(),
             )))),
             Data::Empty => Ok(Value::Data(data)),
-            other => Err(Diagnostic::typing(
+            other => Err(Diagnostic::shape_mismatch(
                 span.clone(),
                 format!(
                     "a slice needs a sequence here, not Data of shape {}",
@@ -2329,7 +2329,7 @@ pub(crate) fn at_position(
                 })),
             // An empty entry holds nothing, so nothing is at any position.
             Data::Empty => Ok(absent()),
-            other => Err(Diagnostic::typing(
+            other => Err(Diagnostic::shape_mismatch(
                 span.clone(),
                 format!(
                     "a position needs a sequence here, not Data of shape {}",
@@ -2366,7 +2366,7 @@ pub(crate) fn data_key(data: &Data, key: &str, span: &Range<usize>) -> Result<Va
                 Value::Present(Arc::new(Value::Data(Arc::new(found.clone()))))
             })),
         Data::Empty => Ok(Value::Absent(TypeRef::DATA)),
-        other => Err(Diagnostic::typing(
+        other => Err(Diagnostic::shape_mismatch(
             span.clone(),
             format!(
                 "`{key}` needs a map here, not Data of shape {}",

@@ -14,11 +14,11 @@ one ([HQL-0044](../../proposals/HQL-0044/README.md)).
 ## The phases
 
 ```text
-parse    source text        → syntax tree              rejects: syntax failure
-check    syntax tree        → checked program          rejects: name error, type error
+parse    source text        → syntax tree              writes: parse failure[unexpected-token], …
+check    syntax tree        → checked program          writes: check error[unknown-name], check error[type-mismatch], …
 lower    checked program    → execution tree
-plan     execution tree     → stages per step
-execute  planned tree       → value and reports        fails:   evaluation failure
+plan     execution tree     → stages per step          writes: plan failure[backend-refusal]
+execute  planned tree       → value and diagnostics    writes: execute failure[division-by-zero], execute error[contract-violation], …
 ```
 
 **Checking** is the semantic boundary. It resolves every name, import and
@@ -34,11 +34,12 @@ implement each phase.
 **Execution** is a backend's ([[pipes]]). `localhost`, the only backend,
 evaluates the execution tree one step after another, and it is the oracle: a
 backend that compiles or JIT-compiles the tree must produce the value and
-reports `localhost` produces, accept exactly the programs the checker accepts,
+diagnostics `localhost` produces, accept exactly the programs the checker accepts,
 and reject none on a ground the checker owns. A compilation step inside such a
 backend runs after checking, and its failure is the backend's, never a
 diagnostic about the program. A failure that depends on the values, an
-overflow or a missing file, is an evaluation failure reported by the run.
+overflow or a missing file, is an `execute` diagnostic the run writes into its
+diagnostic channel ([[error-handling]]).
 
 ## Traits are checked, not compiled
 

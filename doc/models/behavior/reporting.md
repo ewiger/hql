@@ -2,92 +2,106 @@
 
 Status: implemented.
 
-A run produces a structured log beside its value. Which entries stop it, and
-which are shown, is a policy, not a property of the language, so it is
-configured rather than fixed.
+A run produces a value and the contents of its **diagnostic channel**
+([HQL-0045](../../proposals/HQL-0045/README.md)). What a diagnostic is, its
+four axes and its fields, is the
+[error-handling card](../../wiki/hql/error-handling.hmd). This model is the
+host's side: the channel, the outcome, the mode and level, and delivery.
 
-| Severity | Meaning | Example |
-| --- | --- | --- |
-| `debug` | A detail the host states while it runs | — |
-| `info` | A fact the host states | — |
-| `warning` | Work continued and the result stands | a reference that does not resolve |
-| `error` | The result is wrong, but more could still be examined | a type or name error |
-| `failure` | Nothing further can be examined | the source did not parse; arithmetic overflowed |
+## The channel and the outcome
 
-## The queue comes back beside the result
+The runtime owns one `Channel<Diagnostic>` per run, on the `io` host. It is
+the mechanism of every channel, a bounded FIFO of committed values, owned by
+the runtime rather than the program:
 
-Running a program yields a value *and* a queue of everything the run had to say,
-oldest first. The queue is not an alternative to the result: a program that
-warned still produced one, and the caller walks the queue afterwards.
+| Operation | Meaning |
+| --- | --- |
+| `io::open_diagnostics()` | opens the channel unless a run holds it; answers whether this call opened it |
+| `io::write_diagnostic(d)` | commits `d`, then tells each tap; with no channel open, it goes nowhere |
+| `io::tap_diagnostics(f)` | `f` observes each diagnostic as it is committed; a tap does not keep the run open |
+| `io::diagnostics_written()` | the contents, in commit order |
+| `io::close_diagnostics()` | detaches the taps, closes the channel and gives its contents |
+
+`hql::run_on` opens the channel unless the host holds it, writes the
+loader's diagnostics a vault carries when it opened it, then the parser's,
+the checker's and the evaluator's, each stamped with its phase:
 
 ```rust
 let outcome = hql::run(source, &vault, Mode::Strict);
-outcome.value      // Option<Value>
-outcome.reports    // a queue: next_report(), iter(), worst(), count(severity)
+outcome.value        // Option<Value>
+outcome.inferred     // Option<TypeRef>
+outcome.diagnostics  // Vec<Diagnostic>, the channel's contents in order
+outcome.failed()     // a diagnostic at or above `error`
 ```
 
-A warning never changes an exit status. An error or a failure makes the result
-absent and the status `1`.
+The CLI holds the channel for the whole run: it opens it before loading the
+vault, so the loader's `skipped-document` is written first, and closes it
+after delivering. `hql repl` gives each line typed its own run and channel,
+and delivers the loader's diagnostics once, before the first.
+
+A warning never changes an exit status. A diagnostic at or above `error`
+makes the status `1`.
 
 ## Modes
 
-| Mode | When the run stops |
+`mode` is how much continuation the run asks its phases for; whether a phase
+continues is the phase's.
+
+| Mode | Meaning |
 | --- | --- |
-| `strict` | at the first error — the default |
-| `collect` | only at a failure; every error findable is queued |
+| `strict` | decline optional continuation after the first `error` — the default |
+| `collect` | ask every phase for as much continuation as it can give |
 
-`strict` is the default because a wrong answer that keeps going is harder to
-notice than one that stops. `collect` is for looking at a whole query at once:
-every statement is checked even after one fails, and a statement that failed
-still binds its name at the open tree type, so the statements after it are
-reported on their own faults rather than on a cascade from this one.
+Under `collect` the checker checks every statement, a failed one still bound
+at the open tree type, and writes each diagnostic `recoverable`; `map`,
+`filter` and `flat_map` step past an element whose function failed, unless the
+failure is an overflow or an I/O failure. A parse failure is `fatal` under
+both.
 
-A failure stops both modes, because collecting after an unparseable source has
-nothing to collect.
-
-## Where a mode comes from
+## Where a setting comes from
 
 The most specific layer that states one wins:
 
-1. **the query** — `--report strict|collect`
-2. **the vault** — `hql.toml` at its root, `[report] mode = "collect"`
-3. **the user** — `HQL_REPORT` in the environment
-4. **the default** — `strict`
+1. **the query** — `--report strict|collect`, `--report-level LEVEL`
+2. **the vault** — `[report] mode` and `level` in `hql.toml` at its root
+3. **the user** — `HQL_REPORT`, `HQL_REPORT_LEVEL` in the environment
+4. **the default** — `strict`, and `warning`
 
-## The shown level
+`level` is the lowest severity delivered to the default target. Filtering
+does not discard: the channel holds every diagnostic, and `--envelope json`
+carries them all. `hql config` prints the mode and the level in force and the
+layer that supplied each.
 
-`level` is the lowest severity a text host writes: `debug`, `info`, `warning` or
-`error`, and `warning` by default. It comes from the same layers as the mode:
-`--report-level`, then `[report] level` in the vault's `hql.toml`, then
-`HQL_REPORT_LEVEL`, then the default. Hiding an entry does not discard it:
-`Reports::shown(level)` filters a copy, and `--envelope json` carries every entry.
+## Delivery
 
-`hql config` prints the mode and the level in force and which layer supplied
-each, so the precedence never has to be guessed.
-
-## Entries
-
-Every entry has `severity`, `stage`, `message` and `span`. The log survives an
-evaluation failure, so what was reported before it is still reported. A
-program's own diagnostics are not entries: it writes log events through a
-`Logger` to an endpoint ([HQL-0021](../../proposals/HQL-0021/README.md)).
-
-## Rendering
-
-A report carries a zero-based, half-open UTF-8 byte range. That is the
-machine-readable form and stays that way; turning it into a line, a column and a
-caret is a separate step in `render`, which is why it is testable rather than
-something only the binary can do.
+Delivery is a format and an endpoint. The default wiring is
+`diagnostics | DiagnosticText | stderr`, with the value on `stdout`:
 
 ```text
-type error: addition requires two Int, two Float or two Decimal operands
+check error[type-mismatch]: addition requires two Int, two Float or two Decimal operands
  --> <expression>:2:3
   |
 2 |   true + 1
   |   ^^^^
 ```
 
-`--envelope json` emits the same queue as data, with the fields above and the
-byte span, for an editor or another host.
+`render::diagnostic_text` writes one diagnostic: the heading
+`phase severity[kind]: message`, the location, the source line and a caret
+when the host has the source text, then one `=` line per field that applies,
+`cell`, `note`, `help`, `expected`, `found`, `element`, `source`, `bindings`
+and `trace`. `render::report` writes the channel's contents and a count per
+severity when there is more than one. The byte span stays the
+machine-readable form; the line and column are a presentation.
 
-Tests: `tests/reporting.rs`, `tests/cli.rs`. See [the command line](cli.md).
+| Option | Delivery |
+| --- | --- |
+| `--diagnostics-format text` | `DiagnosticText` on standard error — the default |
+| `--diagnostics-format json` | one JSON document per diagnostic per line on standard error |
+| `--envelope json` | the channel's contents under `diagnostics`, beside `origin`, `type` and `value` |
+
+The host fills the `origin` a diagnostic leaves unnamed with what the program
+was read from, and puts the document's path before a cell's `#cell`.
+
+Tests: `tests/reporting.rs`, `tests/cli.rs`, and the sessions under
+[`examples/error-handling/`](../../../examples/error-handling/README.md). See
+[the command line](cli.md).

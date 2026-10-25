@@ -1,6 +1,6 @@
 # HQL-0045: The error model: failures as data, diagnostics as events, and the run-scoped diagnostic channel
 
-**Status**: updated, implemented in part
+**Status**: updated, implemented
 **Created**: 2026-10-25
 **Source**: [HQL-0033](../HQL-0033/README.md) (errors as values),
 [HQL-0032 section 28](../HQL-0032/README.md#28-validation-and-diagnostic-transport-are-separate)
@@ -475,3 +475,12 @@ cargo test --locked --test reporting --test cli
   `collect` through steps other than `map` (unit 9), a cell as the `origin`
   of its diagnostics rather than its document, `DiagnosticText` as a format
   a program can name, and the card and model rewrites (unit 11)
+- 2026-10-25: implemented ([issue 0057](../../issues/archive/0057-error-model-remainder.md)).
+  `type Diagnostic` in `lib/std/core` reads delivered diagnostics back;
+  `call` frames, `bindings` and a bound card's document as `source` are
+  recorded when a failure leaves a function or a lambda; `collect` steps
+  past an element in `map`, `filter` and `flat_map`; a cell's diagnostics
+  name the cell, `path#cell`; `DiagnosticText` is a format a program names;
+  a `Data` value of the wrong shape is `shape-mismatch`. The card, the
+  reporting model and the command-line model are rewritten. A `source`
+  names the document, not the line or the key of the value

@@ -645,6 +645,14 @@ impl Diagnostic {
         Self::runtime(span, message).with_kind(Kind::IoFailure)
     }
 
+    /// A `Data` value whose shape is not the one an operation reads: a
+    /// wrong value read, an `error` of the execute phase.
+    pub(crate) fn shape_mismatch(span: Range<usize>, message: impl Into<String>) -> Self {
+        Self::runtime(span, message)
+            .with_kind(Kind::ShapeMismatch)
+            .with_severity(Severity::Error)
+    }
+
     /// A division or a remainder by zero.
     pub(crate) fn division_by_zero(span: Range<usize>) -> Self {
         Self::runtime(span, "division by zero").with_kind(Kind::DivisionByZero)
