@@ -206,8 +206,6 @@ pub struct Operation {
     /// native one for what a contract cannot state yet. Read it with
     /// [`Operation::spec`].
     pub(crate) spec: Signature,
-    /// One sentence about what it does.
-    pub(crate) summary: &'static str,
     /// The extension's own marking of whether the executor may move it:
     /// binding checks it against the declaration, which is what
     /// [`Operation::purity`] reads.
@@ -237,13 +235,12 @@ pub(crate) enum Signature {
 }
 
 /// An operation whose signature, purity and shape are its declaration's in a
-/// standard module: a name, a summary and what it does to a value, marked
+/// standard module: a name and what it does to a value, marked
 /// pure and a barrier, which binding checks against the declaration.
-pub(crate) const fn declared(name: &'static str, summary: &'static str, eval: Eval) -> Operation {
+pub(crate) const fn declared(name: &'static str, eval: Eval) -> Operation {
     Operation {
         name,
         spec: Signature::Declared,
-        summary,
         purity: Purity::Pure,
         shape: Shape::Barrier,
         check: None,
@@ -1155,8 +1152,8 @@ pub struct Listing {
     pub spec: &'static OperationSpec,
     /// Every overload, in the order a call tries them.
     pub specs: &'static [OperationSpec],
-    /// One sentence about what it does.
-    pub summary: &'static str,
+    /// The first sentence of its doc string in the standard library.
+    pub description: String,
     /// Whether the executor may move it.
     pub purity: Purity,
     /// How the executor may split it.
@@ -1176,6 +1173,21 @@ pub struct Provider {
     pub availability: Availability,
     /// What it supplies.
     pub steps: Vec<Listing>,
+}
+
+/// What a step does, as `hql builtins` says it: the first sentence of the
+/// doc string of the first declaration of its name, in loading order, that
+/// has one.
+fn description(name: &str) -> String {
+    crate::help::library()
+        .iter()
+        .flat_map(|module| &module.declarations)
+        .filter(|declaration| {
+            declaration.name == name && declaration.kind == crate::help::Kind::Function
+        })
+        .find_map(|declaration| declaration.doc.as_ref())
+        .map(|doc| crate::docs::first_sentence(&doc.text, crate::help::VERSION))
+        .unwrap_or_default()
 }
 
 /// Every registered extension and its steps, as one vault resolves them.
@@ -1221,7 +1233,7 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
                         .join("\n"),
                     spec: step.spec(),
                     specs: step.specs(),
-                    summary: step.summary,
+                    description: description(step.name),
                     purity: step.purity(),
                     shape: step.shape(),
                 })
@@ -1284,7 +1296,7 @@ mod tests {
             assert_eq!(entry.purity, expected, "{}", entry.name);
             assert!(!entry.provider.is_empty());
             assert!(!entry.signature.is_empty());
-            assert!(!entry.summary.is_empty());
+            assert!(!entry.description.is_empty(), "{}", entry.name);
         }
     }
 
@@ -1352,7 +1364,6 @@ mod tests {
                     "Int",
                 ))),
             }),
-            summary: "A second `count`, so the collision has two sides.",
             purity: Purity::Pure,
             shape: Shape::Barrier,
             check: None,
@@ -1378,10 +1389,7 @@ mod tests {
         let probe = resolution
             .step_for("count", &TypeRef::INT, 0, &[], &(0..1))
             .unwrap();
-        assert_eq!(
-            probe.summary,
-            "A second `count`, so the collision has two sides."
-        );
+        assert!(std::ptr::eq(probe, &PROBE.steps[0]));
         assert!(resolution.step("count", &(0..1)).is_ok());
     }
 

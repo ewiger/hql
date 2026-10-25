@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: An overloaded standard function: each run of forms printed with its own doc string, and `:type` with each run's first sentence
-// implementation: pending
-// proposal: doc/proposals/HQL-0042/README.md
+// implementation: implemented
 // environment: pure
 // session: repl
 

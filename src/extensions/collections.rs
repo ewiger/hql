@@ -153,7 +153,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "size",
         spec: Signature::Declared,
-        summary: "Count all element occurrences.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -162,7 +161,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "contains",
         spec: Signature::Declared,
-        summary: "Whether a value occurs in the collection.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -171,7 +169,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "join",
         spec: Signature::Declared,
-        summary: "Join one other sequence: each matching pair, by keys, a predicate or both, built by `into`.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: None,
@@ -180,7 +177,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "left_join",
         spec: Signature::Declared,
-        summary: "Join one other sequence, keeping every element of the input; an unmatched one meets `none`.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: None,
@@ -189,7 +185,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "right_join",
         spec: Signature::Declared,
-        summary: "Join one other sequence, keeping every element of it; an unmatched one meets `none`.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: None,
@@ -198,7 +193,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "full_join",
         spec: Signature::Declared,
-        summary: "Join one other sequence, keeping every element of both; an unmatched one meets `none`.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: None,
@@ -207,7 +201,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "cross_join",
         spec: Signature::Declared,
-        summary: "Every pair of the input and one other sequence, in order, built by `into`.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: None,
@@ -216,7 +209,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "semi_join",
         spec: Signature::Declared,
-        summary: "Keep each element of the input that matches some element of another sequence, once.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: None,
@@ -225,7 +217,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "anti_join",
         spec: Signature::Declared,
-        summary: "Keep each element of the input that matches no element of another sequence.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: None,
@@ -234,7 +225,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "get",
         spec: Signature::Declared,
-        summary: "Look up a key, yielding absence when it is missing.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: None,
@@ -243,7 +233,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "count",
         spec: Signature::Declared,
-        summary: "Count occurrences of a value; without an argument, count all occurrences.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -252,7 +241,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "sort",
         spec: Signature::Declared,
-        summary: "Order a collection by its elements' own key, or by one you supply.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: None,
@@ -261,7 +249,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "take",
         spec: Signature::Declared,
-        summary: "The first n elements, in the elements' own order.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: None,
@@ -270,7 +257,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "collect",
         spec: Signature::Declared,
-        summary: "Consecutive values in batches of n, in order; the last batch may be shorter.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: Some(check_collect),
@@ -279,7 +265,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "emit",
         spec: Signature::Declared,
-        summary: "Every member of every sequence, in order: the inverse of collect.",
         purity: Purity::Pure,
         shape: super::Shape::Elementwise,
         check: Some(check_emit),
@@ -288,7 +273,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "flat_map",
         spec: Signature::Declared,
-        summary: "map then emit: each value to a sequence, and their members in order.",
         purity: Purity::Pure,
         shape: super::Shape::Elementwise,
         check: Some(check_ordered),
@@ -297,7 +281,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "drop",
         spec: Signature::Declared,
-        summary: "Everything after the first n elements, in the input's own order.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: Some(check_drop),
@@ -306,7 +289,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "filter",
         spec: Signature::Declared,
-        summary: "Keep the elements a predicate accepts.",
         purity: Purity::Pure,
         shape: super::Shape::Elementwise,
         check: None,
@@ -315,7 +297,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "map",
         spec: Signature::Declared,
-        summary: "Apply a function to every element; the result keeps the input's collection type.",
         purity: Purity::Pure,
         shape: super::Shape::Elementwise,
         check: None,
@@ -324,7 +305,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "retry",
         spec: Signature::Declared,
-        summary: "Each value through a fallible operation, invoked again while it fails, up to `attempts` invocations.",
         purity: Purity::Pure,
         shape: super::Shape::Elementwise,
         check: None,
@@ -333,7 +313,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "of_type",
         spec: Signature::Declared,
-        summary: "Keep the elements of a type, narrowing the element type: filter(x => x | is(U)).",
         purity: Purity::Pure,
         shape: super::Shape::Elementwise,
         check: Some(check_of_type),
@@ -342,7 +321,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "is",
         spec: Signature::Declared,
-        summary: "Whether a value's runtime type is a type or one of its subtypes.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: Some(check_of_type),
@@ -351,7 +329,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "somes",
         spec: Signature::Declared,
-        summary: "Keep the present values of a collection of options, dropping the absent ones.",
         purity: Purity::Pure,
         shape: super::Shape::Elementwise,
         check: None,
@@ -360,7 +337,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "oks",
         spec: Signature::Declared,
-        summary: "Keep the successes of a collection of results, dropping the failures.",
         purity: Purity::Pure,
         shape: super::Shape::Elementwise,
         check: None,
@@ -369,7 +345,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "errs",
         spec: Signature::Declared,
-        summary: "Keep the failures of a collection of results, dropping the successes.",
         purity: Purity::Pure,
         shape: super::Shape::Elementwise,
         check: None,
@@ -378,7 +353,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "group",
         spec: Signature::Declared,
-        summary: "Partition occurrences by key into a set of groups, each a key and its items.",
         purity: Purity::Pure,
         shape: super::Shape::Partition,
         check: None,
@@ -387,7 +361,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "reduce",
         spec: Signature::Declared,
-        summary: "Fold a sequence from the left, from an initial value or from its first element.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: Some(check_reduce),
@@ -396,7 +369,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "sum",
         spec: Signature::Declared,
-        summary: "Add every occurrence: reduce(0, +). An empty input sums to zero.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -405,7 +377,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "product",
         spec: Signature::Declared,
-        summary: "Multiply every occurrence: reduce(1, *). An empty input multiplies to one.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -414,7 +385,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "average",
         spec: Signature::Declared,
-        summary: "The mean of the occurrences, as a Float. Absent over an empty input.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -423,7 +393,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "merge_all",
         spec: Signature::Declared,
-        summary: "Merge every map in order, a later key winning: reduce({:}, merge).",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: Some(check_all),
@@ -432,7 +401,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "union_all",
         spec: Signature::Declared,
-        summary: "Every member of every set: reduce(Set([]), union).",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: Some(check_all),
@@ -441,7 +409,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "concat_all",
         spec: Signature::Declared,
-        summary: "Every member of every sequence, in order: reduce([], concat).",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: Some(check_ordered),
@@ -450,7 +417,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "min",
         spec: Signature::Declared,
-        summary: "The least occurrence by value order: reduce(min). Absent over an empty input.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -459,7 +425,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "max",
         spec: Signature::Declared,
-        summary: "The greatest occurrence by value order: reduce(max). Absent over an empty input.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -468,9 +433,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "variance",
         spec: Signature::Declared,
-        summary: "The population variance of the occurrences, as a Float. Absent over an \
-                  empty input. Its state, a count, a mean and a sum of squared deviations, \
-                  combines pairwise.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -479,8 +441,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "count_by",
         spec: Signature::Declared,
-        summary: "How many occurrences have each key, as a map from key to count. Its \
-                  state combines by `+` per key.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -489,8 +449,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "histogram",
         spec: Signature::Declared,
-        summary: "How many occurrences fall in each bucket of a width, keyed by the bucket's \
-                  lower bound, in key order. Its state combines by `+` per bucket.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -499,9 +457,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "top_k",
         spec: Signature::Declared,
-        summary: "The k greatest occurrences, by value order or by a key, greatest first; \
-                  equal keys keep input order. Two partial top-k lists combine by keeping \
-                  the k greatest of both.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,
@@ -510,9 +465,6 @@ pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "approx_distinct",
         spec: Signature::Declared,
-        summary: "An estimate of how many distinct values occur: HyperLogLog over 4096 \
-                  registers and a SHA-256 hash, so every run gives the same answer. Its \
-                  registers combine by `max`.",
         purity: Purity::Pure,
         shape: super::Shape::Reduction,
         check: None,

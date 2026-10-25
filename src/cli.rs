@@ -32,7 +32,7 @@ pub enum Shape {
 
 /// HQL — Hyper Query Language.
 #[derive(Debug, Parser)]
-#[command(name = "hql", version, about, long_about = None)]
+#[command(name = "hql", version, about, long_about = None, disable_help_subcommand = true)]
 pub struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -130,6 +130,16 @@ enum Command {
     },
     /// Read, evaluate and print, one program at a time.
     Repl,
+    /// Rewrite the reference pages' marked parts from the library's doc
+    /// strings, creating the page of a primitive that has none.
+    #[command(hide = true)]
+    Reference {
+        /// The site's reference folder, `doc/public/reference`.
+        dir: PathBuf,
+        /// Write nothing; fail when a page differs from the library.
+        #[arg(long)]
+        check: bool,
+    },
     /// Run the HQL cells in a document and write each one's output.
     Render {
         /// A Markdown or HyperMarkDown document, or `-` for standard input.
@@ -151,6 +161,16 @@ enum Command {
     },
     /// List the steps a pipeline may use.
     Builtins,
+    /// Print the declarations of a name, each with its module and its doc
+    /// string; with no name, this help.
+    Help {
+        /// A function, type, trait or module, bare or qualified: `range`,
+        /// `seq.range`, `shelf`.
+        name: Option<String>,
+        /// A program whose own declarations are searched first.
+        #[arg(long, value_name = "FILE")]
+        file: Option<PathBuf>,
+    },
     /// Show the reporting settings in force, and where each came from.
     Config,
     /// Check the semantic-search chain — vault, configuration, index, model,
@@ -193,6 +213,76 @@ impl From<Emit> for transclude::Emit {
     }
 }
 
+/// `hql reference`: rewrite the reference pages, or with `--check` name
+/// each that differs from the library.
+fn reference(
+    dir: &Path,
+    check: bool,
+    out: &mut impl Write,
+    err: &mut impl Write,
+) -> Result<u8, String> {
+    if check {
+        let problems = crate::reference::check(dir);
+        for problem in &problems {
+            writeln!(err, "{problem}").map_err(|error| error.to_string())?;
+        }
+        return Ok(u8::from(!problems.is_empty()));
+    }
+    let report = crate::reference::write(dir)?;
+    for (label, paths) in [
+        ("updated", &report.updated),
+        ("created", &report.created),
+        ("names no primitive", &report.orphaned),
+    ] {
+        for path in paths {
+            writeln!(out, "{label}: {}", dir.join(path).display())
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(0)
+}
+
+/// `hql help`: a name's declarations and doc strings; with no name, the
+/// usage; and for a name nothing declares that names a command, that
+/// command's help.
+fn help(
+    name: Option<&str>,
+    file: Option<&Path>,
+    vault: &Vault,
+    out: &mut impl Write,
+    err: &mut impl Write,
+) -> Result<u8, String> {
+    use clap::CommandFactory;
+    let Some(name) = name else {
+        write!(out, "{}", Cli::command().render_long_help()).map_err(|error| error.to_string())?;
+        return Ok(0);
+    };
+    let program = match file {
+        Some(path) => Some(crate::help::Module::program(
+            &fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?,
+        )),
+        None => None,
+    };
+    let modules = crate::help::scope(program, &vault.extensions.module_roots);
+    match crate::help::help(name, &modules) {
+        Ok(text) => {
+            write!(out, "{text}").map_err(|error| error.to_string())?;
+            Ok(0)
+        }
+        Err(message) => {
+            let mut command = Cli::command();
+            if let Some(subcommand) = command.find_subcommand_mut(name) {
+                let mut subcommand = subcommand.clone().bin_name(format!("hql {name}"));
+                write!(out, "{}", subcommand.render_long_help())
+                    .map_err(|error| error.to_string())?;
+                return Ok(0);
+            }
+            writeln!(err, "{message}").map_err(|error| error.to_string())?;
+            Ok(1)
+        }
+    }
+}
+
 /// The directory a source unit's relative paths resolve against: the file's
 /// own, or the working directory for standard input.
 fn directory_of(file: &str) -> PathBuf {
@@ -206,9 +296,19 @@ fn directory_of(file: &str) -> PathBuf {
 }
 
 /// The commands a first argument may name; anything else is a program.
-const COMMANDS: [&str; 11] = [
-    "eval", "check", "plan", "boundary", "run", "repl", "render", "builtins", "config", "doctor",
+const COMMANDS: [&str; 12] = [
+    "eval",
+    "check",
+    "plan",
+    "boundary",
+    "run",
+    "repl",
+    "render",
+    "builtins",
+    "config",
+    "doctor",
     "help",
+    "reference",
 ];
 
 /// Options that take a value, so the word after one is not the program.
@@ -332,8 +432,10 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     // the layer that supplied it; listing the builtins needs none.
     let backend =
         crate::backends::Selection::resolve(cli.options.backend.as_deref(), root.as_deref());
-    if !matches!(cli.command, Command::Builtins)
-        && let Err(refused) = &backend
+    if !matches!(
+        cli.command,
+        Command::Builtins | Command::Help { .. } | Command::Reference { .. }
+    ) && let Err(refused) = &backend
     {
         return Err(refused.clone());
     }
@@ -358,7 +460,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                         step.signature.replace('\n', "\n    "),
                         step.purity.label(),
                         step.shape.label(),
-                        step.summary
+                        step.description
                     )
                     .map_err(|error| error.to_string())?;
                 }
@@ -583,6 +685,8 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             }
             Ok(u8::from(rendered.reports.has_errors()))
         }
+        Command::Reference { dir, check } => reference(dir, *check, out, err),
+        Command::Help { name, file } => help(name.as_deref(), file.as_deref(), &vault, out, err),
         Command::Repl => repl(
             &vault,
             settings.mode,
@@ -1102,7 +1206,8 @@ fn repl(
                 writeln!(
                     out,
                     ":type <expression>   the type, without evaluating\n\
-                     :type <function>     the library's declarations of it, one per overload\n\
+                     :type <function>     its declarations, and their doc strings' first sentences\n\
+                     :help <name>         the declarations of a name, and their doc strings\n\
                      :vault               what the session is running against\n\
                      :reset               forget the bindings made so far\n\
                      :quit, quit, exit    leave"
@@ -1130,6 +1235,31 @@ fn repl(
             _ => {}
         }
 
+        if let Some(name) = line.strip_prefix(":help ") {
+            let modules = crate::help::scope(
+                (!prelude.is_empty()).then(|| crate::help::Module::program(&prelude.join("\n\n"))),
+                &vault.extensions.module_roots,
+            );
+            match crate::help::help(name.trim(), &modules) {
+                Ok(text) => write!(out, "{text}").map_err(|error| error.to_string())?,
+                Err(message) => writeln!(err, "{message}").map_err(|error| error.to_string())?,
+            }
+            continue;
+        }
+        // A declared function's type is its declarations: each form, with
+        // the first sentence of its doc string.
+        if let Some(name) = line.strip_prefix(":type ").map(str::trim)
+            && is_name(name)
+        {
+            let modules = crate::help::scope(
+                (!prelude.is_empty()).then(|| crate::help::Module::program(&prelude.join("\n\n"))),
+                &vault.extensions.module_roots,
+            );
+            if let Some(text) = crate::help::types(name, &modules) {
+                write!(out, "{text}").map_err(|error| error.to_string())?;
+                continue;
+            }
+        }
         // A line opening with `|` continues the pipeline before it: the
         // two run as one input, and a binding is made again with both.
         let mut replaced = None;
@@ -1149,18 +1279,7 @@ fn repl(
             None => (join(&prelude, line), false),
         };
         let outcome = if typing {
-            let outcome = crate::check_reported(&source, vault, mode);
-            // A bare function name is not an expression: its type is what the
-            // library declares, each overload on its own line.
-            let declared = crate::library::declarations(line[":type ".len()..].trim());
-            if outcome.failed() && !declared.is_empty() {
-                for (module, declaration) in declared {
-                    writeln!(out, "{declaration}    // {module}")
-                        .map_err(|error| error.to_string())?;
-                }
-                continue;
-            }
-            outcome
+            crate::check_reported(&source, vault, mode)
         } else {
             crate::run_on(&source, vault, mode, backend)
         };
@@ -1226,6 +1345,18 @@ impl Input {
                     if read == 0 {
                         return Ok((!text.is_empty()).then_some(text));
                     }
+                    // A doc string and the declarations it documents are one
+                    // input, ended by an empty line, as a file has them.
+                    if opens_doc(&text) {
+                        if text
+                            .lines()
+                            .last()
+                            .is_some_and(|last| last.trim().is_empty())
+                        {
+                            return Ok(Some(text));
+                        }
+                        continue;
+                    }
                     // A pipeline written one step per line, `| sort`, goes on
                     // while the next line opens with `|`.
                     if !is_open(&text) && !continues(stdin) {
@@ -1249,7 +1380,9 @@ struct Continuation;
 
 impl Validator for Continuation {
     fn validate(&self, context: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
-        Ok(if is_open(context.input()) {
+        let input = context.input();
+        let documented = opens_doc(input) && !input.ends_with('\n');
+        Ok(if is_open(input) || documented {
             ValidationResult::Incomplete
         } else {
             ValidationResult::Valid(None)
@@ -1297,10 +1430,29 @@ fn is_open(source: &str) -> bool {
     depth > 0
 }
 
+/// Whether an input opens with a doc line, and so runs to an empty line.
+fn opens_doc(input: &str) -> bool {
+    input
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .is_some_and(|line| line.trim_start().starts_with("///"))
+}
+
+/// Whether a word is a name, bare or qualified, rather than an expression.
+fn is_name(word: &str) -> bool {
+    !word.is_empty()
+        && word.split('.').all(|segment| {
+            segment.starts_with(|c: char| c.is_alphabetic() || c == '_')
+                && segment.chars().all(|c| c.is_alphanumeric() || c == '_')
+        })
+}
+
+/// The session's inputs and a new one as one source, an empty line between
+/// each, so a doc string in one opens after an empty line.
 fn join(prelude: &[String], line: &str) -> String {
-    let mut source = prelude.join("\n");
+    let mut source = prelude.join("\n\n");
     if !source.is_empty() {
-        source.push('\n');
+        source.push_str("\n\n");
     }
     source.push_str(line);
     source

@@ -15,41 +15,13 @@ use std::sync::Arc;
 
 /// Every step the `regex` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
-    declared(
-        "is_match",
-        "Whether the pattern matches somewhere in the text.",
-        eval_is_match,
-    ),
-    declared(
-        "find",
-        "The first match of the pattern, or absence.",
-        eval_find,
-    ),
-    declared(
-        "find_all",
-        "Every non-overlapping match of the pattern, in order.",
-        eval_find_all,
-    ),
-    declared(
-        "captures",
-        "The first match and its groups, whole match first, or absence; a group that did not take part is empty.",
-        eval_captures,
-    ),
-    declared(
-        "replace_all",
-        "The text with every match replaced; `$1` in the replacement is the first group.",
-        eval_replace_all,
-    ),
-    declared(
-        "replace_first",
-        "The text with the first match replaced; `$1` in the replacement is the first group.",
-        eval_replace_first,
-    ),
-    declared(
-        "split",
-        "The pieces between matches of the pattern, in order.",
-        eval_split,
-    ),
+    declared("is_match", eval_is_match),
+    declared("find", eval_find),
+    declared("find_all", eval_find_all),
+    declared("captures", eval_captures),
+    declared("replace_all", eval_replace_all),
+    declared("replace_first", eval_replace_first),
+    declared("split", eval_split),
 ];
 
 fn text(value: &str) -> Value {

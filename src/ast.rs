@@ -6,6 +6,8 @@ use std::ops::Range;
 #[derive(Debug)]
 pub(crate) struct Program {
     pub statements: Vec<Stmt>,
+    /// The doc strings of its declarations.
+    pub docs: crate::docs::Docs,
 }
 
 #[derive(Debug)]

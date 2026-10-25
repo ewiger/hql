@@ -1,8 +1,8 @@
 # Doc strings: `///` above a declaration, printed by `help`
 
 Sessions, not programs: each case is a REPL or command-line transcript of what
-`hql` prints once [HQL-0042](../../doc/proposals/HQL-0042/README.md) is
-implemented. Every case is `status: proposed`. From the repository root:
+`hql` prints for [HQL-0042](../../doc/proposals/HQL-0042/README.md) doc
+strings. From the repository root:
 
 ```sh
 cargo build --locked
@@ -42,5 +42,6 @@ A `cli` session also declares `exit:`, the status of its last command.
 - Every other line is expected output: standard output and standard error in
   the order written. `{version}` stands for the binary's version.
 
-The corpus harness reads `.hql` cases only. The runner for sessions is part
-of HQL-0042's reporting work; until it lands these cases are read, not run.
+[`tests/sessions.rs`](../../tests/sessions.rs) replays every session under
+`examples/`: a `valid-now` session prints its transcript exactly, and a
+`proposed` one does not yet.

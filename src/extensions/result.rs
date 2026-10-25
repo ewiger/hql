@@ -11,43 +11,15 @@ use std::sync::Arc;
 
 /// Every step the `result` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
-    declared("is_ok", "Whether the computation succeeded.", eval_is_ok),
-    declared("is_err", "Whether the computation failed.", eval_is_err),
-    declared(
-        "ok",
-        "The value of a success, or absence over a failure.",
-        eval_ok,
-    ),
-    declared(
-        "err",
-        "The error of a failure, or absence over a success.",
-        eval_err,
-    ),
-    declared(
-        "unwrap_or",
-        "The value of a success, and a default over a failure.",
-        eval_unwrap_or,
-    ),
-    declared(
-        "unwrap_or_else",
-        "The value of a success, and what a function of the error produces over a failure.",
-        eval_unwrap_or_else,
-    ),
-    declared(
-        "map_err",
-        "A function over the error of a failure; a success is kept.",
-        eval_map_err,
-    ),
-    declared(
-        "and_then",
-        "A function over the value of a success, whose own failure is kept.",
-        eval_and_then,
-    ),
-    declared(
-        "or_else",
-        "A function over the error of a failure, producing another result; a success is kept.",
-        eval_or_else,
-    ),
+    declared("is_ok", eval_is_ok),
+    declared("is_err", eval_is_err),
+    declared("ok", eval_ok),
+    declared("err", eval_err),
+    declared("unwrap_or", eval_unwrap_or),
+    declared("unwrap_or_else", eval_unwrap_or_else),
+    declared("map_err", eval_map_err),
+    declared("and_then", eval_and_then),
+    declared("or_else", eval_or_else),
 ];
 
 fn parts(input: &Value, name: &str, span: &Range<usize>) -> Result<Value, Diagnostic> {

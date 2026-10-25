@@ -469,36 +469,6 @@ fn check_names(
     Ok(())
 }
 
-/// The declarations of a function the library exports, as each module writes
-/// them, with the module's path: one per overload, in loading order. A name
-/// the library does not declare has none.
-#[must_use]
-pub fn declarations(name: &str) -> Vec<(String, &'static str)> {
-    MODULES
-        .iter()
-        .chain(WRITTEN)
-        .flat_map(|(module, source)| {
-            source
-                .lines()
-                .filter(move |line| {
-                    // A modifier word may lead, `reduction fn`; a trait's
-                    // member is indented, and a private one is not exported.
-                    let mut words = line.split(' ').skip_while(|word| {
-                        *word != "fn" && word.chars().all(|c| c.is_ascii_lowercase())
-                    });
-                    !line.starts_with(' ')
-                        && !line.starts_with("private ")
-                        && words.next() == Some("fn")
-                        && words.next().is_some_and(|rest| {
-                            rest.strip_prefix(name)
-                                .is_some_and(|after| after.starts_with(['<', '(']))
-                        })
-                })
-                .map(move |line| (self::path(module), line))
-        })
-        .collect()
-}
-
 /// The whole library as one program's source: every module's imports at the
 /// head, as one source unit holds them, then every module's declarations in
 /// loading order.
@@ -507,11 +477,15 @@ pub fn source() -> String {
     let mut heads: Vec<&str> = Vec::new();
     let mut bodies = String::new();
     for (_, module) in MODULES {
+        // An empty line between modules, and in place of each import, keeps
+        // every doc string opening after an empty line, as in its file.
+        bodies.push('\n');
         for line in module.lines() {
             if line.starts_with("import ") {
                 if !heads.contains(&line) {
                     heads.push(line);
                 }
+                bodies.push('\n');
             } else {
                 bodies.push_str(line);
                 bodies.push('\n');
@@ -534,7 +508,67 @@ pub fn check() -> Result<(), Diagnostic> {
     let mut graph = MODULES.to_vec();
     graph.extend_from_slice(WRITTEN);
     closure(&graph).map_err(|message| Diagnostic::name(0..0, message))?;
-    load().map(drop)
+    load()?;
+    if let Some((module, declaration)) = undocumented().into_iter().next() {
+        return Err(Diagnostic::name(
+            0..0,
+            format!("{module} declares `{declaration}` in a paragraph with no doc string"),
+        ));
+    }
+    if let Some((module, target)) = citations()
+        .into_iter()
+        .find(|(_, target)| !target.starts_with('/'))
+    {
+        return Err(Diagnostic::name(
+            0..0,
+            format!(
+                "{module} cites `[[{target}]]`; a standard doc string cites a published page \
+                 by its path, `[[/learn/…]]`"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Every exported declaration of the builtin packages that has no doc
+/// string, with its module: a module, type, trait, `impl` or function a
+/// program reaches and `help` cannot describe.
+#[must_use]
+pub fn undocumented() -> Vec<(String, String)> {
+    crate::help::library()
+        .iter()
+        .flat_map(|module| {
+            module
+                .declarations
+                .iter()
+                .filter(|declaration| !declaration.private && declaration.doc.is_none())
+                .map(|declaration| (module.label.clone(), declaration.text.clone()))
+        })
+        .collect()
+}
+
+/// Every citation a doc string of the builtin packages writes, with its
+/// module, once per doc string.
+#[must_use]
+pub fn citations() -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    for module in crate::help::library() {
+        let mut seen: Vec<&std::sync::Arc<crate::docs::DocString>> = Vec::new();
+        let declarations = module
+            .declarations
+            .iter()
+            .flat_map(|declaration| std::iter::once(declaration).chain(&declaration.members));
+        for doc in declarations.filter_map(|declaration| declaration.doc.as_ref()) {
+            if seen.iter().any(|held| std::sync::Arc::ptr_eq(held, doc)) {
+                continue;
+            }
+            seen.push(doc);
+            for target in crate::docs::citations(&doc.text) {
+                found.push((module.label.clone(), target.to_owned()));
+            }
+        }
+    }
+    found
 }
 
 /// The bindings the program module starts with over the host's `vault`.

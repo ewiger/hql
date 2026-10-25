@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: `hql help` on a module and on a qualified name under a module root: the module's doc string, its declarations' first sentences, and one declaration in full
-// implementation: pending
-// proposal: doc/proposals/HQL-0042/README.md
+// implementation: implemented
 // environment: pure
 // modules: doc-strings/lib
 // session: cli

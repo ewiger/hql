@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A `///` doc string above a program's own function, printed by `:type` and `:help`
-// implementation: pending
-// proposal: doc/proposals/HQL-0042/README.md
+// implementation: implemented
 // environment: pure
 // session: repl
 

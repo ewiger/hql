@@ -11,33 +11,13 @@ use std::sync::Arc;
 
 /// Every step the `option` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
-    declared("is_some", "Whether a value is present.", eval_is_some),
-    declared("is_none", "Whether the value is absent.", eval_is_none),
-    declared(
-        "unwrap_or",
-        "The value when present, and a default otherwise.",
-        eval_unwrap_or,
-    ),
-    declared(
-        "unwrap_or_else",
-        "The value when present, and what a function produces otherwise.",
-        eval_unwrap_or_else,
-    ),
-    declared(
-        "and_then",
-        "A function over the present value, whose own absence is kept.",
-        eval_and_then,
-    ),
-    declared(
-        "or_else",
-        "The value when present, and what a function produces otherwise, which may itself be absent.",
-        eval_or_else,
-    ),
-    declared(
-        "alternative",
-        "The value when present, and another option otherwise.",
-        eval_alternative,
-    ),
+    declared("is_some", eval_is_some),
+    declared("is_none", eval_is_none),
+    declared("unwrap_or", eval_unwrap_or),
+    declared("unwrap_or_else", eval_unwrap_or_else),
+    declared("and_then", eval_and_then),
+    declared("or_else", eval_or_else),
+    declared("alternative", eval_alternative),
 ];
 
 /// The present value, or `None` for absence under any number of layers.

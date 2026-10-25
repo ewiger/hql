@@ -1,6 +1,6 @@
 # HQL-0043: Public documentation: a reference page per primitive, permanent URLs and versions
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-10-25
 **Source**: the documentation-site section of [`doc/stack.md`](../../stack.md),
 [issue 0054](../../issues/0054-user-facing-website.md), and
@@ -9,9 +9,9 @@
 ## Abstract
 
 Every primitive of HQL — each function, type, trait and module the standard
-library exports — has a manual page under `doc/public/reference/std/`, and
+library exports — has a manual page under `doc/public/reference/`, and
 that page has a permanent URL under `/latest/`:
-`https://hql.hypermarkdown.org/latest/reference/std/seq/range/`. Every
+`https://hql-lang.org/latest/reference/std/seq/range/`. Every
 release's documentation is also published under its own version, `/vX.Y.Z/`,
 built once from the release tag by mike; `/latest/` is the newest release.
 Cutting a release updates the reference pages from the doc strings in
@@ -45,17 +45,24 @@ scope of issue 0054.
 
 Every primitive the standard library exports has a manual page.
 
-- A **primitive** is a name exported by a standard module: a function (all
-  its forms), a type, a trait, or the module itself.
-- The page of primitive `<name>` in module `std/<path>` is
-  `doc/public/reference/std/<path>/<name>.md`; a module's page is
-  `doc/public/reference/std/<path>/index.md`. `range` in `std/seq` is
-  `doc/public/reference/std/seq/range.md`, and `std/io/fs` is
-  `doc/public/reference/std/io/fs/index.md`.
-- `doc/public/reference/std/index.md` lists every standard module.
-- A page has two parts. The **declaration part** is the primitive's
-  declarations and doc strings, as `help` prints them (HQL-0042), written
-  from `lib/std` between two marker lines:
+- A **primitive** is a name exported by a module of the builtin packages,
+  `std` and `search`: a function (all its forms), a type, a trait, or the
+  module itself.
+- The page of a function `<name>` in module `<package>/<path>` is
+  `doc/public/reference/<package>/<path>/<name>.md`. A capitalised name — a
+  type or a trait, with the constructors named after it — is under
+  `types/`: `doc/public/reference/<package>/<path>/types/<Name>.md`. So
+  `Csv` and the function `csv` beside it, or the trait `Index` and the
+  module's `index.md`, are two files on any file system. A module's page is
+  `doc/public/reference/<package>/<path>/index.md`. `range` in `std/seq` is
+  `doc/public/reference/std/seq/range.md`, `Csv` in `std/format` is
+  `doc/public/reference/std/format/types/Csv.md`, and `std/io/net` is
+  `doc/public/reference/std/io/net/index.md`.
+- `doc/public/reference/index.md` is the Reference page: the command table
+  and the list of every builtin module.
+- A page has a **marked part**: the primitive's declarations and doc
+  strings, as `help` prints them (HQL-0042), written from the library
+  between two marker lines:
 
   ```text
   <!-- hql reference: std/seq.range -->
@@ -63,14 +70,15 @@ Every primitive the standard library exports has a manual page.
   <!-- hql reference: end -->
   ```
 
-  The **manual** follows it: what the primitive does, shown with examples
-  and their output, written by hand. Nothing edits the declaration part by
+  The rest of the page is the **manual**: what the primitive does, shown
+  with examples and their output, written by hand above or below the marked
+  part, and empty until someone writes it. Nothing edits the marked part by
   hand, and nothing writes the manual.
 - The pages are committed files. They describe the release they were last
   updated for; how they are updated is
   [Releasing the documentation](#4-releasing-the-documentation).
 - Every primitive MUST have a page, and every page under
-  `doc/public/reference/std/` MUST name a primitive.
+  `doc/public/reference/` MUST name a primitive or a module.
 - A page renders a doc string's citation (HQL-0042) as a relative Markdown
   link to the same page, so the link stays inside the version it is
   published under.
@@ -81,9 +89,9 @@ A primitive's page has a permanent URL, fixed by the primitive's module and
 name.
 
 ```text
-https://hql.hypermarkdown.org/latest/reference/std/<path>/<name>/
-https://hql.hypermarkdown.org/latest/reference/std/<path>/
-https://hql.hypermarkdown.org/v<X.Y.Z>/reference/std/<path>/<name>/
+https://hql-lang.org/latest/reference/std/<path>/<name>/
+https://hql-lang.org/latest/reference/std/<path>/
+https://hql-lang.org/v<X.Y.Z>/reference/std/<path>/<name>/
 ```
 
 - The `/latest/` URL is the permanent one. It is what is linked from outside
@@ -104,10 +112,10 @@ Every release's documentation is published under its version, and
 `/latest/` is the newest release.
 
 - A release `vX.Y.Z` publishes its site at
-  `https://hql.hypermarkdown.org/vX.Y.Z/`, built once from the tag and never
+  `https://hql-lang.org/vX.Y.Z/`, built once from the tag and never
   rebuilt. A correction to a published version's pages ships in the next
   release.
-- `https://hql.hypermarkdown.org/latest/` redirects each page to the same page
+- `https://hql-lang.org/latest/` redirects each page to the same page
   of the newest release, and the site root redirects to `/latest/`.
 - Every page carries the version selector and a canonical link to its
   `/latest/` URL.
@@ -136,7 +144,7 @@ current arrangement avoids, and Pages serving from it.
   keeps building the site with `--strict` on pull requests and deploys
   nothing.
 - Settings → Pages → Source becomes *Deploy from a branch*, `gh-pages`, root.
-  A `CNAME` file holding `hql.hypermarkdown.org` sits at the branch root,
+  A `CNAME` file holding `hql-lang.org` sits at the branch root,
   written by the first deploy; mike leaves root files it did not create.
 
 ### 4. Releasing the documentation
@@ -145,18 +153,18 @@ Updating the reference and publishing it are steps of cutting a release.
 For a release `X.Y.Z`:
 
 1. **Update the reference.** With the version bumped and the `CHANGELOG.md`
-   section written, `cargo run --locked -- reference doc/public/reference/std`
-   rewrites the declaration part of every page from `lib/std`'s doc strings,
-   creates the page of a primitive that has none (a declaration part and an
-   empty manual), and lists each page that names no primitive any more. The
-   result is committed with the release commit, and a new page's manual is
-   written before the tag.
+   section written, `cargo run --locked -- reference doc/public/reference`
+   rewrites the marked part of every page from the library's doc strings,
+   creates the page of a primitive that has none (its marked part alone),
+   and lists each page that names no primitive any more, which is then
+   deleted or renamed by hand. The result is committed with the release
+   commit.
 2. **Check before tagging.** The `build` job of `release.yml` runs
-   `hql reference --check doc/public/reference/std`, which writes nothing and
-   fails on a declaration part that differs from `lib/std`, a primitive with
-   no page, a page naming no primitive, or a page with an empty manual:
-   `` doc/public/reference/std/seq/range.md: the declaration part differs from
-   lib/std; run `hql reference` ``. A tag whose documentation is stale is not
+   `hql reference --check doc/public/reference`, which writes nothing and
+   fails on a marked part that differs from the library, a primitive with
+   no page, or a page naming no primitive:
+   `` doc/public/reference/std/seq/range.md: the marked part differs from the
+   library; run `hql reference` ``. A tag whose documentation is stale is not
    released.
 3. **Publish the version.** A `docs` job of `release.yml`, after `release`
    and before `crates-io`, fetches `gh-pages`, refuses a version mike already
@@ -209,9 +217,8 @@ before the commit, the `build` job gains `hql reference --check`, and a
 - Site URLs move under `/vX.Y.Z/` and `/latest/`. The site root redirects to
   `/latest/`; an unversioned page URL from the current site is not
   redirected.
-- `doc/public/reference.md` keeps the command table, and its
-  standard-library paragraph links `reference/std/index.md` instead of the
-  repository folder.
+- `doc/public/reference.md` becomes `doc/public/reference/index.md`: the
+  command table, written by hand, then the marked list of builtin modules.
 
 ## Security Considerations
 
@@ -221,8 +228,7 @@ before the commit, the `build` job gains `hql reference --check`, and a
 
 ## Deployment / Activation
 
-1. `hql reference` and `--check`, and the reference pages it creates, with
-   their manuals written.
+1. `hql reference` and `--check`, and the reference pages it creates.
 2. mike, the `docs` job and the `--check` step in `release.yml`; switch the
    Pages source to `gh-pages`. The next release is the first versioned one.
 3. Update `doc/stack.md` and issue 0054 as
@@ -233,10 +239,10 @@ before the commit, the `build` job gains `hql reference --check`, and a
 
 - **The reference command** — `src/reference.rs` and the hidden `reference`
   command with `--check`, reading the parsed declarations of HQL-0042.
-  `tests/reference.rs`: the declaration part of a page, a created page, and
-  each `--check` failure with its message.
-- **Reference pages** — `doc/public/reference/std/` with each manual, the
-  `mkdocs.yml` nav, and the link in `doc/public/reference.md`.
+  Unit tests: a marked part replaced with the manual kept, citations as
+  relative links, capitalised names under `types/`.
+- **Reference pages** — `doc/public/reference/`, the `mkdocs.yml` nav and
+  `not_in_nav`.
 - **Versioned publishing** — `pyproject.toml` and `uv.lock` (mike),
   `mkdocs.yml` (plugin and `extra.version`), `release.yml` (`--check` in
   `build`, the `docs` job, `CNAME`), the Pages source setting, `doc/stack.md`,
@@ -244,9 +250,9 @@ before the commit, the `build` job gains `hql reference --check`, and a
 
 ## Test Plan
 
-- `tests/reference.rs` covers writing a declaration part, creating a page,
-  and each `--check` failure — a stale declaration part, a missing page, a
-  page naming no primitive, an empty manual — with the exact message.
+- Unit tests in `src/reference.rs`: a marked part replaced with the manual
+  kept, a page without markers refused, citations as relative links, and
+  capitalised names under `types/`.
 - `uv run mkdocs build --strict` on every pull request, and
   `hql reference --check` in the release `build` job.
 - After the first versioned release: `/vX.Y.Z/reference/std/seq/range/` and
@@ -256,3 +262,4 @@ before the commit, the `build` job gains `hql reference --check`, and a
 ## Changelog
 
 - 2026-10-25: drafted
+- 2026-10-25: implemented

@@ -7,40 +7,22 @@
 //! first lines. See [HQL-0021](../../doc/proposals/HQL-0021/README.md).
 
 use super::Signature;
-use super::spec::{ArgumentSpec, CheckedCall, OperationSpec, Output as O, TypePattern as P};
+use super::spec::CheckedCall;
 use super::{CheckCx, EvalCx, Operation, Purity};
 use crate::data::Data;
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
 use crate::io::{Endpoint, Policy};
-use crate::types::{TypeConstructor, Value};
+use crate::types::Value;
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
-
-const STRING: P = P::Type(TypeConstructor("String"));
 
 /// Every operation the `net` extension provides.
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "http",
-        spec: Signature::Native(OperationSpec {
-            parameters: &[],
-            input: STRING,
-            arguments: &[
-                ArgumentSpec {
-                    required: false,
-                    ..ArgumentSpec::value("method", STRING)
-                },
-                ArgumentSpec {
-                    required: false,
-                    ..ArgumentSpec::value("headers", P::Type(TypeConstructor("Data")))
-                },
-            ],
-            output: O::Type(P::Type(TypeConstructor("Http"))),
-        }),
-        summary: "An HTTP resource, as an endpoint: read by a GET once per evaluation, \
-                  written by one request per document.",
+        spec: Signature::Declared,
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: Some(refuse_in_documents),
@@ -48,13 +30,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "websocket",
-        spec: Signature::Native(OperationSpec {
-            parameters: &[],
-            input: STRING,
-            arguments: &[],
-            output: O::Type(P::Type(TypeConstructor("WebSocket"))),
-        }),
-        summary: "A WebSocket connection, as an endpoint: one document per message.",
+        spec: Signature::Declared,
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: Some(refuse_in_documents),
@@ -62,14 +38,7 @@ pub(crate) static STEPS: &[Operation] = &[
     },
     Operation {
         name: "socket",
-        spec: Signature::Native(OperationSpec {
-            parameters: &[],
-            input: STRING,
-            arguments: &[ArgumentSpec::value("port", P::Type(TypeConstructor("Int")))],
-            output: O::Type(P::Type(TypeConstructor("Socket"))),
-        }),
-        summary: "A TCP connection, as an endpoint: documents separated as their format \
-                  separates them.",
+        spec: Signature::Declared,
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: Some(refuse_in_documents),

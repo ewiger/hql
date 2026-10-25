@@ -467,6 +467,7 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
         .filter_map(|(name, value)| {
             let program = Program {
                 statements: vec![Stmt::Expr(value)],
+                docs: crate::docs::Docs::default(),
             };
             let typed = Checker::new(vault, base(vault), Resolution::new(&vault.extensions).ok()?)
                 .program(&program)

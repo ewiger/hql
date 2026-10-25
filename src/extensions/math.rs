@@ -11,47 +11,23 @@ use std::ops::Range;
 
 /// Every step the `math` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
-    declared("abs", "The number without its sign.", eval_abs),
-    declared(
-        "pow",
-        "The number raised to an exponent of the same type.",
-        eval_pow,
-    ),
-    declared("sign", "-1, 0 or 1 by the sign of the number.", eval_sign),
-    declared("float", "The Int or the Decimal as a Float.", eval_float),
-    declared(
-        "int",
-        "The Float or the Decimal as an Int, its fraction dropped.",
-        eval_int,
-    ),
-    declared(
-        "decimal",
-        "The Int, or the Float by its shortest digits, as a Decimal.",
-        eval_decimal,
-    ),
-    declared("gcd", "The greatest common divisor of two Ints.", eval_gcd),
-    declared("sqrt", "The square root.", eval_sqrt),
-    declared(
-        "floor",
-        "The greatest whole number not above the value.",
-        eval_floor,
-    ),
-    declared(
-        "ceil",
-        "The least whole number not below the value.",
-        eval_ceil,
-    ),
-    declared(
-        "round",
-        "The nearest whole number, halves away from zero; a Decimal to a number of places, halves to even.",
-        eval_round,
-    ),
-    declared("exp", "e raised to the value.", eval_exp),
-    declared("ln", "The natural logarithm.", eval_ln),
-    declared("log10", "The base-10 logarithm.", eval_log10),
-    declared("sin", "The sine of an angle in radians.", eval_sin),
-    declared("cos", "The cosine of an angle in radians.", eval_cos),
-    declared("tan", "The tangent of an angle in radians.", eval_tan),
+    declared("abs", eval_abs),
+    declared("pow", eval_pow),
+    declared("sign", eval_sign),
+    declared("float", eval_float),
+    declared("int", eval_int),
+    declared("decimal", eval_decimal),
+    declared("gcd", eval_gcd),
+    declared("sqrt", eval_sqrt),
+    declared("floor", eval_floor),
+    declared("ceil", eval_ceil),
+    declared("round", eval_round),
+    declared("exp", eval_exp),
+    declared("ln", eval_ln),
+    declared("log10", eval_log10),
+    declared("sin", eval_sin),
+    declared("cos", eval_cos),
+    declared("tan", eval_tan),
 ];
 
 fn finite(value: f64, span: &Range<usize>) -> Result<Value, Diagnostic> {

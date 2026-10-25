@@ -66,8 +66,6 @@ pub(crate) static STEPS: &[Operation] = &[
             arguments: &[],
             output: O::Type(P::Type(TypeConstructor("File"))),
         }),
-        summary: "The file at a path, as an endpoint: read whole, written by replacing it; \
-                  its `.end` is appended to and followed.",
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
         check: Some(check_file),
@@ -84,9 +82,6 @@ pub(crate) static STEPS: &[Operation] = &[
             arguments: &[FORMAT],
             output: O::Computed("Seq<T> | Stream<T> | S"),
         }),
-        summary: "Read an endpoint's documents in a format: every one, as a Seq, when it can \
-                  be read again; each as it arrives, as a Stream, when it cannot. Given an \
-                  id, the source the run context configures under it.",
         purity: Purity::Effectful,
         shape: super::Shape::Barrier,
         check: Some(check_read),
@@ -103,8 +98,6 @@ pub(crate) static STEPS: &[Operation] = &[
             arguments: &[FORMAT],
             output: O::Computed("Stream<T>"),
         }),
-        summary: "Read an endpoint's documents one at a time, as a Stream; at a file's \
-                  `.end`, each one appended from now on.",
         purity: Purity::Effectful,
         shape: super::Shape::Barrier,
         check: Some(check_read),
@@ -124,8 +117,6 @@ pub(crate) static STEPS: &[Operation] = &[
             arguments: &[TARGET, FORMAT],
             output: O::Type(P::Type(TypeConstructor("Unit"))),
         }),
-        summary: "Write one completed value as one document; a file is replaced, its `.end` \
-                  appended to. Given an id, the target the run context configures under it.",
         purity: Purity::Effectful,
         shape: super::Shape::Barrier,
         check: Some(check_target),
@@ -145,8 +136,6 @@ pub(crate) static STEPS: &[Operation] = &[
             arguments: &[ENDPOINT, FORMAT],
             output: O::Type(P::Type(TypeConstructor("Unit"))),
         }),
-        summary: "Write each value of a stream as one document, as it arrives; a file is \
-                  replaced, its `.end` appended to.",
         purity: Purity::Effectful,
         shape: super::Shape::Barrier,
         check: Some(check_sink),

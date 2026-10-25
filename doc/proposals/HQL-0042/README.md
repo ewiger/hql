@@ -1,6 +1,6 @@
 # HQL-0042: Doc strings: HQL is the one source of a declaration's documentation
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-10-25
 **Source**: the `//` comments above declarations in `lib/std/**/mod.hql`, the
 `summary:` strings on `Operation` in `src/extensions/`, `declarations()` in
@@ -142,19 +142,20 @@ it is in, or none.
 
 ### 3. The AST
 
-The parser keeps a doc string on each declaration it documents.
+The parsed program keeps a doc string for each declaration it documents.
 
-- `Item::Module`, `TypeDecl`, `TraitDecl`, each trait member, `ImplDecl` and
-  `FnDecl` gain `doc: Option<Arc<DocString>>`. The declarations of one
-  paragraph hold the same `DocString`, so a reporter tells shared text from
+- `Program` holds a table, `docs`, from where each documented declaration
+  begins to its `DocString`: one table for top-level declarations and one
+  for the members of a `trait` or `impl`. The declarations of one paragraph
+  hold the same `DocString` (an `Arc`), so a reporter tells shared text from
   equal text.
 - `DocString { text: String, span: Range<usize> }`. The span covers the doc
   lines, from the first `/` of the first to the end of the last, so a
   diagnostic about a doc string points at it.
-- The lexer emits one `DocLine` token per doc line and keeps empty lines
-  visible to the parser where a doc block is concerned; the parser joins a
-  block, checks where it opens, and attaches it to the declarations of its
-  paragraph. `//` comments are still skipped.
+- The lexer skips a doc line as it skips a `//` comment, and refuses `///`
+  after a token on its line. After parsing, `docs::attach` finds the doc
+  blocks in the source's lines, checks where each opens and what follows it,
+  and attaches each to the declarations that begin in its paragraph.
 
 ### 4. Reporting
 
@@ -188,10 +189,10 @@ doc-block   = each line of the doc string, prefixed by four spaces
 output      = entry { "\n" entry }        -- one blank line between entries
 ```
 
-- `declaration` is rendered from the AST on one line: the modifiers other
-  than `private`, `fn`, the name, the type parameters, the parameters with
-  their defaults and a `/` where written, and ` : ` and the result. A body is
-  never printed. A `type` prints its definition, `type Book { title : String,
+- `declaration` is the declaration as written, on one line: from the start
+  of its line, so the modifiers before `fn` are kept, to the end of its
+  signature, each run of whitespace one space and `private` dropped. A body
+  is never printed. A `type` prints its definition, `type Book { title : String,
   pages : Int }`; a `trait` its head, `trait Shape as Figure`; an `impl` its
   head, `impl<T> Index<T> for Ring<T>`; a `module` its line, `module seq for
   Seq<T>`.
@@ -320,7 +321,7 @@ A standard-library doc string cites a published page with a wikilink. Only
 - A citation resolves to
 
   ```text
-  https://hql.hypermarkdown.org/v<version>/<path>/[#<fragment>]
+  https://hql-lang.org/v<version>/<path>/[#<fragment>]
   ```
 
   where `<version>` is the binary's own version (`CARGO_PKG_VERSION`) and the
@@ -490,3 +491,4 @@ cargo test --locked
 ## Changelog
 
 - 2026-10-25: drafted
+- 2026-10-25: implemented

@@ -25,9 +25,27 @@ The language continues to be in active development.
 
 ### Added
 
-- `:type range` in `hql repl` prints the standard library's declarations of
-  the function, one per overload, with the module declaring each; a bare
-  function name is not an expression, so it was a type error.
+- Doc strings ([HQL-0042](doc/proposals/HQL-0042/README.md), shown in the
+  [doc-string sessions](examples/doc-strings/README.md)): a block of `///`
+  lines opened after an empty line documents the declarations below it, up
+  to the next empty line. A doc block anywhere else, one with no declaration
+  directly below it, or a binding or expression in a documented paragraph is
+  a syntax error. Every exported declaration of the standard library carries
+  one, and its citations of published pages, `[[/learn/…]]`, are checked.
+- `hql help <name>` and `:help <name>` in `hql repl` print each declaration
+  of a function, type, trait or module, with its module and its doc string;
+  a citation prints as its page's URL under the binary's version. A name
+  nothing declares names the nearest one, and `hql help` exits `1`.
+- `:type <function>` in `hql repl` prints each declaration of the function,
+  the standard library's or the session's own, with its module and the
+  first sentence of its doc string.
+- `hql builtins` describes each step with the first sentence of its doc
+  string; the Rust descriptions it printed before are gone.
+- The site gains a page for every function, type, trait and module of the
+  standard library under `reference/`, written from the doc strings by
+  `hql reference` when a release is cut
+  ([HQL-0043](doc/proposals/HQL-0043/README.md)). Each release's site is
+  published under `/vX.Y.Z/`, and `/latest/` is the newest.
 - `+` on two strings is concatenation: `String` implements `Add`, so
   `"- [ ] " + title` and `reduce("", +)` over strings type-check. Both
   operands are strings; `"a" + 1` is still a type error.

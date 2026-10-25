@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: `:help` on a name no declaration has: a message with the nearest declared name, and the session goes on
-// implementation: pending
-// proposal: doc/proposals/HQL-0042/README.md
+// implementation: implemented
 // environment: pure
 // session: repl
 

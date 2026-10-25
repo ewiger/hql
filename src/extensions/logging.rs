@@ -205,7 +205,7 @@ const LEVEL_PARAMETER: TypeParameter = TypeParameter {
 
 /// The five operations that log, one per level.
 macro_rules! levels {
-    ($($name:literal => $eval:ident, $level:expr, $summary:literal),* $(,)?) => {
+    ($($name:literal => $eval:ident, $level:expr),* $(,)?) => {
         [$(Operation {
             name: $name,
             spec: Signature::Native(OperationSpec {
@@ -220,7 +220,6 @@ macro_rules! levels {
                 ],
                 output: O::Type(P::Type(TypeConstructor("Unit"))),
             }),
-            summary: $summary,
             purity: Purity::Effectful,
             shape: super::Shape::Barrier,
             check: None,
@@ -232,11 +231,11 @@ macro_rules! levels {
 /// Every operation the `logging` extension provides.
 pub(crate) static STEPS: &[Operation] = &{
     let [trace, debug, info, warn, error] = levels! {
-        "trace" => eval_trace, Level::Trace, "Write a Trace event to the logger's endpoint, when its threshold allows.",
-        "debug" => eval_debug, Level::Debug, "Write a Debug event to the logger's endpoint, when its threshold allows.",
-        "info" => eval_info, Level::Info, "Write an Info event to the logger's endpoint, when its threshold allows.",
-        "warn" => eval_warn, Level::Warn, "Write a Warn event to the logger's endpoint, when its threshold allows.",
-        "error" => eval_error, Level::Error, "Write an Error event to the logger's endpoint, when its threshold allows.",
+        "trace" => eval_trace, Level::Trace,
+        "debug" => eval_debug, Level::Debug,
+        "info" => eval_info, Level::Info,
+        "warn" => eval_warn, Level::Warn,
+        "error" => eval_error, Level::Error,
     };
     [
         Operation {
@@ -274,8 +273,6 @@ pub(crate) static STEPS: &[Operation] = &{
                 ],
                 output: O::Type(P::Type(TypeConstructor("Logger"))),
             }),
-            summary: "A logger that writes LogEvents to an endpoint in a format, or to a \
-                      Channel<LogEvent> as values; `level` is the least severe it writes.",
             purity: Purity::Pure,
             shape: super::Shape::Barrier,
             check: Some(check_logger),

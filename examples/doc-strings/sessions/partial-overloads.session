@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: An overload set documented in part: forms in one paragraph share its doc string, and a form in an undocumented paragraph has none
-// implementation: pending
-// proposal: doc/proposals/HQL-0042/README.md
+// implementation: implemented
 // environment: pure
 // session: repl
 

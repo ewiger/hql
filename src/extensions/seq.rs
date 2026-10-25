@@ -17,140 +17,32 @@ pub const PAIR: TypeConstructor = TypeConstructor("Pair");
 
 /// Every step the `seq` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
-    declared(
-        "first",
-        "The element at position 0, or absence over an empty sequence.",
-        eval_first,
-    ),
-    declared(
-        "last",
-        "The element at the last position, or absence over an empty sequence.",
-        eval_last,
-    ),
-    declared(
-        "reverse",
-        "The elements in the opposite order.",
-        eval_reverse,
-    ),
-    declared(
-        "distinct",
-        "Each value once, at its first position.",
-        eval_distinct,
-    ),
-    declared(
-        "zip",
-        "Pairs of elements at equal positions, as long as the shorter sequence.",
-        eval_zip,
-    ),
-    declared(
-        "enumerate",
-        "Each element paired with its position, counting from 0.",
-        eval_enumerate,
-    ),
-    declared(
-        "any",
-        "Whether a predicate holds of some occurrence; false over an empty input.",
-        eval_any,
-    )
-    .shaped(super::Shape::Reduction),
-    declared(
-        "all",
-        "Whether a predicate holds of every occurrence; true over an empty input.",
-        eval_all,
-    )
-    .shaped(super::Shape::Reduction),
-    declared(
-        "find",
-        "The first element a predicate accepts, or absence.",
-        eval_find,
-    ),
-    declared(
-        "position",
-        "The position of the first element a predicate accepts, or absence.",
-        eval_position,
-    ),
-    declared(
-        "take_while",
-        "The leading values a predicate accepts, stopping at the first it rejects.",
-        eval_take_while,
-    ),
-    declared(
-        "drop_while",
-        "The values after the leading ones a predicate accepts.",
-        eval_drop_while,
-    ),
-    declared(
-        "window",
-        "Every run of n consecutive elements, in order.",
-        eval_window,
-    ),
-    declared(
-        "partition",
-        "The values redistributed by a key, each once and at its own type: a stage boundary.",
-        eval_partition,
-    )
-    .shaped(super::Shape::Partition),
-    declared(
-        "is_empty",
-        "Whether the collection has no occurrences.",
-        eval_is_empty,
-    )
-    .shaped(super::Shape::Reduction),
-    declared(
-        "range",
-        "The Ints from the start up to, not including, an end, by a step of 1 or as given.",
-        eval_range,
-    ),
-    declared(
-        "join",
-        "Every pair of an element and one of another collection that a predicate relates.",
-        eval_join,
-    ),
-    declared(
-        "min_by",
-        "The element whose key is least, or absence over an empty input.",
-        eval_min_by,
-    ),
-    declared(
-        "max_by",
-        "The element whose key is greatest, or absence over an empty input.",
-        eval_max_by,
-    ),
-    declared(
-        "to_map",
-        "A map from each element's key to its value; two elements with one key are refused.",
-        eval_to_map,
-    ),
-    declared(
-        "with",
-        "The map with one key set to a value, added or replaced.",
-        eval_with,
-    ),
-    declared(
-        "without",
-        "The map without one key, whether or not it held it.",
-        eval_without,
-    ),
-    declared(
-        "entries",
-        "Each association as a pair of its key and its value.",
-        eval_entries,
-    ),
-    declared(
-        "values",
-        "The values of a map, in its key order.",
-        eval_values,
-    ),
-    declared(
-        "intersection",
-        "The members of both sets.",
-        eval_intersection,
-    ),
-    declared(
-        "difference",
-        "The members of the set that the other does not hold.",
-        eval_difference,
-    ),
+    declared("first", eval_first),
+    declared("last", eval_last),
+    declared("reverse", eval_reverse),
+    declared("distinct", eval_distinct),
+    declared("zip", eval_zip),
+    declared("enumerate", eval_enumerate),
+    declared("any", eval_any).shaped(super::Shape::Reduction),
+    declared("all", eval_all).shaped(super::Shape::Reduction),
+    declared("find", eval_find),
+    declared("position", eval_position),
+    declared("take_while", eval_take_while),
+    declared("drop_while", eval_drop_while),
+    declared("window", eval_window),
+    declared("partition", eval_partition).shaped(super::Shape::Partition),
+    declared("is_empty", eval_is_empty).shaped(super::Shape::Reduction),
+    declared("range", eval_range),
+    declared("join", eval_join),
+    declared("min_by", eval_min_by),
+    declared("max_by", eval_max_by),
+    declared("to_map", eval_to_map),
+    declared("with", eval_with),
+    declared("without", eval_without),
+    declared("entries", eval_entries),
+    declared("values", eval_values),
+    declared("intersection", eval_intersection),
+    declared("difference", eval_difference),
 ];
 
 /// A `Pair<A, B>` value.

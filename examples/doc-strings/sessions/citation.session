@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A standard doc string cites a published page; `hql help` prints the page's URL under the binary's own version
-// implementation: pending
-// proposal: doc/proposals/HQL-0042/README.md
+// implementation: implemented
 // environment: pure
 // session: cli
 // exit: 0
@@ -17,4 +16,4 @@ fn round(self: Decimal, places: Int) : Decimal    // std/math
 
     `self` rounded half to even to `places` digits after the point, and
     kept at that scale: `round(2.345, 2)` is `2.34`, and `round(x)` is
-    `round(x, 0)`. See Division and rounding <https://hql.hypermarkdown.org/v{version}/learn/02-data-types/decimal/#division-and-rounding>.
+    `round(x, 0)`. See Division and rounding <https://hql-lang.org/v{version}/learn/02-data-types/decimal/#division-and-rounding>.

@@ -49,7 +49,9 @@ pub(crate) fn parse(source: &str) -> Result<Program, Diagnostic> {
             .chain(source.match_indices('\n').map(|(index, _)| index + 1))
             .collect(),
     };
-    parser.program()
+    let mut program = parser.program()?;
+    program.docs = crate::docs::attach(source, &program)?;
+    Ok(program)
 }
 
 struct Parser {
@@ -219,6 +221,7 @@ impl Parser {
         }
         Ok(Program {
             statements: std::mem::take(&mut statements),
+            docs: crate::docs::Docs::default(),
         })
     }
 

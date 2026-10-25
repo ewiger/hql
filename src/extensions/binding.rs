@@ -1428,8 +1428,8 @@ mod tests {
         provides: &["probe"],
         metadata: None,
         steps: &[
-            declared("shout", "The text, louder.", |_, input, _, _| Ok(input)),
-            declared("whisper", "The text, quieter.", |_, input, _, _| Ok(input)),
+            declared("shout", |_, input, _, _| Ok(input)),
+            declared("whisper", |_, input, _, _| Ok(input)),
         ],
     };
 
@@ -1439,9 +1439,7 @@ mod tests {
         version: "0",
         provides: &["probe"],
         metadata: None,
-        steps: &[declared("shout", "The text, louder.", |_, _, _, _| {
-            Ok(Value::Int(0))
-        })],
+        steps: &[declared("shout", |_, _, _, _| Ok(Value::Int(0)))],
     };
 
     /// The standard library with the probe module after it.

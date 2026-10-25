@@ -1,14 +1,16 @@
-// The current vault: the source a program runs against.
-//
 // See doc/issues/0010-yield-and-bind.md and doc/models/behavior/queries.md.
-//
-// A host with a vault seeds it as `vault` into the program module; a program
-// running without one has no `vault` binding, and no module sees it.
+
+/// The current vault: the source a program runs against. A host with a
+/// vault binds it as `vault` in the program module; a program running
+/// without one has no `vault` binding, and no module sees it.
 module vault
+
 import core
 import doc
 import graph
 
+/// A vault: its `name`, its `root`, its `graph` of every card and the links
+/// among them, and its `cards`.
 type Vault {
     name : String    // the vault's directory name
     root : String    // where the vault is

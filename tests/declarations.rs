@@ -146,10 +146,14 @@ fn every_module_of_the_standard_library_checks_over_its_own_imports() {
             if !cone.contains(held) && held != name {
                 continue;
             }
+            // An empty line between modules and in place of each import
+            // keeps every doc string opening after an empty line.
+            bodies.push('\n');
             for line in source.lines() {
                 if line.starts_with("import ") {
                     heads.push_str(line);
                     heads.push('\n');
+                    bodies.push('\n');
                 } else {
                     bodies.push_str(line);
                     bodies.push('\n');

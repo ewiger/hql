@@ -140,7 +140,7 @@ impl Scanner<'_> {
 
     fn run(&mut self) -> Result<(), Diagnostic> {
         loop {
-            self.trivia();
+            self.trivia()?;
             let start = self.offset;
             let Some(character) = self.rest().chars().next() else {
                 self.tokens.push(Spanned {
@@ -289,16 +289,27 @@ impl Scanner<'_> {
     }
 
     /// Skip spaces, tabs and `//` line comments, but never newlines.
-    fn trivia(&mut self) {
+    fn trivia(&mut self) -> Result<(), Diagnostic> {
         loop {
             let rest = self.rest();
+            if rest.starts_with("///") && !rest.starts_with("////") {
+                let line = self.source[..self.offset]
+                    .rfind('\n')
+                    .map_or(0, |at| at + 1);
+                if !self.source[line..self.offset].trim().is_empty() {
+                    return Err(Diagnostic::syntax(
+                        self.offset..self.offset + 3,
+                        "a doc string stands on its own lines, directly above a declaration",
+                    ));
+                }
+            }
             if rest.starts_with("//") {
                 self.offset += rest.find('\n').unwrap_or(rest.len());
                 continue;
             }
             match rest.chars().next() {
                 Some(c) if c.is_whitespace() && c != '\n' => self.offset += c.len_utf8(),
-                _ => return,
+                _ => return Ok(()),
             }
         }
     }
