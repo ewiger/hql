@@ -8,6 +8,13 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-10-25
+
+### Fixed
+
+- The documentation site and the crate are published for this version;
+  0.5.0 was released on GitHub only, with neither.
+
 ## [0.5.0] — 2026-10-25
 
 ### Changed
@@ -812,7 +819,8 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/ewiger/hql/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/ewiger/hql/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/ewiger/hql/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/ewiger/hql/compare/v0.4.0...v0.4.1
