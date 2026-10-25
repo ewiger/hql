@@ -187,8 +187,12 @@ left out:
 | `invalid` | for a contract violation, the `Invalid` that `validate` gives for the same value |
 
 A code is a name, not a number, so a reader or a configuration line refers to
-it without a table. The trace is the language's call stack: HQL has no deep
-call chains, so it is the path through the pipeline, not through frames.
+it without a table. The trace is the language's call stack: the path through
+the pipeline, each step with the element it was working on, and the frame of
+every function with a body the failure was reached through.
+[HQL-0045](../../proposals/HQL-0045/README.md) specifies the whole entry,
+adding `phase`, `labels`, `help`, `element` and `bindings` to the fields
+below, and what each phase reports.
 
 Take the mapreduce shelf, where `genre` is a string, and a query that reads it
 as a map:
@@ -242,7 +246,8 @@ same value, so `x | T` and `x | validate(T)` report the same violations.
 
 Every entry carries `severity`, `stage`, `message` and `span`. `code`,
 `source`, `expected`, `found`, `trace` and `invalid` on the language's own
-errors are designed.
+errors are designed, as are the loader's warnings in the report: a document
+the vault skips is not reported yet.
 
 ## Fail level and exit status
 
@@ -317,6 +322,12 @@ fail  = "warning"   # an unresolved link fails the run here
 `hql config` prints each setting in force and the layer that supplied it.
 `mode` and `level` are implemented, with `--report-level` and
 `HQL_REPORT_LEVEL`; `fail` is designed.
+
+Three more settings decide how the report is written, with the same layers
+([HQL-0045](../../proposals/HQL-0045/README.md)): `verbosity`, `brief`,
+`normal` or `full`, how much of each entry is shown; `to`, `stderr`, `stdout`
+or a path; and `format`, `text` or `json-lines`. The data form carries every
+field at every verbosity. All three are designed.
 
 ## Spans and rendering
 
