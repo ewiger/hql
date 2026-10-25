@@ -1,4 +1,4 @@
-# 5. Asking questions
+# 5. SQL-like Queries
 
 SQL asks a table questions: which rows, in what order, how many, grouped by
 what. HQL asks the same questions with pipeline steps. This chapter works

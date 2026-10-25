@@ -94,7 +94,7 @@ nav:
               - Sets, Data and maps: learn/02-data-types/sets-data-and-maps.md
           - 3. Collections: learn/03-collections.md
           - 4. Functions: learn/04-functions.md
-          - 5. Asking questions: learn/05-questions.md
+          - 5. SQL-like Queries: learn/05-sql-like-queries.md
           - 6. A vault of documents: learn/06-a-vault.md
           - 7. Links and graphs: learn/07-graphs.md
           - 8. Finding cards by meaning: learn/08-retrieval.md

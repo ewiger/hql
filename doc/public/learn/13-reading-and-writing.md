@@ -240,7 +240,7 @@ written by `sink`.
 
 ## Branches that write
 
-A `tee` branch from [chapter 5](05-questions.md) may end in a sink. The branch
+A `tee` branch from [chapter 5](05-sql-like-queries.md) may end in a sink. The branch
 writes its documents, and the main pipeline goes on with every value:
 
 <!-- run: skip -->

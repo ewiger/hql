@@ -1,6 +1,6 @@
 # 6. A vault of documents
 
-The shelf of [chapter 5](05-questions.md) was a list written by hand. Here the
+The shelf of [chapter 5](05-sql-like-queries.md) was a list written by hand. Here the
 same books are documents in a folder, and HQL reads the folder.
 
 ## A vault is a folder

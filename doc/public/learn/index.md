@@ -39,7 +39,7 @@ and one claim about which book inspired which.
    share.
 4. [Functions](04-functions.md) — lambdas, declared and generic functions,
    aliases, and partial application.
-5. [Asking questions](05-questions.md) — where, order by, group by and the
+5. [SQL-like Queries](05-sql-like-queries.md) — where, order by, group by and the
    aggregates.
 6. [A vault of documents](06-a-vault.md) — cards, their metadata, and a reading
    list nobody maintains.

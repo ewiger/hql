@@ -191,5 +191,5 @@ fn rating_of(r: Int) : Option<Int> = some(r) given r > 0 otherwise none
 
 ## What is next
 
-With functions and collections in hand, [chapter 5](05-questions.md) asks the
+With functions and collections in hand, [chapter 5](05-sql-like-queries.md) asks the
 questions SQL asks: where, order by, group by, and the aggregates.
