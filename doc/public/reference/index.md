@@ -15,7 +15,7 @@
 | `hql doctor` | check the semantic-search chain and name the first missing part |
 | `hql ai` | list the model requests waiting under `--ai host`, and answer one (next release) |
 
-`hql '<program>'` is `hql eval '<program>'` (next release). `-` reads standard
+`hql '<program>'` is `hql eval '<program>'`. `-` reads standard
 input wherever a file is taken. Success is exit `0`, a
 language or I/O failure `1`, a usage error `2`.
 

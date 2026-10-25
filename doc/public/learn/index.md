@@ -3,8 +3,8 @@
 This is a book about HQL, read from the first page to the last. It starts with
 a number and ends with an agent whose run is a value, and every chapter builds
 on the ones before it. Every program in it prints what the book shows.
-Chapters 14 to 16 cover the `io`, `io.logging` and `ai` modules, which ship
-in the next release; every other chapter runs with the current one.
+Chapter 15 covers the `ai` module, which ships in the next release; every
+other chapter runs with the current one.
 
 HQL is a statically typed language for querying, transforming, connecting and
 computing over data, knowledge and AI workflows. A program is checked before it
@@ -58,10 +58,10 @@ and one claim about which book inspired which.
     from them.
 13. [Working with `hql`](13-working-with-hql.md) — the commands, the reports,
     and what to do when something is wrong.
-14. [Reading and writing data](14-reading-and-writing.md) — endpoints,
-    `source`, `tap`, `target` and `sink`, and `hql` as a command-line data tool.
-15. [Channels and logs](15-channels-and-logs.md) — values passed through
-    channels, and structured logging.
+14. [I/O](14-io/index.md) — sources and targets: endpoints, `source`, `tap`,
+    `target` and `sink`, finite or live, formats, sources by id and the schema
+    boundary, channels, logging, the network, and `hql` as a command-line data
+    tool.
 15. [Agents and runs](15-agents-and-runs.md) — agents as cards, context and
     prompts, tools, and runs kept as values.
 16. [The type system](16-the-type-system/index.md) — records, unions and

@@ -154,5 +154,5 @@ vault: examples/tutorial (14 cards)
 ## What is next
 
 So far every program read a vault or its own values.
-[Chapter 14](14-reading-and-writing.md) reads files and standard input, and
+[Chapter 14](14-io/index.md) reads files and standard input, and
 writes files and standard output.

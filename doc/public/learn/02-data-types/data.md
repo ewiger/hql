@@ -236,7 +236,7 @@ table:
 
 A program writes its data as literals, reads it from a vault's documents, as
 [chapter 7](../07-a-vault.md) does, or reads a JSON, YAML or CSV file with
-`source`, as [chapter 14](../14-reading-and-writing.md) does.
+`source`, as [chapter 14](../14-io/source.md) does.
 
 ## What is next
 

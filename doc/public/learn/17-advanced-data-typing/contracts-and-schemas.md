@@ -49,15 +49,15 @@ the boundary between the two stays visible in the program.
 The three things have three homes.
 
 The **format** is named at the source: `source(file(p), Json)` decodes bytes
-to `Data`, and the format is never a step of the pipeline. [Chapter
-14](../14-reading-and-writing.md) reads and writes through formats.
+to `Data`, and the format is never a step of the pipeline. [Formats and
+documents](../14-io/formats.md) in the I/O chapter reads and writes through formats.
 
 The mapping between an external system's own schema and an HQL type, its
 column names, physical types, nullable columns and CSV headers, is the
 **schema boundary** of a configured source or target. It belongs to the
 configuration of that source, beside its connection, since it is a fact
-about the external system and not about the program's types. The parts of
-it that ship are described with the sources in chapter 14; a program
+about the external system and not about the program's types. It is described
+with [sources and targets by id](../14-io/configured.md); a program
 declares HQL types only, and the boundary states what they meet.
 
 The **contract** is declared in the program, where the values are used. It

@@ -112,8 +112,19 @@ nav:
           - 11. Writing results out: learn/11-output.md
           - 12. Queries inside documents: learn/12-documents.md
           - 13. Working with hql: learn/13-working-with-hql.md
-          - 14. Reading and writing data: learn/14-reading-and-writing.md
-          - 15. Channels and logs: learn/15-channels-and-logs.md
+          - 14. I/O:
+              - learn/14-io/index.md
+              - Endpoints: learn/14-io/endpoints.md
+              - Reading with source: learn/14-io/source.md
+              - Writing with target and sink: learn/14-io/target.md
+              - Finite or live: learn/14-io/finite-or-live.md
+              - Formats and documents: learn/14-io/formats.md
+              - Sources and targets by id: learn/14-io/configured.md
+              - Channels: learn/14-io/channels.md
+              - Logging: learn/14-io/logging.md
+              - The network: learn/14-io/network.md
+              - Effects and what a host allows: learn/14-io/hosts.md
+              - hql on the command line: learn/14-io/command-line.md
           - 15. Agents and runs: learn/15-agents-and-runs.md
           - 16. The type system:
               - learn/16-the-type-system/index.md
