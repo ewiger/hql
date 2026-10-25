@@ -2,8 +2,9 @@
 // feature: A Stream refuses a literal bound counted from its end
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // A negative bound counts from the end, and a Stream may not end, so
 // `[-3:]` names positions that are not known.

@@ -46,7 +46,7 @@ source(file(p))
 ```
 
 ```text
-type error: `source` needs a format, `source(…, Json)`: only a literal file path implies one
+check error[type-mismatch]: `source` needs a format, `source(…, Json)`: only a literal file path implies one
  --> <expression>:2:8
   |
 2 | source(file(p))
@@ -165,7 +165,7 @@ sightings | size
 ```
 
 ```text
-evaluation failure: examples/io/sightings.jsonl: document 1 does not decode as Sighting: field `seen`: "dusk" is not Int
+execute failure[io-failure]: examples/io/sightings.jsonl: document 1 does not decode as Sighting: field `seen`: "dusk" is not Int
  --> <expression>:7:29
   |
 7 | sightings : Seq<Sighting> = source(file("examples/io/sightings.jsonl"))

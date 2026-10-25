@@ -139,18 +139,22 @@ nav:
                   - Validators: learn/11-advanced-data-typing/validators.md
                   - Validation as a value: learn/11-advanced-data-typing/validation-as-a-value.md
                   - Contracts and schemas: learn/11-advanced-data-typing/contracts-and-schemas.md
-              - 12. Working with hql: learn/12-working-with-hql.md
+              - 12. Errors:
+                  - learn/12-errors/index.md
+                  - Failures as data: learn/12-errors/handling.md
+                  - Diagnostics: learn/12-errors/diagnostics.md
+              - 13. Working with hql: learn/13-working-with-hql.md
           - "Part II: Data flows":
-              - 13. Pipelines: learn/13-pipelines.md
-              - 14. ETL pipelines: learn/14-etl-pipelines.md
+              - 14. Pipelines: learn/14-pipelines.md
+              - 15. ETL pipelines: learn/15-etl-pipelines.md
           - "Part III: Knowledge and AI":
-              - 15. A vault of documents: learn/15-a-vault.md
-              - 16. Links and graphs: learn/16-graphs.md
-              - 17. Finding cards by meaning: learn/17-retrieval.md
-              - 18. Queries inside documents: learn/18-documents.md
-              - 19. Agents and runs: learn/19-agents-and-runs.md
-              - 20. Agents inside documents: learn/20-agents-inside-documents.md
-              - 21. The hyper web: learn/21-the-hyper-web.md
+              - 16. A vault of documents: learn/16-a-vault.md
+              - 17. Links and graphs: learn/17-graphs.md
+              - 18. Finding cards by meaning: learn/18-retrieval.md
+              - 19. Queries inside documents: learn/19-documents.md
+              - 20. Agents and runs: learn/20-agents-and-runs.md
+              - 21. Agents inside documents: learn/21-agents-inside-documents.md
+              - 22. The hyper web: learn/22-the-hyper-web.md
       - Examples: examples.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this

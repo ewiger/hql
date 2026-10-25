@@ -619,17 +619,17 @@ fn eval_source(
         return Ok(Value::list(io::held(name), element.clone()));
     }
     let format = evaluated_format(arguments, &endpoint, &span)?;
-    let element =
-        io::document_type(format).map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+    let element = io::document_type(format)
+        .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     match endpoint.as_ref() {
         Endpoint::File(_) | Endpoint::Http { .. } => {
             let values = io::read_all(&endpoint, format)
-                .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+                .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             Ok(Value::Traversal(Arc::new(Traversal::kept(element, values))))
         }
         Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) => {
             let reading = Reading::live(&endpoint, format)
-                .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+                .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             Ok(live(reading, element, span))
         }
         other => Err(Diagnostic::runtime(
@@ -657,12 +657,12 @@ fn eval_tap(
         return Ok(live(reading, element.clone(), span));
     }
     let format = evaluated_format(arguments, &endpoint, &span)?;
-    let element =
-        io::document_type(format).map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+    let element = io::document_type(format)
+        .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     let reading = match endpoint.as_ref() {
         Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) => {
             Reading::live(&endpoint, format)
-                .map_err(|message| Diagnostic::runtime(span.clone(), message))?
+                .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
         }
         Endpoint::Http { url, headers, .. } => Reading::Http {
             url: url.clone(),
@@ -975,7 +975,7 @@ pub(crate) fn configured_source(
     warn: &mut dyn FnMut(String),
 ) -> Result<Value, Diagnostic> {
     use crate::sources::Kind as Source;
-    let failed = |message: String| Diagnostic::runtime(span.clone(), message);
+    let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
     let configured = configured(id, vault).map_err(failed)?;
     let element = wanted.args.first().cloned().unwrap_or(TypeRef::DATA);
     let endpoint = Value::Str(id.into());
@@ -1069,7 +1069,7 @@ fn read_configured(
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
     use crate::sources::Kind as Source;
-    let failed = |message: String| Diagnostic::runtime(span.clone(), message);
+    let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
     let configured = configured(id, vault).map_err(failed)?;
     let bounds = vault.sources.bounds;
     let within = |count: usize| match bounds.max_elements {
@@ -1125,7 +1125,7 @@ fn tap_configured(
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let configured =
-        configured(id, vault).map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+        configured(id, vault).map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     if let crate::sources::Kind::File { path, format } = &configured.kind
         && *format != "Json"
     {
@@ -1204,7 +1204,7 @@ pub(crate) fn decoded(
             .filter(|configured| !configured.fields.is_empty())
             .map(|configured| boundary_for(configured, element, None))
             .transpose()
-            .map_err(|message| Diagnostic::runtime(span.clone(), message))?
+            .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
             .flatten()
             .map(Arc::new),
         _ => None,
@@ -1221,7 +1221,7 @@ pub(crate) fn decoded(
                 decode_document(&value, element, leaves, index + 1, &from)
             })
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+            .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
         return Ok(Value::Traversal(Arc::new(Traversal::kept(
             element.clone(),
             decoded,
@@ -1356,7 +1356,7 @@ fn write_configured(
 ) -> Result<Value, Diagnostic> {
     use crate::data::Data;
     use crate::sources::{External, Kind as Source, WriteMode};
-    let failed = |message: String| Diagnostic::runtime(span.clone(), message);
+    let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
     let configured = configured(id, cx.vault()).map_err(failed)?.clone();
     let (element, rows) = match &input {
         Value::Table(table) => (table.row.clone(), table.rows.clone()),
@@ -1577,7 +1577,7 @@ fn eval_target(
     let endpoint = written_to(cx, arguments, &span)?;
     if let Endpoint::Channel(name, _) = endpoint.as_ref() {
         io::push(name, settled(cx, input)?)
-            .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+            .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
         return Ok(Value::Unit);
     }
     let format = evaluated_format(arguments, &endpoint, &span)?;
@@ -1593,16 +1593,16 @@ fn eval_target(
         other => other.clone(),
     };
     let text = crate::extensions::format::render(&whole, format, 0, None, &cx.vault().formats)
-        .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+        .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     match endpoint.as_ref() {
         Endpoint::FileEnd(_) => {
             let (mut destination, _) = Destination::open(&endpoint)
-                .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+                .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             destination.line(text.trim_end_matches('\n'))
         }
         _ => io::write_whole(&endpoint, text.trim_end_matches('\n')),
     }
-    .map_err(|message| Diagnostic::runtime(span, message))?;
+    .map_err(|message| Diagnostic::io_failure(span, message))?;
     Ok(Value::Unit)
 }
 
@@ -1618,14 +1618,14 @@ fn eval_sink(
             Value::Traversal(traversal) => {
                 cx.traverse(traversal, &mut |_, value| {
                     io::push(name, value)
-                        .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+                        .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
                     Ok(true)
                 })?;
             }
             other => {
                 for value in other.elements().unwrap_or_default() {
                     io::push(name, value)
-                        .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+                        .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
                 }
             }
         }
@@ -1633,16 +1633,16 @@ fn eval_sink(
     }
     let format = evaluated_format(arguments, &endpoint, &span)?;
     let (mut destination, held) = Destination::open(&endpoint)
-        .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+        .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     // A CSV header is written once: not again when appending to rows.
     let mut first = !held;
     let mut write = |value: Value| -> Result<bool, Diagnostic> {
         let text = crate::extensions::format::piece(&value, format, first)
-            .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+            .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
         first = false;
         destination
             .line(&text)
-            .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
+            .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
         Ok(true)
     };
     match &input {

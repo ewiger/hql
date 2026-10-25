@@ -713,7 +713,7 @@ author's claim, and `of_type(RelationCard)` has to verify the contract. An unche
 narrowing would let any authored key mint a type, which is the same rule that
 stops `relation: parent` on an edge from making it a `Parent` — see
 [[card-type]] and [[graph-type]]. A failed narrowing is a type error in the
-[[error-handling|report queue]], not an absence: absence means nothing was
+[[error-handling|diagnostic channel]], not an absence: absence means nothing was
 written, and a failed narrowing means something was written that is not the
 type. Only a value that is missing yields `Option` — see [[fields]].
 

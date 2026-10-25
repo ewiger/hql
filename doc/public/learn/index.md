@@ -2,8 +2,8 @@
 
 This is a book about HQL, read from the first page to the last. It starts with
 a number and ends with a web of vaults, and every chapter builds on the ones
-before it. Every program in it prints what the book shows. Chapter 14 and
-chapters 19 to 21 describe ETL pipelines, the `ai` module and the direction
+before it. Every program in it prints what the book shows. Chapter 15 and
+chapters 20 to 22 describe ETL pipelines, the `ai` module and the direction
 beyond one vault, which are design and not in the current release; every
 other chapter runs with it.
 
@@ -69,15 +69,17 @@ one claim about which book inspired which, and a librarian.
     boundary where loose data becomes typed, open and closed types,
     `TypeContract` and `DataContract`, validators, validation as a value,
     and what a contract states that a schema cannot.
-12. [Working with `hql`](12-working-with-hql.md) — the commands, the reports,
+12. [Errors](12-errors/index.md) — failures kept as data, diagnostics and the
+    run's diagnostic channel, `strict` and `collect`.
+13. [Working with `hql`](13-working-with-hql.md) — the commands, the reports,
     and what to do when something is wrong.
 
 ## Part II: Data flows
 
-13. [Pipelines](13-pipelines.md) — `|` against `.`, the three phases, the
+14. [Pipelines](14-pipelines.md) — `|` against `.`, the three phases, the
     step as the unit of execution, `hql` in a shell pipe, and the systems a
     pipeline will connect: queues, databases, services and jobs.
-14. [ETL pipelines](14-etl-pipelines.md) — one file that reads a queue,
+15. [ETL pipelines](15-etl-pipelines.md) — one file that reads a queue,
     enriches from a database and writes tables, alerts and an archive: ids
     bound in configuration and how they break, streams against tables, a
     batch as a stream and a stream as a file, rejected rows as a source, and
@@ -85,18 +87,18 @@ one claim about which book inspired which, and a librarian.
 
 ## Part III: Knowledge and AI
 
-15. [A vault of documents](15-a-vault.md) — cards, their metadata, a reading
+16. [A vault of documents](16-a-vault.md) — cards, their metadata, a reading
     list nobody maintains, and the vault as a namespace.
-16. [Links and graphs](16-graphs.md) — following links, building graphs,
+17. [Links and graphs](17-graphs.md) — following links, building graphs,
     drawing them.
-17. [Finding cards by meaning](17-retrieval.md) — rankings, hits, and the
+18. [Finding cards by meaning](18-retrieval.md) — rankings, hits, and the
     evidence behind a score.
-18. [Queries inside documents](18-documents.md) — cells, documents built
+19. [Queries inside documents](19-documents.md) — cells, documents built
     from them, and cells that maintain a vault.
-19. [Agents and runs](19-agents-and-runs.md) — agents as cards, context and
+20. [Agents and runs](20-agents-and-runs.md) — agents as cards, context and
     prompts, tools, and runs kept as values.
-20. [Agents inside documents](20-agents-inside-documents.md) — a document
+21. [Agents inside documents](21-agents-inside-documents.md) — a document
     whose cells retrieve evidence, run an agent over the draft they sit in,
     and remember the answer.
-21. [The hyper web](21-the-hyper-web.md) — namespaces beyond one tree,
+22. [The hyper web](22-the-hyper-web.md) — namespaces beyond one tree,
     providers, retrieval and agents across them, and a reader who asks.

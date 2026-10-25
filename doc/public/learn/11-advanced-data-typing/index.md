@@ -90,3 +90,10 @@ schema can be exported from a contract; the rules are what the export loses.
 | [Validators](validators.md) | a check with a name, `validate f with Email`, and the standard validators |
 | [Validation as a value](validation-as-a-value.md) | `validate(T)`, `Result<T, Invalid>`, every violation at once, and routing the rejected |
 | [Contracts and schemas](contracts-and-schemas.md) | what a schema states, what a contract adds, and where each lives |
+
+## What is next
+
+A value that does not read as its type is one of two kinds of failure.
+[Chapter 12](../12-errors/index.md) is the whole error model: failures kept
+as data, and the diagnostics a phase writes when it cannot do what the
+program asked.

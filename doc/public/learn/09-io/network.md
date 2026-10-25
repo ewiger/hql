@@ -58,7 +58,7 @@ source(http("https://api.example.com/birds"), Json)
 ```
 
 ```text
-name error: `http` is provided by the `net` extension: write `import net`
+check error[unknown-name]: `http` is provided by the `net` extension: write `import net`
  --> <expression>:1:8
   |
 1 | source(http("https://api.example.com/birds"), Json)

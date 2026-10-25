@@ -57,7 +57,7 @@ area(Circle(radius = 1.0f))
 ```
 
 ```text
-type error: this match does not cover every Shape: cover every member of the union with a type pattern, or add `_`
+check error[non-exhaustive-match]: this match does not cover every Shape: cover every member of the union with a type pattern, or add `_`
  --> <expression>:5:29
   |
 5 | fn area(s: Shape) : Float = match s {

@@ -2,8 +2,9 @@
 // feature: A constructor passed as a value where the expected parameter fits several forms is refused
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `[]` holds Never, which every form of `Temp` takes, so `map` does not pick
 // one; the refusal names both first parameters, Float and String.

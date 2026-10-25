@@ -143,7 +143,7 @@ pub(crate) trait CheckCx: Send {
     /// or names a function value.
     fn function_arity(&mut self, argument: &Arg) -> Option<usize>;
     /// Report something worth saying that does not make the program wrong.
-    fn warn(&mut self, warning: crate::warnings::Warning);
+    fn warn(&mut self, warning: crate::diagnostics::Diagnostic);
     /// Fix an alias parameter's type to what a step argument requires;
     /// answers whether `actual` was such a parameter.
     fn placeholder(&mut self, actual: &TypeRef, expected: Option<TypeRef>) -> bool;
@@ -194,7 +194,10 @@ pub(crate) trait EvalCx: Send {
         right: Value,
     ) -> Result<Value, Diagnostic>;
     /// Queue something worth saying that does not make the result impossible.
-    fn warn(&mut self, warning: crate::warnings::Warning);
+    fn warn(&mut self, warning: crate::diagnostics::Diagnostic);
+    /// Whether the run asks for continuation: under `collect` a step may go
+    /// on past an element its function failed on.
+    fn collecting(&self) -> bool;
 }
 
 /// One name a pipeline may write.
@@ -1105,8 +1108,13 @@ impl Resolution {
             .collect();
         let message = match providers.as_slice() {
             [] => {
-                let hint = crate::builtins::hint(name);
-                format!("`{name}` is not a pipeline step{hint}")
+                let refused =
+                    Diagnostic::name(span.clone(), format!("`{name}` is not a pipeline step"))
+                        .with_kind(crate::diagnostics::Kind::UnknownStep);
+                return match crate::builtins::hint(name) {
+                    Some(help) => refused.with_help(help),
+                    None => refused,
+                };
             }
             [only] => format!(
                 "`{name}` is provided by the `{}` extension: write `import {}`",

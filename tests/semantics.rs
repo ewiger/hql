@@ -66,7 +66,7 @@ fn top_three(step: &str, query: &str, vault: &vault::Vault) -> Vec<String> {
     let outcome = run(&source, vault, Mode::Collect);
     let value = outcome
         .value
-        .unwrap_or_else(|| panic!("{source}: {:?}", outcome.reports));
+        .unwrap_or_else(|| panic!("{source}: {:?}", outcome.diagnostics));
     let Value::List(elements, _) = &value else {
         panic!("expected a sequence, got {value:?}")
     };
@@ -105,7 +105,7 @@ fn failure(root: &Path, source: &str) -> String {
     let vault = vault::load(root).expect("the copied vault loads");
     let outcome = run(source, &vault, Mode::Collect);
     outcome
-        .reports
+        .diagnostics
         .iter()
         .map(|report| report.message.clone())
         .collect::<Vec<_>>()
@@ -147,7 +147,7 @@ fn a_score_travels_with_the_model_that_produced_it() {
         Mode::Strict,
     );
     let Some(Value::Ranking(ranking)) = &outcome.value else {
-        panic!("expected a ranking, got {:?}", outcome.reports)
+        panic!("expected a ranking, got {:?}", outcome.diagnostics)
     };
     let retrieval = &ranking.retrieval;
     assert_eq!(retrieval.model, "sentence-transformers/all-MiniLM-L6-v2");
@@ -157,7 +157,7 @@ fn a_score_travels_with_the_model_that_produced_it() {
     assert!(!retrieval.approximate, "scoring is exact brute force");
     assert!(retrieval.index.ends_with("index.sqlite"));
     assert_eq!(retrieval.query, "night hunting birds");
-    assert!(!outcome.failed(), "{:?}", outcome.reports);
+    assert!(!outcome.failed(), "{:?}", outcome.diagnostics);
 }
 
 #[test]
@@ -173,9 +173,12 @@ fn the_index_agrees_with_this_binary_about_what_a_card_says() {
     );
     assert_eq!(outcome.value, Some(Value::Int(56)));
     assert!(
-        outcome.reports.iter().count() == 0,
+        outcome
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.phase == hql::diagnostics::Phase::Load),
         "a stale or missing card would warn here: {:?}",
-        outcome.reports
+        outcome.diagnostics
     );
 }
 
@@ -275,7 +278,7 @@ fn a_query_the_index_has_no_vector_for_says_so_rather_than_inventing_one() {
         Mode::Collect,
     );
     let said: String = outcome
-        .reports
+        .diagnostics
         .iter()
         .map(|report| report.message.clone())
         .collect();
@@ -294,7 +297,7 @@ fn a_vault_with_no_index_is_told_to_build_one_rather_than_falling_back() {
         Mode::Collect,
     );
     let said: String = outcome
-        .reports
+        .diagnostics
         .iter()
         .map(|report| report.message.clone())
         .collect();
@@ -360,7 +363,7 @@ fn a_vault_that_declares_an_embedder_still_answers_and_its_scores_name_the_index
         Mode::Collect,
     );
     let Some(Value::Ranking(ranking)) = &outcome.value else {
-        panic!("expected a ranking, got {:?}", outcome.reports)
+        panic!("expected a ranking, got {:?}", outcome.diagnostics)
     };
     // The index says what produced these scores; the table only says what a
     // future build would use, and a score that quoted it would be a claim about
@@ -371,7 +374,7 @@ fn a_vault_that_declares_an_embedder_still_answers_and_its_scores_name_the_index
     );
     assert_ne!(ranking.retrieval.revision, "2024-01-25");
     assert_eq!(ranking.retrieval.metric, "cosine");
-    assert!(!outcome.failed(), "{:?}", outcome.reports);
+    assert!(!outcome.failed(), "{:?}", outcome.diagnostics);
 }
 
 #[test]

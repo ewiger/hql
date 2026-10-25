@@ -51,11 +51,12 @@ d | User
 ```
 
 ```text
-evaluation failure: this does not read as User: `require id != ""` does not hold; `require age? >= 0` does not hold
+execute error[contract-violation]: this does not read as User: `require id != ""` does not hold; `require age? >= 0` does not hold
   --> <expression>:12:1
    |
 12 | d | User
    | ^^^^^^^^
+   = expected: User
 ```
 
 Structure comes first: a tree missing a field or holding one at the wrong

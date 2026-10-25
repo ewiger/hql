@@ -57,7 +57,7 @@ c = Channel<Int>("n")
 ```
 
 ```text
-type error: Channel<Int> holds Int, not String
+check error[type-mismatch]: Channel<Int> holds Int, not String
  --> <expression>:2:7
   |
 2 | "x" | target(c)
@@ -70,7 +70,7 @@ source(c, Json)
 ```
 
 ```text
-type error: a channel holds values, not bytes, so it takes no format
+check error[type-mismatch]: a channel holds values, not bytes, so it takes no format
  --> <expression>:2:8
   |
 2 | source(c, Json)
@@ -90,7 +90,7 @@ b = Channel<String>("n")
 ```
 
 ```text
-evaluation failure: the channel "n" holds Int, so it is not also a Channel<String>
+execute failure[invalid-argument]: the channel "n" holds Int, so it is not also a Channel<String>
  --> <expression>:2:5
   |
 2 | b = Channel<String>("n")

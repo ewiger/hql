@@ -2,8 +2,9 @@
 // feature: only a trait extending `Validator` is a validator type
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 trait Loud {
     fn validate(self) : Bool

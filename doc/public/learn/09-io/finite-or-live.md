@@ -32,7 +32,7 @@ source(stdin, Json) | size
 ```
 
 ```text
-type error: `size` needs a finite input, and Stream<Data> may not end; bound it first with `take(n)`, or batch it with `collect(n)`
+check error[type-mismatch]: `size` needs a finite input, and Stream<Data> may not end; bound it first with `take(n)`, or batch it with `collect(n)`
  --> <expression>:1:23
   |
 1 | source(stdin, Json) | size
@@ -86,7 +86,7 @@ tap(file("examples/io/counts.csv"), Text)
 ```
 
 ```text
-type error: Text is one document, so it is not read one at a time; read it whole with `source`
+check error[type-mismatch]: Text is one document, so it is not read one at a time; read it whole with `source`
  --> <expression>:1:5
   |
 1 | tap(file("examples/io/counts.csv"), Text)

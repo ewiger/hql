@@ -213,6 +213,6 @@ reading = shelf
 
 ## What is next
 
-The shelf was written by hand. In [chapter 15](15-a-vault.md) the same books are
+The shelf was written by hand. In [chapter 16](16-a-vault.md) the same books are
 documents in a vault, and the same questions are asked of the documents
 themselves.

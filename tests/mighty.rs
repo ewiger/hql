@@ -1,7 +1,12 @@
 //! Records, receiver calls, traits and results: the language HQL-0024 adds,
 //! at the refusals the Mighty Types corpus does not show.
 
-use hql::{check, diagnostics::Diagnostic, eval, types::TypeRef};
+use hql::{
+    check,
+    diagnostics::{Diagnostic, Phase},
+    eval,
+    types::TypeRef,
+};
 
 fn refused(source: &str) -> String {
     match check(source) {
@@ -156,7 +161,7 @@ fn a_trait_is_implemented_once_per_type_and_dispatched_on_the_value() {
         refused(&format!(
             "{shape}impl Shape for C {{\n    fn area(self) : Float = 1.0f\n}}\n1"
         ))
-        .contains("already implemented for C, in this program")
+        .contains("already implemented for C: a trait has one implementation per type")
     );
     assert!(
         refused("trait T { fn f(self) : Int }\ntype A { a : Int }\nimpl T for A {\n}\n1")
@@ -242,6 +247,9 @@ fn a_result_is_ok_or_err_and_a_match_covers_both() {
     );
     assert!(matches!(
         check("ok(1).trim()"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
 }

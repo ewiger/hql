@@ -36,7 +36,7 @@ fn lower(s: String) : String = "mine"
 ```
 
 ```text
-name error: `lower` is this unit's own function, which takes no `self`, so `value.lower(…)` does not reach it and no import's `lower` over String is reached in its place; write `lower(value, …)`, or qualify the import's
+check error[unknown-name]: `lower` is this unit's own function, which takes no `self`, so `value.lower(…)` does not reach it and no import's `lower` over String is reached in its place; write `lower(value, …)`, or qualify the import's
  --> <expression>:2:1
   |
 2 | "ABC".lower()

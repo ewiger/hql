@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // expected-type: List<Int>
-// error: RuntimeError
-// stage: evaluate
+// phase: execute
+// kind: invalid-argument
+// severity: failure
 
 // Checking sees only that the bound is an Int; evaluation finds it negative,
 // and a position counted from the end of a Stream is not known.

@@ -38,11 +38,12 @@ d | Point
 ```
 
 ```text
-evaluation failure: this does not read as Point: field `z`: Point declares no such field
+execute error[contract-violation]: this does not read as Point: field `z`: Point declares no such field
  --> <expression>:7:1
   |
 7 | d | Point
   | ^^^^^^^^^
+  = expected: Point
 ```
 
 A tree missing a field fails the same way, naming the field that is

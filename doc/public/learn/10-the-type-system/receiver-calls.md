@@ -63,11 +63,12 @@ with the nearest name offered:
 ```
 
 ```text
-name error: String has no function `shout`; did you mean `sort`?
+check error[unknown-name]: String has no function `shout`
  --> <expression>:1:1
   |
 1 | "hi".shout()
   | ^^^^^^^^^^^^
+  = help: did you mean `sort`?
 ```
 
 Two imported modules that declare one name over one type make a call by

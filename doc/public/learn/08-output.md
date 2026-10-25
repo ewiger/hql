@@ -112,14 +112,15 @@ columns. `renderer` names one of a format's encoders for a shape over the
 project's choice, `format(Markdown, renderer = "mermaid")` for a graph; a table
 renderer, such as `pipe`, writes only a `Table`.
 
-A format that cannot write a value is refused before the program runs:
+A format that cannot write a value is a type error, reported before the
+program runs:
 
 ```hql
 1 | d2
 ```
 
 ```text
-type error: no renderer writes Int as D2
+check error[type-mismatch]: no renderer writes Int as D2
  --> <expression>:1:5
   |
 1 | 1 | d2
@@ -145,7 +146,8 @@ shelf | filter(b => b.status == "todo") | map(title)
 ```
 
 `--to none` evaluates the program and writes nothing. `--envelope json` wraps
-the answer for another program to read: the type, the value, and every report:
+the answer for another program to read: the type, the value, and every
+diagnostic the run wrote:
 
 <!-- run: with shelf --envelope json -->
 ```hql
@@ -154,8 +156,8 @@ shelf | filter(b => b.status == "todo") | size
 
 ```text
 {
+  "diagnostics": [],
   "origin": "<expression>",
-  "reports": [],
   "type": "Int",
   "value": 3
 }
@@ -167,7 +169,7 @@ host's own — Markdown for a document, HQL for a terminal.
 ## A project chooses its renderers
 
 Which renderer writes a type in a format is a project's choice, in the
-`hql.toml` of the vault a program runs in ([chapter 15](15-a-vault.md)), over
+`hql.toml` of the vault a program runs in ([chapter 16](16-a-vault.md)), over
 the built-in defaults. A graph in Markdown is a D2 diagram unless the file
 says otherwise:
 

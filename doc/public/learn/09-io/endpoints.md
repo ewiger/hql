@@ -28,7 +28,7 @@ source(stdout, Json)
 ```
 
 ```text
-type error: `source` needs (Readable | String), not Stdout
+check error[type-mismatch]: `source` needs (Readable | String), not Stdout
  --> <expression>:1:1
   |
 1 | source(stdout, Json)
@@ -56,7 +56,7 @@ source(file("app.log").end, Lines)
 ```
 
 ```text
-type error: the end of a file holds nothing yet; follow what is appended there with `tap`
+check error[type-mismatch]: the end of a file holds nothing yet; follow what is appended there with `tap`
  --> <expression>:1:8
   |
 1 | source(file("app.log").end, Lines)
@@ -80,7 +80,7 @@ file("https://example.com/x.json")
 ```
 
 ```text
-type error: "https://example.com/x.json" is a URL, not a file; a network resource is read with `http`
+check error[type-mismatch]: "https://example.com/x.json" is a URL, not a file; a network resource is read with `http`
  --> <expression>:1:1
   |
 1 | file("https://example.com/x.json")

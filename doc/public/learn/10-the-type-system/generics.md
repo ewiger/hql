@@ -142,11 +142,12 @@ Box(value = 1)[0]
 ```
 
 ```text
-type error: `impl Index<Int> for Box<Int>` overlaps `impl Index<T> for Box<T>`, in this program, at byte 26: one type at one set of arguments has one implementation of a trait
+check error[duplicate-implementation]: `impl Index<Int> for Box<Int>` overlaps `impl Index<T> for Box<T>`, in this program, at byte 26: one type at one set of arguments has one implementation of a trait
  --> <expression>:5:1
   |
 5 | impl Index<Int> for Box<Int> {
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = note: the first implementation, at <expression>:2:1
 ```
 
 The rule holds across the standard library, the imported modules and the

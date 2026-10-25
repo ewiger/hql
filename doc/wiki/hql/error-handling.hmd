@@ -1,41 +1,59 @@
 ---
-tags: [hql, errors, results, validation, reporting, diagnostics, logging]
+tags: [hql, errors, results, validation, diagnostics, reporting, logging]
 nav:
   visibility: public
 ---
-# Errors as values: handling and reporting
+# Errors: failures as data, diagnostics as events
 
-HQL has two channels for failure, and they do not overlap.
+A **failure** is an operation that did not produce the value its signature
+promises. It is one of two things, and nothing moves it from one to the other
+([HQL-0045](../../proposals/HQL-0045/README.md)).
 
-- A **handled failure** is a value: an `err(e)` of a `Result<T, E>`, with `E` a
-  declared type. It travels through pipelines, `match` arms and sinks like any
-  other value, and the run's outcome depends only on the steps the program
-  applies to it.
-- An **unhandled failure** is an entry in the run's **report**: a structured
-  log the language writes beside the result. An entry at or above the fail
-  level fails the run.
+- A **data failure** is a value: an `err(e)` of a `Result<T, E>`, an `Invalid`
+  with its `Violation`s. It travels through pipelines, `match` arms and sinks
+  like any other value, and the run's outcome depends only on the steps the
+  program applies to it.
+- A **diagnostic** is an event a phase of the run writes into the run's
+  **diagnostic channel** when it cannot do what the program asked: the
+  loader, the parser, the checker, the planner, the evaluator or the
+  renderer. A diagnostic at or above the fail level fails the run.
 
 HQL has no `try`, no `catch` and no exception. No construct skips steps of a
-pipeline, and no program intercepts a report entry. A `Result` in a signature
-is the whole statement that something can fail.
+pipeline, no construct produces a diagnostic, and no program reads the
+diagnostic channel of the run it is in. A `Result` in a signature is the whole
+statement that something can fail.
+
+| Term | Meaning |
+| --- | --- |
+| failure | an operation did not produce the value its signature promises |
+| data failure | a failure the program keeps as a value: `err(e)`, `Invalid`, `Violation` |
+| diagnostic | a structured event describing a failure, or a fact about one, that is not data; written by a phase, never by a program |
+| phase | when it occurred: `load`, `parse`, `check`, `plan`, `execute`, `render` |
+| kind | what the problem is, by a stable kebab-case name |
+| severity | how serious it is for the person reading it |
+| disposition | what the phase did next: `warning`, `recoverable`, `fatal` |
+| diagnostic channel | the run-scoped `Channel<Diagnostic>` every phase writes into |
+| format | a rendering of a diagnostic: `DiagnosticText`, `Json` |
+| target | the endpoint a rendered diagnostic is delivered to |
+| report | the channel's contents rendered in a format, with a count per severity |
 
 ## Three kinds of failure
 
-| Kind | Example | Channel | Outcome |
+| Kind | Example | Side | Outcome |
 | --- | --- | --- | --- |
-| **Static** — a fault in the program | `"a" + 1`; a field `User` does not declare | report, stage `type` or `name` | the program is not evaluated; exit `1` |
-| **Unhandled data failure** — a fault in the data, read fail-fast | `users \| UserData` where one record has `age: "forty"` | report, stage `evaluation` | an `error` entry; exit `1` |
-| **Handled data failure** — the same fault, read as a result | `users \| validate(UserData)` | value, `err(Invalid)` | whatever the program does with it |
+| **Static** — a fault in the program | `"a" + 1`; a field `User` does not declare | diagnostic, `check error[type-mismatch]` or `check error[unknown-field]` | the program is not evaluated; exit `1` |
+| **Required read** — a fault in the data, read fail-fast | `users \| UserData` where one record has `age: "forty"` | diagnostic, `execute error[contract-violation]` | the run ends; exit `1` |
+| **Data failure** — the same fault, read as a result | `users \| validate(UserData)` | value, `err(Invalid)` | whatever the program does with it |
 
 A static error is never a value: it concerns the program, which has no value
-until it checks. The reporting mode changes how many static errors one run
-lists, never whether a program with one is evaluated.
+until it checks. The mode changes how many static errors one run lists, never
+whether a program with one is evaluated.
 
-The two data rows are the same reading of the same data. `x | T` is the
-fail-fast form: where `x` does not read as `T` or breaks one of `T`'s rules,
-the run's report gets an `error` entry listing every violation.
-`x | validate(T)` is that reading with the failure returned as
-`err(Invalid)`. The program chooses per call site, not per type.
+The two data rows are the same reading of the same data. `x | T` requires `x`
+to read as `T`: where it does not, or breaks one of `T`'s rules, the execute
+phase writes a diagnostic carrying every violation. `x | validate(T)` is that
+reading with the failure returned as `err(Invalid)`. For a data failure the
+call site decides, not the type.
 
 ## Handling a failure
 
@@ -95,10 +113,10 @@ Mapped onto the habits of a language with exceptions:
 A program that never handles a failure writes `x | T` and gets the behaviour of
 an uncaught exception. `Result` costs nothing where it is not asked for.
 
-Handling and reporting are separate effects. Storing an `Invalid` decides what
-happens to the value; writing it to a log or a metrics sink observes it.
-Neither adds an entry to the run's report, so a handled failure leaves the exit
-status unchanged.
+Handling a failure and delivering a diagnostic are separate effects. Storing
+an `Invalid` decides what happens to the value; writing it to a log or a
+metrics sink observes it. Neither writes a diagnostic, so a handled failure
+leaves the exit status unchanged.
 
 `Result`, `ok`, `err` and their combinators are implemented (see
 [the result example](../../../examples/mighty-types/queries/08-result.hql)).
@@ -138,57 +156,64 @@ concern data, so they are evaluated when a value is read. A value of a
 contract type is valid by construction: once a program holds a `User`, no later
 step re-checks it, and failures are confined to the step where data is read.
 
-## The report
+## Diagnostics
 
-A run produces a value **and** a report of everything it had to say. A program
-that warned still produced a result, and the caller reads the report
-afterwards. Every entry has a severity, a message and context, with a fixed
-shape, and is not a line printed to standard output.
+A run produces a value **and** the diagnostics its phases wrote. A program that
+warned still produced a result, and the caller reads the diagnostics
+afterwards. Every diagnostic is a `Diagnostic` record with a fixed shape, never
+a line printed to standard output.
 
-A program's own diagnostics are not report entries: it writes log events
-through a `Logger` to an endpoint of its own, apart from both the result and
-the report ([HQL-0021](../../proposals/HQL-0021/README.md)). Writing a log event
-does not handle a failure, and handling a failure writes no log event.
+A program's own events are not diagnostics: it writes log events through a
+`Logger` to an endpoint of its own, apart from both the result and the
+diagnostic channel ([HQL-0021](../../proposals/HQL-0021/README.md)). Writing a
+log event does not handle a failure, and handling a failure writes no log
+event.
 
-### Severities
+### Four axes
 
-| Severity | Meaning | Raised by |
-| --- | --- | --- |
-| `debug` | A detail a host states while it runs | the host |
-| `info` | A fact worth stating | the host |
-| `warning` | Evaluation continued and the result stands | a reference that does not resolve; a skipped document |
-| `error` | The result is wrong, but more could still be examined | a type or name error; data of the wrong shape; a fail-fast read |
-| `failure` | Nothing further can be examined | the source did not parse; arithmetic overflowed |
+Each axis is a field set by the phase that wrote the diagnostic, and none is
+derived from another.
 
-All five are implemented. No program construct raises `debug` or `info`.
+| Axis | Values |
+| --- | --- |
+| `phase` | `load`, `parse`, `check`, `plan`, `execute`, `render` ([HQL-0044](../../proposals/HQL-0044/README.md)) |
+| `kind` | a kebab-case name, the set published with HQL-0045: `unexpected-token`, `unknown-name`, `type-mismatch`, `shape-mismatch`, `contract-violation`, `division-by-zero`, `numeric-overflow`, `io-failure`, `skipped-document`, … |
+| `severity` | `debug`, `info`, `warning`, `error`, `failure` |
+| `disposition` | `warning`: the work stands; `recoverable`: the unit of work it is about is lost and the phase went on; `fatal`: the phase stopped |
 
-An unresolved [[link-op|doc reference]] is a warning: a forward link to a
-document nobody has written yet is ordinary, so it yields absence and leaves
-the result standing. See [[option-type]].
+A failure found while executing is of the `execute` phase whatever it is
+about. A contract read `x | T` and a `Data` value of the wrong shape are
+`execute error`s, a wrong value read; a division by zero and an overflow are
+`execute failure`s, an operation with no result. An integer literal outside
+the `Int` range is a `numeric-overflow` of the `parse` phase.
 
-### An entry carries its context
+An unresolved [[link-op|doc reference]] is an `execute warning[unresolved-link]`:
+a forward link to a document nobody has written yet is ordinary, so it yields
+absence and leaves the result standing. See [[option-type]]. A document the
+loader cannot read is a `load warning[skipped-document]`, and the rest of the
+vault is read.
+
+### Fields beyond the axes
 
 When the problem is in the data, the reader needs **which document** holds the
-bad value, **where in it**, **what was expected** and **what was found**.
-Every entry is a record with these fields, and a field that does not apply is
-left out:
+bad value, **what was expected**, **what was found** and **how the evaluation
+reached it**. A field that does not apply is absent, and the message carries
+nothing a field carries.
 
 | Field | What it holds |
 | --- | --- |
-| `severity` | one of the five above |
-| `code` | the kind of problem, by name: `shape-mismatch`, `unresolved-link`, `type-mismatch` |
 | `message` | one sentence for a person |
-| `stage` | `syntax`, `type`, `name`, `evaluation`, `load`, or `program` for `debug` |
-| `span` | where in the query |
-| `source` | where in the data: the document's path, the line, and the key path inside its header |
-| `expected` | the type the program asked for |
-| `found` | the value that was there |
-| `trace` | the path through the pipeline: each step, its position, and the element it was working on |
-| `invalid` | for a contract violation, the `Invalid` that `validate` gives for the same value |
-
-A code is a name, not a number, so a reader or a configuration line refers to
-it without a table. The trace is the language's call stack: HQL has no deep
-call chains, so it is the path through the pipeline, not through frames.
+| `origin` | what was being read: a path, `<expression>`, `<repl:N>`, a document's cell `path#cell` |
+| `span` | where in `origin`, a zero-based, half-open UTF-8 byte range |
+| `labels` | secondary places, each with a note: the first of two implementations |
+| `help` | what to write instead: a nearest name, a conventional spelling |
+| `expected` | the type a step needed |
+| `found` | the value or type that was there, as data |
+| `element` | the element a step was applying its function to: the step, its position, and the value |
+| `bindings` | the parameters in scope where it failed, of the innermost function or lambda |
+| `trace` | the `call` frames of the functions it was reached through, outermost first |
+| `source` | the document a bound card was read from |
+| `violations` | for a contract read, the `Violation`s `validate` would give |
 
 Take the mapreduce shelf, where `genre` is a string, and a query that reads it
 as a map:
@@ -200,137 +225,146 @@ cards
 ```
 
 ```text
-error[shape-mismatch]: `name` needs a map, and this genre is a string
- --> shelf.hql:3:12
+execute error[shape-mismatch]: `name` needs a map here, not Data of shape string
+ --> <expression>:3:12
   |
 3 | | map(c => c.metadata.genre.name)
   |            ^^^^^^^^^^^^^^^^^^^^^
-  = data:     wiki/a-room-of-ones-own.hmd:5  metadata.genre
-  = expected: Map<String, Data>
-  = found:    "essay"
-  = trace:    filter (step 1) → map (step 2), element a-room-of-ones-own
+  = element: "a-room-of-ones-own", position 1 of 6 in `map`
+  = source: examples/mapreduce/wiki/a-room-of-ones-own.hmd
 ```
 
-The same entry as data, with `--envelope json`:
+The same diagnostic as data, under `--diagnostics-format json` or in the
+`diagnostics` of `--envelope json`:
 
 ```json
 {
+  "disposition": "fatal",
+  "element": { "of": 6, "position": 1, "step": "map", "value": "a-room-of-ones-own" },
+  "kind": "shape-mismatch",
+  "message": "`name` needs a map here, not Data of shape string",
+  "origin": "<expression>",
+  "phase": "execute",
   "severity": "error",
-  "code": "shape-mismatch",
-  "message": "`name` needs a map, and this genre is a string",
-  "stage": "evaluation",
-  "span": { "start": 62, "end": 83 },
-  "source": { "path": "wiki/a-room-of-ones-own.hmd", "line": 5, "key": "metadata.genre" },
-  "expected": "Map<String, Data>",
-  "found": "essay",
-  "trace": [
-    { "step": "filter", "position": 1 },
-    { "step": "map", "position": 2, "element": "a-room-of-ones-own" }
-  ]
+  "source": { "path": "examples/mapreduce/wiki/a-room-of-ones-own.hmd" },
+  "span": { "end": 83, "start": 62 }
 }
 ```
 
-A fail-fast read of a contract lists every violation of the value, each with
-its path and, for a rule, the rule as written:
+A fail-fast read of a contract carries, as `violations`, the `Violation`s
+`| validate(T)` gives for the same value, so `x | T` and `x | validate(T)`
+report the same faults. They are the diagnostic's context, not its identity,
+and no operation reads them back into the program.
 
-```text
-error[contract-violation]: this does not read as UserData: rule `require age? >= 0` does not hold
-```
+`Diagnostic` is declared in `lib/std/core`, so a later run reads delivered
+diagnostics as data: `source(file(p), JsonLines) | Diagnostic`. The source
+line of each and the line and key of a card's value are not recorded; a
+`source` names the document only.
 
-Its `invalid` field is the `Invalid` that `| validate(UserData)` gives for the
-same value, so `x | T` and `x | validate(T)` report the same violations.
+## The diagnostic channel
 
-Every entry carries `severity`, `stage`, `message` and `span`. `code`,
-`source`, `expected`, `found`, `trace` and `invalid` on the language's own
-errors are designed.
+The runtime owns one `Channel<Diagnostic>` per run. It is a channel of
+[HQL-0021](../../proposals/HQL-0021/README.md) — typed, FIFO, in memory —
+whose scope is the run rather than the evaluation: it is opened before the
+loader runs and closed after the last phase, so a parse failure or a type
+error, written before any HQL is evaluated, has a channel to go to.
+
+- Every phase writes its diagnostics into it, in the order it found them; the
+  channel holds them in the order they were committed.
+- The program holds no name for it, and it is not among the program's
+  channels.
+- The host reads it at the end of the run and may tap it while the run
+  proceeds. A tap observes; it does not keep the run open.
+- A fatal diagnostic is written before its phase stops, and later phases do
+  not start. What was written before it stays, and the run ends only after
+  the channel's delivery consumers have delivered everything written.
+
+## Formats and targets
+
+A diagnostic reaches a person or a tool through a format and an endpoint;
+there is no reporting architecture beside them. The host's default wiring is
+`diagnostics | DiagnosticText | stderr`, with the value on `stdout`.
+`--diagnostics-format json` writes each diagnostic as one JSON document per
+line instead, and `--envelope json` carries the channel's contents under
+`diagnostics` beside the value. `DiagnosticText` is a format a program names
+for diagnostics it reads as data, `| format(DiagnosticText)`: each one's
+heading, origin and fields, then the count.
+
+A **report** is the channel's contents rendered in a format, followed by a
+count per severity when there is more than one. It names a presentation and
+no object of the run.
 
 ## Fail level and exit status
 
-Severity and success are separate. Only an entry at or above the **fail
-level** — `error` by default — fails the run: the result is absent and the
-exit status is `1`. Every entry below it is reported and the result stands.
+Severity and success are separate. Only a diagnostic at or above the **fail
+level** — `error` — fails the run: the exit status is `1`. Every diagnostic
+below it is delivered and the result stands.
 
 | Exit status | Meaning |
 | --- | --- |
 | `0` | succeeded, possibly with warnings and with handled failures |
-| `1` | an entry at the fail level, or an I/O failure |
+| `1` | a diagnostic at the fail level, or an I/O failure |
 | `2` | a usage error, which clap reports |
 
 A handled failure does not affect the exit status.
 
 ## Strict and collect
 
-| Mode | At an entry at the fail level |
-| --- | --- |
-| `strict` | evaluation ends there — the default |
-| `collect` | evaluation continues, every findable entry is recorded, and the run fails at the end |
+Whether a phase continues after a diagnostic is the phase's. `collect` asks
+every phase for as much continuation as it can give; `strict`, the default,
+declines optional continuation after the first `error`.
+
+| Phase | After an `error` | Under `collect` |
+| --- | --- | --- |
+| `load` | skips the document and continues | the same |
+| `parse` | stops: nothing after an unparseable source has a structure | the same |
+| `check` | stops at the first | checks every statement; a failed one still binds its name at the open [[data-type\|Data]] type, so the statements after it are reported on their own faults |
+| `plan` | stops: a refused pipeline has no plan | the same |
+| `execute` | stops at the first | `map`, `filter` and `flat_map` step past an element whose function failed, writing the diagnostic `recoverable`; an overflow or an I/O failure stops under both |
+| `render` | stops at the failing cell | renders every cell, each reported against its own fault |
 
 `strict` is the default because a wrong answer that keeps going is harder to
-notice than one that stops. `collect` lists every problem in one run: one
-malformed card is reported against that card, and evaluation goes on to the
-next. A statement that failed still binds its name at the open
-[[data-type|Data]] type, so the statements after it are reported on their own
-faults rather than on a cascade from it.
+notice than one that stops. Under either mode, one diagnostic at the fail
+level fails the run: `collect` changes how many precede the failure, never
+whether it occurs. The mode never turns a diagnostic into a value, and it
+never changes what a `Result` holds.
 
-Under either mode, **one entry at the fail level fails the run**. `collect`
-changes how many entries precede the failure, never whether it occurs. A
-`failure` ends evaluation under both modes, because nothing after an
-unparseable source can be examined.
-
-The mode applies to the report only. It never turns an entry into a value, and
-it never changes what a `Result` holds.
-
-Today `collect` continues through checking but ends at the first evaluation
-error; continuing through evaluation, element by element, is designed. Once it
-is built, `users | UserData` under `collect` reports every invalid record and
-then fails.
-
-## Configuring the report
-
-Three settings, all with the same precedence:
+## Configuring delivery
 
 | Setting | Values | Default | Meaning |
 | --- | --- | --- | --- |
-| `mode` | `strict`, `collect` | `strict` | end at the first failing entry, or collect them all |
-| `level` | `debug`, `info`, `warning`, `error` | `warning` | the lowest severity shown |
-| `fail` | `warning`, `error` | `error` | the lowest severity that fails the run |
+| `mode` | `strict`, `collect` | `strict` | how much continuation the run asks its phases for |
+| `level` | `debug`, `info`, `warning`, `error` | `warning` | the lowest severity delivered to the default target |
 
-`fail = "warning"` promotes warnings to failures — a vault that must have no
-unresolved links states it once. `level` filters only what is shown: a hidden
-`debug` entry is still captured, and `--envelope json` returns all of them.
+`level` filters only what is delivered: a hidden `debug` diagnostic is still in
+the channel, and `--envelope json` returns all of them. A fail level other
+than `error`, `fail = "warning"` for a vault that must have no unresolved
+links, is design direction.
 
 The most specific layer that states a setting wins:
 
-1. **the query** — `--report collect`, `--report-level debug`, `--fail-on warning`
-2. **the vault** — `hql.toml` at its root
-3. **the user** — `HQL_REPORT`, `HQL_REPORT_LEVEL`, `HQL_REPORT_FAIL` in the environment
+1. **the query** — `--report collect`, `--report-level debug`
+2. **the vault** — `[report]` in `hql.toml` at its root
+3. **the user** — `HQL_REPORT`, `HQL_REPORT_LEVEL` in the environment
 4. **the default**
 
 ```toml
 # hql.toml at the vault root
 [report]
 mode  = "collect"   # list every problem in the vault, then fail
-level = "info"      # show info entries, hide debug
-fail  = "warning"   # an unresolved link fails the run here
+level = "info"      # deliver info diagnostics, hide debug
 ```
 
 `hql config` prints each setting in force and the layer that supplied it.
-`mode` and `level` are implemented, with `--report-level` and
-`HQL_REPORT_LEVEL`; `fail` is designed.
-
-## Spans and rendering
-
-A span is a zero-based, half-open UTF-8 byte range. That is the
-machine-readable form; turning it into a line, a column and a caret is a
-separate `render` step, which is testable apart from the binary.
 
 ## A failed mapping is an error, not absence
 
 Mapping a region of [[data-type|Data]] onto a type finds one of three things:
 the value is missing, the value is there and is the type, or the value is there
 and is not. Only the first is absence, an `Option` the program handles — see
-[[fields]]. The third is an `error` entry at the expression that asked for the
-mapping, or an `err` where the program asked through `validate`. Reading
+[[fields]]. The third is an `execute error[shape-mismatch]` at the expression
+that asked for the mapping, or an `err` where the program asked through
+`validate`. Reading
 `book.pages.unit` when `pages` is a number is the case that exists today.
 
 Treating a wrong shape as absence would make `database: 42` indistinguishable
@@ -340,8 +374,8 @@ query that touched it.
 ## Open
 
 - Whether an extension may contribute its own severities or only the five.
-- How entries from a pushed-down source-side execution are attributed to spans
-  in the original query — see [[pipes]].
+- How diagnostics from a pushed-down source-side execution are attributed to
+  spans in the original query — see [[pipes]].
 
 See [HQL-0033](../../proposals/HQL-0033/README.md) for errors as values,
 [HQL-0032](../../proposals/HQL-0032/README.md) for contracts,

@@ -1,26 +1,218 @@
-//! The reporting layer: severities, the queue, and where a mode comes from.
+//! The error model (HQL-0045): the four axes of a diagnostic, the run's
+//! diagnostic channel, continuation by phase, and where a mode comes from.
 
-use hql::reporting::{Level, Mode, Settings, Severity};
+use hql::diagnostics::{self, Diagnostic, Disposition, Kind, Phase, Severity};
+use hql::reporting::{Level, Mode, Settings};
 use hql::vault::Vault;
 use hql::{check_reported, run};
 use std::fs;
 use tempfile::tempdir;
 
+fn axes(diagnostic: &Diagnostic) -> (Phase, Kind, Severity, Disposition) {
+    (
+        diagnostic.phase,
+        diagnostic.kind,
+        diagnostic.severity,
+        diagnostic.disposition,
+    )
+}
+
 #[test]
-fn strict_stops_at_the_first_error_and_collect_reports_them_all() {
+fn each_phase_states_its_own_axes() {
+    let parse = run("1 +", &Vault::empty(), Mode::Strict);
+    assert_eq!(
+        axes(&parse.diagnostics[0]),
+        (
+            Phase::Parse,
+            Kind::UnexpectedToken,
+            Severity::Failure,
+            Disposition::Fatal
+        )
+    );
+    let check = run("\"a\" + 1", &Vault::empty(), Mode::Strict);
+    assert_eq!(
+        axes(&check.diagnostics[0]),
+        (
+            Phase::Check,
+            Kind::TypeMismatch,
+            Severity::Error,
+            Disposition::Fatal
+        )
+    );
+    let execute = run("[1, 0] | map(n => 1 / n)", &Vault::empty(), Mode::Strict);
+    assert_eq!(
+        axes(&execute.diagnostics[0]),
+        (
+            Phase::Execute,
+            Kind::DivisionByZero,
+            Severity::Failure,
+            Disposition::Fatal
+        )
+    );
+    let json = execute.diagnostics[0].to_json();
+    assert_eq!(json["phase"], "execute");
+    assert_eq!(json["kind"], "division-by-zero");
+    assert_eq!(json["element"]["position"], 2);
+    assert_eq!(json["element"]["value"], 0);
+}
+
+#[test]
+fn severity_is_not_derived_from_the_phase() {
+    // A contract read and a division by zero are both execute-phase
+    // failures, and their producers rate them differently.
+    let contract = run(
+        "type User { age : Int }\nData(\"{\\\"age\\\": \\\"x\\\"}\", Json) | User",
+        &Vault::empty(),
+        Mode::Strict,
+    );
+    let read = &contract.diagnostics[0];
+    assert_eq!(
+        (read.phase, read.kind, read.severity),
+        (Phase::Execute, Kind::ContractViolation, Severity::Error)
+    );
+    assert_eq!(read.context.expected.as_deref(), Some("User"));
+    assert_eq!(read.context.violations.len(), 1);
+    let division = run("1 / 0", &Vault::empty(), Mode::Strict);
+    assert_eq!(division.diagnostics[0].severity, Severity::Failure);
+}
+
+#[test]
+fn one_channel_holds_every_phase_in_order() {
+    // A check warning, then an execute failure: written in that order, and
+    // the warning is not lost when the run fails.
+    let outcome = run(
+        "fn totalOf(xs : List<Int>) : Int = xs | sum\ntotalOf([1]) / 0",
+        &Vault::empty(),
+        Mode::Strict,
+    );
+    let order: Vec<(Phase, Kind)> = outcome
+        .diagnostics
+        .iter()
+        .map(|diagnostic| (diagnostic.phase, diagnostic.kind))
+        .collect();
+    assert_eq!(
+        order,
+        [
+            (Phase::Check, Kind::NamingConvention),
+            (Phase::Execute, Kind::DivisionByZero)
+        ]
+    );
+    assert_eq!(outcome.diagnostics[0].context.help, ["write it `total_of`"]);
+    assert!(outcome.failed());
+}
+
+#[test]
+fn a_warning_leaves_the_value_and_the_status() {
+    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let outcome = run("@[[nowhere]]\n1 + 1", &vault, Mode::Strict);
+    assert!(outcome.value.is_some());
+    assert!(!outcome.failed());
+    let warning = outcome
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.phase != Phase::Load)
+        .unwrap();
+    assert_eq!(
+        axes(warning),
+        (
+            Phase::Execute,
+            Kind::UnresolvedLink,
+            Severity::Warning,
+            Disposition::Warning
+        )
+    );
+}
+
+#[test]
+fn the_loader_writes_skipped_document_and_keeps_the_rest() {
+    let directory = tempdir().unwrap();
+    fs::write(directory.path().join("hql.toml"), "").unwrap();
+    fs::write(
+        directory.path().join("broken.md"),
+        "---\ntitle: [unclosed\n---\n# Broken\n",
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("fine.md"),
+        "---\ntitle: Fine\n---\n# Fine\n",
+    )
+    .unwrap();
+    let vault = hql::vault::load(directory.path()).unwrap();
+    let outcome = run("cards | size", &vault, Mode::Strict);
+    assert_eq!(
+        outcome.value.as_ref().map(|value| value.to_string()),
+        Some("1".into())
+    );
+    assert!(!outcome.failed());
+    let skipped = &outcome.diagnostics[0];
+    assert_eq!(
+        (skipped.phase, skipped.kind, skipped.disposition),
+        (Phase::Load, Kind::SkippedDocument, Disposition::Recoverable)
+    );
+    assert!(
+        skipped
+            .origin
+            .as_deref()
+            .is_some_and(|origin| origin.ends_with("broken.md"))
+    );
+}
+
+#[test]
+fn collect_steps_past_an_element_and_stops_at_an_overflow() {
+    let source = "[6, 0, 3] | map(n => 6 / n)";
+    let strict = run(source, &Vault::empty(), Mode::Strict);
+    assert!(strict.value.is_none());
+    assert_eq!(strict.diagnostics[0].disposition, Disposition::Fatal);
+
+    let collected = run(source, &Vault::empty(), Mode::Collect);
+    assert_eq!(
+        collected.value.as_ref().map(|value| value.to_string()),
+        Some("[1, 2]".into())
+    );
+    assert_eq!(collected.diagnostics.len(), 1);
+    assert_eq!(
+        collected.diagnostics[0].disposition,
+        Disposition::Recoverable
+    );
+    assert!(collected.failed(), "a failure was written");
+
+    let overflow = run(
+        "[1, 9223372036854775807] | map(n => n + 1)",
+        &Vault::empty(),
+        Mode::Collect,
+    );
+    assert!(overflow.value.is_none());
+    assert_eq!(overflow.diagnostics[0].kind, Kind::NumericOverflow);
+    assert_eq!(overflow.diagnostics[0].disposition, Disposition::Fatal);
+}
+
+#[test]
+fn a_data_failure_writes_no_diagnostic() {
+    let outcome = run(
+        "type User { age : Int }\n[{age: 1}, {age: \"x\"}] | map(u => u | validate(User)) | errs() | size",
+        &Vault::empty(),
+        Mode::Strict,
+    );
+    assert_eq!(
+        outcome.value.as_ref().map(|value| value.to_string()),
+        Some("1".into())
+    );
+    assert!(outcome.diagnostics.is_empty());
+}
+
+#[test]
+fn strict_stops_at_the_first_error_and_collect_checks_them_all() {
     let source = "a = nosuchthing\nb = alsomissing\nc = stillmissing";
 
     let strict = check_reported(source, &Vault::empty(), Mode::Strict);
-    assert_eq!(strict.reports.len(), 1);
+    assert_eq!(strict.diagnostics.len(), 1);
+    assert_eq!(strict.diagnostics[0].disposition, Disposition::Fatal);
 
     let collected = check_reported(source, &Vault::empty(), Mode::Collect);
-    assert_eq!(collected.reports.len(), 3);
-    assert!(
-        collected
-            .reports
-            .iter()
-            .all(|report| report.severity == Severity::Error)
-    );
+    assert_eq!(collected.diagnostics.len(), 3);
+    assert!(collected.diagnostics.iter().all(|diagnostic| {
+        diagnostic.severity == Severity::Error && diagnostic.disposition == Disposition::Recoverable
+    }));
 }
 
 #[test]
@@ -28,59 +220,61 @@ fn a_statement_that_fails_does_not_cascade_into_the_ones_after_it() {
     // `a` did not check, but it is still bound, so the second statement is
     // reported on its own fault rather than on a missing name.
     let outcome = check_reported("a = nosuchthing\nb = a + 1", &Vault::empty(), Mode::Collect);
-    assert_eq!(outcome.reports.len(), 2);
-    let messages: Vec<String> = outcome
-        .reports
-        .iter()
-        .map(|report| report.message.clone())
-        .collect();
-    assert!(messages[0].contains("nosuchthing"), "{messages:?}");
-    assert!(messages[1].contains("addition"), "{messages:?}");
+    assert_eq!(outcome.diagnostics.len(), 2);
+    assert!(outcome.diagnostics[0].message.contains("nosuchthing"));
+    assert!(outcome.diagnostics[1].message.contains("addition"));
 }
 
 #[test]
 fn a_syntax_failure_stops_even_in_collect_mode() {
-    // Nothing after an unparseable source can be examined, so collecting has
-    // nothing to collect.
     let outcome = check_reported("1 +", &Vault::empty(), Mode::Collect);
-    assert_eq!(outcome.reports.len(), 1);
-    assert_eq!(outcome.reports.worst(), Some(Severity::Failure));
+    assert_eq!(outcome.diagnostics.len(), 1);
+    assert_eq!(
+        diagnostics::worst(&outcome.diagnostics),
+        Some(Severity::Failure)
+    );
+    assert_eq!(outcome.diagnostics[0].disposition, Disposition::Fatal);
 }
 
 #[test]
-fn a_value_and_a_queue_come_back_together() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
-    let outcome = run("@[[nowhere]]\n1 + 1", &vault, Mode::Strict);
-    // The warning did not stop the program, and the result is still there.
-    assert!(outcome.value.is_some());
-    assert!(!outcome.failed());
-    assert_eq!(outcome.reports.count(Severity::Warning), 1);
+fn a_nearest_name_is_help_and_not_the_message() {
+    let outcome = run("[1, 2] | mapp(n => n)", &Vault::empty(), Mode::Strict);
+    let unknown = &outcome.diagnostics[0];
+    assert_eq!(unknown.kind, Kind::UnknownStep);
+    assert_eq!(unknown.message, "`mapp` is not a pipeline step");
+    assert_eq!(unknown.context.help, ["did you mean `map`?"]);
 }
 
 #[test]
-fn the_queue_is_walked_oldest_first() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
-    let outcome = run(
-        "@[[first-missing]]\n@[[second-missing]]\n1",
-        &vault,
-        Mode::Strict,
+fn a_second_place_is_a_label() {
+    let source = "trait T { fn f(self) : Int }\ntype A { x : Int }\n\
+                  impl T for A { fn f(self) : Int = 1 }\nimpl T for A { fn f(self) : Int = 2 }\n1";
+    let outcome = run(source, &Vault::empty(), Mode::Strict);
+    let duplicate = &outcome.diagnostics[0];
+    assert_eq!(duplicate.kind, Kind::DuplicateImplementation);
+    assert!(!duplicate.message.contains("byte"), "{}", duplicate.message);
+    assert_eq!(duplicate.context.labels.len(), 1);
+    assert!(duplicate.context.labels[0].span.start < duplicate.span.start);
+}
+
+#[test]
+fn a_tap_observes_the_channel_as_it_is_written() {
+    use std::sync::{Arc, Mutex};
+    assert!(hql::io::open_diagnostics());
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let tapped = Arc::clone(&seen);
+    hql::io::tap_diagnostics(move |diagnostic| {
+        tapped.lock().unwrap().push(diagnostic.kind);
+    });
+    let outcome = run("x = @[[nowhere]]\n1 / 0", &Vault::empty(), Mode::Strict);
+    // The run did not own the channel, so it left it open; the host closes
+    // it, and its contents are what the run returned.
+    let closed = hql::io::close_diagnostics();
+    assert_eq!(closed, outcome.diagnostics);
+    assert_eq!(
+        *seen.lock().unwrap(),
+        [Kind::UnresolvedLink, Kind::DivisionByZero]
     );
-    let mut reports = outcome.reports;
-    assert!(
-        reports
-            .next_report()
-            .unwrap()
-            .message
-            .contains("first-missing")
-    );
-    assert!(
-        reports
-            .next_report()
-            .unwrap()
-            .message
-            .contains("second-missing")
-    );
-    assert!(reports.next_report().is_none());
 }
 
 #[test]
@@ -109,20 +303,7 @@ fn a_vault_without_a_configuration_file_falls_through() {
 }
 
 #[test]
-fn entries_captured_before_a_failure_survive_it() {
-    let outcome = run("x = @[[nowhere]]\n1 / 0", &Vault::empty(), Mode::Strict);
-    assert!(outcome.failed());
-    assert_eq!(outcome.reports.count(Severity::Warning), 1);
-    assert_eq!(outcome.reports.count(Severity::Failure), 1);
-}
-
-#[test]
-fn the_shown_level_filters_without_discarding() {
-    let outcome = run("@[[nowhere]]", &Vault::empty(), Mode::Strict);
-    assert_eq!(outcome.reports.len(), 1);
-    assert_eq!(outcome.reports.shown(Severity::Warning).len(), 1);
-    // Hidden at a higher level, and still held.
-    assert_eq!(outcome.reports.shown(Severity::Error).len(), 0);
+fn the_shown_level_parses_by_name() {
     assert_eq!(Severity::parse_level("Info"), Some(Severity::Info));
     assert_eq!(Severity::parse_level("failure"), None);
     assert!(Severity::Debug < Severity::Info && Severity::Info < Severity::Warning);

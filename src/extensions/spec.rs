@@ -636,7 +636,8 @@ impl OperationSpec {
                             parameter.name
                         )
                     };
-                    return Err(Diagnostic::typing(span.clone(), message));
+                    return Err(Diagnostic::typing(span.clone(), message)
+                        .with_kind(crate::diagnostics::Kind::UnsatisfiedBound));
                 }
             }
         }

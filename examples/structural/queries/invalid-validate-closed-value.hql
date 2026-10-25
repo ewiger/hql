@@ -2,8 +2,9 @@
 // feature: `validate(T)` reads a `Data` or an open record; a value already of a closed type is refused
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 type Point = {
     x: Int

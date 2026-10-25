@@ -32,7 +32,7 @@ journal.cards | map(c => c.name)
 ```
 
 A vault is a folder of documents, each a card with a name, the subject of
-[chapter 15](../15-a-vault.md); `journal.cards` is the cards of that one.
+[chapter 16](../16-a-vault.md); `journal.cards` is the cards of that one.
 Here it is one source among others, read by its id like the rest.
 
 ## The kind states the type
@@ -95,7 +95,7 @@ source(id)
 ```
 
 ```text
-type error: `source` names a configured source by a literal id, `source("field_notes")`: a computed id would leave its type unknown until evaluation
+check error[type-mismatch]: `source` names a configured source by a literal id, `source("field_notes")`: a computed id would leave its type unknown until evaluation
  --> <expression>:2:8
   |
 2 | source(id)
@@ -108,7 +108,7 @@ source("postgres://db/birds")
 ```
 
 ```text
-type error: "postgres://db/birds" is not a source id: connection details belong in configuration, `[sources.<id>]` in hql.toml, and a program names the id
+check error[type-mismatch]: "postgres://db/birds" is not a source id: connection details belong in configuration, `[sources.<id>]` in hql.toml, and a program names the id
  --> <expression>:1:8
   |
 1 | source("postgres://db/birds")
@@ -124,7 +124,7 @@ source("count")
 ```
 
 ```text
-name error: no source `count` is configured; did you mean `counts`?
+check error[unknown-name]: no source `count` is configured; did you mean `counts`?
  --> <expression>:1:8
   |
 1 | source("count")
@@ -200,7 +200,7 @@ tallies | map(t => t.count) | sum
 ```
 
 ```text
-evaluation failure: source `ledger`: document 1 does not decode as Tally: field `Observer`: Tally declares no such field
+execute failure[io-failure]: source `ledger`: document 1 does not decode as Tally: field `Observer`: Tally declares no such field
  --> <expression>:6:24
   |
 6 | tallies : Seq<Tally> = source("ledger")
@@ -287,7 +287,7 @@ source("counts") | target("counts")
 ```
 
 ```text
-type error: `target("counts")` writes rows of a declared record, and Data is not one
+check error[type-mismatch]: `target("counts")` writes rows of a declared record, and Data is not one
  --> <expression>:1:20
   |
 1 | source("counts") | target("counts")
@@ -300,7 +300,7 @@ source("counts") | target("counts", Csv)
 ```
 
 ```text
-type error: a configured target's format is its kind's, set in its configuration; name none
+check error[type-mismatch]: a configured target's format is its kind's, set in its configuration; name none
  --> <expression>:1:20
   |
 1 | source("counts") | target("counts", Csv)

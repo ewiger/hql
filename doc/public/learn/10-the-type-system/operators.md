@@ -53,7 +53,7 @@ Vec2(x = 1, y = 2) + Vec2(x = 3, y = 4)
 ```
 
 ```text
-type error: addition requires two Int, two Float or two Decimal operands, or two values of a type implementing `Add`, not Vec2
+check error[type-mismatch]: addition requires two Int, two Float or two Decimal operands, or two values of a type implementing `Add`, not Vec2
  --> <expression>:2:1
   |
 2 | Vec2(x = 1, y = 2) + Vec2(x = 3, y = 4)

@@ -13,7 +13,7 @@ fn fixture() -> Vault {
 /// The text a query writes and the name of its format type.
 fn written(source: &str, vault: &Vault) -> (String, String) {
     let outcome = hql::run(source, vault, Mode::Strict);
-    assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+    assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     match outcome.value {
         Some(Value::Formatted(formatted)) => {
             (formatted.text.clone(), formatted.format.0.to_owned())
@@ -25,7 +25,7 @@ fn written(source: &str, vault: &Vault) -> (String, String) {
 fn refused(source: &str, vault: &Vault) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(outcome.failed(), "{source}");
-    format!("{:?}", outcome.reports)
+    format!("{:?}", outcome.diagnostics)
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn formatted_text_is_a_string_a_later_step_reads() {
         outcome.value,
         Some(Value::Bool(true)),
         "{:?}",
-        outcome.reports
+        outcome.diagnostics
     );
 }
 

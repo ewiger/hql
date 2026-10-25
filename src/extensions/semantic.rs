@@ -20,7 +20,6 @@ use crate::execution::Arg as TypedArg;
 use crate::search::{self, Retrieval};
 use crate::types::Value;
 use crate::vault::Vault;
-use crate::warnings::Warning;
 use rusqlite::{Connection, OpenFlags};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -125,7 +124,9 @@ fn eval_semantic(
             // A stale vector is a wrong answer, not an impossible one, so it
             // ranks and says so. Skipping it would make an edited card vanish,
             // which a reader cannot tell from irrelevance.
-            cx.warn(Warning::new(
+            cx.warn(Diagnostic::warning(
+                crate::diagnostics::Phase::Execute,
+                crate::diagnostics::Kind::StaleIndex,
                 span.clone(),
                 format!(
                     "`{}` has changed since the index was built, so its score is stale: \
@@ -138,7 +139,9 @@ fn eval_semantic(
         scored.push((Value::Card(card), score));
     }
     if skipped > 0 {
-        cx.warn(Warning::new(
+        cx.warn(Diagnostic::warning(
+            crate::diagnostics::Phase::Execute,
+            crate::diagnostics::Kind::StaleIndex,
             span.clone(),
             format!(
                 "{skipped} card{} absent from the index and so from this ranking: rerun `{BUILD}`",

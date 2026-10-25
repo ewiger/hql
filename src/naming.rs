@@ -63,9 +63,76 @@ pub fn departure(kind: Kind, name: &str) -> Option<String> {
     ))
 }
 
+/// The name written in its kind's convention, when the lint departs from it
+/// and the conventional spelling differs.
+#[must_use]
+pub fn conventional(kind: Kind, name: &str) -> Option<String> {
+    departure(kind, name)?;
+    let words = words(name);
+    let written = match kind {
+        Kind::Type | Kind::TypeParameter => words
+            .iter()
+            .map(|word| {
+                let mut chars = word.chars();
+                chars.next().map_or_else(String::new, |first| {
+                    first.to_uppercase().chain(chars).collect()
+                })
+            })
+            .collect(),
+        Kind::Extension => words.concat(),
+        Kind::Function | Kind::Binding | Kind::Parameter | Kind::Field => {
+            let words = match words.split_first() {
+                Some((first, rest)) if kind == Kind::Function && first == "get" => rest.to_vec(),
+                _ => words,
+            };
+            words.join("_")
+        }
+    };
+    (!written.is_empty() && written != name).then_some(written)
+}
+
+/// The lowercase words of a name: split at `_` and before each uppercase
+/// letter that follows a lowercase one.
+fn words(name: &str) -> Vec<String> {
+    let mut words: Vec<String> = Vec::new();
+    let mut previous_lower = false;
+    for c in name.chars() {
+        if c == '_' {
+            words.push(String::new());
+            previous_lower = false;
+            continue;
+        }
+        if words.is_empty() || (c.is_uppercase() && previous_lower) {
+            words.push(String::new());
+        }
+        previous_lower = c.is_lowercase();
+        if let Some(last) = words.last_mut() {
+            last.extend(c.to_lowercase());
+        }
+    }
+    words.into_iter().filter(|word| !word.is_empty()).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_conventional_spelling_is_offered() {
+        assert_eq!(
+            conventional(Kind::Function, "totalOf").as_deref(),
+            Some("total_of")
+        );
+        assert_eq!(
+            conventional(Kind::Type, "hmd_card").as_deref(),
+            Some("HmdCard")
+        );
+        assert_eq!(
+            conventional(Kind::Function, "get_size").as_deref(),
+            Some("size")
+        );
+        assert_eq!(conventional(Kind::Binding, "bird_cards"), None);
+    }
 
     #[test]
     fn each_kind_has_one_convention() {

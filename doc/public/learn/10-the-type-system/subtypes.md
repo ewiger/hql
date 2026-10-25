@@ -42,7 +42,7 @@ xs
 ```
 
 ```text
-type error: `xs` is declared Set<Int> but its value is List<Int>; a binding never converts, so construct it: `Set(…)`
+check error[type-mismatch]: `xs` is declared Set<Int> but its value is List<Int>; a binding never converts, so construct it: `Set(…)`
  --> <expression>:1:17
   |
 1 | xs : Set<Int> = [1, 2, 2]
@@ -68,7 +68,7 @@ type Impossible : {Int, String}
 ```
 
 ```text
-type error: nothing is both Int and String, so this supertype set declares a type no value can have
+check error[type-mismatch]: nothing is both Int and String, so this supertype set declares a type no value can have
  --> <expression>:1:25
   |
 1 | type Impossible : {Int, String}

@@ -2,8 +2,9 @@
 // feature: a default is a literal: a call is refused when the program is checked
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 type Event : DataContract = {
     id: String

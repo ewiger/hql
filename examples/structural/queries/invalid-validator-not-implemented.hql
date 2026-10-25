@@ -2,8 +2,9 @@
 // feature: `validate f with V` needs `V` implemented for the field's type
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 trait Email : Validator { }
 

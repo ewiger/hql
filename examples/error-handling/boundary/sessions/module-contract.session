@@ -1,0 +1,21 @@
+// status: valid-now
+// feature: A private helper and an undeclared function, under the module root
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql --modules examples/error-handling/lib run examples/error-handling/names/private-helper.hql
+check error[unknown-name]: the module `geometry` has no function `square`
+  --> examples/error-handling/names/private-helper.hql:16:1
+   |
+16 | geometry.square(3)
+   | ^^^^^^^^^^^^^^^
+
+$ hql --modules examples/error-handling/lib run examples/error-handling/names/module-has-no-function.hql
+check error[unknown-name]: the module `geometry` has no function `volume`
+  --> examples/error-handling/names/module-has-no-function.hql:14:1
+   |
+14 | geometry.volume(3)
+   | ^^^^^^^^^^^^^^^
+

@@ -104,7 +104,7 @@ Circle(radius = 1.0f).describe()
 ```
 
 ```text
-type error: `impl Shape for Circle` lacks `area`
+check error[missing-implementation]: `impl Shape for Circle` lacks `area`
  --> <expression>:8:1
   |
 8 | impl Shape for Circle {
@@ -134,11 +134,12 @@ Dog(tag = "rex").name()
 ```
 
 ```text
-type error: `Named` is already implemented for Dog, in this program, at byte 71: a trait has one implementation per type
+check error[duplicate-implementation]: `Named` is already implemented for Dog: a trait has one implementation per type
   --> <expression>:11:1
    |
 11 | impl Named for Dog {
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: the first implementation, at <expression>:7:1
 ```
 
 ## Generic functions over a trait
@@ -184,7 +185,7 @@ total([Line(length = 2.0f)])
 ```
 
 ```text
-type error: `total` needs T : Shape, and Line does not implement `Shape`
+check error[unsatisfied-bound]: `total` needs T : Shape, and Line does not implement `Shape`
  --> <expression>:9:1
   |
 9 | total([Line(length = 2.0f)])
@@ -209,7 +210,7 @@ fn doubled(s: Shape) : Float = s.area() * 2.0f
 ```
 
 ```text
-name error: unknown type `Shape`
+check error[unknown-name]: unknown type `Shape`
  --> <expression>:5:15
   |
 5 | fn doubled(s: Shape) : Float = s.area() * 2.0f
@@ -291,7 +292,7 @@ names([Dog(tag = "rex")])
 ```
 
 ```text
-type error: `names` needs T : Named, and Dog does not implement `Named`
+check error[unsatisfied-bound]: `names` needs T : Named, and Dog does not implement `Named`
   --> <expression>:15:1
    |
 15 | names([Dog(tag = "rex")])
@@ -349,11 +350,12 @@ it. Elsewhere the call is a name error, as `"hi".shout()` is without
 ```
 
 ```text
-name error: String has no function `shout`; did you mean `sort`?
+check error[unknown-name]: String has no function `shout`
  --> <expression>:1:1
   |
 1 | "hi".shout()
   | ^^^^^^^^^^^^
+  = help: did you mean `sort`?
 ```
 
 Two imported modules that declare one name over one type make a call by

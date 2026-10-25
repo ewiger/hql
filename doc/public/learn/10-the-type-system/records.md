@@ -34,7 +34,7 @@ Point(x = 1)
 ```
 
 ```text
-type error: `Point` needs `y`
+check error[type-mismatch]: `Point` needs `y`
  --> <expression>:2:1
   |
 2 | Point(x = 1)

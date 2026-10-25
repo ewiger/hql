@@ -45,7 +45,7 @@ rating + 1
 ```
 
 ```text
-type error: addition requires two Int, two Float or two Decimal operands, or two values of a type implementing `Add`, not Option<Data>
+check error[type-mismatch]: addition requires two Int, two Float or two Decimal operands, or two values of a type implementing `Add`, not Option<Data>
  --> <expression>:2:1
   |
 2 | rating + 1

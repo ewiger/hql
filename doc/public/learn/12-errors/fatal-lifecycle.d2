@@ -1,0 +1,15 @@
+# The lifecycle of a fatal diagnostic.
+# Rendered to fatal-lifecycle.svg with `d2 --layout elk fatal-lifecycle.d2`.
+
+shape: sequence_diagram
+
+producer: "producer\n(a phase)"
+channel: "diagnostic channel"
+consumer: "delivery consumer\n(format → target)"
+run: "run"
+
+producer -> channel: "1. write the diagnostic"
+producer -> producer: "2. disposition = fatal:\nthe phase ends, later phases do not start"
+channel -> consumer: "3. drain: every diagnostic written,\nin order, earlier ones intact"
+run -> channel: "4. close the program's channels,\nthen the diagnostic channel"
+run -> run: "5. the exit status is decided:\n1 at or above error, else 0"

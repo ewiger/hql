@@ -82,7 +82,7 @@ source(stdin, Json) | target(file("all.json"))
 ```
 
 ```text
-type error: `target` writes one completed value, and Stream<Data> may not end; write it piece by piece with `sink`, or bound it with `take(n)` first
+check error[type-mismatch]: `target` writes one completed value, and Stream<Data> may not end; write it piece by piece with `sink`, or bound it with `take(n)` first
  --> <expression>:1:23
   |
 1 | source(stdin, Json) | target(file("all.json"))

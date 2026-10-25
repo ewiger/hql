@@ -73,6 +73,13 @@ type D2        : Format
 /// holding one, and nothing else.
 type Mermaid   : Format
 
+/// The text form of a `Diagnostic` (HQL-0045), which writes a diagnostic,
+/// or a sequence of them, and nothing else: each one's heading,
+/// `phase severity[kind]: message`, its origin and the fields that apply,
+/// then a count per severity when there is more than one. It is written
+/// only.
+type DiagnosticText : Format
+
 /// Rows of type `R` under ordered columns: the shape every format's encoder
 /// writes as a table. `R` is a record type or `Data`; `Table` written
 /// without it is `Table<Data>`.
@@ -130,6 +137,10 @@ impl Encoder<Graph> for D2
 impl Encoder<Data> for D2
 impl Encoder<Graph> for Mermaid
 impl Encoder<Data> for Mermaid
+
+/// `DiagnosticText` writes a `Diagnostic`, and a sequence of them one after
+/// another.
+impl Encoder<Diagnostic> for DiagnosticText
 
 /// `x` encoded in the format `as`: the encoded text, a `String` that keeps
 /// its format for presentation. A collection, which ends, and any other

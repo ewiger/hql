@@ -46,7 +46,7 @@ shortest([{1}, {2}])
 ```
 
 ```text
-type error: `shortest` needs T : Orderable, and T is Set<Int> here
+check error[type-mismatch]: `shortest` needs T : Orderable, and T is Set<Int> here
  --> <expression>:2:1
   |
 2 | shortest([{1}, {2}])

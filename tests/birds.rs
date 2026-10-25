@@ -23,7 +23,7 @@ fn text_of(source: &str) -> String {
     let outcome = run(source, &birds(), Mode::Strict);
     outcome
         .value
-        .unwrap_or_else(|| panic!("{source}: {:?}", outcome.reports))
+        .unwrap_or_else(|| panic!("{source}: {:?}", outcome.diagnostics))
         .to_string()
 }
 
@@ -79,11 +79,11 @@ fn a_forward_link_to_a_document_nobody_wrote_warns_rather_than_failing() {
     );
     assert!(
         outcome
-            .reports
+            .diagnostics
             .iter()
             .any(|report| report.message.contains("andean-condor")),
         "{:?}",
-        outcome.reports
+        outcome.diagnostics
     );
 }
 

@@ -49,7 +49,7 @@ source(file("examples/io/sightings.jsonl"), Mermaid)
 ```
 
 ```text
-type error: Mermaid is written, not read
+check error[type-mismatch]: Mermaid is written, not read
  --> <expression>:1:8
   |
 1 | source(file("examples/io/sightings.jsonl"), Mermaid)
@@ -61,7 +61,7 @@ source(file("examples/io/sightings.jsonl")) | sink(stdout, Mermaid)
 ```
 
 ```text
-type error: Mermaid describes a whole, so it is written by `target`, not `sink`
+check error[type-mismatch]: Mermaid describes a whole, so it is written by `target`, not `sink`
  --> <expression>:1:47
   |
 1 | source(file("examples/io/sightings.jsonl")) | sink(stdout, Mermaid)
@@ -96,7 +96,7 @@ source(file("examples/io/notes.data"))
 ```
 
 ```text
-type error: the extension of "examples/io/notes.data" implies no format; name it: `source(…, Json)`
+check error[type-mismatch]: the extension of "examples/io/notes.data" implies no format; name it: `source(…, Json)`
  --> <expression>:1:8
   |
 1 | source(file("examples/io/notes.data"))

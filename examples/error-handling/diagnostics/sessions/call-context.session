@@ -1,0 +1,29 @@
+// status: valid-now
+// feature: The text and JSON forms of an execute failure name the call frames that reached it and the bindings where it failed
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql run examples/error-handling/diagnostics/call-context.hql
+execute failure[division-by-zero]: division by zero
+  --> examples/error-handling/diagnostics/call-context.hql:13:42
+   |
+13 | fn ratio(total: Int, parts: Int) : Int = total / parts
+   |                                          ^^^^^^^^^^^^^
+   = bindings: parts = 0, total = 15
+   = trace: share (call) → ratio (call)
+
+$ hql --vault examples/error-handling/diagnostics/vault run examples/error-handling/diagnostics/card-provenance.hql
+load warning[skipped-document]: header: invalid YAML: did not find expected ',' or ']' at line 2 column 1, while parsing a flow sequence at line 1 column 8; document skipped
+ --> examples/error-handling/diagnostics/vault/broken.md
+
+execute failure[division-by-zero]: division by zero
+  --> examples/error-handling/diagnostics/card-provenance.hql:14:58
+   |
+14 | cards | map(c => match c.metadata.pages { some(Int n) => 100 / n, _ => 0 })
+   |                                                          ^^^^^^^
+   = element: "fine", position 1 of 1 in `map`
+   = source: examples/error-handling/diagnostics/vault/fine.md
+
+2 diagnostics: 1 failure, 0 error, 1 warning

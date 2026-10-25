@@ -2,8 +2,9 @@
 // feature: Two constructors of a type taking the same first parameter are refused
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // The first argument alone selects a constructor, so two forms of one arity
 // differ in their first parameter.

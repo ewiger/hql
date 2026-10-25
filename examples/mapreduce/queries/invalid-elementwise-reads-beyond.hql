@@ -2,8 +2,9 @@
 // feature: An elementwise operation reads its one element and nothing else
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `Elementwise<I, O>` grants a backend the right to split the input and run
 // each part separately. A body that reads a value bound outside it, here

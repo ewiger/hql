@@ -2,8 +2,9 @@
 // feature: A bracket holds a position or a range, never nothing
 // implementation: implemented
 // environment: pure
-// error: SyntaxError
-// stage: parse
+// phase: parse
+// kind: unexpected-token
+// severity: failure
 
 // `xs[]` names neither a position nor a range; `xs[:]` is the whole.
 sightings = ["wren", "robin"]

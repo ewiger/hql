@@ -71,7 +71,7 @@ names the expression it found and points at it:
 ```
 
 ```text
-type error: addition requires two Int, two Float or two Decimal operands
+check error[type-mismatch]: addition requires two Int, two Float or two Decimal operands
  --> <expression>:1:5
   |
 1 | 1 + "two"
@@ -86,7 +86,7 @@ pages + 1
 ```
 
 ```text
-name error: `pages` is not bound
+check error[unknown-name]: `pages` is not bound
  --> <expression>:1:1
   |
 1 | pages + 1
