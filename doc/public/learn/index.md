@@ -62,12 +62,12 @@ and one claim about which book inspired which.
     `source`, `tap`, `target` and `sink`, and `hql` as a command-line data tool.
 15. [Channels and logs](15-channels-and-logs.md) — values passed through
     channels, and structured logging.
-16. [Agents and runs](16-agents-and-runs.md) — agents as cards, context and
+15. [Agents and runs](15-agents-and-runs.md) — agents as cards, context and
     prompts, tools, and runs kept as values.
-17. [The type system](17-the-type-system/index.md) — records, unions and
+16. [The type system](16-the-type-system/index.md) — records, unions and
     match, results, subtypes and narrowing, generics, receiver calls,
     operators and traits.
-18. [Advanced data typing](18-advanced-data-typing/index.md) — the type
+17. [Advanced data typing](17-advanced-data-typing/index.md) — the type
     boundary where loose data becomes typed, open and closed types,
     `TypeContract` and `DataContract`, validators, validation as a value,
     and what a contract states that a schema cannot.

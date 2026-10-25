@@ -53,5 +53,5 @@ type error: `shortest` needs T : Orderable, and T is Set<Int> here
   | ^^^^^^^^^^^^^^^^^^^^
 ```
 
-A bound is a type or a trait. [Traits](../17-the-type-system/traits.md)
+A bound is a type or a trait. [Traits](../16-the-type-system/traits.md)
 declares traits of a program's own and bounds by them.

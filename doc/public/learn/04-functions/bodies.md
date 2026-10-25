@@ -238,7 +238,7 @@ form in each place: at the top level of a program, in a module
 ([chapter 5](../05-modules/index.md)), as a receiver function taking `self`
 ([receiver modules](../05-modules/receiver-modules.md)), and as a trait's
 default body or an implementation's function
-([traits](../17-the-type-system/traits.md)).
+([traits](../16-the-type-system/traits.md)).
 
 A lambda's body stays one expression; a function that needs a block is
 declared with `fn`.

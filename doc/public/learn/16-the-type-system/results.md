@@ -122,5 +122,5 @@ expected consequence of their input, and each has a `Result` form.
 `validate(T)` reads a tree as a contract and gives `Result<T, Invalid>`,
 with every reason for a failure inside the error; over a collection it is
 elementwise, and `oks()`, `errs()` and `fork` route the two sides.
-[Validation as a value](../18-advanced-data-typing/validation-as-a-value.md)
+[Validation as a value](../17-advanced-data-typing/validation-as-a-value.md)
 is that pattern in full.
