@@ -1,0 +1,64 @@
+---
+title: Next meeting
+---
+# Next meeting
+
+Notes for the club's next meeting, built from the shelf with
+`hql --vault examples/tutorial render`.
+
+```hql id=books hidden
+cards | filter(c => c.metadata.category == "book")
+```
+
+## Candidates
+
+The books nobody has finished.
+
+```hql id=unread
+books
+| filter(c => c.metadata.status == "todo")
+| sort(by = c => c.title)
+| map(c => c.title)
+```
+
+## Evidence
+
+What the shelf holds on the question the club keeps returning to.
+
+```hql id=evidence hidden
+import semantic
+cards | semantic("which unread book suits a reading club") | take(3) | Context("evidence")
+```
+
+## What should we read next?
+
+Pick one unread book for the next meeting, and say why. The candidates and
+the evidence are in this draft; rely on them and on the shelf.
+
+```hql#eval id=pick
+import ai
+
+fn books_by(author: String) : List<String> =
+    cards | filter(c => c.metadata.author == author) | map(c => c.title) | List
+
+[this]
+| Context("draft")
+| concat(evidence)
+| run(@[[librarian]] | Agent, tools = [Tool(books_by, "The titles on the shelf by one author")])
+```
+
+## What happened
+
+```hql#eval id=trace
+pick | trace | map(e => e.kind)
+```
+
+## Remembered
+
+```hql id=note hidden
+pick | remember("next-meeting-pick")
+```
+
+```hql#eval
+cards | filter(c => c.path | contains("/memory/")) | map(c => c.title)
+```

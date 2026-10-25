@@ -114,7 +114,7 @@ fn classify(x: Data) : String = match x {
 ```
 
 The same arm reads a tree as a declared record, `Book b`, when the tree has
-the record's fields at their types, as [chapter 17](../17-advanced-data-typing/open-and-closed.md)
+the record's fields at their types, as [chapter 11](../11-advanced-data-typing/open-and-closed.md)
 describes. `Data` is itself a union, declared in the standard library as a
 scalar leaf, a sequence of trees or a string-keyed map of trees, which is
 why whatever handles a `Data` may rely on there being three cases.

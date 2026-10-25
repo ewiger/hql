@@ -191,8 +191,8 @@ sightings | map(s => s.species)
 ```
 
 What each kind of record reads and what it does not is
-[open and closed types](../17-advanced-data-typing/open-and-closed.md) in the
-advanced data typing chapter, and [data contracts](../17-advanced-data-typing/data-contracts.md)
+[open and closed types](../11-advanced-data-typing/open-and-closed.md) in the
+advanced data typing chapter, and [data contracts](../11-advanced-data-typing/data-contracts.md)
 add rules the values must hold.
 
 A `source` bound to a name is read once per evaluation, however many times

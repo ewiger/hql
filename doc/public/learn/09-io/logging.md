@@ -9,15 +9,15 @@ producer and the destination it writes to:
 import logging
 
 log = Logger(stderr, Text, name = "club")
-books = cards | filter(c => c.metadata.category == "book")
-log | info("selected", {books: books | size})
+unread = ["The Hobbit", "Leaves of Grass", "The Common Reader"]
+log | info("selected", {books: unread | size})
 log | debug("not shown")
-books | size
+unread | size
 ```
 
 ```text
-INFO club selected {books: 7}
-7
+INFO club selected {books: 3}
+3
 ```
 
 The event goes to standard error and the result to standard output. A logger

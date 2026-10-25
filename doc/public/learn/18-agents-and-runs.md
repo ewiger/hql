@@ -1,8 +1,10 @@
-# 15. Agents and runs
+# 18. Agents and runs
 
-!!! note "The `ai` module"
+!!! warning "Design only"
 
-    This chapter covers the `ai` module, which ships in the next release.
+    This chapter describes functionality that is not in the current release.
+    It is written as if it existed: these programs do not run against the
+    current binary, and names, types and outputs may change before it ships.
 
 Most of the work around a language model is not the call itself. Choosing
 evidence, building the context, writing the prompt, giving the model tools,
@@ -17,8 +19,8 @@ spend money and send text to a third party.
 ## An agent is a card
 
 An agent is behaviour and configuration, written as a card. Its body is its
-instructions, and its `agent` header table configures it. This one is added to
-the reading-club vault as `librarian.hmd`:
+instructions, and its `agent` header table configures it. This one is the
+reading-club vault's `librarian.hmd`:
 
 ````markdown
 ---
@@ -83,7 +85,7 @@ cards
 
 A context is a `Seq<ContextItem>`, so contexts are combined with `concat` and
 narrowed with `filter`, like any other sequence. A ranking from
-[chapter 9](09-retrieval.md) keeps each hit's score and retrieval in its item,
+[chapter 16](16-retrieval.md) keeps each hit's score and retrieval in its item,
 so `cards | semantic(question) | take(10) | Context("evidence")` is evidence
 that says how it was found.
 
@@ -260,41 +262,9 @@ evaluation failure: no recording for this request (5e10ae23…); run with --ai r
 reached. Committed recordings make a document that calls a model as
 reproducible as one that does not.
 
-## Agents inside documents
+## What is next
 
-In a cell, `this` is the card the cell is written in, and the prose of the
-cell's section — from the nearest heading above it down to the cell — is the
-default instructions of every `Prompt` it builds. The question is written once,
-as prose, next to its answer:
-
-````markdown
-## What should we read next?
-
-Pick one unread book for the next meeting, and say why.
-
-```hql#eval id=next
-import ai
-
-fn books_by(author: String) : List<String> =
-    cards | filter(c => c.metadata.author == author) | map(c => c.title) | List
-
-cards
-| filter(c => c.metadata.status == "todo")
-| Context("unread")
-| run(@[[librarian]] | Agent, tools = [Tool(books_by, "The titles on the shelf by one author")])
-```
-````
-
-The knowledge, the prompt and the program that assembles the prompt stay
-visible, editable and queryable in one document. `hql render` replays the
-cell from its recording; `--ai host` instead leaves the request for the agent
-an editor is chatting with, and `hql ai pending` and `hql ai answer` complete
-it.
-
-## Where to go from here
-
-You have met the whole language: values and data, collections and functions,
-questions in the style of SQL, a vault of documents, graphs, retrieval,
-streams, formats, documents that compute themselves, data read and written
-through endpoints, channels and logs, and agents whose runs are values. The
-[reference](../reference/index.md) states each part precisely.
+A cell is a program, so a cell may run an agent, and the document around it is
+the prompt. [Chapter 19](19-agents-inside-documents.md) writes a document
+whose cells retrieve evidence, run the librarian over the draft they sit in,
+and save the answer where it was asked.

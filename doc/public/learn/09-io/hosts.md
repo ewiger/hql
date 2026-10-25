@@ -34,7 +34,7 @@ over a file that does not exist yet, or over the network, still checks.
 ## A document reads beside itself and writes only its channels
 
 `hql render` evaluates the cells of a document
-([queries inside documents](../12-documents.md)). A document someone else
+([queries inside documents](../17-documents.md)). A document someone else
 wrote changes no file and sends nothing: a cell may read files under the
 document's own directory and write channels, and nothing else. A cell that
 writes a file, standard output or standard error is reported when the

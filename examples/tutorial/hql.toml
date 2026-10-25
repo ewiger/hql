@@ -4,3 +4,24 @@
 # `lib/`.
 [modules]
 roots = ["lib"]
+
+# The embedding index the book's `semantic` queries read, built by
+# contrib/semantics with each question the book asks pinned at build time.
+# A changed card means rebuilding it; `python3 cli.py verify` says when.
+[semantics]
+index = ".hql/index.sqlite"
+
+# Read by the `ai` extension only, which the book describes as design; the
+# current binary ignores these tables.
+[ai]
+recordings = ".hql/runs"
+
+[ai.memory]
+dir = "memory"
+
+[ai.models.default]
+api = "messages"
+endpoint = "https://api.anthropic.com/v1/messages"
+model = "claude-sonnet-5-5"
+max_tokens = 1024
+temperature = 0

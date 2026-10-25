@@ -1,7 +1,7 @@
-# 14. I/O
+# 9. I/O
 
-Every program so far read a vault, or values written into the program itself.
-This chapter reads files, standard input and the network, writes files and
+Every program so far read values written into the program itself. This
+chapter reads files, standard input and the network, writes files and
 standard output, passes values between parts of a program, and logs what a
 program does, all through one model: a program reads from a **source** and
 writes to a **target**.
@@ -10,7 +10,7 @@ writes to a **target**.
 
 `source(endpoint, Format)` reads every document an endpoint holds and gives
 them as values. A source is a value, and a pipeline starts from it the way it
-starts from `cards`:
+starts from a list:
 
 ```hql
 source(file("examples/io/sightings.jsonl"), Json)

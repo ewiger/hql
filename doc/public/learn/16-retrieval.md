@@ -1,4 +1,4 @@
-# 9. Finding cards by meaning
+# 16. Finding cards by meaning
 
 `filter` answers a question with a yes or no per card. Retrieval answers a
 question in words with a **ranking**: every card that matches, best first,
@@ -104,39 +104,77 @@ walt-whitman  (retrieved 0.1261)
 ## Semantic retrieval
 
 `lexical` matches spellings: a card that never uses the query's words scores
-nothing. `semantic` scores by meaning, against embeddings a language model
-computed ahead of time into an index the vault names in `hql.toml`. The
-tutorial vault has no index; the birds corpus in `tests/fixtures/birds` has
-one. Asked for night-hunting birds, `semantic` finds the owls, though no owl
-article contains the word "night":
+nothing, and a card that uses common ones scores something. `semantic` scores
+by meaning, against **embeddings** a language model computed ahead of time
+into an index the vault names in `hql.toml`:
 
-<!-- run: --vault tests/fixtures/birds -->
+```toml
+[semantics]
+index = ".hql/index.sqlite"
+```
+
+Asked for a creature and its maker, `semantic` ranks Frankenstein, the
+relation card that names it, and Mary Shelley, though none of the three
+contains the word "creature":
+
 ```hql
 import semantic
-cards | semantic("night hunting birds") | take(3) | map(h => h.value.title)
+cards | semantic("a creature and its maker") | take(3) | map(h => h.value.title)
 ```
 
 ```text
-["Great horned owl", "Barn owl", "Strigidae"]
+["Frankenstein", "Frankenstein inspires Dune", "Mary Shelley"]
 ```
 
-The same question, by spelling:
+The same question, by spelling, finds Frankenstein and then two cards that
+share only its small words:
 
-<!-- run: --vault tests/fixtures/birds -->
 ```hql
 import lexical
-cards | lexical("night hunting birds") | take(3) | map(h => h.value.title)
+cards | lexical("a creature and its maker") | take(3) | map(h => h.value.title)
 ```
 
 ```text
-["Mute swan", "Passeriformes", "Alcedinidae"]
+["Frankenstein", "Walt Whitman", "Librarian"]
+```
+
+A semantic ranking reports the model that embedded the cards, so two indexes
+built by two models are never compared by score:
+
+```hql
+import semantic
+ranked = cards | semantic("a creature and its maker")
+{model: ranked.retrieval.model, metric: ranked.retrieval.metric, approximate: ranked.retrieval.approximate}
+```
+
+```text
+{approximate: false, metric: "cosine", model: "sentence-transformers/all-MiniLM-L6-v2"}
 ```
 
 The binary never loads a model: [`contrib/semantics/`](https://github.com/ewiger/hql/tree/main/contrib/semantics)
-builds the index, and `hql doctor` checks the chain — vault, configuration,
-index, model, query vectors — and names the first part that is missing.
+embeds the cards and builds the index, and embeds each question the index
+will be asked, named at build time with `--query`. The tutorial vault's index
+holds the three questions this book asks. A question it does not hold is a
+diagnostic naming the build command, not a ranking of nothing:
+
+```hql
+import semantic
+cards | semantic("night hunting birds") | take(1)
+```
+
+```text
+evaluation failure: the index holds no vector for `night hunting birds`, and this binary has no model to make one: rerun `hql-semantics build --query "night hunting birds"`
+ --> <expression>:2:9
+  |
+2 | cards | semantic("night hunting birds") | take(1)
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+`hql doctor` checks the chain — vault, configuration, index, model, query
+vectors — and names the first part that is missing.
 
 ## What is next
 
-Every collection so far ended. [Chapter 10](10-streams.md) meets one that does
-not.
+A ranking, a graph and a reading list are values a program prints.
+[Chapter 17](17-documents.md) writes them into the document that asks for
+them, and builds the document from its queries.

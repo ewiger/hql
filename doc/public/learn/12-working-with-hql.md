@@ -1,4 +1,4 @@
-# 13. Working with `hql`
+# 12. Working with `hql`
 
 The language is half of what you use; the other half is the command and what
 it says back. This chapter is about the tools: the commands, the reports, and
@@ -12,7 +12,7 @@ the messages `hql` writes when a program is wrong.
 | `hql run <file>` | check and evaluate a program in a file; `-` reads standard input |
 | `hql check <file>` | write the program's type, and the signature of every alias, without evaluating |
 | `hql repl` | read, evaluate and print, keeping bindings between lines |
-| `hql render <file>` | build a document from its cells ([chapter 12](12-documents.md)) |
+| `hql render <file>` | build a document from its cells ([chapter 17](17-documents.md)) |
 | `hql builtins` | list every step, by the provider that implements it, with its signature |
 | `hql config` | the settings in force, and where each came from |
 | `hql doctor` | check the semantic-search chain and name the first missing part |
@@ -32,7 +32,7 @@ name, prints the standard library's declarations of it, one per overload.
 
 ```text
 $ hql repl
-hql 0.5.0. `:help` for commands, `:quit` to leave.
+hql 0.5.1. `:help` for commands, `:quit` to leave.
 hql> shelf = [412, 280]
 ()
 hql> shelf | sum
@@ -118,25 +118,9 @@ type warning: `bookCount` is a binding, written in snake_case
   | ^^^^^^^^^
 ```
 
-## Logging from a program
-
-A program reports on itself with a logger. `import logging` provides one; it
-writes structured events to an endpoint of its choosing, apart from the result:
-
-```text
-$ hql --vault examples/tutorial 'import logging
-log = Logger(stderr, Text, name = "books")
-books = cards | filter(c => c.metadata.category == "book")
-log | info("selected", {category: "book"})
-books | size'
-INFO books selected {category: "book"}
-7
-```
-
-`--log-level debug` lowers every logger's threshold, and `--log-level warn`
-raises it, without changing the program.
-
-`--envelope json` carries every report, whatever the level, as data.
+`--envelope json` carries every report, whatever the level, as data. A
+program that wants to report on itself, apart from its result, writes to a
+logger: the [logging page](09-io/logging.md) of chapter 9.
 
 ## Settings
 
@@ -145,14 +129,19 @@ The report mode and level come from the command line, then the vault's
 defaults. `hql config` says which applies, and why:
 
 ```text
-$ hql --vault examples/tutorial config
+$ hql config
 report mode: strict (from the default)
 report level: warning (from the default)
-vault: examples/tutorial (14 cards)
+backend: localhost (from the default)
+vault: none
 ```
+
+`backend` is the execution backend of [chapter 13](13-pipelines.md), and
+`localhost` is the only one. Run inside a vault, or with `--vault`, the last
+line names it and counts its cards.
 
 ## What is next
 
-So far every program read a vault or its own values.
-[Chapter 14](14-io/index.md) reads files and standard input, and
-writes files and standard output.
+Every chapter so far was about a step. [Chapter 13](13-pipelines.md) is about
+the pipeline the steps form: what `|` does, when a program is checked, where
+it runs, and the systems a pipeline will connect.

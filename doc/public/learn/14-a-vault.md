@@ -1,7 +1,9 @@
-# 7. A vault of documents
+# 14. A vault of documents
 
 The shelf of [chapter 6](06-sql-like-queries.md) was a list written by hand. Here the
-same books are documents in a folder, and HQL reads the folder.
+same books are documents in a folder, and HQL reads the folder. This part of
+the book is about knowledge: documents, the links between them, their
+meaning, and the agents that read them.
 
 ## A vault is a folder
 
@@ -26,6 +28,7 @@ examples/tutorial/
 │   └── the-hobbit.hmd
 ├── club.hmd
 ├── frankenstein-inspires-dune.hmd
+├── librarian.hmd
 └── hql.toml
 ```
 
@@ -61,7 +64,7 @@ cards | size
 ```
 
 ```text
-14
+15
 ```
 
 ## `cards`
@@ -135,15 +138,30 @@ cards
 ["Leaves of Grass", "The Common Reader", "The Hobbit"]
 ```
 
-Read it as three steps, each consuming the one before. `filter` decides each
-card on its own; `sort` needs every card before it can place the first; `map`
-turns each card into its title. A step that decides each value alone may run
-on any part of the input in any order, and a step that needs the whole input
-is where the parts meet. That is the shape of **MapReduce**, and HQL keeps it
-visible in the pipeline: nothing is stored in between, and nothing is a loop.
+Read it as three steps, each consuming the one before: `filter` decides each
+card on its own, `sort` needs every card before it can place the first, and
+`map` turns each card into its title. Nothing is stored in between, and
+nothing is a loop.
 
 No one maintains this list. Mark a book `status: done` in its header and the
 next run of the query no longer lists it.
+
+## Writing cards
+
+The formats of [chapter 8](08-output.md) apply to a card as to any value. A
+card written as Markdown is its body; a list of cards, a list of links:
+
+```hql
+cards | filter(c => c.metadata.category == "author") | markdown
+```
+
+```text
+- [[frank-herbert]]
+- [[jrr-tolkien]]
+- [[mary-shelley]]
+- [[virginia-woolf]]
+- [[walt-whitman]]
+```
 
 ## Grouping cards
 
@@ -190,7 +208,7 @@ cards | of_type(RelationCard) | map(c => c.title)
 ["Frankenstein inspires Dune"]
 ```
 
-[Chapter 8](08-graphs.md) is about what that relation means: cards and the
+[Chapter 15](15-graphs.md) is about what that relation means: cards and the
 links between them form a graph.
 
 ## The vault itself
@@ -203,7 +221,7 @@ links between them form a graph.
 ```
 
 ```text
-["tutorial", 14]
+["tutorial", 15]
 ```
 
 Outside every vault and without `--vault` there is no vault, and naming one
@@ -221,3 +239,46 @@ name error: `cards` needs a vault: run inside one or pass --vault <directory>
 1 | cards | size
   | ^^^^^
 ```
+
+## A vault is a namespace
+
+A card is a file with a place in a vault, and the place is what makes it
+addressable by name: `[[dune]]` names a card because there is one tree to
+resolve the name in. That tree is a **namespace**, rooted at the vault's
+directory, and a vault is exactly one namespace. `cards` holds what a
+wikilink can reach and nothing else, and a card's `path` names its place
+under the root, so the cards of one folder are a filter on the path:
+
+```hql
+cards | filter(c => c.path | contains("/books/")) | size
+```
+
+```text
+7
+```
+
+## Other vaults
+
+A second vault is a second namespace. It is reached as a configured source of
+kind `vault` ([sources and targets by id](09-io/configured.md)), with its own
+`cards` and `graph`, and its cards are never merged into `cards`: a wikilink
+in one vault never resolves into another, and a relation between cards of two
+vaults is a join's result, not a link. The field station of the data sources
+examples configures two:
+
+<!-- run: --vault examples/sources/station -->
+```hql
+journal = source("journal")
+archive = source("archive")
+[journal.cards | map(c => c.name), archive.cards | map(c => c.name)]
+```
+
+```text
+[["kite", "owl", "wren"], ["finch", "heron"]]
+```
+
+## What is next
+
+A document that writes `[[frank-herbert]]` links to another.
+[Chapter 15](15-graphs.md) follows the links, and the cards and links together
+are a graph.

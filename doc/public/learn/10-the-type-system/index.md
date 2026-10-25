@@ -1,4 +1,4 @@
-# 16. The type system
+# 10. The type system
 
 The chapters so far query and transform data with the types HQL provides.
 This one is about the types a program declares for itself, and the
@@ -47,7 +47,7 @@ Subtyping relates whole types. Generics write a declaration once for a
 family of types, and a bound is where the two meet: `T : Doc` restricts an
 unknown by the subtype relation. Refinement is a statement about one
 value, established by a test that can fail, and the value itself is never
-changed. [Chapter 17](../17-advanced-data-typing/index.md) is refinement at
+changed. [Chapter 11](../11-advanced-data-typing/index.md) is refinement at
 the boundary where data arrives.
 
 ## Capabilities are traits

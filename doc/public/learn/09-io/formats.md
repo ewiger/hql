@@ -3,7 +3,7 @@
 A **format** states how bytes are documents: how one document is read from
 bytes and written to them, and how one document is separated from the next.
 The formats are the `Format` types of the
-[writing results out chapter](../11-output.md). `source` and `tap` decode
+[writing results out chapter](../08-output.md). `source` and `tap` decode
 with them, `target` and `sink` encode with them.
 
 ## What one document reads as

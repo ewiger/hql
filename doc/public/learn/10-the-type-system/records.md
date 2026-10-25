@@ -136,7 +136,7 @@ A record declared under another record, `type Person : Named { born : Int }`,
 has the fields of both. A `Person` is a `Named`, so it is taken wherever a
 `Named` is expected, as the [chapter's first program](index.md) showed, and
 a contract's rules are inherited the same way
-([type contracts](../17-advanced-data-typing/type-contracts.md)).
+([type contracts](../11-advanced-data-typing/type-contracts.md)).
 
 ## Constructors a program declares
 

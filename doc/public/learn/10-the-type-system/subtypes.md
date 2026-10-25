@@ -119,7 +119,7 @@ arm written with a type does the same for one value:
 Over a union, the test selects a member: `shapes | of_type(Circle)` from a
 `List<Shape>` is a `List<Circle>`. Over a `Data` tree, the test is by
 shape, and the value it binds is read at the type it passed, as
-[chapter 17](../17-advanced-data-typing/open-and-closed.md) describes. There
+[chapter 11](../11-advanced-data-typing/open-and-closed.md) describes. There
 is no assertion: a value that may not be a `U` is selected, matched or
 tested, never cast.
 

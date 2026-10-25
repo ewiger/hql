@@ -1,7 +1,7 @@
-# 17. Advanced data typing
+# 11. Advanced data typing
 
 [Chapter 2](../02-data-types/data.md) read JSON-shaped trees as `Data`, and
-[chapter 16](../16-the-type-system/index.md) declared records of the
+[chapter 10](../10-the-type-system/index.md) declared records of the
 program's own. This chapter is about the step between them: how a tree that
 arrived from outside becomes a value the program has a type for, and how a
 program states what it requires of that value beyond its shape. The

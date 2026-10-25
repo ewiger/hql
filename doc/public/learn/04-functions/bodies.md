@@ -145,7 +145,7 @@ List(countdown(3))
 [3, 2, 1]
 ```
 
-[Chapter 10](../10-streams.md) is about iterating functions and the streams
+[Chapter 7](../07-streams.md) is about iterating functions and the streams
 they produce.
 
 ## What a block may not be
@@ -238,7 +238,7 @@ form in each place: at the top level of a program, in a module
 ([chapter 5](../05-modules/index.md)), as a receiver function taking `self`
 ([receiver modules](../05-modules/receiver-modules.md)), and as a trait's
 default body or an implementation's function
-([traits](../16-the-type-system/traits.md)).
+([traits](../10-the-type-system/traits.md)).
 
 A lambda's body stays one expression; a function that needs a block is
 declared with `fn`.

@@ -1,4 +1,4 @@
-# 10. Streams that do not end
+# 7. Streams that do not end
 
 Every collection so far had an end: a size, a last element. A **stream** is a
 succession of values whose production need not end — a log, a feed, the
@@ -103,15 +103,27 @@ in order. `flat_map(f)` is `map(f) | emit`.
 [1, 2, 3]
 ```
 
-## A sequence over the vault
+## A sequence over the shelf
 
 A generator that promises an end is a `Seq`. This one yields the title of each
-book, in title order — a sequence the vault's cards produce on demand:
+book on the shelf of [chapter 6](06-sql-like-queries.md), in title order — a
+sequence the shelf produces on demand:
 
 ```hql
+shelf = [
+    {title: "Frankenstein", pages: 280},
+    {title: "Dune", pages: 412},
+    {title: "The Hobbit", pages: 310},
+    {title: "Leaves of Grass", pages: 145},
+    {title: "A Room of One's Own", pages: 112},
+    {title: "The Common Reader", pages: 304},
+    {title: "Mrs Dalloway", pages: 194},
+]
+fn title(b: Data) : String = match b.title { some(String t) => t, _ => "" }
+
 fn titles() : Seq<String> {
-    for c in cards | filter(c => c.metadata.category == "book") | sort(by = c => c.title) {
-        yield c.title
+    for b in shelf | sort(by = title) {
+        yield title(b)
     }
 }
 titles() | take(3)
@@ -121,8 +133,8 @@ titles() | take(3)
 ["A Room of One's Own", "Dune", "Frankenstein"]
 ```
 
-`cards` itself is such a sequence: the vault's cards, produced as the walk of
-the folder reaches each one.
+A list is such a sequence already. So are the documents of a file read with
+`source`, in [chapter 9](09-io/index.md), produced as each one is read.
 
 ## Writing a stream
 
@@ -147,5 +159,5 @@ until `take(n)` bounds it.
 
 ## What is next
 
-[Chapter 11](11-output.md) is about every format a value can be written in, and
+[Chapter 8](08-output.md) is about every format a value can be written in, and
 who chooses it.

@@ -1,4 +1,4 @@
-# 8. Links and graphs
+# 15. Links and graphs
 
 A document that writes `[[frankenstein]]` links to another. The links of a
 vault make its cards a **graph**: cards are the nodes, links are the edges.
@@ -62,7 +62,7 @@ A graph is a value with two fields, both sets: its `nodes`, the cards, and its
 ```
 
 ```text
-{edges: 22, nodes: 13}
+{edges: 22, nodes: 14}
 ```
 
 A graph can also be built from edges alone, `Graph(edges)`, or from cards and
@@ -158,10 +158,10 @@ graph LR
   n2 --> n1
 ```
 
-In a Markdown document — [chapter 12](12-documents.md) — a graph is written as a
+In a Markdown document — [chapter 17](17-documents.md) — a graph is written as a
 fenced `d2` block, which documentation sites draw.
 
 ## What is next
 
-`expand` grew a graph from a starting card. [Chapter 9](09-retrieval.md) finds
+`expand` grew a graph from a starting card. [Chapter 16](16-retrieval.md) finds
 the starting cards for a question in words.

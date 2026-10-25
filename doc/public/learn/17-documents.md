@@ -1,4 +1,4 @@
-# 12. Queries inside documents
+# 17. Queries inside documents
 
 A document can hold the queries that compute parts of it. `hql render` runs
 them and builds the document they describe, so a reading list, an index or a
@@ -112,7 +112,51 @@ current one is stale, and an editor can say so without running anything.
 output. `--envelope json` prints the built document and a record per cell —
 its id, span, hash, type, status, output and reports — for an editor to read.
 
+## Cells that maintain a vault
+
+!!! warning "Design only"
+
+    This section describes functionality that is not in the current release.
+    It is written as if it existed: these cells do not run against the
+    current binary, and names, types and outputs may change before they ship.
+
+A vault's upkeep is a set of questions asked of the vault itself: which cards
+are related to this one, what does each category hold, which card does
+nothing link to. Each is a cell a card carries, and the hash in its saved
+output says when the answer is stale, so maintenance is a render, not a
+chore. A card of a vault's own wiki might end with these:
+
+````markdown
+## Related
+
+```hql#eval id=related
+cards | semantic(this.title) | take(3) | map(h => h.value)
+```
+
+## Index
+
+```hql#eval id=index
+cards
+| group(by = c => c.metadata.category)
+| map(g => {category: g.key, cards: g.items | map(c => c.name)})
+```
+
+## Health
+
+```hql#eval id=orphans
+cards | filter(c => (c | downlinks | size) == 0) | map(c => c.name)
+```
+````
+
+`this` is the card the cell is written in, so the related cards are the
+three nearest in meaning to its title, written below its body as links. A
+cell marked `cached` would keep its output until the hash of its code and
+its inputs changes, so a summary a model wrote ([chapter 18](18-agents-and-runs.md))
+is computed once and read many times. The cell kinds exist today; `this`,
+`cached` and a `semantic` over a question the index was not built for are
+design direction.
+
 ## What is next
 
-[Chapter 13](13-working-with-hql.md) is about the tools around the language:
-the REPL, the reports, and what `hql` says when something is wrong.
+[Chapter 18](18-agents-and-runs.md) gives a language model the cards a query
+selected, runs an agent over them, and keeps the run as a value.

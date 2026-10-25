@@ -12,7 +12,7 @@ $ cat examples/io/sightings.jsonl | hql 'source(stdin, Json) | filter(s => s.see
 
 The result is a `Stream<String>`, so the host writes each value as it
 arrives, in HQL, the format a result is written in unless `--to` names
-another ([writing results out](../11-output.md)).
+another ([writing results out](../08-output.md)).
 
 ## `--to` and `--compact`
 

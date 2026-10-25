@@ -22,7 +22,7 @@ source(stdin, Json)
 Stream<Data>
 ```
 
-That is the difference the [streams chapter](../10-streams.md) drew. `map`,
+That is the difference the [streams chapter](../07-streams.md) drew. `map`,
 `filter` and `take` run over standard input one document at a time, as it
 arrives. A step that needs the whole input is a type error until the stream is
 bounded with `take(n)` or batched with `collect(n)`:
