@@ -99,7 +99,7 @@ pick | remember("next-meeting-pick")
 ```
 
 ```hql#eval
-cards | filter(c => c.path | contains("/memory/")) | map(c => c.title)
+cards | filter(c => c.path | starts_with("memory/")) | map(c => c.title)
 ```
 ````
 

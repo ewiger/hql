@@ -246,11 +246,11 @@ A card is a file with a place in a vault, and the place is what makes it
 addressable by name: `[[dune]]` names a card because there is one tree to
 resolve the name in. That tree is a **namespace**, rooted at the vault's
 directory, and a vault is exactly one namespace. `cards` holds what a
-wikilink can reach and nothing else, and a card's `path` names its place
-under the root, so the cards of one folder are a filter on the path:
+wikilink can reach and nothing else, and a card's `path` is its place in the
+vault, relative to the root, so the cards of one folder are a filter on the path:
 
 ```hql
-cards | filter(c => c.path | contains("/books/")) | size
+cards | filter(c => c.path | starts_with("books/")) | size
 ```
 
 ```text
