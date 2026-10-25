@@ -403,6 +403,44 @@ mod tests {
         );
     }
 
+    /// The `Reference` entry of the site's `nav` in `mkdocs.yml`: the index,
+    /// then each package as a section of its modules' pages, in library order.
+    /// A primitive's page is reached from its module's page, not from the nav.
+    fn nav() -> String {
+        let mut packages: Vec<(&str, Vec<&Module>)> = Vec::new();
+        for module in help::library() {
+            let package = module.path[0].as_str();
+            match packages.iter_mut().find(|(name, _)| *name == package) {
+                Some((_, modules)) => modules.push(module),
+                None => packages.push((package, vec![module])),
+            }
+        }
+        let mut nav = String::from("  - Reference:\n      - reference/index.md\n");
+        for (package, modules) in packages {
+            let _ = writeln!(nav, "      - {package}:");
+            for module in modules {
+                let _ = writeln!(
+                    nav,
+                    "          - {}: reference/{}/index.md",
+                    module.label, module.label
+                );
+            }
+        }
+        nav
+    }
+
+    #[test]
+    fn the_site_nav_lists_every_module() {
+        let site =
+            std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("mkdocs.yml"))
+                .unwrap();
+        let nav = nav();
+        assert!(
+            site.contains(&nav),
+            "mkdocs.yml's Reference nav differs from the library; it is:\n{nav}"
+        );
+    }
+
     #[test]
     fn capitalised_names_are_under_types() {
         assert_eq!(page_path("Csv"), PathBuf::from("types/Csv.md"));

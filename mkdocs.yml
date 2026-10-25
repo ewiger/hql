@@ -109,9 +109,36 @@ nav:
               - learn/16-types-traits-and-modules/index.md
               - Traits: learn/16-types-traits-and-modules/traits.md
       - Examples: examples.md
-  - Reference: reference/index.md
+  # A section per package, a page per module; a function, type or trait is
+  # reached from its module's page. `cargo test` fails when this
+  # differs from the library.
+  - Reference:
+      - reference/index.md
+      - std:
+          - std/core: reference/std/core/index.md
+          - std/doc: reference/std/doc/index.md
+          - std/retrieval: reference/std/retrieval/index.md
+          - std/graph: reference/std/graph/index.md
+          - std/knowledge: reference/std/knowledge/index.md
+          - std/collections: reference/std/collections/index.md
+          - std/string: reference/std/string/index.md
+          - std/seq: reference/std/seq/index.md
+          - std/math: reference/std/math/index.md
+          - std/option: reference/std/option/index.md
+          - std/result: reference/std/result/index.md
+          - std/regex: reference/std/regex/index.md
+          - std/format: reference/std/format/index.md
+          - std/io: reference/std/io/index.md
+          - std/io/net: reference/std/io/net/index.md
+          - std/io/logging: reference/std/io/logging/index.md
+          - std/vault: reference/std/vault/index.md
+          - std/validators: reference/std/validators/index.md
+      - search:
+          - search/lexical: reference/search/lexical/index.md
+          - search/semantic: reference/search/semantic/index.md
 
-# The roadmap is reached from the book's closing pages, not from the nav.
+# The roadmap is reached from the book's closing pages, not from the nav, and
+# a primitive's reference page from its module's page.
 not_in_nav: |
   roadmap.md
   /reference/
