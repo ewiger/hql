@@ -1102,6 +1102,7 @@ fn repl(
                 writeln!(
                     out,
                     ":type <expression>   the type, without evaluating\n\
+                     :type <function>     the library's declarations of it, one per overload\n\
                      :vault               what the session is running against\n\
                      :reset               forget the bindings made so far\n\
                      :quit, quit, exit    leave"
@@ -1148,7 +1149,18 @@ fn repl(
             None => (join(&prelude, line), false),
         };
         let outcome = if typing {
-            crate::check_reported(&source, vault, mode)
+            let outcome = crate::check_reported(&source, vault, mode);
+            // A bare function name is not an expression: its type is what the
+            // library declares, each overload on its own line.
+            let declared = crate::library::declarations(line[":type ".len()..].trim());
+            if outcome.failed() && !declared.is_empty() {
+                for (module, declaration) in declared {
+                    writeln!(out, "{declaration}    // {module}")
+                        .map_err(|error| error.to_string())?;
+                }
+                continue;
+            }
+            outcome
         } else {
             crate::run_on(&source, vault, mode, backend)
         };

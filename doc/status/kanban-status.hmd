@@ -7,7 +7,7 @@ first word. Within a lane, issues run newest first; the priority order lives
 only in [`kanban.yaml`](../issues/kanban.yaml), which a document outside
 `doc/issues/` cannot read.
 
-```hql#eval
+```hql#eval id=issues hidden
 import regex
 
 // The text after `Status:` on the issue's status line.
@@ -21,39 +21,97 @@ fn lane_of(status: String) : String =
     "doing" given status.starts_with("in progress")
     otherwise regex.find(status, "^[a-z]+").unwrap_or("unknown")
 
-issues = cards
-    | filter(c => c.path.contains("issues/0") and not c.path.ends_with(".prompt.md"))
-    | sort(by = c => c.path, descending = true)
-    | map(c => {
-        id: regex.find(c.path, "[0-9]{4}").unwrap_or(c.name),
-        title: regex.replace_first(c.title, "^[0-9]{4} — *", ""),
-        lane: lane_of(status_of(c.body))
-      })
+// An issue as the board shows it: its number, its title and its lane.
+type Issue { id : String, title : String, lane : String }
 
-lanes = ["backlog", "todo", "doing", "done"]
+cards
+| filter(c => c.path.contains("issues/0") and not c.path.ends_with(".prompt.md"))
+| sort(by = (a, b) => compare(b.path, a.path))
+| map(c => Issue(
+    id = regex.find(c.path, "[0-9]{4}").unwrap_or(c.name),
+    title = regex.replace_first(c.title, "^[0-9]{4} — *", ""),
+    lane = lane_of(status_of(c.body)),
+  ))
+```
 
-lanes
+```hql#eval
+["backlog", "todo", "doing", "done"]
 | map(l => { lane: l, issues: issues | filter(i => i.lane == l) | size })
 | Table(columns = ["lane", "issues"])
 | format(as = Markdown)
 ```
+<!-- hql:output hash=1b7177fbdbd8 status=ok -->
+| lane    | issues |
+| ------- | ------ |
+| backlog | 4      |
+| todo    | 5      |
+| doing   | 4      |
+| done    | 43     |
+<!-- /hql:output -->
 
 ```hql#eval
 // The issues of one lane, each as its id and title.
-fn lane(name: String) : List<String> =
-    issues | filter(i => i.lane == name) | map(i => i.id ++ " " ++ i.title)
+fn lane(name: String) : Seq<String> =
+    issues | filter(i => i.lane == name) | map(i => i.id + " " + i.title)
 
 // The entry at a rank in a lane, or empty below its last issue.
-fn at(xs: List<String>, rank: Int) : String = xs[rank:rank + 1] | first | unwrap_or("")
+fn at(xs: Seq<String>, rank: Int) : String = xs[rank:rank + 1] | first | unwrap_or("")
 
 backlog = lane("backlog")
 todo = lane("todo")
 doing = lane("doing")
 done = lane("done")
-depth = max([backlog, todo, doing, done] | map(xs => xs | size))
+depth = max([backlog, todo, doing, done] | map(xs => xs | size)).unwrap_or(0)
 
 range(0, depth)
 | map(r => { backlog: at(backlog, r), todo: at(todo, r), doing: at(doing, r), done: at(done, r) })
-| Table(columns = lanes)
+| Table(columns = ["backlog", "todo", "doing", "done"])
 | format(as = Markdown)
 ```
+<!-- hql:output hash=5c30328ed4d4 status=ok -->
+| backlog                                                                      | todo                                                                         | doing                                                                    | done                                                                                       |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| 0016 SQL parity analysis: relational operations, aggregation and schema      | 0049 One extension per package: fold the descriptors into `std` and `search` | 0054 The website is for HQL users                                        | 0053 Bugs found reviewing the complete type system branch                                  |
+| 0015 jq parity analysis: data formats, types and operations                  | 0047 Cardinality is `size`: a String's `size` replaces `length`              | 0046 Renovate `lib/std/**` under the module, package and extension model | 0052 Review follow-ups: Decimal in SQLite, quadratic steps, unreviewed code                |
+| 0013 Typed pipeline operations: streams, batching, aggregation, presentation | 0029 Binary formats, and codecs an extension or a package provides           | 0043 Contract validation: rules, structured errors and stream policies   | 0051 A value block as a function body: bindings, then the value                            |
+| 0012 MapReduce: pipeline stages and execution backends                       | 0027 A partial record type reads card metadata as typed fields               | 0019 Documentation states semantics, not intuition                       | 0050 Every module file declares its name: `module a.b`, `module a.b for T`                 |
+|                                                                              | 0011 Wire the semantic-search toolchain together                             |                                                                          | 0048 Builtin packages live under `lib/`: `std` is one of them                              |
+|                                                                              |                                                                              |                                                                          | 0045 Dataflow, errors as values, validator types and schema boundaries                     |
+|                                                                              |                                                                              |                                                                          | 0044 `Table<R>`: a table typed by its row                                                  |
+|                                                                              |                                                                              |                                                                          | 0042 Decimal                                                                               |
+|                                                                              |                                                                              |                                                                          | 0041 Joins over one other sequence: HQL-0013's binary form                                 |
+|                                                                              |                                                                              |                                                                          | 0040 Configured data sources: `source("id")` and HQL-0012 accepted                         |
+|                                                                              |                                                                              |                                                                          | 0039 A `Table` shape, and a review of rendering and presentation                           |
+|                                                                              |                                                                              |                                                                          | 0038 Import units, the program module and declaration visibility                           |
+|                                                                              |                                                                              |                                                                          | 0037 I/O: typed decoding, and HQL-0021 accepted                                            |
+|                                                                              |                                                                              |                                                                          | 0036 Contracts and binding: explicit receivers, declared purity, identities                |
+|                                                                              |                                                                              |                                                                          | 0035 Positions and slices: `xs[a:b]`, negative positions and `Slice`                       |
+|                                                                              |                                                                              |                                                                          | 0034 Constructors declared in HQL, overloaded, and passed as values                        |
+|                                                                              |                                                                              |                                                                          | 0033 Overloaded declarations: every standard operation declared in HQL                     |
+|                                                                              |                                                                              |                                                                          | 0032 Traits take type parameters                                                           |
+|                                                                              |                                                                              |                                                                          | 0031 The string functions a text language is expected to have                              |
+|                                                                              |                                                                              |                                                                          | 0030 HQL is the only signature authority: operations take their types from the contract    |
+|                                                                              |                                                                              |                                                                          | 0028 Implementing HQL-0024: records, receivers, traits, modules and the standard library   |
+|                                                                              |                                                                              |                                                                          | 0027 Indexing a sequence by position                                                       |
+|                                                                              |                                                                              |                                                                          | 0026 The REPL edits lines and reads multi-line input                                       |
+|                                                                              |                                                                              |                                                                          | 0025 Next feature bundle: generics, aliases, reductions and the open ends of the proposals |
+|                                                                              |                                                                              |                                                                          | 0024 Partial application                                                                   |
+|                                                                              |                                                                              |                                                                          | 0023 Built-in record fields from their declarations                                        |
+|                                                                              |                                                                              |                                                                          | 0022 Generic functions                                                                     |
+|                                                                              |                                                                              |                                                                          | 0021 `of_type` replaces `typed`                                                            |
+|                                                                              |                                                                              |                                                                          | 0020 `hql render` compiles a document                                                      |
+|                                                                              |                                                                              |                                                                          | 0018 Operator synonymy: one name, one signature                                            |
+|                                                                              |                                                                              |                                                                          | 0017 `graph` is two operations under one name                                              |
+|                                                                              |                                                                              |                                                                          | 0014 Next feature bundle: signatures and aggregation first, then the pipeline foundations  |
+|                                                                              |                                                                              |                                                                          | 0011 Refactor runtime architecture before expanding HQL                                    |
+|                                                                              |                                                                              |                                                                          | 0010 `yield`: generated sequences as query sources                                         |
+|                                                                              |                                                                              |                                                                          | 0009 A function type, and functions as values                                              |
+|                                                                              |                                                                              |                                                                          | 0008 `cards` is a vault binding, not a keyword                                             |
+|                                                                              |                                                                              |                                                                          | 0007 Evaluate a collection literal at its checked element type                             |
+|                                                                              |                                                                              |                                                                          | 0006 `Scalar`, and `Data` as a union                                                       |
+|                                                                              |                                                                              |                                                                          | 0005 Replace `<:` with `:`                                                                 |
+|                                                                              |                                                                              |                                                                          | 0004 Unify the collection-order vocabulary                                                 |
+|                                                                              |                                                                              |                                                                          | 0003 Parse and check `type` declarations                                                   |
+|                                                                              |                                                                              |                                                                          | 0002 Semantic retrieval over a real embedding index                                        |
+|                                                                              |                                                                              |                                                                          | 0001 The extension mechanism                                                               |
+<!-- /hql:output -->

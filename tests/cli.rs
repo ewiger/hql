@@ -375,6 +375,19 @@ fn the_repl_keeps_bindings_and_answers_type_questions() {
 }
 
 #[test]
+fn the_repl_types_a_function_name_by_its_declarations() {
+    let output = piped(&["repl"], ":type range\n:type sort\n:quit\n");
+    let printed = stdout(&output);
+    assert!(
+        printed.contains("fn range(start: Int, end: Int, step: Int = 1) : List<Int>    // std/seq"),
+        "{printed}"
+    );
+    assert_eq!(printed.matches("fn sort").count(), 6, "{printed}");
+    assert!(stderr(&output).is_empty(), "{}", stderr(&output));
+    assert!(output.status.success());
+}
+
+#[test]
 fn the_repl_leaves_on_exit_and_quit() {
     for word in ["exit", "quit"] {
         let session = format!("{word}\n1 + 1\n");

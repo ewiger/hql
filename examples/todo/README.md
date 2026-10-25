@@ -12,14 +12,14 @@ cargo build --locked
 target/debug/hql --vault examples/todo/wiki render examples/todo/wiki/todo.hmd
 target/debug/hql --vault examples/todo/wiki run examples/todo/queries/todo-list.hql
 target/debug/hql --vault examples/todo/wiki run examples/todo/queries/adr-overview.hql
-target/debug/hql run examples/todo/queries/invalid-string-plus.hql
+target/debug/hql run examples/todo/queries/string-plus.hql
 ```
 
 | Query | What it shows | Status | Result |
 | --- | --- | --- | --- |
 | [todo list](queries/todo-list.hql) | Open tasks, ordered by an `Int` read out of `priority` | runs | Fix broken backlinks, Write HQL documentation, Publish HyperMarkdown 0.4.2 announcement |
 | [ADR overview](queries/adr-overview.hql) | Decisions ordered by a `String` read out of `date`, projected to records | runs | Event execution model, Reduce and merge, Stream IO model |
-| [string plus](queries/invalid-string-plus.hql) | `+` on two strings | type error |  |
+| [string plus](queries/string-plus.hql) | `+` on two strings | runs | - [ ] Fix broken backlinks |
 
 Rendered, the board reads:
 

@@ -222,6 +222,7 @@ impl Ord for Date
 impl Add for Int
 impl Add for Float
 impl Add for Decimal
+impl Add for String
 impl Sub for Int
 impl Sub for Float
 impl Sub for Decimal

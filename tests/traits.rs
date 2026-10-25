@@ -31,6 +31,10 @@ fn a_builtin_type_satisfies_a_core_trait_through_its_declared_native_impl() {
         ),
         ("fn f<T : Add>(a: T, b: T) : T = a + b\nf(1, 2)", "3"),
         (
+            "fn f<T : Add>(a: T, b: T) : T = a + b\nf(\"a\", \"b\")",
+            "ab",
+        ),
+        (
             "fn f<T : Add>(a: T, b: T) : T = a.add(b)\nf(1.5, 2.0)",
             "3.5",
         ),
@@ -42,9 +46,9 @@ fn a_builtin_type_satisfies_a_core_trait_through_its_declared_native_impl() {
 
 #[test]
 fn what_std_does_not_declare_a_builtin_type_does_not_implement() {
-    let message = refused("fn f<T : Add>(a: T, b: T) : T = a + b\nf(\"a\", \"b\")");
+    let message = refused("fn f<T : Add>(a: T, b: T) : T = a + b\nf(true, false)");
     assert!(
-        message.contains("String does not implement `Add`"),
+        message.contains("Bool does not implement `Add`"),
         "{message}"
     );
     let message = refused("fn f<T : Ord>(a: T, b: T) : Ordering = a.compare(b)\nf(true, false)");
@@ -65,10 +69,9 @@ fn a_program_does_not_reimplement_a_core_trait_for_a_builtin_type() {
 
 #[test]
 fn an_implementation_belongs_with_its_trait_or_its_type() {
-    let message =
-        refused("impl Add for String {\n    fn add(self, other: String) : String = self\n}\n1");
+    let message = refused("impl Add for Bool {\n    fn add(self, other: Bool) : Bool = self\n}\n1");
     assert!(
-        message.contains("belongs with `Add` or with String")
+        message.contains("belongs with `Add` or with Bool")
             && message.contains("this program declares neither"),
         "{message}"
     );

@@ -268,7 +268,7 @@ Traits are strict. That a built-in type implements a core trait is declared,
 not assumed: `lib/std/core/mod.hql` writes `impl Ord for Int` as a header without a
 body, a native implementation the runtime binds, and a built-in type
 implements exactly what its headers name, so `T : Add` takes `Int` and
-refuses `String`. Two implementations of one trait **overlap** when one
+`String` and refuses `Bool`. Two implementations of one trait **overlap** when one
 assignment of their parameters makes their arguments and their types the same,
 and overlap is refused, generic or concrete, across the standard library, the
 imported modules and the program; the error names both. An implementation is declared with its trait or with its type: a

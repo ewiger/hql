@@ -48,6 +48,7 @@ pub(crate) static NATIVE_IMPLS: &[NativeImpl] = &[
     native("Add", "Int", arithmetic),
     native("Add", "Float", arithmetic),
     native("Add", "Decimal", arithmetic),
+    native("Add", "String", concatenation),
     native("Sub", "Int", arithmetic),
     native("Sub", "Float", arithmetic),
     native("Sub", "Decimal", arithmetic),
@@ -136,6 +137,21 @@ fn arithmetic(
         }
     };
     crate::evaluation::arithmetic_of(operator, receiver, other(method, arguments, span)?, span)
+}
+
+fn concatenation(
+    method: &str,
+    receiver: Value,
+    arguments: Vec<Value>,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    match (receiver, other(method, arguments, span)?) {
+        (Value::Str(left), Value::Str(right)) => Ok(Value::Str(format!("{left}{right}").into())),
+        _ => Err(Diagnostic::runtime(
+            span.clone(),
+            "`add` over String takes two Strings",
+        )),
+    }
 }
 
 fn position(

@@ -32,15 +32,16 @@ A position reads one character. It may be past the end, so it gives an
 "D"
 ```
 
-Strings are not added with `+`. `fmt` writes values into a template, one `{}`
-each, and `join` puts a list of strings together:
+`+` on two strings is concatenation. Both operands are strings: `"a" + 1` is
+a type error. `fmt` writes values of any type into a template, one `{}` each,
+and `join` puts a list of strings together with a separator:
 
 ```hql
-[fmt("{} has {} pages", "Dune", 412), ["a", "b", "c"].join(", ")]
+["Dune" + " (1965)", fmt("{} has {} pages", "Dune", 412), ["a", "b", "c"].join(", ")]
 ```
 
 ```text
-["Dune has 412 pages", "a, b, c"]
+["Dune (1965)", "Dune has 412 pages", "a, b, c"]
 ```
 
 `split`, `trim`, `replace_all`, `starts_with`, `contains` and the rest are in

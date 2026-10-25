@@ -469,6 +469,36 @@ fn check_names(
     Ok(())
 }
 
+/// The declarations of a function the library exports, as each module writes
+/// them, with the module's path: one per overload, in loading order. A name
+/// the library does not declare has none.
+#[must_use]
+pub fn declarations(name: &str) -> Vec<(String, &'static str)> {
+    MODULES
+        .iter()
+        .chain(WRITTEN)
+        .flat_map(|(module, source)| {
+            source
+                .lines()
+                .filter(move |line| {
+                    // A modifier word may lead, `reduction fn`; a trait's
+                    // member is indented, and a private one is not exported.
+                    let mut words = line.split(' ').skip_while(|word| {
+                        *word != "fn" && word.chars().all(|c| c.is_ascii_lowercase())
+                    });
+                    !line.starts_with(' ')
+                        && !line.starts_with("private ")
+                        && words.next() == Some("fn")
+                        && words.next().is_some_and(|rest| {
+                            rest.strip_prefix(name)
+                                .is_some_and(|after| after.starts_with(['<', '(']))
+                        })
+                })
+                .map(move |line| (self::path(module), line))
+        })
+        .collect()
+}
+
 /// The whole library as one program's source: every module's imports at the
 /// head, as one source unit holds them, then every module's declarations in
 /// loading order.

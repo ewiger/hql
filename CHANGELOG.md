@@ -25,6 +25,12 @@ The language continues to be in active development.
 
 ### Added
 
+- `:type range` in `hql repl` prints the standard library's declarations of
+  the function, one per overload, with the module declaring each; a bare
+  function name is not an expression, so it was a type error.
+- `+` on two strings is concatenation: `String` implements `Add`, so
+  `"- [ ] " + title` and `reduce("", +)` over strings type-check. Both
+  operands are strings; `"a" + 1` is still a type error.
 - `hql repl` leaves on the bare words `exit` and `quit`, as it does on
   `:quit` and Ctrl-D; they were unbound names.
 - A value block as a function body ([HQL-0038](doc/proposals/HQL-0038/README.md);

@@ -49,10 +49,15 @@ dispatch model; operator semantics never depend on a floating `Add.add`.
 
 ## Current state
 
-- Arithmetic is homogeneous: `+ - * / %` require two `Int` or two `Float`
-  operands, with no widening and no `String` concatenation (`checker.rs`,
-  `arithmetic`). The addition-chain limit is a provisional implementation
-  choice ([design status](../../../wiki/hql/design-status.hmd)).
+- Arithmetic is homogeneous: `+ - * / %` require two `Int`, two `Float` or two
+  `Decimal` operands, except that an `Int` widens to a `Decimal`
+  ([HQL-0031](../../HQL-0031/README.md)). Any other type resolves the operator
+  through its trait (`checker.rs`, `arithmetic`). The addition-chain limit is a
+  provisional implementation choice
+  ([design status](../../../wiki/hql/design-status.hmd)).
+- `+` on two `String` operands is concatenation: `String` implements `Add`
+  natively (`impl Add for String` in `lib/std/core/mod.hql`). Both operands
+  are strings; `"a" + 1` is a type error.
 - `<`, `<=`, `>`, `>=`, `compare`, `min` and `max` require two values of one
   `Orderable` type; `==` and `!=` compare values of one type.
 - `and`, `or`, `not` are keywords, not symbols; there is no `!`. `!=` is the
@@ -64,8 +69,8 @@ dispatch model; operator semantics never depend on a floating `Add.add`.
 ## What changes
 
 - Arithmetic resolution moves from a hard-coded `Int | Float` check to trait
-  lookup. The observable behavior for builtin types is unchanged; what is new
-  is that a declared type may implement `Add`.
+  lookup. The observable behavior for numbers is unchanged; what is new is
+  that a declared type may implement `Add`, and that `String` does.
 - Order comparison moves from the `Orderable` ancestry check to `Ord`, or
   stays, following the decision in [part 5](05-traits.md).
 - The draft writes negation as `!x`; HQL writes `not x`. The draft's examples

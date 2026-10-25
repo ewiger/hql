@@ -26,8 +26,9 @@ the messages `hql` writes when a program is wrong.
 line and recall earlier inputs, from a history kept between sessions. An input
 goes on over several lines while a bracket is open, or while the next line
 opens with `|`, so every program in this book can be pasted in as it is
-written. `:type` asks for a type, and `:quit` leaves, as do `quit`, `exit`
-and Ctrl-D:
+written. `:type` asks for the type of an expression, or, given a function's
+name, prints the standard library's declarations of it, one per overload.
+`:quit` leaves, as do `quit`, `exit` and Ctrl-D:
 
 ```text
 $ hql repl
@@ -38,6 +39,8 @@ hql> shelf | sum
 692
 hql> :type shelf
 List<Int>
+hql> :type range
+fn range(start: Int, end: Int, step: Int = 1) : List<Int>    // std/seq
 hql> :quit
 ```
 

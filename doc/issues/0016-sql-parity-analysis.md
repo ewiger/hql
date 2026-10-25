@@ -79,7 +79,7 @@ written with.
 | --- | --- | --- | --- |
 | `+` | `+` on two `Int` or two `Float` | now | — |
 | `-`, `*`, `/`, `%`, unary minus | — | supportable | the operators; the grammar has addition only |
-| `\|\|`, `CONCAT`, `LIKE`, `UPPER`, `SUBSTRING`, `LENGTH` | — | supportable | string functions; `+` refuses strings |
+| `\|\|`, `CONCAT`, `LIKE`, `UPPER`, `SUBSTRING`, `LENGTH` | — | supportable | string functions; `+` concatenates strings |
 | `CASE WHEN` | — | supportable | `if` or `match`; `match` is open in [option-type](../wiki/hql/types/option-type.hmd) |
 | `COALESCE`, `IFNULL` | absence lifts through a field | workaround | a default for `Option<T>` |
 | `CAST` | `of_type(…)` over a collection | workaround | `is` and `match` on a single value, and the structural test on leaves read out of `Data` |
