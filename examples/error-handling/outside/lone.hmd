@@ -1,0 +1,8 @@
+# Outside any vault
+
+No directory above this document holds `.hmd/` or `hql.toml`, so it is a
+card of no vault and `hql render` refuses it.
+
+```hql
+1 + 1
+```

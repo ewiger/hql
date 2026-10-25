@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 58 # to be incremented when adding a new issue card
+  last_id: 59 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"

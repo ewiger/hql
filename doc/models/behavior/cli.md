@@ -49,9 +49,16 @@ and a result of type `Unit` is written as nothing.
 
 The vault is found the way `hmd` finds a project: walking up from the current
 directory, the first directory holding `.hmd/` — or `hql.toml`, for a vault
-only HQL configures — is the root. `--vault` overrides the walk. Outside every
-vault there is no vault, and a program that does not name one still runs, so
-`hql eval '1 + 1'` needs none. `cards`, `downlinks` and `expand` say they need
+only HQL configures — is the root. `--vault` overrides the walk, and what it
+names is a vault: a directory holding neither `.hmd/` nor `hql.toml` is
+refused. Outside every vault there is no vault, and a program that does not
+name one still runs, so `hql eval '1 + 1'` needs none.
+
+A document is different: it is a card of a vault. `hql render` finds a
+document's vault by the same walk, started from the document rather than the
+working directory, so a document renders from anywhere; `--vault` still
+overrides it. A document in no vault is `load failure[missing-vault]`: no
+cell runs, and the exit status is `1`. `cards`, `downlinks` and `expand` say they need
 one rather than quietly finding nothing. The language requires one too:
 card-ness is a place in a namespace, and a vault is a directory marked as one by
 `.hmd/` or `hql.toml`. The config file inside `.hmd/` is optional and defaults

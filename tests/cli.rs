@@ -820,6 +820,8 @@ fn a_stream_is_written_line_by_line_as_it_arrives() {
 #[test]
 fn render_runs_one_cell_and_reports_every_cell_as_json() {
     let directory = tempdir().unwrap();
+    // A document renders only in a vault.
+    std::fs::write(directory.path().join("hql.toml"), "").unwrap();
     let path = directory.path().join("notes.hmd");
     std::fs::write(
         &path,

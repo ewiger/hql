@@ -57,6 +57,7 @@ The sessions pin what `hql` prints for them, standard error included:
 | [REPL](boundary/sessions/repl-rejected-input.session) | a rejected input rebinds nothing: `x` stays `1`; each line typed is its own origin, `<repl:N>` |
 | [document](documents/sessions/render-checks-every-cell.session) | [every cell checks](documents/every-cell-checks.hmd) and renders; [a bad last cell](documents/last-cell-type-error.hmd) stops the build before the first |
 | [cell origin](documents/sessions/cell-origin.session) | a cell's diagnostic names the cell, `path#2`, as its origin; the text form adds `= cell:` |
+| [a document needs a vault](documents/sessions/a-document-needs-a-vault.session) | a document in a vault renders from any working directory; [one in no vault](outside/lone.hmd) is `load failure[missing-vault]` and runs nothing |
 
 ## Diagnostics: the error model
 

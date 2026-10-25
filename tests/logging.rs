@@ -94,6 +94,8 @@ fn logs_in_a_channel_are_data_a_program_queries() {
 #[test]
 fn a_cell_logs_to_its_own_channel_and_saves_only_its_result() {
     let dir = tempdir().unwrap();
+    // A document renders only in a vault.
+    std::fs::write(dir.path().join("hql.toml"), "").unwrap();
     fs::write(
         dir.path().join("doc.md"),
         "```hql\nimport logging\nlog = Logger(cell.logs, name = \"r\")\n\

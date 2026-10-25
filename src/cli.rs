@@ -667,6 +667,30 @@ fn dispatch(
             }
             let mut render = |file: &String| -> Result<u8, String> {
                 let (source, origin) = read(file)?;
+                // A document is a card of a vault: the one `--vault` names,
+                // or the nearest at or above the document. In none, no cell
+                // runs.
+                let found;
+                let vault = match document_vault(file, cli.options.vault.as_deref(), root, vault)? {
+                    Some(Found::Loaded) => vault,
+                    Some(Found::Own(own)) => {
+                        let mut own = *own;
+                        own.extensions
+                            .module_roots
+                            .extend(cli.options.modules.iter().cloned());
+                        for diagnostic in &own.warnings {
+                            crate::io::write_diagnostic(diagnostic.clone());
+                        }
+                        found = own;
+                        &found
+                    }
+                    None => {
+                        crate::io::write_diagnostic(missing_vault(&origin));
+                        let written = crate::io::diagnostics_written();
+                        deliver(&written, &source, &origin, shown, &cli.options, err)?;
+                        return Ok(1);
+                    }
+                };
                 // A document reads beside itself and writes nothing outside.
                 let root = directory_of(file);
                 crate::io::set_host(crate::io::Policy::Document { root: root.clone() }, root);
@@ -996,12 +1020,70 @@ fn write_steps(
     Ok(())
 }
 
+/// The vault a document renders in, besides the one the run loaded.
+enum Found {
+    /// The vault the run already loaded.
+    Loaded,
+    /// The document's own vault, found from it and loaded for it.
+    Own(Box<Vault>),
+}
+
+/// The vault of the document `file`: the one `--vault` names, or the nearest
+/// directory at or above the document holding `.hmd/` or `hql.toml`;
+/// standard input's is found from the working directory. `None` where there
+/// is none: the document is a card of no vault.
+fn document_vault(
+    file: &str,
+    named: Option<&Path>,
+    loaded_root: Option<&Path>,
+    loaded: &Vault,
+) -> Result<Option<Found>, String> {
+    if named.is_some() || file == "-" {
+        return Ok(loaded.is_present().then_some(Found::Loaded));
+    }
+    let document = fs::canonicalize(file).map_err(|error| format!("{file}: {error}"))?;
+    let Some(found) = document.parent().and_then(vault::discover) else {
+        return Ok(None);
+    };
+    let same = loaded_root
+        .and_then(|root| fs::canonicalize(root).ok())
+        .is_some_and(|root| root == found);
+    if same {
+        return Ok(Some(Found::Loaded));
+    }
+    Ok(Some(Found::Own(Box::new(load_vault(Some(&found))?))))
+}
+
+/// The load failure of a document in no vault.
+fn missing_vault(origin: &str) -> Diagnostic {
+    let mut refused = Diagnostic::new(
+        crate::diagnostics::Phase::Load,
+        crate::diagnostics::Kind::MissingVault,
+        Severity::Failure,
+        crate::diagnostics::Disposition::Fatal,
+        0..0,
+        "no directory at or above this document holds `.hmd/` or `hql.toml`, so it is a \
+         card of no vault",
+    )
+    .with_help("render it inside a vault, or name one with `--vault <dir>`");
+    refused.origin = Some(origin.to_owned());
+    refused
+}
+
 fn load_vault(root: Option<&Path>) -> Result<Vault, String> {
     match root {
         None => Ok(Vault::empty()),
         Some(root) => {
             if !root.is_dir() {
                 return Err(format!("{}: not a directory", root.display()));
+            }
+            // A vault is marked, by `.hmd/` or `hql.toml`; a folder that is
+            // neither is not read as one.
+            if !vault::is_root(root) {
+                return Err(format!(
+                    "{}: not a vault: it holds neither `.hmd/` nor `hql.toml`",
+                    root.display()
+                ));
             }
             vault::load(root).map_err(|error| format!("{}: {error}", root.display()))
         }
@@ -1243,13 +1325,17 @@ fn deliver(
         }
         DiagnosticsFormat::Text => {
             for diagnostic in &shown {
-                // A diagnostic about another origin, a document the loader
-                // read, has no line of this source to point at.
+                // A diagnostic about another origin has no line of this
+                // source to point at.
                 let file = diagnostic
                     .origin
                     .as_deref()
                     .map(|written| written.split_once('#').map_or(written, |(file, _)| file));
-                let text = (file == Some(origin)).then_some(source);
+                // A load diagnostic is about a document as a whole, never a
+                // place in the source.
+                let text = (file == Some(origin)
+                    && diagnostic.phase != crate::diagnostics::Phase::Load)
+                    .then_some(source);
                 writeln!(
                     err,
                     "{}\n",

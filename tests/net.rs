@@ -216,6 +216,8 @@ fn a_websocket_message_is_one_document() {
 #[test]
 fn a_document_reaches_no_network() {
     let dir = tempdir().unwrap();
+    // A document renders only in a vault.
+    std::fs::write(dir.path().join("hql.toml"), "").unwrap();
     fs::write(
         dir.path().join("d.md"),
         "```hql\nimport net\nsource(http(\"http://127.0.0.1:1/\"), Json)\n```\n",

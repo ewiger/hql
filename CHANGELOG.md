@@ -70,6 +70,13 @@ The language continues to be in active development.
   element as `map` does, each naming itself as the step.
 - A cell's diagnostics in `hql render` name the cell as their origin,
   `path#id` or `path#index`, with a `= cell:` line in the text form.
+- A document renders only in a vault. `hql render` finds a document's vault
+  from the document, not the working directory, so it renders from
+  anywhere; a document in no vault is `load failure[missing-vault]`, runs no
+  cell and exits `1`. A program outside any document still runs without a
+  vault.
+- `--vault` names a vault: a directory holding neither `.hmd/` nor
+  `hql.toml` is refused, where it was read as one.
 - Chapter 18 of the book, [Errors](doc/public/learn/18-errors/index.md):
   failures kept as data, diagnostics and the run's channel, `strict` and
   `collect`.

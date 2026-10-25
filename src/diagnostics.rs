@@ -105,6 +105,8 @@ pub enum Kind {
     UnresolvedLink,
     /// A document was not loaded.
     SkippedDocument,
+    /// A document is a card of no vault.
+    MissingVault,
     /// A backend refused a pipeline.
     BackendRefusal,
     /// Two cells of a document share an id, or a cell's attributes are wrong.
@@ -133,7 +135,7 @@ pub enum Kind {
 
 impl Kind {
     /// Every kind, the set published with the reference.
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 35] = [
         Self::UnclosedCollection,
         Self::UnexpectedToken,
         Self::UnknownName,
@@ -156,6 +158,7 @@ impl Kind {
         Self::InvalidArgument,
         Self::UnresolvedLink,
         Self::SkippedDocument,
+        Self::MissingVault,
         Self::BackendRefusal,
         Self::DuplicateCell,
         Self::CellCycle,
@@ -202,6 +205,7 @@ impl Kind {
             Self::InvalidArgument => "invalid-argument",
             Self::UnresolvedLink => "unresolved-link",
             Self::SkippedDocument => "skipped-document",
+            Self::MissingVault => "missing-vault",
             Self::BackendRefusal => "backend-refusal",
             Self::DuplicateCell => "duplicate-cell",
             Self::CellCycle => "cell-cycle",
