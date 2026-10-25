@@ -14,7 +14,7 @@
 
 </div>
 
-**HQL — Hyper Query Language — is a statically typed language for querying, transforming, connecting and computing over data, knowledge and AI workflows.**
+**HQL, the Hyper Query Language, is a statically typed expression and query language. It combines functional expressions with pipelines over files, streams, structured data, HyperMarkDown documents, knowledge and AI workflows. A program's types are checked before it runs, and data read from outside is checked against declared contracts where it enters.**
 
 HQL combines functional expressions, data pipelines, streams, structured documents, semantic retrieval and knowledge graphs in one language.
 
