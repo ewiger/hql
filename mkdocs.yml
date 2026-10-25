@@ -115,9 +115,16 @@ nav:
           - 14. Reading and writing data: learn/14-reading-and-writing.md
           - 15. Channels and logs: learn/15-channels-and-logs.md
           - 16. Agents and runs: learn/16-agents-and-runs.md
-          - 17. Types and traits:
-              - learn/17-types-and-traits/index.md
-              - Traits: learn/17-types-and-traits/traits.md
+          - 17. The type system:
+              - learn/17-the-type-system/index.md
+              - Records: learn/17-the-type-system/records.md
+              - Unions and match: learn/17-the-type-system/unions-and-match.md
+              - Results: learn/17-the-type-system/results.md
+              - Subtypes and narrowing: learn/17-the-type-system/subtypes.md
+              - Generics: learn/17-the-type-system/generics.md
+              - Receiver calls: learn/17-the-type-system/receiver-calls.md
+              - Operators: learn/17-the-type-system/operators.md
+              - Traits: learn/17-the-type-system/traits.md
           - 18. Advanced data typing:
               - learn/18-advanced-data-typing/index.md
               - Open and closed types: learn/18-advanced-data-typing/open-and-closed.md

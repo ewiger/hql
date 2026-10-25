@@ -299,41 +299,9 @@ type error: `names` needs T : Named, and Dog does not implement `Named`
 ## Operators are traits
 
 The operators resolve through the **core traits**, which are in scope
-everywhere: `+` through `Add`, `-` through `Sub`, `*` through `Mul`, `/`
-through `Div`, `%` through `Rem`, `==` through `Eq`, `xs[i]` through `Index`
-and `xs[a:b]` through `Slice`. Implementing one gives a type its operator:
-
-```hql
-type Vec2 { x : Int, y : Int }
-
-impl Add for Vec2 {
-    fn add(self, other: Vec2) : Vec2 = Vec2(x = self.x + other.x, y = self.y + other.y)
-}
-
-Vec2(x = 1, y = 2) + Vec2(x = 3, y = 4)
-```
-
-```text
-Vec2(x = 4, y = 6)
-```
-
-A type implementing `Ord` is ordered. Its `compare` decides `<`, `sort`, `min`
-and `max`:
-
-```hql
-type Version { major : Int, minor : Int }
-
-impl Ord for Version {
-    fn compare(self, other: Version) : Ordering =
-        compare(self.major * 100 + self.minor, other.major * 100 + other.minor)
-}
-
-[Version(major = 1, minor = 10), Version(major = 1, minor = 2)] | sort | map(v => v.minor)
-```
-
-```text
-[2, 10]
-```
+everywhere: `+` through `Add`, `==` through `Eq`, `<` and `sort` through
+`Ord`, `xs[i]` through `Index` and `xs[a:b]` through `Slice`. Implementing
+one gives a type its operator, and [operators](operators.md) has each.
 
 ## Traits and inheritance
 
