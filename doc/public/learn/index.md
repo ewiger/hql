@@ -66,3 +66,7 @@ and one claim about which book inspired which.
     prompts, tools, and runs kept as values.
 17. [Types and traits](17-types-and-traits/index.md) — records, unions,
     results, receiver calls, traits and operators.
+18. [Advanced data typing](18-advanced-data-typing/index.md) — the type
+    boundary where loose data becomes typed, open and closed types,
+    `TypeContract` and `DataContract`, validators, validation as a value,
+    and what a contract states that a schema cannot.

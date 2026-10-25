@@ -118,6 +118,14 @@ nav:
           - 17. Types and traits:
               - learn/17-types-and-traits/index.md
               - Traits: learn/17-types-and-traits/traits.md
+          - 18. Advanced data typing:
+              - learn/18-advanced-data-typing/index.md
+              - Open and closed types: learn/18-advanced-data-typing/open-and-closed.md
+              - Type contracts: learn/18-advanced-data-typing/type-contracts.md
+              - Data contracts: learn/18-advanced-data-typing/data-contracts.md
+              - Validators: learn/18-advanced-data-typing/validators.md
+              - Validation as a value: learn/18-advanced-data-typing/validation-as-a-value.md
+              - Contracts and schemas: learn/18-advanced-data-typing/contracts-and-schemas.md
       - Examples: examples.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this
