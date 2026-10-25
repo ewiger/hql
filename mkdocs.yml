@@ -5,7 +5,7 @@ site_description: Hyper Query Language — a statically typed language for query
 # MkDocs emits relative links — but canonical URLs and `sitemap.xml` are wrong
 # without it. The domain itself is a DNS record plus the repository's Pages
 # setting; see the documentation-site section of `doc/stack.md`.
-site_url: https://hql.hypermarkdown.org/
+site_url: https://hql-lang.org/
 
 repo_url: https://github.com/ewiger/hql
 repo_name: ewiger/hql
@@ -67,6 +67,11 @@ theme:
 
 plugins:
   - search
+  # Each release is published under its version, `/vX.Y.Z/`, and `latest`
+  # is the newest; see the documentation-site section of `doc/stack.md`.
+  - mike:
+      alias_type: redirect
+      canonical_version: latest
 
 # `Learn` is the prose read cold, in reading order. `Reference` is what is
 # consulted afterwards.
@@ -104,14 +109,18 @@ nav:
               - learn/16-types-traits-and-modules/index.md
               - Traits: learn/16-types-traits-and-modules/traits.md
       - Examples: examples.md
-  - Reference: reference.md
+  - Reference: reference/index.md
 
 # The roadmap is reached from the book's closing pages, not from the nav.
 not_in_nav: |
   roadmap.md
+  /reference/
 
 extra:
   generator: false
+  version:
+    provider: mike
+    default: latest
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/ewiger/hql

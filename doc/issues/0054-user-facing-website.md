@@ -8,8 +8,9 @@ The published site mixes the user documentation with the project's design
 corpus: the Wiki, design status, type-interpretation and subtyping rationale,
 the stack and build notes all sit in the primary navigation. A reader has to
 see how HQL was invented before seeing how to use it, and the language looks
-unfinished. The site is restructured for users only; it always reflects the
-latest release, with no archive.
+unfinished. The site is restructured for users only. Each release's
+documentation is published under its version, and `/latest/` is the newest
+([HQL-0043](../proposals/HQL-0043/README.md)).
 
 ## Target navigation
 
@@ -77,8 +78,10 @@ HQL
    constraints, aliases, partial application) moves to Reference and to the
    later chapters. The vault, graph, retrieval, stream, output, document and
    agent chapters become Guides or later book parts.
-4. **Write Reference from the user's side.** Language, standard library, I/O
-   and CLI pages state what the current release does. Extensions are described
+4. **Write Reference from the user's side.** Language, I/O and CLI pages
+   state what the current release does. The standard library is a page per
+   function, type and trait, written from its doc strings by `hql reference`
+   ([HQL-0043](../proposals/HQL-0043/README.md)). Extensions are described
    only by their external contract — some modules are backed by native
    extensions that provide I/O connectors, formats or retrieval — and the host
    architecture stays in the repository.

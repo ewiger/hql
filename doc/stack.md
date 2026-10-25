@@ -133,20 +133,29 @@ contrib/semantics && pytest` is the command.
 
 ## Documentation site
 
-[hql.hypermarkdown.org](https://hql.hypermarkdown.org/) is `doc/public/` built by
+[hql-lang.org](https://hql-lang.org/) is `doc/public/` built by
 [MkDocs](https://www.mkdocs.org/) with the Material theme, the same
 arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
 `contrib/`, it is Python tooling that the crate never depends on.
 
 - `mkdocs.yml` is the site. `pyproject.toml` exists only to install the
-  `hypermarkdown[mkdocs]` package with [uv](https://docs.astral.sh/uv/), and
-  `uv.lock` pins what the site is built with.
+  `hypermarkdown[mkdocs]` package and [mike](https://github.com/jimporter/mike)
+  with [uv](https://docs.astral.sh/uv/), and `uv.lock` pins what the site is
+  built with.
 - The site is for people using HQL, not for people designing it. Only
   `doc/public/` is published; the wiki, the models, the proposals and the rest
   of `doc/` stay in the repository, and a public page does not link to them.
   A link to a repository file outside `doc/public/` is a GitHub URL.
-- The site describes the latest release only; there is no archive of older
-  versions. Before 1.0 a release may break the previous one.
+- Every release's documentation is published under its version,
+  `/vX.Y.Z/`, by mike, built once from the release tag and never rebuilt;
+  `/latest/` is the newest release and holds the permanent URLs. Before 1.0
+  a release may break the previous one, and each version's pages describe
+  that version.
+- Every function, type, trait and module of the builtin packages has a page
+  under `doc/public/reference/`, at its permanent `/latest/` URL
+  ([HQL-0043](proposals/HQL-0043/README.md)). A page's marked part is written
+  by `hql reference` from the library's doc strings when a release is cut;
+  the rest of the page is written by hand.
 - `doc/public/` is written for a reader new to HQL.
 - Every program on a `Learn` page is run against the current binary before it
   is published, and its printed output is copied from that run.
@@ -168,15 +177,22 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
 ```sh
 uv sync --locked                  # the site toolchain, into .venv
 uv run mkdocs serve               # http://127.0.0.1:8000, rebuilt on save
-uv run mkdocs build --strict      # what the deploy runs
+uv run mkdocs build --strict      # what every build runs
 ```
 
 [`pages.yml`](../.github/workflows/pages.yml) builds the site on every pull
-request that touches it and deploys from `main` as a Pages artifact; there is
-no `gh-pages` branch. Two settings live outside the repository: the
-repository's **Settings → Pages → Source** must be *GitHub Actions*, and the
-custom domain `hql.hypermarkdown.org` is set there too, backed by a DNS
-`CNAME` record from `hql.hypermarkdown.org` to `ewiger.github.io`.
+request that touches it and on `main`, and publishes nothing. A release
+publishes its version: the `docs` job of
+[`release.yml`](../.github/workflows/release.yml) runs `mike deploy` for the
+tag and moves `latest` to it, committing to the `gh-pages` branch, whose root
+also holds the `CNAME` file. Two settings live outside the repository: the
+repository's **Settings → Pages → Source** must be *Deploy from a branch*,
+`gh-pages`, root, and the custom domain `hql-lang.org` is set there too.
+Its DNS, at Porkbun, is the four GitHub Pages `A` and `AAAA` records on the
+apex and a `CNAME` from
+`www.hql-lang.org` to `ewiger.github.io`. The former domain
+`hql.hypermarkdown.org` redirects to it with a permanent (301) subdomain
+forward at GoDaddy, which hosts the `hypermarkdown.org` DNS.
 
 ## Release
 
@@ -184,15 +200,18 @@ The version lives in `Cargo.toml` and nowhere else; the CLI reports it, the tag
 repeats it, and crates.io records it.
 
 Pushing a tag releases. [`release.yml`](../.github/workflows/release.yml) does
-all of it, in three jobs that run in that order:
+all of it, in four jobs that run in that order:
 
 - **build** — builds and tests `x86_64-unknown-linux-gnu` and
   `aarch64-apple-darwin`, cross-compiles `x86_64-apple-darwin` from the Apple
   silicon runner (no hosted runner runs Intel macOS any more, so that one is
   built and not test-executed), and packages each as a `.tar.gz` with a
-  `.sha256` beside it.
+  `.sha256` beside it. On Linux it also runs `hql reference --check`, so a
+  tag whose reference pages differ from its doc strings is not released.
 - **release** — creates the GitHub release from the changelog section, failing
   if the section is missing rather than publishing empty notes.
+- **docs** — publishes the site under `/vX.Y.Z/` with mike and moves
+  `/latest/` to it, refusing a version already published.
 - **crates-io** — publishes the crate, so `cargo install hql` reaches the same
   version. It runs last because it is the only step that cannot be undone, and
   it refuses to run if the tag does not name the version in `Cargo.toml`.
@@ -211,6 +230,7 @@ for the version and dated.
 
 ```sh
 # on main, worktree clean, CHANGELOG.md section written, version bumped
+cargo run --locked -- reference doc/public/reference   # commit what it writes
 cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 git tag -a v0.1.0 -m 'HQL 0.1.0' && git push origin v0.1.0

@@ -9,7 +9,7 @@
 [![Crates.io](https://img.shields.io/crates/v/hql.svg)](https://crates.io/crates/hql)
 [![MSRV](https://img.shields.io/crates/msrv/hql?color=orange&label=rust)](https://github.com/ewiger/hql/blob/main/Cargo.toml)
 [![CI](https://github.com/ewiger/hql/actions/workflows/ci.yml/badge.svg)](https://github.com/ewiger/hql/actions/workflows/ci.yml)
-[![Documentation](https://img.shields.io/badge/docs-hql.hypermarkdown.org-ffb300)](https://hql.hypermarkdown.org/)
+[![Documentation](https://img.shields.io/badge/docs-hql--lang.org-ffb300)](https://hql-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ewiger/hql/blob/main/LICENSE)
 
 </div>
@@ -42,7 +42,7 @@ The same language can query a knowledge vault, transform JSON from the command l
 - **Streaming by design** — `Stream<T>` is a first-class type; pipelines can process values as they arrive instead of materializing an entire dataset.
 - **One language across execution surfaces** — use HQL from the CLI, `.hql` programs, executable documents and interactive editor cells.
 
-Documentation: [hql.hypermarkdown.org](https://hql.hypermarkdown.org/)
+Documentation: [hql-lang.org](https://hql-lang.org/)
 
 ---
 
@@ -1034,7 +1034,7 @@ See [CHANGELOG.md](CHANGELOG.md) for changes between releases.
 
 The full language documentation is at:
 
-**[hql.hypermarkdown.org](https://hql.hypermarkdown.org/)**
+**[hql-lang.org](https://hql-lang.org/)**
 
 A good way to begin is with a pipeline:
 

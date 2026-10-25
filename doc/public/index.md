@@ -37,7 +37,7 @@ source(file("sightings.jsonl"), Json)
 - **[Install](install.md)** — a release binary or `cargo install hql`.
 - **[Learn HQL](learn/index.md)** — the book, one runnable program at a
   time.
-- **[Reference](reference.md)** — the grammar, the command line, and
+- **[Reference](reference/index.md)** — the grammar, the command line, and
   reporting.
 
 </div>

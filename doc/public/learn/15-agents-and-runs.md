@@ -297,5 +297,5 @@ You have met the whole language: values and data, collections and functions,
 questions in the style of SQL, a vault of documents, graphs, retrieval,
 streams, formats, documents that compute themselves, data read and written
 through endpoints, channels and logs, and agents whose runs are values. The
-[reference](../reference.md) states each part precisely, and the
+[reference](../reference/index.md) states each part precisely, and the
 [roadmap](../roadmap.md) says what comes next.
