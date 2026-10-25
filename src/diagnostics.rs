@@ -442,6 +442,51 @@ impl Diagnostic {
         self
     }
 
+    /// The same diagnostic reached through a call of `name` at `span`: the
+    /// frame goes first, since the trace is outermost first and a failure
+    /// leaves the innermost call first.
+    #[must_use]
+    pub fn called_from(mut self, name: &str, span: Range<usize>) -> Self {
+        self.context.trace.insert(
+            0,
+            Frame {
+                kind: FrameKind::Call,
+                name: name.to_owned(),
+                origin: None,
+                span,
+                position: None,
+                element: None,
+            },
+        );
+        self
+    }
+
+    /// The same diagnostic with the bindings in scope where it failed,
+    /// unless an inner scope already gave its own.
+    #[must_use]
+    pub fn bound(mut self, bindings: impl IntoIterator<Item = (String, serde_json::Value)>) -> Self {
+        if self.context.bindings.is_empty() {
+            self.context.bindings = bindings.into_iter().collect();
+        }
+        self
+    }
+
+    /// The same diagnostic about a value read from the document at `path`,
+    /// unless an inner scope already named where its data came from.
+    #[must_use]
+    pub fn sourced(mut self, path: Option<String>) -> Self {
+        if self.context.source.is_none()
+            && let Some(path) = path
+        {
+            self.context.source = Some(Provenance {
+                path,
+                line: None,
+                key: None,
+            });
+        }
+        self
+    }
+
     /// Whether a step may go on past the element this failure is about: a
     /// failure of execution that leaves the rest of the input whole. An
     /// overflow or an I/O failure stops under every mode.

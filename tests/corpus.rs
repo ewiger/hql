@@ -156,8 +156,6 @@ fn corpus_metadata_and_index_cover_every_case() {
                 assert!(m.contains_key(field), "{}: missing {field}", case.path);
             }
             assert!(!m.contains_key("error") && !m.contains_key("stage"));
-            // `eval` exposes the precise Diagnostic for pure failure examples.
-            assert_eq!(m["environment"], "pure");
             if m["phase"] == "execute" {
                 assert!(m.contains_key("expected-type"), "{}", case.path);
             }
@@ -306,6 +304,22 @@ fn implemented_invalid_cases_fail_with_the_declared_diagnostic() {
             continue;
         }
         count += 1;
+        // A case over a vault runs against it, and its first error is the
+        // one it declares; `eval` exposes the precise diagnostic of a pure
+        // one, and checking it alone must agree.
+        if m["environment"] != "pure" {
+            let vault = case.vault();
+            let outcome = run(&case.source, &vault, Mode::Strict);
+            let error = outcome
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.is_error())
+                .unwrap_or_else(|| panic!("{}: no error", case.path));
+            assert_eq!(error.phase.label(), m["phase"], "{}", case.path);
+            assert_eq!(error.kind.label(), m["kind"], "{}: {}", case.path, error.message);
+            assert_eq!(error.severity.label(), m["severity"], "{}", case.path);
+            continue;
+        }
         let error = match m["phase"].as_str() {
             "parse" | "check" => {
                 let error = check(&case.source).expect_err(&case.path);

@@ -1312,11 +1312,21 @@ impl Evaluator<'_> {
         if let Some(name) = &function.name {
             scope.insert(name.clone(), callee.clone());
         }
+        let bindings = data_bindings(function.parameters.iter().zip(&values));
+        let source = card_source(values.iter());
         scope.extend(function.parameters.iter().cloned().zip(values));
         let outer = std::mem::replace(&mut self.scope, scope);
         let result = self.expression(&function.body);
         self.scope = outer;
-        result
+        // A failure in the body says where it was, in the function's own
+        // bindings, and through which call it was reached.
+        result.map_err(|failure| {
+            let failure = failure.bound(bindings).sourced(source);
+            match &function.name {
+                Some(name) => failure.called_from(name, span.clone()),
+                None => failure,
+            }
+        })
     }
 
     /// Drive a traversal, handing each value to `sink` until the values run
@@ -1859,12 +1869,16 @@ impl Evaluator<'_> {
                 "wrong lambda arity",
             ));
         }
+        let bindings = data_bindings(parameters.iter().zip(&values));
+        let source = card_source(values.iter());
         let previous = parameters
             .iter()
             .zip(values)
             .map(|(name, value)| (name, self.scope.insert(name.clone(), value)))
             .collect::<Vec<_>>();
-        let result = self.expression(body);
+        let result = self
+            .expression(body)
+            .map_err(|failure| failure.bound(bindings).sourced(source));
         for (name, value) in previous.into_iter().rev() {
             match value {
                 Some(value) => {
@@ -2555,6 +2569,31 @@ pub(crate) fn arithmetic_of(
 /// An Int read as a Decimal of scale 0.
 fn widened(value: i64) -> Value {
     Value::Decimal(crate::decimal::Decimal::from_int(value))
+}
+
+/// The bindings a diagnostic records: each parameter whose value is data,
+/// as data. A function or an endpoint has no data form worth showing, and a
+/// card is named by its document instead, as the diagnostic's `source`.
+fn data_bindings<'v>(
+    bound: impl Iterator<Item = (&'v String, &'v Value)>,
+) -> Vec<(String, serde_json::Value)> {
+    bound
+        .filter(|(_, value)| {
+            !matches!(
+                value,
+                Value::Function(_) | Value::Endpoint(_) | Value::Card(_)
+            )
+        })
+        .map(|(name, value)| (name.clone(), value.to_json()))
+        .collect()
+}
+
+/// The document a bound card was read from, the first of them.
+fn card_source<'v>(mut bound: impl Iterator<Item = &'v Value>) -> Option<String> {
+    bound.find_map(|value| match value {
+        Value::Card(card) => Some(card.document.path.display().to_string()),
+        _ => None,
+    })
 }
 
 /// The fail-fast diagnostic for a value that does not read as `element`:

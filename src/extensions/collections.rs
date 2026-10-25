@@ -1035,7 +1035,12 @@ fn eval_map(
         match cx.apply_lambda(argument, element.clone()) {
             Ok(value) => mapped.push(value),
             Err(failure) => {
-                let failure = failure.at_element("map", index + 1, Some(of), element.to_json());
+                // A card is shown by its name; its document is the `source`.
+                let shown = match &element {
+                    Value::Card(card) => serde_json::Value::String(card.name().to_owned()),
+                    other => other.to_json(),
+                };
+                let failure = failure.at_element("map", index + 1, Some(of), shown);
                 // Under `collect` the element is lost and the step goes on,
                 // where the failure leaves something to go on with.
                 if cx.collecting() && failure.steppable() {

@@ -130,6 +130,18 @@ fn notes(diagnostic: &Diagnostic, source: Option<&str>, origin: &str, pad: &str)
             element.step
         ));
     }
+    if let Some(source) = &diagnostic.context.source {
+        lines.push(format!("{pad} = source: {}", source.path));
+    }
+    if !diagnostic.context.bindings.is_empty() {
+        let bound: Vec<String> = diagnostic
+            .context
+            .bindings
+            .iter()
+            .map(|(name, value)| format!("{name} = {}", shorten(&value.to_string())))
+            .collect();
+        lines.push(format!("{pad} = bindings: {}", bound.join(", ")));
+    }
     if !diagnostic.context.trace.is_empty() {
         let frames: Vec<String> = diagnostic
             .context

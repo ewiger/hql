@@ -59,6 +59,7 @@ execute failure[division-by-zero]: division by zero
 1 | [6, 0, 3] | map(n => 6 / n)
   |                      ^^^^^
   = element: 0, position 2 of 3 in `map`
+  = bindings: n = 0
 ```
 
 No axis is derived from another. A contract read `x | T` and a division by
@@ -201,6 +202,7 @@ execute failure[division-by-zero]: division by zero
 1 | [6, 0, 3] | map(n => 6 / n)
   |                      ^^^^^
   = element: 0, position 2 of 3 in `map`
+  = bindings: n = 0
 ```
 
 The value is on standard output and the diagnostic on standard error. In

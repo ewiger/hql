@@ -65,9 +65,13 @@ The sessions pin what `hql` prints for them, standard error included:
 | [collect past an element](diagnostics/collect-past-an-element.hql) | `execute failure[division-by-zero]` | under `collect` `map` steps past the element, `disposition: recoverable` |
 | [collect stops at an overflow](diagnostics/collect-stops-at-overflow.hql) | `execute failure[numeric-overflow]` | `fatal` under both modes |
 | [errs are data](diagnostics/errs-are-data.hql) | none | `validate` keeps the failure as an `Invalid` value; the channel stays empty |
+| [read back](diagnostics/read-back.hql) | none | a later run reads delivered diagnostics, `run.jsonl`, as `Diagnostic` records |
+| [call context](diagnostics/call-context.hql) | `execute failure[division-by-zero]` | the `call` frames that reached the failure, and the `bindings` where it failed |
+| [card provenance](diagnostics/card-provenance.hql) | `execute failure[division-by-zero]` | a failure over a card's value names the card's document as its `source`; runs against `diagnostics/vault` |
 
 `diagnostics/vault/` is a vault, not a set of cases: one card whose header
-parses and one whose header does not.
+parses, with `pages: 0`, and one whose header does not. `diagnostics/run.jsonl`
+is what `--diagnostics-format json` wrote for `warning-then-failure.hql`.
 
 | Session | What it shows |
 | --- | --- |
@@ -76,6 +80,7 @@ parses and one whose header does not.
 | [collect steps past an element](diagnostics/sessions/collect-steps-past-an-element.session) | `strict` ends the run; `collect` gives `[1, 2]` and the same diagnostic, recoverable; an overflow is fatal under both |
 | [help and labels](diagnostics/sessions/help-and-labels.session) | a nearest name is `help`, a second place a `note`, and neither is in the message |
 | [the vault skips a document](diagnostics/sessions/vault-skips-a-document.session) | `load warning[skipped-document]`, the rest of the vault read, exit `0` |
+| [call context](diagnostics/sessions/call-context.session) | `= bindings:`, `= trace:` and `= source:` under the caret |
 
 ## Parse
 

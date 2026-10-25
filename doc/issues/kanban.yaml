@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 56 # to be incremented when adding a new issue card
+  last_id: 57 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -55,6 +55,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0057"
+        title: "The error model's remainder: what HQL-0045 left open"
+        file: 0057-error-model-remainder.md
       - id: "0054"
         title: "The website is for HQL users: Learn, Guides, Reference"
         file: 0054-user-facing-website.md
