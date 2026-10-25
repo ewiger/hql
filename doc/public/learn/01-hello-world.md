@@ -149,7 +149,7 @@ match status {
 "on the nightstand"
 ```
 
-A `match` that does not cover every case is refused before it runs; `_` is the
+The checker rejects a `match` that does not cover every case before it runs; `_` is the
 pattern that fits anything.
 
 ## What is next

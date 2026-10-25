@@ -32,7 +32,7 @@ working directory for an expression.
 What an endpoint can do is its type. `Stdin` is `Readable`, `Stdout` and
 `Stderr` are `Writable`, and `File` is both, and `Replayable`: it gives the
 same bytes on every read within one evaluation. Reading from an endpoint that
-cannot be read is refused before the program runs:
+cannot be read is a type error, reported before the program runs:
 
 <!-- run: skip -->
 ```hql
@@ -151,9 +151,9 @@ Stream<Data>
 ```
 
 That difference is the one [chapter 10](10-streams.md) drew. `map`, `filter` and
-`take` run over standard input one document at a time, as it arrives, and a
-step that needs the whole input is refused until the stream is bounded or
-batched. The same program works on a file and on a pipe, and the checker says
+`take` run over standard input one document at a time, as it arrives, and the
+checker rejects a step that needs the whole input until the stream is
+bounded or batched. The same program works on a file and on a pipe, and the checker says
 which steps each one allows.
 
 `tap(endpoint, Format)` reads one document at a time from any readable
@@ -205,8 +205,8 @@ source(stdin, Json)
 "kingfisher"
 ```
 
-Asking `target` to write a stream as one document is refused, with the two
-ways out:
+Asking `target` to write a stream as one document is a type error, and the
+diagnostic gives the two ways out:
 
 <!-- run: skip -->
 ```hql
@@ -230,7 +230,7 @@ accepts, by the shape of the values:
 | | `Seq<T>` | `Stream<T>` |
 | --- | --- | --- |
 | `source` | from a replayable endpoint | from a live endpoint |
-| `target` | one document | refused: `collect(n)`, or `take(n)` |
+| `target` | one document | a type error: `collect(n)`, or `take(n)` |
 | `sink` | one document per element | one document per value |
 
 Batches are streams of sequences, so `collect(100) | sink(stdout, Json)` writes
@@ -309,8 +309,8 @@ Constructing an endpoint is pure. `source`, `tap`, `target` and `sink` are
 them it allows.
 
 `hql render` is one such host. A document reads only files under its own
-directory, reads no standard input, and writes nothing outside itself. A cell
-that tries is refused when the document is checked, before any cell runs:
+directory, reads no standard input, and writes nothing outside itself. The checker
+rejects a cell that tries when the document is checked, before any cell runs:
 
 ```text
 type error: a document writes nothing outside itself, so `target` and `sink` are refused here
@@ -348,8 +348,8 @@ journal.cards | map(c => c.name)
 a `Seq<Data>`, a row per element, decoded as a declared record where one is
 expected, as above. The type comes from the configuration, so checking reads
 `hql.toml` and opens nothing. The id is a literal: `source(id)` with a
-computed `id` is a type error, and `source("postgres://db/birds")` is refused
-with a diagnostic saying connection details belong in configuration. An id
+computed `id` is a type error, and `source("postgres://db/birds")` is a type
+error whose diagnostic says connection details belong in configuration. An id
 the configuration does not declare is a name error that suggests the nearest
 one. The [data sources examples](https://github.com/ewiger/hql/tree/main/examples/sources) read
 two vaults side by side.

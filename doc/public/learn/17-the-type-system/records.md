@@ -120,14 +120,14 @@ peek(s)
 3
 ```
 
-Pushing `"three"` onto a `Stack<Int>` is refused: within one use a parameter
+Pushing `"three"` onto a `Stack<Int>` is a type error: within one use a parameter
 names one type in every position it occurs. The prelude's `Pair<A, B>` is a
 generic record, the element `zip` and `enumerate` produce, and
 `Pair(first = p.second, second = p.first)` swaps one.
 
 A parameter may carry a bound, written after the fields:
-`type Box<T> { value : T } where T : Orderable`. A `Box` of a set is then
-refused at construction, since a set has no order. [Generics](generics.md)
+`type Box<T> { value : T } where T : Orderable`. A `Box` of a set is then a
+type error at construction, since a set has no order. [Generics](generics.md)
 is about parameters and bounds in full.
 
 ## A record under another
@@ -164,7 +164,7 @@ one per element. A type may have several constructors, told apart by the
 type of their first parameter.
 
 A function in `UpperCamelCase` is a constructor and nothing else. One named
-after no declared type is refused, and the message says to name it in
+after no declared type is a type error, and the message says to name it in
 `snake_case`. The standard constructors follow the same rule: `List(xs)`,
 `Set(xs)` and `Map(keys, values)` are declared beside their types, and
 [subtypes and narrowing](subtypes.md) uses them as the conversion between

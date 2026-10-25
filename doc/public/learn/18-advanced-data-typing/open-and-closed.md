@@ -45,7 +45,7 @@ evaluation failure: this does not read as Point: field `z`: Point declares no su
   | ^^^^^^^^^
 ```
 
-A tree missing a field is refused the same way, naming the field that is
+A tree missing a field fails the same way, naming the field that is
 missing. A closed type is the right one for a value the program owns: the
 program wrote every field, so a field it did not write is a mistake.
 

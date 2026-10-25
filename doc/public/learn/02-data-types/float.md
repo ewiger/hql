@@ -26,7 +26,7 @@ a little off:
 That is why a `Float` is the wrong type for money; a `Decimal` holds an
 amount exactly as it is written.
 
-An `Int` and a `Float` do not mix: `1 + 2.0f` is refused, and so is a
+An `Int` and a `Float` do not mix: `1 + 2.0f` is a type error, and so is a
 `Decimal` beside a `Float`. `float` and `int` convert, the second truncating:
 
 ```hql

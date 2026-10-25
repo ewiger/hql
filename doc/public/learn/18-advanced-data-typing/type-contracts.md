@@ -59,7 +59,7 @@ evaluation failure: this does not read as User: `require id != ""` does not hold
 ```
 
 Structure comes first: a tree missing a field or holding one at the wrong
-type is refused for that, and no rule runs over it. The rules see a value
+type fails for that, and no rule runs over it. The rules see a value
 whose fields all read.
 
 Only a contract has rules. `require` in a plain type is a type error, and

@@ -37,7 +37,7 @@ type Stderr : Writable
 
 /// The end of a file, after what it holds, as `file(path).end`: a write
 /// there appends, and `tap` follows what is written next, as `tail -f`
-/// does. It is live, not `Replayable`, so `source` refuses it.
+/// does. It is live, not `Replayable`, so `source` of it is a type error.
 type FileEnd : {Readable, Writable} {
     path : String
 }
@@ -126,7 +126,8 @@ abstract type DataTarget
 // The operations the `std` extension implements.
 
 /// The `File` at `path`. Constructing it is pure and opens nothing:
-/// `file("birds.json").path` is `"birds.json"`. A URL is refused; a network
+/// `file("birds.json").path` is `"birds.json"`. A URL is a type error when it
+/// is a literal and an evaluation failure when it is computed; a network
 /// resource is read with `http`.
 fn file(path: String) : File
 
@@ -145,7 +146,7 @@ effectful fn source<F : Format, T>(id: String, format: Type<F>) : Iterable<T>
 
 /// The documents read from `endpoint` in `format`, one held at a time, as a
 /// `Stream<T>`. A format that is one whole document, such as `Text`, is
-/// refused. `tap(id)` gives the elements of the finite source configured
+/// a type error. `tap(id)` gives the elements of the finite source configured
 /// under `id` as a `Stream`; `tap(c)` of a `Channel<T>` gives each value as
 /// it is written; `tap(file(path).end, F)` follows what is appended.
 /// Effectful: it runs once, where it is written.
@@ -154,7 +155,7 @@ effectful fn tap<F : Format, T>(id: String, format: Type<F>) : Stream<T>
 
 /// Writes `value` as one document to `endpoint` in `format`, or to the
 /// target configured under `id`, and gives `Unit`. A `Seq` is one
-/// document, in `Json` an array; a `Stream` that is not a `Seq` is refused:
+/// document, in `Json` an array; a `Stream` that is not a `Seq` is a type error:
 /// write it with `sink`, or bound it with `take(n)` first. Written to a
 /// `Channel<T>`, `value` is appended and no format is taken. Effectful: it
 /// runs once, where it is written.

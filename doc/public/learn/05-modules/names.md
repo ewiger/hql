@@ -50,7 +50,7 @@ depend on the order the declarations are written in.
 ## Two imports, one name
 
 Two imported declarations of one name, neither the unit's own, are an
-**ambiguity**, and the call naming them is refused. Qualifying the call
+**ambiguity**, and the call naming them is a name error. Qualifying the call
 resolves it, `titles.initials(s)` or `string.split(s, ",")`; the order of the
 imports never decides.
 
@@ -75,8 +75,8 @@ imports it.
 
 ## Imports form no cycle
 
-The import graph is acyclic: an import that closes a cycle is refused, and
-the error names the cycle. The module name tree is not a dependency graph —
+The import graph is acyclic: an import that closes a cycle is a name error,
+and the diagnostic names the cycle. The module name tree is not a dependency graph —
 `club` and `club.reading` see nothing of each other unless one imports the
 other. A child may import its parent; a parent importing its child is
 warned at the import. Two modules that need each other are resolved by moving

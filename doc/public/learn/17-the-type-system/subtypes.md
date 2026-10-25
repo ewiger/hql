@@ -32,8 +32,8 @@ about it.
 
 ## An annotation never converts
 
-An annotation to a type the value is not a subtype of is refused. The
-message names what would build the value, since building is a cost the
+An annotation to a type the value is not a subtype of is a type error.
+The message names what would build the value, since building is a cost the
 program writes where it is paid:
 
 ```hql
@@ -49,7 +49,7 @@ type error: `xs` is declared Set<Int> but its value is List<Int>; a binding neve
   |                 ^^^^^^^^^
 ```
 
-The same holds downward: `n : Int = d` over a `Data` value is refused,
+The same holds downward: `n : Int = d` over a `Data` value is a type error,
 because a `Data` is not known to be an `Int`. Going toward the subtype is a
 test, below.
 
@@ -60,7 +60,7 @@ A type may narrow several types, written as a set in braces: `type Int :
 has an order. The set is a conjunction, every parent at once, and differs
 from a union, which is a choice. Two abstract types never exclude each
 other, since each is satisfied by other types. Two concrete types can share
-nothing, and such a set is refused:
+nothing, and the checker rejects such a set:
 
 ```hql
 type Impossible : {Int, String}
@@ -137,10 +137,10 @@ elements of a list, and `xs | Set` is the same call:
 {1, 2}
 ```
 
-A constructor refuses what its type cannot honestly hold. `List({1, 2})`
-is refused, since a set has no order for a list to keep, and the message
-names `sort`, which orders a collection into a list. `List` over a stream
-that may not end is refused naming `take` and `collect`. A constructor
+A constructor takes only what its type can honestly hold. `List({1, 2})`
+is a type error, since a set has no order for a list to keep, and the
+message names `sort`, which orders a collection into a list. `List` over a
+stream that may not end is a type error naming `take` and `collect`. A constructor
 changes the container and keeps the elements; turning a `String` into an
 `Int` is parsing, `text.to_int()`, which gives an `Option` because it can
 fail.

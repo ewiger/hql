@@ -187,7 +187,7 @@ the closed type declares no such field.
 
 When the source has names of its own, the open view is where the program
 declares them, and the `map` is where they are translated. The checker needs
-the view: `x.full_name.trim()` over a bare `Data` is refused, since a leaf
+the view: `x.full_name.trim()` over a bare `Data` is a type error, since a leaf
 of a tree is not known to be a `String` until a type says so.
 
 ```hql

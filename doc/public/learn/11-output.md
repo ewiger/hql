@@ -105,7 +105,8 @@ columns. `renderer` names one of a format's encoders for a shape over the
 vault's choice, `format(Markdown, renderer = "mermaid")` for a graph; a table
 renderer, such as `pipe`, writes only a `Table`.
 
-A format that cannot write a value is refused before the program runs:
+A format that cannot write a value is a type error, reported before the
+program runs:
 
 ```hql
 1 | d2

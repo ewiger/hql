@@ -142,7 +142,7 @@ $ hql eval '…naturals… | map(n => n * n) | json' | head -3
 9
 ```
 
-A diagram format describes a whole, so `| mermaid` over a stream is refused
+A diagram format describes a whole, so `| mermaid` over a stream is a type error
 until `take(n)` bounds it.
 
 ## What is next

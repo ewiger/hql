@@ -18,7 +18,8 @@ the source it was written from.
 HQL grows from a typed query and dataflow language into a small typed
 general-purpose language without acquiring classes, objects or a host language's
 trait system. One model does it: values have types; types may satisfy
-**traits**, which are compile-time capability contracts with implementations;
+**traits**, which are capability contracts with implementations, verified by
+the type checker ([HQL-0044](../HQL-0044/README.md));
 functions implement behavior; a **module** is a contract written in HQL,
 named by its position under a module root, and bound to exactly one
 implementation provider, the runtime for HQL bodies or an **extension** for
@@ -66,7 +67,7 @@ order is the dependency order.
 | 2 | [Imports](parts/02-imports.md) | `import io.file` makes one module visible as `file`, `as` renames it, a parent does not import its children, and imports sit at the head of a source unit | `import` stops naming an extension |
 | 3 | [The standard library](parts/03-standard-library.md) | Standard modules have no `std.` prefix, are compiled into the binary, own their canonical names, and a small prelude of types, functions and receiver modules, declared in `lib/std/prelude.hql` and in each extension's `prelude.hql`, is visible without import | `lib/std/` gains bodies; the prelude is redefined |
 | 4 | [Receiver modules](parts/04-receiver-modules.md) | `module seq for Seq<T>` associates a module with a type pattern; functions with explicit `self` resolve as `xs.first()` by receiver type matching among visible modules, and an ambiguity is an error | new; `.` gains a call form |
-| 5 | [Traits and implementations](parts/05-traits.md) | A trait is a compile-time contract, `T : Eq` is a bound, `impl Add for Int` provides it, and one implementation per trait and type is enforced by ownership | reverses "there are no traits" for capabilities; `abstract type` stays |
+| 5 | [Traits and implementations](parts/05-traits.md) | A trait is a capability contract the checker verifies, `T : Eq` is a bound, `impl Add for Int` provides it, and one implementation per trait and type is enforced by ownership | reverses "there are no traits" for capabilities; `abstract type` stays |
 | 6 | [Operator contracts](parts/06-operators.md) | Arithmetic and comparison resolve through `Add`, `Eq`, `Ord` and their kin; `\|`, `and`, `or` and binding are language-defined; no pseudo-desugaring is part of the definition | mechanism changes, builtin behavior does not |
 | 7 | [Formats and codecs](parts/07-formats-and-codecs.md) | `Format` is a category of its own: a format describes representation and framing, is not a `String`, is not `Format<T>`, and `Decoder<F, T>` and `Encoder<T, F>` connect it to values; `Lines` and `JsonLines` are formats and `format(x, F)` gives a `String` | adopted from [encode, decode and format](encode-decode-format.md); supersedes the one rule of [HQL-0017](../HQL-0017/README.md) that a format is a `String` |
 | 8 | [Pipelines and expressions](parts/08-pipelines-and-expressions.md) | `.` is local evaluation and `\|` is planner-visible dataflow; a step is not a stage | aligned with HQL-0004 and HQL-0005 |
@@ -177,3 +178,5 @@ keeps its recorded types and diagnostics.
 - 2026-10-23: builtin packages live under `lib/`, one folder each, and the
   standard library is `lib/std/`, the standard package among them, as
   issue 0048 records
+- 2026-10-25: a trait is a capability contract verified by the checker,
+  not a compile-time one, as [HQL-0044](../HQL-0044/README.md) amends

@@ -26,7 +26,7 @@ A bound is a type, as `Orderable` is, or a trait, as `Shape` is in
 [traits](traits.md). Both are written with `:`, since both restrict the
 unknown by the one relation the language has. A record's parameter takes a
 bound after its fields, `type Box<T> { value : T } where T : Orderable`, and
-a value that breaks it is refused at construction.
+a value that breaks it is a type error at construction.
 
 ## A generic trait
 
@@ -53,8 +53,8 @@ birds = Ring(items = ["raven", "robin", "wren"])
 `<` after `impl` opens the implementation's parameters, and `<` after the
 trait's name its arguments. Each parameter of the implementation must
 appear in the implementing type or in the trait's arguments; one that
-appears in neither is refused. A trait named with the wrong number of
-arguments is refused too: `impl Index for Box<Int>` says `Index` takes one
+appears in neither is a type error. A trait named with the wrong number of
+arguments is one too: `impl Index for Box<Int>` says `Index` takes one
 type argument, not none.
 
 ## Inference fills what a call leaves open
@@ -84,8 +84,8 @@ fn first_of<T, E : Index<T>>(xs: E) : Option<T> = xs[0]
 
 A `List<Int>` takes the standard library's implementation for sequences,
 which gives `T = Int`; a `Countdown` takes its own, `Index<Int>`. A type
-with no implementation is refused at the call, and the message names the
-bound: `first_of(1)` says an `Int` does not implement `Index<T>`. There are
+with no implementation is a type error at the call, and the message names
+the bound: `first_of(1)` says an `Int` does not implement `Index<T>`. There are
 no associated types. A type that the implementing type decides, as the
 element type is, is a trait parameter that inference fills.
 
@@ -121,14 +121,14 @@ v = Vec2(x = 1.5f, y = 2.0f)
 implementations. A generic body reaches an implementation through its
 receiver alone, so a bound over a trait with functions, `T : Scale<F>`,
 needs a type that implements the trait once; a type implementing it at
-several arguments is refused there, since the body could not tell them
-apart.
+several arguments is a type error there, since the body could not tell
+them apart.
 
 ## One implementation per trait and type
 
 An implementation is identified by its trait, the trait's arguments and the
 implementing type, and two that could apply to one type at one argument
-list are refused, whichever is generic:
+list are a type error, whichever is generic:
 
 ```hql
 type Box<T> { value : T }

@@ -134,7 +134,8 @@ so the type around it decides: HQL infers a type while the literal says
 enough, and asks for an explicit one where it does not.
 
 This holds for the empty literal only. A non-empty keyed literal is always
-`Data`, and a declared map type refuses it:
+`Data`, and binding it to a declared map type is a
+type error:
 
 ```hql
 m : Map<String, Int> = {a: 1}

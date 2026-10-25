@@ -113,8 +113,8 @@ versions = [Version(major = 1, minor = 10), Version(major = 1, minor = 2), Versi
 [["0.9", "1.2", "1.10"], ["true"]]
 ```
 
-A record without `Ord` has no order of its own. `sort` over it is refused,
-and the message says to sort with an explicit key, `sort(by = v => v.minor)`,
+A record without `Ord` has no order of its own. `sort` over it is a type
+error, and the message says to sort with an explicit key, `sort(by = v => v.minor)`,
 which needs only the key's order.
 
 ## Positions
@@ -173,7 +173,7 @@ mix[1:].tracks
 ## The core traits are owned by the language
 
 A program implements a core trait for its own types, and never for a
-built-in one: `impl Add for Int` is refused, since `Add` is already
+built-in one: `impl Add for Int` is a type error, since `Add` is already
 implemented for `Int` in the standard library, natively. The implementations
 the built-in types have are declared there as bodyless headers, and a
 built-in type implements exactly what its headers name: `Bool` has `Eq` and

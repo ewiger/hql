@@ -53,7 +53,7 @@ fmt("{} has {} pages", title, pages)
 ## A type is checked, not guessed
 
 Each operation says which types it takes. An `Int` and a `String` do not add,
-and the program is refused before it runs:
+and the checker rejects the program before it runs:
 
 ```hql
 412 + "pages"

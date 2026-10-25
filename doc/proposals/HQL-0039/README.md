@@ -8,7 +8,7 @@ receiver modules of [HQL-0024 part 4](../HQL-0024/parts/04-receiver-modules.md)
 
 ## Abstract
 
-A trait is a compile-time contract: a named set of function signatures over
+A trait is a capability contract: a named set of function signatures over
 `Self`, declared in a module's `mod.hql`, that a type satisfies through one
 implementation. A trait is not a type. Its name appears only in a fixed set
 of positions: a bound, an implementation, an extension, a receiver module's
@@ -73,7 +73,8 @@ trait Shape {
   bound form `<T : Shape>(s: T)`. The one exception is the validator field described
   under "Validator traits". A type that a trait's declaration names with
   `as` is a type of its own (see "A trait's type").
-- A trait is checked at compile time. Calling a trait function dispatches on
+- A trait is verified by the checker ([HQL-0044](../HQL-0044/README.md)).
+  Calling a trait function dispatches on
   the value's own type at run time, so a value held at a wider type still
   takes its own implementation.
 - A trait MAY take type parameters, `trait Index<T>`

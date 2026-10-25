@@ -71,7 +71,7 @@ name error: String has no function `shout`; did you mean `sort`?
 ```
 
 Two imported modules that declare one name over one type make a call by
-that name ambiguous, and it is refused until written through its module.
+that name ambiguous, a name error until it is written through its module.
 A declaration the unit writes itself wins over every import's.
 [Receiver modules](../05-modules/receiver-modules.md) declares them, and
 [how names resolve](../05-modules/names.md) has the rules in full.

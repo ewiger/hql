@@ -29,7 +29,7 @@ shapes | map(area)
 ```
 
 The annotation on `shapes` holds the literal at the union. Without it, a
-list of a `Circle` and a `Square` is refused: the two meet nowhere on their
+list of a `Circle` and a `Square` is a type error: the two meet nowhere on their
 own, and the message says the elements have no common type. A union is
 written with `=` and `union`, and that is the only way a type is one of
 several; `type Id = Int` is not a declaration.
@@ -90,7 +90,7 @@ fn sign(n: Int) : String = match n {
 ```
 
 A guarded arm does not count toward coverage, since its condition may
-fail. Two guarded arms over an `Int` with no `_` are refused, even where
+fail. Two guarded arms over an `Int` with no `_` are a type error, even where
 their conditions together cover every number: the checker reads the
 patterns, not the arithmetic.
 

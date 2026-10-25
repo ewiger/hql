@@ -197,8 +197,8 @@ A Rust trait is a **host-language** mechanism, and none of it reaches HQL's
 surface: "Rust does it this way" is never an argument for an HQL feature — see
 [the stack scope note](../../stack.md) and [[hql/extensions]]. HQL's `trait` is
 its own construct ([HQL-0024 part 5](../../proposals/HQL-0024/parts/05-traits.md)):
-a compile-time contract, a named set of functions a type satisfies through an
-`impl`, written for what generic code quantifies over and for the operators,
+a capability contract, a named set of functions a type satisfies through an
+`impl` and the checker verifies ([[hql/compilation]]), written for what generic code quantifies over and for the operators,
 and for nothing else. `String.trim()` needs no `Trimmable`; it is a function
 of the `string` receiver module.
 
