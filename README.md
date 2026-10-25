@@ -42,6 +42,8 @@ The same language can query a knowledge vault, transform JSON from the command l
 ## TL;DR
 
 - **Typed functional query language** — expressions, functions, pattern matching, collections and pipelines, checked before execution.
+- **Data contracts** — data read from outside is checked against declared types and rules where it enters, and a violation names each rule it broke.
+- **SQL-like queries** — where, order by, joins, group by and aggregates as pipeline steps over typed rows.
 - **Dataflow language** — compose transformations over finite data, streams and batches.
 - **Data integration and ETL** — connect files, standard streams, databases, queues and other sources and targets through one query model.
 - **AI-native language** — retrieval, context construction and agent workflows are expressed as transparent data pipelines.
@@ -158,6 +160,136 @@ every module file opens with `module a.b`, its name checked against its path,
 and `module a.b for String` makes its `self` functions receiver functions. The
 [Mighty Types corpus](examples/mighty-types/README.md) walks all of it,
 program by program.
+
+### Checked before it runs
+
+`hql check` and every run check the whole program before a step evaluates. A
+generator declared as a `Stream` may not end, so a step that needs the whole
+input is refused at check time, not after it has run forever:
+
+```hql
+fn naturals(from: Int) : Stream<Int> {
+    yield from
+    for n in naturals(from + 1) {
+        yield n
+    }
+}
+naturals(1) | sum
+```
+
+```text
+check error[type-mismatch]: `sum` needs a finite input, and Stream<Int> may not end; bound it first with `take(n)`, or batch it with `collect(n)`
+ --> query.hql:7:15
+  |
+7 | naturals(1) | sum
+  |               ^^^
+```
+
+`naturals(1) | take(5)` is `[1, 2, 3, 4, 5]`. A diagnostic names its phase
+(`load`, `parse`, `check`, `plan`, `execute`, `render`), its severity and a
+stable kind.
+
+---
+
+## SQL-like queries
+
+Select, where, order by, joins, group by and the aggregates are pipeline
+steps over typed rows:
+
+```hql
+type Book { title : String, author : String, pages : Int }
+type Author { id : String, name : String }
+type Row { author : String, pages : Int }
+
+books = [
+    Book(title = "Dune", author = "herbert", pages = 412),
+    Book(title = "Emma", author = "austen", pages = 474),
+    Book(title = "Persuasion", author = "austen", pages = 249),
+]
+authors = [
+    Author(id = "herbert", name = "Frank Herbert"),
+    Author(id = "austen", name = "Jane Austen"),
+]
+
+books
+| join(authors, left = b => b.author, right = a => a.id,
+       into = (b, a) => Row(author = a.name, pages = b.pages))
+| group(by = r => r.author)
+| map(g => {author: g.key, books: g.items | size, pages: g.items | map(r => r.pages) | sum})
+```
+
+```text
+{{author: "Frank Herbert", books: 1, pages: 412}, {author: "Jane Austen", books: 2, pages: 723}}
+```
+
+`left_join`, `right_join`, `full_join`, `cross_join`, `semi_join` and
+`anti_join` complete the join family; `HAVING` is a `filter` after `group`.
+
+---
+
+## Data contracts at the boundary
+
+Data read from outside is `Data`, a JSON-shaped tree. Piping it into a type
+reads it as that type, and a `DataContract` states what such a value must
+hold beyond its shape:
+
+```hql
+fn is_country_code(code: String) : Bool = code.length() == 2 and code.upper() == code
+
+type User : DataContract = {
+    id: String
+    name: String
+    age?: Int
+    country: String
+
+    require name != ""
+    require age? >= 0
+    validate country with is_country_code
+}
+
+rows : List<Data> = [
+    {id: "u-1", name: "Alice", country: "CH"},
+    {id: "u-2", name: "", country: "Switzerland"},
+]
+rows | User
+```
+
+```text
+execute error[contract-violation]: this does not read as User: `require name != ""` does not hold; `validate country with is_country_code` does not hold
+```
+
+`validate(User)` gives the same check as a value, `ok(user)` or an `err`
+carrying each `Violation`, for a program that keeps the rejected rows rather
+than stopping. A contract also declares defaults, warnings, and rules across
+fields such as `require status == "closed" => closed_at?`.
+
+---
+
+## Failures are data
+
+A failure a program expects is a `Result`; one it does not expect is a
+diagnostic. `Result` values flow through pipelines like any other:
+
+```hql
+fn parse(text: String) : Result<Int, String> = match text.to_int() {
+    some(n) => ok(n),
+    none => err(fmt("not a number: {}", text)),
+}
+
+results = ["4", "x", "15"] | map(parse)
+{
+    total: results | oks() | sum,
+    rejected: results | errs(),
+    fallback: parse("x").unwrap_or(0),
+}
+```
+
+```text
+{fallback: 0, rejected: ["not a number: x"], total: 19}
+```
+
+Under `--report collect`, `map`, `filter` and `flat_map` step past an element
+whose function failed, report it, and keep the rest.
 
 ---
 
@@ -611,6 +743,24 @@ It is also one of HQL's natural interactive hosts.
 ## Knowledge graphs
 
 HQL treats links and relationships as queryable structure.
+
+A card is named with `@[[name]]`, the same wikilink its documents write, and
+its links are read in both directions:
+
+```hql
+@[[dune]].title                                        // "Dune"
+@[[mrs-dalloway]] | uplinks                            // [mrs-dalloway -> virginia-woolf]
+@[[virginia-woolf]] | downlinks | map(e => e.source)   // ["a-room-of-ones-own", "mrs-dalloway", "the-common-reader"]
+```
+
+A collection of cards becomes a `Graph`, which formats as text, D2 or Mermaid:
+
+```hql
+cards
+| filter(c => c.name == "virginia-woolf" or c.metadata.author == "Virginia Woolf")
+| Graph
+| format(Mermaid)
+```
 
 Retrieval can find an initial set of nodes:
 
