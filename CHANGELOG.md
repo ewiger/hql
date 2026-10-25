@@ -19,7 +19,9 @@ The language continues to be in active development.
   is no longer derived from a stage. A contract read `x | T` that fails is
   an `execute error[contract-violation]` carrying the `Violation`s
   `validate` would give; a data failure found while executing is of the
-  `execute` phase, where it was stamped `type`.
+  `execute` phase, where it was stamped `type`. A `Data` value of the
+  wrong shape, `name` read from a string, is an
+  `execute error[shape-mismatch]`.
 - The text form of a diagnostic is headed by its phase, severity and kind,
   `check error[type-mismatch]: …`, where it named a stage,
   `type error: …`. A nearest name moves out of the message onto a
@@ -53,6 +55,21 @@ The language continues to be in active development.
   I/O failure stops under both modes.
 - A naming-convention warning gives the conventional spelling as help:
   ``write it `total_of` ``.
+- `Diagnostic` is a record of the standard library: diagnostics a run
+  delivered with `--diagnostics-format json` read back in a later run with
+  `source(file(p), JsonLines) | Diagnostic`.
+- `DiagnosticText` is a format a program names: `| format(DiagnosticText)`
+  writes `Diagnostic` records as the report a run prints, and `--to
+  diagnostictext` names it.
+- A failure inside called functions carries a `call` frame for each call
+  that reached it, outermost first, and the `bindings` of the function or
+  lambda it failed in; one over a card's value names the card's document as
+  its `source`. The text form shows them as `= trace:`, `= bindings:` and
+  `= source:` lines.
+- Under `--report collect`, `filter` and `flat_map` step past a failing
+  element as `map` does, each naming itself as the step.
+- A cell's diagnostics in `hql render` name the cell as their origin,
+  `path#id` or `path#index`, with a `= cell:` line in the text form.
 - Chapter 18 of the book, [Errors](doc/public/learn/18-errors/index.md):
   failures kept as data, diagnostics and the run's channel, `strict` and
   `collect`.
