@@ -19,13 +19,22 @@
 HQL combines functional expressions, data pipelines, streams, structured documents, semantic retrieval and knowledge graphs in one language.
 
 ```hql
-birds =
-    cards
-    | filter(c => c.metadata.category == "bird")
-    | sort(by = c => c.title)
+type Book { title : String, year : Int, rating : Int }
 
-birds
-| map(c => c.title)
+books = [
+    Book(title = "Dune", year = 1965, rating = 5),
+    Book(title = "Emma", year = 1815, rating = 3),
+    Book(title = "Beloved", year = 1987, rating = 4),
+]
+
+books
+| filter(b => b.rating >= 4)
+| sort(b => b.title)
+| map(b => b.title)
+```
+
+```text
+["Beloved", "Dune"]
 ```
 
 The same language can query a knowledge vault, transform JSON from the command line, build an ETL pipeline, traverse a graph, execute queries inside Markdown, or assemble context for an AI agent.
@@ -33,6 +42,8 @@ The same language can query a knowledge vault, transform JSON from the command l
 ## TL;DR
 
 - **Typed functional query language** — expressions, functions, pattern matching, collections and pipelines, checked before execution.
+- **Data contracts** — data read from outside is checked against declared types and rules where it enters, and a violation names each rule it broke.
+- **SQL-like queries** — where, order by, joins, group by and aggregates as pipeline steps over typed rows.
 - **Dataflow language** — compose transformations over finite data, streams and batches.
 - **Data integration and ETL** — connect files, standard streams, databases, queues and other sources and targets through one query model.
 - **AI-native language** — retrieval, context construction and agent workflows are expressed as transparent data pipelines.
@@ -43,6 +54,35 @@ The same language can query a knowledge vault, transform JSON from the command l
 - **One language across execution surfaces** — use HQL from the CLI, `.hql` programs, executable documents and interactive editor cells.
 
 Documentation: [hql-lang.org](https://hql-lang.org/)
+
+## Quick start
+
+```bash
+cargo install hql --locked
+hql eval '40 + 2'                       # 42
+```
+
+As a `jq`-style tool over standard input:
+
+```bash
+printf '{"species":"wren","seen":"morning"}\n{"species":"owl","seen":"dusk"}\n' |
+    hql 'source(stdin, Json) | filter(s => s.seen == "morning") | map(s => s.species)'
+```
+
+```text
+"wren"
+```
+
+Against the tutorial vault the book uses:
+
+```bash
+git clone https://github.com/ewiger/hql && cd hql
+hql --vault examples/tutorial eval '@[[virginia-woolf]] | downlinks | map(e => e.source)'
+```
+
+```text
+["a-room-of-ones-own", "mrs-dalloway", "the-common-reader"]
+```
 
 ---
 
@@ -150,11 +190,151 @@ and `module a.b for String` makes its `self` functions receiver functions. The
 [Mighty Types corpus](examples/mighty-types/README.md) walks all of it,
 program by program.
 
+### Checked before it runs
+
+`hql check` and every run check the whole program before a step evaluates. A
+generator declared as a `Stream` may not end, so a step that needs the whole
+input is refused at check time, not after it has run forever:
+
+```hql
+fn naturals(from: Int) : Stream<Int> {
+    yield from
+    for n in naturals(from + 1) {
+        yield n
+    }
+}
+naturals(1) | sum
+```
+
+```text
+check error[type-mismatch]: `sum` needs a finite input, and Stream<Int> may not end; bound it first with `take(n)`, or batch it with `collect(n)`
+ --> query.hql:7:15
+  |
+7 | naturals(1) | sum
+  |               ^^^
+```
+
+`naturals(1) | take(5)` is `[1, 2, 3, 4, 5]`. A diagnostic names its phase
+(`load`, `parse`, `check`, `plan`, `execute`, `render`), its severity and a
+stable kind.
+
 ---
 
-## A dataflow language
+## SQL-like queries
 
-HQL models computation as data moving through transformations.
+Select, where, order by, joins, group by and the aggregates are pipeline
+steps over typed rows:
+
+```hql
+type Book { title : String, author : String, pages : Int }
+type Author { id : String, name : String }
+type Row { author : String, pages : Int }
+
+books = [
+    Book(title = "Dune", author = "herbert", pages = 412),
+    Book(title = "Emma", author = "austen", pages = 474),
+    Book(title = "Persuasion", author = "austen", pages = 249),
+]
+authors = [
+    Author(id = "herbert", name = "Frank Herbert"),
+    Author(id = "austen", name = "Jane Austen"),
+]
+
+books
+| join(authors, left = b => b.author, right = a => a.id,
+       into = (b, a) => Row(author = a.name, pages = b.pages))
+| group(by = r => r.author)
+| map(g => {author: g.key, books: g.items | size, pages: g.items | map(r => r.pages) | sum})
+```
+
+```text
+{{author: "Frank Herbert", books: 1, pages: 412}, {author: "Jane Austen", books: 2, pages: 723}}
+```
+
+`left_join`, `right_join`, `full_join`, `cross_join`, `semi_join` and
+`anti_join` complete the join family; `HAVING` is a `filter` after `group`.
+
+---
+
+## Data contracts at the boundary
+
+Data read from outside is `Data`, a JSON-shaped tree. Piping it into a type
+reads it as that type, and a `DataContract` states what such a value must
+hold beyond its shape:
+
+```hql
+fn is_country_code(code: String) : Bool = code.length() == 2 and code.upper() == code
+
+type User : DataContract = {
+    id: String
+    name: String
+    age?: Int
+    country: String
+
+    require name != ""
+    require age? >= 0
+    validate country with is_country_code
+}
+
+rows : List<Data> = [
+    {id: "u-1", name: "Alice", country: "CH"},
+    {id: "u-2", name: "", country: "Switzerland"},
+]
+rows | User
+```
+
+```text
+execute error[contract-violation]: this does not read as User: `require name != ""` does not hold; `validate country with is_country_code` does not hold
+```
+
+`validate(User)` gives the same check as a value, `ok(user)` or an `err`
+carrying each `Violation`, for a program that keeps the rejected rows rather
+than stopping. A contract also declares defaults, warnings, and rules across
+fields such as `require status == "closed" => closed_at?`.
+
+---
+
+## Failures are data
+
+A failure a program expects is a `Result`; one it does not expect is a
+diagnostic. `Result` values flow through pipelines like any other:
+
+```hql
+fn parse(text: String) : Result<Int, String> = match text.to_int() {
+    some(n) => ok(n),
+    none => err(fmt("not a number: {}", text)),
+}
+
+results = ["4", "x", "15"] | map(parse)
+{
+    total: results | oks() | sum,
+    rejected: results | errs(),
+    fallback: parse("x").unwrap_or(0),
+}
+```
+
+```text
+{fallback: 0, rejected: ["not a number: x"], total: 19}
+```
+
+Under `--report collect`, `map`, `filter` and `flat_map` step past an element
+whose function failed, report it, and keep the rest.
+
+---
+
+## A dataflow language, streaming by design
+
+HQL models computation as data moving through transformations. Streams are
+first-class values: a `Stream<T>` produces its values incrementally and may
+not end, and `map`, `filter` and `take` run over it one value at a time:
+
+```hql
+source(stdin, Json)
+| filter(e => e.kind == "event")
+| map(e => e.payload)
+```
+
+A pipeline over a stream reads like one over a list:
 
 ```hql
 events
@@ -167,13 +347,7 @@ events
 | process_batch
 ```
 
-A pipeline can operate over finite collections or over streams that continue producing values.
-
-```text
-Stream<Event>
-```
-
-can become batches:
+A `Stream<Event>` can become batches:
 
 ```hql
 events
@@ -190,36 +364,40 @@ while:
 
 ```hql
 events
-| collect
+| take(1000)
 ```
 
-materializes a completed stream as:
+bounds a stream that may not end and gives:
 
 ```text
-Seq<Event>
+List<Event>
 ```
 
-and:
+and `emit`, the inverse of `collect`, passes on every member of every batch,
+in order:
 
 ```hql
-items
-| emit
+[[1, 2], [3]] | emit
 ```
 
-turns a finite collection back into a stream.
+```text
+[1, 2, 3]
+```
 
-Branches are part of the same model:
+Branches are part of the same model. `tee` binds the result of a branch to a
+name and passes its input on unchanged:
 
 ```hql
 events
 | tee errors =
     filter(e => e.level == "error")
-| aggregate(...)
+| map(e => e.message)
 ```
 
-Dataflow is therefore not an execution detail hidden underneath HQL.
-
-It is part of how HQL programs are written.
+The same operations compose over `Seq<T>`, `Stream<T>` and `Stream<Seq<T>>`
+and keep finite data, stream elements and batches apart in the type, so
+streaming is not a separate execution mode. Dataflow is not an execution
+detail hidden underneath HQL; it is how HQL programs are written.
 
 ---
 
@@ -290,61 +468,30 @@ errors
 
 They do not need entries in `hql.toml`.
 
-The distinction between whole values, streams and batches lives in the type system:
-
-```text
-Event
-Seq<Event>
-Stream<Event>
-Stream<Seq<Event>>
-```
-
-not in separate I/O APIs.
-
-For example:
+Whether a source ends lives in its type, not in separate I/O APIs. A file is
+replayable, so `source(file(p))` is a `Seq<Data>`; standard input arrives
+once, so `source(stdin, Json)` is a `Stream<Data>`; and `tap(file(p))` reads a
+file larger than memory one document at a time, as a `Stream`. `target`
+writes one finite value and `sink` consumes a stream as it arrives:
 
 ```hql
 events
 | collect(100)
-| sink(stdout, Json)
+| sink(stdout, Json)          // one JSON array per batch of 100
 ```
 
-streams batches:
-
-```text
-Stream<Seq<Event>>
-```
-
-while:
-
-```hql
-events
-| collect
-| target(file("events.json"), Json)
-```
-
-materializes the complete stream and writes one finite result.
-
-Formats remain orthogonal:
-
-```text
-Json
-Yaml
-Csv
-Text
-Markdown
-Hql
-D2
-Mermaid
-```
-
-The format describes representation.
-
-The HQL type describes the shape of the data.
+The format describes the representation; the HQL type describes the shape of
+the data.
 
 ---
 
 ## HQL as an ETL and integration language
+
+> [!WARNING]
+> **Design only.** Wiring a pipeline to queues, databases and services is not
+> in the current release; reading and writing files and standard streams is.
+> The book's [ETL pipelines](https://hql-lang.org/latest/learn/15-etl-pipelines/)
+> chapter specifies it.
 
 Sources, transformations, streams, batches and targets all use the same expression model.
 
@@ -395,59 +542,6 @@ There is no second orchestration syntax wrapped around it.
 
 ---
 
-## Streaming by design
-
-Streams are first-class values.
-
-```text
-Stream<T>
-```
-
-represents values produced incrementally and may be bounded or unbounded.
-
-A stream can be transformed directly:
-
-```hql
-source(stdin, Json)
-| filter(e => e.kind == "event")
-| map(e => e.payload)
-```
-
-collected completely:
-
-```hql
-events
-| collect
-```
-
-batched:
-
-```hql
-events
-| collect(100)
-```
-
-or created from a finite collection:
-
-```hql
-items
-| emit
-```
-
-This makes streaming a normal part of the type system rather than a separate execution mode.
-
-The same operations compose over:
-
-```text
-Seq<T>
-Stream<T>
-Stream<Seq<T>>
-```
-
-and preserve the distinction between finite data, individual stream elements and streaming batches.
-
----
-
 ## An AI-native language
 
 AI applications spend much of their complexity not in the model call itself, but in everything around it:
@@ -467,14 +561,13 @@ These are dataflow problems.
 HQL expresses them as dataflow.
 
 ```hql
+import semantic
+
 context =
     cards
-    | semantic(question)
+    | semantic("a creature and its maker")
     | take(10)
     | expand(depth = 1)
-
-context
-| ...
 ```
 
 Retrieval is not a terminal operation.
@@ -482,14 +575,22 @@ Retrieval is not a terminal operation.
 The result remains ordinary typed data that can continue through filtering, graph traversal, transformation, aggregation and rendering.
 
 ```hql
+import semantic
+
 cards
-| semantic("distributed execution")
+| semantic("a creature and its maker")
 | take(20)
-| filter(hit => hit.score > threshold)
+| filter(hit => hit.score > 0.1f)
 | expand(depth = 2)
 ```
 
 This makes HQL a natural language for AI harnesses: retrieval, context construction, prompts, agents and their outputs can be represented as inspectable programs instead of opaque framework callbacks.
+
+> [!WARNING]
+> **Design only.** Retrieval and graph expansion ship today. Agents, prompts
+> and runs as values, the `ai` module, are not in the current release; the
+> book's [Agents and runs](https://hql-lang.org/latest/learn/20-agents-and-runs/)
+> chapter specifies them.
 
 In HyperMarkDown, agent definitions and instructions can themselves be documents.
 
@@ -582,82 +683,72 @@ It is also one of HQL's natural interactive hosts.
 
 ---
 
-## Knowledge graphs
+## Knowledge graphs and retrieval
 
 HQL treats links and relationships as queryable structure.
 
-Retrieval can find an initial set of nodes:
+A card is named with `@[[name]]`, the same wikilink its documents write, and
+its links are read in both directions:
 
 ```hql
-cards
-| semantic("night hunting birds")
-| take(3)
+@[[dune]].title                                        // "Dune"
+@[[mrs-dalloway]] | uplinks                            // [mrs-dalloway -> virginia-woolf]
+@[[virginia-woolf]] | downlinks | map(e => e.source)   // ["a-room-of-ones-own", "mrs-dalloway", "the-common-reader"]
 ```
 
-and graph traversal can expand from them:
+A collection of cards becomes a `Graph`, which formats as text, D2 or Mermaid:
 
 ```hql
 cards
-| semantic("night hunting birds")
-| take(3)
+| filter(c => c.name == "virginia-woolf" or c.metadata.author == "Virginia Woolf")
+| Graph
+| format(Mermaid)
+```
+
+Retrieval is a pipeline step. `lexical` ranks cards by the words they share
+with a question; `semantic` ranks them by meaning, against embeddings the vault
+indexes ahead of time:
+
+```hql
+import semantic
+cards | semantic("a creature and its maker") | take(3) | map(h => h.value.title)
+// ["Frankenstein", "Frankenstein inspires Dune", "Mary Shelley"]
+
+import lexical
+cards | lexical("a creature and its maker") | take(3) | map(h => h.value.title)
+// ["Frankenstein", "Walt Whitman", "Librarian"]
+```
+
+A ranking is a collection of cards, so filtering, graph traversal and
+rendering continue from it. `expand` grows a graph from the hits, and each node
+records whether it was retrieved or reached:
+
+```hql
+import semantic
+
+cards
+| semantic("a creature and its maker")
+| take(1)
 | expand(depth = 1)
+| text
 ```
-
-Graph operations compose with ordinary filtering, mapping, aggregation and rendering.
-
-This allows HQL to move naturally between several forms of knowledge:
 
 ```text
-documents
-    ↓
-retrieval
-    ↓
-concepts and relationships
-    ↓
-graph traversal
-    ↓
-structured result
+club  (expanded from frankenstein at depth 1)
+  -> dune
+  -> frankenstein
+dune  (expanded from frankenstein at depth 1)
+frankenstein  (retrieved 0.4980)
+  -> mary-shelley
+  -> dune
+mary-shelley  (expanded from frankenstein at depth 1)
+  -> frankenstein
 ```
 
-A knowledge graph is therefore not a separate database API attached to the language.
-
-It is another structure that participates in HQL pipelines.
-
----
-
-## Semantic and lexical retrieval
-
-HQL provides retrieval as a first-class pipeline operation.
-
-Lexical search:
-
-```hql
-cards
-| lexical("night hunting birds")
-| take(3)
-```
-
-Semantic search:
-
-```hql
-cards
-| semantic("night hunting birds")
-| take(3)
-```
-
-The result can immediately participate in further computation:
-
-```hql
-cards
-| semantic(question)
-| take(20)
-| filter(hit => hit.score > threshold)
-| expand(depth = 2)
-```
-
-This matters especially for retrieval-augmented AI workflows, where search is usually only the first stage of context construction.
-
-Retrieval results retain their provenance, so the result does not need to lose information about how it was obtained when it continues through a pipeline.
+A knowledge graph is not a separate database API attached to the language; it
+is another structure in HQL pipelines. Search is usually only the first stage
+of building context for an AI workflow, and a result keeps its provenance as it
+continues through a pipeline.
 
 ---
 
@@ -772,12 +863,11 @@ produces one JSON array.
 But:
 
 ```hql
-items
-| emit
+source(stdin, Json)
 | sink(stdout, Json)
 ```
 
-writes items incrementally as individual JSON documents.
+writes each item of a `Stream<Data>` as its own JSON document, as it arrives.
 
 Likewise:
 
@@ -849,6 +939,8 @@ cards
 The same knowledge can be searched semantically:
 
 ```hql
+import semantic
+
 cards
 | semantic("decisions affecting event delivery")
 | take(10)
@@ -857,6 +949,8 @@ cards
 expanded through relationships:
 
 ```hql
+import semantic
+
 cards
 | semantic("event delivery")
 | take(5)
@@ -950,26 +1044,39 @@ The same language can therefore run under different capability policies without 
 The CLI exposes HQL directly without introducing a second language of command-line switches.
 
 ```text
-hql eval <program>     check and evaluate an expression
-hql run <file>         check and evaluate an HQL program
-hql check <file>       type-check without evaluating
-hql repl               interactive HQL session
-hql render <file>      evaluate HQL cells in a document
-hql builtins           inspect available operations
-hql config             inspect active configuration
-hql doctor             diagnose the configured environment
+hql '<program>'            the same as hql eval '<program>'
+hql eval <program>         check and evaluate a program given as an argument
+hql run <file>             check and evaluate a program from a file; - reads stdin
+hql check <file>           parse and type-check without evaluating
+hql plan <file>            print each pipeline's steps and the stage each runs in
+hql repl                   read, evaluate and print, one program at a time
+hql render <file>          run the HQL cells in a document
+hql builtins               list the steps a pipeline may use
+hql help <name>            print the declarations and doc strings of a name
+hql boundary <file> <id>   print a configured source's boundary, field by field
+hql config                 show the reporting settings in force and their origin
+hql doctor                 check the semantic-search chain and name what is missing
 ```
 
 Choose the presentation format of the final result with:
 
 ```bash
 hql run query.hql --to json
+hql run query.hql --to json --compact    # one line per document, as jq -c
+hql run query.hql --to markdown
 ```
 
-or:
+Name the format of standard input once, so the program need not:
 
 ```bash
-hql run query.hql --to markdown
+cat events.jsonl | hql --from json 'source(stdin) | map(e => e.kind)'
+```
+
+Choose how failures are reported:
+
+```bash
+hql run etl.hql --report collect             # step past failing elements, report them all
+hql run etl.hql --diagnostics-format json    # one JSON document per diagnostic on stderr
 ```
 
 Input and output semantics stay in the language:
@@ -1036,27 +1143,26 @@ The full language documentation is at:
 
 **[hql-lang.org](https://hql-lang.org/)**
 
-A good way to begin is with a pipeline:
+[The HQL book](https://hql-lang.org/latest/learn/) is read from the first page
+to the last, every program in it runs against a small reading-club vault, and
+it is in three parts:
 
-```hql
-cards
-| filter(c => c.metadata.status == "open")
-| map(c => c.title)
-| sort
+- **The language** — data types, collections, functions, modules, SQL-like
+  queries, streams, I/O, the type system, data contracts and errors.
+- **Data flows** — what `|` does, when a program is checked, where it runs,
+  and ETL pipelines.
+- **Knowledge and AI** — a vault of documents, links and graphs, retrieval by
+  meaning, queries inside documents, agents and the hyper web.
+
+To follow along:
+
+```bash
+git clone https://github.com/ewiger/hql && cd hql
+hql --vault examples/tutorial eval 'cards | size'
 ```
 
-and then move outward into:
-
-- bindings and expressions,
-- collections and types,
-- functions and pattern matching,
-- records, traits and modules,
-- streams and batching,
-- sources, targets and sinks,
-- retrieval,
-- knowledge graphs,
-- executable documents,
-- and AI workflows.
+The [examples](examples/) are where HQL's features are designed: each query
+file declares its expected type and result, and the test suite runs every one.
 
 ---
 
