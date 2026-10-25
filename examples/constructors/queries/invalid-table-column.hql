@@ -2,8 +2,9 @@
 // feature: A Table column over a declared record names one of its fields
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `Book` declares no `isbn`, so the column is refused before the program
 // runs. Over `Data`, a missing field is an empty cell instead.

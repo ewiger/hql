@@ -2,8 +2,9 @@
 // feature: rules belong to a contract: a plain structural type has none
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 type Point = {
     x: Float

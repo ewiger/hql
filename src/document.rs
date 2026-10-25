@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 /// Parsed documents and source diagnostics before knowledge assembly.
 pub(crate) struct DocumentStore {
     pub documents: Vec<Document>,
-    pub warnings: Vec<String>,
+    pub warnings: Vec<crate::diagnostics::Diagnostic>,
 }
 
 impl DocumentStore {
@@ -37,7 +37,9 @@ impl DocumentStore {
             let text = match document.text {
                 Ok(text) => text,
                 Err(error) => {
-                    store.warnings.push(format!("{}: {error}", path.display()));
+                    store
+                        .warnings
+                        .push(skipped(&path, format!("{error}; document skipped")));
                     continue;
                 }
             };
@@ -55,11 +57,24 @@ impl DocumentStore {
                 Ok(document) => store.documents.push(document),
                 Err(error) => store
                     .warnings
-                    .push(format!("{}: {error}; document skipped", path.display())),
+                    .push(skipped(&path, format!("{error}; document skipped"))),
             }
         }
         store
     }
+}
+
+/// The loader's diagnostic for a document it did not load.
+fn skipped(path: &Path, message: String) -> crate::diagnostics::Diagnostic {
+    let mut diagnostic = crate::diagnostics::Diagnostic::warning(
+        crate::diagnostics::Phase::Load,
+        crate::diagnostics::Kind::SkippedDocument,
+        0..0,
+        message,
+    )
+    .with_disposition(crate::diagnostics::Disposition::Recoverable);
+    diagnostic.origin = Some(path.display().to_string());
+    diagnostic
 }
 
 /// A document boundary or YAML tree that cannot be loaded faithfully.

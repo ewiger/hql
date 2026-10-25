@@ -58,7 +58,7 @@ d
 ```
 
 ```text
-type error: `d` is declared Data but its value is Set<Never>
+check error[type-mismatch]: `d` is declared Data but its value is Set<Never>
  --> <expression>:1:12
   |
 1 | d : Data = {}
@@ -134,7 +134,8 @@ so the type around it decides: HQL infers a type while the literal says
 enough, and asks for an explicit one where it does not.
 
 This holds for the empty literal only. A non-empty keyed literal is always
-`Data`, and a declared map type refuses it:
+`Data`, and binding it to a declared map type is a
+type error:
 
 ```hql
 m : Map<String, Int> = {a: 1}
@@ -142,7 +143,7 @@ m
 ```
 
 ```text
-type error: `m` is declared Map<String, Int> but its value is Data
+check error[type-mismatch]: `m` is declared Map<String, Int> but its value is Data
  --> <expression>:1:24
   |
 1 | m : Map<String, Int> = {a: 1}

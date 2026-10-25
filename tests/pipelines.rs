@@ -414,12 +414,12 @@ fn an_order_sensitive_fold_refuses_a_set_and_says_to_sort_first() {
 fn an_unknown_fold_names_the_nearest_combiner_and_nothing_else() {
     let refused = check("[3, 1, 2] | reduce(mn)").unwrap_err();
     assert!(
-        refused.message().contains("did you mean `min`"),
+        refused.to_string().contains("did you mean `min`"),
         "{refused}"
     );
     let refused = check("[3, 1, 2] | reduce(foo)").unwrap_err();
     assert!(!refused.message().contains("cos"), "{refused}");
-    assert!(refused.message().contains("`concat`"), "{refused}");
+    assert!(refused.to_string().contains("`concat`"), "{refused}");
 }
 
 const OPERATIONS: &str = "fn double(n: Int) : Int = n * 2
@@ -541,6 +541,9 @@ fn a_fork_branch_is_a_pipeline_and_branches_are_separated() {
     holds("([1, 2, 3] | fork {\n  a = take(2)\n  b = take(1)\n}).b == [1]");
     assert!(matches!(
         check("[1, 2, 3] | fork { a = take(2) b = take(1) }"),
-        Err(hql::diagnostics::Diagnostic::Syntax { .. })
+        Err(hql::diagnostics::Diagnostic {
+            phase: hql::diagnostics::Phase::Parse,
+            ..
+        })
     ));
 }

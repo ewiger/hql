@@ -142,7 +142,7 @@ books
 
 Each step is checked against the type the step before it produced. After
 `of_type(Int)` the list is a list of `Int`, which is what `sum` takes; without
-it the checker refuses `sum` over trees, before anything runs.
+it the checker rejects `sum` over trees, before anything runs.
 
 ## Reshaping
 

@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 /// The presentation formats, each a subtype of `String`, with the name a
 /// configuration and `--to` write it in.
-pub const FORMATS: [(&str, &str); 11] = [
+pub const FORMATS: [(&str, &str); 12] = [
     ("Text", "text"),
     ("Lines", "lines"),
     ("Hql", "hql"),
@@ -33,6 +33,7 @@ pub const FORMATS: [(&str, &str); 11] = [
     ("Csv", "csv"),
     ("D2", "d2"),
     ("Mermaid", "mermaid"),
+    ("DiagnosticText", "diagnostictext"),
 ];
 
 /// Every renderer this binary provides, by the name a configuration uses,
@@ -88,6 +89,13 @@ pub fn writable(input: &TypeRef, format: &str) -> Result<(), String> {
     }
     if matches!(format, "D2" | "Mermaid") && !input.is(&TypeRef::GRAPH) && *input != TypeRef::DATA {
         return Err(format!("no renderer writes {input} as {format}"));
+    }
+    // A diagnostic's text form writes diagnostics, one or a sequence.
+    if format == "DiagnosticText" {
+        let element = input.element().unwrap_or_else(|| input.clone());
+        if !element.is(&TypeRef::DIAGNOSTIC) {
+            return Err(format!("no renderer writes {input} as {format}"));
+        }
     }
     Ok(())
 }
@@ -253,6 +261,8 @@ pub fn piece(value: &Value, format: TypeConstructor, first: bool) -> Result<Stri
         "Yaml" => crate::data::yaml_text(&value.to_json())
             .map(|document| format!("---\n{}", document.trim_end()))
             .map_err(|error| error.to_string()),
+        "DiagnosticText" => Diagnostic::from_json(&value.to_json())
+            .map(|diagnostic| crate::render::diagnostic_text(&diagnostic, None, "")),
         "Csv" => {
             let rows = one.to_csv();
             // One line ending throughout: the header's piece and every row's.
@@ -283,6 +293,17 @@ fn default(value: &Value, format: TypeConstructor) -> Result<String, String> {
             "Hql" => Ok(value.to_literal()),
             other => Err(format!("no renderer writes Table as {other}")),
         };
+    }
+    if format.0 == "DiagnosticText" {
+        let diagnostics = value
+            .elements()
+            .unwrap_or_else(|| vec![value.clone()])
+            .iter()
+            .map(|written| Diagnostic::from_json(&written.to_json()))
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok(crate::render::report(&diagnostics, None, "")
+            .trim_end()
+            .to_owned());
     }
     let graph = matches!(unwrapped(value), Value::Graph(_));
     match format.0 {

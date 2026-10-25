@@ -2,7 +2,7 @@
 
 **Status:** accepted, implemented  
 **Created:** 2026-10-23  
-**Related:** HQL-0032 (`TypeContract`, `DataContract`), HQL-0010 (`tee`), HQL-0021 (sources, sinks, channels and messages), HQL-0036 (`partition`), HQL-0037 (`fork` and the dataflow DAG)
+**Related:** HQL-0032 (`TypeContract`, `DataContract`), HQL-0010 (`tee`), HQL-0021 (sources, sinks, channels and messages), HQL-0036 (`partition`), HQL-0037 (`fork` and the dataflow DAG), HQL-0045 (structured reports)
 
 ## Abstract
 
@@ -1621,6 +1621,12 @@ Observability may be constructed through normal logging, metrics and sink operat
 
 A future convenience operation MAY exist, but it should remain compositionally separate from error routing.
 
+The other side of a failure, the diagnostic a phase produces when it cannot
+do what the program asked, is specified by [HQL-0045](../HQL-0045/README.md):
+its phase, kind, severity and disposition, and the run-scoped diagnostic
+channel it travels on. A program neither raises a diagnostic nor reads the
+channel of its own run.
+
 ---
 
 # 34. Full ETL example
@@ -2075,3 +2081,5 @@ There is no hidden exception channel, no validation-specific dead-letter control
   0045, E5): `xs | retry(operation, attempts = n, when = …)`, elementwise
   over a collection or a stream, with no delay; covers test plan items 15
   and 16
+- 2026-10-25: section 33 points to [HQL-0045](../HQL-0045/README.md) for
+  diagnostics and their transport, the other side of a failure

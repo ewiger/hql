@@ -34,7 +34,7 @@ fn finite(value: f64, span: &Range<usize>) -> Result<Value, Diagnostic> {
     if value.is_finite() {
         Ok(Value::Float(value))
     } else {
-        Err(Diagnostic::Overflow { span: span.clone() })
+        Err(Diagnostic::overflow(span.clone()))
     }
 }
 
@@ -96,7 +96,7 @@ fn eval_abs(
         Value::Int(n) => n
             .checked_abs()
             .map(Value::Int)
-            .ok_or(Diagnostic::Overflow { span }),
+            .ok_or(Diagnostic::overflow(span)),
         Value::Float(x) => Ok(Value::Float(x.abs())),
         Value::Decimal(x) => Ok(Value::Decimal(x.abs())),
         _ => unreachable!("number() answers a number"),
@@ -144,7 +144,7 @@ fn eval_decimal(
         Value::Int(n) => Ok(Value::Decimal(Decimal::from_int(n))),
         Value::Float(x) => Decimal::from_float(x)
             .map(Value::Decimal)
-            .ok_or(Diagnostic::Overflow { span }),
+            .ok_or(Diagnostic::overflow(span)),
         other => Ok(other),
     }
 }
@@ -172,7 +172,7 @@ fn eval_pow(
                 .ok()
                 .and_then(|exponent| base.checked_pow(exponent))
                 .map(Value::Int)
-                .ok_or(Diagnostic::Overflow { span })
+                .ok_or(Diagnostic::overflow(span))
         }
         (Value::Float(base), Value::Float(exponent)) => finite(base.powf(exponent), &span),
         (base, exponent) => Err(Diagnostic::runtime(
@@ -222,7 +222,7 @@ fn eval_float(
         Value::Decimal(x) => x
             .to_float()
             .map(Value::Float)
-            .ok_or(Diagnostic::Overflow { span }),
+            .ok_or(Diagnostic::overflow(span)),
         other => Ok(other),
     }
 }
@@ -243,13 +243,10 @@ fn eval_int(
                 #[allow(clippy::cast_possible_truncation)]
                 Ok(Value::Int(truncated as i64))
             } else {
-                Err(Diagnostic::Overflow { span })
+                Err(Diagnostic::overflow(span))
             }
         }
-        Value::Decimal(x) => x
-            .to_int()
-            .map(Value::Int)
-            .ok_or(Diagnostic::Overflow { span }),
+        Value::Decimal(x) => x.to_int().map(Value::Int).ok_or(Diagnostic::overflow(span)),
         other => Ok(other),
     }
 }
@@ -269,10 +266,8 @@ fn eval_gcd(
     let Value::Int(mut b) = cx.evaluate(&other.value)? else {
         return Err(Diagnostic::runtime(span, "`gcd` needs two Ints"));
     };
-    a = a
-        .checked_abs()
-        .ok_or(Diagnostic::Overflow { span: span.clone() })?;
-    b = b.checked_abs().ok_or(Diagnostic::Overflow { span })?;
+    a = a.checked_abs().ok_or(Diagnostic::overflow(span.clone()))?;
+    b = b.checked_abs().ok_or(Diagnostic::overflow(span))?;
     while b != 0 {
         (a, b) = (b, a % b);
     }

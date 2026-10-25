@@ -2,8 +2,9 @@
 // feature: a closed type refuses a field it does not declare, when the Data is read
 // implementation: implemented
 // environment: pure
-// error: RuntimeError
-// stage: evaluate
+// phase: execute
+// kind: contract-violation
+// severity: error
 // expected-type: Point
 
 type Point = {

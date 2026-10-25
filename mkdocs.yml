@@ -118,6 +118,10 @@ nav:
           - 17. Types and traits:
               - learn/17-types-and-traits/index.md
               - Traits: learn/17-types-and-traits/traits.md
+          - 18. Errors:
+              - learn/18-errors/index.md
+              - Failures as data: learn/18-errors/handling.md
+              - Diagnostics: learn/18-errors/diagnostics.md
       - Examples: examples.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this

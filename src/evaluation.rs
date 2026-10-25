@@ -9,12 +9,11 @@ use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
 use crate::extensions::{EvalCx, Operation};
 use crate::graph::Edge;
-use crate::reporting::Report;
+use crate::reporting::Mode;
 use crate::search;
 use crate::types::TypeRef;
 use crate::types::{Closure, Value};
 use crate::vault::Vault;
-use crate::warnings::Warning;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -48,8 +47,8 @@ thread_local! {
 pub(crate) fn evaluate(
     program: &Program,
     vault: &Vault,
-) -> (Result<Value, Diagnostic>, Vec<Report>) {
-    evaluate_with(program, vault, Vec::new())
+) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
+    evaluate_with(program, vault, Vec::new(), Mode::Strict)
 }
 
 /// Evaluate a program with further names bound: the values of a document's
@@ -58,14 +57,15 @@ pub(crate) fn evaluate_with(
     program: &Program,
     vault: &Vault,
     bound: Vec<(String, Value)>,
-) -> (Result<Value, Diagnostic>, Vec<Report>) {
+    mode: Mode,
+) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
     // Values are read against the declarations they were checked under.
     crate::types::program::install(std::sync::Arc::clone(&program.lattice));
     CONTRACTS.with(|held| held.borrow_mut().clear());
     let mut scope = base(vault);
     // The program module's bindings over `vault`, each its own program.
     for (name, library) in crate::checker::library(vault) {
-        let (value, log) = evaluate_in(&library, vault, base(vault));
+        let (value, log) = evaluate_in(&library, vault, base(vault), mode);
         match value {
             Ok(value) => {
                 scope.insert(name, value);
@@ -74,7 +74,7 @@ pub(crate) fn evaluate_with(
         }
     }
     scope.extend(bound);
-    evaluate_in(program, vault, scope)
+    evaluate_in(program, vault, scope, mode)
 }
 
 /// Drive a stream a program returned, handing each value to `sink` until the
@@ -90,6 +90,7 @@ pub(crate) fn traverse(
         scope: base(vault),
         log: Vec::new(),
         impls: Vec::new(),
+        mode: Mode::Strict,
     };
     evaluator
         .run_traversal(traversal, &mut |_, value| Ok(sink(value)))
@@ -120,13 +121,15 @@ fn evaluate_in(
     program: &Program,
     vault: &Vault,
     scope: HashMap<String, Value>,
-) -> (Result<Value, Diagnostic>, Vec<Report>) {
+    mode: Mode,
+) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
     crate::io::begin();
     let mut evaluator = Evaluator {
         vault,
         scope,
         log: Vec::new(),
         impls: Vec::new(),
+        mode,
     };
     // A finite traversal is the values it produces, so the result holds them;
     // a stream that may not end is left for the host to bound.
@@ -145,9 +148,12 @@ struct Evaluator<'a> {
     scope: HashMap<String, Value>,
     /// Entries in the order evaluation produced them, which on this
     /// sequential evaluator is the order of their traces.
-    log: Vec<Report>,
+    log: Vec<Diagnostic>,
     /// Every implementation the program has declared so far, in order.
     impls: Vec<RuntimeImpl>,
+    /// How much continuation the run asks for: under `collect` a step may
+    /// go on past an element its function failed on.
+    mode: Mode,
 }
 
 /// An implementation of a trait for a type, as closures over the scope
@@ -403,7 +409,9 @@ impl Evaluator<'_> {
                     // Permitted: a forward link to a document nobody has
                     // written yet. Said out loud, because absence is easy to
                     // mistake for a match.
-                    self.warn(Warning::new(
+                    self.warn(Diagnostic::warning(
+                        crate::diagnostics::Phase::Execute,
+                        crate::diagnostics::Kind::UnresolvedLink,
                         span,
                         format!("`@[[{name}]]` does not resolve in this vault"),
                     ));
@@ -587,7 +595,15 @@ impl Evaluator<'_> {
                             &mut |message| warnings.push(message),
                         );
                         for message in warnings {
-                            EvalCx::warn(self, Warning::new(at.clone(), message));
+                            EvalCx::warn(
+                                self,
+                                Diagnostic::warning(
+                                    crate::diagnostics::Phase::Execute,
+                                    crate::diagnostics::Kind::BoundaryMapping,
+                                    at.clone(),
+                                    message,
+                                ),
+                            );
                         }
                         return read;
                     }
@@ -1296,11 +1312,21 @@ impl Evaluator<'_> {
         if let Some(name) = &function.name {
             scope.insert(name.clone(), callee.clone());
         }
+        let bindings = data_bindings(function.parameters.iter().zip(&values));
+        let source = card_source(values.iter());
         scope.extend(function.parameters.iter().cloned().zip(values));
         let outer = std::mem::replace(&mut self.scope, scope);
         let result = self.expression(&function.body);
         self.scope = outer;
-        result
+        // A failure in the body says where it was, in the function's own
+        // bindings, and through which call it was reached.
+        result.map_err(|failure| {
+            let failure = failure.bound(bindings).sourced(source);
+            match &function.name {
+                Some(name) => failure.called_from(name, span.clone()),
+                None => failure,
+            }
+        })
     }
 
     /// Drive a traversal, handing each value to `sink` until the values run
@@ -1531,7 +1557,15 @@ impl Evaluator<'_> {
                             )
                             .map_err(|message| Diagnostic::runtime(span.clone(), message))?;
                             for message in warnings {
-                                EvalCx::warn(evaluator, Warning::new(span.clone(), message));
+                                EvalCx::warn(
+                                    evaluator,
+                                    Diagnostic::warning(
+                                        crate::diagnostics::Phase::Execute,
+                                        crate::diagnostics::Kind::BoundaryMapping,
+                                        span.clone(),
+                                        message,
+                                    ),
+                                );
                             }
                             crate::extensions::io::remapped(&value, boundary)
                                 .map_err(|message| Diagnostic::runtime(span.clone(), message))?
@@ -1835,12 +1869,16 @@ impl Evaluator<'_> {
                 "wrong lambda arity",
             ));
         }
+        let bindings = data_bindings(parameters.iter().zip(&values));
+        let source = card_source(values.iter());
         let previous = parameters
             .iter()
             .zip(values)
             .map(|(name, value)| (name, self.scope.insert(name.clone(), value)))
             .collect::<Vec<_>>();
-        let result = self.expression(body);
+        let result = self
+            .expression(body)
+            .map_err(|failure| failure.bound(bindings).sourced(source));
         for (name, value) in previous.into_iter().rev() {
             match value {
                 Some(value) => {
@@ -1990,8 +2028,12 @@ impl EvalCx for Evaluator<'_> {
         self.apply(argument, vec![left, right])
     }
 
-    fn warn(&mut self, warning: Warning) {
-        self.log.push(Report::of_warning(&warning));
+    fn warn(&mut self, warning: Diagnostic) {
+        self.log.push(warning);
+    }
+
+    fn collecting(&self) -> bool {
+        self.mode == Mode::Collect
     }
 }
 
@@ -2100,7 +2142,7 @@ fn merged(left: Value, right: Value, span: &Range<usize>) -> Result<Value, Diagn
             }
             (l, r) => {
                 let other = if matches!(l, Data::Map(_)) { r } else { l };
-                Err(Diagnostic::runtime(
+                Err(Diagnostic::shape_mismatch(
                     span.clone(),
                     format!(
                         "`merge` combines two maps, not Data of shape {}",
@@ -2223,7 +2265,7 @@ pub(crate) fn slice_of(
                 items[window(start, end, items.len())].to_vec(),
             )))),
             Data::Empty => Ok(Value::Data(data)),
-            other => Err(Diagnostic::typing(
+            other => Err(Diagnostic::shape_mismatch(
                 span.clone(),
                 format!(
                     "a slice needs a sequence here, not Data of shape {}",
@@ -2287,7 +2329,7 @@ pub(crate) fn at_position(
                 })),
             // An empty entry holds nothing, so nothing is at any position.
             Data::Empty => Ok(absent()),
-            other => Err(Diagnostic::typing(
+            other => Err(Diagnostic::shape_mismatch(
                 span.clone(),
                 format!(
                     "a position needs a sequence here, not Data of shape {}",
@@ -2324,7 +2366,7 @@ pub(crate) fn data_key(data: &Data, key: &str, span: &Range<usize>) -> Result<Va
                 Value::Present(Arc::new(Value::Data(Arc::new(found.clone()))))
             })),
         Data::Empty => Ok(Value::Absent(TypeRef::DATA)),
-        other => Err(Diagnostic::typing(
+        other => Err(Diagnostic::shape_mismatch(
             span.clone(),
             format!(
                 "`{key}` needs a map here, not Data of shape {}",
@@ -2464,11 +2506,11 @@ pub(crate) fn arithmetic_of(
     right: Value,
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    let overflow = || Diagnostic::Overflow { span: span.clone() };
+    let overflow = || Diagnostic::overflow(span.clone());
     Ok(match (left, right) {
         (Value::Int(a), Value::Int(b)) => {
             if b == 0 && matches!(operator, Arith::Div | Arith::Rem) {
-                return Err(Diagnostic::runtime(span.clone(), "division by zero"));
+                return Err(Diagnostic::division_by_zero(span.clone()));
             }
             // Division truncates toward zero, and `%` keeps the sign
             // of the dividend, so `a == (a / b) * b + a % b`.
@@ -2484,7 +2526,7 @@ pub(crate) fn arithmetic_of(
         }
         (Value::Float(a), Value::Float(b)) => {
             if b == 0.0 && matches!(operator, Arith::Div | Arith::Rem) {
-                return Err(Diagnostic::runtime(span.clone(), "division by zero"));
+                return Err(Diagnostic::division_by_zero(span.clone()));
             }
             let result = match operator {
                 Arith::Add => a + b,
@@ -2529,6 +2571,31 @@ fn widened(value: i64) -> Value {
     Value::Decimal(crate::decimal::Decimal::from_int(value))
 }
 
+/// The bindings a diagnostic records: each parameter whose value is data,
+/// as data. A function or an endpoint has no data form worth showing, and a
+/// card is named by its document instead, as the diagnostic's `source`.
+fn data_bindings<'v>(
+    bound: impl Iterator<Item = (&'v String, &'v Value)>,
+) -> Vec<(String, serde_json::Value)> {
+    bound
+        .filter(|(_, value)| {
+            !matches!(
+                value,
+                Value::Function(_) | Value::Endpoint(_) | Value::Card(_)
+            )
+        })
+        .map(|(name, value)| (name.clone(), value.to_json()))
+        .collect()
+}
+
+/// The document a bound card was read from, the first of them.
+fn card_source<'v>(mut bound: impl Iterator<Item = &'v Value>) -> Option<String> {
+    bound.find_map(|value| match value {
+        Value::Card(card) => Some(card.document.path.display().to_string()),
+        _ => None,
+    })
+}
+
 /// The fail-fast diagnostic for a value that does not read as `element`:
 /// every violation `validate(T)` would report of it, a warning aside.
 fn refused(element: &TypeRef, violations: &[Violation], span: &Range<usize>) -> Diagnostic {
@@ -2537,10 +2604,22 @@ fn refused(element: &TypeRef, violations: &[Violation], span: &Range<usize>) -> 
         .filter(|violation| violation.severity == "error")
         .map(|violation| violation.message.as_str())
         .collect();
-    Diagnostic::runtime(
+    // A contract read is an operation that requires the value to satisfy
+    // the type: an `error` of the execute phase, with what `validate` would
+    // have given as its payload.
+    let mut diagnostic = Diagnostic::runtime(
         span.clone(),
         format!("this does not read as {element}: {}", errors.join("; ")),
     )
+    .with_kind(crate::diagnostics::Kind::ContractViolation)
+    .with_severity(crate::diagnostics::Severity::Error)
+    .with_expected(element.to_string());
+    diagnostic.context.violations = violations
+        .iter()
+        .cloned()
+        .map(|broken| violation(broken).to_json())
+        .collect();
+    diagnostic
 }
 
 impl Evaluator<'_> {
@@ -2971,6 +3050,7 @@ impl Broken {
 }
 
 /// The fields of a `Violation` a validation fills.
+#[derive(Clone)]
 struct Violation {
     contract: String,
     path: Vec<String>,

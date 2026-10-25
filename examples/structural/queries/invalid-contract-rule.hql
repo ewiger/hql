@@ -2,8 +2,9 @@
 // feature: a value that breaks a contract rule does not read as the contract, and every broken rule is named
 // implementation: implemented
 // environment: pure
-// error: RuntimeError
-// stage: evaluate
+// phase: execute
+// kind: contract-violation
+// severity: error
 // expected-type: UserData
 
 // Both rules are broken: the error names each as written.

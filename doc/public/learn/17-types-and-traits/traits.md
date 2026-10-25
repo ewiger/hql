@@ -1,10 +1,11 @@
 # Traits
 
-A **trait** is a compile-time contract: a named set of functions over a type,
-each taking that type as `self`. A type satisfies a trait through one
-**implementation**, `impl Trait for Type`. A function of a trait is either
-**required**, a signature with no body that every implementation supplies, or
-has a **default body**, which an implementation inherits unless it writes the
+A **trait** is a capability contract over a type: a named set of functions
+that an implementing type provides, each taking that type as `self`. A type
+satisfies a trait through one **implementation**, `impl Trait for Type`. The
+type checker verifies every implementation and every trait bound before the
+program runs. A function of a trait is either **required**, a signature with
+no body that every implementation supplies, or has a **default body**, which an implementation inherits unless it writes the
 function itself.
 
 ## A trait and an implementation
@@ -83,7 +84,7 @@ impl Shape for Square {
 
 ## What an implementation must supply
 
-An implementation without one of the required functions is refused against
+An implementation without one of the required functions is a type error at
 its `impl` line, and the diagnostic names the function:
 
 <!-- run: novault -->
@@ -103,14 +104,15 @@ Circle(radius = 1.0f).describe()
 ```
 
 ```text
-type error: `impl Shape for Circle` lacks `area`
+check error[missing-implementation]: `impl Shape for Circle` lacks `area`
  --> <expression>:8:1
   |
 8 | impl Shape for Circle {
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-A trait has one implementation per type in a program. A second is refused:
+A trait has one implementation per type in a program. The checker rejects a
+second:
 
 <!-- run: novault -->
 ```hql
@@ -132,11 +134,12 @@ Dog(tag = "rex").name()
 ```
 
 ```text
-type error: `Named` is already implemented for Dog, in this program, at byte 71: a trait has one implementation per type
+check error[duplicate-implementation]: `Named` is already implemented for Dog: a trait has one implementation per type
   --> <expression>:11:1
    |
 11 | impl Named for Dog {
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: the first implementation, at <expression>:7:1
 ```
 
 ## Generic functions over a trait
@@ -166,7 +169,7 @@ fn total<T : Shape>(xs: List<T>) : Float = xs | map(x => x.area()) | sum
 [7.0, 3.0]
 ```
 
-A type with no implementation is refused at the call:
+A call with a type that has no implementation is a type error:
 
 <!-- run: novault -->
 ```hql
@@ -182,7 +185,7 @@ total([Line(length = 2.0f)])
 ```
 
 ```text
-type error: `total` needs T : Shape, and Line does not implement `Shape`
+check error[unsatisfied-bound]: `total` needs T : Shape, and Line does not implement `Shape`
  --> <expression>:9:1
   |
 9 | total([Line(length = 2.0f)])
@@ -207,7 +210,7 @@ fn doubled(s: Shape) : Float = s.area() * 2.0f
 ```
 
 ```text
-name error: unknown type `Shape`
+check error[unknown-name]: unknown type `Shape`
  --> <expression>:5:15
   |
 5 | fn doubled(s: Shape) : Float = s.area() * 2.0f
@@ -289,7 +292,7 @@ names([Dog(tag = "rex")])
 ```
 
 ```text
-type error: `names` needs T : Named, and Dog does not implement `Named`
+check error[unsatisfied-bound]: `names` needs T : Named, and Dog does not implement `Named`
   --> <expression>:15:1
    |
 15 | names([Dog(tag = "rex")])
@@ -379,15 +382,16 @@ it. Elsewhere the call is a name error, as `"hi".shout()` is without
 ```
 
 ```text
-name error: String has no function `shout`; did you mean `sort`?
+check error[unknown-name]: String has no function `shout`
  --> <expression>:1:1
   |
 1 | "hi".shout()
   | ^^^^^^^^^^^^
+  = help: did you mean `sort`?
 ```
 
 Two imported modules that declare one name over one type make a call by
-that name ambiguous, and the call is refused until it is qualified. A
+that name ambiguous, and the call is a name error until it is qualified. A
 declaration the unit writes itself wins over every import's.
 
 A trait is the form for a function that generic code quantifies over or an

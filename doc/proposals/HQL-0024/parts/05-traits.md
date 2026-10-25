@@ -9,8 +9,9 @@
 
 ## Scope
 
-A **trait** is a compile-time capability contract: a named set of required
-function signatures that a type satisfies through an **implementation**.
+A **trait** is a capability contract: a named set of required function
+signatures that a type satisfies through an **implementation**, which the type
+checker verifies ([HQL-0044](../../HQL-0044/README.md)).
 Traits exist for generic constraints, operator semantics and algorithms over
 unrelated types. They are not introduced for convenience methods, which belong
 to [receiver modules](04-receiver-modules.md).
@@ -34,8 +35,8 @@ fn contains<T : Eq>(xs: Seq<T>, value: T) : Bool = ...
 `T : Eq` reads "`T` satisfies `Eq`". It uses the one relation symbol the type
 system already has for a bound. It does not say that values of `T` carry a
 runtime `Eq` representation: no inheritance tree, no trait object, no dynamic
-dispatch and no existential type is introduced. Traits are compile-time until
-a runtime feature separately justifies more.
+dispatch and no existential type is introduced. A trait has no runtime
+representation until a runtime feature separately justifies one.
 
 ### Implementation
 

@@ -2,8 +2,9 @@
 // feature: a Table<Book> is not a Table<Film>
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 type Book {
   title : String

@@ -67,11 +67,17 @@ fn a_quotient_that_does_not_terminate_keeps_a_hundred_significant_digits() {
 fn division_by_zero_is_an_evaluation_error() {
     assert!(matches!(
         hql::eval("1.50 / 0"),
-        Err(hql::diagnostics::Diagnostic::Runtime { .. })
+        Err(hql::diagnostics::Diagnostic {
+            phase: hql::diagnostics::Phase::Execute,
+            ..
+        })
     ));
     assert!(matches!(
         hql::eval("1.50 % 0.0"),
-        Err(hql::diagnostics::Diagnostic::Runtime { .. })
+        Err(hql::diagnostics::Diagnostic {
+            phase: hql::diagnostics::Phase::Execute,
+            ..
+        })
     ));
 }
 

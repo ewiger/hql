@@ -19,7 +19,8 @@
 //! Markdown previews do not display the markers; the next render replaces what
 //! is between them, so rendering twice leaves what rendering once did.
 
-use crate::reporting::{Mode, Report, Reports, Severity};
+use crate::diagnostics::{Diagnostic, Kind, Phase, Severity};
+use crate::reporting::Mode;
 use crate::vault::Vault;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -44,7 +45,7 @@ pub enum Emit {
 pub enum Status {
     /// It produced a value.
     Ok,
-    /// It failed: its output is its reports.
+    /// It failed: its output is its errors.
     Error,
     /// It waited on a cell that failed, and did not run.
     Skipped,
@@ -83,8 +84,8 @@ pub struct Cell {
     pub status: Status,
     /// Its output.
     pub markdown: String,
-    /// What it had to say, with spans into the document.
-    pub reports: Reports,
+    /// Its diagnostics, with spans into the document.
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 /// What rendering a document produced.
@@ -98,8 +99,9 @@ pub struct Rendered {
     /// that failed or did not run is left as written, so the document is not
     /// a complete build.
     pub complete: bool,
-    /// Everything the document and every cell had to say, in document order.
-    pub reports: Reports,
+    /// The diagnostics of the document and of every cell, in the order they
+    /// were written.
+    pub diagnostics: Vec<Diagnostic>,
     /// Every cell, in document order.
     pub cells: Vec<Cell>,
 }
@@ -135,7 +137,7 @@ pub fn render(source: &str, vault: &Vault, mode: Mode, emit: Emit) -> Rendered {
             document: source.to_owned(),
             blocks: 0,
             complete: false,
-            reports: std::iter::once(report(Severity::Error, 0..0, message)).collect(),
+            diagnostics: vec![report(Severity::Error, Kind::UnknownName, 0..0, message)],
             cells: Vec::new(),
         },
     }
@@ -154,7 +156,7 @@ pub fn render_cell(
     emit: Emit,
     only: Option<&str>,
 ) -> Result<Rendered, String> {
-    let mut reports = Reports::new();
+    let mut reports: Vec<Diagnostic> = Vec::new();
     let (segments, mut cells) = scan(source, emit, &mut reports);
 
     // Ids name values, so two cells may not share one.
@@ -166,6 +168,7 @@ pub fn render_cell(
             broken = true;
             reports.push(report(
                 Severity::Error,
+                Kind::DuplicateCell,
                 cell.span.clone(),
                 format!("cells {first} and {index} both have the id `{id}`"),
             ));
@@ -202,6 +205,7 @@ pub fn render_cell(
                 .collect();
             reports.push(report(
                 Severity::Error,
+                Kind::CellCycle,
                 cells[cycle[0]].span.clone(),
                 format!("the cells {} read each other in a cycle", names.join(", ")),
             ));
@@ -221,7 +225,7 @@ pub fn render_cell(
             ty: None,
             status: Status::NotRun,
             markdown: String::new(),
-            reports: Reports::new(),
+            diagnostics: Vec::new(),
         })
         .collect();
 
@@ -243,7 +247,8 @@ pub fn render_cell(
             .collect();
         blocks += 1;
         let (program, found) = crate::check_cell(&cells[index].body, vault, mode, &bound);
-        results[index].reports = shifted(found, cells[index].body_at);
+        results[index].diagnostics =
+            of_cell(shifted(found, cells[index].body_at), &cells[index], index);
         match program {
             Some(program) => {
                 types[index] = Some(program.result.clone());
@@ -253,7 +258,7 @@ pub fn render_cell(
             None => {
                 broken = true;
                 results[index].status = Status::Error;
-                results[index].markdown = described(&results[index].reports);
+                results[index].markdown = described(&results[index].diagnostics);
             }
         }
     }
@@ -273,16 +278,20 @@ pub fn render_cell(
                 .iter()
                 .filter_map(|&read| Some((cells[read].id.clone()?, values[read].clone()?)))
                 .collect();
-            let (value, log) = crate::evaluate_cell(program, vault, bound);
-            for entry in shifted(log, cells[index].body_at).iter() {
-                results[index].reports.push(entry.clone());
-            }
+            let (value, log) = crate::evaluate_cell(program, vault, bound, mode);
+            results[index].diagnostics.extend(of_cell(
+                shifted(log, cells[index].body_at),
+                &cells[index],
+                index,
+            ));
             let value = value.map_err(|diagnostic| {
-                let failure: Reports = std::iter::once(Report::of(&diagnostic)).collect();
-                for entry in shifted(failure, cells[index].body_at).iter() {
-                    results[index].reports.push(entry.clone());
-                }
-                diagnostic.message()
+                let message = diagnostic.message();
+                results[index].diagnostics.extend(of_cell(
+                    shifted(vec![diagnostic], cells[index].body_at),
+                    &cells[index],
+                    index,
+                ));
+                message
             });
             let output = value.and_then(|value| {
                 let markdown = crate::extensions::format::render(
@@ -302,14 +311,15 @@ pub fn render_cell(
                 }
                 Err(message) => {
                     results[index].status = Status::Error;
-                    if results[index].reports.is_empty() {
-                        results[index].reports.push(report(
+                    if results[index].diagnostics.is_empty() {
+                        results[index].diagnostics.push(report(
                             Severity::Error,
+                            Kind::ShapeMismatch,
                             cells[index].span.clone(),
                             message,
                         ));
                     }
-                    results[index].markdown = described(&results[index].reports);
+                    results[index].markdown = described(&results[index].diagnostics);
                 }
             }
         }
@@ -317,15 +327,13 @@ pub fn render_cell(
 
     let (document, complete) = emitted(source, &segments, &cells, &results, only.is_some());
     for result in &results {
-        for entry in result.reports.iter() {
-            reports.push(entry.clone());
-        }
+        reports.extend(result.diagnostics.iter().cloned());
     }
     Ok(Rendered {
         document,
         blocks,
         complete,
-        reports,
+        diagnostics: reports,
         cells: results,
     })
 }
@@ -333,7 +341,7 @@ pub fn render_cell(
 /// Split a document into lines and cells, attaching to each cell the output a
 /// previous render left after it. An output with no cell above it is dropped
 /// with a warning.
-fn scan(source: &str, emit: Emit, reports: &mut Reports) -> (Vec<Segment>, Vec<Source>) {
+fn scan(source: &str, emit: Emit, reports: &mut Vec<Diagnostic>) -> (Vec<Segment>, Vec<Source>) {
     let lines: Vec<&str> = source.lines().collect();
     let mut offsets = Vec::with_capacity(lines.len() + 1);
     let mut at = 0;
@@ -350,6 +358,7 @@ fn scan(source: &str, emit: Emit, reports: &mut Reports) -> (Vec<Segment>, Vec<S
             let end = output_end(&lines, index);
             reports.push(report(
                 Severity::Warning,
+                Kind::OrphanedOutput,
                 offsets[index]..offsets[end + 1],
                 "an output with no cell directly above it is removed".to_owned(),
             ));
@@ -410,6 +419,7 @@ fn scan(source: &str, emit: Emit, reports: &mut Reports) -> (Vec<Segment>, Vec<S
             {
                 reports.push(report(
                     Severity::Warning,
+                    Kind::OrphanedOutput,
                     offsets[next]..offsets[end + 1],
                     format!(
                         "the output of `{written}` is not below the cell `{written}`, so it is removed"
@@ -434,7 +444,7 @@ impl Attributes<'_> {
         &self,
         default: Emit,
         span: &Range<usize>,
-        reports: &mut Reports,
+        reports: &mut Vec<Diagnostic>,
     ) -> (Option<String>, Emit, bool) {
         let (mut id, mut placement, mut hidden) = (None, default, false);
         for word in &self.0 {
@@ -446,11 +456,13 @@ impl Attributes<'_> {
                     Some(name) if is_identifier(name) => id = Some(name.to_owned()),
                     Some(name) => reports.push(report(
                         Severity::Error,
+                        Kind::DuplicateCell,
                         span.clone(),
                         format!("a cell id is a snake_case name, and `{name}` is not one"),
                     )),
                     None => reports.push(report(
                         Severity::Warning,
+                        Kind::DuplicateCell,
                         span.clone(),
                         format!("`{word}` is not a cell attribute, so it is ignored"),
                     )),
@@ -733,41 +745,54 @@ fn marker_id(marker: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// A failed cell's output: its reports, one per line.
-fn described(reports: &Reports) -> String {
-    reports
+/// A failed cell's output: its errors, one per line.
+fn described(diagnostics: &[Diagnostic]) -> String {
+    diagnostics
         .iter()
-        .filter(|report| report.severity >= Severity::Error)
-        .map(|report: &Report| format!("{}: {}", report.severity.label(), report.message))
+        .filter(|diagnostic| diagnostic.is_error())
+        .map(|diagnostic| format!("{}: {}", diagnostic.severity.label(), diagnostic.message))
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-/// A cell's reports with their spans moved from its body to the document.
-fn shifted(reports: Reports, at: usize) -> Reports {
-    reports
-        .iter()
-        .map(|entry| {
-            let mut entry = entry.clone();
-            entry.span = entry.span.start + at..entry.span.end + at;
-            entry
+/// A cell's diagnostics with their spans moved from its body to the
+/// document.
+fn shifted(diagnostics: Vec<Diagnostic>, at: usize) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|mut diagnostic| {
+            diagnostic.span = diagnostic.span.start + at..diagnostic.span.end + at;
+            for label in &mut diagnostic.context.labels {
+                label.span = label.span.start + at..label.span.end + at;
+            }
+            diagnostic
         })
         .collect()
 }
 
-fn report(severity: Severity, span: Range<usize>, message: String) -> Report {
-    Report {
-        severity,
-        span,
-        stage: "render".to_owned(),
-        message,
-        code: None,
-        label: None,
-        ty: None,
-        found: None,
-        shown: None,
-        trace: Vec::new(),
-    }
+/// A cell's diagnostics with the cell as their origin: `#` and its id, or
+/// its index when it has none. The host puts the document's path before
+/// it; the span stays a range of the document.
+fn of_cell(diagnostics: Vec<Diagnostic>, cell: &Source, index: usize) -> Vec<Diagnostic> {
+    let name = cell.id.clone().unwrap_or_else(|| index.to_string());
+    diagnostics
+        .into_iter()
+        .map(|mut diagnostic| {
+            diagnostic.origin.get_or_insert_with(|| format!("#{name}"));
+            diagnostic
+        })
+        .collect()
+}
+
+/// A fault of the document rather than of a cell. The renderer goes on
+/// past a warning; an error leaves the build incomplete.
+fn report(severity: Severity, kind: Kind, span: Range<usize>, message: String) -> Diagnostic {
+    let disposition = if severity >= Severity::Error {
+        crate::diagnostics::Disposition::Fatal
+    } else {
+        crate::diagnostics::Disposition::Warning
+    };
+    Diagnostic::new(Phase::Render, kind, severity, disposition, span, message)
 }
 
 /// The info string of a fence line, or `None` when the line is not one.

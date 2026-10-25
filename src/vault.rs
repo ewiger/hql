@@ -8,7 +8,6 @@ use crate::document::Card;
 use crate::extensions::Config;
 use crate::extensions::semantic::Semantics;
 use crate::graph::Edge;
-use crate::warnings::Warning;
 use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -26,7 +25,7 @@ pub struct Vault {
     /// Link and relation edges over the vault.
     pub edges: Vec<Edge>,
     /// What loading wanted to say without refusing to load.
-    pub warnings: Vec<String>,
+    pub warnings: Vec<crate::diagnostics::Diagnostic>,
     /// What the vault's `hql.toml` says about extensions.
     pub extensions: Config,
     /// What it says about its embedding index.
@@ -166,13 +165,4 @@ pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault
         edges,
         warnings,
     })
-}
-/// Turn loader notes into warnings a caller can report.
-#[must_use]
-pub fn warnings(vault: &Vault, span: std::ops::Range<usize>) -> Vec<Warning> {
-    vault
-        .warnings
-        .iter()
-        .map(|message| Warning::new(span.clone(), message.clone()))
-        .collect()
 }

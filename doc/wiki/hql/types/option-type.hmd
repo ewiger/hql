@@ -60,7 +60,7 @@ card with no genre — see [[fields]].
 
 Absence is not the answer to a wrong shape. A value that is present but is not
 the type it was read as fails as a type error in the
-[[error-handling|report queue]].
+[[error-handling|diagnostic channel]].
 
 ## Resolving absence
 

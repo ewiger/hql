@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // modules: mighty-types/lib
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // `mighty.text` declares `is_blank(self)`, and so does the prelude's
 // `string`. Neither is this unit's own, so the call is ambiguous and import

@@ -733,7 +733,8 @@ fn evaluate_data(
     let Value::Str(text) = cx.evaluate(&text.value)? else {
         return Err(Diagnostic::runtime(span, "`Data` parses a String"));
     };
-    let parsed = crate::io::parse_text(&text, format.value.ty.constructor)
-        .map_err(|message| Diagnostic::runtime(span, message))?;
+    let parsed = crate::io::parse_text(&text, format.value.ty.constructor).map_err(|message| {
+        Diagnostic::runtime(span, message).with_kind(crate::diagnostics::Kind::MalformedData)
+    })?;
     Ok(Value::Data(Arc::new(parsed)))
 }

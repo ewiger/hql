@@ -2,8 +2,9 @@
 // feature: The operation types are reserved, and a program declares none of them
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `Operation`, `Elementwise`, `Partition`, `Reduction` and `Barrier` are the
 // standard library's types for what a pipeline step invokes, one per shape

@@ -2,8 +2,9 @@
 // feature: `for` in a value block
 // implementation: implemented
 // environment: pure
-// error: SyntaxError
-// stage: parse
+// phase: parse
+// kind: unexpected-token
+// severity: failure
 
 // `for` belongs to an iterating block. A value block is bindings and a final
 // expression.

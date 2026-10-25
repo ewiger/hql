@@ -89,8 +89,8 @@ declares them, and the prelude's `string`, `seq`, `math`, `option` and
 
 ## Traits and operators
 
-A `trait` is a compile-time contract: the functions a type provides to
-satisfy it, some with a default body. `impl Name for Type` provides it once
+A `trait` is a capability contract: the functions a type provides to
+satisfy it, some with a default body, verified by the type checker. `impl Name for Type` provides it once
 per trait and type, and the operators resolve through the core traits: `+`
 through `Add`, `==` through `Eq`, and a type implementing `Ord` sorts.
 
@@ -119,3 +119,10 @@ type is visible by its name to every unit that imports the module.
 [Chapter 5](../05-modules/index.md) writes and imports modules, and
 [visibility](../05-modules/visibility.md) keeps a type or trait `private` to
 its module.
+
+## What is next
+
+A `Result` is one of the two ways a failure appears.
+[Chapter 18](../18-errors/index.md) is the whole error model: failures kept as
+data, and the diagnostics a run writes when a phase cannot do what the
+program asked.

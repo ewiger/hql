@@ -1,0 +1,15 @@
+// status: valid-now
+// feature: A diagnostic of each phase names its phase, kind, severity and disposition, each set by its producer
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql --diagnostics-format json run examples/error-handling/parse/unclosed-group.hql
+{"disposition":"fatal","kind":"unexpected-token","message":"expected `)` to close a group, found `x`","origin":"examples/error-handling/parse/unclosed-group.hql","phase":"parse","severity":"failure","span":{"end":389,"start":388}}
+$ hql --diagnostics-format json run examples/error-handling/types/string-plus-int.hql
+{"disposition":"fatal","kind":"type-mismatch","message":"`Add` for String takes String, not Int","origin":"examples/error-handling/types/string-plus-int.hql","phase":"check","severity":"error","span":{"end":344,"start":343}}
+$ hql --diagnostics-format json run examples/error-handling/evaluation/fail-fast-read.hql
+{"bindings":{"u":{"age":"forty","name":"bob"}},"disposition":"fatal","element":{"of":2,"position":2,"step":"map","value":{"age":"forty","name":"bob"}},"expected":"User","kind":"contract-violation","message":"this does not read as User: field `age`: \"forty\" is not Int","origin":"examples/error-handling/evaluation/fail-fast-read.hql","phase":"execute","severity":"error","span":{"end":658,"start":650},"violations":[{"actual":"forty","contract":"User","expected":"Int","kind":"type","message":"field `age`: \"forty\" is not Int","path":["age"],"rule":"User.age.type","severity":"error","text":"\"forty\" is not Int"}]}
+$ hql --diagnostics-format json run examples/error-handling/evaluation/division-by-zero.hql
+{"bindings":{"n":2},"disposition":"fatal","element":{"of":3,"position":2,"step":"map","value":2},"kind":"division-by-zero","message":"division by zero","origin":"examples/error-handling/evaluation/division-by-zero.hql","phase":"execute","severity":"failure","span":{"end":417,"start":406}}

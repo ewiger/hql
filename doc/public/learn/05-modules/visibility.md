@@ -27,7 +27,7 @@ reading.rounded_up(412, 40)
 ```
 
 ```text
-name error: the module `reading` has no function `rounded_up`
+check error[unknown-name]: the module `reading` has no function `rounded_up`
  --> <expression>:3:1
   |
 3 | reading.rounded_up(412, 40)
@@ -46,15 +46,15 @@ function, a type, a trait and a module-level binding.
 
 - A public declaration may not mention a private type or trait in its
   signature — a parameter, a result, a bound, a field or a supertype. The
-  checker refuses such a declaration, since an importer would receive a value
+  checker rejects such a declaration, since an importer would receive a value
   of a type it cannot name.
-- `private` is refused on an `impl`. An implementation of a trait holds in
+- The parser rejects `private` on an `impl`. An implementation of a trait holds in
   every module that sees the type and the trait.
 
 ## A program is public
 
 A program is read by no other unit, so every declaration in it is public, and
-`private` is refused there:
+the parser rejects `private` there:
 
 ```hql
 private fn double(n: Int) : Int = n * 2
@@ -63,7 +63,7 @@ double(21)
 ```
 
 ```text
-syntax failure: `private` belongs to a module: every declaration of a program is public, since no other unit reads it
+parse failure[unexpected-token]: `private` belongs to a module: every declaration of a program is public, since no other unit reads it
  --> <expression>:1:1
   |
 1 | private fn double(n: Int) : Int = n * 2
@@ -73,8 +73,8 @@ syntax failure: `private` belongs to a module: every declaration of a program is
 ## `internal` is reserved
 
 `internal` is visibility across the modules of one package: wider than one
-module, narrower than every importer. It is reserved, and refused wherever it
-is written:
+module, narrower than every importer. It is reserved, and the parser rejects it wherever
+it is written:
 
 ```hql
 internal fn double(n: Int) : Int = n * 2
@@ -83,7 +83,7 @@ double(21)
 ```
 
 ```text
-syntax failure: `internal` is reserved: visibility across one package is admitted once every module records its package; mark the declaration `private`, or leave it public
+parse failure[unexpected-token]: `internal` is reserved: visibility across one package is admitted once every module records its package; mark the declaration `private`, or leave it public
  --> <expression>:1:1
   |
 1 | internal fn double(n: Int) : Int = n * 2

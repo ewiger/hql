@@ -114,7 +114,7 @@ fn every_registered_step_runs_at_its_declared_result_type() {
         "import lexical\nranked = cards | lexical(\"owl\") | filter(h => false)\nranked.query",
     ] {
         let outcome = hql::run(source, &vault, Mode::Strict);
-        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
         assert_eq!(
             outcome.value.unwrap().type_of(),
             outcome.inferred.unwrap(),
@@ -167,7 +167,7 @@ fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
         ),
     ] {
         let outcome = hql::run(source, &vault, Mode::Strict);
-        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
         assert_eq!(outcome.inferred.unwrap().to_string(), expected, "{source}");
     }
     for (source, message) in [
@@ -183,11 +183,11 @@ fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
         let outcome = hql::run(source, &vault, Mode::Strict);
         assert!(
             outcome
-                .reports
+                .diagnostics
                 .iter()
                 .any(|report| report.message.contains(message)),
             "{source}: {:?}",
-            outcome.reports
+            outcome.diagnostics
         );
     }
 }
@@ -205,11 +205,11 @@ fn an_argument_declared_positional_only_is_refused_by_name() {
     ] {
         let outcome = hql::run(source, &vault, Mode::Strict);
         assert!(
-            outcome.reports.iter().any(|report| report
+            outcome.diagnostics.iter().any(|report| report
                 .message
                 .contains(&format!("takes `{argument}` by position"))),
             "{source}: {:?}",
-            outcome.reports
+            outcome.diagnostics
         );
     }
     for source in [
@@ -220,7 +220,7 @@ fn an_argument_declared_positional_only_is_refused_by_name() {
         "\"ab\" | contains(part = \"b\")",
     ] {
         let outcome = hql::run(source, &vault, Mode::Strict);
-        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     }
 }
 
@@ -232,7 +232,7 @@ fn an_overload_is_chosen_by_its_arguments_types_too() {
     for source in ["2 | pow(2.0f)", "2.0f | pow(2)"] {
         let outcome = hql::run(source, &vault, Mode::Strict);
         let message = outcome
-            .reports
+            .diagnostics
             .iter()
             .map(|report| report.message.as_str())
             .collect::<Vec<_>>()
@@ -248,11 +248,11 @@ fn an_overload_is_chosen_by_its_arguments_types_too() {
     let outcome = hql::run("[1] | take(true)", &vault, Mode::Strict);
     assert!(
         outcome
-            .reports
+            .diagnostics
             .iter()
             .any(|report| report.message.contains("argument `n` needs Int")),
         "{:?}",
-        outcome.reports
+        outcome.diagnostics
     );
 }
 
@@ -277,7 +277,7 @@ fn a_step_over_a_value_is_lifted_over_absence() {
         ("none | json", "String", "\"[]\""),
     ] {
         let outcome = hql::run(source, &vault, Mode::Strict);
-        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
         assert_eq!(outcome.inferred.unwrap().to_string(), ty, "{source}");
         let value = outcome.value.unwrap();
         assert_eq!(value.type_of().to_string(), ty, "{source}");
@@ -304,7 +304,7 @@ fn fmt_and_format_take_the_signatures_their_declarations_state() {
         ("1 | json", "String"),
     ] {
         let outcome = hql::run(source, &vault, Mode::Strict);
-        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
         assert_eq!(outcome.inferred.unwrap().to_string(), ty, "{source}");
     }
     let outcome = hql::run("[1] | format(Json, 3)", &vault, Mode::Strict);

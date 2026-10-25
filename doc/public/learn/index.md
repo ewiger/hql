@@ -66,3 +66,5 @@ and one claim about which book inspired which.
     prompts, tools, and runs kept as values.
 17. [Types and traits](17-types-and-traits/index.md) — records, unions,
     results, receiver calls, traits and operators.
+18. [Errors](18-errors/index.md) — failures kept as data, diagnostics and the
+    run's diagnostic channel, `strict` and `collect`.

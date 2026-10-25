@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 56 # to be incremented when adding a new issue card
+  last_id: 59 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -33,6 +33,9 @@ board:
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
     todo:
+      - id: "0058"
+        title: "A value read from a card loses where it came from"
+        file: 0058-card-values-lose-their-provenance.md
       - id: "0056"
         title: "`hql help` prints part of a block body in a signature"
         file: 0056-help-prints-a-block-body.md

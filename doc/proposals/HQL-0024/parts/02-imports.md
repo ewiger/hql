@@ -71,9 +71,10 @@ necessary visible in this unit too, and in no other ([HQL-0028](../../HQL-0028/R
 
 ### Placement
 
-Imports are compile-time declarations. A source unit reads, in order: the
+Imports are resolved by the checker, before anything executes. A source unit
+reads, in order: the
 receiver declaration if any, the imports, then declarations and the program
-body. An import after an executable statement is refused.
+body. An import after an executable statement is a syntax failure.
 
 ### Canonical imports are absolute
 

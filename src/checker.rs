@@ -1427,7 +1427,16 @@ impl<'a> Checker<'a> {
             return;
         }
         if let Some(message) = crate::naming::departure(kind, name) {
-            CheckCx::warn(self, crate::warnings::Warning::new(span.clone(), message));
+            let mut warning = Diagnostic::warning(
+                crate::diagnostics::Phase::Check,
+                crate::diagnostics::Kind::NamingConvention,
+                span.clone(),
+                message,
+            );
+            if let Some(written) = crate::naming::conventional(kind, name) {
+                warning = warning.with_help(format!("write it `{written}`"));
+            }
+            CheckCx::warn(self, warning);
         }
     }
 
@@ -1552,7 +1561,9 @@ impl<'a> Checker<'a> {
                     if !self.unit.is_empty() && dotted.starts_with(&format!("{}.", self.unit)) {
                         CheckCx::warn(
                             self,
-                            crate::warnings::Warning::new(
+                            Diagnostic::warning(
+                                crate::diagnostics::Phase::Check,
+                                crate::diagnostics::Kind::ChildImport,
                                 span.clone(),
                                 format!(
                                     "`{}` imports its own child `{dotted}`: what a parent needs \
@@ -2350,7 +2361,9 @@ impl<'a> Checker<'a> {
         use crate::types::builtin::{PLACEHOLDERS, type_variable};
         self.lint(crate::naming::Kind::Function, &alias.name, &alias.span);
         if builtins::exists(&alias.name) {
-            self.checked.warnings.push(crate::warnings::Warning::new(
+            self.checked.warnings.push(Diagnostic::warning(
+                crate::diagnostics::Phase::Check,
+                crate::diagnostics::Kind::ShadowedStep,
                 alias.span.clone(),
                 format!("`{}` shadows the step of the same name", alias.name),
             ));
@@ -2975,10 +2988,9 @@ impl<'a> Checker<'a> {
             self.using(step.name, step.purity() == Purity::Effectful);
             return self.step(step, &receiver_type, Some(receiver), arguments, span);
         }
-        let hint = builtins::hint(name);
-        Err(Diagnostic::name(
-            span,
-            format!("{receiver_type} has no function `{name}`{hint}"),
+        Err(helped(
+            Diagnostic::name(span, format!("{receiver_type} has no function `{name}`")),
+            builtins::hint(name),
         ))
     }
 
@@ -3294,13 +3306,10 @@ impl<'a> Checker<'a> {
         // What checking the module had to say is said where it is imported,
         // the one place the importer's report can point at.
         for warning in std::mem::take(&mut checker.checked.warnings) {
-            CheckCx::warn(
-                self,
-                crate::warnings::Warning::new(
-                    span.clone(),
-                    format!("in module `{name}`: {}", warning.message),
-                ),
-            );
+            let mut relayed = warning.clone();
+            relayed.span = span.clone();
+            relayed.message = format!("in module `{name}`: {}", warning.message);
+            CheckCx::warn(self, relayed);
         }
         let mut functions = Vec::new();
         for statement in &program.statements {
@@ -3775,12 +3784,22 @@ impl<'a> Checker<'a> {
             ));
         }
         if let Some(previous) = self.impls.iter().find(|held| held.overlaps(&this)) {
+            // The first implementation in this program is a second place in
+            // the same source: a label, not a byte offset in the message.
+            let here = previous.origin.is_empty();
             let message = if previous.arguments.is_empty() && previous.target == target {
-                format!(
-                    "`{trait_name}` is already implemented for {target}, in {}: a trait has \
-                     one implementation per type",
-                    previous.whence()
-                )
+                if here {
+                    format!(
+                        "`{trait_name}` is already implemented for {target}: a trait has one \
+                         implementation per type"
+                    )
+                } else {
+                    format!(
+                        "`{trait_name}` is already implemented for {target}, in {}: a trait \
+                         has one implementation per type",
+                        previous.whence()
+                    )
+                }
             } else {
                 format!(
                     "`impl {written}` overlaps `impl {}`, in {}: one type at one set of \
@@ -3789,7 +3808,13 @@ impl<'a> Checker<'a> {
                     previous.whence()
                 )
             };
-            return Err(Diagnostic::typing(declaration.span.clone(), message));
+            let refused = Diagnostic::typing(declaration.span.clone(), message)
+                .with_kind(crate::diagnostics::Kind::DuplicateImplementation);
+            return Err(if here {
+                refused.with_label(previous.span.clone(), "the first implementation")
+            } else {
+                refused
+            });
         }
         if !self.trait_decls.contains_key(trait_name)
             && !self.declarations.holds(target.constructor.0)
@@ -3858,7 +3883,8 @@ impl<'a> Checker<'a> {
                                     "`impl {trait_name} for {target}` lacks `{}`",
                                     signature.name
                                 ),
-                            ));
+                            )
+                            .with_kind(crate::diagnostics::Kind::MissingImplementation));
                         }
                     }
                 }
@@ -4296,6 +4322,7 @@ impl<'a> Checker<'a> {
                         trait_written(&bounded.trait_name, &wanted)
                     ),
                 )
+                .with_kind(crate::diagnostics::Kind::UnsatisfiedBound)
             };
             if applicable.is_empty() {
                 return Err(unmet());
@@ -4380,6 +4407,7 @@ impl<'a> Checker<'a> {
                             argument.value.span.clone(),
                             format!("`{name}` has no field `{written}`"),
                         )
+                        .with_kind(crate::diagnostics::Kind::UnknownField)
                     })?,
                 None if index < shape.fields.len() => index,
                 None => {
@@ -4831,8 +4859,10 @@ impl<'a> Checker<'a> {
                         ),
                     )
                 } else {
-                    let hint = builtins::hint(name);
-                    Diagnostic::name(span, format!("`{name}` is not bound{hint}"))
+                    helped(
+                        Diagnostic::name(span, format!("`{name}` is not bound")),
+                        builtins::hint(name),
+                    )
                 }
             }),
             Kind::Given {
@@ -5005,16 +5035,16 @@ impl<'a> Checker<'a> {
                 let receiver_type = self.expression(receiver)?;
                 let ty = field_type(&receiver_type, field).ok_or_else(|| {
                     // A hit holds any value, so what it retrieved is `value`.
-                    let hint = if receiver_type.present().constructor.0 == "Hit" && field == "card"
-                    {
-                        "; the retrieved value is `value`"
-                    } else {
-                        ""
-                    };
-                    Diagnostic::name(
+                    let refused = Diagnostic::name(
                         span.clone(),
-                        format!("{receiver_type} has no field `{field}`{hint}"),
+                        format!("{receiver_type} has no field `{field}`"),
                     )
+                    .with_kind(crate::diagnostics::Kind::UnknownField);
+                    if receiver_type.present().constructor.0 == "Hit" && field == "card" {
+                        refused.with_help("the retrieved value is `value`")
+                    } else {
+                        refused
+                    }
                 })?;
                 let resolved =
                     crate::execution::Field::resolve(&receiver_type, field).ok_or_else(|| {
@@ -5022,6 +5052,7 @@ impl<'a> Checker<'a> {
                             span.clone(),
                             format!("{receiver_type} has no field `{field}`"),
                         )
+                        .with_kind(crate::diagnostics::Kind::UnknownField)
                     })?;
                 self.checked.fields.insert(span, resolved);
                 Ok(ty)
@@ -5219,10 +5250,9 @@ impl<'a> Checker<'a> {
                     return self.step(step, &input, Some(written), arguments, span);
                 }
                 let _ = arguments;
-                let hint = builtins::hint(name);
-                Err(Diagnostic::name(
-                    span,
-                    format!("`{name}` is not bound{hint}"),
+                Err(helped(
+                    Diagnostic::name(span, format!("`{name}` is not bound")),
+                    builtins::hint(name),
                 ))
             }
             Kind::Pipe(input, step) => {
@@ -5558,7 +5588,8 @@ impl<'a> Checker<'a> {
                     "this match does not cover every {subject_type}: {}",
                     missing_cases(&subject_type)
                 ),
-            ));
+            )
+            .with_kind(crate::diagnostics::Kind::NonExhaustiveMatch));
         }
         Ok(result)
     }
@@ -5579,9 +5610,10 @@ impl<'a> Checker<'a> {
             return checked;
         }
         checked.map_err(|refused| {
-            let Diagnostic::Name { span: at, .. } = &refused else {
+            if refused.kind != crate::diagnostics::Kind::UnknownName {
                 return refused;
-            };
+            }
+            let at = &refused.span;
             let unknown = arguments
                 .iter()
                 .find_map(|argument| match &argument.value.kind {
@@ -5589,10 +5621,8 @@ impl<'a> Checker<'a> {
                     _ => None,
                 });
             match unknown {
-                Some(name) => Diagnostic::name(
-                    at.clone(),
-                    format!("`{name}` is not bound{}", builtins::combiner_hint(name)),
-                ),
+                Some(name) => Diagnostic::name(at.clone(), format!("`{name}` is not bound"))
+                    .with_help(builtins::combiner_hint(name)),
                 None => refused,
             }
         })
@@ -5652,7 +5682,7 @@ impl CheckCx for Checker<'_> {
         self.vault
     }
 
-    fn warn(&mut self, warning: crate::warnings::Warning) {
+    fn warn(&mut self, warning: Diagnostic) {
         // Choosing among overloads may read an argument twice, and says
         // what it finds once.
         if !self.checked.warnings.contains(&warning) {
@@ -6141,5 +6171,13 @@ pub(crate) fn map_kind(ty: &TypeRef) -> Option<crate::types::MapKind> {
         constructor if constructor == ORDERED_MAP => Some(MapKind::Ordered),
         constructor if constructor == SORTED_MAP => Some(MapKind::Sorted),
         _ => None,
+    }
+}
+
+/// A diagnostic with a line of help, when there is one.
+fn helped(diagnostic: Diagnostic, help: Option<String>) -> Diagnostic {
+    match help {
+        Some(help) => diagnostic.with_help(help),
+        None => diagnostic,
     }
 }

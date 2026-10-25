@@ -27,7 +27,7 @@ cards | lexical("desert spice")
 ```
 
 ```text
-name error: `lexical` is provided by the `lexical` extension: write `import lexical`
+check error[unknown-name]: `lexical` is provided by the `lexical` extension: write `import lexical`
  --> <expression>:1:9
   |
 1 | cards | lexical("desert spice")

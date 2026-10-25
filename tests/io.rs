@@ -307,6 +307,8 @@ fn a_relative_path_resolves_against_the_program_that_names_it() {
 #[test]
 fn a_document_reads_beside_itself_and_writes_nothing() {
     let dir = tempdir().unwrap();
+    // A document renders only in a vault.
+    std::fs::write(dir.path().join("hql.toml"), "").unwrap();
     fs::create_dir(dir.path().join("doc")).unwrap();
     fs::write(dir.path().join("doc/d.json"), "{\"k\": 1}").unwrap();
     fs::write(dir.path().join("outside.json"), "{\"k\": 2}").unwrap();
@@ -459,6 +461,8 @@ fn a_channel_holds_values_in_the_order_they_were_written() {
 #[test]
 fn a_document_may_write_its_own_channels() {
     let dir = tempdir().unwrap();
+    // A document renders only in a vault.
+    std::fs::write(dir.path().join("hql.toml"), "").unwrap();
     fs::write(
         dir.path().join("doc.md"),
         "```hql\nc = Channel<Int>(\"cell\")\n[1, 2] | sink(c)\nsource(c) | size\n```\n",

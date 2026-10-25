@@ -1,0 +1,61 @@
+---
+tags: [hql, checking, execution, design]
+nav:
+  visibility: public
+---
+# Compilation
+
+In HQL, **compilation** is an execution strategy, not a phase of the language.
+What a program means is decided when it is parsed and checked; a backend then
+executes the checked program, and compiling it is one way a backend may do
+that. HQL has no compile time, and no rule of the language is stated against
+one ([HQL-0044](../../proposals/HQL-0044/README.md)).
+
+## The phases
+
+```text
+parse    source text        → syntax tree              writes: parse failure[unexpected-token], …
+check    syntax tree        → checked program          writes: check error[unknown-name], check error[type-mismatch], …
+lower    checked program    → execution tree
+plan     execution tree     → stages per step          writes: plan failure[backend-refusal]
+execute  planned tree       → value and diagnostics    writes: execute failure[division-by-zero], execute error[contract-violation], …
+```
+
+**Checking** is the semantic boundary. It resolves every name, import and
+module, infers and checks every type, and verifies every trait implementation,
+bound and coherence rule, over the whole program before any of it executes. A
+program the checker rejects executes nothing, under `collect` as under
+`strict`, and a document is checked as a whole before any cell runs. `hql
+check` is that checking and nothing after it; `hql run`, `hql render` and
+`hql repl` run the same checking first. The [core
+architecture](../../models/domain/architecture.md) has the modules that
+implement each phase.
+
+**Execution** is a backend's ([[pipes]]). `localhost`, the only backend,
+evaluates the execution tree one step after another, and it is the oracle: a
+backend that compiles or JIT-compiles the tree must produce the value and
+diagnostics `localhost` produces, accept exactly the programs the checker accepts,
+and reject none on a ground the checker owns. A compilation step inside such a
+backend runs after checking, and its failure is the backend's, never a
+diagnostic about the program. A failure that depends on the values, an
+overflow or a missing file, is an `execute` diagnostic the run writes into its
+diagnostic channel ([[error-handling]]).
+
+## Traits are checked, not compiled
+
+A [[type-system|trait]] is a capability contract over a type, and the checker
+verifies it: an implementation against its trait, a bound wherever it is used,
+and one implementation per trait and type. A trait has no runtime
+representation, so nothing about it changes between a backend that evaluates
+and one that compiles; a call to a trait function runs the implementation of
+the value's own type.
+
+## Saying which phase acts
+
+A sentence about a rejection names what rejects it or the diagnostic kind it
+gives: "the checker rejects", "is a type error", "is a name error", "the
+parser rejects". "Is refused" alone names neither. "Statically typed" stays the
+tagline, since every value's type is known before the program runs; "compile
+time" and "compile-time" describe no HQL rule. "Compiled into the binary"
+speaks of the Rust implementation, where an extension is, and is accurate there
+([[hql/extensions]]).

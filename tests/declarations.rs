@@ -4,9 +4,7 @@
 //! everything here is about whether what a declaration says is coherent.
 
 use hql::{
-    check,
-    diagnostics::Diagnostic,
-    eval, library,
+    check, eval, library,
     types::{TypeRef, Value},
 };
 use std::fs;
@@ -217,7 +215,13 @@ fn the_former_subtype_operator_is_a_syntax_error() {
         "type Box<T> where T <: Orderable",
     ] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Syntax { .. })),
+            matches!(
+                check(source),
+                Err(hql::diagnostics::Diagnostic {
+                    phase: hql::diagnostics::Phase::Parse,
+                    ..
+                })
+            ),
             "{source}"
         );
     }
@@ -341,7 +345,13 @@ fn a_union_is_written_with_equals_and_nothing_else() {
         "abstract type Id = union {Int}",
     ] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Syntax { .. })),
+            matches!(
+                check(source),
+                Err(hql::diagnostics::Diagnostic {
+                    phase: hql::diagnostics::Phase::Parse,
+                    ..
+                })
+            ),
             "{source}: {:?}",
             check(source)
         );
@@ -400,7 +410,16 @@ fn a_declaration_is_a_statement_and_not_an_expression() {
     assert_eq!(check("type = 1\ntype"), Ok(TypeRef::INT));
     assert!(matches!(
         check("1 | type Colour"),
-        Err(Diagnostic::Syntax { .. }) | Err(Diagnostic::Name { .. })
+        Err(hql::diagnostics::Diagnostic {
+            phase: hql::diagnostics::Phase::Parse,
+            ..
+        }) | Err(hql::diagnostics::Diagnostic {
+            phase: hql::diagnostics::Phase::Check,
+            kind: hql::diagnostics::Kind::UnknownName
+                | hql::diagnostics::Kind::UnknownField
+                | hql::diagnostics::Kind::UnknownStep,
+            ..
+        })
     ));
 }
 
@@ -526,8 +545,9 @@ fn every_name_the_binary_provides_follows_its_kind() {
     let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     let outcome = hql::check_reported(&library::source(), &vault, hql::reporting::Mode::Strict);
     let warnings: Vec<_> = outcome
-        .reports
+        .diagnostics
         .iter()
+        .filter(|diagnostic| diagnostic.phase != hql::diagnostics::Phase::Load)
         .map(|report| report.message.clone())
         .collect();
     assert!(warnings.is_empty(), "{warnings:?}");
@@ -566,10 +586,10 @@ fn a_name_off_its_kinds_convention_is_a_warning_at_the_name() {
         let outcome = hql::run(source, &vault, hql::reporting::Mode::Strict);
         assert!(!outcome.failed(), "{source}: a warning never fails");
         let warning = outcome
-            .reports
+            .diagnostics
             .iter()
             .find(|report| report.message.contains(message))
-            .unwrap_or_else(|| panic!("{source}: {:?}", outcome.reports));
+            .unwrap_or_else(|| panic!("{source}: {:?}", outcome.diagnostics));
         assert!(
             source[warning.span.clone()].starts_with(name),
             "{source}: {:?}",

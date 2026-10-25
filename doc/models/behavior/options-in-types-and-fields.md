@@ -435,7 +435,7 @@ cards
 The three channels stay apart. **Absence** is `Option`, **a failure the program
 may recover from** is `Result`, and **an error the program has no business
 recovering from** — a type error, an unparseable source — is a report in the
-[report queue](../../wiki/hql/error-handling.hmd), which no value ever holds.
+[diagnostic channel](../../wiki/hql/error-handling.hmd), which no value ever holds.
 
 ## What this does not settle
 

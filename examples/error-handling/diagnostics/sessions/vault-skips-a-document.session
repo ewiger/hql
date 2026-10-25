@@ -1,0 +1,12 @@
+// status: valid-now
+// feature: The loader writes skipped-document for a card whose header does not parse, keeps the rest, and the warning leaves the exit status 0
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 0
+
+$ hql --vault examples/error-handling/diagnostics/vault eval cards|size
+1
+load warning[skipped-document]: header: invalid YAML: did not find expected ',' or ']' at line 2 column 1, while parsing a flow sequence at line 1 column 8; document skipped
+ --> examples/error-handling/diagnostics/vault/broken.md
+

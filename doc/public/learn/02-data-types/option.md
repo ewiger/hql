@@ -37,7 +37,7 @@ Option<Data>
 ```
 
 An `Option` is not the value it may hold. Adding to a rating that may be
-missing is refused before the program runs:
+missing is a type error, reported before the program runs:
 
 ```hql
 rating = {title: "Frankenstein", rating: 5}.rating
@@ -45,7 +45,7 @@ rating + 1
 ```
 
 ```text
-type error: addition requires two Int, two Float or two Decimal operands, or two values of a type implementing `Add`, not Option<Data>
+check error[type-mismatch]: addition requires two Int, two Float or two Decimal operands, or two values of a type implementing `Add`, not Option<Data>
  --> <expression>:2:1
   |
 2 | rating + 1
@@ -73,8 +73,8 @@ what absence means.
 ## One answer for each case
 
 `match` takes an `Option` apart. The `some(r)` arm binds the value held to `r`,
-the `none` arm covers the rest, and a `match` that leaves a case uncovered is
-refused:
+the `none` arm covers the rest, and the checker rejects a `match` that leaves
+a case uncovered:
 
 <!-- run: with books -->
 ```hql

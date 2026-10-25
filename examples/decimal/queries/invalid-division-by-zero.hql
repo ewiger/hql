@@ -3,7 +3,8 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Decimal
-// error: RuntimeError
-// stage: evaluate
+// phase: execute
+// kind: division-by-zero
+// severity: failure
 
 1.50 / 0

@@ -6,9 +6,9 @@
 //! anything needing a vault says so rather than pretending to have found
 //! nothing.
 //!
-//! Running a program yields an [`Outcome`]: a value, and a queue of everything
-//! the run had to say. The queue comes back beside the value rather than
-//! instead of it, so a caller can walk it afterwards.
+//! Running a program yields an [`Outcome`]: a value, and the contents of the
+//! run's diagnostic channel (HQL-0045). The diagnostics come back beside the
+//! value rather than instead of it, so a caller can walk them afterwards.
 
 #![forbid(unsafe_code)]
 
@@ -48,29 +48,102 @@ pub mod transclude;
 pub mod traversal;
 pub mod types;
 pub mod vault;
-pub mod warnings;
 
-use diagnostics::Diagnostic;
-use reporting::{Mode, Report, Reports};
+use diagnostics::{Diagnostic, Disposition, Kind, Phase, Severity};
+use reporting::Mode;
 use types::{TypeRef, Value};
 use vault::Vault;
 
-/// What running a program produced: a value, if one survived, and the queue.
+/// What running a program produced: a value, if one survived, and the run's
+/// diagnostics.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Outcome {
     /// The value of the program's last expression, absent when it did not run.
     pub value: Option<Value>,
     /// The type of that expression, when checking got far enough to know.
     pub inferred: Option<TypeRef>,
-    /// Everything the run had to say, oldest first.
-    pub reports: Reports,
+    /// The diagnostic channel's contents, in the order they were written.
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 impl Outcome {
-    /// Whether anything queued makes the result untrustworthy.
+    /// Whether the channel holds a diagnostic at or above `error`, the fail
+    /// level unless configured.
     #[must_use]
     pub fn failed(&self) -> bool {
-        self.reports.has_errors()
+        diagnostics::reaches(&self.diagnostics, Severity::Error)
+    }
+}
+
+/// A run's hold on the diagnostic channel. The run that opened the channel
+/// closes it; a run inside one that is already open, a host's, writes into
+/// that channel and leaves it open.
+struct Run {
+    owner: bool,
+}
+
+impl Run {
+    fn open(vault: &Vault) -> Self {
+        let owner = io::open_diagnostics();
+        // The loader ran before this run: what it wrote is the first thing on
+        // the channel, unless a host already wrote it there.
+        if owner {
+            for diagnostic in &vault.warnings {
+                io::write_diagnostic(diagnostic.clone());
+            }
+        }
+        Self { owner }
+    }
+
+    fn write(&self, diagnostic: Diagnostic) {
+        io::write_diagnostic(diagnostic);
+    }
+
+    fn finish(self, value: Option<Value>, inferred: Option<TypeRef>) -> Outcome {
+        Outcome {
+            value,
+            inferred,
+            diagnostics: if self.owner {
+                io::close_diagnostics()
+            } else {
+                io::diagnostics_written()
+            },
+        }
+    }
+}
+
+/// A diagnostic as the phase that produced it states it. A backend's
+/// refusal reaches the driver through execution and stays the planner's.
+fn produced_by(phase: Phase, diagnostic: Diagnostic) -> Diagnostic {
+    if phase == Phase::Execute && diagnostic.phase == Phase::Plan {
+        return diagnostic;
+    }
+    diagnostic.in_phase(phase)
+}
+
+/// Parse a program, its failure the parser's.
+fn parsed(source: &str) -> Result<ast::Program, Diagnostic> {
+    parser::parse(source).map_err(|diagnostic| produced_by(Phase::Parse, diagnostic))
+}
+
+/// Check a program under `strict`, its failure the checker's.
+fn checked(program: &ast::Program, vault: &Vault) -> Result<execution::Program, Diagnostic> {
+    checker::check(program, vault)
+        .map_err(|diagnostic| checked_diagnostic(diagnostic, Mode::Strict))
+}
+
+/// A checker's diagnostic: a module's syntax failure keeps its parser's
+/// phase, and under `collect` the checker went on past the statement.
+fn checked_diagnostic(diagnostic: Diagnostic, mode: Mode) -> Diagnostic {
+    if diagnostic.phase == Phase::Parse {
+        return diagnostic;
+    }
+    let diagnostic = produced_by(Phase::Check, diagnostic);
+    match (mode, diagnostic.disposition) {
+        (Mode::Collect, Disposition::Fatal) => {
+            diagnostic.with_disposition(Disposition::Recoverable)
+        }
+        _ => diagnostic,
     }
 }
 
@@ -89,7 +162,7 @@ pub fn check(source: &str) -> Result<TypeRef, Diagnostic> {
 ///
 /// Returns the first syntax, type or name failure.
 pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
-    checker::check(&parser::parse(source)?, vault).map(|program| program.result)
+    checked(&parsed(source)?, vault).map(|program| program.result)
 }
 
 /// The steps of the pipeline a program's last expression ends, first to
@@ -102,7 +175,7 @@ pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
 ///
 /// Returns the first syntax, type or name failure.
 pub fn pipeline(source: &str) -> Result<Vec<(String, extensions::Shape)>, Diagnostic> {
-    let program = checker::check(&parser::parse(source)?, &Vault::empty())?;
+    let program = checked(&parsed(source)?, &Vault::empty())?;
     let last = program
         .statements
         .iter()
@@ -174,7 +247,7 @@ pub fn plan(
     vault: &Vault,
     backend: &backends::Registered,
 ) -> Result<Vec<PlannedPipeline>, Diagnostic> {
-    let program = checker::check(&parser::parse(source)?, vault)?;
+    let program = checked(&parsed(source)?, vault)?;
     backend.plan(&program);
     let mut planned = Vec::new();
     for statement in &program.statements {
@@ -327,65 +400,70 @@ pub fn stream(
 ///
 /// Returns the first failure from any stage.
 pub fn eval(source: &str) -> Result<Value, Diagnostic> {
-    let program = parser::parse(source)?;
-    let program = checker::check(&program, &Vault::empty())?;
+    let program = parsed(source)?;
+    let program = checked(&program, &Vault::empty())?;
     backends::LOCALHOST
-        .run(&program, &Vault::empty(), Vec::new())
+        .run(&program, &Vault::empty(), Vec::new(), Mode::Strict)
         .0
+        .map_err(|diagnostic| produced_by(Phase::Execute, diagnostic))
 }
 
 /// Type-check a program, reporting under a mode.
 #[must_use]
 pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
+    let run = Run::open(vault);
     let program = match parser::parse(source) {
         Ok(program) => program,
-        Err(diagnostic) => return failed(&diagnostic),
+        Err(diagnostic) => {
+            run.write(produced_by(Phase::Parse, diagnostic));
+            return run.finish(None, None);
+        }
     };
     let (checked, found) = infer(&program, vault, mode);
-    let mut reports: Reports = found.iter().map(Report::of).collect();
+    for diagnostic in found {
+        run.write(diagnostic);
+    }
     if let Some(program) = &checked {
         for warning in &program.warnings {
-            reports.push(Report::of_check_warning(warning));
+            run.write(warning.clone());
         }
         // Every alias's signature is visible, since the checker wrote it.
         for (name, signature) in &program.signatures {
-            reports.push(Report {
-                severity: reporting::Severity::Info,
-                stage: "type".to_owned(),
-                message: match types::builtin::type_variable("T", Some(&TypeRef::ORDERABLE)) {
+            run.write(Diagnostic::new(
+                Phase::Check,
+                Kind::Signature,
+                Severity::Info,
+                Disposition::Warning,
+                0..0,
+                match types::builtin::type_variable("T", Some(&TypeRef::ORDERABLE)) {
                     Some(ordered) if signature.mentions(&ordered) => {
                         format!("{name} : {signature} where T : Orderable")
                     }
                     _ => format!("{name} : {signature}"),
                 },
-                code: Some("signature".to_owned()),
-                ..Report::of_check_warning(&warnings::Warning::new(0..0, ""))
-            });
+            ));
         }
         // So is every function that reads or writes outside its result.
         for (name, uses) in &program.effects {
             let uses: Vec<String> = uses.iter().map(|used| format!("`{used}`")).collect();
-            reports.push(Report {
-                severity: reporting::Severity::Info,
-                stage: "type".to_owned(),
-                message: format!("{name} is Effectful: it uses {}", uses.join(", ")),
-                code: Some("effect".to_owned()),
-                ..Report::of_check_warning(&warnings::Warning::new(0..0, ""))
-            });
+            run.write(Diagnostic::new(
+                Phase::Check,
+                Kind::Effect,
+                Severity::Info,
+                Disposition::Warning,
+                0..0,
+                format!("{name} is Effectful: it uses {}", uses.join(", ")),
+            ));
         }
     }
-    Outcome {
-        value: None,
-        inferred: checked.map(|program| program.result),
-        reports,
-    }
+    run.finish(None, checked.map(|program| program.result))
 }
 
 /// Run a program against a vault under a reporting mode, on `localhost`.
 ///
 /// Checking runs over the whole program before anything is evaluated. In
 /// [`Mode::Collect`] every statement is checked even after one fails, so the
-/// queue holds the whole list rather than only the first entry.
+/// channel holds the whole list rather than only the first diagnostic.
 #[must_use]
 pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
     run_on(source, vault, mode, backends::Selection::standard())
@@ -393,82 +471,80 @@ pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
 
 /// Run a program against a vault under a reporting mode, on a selected
 /// backend. The backend receives the checked program and nothing earlier:
-/// parsing and checking have run before it is reached.
+/// parsing and checking have run before it is reached. Every phase writes
+/// into the run's diagnostic channel, opened here unless a host holds it
+/// open.
 #[must_use]
 pub fn run_on(source: &str, vault: &Vault, mode: Mode, selection: backends::Selection) -> Outcome {
+    let run = Run::open(vault);
     let program = match parser::parse(source) {
         Ok(program) => program,
-        Err(diagnostic) => return failed(&diagnostic),
+        Err(diagnostic) => {
+            run.write(produced_by(Phase::Parse, diagnostic));
+            return run.finish(None, None);
+        }
     };
     let (checked, found) = infer(&program, vault, mode);
-    let mut reports: Reports = found.iter().map(Report::of).collect();
-    if reports.has_errors() {
-        return Outcome {
-            value: None,
-            inferred: None,
-            reports,
-        };
+    let refused = found.iter().any(Diagnostic::is_error);
+    for diagnostic in found {
+        run.write(diagnostic);
     }
-    let Some(program) = checked else {
-        return Outcome {
-            value: None,
-            inferred: None,
-            reports,
-        };
+    // A check error ends the phase, and later phases do not start.
+    let Some(program) = checked.filter(|_| !refused) else {
+        return run.finish(None, None);
     };
     for warning in &program.warnings {
-        reports.push(Report::of_check_warning(warning));
+        run.write(warning.clone());
     }
     let inferred = program.result.clone();
-    let (value, log) = selection.backend.run(&program, vault, Vec::new());
+    let (value, log) = selection.backend.run(&program, vault, Vec::new(), mode);
     for entry in log {
-        reports.push(entry);
+        run.write(produced_by(Phase::Execute, entry));
     }
     match value {
-        Ok(value) => Outcome {
-            value: Some(value),
-            inferred: Some(inferred),
-            reports,
-        },
+        Ok(value) => run.finish(Some(value), Some(inferred)),
         Err(diagnostic) => {
-            reports.push(Report::of(&diagnostic));
-            Outcome {
-                value: None,
-                inferred: Some(inferred),
-                reports,
-            }
+            run.write(produced_by(Phase::Execute, diagnostic));
+            run.finish(None, Some(inferred))
         }
     }
 }
 
-/// Check one cell of a document with the types of the cells it reads.
+/// Check one cell of a document with the types of the cells it reads,
+/// giving the cell's diagnostics with spans into its body.
 pub(crate) fn check_cell(
     source: &str,
     vault: &Vault,
     mode: Mode,
     bound: &[(String, TypeRef)],
-) -> (Option<execution::Program>, Reports) {
+) -> (Option<execution::Program>, Vec<Diagnostic>) {
     let program = match parser::parse(source) {
         Ok(program) => program,
-        Err(diagnostic) => return (None, std::iter::once(Report::of(&diagnostic)).collect()),
+        Err(diagnostic) => return (None, vec![produced_by(Phase::Parse, diagnostic)]),
     };
-    let (checked, found) = match mode {
+    let (checked, mut found) = match mode {
         Mode::Strict => match checker::check_with(&program, vault, bound) {
             Ok(program) => (Some(program), Vec::new()),
-            Err(diagnostic) => (None, vec![diagnostic]),
+            Err(diagnostic) => (None, vec![checked_diagnostic(diagnostic, mode)]),
         },
-        Mode::Collect => checker::check_collecting_with(&program, vault, bound),
+        Mode::Collect => {
+            let (checked, found) = checker::check_collecting_with(&program, vault, bound);
+            (
+                checked,
+                found
+                    .into_iter()
+                    .map(|diagnostic| checked_diagnostic(diagnostic, mode))
+                    .collect(),
+            )
+        }
     };
-    let mut reports: Reports = found.iter().map(Report::of).collect();
-    if reports.has_errors() {
-        return (None, reports);
+    if found.iter().any(Diagnostic::is_error) {
+        return (None, found);
     }
     if let Some(program) = &checked {
-        for warning in &program.warnings {
-            reports.push(Report::of_check_warning(warning));
-        }
+        found.extend(program.warnings.iter().cloned());
     }
-    (checked, reports)
+    (checked, found)
 }
 
 /// Evaluate one checked cell with the values of the cells it reads, on
@@ -477,9 +553,15 @@ pub(crate) fn evaluate_cell(
     program: &execution::Program,
     vault: &Vault,
     bound: Vec<(String, Value)>,
-) -> (Result<Value, Diagnostic>, Reports) {
-    let (value, log) = backends::LOCALHOST.run(program, vault, bound);
-    (value, log.into_iter().collect())
+    mode: Mode,
+) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
+    let (value, log) = backends::LOCALHOST.run(program, vault, bound, mode);
+    (
+        value.map_err(|diagnostic| produced_by(Phase::Execute, diagnostic)),
+        log.into_iter()
+            .map(|entry| produced_by(Phase::Execute, entry))
+            .collect(),
+    )
 }
 
 fn infer(
@@ -487,19 +569,18 @@ fn infer(
     vault: &Vault,
     mode: Mode,
 ) -> (Option<execution::Program>, Vec<Diagnostic>) {
-    match mode {
+    let (checked, found) = match mode {
         Mode::Strict => match checker::check(program, vault) {
             Ok(program) => (Some(program), Vec::new()),
             Err(diagnostic) => (None, vec![diagnostic]),
         },
         Mode::Collect => checker::check_collecting(program, vault),
-    }
-}
-
-fn failed(diagnostic: &Diagnostic) -> Outcome {
-    Outcome {
-        value: None,
-        inferred: None,
-        reports: std::iter::once(Report::of(diagnostic)).collect(),
-    }
+    };
+    (
+        checked,
+        found
+            .into_iter()
+            .map(|diagnostic| checked_diagnostic(diagnostic, mode))
+            .collect(),
+    )
 }

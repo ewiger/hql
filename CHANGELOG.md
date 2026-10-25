@@ -8,6 +8,79 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Changed
+
+- The error model ([HQL-0045](doc/proposals/HQL-0045/README.md), shown in the
+  [error-handling examples](examples/error-handling/README.md)): a failure is
+  data or it is a diagnostic. A diagnostic names its `phase` (`load`,
+  `parse`, `check`, `plan`, `execute`, `render`), its `kind`, a stable
+  kebab-case name, its `severity` and its `disposition` (`warning`,
+  `recoverable`, `fatal`), each set by the phase that wrote it; the severity
+  is no longer derived from a stage. A contract read `x | T` that fails is
+  an `execute error[contract-violation]` carrying the `Violation`s
+  `validate` would give; a data failure found while executing is of the
+  `execute` phase, where it was stamped `type`. A `Data` value of the
+  wrong shape, `name` read from a string, is an
+  `execute error[shape-mismatch]`.
+- The text form of a diagnostic is headed by its phase, severity and kind,
+  `check error[type-mismatch]: …`, where it named a stage,
+  `type error: …`. A nearest name moves out of the message onto a
+  `= help:` line, a second place in the source onto a `= note:` line, and
+  an element a step failed on onto `= element:`. A count of several reads
+  `3 diagnostics: …`, where it read `3 reports: …`.
+- `--envelope json` carries the run's diagnostics under `diagnostics`, where
+  it carried `reports`; each has `phase` and `kind` in place of `stage`.
+- In `hql repl` each line typed is its own origin, `<repl:N>`, counted in
+  what was typed: the second line's diagnostic points at `<repl:2>:1`, where
+  it pointed into the replayed session.
+- The library API: `Outcome.reports: Reports` is
+  `Outcome.diagnostics: Vec<Diagnostic>`, the channel's contents in order;
+  `Diagnostic` is one record, and `Report`, `Reports` and `Warning` are
+  removed.
+
+### Added
+
+- One diagnostic channel per run, opened before the vault loads and closed
+  after the last phase: every phase writes into it, in order, and a fatal
+  diagnostic leaves what was written before it intact. The program holds no
+  name for it. A host may tap it; a tap does not keep the run open.
+- The loader writes `load warning[skipped-document]` for a document it does
+  not load, a header that does not parse among them, and reads the rest; a
+  warning does not change the exit status.
+- `--diagnostics-format json` writes each diagnostic to standard error as
+  one JSON document per line, every field that applies present.
+- Under `--report collect`, `map` steps past an element whose function
+  failed and writes the diagnostic as `recoverable`; the value stands
+  without the element and the exit status is still `1`. An overflow or an
+  I/O failure stops under both modes.
+- A naming-convention warning gives the conventional spelling as help:
+  ``write it `total_of` ``.
+- `Diagnostic` is a record of the standard library: diagnostics a run
+  delivered with `--diagnostics-format json` read back in a later run with
+  `source(file(p), JsonLines) | Diagnostic`.
+- `DiagnosticText` is a format a program names: `| format(DiagnosticText)`
+  writes `Diagnostic` records as the report a run prints, and `--to
+  diagnostictext` names it.
+- A failure inside called functions carries a `call` frame for each call
+  that reached it, outermost first, and the `bindings` of the function or
+  lambda it failed in; one over a card's value names the card's document as
+  its `source`. The text form shows them as `= trace:`, `= bindings:` and
+  `= source:` lines.
+- Under `--report collect`, `filter` and `flat_map` step past a failing
+  element as `map` does, each naming itself as the step.
+- A cell's diagnostics in `hql render` name the cell as their origin,
+  `path#id` or `path#index`, with a `= cell:` line in the text form.
+- A document renders only in a vault. `hql render` finds a document's vault
+  from the document, not the working directory, so it renders from
+  anywhere; a document in no vault is `load failure[missing-vault]`, runs no
+  cell and exits `1`. A program outside any document still runs without a
+  vault.
+- `--vault` names a vault: a directory holding neither `.hmd/` nor
+  `hql.toml` is refused, where it was read as one.
+- Chapter 18 of the book, [Errors](doc/public/learn/18-errors/index.md):
+  failures kept as data, diagnostics and the run's channel, `strict` and
+  `collect`.
+
 ## [0.5.1] — 2026-10-25
 
 ### Fixed

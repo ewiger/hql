@@ -13,6 +13,7 @@ fn expand(xs: Collection<Hit<Card>>, depth: Int = 1, *, direction: String = "bot
 
 The graph reached from `x` by following links `depth` steps, `1` unless
 given, in `direction`: `"uplinks"`, `"downlinks"` or `"both"`, the
-default. A depth of `0` is refused: `Graph(xs)` is the graph with no
+default. A depth of `0` is a type error when it is a literal and an
+evaluation failure when it is computed: `Graph(xs)` is the graph with no
 traversal. It needs a vault.
 <!-- hql reference: end -->

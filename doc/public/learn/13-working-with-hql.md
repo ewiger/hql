@@ -1,8 +1,8 @@
 # 13. Working with `hql`
 
 The language is half of what you use; the other half is the command and what
-it says back. This chapter is about the tools: the commands, the reports, and
-the messages `hql` writes when a program is wrong.
+it says back. This chapter is about the tools: the commands, the diagnostics,
+and the messages `hql` writes when a program is wrong.
 
 ## The commands
 
@@ -68,11 +68,13 @@ declare one name and the input does not tell them apart. The modules of
 `format` and `io` among them, are visible in every program unless the vault's
 `hql.toml` says `prelude = false`.
 
-## Reports
+## Diagnostics
 
-A run produces a value **and** a queue of reports: warnings that change
-nothing, errors that make a result wrong, failures that make one impossible.
-Every report names where it points, by line and column.
+A run produces a value **and** the diagnostics its phases wrote: warnings that
+change nothing, errors that make a result wrong, failures that make one
+impossible. Each is headed by the phase that wrote it, its severity and its
+kind, and names where it points, by line and column.
+[Chapter 18](18-errors/index.md) is the whole error model.
 
 By default `hql` stops at the first error. `--report collect` reports every
 error it can find:
@@ -80,27 +82,32 @@ error it can find:
 ```text
 $ hql --report collect eval 'a = nosuchthing
 b = alsomissing'
-name error: `nosuchthing` is not bound
+check error[unknown-name]: `nosuchthing` is not bound
  --> <expression>:1:5
   |
 1 | a = nosuchthing
   |     ^^^^^^^^^^^
 
-name error: `alsomissing` is not bound
+check error[unknown-name]: `alsomissing` is not bound
  --> <expression>:2:5
   |
 2 | b = alsomissing
   |     ^^^^^^^^^^^
 
-2 reports: 0 failure, 2 error, 0 warning
+2 diagnostics: 0 failure, 2 error, 0 warning
 ```
 
 A misspelled step suggests the nearest one, and a retired name says what
-replaced it:
+replaced it, on a `help` line under the caret:
 
 ```text
 $ hql eval '[1, 2] | mapp(n => n)'
-name error: `mapp` is not a pipeline step; did you mean `map`?
+check error[unknown-step]: `mapp` is not a pipeline step
+ --> <expression>:1:10
+  |
+1 | [1, 2] | mapp(n => n)
+  |          ^^^^^^^^^^^^
+  = help: did you mean `map`?
 ```
 
 A warning never changes the exit status. Names have one casing per kind —
@@ -111,11 +118,12 @@ a name off its kind's convention is a warning where it is written:
 $ hql eval 'bookCount = 7
 bookCount'
 7
-type warning: `bookCount` is a binding, written in snake_case
+check warning[naming-convention]: `bookCount` is a binding, written in snake_case
  --> <expression>:1:1
   |
 1 | bookCount = 7
   | ^^^^^^^^^
+  = help: write it `book_count`
 ```
 
 ## Logging from a program
@@ -136,7 +144,9 @@ INFO books selected {category: "book"}
 `--log-level debug` lowers every logger's threshold, and `--log-level warn`
 raises it, without changing the program.
 
-`--envelope json` carries every report, whatever the level, as data.
+`--envelope json` carries every diagnostic, whatever the level, as data, and
+`--diagnostics-format json` writes each one to standard error as one JSON
+document per line.
 
 ## Settings
 

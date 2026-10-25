@@ -2,7 +2,7 @@
 
 use hql::{
     check,
-    diagnostics::Diagnostic,
+    diagnostics::{Diagnostic, Kind, Phase},
     eval,
     types::{TypeRef, Value},
 };
@@ -14,14 +14,22 @@ fn decimal(text: &str) -> Value {
 
 fn type_error(source: &str) -> Range<usize> {
     match check(source).or_else(|_| eval(source).map(|_| TypeRef::UNIT)) {
-        Err(Diagnostic::Type { span, .. }) => span,
+        Err(Diagnostic {
+            phase: Phase::Check,
+            span,
+            ..
+        }) => span,
         other => panic!("{source}: expected a type error, got {other:?}"),
     }
 }
 
 fn eval_type_error(source: &str) -> Range<usize> {
     match eval(source) {
-        Err(Diagnostic::Type { span, .. }) => span,
+        Err(Diagnostic {
+            phase: Phase::Check,
+            span,
+            ..
+        }) => span,
         other => panic!("{source}: expected a type error, got {other:?}"),
     }
 }
@@ -87,7 +95,13 @@ fn rejects_incomplete_or_unsupported_syntax() {
         "[1] | reduce(0, +",
     ] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Syntax { .. })),
+            matches!(
+                check(source),
+                Err(Diagnostic {
+                    phase: Phase::Parse,
+                    ..
+                })
+            ),
             "{source}: {:?}",
             check(source)
         );
@@ -101,7 +115,14 @@ fn an_unknown_name_is_a_name_error_rather_than_a_syntax_one() {
     // the withdrawn spelling, and it still fails — for the right reason.
     for source in ["trueish", "resolve(@[[alice]])", "nosuchthing"] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Name { .. })),
+            matches!(
+                check(source),
+                Err(Diagnostic {
+                    phase: Phase::Check,
+                    kind: Kind::UnknownName | Kind::UnknownField | Kind::UnknownStep,
+                    ..
+                })
+            ),
             "{source}: {:?}",
             check(source)
         );
@@ -122,10 +143,19 @@ fn float_addition_reports_overflow_instead_of_infinity() {
     let large = format!("{}.0f", "1".repeat(309));
     assert_eq!(check(&large), Ok(TypeRef::FLOAT));
     let source = format!("{large} + {large}");
-    assert!(matches!(eval(&source), Err(Diagnostic::Overflow { .. })));
+    assert!(matches!(
+        eval(&source),
+        Err(Diagnostic {
+            kind: Kind::NumericOverflow,
+            ..
+        })
+    ));
     assert!(matches!(
         check(&format!("{}.0f", "1".repeat(400))),
-        Err(Diagnostic::Syntax { .. })
+        Err(Diagnostic {
+            phase: Phase::Parse,
+            ..
+        })
     ));
 }
 
@@ -140,23 +170,34 @@ fn type_errors_point_to_the_operand() {
 fn checking_does_not_evaluate_and_evaluation_checks_first() {
     let source = "9223372036854775807 + 1";
     assert_eq!(check(source), Ok(TypeRef::INT));
-    assert_eq!(eval(source), Err(Diagnostic::Overflow { span: 0..23 }));
+    assert!(matches!(
+        eval(source),
+        Err(Diagnostic { kind: Kind::NumericOverflow, span, .. }) if span == (0..23)
+    ));
     assert!(matches!(
         eval("-9223372036854775808 + -1"),
-        Err(Diagnostic::Overflow { .. })
+        Err(Diagnostic {
+            kind: Kind::NumericOverflow,
+            ..
+        })
     ));
     assert!(matches!(
         eval("9223372036854775807 + 1 + true"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
 }
 
 #[test]
 fn diagnostics_use_utf8_byte_ranges_and_eof_positions() {
     assert!(
-        matches!(check("1 + \u{1f600}"), Err(Diagnostic::Syntax { span, .. }) if span == (4..8))
+        matches!(check("1 + \u{1f600}"), Err(Diagnostic { phase: Phase::Parse, span, .. }) if span == (4..8))
     );
-    assert!(matches!(check("1 +"), Err(Diagnostic::Syntax { span, .. }) if span == (3..3)));
+    assert!(
+        matches!(check("1 +"), Err(Diagnostic { phase: Phase::Parse, span, .. }) if span == (3..3))
+    );
 }
 
 #[test]
@@ -165,11 +206,17 @@ fn bounds_addition_depth_and_evaluates_left_to_right() {
     assert_eq!(eval(&at_limit), Ok(Value::Int(256)));
     assert!(matches!(
         eval(&format!("{at_limit} + 1")),
-        Err(Diagnostic::Syntax { .. })
+        Err(Diagnostic {
+            phase: Phase::Parse,
+            ..
+        })
     ));
     assert!(matches!(
         eval("9223372036854775807 + 1 + -1"),
-        Err(Diagnostic::Overflow { .. })
+        Err(Diagnostic {
+            kind: Kind::NumericOverflow,
+            ..
+        })
     ));
 }
 
@@ -189,11 +236,18 @@ fn a_binding_may_be_annotated_and_the_annotation_is_checked() {
     assert_eq!(eval("n : Int = 1\nn"), Ok(Value::Int(1)));
     assert!(matches!(
         check("n : Bool = 1\nn"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
     assert!(matches!(
         check("n : Nonesuch = 1"),
-        Err(Diagnostic::Name { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            kind: Kind::UnknownName | Kind::UnknownField | Kind::UnknownStep,
+            ..
+        })
     ));
 }
 
@@ -273,7 +327,14 @@ fn a_reference_is_refused_with_what_it_lacks() {
 fn cards_and_traversal_say_they_need_a_vault_rather_than_finding_nothing() {
     for source in ["cards", "cards | count", "cards | expand(depth = 1)"] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Name { .. })),
+            matches!(
+                check(source),
+                Err(Diagnostic {
+                    phase: Phase::Check,
+                    kind: Kind::UnknownName | Kind::UnknownField | Kind::UnknownStep,
+                    ..
+                })
+            ),
             "{source}"
         );
     }
@@ -297,7 +358,10 @@ fn generics_are_written_with_angle_brackets() {
     // Nesting closes with two separate `>`, so `>>` needs no special token.
     assert!(matches!(
         check("x : Seq<Hit<Card>> = 1"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
 }
 
@@ -306,7 +370,13 @@ fn square_brackets_are_not_the_type_world() {
     assert_eq!(check("[1, 2]"), Ok(TypeRef::list(TypeRef::INT)));
     for source in ["x : Set[Card] = 1", "x : Option[Int] = 1"] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Syntax { .. })),
+            matches!(
+                check(source),
+                Err(Diagnostic {
+                    phase: Phase::Parse,
+                    ..
+                })
+            ),
             "{source}: {:?}",
             check(source)
         );
@@ -315,14 +385,30 @@ fn square_brackets_are_not_the_type_world() {
 
 #[test]
 fn a_lambda_is_an_argument_and_not_a_value() {
-    assert!(matches!(check("c => c"), Err(Diagnostic::Type { .. })));
-    assert!(matches!(check("f = c => c"), Err(Diagnostic::Type { .. })));
+    assert!(matches!(
+        check("c => c"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
+    ));
+    assert!(matches!(
+        check("f = c => c"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
+    ));
 }
 
 #[test]
 fn a_step_without_an_input_says_so() {
     match check("take()") {
-        Err(Diagnostic::Type { message, .. }) => assert!(message.contains("needs an input")),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            message,
+            ..
+        }) => assert!(message.contains("needs an input")),
         other => panic!("expected a type error, got {other:?}"),
     }
 }
@@ -330,7 +416,13 @@ fn a_step_without_an_input_says_so() {
 #[test]
 fn a_direct_step_call_takes_its_input_as_the_first_argument() {
     assert_eq!(eval("take([3, 2, 1], 2)").unwrap().to_string(), "[3, 2]");
-    assert!(matches!(check("take(5)"), Err(Diagnostic::Type { .. })));
+    assert!(matches!(
+        check("take(5)"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
+    ));
 }
 
 #[test]
@@ -344,16 +436,21 @@ fn long_addition_chains_preserve_grouping_and_diagnostics() {
     let prefix = vec!["1"; 255].join(" + ");
     let invalid = format!("{prefix} + false");
     assert_eq!(type_error(&invalid), prefix.len() + 3..invalid.len());
-    assert_eq!(
+    assert!(matches!(
         eval("1 + 9223372036854775807 + -1"),
-        Err(Diagnostic::Overflow { span: 0..23 })
-    );
+        Err(Diagnostic { kind: Kind::NumericOverflow, span, .. }) if span == (0..23)
+    ));
 }
 
 #[test]
 fn a_near_miss_on_a_step_name_is_suggested() {
     match check("1 | mapp") {
-        Err(Diagnostic::Name { message, .. }) => assert!(message.contains("`map`"), "{message}"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            kind: Kind::UnknownStep,
+            context,
+            ..
+        }) => assert_eq!(context.help, ["did you mean `map`?"]),
         other => panic!("expected a name error, got {other:?}"),
     }
 }
@@ -371,9 +468,12 @@ fn a_retired_step_names_what_replaces_it() {
         )
         .expect_err(source);
         assert!(
-            failed.message().contains(replacement),
-            "{source}: {}",
-            failed.message()
+            failed
+                .context
+                .help
+                .iter()
+                .any(|help| help.contains(replacement)),
+            "{source}: {failed}"
         );
     }
 }
@@ -444,20 +544,47 @@ fn arithmetic_has_precedence_and_truncates_integer_division() {
         assert_eq!(eval(source), Ok(value), "{source}");
     }
     assert_eq!(type_error("7 / 2.0f"), 4..8);
-    assert!(matches!(eval("1 / 0"), Err(Diagnostic::Runtime { .. })));
-    assert!(matches!(eval("1 % 0"), Err(Diagnostic::Runtime { .. })));
+    assert!(matches!(
+        eval("1 / 0"),
+        Err(Diagnostic {
+            phase: Phase::Execute,
+            ..
+        })
+    ));
+    assert!(matches!(
+        eval("1 % 0"),
+        Err(Diagnostic {
+            phase: Phase::Execute,
+            ..
+        })
+    ));
     assert!(matches!(
         eval("1.0f / 0.0f"),
-        Err(Diagnostic::Runtime { .. })
+        Err(Diagnostic {
+            phase: Phase::Execute,
+            ..
+        })
     ));
-    assert!(matches!(eval("1.0 / 0"), Err(Diagnostic::Runtime { .. })));
+    assert!(matches!(
+        eval("1.0 / 0"),
+        Err(Diagnostic {
+            phase: Phase::Execute,
+            ..
+        })
+    ));
     assert!(matches!(
         eval("-9223372036854775808 / -1"),
-        Err(Diagnostic::Overflow { .. })
+        Err(Diagnostic {
+            kind: Kind::NumericOverflow,
+            ..
+        })
     ));
     assert!(matches!(
         eval("9223372036854775807 * 2"),
-        Err(Diagnostic::Overflow { .. })
+        Err(Diagnostic {
+            kind: Kind::NumericOverflow,
+            ..
+        })
     ));
 }
 
@@ -477,15 +604,33 @@ fn ordering_relations_compare_one_orderable_type() {
     // No widening but an Int's to a Decimal, and no comparing what has no
     // order.
     assert_eq!(eval("1 < 2.0"), Ok(Value::Bool(true)));
-    assert!(matches!(check("1 < 2.0f"), Err(Diagnostic::Type { .. })));
-    assert!(matches!(check("1.0 < 2.0f"), Err(Diagnostic::Type { .. })));
+    assert!(matches!(
+        check("1 < 2.0f"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
+    ));
+    assert!(matches!(
+        check("1.0 < 2.0f"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
+    ));
     assert!(matches!(
         check("true < false"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
     assert!(matches!(
         check("{ a: 1 } < { a: 2 }"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
 }
 
@@ -517,7 +662,10 @@ fn connectives_take_bools_and_short_circuit() {
     assert_eq!(type_error("not 1"), 4..5);
     assert!(matches!(
         check("@[[alice]].metadata.done and true"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
 }
 
@@ -527,7 +675,10 @@ fn connective_chains_are_bounded_like_arithmetic() {
     assert_eq!(eval(&at_limit), Ok(Value::Bool(true)));
     assert!(matches!(
         eval(&format!("{at_limit} and true")),
-        Err(Diagnostic::Syntax { .. })
+        Err(Diagnostic {
+            phase: Phase::Parse,
+            ..
+        })
     ));
 }
 
@@ -566,9 +717,10 @@ fn a_type_test_that_always_holds_is_a_warning() {
         hql::reporting::Mode::Strict,
     );
     assert!(!outcome.failed());
-    let warning = outcome.reports.iter().next().expect("a warning");
+    let warning = outcome.diagnostics.first().expect("a warning");
     assert_eq!(warning.severity, hql::reporting::Severity::Warning);
-    assert_eq!(warning.stage, "type");
+    assert_eq!(warning.phase, Phase::Check);
+    assert_eq!(warning.kind, Kind::AlwaysTrueTest);
     assert!(
         warning.message.contains("always true"),
         "{}",
@@ -576,7 +728,7 @@ fn a_type_test_that_always_holds_is_a_warning() {
     );
     // An open tree is asked at run time, so it warns of nothing.
     let open = hql::run("{a: 1}.a | is(Int)", &vault, hql::reporting::Mode::Strict);
-    assert!(open.reports.is_empty(), "{:?}", open.reports);
+    assert!(open.diagnostics.is_empty(), "{:?}", open.diagnostics);
 }
 
 #[test]
@@ -626,11 +778,11 @@ fn an_alias_is_a_function_whose_types_the_checker_writes() {
     let vault = hql::vault::Vault::empty();
     let signature = |source: &str| {
         let outcome = hql::check_reported(source, &vault, hql::reporting::Mode::Strict);
-        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
         outcome
-            .reports
+            .diagnostics
             .iter()
-            .find(|report| report.code.as_deref() == Some("signature"))
+            .find(|report| report.kind == Kind::Signature)
             .map(|report| report.message.clone())
             .unwrap()
     };
@@ -674,7 +826,7 @@ fn an_alias_whose_body_fixes_no_type_is_refused() {
     );
     assert!(
         shadow
-            .reports
+            .diagnostics
             .iter()
             .any(|report| report.message.contains("shadows the step"))
     );
@@ -708,7 +860,11 @@ fn a_structural_body_may_follow_a_line_break_after_equals() {
 fn empty_brackets_are_refused_alike_across_a_line_break() {
     for source in ["[1, 2, 3][ ]", "[1, 2, 3][\n]"] {
         match check(source) {
-            Err(Diagnostic::Syntax { message, .. }) => {
+            Err(Diagnostic {
+                phase: Phase::Parse,
+                message,
+                ..
+            }) => {
                 assert!(
                     message.contains("a bracket holds a position"),
                     "{source}: {message}"

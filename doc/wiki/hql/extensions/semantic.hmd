@@ -61,7 +61,7 @@ score nobody can reproduce.
 ## Staleness and coverage
 
 Neither is silent and neither is fatal; both go through the
-[report queue](../error-handling.hmd).
+[diagnostic channel](../error-handling.hmd).
 
 - A card whose text has changed since the build has a vector for text that no
   longer exists. It **ranks anyway**, with a warning naming it. A stale score is

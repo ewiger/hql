@@ -70,7 +70,7 @@ naturals(1) | sum
 ```
 
 ```text
-type error: `sum` needs a finite input, and Stream<Int> may not end; bound it first with `take(n)`, or batch it with `collect(n)`
+check error[type-mismatch]: `sum` needs a finite input, and Stream<Int> may not end; bound it first with `take(n)`, or batch it with `collect(n)`
  --> <expression>:7:15
   |
 7 | naturals(1) | sum
@@ -142,7 +142,7 @@ $ hql eval '…naturals… | map(n => n * n) | json' | head -3
 9
 ```
 
-A diagram format describes a whole, so `| mermaid` over a stream is refused
+A diagram format describes a whole, so `| mermaid` over a stream is a type error
 until `take(n)` bounds it.
 
 ## What is next

@@ -339,7 +339,7 @@ fn a_tree_is_read_through_its_map_alternative_and_a_leaf_is_no_map() {
         format!("{tree}get(tree.pages, \"unit\")"),
     ] {
         let refusal = eval(&source).expect_err(&source);
-        assert_eq!(refusal.stage(), "type", "{source}");
+        assert_eq!(refusal.phase, hql::diagnostics::Phase::Execute, "{source}");
         assert!(
             refusal.message().contains("not Data of shape int"),
             "{refusal:?}"

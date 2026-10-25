@@ -74,7 +74,11 @@ table = "birds"
 
 fn value(source: &str, vault: &Vault) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
-    let messages: Vec<_> = outcome.reports.iter().map(|r| r.message.clone()).collect();
+    let messages: Vec<_> = outcome
+        .diagnostics
+        .iter()
+        .map(|r| r.message.clone())
+        .collect();
     outcome
         .value
         .unwrap_or_else(|| panic!("{source}: {messages:?}"))
@@ -85,7 +89,7 @@ fn refusal(source: &str, vault: &Vault) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(outcome.failed(), "{source} ran");
     outcome
-        .reports
+        .diagnostics
         .iter()
         .map(|report| report.message.clone())
         .collect::<Vec<_>>()
@@ -165,7 +169,7 @@ order = ["wing"]
 fn an_unknown_id_is_a_name_error_naming_the_nearest() {
     let (_dir, vault) = configured("");
     let error = hql::check_in(r#"source("count")"#, &vault).unwrap_err();
-    assert_eq!(error.stage(), "name");
+    assert_eq!(error.kind, hql::diagnostics::Kind::UnknownName);
     assert!(error.message().contains("did you mean `counts`"), "{error}");
     let far = hql::check_in(r#"source("weather")"#, &vault).unwrap_err();
     assert!(far.message().contains("[sources.<id>]"), "{far}");
@@ -597,7 +601,7 @@ fn strictness_decides_what_an_unmapped_field_does() {
         Some(r#"["wren", "robin"]"#)
     );
     let warnings: Vec<&str> = outcome
-        .reports
+        .diagnostics
         .iter()
         .map(|report| report.message.as_str())
         .collect();

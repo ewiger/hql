@@ -142,7 +142,7 @@ union of records covers every member; `Result<T, E>` is `ok(v)` or `err(e)`
 and there is no unwrap. `value.f(args)` calls `f` with the value first,
 resolved by the value's type among the visible modules, so `"  hi ".trim()`,
 `xs.first()` and `7.max(3)` need no import. `trait` and `impl` are HQL's own
-compile-time contracts: the operators resolve through `Add`, `Eq` and `Ord`,
+capability contracts, verified by the checker: the operators resolve through `Add`, `Eq` and `Ord`,
 and a type implementing `Ord` sorts. `import a.b as c` makes one module
 visible, from the standard library or from a module root of HQL files;
 every module file opens with `module a.b`, its name checked against its path,

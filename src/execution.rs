@@ -14,7 +14,7 @@ pub(crate) struct Program {
     pub statements: Vec<Stmt>,
     pub result: TypeRef,
     /// The warnings checking reported.
-    pub warnings: Vec<crate::warnings::Warning>,
+    pub warnings: Vec<crate::diagnostics::Diagnostic>,
     /// Each alias the program defines, with the signature the checker wrote.
     pub signatures: Vec<(String, TypeRef)>,
     /// Each function the program defines whose body is effectful, with the
@@ -735,7 +735,7 @@ pub(crate) struct Checked {
     /// The workspace modules imported, in order.
     pub modules: Vec<LoadedModule>,
     /// What checking found worth saying that does not make the program wrong.
-    pub warnings: Vec<crate::warnings::Warning>,
+    pub warnings: Vec<crate::diagnostics::Diagnostic>,
     /// Each alias the program defines, with the signature the checker wrote.
     pub signatures: Vec<(String, TypeRef)>,
     /// Each effectful function, with the effectful operations it uses.

@@ -29,7 +29,7 @@ atoms! {
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
     CELL => "Cell", RANGE => "Range", TABLE => "Table",
     TYPE_CONTRACT => "TypeContract", DATA_CONTRACT => "DataContract",
-    VIOLATION => "Violation", INVALID => "Invalid",
+    VIOLATION => "Violation", INVALID => "Invalid", DIAGNOSTIC => "Diagnostic",
 }
 
 macro_rules! applications {
@@ -145,6 +145,13 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         ),
         (
             TypeRef::INVALID,
+            TypeKind::Concrete,
+            &[TypeRef::DATA_CONTRACT],
+        ),
+        // What a run delivered, read back as data (HQL-0045): `type
+        // Diagnostic` in `lib/std/core/mod.hql`.
+        (
+            TypeRef::DIAGNOSTIC,
             TypeKind::Concrete,
             &[TypeRef::DATA_CONTRACT],
         ),
@@ -340,6 +347,7 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         ("Csv", "Format"),
         ("D2", "Format"),
         ("Mermaid", "Format"),
+        ("DiagnosticText", "Format"),
     ] {
         system.declare(TypeDefinition {
             constructor: TypeConstructor(format),
