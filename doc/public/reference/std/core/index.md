@@ -57,6 +57,7 @@ over them are the `collections` module's.
 - [`Pair`](types/Pair.md) — Two values held together, each at its own type: what `zip`, `enumerate`, `entries` and `join` produce, and what `Pair(first = a, second = b)` builds.
 - [`Violation`](types/Violation.md) — One reason a value does not read as a contract, as `validate(T)` reports it.
 - [`Invalid`](types/Invalid.md) — A value that did not read as a contract, and every reason why: its `contract`, the `value`, and the `violations`.
+- [`Diagnostic`](types/Diagnostic.md) — A diagnostic a run delivered, read back as data: its `phase`, `kind`, `severity` and `disposition`, its `message`, and where it points, `origin` and `span`, a `{start, end}` byte range.
 
 ## Implementations
 

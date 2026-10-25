@@ -31,6 +31,7 @@ UTF-8, and decoding bytes that are not UTF-8 is a decoding error.
 - [`Csv`](types/Csv.md) — The comma-separated values format, with a header row: read, each row is one `Data` value whose fields, named by the header, hold `String`s; written, a collection of records or a `Table` is the header and one row per element.
 - [`D2`](types/D2.md) — The D2 diagram format, which writes a `Graph`, or a `Data` value holding one, and nothing else.
 - [`Mermaid`](types/Mermaid.md) — The Mermaid diagram format, which writes a `Graph`, or a `Data` value holding one, and nothing else.
+- [`DiagnosticText`](types/DiagnosticText.md) — The text form of a `Diagnostic` (HQL-0045), which writes a diagnostic, or a sequence of them, and nothing else: each one's heading, `phase severity[kind]: message`, its origin and the fields that apply, then a count per severity when there is more than one.
 - [`Table`](types/Table.md) — Rows of type `R` under ordered columns: the shape every format's encoder writes as a table.
 - [`Decoder`](types/Decoder.md) — The contract that a format's records are read as values of `T`: `source(e, F)` gives the `T` of `F`'s decoder.
 - [`Encoder`](types/Encoder.md) — The contract that values of `T` are written as records of a format: `format(x, F)` takes the types `F`'s encoders cover.
@@ -92,4 +93,11 @@ impl Encoder<Data> for Mermaid
 
 `D2` and `Mermaid` describe graphs: they write a `Graph`, or a `Data`
 value holding one.
+
+```hql
+impl Encoder<Diagnostic> for DiagnosticText
+```
+
+`DiagnosticText` writes a `Diagnostic`, and a sequence of them one after
+another.
 <!-- hql reference: end -->
