@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 60 # to be incremented when adding a new issue card
+  last_id: 61 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -32,6 +32,9 @@ board:
       - id: "0012"
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
+      - id: "0061"
+        title: "Neo4j parity analysis: graph patterns, traversal and graph schema"
+        file: 0061-neo4j-parity-analysis.md
     todo:
       - id: "0058"
         title: "A value read from a card loses where it came from"
