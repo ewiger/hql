@@ -1,0 +1,44 @@
+// status: valid-now
+// feature: The envelope: a check error has no type, an evaluation failure has the checked type and no value
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql check examples/error-handling/boundary/effect-then-overflow.hql
+Int
+$ hql --envelope json run examples/error-handling/boundary/effect-then-overflow.hql
+before
+{
+  "origin": "examples/error-handling/boundary/effect-then-overflow.hql",
+  "reports": [
+    {
+      "message": "numeric overflow",
+      "severity": "failure",
+      "span": {
+        "end": 537,
+        "start": 514
+      },
+      "stage": "evaluation"
+    }
+  ],
+  "type": "Int",
+  "value": null
+}
+$ hql --envelope json run examples/error-handling/boundary/effect-then-type-error.hql
+{
+  "origin": "examples/error-handling/boundary/effect-then-type-error.hql",
+  "reports": [
+    {
+      "message": "`Add` for String takes String, not Int",
+      "severity": "error",
+      "span": {
+        "end": 470,
+        "start": 469
+      },
+      "stage": "type"
+    }
+  ],
+  "type": null,
+  "value": null
+}

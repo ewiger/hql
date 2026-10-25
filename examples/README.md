@@ -54,6 +54,11 @@ The [traits](traits/README.md) cases name a trait's type,
 `trait Shape as Figure`, the union of the types that implement it, from
 [HQL-0039](../doc/proposals/HQL-0039/README.md).
 
+The [error handling](error-handling/README.md) cases are each wrong on purpose: a syntax
+failure, a name error, a type error, a broken trait contract or an evaluation
+failure, and an effect before each error shows whether the program ran, from
+[HQL-0044](../doc/proposals/HQL-0044/README.md).
+
 The [I/O](io/README.md) cases read a JSON Lines file and a CSV file with
 `source`, each document decoded as the record its binding declares, from
 [HQL-0021](../doc/proposals/HQL-0021/README.md).

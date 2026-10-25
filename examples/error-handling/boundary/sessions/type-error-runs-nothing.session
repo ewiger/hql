@@ -1,0 +1,21 @@
+// status: valid-now
+// feature: A type error in the second statement: hql check and hql run reject the program alike, and run writes no before
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql check examples/error-handling/boundary/effect-then-type-error.hql
+type error: `Add` for String takes String, not Int
+  --> examples/error-handling/boundary/effect-then-type-error.hql:13:11
+   |
+13 | x = "a" + 1
+   |           ^
+
+$ hql run examples/error-handling/boundary/effect-then-type-error.hql
+type error: `Add` for String takes String, not Int
+  --> examples/error-handling/boundary/effect-then-type-error.hql:13:11
+   |
+13 | x = "a" + 1
+   |           ^
+

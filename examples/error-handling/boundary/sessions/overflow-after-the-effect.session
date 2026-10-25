@@ -1,0 +1,15 @@
+// status: valid-now
+// feature: An evaluation failure comes after the program has started: before is written, then the failure
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql run examples/error-handling/boundary/effect-then-overflow.hql
+before
+evaluation failure: numeric overflow
+  --> examples/error-handling/boundary/effect-then-overflow.hql:15:5
+   |
+15 | x = 9223372036854775807 + 1
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+

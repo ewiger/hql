@@ -1,0 +1,32 @@
+// status: valid-now
+// feature: In the REPL a rejected input binds nothing and runs nothing; the session goes on
+// implementation: implemented
+// environment: pure
+// session: repl
+
+hql> x = 1
+hql> x = "a" + 1
+type error: `Add` for String takes String, not Int
+ --> <repl>:3:11
+  |
+3 | x = "a" + 1
+  |           ^
+
+hql> x
+1
+hql> fn never() : Int = "a" + 1
+type error: `Add` for String takes String, not Int
+ --> <repl>:3:26
+  |
+3 | fn never() : Int = "a" + 1
+  |                          ^
+
+hql> 1 / 0
+evaluation failure: division by zero
+ --> <repl>:3:1
+  |
+3 | 1 / 0
+  | ^^^^^
+
+hql> x
+1
