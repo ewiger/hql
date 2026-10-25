@@ -151,7 +151,7 @@ execute failure[division-by-zero]: division by zero
 3 | | map(c => match c.metadata.pages { some(Int n) => 1000 / (n - 112), _ => 0 })
   |                                                    ^^^^^^^^^^^^^^^
   = element: "a-room-of-ones-own", position 1 of 7 in `map`
-  = source: examples/tutorial/books/a-room-of-ones-own.hmd
+  = source: books/a-room-of-ones-own.hmd
 ```
 
 ## The diagnostic channel

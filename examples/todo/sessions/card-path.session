@@ -1,0 +1,11 @@
+// status: valid-now
+// feature: A card's path is its place in the vault, the same however the vault was named
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 0
+
+$ hql --vault examples/todo/wiki eval cards|filter(c=>c.name=="todo")|map(c=>c.path)
+["todo.hmd"]
+$ hql --vault examples/todo/wiki/../wiki eval cards|filter(c=>c.name=="todo")|map(c=>c.path)
+["todo.hmd"]

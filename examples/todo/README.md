@@ -50,3 +50,7 @@ Reading the keys through a declared partial record instead, so that
 `sort(by = c => c.metadata.priority)` checks without a `match`, is open as
 [issue 0027](../../doc/issues/0027-typed-metadata-sort-keys.md) on the
 `todo` column of the board.
+
+The [card path session](sessions/card-path.session) reads a card's `path`:
+its place in the vault, `todo.hmd`, whatever form the vault's root was named
+in.

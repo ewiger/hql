@@ -1,9 +1,9 @@
 # 0057 — The error model's remainder: what HQL-0045 left open
 
 Status: done
-Related: [HQL-0045](../proposals/HQL-0045/README.md),
-[error-handling examples](../../examples/error-handling/README.md),
-[`src/diagnostics.rs`](../../src/diagnostics.rs)
+Related: [HQL-0045](../../proposals/HQL-0045/README.md),
+[error-handling examples](../../../examples/error-handling/README.md),
+[`src/diagnostics.rs`](../../../src/diagnostics.rs)
 
 HQL-0045 is implemented in part. This issue carries the rest.
 
@@ -20,8 +20,8 @@ HQL-0045 is implemented in part. This issue carries the rest.
 4. A rendered cell's diagnostics name the cell as their `origin`, not the
    document.
 5. `DiagnosticText` a format a program can name, beside `Json`.
-6. The [error-handling card](../wiki/hql/error-handling.hmd), the
-   [reporting model](../models/behavior/reporting.md) and `cli.md` rewritten
+6. The [error-handling card](../../wiki/hql/error-handling.hmd), the
+   [reporting model](../../models/behavior/reporting.md) and `cli.md` rewritten
    to the terminology of HQL-0045 (unit 11).
 
 Each lands with a case or a session under `examples/error-handling/` written
