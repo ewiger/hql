@@ -56,6 +56,7 @@ The sessions pin what `hql` prints for them, standard error included:
 | [module contract](boundary/sessions/module-contract.session) | a private helper and an undeclared function, under the module root |
 | [REPL](boundary/sessions/repl-rejected-input.session) | a rejected input rebinds nothing: `x` stays `1`; each line typed is its own origin, `<repl:N>` |
 | [document](documents/sessions/render-checks-every-cell.session) | [every cell checks](documents/every-cell-checks.hmd) and renders; [a bad last cell](documents/last-cell-type-error.hmd) stops the build before the first |
+| [cell origin](documents/sessions/cell-origin.session) | a cell's diagnostic names the cell, `path#2`, as its origin; the text form adds `= cell:` |
 
 ## Diagnostics: the error model
 

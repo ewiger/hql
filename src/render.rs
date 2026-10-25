@@ -56,7 +56,17 @@ pub fn shorten(text: &str) -> String {
 /// diagnostic does not.
 #[must_use]
 pub fn diagnostic_text(diagnostic: &Diagnostic, source: Option<&str>, origin: &str) -> String {
-    let origin = diagnostic.origin.as_deref().unwrap_or(origin);
+    // A cell of a document is written `path#cell`: the location is the
+    // document's, and the cell is named on a line of its own.
+    let (origin, cell) = match diagnostic
+        .origin
+        .as_deref()
+        .unwrap_or(origin)
+        .split_once('#')
+    {
+        Some((file, cell)) => (file, Some(cell)),
+        None => (diagnostic.origin.as_deref().unwrap_or(origin), None),
+    };
     let heading = format!(
         "{} {}[{}]: {}",
         diagnostic.phase.label(),
@@ -66,7 +76,7 @@ pub fn diagnostic_text(diagnostic: &Diagnostic, source: Option<&str>, origin: &s
     );
     let Some(source) = source else {
         let mut rendered = format!("{heading}\n --> {origin}");
-        for line in notes(diagnostic, None, origin, " ") {
+        for line in notes(diagnostic, None, origin, cell, " ") {
             rendered.push_str(&format!("\n{line}"));
         }
         return rendered;
@@ -90,15 +100,24 @@ pub fn diagnostic_text(diagnostic: &Diagnostic, source: Option<&str>, origin: &s
         caret_pad = " ".repeat(column - 1),
         caret = "^".repeat(width),
     );
-    for note in notes(diagnostic, Some(source), origin, &pad) {
+    for note in notes(diagnostic, Some(source), origin, cell, &pad) {
         rendered.push_str(&format!("\n{note}"));
     }
     rendered
 }
 
 /// The `= …` lines under a diagnostic's caret, one per field that applies.
-fn notes(diagnostic: &Diagnostic, source: Option<&str>, origin: &str, pad: &str) -> Vec<String> {
+fn notes(
+    diagnostic: &Diagnostic,
+    source: Option<&str>,
+    origin: &str,
+    cell: Option<&str>,
+    pad: &str,
+) -> Vec<String> {
     let mut lines = Vec::new();
+    if let Some(cell) = cell {
+        lines.push(format!("{pad} = cell: {cell}"));
+    }
     for label in &diagnostic.context.labels {
         let at = label.origin.as_deref().unwrap_or(origin);
         let place = match (source, &label.origin) {

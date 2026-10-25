@@ -21,4 +21,5 @@ check error[type-mismatch]: addition requires two Int, two Float or two Decimal 
    |
 16 | (pages | sum) + " pages"
    |                 ^^^^^^^^
+   = cell: 2
 

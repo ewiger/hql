@@ -247,7 +247,8 @@ pub fn render_cell(
             .collect();
         blocks += 1;
         let (program, found) = crate::check_cell(&cells[index].body, vault, mode, &bound);
-        results[index].diagnostics = shifted(found, cells[index].body_at);
+        results[index].diagnostics =
+            of_cell(shifted(found, cells[index].body_at), &cells[index], index);
         match program {
             Some(program) => {
                 types[index] = Some(program.result.clone());
@@ -278,14 +279,18 @@ pub fn render_cell(
                 .filter_map(|&read| Some((cells[read].id.clone()?, values[read].clone()?)))
                 .collect();
             let (value, log) = crate::evaluate_cell(program, vault, bound, mode);
-            results[index]
-                .diagnostics
-                .extend(shifted(log, cells[index].body_at));
+            results[index].diagnostics.extend(of_cell(
+                shifted(log, cells[index].body_at),
+                &cells[index],
+                index,
+            ));
             let value = value.map_err(|diagnostic| {
                 let message = diagnostic.message();
-                results[index]
-                    .diagnostics
-                    .extend(shifted(vec![diagnostic], cells[index].body_at));
+                results[index].diagnostics.extend(of_cell(
+                    shifted(vec![diagnostic], cells[index].body_at),
+                    &cells[index],
+                    index,
+                ));
                 message
             });
             let output = value.and_then(|value| {
@@ -760,6 +765,20 @@ fn shifted(diagnostics: Vec<Diagnostic>, at: usize) -> Vec<Diagnostic> {
             for label in &mut diagnostic.context.labels {
                 label.span = label.span.start + at..label.span.end + at;
             }
+            diagnostic
+        })
+        .collect()
+}
+
+/// A cell's diagnostics with the cell as their origin: `#` and its id, or
+/// its index when it has none. The host puts the document's path before
+/// it; the span stays a range of the document.
+fn of_cell(diagnostics: Vec<Diagnostic>, cell: &Source, index: usize) -> Vec<Diagnostic> {
+    let name = cell.id.clone().unwrap_or_else(|| index.to_string());
+    diagnostics
+        .into_iter()
+        .map(|mut diagnostic| {
+            diagnostic.origin.get_or_insert_with(|| format!("#{name}"));
             diagnostic
         })
         .collect()

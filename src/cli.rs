@@ -1202,13 +1202,18 @@ fn emit(
 }
 
 /// The diagnostics with `origin` where they name none: what the program
-/// was read from.
+/// was read from. A cell's diagnostic names only the cell, `#id`, and the
+/// document's path goes before it.
 fn originated(diagnostics: &[Diagnostic], origin: &str) -> Vec<Diagnostic> {
     diagnostics
         .iter()
         .cloned()
         .map(|mut diagnostic| {
-            diagnostic.origin.get_or_insert_with(|| origin.to_owned());
+            diagnostic.origin = Some(match diagnostic.origin.take() {
+                None => origin.to_owned(),
+                Some(cell) if cell.starts_with('#') => format!("{origin}{cell}"),
+                Some(other) => other,
+            });
             diagnostic
         })
         .collect()
@@ -1240,7 +1245,11 @@ fn deliver(
             for diagnostic in &shown {
                 // A diagnostic about another origin, a document the loader
                 // read, has no line of this source to point at.
-                let text = (diagnostic.origin.as_deref() == Some(origin)).then_some(source);
+                let file = diagnostic
+                    .origin
+                    .as_deref()
+                    .map(|written| written.split_once('#').map_or(written, |(file, _)| file));
+                let text = (file == Some(origin)).then_some(source);
                 writeln!(
                     err,
                     "{}\n",
