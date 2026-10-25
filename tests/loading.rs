@@ -129,7 +129,8 @@ fn memory_sources_get_the_same_names_knowledge_and_extension_metadata() {
         vault.warnings[0]
             .origin
             .as_deref()
-            .is_some_and(|origin| origin.contains("memory/invalid.hmd"))
+            .is_some_and(|origin| origin == "invalid.hmd"),
+        "a document's origin is its place in the vault"
     );
     assert!(vault.warnings[0].message.contains("invalid YAML"));
     assert_eq!(

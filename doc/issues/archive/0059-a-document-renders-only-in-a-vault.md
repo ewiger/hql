@@ -1,9 +1,9 @@
 # 0059 — A document renders only in a vault
 
 Status: done
-Related: [HQL-0045](../proposals/HQL-0045/README.md),
-[the command line](../models/behavior/cli.md),
-[`src/cli.rs`](../../src/cli.rs), [`src/vault.rs`](../../src/vault.rs)
+Related: [HQL-0045](../../proposals/HQL-0045/README.md),
+[the command line](../../models/behavior/cli.md),
+[`src/cli.rs`](../../../src/cli.rs), [`src/vault.rs`](../../../src/vault.rs)
 
 A HyperMarkDown document is a card of a vault: its cells read `cards`, link
 to other documents and resolve against the vault's `hql.toml`. `hql render`

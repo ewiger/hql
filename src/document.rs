@@ -33,7 +33,9 @@ impl DocumentStore {
             warnings: Vec::new(),
         };
         for document in snapshot.documents {
-            let path = snapshot.root.join(&document.path);
+            // A card's path is its place in the vault, as the source names
+            // it; where it is on disk is the vault root joined with it.
+            let path = document.path.clone();
             let text = match document.text {
                 Ok(text) => text,
                 Err(error) => {

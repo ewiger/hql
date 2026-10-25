@@ -77,6 +77,14 @@ The language continues to be in active development.
   vault.
 - `--vault` names a vault: a directory holding neither `.hmd/` nor
   `hql.toml` is refused, where it was read as one.
+
+### Fixed
+
+- A card's `path` is its place in the vault, `authors/frank-herbert.hmd`,
+  as `lib/std/doc` declares it. It was the vault root joined with it, so the
+  same card's path depended on the working directory and on how the vault
+  was named. A diagnostic's `source` and a skipped document's origin name the
+  same path.
 - Chapter 18 of the book, [Errors](doc/public/learn/18-errors/index.md):
   failures kept as data, diagnostics and the run's channel, `strict` and
   `collect`.

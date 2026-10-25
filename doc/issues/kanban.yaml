@@ -33,9 +33,6 @@ board:
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
     todo:
-      - id: "0060"
-        title: "A card keeps its path in the vault"
-        file: 0060-a-card-keeps-its-path-in-the-vault.md
       - id: "0058"
         title: "A value read from a card loses where it came from"
         file: 0058-card-values-lose-their-provenance.md
