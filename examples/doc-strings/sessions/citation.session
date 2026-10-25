@@ -1,0 +1,20 @@
+// status: proposed
+// feature: A standard doc string cites a published page; `hql help` prints the page's URL under the binary's own version
+// implementation: pending
+// proposal: doc/proposals/HQL-0042/README.md
+// environment: pure
+// session: cli
+// exit: 0
+
+$ hql help round
+fn round(self: Float) : Float    // std/math
+
+    The whole number nearest `self`, as a `Float`; a value halfway between
+    two rounds away from zero: `2.5f | round` is `3.0`.
+
+fn round(self: Decimal) : Decimal    // std/math
+fn round(self: Decimal, places: Int) : Decimal    // std/math
+
+    `self` rounded half to even to `places` digits after the point, and
+    kept at that scale: `round(2.345, 2)` is `2.34`, and `round(x)` is
+    `round(x, 0)`. See Division and rounding <https://hql.hypermarkdown.org/v{version}/learn/02-data-types/decimal/#division-and-rounding>.

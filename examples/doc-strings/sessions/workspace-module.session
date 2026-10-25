@@ -1,0 +1,22 @@
+// status: proposed
+// feature: `hql help` on a module and on a qualified name under a module root: the module's doc string, its declarations' first sentences, and one declaration in full
+// implementation: pending
+// proposal: doc/proposals/HQL-0042/README.md
+// environment: pure
+// modules: doc-strings/lib
+// session: cli
+// exit: 0
+
+$ hql --modules examples/doc-strings/lib help shelf
+module shelf    // shelf
+
+    Books and the pages they hold.
+
+type Book { title : String, pages : Int }
+    A book: its title and its number of pages.
+fn pages(books: List<Book>) : Int
+    The pages of every book in `books`, added up.
+$ hql --modules examples/doc-strings/lib help shelf.pages
+fn pages(books: List<Book>) : Int    // shelf
+
+    The pages of every book in `books`, added up. An empty list has `0`.

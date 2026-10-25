@@ -1,0 +1,26 @@
+// status: proposed
+// feature: An overload set documented in part: forms in one paragraph share its doc string, and a form in an undocumented paragraph has none
+// implementation: pending
+// proposal: doc/proposals/HQL-0042/README.md
+// environment: pure
+// session: repl
+
+hql> /// A temperature, in kelvin.
+hql> type Temp { kelvin : Float }
+hql>
+hql> fn Temp(whole: Int) : Temp = Temp(kelvin = float(whole))
+hql> /// A temperature from degrees Celsius: `celsius + 273.0`.
+hql> fn Temp(celsius: Float) : Temp = Temp(kelvin = celsius + 273.0f)
+hql> fn Temp(label: String) : Temp = Temp(kelvin = 0.0f)
+hql>
+hql> :help Temp
+type Temp { kelvin : Float }    // program
+
+    A temperature, in kelvin.
+
+fn Temp(whole: Int) : Temp    // program
+
+fn Temp(celsius: Float) : Temp    // program
+fn Temp(label: String) : Temp    // program
+
+    A temperature from degrees Celsius: `celsius + 273.0`.

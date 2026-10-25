@@ -1,0 +1,19 @@
+// status: proposed
+// feature: A `///` doc string above a program's own function, printed by `:type` and `:help`
+// implementation: pending
+// proposal: doc/proposals/HQL-0042/README.md
+// environment: pure
+// session: repl
+
+hql> /// Twice `n`. An overflow past the `Int` range is an `IntegerOverflow`.
+hql> fn double(n: Int) : Int = n * 2
+hql>
+hql> double(21)
+42
+hql> :type double
+fn double(n: Int) : Int    // program
+    Twice `n`.
+hql> :help double
+fn double(n: Int) : Int    // program
+
+    Twice `n`. An overflow past the `Int` range is an `IntegerOverflow`.

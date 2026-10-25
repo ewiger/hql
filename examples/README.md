@@ -63,6 +63,12 @@ The [data sources](sources/README.md) cases read the sources a vault's
 CSV file and a JSON array, typed from the configuration before anything is
 read, from [HQL-0012](../doc/proposals/HQL-0012/README.md).
 
+The [doc strings](doc-strings/README.md) sessions print `///` doc strings
+with `:help`, `:type` and `hql help`: a program's own function, overloads
+documented in part, a standard overload set, a citation printed as a
+versioned URL, and an unknown name, from
+[HQL-0042](../doc/proposals/HQL-0042/README.md).
+
 The [todo board](todo/README.md) lists open tasks and architecture decisions
 with `hql#eval` cells, reading typed sort keys out of card metadata.
 

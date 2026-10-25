@@ -1,0 +1,29 @@
+// status: proposed
+// feature: An overloaded standard function: each run of forms printed with its own doc string, and `:type` with each run's first sentence
+// implementation: pending
+// proposal: doc/proposals/HQL-0042/README.md
+// environment: pure
+// session: repl
+
+hql> :help filter
+elementwise fn filter<F<_> : Iterable<_>, T, U>(self: F<T>, by: T -> Is<U>) : F<U>    // std/collections
+elementwise fn filter<T, U>(self: Option<T>, by: T -> Is<U>) : Option<U>    // std/collections
+
+    The elements for which a type test holds, each at the tested type. A
+    `by` of type `T -> Is<U>`, such as `x => x | is(Int)`, makes the result
+    an `F<U>`. Over an `Option<T>`, the result is the value when it is
+    present and the test holds, and `none` otherwise.
+
+elementwise fn filter<S : Iterable<T>, T>(self: S, by: T -> Bool) : S    // std/collections
+elementwise fn filter<T>(self: Option<T>, by: T -> Bool) : Option<T>    // std/collections
+
+    The elements for which `by` is `true`, in their order, in a collection
+    of the input's type. Over an `Option<T>`, the result is the value when
+    it is present and `by` holds, and `none` otherwise.
+hql> :type filter
+elementwise fn filter<F<_> : Iterable<_>, T, U>(self: F<T>, by: T -> Is<U>) : F<U>    // std/collections
+elementwise fn filter<T, U>(self: Option<T>, by: T -> Is<U>) : Option<U>    // std/collections
+    The elements for which a type test holds, each at the tested type.
+elementwise fn filter<S : Iterable<T>, T>(self: S, by: T -> Bool) : S    // std/collections
+elementwise fn filter<T>(self: Option<T>, by: T -> Bool) : Option<T>    // std/collections
+    The elements for which `by` is `true`, in their order, in a collection of the input's type.
