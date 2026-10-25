@@ -55,6 +55,35 @@ The same language can query a knowledge vault, transform JSON from the command l
 
 Documentation: [hql-lang.org](https://hql-lang.org/)
 
+## Quick start
+
+```bash
+cargo install hql --locked
+hql eval '40 + 2'                       # 42
+```
+
+As a `jq`-style tool over standard input:
+
+```bash
+printf '{"species":"wren","seen":"morning"}\n{"species":"owl","seen":"dusk"}\n' |
+    hql 'source(stdin, Json) | filter(s => s.seen == "morning") | map(s => s.species)'
+```
+
+```text
+"wren"
+```
+
+Against the tutorial vault the book uses:
+
+```bash
+git clone https://github.com/ewiger/hql && cd hql
+hql --vault examples/tutorial eval '@[[virginia-woolf]] | downlinks | map(e => e.source)'
+```
+
+```text
+["a-room-of-ones-own", "mrs-dalloway", "the-common-reader"]
+```
+
 ---
 
 ## One language, several useful views
@@ -293,9 +322,19 @@ whose function failed, report it, and keep the rest.
 
 ---
 
-## A dataflow language
+## A dataflow language, streaming by design
 
-HQL models computation as data moving through transformations.
+HQL models computation as data moving through transformations. Streams are
+first-class values: a `Stream<T>` produces its values incrementally and may
+not end, and `map`, `filter` and `take` run over it one value at a time:
+
+```hql
+source(stdin, Json)
+| filter(e => e.kind == "event")
+| map(e => e.payload)
+```
+
+A pipeline over a stream reads like one over a list:
 
 ```hql
 events
@@ -308,13 +347,7 @@ events
 | process_batch
 ```
 
-A pipeline can operate over finite collections or over streams that continue producing values.
-
-```text
-Stream<Event>
-```
-
-can become batches:
+A `Stream<Event>` can become batches:
 
 ```hql
 events
@@ -361,9 +394,10 @@ events
 | map(e => e.message)
 ```
 
-Dataflow is therefore not an execution detail hidden underneath HQL.
-
-It is part of how HQL programs are written.
+The same operations compose over `Seq<T>`, `Stream<T>` and `Stream<Seq<T>>`
+and keep finite data, stream elements and batches apart in the type, so
+streaming is not a separate execution mode. Dataflow is not an execution
+detail hidden underneath HQL; it is how HQL programs are written.
 
 ---
 
@@ -434,57 +468,20 @@ errors
 
 They do not need entries in `hql.toml`.
 
-The distinction between whole values, streams and batches lives in the type system:
-
-```text
-Event
-Seq<Event>
-Stream<Event>
-Stream<Seq<Event>>
-```
-
-not in separate I/O APIs.
-
-For example:
+Whether a source ends lives in its type, not in separate I/O APIs. A file is
+replayable, so `source(file(p))` is a `Seq<Data>`; standard input arrives
+once, so `source(stdin, Json)` is a `Stream<Data>`; and `tap(file(p))` reads a
+file larger than memory one document at a time, as a `Stream`. `target`
+writes one finite value and `sink` consumes a stream as it arrives:
 
 ```hql
 events
 | collect(100)
-| sink(stdout, Json)
+| sink(stdout, Json)          // one JSON array per batch of 100
 ```
 
-streams batches:
-
-```text
-Stream<Seq<Event>>
-```
-
-while:
-
-```hql
-events
-| take(1000)
-| target(file("events.json"), Json)
-```
-
-bounds the stream and writes one finite result.
-
-Formats remain orthogonal:
-
-```text
-Json
-Yaml
-Csv
-Text
-Markdown
-Hql
-D2
-Mermaid
-```
-
-The format describes representation.
-
-The HQL type describes the shape of the data.
+The format describes the representation; the HQL type describes the shape of
+the data.
 
 ---
 
@@ -542,60 +539,6 @@ source(stdin, Json)
 The query is the dataflow.
 
 There is no second orchestration syntax wrapped around it.
-
----
-
-## Streaming by design
-
-Streams are first-class values.
-
-```text
-Stream<T>
-```
-
-represents values produced incrementally and may be bounded or unbounded.
-
-A stream can be transformed directly:
-
-```hql
-source(stdin, Json)
-| filter(e => e.kind == "event")
-| map(e => e.payload)
-```
-
-bounded:
-
-```hql
-events
-| take(1000)
-```
-
-batched:
-
-```hql
-events
-| collect(100)
-```
-
-or flattened back from batches:
-
-```hql
-events
-| collect(100)
-| emit
-```
-
-This makes streaming a normal part of the type system rather than a separate execution mode.
-
-The same operations compose over:
-
-```text
-Seq<T>
-Stream<T>
-Stream<Seq<T>>
-```
-
-and preserve the distinction between finite data, individual stream elements and streaming batches.
 
 ---
 
@@ -740,7 +683,7 @@ It is also one of HQL's natural interactive hosts.
 
 ---
 
-## Knowledge graphs
+## Knowledge graphs and retrieval
 
 HQL treats links and relationships as queryable structure.
 
@@ -762,88 +705,50 @@ cards
 | format(Mermaid)
 ```
 
-Retrieval can find an initial set of nodes:
+Retrieval is a pipeline step. `lexical` ranks cards by the words they share
+with a question; `semantic` ranks them by meaning, against embeddings the vault
+indexes ahead of time:
 
 ```hql
 import semantic
+cards | semantic("a creature and its maker") | take(3) | map(h => h.value.title)
+// ["Frankenstein", "Frankenstein inspires Dune", "Mary Shelley"]
 
-cards
-| semantic("a creature and its maker")
-| take(3)
+import lexical
+cards | lexical("a creature and its maker") | take(3) | map(h => h.value.title)
+// ["Frankenstein", "Walt Whitman", "Librarian"]
 ```
 
-and graph traversal can expand from them:
+A ranking is a collection of cards, so filtering, graph traversal and
+rendering continue from it. `expand` grows a graph from the hits, and each node
+records whether it was retrieved or reached:
 
 ```hql
 import semantic
 
 cards
 | semantic("a creature and its maker")
-| take(3)
+| take(1)
 | expand(depth = 1)
+| text
 ```
-
-Graph operations compose with ordinary filtering, mapping, aggregation and rendering.
-
-This allows HQL to move naturally between several forms of knowledge:
 
 ```text
-documents
-    ↓
-retrieval
-    ↓
-concepts and relationships
-    ↓
-graph traversal
-    ↓
-structured result
+club  (expanded from frankenstein at depth 1)
+  -> dune
+  -> frankenstein
+dune  (expanded from frankenstein at depth 1)
+frankenstein  (retrieved 0.4980)
+  -> mary-shelley
+  -> dune
+mary-shelley  (expanded from frankenstein at depth 1)
+  -> frankenstein
 ```
 
-A knowledge graph is therefore not a separate database API attached to the language.
-
-It is another structure that participates in HQL pipelines.
-
----
-
-## Semantic and lexical retrieval
-
-HQL provides retrieval as a first-class pipeline operation.
-
-Lexical search:
-
-```hql
-import lexical
-
-cards
-| lexical("a creature and its maker")
-| take(3)
-```
-
-Semantic search:
-
-```hql
-import semantic
-
-cards
-| semantic("a creature and its maker")
-| take(3)
-```
-
-The result can immediately participate in further computation:
-
-```hql
-import semantic
-
-cards
-| semantic("a creature and its maker")
-| take(20)
-| filter(hit => hit.score > 0.1f)
-| expand(depth = 2)
-```
-
-This matters especially for retrieval-augmented AI workflows, where search is usually only the first stage of context construction.
-
-Retrieval results retain their provenance, so the result does not need to lose information about how it was obtained when it continues through a pipeline.
+A knowledge graph is not a separate database API attached to the language; it
+is another structure in HQL pipelines. Search is usually only the first stage
+of building context for an AI workflow, and a result keeps its provenance as it
+continues through a pipeline.
 
 ---
 
