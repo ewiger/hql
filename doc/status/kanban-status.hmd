@@ -51,7 +51,7 @@ then the archive.
 | lane    | issues |
 | ------- | ------ |
 | backlog | 4      |
-| todo    | 8      |
+| todo    | 9      |
 | doing   | 4      |
 | done    | 0      |
 | archive | 45     |
@@ -84,10 +84,11 @@ range(0, depth)
 <!-- hql:output hash=fc2c6467e9c1 status=ok -->
 | backlog                                                                      | todo                                                                         | doing                                                                    | done |
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---- |
-| 0016 SQL parity analysis: relational operations, aggregation and schema      | 0058 A value read from a card loses where it came from                       | 0054 The website is for HQL users                                        |      |
-| 0015 jq parity analysis: data formats, types and operations                  | 0056 `hql help` prints part of a block body in a signature                   | 0046 Renovate `lib/std/**` under the module, package and extension model |      |
-| 0013 Typed pipeline operations: streams, batching, aggregation, presentation | 0055 A parameter default on a function with a body                           | 0043 Contract validation: rules, structured errors and stream policies   |      |
-| 0012 MapReduce: pipeline stages and execution backends                       | 0049 One extension per package: fold the descriptors into `std` and `search` | 0019 Documentation states semantics, not intuition                       |      |
+| 0016 SQL parity analysis: relational operations, aggregation and schema      | 0060 A card keeps its path in the vault                                      | 0054 The website is for HQL users                                        |      |
+| 0015 jq parity analysis: data formats, types and operations                  | 0058 A value read from a card loses where it came from                       | 0046 Renovate `lib/std/**` under the module, package and extension model |      |
+| 0013 Typed pipeline operations: streams, batching, aggregation, presentation | 0056 `hql help` prints part of a block body in a signature                   | 0043 Contract validation: rules, structured errors and stream policies   |      |
+| 0012 MapReduce: pipeline stages and execution backends                       | 0055 A parameter default on a function with a body                           | 0019 Documentation states semantics, not intuition                       |      |
+|                                                                              | 0049 One extension per package: fold the descriptors into `std` and `search` |                                                                          |      |
 |                                                                              | 0047 Cardinality is `size`: a String's `size` replaces `length`              |                                                                          |      |
 |                                                                              | 0029 Binary formats, and codecs an extension or a package provides           |                                                                          |      |
 |                                                                              | 0027 A partial record type reads card metadata as typed fields               |                                                                          |      |
