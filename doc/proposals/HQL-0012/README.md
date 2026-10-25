@@ -479,7 +479,7 @@ The vault a program runs against is a source like any other.
 
 This replaces the iterating function the [queries model](../../models/behavior/queries.md)
 sketches for `cards`. Iterating functions remain a language feature in their own
-right, in [issue 0010](../../issues/0010-yield-and-bind.md); `cards` does not
+right, in [issue 0010](../../issues/archive/0010-yield-and-bind.md); `cards` does not
 depend on them.
 
 ### 7. Native queries

@@ -232,11 +232,11 @@ table:
 | The Hobbit | 310   |
 ```
 
-[Chapter 10](../10-output.md) is about formats in full.
+[Chapter 11](../11-output.md) is about formats in full.
 
 A program writes its data as literals, reads it from a vault's documents, as
-[chapter 6](../06-a-vault.md) does, or reads a JSON, YAML or CSV file with
-`source`, as [chapter 13](../13-reading-and-writing.md) does.
+[chapter 7](../07-a-vault.md) does, or reads a JSON, YAML or CSV file with
+`source`, as [chapter 14](../14-reading-and-writing.md) does.
 
 ## What is next
 

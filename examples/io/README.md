@@ -3,7 +3,7 @@
 `sightings.jsonl` holds four JSON documents, one per line, and `counts.csv` a
 header and three rows. The cases read them with `source`, from
 [HQL-0021](../../doc/proposals/HQL-0021/README.md), and the
-[reading and writing chapter](../../doc/public/learn/13-reading-and-writing.md)
+[reading and writing chapter](../../doc/public/learn/14-reading-and-writing.md)
 reads the same files from the command line.
 
 | Case | What it shows | Result |

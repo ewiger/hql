@@ -467,7 +467,7 @@ None.
   without `right` is refused, and a `Set` input is refused naming `sort`.
   The name `join` is shared with `string.join` and `seq.join`, and a call's
   named arguments choose among the modules
-  ([issue 0041](../../issues/0041-binary-joins.md)). The head and extending
+  ([issue 0041](../../issues/archive/0041-binary-joins.md)). The head and extending
   forms, optional sides `?`, row types and the stream rules of the section
   "Joining across kinds of source" are not built
 - 2026-10-23: a row is a closed anonymous record, read as a declared record

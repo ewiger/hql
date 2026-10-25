@@ -93,7 +93,7 @@ difference is a line in `hql.toml`.
 - **Laziness and function values come from elsewhere.** Lazy sequences and
   streams are [HQL-0006](../HQL-0006/README.md)'s, and a function value passed
   where a lambda is written is
-  [issue 0009](../../issues/0009-function-type-and-constructor.md)'s. This
+  [issue 0009](../../issues/archive/0009-function-type-and-constructor.md)'s. This
   record relies on both and specifies neither.
 
 ## Specification

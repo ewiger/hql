@@ -91,7 +91,7 @@ and `filter` do.
 ### Operations over a stream
 
 Each operation declares the weakest input it needs and returns the type it
-was given, in the form [issue 0018](../../issues/0018-operator-synonymy-audit.md)
+was given, in the form [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md)
 settles: `S` binds the input's own type, `F<_>` its constructor.
 
 ```text
@@ -180,7 +180,7 @@ them.
 - `src/extensions/collections.rs` — stream overloads for `map`, `filter`,
   `take`, and `drop`; the finite-input diagnostic for whole-input operations
 - `src/evaluation.rs` — a traversal carrier that does not force its input,
-  shared with [issue 0010](../../issues/0010-yield-and-bind.md)
+  shared with [issue 0010](../../issues/archive/0010-yield-and-bind.md)
 - `doc/wiki/hql/types/collections/` — a stream card, and `Seq<T>` described as
   the meeting point
 

@@ -170,5 +170,5 @@ before anything runs, not after a wrong answer.
 ## What is next
 
 Steps take functions — `n => n * 0`, `(a, b) => compare(b, a)`.
-[Chapter 4](04-functions.md) is about functions themselves: naming them,
+[Chapter 4](04-functions/index.md) is about functions themselves: naming them,
 passing them, and making them generic.

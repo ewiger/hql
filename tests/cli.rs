@@ -305,6 +305,44 @@ fn render_in_place_after_is_idempotent() {
 }
 
 #[test]
+fn render_in_place_renders_several_documents() {
+    let directory = tempdir().unwrap();
+    let first = directory.path().join("first.hmd");
+    let second = directory.path().join("second.hmd");
+    std::fs::copy("tests/fixtures/board.hmd", &first).unwrap();
+    std::fs::copy("tests/fixtures/board.hmd", &second).unwrap();
+
+    let output = hql(&[
+        "--vault",
+        VAULT,
+        "render",
+        first.to_str().unwrap(),
+        second.to_str().unwrap(),
+        "--in-place",
+        "--emit",
+        "after",
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output).matches("blocks rendered").count(), 2);
+    let rendered = std::fs::read_to_string(&first).unwrap();
+    assert!(rendered.contains("<!-- hql:output hash="));
+    assert_eq!(std::fs::read_to_string(&second).unwrap(), rendered);
+}
+
+#[test]
+fn render_refuses_several_documents_without_in_place() {
+    let output = hql(&[
+        "--vault",
+        VAULT,
+        "render",
+        "tests/fixtures/board.hmd",
+        "tests/fixtures/board.hmd",
+    ]);
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(stderr(&output).contains("several files need --in-place"));
+}
+
+#[test]
 fn render_in_place_refuses_to_replace_the_cells() {
     let directory = tempdir().unwrap();
     let path = directory.path().join("board.hmd");

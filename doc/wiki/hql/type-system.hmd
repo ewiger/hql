@@ -347,7 +347,7 @@ supplies them.
 
 The binary carries the built-in declarations in Rust. Tests check the source
 declarations in `lib/std/` against those built-ins, while evaluation enforces the
-behavioral laws. See [issue 0003](../../issues/0003-type-declarations.md).
+behavioral laws. See [issue 0003](../../issues/archive/0003-type-declarations.md).
 
 ### What this decides about `Seq` and `List`
 
@@ -622,7 +622,7 @@ each such case is a signature of its own:
 The rule is designed. Today `filter` and the selection keep the input's
 container, and `map` and `sort` return a `List` from every input; constructor
 parameters are not yet in the checker. The work is tracked by
-[issue 0018](../../issues/0018-operator-synonymy-audit.md).
+[issue 0018](../../issues/archive/0018-operator-synonymy-audit.md).
 
 ## Refinement establishes
 

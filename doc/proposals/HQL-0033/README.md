@@ -2050,7 +2050,7 @@ There is no hidden exception channel, no validation-specific dead-letter control
 # Changelog
 
 - 2026-10-23: `Invalid` and `Violation` as declared here
-  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), E1):
+  ([issue 0045](../../issues/archive/0045-errors-validators-boundaries.md), E1):
   `expected` and `actual` filled by kind, `severity` defaulting to
   `"error"`, a stored `Invalid` read back with `| Invalid`, and `x | T` and
   `x | validate(T)` reporting the same violations; covers test plan items

@@ -4,7 +4,7 @@ Status: todo
 Related: [packages](../status/packages.hmd),
 [HQL-0024, modules](../proposals/HQL-0024/parts/01-modules.md),
 [HQL-0024, packages and extensions](../proposals/HQL-0024/parts/09-packages-and-extensions.md),
-[issue 0048](0048-builtin-packages-under-lib.md)
+[issue 0048](archive/0048-builtin-packages-under-lib.md)
 
 A package carries one extension, named as the package is, and more only when
 parts of it are enabled or loaded independently. The binary carries two

@@ -112,7 +112,7 @@ records that it is doing two jobs.
 
 `hql render` writes a cell's output into a Markdown or HyperMarkDown document
 as part of the document, not inside a fence. Issue
-[0020](../../issues/0020-render-as-compilation.md) carries the command.
+[0020](../../issues/archive/0020-render-as-compilation.md) carries the command.
 
 - A host that writes into a document MUST produce Markdown: the output is
   spliced into the document as written.

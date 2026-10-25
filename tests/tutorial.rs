@@ -195,9 +195,9 @@ fn the_notebook_the_book_shows_builds() {
         String::from_utf8_lossy(&output.stderr)
     );
     let built = String::from_utf8(output.stdout).unwrap();
-    let chapter = std::fs::read_to_string("doc/public/learn/11-documents.md").unwrap();
+    let chapter = std::fs::read_to_string("doc/public/learn/12-documents.md").unwrap();
     assert!(
         chapter.contains(built.trim_end()),
-        "chapter 11 shows a different build:\n{built}"
+        "chapter 12 shows a different build:\n{built}"
     );
 }

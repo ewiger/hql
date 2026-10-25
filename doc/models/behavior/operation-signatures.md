@@ -2,7 +2,7 @@
 
 Status: audit of the design as of 2026-10-18; **decides nothing by itself**.
 Decisions it points at are owned by the proposals and cards it names, and the
-work is tracked by [issue 0018](../../issues/0018-operator-synonymy-audit.md).
+work is tracked by [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md).
 
 HQL names its operations on several fronts at once: the implemented core that
 `hql builtins` prints, [HQL-0004](../../proposals/HQL-0004/README.md),
@@ -134,7 +134,7 @@ The type alone cannot separate these. The value does.
 ### Same name, different signatures: one operation declared inconsistently
 
 None. Every source above writes each name with one signature, in the form
-[issue 0018](../../issues/0018-operator-synonymy-audit.md) settles: an
+[issue 0018](../../issues/archive/0018-operator-synonymy-audit.md) settles: an
 operation returns the type it was given. `filter`, `take`, `drop` and `sort`
 bind the input's type `S` and return it; `map` binds its constructor `F<_>`
 and returns `F<U>`. `take` over a stream and `take` or `sort` over a

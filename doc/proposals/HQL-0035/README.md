@@ -3151,7 +3151,7 @@ reading a target the same evaluation has replaced is refused.
 - 2026-10-23: drafted as a stub
 - 2026-10-23: specified; status proposed
 - 2026-10-23: the `hql.toml` form of a boundary specified and built
-  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), B1):
+  ([issue 0045](../../issues/archive/0045-errors-validators-boundaries.md), B1):
   `[sources.<id>.fields.<field>]` with `name`, `path`, `type`, `position`,
   `read`, `write` and `absent`, and extension keys under the kind
 - 2026-10-23: the resolver specified and built (issue 0045, B2): format

@@ -96,7 +96,7 @@ message is the fail-fast diagnostic's, ``field `f`: `f: V` does not hold``.
 
 - 2026-10-23: drafted as a stub
 - 2026-10-23: `Validator` and validator types built
-  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), V1):
+  ([issue 0045](../../issues/archive/0045-errors-validators-boundaries.md), V1):
   `trait V : Validator`, `validate f with V`, and a field `f: V` of the one
   type implementing `V`, shown in the
   [structural examples](../../../examples/structural/README.md)

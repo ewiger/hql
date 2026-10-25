@@ -81,7 +81,10 @@ HQL
 4. **Write Reference from the user's side.** Language, I/O and CLI pages
    state what the current release does. The standard library is a page per
    function, type and trait, written from its doc strings by `hql reference`
-   ([HQL-0043](../proposals/HQL-0043/README.md)). Extensions are described
+   ([HQL-0043](../proposals/HQL-0043/README.md)). Done for the packages
+   `std` and `search`, a section per package and a page per module in the
+   navigation, and each release is published under its version; the
+   Language, I/O and CLI pages are not written. Extensions are described
    only by their external contract — some modules are backed by native
    extensions that provide I/O connectors, formats or retrieval — and the host
    architecture stays in the repository.

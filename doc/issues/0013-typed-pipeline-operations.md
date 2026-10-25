@@ -8,7 +8,7 @@ Decisions: [HQL-0005](../proposals/HQL-0005/README.md),
 [HQL-0004](../proposals/HQL-0004/README.md)
 Prompt: [0013-typed-pipeline-operations.prompt.md](0013-typed-pipeline-operations.prompt.md)
 Depends on: nothing to start; shares the traversal carrier with
-[0010](0010-yield-and-bind.md)
+[0010](archive/0010-yield-and-bind.md)
 
 HQL pipelines become general typed programs rather than one MapReduce cycle. A
 pipeline may be arbitrarily long and may stream, batch, transform, aggregate and
@@ -35,7 +35,7 @@ Seven commits, in this order. The first changes no behaviour.
    and `StepSpec` to `OperationSpec`. Rewrite "stage" to "step" wherever it names
    an occurrence, across `doc/`, `examples/` comments and `src/` doc comments.
    The suite passes with no test edited. Done (feature 10 of
-   [0014](0014-next-feature-bundle.md)): two tests that name the registry
+   [0014](archive/0014-next-feature-bundle.md)): two tests that name the registry
    type were renamed with it. The report schema's `stage` field names a
    checking phase, not a pipeline occurrence, and keeps its name.
 2. **`Stream<T>`** (HQL-0006). The abstract type in `lib/std/collections/mod.hql`,
@@ -53,7 +53,7 @@ Seven commits, in this order. The first changes no behaviour.
    finite-input diagnostic on a stream. `Group<K, T>` as a type. The three
    `status: proposed` cases in `examples/mapreduce/` are promoted. Done for
    finite inputs, with `reduce`'s fold from the first element and `sum`, `min`
-   and `max` (feature 2 of [0014](0014-next-feature-bundle.md)); the
+   and `max` (feature 2 of [0014](archive/0014-next-feature-bundle.md)); the
    finite-input diagnostic lands with `Stream<T>`.
 6. **Presentation** (HQL-0008). The separate presentation table, the
    last-step check, `markdown`, incremental rendering of a stream, and the
@@ -67,7 +67,7 @@ A new corpus folder, `examples/pipelines/`, with one query per file. Each is
 executable: it declares `expected-type` and an expected result over a finite
 source that is typed as a `Stream<T>`. The prompt's `_.x` shorthand is written
 as a lambda, since the grammar has no placeholder, and `processBatch` becomes an
-inline lambda, since function values are [0009](0009-function-type-and-constructor.md).
+inline lambda, since function values are [0009](archive/0009-function-type-and-constructor.md).
 
 ```hql
 events

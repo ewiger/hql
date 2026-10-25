@@ -63,8 +63,8 @@ Each term is defined as the implementation has it.
   `expanded from <seed> at depth <n>` for a node reached by traversal
   (`src/graph.rs`). It records the seed and the distance, not a predecessor
   edge, so the prose must not claim that a path can be reconstructed.
-- **Extension.** A registered provider of typed steps. The implemented
-  extensions are `core`, `graph`, `present`, `lexical` and `semantic`;
+- **Extension.** A registered provider of typed steps. The extensions the
+  binary carries are listed in [packages](../status/packages.hmd);
   extensions over SQL databases, JSON and YAML documents, message queues and
   REST APIs are design direction, and are described as such.
 
@@ -76,27 +76,24 @@ Each term is defined as the implementation has it.
    `doc/public/retrieval.md`, `doc/public/install.md`, `doc/public/tour.md`,
    `doc/public/reference.md`, `README.md`, the `site_description` in
    `mkdocs.yml`, and the opening of `doc/wiki/hql.hmd`. Done.
-3. **The public wiki cards.** Every card with `nav: visibility: public`.
-   Start with the `knows` hits: `doc/wiki/hql/types/card-type.hmd` (the
-   heading "A card is a document that knows where it is", and lines 68, 162,
-   286), `doc/wiki/hql/type-system.hmd` (lines 168, 376, 531),
-   `doc/wiki/hql/types/data-type.hmd:80`, `doc/wiki/hql/types/graph-type.hmd:16`,
-   `doc/wiki/hql/operators/link-op.hmd:133`, `doc/wiki/hql/fields.hmd:85`,
-   `doc/wiki/hql/design-status.hmd:66`; and `doc/wiki/hql/semantic-search.hmd:139`
-   ("carrying why each node is present").
-4. **The Reference models in the nav.** `doc/models/domain/graphs.md` lines
-   11-12 and 45 (`knows`); the tagline in
-   `doc/models/requirements/bootstrap.md:9`.
-5. **Headings.** Site-wide, a heading names the term: `Static type checking`,
+3. **The published pages under `doc/public/`.** Only `doc/public/` is
+   published ([0054](0054-user-facing-website.md)), so the wiki cards and the
+   models are out of scope. The book still says *knows* of the checker or a
+   program in the Data types overview ("the checker knows it before the
+   program runs"), the Collections chapter ("the checker knows each
+   collection's promises") and the Writing results out chapter ("a program
+   that formats a value knows what kind"); the Data page's "need to know the
+   type" is a reader's phrase, not a mechanism, and stays.
+4. **Headings.** Site-wide, a heading names the term: `Static type checking`,
    `Node presence`, `Semantic retrieval`, `Pipeline evaluation`.
 
 ## Done when
 
-- No public page or card uses *why* for provenance; *knows*, *understands*
+- No page under `doc/public/` uses *why* for provenance; *knows*, *understands*
   or *figures out* for a language mechanism; or a slash compound such as
   "authored/storage" in place of two sentences.
 - The opening sentence of every public page names an operation, a value, a
   phase or a type.
-- Every integration beyond the five implemented extensions is marked as
-  design direction.
+- Every integration the binary does not carry is marked as design
+  direction.
 - `uv run mkdocs build --strict` passes.

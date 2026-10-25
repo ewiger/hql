@@ -2456,4 +2456,4 @@ data-validation layer on top of the structural type system.
   [HQL-0033](../HQL-0033/README.md) where they conflict, and the open
   questions on the result's representation, fail-fast against aggregate
   configuration and stream routing with them
-  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), E6)
+  ([issue 0045](../../issues/archive/0045-errors-validators-boundaries.md), E6)

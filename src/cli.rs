@@ -143,7 +143,9 @@ enum Command {
     /// Run the HQL cells in a document and write each one's output.
     Render {
         /// A Markdown or HyperMarkDown document, or `-` for standard input.
-        file: String,
+        /// Several documents need `--in-place`, and are rendered in turn.
+        #[arg(value_name = "FILE", required = true, num_args = 1..)]
+        files: Vec<String>,
         /// Write the rendered document to this file instead of standard output.
         #[arg(long, value_name = "OUT", conflicts_with = "in_place")]
         write: Option<PathBuf>,
@@ -355,14 +357,22 @@ pub fn with_default_command(arguments: Vec<String>) -> Vec<String> {
 pub fn parse() -> Cli {
     let cli = Cli::parse_from(with_default_command(std::env::args().collect()));
     if let Command::Render {
+        files,
         in_place,
         emit,
         cell,
         ..
     } = &cli.command
-        && *emit == Emit::Replace
     {
-        let refused = if *in_place {
+        let refused = if files.len() > 1 && !*in_place {
+            Some("several files need --in-place: each is written over itself")
+        } else if files.len() > 1 && cell.is_some() {
+            Some("--cell names a cell of one document, not of several")
+        } else if files.len() > 1 && files.iter().any(|file| file == "-") {
+            Some("standard input is rendered alone, not beside other files")
+        } else if *emit != Emit::Replace {
+            None
+        } else if *in_place {
             Some(
                 "--in-place needs --emit after: replacing the cells would remove them from the source",
             )
@@ -606,84 +616,98 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             }
         }
         Command::Render {
-            file,
+            files,
             write,
             in_place,
             emit,
             cell,
         } => {
-            let (source, origin) = read(file)?;
-            // A document reads beside itself and writes nothing outside.
-            let root = directory_of(file);
-            crate::io::set_host(crate::io::Policy::Document { root: root.clone() }, root);
-            let rendered = transclude::render_cell(
-                &source,
-                &vault,
-                settings.mode,
-                (*emit).into(),
-                cell.as_deref(),
-            )?;
-            if cli.options.envelope == Shape::Json {
-                let cells: Vec<_> = rendered
-                    .cells
-                    .iter()
-                    .map(|cell| {
-                        serde_json::json!({
-                            "id": cell.id,
-                            "index": cell.index,
-                            "span": [cell.span.start, cell.span.end],
-                            "hash": cell.hash,
-                            "type": cell.ty,
-                            "status": cell.status.label(),
-                            "markdown": cell.markdown,
-                            "reports": cell.reports.to_json(),
+            if files.len() > 1 && cli.options.envelope == Shape::Json {
+                return Err("--envelope json renders one document, not several".to_owned());
+            }
+            let mut render = |file: &String| -> Result<u8, String> {
+                let (source, origin) = read(file)?;
+                // A document reads beside itself and writes nothing outside.
+                let root = directory_of(file);
+                crate::io::set_host(crate::io::Policy::Document { root: root.clone() }, root);
+                let rendered = transclude::render_cell(
+                    &source,
+                    &vault,
+                    settings.mode,
+                    (*emit).into(),
+                    cell.as_deref(),
+                )?;
+                if cli.options.envelope == Shape::Json {
+                    let cells: Vec<_> = rendered
+                        .cells
+                        .iter()
+                        .map(|cell| {
+                            serde_json::json!({
+                                "id": cell.id,
+                                "index": cell.index,
+                                "span": [cell.span.start, cell.span.end],
+                                "hash": cell.hash,
+                                "type": cell.ty,
+                                "status": cell.status.label(),
+                                "markdown": cell.markdown,
+                                "reports": cell.reports.to_json(),
+                            })
                         })
-                    })
-                    .collect();
-                let document = serde_json::json!({
-                    "document": rendered.document,
-                    "cells": cells,
-                    "reports": rendered.reports.to_json(),
-                });
-                writeln!(
-                    out,
-                    "{}",
-                    serde_json::to_string_pretty(&document).unwrap_or_else(|_| "null".to_owned())
-                )
-                .map_err(|error| error.to_string())?;
-                return Ok(u8::from(
-                    rendered.reports.has_errors() || !rendered.complete,
-                ));
-            }
-            report_all(&rendered.reports.shown(shown), &source, &origin, err)?;
-            // A build with a failed cell in it is not written anywhere.
-            if !rendered.complete {
-                return Ok(1);
-            }
-            let target = match (write, in_place) {
-                (Some(path), _) => Some(path.clone()),
-                (None, true) if file == "-" => {
-                    return Err("--in-place needs a file, not standard input".to_owned());
-                }
-                (None, true) => Some(PathBuf::from(file)),
-                (None, false) => None,
-            };
-            match target {
-                Some(path) => {
-                    fs::write(&path, &rendered.document)
-                        .map_err(|error| format!("{}: {error}", path.display()))?;
+                        .collect();
+                    let document = serde_json::json!({
+                        "document": rendered.document,
+                        "cells": cells,
+                        "reports": rendered.reports.to_json(),
+                    });
                     writeln!(
                         out,
-                        "{}: {} block{} rendered",
-                        path.display(),
-                        rendered.blocks,
-                        if rendered.blocks == 1 { "" } else { "s" }
+                        "{}",
+                        serde_json::to_string_pretty(&document)
+                            .unwrap_or_else(|_| "null".to_owned())
                     )
                     .map_err(|error| error.to_string())?;
+                    return Ok(u8::from(
+                        rendered.reports.has_errors() || !rendered.complete,
+                    ));
                 }
-                None => write!(out, "{}", rendered.document).map_err(|error| error.to_string())?,
+                report_all(&rendered.reports.shown(shown), &source, &origin, err)?;
+                // A build with a failed cell in it is not written anywhere.
+                if !rendered.complete {
+                    return Ok(1);
+                }
+                let target = match (write, in_place) {
+                    (Some(path), _) => Some(path.clone()),
+                    (None, true) if file == "-" => {
+                        return Err("--in-place needs a file, not standard input".to_owned());
+                    }
+                    (None, true) => Some(PathBuf::from(file)),
+                    (None, false) => None,
+                };
+                match target {
+                    Some(path) => {
+                        fs::write(&path, &rendered.document)
+                            .map_err(|error| format!("{}: {error}", path.display()))?;
+                        writeln!(
+                            out,
+                            "{}: {} block{} rendered",
+                            path.display(),
+                            rendered.blocks,
+                            if rendered.blocks == 1 { "" } else { "s" }
+                        )
+                        .map_err(|error| error.to_string())?;
+                    }
+                    None => {
+                        write!(out, "{}", rendered.document).map_err(|error| error.to_string())?
+                    }
+                }
+                Ok(u8::from(rendered.reports.has_errors()))
+            };
+            // Every document is rendered, and the exit code is the worst of them.
+            let mut code = 0;
+            for file in files {
+                code = code.max(render(file)?);
             }
-            Ok(u8::from(rendered.reports.has_errors()))
+            Ok(code)
         }
         Command::Reference { dir, check } => reference(dir, *check, out, err),
         Command::Help { name, file } => help(name.as_deref(), file.as_deref(), &vault, out, err),

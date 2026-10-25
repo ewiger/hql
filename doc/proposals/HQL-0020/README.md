@@ -2,7 +2,7 @@
 
 - **Status**: accepted, implemented in part
 - **Created**: 2026-10-18
-- **Source**: [issue 0010](../../issues/0010-yield-and-bind.md),
+- **Source**: [issue 0010](../../issues/archive/0010-yield-and-bind.md),
   [HQL-0012](../HQL-0012/README.md), [card type](../../wiki/hql/types/card-type.hmd)
 
 ## Abstract
@@ -26,7 +26,7 @@ own, and is never merged into `cards`. This replaces HQL-0012's binding of
 - A vault has more than one thing to offer a program: its cards, its knowledge
   graph, its name and root. HQL-0012 first made the vault the sequence of its
   cards, which left nowhere to put the rest. `vault.graph` needs a vault with fields.
-- [Issue 0010](../../issues/0010-yield-and-bind.md) decides that a vault yields
+- [Issue 0010](../../issues/archive/0010-yield-and-bind.md) decides that a vault yields
   cards in the order a sorted walk reaches them, so that a lazy source can
   stream them. HQL-0012 first ordered a vault by card name, which a lazy source
   cannot do without reading every card first.
@@ -140,7 +140,7 @@ field_notes.graph
 Breaking against HQL-0012, which is drafted and not implemented: `cards` is
 `vault.cards`, not `vault`, and a vault's order is the sorted walk, not card
 name. `cards` was a `Set<Card>` the host seeded; it is `vault.cards`, a lazy
-`Seq<Card>` in walk order, as [issue 0010](../../issues/0010-yield-and-bind.md)
+`Seq<Card>` in walk order, as [issue 0010](../../issues/archive/0010-yield-and-bind.md)
 carries. `knowledge` is not bound until `vault.knowledge` exists. `vault`,
 `graph` and the vault fields are new names.
 
@@ -192,7 +192,7 @@ cargo clippy --locked --all-targets -- -D warnings
 - 2026-10-22: other vaults are read as sources of kind `vault`,
   `source("field_notes")` a `Vault` with its own `cards`, `graph`, `name` and
   `root`, its cards never merged into `cards`
-  ([HQL-0012](../HQL-0012/README.md), [issue 0040](../../issues/0040-configured-data-sources.md));
+  ([HQL-0012](../HQL-0012/README.md), [issue 0040](../../issues/archive/0040-configured-data-sources.md));
   `lib/std/io/mod.hql` declares `VaultSource : DataSource`. `Vault` does not yet
   narrow `VaultSource`, and `knowledge` is not built
 - 2026-10-22: cards are keyed by name: `get(vault.cards, "alice")` and

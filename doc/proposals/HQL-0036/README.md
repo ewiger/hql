@@ -411,6 +411,6 @@ Do not use `partition` for separating `Result<T, E>` into successful and failed 
 
 - 2026-10-23: proposed
 - 2026-10-23: `partition(by = …)` built on the local backend
-  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), P1), and
+  ([issue 0045](../../issues/archive/0045-errors-validators-boundaries.md), P1), and
   the predicate `partition` removed; shown in the
   [dataflow examples](../../../examples/dataflow/README.md)

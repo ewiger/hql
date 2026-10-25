@@ -1,6 +1,6 @@
 # 0043 — Contract validation: rules, structured errors and stream policies
 
-Status: in progress
+Status: doing
 Related: [HQL-0030](../proposals/HQL-0030/README.md),
 [HQL-0032](../proposals/HQL-0032/README.md),
 [HQL-0033](../proposals/HQL-0033/README.md) for errors as values,
@@ -52,7 +52,7 @@ adds beyond structure is built.
   stored `Invalid` back with `| Invalid`, are built; so are validator types
   ([HQL-0034](../proposals/HQL-0034/README.md)) and the stream policies,
   which are pipelines over results rather than settings of a contract
-  ([issue 0045](0045-errors-validators-boundaries.md), E1 to E5): fail fast
+  ([issue 0045](archive/0045-errors-validators-boundaries.md), E1 to E5): fail fast
   is `x | T`, continue is `validate(T) | oks()`, a dead letter is
   `fork { accepted = oks(), rejected = errs() }` with `errs()` written to a
   sink, and `retry` reinvokes a fallible operation.

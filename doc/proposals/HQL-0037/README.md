@@ -2031,7 +2031,7 @@ The planner lowers this logical DAG into physical stages, partitions, channels, 
   of a bound `fork` that no later statement reads, by `parts.a` or a
   destructured name, is not run; an effectful one runs
 - 2026-10-23: `fork` built
-  ([issue 0045](../../issues/0045-errors-validators-boundaries.md), D1): the
+  ([issue 0045](../../issues/archive/0045-errors-validators-boundaries.md), D1): the
   step `xs | fork { a = …, b = … }`, its record of branch results typed
   `{a: A, b: B}`, destructuring `{ a, b } = …`, and branches separated by a
   line break or a comma, shown in the

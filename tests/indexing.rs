@@ -1,6 +1,6 @@
 //! `xs[i]`: the element at a position of a sequence, a String or a tree, as
 //! an option; a negative position counts from the end. See
-//! doc/issues/0027-sequence-indexing.md and doc/proposals/HQL-0026.
+//! doc/issues/archive/0027-sequence-indexing.md and doc/proposals/HQL-0026.
 
 use hql::{check, eval};
 

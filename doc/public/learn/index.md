@@ -3,8 +3,8 @@
 This is a book about HQL, read from the first page to the last. It starts with
 a number and ends with an agent whose run is a value, and every chapter builds
 on the ones before it. Every program in it prints what the book shows.
-Chapters 1 to 12 run with the current release; chapters 13 to 15 cover the
-`io`, `io.logging` and `ai` modules, which ship in the next one.
+Chapters 14 to 16 cover the `io`, `io.logging` and `ai` modules, which ship
+in the next release; every other chapter runs with the current one.
 
 HQL is a statically typed language for querying, transforming, connecting and
 computing over data, knowledge and AI workflows. A program is checked before it
@@ -37,30 +37,32 @@ and one claim about which book inspired which.
    that may be missing, and how sets, `Data` and maps differ.
 3. [Collections](03-collections.md) — lists, sets and maps, and the steps they
    share.
-4. [Functions](04-functions.md) — lambdas, declared and generic functions,
-   aliases, and partial application.
-5. [SQL-like Queries](05-sql-like-queries.md) — where, order by, group by and the
+4. [Functions](04-functions/index.md) — lambdas, declared functions, the
+   two body forms `= expr` and `{ … }`, generic functions, aliases, and
+   partial application.
+5. [Modules](05-modules/index.md) — modules of your own, imports, receiver
+   modules, public and private declarations, and how a name resolves.
+6. [SQL-like Queries](06-sql-like-queries.md) — where, order by, group by and the
    aggregates.
-6. [A vault of documents](06-a-vault.md) — cards, their metadata, and a reading
+7. [A vault of documents](07-a-vault.md) — cards, their metadata, and a reading
    list nobody maintains.
-7. [Links and graphs](07-graphs.md) — following links, building graphs,
+8. [Links and graphs](08-graphs.md) — following links, building graphs,
    drawing them.
-8. [Finding cards by meaning](08-retrieval.md) — rankings, hits, and the
+9. [Finding cards by meaning](09-retrieval.md) — rankings, hits, and the
    evidence behind a score.
-9. [Streams that do not end](09-streams.md) — generators, laziness, and
-   batches.
-10. [Writing results out](10-output.md) — presentation formats and who chooses
+10. [Streams that do not end](10-streams.md) — generators, laziness, and
+    batches.
+11. [Writing results out](11-output.md) — presentation formats and who chooses
     them.
-11. [Queries inside documents](11-documents.md) — cells, and documents built
+12. [Queries inside documents](12-documents.md) — cells, and documents built
     from them.
-12. [Working with `hql`](12-working-with-hql.md) — the commands, the reports,
+13. [Working with `hql`](13-working-with-hql.md) — the commands, the reports,
     and what to do when something is wrong.
-13. [Reading and writing data](13-reading-and-writing.md) — endpoints,
+14. [Reading and writing data](14-reading-and-writing.md) — endpoints,
     `source`, `tap`, `target` and `sink`, and `hql` as a command-line data tool.
-14. [Channels and logs](14-channels-and-logs.md) — values passed through
+15. [Channels and logs](15-channels-and-logs.md) — values passed through
     channels, and structured logging.
-15. [Agents and runs](15-agents-and-runs.md) — agents as cards, context and
+16. [Agents and runs](16-agents-and-runs.md) — agents as cards, context and
     prompts, tools, and runs kept as values.
-16. [Types, traits and modules](16-types-traits-and-modules/index.md) — records,
-    unions, results, receiver calls, traits and operators, and modules of
-    your own.
+17. [Types and traits](17-types-and-traits/index.md) — records, unions,
+    results, receiver calls, traits and operators.

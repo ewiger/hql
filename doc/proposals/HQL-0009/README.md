@@ -4,7 +4,7 @@
 **Created**: 2026-10-18
 **Source**: [program values](../../models/behavior/program-values.md), its
 section "HMD cell contexts"; issue
-[0020](../../issues/0020-render-as-compilation.md)
+[0020](../../issues/archive/0020-render-as-compilation.md)
 
 ## Abstract
 

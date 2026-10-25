@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-10-22
-**Source**: [issue 0032](../../issues/0032-generic-traits.md), the
+**Source**: [issue 0032](../../issues/archive/0032-generic-traits.md), the
 [generic traits example corpus](../../../examples/generic-traits/README.md)
 
 ## Abstract

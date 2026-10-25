@@ -169,5 +169,5 @@ card nobody has written are each an `Option` too, and each is handled the same
 way.
 
 A missing value is not a failure. A computation that can fail gives a
-`Result`, `ok` or `err`, and [chapter 16](../16-types-traits-and-modules/index.md)
+`Result`, `ok` or `err`, and [chapter 17](../17-types-and-traits/index.md)
 meets it.

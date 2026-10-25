@@ -13,8 +13,12 @@ A String's positions are its code points, counted by `s.size()` (HQL-0026,
 
 ## Work
 
-1. `lib/std/string/mod.hql`: `fn size(self) : Int` in place of `fn length(self) :
-   Int`, its comment stating the law `s.size() == s.chars().size()`.
+`lib/std/string/mod.hql` declares `fn size(self) : Int` beside `fn length(self) :
+Int`, its doc string calling it the same as `length`; what remains is
+withdrawing `length`.
+
+1. `lib/std/string/mod.hql`: `fn length(self) : Int` removed, and `size`'s doc
+   string stating the law `s.size() == s.chars().size()`.
 2. The `string` extension: the operation renamed, its description naming code
    points.
 3. `s.length()` refused with a message naming `s.size()`.

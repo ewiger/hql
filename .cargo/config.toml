@@ -3,3 +3,7 @@
 # starts, the test harness among them, get the same room for every thread.
 [env]
 RUST_MIN_STACK = "268435456"
+
+# `cargo status` re-renders the HQL cells of the status pages over themselves.
+[alias]
+status = "run -q -- --vault doc render --emit after --in-place doc/status/kanban-status.hmd doc/status/ADR-status.hmd"

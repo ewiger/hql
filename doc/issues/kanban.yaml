@@ -3,10 +3,10 @@
 # board.items holds the columns (swimlanes); top to bottom is the flow. Each
 # column is an ordered list of issue cards, highest priority first. Move a card
 # between columns as work progresses, and bump last_id when adding an issue.
-# When an issue is Done and no longer relevant, archive its file to
-# .grem/issues/archive/ and delete its card here.
+# When an issue is done, move its file to doc/issues/archive/ and delete its
+# card here; doc/status/kanban-status.hmd counts and lists the archive.
 #
-# Convention: doc/wiki/kanban.hmd
+# Convention: doc/issues/README.hmd
 
 board:
   title: "doc/issues/ Kanban board"
@@ -17,12 +17,9 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 54 # to be incremented when adding a new issue card
+  last_id: 56 # to be incremented when adding a new issue card
   items:
     backlog:
-      - id: "0043"
-        title: "Contract validation: rules, structured errors and stream policies"
-        file: 0043-contract-validation.md
       - id: "0016"
         title: "SQL parity analysis: relational operations, aggregation and schema"
         file: 0016-sql-parity-analysis.md
@@ -36,6 +33,12 @@ board:
         title: "MapReduce: pipeline stages and execution backends"
         file: 0012-mapreduce-backends.md
     todo:
+      - id: "0056"
+        title: "`hql help` prints part of a block body in a signature"
+        file: 0056-help-prints-a-block-body.md
+      - id: "0055"
+        title: "A parameter default on a function with a body"
+        file: 0055-defaults-on-functions-with-a-body.md
       - id: "0049"
         title: "One extension per package: fold the descriptors into `std` and `search`"
         file: 0049-one-extension-per-package.md
@@ -58,136 +61,10 @@ board:
       - id: "0046"
         title: "Renovate `lib/std/**` under the module, package and extension model"
         file: 0046-renovate-std.md
+      - id: "0043"
+        title: "Contract validation: rules, structured errors and stream policies"
+        file: 0043-contract-validation.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
-    done:
-      - id: "0053"
-        title: "Bugs found reviewing the complete type system branch"
-        file: 0053-review-of-unreviewed-code.md
-      - id: "0052"
-        title: "Review follow-ups: Decimal in SQLite, quadratic steps, unreviewed code"
-        file: 0052-review-follow-ups.md
-      - id: "0051"
-        title: "A value block as a function body: bindings, then the value"
-        file: 0051-value-block.md
-      - id: "0048"
-        title: "Builtin packages live under `lib/`: `std` is one of them"
-        file: 0048-builtin-packages-under-lib.md
-      - id: "0050"
-        title: "Every module file declares its name: `module a.b`, `module a.b for T`"
-        file: 0050-module-declaration.md
-      - id: "0045"
-        title: "Dataflow, errors as values, validator types and schema boundaries"
-        file: 0045-errors-validators-boundaries.md
-      - id: "0044"
-        title: "`Table<R>`: a table typed by its row"
-        file: 0044-typed-tables.md
-      - id: "0042"
-        title: "Decimal"
-        file: 0042-decimal.md
-      - id: "0041"
-        title: "Joins over one other sequence: HQL-0013's binary form"
-        file: 0041-binary-joins.md
-      - id: "0039"
-        title: "A `Table` shape, and a review of rendering and presentation"
-        file: 0039-table-shape-and-presentation-review.md
-      - id: "0040"
-        title: "Configured data sources: `source(\"id\")` and HQL-0012 accepted"
-        file: 0040-configured-data-sources.md
-      - id: "0038"
-        title: "Import units, the program module and declaration visibility"
-        file: 0038-import-units-and-visibility.md
-      - id: "0037"
-        title: "I/O: typed decoding, and HQL-0021 accepted"
-        file: 0037-io-typed-decoding.md
-      - id: "0036"
-        title: "Contracts and binding: explicit receivers, declared purity, identities"
-        file: 0036-contracts-receivers-purity-identities.md
-      - id: "0035"
-        title: "Positions and slices: `xs[a:b]`, negative positions and `Slice`"
-        file: 0035-positions-and-slices.md
-      - id: "0034"
-        title: "Constructors declared in HQL, overloaded, and passed as values"
-        file: 0034-constructors-as-operations.md
-      - id: "0033"
-        title: "Overloaded declarations: every standard operation declared in HQL"
-        file: 0033-overloaded-declarations.md
-      - id: "0030"
-        title: "HQL is the only signature authority: operations take their types from the contract"
-        file: 0030-hql-only-signature-authority.md
-      - id: "0032"
-        title: Traits take type parameters
-        file: 0032-generic-traits.md
-      - id: "0031"
-        title: The string functions a text language is expected to have
-        file: 0031-missing-string-functions.md
-      - id: "0028"
-        title: "Implementing HQL-0024: records, receivers, traits, modules and the standard library"
-        file: 0028-complete-type-system-implementation.md
-      - id: "0027"
-        title: Indexing a sequence by position
-        file: 0027-sequence-indexing.md
-      - id: "0026"
-        title: The REPL edits lines and reads multi-line input
-        file: 0026-repl-line-editing.md
-      - id: "0025"
-        title: "Next feature bundle: generics, aliases, reductions and the open ends of the proposals"
-        file: 0025-next-feature-bundle.md
-      - id: "0022"
-        title: Generic functions
-        file: 0022-generic-functions.md
-      - id: "0014"
-        title: "Next feature bundle: signatures and aggregation first, then the pipeline foundations"
-        file: 0014-next-feature-bundle.md
-      - id: "0020"
-        title: "`hql render` compiles a document"
-        file: 0020-render-as-compilation.md
-      - id: "0024"
-        title: Partial application
-        file: 0024-partial-application.md
-      - id: "0010"
-        title: "`yield`: generated sequences as query sources"
-        file: 0010-yield-and-bind.md
-      - id: "0023"
-        title: Built-in record fields from their declarations
-        file: 0023-built-in-fields-from-declarations.md
-      - id: "0017"
-        title: "`graph` is two operations under one name"
-        file: 0017-graph-projection-and-view.md
-      - id: "0009"
-        title: A function type, and functions as values
-        file: 0009-function-type-and-constructor.md
-      - id: "0021"
-        title: "`of_type` replaces `typed`"
-        file: 0021-of-type-replaces-typed.md
-      - id: "0018"
-        title: "Operator synonymy: one name, one signature"
-        file: 0018-operator-synonymy-audit.md
-      - id: "0008"
-        title: "`cards` is a vault binding, not a keyword"
-        file: 0008-cards-as-a-vault-binding.md
-      - id: "0004"
-        title: Unify the collection-order vocabulary
-        file: 0004-collection-order-vocabulary.md
-      - id: "0011"
-        title: Refactor checked execution, vault assembly, YAML, and extension contracts
-        file: 0011-runtime-architecture-refactoring.md
-      - id: "0007"
-        title: Evaluate a collection literal at its checked element type
-        file: 0007-checked-element-type-at-runtime.md
-      - id: "0006"
-        title: "`Scalar`, and `Data` as a union"
-        file: 0006-scalar-and-data-union.md
-      - id: "0005"
-        title: Replace `<:` with `:`
-        file: 0005-colon-subtype-operator.md
-      - id: "0003"
-        title: Parse and check `type` declarations
-        file: 0003-type-declarations.md
-      - id: "0002"
-        title: Semantic retrieval over a real embedding index
-        file: 0002-semantic-retrieval.md
-      - id: "0001"
-        title: The extension mechanism
-        file: 0001-extension-mechanism.md
+    done: []

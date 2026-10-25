@@ -29,7 +29,7 @@ operation.
   convention, and none states it for types in general.
 - Lowercase operations that build a value of one type, such as `list` and
   `graph`, are second names for that type's constructor, which the rule of
-  [issue 0018](../../issues/0018-operator-synonymy-audit.md) does not admit.
+  [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md) does not admit.
 - The [expressions](../../models/behavior/expressions.md) model leaves open
   whether a constructor may stand where something other than a call is written.
   A pipeline step and a function argument are the two places a program needs
@@ -103,7 +103,7 @@ T<A>(x, …)    ≡  x | T<A>(…)
 ### 4. A constructor as a function value
 
 A constructor is a function value with its signature
-([issue 0009](../../issues/0009-function-type-and-constructor.md)):
+([issue 0009](../../issues/archive/0009-function-type-and-constructor.md)):
 
 ```hql
 groups | map(Set)        // each List<T> to a Set<T>

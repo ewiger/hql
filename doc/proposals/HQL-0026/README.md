@@ -213,6 +213,6 @@ cargo test --locked --test corpus
 - 2026-10-22: drafted
 - 2026-10-22: implemented; `Range` is declared with `start? : Int` and
   `end? : Int`, and a Stream is sliced only with a written `a:b`
-  ([issue 0035](../../issues/0035-positions-and-slices.md))
+  ([issue 0035](../../issues/archive/0035-positions-and-slices.md))
 - 2026-10-23: a String's positions are its code points, counted by
   `s.size()`; `length` is withdrawn by HQL-0014. Decided, not yet implemented

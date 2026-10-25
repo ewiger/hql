@@ -3,7 +3,7 @@
 - **Status**: accepted, implemented in part; superseded in one rule by [HQL-0024 part 7](../HQL-0024/parts/07-formats-and-codecs.md): a format is a `Format`, not a `String`, and `format(x, F)` gives a `String`
 - **Created**: 2026-10-18
 - **Source**: [presentation](../../wiki/hql/presentation.hmd),
-  [issue 0017](../../issues/0017-graph-projection-and-view.md)
+  [issue 0017](../../issues/archive/0017-graph-projection-and-view.md)
 
 ## Abstract
 

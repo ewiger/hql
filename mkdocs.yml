@@ -93,21 +93,31 @@ nav:
               - Option: learn/02-data-types/option.md
               - Sets, Data and maps: learn/02-data-types/sets-data-and-maps.md
           - 3. Collections: learn/03-collections.md
-          - 4. Functions: learn/04-functions.md
-          - 5. SQL-like Queries: learn/05-sql-like-queries.md
-          - 6. A vault of documents: learn/06-a-vault.md
-          - 7. Links and graphs: learn/07-graphs.md
-          - 8. Finding cards by meaning: learn/08-retrieval.md
-          - 9. Streams that do not end: learn/09-streams.md
-          - 10. Writing results out: learn/10-output.md
-          - 11. Queries inside documents: learn/11-documents.md
-          - 12. Working with hql: learn/12-working-with-hql.md
-          - 13. Reading and writing data: learn/13-reading-and-writing.md
-          - 14. Channels and logs: learn/14-channels-and-logs.md
-          - 15. Agents and runs: learn/15-agents-and-runs.md
-          - 16. Types, traits and modules:
-              - learn/16-types-traits-and-modules/index.md
-              - Traits: learn/16-types-traits-and-modules/traits.md
+          - 4. Functions:
+              - learn/04-functions/index.md
+              - Declaring a function: learn/04-functions/declaring.md
+              - Function bodies: learn/04-functions/bodies.md
+              - Generic functions: learn/04-functions/generics.md
+              - Aliases and holes: learn/04-functions/aliases-and-holes.md
+          - 5. Modules:
+              - learn/05-modules/index.md
+              - Receiver modules: learn/05-modules/receiver-modules.md
+              - Visibility: learn/05-modules/visibility.md
+              - How names resolve: learn/05-modules/names.md
+          - 6. SQL-like Queries: learn/06-sql-like-queries.md
+          - 7. A vault of documents: learn/07-a-vault.md
+          - 8. Links and graphs: learn/08-graphs.md
+          - 9. Finding cards by meaning: learn/09-retrieval.md
+          - 10. Streams that do not end: learn/10-streams.md
+          - 11. Writing results out: learn/11-output.md
+          - 12. Queries inside documents: learn/12-documents.md
+          - 13. Working with hql: learn/13-working-with-hql.md
+          - 14. Reading and writing data: learn/14-reading-and-writing.md
+          - 15. Channels and logs: learn/15-channels-and-logs.md
+          - 16. Agents and runs: learn/16-agents-and-runs.md
+          - 17. Types and traits:
+              - learn/17-types-and-traits/index.md
+              - Traits: learn/17-types-and-traits/traits.md
       - Examples: examples.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this
@@ -137,10 +147,9 @@ nav:
           - search/lexical: reference/search/lexical/index.md
           - search/semantic: reference/search/semantic/index.md
 
-# The roadmap is reached from the book's closing pages, not from the nav, and
-# a primitive's reference page from its module's page.
+# A primitive's reference page is reached from its module's page, not from the
+# nav.
 not_in_nav: |
-  roadmap.md
   /reference/
 
 extra:

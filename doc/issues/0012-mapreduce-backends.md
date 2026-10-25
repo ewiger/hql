@@ -3,7 +3,7 @@
 Status: backlog
 Decision: [HQL-0004](../proposals/HQL-0004/README.md)
 Branch: `feat/mapreduce`, off `feat/semantic-search`
-Depends on: nothing; [0010](0010-yield-and-bind.md) makes `collect` observable
+Depends on: nothing; [0010](archive/0010-yield-and-bind.md) makes `collect` observable
 Note: the reduce side (commit 2 below) moves to
 [0013](0013-typed-pipeline-operations.md), which respecifies it against
 `Stream<T>`; rewrite this sequence when 0013 moves to `todo`.

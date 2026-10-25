@@ -2,7 +2,7 @@
 
 - **Status**: implemented
 - **Created**: 2026-10-18
-- **Source**: [issue 0018](../../issues/0018-operator-synonymy-audit.md)
+- **Source**: [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md)
 
 ## Abstract
 
@@ -34,7 +34,7 @@ name for `List`, and `List` stops accepting a `Set`. There is no cast.
   collapses duplicates in
   [`examples/birds/`](../../../examples/birds/queries/sightings.hql). `list`
   has the same signature and result as `List`, which the rule in
-  [issue 0018](../../issues/0018-operator-synonymy-audit.md) does not admit.
+  [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md) does not admit.
 
 ## Non-goals
 
@@ -149,7 +149,7 @@ widens.
   `Card` is not `Orderable`, at the step that needs the contract.
 - `sort` over a `Ranking<T>` returns a `Seq<Hit<T>>`: a new order is not the
   retrieval's order, so the result is not a ranking.
-  [Issue 0018](../../issues/0018-operator-synonymy-audit.md) carries this into
+  [Issue 0018](../../issues/archive/0018-operator-synonymy-audit.md) carries this into
   `sort`'s signature.
 
 ### 5. Conversion is construction

@@ -8,7 +8,7 @@
 
 `name(params) := fragment` defines a function whose input is the pipeline
 value. It is syntax sugar for the `fn` declaration of
-[issue 0009](../../issues/0009-function-type-and-constructor.md):
+[issue 0009](../../issues/archive/0009-function-type-and-constructor.md):
 `top(n) := sort | take(n)` is
 `fn top<T>(xs: Collection<T>, n: Int) : List<T> where T : Orderable = xs | sort | take(n)`,
 and `cards | top(5)` calls it. The checker writes the types the sugar leaves

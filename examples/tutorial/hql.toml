@@ -1,1 +1,6 @@
 # The vault the HQL tutorial reads. See doc/public/learn/index.md.
+
+# The book's own modules, `club.reading` and `club.titles`, are files under
+# `lib/`.
+[modules]
+roots = ["lib"]
