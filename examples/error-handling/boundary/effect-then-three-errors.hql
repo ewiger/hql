@@ -2,8 +2,9 @@
 // feature: Three check errors are listed under collect, and nothing runs
 // implementation: implemented
 // environment: pure
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // A name error, a type error and an `Option` used as its value. `strict`
 // stops at the first; `--report collect` lists all three. Neither prints

@@ -2,8 +2,9 @@
 // feature: `internal` is reserved
 // implementation: implemented
 // environment: pure
-// error: SyntaxError
-// stage: parse
+// phase: parse
+// kind: unexpected-token
+// severity: failure
 
 // `internal`, visibility across the modules of one package, is admitted once
 // every module records its package. Until then it is refused wherever it is

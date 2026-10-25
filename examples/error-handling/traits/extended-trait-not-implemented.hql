@@ -2,8 +2,9 @@
 // feature: Implementing a trait that extends another does not implement the other
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: unsatisfied-bound
+// severity: error
 
 // `Greeter : Named` makes `name` a function of `Greeter`, and `impl Greeter
 // for Dog` supplies it. A bound `T : Named` still takes only a type with an

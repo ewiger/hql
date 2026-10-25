@@ -9,7 +9,7 @@
 use super::{Backend, Execution};
 use crate::diagnostics::Diagnostic;
 use crate::execution::Program;
-use crate::reporting::Report;
+use crate::reporting::Mode;
 use crate::types::Value;
 use crate::vault::Vault;
 
@@ -26,7 +26,8 @@ impl Backend for Localhost {
         program: &Program,
         vault: &Vault,
         bound: Vec<(String, Value)>,
-    ) -> (Result<Value, Diagnostic>, Vec<Report>) {
-        crate::evaluation::evaluate_with(program, vault, bound)
+        mode: Mode,
+    ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
+        crate::evaluation::evaluate_with(program, vault, bound, mode)
     }
 }

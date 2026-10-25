@@ -21,7 +21,7 @@ pub use plan::{Execution, Stage, Strategy, topology};
 
 use crate::diagnostics::Diagnostic;
 use crate::execution::Program;
-use crate::reporting::{CONFIG_FILE, Report};
+use crate::reporting::{CONFIG_FILE, Mode};
 use crate::types::Value;
 use crate::vault::Vault;
 use std::path::Path;
@@ -40,7 +40,8 @@ pub(crate) trait Backend: Sync {
         program: &Program,
         vault: &Vault,
         bound: Vec<(String, Value)>,
-    ) -> (Result<Value, Diagnostic>, Vec<Report>);
+        mode: Mode,
+    ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>);
 }
 
 /// One registered backend: its name, what it is, and what runs a program on
@@ -69,9 +70,10 @@ impl Registered {
         program: &Program,
         vault: &Vault,
         bound: Vec<(String, Value)>,
-    ) -> (Result<Value, Diagnostic>, Vec<Report>) {
+        mode: Mode,
+    ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
         self.plan(program);
-        self.execute(program, vault, bound)
+        self.execute(program, vault, bound, mode)
     }
 
     /// Annotate every step of a checked program with its stage on this
@@ -93,11 +95,17 @@ impl Registered {
         program: &Program,
         vault: &Vault,
         bound: Vec<(String, Value)>,
-    ) -> (Result<Value, Diagnostic>, Vec<Report>) {
+        mode: Mode,
+    ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
         if let Some(refused) = plan::refusal(program, self.name) {
-            return (Err(refused), Vec::new());
+            return (
+                Err(refused
+                    .in_phase(crate::diagnostics::Phase::Plan)
+                    .with_kind(crate::diagnostics::Kind::BackendRefusal)),
+                Vec::new(),
+            );
         }
-        self.backend.run(program, vault, bound)
+        self.backend.run(program, vault, bound, mode)
     }
 }
 
@@ -270,8 +278,9 @@ mod tests {
             program: &Program,
             vault: &Vault,
             bound: Vec<(String, Value)>,
-        ) -> (Result<Value, Diagnostic>, Vec<Report>) {
-            crate::evaluation::evaluate_with(program, vault, bound)
+            mode: Mode,
+        ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
+            crate::evaluation::evaluate_with(program, vault, bound, mode)
         }
     }
 
@@ -291,13 +300,13 @@ mod tests {
     #[test]
     fn a_backend_refuses_a_pipeline_that_is_not_planned() {
         let program = checked("[1, 2, 3] | map(n => n + 1) | size");
-        let (value, _) = LOCALHOST.execute(&program, &Vault::empty(), Vec::new());
+        let (value, _) = LOCALHOST.execute(&program, &Vault::empty(), Vec::new(), Mode::Strict);
         let refused = value.unwrap_err().to_string();
         assert!(refused.contains("`localhost`"), "{refused}");
         assert!(refused.contains("stage annotation"), "{refused}");
         // Planned, the same program runs.
         LOCALHOST.plan(&program);
-        let (value, _) = LOCALHOST.execute(&program, &Vault::empty(), Vec::new());
+        let (value, _) = LOCALHOST.execute(&program, &Vault::empty(), Vec::new(), Mode::Strict);
         assert_eq!(value.unwrap(), Value::Int(3));
     }
 
@@ -329,8 +338,9 @@ mod tests {
         for source in PROGRAMS {
             let on_localhost = checked(source);
             let split = checked(source);
-            let (expected, _) = LOCALHOST.run(&on_localhost, &Vault::empty(), Vec::new());
-            let (produced, _) = SPLITTING.run(&split, &Vault::empty(), Vec::new());
+            let (expected, _) =
+                LOCALHOST.run(&on_localhost, &Vault::empty(), Vec::new(), Mode::Strict);
+            let (produced, _) = SPLITTING.run(&split, &Vault::empty(), Vec::new(), Mode::Strict);
             assert_eq!(produced.unwrap(), expected.unwrap(), "{source}");
             // The plans differ, so the agreement is not a tautology.
             let stages = |program: &Program| -> Vec<Stage> {

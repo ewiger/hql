@@ -2,8 +2,9 @@
 // feature: Every declaration of the program module is public
 // implementation: implemented
 // environment: pure
-// error: SyntaxError
-// stage: parse
+// phase: parse
+// kind: unexpected-token
+// severity: failure
 
 // `private` makes a declaration visible within its own module only. No other
 // unit reads the program module, so `private` is refused there.

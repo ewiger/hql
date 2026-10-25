@@ -14,7 +14,7 @@ fn value(source: &str) -> Value {
     let outcome = run(source, &fixture(), Mode::Strict);
     outcome
         .value
-        .unwrap_or_else(|| panic!("{source}: {:?}", outcome.reports))
+        .unwrap_or_else(|| panic!("{source}: {:?}", outcome.diagnostics))
 }
 
 fn text(source: &str) -> String {
@@ -59,10 +59,10 @@ fn a_declared_relation_is_checked_rather_than_trusted() {
         "the failed claim is kept"
     );
     assert!(
-        vault
-            .warnings
-            .iter()
-            .any(|warning| warning.contains("broken-relation")),
+        vault.warnings.iter().any(|warning| warning
+            .origin
+            .as_deref()
+            .is_some_and(|origin| origin.contains("broken-relation"))),
         "loading said so"
     );
 }
@@ -306,8 +306,13 @@ fn an_unresolved_reference_warns_and_yields_absence() {
     let outcome = run("@[[nowhere]]", &fixture(), Mode::Strict);
     assert_eq!(outcome.value, Some(Value::Absent(TypeRef::CARD)));
     assert!(!outcome.failed(), "a forward link is permitted");
-    assert_eq!(outcome.reports.len(), 1);
-    let report = outcome.reports.iter().next().expect("one warning");
+    // What the loader wrote about the fixture comes first; the run's own
+    // warning is the one execute wrote.
+    let report = outcome
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.phase == hql::diagnostics::Phase::Execute)
+        .expect("one warning");
     assert_eq!(report.severity, hql::reporting::Severity::Warning);
     assert!(report.message.contains("nowhere"));
 
@@ -324,7 +329,7 @@ fn the_expansion_direction_is_stated_rather_than_assumed() {
         Mode::Strict,
     );
     let Some(Value::Graph(graph)) = &outcome.value else {
-        panic!("expected a graph, got {:?}", outcome.reports)
+        panic!("expected a graph, got {:?}", outcome.diagnostics)
     };
     // http-headers writes no references, so following only what leaves it
     // reaches nothing further.

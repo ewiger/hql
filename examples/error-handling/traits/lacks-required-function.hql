@@ -2,8 +2,9 @@
 // feature: An implementation supplies every required function, or the checker rejects it at the impl
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: missing-implementation
+// severity: error
 
 // `Shape` requires `area`; `describe` has a default. This `impl` writes
 // `describe` alone, and the diagnostic names what it lacks. The program

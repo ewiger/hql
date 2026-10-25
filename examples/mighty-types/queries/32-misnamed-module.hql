@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // modules: mighty-types/lib
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // `lib/mighty/misnamed.hql` is the module `mighty.misnamed`, and it opens with
 // `module mighty.renamed`: importing it is refused, naming both.

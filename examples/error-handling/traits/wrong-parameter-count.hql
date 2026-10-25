@@ -2,8 +2,9 @@
 // feature: An implementation's function takes the parameters the trait declares
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `area` takes nothing after `self`. An implementation adding `scale` is
 // not an `area`, and the `impl` is rejected.

@@ -73,7 +73,7 @@ reads an `Int`, or a `Float` by its shortest digits, as a `Decimal`;
 ```
 
 ```text
-type error: a Decimal and a Float do not mix: write `decimal(x)` to read the Float as a Decimal, or `float(d)` to read the Decimal as a Float
+check error[type-mismatch]: a Decimal and a Float do not mix: write `decimal(x)` to read the Float as a Decimal, or `float(d)` to read the Decimal as a Float
  --> <expression>:1:7
   |
 1 | 1.5 + 2.0f

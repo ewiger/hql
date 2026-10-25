@@ -69,7 +69,7 @@ fn initials(self: String) : String = "TH"
 ```
 
 ```text
-syntax failure: a function with a body takes its receiver at the module's pattern: write `self` untyped
+parse failure[unexpected-token]: a function with a body takes its receiver at the module's pattern: write `self` untyped
  --> <expression>:1:19
   |
 1 | fn initials(self: String) : String = "TH"

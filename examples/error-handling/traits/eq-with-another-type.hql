@@ -2,8 +2,9 @@
 // feature: An Eq implementation compares two values of its own type
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `impl Eq for Version` makes `==` compare two `Version`s. `Version == Int`
 // is rejected at the comparison, since no implementation takes an `Int`.

@@ -2,8 +2,9 @@
 // feature: The body of an implementation's function is type-checked like any body
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `self.area()` is a `Float` and `1` an `Int`. The body of `describe` is
 // rejected inside the `impl`, with the trait's signature in force.

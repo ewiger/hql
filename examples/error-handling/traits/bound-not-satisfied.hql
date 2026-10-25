@@ -2,8 +2,9 @@
 // feature: A call fills a bounded parameter with a type that implements the trait
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: unsatisfied-bound
+// severity: error
 
 // `total` needs `T : Shape`, and `Line` implements nothing. The call is
 // rejected where it is written, naming the bound and the type.

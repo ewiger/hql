@@ -2,8 +2,9 @@
 // feature: An implementation writes only the functions its trait declares
 // implementation: implemented
 // environment: pure
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // `perimeter` is no function of `Shape`. An `impl` block is the trait's
 // contract and nothing more; a function of the type's own belongs in a

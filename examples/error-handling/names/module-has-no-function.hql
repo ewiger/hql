@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // modules: error-handling/lib
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // `shapes.geometry` declares `area` and nothing named `volume`. The import
 // resolves and the qualified call does not.

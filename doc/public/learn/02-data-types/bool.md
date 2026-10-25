@@ -21,7 +21,7 @@ true == 1
 ```
 
 ```text
-type error: `Eq` for Bool compares with Bool, not Int
+check error[type-mismatch]: `Eq` for Bool compares with Bool, not Int
  --> <expression>:1:1
   |
 1 | true == 1

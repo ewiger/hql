@@ -1029,8 +1029,22 @@ fn eval_map(
         return Ok(wrapped(traversal, produced(argument), source));
     }
     let mut mapped = Vec::new();
-    for element in elements(&input, "map", &span)? {
-        mapped.push(cx.apply_lambda(argument, element)?);
+    let all = elements(&input, "map", &span)?;
+    let of = all.len();
+    for (index, element) in all.into_iter().enumerate() {
+        match cx.apply_lambda(argument, element.clone()) {
+            Ok(value) => mapped.push(value),
+            Err(failure) => {
+                let failure = failure.at_element("map", index + 1, Some(of), element.to_json());
+                // Under `collect` the element is lost and the step goes on,
+                // where the failure leaves something to go on with.
+                if cx.collecting() && failure.steppable() {
+                    cx.warn(failure.with_disposition(crate::diagnostics::Disposition::Recoverable));
+                    continue;
+                }
+                return Err(failure);
+            }
+        }
     }
     // A set maps to its image, which collapses equal results.
     Ok(match input {
@@ -1357,7 +1371,9 @@ fn check_of_type(
     // An open tree is asked what it is at run time, so only a declared type
     // can make the answer certain.
     if element.is(wanted) && *element != TypeRef::NEVER && *element != TypeRef::DATA {
-        cx.warn(crate::warnings::Warning::new(
+        cx.warn(Diagnostic::warning(
+            crate::diagnostics::Phase::Check,
+            crate::diagnostics::Kind::AlwaysTrueTest,
             span,
             format!("the test for {wanted} holds for every {element}, so it is always true"),
         ));
@@ -1566,7 +1582,7 @@ fn eval_product(
             Value::Int(n) => {
                 whole = whole
                     .checked_mul(n)
-                    .ok_or_else(|| Diagnostic::Overflow { span: span.clone() })?;
+                    .ok_or_else(|| Diagnostic::overflow(span.clone()))?;
             }
             Value::Float(x) => real *= x,
             _ => return Err(wrong("product", "Int or Float occurrences", &span)),
@@ -1590,8 +1606,7 @@ fn eval_average(
         if values.is_empty() {
             return Ok(Value::Absent(TypeRef::DECIMAL));
         }
-        let count =
-            i64::try_from(values.len()).map_err(|_| Diagnostic::Overflow { span: span.clone() })?;
+        let count = i64::try_from(values.len()).map_err(|_| Diagnostic::overflow(span.clone()))?;
         let mut total = Decimal::from_int(0);
         for value in values {
             total = total
@@ -1644,7 +1659,7 @@ fn eval_sum(
             Value::Int(n) => {
                 whole = whole
                     .checked_add(n)
-                    .ok_or_else(|| Diagnostic::Overflow { span: span.clone() })?;
+                    .ok_or_else(|| Diagnostic::overflow(span.clone()))?;
             }
             Value::Float(x) => real += x,
             _ => return Err(wrong("sum", "Int or Float occurrences", &span)),
@@ -1891,7 +1906,7 @@ fn bucket(value: &Value, width: &Value, span: &Range<usize>) -> Result<Value, Di
             }
             x.checked_sub(x.rem_euclid(*w))
                 .map(Value::Int)
-                .ok_or_else(|| Diagnostic::Overflow { span: span.clone() })
+                .ok_or_else(|| Diagnostic::overflow(span.clone()))
         }
         (Value::Float(x), Value::Float(w)) => {
             if w.partial_cmp(&0.0) != Some(Ordering::Greater) || !w.is_finite() {

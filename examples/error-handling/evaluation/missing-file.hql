@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Int
-// error: RuntimeError
-// stage: evaluate
+// phase: execute
+// kind: io-failure
+// severity: failure
 
 // The program is well typed: `source` of a `JsonLines` file is a stream of
 // documents, and `size` counts it. Whether the file exists is known only

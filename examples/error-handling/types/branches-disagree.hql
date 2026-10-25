@@ -2,8 +2,9 @@
 // feature: Both branches of a conditional meet the declared result
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `1` and `"one"` meet only at `Data`, and `pick` declares `Int`. The call
 // `pick(true)` would take the `Int` branch; the checker rejects the

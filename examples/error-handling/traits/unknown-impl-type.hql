@@ -2,8 +2,9 @@
 // feature: An implementation is for a declared type
 // implementation: implemented
 // environment: pure
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // `Nope` is no type, so there is nothing to implement `Shape` for.
 trait Shape {

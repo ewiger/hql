@@ -2,8 +2,9 @@
 // feature: compare of Ord returns an Ordering, not a number
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `compare` decides `<`, `sort`, `min` and `max`, and returns `Ordering`.
 // An implementation writing an `Int` is rejected at its result.

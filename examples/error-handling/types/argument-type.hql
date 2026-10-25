@@ -2,8 +2,9 @@
 // feature: An argument is checked against the parameter it fills
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `double` takes an `Int`, and `"2"` is a `String`. The diagnostic names the
 // parameter.

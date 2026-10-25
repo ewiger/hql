@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Int
-// error: RuntimeError
-// stage: evaluate
+// phase: execute
+// kind: contract-violation
+// severity: error
 
 // `u | User` reads a `Data` record as a `User`, fail-fast. The checker
 // cannot see inside a `Data` value, so the shape is checked when the value

@@ -215,7 +215,7 @@ cards | size
 ```
 
 ```text
-name error: `cards` needs a vault: run inside one or pass --vault <directory>
+check error[unknown-name]: `cards` needs a vault: run inside one or pass --vault <directory>
  --> <expression>:1:1
   |
 1 | cards | size

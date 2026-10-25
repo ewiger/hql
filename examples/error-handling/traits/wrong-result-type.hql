@@ -2,8 +2,9 @@
 // feature: An implementation's function returns what the trait declares
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `area` of `Shape` returns `Float`. An implementation writing `String` is
 // rejected at its result, before any call.

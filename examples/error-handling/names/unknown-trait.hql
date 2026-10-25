@@ -2,8 +2,9 @@
 // feature: An implementation of a trait not in scope is a name error at the impl
 // implementation: implemented
 // environment: pure
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // `Nope` names no trait, so there is nothing to verify the implementation
 // against, and the checker rejects the `impl` line itself.

@@ -158,7 +158,7 @@ write instead:
 ```
 
 ```text
-type error: `drop` needs values in a stable order, and Set<Int> has none; sort it first
+check error[type-mismatch]: `drop` needs values in a stable order, and Set<Int> has none; sort it first
  --> <expression>:1:13
   |
 1 | {3, 1, 2} | drop(1)

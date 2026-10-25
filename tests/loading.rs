@@ -125,7 +125,16 @@ fn memory_sources_get_the_same_names_knowledge_and_extension_metadata() {
         Some(&Data::Bool(true))
     );
     assert_eq!(vault.warnings.len(), 1);
-    assert!(vault.warnings[0].contains("memory/invalid.hmd"));
-    assert!(vault.warnings[0].contains("invalid YAML"));
+    assert!(
+        vault.warnings[0]
+            .origin
+            .as_deref()
+            .is_some_and(|origin| origin.contains("memory/invalid.hmd"))
+    );
+    assert!(vault.warnings[0].message.contains("invalid YAML"));
+    assert_eq!(
+        vault.warnings[0].kind,
+        hql::diagnostics::Kind::SkippedDocument
+    );
     assert!(vault.resolve("invalid").is_none());
 }

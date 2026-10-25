@@ -2,8 +2,9 @@
 // feature: A trait has one implementation per type: the checker rejects a second
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: duplicate-implementation
+// severity: error
 
 // Coherence: two implementations would make `area` of a `Circle` depend on
 // which one a call reached. The second is rejected, naming the first.

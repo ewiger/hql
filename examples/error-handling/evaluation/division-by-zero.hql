@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // expected-type: List<Int>
-// error: RuntimeError
-// stage: evaluate
+// phase: execute
+// kind: division-by-zero
+// severity: failure
 
 // `10 / (n - 2)` is `Int / Int`, which checks. For `n = 2` the divisor is
 // zero, a fact about the value, and the run fails there.

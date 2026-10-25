@@ -33,7 +33,7 @@ fn refused(files: &[(&str, &str)], program: &str) -> String {
 fn shown(files: &[(&str, &str)], program: &str) -> String {
     let (_root, vault) = workspace(files);
     let outcome = run(program, &vault, Mode::Strict);
-    assert!(!outcome.failed(), "{program}: {:?}", outcome.reports);
+    assert!(!outcome.failed(), "{program}: {:?}", outcome.diagnostics);
     outcome.value.expect("a value").to_string()
 }
 
@@ -331,7 +331,11 @@ fn a_parent_importing_its_child_is_warned_and_still_runs() {
     let (_root, vault) = workspace(&files);
     let outcome = run("import shapes\nshapes.unit_area()", &vault, Mode::Strict);
     assert_eq!(outcome.value.expect("a value").to_string(), "3");
-    let messages: Vec<_> = outcome.reports.iter().map(|r| r.message.clone()).collect();
+    let messages: Vec<_> = outcome
+        .diagnostics
+        .iter()
+        .map(|r| r.message.clone())
+        .collect();
     assert!(
         messages
             .iter()
@@ -348,7 +352,7 @@ fn a_parent_importing_its_child_is_warned_and_still_runs() {
     ];
     let (_root, vault) = workspace(&files);
     let outcome = run("import shapes.circle\ncircle.area(1)", &vault, Mode::Strict);
-    assert!(outcome.reports.is_empty(), "{:?}", outcome.reports);
+    assert!(outcome.diagnostics.is_empty(), "{:?}", outcome.diagnostics);
 }
 
 #[test]

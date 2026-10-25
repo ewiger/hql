@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, fs, path::Path};
 
-use hql::{check, check_in, diagnostics::Diagnostic, eval, reporting::Mode, run, vault};
+use hql::{check, check_in, eval, reporting::Mode, run, vault};
 
 struct Case {
     path: String,
@@ -151,10 +151,14 @@ fn corpus_metadata_and_index_cover_every_case() {
             }
         }
         if status == "invalid" {
-            assert!(m.contains_key("error") && m.contains_key("stage"));
+            // A diagnostic is named by its axes (HQL-0045).
+            for field in ["phase", "kind", "severity"] {
+                assert!(m.contains_key(field), "{}: missing {field}", case.path);
+            }
+            assert!(!m.contains_key("error") && !m.contains_key("stage"));
             // `eval` exposes the precise Diagnostic for pure failure examples.
             assert_eq!(m["environment"], "pure");
-            if m["stage"] == "evaluate" {
+            if m["phase"] == "execute" {
                 assert!(m.contains_key("expected-type"), "{}", case.path);
             }
         }
@@ -215,10 +219,10 @@ fn valid_now_cases_check_and_evaluate() {
         }
         drop(sandbox);
         assert!(
-            outcome.reports.is_empty(),
+            outcome.diagnostics.is_empty(),
             "{}: {:?}",
             case.path,
-            outcome.reports
+            outcome.diagnostics
         );
         assert_eq!(outcome.inferred.as_ref(), Some(&ty), "{}", case.path);
         let value = outcome
@@ -294,7 +298,7 @@ fn proposed_cases_do_not_check_yet() {
 }
 
 #[test]
-fn implemented_invalid_cases_fail_at_the_declared_stage() {
+fn implemented_invalid_cases_fail_with_the_declared_diagnostic() {
     let mut count = 0;
     for case in load_cases() {
         let m = &case.metadata;
@@ -302,27 +306,27 @@ fn implemented_invalid_cases_fail_at_the_declared_stage() {
             continue;
         }
         count += 1;
-        let error = match m["stage"].as_str() {
-            "parse" | "typecheck" => {
+        let error = match m["phase"].as_str() {
+            "parse" | "check" => {
                 let error = check(&case.source).expect_err(&case.path);
                 assert_eq!(eval(&case.source), Err(error.clone()), "{}", case.path);
                 error
             }
-            "evaluate" => {
+            "execute" => {
                 assert_eq!(check(&case.source).unwrap().to_string(), m["expected-type"]);
                 eval(&case.source).expect_err(&case.path)
             }
-            other => panic!("no implemented corpus runner for {other}"),
+            other => panic!("{}: no corpus runner for phase {other}", case.path),
         };
-        let (name, stage) = match error {
-            Diagnostic::Syntax { .. } => ("SyntaxError", "parse"),
-            Diagnostic::Type { .. } => ("TypeMismatch", "typecheck"),
-            Diagnostic::Overflow { .. } => ("IntegerOverflow", "evaluate"),
-            Diagnostic::Name { .. } => ("NameError", "typecheck"),
-            Diagnostic::Runtime { .. } => ("RuntimeError", "evaluate"),
-        };
-        assert_eq!(name, m["error"], "{}", case.path);
-        assert_eq!(stage, m["stage"], "{}", case.path);
+        assert_eq!(error.phase.label(), m["phase"], "{}", case.path);
+        assert_eq!(
+            error.kind.label(),
+            m["kind"],
+            "{}: {}",
+            case.path,
+            error.message
+        );
+        assert_eq!(error.severity.label(), m["severity"], "{}", case.path);
     }
     assert!(count > 0);
 }

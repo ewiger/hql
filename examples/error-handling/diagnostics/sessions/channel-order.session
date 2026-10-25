@@ -1,0 +1,25 @@
+// status: valid-now
+// feature: One channel carries every phase's diagnostics in the order they were written: the check warning, then the execute failure
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql --diagnostics-format json run examples/error-handling/diagnostics/warning-then-failure.hql
+{"disposition":"warning","help":["write it `total_of`"],"kind":"naming-convention","message":"`totalOf` is a function, written in snake_case","origin":"examples/error-handling/diagnostics/warning-then-failure.hql","phase":"check","severity":"warning","span":{"end":544,"start":501}}
+{"disposition":"fatal","kind":"division-by-zero","message":"division by zero","origin":"examples/error-handling/diagnostics/warning-then-failure.hql","phase":"execute","severity":"failure","span":{"end":568,"start":546}}
+$ hql run examples/error-handling/diagnostics/warning-then-failure.hql
+check warning[naming-convention]: `totalOf` is a function, written in snake_case
+  --> examples/error-handling/diagnostics/warning-then-failure.hql:14:1
+   |
+14 | fn totalOf(xs : List<Int>) : Int = xs | sum
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: write it `total_of`
+
+execute failure[division-by-zero]: division by zero
+  --> examples/error-handling/diagnostics/warning-then-failure.hql:16:1
+   |
+16 | totalOf([1, 2, 3]) / 0
+   | ^^^^^^^^^^^^^^^^^^^^^^
+
+2 diagnostics: 1 failure, 0 error, 1 warning

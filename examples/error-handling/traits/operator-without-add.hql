@@ -2,8 +2,9 @@
 // feature: An operator resolves through its core trait, and a type without the impl has no operator
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `+` is `Add`, and `Vec2` implements it nowhere. The checker rejects the
 // addition; `impl Add for Vec2` would give the type its operator.

@@ -2,8 +2,9 @@
 // feature: A function given an argument its parameter does not take
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `double` takes an Int. A String is not one, and the checker names the
 // argument and the parameter type rather than failing at run time.

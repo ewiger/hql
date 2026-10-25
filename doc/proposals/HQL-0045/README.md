@@ -1,6 +1,6 @@
 # HQL-0045: The error model: failures as data, diagnostics as events, and the run-scoped diagnostic channel
 
-**Status**: drafted
+**Status**: updated, implemented in part
 **Created**: 2026-10-25
 **Source**: [HQL-0033](../HQL-0033/README.md) (errors as values),
 [HQL-0032 section 28](../HQL-0032/README.md#28-validation-and-diagnostic-transport-are-separate)
@@ -38,10 +38,11 @@ renders them and an endpoint delivers them, `stderr` as text by default, and a
 host's configuration changes that wiring without a reporting architecture of
 its own. A **report** is a presentation of the channel's contents, not a
 runtime entity; `Report`, `Reports` and `Warning` are removed. A fatal
-diagnostic ends its producer only after the channel's consumers are drained.
-Whether a producer continues after a diagnostic is the producer's, by phase,
-and `collect` asks for continuation where the producer can give it. A program
-neither raises a diagnostic nor reads the channel it runs in.
+diagnostic is written before its producer stops; the run ends only after the
+channel's delivery consumers are drained. Whether a producer continues after
+a diagnostic is the producer's, by phase, and `collect` asks for continuation
+where the producer can give it. A program neither raises a diagnostic nor
+reads the channel it runs in.
 
 ## Motivation
 
@@ -132,8 +133,9 @@ represent the failures a program elects to handle as values.
 
 ### 2. Two sides of a failure
 
-A failure is data or it is a diagnostic. The call site decides, and nothing
-moves a failure from one side to the other.
+A failure is data or it is a diagnostic. For a data failure, the call site
+decides whether the failure stays inside the dataflow or becomes a diagnostic.
+Nothing moves a failure from one side to the other.
 
 ```text
                         failure occurs
@@ -202,8 +204,11 @@ violations   [ Violation ]: for a contract read, what validate would have given
   `duplicate-implementation`, `unsatisfied-bound`, `ambiguous-call`,
   `import-cycle`, `shape-mismatch`, `contract-violation`,
   `division-by-zero`, `numeric-overflow`, `io-failure`, `source-refused`,
-  `unresolved-link`, `skipped-document`, `backend-refusal`,
-  `duplicate-cell`, `always-true-test`, `shadowed-step`, `stale-index`.
+  `malformed-data`, `invalid-argument`, `unresolved-link`,
+  `skipped-document`, `backend-refusal`, `duplicate-cell`, `cell-cycle`,
+  `orphaned-output`, `always-true-test`, `shadowed-step`, `stale-index`,
+  `naming-convention`, `child-import`, `boundary-mapping`, and the two facts
+  `hql check` states, `signature` and `effect`.
 - `severity` MUST be set by the producer and MUST NOT be derived from the
   phase or the disposition. `phase = execute, kind = contract-violation,
   severity = error` and `phase = check, kind = type-mismatch, severity =
@@ -252,11 +257,18 @@ The runtime owns one `Channel<Diagnostic>` per run. It is a channel of
 states: typed, FIFO, in memory, written in order; the one difference is its
 scope, the run rather than the evaluation.
 
+The different scope does not introduce a second kind of channel. The same
+channel mechanism is used; runtime ownership determines when it is created,
+when it is closed and who may access it.
+
 - Every phase MUST write its diagnostics into the channel, in the order it
   found them: the loader's `skipped-document`, the parser's failure, the
   checker's errors and warnings, the planner's refusal, the evaluator's
   failures and warnings, the renderer's faults. No phase MUST write a
   diagnostic anywhere else.
+- Where producers run concurrently, FIFO order is the order in which
+  diagnostics are committed to the run's channel. No stronger ordering
+  between concurrent producers is implied.
 - A diagnostic MUST be written once. Filtering by severity, rendering and
   delivery are the consumers'; none removes a diagnostic from the channel.
 - The host MUST read the channel at the end of the run, as HQL-0021 lets a
@@ -315,8 +327,9 @@ channels closed               the program's channels, then the diagnostic channe
 run ended                     the exit status is decided
 ```
 
-- The run MUST NOT end before every consumer of the diagnostic channel has
-  delivered every diagnostic written into it.
+- The run MUST NOT end before every delivery consumer of the diagnostic
+  channel has delivered every diagnostic written into it. A consumer attached
+  only as a tap or observer MUST NOT extend the lifetime of the run.
 - A fatal diagnostic MUST NOT discard what was written before it. The
   diagnostics a phase produced before stopping are in the channel in order.
 - Reading the channel never resumes the computation. Reporting is not
@@ -325,8 +338,9 @@ run ended                     the exit status is decided
 ### 8. Continuation, by phase
 
 Whether a producer continues after a diagnostic is the producer's. `collect`
-asks every producer for as much continuation as it can give; `strict` asks
-each to stop at its first `error`. Neither changes what a diagnostic is.
+asks every producer for as much continuation as it can give; `strict` declines
+optional continuation after the first `error`. Neither changes what a
+diagnostic is.
 
 | Phase | After an `error` the producer | Under `collect` |
 | --- | --- | --- |
@@ -446,3 +460,18 @@ cargo test --locked --test reporting --test cli
 - 2026-10-25: rewritten from the error model: failures as data or
   diagnostics, four axes, the run-scoped diagnostic channel on HQL-0021's
   endpoints, the lifecycle of a fatal diagnostic, continuation by phase
+- 2026-10-25: implemented in part. Units 1 to 5 and 10 landed: the one
+  `Diagnostic` record with its four axes, `labels` and `help` replacing
+  `Report`, `Reports` and `Warning`; the run-scoped channel on the `io`
+  host, one FIFO mechanism with the program's channels, with taps that do
+  not extend the run; `skipped-document` from the loader; `DiagnosticText`
+  and `--diagnostics-format json`; `<repl:N>` origins. Of unit 7, `element`
+  is recorded by `map`; of unit 9, `map` steps past a recoverable element
+  under `collect`. The kinds `malformed-data`, `invalid-argument`,
+  `cell-cycle`, `orphaned-output`, `naming-convention`, `child-import`,
+  `boundary-mapping`, `signature` and `effect` were added for producers the
+  first list did not name. Open: `Diagnostic` declared in `lib/std/` (unit
+  6), `bindings` and `call` frames (unit 7), `source` provenance (unit 8),
+  `collect` through steps other than `map` (unit 9), a cell as the `origin`
+  of its diagnostics rather than its document, `DiagnosticText` as a format
+  a program can name, and the card and model rewrites (unit 11)

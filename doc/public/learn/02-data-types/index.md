@@ -60,7 +60,7 @@ and the checker rejects the program before it runs:
 ```
 
 ```text
-type error: addition requires two Int, two Float or two Decimal operands
+check error[type-mismatch]: addition requires two Int, two Float or two Decimal operands
  --> <expression>:1:7
   |
 1 | 412 + "pages"

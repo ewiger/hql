@@ -2,8 +2,9 @@
 // feature: A trait function is a function of the types that implement the trait
 // implementation: implemented
 // environment: pure
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // `Line` has no `impl Shape`, so `area` is no function of a `Line`. The
 // call resolves by the receiver's type and finds nothing.

@@ -69,7 +69,7 @@ fn eval_prints_values() {
 #[test]
 fn expression_failures_use_stderr_and_exit_one() {
     for (source, message) in [
-        ("1 +", "syntax"),
+        ("1 +", "parse failure[unexpected-token]"),
         ("true + 1", "addition requires"),
         ("9223372036854775807 + 1", "numeric overflow"),
         ("1 + 2.0f", "addition requires"),
@@ -130,20 +130,22 @@ fn run_evaluates_a_file_and_dash_reads_standard_input() {
 }
 
 #[test]
-fn json_carries_the_type_the_value_and_the_queue() {
+fn json_carries_the_type_the_value_and_the_diagnostics() {
     let output = hql(&["--envelope", "json", "eval", "40 + 2"]);
     let parsed: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
     assert_eq!(parsed["type"], "Int");
     assert_eq!(parsed["value"], 42);
-    assert_eq!(parsed["reports"].as_array().unwrap().len(), 0);
+    assert_eq!(parsed["diagnostics"].as_array().unwrap().len(), 0);
 
     let output = hql(&["--envelope", "json", "eval", "nosuchname"]);
     assert_eq!(output.status.code(), Some(1));
     let parsed: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
     assert!(parsed["value"].is_null());
-    let reports = parsed["reports"].as_array().unwrap();
-    assert_eq!(reports[0]["severity"], "error");
-    assert_eq!(reports[0]["stage"], "name");
+    let diagnostics = parsed["diagnostics"].as_array().unwrap();
+    assert_eq!(diagnostics[0]["severity"], "error");
+    assert_eq!(diagnostics[0]["phase"], "check");
+    assert_eq!(diagnostics[0]["kind"], "unknown-name");
+    assert_eq!(diagnostics[0]["origin"], "<expression>");
 }
 
 #[test]
@@ -204,12 +206,12 @@ fn the_whole_pipeline_runs_from_the_command_line() {
 fn collect_mode_reports_every_error_and_strict_reports_the_first() {
     let source = "a = nosuchthing\nb = alsomissing";
     let strict = hql(&["eval", source]);
-    assert_eq!(stderr(&strict).matches("error:").count(), 1);
+    assert_eq!(stderr(&strict).matches("check error[").count(), 1);
 
     let collected = hql(&["--report", "collect", "eval", source]);
-    assert_eq!(stderr(&collected).matches("error:").count(), 2);
+    assert_eq!(stderr(&collected).matches("check error[").count(), 2);
     assert!(
-        stderr(&collected).contains("2 reports"),
+        stderr(&collected).contains("2 diagnostics"),
         "{}",
         stderr(&collected)
     );
@@ -227,14 +229,14 @@ fn the_environment_supplies_a_default_mode_and_the_flag_outranks_it() {
         .env("HQL_REPORT", "collect")
         .output()
         .unwrap();
-    assert_eq!(stderr(&from_environment).matches("error:").count(), 2);
+    assert_eq!(stderr(&from_environment).matches("check error[").count(), 2);
 
     let overridden = Command::new(env!("CARGO_BIN_EXE_hql"))
         .args(["--report", "strict", "eval", source])
         .env("HQL_REPORT", "collect")
         .output()
         .unwrap();
-    assert_eq!(stderr(&overridden).matches("error:").count(), 1);
+    assert_eq!(stderr(&overridden).matches("check error[").count(), 1);
 }
 
 #[test]
@@ -242,7 +244,38 @@ fn a_warning_does_not_change_the_exit_status() {
     let output = hql(&["--vault", VAULT, "eval", "@[[nowhere]]"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(stdout(&output), "none\n");
-    assert!(stderr(&output).contains("warning:"));
+    assert!(stderr(&output).contains("execute warning[unresolved-link]:"));
+}
+
+#[test]
+fn json_diagnostics_are_one_document_per_line_in_the_order_written() {
+    let output = hql(&[
+        "--diagnostics-format",
+        "json",
+        "eval",
+        "fn totalOf(xs : List<Int>) : Int = xs | sum\ntotalOf([1]) / 0",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    let lines: Vec<serde_json::Value> = stderr(&output)
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["phase"], "check");
+    assert_eq!(lines[0]["severity"], "warning");
+    assert_eq!(lines[1]["phase"], "execute");
+    assert_eq!(lines[1]["kind"], "division-by-zero");
+}
+
+#[test]
+fn the_repl_gives_each_line_typed_its_own_origin() {
+    let output = piped(&["repl"], "x = 1\nx = \"a\" + 1\n");
+    assert!(
+        stdout(&output).contains("<repl:2>:1:11") || stderr(&output).contains("<repl:2>:1:11"),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
 }
 
 #[test]

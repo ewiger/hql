@@ -3,13 +3,13 @@
 use hql::types::{TypeRef, Value};
 
 fn check(source: &str) -> Result<TypeRef, String> {
-    hql::check(source).map_err(|failure| failure.message())
+    hql::check(source).map_err(|failure| failure.to_string())
 }
 
 fn eval(source: &str) -> Value {
     let vault = hql::vault::Vault::empty();
     let outcome = hql::run(source, &vault, hql::reporting::Mode::Strict);
-    assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+    assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     outcome.value.expect("a value")
 }
 

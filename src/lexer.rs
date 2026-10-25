@@ -460,6 +460,7 @@ impl Scanner<'_> {
                     start..self.offset,
                     "integer literal is outside the signed 64-bit range",
                 )
+                .with_kind(crate::diagnostics::Kind::NumericOverflow)
             })?;
             Token::Int(value)
         };

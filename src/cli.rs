@@ -3,8 +3,9 @@
 //! Everything here is in the library rather than the binary, because logic
 //! only the binary can reach is logic that cannot be tested.
 
+use crate::diagnostics::Diagnostic;
 use crate::lexer::Token;
-use crate::reporting::{Level, Mode, Reports, Settings, Severity};
+use crate::reporting::{Level, Mode, Settings, Severity};
 use crate::types::{TypeConstructor, Value};
 use crate::vault::{self, Vault};
 use crate::{render, transclude};
@@ -23,10 +24,21 @@ use std::{fs, io};
 /// How results are written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Shape {
-    /// The value alone on stdout, written in the `--to` format; reports on
-    /// stderr.
+    /// The value alone on stdout, written in the `--to` format; diagnostics
+    /// on stderr.
     Text,
-    /// One JSON object carrying the type, the value and the reports.
+    /// One JSON object carrying the type, the value and the diagnostics.
+    Json,
+}
+
+/// The format the run's diagnostics are rendered in on their target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum DiagnosticsFormat {
+    /// `DiagnosticText`: a heading, the source line and a caret, then each
+    /// field that applies.
+    Text,
+    /// One JSON document per diagnostic, one per line, every field that
+    /// applies present.
     Json,
 }
 
@@ -54,8 +66,8 @@ pub struct Options {
     #[arg(long, global = true, value_name = "DIR")]
     pub modules: Vec<PathBuf>,
     /// What the answer is wrapped in: the value alone, or one JSON document
-    /// carrying the type, the value and the reports. How the value itself is
-    /// written is `--to`.
+    /// carrying the type, the value and the diagnostics. How the value itself
+    /// is written is `--to`.
     #[arg(long, global = true, value_enum, default_value_t = Shape::Text)]
     pub envelope: Shape,
     /// The presentation format a result is written in when the program did
@@ -87,6 +99,11 @@ pub struct Options {
     /// `--envelope json` carries every entry whatever this says.
     #[arg(long, global = true, value_name = "LEVEL")]
     pub report_level: Option<String>,
+    /// The format diagnostics are written to standard error in: `text`, a
+    /// heading, the source line and a caret, or `json`, one document per
+    /// diagnostic per line.
+    #[arg(long, global = true, value_enum, default_value_t = DiagnosticsFormat::Text)]
+    pub diagnostics_format: DiagnosticsFormat,
 }
 
 #[derive(Debug, Subcommand)]
@@ -314,7 +331,7 @@ const COMMANDS: [&str; 12] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 9] = [
+const VALUED: [&str; 10] = [
     "--vault",
     "--envelope",
     "--to",
@@ -324,6 +341,7 @@ const VALUED: [&str; 9] = [
     "--log-level",
     "--modules",
     "--backend",
+    "--diagnostics-format",
 ];
 
 /// `hql '<program>'` is `hql eval '<program>'`: insert `eval` before a first
@@ -418,30 +436,52 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             .ok()
             .and_then(|here| vault::discover(&here))
     });
+    // The run's diagnostic channel exists before the loader runs, so the
+    // loader writes into it as every later phase does.
+    let opened = crate::io::open_diagnostics();
     let mut vault = load_vault(root.as_deref())?;
+    for diagnostic in &vault.warnings {
+        crate::io::write_diagnostic(diagnostic.clone());
+    }
+    let result = dispatch(cli, &mut vault, root.as_deref(), out, err);
+    // Every diagnostic was delivered before the run ends: the channel
+    // closes, and only then is the exit status returned.
+    if opened {
+        crate::io::close_diagnostics();
+    }
+    result
+}
+
+fn dispatch(
+    cli: &Cli,
+    vault: &mut Vault,
+    root: Option<&Path>,
+    out: &mut impl Write,
+    err: &mut impl Write,
+) -> Result<u8, String> {
     vault
         .extensions
         .module_roots
         .extend(cli.options.modules.iter().cloned());
+    let vault: &Vault = vault;
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
             format!("unknown report mode `{name}`; expected `strict` or `collect`")
         })?),
         None => None,
     };
-    let settings = Settings::resolve(requested, root.as_deref());
+    let settings = Settings::resolve(requested, root);
     let level = match &cli.options.report_level {
         Some(name) => Some(Severity::parse_level(name).ok_or_else(|| {
             format!("unknown report level `{name}`; expected `debug`, `info`, `warning` or `error`")
         })?),
         None => None,
     };
-    let level = Level::resolve(level, root.as_deref());
+    let level = Level::resolve(level, root);
     let shown = level.severity;
     // An unregistered backend fails every program, and `hql config`, naming
     // the layer that supplied it; listing the builtins needs none.
-    let backend =
-        crate::backends::Selection::resolve(cli.options.backend.as_deref(), root.as_deref());
+    let backend = crate::backends::Selection::resolve(cli.options.backend.as_deref(), root);
     if !matches!(
         cli.command,
         Command::Builtins | Command::Help { .. } | Command::Reference { .. }
@@ -501,7 +541,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             Ok(0)
         }
         Command::Doctor => {
-            let checks = crate::extensions::semantic::doctor(&vault);
+            let checks = crate::extensions::semantic::doctor(vault);
             for check in &checks {
                 writeln!(
                     out,
@@ -535,14 +575,14 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         }
         Command::Eval { expression } => {
             crate::io::set_host(crate::io::Policy::Open, PathBuf::from("."));
-            let outcome = crate::run_on(expression, &vault, settings.mode, backend);
+            let outcome = crate::run_on(expression, vault, settings.mode, backend);
             emit(
                 &outcome,
                 expression,
                 "<expression>",
                 HQL,
                 &cli.options,
-                &vault,
+                vault,
                 shown,
                 out,
                 err,
@@ -554,14 +594,14 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             if file == "-" {
                 crate::io::set_program_on_stdin();
             }
-            let outcome = crate::run_on(&source, &vault, settings.mode, backend);
+            let outcome = crate::run_on(&source, vault, settings.mode, backend);
             emit(
                 &outcome,
                 &source,
                 &origin,
                 HQL,
                 &cli.options,
-                &vault,
+                vault,
                 shown,
                 out,
                 err,
@@ -569,14 +609,14 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         }
         Command::Check { file } => {
             let (source, origin) = read(file)?;
-            let outcome = crate::check_reported(&source, &vault, settings.mode);
+            let outcome = crate::check_reported(&source, vault, settings.mode);
             emit(
                 &outcome,
                 &source,
                 &origin,
                 TEXT,
                 &cli.options,
-                &vault,
+                vault,
                 shown,
                 out,
                 err,
@@ -584,16 +624,16 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         }
         Command::Plan { file } => {
             let (source, origin) = read(file)?;
-            let Ok(planned) = crate::plan(&source, &vault, backend.backend) else {
+            let Ok(planned) = crate::plan(&source, vault, backend.backend) else {
                 // What stopped it is what checking reports.
-                let outcome = crate::check_reported(&source, &vault, settings.mode);
+                let outcome = crate::check_reported(&source, vault, settings.mode);
                 return emit(
                     &outcome,
                     &source,
                     &origin,
                     TEXT,
                     &cli.options,
-                    &vault,
+                    vault,
                     shown,
                     out,
                     err,
@@ -604,7 +644,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         }
         Command::Boundary { file, id, element } => {
             let (source, _) = read(file)?;
-            match crate::inspect_boundary(&source, &vault, id, element.as_deref()) {
+            match crate::inspect_boundary(&source, vault, id, element.as_deref()) {
                 Ok(inspected) => {
                     write_boundary(&inspected, &cli.options, out)?;
                     Ok(0)
@@ -632,11 +672,18 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                 crate::io::set_host(crate::io::Policy::Document { root: root.clone() }, root);
                 let rendered = transclude::render_cell(
                     &source,
-                    &vault,
+                    vault,
                     settings.mode,
                     (*emit).into(),
                     cell.as_deref(),
                 )?;
+                // Each cell's diagnostics go into the run's channel, after
+                // what the loader wrote.
+                for diagnostic in originated(&rendered.diagnostics, &origin) {
+                    crate::io::write_diagnostic(diagnostic);
+                }
+                let written = crate::io::diagnostics_written();
+                let failed = crate::diagnostics::reaches(&rendered.diagnostics, Severity::Error);
                 if cli.options.envelope == Shape::Json {
                     let cells: Vec<_> = rendered
                         .cells
@@ -650,14 +697,17 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                                 "type": cell.ty,
                                 "status": cell.status.label(),
                                 "markdown": cell.markdown,
-                                "reports": cell.reports.to_json(),
+                                "diagnostics": originated(&cell.diagnostics, &origin)
+                                    .iter()
+                                    .map(Diagnostic::to_json)
+                                    .collect::<Vec<_>>(),
                             })
                         })
                         .collect();
                     let document = serde_json::json!({
                         "document": rendered.document,
                         "cells": cells,
-                        "reports": rendered.reports.to_json(),
+                        "diagnostics": written.iter().map(Diagnostic::to_json).collect::<Vec<_>>(),
                     });
                     writeln!(
                         out,
@@ -666,11 +716,9 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                             .unwrap_or_else(|_| "null".to_owned())
                     )
                     .map_err(|error| error.to_string())?;
-                    return Ok(u8::from(
-                        rendered.reports.has_errors() || !rendered.complete,
-                    ));
+                    return Ok(u8::from(failed || !rendered.complete));
                 }
-                report_all(&rendered.reports.shown(shown), &source, &origin, err)?;
+                deliver(&written, &source, &origin, shown, &cli.options, err)?;
                 // A build with a failed cell in it is not written anywhere.
                 if !rendered.complete {
                     return Ok(1);
@@ -700,7 +748,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
                         write!(out, "{}", rendered.document).map_err(|error| error.to_string())?
                     }
                 }
-                Ok(u8::from(rendered.reports.has_errors()))
+                Ok(u8::from(failed))
             };
             // Every document is rendered, and the exit code is the worst of them.
             let mut code = 0;
@@ -710,9 +758,9 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             Ok(code)
         }
         Command::Reference { dir, check } => reference(dir, *check, out, err),
-        Command::Help { name, file } => help(name.as_deref(), file.as_deref(), &vault, out, err),
+        Command::Help { name, file } => help(name.as_deref(), file.as_deref(), vault, out, err),
         Command::Repl => repl(
-            &vault,
+            &repl_vault(vault, shown, &cli.options, err)?,
             settings.mode,
             backend,
             shown,
@@ -1097,7 +1145,7 @@ fn emit(
         if !matches!(to, Some(Presentation::Nothing)) {
             streamed(traversal, to.as_ref(), host, vault, options.compact, out)?;
         }
-        report_all(&outcome.reports.shown(shown), source, origin, err)?;
+        deliver(&outcome.diagnostics, source, origin, shown, options, err)?;
         return Ok(u8::from(outcome.failed()));
     }
     match options.envelope {
@@ -1115,7 +1163,10 @@ fn emit(
                 "origin": origin,
                 "type": outcome.inferred.as_ref().map(std::string::ToString::to_string),
                 "value": value,
-                "reports": outcome.reports.to_json(),
+                "diagnostics": originated(&outcome.diagnostics, origin)
+                    .iter()
+                    .map(Diagnostic::to_json)
+                    .collect::<Vec<_>>(),
             });
             writeln!(
                 out,
@@ -1133,51 +1184,91 @@ fn emit(
                 && !outcome.failed()
                 && let Some(inferred) = &outcome.inferred
             {
-                for signature in outcome
-                    .reports
-                    .iter()
-                    .filter(|report| matches!(report.code.as_deref(), Some("signature" | "effect")))
-                {
+                for signature in outcome.diagnostics.iter().filter(|diagnostic| {
+                    matches!(
+                        diagnostic.kind,
+                        crate::diagnostics::Kind::Signature | crate::diagnostics::Kind::Effect
+                    )
+                }) {
                     writeln!(out, "{}", signature.message).map_err(|error| error.to_string())?;
                 }
                 // `check` has a type and no value; that is the whole answer.
                 writeln!(out, "{inferred}").map_err(|error| error.to_string())?;
             }
-            report_all(&outcome.reports.shown(shown), source, origin, err)?;
+            deliver(&outcome.diagnostics, source, origin, shown, options, err)?;
         }
     }
     Ok(u8::from(outcome.failed()))
 }
 
-/// Write the queue, oldest first, with a summary when there is more than one.
-fn report_all(
-    reports: &Reports,
+/// The diagnostics with `origin` where they name none: what the program
+/// was read from.
+fn originated(diagnostics: &[Diagnostic], origin: &str) -> Vec<Diagnostic> {
+    diagnostics
+        .iter()
+        .cloned()
+        .map(|mut diagnostic| {
+            diagnostic.origin.get_or_insert_with(|| origin.to_owned());
+            diagnostic
+        })
+        .collect()
+}
+
+/// Deliver the channel's contents to the default target, `stderr`, in the
+/// format the host's configuration names: the default wiring
+/// `diagnostics | DiagnosticText | stderr`. The shown level filters what
+/// is delivered, never what the channel holds.
+fn deliver(
+    diagnostics: &[Diagnostic],
     source: &str,
     origin: &str,
+    shown: Severity,
+    options: &Options,
     err: &mut impl Write,
 ) -> Result<(), String> {
-    for report in reports.iter() {
-        writeln!(err, "{}\n", render::report(report, source, origin))
-            .map_err(|error| error.to_string())?;
-    }
-    if reports.len() > 1 {
-        let mut summary = format!(
-            "{} report{}: {} failure, {} error, {} warning",
-            reports.len(),
-            if reports.len() == 1 { "" } else { "s" },
-            reports.count(Severity::Failure),
-            reports.count(Severity::Error),
-            reports.count(Severity::Warning),
-        );
-        for severity in [Severity::Info, Severity::Debug] {
-            let count = reports.count(severity);
-            if count > 0 {
-                summary.push_str(&format!(", {count} {}", severity.label()));
+    let shown: Vec<Diagnostic> = originated(diagnostics, origin)
+        .into_iter()
+        .filter(|diagnostic| diagnostic.severity >= shown)
+        .collect();
+    match options.diagnostics_format {
+        DiagnosticsFormat::Json => {
+            for diagnostic in &shown {
+                writeln!(err, "{}", diagnostic.to_json()).map_err(|error| error.to_string())?;
             }
         }
-        writeln!(err, "{summary}").map_err(|error| error.to_string())?;
+        DiagnosticsFormat::Text => {
+            for diagnostic in &shown {
+                // A diagnostic about another origin, a document the loader
+                // read, has no line of this source to point at.
+                let text = (diagnostic.origin.as_deref() == Some(origin)).then_some(source);
+                writeln!(
+                    err,
+                    "{}\n",
+                    render::diagnostic_text(diagnostic, text, origin)
+                )
+                .map_err(|error| error.to_string())?;
+            }
+            if let Some(summary) = render::summary(&shown) {
+                writeln!(err, "{summary}").map_err(|error| error.to_string())?;
+            }
+        }
     }
     Ok(())
+}
+
+/// The vault a REPL session runs against. Each line typed is its own run,
+/// with its own diagnostic channel; what the loader wrote is delivered once,
+/// before the first, and the host's channel is closed.
+fn repl_vault(
+    vault: &Vault,
+    shown: Severity,
+    options: &Options,
+    err: &mut impl Write,
+) -> Result<Vault, String> {
+    deliver(&crate::io::close_diagnostics(), "", "", shown, options, err)?;
+    let mut session = vault.clone();
+    session.warnings.clear();
+    Ok(session)
 }
 
 /// Read, evaluate and print, keeping bindings across lines.
@@ -1211,6 +1302,9 @@ fn repl(
     } else {
         Input::Piped(io::stdin().lock())
     };
+    // Each line typed is its own origin, `<repl:N>`, counted in what was
+    // typed and not in the bindings replayed before it.
+    let mut typed = 0;
     loop {
         let Some(line) = input.next()? else {
             input.close();
@@ -1220,6 +1314,7 @@ fn repl(
         if line.is_empty() {
             continue;
         }
+        typed += 1;
         match line {
             // The bare words are what a REPL is commonly left with.
             ":quit" | ":q" | "quit" | "exit" => {
@@ -1307,8 +1402,25 @@ fn repl(
         } else {
             crate::run_on(&source, vault, mode, backend)
         };
+        let origin = format!("<repl:{typed}>");
+        let at = source.len() - line.len();
+        let mut shown_outcome = outcome.clone();
+        for diagnostic in &mut shown_outcome.diagnostics {
+            if diagnostic.origin.is_none() && diagnostic.span.start >= at {
+                diagnostic.span = diagnostic.span.start - at..diagnostic.span.end - at;
+                diagnostic.origin = Some(origin.clone());
+            }
+        }
         emit(
-            &outcome, &source, "<repl>", HQL, options, vault, shown, out, err,
+            &shown_outcome,
+            line,
+            &origin,
+            HQL,
+            options,
+            vault,
+            shown,
+            out,
+            err,
         )?;
         // A binding that worked joins the session; an expression does not.
         // A continuation that failed leaves the binding it continued.

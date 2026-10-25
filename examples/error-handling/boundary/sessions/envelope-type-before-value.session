@@ -1,5 +1,5 @@
 // status: valid-now
-// feature: The envelope: a check error has no type, an evaluation failure has the checked type and no value
+// feature: The envelope: a check error has no type, an execute failure has the checked type and no value; the channel's contents are under diagnostics
 // implementation: implemented
 // environment: pure
 // session: cli
@@ -10,35 +10,41 @@ Int
 $ hql --envelope json run examples/error-handling/boundary/effect-then-overflow.hql
 before
 {
-  "origin": "examples/error-handling/boundary/effect-then-overflow.hql",
-  "reports": [
+  "diagnostics": [
     {
+      "disposition": "fatal",
+      "kind": "numeric-overflow",
       "message": "numeric overflow",
+      "origin": "examples/error-handling/boundary/effect-then-overflow.hql",
+      "phase": "execute",
       "severity": "failure",
       "span": {
-        "end": 537,
-        "start": 514
-      },
-      "stage": "evaluation"
+        "end": 557,
+        "start": 534
+      }
     }
   ],
+  "origin": "examples/error-handling/boundary/effect-then-overflow.hql",
   "type": "Int",
   "value": null
 }
 $ hql --envelope json run examples/error-handling/boundary/effect-then-type-error.hql
 {
-  "origin": "examples/error-handling/boundary/effect-then-type-error.hql",
-  "reports": [
+  "diagnostics": [
     {
+      "disposition": "fatal",
+      "kind": "type-mismatch",
       "message": "`Add` for String takes String, not Int",
+      "origin": "examples/error-handling/boundary/effect-then-type-error.hql",
+      "phase": "check",
       "severity": "error",
       "span": {
-        "end": 470,
-        "start": 469
-      },
-      "stage": "type"
+        "end": 485,
+        "start": 484
+      }
     }
   ],
+  "origin": "examples/error-handling/boundary/effect-then-type-error.hql",
   "type": null,
   "value": null
 }

@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Int
-// error: IntegerOverflow
-// stage: evaluate
+// phase: execute
+// kind: numeric-overflow
+// severity: failure
 
 // The whole program checks, so execution starts: `before` is written, then
 // the addition overflows and the run fails. `hql check` prints `Int`, the

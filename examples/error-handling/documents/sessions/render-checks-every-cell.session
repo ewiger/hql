@@ -16,7 +16,7 @@ $ hql render examples/error-handling/documents/every-cell-checks.hmd
 
 804
 $ hql render examples/error-handling/documents/last-cell-type-error.hmd
-type error: addition requires two Int, two Float or two Decimal operands
+check error[type-mismatch]: addition requires two Int, two Float or two Decimal operands
   --> examples/error-handling/documents/last-cell-type-error.hmd:16:17
    |
 16 | (pages | sum) + " pages"

@@ -2,8 +2,9 @@
 // feature: A type parameter without a bound has no functions
 // implementation: implemented
 // environment: pure
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // `T` is unbounded, so `x.area()` reaches nothing: inside a generic body
 // only what the bound promises is known. `fn widest<T : Shape>` would

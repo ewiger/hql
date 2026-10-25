@@ -7,9 +7,9 @@
 
 $ hql run examples/error-handling/boundary/effect-then-overflow.hql
 before
-evaluation failure: numeric overflow
-  --> examples/error-handling/boundary/effect-then-overflow.hql:15:5
+execute failure[numeric-overflow]: numeric overflow
+  --> examples/error-handling/boundary/effect-then-overflow.hql:16:5
    |
-15 | x = 9223372036854775807 + 1
+16 | x = 9223372036854775807 + 1
    |     ^^^^^^^^^^^^^^^^^^^^^^^
 

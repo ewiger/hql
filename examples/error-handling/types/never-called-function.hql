@@ -2,8 +2,9 @@
 // feature: A function nobody calls is checked all the same
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `never` is declared and not called; the program's value would be `42`.
 // Its body does not check, so the program has no value: checking covers

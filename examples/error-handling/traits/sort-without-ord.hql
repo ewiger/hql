@@ -2,8 +2,9 @@
 // feature: sort needs an order, which a declared type has only through Ord
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: unsatisfied-bound
+// severity: error
 
 // `Vec2` has no `impl Ord`, so its values have no order of their own.
 // `sort(by = v => v.x)` names one; bare `sort` is rejected.

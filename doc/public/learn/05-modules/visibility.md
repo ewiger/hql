@@ -27,7 +27,7 @@ reading.rounded_up(412, 40)
 ```
 
 ```text
-name error: the module `reading` has no function `rounded_up`
+check error[unknown-name]: the module `reading` has no function `rounded_up`
  --> <expression>:3:1
   |
 3 | reading.rounded_up(412, 40)
@@ -63,7 +63,7 @@ double(21)
 ```
 
 ```text
-syntax failure: `private` belongs to a module: every declaration of a program is public, since no other unit reads it
+parse failure[unexpected-token]: `private` belongs to a module: every declaration of a program is public, since no other unit reads it
  --> <expression>:1:1
   |
 1 | private fn double(n: Int) : Int = n * 2
@@ -83,7 +83,7 @@ double(21)
 ```
 
 ```text
-syntax failure: `internal` is reserved: visibility across one package is admitted once every module records its package; mark the declaration `private`, or leave it public
+parse failure[unexpected-token]: `internal` is reserved: visibility across one package is admitted once every module records its package; mark the declaration `private`, or leave it public
  --> <expression>:1:1
   |
 1 | internal fn double(n: Int) : Int = n * 2

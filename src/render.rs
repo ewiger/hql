@@ -1,10 +1,12 @@
-//! Human-readable reports: origin, line and column, and a caret.
+//! `DiagnosticText`: a diagnostic rendered for a person (HQL-0045).
 //!
-//! The byte ranges a report carries are the machine-readable form and stay
-//! that way; rendering them for a person is a separate, testable step rather
-//! than something only the binary can do.
+//! The byte ranges a diagnostic carries are the machine-readable form and
+//! stay that way; rendering them as a line, a column and a caret is a
+//! presentation, a separate and testable step rather than something only the
+//! binary can do. The heading names the phase, the severity and the kind:
+//! `check error[type-mismatch]: …`.
 
-use crate::reporting::Report;
+use crate::diagnostics::Diagnostic;
 
 /// A one-based line and column pair, counted in characters within the line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,10 +20,13 @@ pub struct Position {
 /// Convert a zero-based byte offset into a one-based line and column.
 ///
 /// An offset past the end of the source clamps to the end, which is what an
-/// end-of-input report needs.
+/// end-of-input diagnostic needs.
 #[must_use]
 pub fn position(source: &str, offset: usize) -> Position {
-    let offset = offset.min(source.len());
+    let mut offset = offset.min(source.len());
+    while !source.is_char_boundary(offset) {
+        offset -= 1;
+    }
     let before = &source[..offset];
     let line = before.matches('\n').count() + 1;
     let start = before.rfind('\n').map_or(0, |index| index + 1);
@@ -31,60 +36,150 @@ pub fn position(source: &str, offset: usize) -> Position {
     }
 }
 
-/// Render a report as a multi-line message pointing into the source.
-///
-/// `origin` labels the source: a path, or something like `<expression>` when
-/// the program did not come from a file.
+/// Shorten a value's printed form for a line a person reads; the JSON form
+/// of a diagnostic always carries the whole value.
 #[must_use]
-pub fn report(report: &Report, source: &str, origin: &str) -> String {
-    let Position { line, column } = position(source, report.span.start);
+pub fn shorten(text: &str) -> String {
+    const LIMIT: usize = 120;
+    if text.chars().count() <= LIMIT {
+        return text.to_owned();
+    }
+    let kept: String = text.chars().take(LIMIT).collect();
+    format!("{kept}…")
+}
+
+/// Render a diagnostic as `DiagnosticText`: the heading, the source line and
+/// a caret, then its labels, help, expected and found, element and trace.
+///
+/// `source` is the text the diagnostic's span points into, absent for a
+/// diagnostic about a document that was not read; `origin` names it when the
+/// diagnostic does not.
+#[must_use]
+pub fn diagnostic_text(diagnostic: &Diagnostic, source: Option<&str>, origin: &str) -> String {
+    let origin = diagnostic.origin.as_deref().unwrap_or(origin);
+    let heading = format!(
+        "{} {}[{}]: {}",
+        diagnostic.phase.label(),
+        diagnostic.severity.label(),
+        diagnostic.kind.label(),
+        diagnostic.message
+    );
+    let Some(source) = source else {
+        let mut rendered = format!("{heading}\n --> {origin}");
+        for line in notes(diagnostic, None, origin, " ") {
+            rendered.push_str(&format!("\n{line}"));
+        }
+        return rendered;
+    };
+    let Position { line, column } = position(source, diagnostic.span.start);
     let text = source.lines().nth(line - 1).unwrap_or("");
 
-    // An empty span means end of input; still show one caret, so the report
-    // never points at nothing.
+    // An empty span means end of input; still show one caret, so the
+    // diagnostic never points at nothing.
     let width = source
-        .get(report.span.start..report.span.end.min(source.len()))
+        .get(diagnostic.span.start..diagnostic.span.end.min(source.len()))
         .map_or(1, |slice| slice.chars().count().max(1));
     let gutter = line.to_string();
     let pad = " ".repeat(gutter.len());
-
-    // A capture is headed by its label, the way a coded entry is headed by
-    // its code; it has no stage worth naming, the program wrote it.
-    let heading = match (&report.code, &report.label) {
-        (Some(code), label) if code == "debug" => match label {
-            Some(label) => format!("{}[{label}]", report.severity.label()),
-            None => report.severity.label().to_owned(),
-        },
-        _ => format!("{} {}", report.stage, report.severity.label()),
-    };
     let mut rendered = format!(
-        "{heading}: {message}\n\
+        "{heading}\n\
          {pad}--> {origin}:{line}:{column}\n\
          {pad} |\n\
          {gutter} | {text}\n\
          {pad} | {caret_pad}{caret}",
-        message = report.message,
         caret_pad = " ".repeat(column - 1),
         caret = "^".repeat(width),
     );
-    if let Some(shown) = &report.shown {
-        let value = crate::reporting::shorten(shown);
-        if value != report.message {
-            rendered.push_str(&format!("\n{pad} = value: {value}"));
-        }
+    for note in notes(diagnostic, Some(source), origin, &pad) {
+        rendered.push_str(&format!("\n{note}"));
     }
-    if !report.trace.is_empty() {
-        let steps: Vec<String> = report
+    rendered
+}
+
+/// The `= …` lines under a diagnostic's caret, one per field that applies.
+fn notes(diagnostic: &Diagnostic, source: Option<&str>, origin: &str, pad: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    for label in &diagnostic.context.labels {
+        let at = label.origin.as_deref().unwrap_or(origin);
+        let place = match (source, &label.origin) {
+            (Some(source), None) => {
+                let Position { line, column } = position(source, label.span.start);
+                format!("{at}:{line}:{column}")
+            }
+            _ => at.to_owned(),
+        };
+        lines.push(format!("{pad} = note: {}, at {place}", label.text));
+    }
+    for help in &diagnostic.context.help {
+        lines.push(format!("{pad} = help: {help}"));
+    }
+    if let Some(expected) = &diagnostic.context.expected {
+        lines.push(format!("{pad} = expected: {expected}"));
+    }
+    if let Some(found) = &diagnostic.context.found {
+        lines.push(format!("{pad} = found: {}", shorten(&found.to_string())));
+    }
+    if let Some(element) = &diagnostic.context.element {
+        let of = element
+            .of
+            .map_or_else(String::new, |of| format!(" of {of}"));
+        lines.push(format!(
+            "{pad} = element: {}, position {}{of} in `{}`",
+            shorten(&element.value.to_string()),
+            element.position,
+            element.step
+        ));
+    }
+    if !diagnostic.context.trace.is_empty() {
+        let frames: Vec<String> = diagnostic
+            .context
             .trace
             .iter()
-            .map(|step| match &step.element {
-                Some(element) => {
-                    format!("{} (step {}), element {element}", step.step, step.position)
-                }
-                None => format!("{} (step {})", step.step, step.position),
+            .map(|frame| match frame.position {
+                Some(position) => format!("{} (step {position})", frame.name),
+                None => format!("{} (call)", frame.name),
             })
             .collect();
-        rendered.push_str(&format!("\n{pad} = trace: {}", steps.join(" → ")));
+        lines.push(format!("{pad} = trace: {}", frames.join(" → ")));
+    }
+    lines
+}
+
+/// The count per severity a report ends with, when it holds more than one
+/// diagnostic.
+#[must_use]
+pub fn summary(diagnostics: &[Diagnostic]) -> Option<String> {
+    use crate::diagnostics::{Severity, count};
+    (diagnostics.len() > 1).then(|| {
+        let mut rendered = format!(
+            "{} diagnostics: {} failure, {} error, {} warning",
+            diagnostics.len(),
+            count(diagnostics, Severity::Failure),
+            count(diagnostics, Severity::Error),
+            count(diagnostics, Severity::Warning),
+        );
+        for severity in [Severity::Info, Severity::Debug] {
+            let found = count(diagnostics, severity);
+            if found > 0 {
+                rendered.push_str(&format!(", {found} {}", severity.label()));
+            }
+        }
+        rendered
+    })
+}
+
+/// Render the channel's contents as a report, `Seq<Diagnostic>` presented:
+/// each diagnostic in `DiagnosticText`, then the summary.
+#[must_use]
+pub fn report(diagnostics: &[Diagnostic], source: Option<&str>, origin: &str) -> String {
+    let mut rendered = String::new();
+    for diagnostic in diagnostics {
+        rendered.push_str(&diagnostic_text(diagnostic, source, origin));
+        rendered.push_str("\n\n");
+    }
+    if let Some(summary) = summary(diagnostics) {
+        rendered.push_str(&summary);
+        rendered.push('\n');
     }
     rendered
 }
@@ -92,7 +187,6 @@ pub fn report(report: &Report, source: &str, origin: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::diagnostics::Diagnostic;
 
     #[test]
     fn positions_count_characters_not_bytes() {
@@ -103,14 +197,31 @@ mod tests {
     }
 
     #[test]
-    fn a_report_points_at_its_line_with_a_caret_under_the_span() {
-        let rendered = report(
-            &Report::of(&Diagnostic::typing(6..10, "no")),
-            "1 +\n  true",
+    fn a_diagnostic_points_at_its_line_with_a_caret_under_the_span() {
+        let rendered = diagnostic_text(
+            &Diagnostic::typing(6..10, "no"),
+            Some("1 +\n  true"),
             "<expression>",
         );
-        assert!(rendered.contains("type error: no"), "{rendered}");
+        assert!(
+            rendered.contains("check error[type-mismatch]: no"),
+            "{rendered}"
+        );
         assert!(rendered.contains("<expression>:2:3"), "{rendered}");
         assert!(rendered.ends_with("^^^^"), "{rendered}");
+    }
+
+    #[test]
+    fn help_follows_the_caret() {
+        let rendered = diagnostic_text(
+            &Diagnostic::name(0..4, "`mapp` is not a pipeline step")
+                .with_help("did you mean `map`?"),
+            Some("mapp"),
+            "<expression>",
+        );
+        assert!(
+            rendered.ends_with("\n  = help: did you mean `map`?"),
+            "{rendered}"
+        );
     }
 }

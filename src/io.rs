@@ -143,14 +143,50 @@ enum Written {
     Appended,
 }
 
+/// A channel's storage: values of one type, bounded, kept in the order they
+/// were committed. Every channel is one, the program's and the run's.
 #[derive(Debug)]
+struct Fifo<T> {
+    values: Vec<T>,
+}
+
+impl<T: Clone> Fifo<T> {
+    const fn new() -> Self {
+        Self { values: Vec::new() }
+    }
+
+    /// Commit a value at the back, refusing one past the bound.
+    fn push(&mut self, value: T) -> Result<(), usize> {
+        if self.values.len() >= CHANNEL_BOUND {
+            return Err(CHANNEL_BOUND);
+        }
+        self.values.push(value);
+        Ok(())
+    }
+
+    fn held(&self) -> Vec<T> {
+        self.values.clone()
+    }
+}
+
+/// An observer of the diagnostic channel.
+type Tap = Box<dyn FnMut(&crate::diagnostics::Diagnostic)>;
+
 struct Host {
     policy: Policy,
     base: PathBuf,
     written: HashMap<PathBuf, Written>,
     /// Each channel of the scope, by name: its element type and its values in
     /// the order they were written.
-    channels: BTreeMap<String, (TypeRef, Vec<Value>)>,
+    channels: BTreeMap<String, (TypeRef, Fifo<Value>)>,
+    /// The run's diagnostic channel (HQL-0045): the same mechanism as a
+    /// program's channel, owned by the runtime, opened before the first
+    /// phase and closed after the last. It is not among `channels`, so no
+    /// program holds a name for it.
+    diagnostics: Option<Fifo<crate::diagnostics::Diagnostic>>,
+    /// Observers of the diagnostic channel, each told of a diagnostic as it
+    /// is committed. A tap delivers nothing the run waits for.
+    taps: Vec<Tap>,
     /// Every logger's threshold, when the host overrides it.
     log_level: Option<String>,
     /// Each HTTP body read this evaluation, by URL: a resource is fetched once.
@@ -169,6 +205,8 @@ thread_local! {
         base: PathBuf::from("."),
         written: HashMap::new(),
         channels: BTreeMap::new(),
+        diagnostics: None,
+        taps: Vec::new(),
         log_level: None,
         fetched: HashMap::new(),
         program_on_stdin: false,
@@ -257,7 +295,7 @@ pub(crate) fn open_channel(name: &str, element: &TypeRef) -> Result<(), String> 
             Some(_) => Ok(()),
             None => {
                 host.channels
-                    .insert(name.to_owned(), (element.clone(), Vec::new()));
+                    .insert(name.to_owned(), (element.clone(), Fifo::new()));
                 Ok(())
             }
         }
@@ -271,12 +309,9 @@ pub(crate) fn open_channel(name: &str, element: &TypeRef) -> Result<(), String> 
 pub(crate) fn push(name: &str, value: Value) -> Result<(), String> {
     HOST.with(|host| {
         if let Some((_, values)) = host.borrow_mut().channels.get_mut(name) {
-            if values.len() >= CHANNEL_BOUND {
-                return Err(format!(
-                    "the channel {name:?} holds {CHANNEL_BOUND} values, as many as one scope keeps"
-                ));
-            }
-            values.push(value);
+            values.push(value).map_err(|bound| {
+                format!("the channel {name:?} holds {bound} values, as many as one scope keeps")
+            })?;
         }
         Ok(())
     })
@@ -288,7 +323,7 @@ pub(crate) fn held(name: &str) -> Vec<Value> {
         host.borrow()
             .channels
             .get(name)
-            .map(|(_, values)| values.clone())
+            .map(|(_, values)| values.held())
             .unwrap_or_default()
     })
 }
@@ -299,7 +334,7 @@ fn held_at(name: &str, index: usize) -> Option<Value> {
         host.borrow()
             .channels
             .get(name)
-            .and_then(|(_, values)| values.get(index).cloned())
+            .and_then(|(_, values)| values.values.get(index).cloned())
     })
 }
 
@@ -321,8 +356,78 @@ pub fn channels() -> Vec<(String, Vec<Value>)> {
         host.borrow()
             .channels
             .iter()
-            .map(|(name, (_, values))| (name.clone(), values.clone()))
+            .map(|(name, (_, values))| (name.clone(), values.held()))
             .collect()
+    })
+}
+
+/// Open the run's diagnostic channel, unless a run already holds it open.
+/// Gives whether this call opened it: the opener is the run, and only it
+/// closes the channel.
+pub fn open_diagnostics() -> bool {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if host.diagnostics.is_some() {
+            return false;
+        }
+        host.diagnostics = Some(Fifo::new());
+        true
+    })
+}
+
+/// Commit a diagnostic to the run's channel, then tell each tap of it. A
+/// diagnostic written with no run open has no channel to go to, and a
+/// diagnostic past the channel's bound is dropped; neither ends the run.
+pub fn write_diagnostic(diagnostic: crate::diagnostics::Diagnostic) {
+    let mut taps = HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        let Some(channel) = host.diagnostics.as_mut() else {
+            return Vec::new();
+        };
+        if channel.push(diagnostic.clone()).is_err() {
+            return Vec::new();
+        }
+        std::mem::take(&mut host.taps)
+    });
+    // A tap runs with the host released, so it may itself read the host.
+    for tap in &mut taps {
+        tap(&diagnostic);
+    }
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        taps.append(&mut host.taps);
+        host.taps = taps;
+    });
+}
+
+/// What the run's diagnostic channel holds now, in commit order.
+#[must_use]
+pub fn diagnostics_written() -> Vec<crate::diagnostics::Diagnostic> {
+    HOST.with(|host| {
+        host.borrow()
+            .diagnostics
+            .as_ref()
+            .map(Fifo::held)
+            .unwrap_or_default()
+    })
+}
+
+/// Observe the run's diagnostic channel: `tap` is told of each diagnostic
+/// as it is committed, until the channel closes.
+pub fn tap_diagnostics(tap: impl FnMut(&crate::diagnostics::Diagnostic) + 'static) {
+    HOST.with(|host| host.borrow_mut().taps.push(Box::new(tap)));
+}
+
+/// Close the run's diagnostic channel, detaching its taps, and give what it
+/// held for the host to deliver.
+pub fn close_diagnostics() -> Vec<crate::diagnostics::Diagnostic> {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        host.taps.clear();
+        host.diagnostics
+            .take()
+            .map(|channel| channel.values)
+            .unwrap_or_default()
     })
 }
 

@@ -41,10 +41,8 @@ impl Refusal {
         span: &std::ops::Range<usize>,
     ) -> crate::diagnostics::Diagnostic {
         match self {
-            Self::DivisionByZero => {
-                crate::diagnostics::Diagnostic::runtime(span.clone(), "division by zero")
-            }
-            Self::OutOfRange => crate::diagnostics::Diagnostic::Overflow { span: span.clone() },
+            Self::DivisionByZero => crate::diagnostics::Diagnostic::division_by_zero(span.clone()),
+            Self::OutOfRange => crate::diagnostics::Diagnostic::overflow(span.clone()),
         }
     }
 }

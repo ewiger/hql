@@ -2,8 +2,9 @@
 // feature: A type error in the second statement keeps the first from running
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // The first statement is well typed and effectful. The checker rejects the
 // second, and the program executes nothing: `hql run` prints the diagnostic

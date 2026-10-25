@@ -2,8 +2,9 @@
 // feature: An implementation of a core trait takes the type the trait declares
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // `add` of `Add` takes a value of the implementing type. An implementation
 // taking `Int` is rejected at that parameter: `Vec2 + 3` does not become

@@ -113,7 +113,7 @@ program runs:
 ```
 
 ```text
-type error: no renderer writes Int as D2
+check error[type-mismatch]: no renderer writes Int as D2
  --> <expression>:1:5
   |
 1 | 1 | d2
@@ -139,7 +139,8 @@ cards | filter(c => c.metadata.status == "todo") | map(c => c.title)
 ```
 
 `--to none` evaluates the program and writes nothing. `--envelope json` wraps
-the answer for another program to read: the type, the value, and every report:
+the answer for another program to read: the type, the value, and every
+diagnostic the run wrote:
 
 <!-- run: --vault examples/tutorial --envelope json -->
 ```hql
@@ -148,8 +149,8 @@ cards | filter(c => c.metadata.status == "todo") | size
 
 ```text
 {
+  "diagnostics": [],
   "origin": "<expression>",
-  "reports": [],
   "type": "Int",
   "value": 3
 }

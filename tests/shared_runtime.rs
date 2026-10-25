@@ -37,7 +37,7 @@ fn concurrent_queries_share_a_vault_and_retrieval_provenance() {
                         &vault,
                         hql::reporting::Mode::Strict,
                     );
-                    assert!(!outcome.failed(), "{:?}", outcome.reports);
+                    assert!(!outcome.failed(), "{:?}", outcome.diagnostics);
                     let Some(Value::Ranking(ranking)) = outcome.value else {
                         panic!("expected ranking")
                     };

@@ -117,11 +117,12 @@ a
 ```
 
 ```text
-name error: `a` is not bound; did you mean `abs`?
+check error[unknown-name]: `a` is not bound
  --> <expression>:5:1
   |
 5 | a
   | ^
+  = help: did you mean `abs`?
 ```
 
 ## The iterating block
@@ -164,7 +165,7 @@ one()
 ```
 
 ```text
-syntax failure: a block ends in a value or yields; this one holds only bindings
+parse failure[unexpected-token]: a block ends in a value or yields; this one holds only bindings
  --> <expression>:1:16
   |
 1 | fn one() : Int {
@@ -183,7 +184,7 @@ List(numbers())
 ```
 
 ```text
-syntax failure: a block that yields holds no expression on a line of its own
+parse failure[unexpected-token]: a block that yields holds no expression on a line of its own
  --> <expression>:3:5
   |
 3 |     2
@@ -204,7 +205,7 @@ total([1, 2])
 ```
 
 ```text
-syntax failure: `for` belongs to an iterating block; a value block is bindings and a final expression
+parse failure[unexpected-token]: `for` belongs to an iterating block; a value block is bindings and a final expression
  --> <expression>:2:5
   |
 2 |     for x in xs {
@@ -224,7 +225,7 @@ one()
 ```
 
 ```text
-syntax failure: expected `}` after collection elements, found `=`
+parse failure[unexpected-token]: expected `}` after collection elements, found `=`
  --> <expression>:2:7
   |
 2 |     x = 1

@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Int
-// error: IntegerOverflow
-// stage: evaluate
+// phase: execute
+// kind: numeric-overflow
+// severity: failure
 
 // The program checks: both operands are `Int`, and `hql check` prints `Int`.
 // The sum depends on the values, and the run reports it. Compare

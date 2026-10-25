@@ -119,3 +119,10 @@ type is visible by its name to every unit that imports the module.
 [Chapter 5](../05-modules/index.md) writes and imports modules, and
 [visibility](../05-modules/visibility.md) keeps a type or trait `private` to
 its module.
+
+## What is next
+
+A `Result` is one of the two ways a failure appears.
+[Chapter 18](../18-errors/index.md) is the whole error model: failures kept as
+data, and the diagnostics a run writes when a phase cannot do what the
+program asked.

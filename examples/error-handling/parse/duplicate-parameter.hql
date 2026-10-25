@@ -2,8 +2,9 @@
 // feature: A function's parameters are distinct, and the parser says so
 // implementation: implemented
 // environment: pure
-// error: SyntaxError
-// stage: parse
+// phase: parse
+// kind: unexpected-token
+// severity: failure
 
 // Two parameters named `x` are rejected where the second is written. No
 // scope is built, so this is not a name error.

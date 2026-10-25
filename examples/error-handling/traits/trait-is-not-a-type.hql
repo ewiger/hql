@@ -2,8 +2,9 @@
 // feature: A trait is a contract, not a type: no parameter is typed by one
 // implementation: implemented
 // environment: pure
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // `Shape` is a trait. It names a type nowhere: not in a parameter, a
 // binding or a list. A function over "any Shape" is written with a bound,

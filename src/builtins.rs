@@ -26,22 +26,20 @@ const EXPLAINED: &[(&str, &str)] = &[(
      `Table(xs, columns = [...])`",
 )];
 
-/// The hint a diagnostic appends for a name that is not a step: what to write
-/// instead, or the closest name.
+/// The help a diagnostic carries for a name that is not a step: what to
+/// write instead, or the closest name.
 #[must_use]
-pub fn hint(name: &str) -> String {
+pub fn hint(name: &str) -> Option<String> {
     if let Some((_, explanation)) = EXPLAINED.iter().find(|(retired, _)| *retired == name) {
-        return format!("; {explanation}");
+        return Some((*explanation).to_owned());
     }
     if crate::constructors::named(name).is_some() {
-        return format!(
-            "; `{name}` is a constructor: call it, `{name}(xs)`, or pass it to a step that takes \
+        return Some(format!(
+            "`{name}` is a constructor: call it, `{name}(xs)`, or pass it to a step that takes \
              a function, `map({name})`"
-        );
+        ));
     }
-    nearest(name)
-        .map(|near| format!("; did you mean `{near}`?"))
-        .unwrap_or_default()
+    nearest(name).map(|near| format!("did you mean `{near}`?"))
 }
 
 /// The closest step name by edit distance, for a "did you mean" hint. A
@@ -80,14 +78,14 @@ pub fn combiner_hint(name: &str) -> String {
         .filter(|(distance, _)| *distance <= 2)
         .min_by_key(|(distance, name)| (*distance, *name));
     if let Some((_, combiner)) = near {
-        return format!("; a fold names a combiner or a function: did you mean `{combiner}`?");
+        return format!("a fold names a combiner or a function: did you mean `{combiner}`?");
     }
     let all: Vec<String> = extensions::COMBINERS
         .iter()
         .map(|combiner| format!("`{}`", combiner.name))
         .collect();
     format!(
-        "; a fold names a function or one of the combiners {}",
+        "a fold names a function or one of the combiners {}",
         all.join(", ")
     )
 }

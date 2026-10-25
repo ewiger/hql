@@ -22,7 +22,7 @@ days("412", 40)
 ```
 
 ```text
-type error: this argument is String, and parameter `pages` takes Int
+check error[type-mismatch]: this argument is String, and parameter `pages` takes Int
  --> <expression>:2:6
   |
 2 | days("412", 40)

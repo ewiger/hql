@@ -29,7 +29,7 @@ An `Int` that leaves the 64-bit range is an error, never a wrapped value:
 ```
 
 ```text
-evaluation failure: numeric overflow
+execute failure[numeric-overflow]: numeric overflow
  --> <expression>:1:1
   |
 1 | 9223372036854775807 + 1

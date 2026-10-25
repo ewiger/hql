@@ -3,8 +3,9 @@
 // implementation: implemented
 // environment: pure
 // expected-type: Data
-// error: RuntimeError
-// stage: evaluate
+// phase: execute
+// kind: malformed-data
+// severity: failure
 
 // `Data(s, Json)` is `String -> Data`, which checks for any string. That
 // this string is not JSON is a fact about the value.

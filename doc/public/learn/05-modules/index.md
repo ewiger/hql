@@ -91,7 +91,7 @@ import club.titles as reading
 ```
 
 ```text
-name error: `reading` already names the module `club.reading` here; import `club.titles` under another name with `as`
+check error[unknown-name]: `reading` already names the module `club.reading` here; import `club.titles` under another name with `as`
  --> <expression>:2:1
   |
 2 | import club.titles as reading
@@ -105,7 +105,7 @@ reading.days(412, 40)
 ```
 
 ```text
-name error: `reading` is not bound
+check error[unknown-name]: `reading` is not bound
  --> <expression>:1:1
   |
 1 | reading.days(412, 40)

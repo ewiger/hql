@@ -6,26 +6,26 @@
 
 hql> x = 1
 hql> x = "a" + 1
-type error: `Add` for String takes String, not Int
- --> <repl>:3:11
+check error[type-mismatch]: `Add` for String takes String, not Int
+ --> <repl:2>:1:11
   |
-3 | x = "a" + 1
+1 | x = "a" + 1
   |           ^
 
 hql> x
 1
 hql> fn never() : Int = "a" + 1
-type error: `Add` for String takes String, not Int
- --> <repl>:3:26
+check error[type-mismatch]: `Add` for String takes String, not Int
+ --> <repl:4>:1:26
   |
-3 | fn never() : Int = "a" + 1
+1 | fn never() : Int = "a" + 1
   |                          ^
 
 hql> 1 / 0
-evaluation failure: division by zero
- --> <repl>:3:1
+execute failure[division-by-zero]: division by zero
+ --> <repl:5>:1:1
   |
-3 | 1 / 0
+1 | 1 / 0
   | ^^^^^
 
 hql> x

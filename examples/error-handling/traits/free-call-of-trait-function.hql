@@ -2,8 +2,9 @@
 // feature: A trait's function is called on a value, not as a free function
 // implementation: implemented
 // environment: pure
-// error: NameError
-// stage: typecheck
+// phase: check
+// kind: unknown-name
+// severity: error
 
 // `area` takes `self`, so it is reached as `circle.area()`. No binding
 // named `area` exists for `area(circle)` to reach.

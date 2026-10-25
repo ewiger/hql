@@ -4,7 +4,11 @@ use hql::types::{
     TypeRef, Value, builtin,
     collections::{self, SortOrder},
 };
-use hql::{check, diagnostics::Diagnostic, eval};
+use hql::{
+    check,
+    diagnostics::{Diagnostic, Phase},
+    eval,
+};
 
 #[test]
 fn execution_preserves_checked_collection_types_and_empty_map_results() {
@@ -85,7 +89,13 @@ fn inference_still_checks_the_ordering_contract() {
         "1 | sort",
     ] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Type { .. })),
+            matches!(
+                check(source),
+                Err(Diagnostic {
+                    phase: Phase::Check,
+                    ..
+                })
+            ),
             "{source}"
         );
     }
@@ -418,7 +428,7 @@ fn a_constructor_is_a_function_value_where_one_is_expected() {
     );
     let bare = hql::check("f = Set\n1").expect_err("not a value on its own");
     assert!(
-        bare.message().contains("is a constructor: call it"),
+        bare.to_string().contains("is a constructor: call it"),
         "{}",
         bare.message()
     );

@@ -2,8 +2,9 @@
 // feature: a value read as a subtype holds its parent's rules too
 // implementation: implemented
 // environment: pure
-// error: RuntimeError
-// stage: evaluate
+// phase: execute
+// kind: contract-violation
+// severity: error
 // expected-type: Window
 
 type Span : DataContract = {
