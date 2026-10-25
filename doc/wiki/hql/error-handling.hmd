@@ -190,9 +190,10 @@ A code is a name, not a number, so a reader or a configuration line refers to
 it without a table. The trace is the language's call stack: the path through
 the pipeline, each step with the element it was working on, and the frame of
 every function with a body the failure was reached through.
-[HQL-0045](../../proposals/HQL-0045/README.md) specifies the whole entry,
-adding `phase`, `labels`, `help`, `element` and `bindings` to the fields
-below, and what each phase reports.
+[HQL-0045](../../proposals/HQL-0045/README.md) replaces this entry with the
+`Diagnostic`: one record with its phase, kind, severity and disposition as
+independent fields, and the context below; this card is rewritten to it when
+that record is accepted.
 
 Take the mapreduce shelf, where `genre` is a string, and a query that reads it
 as a map:
@@ -323,11 +324,11 @@ fail  = "warning"   # an unresolved link fails the run here
 `mode` and `level` are implemented, with `--report-level` and
 `HQL_REPORT_LEVEL`; `fail` is designed.
 
-Three more settings decide how the report is written, with the same layers
-([HQL-0045](../../proposals/HQL-0045/README.md)): `verbosity`, `brief`,
-`normal` or `full`, how much of each entry is shown; `to`, `stderr`, `stdout`
-or a path; and `format`, `text` or `json-lines`. The data form carries every
-field at every verbosity. All three are designed.
+How a diagnostic reaches a person is transport, not a setting of the
+report: [HQL-0045](../../proposals/HQL-0045/README.md) has every phase write
+into one run-scoped `Channel<Diagnostic>`, rendered by a format and delivered
+to an endpoint, `stderr` as text unless the host's configuration says
+otherwise.
 
 ## Spans and rendering
 

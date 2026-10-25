@@ -1621,9 +1621,11 @@ Observability may be constructed through normal logging, metrics and sink operat
 
 A future convenience operation MAY exist, but it should remain compositionally separate from error routing.
 
-The report itself, the run's queue of unhandled failures from every phase, is
-specified by [HQL-0045](../HQL-0045/README.md): the structured entry, its
-verbosities and its destination. A program neither reads nor writes it.
+The other side of a failure, the diagnostic a phase produces when it cannot
+do what the program asked, is specified by [HQL-0045](../HQL-0045/README.md):
+its phase, kind, severity and disposition, and the run-scoped diagnostic
+channel it travels on. A program neither raises a diagnostic nor reads the
+channel of its own run.
 
 ---
 
@@ -2079,5 +2081,5 @@ There is no hidden exception channel, no validation-specific dead-letter control
   0045, E5): `xs | retry(operation, attempts = n, when = …)`, elementwise
   over a collection or a stream, with no delay; covers test plan items 15
   and 16
-- 2026-10-25: section 33 points to [HQL-0045](../HQL-0045/README.md) for the
-  report's entries, verbosity and destination
+- 2026-10-25: section 33 points to [HQL-0045](../HQL-0045/README.md) for
+  diagnostics and their transport, the other side of a failure

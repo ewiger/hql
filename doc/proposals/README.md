@@ -52,4 +52,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0042](HQL-0042/README.md) | implemented | Doc strings: HQL is the one source of a declaration's documentation |
 | [HQL-0043](HQL-0043/README.md) | implemented; the first versioned release publishes it | Public documentation: a reference page per primitive, permanent URLs and versions |
 | [HQL-0044](HQL-0044/README.md) | accepted, implemented | Type checking is the semantic boundary; compilation is an execution strategy |
-| [HQL-0045](HQL-0045/README.md) | drafted | Structured reports: every diagnostic an entry, rendered at a verbosity, written to a destination |
+| [HQL-0045](HQL-0045/README.md) | drafted | The error model: failures as data, diagnostics as events, and the run-scoped diagnostic channel |
