@@ -231,7 +231,7 @@ execute error[shape-mismatch]: `name` needs a map here, not Data of shape string
 3 | | map(c => c.metadata.genre.name)
   |            ^^^^^^^^^^^^^^^^^^^^^
   = element: "a-room-of-ones-own", position 1 of 6 in `map`
-  = source: examples/mapreduce/wiki/a-room-of-ones-own.hmd
+  = source: a-room-of-ones-own.hmd
 ```
 
 The same diagnostic as data, under `--diagnostics-format json` or in the
@@ -246,7 +246,7 @@ The same diagnostic as data, under `--diagnostics-format json` or in the
   "origin": "<expression>",
   "phase": "execute",
   "severity": "error",
-  "source": { "path": "examples/mapreduce/wiki/a-room-of-ones-own.hmd" },
+  "source": { "path": "a-room-of-ones-own.hmd" },
   "span": { "end": 83, "start": 62 }
 }
 ```

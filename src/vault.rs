@@ -69,6 +69,13 @@ impl Vault {
         }
     }
 
+    /// Where a document of this vault is on disk: the root joined with its
+    /// path, which is its place in the vault.
+    #[must_use]
+    pub fn file_of(&self, document: &crate::document::Document) -> PathBuf {
+        self.root.join(&document.path)
+    }
+
     /// Resolve a document reference by name.
     #[must_use]
     pub fn resolve(&self, name: &str) -> Option<Arc<Card>> {

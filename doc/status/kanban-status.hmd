@@ -54,7 +54,7 @@ then the archive.
 | todo    | 8      |
 | doing   | 4      |
 | done    | 0      |
-| archive | 45     |
+| archive | 46     |
 <!-- /hql:output -->
 
 ## Board
@@ -108,6 +108,7 @@ issues
 <!-- hql:output hash=b0018109fe7b status=ok -->
 | id   | title                                                                                 |
 | ---- | ------------------------------------------------------------------------------------- |
+| 0060 | A card keeps its path in the vault                                                    |
 | 0059 | A document renders only in a vault                                                    |
 | 0057 | The error model's remainder: what HQL-0045 left open                                  |
 | 0053 | Bugs found reviewing the complete type system branch                                  |

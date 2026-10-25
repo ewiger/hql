@@ -160,7 +160,7 @@ fn the_birds_example_wiki_resolves_and_renders_every_query() {
                 reference.target
             );
         }
-        let source = std::fs::read_to_string(&card.document.path).unwrap();
+        let source = std::fs::read_to_string(vault.file_of(&card.document)).unwrap();
         let rendered = transclude::render(&source, &vault, Mode::Strict, Emit::After);
         assert!(
             rendered.diagnostics.is_empty(),
