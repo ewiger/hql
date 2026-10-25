@@ -1,4 +1,4 @@
-# 19. Agents inside documents
+# 20. Agents inside documents
 
 !!! warning "Design only"
 
@@ -6,14 +6,14 @@
     It is written as if it existed: these programs do not run against the
     current binary, and names, types and outputs may change before it ships.
 
-[Chapter 18](18-agents-and-runs.md) ran an agent from a program. This chapter
+[Chapter 19](19-agents-and-runs.md) ran an agent from a program. This chapter
 runs one from inside the document that asks the question. The knowledge, the
 prompt, the program that assembles the prompt and the answer then sit in one
 file, each visible, each editable, each a value a later cell can read. The
 document is
 [`examples/notebook/next-meeting.hmd`](https://github.com/ewiger/hql/tree/main/examples/notebook/next-meeting.hmd),
 rendered against the tutorial vault like the reading list of
-[chapter 17](17-documents.md).
+[chapter 18](18-documents.md).
 
 ## The document is the harness
 
@@ -28,7 +28,7 @@ builds. The question is written once, as prose a reader reads, and the cell
 below it carries only the program that gathers the evidence.
 
 `hql render --emit after --in-place` writes each cell's output back into the
-document, between the markers of chapter 17. The opening marker's hash covers
+document, between the markers of chapter 18. The opening marker's hash covers
 the cell's code and the code of every cell it reads; a cell that reads `this`
 also covers the document's text, so its output is stale after every edit of
 the prose around it. That is the loop this chapter is about: edit the draft,
@@ -104,11 +104,11 @@ cards | filter(c => c.path | contains("/memory/")) | map(c => c.title)
 ````
 
 The first two cells run against the current binary; they are the reading
-list of chapter 17 again. The rest is the subject of this chapter.
+list of chapter 18 again. The rest is the subject of this chapter.
 
 ## Evidence by meaning
 
-The `evidence` cell is a ranking of [chapter 16](16-retrieval.md) turned into
+The `evidence` cell is a ranking of [chapter 17](17-retrieval.md) turned into
 a context. Each hit becomes one item, and the item keeps what the hit knew:
 its score, and the retrieval that produced it, in its `provenance`. Evidence
 that reaches a model says how it was found:
@@ -123,7 +123,7 @@ evidence | map(i => {source: i.provenance.name, score: i.score})
 ```
 
 The question is a literal because the vault's index answers the questions it
-was built for, as chapter 16 explains; a question the index lacks is a
+was built for, as chapter 17 explains; a question the index lacks is a
 diagnostic naming the build command, not an empty context.
 
 ## The agent reads the draft
@@ -192,7 +192,7 @@ holds the same content, so a committed vault renders without writing. Under
 
 A request a run makes can be answered by three answerers, and every answer is
 a recording under the hash of the request, so a document rendered later reads
-all three alike. A provider answers over HTTP, as chapter 18 configured. A
+all three alike. A provider answers over HTTP, as chapter 19 configured. A
 headless session of an agent host answers when the model entry names one.
 And under `--ai host`, a request with no recording is not sent anywhere: it
 waits, and whoever is driving the program answers it. In an editor that is
@@ -222,5 +222,5 @@ edit the draft ──► render ──► request waits ──► chat answers �
 
 ## What is next
 
-Every card in this chapter was in one vault. [Chapter 20](20-the-hyper-web.md)
+Every card in this chapter was in one vault. [Chapter 21](21-the-hyper-web.md)
 asks what the same steps are over a web of them.

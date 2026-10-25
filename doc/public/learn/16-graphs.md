@@ -1,4 +1,4 @@
-# 15. Links and graphs
+# 16. Links and graphs
 
 A document that writes `[[frankenstein]]` links to another. The links of a
 vault make its cards a **graph**: cards are the nodes, links are the edges.
@@ -158,10 +158,10 @@ graph LR
   n2 --> n1
 ```
 
-In a Markdown document — [chapter 17](17-documents.md) — a graph is written as a
+In a Markdown document — [chapter 18](18-documents.md) — a graph is written as a
 fenced `d2` block, which documentation sites draw.
 
 ## What is next
 
-`expand` grew a graph from a starting card. [Chapter 16](16-retrieval.md) finds
+`expand` grew a graph from a starting card. [Chapter 17](17-retrieval.md) finds
 the starting cards for a question in words.

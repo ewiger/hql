@@ -1,4 +1,4 @@
-# 16. Finding cards by meaning
+# 17. Finding cards by meaning
 
 `filter` answers a question with a yes or no per card. Retrieval answers a
 question in words with a **ranking**: every card that matches, best first,
@@ -176,5 +176,5 @@ vectors — and names the first part that is missing.
 ## What is next
 
 A ranking, a graph and a reading list are values a program prints.
-[Chapter 17](17-documents.md) writes them into the document that asks for
+[Chapter 18](18-documents.md) writes them into the document that asks for
 them, and builds the document from its queries.

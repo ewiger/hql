@@ -1,4 +1,4 @@
-# 14. A vault of documents
+# 15. A vault of documents
 
 The shelf of [chapter 6](06-sql-like-queries.md) was a list written by hand. Here the
 same books are documents in a folder, and HQL reads the folder. This part of
@@ -208,7 +208,7 @@ cards | of_type(RelationCard) | map(c => c.title)
 ["Frankenstein inspires Dune"]
 ```
 
-[Chapter 15](15-graphs.md) is about what that relation means: cards and the
+[Chapter 16](16-graphs.md) is about what that relation means: cards and the
 links between them form a graph.
 
 ## The vault itself
@@ -280,5 +280,5 @@ archive = source("archive")
 ## What is next
 
 A document that writes `[[frank-herbert]]` links to another.
-[Chapter 15](15-graphs.md) follows the links, and the cards and links together
+[Chapter 16](16-graphs.md) follows the links, and the cards and links together
 are a graph.

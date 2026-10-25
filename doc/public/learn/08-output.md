@@ -167,7 +167,7 @@ host's own — Markdown for a document, HQL for a terminal.
 ## A project chooses its renderers
 
 Which renderer writes a type in a format is a project's choice, in the
-`hql.toml` of the vault a program runs in ([chapter 14](14-a-vault.md)), over
+`hql.toml` of the vault a program runs in ([chapter 15](15-a-vault.md)), over
 the built-in defaults. A graph in Markdown is a D2 diagram unless the file
 says otherwise:
 

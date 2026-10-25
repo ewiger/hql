@@ -235,7 +235,7 @@ table:
 [Chapter 8](../08-output.md) is about formats in full.
 
 A program writes its data as literals, reads it from a vault's documents, as
-[chapter 14](../14-a-vault.md) does, or reads a JSON, YAML or CSV file with
+[chapter 15](../15-a-vault.md) does, or reads a JSON, YAML or CSV file with
 `source`, as [chapter 9](../09-io/source.md) does.
 
 ## What is next

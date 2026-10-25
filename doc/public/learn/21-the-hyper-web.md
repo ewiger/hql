@@ -1,4 +1,4 @@
-# 20. The hyper web
+# 21. The hyper web
 
 !!! warning "Design only"
 
@@ -32,7 +32,7 @@ url = "https://lit.example.org/"
 ```
 
 HQL already has the local half of this. `source("club")` in
-[chapter 14](14-a-vault.md) is a vault bound by configuration, with its own
+[chapter 15](15-a-vault.md) is a vault bound by configuration, with its own
 `cards` and `graph`, and a relation across the two is a join. A namespace
 bound to a URL is the same source whose provider is a server; the program is
 unchanged:
@@ -68,7 +68,7 @@ every value derived from it: a hit, a context item, a run.
 
 `semantic` over a namespace is the provider's index answering a question it
 holds, with its model, metric and approximation reported in the ranking's
-`retrieval`, as chapter 16 reports them for a local index. Two namespaces are
+`retrieval`, as chapter 17 reports them for a local index. Two namespaces are
 two rankings, and a program that combines them does so explicitly, by score
 within a retrieval or by a join across them, because a score is evidence
 relative to one index and means nothing against another's.
@@ -92,7 +92,7 @@ with pages to read.
 An agent is a card, so a namespace can serve one, and a document in one vault
 can run the librarian of another. `delegate` across a binding is a run whose
 child ran elsewhere, kept in `children` with its provenance, and whose `trace`
-records the delegation as an event like any other. The rules of chapter 18 do
+records the delegation as an event like any other. The rules of chapter 19 do
 not change at the boundary: a child run is bounded in depth, every request is
 recorded under its hash, and a tool stays pure wherever it is evaluated.
 
@@ -114,7 +114,7 @@ queries it with the steps of chapter 6.
 
 The same card is served to a person in a browser, to a tool that lints it, and
 to an agent building a context, from one source and in one format. A site
-that is a vault answers a question the way a document of chapter 19 does:
+that is a vault answers a question the way a document of chapter 20 does:
 with a run whose evidence is the site's own cards, whose trace says which
 cards were read, and whose answer carries their names. The reader asks instead
 of browsing, and what comes back is not a page but a value with its

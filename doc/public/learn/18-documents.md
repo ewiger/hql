@@ -1,4 +1,4 @@
-# 17. Queries inside documents
+# 18. Queries inside documents
 
 A document can hold the queries that compute parts of it. `hql render` runs
 them and builds the document they describe, so a reading list, an index or a
@@ -151,12 +151,12 @@ cards | filter(c => (c | downlinks | size) == 0) | map(c => c.name)
 `this` is the card the cell is written in, so the related cards are the
 three nearest in meaning to its title, written below its body as links. A
 cell marked `cached` would keep its output until the hash of its code and
-its inputs changes, so a summary a model wrote ([chapter 18](18-agents-and-runs.md))
+its inputs changes, so a summary a model wrote ([chapter 19](19-agents-and-runs.md))
 is computed once and read many times. The cell kinds exist today; `this`,
 `cached` and a `semantic` over a question the index was not built for are
 design direction.
 
 ## What is next
 
-[Chapter 18](18-agents-and-runs.md) gives a language model the cards a query
+[Chapter 19](19-agents-and-runs.md) gives a language model the cards a query
 selected, runs an agent over them, and keeps the run as a value.

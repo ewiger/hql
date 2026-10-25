@@ -12,7 +12,7 @@ the messages `hql` writes when a program is wrong.
 | `hql run <file>` | check and evaluate a program in a file; `-` reads standard input |
 | `hql check <file>` | write the program's type, and the signature of every alias, without evaluating |
 | `hql repl` | read, evaluate and print, keeping bindings between lines |
-| `hql render <file>` | build a document from its cells ([chapter 17](17-documents.md)) |
+| `hql render <file>` | build a document from its cells ([chapter 18](18-documents.md)) |
 | `hql builtins` | list every step, by the provider that implements it, with its signature |
 | `hql config` | the settings in force, and where each came from |
 | `hql doctor` | check the semantic-search chain and name the first missing part |

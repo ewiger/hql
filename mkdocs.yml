@@ -142,14 +142,15 @@ nav:
               - 12. Working with hql: learn/12-working-with-hql.md
           - "Part II: Data flows":
               - 13. Pipelines: learn/13-pipelines.md
+              - 14. ETL pipelines: learn/14-etl-pipelines.md
           - "Part III: Knowledge and AI":
-              - 14. A vault of documents: learn/14-a-vault.md
-              - 15. Links and graphs: learn/15-graphs.md
-              - 16. Finding cards by meaning: learn/16-retrieval.md
-              - 17. Queries inside documents: learn/17-documents.md
-              - 18. Agents and runs: learn/18-agents-and-runs.md
-              - 19. Agents inside documents: learn/19-agents-inside-documents.md
-              - 20. The hyper web: learn/20-the-hyper-web.md
+              - 15. A vault of documents: learn/15-a-vault.md
+              - 16. Links and graphs: learn/16-graphs.md
+              - 17. Finding cards by meaning: learn/17-retrieval.md
+              - 18. Queries inside documents: learn/18-documents.md
+              - 19. Agents and runs: learn/19-agents-and-runs.md
+              - 20. Agents inside documents: learn/20-agents-inside-documents.md
+              - 21. The hyper web: learn/21-the-hyper-web.md
       - Examples: examples.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this
