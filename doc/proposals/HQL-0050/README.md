@@ -1,12 +1,13 @@
 # HQL-0050: Analytic windows, and a deterministic order for keyed selection
 
-**Status**: accepted
+**Status**: accepted, implemented in part
 **Created**: 2026-11-12
 **Source**: [Deduplication](../../public/learn/20-olap/deduplication.md),
 [HQL-0014](../HQL-0014/README.md) (`reduce` and `merge` as a combiner),
 [HQL-0036](../HQL-0036/README.md) (partitioning and stateful streaming),
 [HQL-0044](../HQL-0044/README.md) (type checking is the semantic boundary),
-`lib/std/collections/mod.hql`, `lib/std/seq/mod.hql`, `lib/std/core/mod.hql`
+`lib/std/collections/mod.hql`, `lib/std/seq/mod.hql`, `lib/std/core/mod.hql`,
+`src/extensions/window.rs`
 
 ## Abstract
 
@@ -105,7 +106,8 @@ state a total order (section "A total order") rather than rely on position.
 fn then(self: Ordering, next: Ordering) : Ordering
 ```
 
-- `then` is declared in `core`, beside `Ordering`.
+- `then` is declared in `collections`, with the operations over the types
+  `core` declares.
 - A comparison written with `then` over a key that identifies a row, such
   as a source's change sequence number, is a total order, and keyed
   selection under it has no ties.
@@ -152,7 +154,14 @@ fn over<T, U>(self: Seq<T>, order: (T, T) -> Ordering, into: (T, Window<T>) -> U
 ### 4. `Window<T>`
 
 `Window<T>` is the current row's place in its ordered partition. Positions
-are 1-based and in the partition's order.
+are 1-based and in the partition's order. The type is declared in `core`,
+since `seq` and `collections` both write it; its functions are `seq`'s,
+and `size` and `count` of a window are `collections`'. A window function
+is called as a step, `w | row_number`, or as a receiver,
+`w.row_number()`.
+
+- `Window` is a standard type name, so a program does not declare a type
+  of its own named `Window`.
 
 ```hql
 type Window<T>
@@ -201,14 +210,15 @@ rows
 | map(x => x.row)
 ```
 
-The three latest orders of each customer:
+The three latest orders of each customer, `Ranked` a declared record
+`{id : Int, n : Int}`, since a field of a `Data` literal is not ordered:
 
 ```hql
 orders
 | over(by = o => o.customer, order = (a, b) => compare(b.at, a.at),
-       into = (o, w) => {order: o, n: w | row_number})
+       into = (o, w) => Ranked(id = o.id, n = w | row_number))
 | filter(x => x.n <= 3)
-| map(x => x.order)
+| map(x => x.id)
 ```
 
 A running balance per account:
@@ -283,19 +293,22 @@ keyed-selection reduction holds one candidate per key per split.
 
 ## Reference Implementation
 
-- `lib/std/core/mod.hql`: `then`.
-- `lib/std/seq/mod.hql`: `Window<T>`, its operations, and `over`.
-- `src/extensions/seq.rs`: `over` and the window operations.
-- `src/extensions/binding.rs`: binding of the new declarations.
+- `lib/std/core/mod.hql`: `Window<T>`.
+- `lib/std/collections/mod.hql`: `then`, and `size` and `count` of a
+  window.
+- `lib/std/seq/mod.hql`: `over` and the window functions.
+- `src/extensions/window.rs`: `over`, the window functions, and the check
+  that refuses `Window<T>` in `into`'s result. `over` of a `Stream` is
+  refused by its declaration, which takes a `Seq`.
+- `src/types/builtin.rs`: the `Window` type constructor.
 - `src/backends/plan.rs`: input position carried through splits, and the
-  keyed-selection reduction.
-- The checker: refusal of `Window<T>` in `into`'s result, and of `over`
-  over a `Stream`.
+  keyed-selection reduction, when a splitting backend exists. Not yet
+  implemented: `localhost` is the one backend, and does not split.
 
 ## Test Plan
 
-Example cases under `examples/pipelines/queries/`, each with a
-`proposal: doc/proposals/HQL-0050/README.md` header:
+Example cases under `examples/windows/queries/`, and the ranked
+deduplication under `examples/pipelines/queries/`:
 
 - Ties: two rows of `id = 6` with equal `at` and amounts 15 and 18 keep 15;
   reversing the input keeps 18; adding `then(compare(a.seq, b.seq))` keeps
@@ -323,3 +336,5 @@ cargo test
 
 - 2026-11-12: drafted
 - 2026-11-12: accepted
+- 2026-11-12: implemented in part: everything but the splitting
+  backend's carriage of input position and the keyed-selection reduction

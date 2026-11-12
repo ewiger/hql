@@ -57,4 +57,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0047](HQL-0047/README.md) | drafted | Transports |
 | [HQL-0048](HQL-0048/README.md) | drafted | I/O transport namespaces and packaging |
 | [HQL-0049](HQL-0049/README.md) | accepted, implemented | NATS subjects and lakehouse tables as configured endpoints |
-| [HQL-0050](HQL-0050/README.md) | accepted | Analytic windows, and a deterministic order for keyed selection |
+| [HQL-0050](HQL-0050/README.md) | accepted, implemented in part | Analytic windows, and a deterministic order for keyed selection |
