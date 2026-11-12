@@ -78,6 +78,13 @@ The [data sources](sources/README.md) cases read the sources a vault's
 CSV file and a JSON array, typed from the configuration before anything is
 read, from [HQL-0012](../doc/proposals/HQL-0012/README.md).
 
+The [pipelines](pipelines/README.md) shop is the vault Part II of the book
+runs against: files, a SQLite table, PostgreSQL, Kafka, NATS and a
+lakehouse, each under an id. What is on this machine runs here; a program
+over a server is checked here and runs in the hql-demo repository, from
+[HQL-0046](../doc/proposals/HQL-0046/README.md) and
+[HQL-0049](../doc/proposals/HQL-0049/README.md).
+
 The [doc strings](doc-strings/README.md) sessions print `///` doc strings
 with `:help`, `:type` and `hql help`: a program's own function, overloads
 documented in part, a standard overload set, a citation printed as a
