@@ -1,6 +1,9 @@
-//! NATS at the edge: the messages a JetStream stream holds under one
-//! subject, read in the stream's order, and messages published to that
-//! subject, for the configured endpoints of `kind = "nats"`.
+//! NATS at the edge, for the configured endpoints of `kind = "nats"` and
+//! `kind = "nats_jetstream"`. A core subject is read by subscribing to it:
+//! what is published while the read is subscribed, and nothing before. A
+//! JetStream stream keeps what is published to its subjects, so a subject
+//! of one is read in the stream's order, from where the read says, and a
+//! message published to it is written once the stream acknowledges it.
 //!
 //! The client is asynchronous; each connection owns a runtime of one thread
 //! and blocks on it, so the evaluator stays synchronous. A connection is made
@@ -54,6 +57,61 @@ impl Session {
             runtime,
         })
     }
+}
+
+/// The messages published to `subject` while the read is subscribed, each
+/// its payload's text, in the order they arrive. With `idle`, the messages
+/// end once none has arrived for that long; without it they never end.
+pub(crate) fn subscribed(
+    url: String,
+    subject: String,
+    idle: Option<Duration>,
+) -> Box<dyn Iterator<Item = Result<String, String>> + Send> {
+    let mut open: Option<(Session, async_nats::Subscriber)> = None;
+    let mut ended = false;
+    Box::new(std::iter::from_fn(move || {
+        if ended {
+            return None;
+        }
+        if open.is_none() {
+            let subscribed = Session::open(&url).and_then(|session| {
+                let subscriber = session
+                    .runtime
+                    .block_on(session.client.subscribe(subject.clone()))
+                    .map_err(|error| format!("subject `{subject}`: {error}"))?;
+                Ok((session, subscriber))
+            });
+            match subscribed {
+                Ok(held) => open = Some(held),
+                Err(error) => {
+                    ended = true;
+                    return Some(Err(error));
+                }
+            }
+        }
+        let (session, subscriber) = open.as_mut()?;
+        let arrived = session.runtime.block_on(async {
+            match idle {
+                Some(idle) => tokio::time::timeout(idle, subscriber.next())
+                    .await
+                    .unwrap_or(None),
+                None => subscriber.next().await,
+            }
+        });
+        let Some(message) = arrived else {
+            ended = true;
+            // The subscription ends on the runtime it was made on.
+            if let Some((session, subscriber)) = open.take() {
+                let _on = session.runtime.enter();
+                drop(subscriber);
+            }
+            return None;
+        };
+        Some(
+            String::from_utf8(message.payload.to_vec())
+                .map_err(|_| format!("subject `{}`: a message is not UTF-8 text", message.subject)),
+        )
+    }))
 }
 
 /// The messages the stream holds under the subject, each its payload's
@@ -296,11 +354,28 @@ impl Reader {
     }
 }
 
+/// Whether `subject` names one subject, as a message is published to.
+///
+/// # Errors
+/// Says that the subject holds a wildcard.
+pub(crate) fn one_subject(subject: &str) -> Result<(), String> {
+    if subject.split('.').any(|token| matches!(token, "*" | ">")) {
+        return Err(format!(
+            "subject `{subject}` holds a wildcard, which reads many subjects and writes none; a \
+             message is published to one subject"
+        ));
+    }
+    Ok(())
+}
+
 /// A subject open for publishing: a message is written once a stream that
 /// holds the subject acknowledges it.
 pub(crate) struct Publisher {
     session: Session,
     subject: String,
+    /// Whether a stream must store each message: a JetStream publish,
+    /// acknowledged, rather than a core one, which nothing confirms.
+    stored: bool,
     pending: Vec<jetstream::context::PublishAckFuture>,
 }
 
@@ -310,16 +385,12 @@ impl Publisher {
     /// # Errors
     /// Says that no server answered, or that the subject holds a wildcard:
     /// a message is published to one subject.
-    pub(crate) fn open(url: &str, subject: &str) -> Result<Self, String> {
-        if subject.split('.').any(|token| matches!(token, "*" | ">")) {
-            return Err(format!(
-                "subject `{subject}` holds a wildcard, which reads many subjects and writes \
-                 none; a message is published to one subject"
-            ));
-        }
+    pub(crate) fn open(url: &str, subject: &str, stored: bool) -> Result<Self, String> {
+        one_subject(subject)?;
         Ok(Self {
             session: Session::open(url)?,
             subject: subject.to_owned(),
+            stored,
             pending: Vec::new(),
         })
     }
@@ -330,6 +401,17 @@ impl Publisher {
     /// # Errors
     /// Names the subject when a message is not sent or not acknowledged.
     pub(crate) fn send(&mut self, text: String) -> Result<(), String> {
+        if !self.stored {
+            return self
+                .session
+                .runtime
+                .block_on(
+                    self.session
+                        .client
+                        .publish(self.subject.clone(), text.into()),
+                )
+                .map_err(|error| format!("subject `{}`: {error}", self.subject));
+        }
         let acknowledged = self
             .session
             .runtime
@@ -346,12 +428,22 @@ impl Publisher {
         Ok(())
     }
 
-    /// Await the acknowledgement of every message published.
+    /// Await the acknowledgement of every message published to a stream, or
+    /// send every core message out.
     ///
     /// # Errors
     /// Names the subject when a stream did not store a message: no stream
     /// holds the subject, or the stream refused it.
     pub(crate) fn flush(&mut self) -> Result<(), String> {
+        if !self.stored {
+            // Sent to the server; whether anyone was subscribed is not
+            // known.
+            return self
+                .session
+                .runtime
+                .block_on(self.session.client.flush())
+                .map_err(|error| format!("subject `{}`: {error}", self.subject));
+        }
         let pending = std::mem::take(&mut self.pending);
         self.session.runtime.block_on(async {
             for acknowledged in pending {

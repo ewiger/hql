@@ -46,8 +46,18 @@ pub enum Endpoint {
     WebSocket(String),
     /// A TCP connection, carrying documents as their format separates them.
     Socket(String, u16),
-    /// One subject of a NATS JetStream stream: one document per message.
+    /// One core NATS subject: one document per message, published while a
+    /// read is subscribed.
     Nats {
+        /// The server a connection starts from.
+        server: crate::endpoints::Address,
+        /// The subject read, which may hold wildcards, and published to.
+        subject: String,
+        /// How long a read waits for a message before its stream ends.
+        idle: Option<std::time::Duration>,
+    },
+    /// One subject of a NATS JetStream stream: one document per message.
+    NatsJetStream {
         /// The server a connection starts from.
         server: crate::endpoints::Address,
         /// The stream, the subject within it, and how it is read.
@@ -70,6 +80,7 @@ impl Endpoint {
             Self::WebSocket(_) => TypeRef::WEB_SOCKET,
             Self::Socket(..) => TypeRef::SOCKET,
             Self::Nats { .. } => TypeRef::NATS,
+            Self::NatsJetStream { .. } => TypeRef::NATS_JET_STREAM,
         }
     }
 
@@ -93,7 +104,8 @@ impl Endpoint {
             Self::Channel(name, _) => format!("channel {name:?}"),
             Self::Http { url, .. } | Self::WebSocket(url) => url.clone(),
             Self::Socket(host, port) => format!("{host}:{port}"),
-            Self::Nats { held, .. } => {
+            Self::Nats { subject, .. } => format!("subject `{subject}`"),
+            Self::NatsJetStream { held, .. } => {
                 format!("subject `{}` of stream `{}`", held.subject, held.stream)
             }
         }
@@ -130,8 +142,29 @@ impl fmt::Display for Endpoint {
             }
             Self::WebSocket(url) => write!(f, "websocket({url:?})"),
             Self::Socket(host, port) => write!(f, "socket({host:?}, {port})"),
-            Self::Nats { server, held } => {
-                write!(f, "nats({:?}, stream = {:?}", held.subject, held.stream)?;
+            Self::Nats {
+                server,
+                subject,
+                idle,
+            } => {
+                write!(f, "nats({subject:?}")?;
+                match server {
+                    crate::endpoints::Address::Written(url) => write!(f, ", url = {url:?}")?,
+                    crate::endpoints::Address::Env(variable) => {
+                        write!(f, ", url_env = {variable:?}")?;
+                    }
+                }
+                if let Some(idle) = idle {
+                    write!(f, ", idle_ms = {}", idle.as_millis())?;
+                }
+                f.write_str(")")
+            }
+            Self::NatsJetStream { server, held } => {
+                write!(
+                    f,
+                    "nats_jetstream({:?}, stream = {:?}",
+                    held.subject, held.stream
+                )?;
                 match server {
                     crate::endpoints::Address::Written(url) => write!(f, ", url = {url:?}")?,
                     crate::endpoints::Address::Env(variable) => {
@@ -1070,7 +1103,16 @@ impl Reading {
                 )))
             }
             Endpoint::WebSocket(url) => Ok(Self::shared(messages(url.clone(), format))),
-            Endpoint::Nats { server, held } => Ok(Self::log(
+            Endpoint::Nats {
+                server,
+                subject,
+                idle,
+            } => Ok(Self::log(
+                crate::nats::subscribed(server.resolve()?, subject.clone(), *idle),
+                format,
+                endpoint.describe(),
+            )),
+            Endpoint::NatsJetStream { server, held } => Ok(Self::log(
                 crate::nats::messages(server.resolve()?, held.clone()),
                 format,
                 endpoint.describe(),
@@ -1397,10 +1439,21 @@ impl Destination {
                 Self::WebSocket(url.clone(), Box::new(crate::net::websocket(url)?)),
                 false,
             )),
-            Endpoint::Nats { server, held } => Ok((
+            Endpoint::Nats {
+                server, subject, ..
+            } => Ok((
+                Self::Nats(Box::new(crate::nats::Publisher::open(
+                    &server.resolve()?,
+                    subject,
+                    false,
+                )?)),
+                false,
+            )),
+            Endpoint::NatsJetStream { server, held } => Ok((
                 Self::Nats(Box::new(crate::nats::Publisher::open(
                     &server.resolve()?,
                     &held.subject,
+                    true,
                 )?)),
                 false,
             )),

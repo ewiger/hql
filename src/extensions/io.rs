@@ -568,7 +568,7 @@ fn check_configured_sink(
     let boundary = boundary_for(configured, element, None)
         .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     match &configured.kind {
-        Source::Kafka { .. } | Source::Nats { .. } => Ok(()),
+        Source::Kafka { .. } | Source::Nats { .. } | Source::NatsJetStream { .. } => Ok(()),
         Source::Postgres { .. } | Source::Spark { .. } if boundary.is_some() => Ok(()),
         Source::Postgres { .. } | Source::Spark { .. } => Err(Diagnostic::typing(
             span.clone(),
@@ -709,7 +709,11 @@ fn eval_source(
                 .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             Ok(Value::Traversal(Arc::new(Traversal::kept(element, values))))
         }
-        Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) | Endpoint::Nats { .. } => {
+        Endpoint::Stdin
+        | Endpoint::Socket(..)
+        | Endpoint::WebSocket(_)
+        | Endpoint::Nats { .. }
+        | Endpoint::NatsJetStream { .. } => {
             let reading = Reading::live(&endpoint, format)
                 .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             Ok(live(reading, element, span))
@@ -742,10 +746,12 @@ fn eval_tap(
     let element = io::document_type(format)
         .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     let reading = match endpoint.as_ref() {
-        Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) | Endpoint::Nats { .. } => {
-            Reading::live(&endpoint, format)
-                .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
-        }
+        Endpoint::Stdin
+        | Endpoint::Socket(..)
+        | Endpoint::WebSocket(_)
+        | Endpoint::Nats { .. }
+        | Endpoint::NatsJetStream { .. } => Reading::live(&endpoint, format)
+            .map_err(|message| Diagnostic::io_failure(span.clone(), message))?,
         Endpoint::Http { url, headers, .. } => Reading::Http {
             url: url.clone(),
             headers: headers.clone(),
@@ -1141,7 +1147,7 @@ pub(crate) fn configured_source(
             }
             boundary
         }
-        kind @ (Source::Kafka { .. } | Source::Nats { .. }) => {
+        kind @ (Source::Kafka { .. } | Source::Nats { .. } | Source::NatsJetStream { .. }) => {
             return Err(failed(live_by_source(id, kind)));
         }
         Source::File { .. } => boundary_for(configured, &element, None).map_err(failed)?,
@@ -1286,7 +1292,7 @@ fn read_configured(
                 .map(|row| Value::Data(Arc::new(row)))
                 .collect()
         }
-        kind @ (Source::Kafka { .. } | Source::Nats { .. }) => {
+        kind @ (Source::Kafka { .. } | Source::Nats { .. } | Source::NatsJetStream { .. }) => {
             return Err(failed(live_by_source(id, kind)));
         }
     };
@@ -1328,7 +1334,27 @@ fn tap_configured(
             })?;
         return Ok(live(reading, TypeRef::DATA, span.clone()));
     }
-    if let crate::endpoints::Kind::Nats { server, held } = &configured.kind {
+    if let crate::endpoints::Kind::Nats {
+        server,
+        subject,
+        idle,
+    } = &configured.kind
+    {
+        let reading = io::policy_permits_network()
+            .and_then(|()| server.resolve())
+            .map(|url| {
+                Reading::log(
+                    crate::nats::subscribed(url, subject.clone(), *idle),
+                    TypeConstructor("Json"),
+                    format!("endpoint `{id}`"),
+                )
+            })
+            .map_err(|message| {
+                Diagnostic::io_failure(span.clone(), format!("endpoint `{id}`: {message}"))
+            })?;
+        return Ok(live(reading, TypeRef::DATA, span.clone()));
+    }
+    if let crate::endpoints::Kind::NatsJetStream { server, held } = &configured.kind {
         let reading = io::policy_permits_network()
             .and_then(|()| server.resolve())
             .map(|url| {
@@ -1752,12 +1778,21 @@ fn sink_configured(
                 .flush()
                 .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
         }
-        Source::Nats { server, held } => {
-            let subject = &held.subject;
+        Source::Nats {
+            server, subject, ..
+        }
+        | Source::NatsJetStream {
+            server,
+            held: crate::endpoints::Subject { subject, .. },
+        } => {
+            let stored = matches!(configured.kind, Source::NatsJetStream { .. });
+            // Refused before the address is read, as before a connection.
+            crate::nats::one_subject(subject)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
             let url = server
                 .resolve()
                 .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
-            let mut publisher = crate::nats::Publisher::open(&url, subject)
+            let mut publisher = crate::nats::Publisher::open(&url, subject, stored)
                 .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
             each(cx, &mut |value| {
                 publisher.send(message_text(&value, fields.as_deref())?)
@@ -1860,7 +1895,7 @@ fn write_configured(
         Source::Vault { .. } => Err(failed(format!(
             "endpoint `{id}` is a vault, which is read and never written"
         ))),
-        Source::Kafka { .. } | Source::Nats { .. } => {
+        Source::Kafka { .. } | Source::Nats { .. } | Source::NatsJetStream { .. } => {
             unreachable!("a topic or a subject is written above")
         }
         Source::Spark {

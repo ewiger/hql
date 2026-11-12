@@ -27,7 +27,7 @@ atoms! {
     HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
     TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
     BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
-    ROW_TRANSPORT => "RowTransport", NATS => "Nats",
+    ROW_TRANSPORT => "RowTransport", NATS_JET_STREAM => "NatsJetStream", NATS => "Nats",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
     CELL => "Cell", RANGE => "Range", TABLE => "Table",
@@ -209,9 +209,21 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Abstract,
             &[TypeRef::TRANSPORT],
         ),
-        // A subject of a JetStream stream: `lib/std/io/msg/nats/mod.hql`.
+        // A core NATS subject: `lib/std/io/msg/nats/mod.hql`.
         (
             TypeRef::NATS,
+            TypeKind::Concrete,
+            &[
+                TypeRef::NETWORK,
+                TypeRef::MESSAGE_TRANSPORT,
+                TypeRef::READABLE,
+                TypeRef::WRITABLE,
+            ],
+        ),
+        // A subject of a JetStream stream:
+        // `lib/std/io/msg/nats_jetstream/mod.hql`.
+        (
+            TypeRef::NATS_JET_STREAM,
             TypeKind::Concrete,
             &[
                 TypeRef::NETWORK,

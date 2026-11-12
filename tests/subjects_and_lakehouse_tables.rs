@@ -13,14 +13,14 @@ use tempfile::{TempDir, tempdir};
 /// connects to anything.
 const CONFIG: &str = r#"
 [endpoint.events]
-kind = "nats"
+kind = "nats_jetstream"
 url_env = "HQL_TEST_UNSET_NATS_URL"
 stream = "EVENTS"
 subject = "events.orders"
 idle_ms = 500
 
 [endpoint.every_event]
-kind = "nats"
+kind = "nats_jetstream"
 url = "nats://localhost:4222"
 stream = "EVENTS"
 subject = "events.>"
@@ -82,7 +82,7 @@ fn a_subject_is_tapped_as_a_stream_and_never_read_by_source() {
     );
     let error = refusal(r#"source("events")"#, &vault);
     assert!(
-        error.contains("`events` is a `nats` endpoint, read by `tap` as a `Stream`"),
+        error.contains("`events` is a `nats_jetstream` endpoint, read by `tap` as a `Stream`"),
         "{error}"
     );
 }
@@ -183,36 +183,53 @@ fn an_unset_variable_fails_where_the_endpoint_is_used_naming_the_variable() {
 fn a_malformed_subject_or_lakehouse_table_refuses_the_vault() {
     for (entry, says) in [
         (
-            "kind = \"nats\"\nstream = \"S\"\nsubject = \"s\"\n",
+            "kind = \"nats_jetstream\"\nstream = \"S\"\nsubject = \"s\"\n",
             "names its address once",
         ),
         (
-            "kind = \"nats\"\nurl = \"nats://h:4222\"\nurl_env = \"U\"\nstream = \"S\"\nsubject = \"s\"\n",
+            "kind = \"nats_jetstream\"\nurl = \"nats://h:4222\"\nurl_env = \"U\"\nstream = \"S\"\nsubject = \"s\"\n",
             "names its address once",
         ),
         (
-            "kind = \"nats\"\nurl = \"nats://user:pass@h:4222\"\nstream = \"S\"\nsubject = \"s\"\n",
+            "kind = \"nats_jetstream\"\nurl = \"nats://user:pass@h:4222\"\nstream = \"S\"\nsubject = \"s\"\n",
             "url` holds credentials",
         ),
         (
-            "kind = \"nats\"\nurl = \"nats://h:4222\"\nsubject = \"s\"\n",
+            "kind = \"nats_jetstream\"\nurl = \"nats://h:4222\"\nsubject = \"s\"\n",
             "names its `stream`",
         ),
         (
-            "kind = \"nats\"\nurl = \"nats://h:4222\"\nstream = \"S\"\n",
+            "kind = \"nats_jetstream\"\nurl = \"nats://h:4222\"\nstream = \"S\"\n",
             "names its `subject`",
         ),
         (
-            "kind = \"nats\"\nurl = \"nats://h:4222\"\nstream = \"S\"\nsubject = \"s\"\nfrom = \"middle\"\n",
+            "kind = \"nats_jetstream\"\nurl = \"nats://h:4222\"\nstream = \"S\"\nsubject = \"s\"\nfrom = \"middle\"\n",
             "`earliest` or `latest`",
         ),
         (
-            "kind = \"nats\"\nurl = \"nats://h:4222\"\nstream = \"S\"\nsubject = \"s\"\nidle_ms = 0\n",
+            "kind = \"nats_jetstream\"\nurl = \"nats://h:4222\"\nstream = \"S\"\nsubject = \"s\"\nidle_ms = 0\n",
             "idle_ms",
         ),
         (
-            "kind = \"nats\"\nurl = \"nats://h:4222\"\nstream = \"S\"\nsubject = \"s\"\ntoken_env = \"T\"\n",
+            "kind = \"nats_jetstream\"\nurl = \"nats://h:4222\"\nstream = \"S\"\nsubject = \"s\"\ntoken_env = \"T\"\n",
             "takes no `token_env`",
+        ),
+        // A core subject is kept by no stream, so it is read from nowhere.
+        (
+            "kind = \"nats\"\nurl = \"nats://h:4222\"\nsubject = \"s\"\nstream = \"S\"\n",
+            "takes no `stream`",
+        ),
+        (
+            "kind = \"nats\"\nurl = \"nats://h:4222\"\nsubject = \"s\"\nconsumer = \"c\"\n",
+            "takes no `consumer`",
+        ),
+        (
+            "kind = \"nats\"\nurl = \"nats://h:4222\"\nsubject = \"s\"\nfrom = \"latest\"\n",
+            "takes no `from`",
+        ),
+        (
+            "kind = \"nats\"\nsubject = \"s\"\n",
+            "a `nats` endpoint names its address once",
         ),
         (
             "kind = \"spark\"\ntable = \"t\"\n",
@@ -272,21 +289,23 @@ fn type_of(source: &str, vault: &Vault) -> String {
 }
 
 #[test]
-fn the_nats_constructor_is_a_message_transport_on_the_network() {
+fn the_nats_jetstream_constructor_is_a_message_transport_on_the_network() {
     let (_dir, vault) = configured();
-    let subject =
-        r#"nats("events.orders", stream = "EVENTS", url_env = "HQL_TEST_UNSET_NATS_URL")"#;
+    let subject = r#"nats_jetstream("events.orders", stream = "EVENTS", url_env = "HQL_TEST_UNSET_NATS_URL")"#;
     // A message is one document, JSON where no format is named.
     assert_eq!(
-        type_of(&format!("import io.msg.nats\ntap({subject})"), &vault),
+        type_of(
+            &format!("import io.msg.nats_jetstream\ntap({subject})"),
+            &vault
+        ),
         "Stream<Data>"
     );
     checks(
-        &format!("import io.msg.nats\ntap({subject}, Json) | take(1)"),
+        &format!("import io.msg.nats_jetstream\ntap({subject}, Json) | take(1)"),
         &vault,
     );
     checks(
-        &format!("import io.msg.nats\n[{{a: 1}}] | sink({subject})"),
+        &format!("import io.msg.nats_jetstream\n[{{a: 1}}] | sink({subject})"),
         &vault,
     );
     for supertype in [
@@ -298,7 +317,7 @@ fn the_nats_constructor_is_a_message_transport_on_the_network() {
     ] {
         assert_eq!(
             type_of(
-                &format!("import io.msg.nats\n{subject} | is({supertype})"),
+                &format!("import io.msg.nats_jetstream\n{subject} | is({supertype})"),
                 &vault
             ),
             "Bool",
@@ -307,46 +326,52 @@ fn the_nats_constructor_is_a_message_transport_on_the_network() {
     }
     // The module is imported by its full path and has no short form.
     let error = hql::check_in(&format!("tap({subject}) | take(1)"), &vault).unwrap_err();
-    assert!(format!("{error:?}").contains("io.msg.nats"), "{error:?}");
-    assert!(hql::check_in("import nats\n1", &vault).is_err());
+    assert!(
+        format!("{error:?}").contains("io.msg.nats_jetstream"),
+        "{error:?}"
+    );
+    assert!(hql::check_in("import nats_jetstream\n1", &vault).is_err());
 }
 
 #[test]
-fn the_nats_constructor_checks_its_parameters_as_the_kind_checks_its_keys() {
+fn the_nats_jetstream_constructor_checks_its_parameters_as_the_kind_checks_its_keys() {
     let (_dir, vault) = configured();
     for (written, says) in [
-        (r#"nats("s", stream = "S")"#, "names its address once"),
         (
-            r#"nats("s", stream = "S", url = "nats://h:4222", url_env = "U")"#,
+            r#"nats_jetstream("s", stream = "S")"#,
             "names its address once",
         ),
         (
-            r#"nats("s", stream = "S", url = "nats://u:p@h:4222")"#,
+            r#"nats_jetstream("s", stream = "S", url = "nats://h:4222", url_env = "U")"#,
+            "names its address once",
+        ),
+        (
+            r#"nats_jetstream("s", stream = "S", url = "nats://u:p@h:4222")"#,
             "`url` holds credentials",
         ),
         (
-            r#"nats("s", stream = "S", url_env = "U", from = "middle")"#,
+            r#"nats_jetstream("s", stream = "S", url_env = "U", from = "middle")"#,
             "`earliest` or `latest`",
         ),
         (
-            r#"nats("s", stream = "S", url_env = "U", idle_ms = -5)"#,
+            r#"nats_jetstream("s", stream = "S", url_env = "U", idle_ms = -5)"#,
             "idle_ms",
         ),
         (
-            r#"nats("s", stream = "S", url_env = "U", consumer = "a.b")"#,
+            r#"nats_jetstream("s", stream = "S", url_env = "U", consumer = "a.b")"#,
             "`consumer` is a name",
         ),
     ] {
         let error = refusal(
-            &format!("import io.msg.nats\ntap({written}) | take(1)"),
+            &format!("import io.msg.nats_jetstream\ntap({written}) | take(1)"),
             &vault,
         );
         assert!(error.contains(says), "{written}: {error}");
     }
     // An unset variable fails where the transport is used, naming it.
     let error = refusal(
-        "import io.msg.nats\n\
-         tap(nats(\"s\", stream = \"S\", url_env = \"HQL_TEST_UNSET_NATS_URL\")) | take(1)",
+        "import io.msg.nats_jetstream\n\
+         tap(nats_jetstream(\"s\", stream = \"S\", url_env = \"HQL_TEST_UNSET_NATS_URL\")) | take(1)",
         &vault,
     );
     assert!(error.contains("HQL_TEST_UNSET_NATS_URL"), "{error}");
@@ -355,7 +380,7 @@ fn the_nats_constructor_checks_its_parameters_as_the_kind_checks_its_keys() {
 #[test]
 fn a_consumer_is_a_key_of_the_kind_and_a_name() {
     let dir = tempdir().unwrap();
-    let entry = "[endpoint.events]\nkind = \"nats\"\nurl = \"nats://h:4222\"\n\
+    let entry = "[endpoint.events]\nkind = \"nats_jetstream\"\nurl = \"nats://h:4222\"\n\
                  stream = \"S\"\nsubject = \"s\"\n";
     fs::write(
         dir.path().join("hql.toml"),
@@ -371,4 +396,56 @@ fn a_consumer_is_a_key_of_the_kind_and_a_name() {
     .unwrap();
     let error = vault::load(dir.path()).unwrap_err().to_string();
     assert!(error.contains("`consumer` is a name"), "{error}");
+}
+
+#[test]
+fn a_core_subject_is_its_own_kind_and_module() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("hql.toml"),
+        "[endpoint.alerts]\nkind = \"nats\"\nurl_env = \"HQL_TEST_UNSET_NATS_URL\"\n\
+         subject = \"alerts.>\"\nidle_ms = 500\n",
+    )
+    .unwrap();
+    let vault = vault::load(dir.path()).unwrap();
+    assert_eq!(type_of(r#"tap("alerts")"#, &vault), "Stream<Data>");
+    let error = refusal(r#"source("alerts")"#, &vault);
+    assert!(error.contains("`alerts` is a `nats` endpoint"), "{error}");
+    // A wildcard is read and never published to.
+    let error = refusal(r#"[{a: 1}] | sink("alerts")"#, &vault);
+    assert!(error.contains("`alerts.>` holds a wildcard"), "{error}");
+    let error = refusal(r#"tap("alerts") | take(1)"#, &vault);
+    assert!(error.contains("HQL_TEST_UNSET_NATS_URL"), "{error}");
+
+    let subject = r#"nats("alerts.eu", url_env = "HQL_TEST_UNSET_NATS_URL")"#;
+    assert_eq!(
+        type_of(&format!("import io.msg.nats\ntap({subject})"), &vault),
+        "Stream<Data>"
+    );
+    checks(
+        &format!("import io.msg.nats\n[{{a: 1}}] | sink({subject})"),
+        &vault,
+    );
+    assert_eq!(
+        type_of(
+            &format!("import io.msg.nats\n{subject} | is(MessageTransport)"),
+            &vault
+        ),
+        "Bool"
+    );
+    // Each module declares its own transport, and imports only its own.
+    let error = hql::check_in(
+        "import io.msg.nats\ntap(nats_jetstream(\"s\", stream = \"S\"))",
+        &vault,
+    )
+    .unwrap_err();
+    assert!(
+        format!("{error:?}").contains("io.msg.nats_jetstream"),
+        "{error:?}"
+    );
+    let error = refusal(
+        "import io.msg.nats\ntap(nats(\"s\", stream = \"S\", url_env = \"U\")) | take(1)",
+        &vault,
+    );
+    assert!(error.contains("stream"), "{error}");
 }

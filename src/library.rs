@@ -51,6 +51,10 @@ pub const STD: &[(&str, &str)] = &[
         "io.msg.nats",
         include_str!("../lib/std/io/msg/nats/mod.hql"),
     ),
+    (
+        "io.msg.nats_jetstream",
+        include_str!("../lib/std/io/msg/nats_jetstream/mod.hql"),
+    ),
     ("vault", include_str!("../lib/std/vault/mod.hql")),
 ];
 

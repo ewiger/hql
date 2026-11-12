@@ -1,10 +1,11 @@
-//! The `io.msg.nats` module: the `Nats` transport and its constructor.
+//! The modules `io.msg.nats` and `io.msg.nats_jetstream`: the `Nats` and
+//! `NatsJetStream` transports and their constructors.
 //!
-//! `nats(...)` is the `nats` kind of a configured endpoint written in a
+//! Each constructor is its kind of configured endpoint written in a
 //! program: it takes the kind's keys, checks them as the configuration
 //! does, and gives an endpoint that `tap`, `sink` and `target` read and
-//! write with the reader and the publisher of [`crate::nats`]. Constructing
-//! one opens no connection. See
+//! write with the readers and the publisher of [`crate::nats`].
+//! Constructing one opens no connection. See
 //! [HQL-0047](../../doc/proposals/HQL-0047/README.md) and
 //! [HQL-0048](../../doc/proposals/HQL-0048/README.md).
 
@@ -16,17 +17,28 @@ use crate::endpoints::{Subject, nats_address};
 use crate::execution::Arg as TypedArg;
 use crate::io::{Endpoint, Policy};
 use crate::types::Value;
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
 
-/// Every operation the module provides.
-pub(crate) static STEPS: &[Operation] = &[Operation {
+/// Every operation `io.msg.nats` provides.
+pub(crate) static CORE_STEPS: &[Operation] = &[Operation {
     name: "nats",
     spec: Signature::Declared,
     purity: Purity::Pure,
     shape: super::Shape::Barrier,
     check: Some(refuse_in_documents),
     eval: eval_nats,
+}];
+
+/// Every operation `io.msg.nats_jetstream` provides.
+pub(crate) static JETSTREAM_STEPS: &[Operation] = &[Operation {
+    name: "nats_jetstream",
+    spec: Signature::Declared,
+    purity: Purity::Pure,
+    shape: super::Shape::Barrier,
+    check: Some(refuse_in_documents),
+    eval: eval_nats_jetstream,
 }];
 
 /// A document reaches no network: the transport is refused where it is
@@ -45,15 +57,24 @@ fn refuse_in_documents(
     Ok(())
 }
 
-/// The parameters after the subject, in the order they are declared.
-const PARAMETERS: [&str; 6] = ["stream", "url", "url_env", "from", "idle_ms", "consumer"];
+/// What a constructor was given: its subject, each text parameter written,
+/// and `idle_ms`. A parameter left at its default is one not written.
+struct Given {
+    subject: String,
+    texts: BTreeMap<&'static str, String>,
+    idle_ms: Option<i64>,
+}
 
-fn eval_nats(
+/// Read a constructor's arguments, `parameters` being those after the
+/// subject in the order they are declared.
+fn given(
     cx: &mut dyn EvalCx,
+    constructor: &str,
     input: Value,
     arguments: &[TypedArg],
-    span: Range<usize>,
-) -> Result<Value, Diagnostic> {
+    parameters: &[&'static str],
+    span: &Range<usize>,
+) -> Result<Given, Diagnostic> {
     let refused = |message: String| Diagnostic::runtime(span.clone(), message);
     let Value::Str(subject) = input else {
         return Err(refused(format!(
@@ -65,37 +86,102 @@ fn eval_nats(
         .iter()
         .filter(|argument| argument.name.is_none())
         .collect();
-    let mut texts: [Option<String>; 6] = Default::default();
-    let mut idle_ms = None;
-    for (place, name) in PARAMETERS.iter().enumerate() {
+    let mut held = Given {
+        subject: subject.to_string(),
+        texts: BTreeMap::new(),
+        idle_ms: None,
+    };
+    for (place, name) in parameters.iter().enumerate() {
         let Some(argument) = super::named(arguments, name).or_else(|| unnamed.get(place).copied())
         else {
             continue;
         };
         match cx.evaluate(&argument.value)? {
-            // A parameter left at its default is one not written.
             Value::Str(text) if text.is_empty() => {}
-            Value::Str(text) => texts[place] = Some(text.to_string()),
+            Value::Str(text) => {
+                held.texts.insert(name, text.to_string());
+            }
             Value::Int(0) if *name == "idle_ms" => {}
-            Value::Int(count) if *name == "idle_ms" => idle_ms = Some(count),
+            Value::Int(count) if *name == "idle_ms" => held.idle_ms = Some(count),
             other => {
                 return Err(refused(format!(
-                    "`{name}` of `nats` is not {}",
+                    "`{name}` of `{constructor}` is not {}",
                     other.type_of()
                 )));
             }
         }
     }
-    let [stream, url, url_env, from, _, consumer] = texts;
-    let stream = stream.ok_or_else(|| refused("`nats` names its `stream`".to_owned()))?;
-    let server = nats_address(url, url_env).map_err(refused)?;
-    let held = Subject::new(
+    Ok(held)
+}
+
+fn eval_nats(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let refused = |message: String| Diagnostic::runtime(span.clone(), message);
+    let mut held = given(
+        cx,
+        "nats",
+        input,
+        arguments,
+        &["url", "url_env", "idle_ms"],
+        &span,
+    )?;
+    let server = nats_address(
+        held.texts.remove("url"),
+        held.texts.remove("url_env"),
+        "nats",
+    )
+    .map_err(refused)?;
+    // A core subject checks its count as a stream's subject does.
+    let idle = Subject::new(String::new(), String::new(), None, held.idle_ms, None)
+        .map_err(refused)?
+        .idle;
+    Ok(Value::Endpoint(Arc::new(Endpoint::Nats {
+        server,
+        subject: held.subject,
+        idle,
+    })))
+}
+
+fn eval_nats_jetstream(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let refused = |message: String| Diagnostic::runtime(span.clone(), message);
+    let mut held = given(
+        cx,
+        "nats_jetstream",
+        input,
+        arguments,
+        &["stream", "url", "url_env", "from", "idle_ms", "consumer"],
+        &span,
+    )?;
+    let stream = held
+        .texts
+        .remove("stream")
+        .ok_or_else(|| refused("`nats_jetstream` names its `stream`".to_owned()))?;
+    let server = nats_address(
+        held.texts.remove("url"),
+        held.texts.remove("url_env"),
+        "nats_jetstream",
+    )
+    .map_err(refused)?;
+    let consumer = held.texts.remove("consumer");
+    let subject = Subject::new(
         stream,
-        subject.to_string(),
-        from.as_deref(),
-        idle_ms,
+        held.subject,
+        held.texts.get("from").map(String::as_str),
+        held.idle_ms,
         consumer,
     )
     .map_err(refused)?;
-    Ok(Value::Endpoint(Arc::new(Endpoint::Nats { server, held })))
+    Ok(Value::Endpoint(Arc::new(Endpoint::NatsJetStream {
+        server,
+        held: subject,
+    })))
 }
