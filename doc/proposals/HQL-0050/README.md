@@ -186,7 +186,7 @@ fn whole(self: Window<T>) : List<T>
   to `after` positions after, clipped to the partition. `whole` is the
   partition in order.
 - Aggregates over a frame are ordinary pipeline operations:
-  `w.running | map(t => t.amount) | sum`.
+  `w | running | map(t => t.amount) | sum`.
 
 ### 5. The cases `over` serves
 
@@ -196,7 +196,7 @@ The latest revision of each order, as ranked selection:
 rows
 | over(by = r => r.id,
        order = (a, b) => compare(b.at, a.at) | then(compare(b.seq, a.seq)),
-       into = (r, w) => {row: r, n: w.row_number})
+       into = (r, w) => {row: r, n: w | row_number})
 | filter(x => x.n == 1)
 | map(x => x.row)
 ```
@@ -206,7 +206,7 @@ The three latest orders of each customer:
 ```hql
 orders
 | over(by = o => o.customer, order = (a, b) => compare(b.at, a.at),
-       into = (o, w) => {order: o, n: w.row_number})
+       into = (o, w) => {order: o, n: w | row_number})
 | filter(x => x.n <= 3)
 | map(x => x.order)
 ```
@@ -217,7 +217,7 @@ A running balance per account:
 ledger
 | over(by = t => t.account, order = t => t.seq,
        into = (t, w) => {account: t.account, seq: t.seq,
-                         balance: w.running | map(x => x.amount) | sum})
+                         balance: w | running | map(x => x.amount) | sum})
 ```
 
 The change from the previous revision:
@@ -226,7 +226,7 @@ The change from the previous revision:
 rows
 | over(by = r => r.id, order = r => r.seq,
        into = (r, w) => {id: r.id, at: r.at,
-                         delta: w.lag | map(p => r.amount - p.amount)})
+                         delta: w | lag | map(p => r.amount - p.amount)})
 ```
 
 ### 6. Keyed selection as one operation
@@ -237,7 +237,7 @@ Selecting one row per key is one logical operation with two spellings.
 
   ```hql
   xs | group(by = k) | map(g => g.items | max_by(o)) | somes
-  xs | over(by = k, order = o', into = (x, w) => {x: x, n: w.row_number})
+  xs | over(by = k, order = o', into = (x, w) => {x: x, n: w | row_number})
      | filter(r => r.n == 1) | map(r => r.x)
   ```
 
