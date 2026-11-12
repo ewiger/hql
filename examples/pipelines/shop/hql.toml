@@ -13,6 +13,12 @@ path = "data/events.json"
 kind = "json"
 path = "data/raw-events.json"
 
+# The valid events as a replay delivered them: two delivered twice, one
+# corrected after the fact, one delivered late.
+[endpoint.silver_replayed]
+kind = "json"
+path = "data/silver-replayed.json"
+
 # The ledger: one SQLite table in a file beside this one.
 [endpoint.ledger]
 kind = "sqlite"

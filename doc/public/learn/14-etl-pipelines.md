@@ -255,9 +255,10 @@ steps.
 | [16. Tables and topics](16-tables-and-topics.md) | a SQLite table, a PostgreSQL table, a Kafka topic | `source` for a table, `tap` for a topic | `target`, `sink` |
 | [17. Subjects and the lakehouse](17-subjects-and-the-lakehouse.md) | NATS subjects, a JetStream stream, Delta tables | `tap` for a subject, `source` for a table | `sink`, `target` |
 | [18. APIs, webhooks and stores](18-apis-webhooks-and-stores.md) | a REST API, a webhook, an object store, as design | `source`, `tap` | `target`, `sink` |
-| [19. ETL pipelines](19-oltp/index.md) | all of them at once | | |
+| [19. OLTP](19-oltp/index.md) | the transactions as they happen, all of the above in one file | `tap` | `sink` |
+| [20. OLAP](20-olap/index.md) | the history they leave: bronze, silver and gold tables | `source` | `target` |
 
-Every system in chapters 16 and 17 is in the current release. The programs
+Every system in chapters 16, 17, 19 and 20 is in the current release. The programs
 that reach a server are checked in this book, against the shop's
 configuration and with no connection made, and run against real servers in
 the [hql-demo repository](https://github.com/ewiger/hql-demo), whose output
