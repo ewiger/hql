@@ -94,7 +94,7 @@ source(file("examples/endpoints/station/data/sightings.json"))
 ```
 
 A configured `json` endpoint gives the members of its array without this step
-([sources and targets by id](configured.md)).
+([endpoints by id](configured.md)).
 
 ## Reading as a declared record
 

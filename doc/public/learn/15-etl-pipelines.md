@@ -17,7 +17,7 @@ validator before deployment, in a cluster at run time, or in a dashboard the
 next morning.
 
 HQL's claim is that the wiring is a program like any other in this book. A
-pipeline is one `.hql` file; its sources and targets are ids that
+pipeline is one `.hql` file; what it reads and writes are endpoint ids that
 configuration binds to systems; its types are checked before anything
 connects; and the same text runs over a queue that never ends and over the
 archive of what the queue once carried.

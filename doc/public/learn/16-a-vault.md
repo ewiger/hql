@@ -260,7 +260,7 @@ cards | filter(c => c.path | starts_with("books/")) | size
 ## Other vaults
 
 A second vault is a second namespace. It is reached as a configured endpoint of
-kind `vault` ([sources and targets by id](09-io/configured.md)), with its own
+kind `vault` ([endpoints by id](09-io/configured.md)), with its own
 `cards` and `graph`, and its cards are never merged into `cards`: a wikilink
 in one vault never resolves into another, and a relation between cards of two
 vaults is a join's result, not a link. The field station of the data sources
