@@ -1,6 +1,6 @@
 # HQL-0050: Analytic windows, and a deterministic order for keyed selection
 
-**Status**: drafted
+**Status**: accepted
 **Created**: 2026-11-12
 **Source**: [Deduplication](../../public/learn/20-olap/deduplication.md),
 [HQL-0014](../HQL-0014/README.md) (`reduce` and `merge` as a combiner),
@@ -322,3 +322,4 @@ cargo test
 ## Changelog
 
 - 2026-11-12: drafted
+- 2026-11-12: accepted
