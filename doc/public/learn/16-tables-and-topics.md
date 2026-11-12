@@ -35,7 +35,9 @@ order = ["id"]
 
 `order` names the columns the rows are read in, so two reads give the rows
 in the same order. Filling the table is a `target`: the events are read as
-`Event`s, and each field becomes a column:
+`Event`s, and each field becomes a column. The program is shown checked
+rather than run, so that the book's tests do not rewrite the table, and
+`Unit` is the type of a program whose result is what it wrote:
 
 <!-- run: check with Event --vault examples/pipelines/shop -->
 ```hql

@@ -258,11 +258,14 @@ steps.
 | [19. OLTP](19-oltp/index.md) | the transactions as they happen, all of the above in one file | `tap` | `sink` |
 | [20. OLAP](20-olap/index.md) | the history they leave: bronze, silver and gold tables | `source` | `target` |
 
-Every system in chapters 16, 17, 19 and 20 is in the current release. The programs
-that reach a server are checked in this book, against the shop's
+Every system in chapters 16, 17, 19 and 20 is in the current release. The
+programs that reach a server are checked in this book, against the shop's
 configuration and with no connection made, and run against real servers in
 the [hql-demo repository](https://github.com/ewiger/hql-demo), whose output
-is the output the book shows.
+is the output the book shows. A checked program is shown with what
+`hql check` prints, the type its result would have, and a pipeline that
+ends in `target` or `sink` has the type `Unit`: its result is nothing,
+because its work is the writing.
 
 **A pipeline file is a job.** What a data platform calls a job, a notebook
 or a workflow, sources, transformations, sinks and a schedule, is an `.hql`

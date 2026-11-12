@@ -48,6 +48,9 @@ whether it is loaded by a batch or by a stream is the type of the input.
 | [Incremental loads](incremental-loads.md) | loading only what is new: a watermark the table holds, and a position the server keeps |
 
 The pages run against the shop's vault, `--vault examples/pipelines/shop`.
+A program that writes to the lakehouse is shown checked, with the type
+`hql check` prints; a pipeline that ends in `target` or `sink` is `Unit`,
+the type of a program whose result is what it wrote.
 The file `silver_replayed` is the shop's six valid events as a replay
 delivered them: two delivered twice, one corrected after the fact, and one
 delivered late.

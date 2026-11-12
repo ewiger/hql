@@ -132,7 +132,10 @@ rows
 ## In the load
 
 Deduplication belongs in the load that writes silver, once, at the grain of
-a fact. A batch load reads the replay whole, deduplicates and writes:
+a fact. A batch load reads the replay whole, deduplicates and writes. It
+writes to the lakehouse, so it is shown checked: `Unit` is what `hql check`
+prints for a pipeline that ends in `target`, a program whose result is what
+it wrote:
 
 <!-- run: check with Event --vault examples/pipelines/shop -->
 ```hql
