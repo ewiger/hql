@@ -582,7 +582,7 @@ impl Evaluator<'_> {
                 // A read expected to give a declared type decodes each
                 // document as one.
                 if crate::extensions::io::reads(step) {
-                    // A configured source is read through its boundary.
+                    // A configured endpoint is read through its boundary.
                     if step.name == "source"
                         && let Value::Str(id) = &value
                     {

@@ -54,10 +54,10 @@ documents](../09-io/formats.md) in the I/O chapter reads and writes through form
 
 The mapping between an external system's own schema and an HQL type, its
 column names, physical types, nullable columns and CSV headers, is the
-**schema boundary** of a configured source or target. It belongs to the
+**schema boundary** of a configured endpoint. It belongs to the
 configuration of that source, beside its connection, since it is a fact
 about the external system and not about the program's types. It is described
-with [sources and targets by id](../09-io/configured.md); a program
+with [endpoints by id](../09-io/configured.md); a program
 declares HQL types only, and the boundary states what they meet.
 
 The **contract** is declared in the program, where the values are used. It

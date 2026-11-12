@@ -44,10 +44,7 @@ const FORMAT_PARAMETER: TypeParameter = TypeParameter {
     bound: Some(crate::types::builtin::FORMAT),
 };
 
-const ENDPOINT: ArgumentSpec =
-    ArgumentSpec::value("endpoint", P::Type(TypeConstructor("Writable")));
-
-/// A write's endpoint, or the id of a configured target (HQL-0035).
+/// A write's endpoint, or the id of a configured endpoint (HQL-0035, HQL-0046).
 const TARGET: ArgumentSpec = ArgumentSpec::value(
     "endpoint",
     P::OneOf(&[
@@ -133,7 +130,7 @@ pub(crate) static STEPS: &[Operation] = &[
                 FORMAT_PARAMETER,
             ],
             input: P::Iterable(&P::Var("T")),
-            arguments: &[ENDPOINT, FORMAT],
+            arguments: &[TARGET, FORMAT],
             output: O::Type(P::Type(TypeConstructor("Unit"))),
         }),
         purity: Purity::Effectful,
@@ -233,6 +230,15 @@ pub(crate) fn result(
     if call.input.is(&TypeRef::STR) {
         let read = configured_type(call, vault)?;
         if name != "tap" {
+            if let Some(Kind::Str(id)) = call.input_expr.map(|expression| &expression.kind)
+                && configured(id, vault).is_ok_and(|configured| configured.kind.is_live())
+            {
+                return Err(Diagnostic::typing(
+                    call.input_expr
+                        .map_or(0..0, |expression| expression.span.clone()),
+                    live_by_source(id),
+                ));
+            }
             return Ok(read);
         }
         // `tap("id")` holds one element at a time: a finite source's
@@ -269,31 +275,31 @@ fn configured_type(
     let Some(Kind::Str(id)) = call.input_expr.map(|expression| &expression.kind) else {
         return Err(Diagnostic::typing(
             span,
-            "`source` names a configured source by a literal id, `source(\"field_notes\")`: \
+            "`source` names a configured endpoint by a literal id, `source(\"field_notes\")`: \
              a computed id would leave its type unknown until evaluation",
         ));
     };
     if call.bindings.contains_key("F") {
         return Err(Diagnostic::typing(
             span,
-            "a configured source's format is its kind's, set in its configuration; name none",
+            "a configured endpoint's format is its kind's, set in its configuration; name none",
         ));
     }
     let configured = configured(id, vault).map_err(|message| {
-        if crate::sources::is_id(id) {
+        if crate::endpoints::is_id(id) {
             Diagnostic::name(span.clone(), message)
         } else {
             Diagnostic::typing(span.clone(), message)
         }
     })?;
-    if matches!(configured.kind, crate::sources::Kind::Vault { .. }) {
+    if matches!(configured.kind, crate::endpoints::Kind::Vault { .. }) {
         return Ok(TypeRef::VAULT);
     }
     let element = match &configured.element {
         Some(written) => crate::types::named(written, &[]).ok_or_else(|| {
             Diagnostic::typing(
                 span.clone(),
-                format!("source `{id}` names the element type `{written}`, which is not a type"),
+                format!("endpoint `{id}` names the element type `{written}`, which is not a type"),
             )
         })?,
         None => TypeRef::DATA,
@@ -305,30 +311,38 @@ fn configured_type(
     Ok(TypeRef::seq(element))
 }
 
+/// Why `source` does not read a topic: a log never ends.
+fn live_by_source(id: &str) -> String {
+    format!("`{id}` is a `kafka` endpoint, read by `tap` as a `Stream`, not by `source` as a `Seq`")
+}
+
 /// The configuration of the source an id names: the id must be one, and
 /// configured.
 fn configured<'v>(
     id: &str,
     vault: &'v crate::vault::Vault,
-) -> Result<&'v crate::sources::Configured, String> {
-    if !crate::sources::is_id(id) {
+) -> Result<&'v crate::endpoints::Configured, String> {
+    if !crate::endpoints::is_id(id) {
         return Err(
             if id.contains(':') || id.contains('/') || id.contains('.') {
                 format!(
-                    "{id:?} is not a source id: connection details belong in configuration, \
-                 `[sources.<id>]` in hql.toml, and a program names the id"
+                    "{id:?} is not an endpoint id: connection details belong in configuration, \
+                 `[endpoint.<id>]` in hql.toml, and a program names the id"
                 )
             } else {
-                format!("{id:?} is not a source id: an id is snake_case, `[a-z][a-z0-9_]*`")
+                format!("{id:?} is not an endpoint id: an id is snake_case, `[a-z][a-z0-9_]*`")
             },
         );
     }
-    vault.sources.get(id).ok_or_else(|| {
-        let hint = vault.sources.nearest(id).map_or_else(
-            || "; a source is declared under `[sources.<id>]` in the vault's hql.toml".to_owned(),
+    vault.endpoints.get(id).ok_or_else(|| {
+        let hint = vault.endpoints.nearest(id).map_or_else(
+            || {
+                "; an endpoint is declared under `[endpoint.<id>]` in the vault's hql.toml"
+                    .to_owned()
+            },
             |near| format!("; did you mean `{near}`?"),
         );
-        format!("no source `{id}` is configured{hint}")
+        format!("no endpoint `{id}` is configured{hint}")
     })
 }
 
@@ -460,7 +474,7 @@ fn check_target(
         .map_err(|message| Diagnostic::typing(span, message))
 }
 
-/// `xs | target("id")`: the id names a configured target that is not a
+/// `xs | target("id")`: the id names a configured endpoint that is not a
 /// vault, no format is named beside it, and what is written is a table or a
 /// sequence of a declared record, which the boundary accepts.
 fn check_configured_target(
@@ -470,22 +484,22 @@ fn check_configured_target(
     span: &Range<usize>,
 ) -> Result<(), Diagnostic> {
     let configured = configured(id, vault).map_err(|message| {
-        if crate::sources::is_id(id) {
+        if crate::endpoints::is_id(id) {
             Diagnostic::name(span.clone(), message)
         } else {
             Diagnostic::typing(span.clone(), message)
         }
     })?;
-    if matches!(configured.kind, crate::sources::Kind::Vault { .. }) {
+    if matches!(configured.kind, crate::endpoints::Kind::Vault { .. }) {
         return Err(Diagnostic::typing(
             span.clone(),
-            format!("source `{id}` is a vault, which is read and never written"),
+            format!("endpoint `{id}` is a vault, which is read and never written"),
         ));
     }
     if call.bindings.contains_key("F") {
         return Err(Diagnostic::typing(
             span.clone(),
-            "a configured target's format is its kind's, set in its configuration; name none",
+            "a configured endpoint's format is its kind's, set in its configuration; name none",
         ));
     }
     let element = if call.input.constructor.0 == "Table" {
@@ -504,6 +518,7 @@ fn check_configured_target(
     })?;
     match boundary_for(configured, &element, None) {
         Ok(Some(_)) => Ok(()),
+        Ok(None) if configured.kind.is_live() => Ok(()),
         Ok(None) => Err(Diagnostic::typing(
             span.clone(),
             format!(
@@ -514,12 +529,63 @@ fn check_configured_target(
     }
 }
 
+/// `xs | sink("id")`: the id names a Kafka topic, which takes any value as
+/// a message, or a PostgreSQL table, which takes rows of a declared record.
+fn check_configured_sink(
+    vault: &crate::vault::Vault,
+    id: &str,
+    call: &CheckedCall<'_>,
+    element: &TypeRef,
+    span: &Range<usize>,
+) -> Result<(), Diagnostic> {
+    use crate::endpoints::Kind as Source;
+    refuse_in_documents(span)?;
+    let configured = configured(id, vault).map_err(|message| {
+        if crate::endpoints::is_id(id) {
+            Diagnostic::name(span.clone(), message)
+        } else {
+            Diagnostic::typing(span.clone(), message)
+        }
+    })?;
+    if call.bindings.contains_key("F") {
+        return Err(Diagnostic::typing(
+            span.clone(),
+            "a configured endpoint's format is its kind's, set in its configuration; name none",
+        ));
+    }
+    let boundary = boundary_for(configured, element, None)
+        .map_err(|message| Diagnostic::typing(span.clone(), message))?;
+    match &configured.kind {
+        Source::Kafka { .. } => Ok(()),
+        Source::Postgres { .. } if boundary.is_some() => Ok(()),
+        Source::Postgres { .. } => Err(Diagnostic::typing(
+            span.clone(),
+            format!("`sink(\"{id}\")` writes rows of a declared record, and {element} is not one"),
+        )),
+        other => Err(Diagnostic::typing(
+            span.clone(),
+            format!(
+                "endpoint `{id}` is a `{}` endpoint, which `sink` does not write; write it whole \
+                 with `target`",
+                other.name()
+            ),
+        )),
+    }
+}
+
 fn check_sink(
     cx: &mut dyn CheckCx,
     call: &CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
     let element = call.input.iterated().unwrap_or(TypeRef::NEVER);
+    if let Some(Expr {
+        kind: Kind::Str(id),
+        ..
+    }) = written_endpoint(call)
+    {
+        return check_configured_sink(cx.vault(), id, call, &element, &span);
+    }
     if check_channel_write(cx, call, &element, &span)? {
         return Ok(());
     }
@@ -705,21 +771,27 @@ fn declared_fields(element: &TypeRef) -> Option<Vec<crate::boundary::DeclaredFie
     )
 }
 
-/// The effective boundary of a configured source read as `element`, checked
+/// The effective boundary of a configured endpoint read as `element`, checked
 /// against `external` where the format knows its fields; `None` where the
 /// element is not a record.
 ///
 /// # Errors
 /// Every boundary error, one per line.
 pub(crate) fn boundary_for(
-    configured: &crate::sources::Configured,
+    configured: &crate::endpoints::Configured,
     element: &TypeRef,
     external: Option<&[String]>,
 ) -> Result<Option<crate::boundary::EffectiveBoundary>, String> {
     let declared = match &configured.kind {
-        crate::sources::Kind::Sqlite { path, table, .. } if external.is_some() => {
-            Some(crate::sources::sqlite_column_types(path, table)?)
+        crate::endpoints::Kind::Sqlite { path, table, .. } if external.is_some() => {
+            Some(crate::endpoints::sqlite_column_types(path, table)?)
         }
+        crate::endpoints::Kind::Postgres { dsn_env, table, .. } if external.is_some() => Some(
+            crate::postgres::columns(&dsn(configured, dsn_env)?, table)
+                .map_err(|message| format!("endpoint `{}`: {message}", configured.id))?
+                .into_iter()
+                .collect(),
+        ),
         _ => None,
     };
     let Some(fields) = declared_fields(element) else {
@@ -761,11 +833,11 @@ pub(crate) fn strictness_of(
     reported: &mut Vec<String>,
     warn: &mut dyn FnMut(String),
 ) -> Result<(), String> {
-    use crate::sources::Strictness;
+    use crate::endpoints::Strictness;
     let extra = unmapped(document, boundary);
     match boundary.strictness {
         Strictness::Strict if !extra.is_empty() => Err(format!(
-            "source `{}` is strict, and its boundary reads no field {}",
+            "endpoint `{}` is strict, and its boundary reads no field {}",
             boundary.source,
             extra
                 .iter()
@@ -777,7 +849,7 @@ pub(crate) fn strictness_of(
             for key in extra {
                 if !reported.contains(&key) {
                     warn(format!(
-                        "source `{}`: its boundary reads no field `{key}`, which is not read",
+                        "endpoint `{}`: its boundary reads no field `{key}`, which is not read",
                         boundary.source
                     ));
                     reported.push(key);
@@ -811,7 +883,7 @@ pub(crate) fn unmapped(
 
 /// Whether a readable field of the boundary reads the external field `key`.
 fn boundary_reads(boundary: &crate::boundary::EffectiveBoundary, key: &str) -> bool {
-    use crate::sources::External;
+    use crate::endpoints::External;
     boundary.fields.iter().any(|field| {
         field.readable.value
             && match &field.external.value {
@@ -834,14 +906,14 @@ pub(crate) fn remapped(
     boundary: &crate::boundary::EffectiveBoundary,
 ) -> Result<Value, String> {
     use crate::data::Data;
-    use crate::sources::{Absence, External};
+    use crate::endpoints::{Absence, External};
     let Value::Data(tree) = document else {
         return Ok(document.clone());
     };
     let Data::Map(entries) = tree.as_ref() else {
         return Ok(document.clone());
     };
-    use crate::sources::Strictness;
+    use crate::endpoints::Strictness;
     let mut mapped = entries.clone();
     let sqlite = boundary.kind == "sqlite";
     // A strict source's unmapped fields were refused before; an open one's
@@ -892,7 +964,7 @@ pub(crate) fn remapped(
         match (held, representation) {
             (Some(Data::Empty), _) if field.field.optional => {
                 return Err(format!(
-                    "source `{}`, field `{name}`: it holds null, and its boundary reads only {} \
+                    "endpoint `{}`, field `{name}`: it holds null, and its boundary reads only {} \
                      as absent",
                     boundary.source,
                     field
@@ -911,7 +983,7 @@ pub(crate) fn remapped(
                     1 => true,
                     _ => {
                         return Err(format!(
-                            "source `{}`, field `{name}`: {n} is not a Bool, which a table \
+                            "endpoint `{}`, field `{name}`: {n} is not a Bool, which a table \
                              holds as 0 or 1",
                             boundary.source
                         ));
@@ -926,7 +998,7 @@ pub(crate) fn remapped(
                 let real = *n as f64;
                 if n.unsigned_abs() > 1 << f64::MANTISSA_DIGITS {
                     return Err(format!(
-                        "source `{}`, field `{name}`: {n} has more digits than a Float holds",
+                        "endpoint `{}`, field `{name}`: {n} has more digits than a Float holds",
                         boundary.source
                     ));
                 }
@@ -938,7 +1010,7 @@ pub(crate) fn remapped(
                 if sqlite && field.field.ty == TypeRef::DECIMAL && !field.lossy.value =>
             {
                 return Err(format!(
-                    "source `{}`, field `{name}`: lossy representation: the column holds the \
+                    "endpoint `{}`, field `{name}`: lossy representation: the column holds the \
                      REAL {real}, which may not keep a Decimal's digits; store it as TEXT, or \
                      set `lossy = true`",
                     boundary.source
@@ -948,7 +1020,7 @@ pub(crate) fn remapped(
             (Some(Data::Str(text)), _) if field.field.ty == TypeRef::DECIMAL => {
                 let digits = crate::decimal::Decimal::parse(text).ok_or_else(|| {
                     format!(
-                        "source `{}`, field `{name}`: {text:?} is not a decimal number",
+                        "endpoint `{}`, field `{name}`: {text:?} is not a decimal number",
                         boundary.source
                     )
                 })?;
@@ -974,7 +1046,7 @@ pub(crate) fn configured_source(
     span: &Range<usize>,
     warn: &mut dyn FnMut(String),
 ) -> Result<Value, Diagnostic> {
-    use crate::sources::Kind as Source;
+    use crate::endpoints::Kind as Source;
     let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
     let configured = configured(id, vault).map_err(failed)?;
     let element = wanted.args.first().cloned().unwrap_or(TypeRef::DATA);
@@ -983,8 +1055,8 @@ pub(crate) fn configured_source(
     let boundary = match &configured.kind {
         Source::Vault { .. } => None,
         Source::Sqlite { path, table, .. } => {
-            let columns = crate::sources::sqlite_columns(path, table)
-                .map_err(|message| failed(format!("source `{id}`: {message}")))?;
+            let columns = crate::endpoints::sqlite_columns(path, table)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
             let boundary = boundary_for(configured, &element, Some(&columns)).map_err(failed)?;
             // A table's unmapped columns are never selected, so its
             // strictness is applied to them here, before any row.
@@ -998,6 +1070,25 @@ pub(crate) fn configured_source(
             }
             boundary
         }
+        Source::Postgres { dsn_env, table, .. } => {
+            let dsn = dsn(configured, dsn_env).map_err(failed)?;
+            let columns: Vec<String> = crate::postgres::columns(&dsn, table)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?
+                .into_iter()
+                .map(|(name, _)| name)
+                .collect();
+            let boundary = boundary_for(configured, &element, Some(&columns)).map_err(failed)?;
+            if let Some(boundary) = &boundary {
+                let row: std::collections::BTreeMap<String, crate::data::Data> = columns
+                    .iter()
+                    .map(|column| (column.clone(), crate::data::Data::Empty))
+                    .collect();
+                let header = Value::Data(Arc::new(crate::data::Data::Map(row)));
+                strictness_of(boundary, &header, &mut Vec::new(), warn).map_err(failed)?;
+            }
+            boundary
+        }
+        Source::Kafka { .. } => return Err(failed(live_by_source(id))),
         Source::File { .. } => boundary_for(configured, &element, None).map_err(failed)?,
     };
     let Some(boundary) = boundary else {
@@ -1009,14 +1100,18 @@ pub(crate) fn configured_source(
         .iter()
         .filter(|field| field.readable.value)
         .filter_map(|field| match &field.external.value {
-            crate::sources::External::Name(name) => Some(name.clone()),
-            crate::sources::External::Path(_) => None,
+            crate::endpoints::External::Name(name) => Some(name.clone()),
+            crate::endpoints::External::Path(_) => None,
         })
         .collect();
-    let columns = matches!(configured.kind, Source::Sqlite { .. }).then_some(read.as_slice());
+    let columns = matches!(
+        configured.kind,
+        Source::Sqlite { .. } | Source::Postgres { .. }
+    )
+    .then_some(read.as_slice());
     let Value::Traversal(produced) = plain(columns)? else {
         return Err(failed(format!(
-            "source `{id}` is not a sequence of elements"
+            "endpoint `{id}` is not a sequence of elements"
         )));
     };
     let documents = produced.forced().map(<[Value]>::to_vec).unwrap_or_default();
@@ -1033,7 +1128,7 @@ pub(crate) fn configured_source(
     } else {
         crate::types::Leaves::AsWritten
     };
-    let from = format!("source `{id}`");
+    let from = format!("endpoint `{id}`");
     let mut reported = Vec::new();
     for document in &documents {
         strictness_of(&boundary, document, &mut reported, warn).map_err(failed)?;
@@ -1057,7 +1152,7 @@ pub(crate) fn configured_source(
     ))))
 }
 
-/// A configured source's contents: a vault source's vault, or every element
+/// A configured endpoint's contents: a vault endpoint's vault, or every element
 /// of a file or table, in the source's order, within the run context's
 /// bounds; of a table, only `columns` where a boundary names them.
 /// Configuration is the access boundary, so a document reads every source
@@ -1068,13 +1163,13 @@ fn read_configured(
     columns: Option<&[String]>,
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    use crate::sources::Kind as Source;
+    use crate::endpoints::Kind as Source;
     let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
     let configured = configured(id, vault).map_err(failed)?;
-    let bounds = vault.sources.bounds;
+    let bounds = vault.endpoints.bounds;
     let within = |count: usize| match bounds.max_elements {
         Some(most) if count > most => Err(failed(format!(
-            "source `{id}` holds {count} elements, more than `max_elements = {most}`; take it \
+            "endpoint `{id}` holds {count} elements, more than `max_elements = {most}`; take it \
              in portions"
         ))),
         _ => Ok(()),
@@ -1082,7 +1177,7 @@ fn read_configured(
     let sized = |path: &Path| match bounds.max_bytes {
         Some(most) => match std::fs::metadata(path) {
             Ok(metadata) if metadata.len() > most => Err(failed(format!(
-                "source `{id}` is {} bytes, more than `max_bytes = {most}`",
+                "endpoint `{id}` is {} bytes, more than `max_bytes = {most}`",
                 metadata.len()
             ))),
             _ => Ok(()),
@@ -1098,15 +1193,30 @@ fn read_configured(
         Source::File { path, format } => {
             sized(path)?;
             io::read_configured(path, TypeConstructor(format), *format == "Json")
-                .map_err(|message| failed(format!("source `{id}`: {message}")))?
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?
         }
         Source::Sqlite { path, table, order } => {
             sized(path)?;
-            crate::sources::sqlite_rows(path, table, order, columns)
-                .map_err(|message| failed(format!("source `{id}`: {message}")))?
+            crate::endpoints::sqlite_rows(path, table, order, columns)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?
                 .into_iter()
                 .map(|row| Value::Data(Arc::new(row)))
                 .collect()
+        }
+        Source::Postgres {
+            dsn_env,
+            table,
+            order,
+        } => {
+            let dsn = dsn(configured, dsn_env).map_err(failed)?;
+            crate::postgres::rows(&dsn, table, order, columns)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?
+                .into_iter()
+                .map(|row| Value::Data(Arc::new(row)))
+                .collect()
+        }
+        Source::Kafka { .. } => {
+            return Err(failed(live_by_source(id)));
         }
     };
     within(documents.len())?;
@@ -1126,7 +1236,27 @@ fn tap_configured(
 ) -> Result<Value, Diagnostic> {
     let configured =
         configured(id, vault).map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
-    if let crate::sources::Kind::File { path, format } = &configured.kind
+    if let crate::endpoints::Kind::Kafka {
+        brokers,
+        topic,
+        start,
+        idle,
+    } = &configured.kind
+    {
+        let reading = io::policy_permits_network()
+            .and_then(|()| brokers.resolve())
+            .map(|brokers| {
+                Reading::kafka(
+                    crate::kafka::messages(brokers, topic.clone(), *start, *idle),
+                    format!("endpoint `{id}`"),
+                )
+            })
+            .map_err(|message| {
+                Diagnostic::io_failure(span.clone(), format!("endpoint `{id}`: {message}"))
+            })?;
+        return Ok(live(reading, TypeRef::DATA, span.clone()));
+    }
+    if let crate::endpoints::Kind::File { path, format } = &configured.kind
         && *format != "Json"
     {
         let reading = Reading::file(path.clone(), TypeConstructor(format));
@@ -1135,7 +1265,7 @@ fn tap_configured(
     let Value::Traversal(read) = read_configured(id, vault, None, span)? else {
         return Err(Diagnostic::runtime(
             span.clone(),
-            format!("source `{id}` is not read one element at a time"),
+            format!("endpoint `{id}` is not read one element at a time"),
         ));
     };
     let streamed = Traversal::new(TypeRef::DATA, false, crate::traversal::Source::Kept);
@@ -1178,10 +1308,10 @@ pub(crate) fn decoded(
     let (format, from) = match endpoint {
         Value::Str(id) => (
             match configured(id, vault).map(|configured| &configured.kind) {
-                Ok(crate::sources::Kind::File { format, .. }) => *format,
+                Ok(crate::endpoints::Kind::File { format, .. }) => *format,
                 _ => "Data",
             },
-            format!("source `{id}`"),
+            format!("endpoint `{id}`"),
         ),
         _ => {
             let endpoint = self::endpoint(endpoint, span)?;
@@ -1196,12 +1326,14 @@ pub(crate) fn decoded(
     } else {
         crate::types::Leaves::AsWritten
     };
-    // A configured source read one element at a time, `tap("id")`, is read
-    // through its boundary, which the read itself has not applied.
+    // A configured endpoint read one element at a time, `tap("id")`, is read
+    // through its boundary, which the read itself has not applied. A topic
+    // always is: what `sink("id")` writes through the boundary, a `Decimal`
+    // as text among it, reads back as it was written.
     let boundary = match endpoint {
         Value::Str(id) if traversal.element == TypeRef::DATA => configured(id, vault)
             .ok()
-            .filter(|configured| !configured.fields.is_empty())
+            .filter(|configured| !configured.fields.is_empty() || configured.kind.is_live())
             .map(|configured| boundary_for(configured, element, None))
             .transpose()
             .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
@@ -1346,6 +1478,183 @@ fn written_order(
         .unwrap_or(written)
 }
 
+/// One field of a row in its external type, or `None` where the row holds
+/// none.
+fn row_cell(row: &Value, field: &crate::boundary::EffectiveField) -> Option<crate::data::Data> {
+    use crate::data::Data;
+    let held = match row {
+        Value::Record(record) => record.field(&field.field.name).cloned(),
+        Value::Data(tree) => match tree.as_ref() {
+            Data::Map(entries) => entries
+                .get(&field.field.name)
+                .map(|entry| Value::Data(Arc::new(entry.clone()))),
+            _ => None,
+        },
+        _ => None,
+    };
+    written_cell(held.as_ref(), &field.external_type.value)
+}
+
+/// A row as a document: each field under its external name, nested where
+/// its external field is a path.
+fn row_document(row: &Value, fields: &[&crate::boundary::EffectiveField]) -> Value {
+    use crate::data::Data;
+    use crate::endpoints::External;
+    let mut entries = std::collections::BTreeMap::new();
+    for field in fields {
+        let Some(value) = row_cell(row, field) else {
+            continue;
+        };
+        let path = match &field.external.value {
+            External::Name(name) => vec![name.clone()],
+            External::Path(segments) => segments.clone(),
+        };
+        let mut at = &mut entries;
+        for segment in &path[..path.len() - 1] {
+            let next = at
+                .entry(segment.clone())
+                .or_insert_with(|| Data::Map(std::collections::BTreeMap::new()));
+            if !matches!(next, Data::Map(_)) {
+                *next = Data::Map(std::collections::BTreeMap::new());
+            }
+            let Data::Map(inner) = next else {
+                unreachable!("made a map above");
+            };
+            at = inner;
+        }
+        at.insert(path[path.len() - 1].clone(), value);
+    }
+    Value::Data(Arc::new(Data::Map(entries)))
+}
+
+/// The columns a boundary writes to a PostgreSQL table, each its name and
+/// its declared type.
+fn postgres_columns(fields: &[&crate::boundary::EffectiveField]) -> Vec<(String, String)> {
+    fields
+        .iter()
+        .map(|field| {
+            (
+                crate::boundary::written(&field.external.value),
+                field.external_type.value.to_ascii_uppercase(),
+            )
+        })
+        .collect()
+}
+
+/// A row as the text of each column a boundary writes; `None` is `NULL`.
+fn postgres_row(row: &Value, fields: &[&crate::boundary::EffectiveField]) -> Vec<Option<String>> {
+    fields
+        .iter()
+        .map(|field| {
+            row_cell(row, field)
+                .as_ref()
+                .and_then(crate::postgres::text_of)
+        })
+        .collect()
+}
+
+/// A value as the text of one Kafka message: its document through the
+/// boundary where it has one, and its JSON otherwise.
+fn kafka_message(
+    value: &Value,
+    fields: Option<&[&crate::boundary::EffectiveField]>,
+) -> Result<String, String> {
+    let document = match fields {
+        Some(fields) => row_document(value, fields),
+        None => value.clone(),
+    };
+    crate::extensions::format::piece(&document, TypeConstructor("Json"), false)
+}
+
+/// The connection string a PostgreSQL source's `dsn_env` names.
+fn dsn(configured: &crate::endpoints::Configured, dsn_env: &str) -> Result<String, String> {
+    crate::endpoints::secret(dsn_env, "dsn_env")
+        .map_err(|message| format!("endpoint `{}`: {message}", configured.id))
+}
+
+/// `xs | sink("id")`: each value written to a configured Kafka topic as one
+/// message, or to a PostgreSQL table as one row, as it arrives (HQL-0046).
+fn sink_configured(
+    cx: &mut dyn EvalCx,
+    id: &str,
+    input: Value,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    use crate::endpoints::Kind as Source;
+    let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
+    if let Policy::Document { .. } = io::policy() {
+        return Err(failed(format!(
+            "endpoint `{id}`: a document writes nothing outside itself"
+        )));
+    }
+    let configured = configured(id, cx.vault()).map_err(failed)?.clone();
+    let element = match &input {
+        Value::Traversal(traversal) => traversal.element.clone(),
+        other => other.type_of().element().unwrap_or(TypeRef::DATA),
+    };
+    let boundary = boundary_for(&configured, &element, None).map_err(failed)?;
+    let fields = boundary.as_ref().map(written_order);
+    let each = |cx: &mut dyn EvalCx,
+                write: &mut dyn FnMut(Value) -> Result<(), String>|
+     -> Result<(), Diagnostic> {
+        match &input {
+            Value::Traversal(traversal) => cx
+                .traverse(traversal, &mut |_, value| {
+                    write(value)
+                        .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+                    Ok(true)
+                })
+                .map(drop),
+            other => {
+                for value in other.elements().unwrap_or_default() {
+                    write(value)
+                        .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+                }
+                Ok(())
+            }
+        }
+    };
+    match &configured.kind {
+        Source::Kafka { brokers, topic, .. } => {
+            let brokers = brokers
+                .resolve()
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+            let mut producer = crate::kafka::Producer::open(&brokers, topic)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+            each(cx, &mut |value| {
+                producer.send(kafka_message(&value, fields.as_deref())?)
+            })?;
+            producer
+                .flush()
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+        }
+        Source::Postgres { dsn_env, table, .. } => {
+            let fields = fields.ok_or_else(|| {
+                failed(format!("`sink(\"{id}\")` writes rows of a declared record"))
+            })?;
+            let dsn = dsn(&configured, dsn_env).map_err(failed)?;
+            let mut writer = crate::postgres::Writer::open(
+                &dsn,
+                table,
+                configured.mode,
+                &postgres_columns(&fields),
+            )
+            .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+            each(cx, &mut |value| {
+                writer.insert(&postgres_row(&value, &fields))
+            })?;
+        }
+        other => {
+            return Err(failed(format!(
+                "endpoint `{id}` is a `{}` endpoint, which `sink` does not write; write it whole \
+                 with `target`",
+                other.name()
+            )));
+        }
+    }
+    Ok(Value::Unit)
+}
+
 /// `xs | target("id")`: a `Table<R>` or `Seq<R>` written to a configured
 /// target through its boundary, as its `mode` says (HQL-0035).
 fn write_configured(
@@ -1355,7 +1664,7 @@ fn write_configured(
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
     use crate::data::Data;
-    use crate::sources::{External, Kind as Source, WriteMode};
+    use crate::endpoints::{Kind as Source, WriteMode};
     let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
     let configured = configured(id, cx.vault()).map_err(failed)?.clone();
     let (element, rows) = match &input {
@@ -1373,6 +1682,9 @@ fn write_configured(
             other.elements().unwrap_or_default(),
         ),
     };
+    if matches!(configured.kind, Source::Kafka { .. }) {
+        return sink_configured(cx, id, Value::list(rows, element), span);
+    }
     let boundary = boundary_for(&configured, &element, None)
         .map_err(failed)?
         .ok_or_else(|| {
@@ -1381,57 +1693,31 @@ fn write_configured(
             ))
         })?;
     let fields = written_order(&boundary);
-    let cell = |row: &Value, field: &crate::boundary::EffectiveField| {
-        let held = match row {
-            Value::Record(record) => record.field(&field.field.name).cloned(),
-            Value::Data(tree) => match tree.as_ref() {
-                Data::Map(entries) => entries
-                    .get(&field.field.name)
-                    .map(|entry| Value::Data(Arc::new(entry.clone()))),
-                _ => None,
-            },
-            _ => None,
-        };
-        written_cell(held.as_ref(), &field.external_type.value)
-    };
-    // A row as a document: each field under its external name, nested
-    // where its external field is a path.
-    let document = |row: &Value| {
-        let mut entries = std::collections::BTreeMap::new();
-        for field in &fields {
-            let Some(value) = cell(row, field) else {
-                continue;
-            };
-            let path = match &field.external.value {
-                External::Name(name) => vec![name.clone()],
-                External::Path(segments) => segments.clone(),
-            };
-            let mut at = &mut entries;
-            for segment in &path[..path.len() - 1] {
-                let next = at
-                    .entry(segment.clone())
-                    .or_insert_with(|| Data::Map(std::collections::BTreeMap::new()));
-                if !matches!(next, Data::Map(_)) {
-                    *next = Data::Map(std::collections::BTreeMap::new());
-                }
-                let Data::Map(inner) = next else {
-                    unreachable!("made a map above");
-                };
-                at = inner;
-            }
-            at.insert(path[path.len() - 1].clone(), value);
-        }
-        Value::Data(Arc::new(Data::Map(entries)))
-    };
+    let cell = row_cell;
+    let document = |row: &Value| row_document(row, &fields);
     let mode = configured.mode;
     match &configured.kind {
         Source::Vault { .. } => Err(failed(format!(
-            "source `{id}` is a vault, which is read and never written"
+            "endpoint `{id}` is a vault, which is read and never written"
         ))),
+        Source::Kafka { .. } => unreachable!("a topic is written above"),
+        Source::Postgres { dsn_env, table, .. } => {
+            if let Policy::Document { .. } = io::policy() {
+                return Err(failed(format!(
+                    "endpoint `{id}`: a document writes nothing outside itself"
+                )));
+            }
+            let dsn = dsn(&configured, dsn_env).map_err(failed)?;
+            let values: Vec<Vec<Option<String>>> =
+                rows.iter().map(|row| postgres_row(row, &fields)).collect();
+            crate::postgres::write(&dsn, table, mode, &postgres_columns(&fields), &values)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+            Ok(Value::Unit)
+        }
         Source::Sqlite { path, table, .. } => {
             if let Policy::Document { .. } = io::policy() {
                 return Err(failed(format!(
-                    "source `{id}`: a document writes nothing outside itself"
+                    "endpoint `{id}`: a document writes nothing outside itself"
                 )));
             }
             let columns: Vec<(String, String)> = fields
@@ -1477,8 +1763,8 @@ fn write_configured(
                         .collect()
                 })
                 .collect();
-            crate::sources::sqlite_write(path, table, mode, &columns, &values)
-                .map_err(|message| failed(format!("source `{id}`: {message}")))?;
+            crate::endpoints::sqlite_write(path, table, mode, &columns, &values)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
             Ok(Value::Unit)
         }
         Source::File { path, format } => {
@@ -1486,7 +1772,7 @@ fn write_configured(
             let exists = path.exists();
             if mode == WriteMode::Create && exists {
                 return Err(failed(format!(
-                    "source `{id}`: {} exists, and `mode = \"create\"` writes only a new file",
+                    "endpoint `{id}`: {} exists, and `mode = \"create\"` writes only a new file",
                     path.display()
                 )));
             }
@@ -1532,7 +1818,7 @@ fn write_configured(
                 // it again.
                 ("Json", true) if held => {
                     let mut held = io::read_configured(path, format, true)
-                        .map_err(|message| failed(format!("source `{id}`: {message}")))?;
+                        .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
                     held.extend(documents);
                     let text = rendered(held)?;
                     io::write_whole(&Endpoint::File(path.clone()), &text).map_err(failed)?;
@@ -1612,6 +1898,15 @@ fn eval_sink(
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    let argument = arguments
+        .iter()
+        .find(|argument| argument.name.as_deref() == Some("endpoint"))
+        .or_else(|| arguments.iter().find(|argument| argument.name.is_none()));
+    if let Some(argument) = argument
+        && let TypedKind::Str(id) = &argument.value.kind
+    {
+        return sink_configured(cx, id, input, &span);
+    }
     let endpoint = written_to(cx, arguments, &span)?;
     if let Endpoint::Channel(name, _) = endpoint.as_ref() {
         match &input {

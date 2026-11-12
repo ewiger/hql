@@ -1,4 +1,4 @@
-//! Configured data sources: `[sources.<id>]` in a vault's `hql.toml`, read by
+//! Configured endpoints: `[endpoint.<id>]` in a vault's `hql.toml`, read by
 //! `source("id")`, typed offline from the configuration and bounded by the
 //! run context. See doc/proposals/HQL-0012/README.md.
 
@@ -7,8 +7,8 @@ use hql::vault::{self, Vault};
 use std::fs;
 use tempfile::{TempDir, tempdir};
 
-/// A vault with two vault sources, a CSV file, a JSON array and an SQLite
-/// table, configured by `config` appended to the sources every case shares.
+/// A vault with two vault endpoints, a CSV file, a JSON array and an SQLite
+/// table, configured by `config` appended to the endpoints every case shares.
 fn configured(extra: &str) -> (TempDir, Vault) {
     let dir = tempdir().unwrap();
     let root = dir.path();
@@ -40,27 +40,27 @@ fn configured(extra: &str) -> (TempDir, Vault) {
         root.join("hql.toml"),
         format!(
             r#"
-[sources.field_notes]
+[endpoint.field_notes]
 kind = "vault"
 root = "field_notes"
 
-[sources.archive]
+[endpoint.archive]
 kind = "vault"
 root = "archive"
 
-[sources.counts]
+[endpoint.counts]
 kind = "csv"
 path = "data/counts.csv"
 
-[sources.sightings]
+[endpoint.sightings]
 kind = "json"
 path = "data/sightings.json"
 
-[sources.scalar]
+[endpoint.scalar]
 kind = "json"
 path = "data/scalar.json"
 
-[sources.birds]
+[endpoint.birds]
 kind = "sqlite"
 path = "data/birds.sqlite"
 table = "birds"
@@ -97,7 +97,7 @@ fn refusal(source: &str, vault: &Vault) -> String {
 }
 
 #[test]
-fn two_vault_sources_are_read_side_by_side_in_name_order() {
+fn two_vault_endpoints_are_read_side_by_side_in_name_order() {
     let (_dir, vault) = configured("");
     let program = r#"
 notes = source("field_notes")
@@ -151,7 +151,7 @@ fn a_table_is_read_in_its_configured_order_else_by_rowid() {
     );
     let (_dir, ordered) = configured(
         r#"
-[sources.by_wing]
+[endpoint.by_wing]
 kind = "sqlite"
 path = "data/birds.sqlite"
 table = "birds"
@@ -172,7 +172,7 @@ fn an_unknown_id_is_a_name_error_naming_the_nearest() {
     assert_eq!(error.kind, hql::diagnostics::Kind::UnknownName);
     assert!(error.message().contains("did you mean `counts`"), "{error}");
     let far = hql::check_in(r#"source("weather")"#, &vault).unwrap_err();
-    assert!(far.message().contains("[sources.<id>]"), "{far}");
+    assert!(far.message().contains("[endpoint.<id>]"), "{far}");
 }
 
 #[test]
@@ -195,7 +195,7 @@ fn checking_reads_configuration_and_opens_nothing() {
     fs::remove_dir_all(dir.path().join("field_notes")).unwrap();
     assert!(hql::check_in(r#"source("counts") | take(1)"#, &vault).is_ok());
     assert!(hql::check_in(r#"source("field_notes").cards"#, &vault).is_ok());
-    assert!(refusal(r#"source("counts")"#, &vault).contains("source `counts`"));
+    assert!(refusal(r#"source("counts")"#, &vault).contains("endpoint `counts`"));
 }
 
 #[test]
@@ -203,7 +203,7 @@ fn a_source_over_the_run_contexts_bound_fails_naming_both() {
     let (_dir, vault) = configured("\n[execution]\nmax_elements = 1\n");
     let error = refusal(r#"source("counts")"#, &vault);
     assert!(
-        error.contains("source `counts`") && error.contains("max_elements = 1"),
+        error.contains("endpoint `counts`") && error.contains("max_elements = 1"),
         "{error}"
     );
     let (_dir, vault) = configured("\n[execution]\nmax_bytes = 8\n");
@@ -215,25 +215,26 @@ fn a_source_over_the_run_contexts_bound_fails_naming_both() {
 fn a_malformed_configuration_refuses_the_vault() {
     for (entry, says) in [
         (
-            "[sources.db]\nkind = \"sqlite\"\npath = \"x\"\ntable = \"t\"\npassword = \"hunter2\"\n",
+            "[endpoint.db]\nkind = \"sqlite\"\npath = \"x\"\ntable = \"t\"\npassword = \"hunter2\"\n",
             "password_env",
         ),
         (
-            "[sources.vault]\nkind = \"csv\"\npath = \"x\"\n",
+            "[endpoint.vault]\nkind = \"csv\"\npath = \"x\"\n",
             "`vault` is the vault",
         ),
         (
-            "[sources.Notes]\nkind = \"csv\"\npath = \"x\"\n",
+            "[endpoint.Notes]\nkind = \"csv\"\npath = \"x\"\n",
             "snake_case",
         ),
+        ("[endpoint.db]\nkind = \"mongo\"\n", "unknown kind `mongo`"),
+        ("[endpoint.db]\nkind = \"csv\"\n", "names its `path`"),
         (
-            "[sources.db]\nkind = \"postgres\"\n",
-            "unknown kind `postgres`",
-        ),
-        ("[sources.db]\nkind = \"csv\"\n", "names its `path`"),
-        (
-            "[sources.db]\nkind = \"csv\"\npath = \"x\"\nstart = \"earliest\"\n",
+            "[endpoint.db]\nkind = \"csv\"\npath = \"x\"\nstart = \"earliest\"\n",
             "no `start`",
+        ),
+        (
+            "[sources.db]\nkind = \"csv\"\npath = \"x\"\n",
+            "declared under `[endpoint.<id>]`",
         ),
     ] {
         let dir = tempdir().unwrap();
@@ -244,14 +245,14 @@ fn a_malformed_configuration_refuses_the_vault() {
     let dir = tempdir().unwrap();
     fs::write(
         dir.path().join("hql.toml"),
-        "[sources.db]\nkind = \"sqlite\"\npath = \"x\"\ntable = \"t\"\npassword_env = \"DB_PASSWORD\"\n",
+        "[endpoint.db]\nkind = \"sqlite\"\npath = \"x\"\ntable = \"t\"\npassword_env = \"DB_PASSWORD\"\n",
     )
     .unwrap();
     assert!(vault::load(dir.path()).is_ok());
 }
 
 #[test]
-fn a_document_reads_the_sources_its_vault_configures() {
+fn a_document_reads_the_endpoints_its_vault_configures() {
     let (dir, _) = configured("");
     let page = dir.path().join("archive/report.hmd");
     fs::write(
@@ -346,18 +347,21 @@ parts = counts | fork { first = take(1), all = size() }
     assert_eq!(value(program, &vault), "[2, 2, 1]");
 }
 
-/// HQL-0035: a source's boundary is written field by field under
-/// `[sources.<id>.fields.<field>]`, and a malformed one refuses the vault.
+/// HQL-0035: an endpoint's boundary is written field by field under
+/// `[endpoint.<id>.fields.<field>]`, and a malformed one refuses the vault.
 #[test]
 fn a_boundary_is_configured_field_by_field() {
-    use hql::sources::{Absence, External};
+    use hql::endpoints::{Absence, External};
     let (_dir, vault) = configured(
-        "\n[sources.people]\nkind = \"json\"\npath = \"data/sightings.json\"\n\
-         [sources.people.fields.id]\nname = \"user_id\"\ntype = \"string\"\nposition = 1\n\
-         [sources.people.fields.name]\npath = \"profile.display_name\"\nwrite = false\n\
+        "\n[endpoint.people]\nkind = \"json\"\npath = \"data/sightings.json\"\n\
+         [endpoint.people.fields.id]\nname = \"user_id\"\ntype = \"string\"\nposition = 1\n\
+         [endpoint.people.fields.name]\npath = \"profile.display_name\"\nwrite = false\n\
          absent = [\"missing\", \"null\"]\n",
     );
-    let people = vault.sources.get("people").expect("a configured source");
+    let people = vault
+        .endpoints
+        .get("people")
+        .expect("a configured endpoint");
     let id = &people.fields["id"];
     assert_eq!(id.external, Some(External::Name("user_id".to_owned())));
     assert_eq!(id.external_type.as_deref(), Some("string"));
@@ -373,34 +377,34 @@ fn a_boundary_is_configured_field_by_field() {
     assert_eq!(name.writable, Some(false));
     assert_eq!(name.readable, None);
     assert_eq!(name.absent, Some(vec![Absence::Missing, Absence::Null]));
-    let source = "[sources.db]\nkind = \"csv\"\npath = \"x\"\n";
+    let source = "[endpoint.db]\nkind = \"csv\"\npath = \"x\"\n";
     for (fields, says) in [
-        ("[sources.db.fields]\nid = 3\n", "is a table"),
+        ("[endpoint.db.fields]\nid = 3\n", "is a table"),
         (
-            "[sources.db.fields.id]\ncolumn = \"x\"\n",
+            "[endpoint.db.fields.id]\ncolumn = \"x\"\n",
             "takes no `column`",
         ),
-        ("[sources.db.fields.id]\nname = 3\n", "is a string"),
+        ("[endpoint.db.fields.id]\nname = 3\n", "is a string"),
         (
-            "[sources.db.fields.id]\nname = \"a\"\npath = \"b\"\n",
+            "[endpoint.db.fields.id]\nname = \"a\"\npath = \"b\"\n",
             "once",
         ),
-        ("[sources.db.fields.id]\npath = \"a.b\"\n", "does not nest"),
-        ("[sources.db.fields.id]\nposition = 0\n", "counted from 1"),
+        ("[endpoint.db.fields.id]\npath = \"a.b\"\n", "does not nest"),
+        ("[endpoint.db.fields.id]\nposition = 0\n", "counted from 1"),
         (
-            "[sources.db.fields.id]\nread = \"yes\"\n",
+            "[endpoint.db.fields.id]\nread = \"yes\"\n",
             "`true` or `false`",
         ),
         (
-            "[sources.db.fields.id]\nabsent = [\"blank\"]\n",
+            "[endpoint.db.fields.id]\nabsent = [\"blank\"]\n",
             "what reads as absent",
         ),
         (
-            "[sources.db.fields.id.sqlite]\ntype = \"TEXT\"\n",
-            "this source is `csv`",
+            "[endpoint.db.fields.id.sqlite]\ntype = \"TEXT\"\n",
+            "this endpoint is `csv`",
         ),
         (
-            "[sources.db.fields.id.csv]\nquote = \"'\"\n",
+            "[endpoint.db.fields.id.csv]\nquote = \"'\"\n",
             "owns no field key `quote`",
         ),
     ] {
@@ -412,7 +416,7 @@ fn a_boundary_is_configured_field_by_field() {
     let dir = tempdir().unwrap();
     fs::write(
         dir.path().join("hql.toml"),
-        "[sources.notes]\nkind = \"vault\"\nroot = \"notes\"\n[sources.notes.fields.id]\nname = \"x\"\n",
+        "[endpoint.notes]\nkind = \"vault\"\nroot = \"notes\"\n[endpoint.notes.fields.id]\nname = \"x\"\n",
     )
     .unwrap();
     let error = vault::load(dir.path()).unwrap_err().to_string();
@@ -426,9 +430,9 @@ fn a_boundary_is_configured_field_by_field() {
 #[test]
 fn a_source_is_read_through_its_boundary() {
     let (_dir, vault) = configured(
-        "\n[sources.birds.fields.label]\nname = \"name\"\n\
-         [sources.tallies]\nkind = \"csv\"\npath = \"data/counts.csv\"\n\
-         [sources.tallies.fields.total]\nname = \"amount\"\n",
+        "\n[endpoint.birds.fields.label]\nname = \"name\"\n\
+         [endpoint.tallies]\nkind = \"csv\"\npath = \"data/counts.csv\"\n\
+         [endpoint.tallies.fields.total]\nname = \"amount\"\n",
     );
     let birds = "type Bird {\n    id : Int\n    label : String\n}\n\
                  seen : Seq<Bird> = source(\"birds\")\nseen | map(b => b.label) | List";
@@ -441,8 +445,8 @@ fn a_source_is_read_through_its_boundary() {
         "{error}"
     );
     let (_dir, vault) = configured(
-        "\n[sources.typed]\nkind = \"csv\"\npath = \"data/counts.csv\"\nelement = \"Tally\"\n\
-         [sources.typed.fields.colour]\nname = \"c\"\n",
+        "\n[endpoint.typed]\nkind = \"csv\"\npath = \"data/counts.csv\"\nelement = \"Tally\"\n\
+         [endpoint.typed.fields.colour]\nname = \"c\"\n",
     );
     let typed = "type Tally {\n    species : String\n    count : Int\n}\nsource(\"typed\") | size";
     let refused = hql::check_in(typed, &vault).unwrap_err().message();
@@ -464,7 +468,7 @@ fn a_null_reads_as_absent_unless_the_boundary_says_otherwise() {
     let config = |extra: &str| {
         fs::write(
             dir.path().join("hql.toml"),
-            format!("[sources.readings]\nkind = \"json\"\npath = \"data/readings.json\"\n{extra}"),
+            format!("[endpoint.readings]\nkind = \"json\"\npath = \"data/readings.json\"\n{extra}"),
         )
         .unwrap();
         vault::load(dir.path()).unwrap()
@@ -472,7 +476,7 @@ fn a_null_reads_as_absent_unless_the_boundary_says_otherwise() {
     assert_eq!(value(reading, &config("")), "[none]");
     let error = refusal(
         reading,
-        &config("[sources.readings.fields.reading]\nabsent = [\"missing\"]\n"),
+        &config("[endpoint.readings.fields.reading]\nabsent = [\"missing\"]\n"),
     );
     assert!(
         error.contains("field `reading`") && error.contains("holds null"),
@@ -490,28 +494,28 @@ fn a_configured_target_is_written_through_its_boundary() {
     fs::write(
         dir.path().join("hql.toml"),
         r#"
-[sources.ledger]
+[endpoint.ledger]
 kind = "csv"
 path = "out/ledger.csv"
 mode = "append"
-[sources.ledger.fields.count]
+[endpoint.ledger.fields.count]
 name = "Total"
 position = 1
 
-[sources.people]
+[endpoint.people]
 kind = "json"
 path = "out/people.json"
-[sources.people.fields.name]
+[endpoint.people.fields.name]
 path = "profile.display_name"
 
-[sources.birds]
+[endpoint.birds]
 kind = "sqlite"
 path = "out/birds.sqlite"
 table = "birds"
-[sources.birds.fields.note]
+[endpoint.birds.fields.note]
 write = false
 
-[sources.fresh]
+[endpoint.fresh]
 kind = "json_lines"
 path = "out/fresh.jsonl"
 mode = "create"
@@ -578,7 +582,7 @@ mode = "create"
     }
 }
 
-/// HQL-0035: a source's strictness decides what a read does with an
+/// HQL-0035: an endpoint's strictness decides what a read does with an
 /// external field no HQL field reads, and leaves the type's openness alone.
 #[test]
 fn strictness_decides_what_an_unmapped_field_does() {
@@ -586,7 +590,7 @@ fn strictness_decides_what_an_unmapped_field_does() {
                   seen : Seq<Species> = source(\"tallies\")\nseen | map(s => s.species) | List";
     let with = |strictness: &str| {
         configured(&format!(
-            "\n[sources.tallies]\nkind = \"csv\"\npath = \"data/counts.csv\"\n{strictness}\n"
+            "\n[endpoint.tallies]\nkind = \"csv\"\npath = \"data/counts.csv\"\n{strictness}\n"
         ))
     };
     // `compatible`, the default: the closed record refuses `count`.
@@ -613,7 +617,7 @@ fn strictness_decides_what_an_unmapped_field_does() {
         error.contains("strict") && error.contains("`count`"),
         "{error}"
     );
-    // A table's unread columns meet the source's strictness before any row.
+    // A table's unread columns meet the endpoint's strictness before any row.
     let (_dir, vault) = configured("strictness = \"strict\"\n");
     let birds = "type Bird {\n    id : Int\n    name : String\n}\n\
                  seen : Seq<Bird> = source(\"birds\")\nseen | size";
@@ -624,32 +628,32 @@ fn strictness_decides_what_an_unmapped_field_does() {
 #[test]
 fn a_table_reads_as_its_column_types_say() {
     let extra = r#"
-[sources.flags]
+[endpoint.flags]
 kind = "sqlite"
 path = "data/birds.sqlite"
 table = "flags"
 
-[sources.prices]
+[endpoint.prices]
 kind = "sqlite"
 path = "data/birds.sqlite"
 table = "prices"
 
-[sources.texts]
+[endpoint.texts]
 kind = "sqlite"
 path = "data/birds.sqlite"
 table = "texts"
 
-[sources.named]
+[endpoint.named]
 kind = "sqlite"
 path = "data/birds.sqlite"
 table = "named"
 
-[sources.keyed]
+[endpoint.keyed]
 kind = "sqlite"
 path = "data/birds.sqlite"
 table = "keyed"
 
-[sources.blobs]
+[endpoint.blobs]
 kind = "sqlite"
 path = "data/birds.sqlite"
 table = "blobs"
@@ -719,7 +723,7 @@ fn an_unreadable_configuration_is_an_error_not_an_empty_one() {
     let dir = tempdir().unwrap();
     fs::write(
         dir.path().join("hql.toml"),
-        b"# caf\xe9\n[sources.prices]\nkind = \"json\"\npath = \"p.json\"\n",
+        b"# caf\xe9\n[endpoint.prices]\nkind = \"json\"\npath = \"p.json\"\n",
     )
     .unwrap();
     let error = match vault::load(dir.path()) {
@@ -733,16 +737,16 @@ fn an_unreadable_configuration_is_an_error_not_an_empty_one() {
 #[test]
 fn a_column_name_matches_without_regard_to_case_and_a_write_needs_a_column() {
     let extra = r#"
-[sources.cased]
+[endpoint.cased]
 kind = "sqlite"
 path = "data/birds.sqlite"
 table = "cased"
 
-[sources.out]
+[endpoint.out]
 kind = "sqlite"
 path = "data/out.sqlite"
 table = "o"
-[sources.out.fields.id]
+[endpoint.out.fields.id]
 write = false
 "#;
     let (dir, vault) = configured(extra);
@@ -772,20 +776,20 @@ write = false
 #[test]
 fn fields_that_swap_names_or_read_a_path_decode_a_closed_record() {
     let extra = r#"
-[sources.swap]
+[endpoint.swap]
 kind = "json"
 path = "data/swap.json"
-[sources.swap.fields.x]
+[endpoint.swap.fields.x]
 name = "y"
-[sources.swap.fields.y]
+[endpoint.swap.fields.y]
 name = "x"
 
-[sources.profiles]
+[endpoint.profiles]
 kind = "json"
 path = "data/profiles.json"
-[sources.profiles.fields.id]
+[endpoint.profiles.fields.id]
 name = "user_id"
-[sources.profiles.fields.name]
+[endpoint.profiles.fields.name]
 path = "profile.display_name"
 "#;
     let (dir, vault) = configured(extra);
@@ -818,7 +822,7 @@ path = "profile.display_name"
 #[test]
 fn a_decimal_written_to_a_table_keeps_its_digits() {
     let extra = r#"
-[sources.ledger]
+[endpoint.ledger]
 kind = "sqlite"
 path = "data/ledger.sqlite"
 table = "ledger"

@@ -126,7 +126,7 @@ enum Command {
         /// A file, or `-` for standard input.
         file: String,
     },
-    /// Print a configured source's effective boundary: for each field of
+    /// Print a configured endpoint's effective boundary: for each field of
     /// the type it is read as, its external field, both types, its position,
     /// whether it is read and written, what reads as absent, and the layer
     /// each property comes from.
@@ -134,7 +134,7 @@ enum Command {
         /// A program declaring the type the source is read as, or `-` for
         /// standard input.
         file: String,
-        /// The source's id, `[sources.<id>]` in the vault's hql.toml.
+        /// The endpoint's id, `[endpoint.<id>]` in the vault's hql.toml.
         id: String,
         /// The type the source is read as; the source's `element` without it.
         #[arg(long = "as", value_name = "TYPE")]
@@ -808,7 +808,7 @@ fn write_boundary(
 ) -> Result<(), String> {
     use crate::boundary::Held;
     let boundary = &inspected.boundary;
-    let absent = |held: &Held<Vec<crate::sources::Absence>>| {
+    let absent = |held: &Held<Vec<crate::endpoints::Absence>>| {
         held.value
             .iter()
             .map(|absence| absence.name())
@@ -859,7 +859,7 @@ fn write_boundary(
     }
     writeln!(
         out,
-        "source {} ({}), read as {}; strictness {}, mode {}",
+        "endpoint {} ({}), read as {}; strictness {}, mode {}",
         boundary.source,
         boundary.kind,
         inspected.element,

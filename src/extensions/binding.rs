@@ -1319,10 +1319,10 @@ mod tests {
             ("file", Purity::Pure),
         ] {
             let step = super::super::IO.step(name).unwrap();
-            // `source` and `tap` read, and `target` writes, an endpoint or a
-            // configured source's id.
+            // `source` and `tap` read, and `target` and `sink` write, an
+            // endpoint or a configured endpoint's id.
             let forms = environment.of(step);
-            let count = if matches!(name, "source" | "tap" | "target") {
+            let count = if matches!(name, "source" | "tap" | "target" | "sink") {
                 2
             } else {
                 1

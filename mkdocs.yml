@@ -115,7 +115,7 @@ nav:
                   - Writing with target and sink: learn/09-io/target.md
                   - Finite or live: learn/09-io/finite-or-live.md
                   - Formats and documents: learn/09-io/formats.md
-                  - Sources and targets by id: learn/09-io/configured.md
+                  - Endpoints by id: learn/09-io/configured.md
                   - Channels: learn/09-io/channels.md
                   - Logging: learn/09-io/logging.md
                   - The network: learn/09-io/network.md

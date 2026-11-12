@@ -69,7 +69,7 @@ fn Channel<T>(name: String) : Channel<T>
 // stdout : Stdout
 // stderr : Stderr
 
-/// What a program reads: a configured source by id, or an endpoint read in
+/// What a program reads: a configured endpoint by id, or an endpoint read in
 /// a format. Its contract fixes what its contents are.
 abstract type DataSource
 
@@ -111,16 +111,18 @@ abstract type Catalog<S> : DataSource
 /// filesystem, a git revision, an HTTP server, is the concrete type's.
 abstract type VaultSource : DataSource
 
-// A configured source, by its id: `source("field_notes")`. The run
-// context's configuration, `[sources.<id>]` in hql.toml, states its kind,
-// and the kind its type, read at check time and offline: a `vault` source
-// is a Vault, and a `csv`, `json`, `json_lines`, `yaml` or `sqlite` source
-// a Seq<Data>, or a Seq of the type its `element` names. The id is a
+// A configured endpoint, by its id: `source("field_notes")`. The run
+// context's configuration, `[endpoint.<id>]` in hql.toml, states its kind,
+// and the kind its type, read at check time and offline: a `vault` endpoint
+// is a Vault, and a `csv`, `json`, `json_lines`, `yaml`, `sqlite` or
+// `postgres` endpoint a Seq<Data>, or a Seq of the type its `element` names.
+// A `kafka` endpoint is a log that never ends: `tap(id)` reads it as a
+// Stream, and `source(id)` of it is a type error. The id is a
 // literal, snake_case, and never a connection string; an id takes no
 // format, since its kind fixes one.
 
 /// What a program writes to: an endpoint written in a format, or a
-/// configured target by its id.
+/// configured endpoint by its id.
 abstract type DataTarget
 
 // The operations the `std` extension implements.
@@ -165,9 +167,12 @@ effectful fn target<T, F : Format>(value: T, id: String, format: Type<F>) : Unit
 /// Writes each of `values` to `endpoint` in `format`, one document per
 /// value, and gives `Unit`: `[{a: 1}, {a: 2}] | sink(stdout, Json)` writes
 /// `{"a":1}` and `{"a":2}` on two lines. Written to a `Channel<T>`, each
-/// value is appended and no format is taken. Effectful: it runs once,
-/// where it is written.
+/// value is appended and no format is taken. `sink(id)` writes to the
+/// target configured under `id` as each value arrives: a `kafka` topic
+/// takes one message per value, a `postgres` table one row per value of a
+/// declared record. Effectful: it runs once, where it is written.
 effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Unit
+effectful fn sink<T, F : Format>(values: Iterable<T>, id: String, format: Type<F>) : Unit
 
 // Reading, provided by the `std` extension. The format may be omitted only
 // when the endpoint is `file` of a literal path whose extension implies one.
@@ -184,6 +189,7 @@ effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format
 // sink<T>(xs: Stream<T>, e: Writable, format: Type<F>) : Unit    a document per value
 // target<T>(x: T, c: Channel<T>) : Unit                          appends x
 // sink<T>(xs: Stream<T>, c: Channel<T>) : Unit                   appends each value
+// sink<T>(xs: Stream<T>, id: String) : Unit                      a message or a row per value
 //
 // Without the values, sink(e, F) is a step: Stream<T> -> Unit. A Logger
 // (module `io.logging`) takes one as its destination.

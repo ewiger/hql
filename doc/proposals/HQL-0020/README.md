@@ -116,7 +116,7 @@ graph     = vault.graph
 ### 5. Other vaults
 
 ```toml
-[sources.field_notes]
+[endpoint.field_notes]
 kind = "vault"
 root = "../field-notes"
 ```

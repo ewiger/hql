@@ -1,9 +1,9 @@
-//! The schema boundary of a configured source (HQL-0035): the resolver that
+//! The schema boundary of a configured endpoint (HQL-0035): the resolver that
 //! merges a format's defaults, a source's configuration and an invocation's
 //! override into the one effective boundary I/O proceeds with, each
 //! property keeping the layer it came from.
 
-use crate::sources::{Absence, External, FieldMapping};
+use crate::endpoints::{Absence, External, FieldMapping};
 use crate::types::TypeRef;
 use std::collections::BTreeMap;
 
@@ -24,7 +24,7 @@ pub struct DeclaredField {
 pub enum Origin {
     /// The format's default.
     Format,
-    /// The source's `[sources.<id>.fields]`.
+    /// The source's `[endpoint.<id>.fields]`.
     Configuration,
     /// An invocation's override.
     Invocation,
@@ -85,7 +85,7 @@ pub struct EffectiveBoundary {
     /// The fields, in the order the element type declares them.
     pub fields: Vec<EffectiveField>,
     /// What a read does with an external field no HQL field reads.
-    pub strictness: crate::sources::Strictness,
+    pub strictness: crate::endpoints::Strictness,
 }
 
 impl EffectiveBoundary {
@@ -151,7 +151,7 @@ impl std::fmt::Display for BoundaryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "source `{}`, field `{}`: {} ({}, from the {})",
+            "endpoint `{}`, field `{}`: {} ({}, from the {})",
             self.source,
             self.field,
             self.message,
@@ -379,7 +379,7 @@ pub fn resolve(
             source: source.to_owned(),
             kind: kind.to_owned(),
             fields: resolved,
-            strictness: crate::sources::Strictness::default(),
+            strictness: crate::endpoints::Strictness::default(),
         })
     } else {
         Err(errors)
@@ -448,6 +448,7 @@ fn family(kind: &str) -> &'static str {
     match kind {
         "csv" => "csv",
         "sqlite" => "sqlite",
+        "postgres" => "postgres",
         _ => "tree",
     }
 }
@@ -459,6 +460,12 @@ fn default_type(kind: &str, ty: &TypeRef) -> &'static str {
         ("sqlite", Class::Int | Class::Bool) => "INTEGER",
         ("sqlite", Class::Float) => "REAL",
         ("sqlite", _) => "TEXT",
+        ("postgres", Class::Int) => "BIGINT",
+        ("postgres", Class::Float) => "DOUBLE PRECISION",
+        ("postgres", Class::Decimal) => "NUMERIC",
+        ("postgres", Class::Bool) => "BOOLEAN",
+        ("postgres", Class::List | Class::Object | Class::Data) => "JSONB",
+        ("postgres", _) => "TEXT",
         (_, Class::Decimal) => "string",
         (_, Class::Int | Class::Float) => "number",
         (_, Class::Bool) => "boolean",
@@ -471,6 +478,9 @@ fn default_type(kind: &str, ty: &TypeRef) -> &'static str {
 /// The format's type for a type the source declares: of a SQLite column,
 /// its affinity by SQLite's rules, `DECIMAL(10, 2)` being `NUMERIC`.
 fn affinity(kind: &str, declared: &str) -> String {
+    if family(kind) == "postgres" {
+        return postgres_type(declared).to_owned();
+    }
     if family(kind) != "sqlite" {
         return declared.to_owned();
     }
@@ -490,11 +500,25 @@ fn affinity(kind: &str, declared: &str) -> String {
     .to_owned()
 }
 
+/// The boundary's name for a PostgreSQL column type, from the name the
+/// server gives it, `int8` or `character varying`: every type the boundary
+/// does not tell apart reads as its text.
+fn postgres_type(declared: &str) -> &'static str {
+    match declared.to_ascii_lowercase().as_str() {
+        "int2" | "int4" | "int8" | "smallint" | "integer" | "bigint" | "oid" => "BIGINT",
+        "float4" | "float8" | "real" | "double precision" => "DOUBLE PRECISION",
+        "numeric" | "decimal" => "NUMERIC",
+        "bool" | "boolean" => "BOOLEAN",
+        "json" | "jsonb" => "JSONB",
+        _ => "TEXT",
+    }
+}
+
 /// What reads as an absent optional field unless the boundary says.
 fn default_absent(kind: &str) -> Vec<Absence> {
     match family(kind) {
         "csv" => vec![Absence::Empty, Absence::Missing],
-        "sqlite" => vec![Absence::Null],
+        "sqlite" | "postgres" => vec![Absence::Null],
         _ => vec![Absence::Missing, Absence::Null],
     }
 }
@@ -507,6 +531,7 @@ fn lossy(kind: &str, external: &str, ty: &TypeRef) -> bool {
         && match family(kind) {
             "csv" => external == "float",
             "sqlite" => matches!(external.to_ascii_uppercase().as_str(), "REAL" | "NUMERIC"),
+            "postgres" => matches!(postgres_type(external), "DOUBLE PRECISION" | "BIGINT"),
             _ => external == "number",
         }
 }
@@ -531,6 +556,16 @@ fn decodes(kind: &str, external: &str, ty: &TypeRef) -> Option<bool> {
             "TEXT" => &[Text, Decimal, Other],
             "NUMERIC" => &[Decimal, Int, Float],
             "BLOB" => &[Text],
+            _ => return None,
+        },
+        "postgres" => match external.to_ascii_uppercase().as_str() {
+            "BIGINT" | "INTEGER" | "SMALLINT" | "INT8" | "INT4" | "INT2" => &[Int, Float, Decimal],
+            "DOUBLE PRECISION" | "REAL" | "FLOAT8" | "FLOAT4" => &[Float, Decimal],
+            "NUMERIC" | "DECIMAL" => &[Decimal, Int, Float],
+            "BOOLEAN" | "BOOL" => &[Bool],
+            "JSONB" | "JSON" => &[List, Object, Text, Int, Float, Decimal, Bool],
+            "TEXT" | "VARCHAR" | "CHARACTER VARYING" | "TIMESTAMPTZ" | "TIMESTAMP" | "DATE"
+            | "UUID" => &[Text, Decimal, Other],
             _ => return None,
         },
         _ => match external {

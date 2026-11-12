@@ -75,7 +75,7 @@ content is one array holds one document, and its members are spread with
 `of_type(List) | emit`:
 
 ```hql
-source(file("examples/sources/station/data/sightings.json")) | size
+source(file("examples/endpoints/station/data/sightings.json")) | size
 ```
 
 ```text
@@ -83,7 +83,7 @@ source(file("examples/sources/station/data/sightings.json")) | size
 ```
 
 ```hql
-source(file("examples/sources/station/data/sightings.json"))
+source(file("examples/endpoints/station/data/sightings.json"))
 | of_type(List)
 | emit
 | map(s => s.species)
@@ -93,8 +93,8 @@ source(file("examples/sources/station/data/sightings.json"))
 ["wren", "owl", "kite"]
 ```
 
-A configured `json` source gives the members of its array without this step
-([sources and targets by id](configured.md)).
+A configured `json` endpoint gives the members of its array without this step
+([endpoints by id](configured.md)).
 
 ## Reading as a declared record
 

@@ -44,7 +44,7 @@ now while `tap` follows it. **Logging**, from `import logging`, is a stream of
 Every read and write is `Effectful`, and the host decides at check time which
 endpoints a program may use: `hql render` grants reading files beside the
 document and writing channels, and refuses the rest. `source("id")` of
-[HQL-0012](../HQL-0012/README.md) stays the form for a configured source. On
+[HQL-0012](../HQL-0012/README.md) stays the form for a configured endpoint. On
 the command line, `hql '<program>'` is `hql eval '<program>'`, `--to json`
 pretty-prints as `jq .` does, and a program whose result is `Unit` prints
 nothing.
@@ -54,7 +54,7 @@ nothing.
 - `hql eval` evaluates a closed expression. Standard input is never read as
   data and a program cannot open a file, so `curl … | hql '…'` cannot do what
   `jq` does.
-- [HQL-0012](../HQL-0012/README.md) reads configured sources by id. A one-off
+- [HQL-0012](../HQL-0012/README.md) reads configured endpoints by id. A one-off
   program over a file next to it, or a URL, should not need an entry in
   `hql.toml`.
 - A program has exactly one output, its result, and the host writes it. A
@@ -71,7 +71,7 @@ nothing.
 
 - **No HTTP request with a typed response.** `target` to an `http` endpoint
   sends a request and does not read the response. A request whose response is
-  data is a configured source or a later record.
+  data is a configured endpoint or a later record.
 - **No framing beyond the formats.** A socket's documents are separated as
   their format separates them; length prefixes and delimiters of a protocol's
   own are not provided.
@@ -80,7 +80,7 @@ nothing.
   first out are not provided.
 - **No logger fan-out and no global logger.** A logger has one destination,
   and a program logs only through a logger it was given or constructed.
-- **No writes to configured sources.** `target("id")` and `sink("id")` need
+- **No writes to configured endpoints.** `target("id")` and `sink("id")` need
   HQL-0012's sources to declare that they accept writes, which they do not
   yet.
 - **No directory listing, deletion, renaming or file metadata.**
@@ -270,7 +270,7 @@ source<S>(id: String) : S   // HQL-0012, unchanged
 - `DataSource`, `FiniteSource` and `LiveSource` MUST be the contracts of
   [HQL-0012](../HQL-0012/README.md), amended in two ways. `DataSource` has no
   `id` field, since a source read from an endpoint has no configured id; a
-  configured source's id is a field of its concrete type. A `LiveSource<T>` is
+  configured endpoint's id is a field of its concrete type. A `LiveSource<T>` is
   a `Stream<T>`; a source whose deliveries carry a position, a broker topic,
   is a `LiveSource<Message<T>>`.
 - `source` over a replayable endpoint MUST give a `FiniteSource<T>`: every
@@ -283,9 +283,9 @@ source<S>(id: String) : S   // HQL-0012, unchanged
 - `T` MUST be the type the format reads a document as (section "Formats decode
   and encode documents"), unless the expected type gives another (section
   "Typed decoding").
-- A configured `json_lines` or `csv` source of HQL-0012 MUST decode its file
+- A configured `json_lines` or `csv` endpoint of HQL-0012 MUST decode its file
   by the same rules, so a file gives the same values whether a program names
-  it with `file` or by id. A configured `json` source gives the members of the
+  it with `file` or by id. A configured `json` endpoint gives the members of the
   file's one array, which is
   `source(file(p), Json) | of_type(Seq<Data>) | emit`.
 
@@ -308,7 +308,7 @@ tap<T>(id: String) : Stream<T>
   file larger than memory; `source` of the same file would hold all of it.
 - Over a live endpoint, `tap` and `source` MUST give the same stream:
   `tap(stdin, Json)` is `source(stdin, Json)`.
-- `tap("id")` MUST give the configured source's contents as a stream: a
+- `tap("id")` MUST give the configured endpoint's contents as a stream: a
   `StreamSource<T>` or `LiveSource<T>` as it is, and a `FiniteSource<T>` read
   one element at a time.
 
@@ -542,7 +542,7 @@ report | target(http("https://api.example.com/report", method = "POST"), Json)
 - A `Socket` carries bytes, so its documents MUST be separated as their format
   separates them (section "Formats decode and encode documents").
 - A program SHOULD NOT write a secret in a header. A request that needs
-  credentials is a configured source of HQL-0012, whose secrets stay outside
+  credentials is a configured endpoint of HQL-0012, whose secrets stay outside
   the program.
 
 ### 12. Logging
@@ -763,7 +763,7 @@ hql run --log-level debug birds.hql < birds.jsonl 2> run.log
   network endpoint used is known before evaluation; the host refuses what it
   does not grant.
 - **Secrets stay out of programs.** A header is ordinary data in the program's
-  text; credentials belong to a configured source.
+  text; credentials belong to a configured endpoint.
 - **Effects are known before evaluation.** Every endpoint use is `Effectful`
   and is checked against the host's policy before anything runs.
 - **Checking is offline.** `hql check` touches no file and no network but the
@@ -814,8 +814,8 @@ Built:
 Remaining, each waiting for [HQL-0012](../HQL-0012/README.md), which is
 drafted:
 
-- `source("id")` and `tap("id")`, a configured source read by id, and a
-  configured `json_lines`, `csv` or `json` source decoded by this record's
+- `source("id")` and `tap("id")`, a configured endpoint read by id, and a
+  configured `json_lines`, `csv` or `json` endpoint decoded by this record's
   rules
 - HQL-0012's `max_bytes` bounding `source` over a replayable endpoint
 
@@ -896,10 +896,10 @@ None.
   type of a binding or a function result decodes each document of a read as
   a declared record, a CSV cell parsed as its field's scalar. The
   specification states `lib/std/io/mod.hql`, `JsonLines` and `Lines` as formats,
-  and the `effectful fn` headers; configured sources by id and `max_bytes`
+  and the `effectful fn` headers; configured endpoints by id and `max_bytes`
   wait for HQL-0012
   ([issue 0037](../../issues/archive/0037-io-typed-decoding.md))
-- 2026-10-22: `source("id")` reads a configured source and `tap("id")` a
+- 2026-10-22: `source("id")` reads a configured endpoint and `tap("id")` a
   finite one one element at a time, a file of documents as `tap` reads the
-  file; `max_bytes` bounds a configured source
+  file; `max_bytes` bounds a configured endpoint
   ([issue 0040](../../issues/archive/0040-configured-data-sources.md))

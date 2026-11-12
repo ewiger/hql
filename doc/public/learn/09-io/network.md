@@ -66,6 +66,6 @@ check error[unknown-name]: `http` is provided by the `net` extension: write `imp
 ```
 
 A header is ordinary data in the program's text, so a request that needs
-credentials belongs in configuration, as a source by id, and not in a program
-([sources and targets by id](configured.md)). A document being rendered reaches
+credentials belongs in configuration, as an endpoint by id, and not in a
+program ([endpoints by id](configured.md)). A document being rendered reaches
 no network ([effects and what a host allows](hosts.md)).

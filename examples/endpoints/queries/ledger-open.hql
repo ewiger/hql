@@ -2,7 +2,7 @@
 // feature: under `strictness = "open"` an external field no field reads is not read, so a closed record reads a wider source
 // implementation: implemented
 // environment: knowledge-v1
-// vault: sources/station
+// vault: endpoints/station
 // expected-type: Int
 // expected: 4
 

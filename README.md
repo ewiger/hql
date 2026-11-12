@@ -425,7 +425,7 @@ birds =
     source(file("birds.json"), Json)
 ```
 
-as do configured sources:
+as do configured endpoints:
 
 ```hql
 warehouse =
@@ -1053,7 +1053,7 @@ hql repl                   read, evaluate and print, one program at a time
 hql render <file>          run the HQL cells in a document
 hql builtins               list the steps a pipeline may use
 hql help <name>            print the declarations and doc strings of a name
-hql boundary <file> <id>   print a configured source's boundary, field by field
+hql boundary <file> <id>   print a configured endpoint's boundary, field by field
 hql config                 show the reporting settings in force and their origin
 hql doctor                 check the semantic-search chain and name what is missing
 ```
@@ -1200,7 +1200,7 @@ HQL cells live next to the knowledge and prose they derive from and can run both
 
 ### One language should span local and larger dataflows
 
-The same language model should remain valid whether computation is executed over a local value, a live stream, a configured data source or a larger execution backend.
+The same language model should remain valid whether computation is executed over a local value, a live stream, a configured endpoint or a larger execution backend.
 
 ---
 

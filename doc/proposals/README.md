@@ -42,7 +42,7 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0032](HQL-0032/README.md) | proposed, implemented in part | Data Validation with `TypeContract` and `DataContract` |
 | [HQL-0033](HQL-0033/README.md) | accepted, implemented | Errors as values — handling, routing, branching, retry and replay |
 | [HQL-0034](HQL-0034/README.md) | accepted, implemented | Validator types |
-| [HQL-0035](HQL-0035/README.md) | proposed, implemented in part | The schema boundary of a configured source or target |
+| [HQL-0035](HQL-0035/README.md) | proposed, implemented in part | The schema boundary of a configured endpoint |
 | [HQL-0036](HQL-0036/README.md) | proposed, implemented in part | Partitioning, shuffle boundaries and execution scheduling |
 | [HQL-0037](HQL-0037/README.md) | accepted, implemented in part | Dataflow DAG, fan-out, fan-in, fork and merge |
 | [HQL-0038](HQL-0038/README.md) | implemented | Functions |
@@ -53,3 +53,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0043](HQL-0043/README.md) | implemented; the first versioned release publishes it | Public documentation: a reference page per primitive, permanent URLs and versions |
 | [HQL-0044](HQL-0044/README.md) | accepted, implemented | Type checking is the semantic boundary; compilation is an execution strategy |
 | [HQL-0045](HQL-0045/README.md) | drafted | The error model: failures as data, diagnostics as events, and the run-scoped diagnostic channel |
+| [HQL-0046](HQL-0046/README.md) | accepted, implemented | Kafka topics and PostgreSQL tables as configured endpoints |

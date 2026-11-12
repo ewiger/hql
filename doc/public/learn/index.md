@@ -59,7 +59,7 @@ one claim about which book inspired which, and a librarian.
 8. [Writing results out](08-output.md) — presentation formats and who chooses
    them.
 9. [I/O](09-io/index.md) — sources and targets: endpoints, `source`, `tap`,
-   `target` and `sink`, finite or live, formats, sources by id and the schema
+   `target` and `sink`, finite or live, formats, endpoints by id and the schema
    boundary, channels, logging, the network, and `hql` as a command-line data
    tool.
 10. [The type system](10-the-type-system/index.md) — records, unions and

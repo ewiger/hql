@@ -1,27 +1,27 @@
-# Sources and targets by id
+# Endpoints by id
 
 A program that names a file path is tied to one machine's files. A vault
-declares its sources in `hql.toml` instead, each under an id, and a program
+declares its endpoints in `hql.toml` instead, each under an id, and a program
 names only the id. The field station of the
-[data sources examples](https://github.com/ewiger/hql/tree/main/examples/sources)
+[endpoints examples](https://github.com/ewiger/hql/tree/main/examples/endpoints)
 is such a vault, and the programs on this page run with
-`--vault examples/sources/station`:
+`--vault examples/endpoints/station`:
 
 ```toml
-[sources.journal]
+[endpoint.journal]
 kind = "vault"
 root = "journal"
 
-[sources.counts]
+[endpoint.counts]
 kind = "csv"
 path = "data/counts.csv"
 
-[sources.sightings]
+[endpoint.sightings]
 kind = "json"
 path = "data/sightings.json"
 ```
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 journal = source("journal")
 journal.cards | map(c => c.name)
@@ -33,15 +33,15 @@ journal.cards | map(c => c.name)
 
 A vault is a folder of documents, each a card with a name, the subject of
 [chapter 16](../16-a-vault.md); `journal.cards` is the cards of that one.
-Here it is one source among others, read by its id like the rest.
+Here it is one endpoint among others, read by its id like the rest.
 
 ## The kind states the type
 
 `source("journal")` is a `Vault`, with its own `cards`. `source("counts")` is
-a `Seq<Data>`, a row per element, and a `json` source is the elements of its
+a `Seq<Data>`, a row per element, and a `json` endpoint is the elements of its
 file's one array:
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 source("counts")
 ```
@@ -50,7 +50,7 @@ source("counts")
 [{count: "2", species: "wren"}, {count: "1", species: "owl"}, {count: "1", species: "kite"}]
 ```
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 source("sightings") | map(s => s.species)
 ```
@@ -59,16 +59,18 @@ source("sightings") | map(s => s.species)
 ["wren", "owl", "kite"]
 ```
 
-The kinds are `vault`, `csv`, `json`, `json_lines`, `yaml` and `sqlite`, the
-last one table of a database file. A path resolves against the directory of
+The kinds are `vault`, `csv`, `json`, `json_lines`, `yaml`, `sqlite`, one
+table of a database file, `postgres`, one table of a PostgreSQL database, and
+`kafka`, one Kafka topic; the last two are the subject of
+[topics and tables](#topics-and-tables). A path resolves against the directory of
 `hql.toml`. The type comes from the configuration, so checking a program
 reads `hql.toml` and opens nothing else.
 
-A source read as a declared record decodes each element as the record, as a
-file does, and `tap("id")` gives a finite source one element at a time, as a
+An endpoint read as a declared record decodes each element as the record, as a
+file does, and `tap("id")` gives a finite endpoint one element at a time, as a
 `Stream`:
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 type Tally {
     species : String
@@ -85,30 +87,30 @@ tallies | map(t => t.count) | sum
 
 ## The id is a literal
 
-The type of a source is known only from its configuration, so the id is
+The type an endpoint is read as is known only from its configuration, so the id is
 written in the program as a literal, and a connection string is not an id:
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 id = "counts"
 source(id)
 ```
 
 ```text
-check error[type-mismatch]: `source` names a configured source by a literal id, `source("field_notes")`: a computed id would leave its type unknown until evaluation
+check error[type-mismatch]: `source` names a configured endpoint by a literal id, `source("field_notes")`: a computed id would leave its type unknown until evaluation
  --> <expression>:2:8
   |
 2 | source(id)
   |        ^^
 ```
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 source("postgres://db/birds")
 ```
 
 ```text
-check error[type-mismatch]: "postgres://db/birds" is not a source id: connection details belong in configuration, `[sources.<id>]` in hql.toml, and a program names the id
+check error[type-mismatch]: "postgres://db/birds" is not an endpoint id: connection details belong in configuration, `[endpoint.<id>]` in hql.toml, and a program names the id
  --> <expression>:1:8
   |
 1 | source("postgres://db/birds")
@@ -118,13 +120,13 @@ check error[type-mismatch]: "postgres://db/birds" is not a source id: connection
 An id the configuration does not declare is a name error that names the
 nearest one:
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 source("count")
 ```
 
 ```text
-check error[unknown-name]: no source `count` is configured; did you mean `counts`?
+check error[unknown-name]: no endpoint `count` is configured; did you mean `counts`?
  --> <expression>:1:8
   |
 1 | source("count")
@@ -134,35 +136,35 @@ check error[unknown-name]: no source `count` is configured; did you mean `counts
 ## The schema boundary
 
 The names and types an external system uses are facts about that system, not
-about the program's types, so they are configured beside the source. The
+about the program's types, so they are configured beside the endpoint. The
 station's ledger is a CSV whose headers are `Species Name`, `Total` and
-`Observer`. `[sources.<id>.fields.<field>]` maps a field of the record a
+`Observer`. `[endpoint.<id>.fields.<field>]` maps a field of the record a
 program reads to its external field, by `name` for a column or a key, and by
 a dotted `path` for a key below the top level of a JSON or YAML document:
 
 ```toml
-[sources.ledger]
+[endpoint.ledger]
 kind = "csv"
 path = "data/ledger.csv"
 
-[sources.ledger.fields.species]
+[endpoint.ledger.fields.species]
 name = "Species Name"
 
-[sources.ledger.fields.count]
+[endpoint.ledger.fields.count]
 name = "Total"
 
-[sources.profiles]
+[endpoint.profiles]
 kind = "json"
 path = "data/profiles.json"
 
-[sources.profiles.fields.id]
+[endpoint.profiles.fields.id]
 name = "user_id"
 
-[sources.profiles.fields.name]
+[endpoint.profiles.fields.name]
 path = "profile.display_name"
 ```
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 type Profile {
     id   : String
@@ -188,7 +190,7 @@ type, so a closed record does not decode a ledger with an `Observer` column.
 Under `open` the field is not read, under `warn` it is not read and is
 reported, and under `strict` it is an error:
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 type Tally {
     species : String
@@ -200,7 +202,7 @@ tallies | map(t => t.count) | sum
 ```
 
 ```text
-execute failure[io-failure]: source `ledger`: document 1 does not decode as Tally: field `Observer`: Tally declares no such field
+execute failure[io-failure]: endpoint `ledger`: document 1 does not decode as Tally: field `Observer`: Tally declares no such field
  --> <expression>:6:24
   |
 6 | tallies : Seq<Tally> = source("ledger")
@@ -208,19 +210,19 @@ execute failure[io-failure]: source `ledger`: document 1 does not decode as Tall
 ```
 
 ```toml
-[sources.ledger_open]
+[endpoint.ledger_open]
 kind = "csv"
 path = "data/ledger.csv"
 strictness = "open"
 
-[sources.ledger_open.fields.species]
+[endpoint.ledger_open.fields.species]
 name = "Species Name"
 
-[sources.ledger_open.fields.count]
+[endpoint.ledger_open.fields.count]
 name = "Total"
 ```
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 type Tally {
     species : String
@@ -235,13 +237,13 @@ tallies | map(t => t.count) | sum
 4
 ```
 
-`hql boundary <file> <id> --as <Type>` prints a source's effective boundary,
+`hql boundary <file> <id> --as <Type>` prints an endpoint's effective boundary,
 each property with the layer it comes from, the format's default or the
 configuration:
 
 ```text
-$ hql --vault examples/sources/station boundary tally.hql ledger --as Tally
-source ledger (csv), read as Tally; strictness compatible, mode replace
+$ hql --vault examples/endpoints/station boundary tally.hql ledger --as Tally
+endpoint ledger (csv), read as Tally; strictness compatible, mode replace
 species : String
   external Species Name    configuration
   type     text            format
@@ -260,13 +262,13 @@ count : Int
 
 ## Writing by id
 
-A configured source is also a target. `xs | target("id")` writes a
+A configured endpoint is written by its id as well. `xs | target("id")` writes a
 `Table<R>`, or a `List<R>` or `Seq<R>`, of a declared record `R` through the
 same boundary: each field under its external name, in position order, a
 field with `write = false` left out. The kind fixes the format, so a format
 beside the id is a type error, and a vault is read and never written:
 
-<!-- run: check --vault examples/sources/station -->
+<!-- run: check --vault examples/endpoints/station -->
 ```hql
 type Tally {
     species : String
@@ -281,7 +283,7 @@ tallies | filter(t => t.count > 1) | target("counts")
 Unit
 ```
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 source("counts") | target("counts")
 ```
@@ -294,20 +296,20 @@ check error[type-mismatch]: `target("counts")` writes rows of a declared record,
   |                    ^^^^^^^^^^^^^^^^
 ```
 
-<!-- run: --vault examples/sources/station -->
+<!-- run: --vault examples/endpoints/station -->
 ```hql
 source("counts") | target("counts", Csv)
 ```
 
 ```text
-check error[type-mismatch]: a configured target's format is its kind's, set in its configuration; name none
+check error[type-mismatch]: a configured endpoint's format is its kind's, set in its configuration; name none
  --> <expression>:1:20
   |
 1 | source("counts") | target("counts", Csv)
   |                    ^^^^^^^^^^^^^^^^^^^^^
 ```
 
-The source's table takes `mode`, how a write treats what the target already
+The endpoint's table takes `mode`, how a write treats what the endpoint already
 holds. It is `replace` unless written:
 
 | `mode` | A file | A SQLite table |
@@ -316,6 +318,110 @@ holds. It is `replace` unless written:
 | `append` | the rows or documents added after the ones held; created where none exists | rows inserted; the table created where none exists |
 | `replace` | rewritten whole | dropped and created again with the rows written |
 
-Reading a target the same evaluation has replaced is an evaluation failure,
+Reading an endpoint the same evaluation has replaced is an evaluation failure,
 as for a file, and a document being rendered writes nothing
 ([effects and what a host allows](hosts.md)).
+
+## Topics and tables
+
+A `postgres` endpoint is one table of a PostgreSQL database, and a `kafka`
+endpoint is one Kafka topic. The connection string of a database may hold a
+password, so the configuration names the environment variable that holds it,
+`dsn_env`; a topic's brokers are written as `brokers` or named the same way
+by `brokers_env`:
+
+```toml
+[endpoint.orders]
+kind = "postgres"
+dsn_env = "DEMO_DSN"
+table = "orders"
+order = ["id"]
+
+[endpoint.events]
+kind = "kafka"
+brokers_env = "KAFKA_BROKERS"
+topic = "events"
+idle_ms = 2000
+```
+
+Checking a program reads this configuration and connects to neither system.
+The variables are read, and the connections made, when an endpoint is read or
+written.
+
+**A table ends.** `source("orders")` is a `Seq` of rows, read through the
+schema boundary as a `sqlite` table is: the columns are compared with the
+record before any row is decoded, and only the columns the record reads are
+selected. A `numeric` column reads as a `Decimal` with its digits, a `jsonb`
+column as the tree it holds, and a `NULL` as an absent field:
+
+<!-- run: skip -->
+```hql
+type Event {
+    id       : Int
+    kind     : String
+    customer : String
+    amount   : Decimal
+    at       : String
+}
+
+events : Seq<Event> = source("orders")
+events
+| filter(e => e.kind == "order_placed")
+| group(by = e => e.customer)
+| map(g => {customer: g.key, total: g.items | map(e => e.amount) | sum})
+```
+
+```text
+{{customer: "ada", total: 135.75}, {customer: "grace", total: 42.00}, {customer: "linus", total: 7.99}}
+```
+
+`target("orders")` writes a `Seq` or a `Table` of a declared record in one
+transaction. A table that does not exist is created, a column per field:
+`BIGINT` for an `Int`, `DOUBLE PRECISION` for a `Float`, `NUMERIC` for a
+`Decimal`, `BOOLEAN` for a `Bool`, `JSONB` for a list or a record, and `TEXT`
+otherwise. Under `mode = "replace"` the rows the table holds are removed and
+its definition, indexes and grants are kept.
+
+**A topic does not end.** `tap("events")` is a `Stream`, one JSON document
+per message, decoded as the element type. `source("events")` is a type
+error, since a `Seq` is a value that ends:
+
+<!-- run: skip -->
+```hql
+source("events")
+```
+
+```text
+check error[type-mismatch]: `events` is a `kafka` endpoint, read by `tap` as a `Stream`, not by `source` as a `Seq`
+ --> <expression>:1:8
+  |
+1 | source("events")
+  |        ^^^^^^^^
+```
+
+The stream starts at the earliest message the topic keeps, or at the next
+one under `from = "latest"`. Without `idle_ms` it waits for messages without
+end; with it, the stream ends once no message has arrived for that many
+milliseconds.
+
+**`sink` writes as values arrive.** `sink("events")` writes each value as one
+message, and `sink("orders")` each row as it arrives, committed one at a
+time. A stream has no last value for `target` to wait for, so moving a topic
+into a table is a `tap` and a `sink`:
+
+<!-- run: skip -->
+```hql
+events : Stream<Event> = tap("events")
+events | sink("orders")
+```
+
+and moving a table into a topic is a `source` and a `sink`:
+
+<!-- run: skip -->
+```hql
+orders : Seq<Event> = source("orders")
+orders | sink("events")
+```
+
+`sink` takes no format beside an id, and writes to a `kafka` or a `postgres`
+endpoint only; a file or an SQLite table is written whole by `target`.

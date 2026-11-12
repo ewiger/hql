@@ -1,8 +1,8 @@
 // status: valid-now
-// feature: a JSON source read through its boundary: `name` reads the nested `profile.display_name`
+// feature: a JSON endpoint read through its boundary: `name` reads the nested `profile.display_name`
 // implementation: implemented
 // environment: knowledge-v1
-// vault: sources/station
+// vault: endpoints/station
 // expected-type: List<String>
 // expected: ["u-1 Ada", "u-2 Grace"]
 

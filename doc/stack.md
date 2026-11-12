@@ -70,6 +70,12 @@ everything.
   machine-specific values, `tempfile` for anything touching the filesystem.
 - A behavior change lands with the test that pins it.
 
+Kafka's client is asynchronous, and nothing else in the crate is: a Kafka
+connection owns a `tokio` runtime of one thread and blocks on it, so the
+evaluator stays synchronous ([HQL-0046](proposals/HQL-0046/README.md)). No
+dependency may need a C toolchain beyond SQLite's bundled build, which is why
+rskafka's lz4 and zstd codecs are off.
+
 ## Code conventions
 
 - Every module opens with a `//!` doc comment saying what it is for. Public
@@ -96,6 +102,8 @@ Reach for these before introducing an alternative:
 | Serialization | serde |
 | YAML headers and reference annotations | serde_yaml_ng, then fallible conversion to Data |
 | SQLite | rusqlite (`bundled`) |
+| PostgreSQL (`kind = "postgres"`) | postgres (the synchronous client, `NoTls`) |
+| Kafka (`kind = "kafka"`) | rskafka (no default features; `compression-gzip`, `compression-snappy`), on a one-thread tokio runtime per connection |
 | Hashing | sha2 |
 | HTTP client (`import net`) | ureq 2 (`tls`, rustls) |
 | WebSocket client (`import net`) | tungstenite (`rustls-tls-webpki-roots`) |

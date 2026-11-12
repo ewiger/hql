@@ -112,15 +112,15 @@ query is the dataflow, and the shell is the simplest backend of all.
     current binary, and names, types and outputs may change before they ship.
 
 The systems a data platform joins, queues, databases, services, scheduled
-jobs, are endpoints and configured sources to a pipeline. Each is reached by
+jobs, are endpoints and configured endpoints to a pipeline. Each is reached by
 `source`, `tap`, `target` and `sink`, with the type saying whether it ends.
 
-**Configured sources** keep connection details out of programs. A program
+**Configured endpoints** keep connection details out of programs. A program
 names an id; `hql.toml` names the system, and a secret is read from the
 environment the configuration names, never written in either:
 
 ```toml
-[sources.sightings]
+[endpoint.sightings]
 kind = "postgres"
 dsn_env = "BIRDS_DSN"
 table = "sightings"
@@ -146,7 +146,7 @@ values belong together, a logical unit a backend may map onto the system's
 own partitions without the program naming them:
 
 ```toml
-[sources.events]
+[endpoint.events]
 kind = "kafka"
 brokers_env = "KAFKA_BROKERS"
 topic = "sightings"

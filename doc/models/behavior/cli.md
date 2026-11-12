@@ -18,7 +18,7 @@ binary can reach is logic that cannot be tested.
 | `hql check <file>` | print the type without evaluating |
 | `hql run <file>` | check and evaluate a file |
 | `hql plan <file>` | check a file and print its plan on the backend in force without evaluating: per pipeline a statement is, the line and the expression its first step reads, then each step with its operation, shape, purity, stage and strategy; `--envelope json` writes the same as one JSON document |
-| `hql boundary <file> <id> [--as T]` | print the effective boundary of source `id` read as `T`, or as its `element`, declared in `file`: per field, its external field, both types, position, read and write, what reads as absent, and the layer each comes from; every boundary error otherwise, with exit status 1 |
+| `hql boundary <file> <id> [--as T]` | print the effective boundary of endpoint `id` read as `T`, or as its `element`, declared in `file`: per field, its external field, both types, position, read and write, what reads as absent, and the layer each comes from; every boundary error otherwise, with exit status 1 |
 | `hql repl` | read, evaluate and print, keeping bindings |
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps a pipeline may use, grouped by provider, each with its signature, purity and shape, then the combiners a fold names with the laws each holds |
@@ -91,25 +91,25 @@ stage per pipeline, in process, and `hql plan` prints it. A name that is not reg
 program, and `hql config`, with a message naming the flag, the file or the
 variable that supplied it. `hql render` runs its cells on `localhost`.
 
-## Data sources
+## Configured endpoints
 
-A vault declares the data sources its programs read under `[sources.<id>]`
+A vault declares the endpoints its programs read and write under `[endpoint.<id>]`
 in `hql.toml` ([HQL-0012](../../proposals/HQL-0012/README.md)). A program
 names a source by its id, `source("field_notes")`, and nothing else: paths,
 hosts and credentials are configuration. Paths resolve against the vault
 root.
 
 ```toml
-[sources.field_notes]
+[endpoint.field_notes]
 kind = "vault"          # a Vault: documents read as cards
 root = "notes"
 
-[sources.counts]
+[endpoint.counts]
 kind = "csv"            # also json (one array's elements), json_lines, yaml
 path = "data/counts.csv"
 element = "Tally"       # optional: the element type; Data by default
 
-[sources.birds]
+[endpoint.birds]
 kind = "sqlite"         # one table, a Data row per element
 path = "data/birds.sqlite"
 table = "birds"
@@ -117,7 +117,7 @@ order = ["id"]          # optional: the row order; rowid by default
 mode = "replace"        # how target("birds") writes: create, append or replace
 strictness = "compatible"  # an unmapped column: compatible, open, warn or strict
 
-[sources.counts.fields.species]
+[endpoint.counts.fields.species]
 name = "Species"        # the external field: a header, a key or a column
 type = "TEXT"           # its external type, as the format names it
 position = 1            # its place in the record, from 1
@@ -126,8 +126,8 @@ absent = ["empty"]      # what reads as an absent optional field: missing, empty
 lossy = false           # whether a representation that may not keep the value is permitted
 
 [execution]
-max_elements = 100000   # the most elements of one source an evaluation holds
-max_bytes = 50000000    # the most bytes of one source an evaluation reads
+max_elements = 100000   # the most elements of one endpoint an evaluation holds
+max_bytes = 50000000    # the most bytes of one endpoint an evaluation reads
 ```
 
 Loading the vault refuses a malformed entry, and so fails every program in
@@ -136,7 +136,7 @@ against), an unknown kind, a missing or unknown key, and a literal secret in
 `password`, `token`, `secret` or `api_key`. A secret is given as the name of
 the environment variable holding it, in a key ending `_env`. A source's
 **boundary** ([HQL-0035](../../proposals/HQL-0035/README.md)) maps its fields
-under `[sources.<id>.fields.<field>]`: `name` or a dotted `path`, the latter
+under `[endpoint.<id>.fields.<field>]`: `name` or a dotted `path`, the latter
 only for `json`, `json_lines` and `yaml`, with `type`, `position`, `read`,
 `write` and `absent`, and keys the kind's extension owns in a subtable named
 by the kind. A malformed boundary refuses the vault like any other key. A source
