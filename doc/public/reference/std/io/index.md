@@ -15,6 +15,12 @@ whether the documents end.
 - [`Readable`](types/Readable.md) — An endpoint bytes can be read from, by `source` and `tap`.
 - [`Replayable`](types/Replayable.md) — A `Readable` endpoint that gives the same bytes on every read in one evaluation, so `source` reads what it holds as a `Seq`.
 - [`Writable`](types/Writable.md) — An endpoint bytes can be written to, by `target` and `sink`.
+- [`Transport`](types/Transport.md) — An endpoint outside the evaluation: a file, a process stream, a network resource, a database table or a broker's log.
+- [`Direct`](types/Direct.md) — A `Transport` on this machine: a process stream or the file system.
+- [`Network`](types/Network.md) — A `Transport` in another process, reached over a connection.
+- [`ByteTransport`](types/ByteTransport.md) — A `Transport` that moves bytes: a format separates the documents.
+- [`MessageTransport`](types/MessageTransport.md) — A `Transport` that moves framed messages: each message is one document, decoded by the format, `Json` where none is named.
+- [`RowTransport`](types/RowTransport.md) — A `Transport` that moves rows of named columns: it takes no format.
 - [`Stdin`](types/Stdin.md) — The program's standard input, bound as `stdin`: read once, as it arrives.
 - [`Stdout`](types/Stdout.md) — The program's standard output, bound as `stdout`: written while the program runs, before the host presents its result.
 - [`Stderr`](types/Stderr.md) — The program's standard error, bound as `stderr`: where diagnostics go, apart from the result.

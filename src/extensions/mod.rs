@@ -28,6 +28,7 @@ pub(crate) mod io;
 pub mod lexical;
 pub mod logging;
 pub(crate) mod math;
+pub mod nats;
 pub mod net;
 pub(crate) mod option;
 pub(crate) mod regex;
@@ -432,6 +433,24 @@ static NET: Extension = Extension {
     metadata: None,
 };
 
+// Each named by the path it provides, not by a word: a transport's module
+// is imported by its full path and has no one-word form (HQL-0048).
+static NATS: Extension = Extension {
+    name: "io.msg.nats",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.msg.nats"],
+    steps: nats::CORE_STEPS,
+    metadata: None,
+};
+
+static NATS_JETSTREAM: Extension = Extension {
+    name: "io.msg.nats_jetstream",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.msg.nats_jetstream"],
+    steps: nats::JETSTREAM_STEPS,
+    metadata: None,
+};
+
 static LEXICAL: Extension = Extension {
     name: "lexical",
     version: env!("CARGO_PKG_VERSION"),
@@ -503,8 +522,22 @@ static REGEX: Extension = Extension {
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
 pub(crate) static REGISTERED: &[&Extension] = &[
-    &CORE, &STRING, &SEQ, &MATH, &OPTION, &RESULT, &GRAPH, &FORMAT, &IO, &NET, &LOGGING, &LEXICAL,
-    &SEMANTIC, &REGEX,
+    &CORE,
+    &STRING,
+    &SEQ,
+    &MATH,
+    &OPTION,
+    &RESULT,
+    &GRAPH,
+    &FORMAT,
+    &IO,
+    &NET,
+    &LOGGING,
+    &NATS,
+    &NATS_JETSTREAM,
+    &LEXICAL,
+    &SEMANTIC,
+    &REGEX,
 ];
 
 impl Extension {

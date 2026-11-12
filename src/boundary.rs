@@ -449,6 +449,7 @@ fn family(kind: &str) -> &'static str {
         "csv" => "csv",
         "sqlite" => "sqlite",
         "postgres" => "postgres",
+        "spark" => "spark",
         _ => "tree",
     }
 }
@@ -466,6 +467,11 @@ fn default_type(kind: &str, ty: &TypeRef) -> &'static str {
         ("postgres", Class::Bool) => "BOOLEAN",
         ("postgres", Class::List | Class::Object | Class::Data) => "JSONB",
         ("postgres", _) => "TEXT",
+        ("spark", Class::Int) => "BIGINT",
+        ("spark", Class::Float) => "DOUBLE",
+        ("spark", Class::Decimal) => "DECIMAL(38,18)",
+        ("spark", Class::Bool) => "BOOLEAN",
+        ("spark", _) => "STRING",
         (_, Class::Decimal) => "string",
         (_, Class::Int | Class::Float) => "number",
         (_, Class::Bool) => "boolean",
@@ -480,6 +486,9 @@ fn default_type(kind: &str, ty: &TypeRef) -> &'static str {
 fn affinity(kind: &str, declared: &str) -> String {
     if family(kind) == "postgres" {
         return postgres_type(declared).to_owned();
+    }
+    if family(kind) == "spark" {
+        return declared.to_ascii_uppercase();
     }
     if family(kind) != "sqlite" {
         return declared.to_owned();
@@ -514,11 +523,21 @@ fn postgres_type(declared: &str) -> &'static str {
     }
 }
 
+/// A Spark SQL type without its parameters: `DECIMAL` of `decimal(12, 2)`.
+fn spark_type(declared: &str) -> String {
+    declared
+        .split('(')
+        .next()
+        .unwrap_or(declared)
+        .trim()
+        .to_ascii_uppercase()
+}
+
 /// What reads as an absent optional field unless the boundary says.
 fn default_absent(kind: &str) -> Vec<Absence> {
     match family(kind) {
         "csv" => vec![Absence::Empty, Absence::Missing],
-        "sqlite" | "postgres" => vec![Absence::Null],
+        "sqlite" | "postgres" | "spark" => vec![Absence::Null],
         _ => vec![Absence::Missing, Absence::Null],
     }
 }
@@ -532,6 +551,18 @@ fn lossy(kind: &str, external: &str, ty: &TypeRef) -> bool {
             "csv" => external == "float",
             "sqlite" => matches!(external.to_ascii_uppercase().as_str(), "REAL" | "NUMERIC"),
             "postgres" => matches!(postgres_type(external), "DOUBLE PRECISION" | "BIGINT"),
+            "spark" => matches!(
+                spark_type(external).as_str(),
+                "DOUBLE"
+                    | "FLOAT"
+                    | "REAL"
+                    | "BIGINT"
+                    | "LONG"
+                    | "INT"
+                    | "INTEGER"
+                    | "SMALLINT"
+                    | "TINYINT"
+            ),
             _ => external == "number",
         }
 }
@@ -566,6 +597,18 @@ fn decodes(kind: &str, external: &str, ty: &TypeRef) -> Option<bool> {
             "JSONB" | "JSON" => &[List, Object, Text, Int, Float, Decimal, Bool],
             "TEXT" | "VARCHAR" | "CHARACTER VARYING" | "TIMESTAMPTZ" | "TIMESTAMP" | "DATE"
             | "UUID" => &[Text, Decimal, Other],
+            _ => return None,
+        },
+        "spark" => match spark_type(external).as_str() {
+            "BIGINT" | "LONG" | "INT" | "INTEGER" | "SMALLINT" | "TINYINT" => {
+                &[Int, Float, Decimal]
+            }
+            "DOUBLE" | "FLOAT" | "REAL" => &[Float, Decimal],
+            "DECIMAL" | "DEC" | "NUMERIC" => &[Decimal, Int, Float],
+            "BOOLEAN" => &[Bool],
+            "STRING" | "VARCHAR" | "CHAR" | "TIMESTAMP" | "TIMESTAMP_NTZ" | "DATE" => {
+                &[Text, Decimal, Other]
+            }
             _ => return None,
         },
         _ => match external {

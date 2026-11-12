@@ -54,7 +54,12 @@ pub fn departure(kind: Kind, name: &str) -> Option<String> {
             ));
         }
         Kind::Function | Kind::Binding | Kind::Parameter | Kind::Field if upper => "snake_case",
-        Kind::Extension if upper || name.contains('_') => "one lowercase word",
+        // An extension named by the module path it provides is named as the
+        // path is, its segments `snake_case`: `io.msg.nats_jetstream`.
+        Kind::Extension if name.contains('.') && upper => "a module path of snake_case segments",
+        Kind::Extension if !name.contains('.') && (upper || name.contains('_')) => {
+            "one lowercase word"
+        }
         _ => return None,
     };
     Some(format!(

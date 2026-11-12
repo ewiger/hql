@@ -1,0 +1,336 @@
+# HQL-0049: NATS subjects and lakehouse tables as configured endpoints
+
+**Status**: accepted, implemented
+**Created**: 2026-11-12
+**Source**: [HQL-0046](../HQL-0046/README.md) (Kafka topics and PostgreSQL
+tables), [HQL-0035](../HQL-0035/README.md) (the schema boundary and write
+modes), [HQL-0021](../HQL-0021/README.md) (endpoints, `source` and `tap`),
+[HQL-0047](../HQL-0047/README.md) (transports),
+[HQL-0048](../HQL-0048/README.md) (I/O transport namespaces),
+`src/nats.rs`, `src/spark.rs`, `src/endpoints.rs`, `src/extensions/io.rs`,
+`src/extensions/nats.rs`, `src/boundary.rs`, `lib/std/io/msg/nats/mod.hql`,
+`lib/std/io/msg/nats_jetstream/mod.hql`
+
+## Abstract
+
+Three kinds join `[endpoint.<id>]` in `hql.toml`. `kind = "nats"` is one
+core NATS subject: a read subscribes and is given what is published from
+then on, and nothing is kept. `kind = "nats_jetstream"` is one subject of a
+NATS JetStream stream: a log that does not end, read in the stream's order.
+Both are read by `tap("id")` as a `Stream`, one JSON document per message,
+and written by `sink("id")` or `target("id")`, one message per value.
+`kind = "spark"` is
+one table behind a Spark SQL endpoint, which is a Databricks SQL warehouse
+or cluster, or an open-source Spark Thrift Server: a finite source, read by
+`source("id")` as a `Seq` through the boundary, and written by `target("id")`
+or `sink("id")`. Each behaves as the kind of
+[HQL-0046](../HQL-0046/README.md) on its side of that line does. A
+`nats_jetstream` endpoint MAY name a durable consumer, under which the
+server keeps the read's position. Each NATS kind is also a transport with a
+module of its own: `Nats` and `nats(...)` in `io.msg.nats`, `NatsJetStream`
+and `nats_jetstream(...)` in `io.msg.nats_jetstream`.
+
+## Motivation
+
+- A message bus and a lakehouse are the two systems a data platform has
+  besides a broker and a relational database. A pipeline file reaches them
+  by id, with its types known offline.
+- One protocol reaches a lakehouse wherever it runs. A Databricks SQL
+  warehouse and a Spark Thrift Server both answer HiveServer2's Thrift
+  protocol over HTTP, so one kind, one configuration and one program run
+  against either.
+
+## Non-goals
+
+- Queue groups for core subjects, and request and reply.
+- Several readers sharing one consumer, push consumers, and key-value or
+  object stores.
+- The transport type and constructor of the `spark` kind, and the locality
+  and carriage of the endpoint types that exist already: each is a step of
+  [HQL-0047](../HQL-0047/README.md).
+- NATS credential files and NKeys; TLS options beyond what the address
+  states.
+- Nested columns: `ARRAY`, `MAP`, `STRUCT` and `VARIANT`.
+- Databricks OAuth, and Arrow or cloud-fetched results.
+- Running a pipeline on Spark: the kind reaches one table, and evaluation
+  stays in `hql`.
+
+## Specification
+
+### 1. Configuration
+
+Each kind takes its own keys besides `kind`, `element`, `fields`, `mode` and
+`strictness`.
+
+- Each kind MUST name its address once, by `url` or by `url_env`, the
+  environment variable that holds it.
+- A `url` that holds `@` refuses the vault, naming `url_env`: an address
+  with credentials belongs in the environment.
+- `nats` MUST name `subject`, which MAY hold wildcards. It MAY name
+  `idle_ms`, a count above 0. It takes no `stream`, `from` or `consumer`:
+  no stream keeps what it carries.
+- `nats_jetstream` MUST name `stream`, the JetStream stream that holds the messages,
+  and `subject`, the subject read within it and published to. It MAY name
+  `from`, `earliest` (the default) or `latest`, `idle_ms`, a count above
+  0, and `consumer`, a name of letters, digits, `_` and `-`.
+- `spark` MUST name `table`, qualified by catalog and schema where it holds
+  dots (`main.sales.orders`). It MAY name `order`, the columns rows are read
+  in, and `token_env`, the environment variable that holds an access token.
+- `token` is a secret key: written in the configuration it refuses the
+  vault, naming `token_env`.
+- A `nats`, `nats_jetstream` or `spark` endpoint takes no `*_env` key but
+  its own.
+
+```toml
+[endpoint.alerts]
+kind = "nats"
+url_env = "NATS_URL"
+subject = "alerts.>"
+idle_ms = 3000
+
+[endpoint.events]
+kind = "nats_jetstream"
+url_env = "NATS_URL"
+stream = "EVENTS"
+subject = "events.orders"
+idle_ms = 2000
+
+[endpoint.orders]
+kind = "spark"
+url_env = "LAKEHOUSE_URL"
+token_env = "LAKEHOUSE_TOKEN"
+table = "main.sales.orders"
+order = ["id"]
+
+[endpoint.orders.fields.total]
+type = "DECIMAL(12,2)"
+```
+
+### 2. Types
+
+The kind states the type, read from the configuration at check time;
+checking opens no connection.
+
+- `tap("id")` of a `nats` or `nats_jetstream` endpoint is a `Stream` of the
+  element. `source("id")` of it MUST be a type error: `` `events` is a
+  `nats_jetstream` endpoint, read by `tap` as a `Stream`, not by `source`
+  as a `Seq` ``.
+- `source("id")` of a `spark` endpoint is a `Seq` of the element;
+  `tap("id")` gives its rows as a `Stream`.
+- `sink(xs, "id")` and `target(xs, "id")` of a `nats` or `nats_jetstream`
+  endpoint take values of
+  any type; of a `spark` endpoint, rows of a declared record.
+
+### 3. A core subject
+
+- A read connects and subscribes to `subject` when the stream is first
+  traversed. It is given each message published from then on, in the order
+  it arrives; a message published before is not there to be given.
+- `subject` MAY hold the wildcards `*` and `>`, and then reads every subject
+  that matches.
+- With `idle_ms`, the stream ends once no message has arrived for that
+  long; without it the stream does not end.
+- A write publishes each value as one message to `subject` and ends once
+  the server has every message. Nothing confirms that a subscriber was
+  given one.
+
+### 4. Reading a subject of a stream
+
+- A read connects when the stream is first traversed. Without `consumer`
+  it creates an ordered consumer on `stream`, filtered to `subject`. That
+  consumer is ephemeral: the server keeps no position once the read ends.
+- `subject` MAY hold the wildcards `*` and `>`, and then reads every subject
+  of the stream that matches.
+- Messages arrive in the stream's order, from the earliest the stream keeps
+  or, under `from = "latest"`, from the first published after the read
+  begins. Each message's payload is one JSON document.
+- With `idle_ms`, the stream ends once no message has arrived for that
+  long; without it the stream does not end.
+- A subject is always read through its boundary, as a topic is.
+
+### 5. A durable consumer
+
+A stream stores messages; a consumer is the server's record of how far one
+reader has come in it. `consumer = "name"` names a durable one.
+
+- The first read under a name creates the consumer on `stream`, filtered to
+  `subject`, starting where `from` says. Every later read finds it, and
+  starts after the last message acknowledged; `from` has no effect then.
+- A consumer keeps one position over one subject. A read whose `subject`
+  differs from the consumer's MUST be an evaluation failure naming both.
+- A message is acknowledged once the program asks for the one after it, and
+  the last one when the stream ends by `idle_ms`. Delivery is therefore at
+  least once: a program that fails, or that stops before the stream ends as
+  `take(n)` does, is given its last message again by the next read.
+- Messages are asked for up to 100 at a time. A read that stops hands back
+  every message it holds and has not acknowledged, so the next read starts
+  with them at once. A process that is killed hands nothing back, and the
+  server gives those messages again after its acknowledgement wait, 30
+  seconds by default.
+- Deleting a consumer, and so forgetting a position, is the server's
+  business, as creating a stream is.
+
+```toml
+[endpoint.billing]
+kind = "nats_jetstream"
+url_env = "NATS_URL"
+stream = "EVENTS"
+subject = "events.orders"
+consumer = "billing"
+idle_ms = 2000
+```
+
+### 6. The transports and their modules
+
+A kind and a constructor are two spellings of one transport
+([HQL-0047](../HQL-0047/README.md), "Kinds and constructors"), declared in
+the module [HQL-0048](../HQL-0048/README.md) names. One system is two
+modules, as HQL-0048 allows: core NATS and JetStream differ in what a read
+is given and what a write confirms, and each module's constructor takes
+only its own kind's keys.
+
+```hql
+import io.msg.nats
+import io.msg.nats_jetstream
+
+tap(nats("alerts.>", url_env = "NATS_URL", idle_ms = 3000))
+tap(nats_jetstream("events.orders", stream = "EVENTS", url_env = "NATS_URL", idle_ms = 2000))
+```
+
+- `io` declares `Transport : Endpoint`, the localities `Direct` and
+  `Network`, and the carriages `ByteTransport`, `MessageTransport` and
+  `RowTransport`.
+- The module `io.msg.nats` declares `type Nats : {Network, MessageTransport,
+  Readable, Writable}` and `fn nats(subject, url = "", url_env = "",
+  idle_ms = 0) : Nats`.
+- The module `io.msg.nats_jetstream` declares `type NatsJetStream :
+  {Network, MessageTransport, Readable, Writable}` and
+  `fn nats_jetstream(subject, stream, url = "", url_env = "",
+  from = "earliest", idle_ms = 0, consumer = "") : NatsJetStream`.
+- A constructor's parameters are its kind's keys, checked as the kind
+  checks them; a parameter at its default is one not written.
+- A module is imported by its full path. It has no one-word form and is not
+  in the prelude. A configured id needs no import.
+- Over a `MessageTransport` a format MAY be omitted and is then `Json`.
+- `Nats` and `NatsJetStream` are `Readable` and not `Replayable`: `tap` and
+  `source` of either are a `Stream`.
+- A constructed transport has no schema boundary. A message is read as
+  `Data`, or as the annotated type by typed decoding, and a value is written
+  as its JSON. A `Decimal` a boundary wrote as JSON text is text to it.
+- The constructor is refused where a document is rendered: "a document
+  reads and writes nothing on the network".
+
+### 7. Writing a subject of a stream
+
+- Each value is one message: its document through the boundary where the
+  element is a declared record, and its JSON otherwise. This holds for a
+  core subject too.
+- A message is written once a stream acknowledges that it stored it.
+  Acknowledgements are awaited every 100 messages and at the end. A subject
+  no stream holds is an evaluation failure.
+- A `subject` that holds a wildcard MUST be refused before any connection, of
+  either kind: a message is published to one subject.
+- A list or a record field of a message is written as the tree it holds.
+  This holds for every format that nests, a topic and a JSON file among
+  them.
+
+### 8. Reading a lakehouse table
+
+- A read opens a session, runs one `SELECT` of the columns the boundary
+  reads, ordered by `order`, and fetches the result column by column.
+- The table's columns are read before any row and checked against the
+  boundary; strictness applies to an unmapped column there.
+- `TINYINT`, `SMALLINT`, `INT` and `BIGINT` read as an integer, `FLOAT` and
+  `DOUBLE` as a float, `DECIMAL` as a decimal with its digits, `BOOLEAN` as
+  a boolean, and every other type as its text. `NULL` is absent by default.
+
+### 9. Writing a lakehouse table
+
+The boundary's types are `BIGINT` (Int), `DOUBLE` (Float), `DECIMAL(38,18)`
+(Decimal), `BOOLEAN` (Bool) and `STRING` (the rest). A `DECIMAL` states its
+precision and scale, so a field's `type` SHOULD name the one its values
+have. A list or a record field has no column type and is a boundary error.
+
+- A table that does not exist is created with a column per written field,
+  in the endpoint's default format, which is Delta Lake on Databricks.
+- `mode = "create"` refuses an existing table; `append` inserts after the
+  rows held; `replace` (the default) puts the rows in place of the ones
+  held and keeps the table's definition.
+- The protocol binds no parameters. Each value is written as a literal the
+  server casts to the column's type, so a `Decimal` keeps its digits. Text
+  of letters, digits and plain punctuation is written between quotes; any
+  other text is written as the hexadecimal digits of its bytes, so no
+  character of a value is read as SQL.
+- Rows are written in statements of up to 500. A statement is one commit:
+  `target` of up to 500 rows is atomic, and under `replace` its first
+  statement overwrites the rows held in the same commit.
+- `sink` applies the mode when it opens the table, emptying it under
+  `replace`, and writes a statement each 500 rows and at the end.
+
+### 10. The protocol
+
+- Each call is one HTTP `POST` of a Thrift binary message to the address:
+  `OpenSession`, `ExecuteStatement`, `GetOperationStatus`,
+  `GetResultSetMetadata`, `FetchResults`, `CloseOperation`, `CloseSession`.
+- A statement runs asynchronously and its state is polled, so no HTTP
+  request is held open while it runs.
+- With `token_env`, the token is sent as the password of the user `token`,
+  which is how a Databricks warehouse reads a personal access token.
+  Without it, a fixed user is sent, which a Thrift Server without
+  authentication accepts.
+- A connection that is not made within 10 seconds is an evaluation failure
+  naming the endpoint.
+
+## Security Considerations
+
+- An address with credentials and a token are read from the environment
+  where an endpoint is used, never from `hql.toml`. A failure message
+  repeats neither.
+- A document being rendered reaches neither system.
+- Table and column names are quoted as identifiers. A value never reaches
+  the server as SQL text unless every character of it is a letter, a digit
+  or one of `` -_.:,+/@`` and a space; otherwise it is sent as hexadecimal
+  digits and decoded by the server.
+
+## Reference Implementation
+
+- `src/endpoints.rs` for the three kinds, `Address`, `Subject` and `Start`.
+- `src/nats.rs` for the subscriber, the stream reader, ordered or durable,
+  and the publisher, core or acknowledged, on
+  `async-nats` with its `jetstream` feature, each connection on its own
+  one-thread `tokio` runtime.
+- `lib/std/io/msg/nats/mod.hql`, `lib/std/io/msg/nats_jetstream/mod.hql`
+  and `src/extensions/nats.rs` for the modules, `src/types/builtin.rs` for
+  the transport types, and `src/io.rs` for the two endpoints.
+- `src/spark.rs` for the Thrift codec, the session, columns, rows and the
+  writers, on `ureq`.
+- `src/extensions/io.rs` for the types and the four operations;
+  `src/boundary.rs` for the `spark` type table.
+
+## Test Plan
+
+`tests/subjects_and_lakehouse_tables.rs` checks the configuration errors,
+the types, the refusals and the failure when a variable is unset, with no
+network; `src/spark.rs` tests the codec, the literals and the statements.
+The round trips run in Docker Compose, in the `hql-demo` repository, against
+NATS 2.11 with and without JetStream and against Spark 3.5 with Delta Lake
+3.3 on MinIO: a subscriber given what a publisher sends to a core subject
+per kind of event, a JSON file to a subject of a stream and back, by id, by the constructor and through a
+durable consumer read twice, a JSON file to a Delta table and back,
+and a subject routed into a Delta table and a dead-letter subject, then
+aggregated into a second table.
+
+No run has been made against a Databricks workspace.
+
+```bash
+cargo test --test subjects_and_lakehouse_tables
+cargo test --lib spark
+../hql-demo/run-all.sh
+```
+
+## Changelog
+
+- 2026-11-12: accepted and implemented
+- 2026-11-12: durable consumers; the `Nats` transport and `io.msg.nats`
+- 2026-11-12: `nats` is a core subject; a subject of a stream is
+  `nats_jetstream`, in `io.msg.nats_jetstream`

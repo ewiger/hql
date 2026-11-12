@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 /// The kinds of configured endpoint this binary reads, each with the keys its
 /// `[endpoint.<id>]` table takes besides `kind` and `element`.
-pub const KINDS: [(&str, &[&str]); 8] = [
+pub const KINDS: [(&str, &[&str]); 11] = [
     ("vault", &["root"]),
     ("csv", &["path"]),
     ("json", &["path"]),
@@ -21,6 +21,14 @@ pub const KINDS: [(&str, &[&str]); 8] = [
         "kafka",
         &["brokers", "brokers_env", "topic", "from", "idle_ms"],
     ),
+    ("nats", &["url", "url_env", "subject", "idle_ms"]),
+    (
+        "nats_jetstream",
+        &[
+            "url", "url_env", "stream", "subject", "from", "idle_ms", "consumer",
+        ],
+    ),
+    ("spark", &["url", "url_env", "token_env", "table", "order"]),
 ];
 
 /// The keys that hold a secret. A configuration names the environment
@@ -71,11 +79,180 @@ pub enum Kind {
         /// The topic read and written.
         topic: String,
         /// Where a read starts in each partition, `from =`.
-        start: crate::kafka::Start,
+        start: Start,
         /// How long a read waits for a message before its stream ends,
         /// `idle_ms =`; without it the stream never ends.
         idle: Option<std::time::Duration>,
     },
+    /// One core NATS subject, a JSON document per message: what is
+    /// published while a read is subscribed, and nothing kept.
+    Nats {
+        /// The server a connection starts from.
+        server: Address,
+        /// The subject read, which may hold wildcards, and published to.
+        subject: String,
+        /// How long a read waits for a message before its stream ends,
+        /// `idle_ms =`; without it the stream never ends.
+        idle: Option<std::time::Duration>,
+    },
+    /// One subject of a NATS JetStream stream, a JSON document per message.
+    NatsJetStream {
+        /// The server a connection starts from.
+        server: Address,
+        /// The stream, the subject within it, and how it is read.
+        held: Subject,
+    },
+    /// One table behind a Spark SQL endpoint, a Databricks SQL warehouse or
+    /// a Spark Thrift Server, a row per element.
+    Spark {
+        /// The endpoint's HTTP address.
+        server: Address,
+        /// The environment variable that holds an access token, `token_env`,
+        /// where the endpoint asks for one.
+        token_env: Option<String>,
+        /// The table read, qualified by catalog and schema where it holds
+        /// dots.
+        table: String,
+        /// The columns its rows are ordered by; empty reads them as the
+        /// table is scanned.
+        order: Vec<String>,
+    },
+}
+
+/// Where reading a log starts: in each partition of a topic, or in a
+/// stream.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Start {
+    /// The earliest message the log still keeps.
+    #[default]
+    Earliest,
+    /// The first message written after the read begins.
+    Latest,
+}
+
+impl Start {
+    /// The word `from =` writes it as.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Earliest => "earliest",
+            Self::Latest => "latest",
+        }
+    }
+}
+
+/// One subject of a NATS JetStream stream, and how a read of it proceeds:
+/// what the `nats_jetstream` kind configures and the `nats_jetstream`
+/// constructor of `io.msg.nats_jetstream` takes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Subject {
+    /// The stream that holds the messages read.
+    pub stream: String,
+    /// The subject read within the stream, and published to.
+    pub subject: String,
+    /// Where a read starts in the stream, `from =`.
+    pub start: Start,
+    /// How long a read waits for a message before its stream ends,
+    /// `idle_ms =`; without it the stream never ends.
+    pub idle: Option<std::time::Duration>,
+    /// The durable consumer that keeps the read's position on the server,
+    /// `consumer =`; without it a read keeps none.
+    pub consumer: Option<String>,
+}
+
+impl Subject {
+    /// A subject as its keys state it, each checked.
+    ///
+    /// # Errors
+    /// Names the key whose value is not one it takes.
+    pub fn new(
+        stream: String,
+        subject: String,
+        from: Option<&str>,
+        idle_ms: Option<i64>,
+        consumer: Option<String>,
+    ) -> Result<Self, String> {
+        let start = match from {
+            None | Some("earliest") => Start::Earliest,
+            Some("latest") => Start::Latest,
+            Some(other) => {
+                return Err(format!("`from` is `earliest` or `latest`, not `{other}`"));
+            }
+        };
+        let idle = match idle_ms {
+            None => None,
+            Some(ms) => Some(std::time::Duration::from_millis(
+                u64::try_from(ms)
+                    .ok()
+                    .filter(|ms| *ms > 0)
+                    .ok_or("`idle_ms` is a count of milliseconds, above 0")?,
+            )),
+        };
+        if let Some(name) = &consumer
+            && (name.is_empty()
+                || !name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+        {
+            return Err(format!(
+                "`consumer` is a name of letters, digits, `_` and `-`, not `{name}`"
+            ));
+        }
+        Ok(Self {
+            stream,
+            subject,
+            start,
+            idle,
+            consumer,
+        })
+    }
+}
+
+/// The address of a NATS server as `url` or `url_env` names it, once.
+///
+/// # Errors
+/// Says so when neither or both are written, or `url` holds credentials.
+pub fn nats_address(
+    url: Option<String>,
+    url_env: Option<String>,
+    kind: &str,
+) -> Result<Address, String> {
+    match (url, url_env) {
+        (Some(url), None) if url.contains('@') => Err(
+            "`url` holds credentials; name the environment variable that holds the address, \
+             `url_env = \"VARIABLE\"`"
+                .to_owned(),
+        ),
+        (Some(url), None) => Ok(Address::Written(url)),
+        (None, Some(variable)) => Ok(Address::Env(variable)),
+        _ => Err(format!(
+            "a `{kind}` endpoint names its address once, with `url = \"nats://host:4222\"` or \
+             `url_env = \"VARIABLE\"`"
+        )),
+    }
+}
+
+/// Where a NATS or Spark endpoint's address is named.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Address {
+    /// In the configuration, `url = "nats://host:4222"`.
+    Written(String),
+    /// In the environment variable `url_env` names.
+    Env(String),
+}
+
+impl Address {
+    /// The address, read from the environment where the configuration names
+    /// a variable.
+    ///
+    /// # Errors
+    /// Names the variable when it is not set.
+    pub fn resolve(&self) -> Result<String, String> {
+        match self {
+            Self::Written(url) => Ok(url.clone()),
+            Self::Env(variable) => secret(variable, "url_env"),
+        }
+    }
 }
 
 /// Where a Kafka endpoint's brokers are named.
@@ -147,6 +324,9 @@ impl Kind {
             Self::Sqlite { .. } => "sqlite",
             Self::Postgres { .. } => "postgres",
             Self::Kafka { .. } => "kafka",
+            Self::Nats { .. } => "nats",
+            Self::NatsJetStream { .. } => "nats_jetstream",
+            Self::Spark { .. } => "spark",
         }
     }
 
@@ -154,7 +334,10 @@ impl Kind {
     /// a finite one read by `source`.
     #[must_use]
     pub fn is_live(&self) -> bool {
-        matches!(self, Self::Kafka { .. })
+        matches!(
+            self,
+            Self::Kafka { .. } | Self::Nats { .. } | Self::NatsJetStream { .. }
+        )
     }
 }
 
@@ -478,7 +661,11 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
         !matches!(key.as_str(), "kind" | "element")
             && !(matches!(key.as_str(), "fields" | "mode" | "strictness") && *kind != "vault")
             && !keys.contains(&key.as_str())
-            && !(key.ends_with("_env") && !matches!(*kind, "postgres" | "kafka"))
+            && !(key.ends_with("_env")
+                && !matches!(
+                    *kind,
+                    "postgres" | "kafka" | "nats" | "nats_jetstream" | "spark"
+                ))
     }) {
         return Err(format!(
             "`[endpoint.{id}]` of kind `{kind}` takes no `{key}`; it takes {}",
@@ -503,6 +690,49 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
                         .collect::<Option<Vec<_>>>()
                 })
                 .ok_or_else(|| format!("`[endpoint.{id}] {key}` lists column names, `[\"id\"]`")),
+        }
+    };
+    let start = || -> Result<Start, String> {
+        match text("from")?.as_deref() {
+            None | Some("earliest") => Ok(Start::Earliest),
+            Some("latest") => Ok(Start::Latest),
+            Some(other) => Err(format!(
+                "`[endpoint.{id}] from` is `earliest` or `latest`, not `{other}`"
+            )),
+        }
+    };
+    let idle = || -> Result<Option<std::time::Duration>, String> {
+        match table.get("idle_ms") {
+            None => Ok(None),
+            Some(value) => value
+                .as_integer()
+                .and_then(|ms| u64::try_from(ms).ok())
+                .filter(|ms| *ms > 0)
+                .map(|ms| Some(std::time::Duration::from_millis(ms)))
+                .ok_or_else(|| {
+                    format!("`[endpoint.{id}] idle_ms` is a count of milliseconds, above 0")
+                }),
+        }
+    };
+    // An address is named once. One written in the configuration holds no
+    // credentials: those belong in the environment, with the address.
+    let address = |http: bool| -> Result<Address, String> {
+        let example = if http {
+            "https://host/sql/1.0/warehouses/id"
+        } else {
+            "nats://host:4222"
+        };
+        match (text("url")?, text("url_env")?) {
+            (Some(url), None) if url.contains('@') => Err(format!(
+                "`[endpoint.{id}] url` holds credentials; name the environment variable that \
+                 holds the address, `url_env = \"VARIABLE\"`"
+            )),
+            (Some(url), None) => Ok(Address::Written(url)),
+            (None, Some(variable)) => Ok(Address::Env(variable)),
+            _ => Err(format!(
+                "`[endpoint.{id}]` of kind `{kind}` names its address once, with \
+                 `url = \"{example}\"` or `url_env = \"VARIABLE\"`"
+            )),
         }
     };
     let kind = match *kind {
@@ -534,27 +764,35 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
                 }
             },
             topic: required("topic")?,
-            start: match text("from")?.as_deref() {
-                None | Some("earliest") => crate::kafka::Start::Earliest,
-                Some("latest") => crate::kafka::Start::Latest,
-                Some(other) => {
-                    return Err(format!(
-                        "`[endpoint.{id}] from` is `earliest` or `latest`, not `{other}`"
-                    ));
-                }
-            },
-            idle: match table.get("idle_ms") {
-                None => None,
-                Some(value) => Some(std::time::Duration::from_millis(
-                    value
-                        .as_integer()
-                        .and_then(|ms| u64::try_from(ms).ok())
-                        .filter(|ms| *ms > 0)
-                        .ok_or_else(|| {
-                            format!("`[endpoint.{id}] idle_ms` is a count of milliseconds, above 0")
-                        })?,
-                )),
-            },
+            start: start()?,
+            idle: idle()?,
+        },
+        "nats" => Kind::Nats {
+            server: nats_address(text("url")?, text("url_env")?, "nats")
+                .map_err(|message| format!("`[endpoint.{id}]`: {message}"))?,
+            subject: required("subject")?,
+            idle: idle()?,
+        },
+        "nats_jetstream" => Kind::NatsJetStream {
+            server: nats_address(text("url")?, text("url_env")?, "nats_jetstream")
+                .map_err(|message| format!("`[endpoint.{id}]`: {message}"))?,
+            held: Subject::new(
+                required("stream")?,
+                required("subject")?,
+                text("from")?.as_deref(),
+                // A value that is no integer is no count either.
+                table
+                    .get("idle_ms")
+                    .map(|value| value.as_integer().unwrap_or(0)),
+                text("consumer")?,
+            )
+            .map_err(|message| format!("`[endpoint.{id}]`: {message}"))?,
+        },
+        "spark" => Kind::Spark {
+            server: address(true)?,
+            token_env: text("token_env")?,
+            table: required("table")?,
+            order: columns("order")?,
         },
         "vault" => Kind::Vault {
             root: root.join(required("root")?),
@@ -657,7 +895,10 @@ fn field_mapping(
         match key.as_str() {
             "name" => mapping.external = Some(External::Name(text()?)),
             "path" => {
-                if !matches!(kind, "json" | "json_lines" | "yaml" | "kafka") {
+                if !matches!(
+                    kind,
+                    "json" | "json_lines" | "yaml" | "kafka" | "nats" | "nats_jetstream"
+                ) {
                     return Err(format!(
                         "`{at} path` names a nested field, and a `{kind}` record does not \
                          nest; name its field with `name`"

@@ -180,6 +180,7 @@ fn written_endpoint<'a>(call: &CheckedCall<'a>) -> Option<&'a Expr> {
 pub(crate) fn checked_format(
     call: &CheckedCall<'_>,
     endpoint: Option<&Expr>,
+    carried: Option<&TypeRef>,
     verb: &str,
 ) -> Result<TypeConstructor, String> {
     if let Some(format) = call.bindings.get("F") {
@@ -198,6 +199,11 @@ pub(crate) fn checked_format(
         && let Some(format) = io::stdin_format()
     {
         return Ok(format);
+    }
+    // Each message of a message transport is one document, JSON where the
+    // call names no format (HQL-0047).
+    if carried.is_some_and(|endpoint| endpoint.is(&TypeRef::MESSAGE_TRANSPORT)) {
+        return Ok(TypeConstructor("Json"));
     }
     match endpoint.and_then(literal_path) {
         Some(path) => io::format_of_extension(Path::new(path)).ok_or_else(|| {
@@ -231,12 +237,13 @@ pub(crate) fn result(
         let read = configured_type(call, vault)?;
         if name != "tap" {
             if let Some(Kind::Str(id)) = call.input_expr.map(|expression| &expression.kind)
-                && configured(id, vault).is_ok_and(|configured| configured.kind.is_live())
+                && let Ok(configured) = configured(id, vault)
+                && configured.kind.is_live()
             {
                 return Err(Diagnostic::typing(
                     call.input_expr
                         .map_or(0..0, |expression| expression.span.clone()),
-                    live_by_source(id),
+                    live_by_source(id, &configured.kind),
                 ));
             }
             return Ok(read);
@@ -311,9 +318,13 @@ fn configured_type(
     Ok(TypeRef::seq(element))
 }
 
-/// Why `source` does not read a topic: a log never ends.
-fn live_by_source(id: &str) -> String {
-    format!("`{id}` is a `kafka` endpoint, read by `tap` as a `Stream`, not by `source` as a `Seq`")
+/// Why `source` does not read a topic or a stream's subject: a log never
+/// ends.
+fn live_by_source(id: &str, kind: &crate::endpoints::Kind) -> String {
+    format!(
+        "`{id}` is a `{}` endpoint, read by `tap` as a `Stream`, not by `source` as a `Seq`",
+        kind.name()
+    )
 }
 
 /// The configuration of the source an id names: the id must be one, and
@@ -360,7 +371,7 @@ fn read_type(name: &str, call: &CheckedCall<'_>) -> Result<TypeRef, String> {
             TypeRef::seq(element.clone())
         });
     }
-    let format = checked_format(call, call.input_expr, name)?;
+    let format = checked_format(call, call.input_expr, Some(call.input), name)?;
     let element = io::document_type(format)?;
     if name == "tap" {
         if !io::streams(format) {
@@ -468,7 +479,8 @@ fn check_target(
             ),
         ));
     }
-    let format = checked_format(call, written_endpoint(call), "target")
+    let carried = written_endpoint(call).and_then(|endpoint| cx.infer(endpoint).ok());
+    let format = checked_format(call, written_endpoint(call), carried.as_ref(), "target")
         .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     crate::extensions::format::writable(call.input, format.0)
         .map_err(|message| Diagnostic::typing(span, message))
@@ -556,9 +568,9 @@ fn check_configured_sink(
     let boundary = boundary_for(configured, element, None)
         .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     match &configured.kind {
-        Source::Kafka { .. } => Ok(()),
-        Source::Postgres { .. } if boundary.is_some() => Ok(()),
-        Source::Postgres { .. } => Err(Diagnostic::typing(
+        Source::Kafka { .. } | Source::Nats { .. } | Source::NatsJetStream { .. } => Ok(()),
+        Source::Postgres { .. } | Source::Spark { .. } if boundary.is_some() => Ok(()),
+        Source::Postgres { .. } | Source::Spark { .. } => Err(Diagnostic::typing(
             span.clone(),
             format!("`sink(\"{id}\")` writes rows of a declared record, and {element} is not one"),
         )),
@@ -589,7 +601,8 @@ fn check_sink(
     if check_channel_write(cx, call, &element, &span)? {
         return Ok(());
     }
-    let format = checked_format(call, written_endpoint(call), "sink")
+    let carried = written_endpoint(call).and_then(|endpoint| cx.infer(endpoint).ok());
+    let format = checked_format(call, written_endpoint(call), carried.as_ref(), "sink")
         .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     if matches!(format.0, "D2" | "Mermaid") {
         return Err(Diagnostic::typing(
@@ -665,6 +678,9 @@ fn evaluated_format(
     {
         return Ok(format);
     }
+    if endpoint.type_of().is(&TypeRef::MESSAGE_TRANSPORT) {
+        return Ok(TypeConstructor("Json"));
+    }
     endpoint
         .path()
         .and_then(io::format_of_extension)
@@ -693,7 +709,11 @@ fn eval_source(
                 .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             Ok(Value::Traversal(Arc::new(Traversal::kept(element, values))))
         }
-        Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) => {
+        Endpoint::Stdin
+        | Endpoint::Socket(..)
+        | Endpoint::WebSocket(_)
+        | Endpoint::Nats { .. }
+        | Endpoint::NatsJetStream { .. } => {
             let reading = Reading::live(&endpoint, format)
                 .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             Ok(live(reading, element, span))
@@ -726,10 +746,12 @@ fn eval_tap(
     let element = io::document_type(format)
         .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     let reading = match endpoint.as_ref() {
-        Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) => {
-            Reading::live(&endpoint, format)
-                .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
-        }
+        Endpoint::Stdin
+        | Endpoint::Socket(..)
+        | Endpoint::WebSocket(_)
+        | Endpoint::Nats { .. }
+        | Endpoint::NatsJetStream { .. } => Reading::live(&endpoint, format)
+            .map_err(|message| Diagnostic::io_failure(span.clone(), message))?,
         Endpoint::Http { url, headers, .. } => Reading::Http {
             url: url.clone(),
             headers: headers.clone(),
@@ -791,6 +813,20 @@ pub(crate) fn boundary_for(
                 .map_err(|message| format!("endpoint `{}`: {message}", configured.id))?
                 .into_iter()
                 .collect(),
+        ),
+        crate::endpoints::Kind::Spark {
+            server,
+            token_env,
+            table,
+            ..
+        } if external.is_some() => Some(
+            crate::spark::columns(
+                &spark_server(configured, server, token_env.as_deref())?,
+                table,
+            )
+            .map_err(|message| format!("endpoint `{}`: {message}", configured.id))?
+            .into_iter()
+            .collect(),
         ),
         _ => None,
     };
@@ -1088,7 +1124,32 @@ pub(crate) fn configured_source(
             }
             boundary
         }
-        Source::Kafka { .. } => return Err(failed(live_by_source(id))),
+        Source::Spark {
+            server,
+            token_env,
+            table,
+            ..
+        } => {
+            let server = spark_server(configured, server, token_env.as_deref()).map_err(failed)?;
+            let columns: Vec<String> = crate::spark::columns(&server, table)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?
+                .into_iter()
+                .map(|(name, _)| name)
+                .collect();
+            let boundary = boundary_for(configured, &element, Some(&columns)).map_err(failed)?;
+            if let Some(boundary) = &boundary {
+                let row: std::collections::BTreeMap<String, crate::data::Data> = columns
+                    .iter()
+                    .map(|column| (column.clone(), crate::data::Data::Empty))
+                    .collect();
+                let header = Value::Data(Arc::new(crate::data::Data::Map(row)));
+                strictness_of(boundary, &header, &mut Vec::new(), warn).map_err(failed)?;
+            }
+            boundary
+        }
+        kind @ (Source::Kafka { .. } | Source::Nats { .. } | Source::NatsJetStream { .. }) => {
+            return Err(failed(live_by_source(id, kind)));
+        }
         Source::File { .. } => boundary_for(configured, &element, None).map_err(failed)?,
     };
     let Some(boundary) = boundary else {
@@ -1106,7 +1167,7 @@ pub(crate) fn configured_source(
         .collect();
     let columns = matches!(
         configured.kind,
-        Source::Sqlite { .. } | Source::Postgres { .. }
+        Source::Sqlite { .. } | Source::Postgres { .. } | Source::Spark { .. }
     )
     .then_some(read.as_slice());
     let Value::Traversal(produced) = plain(columns)? else {
@@ -1215,8 +1276,24 @@ fn read_configured(
                 .map(|row| Value::Data(Arc::new(row)))
                 .collect()
         }
-        Source::Kafka { .. } => {
-            return Err(failed(live_by_source(id)));
+        Source::Spark {
+            server,
+            token_env,
+            table,
+            order,
+        } => {
+            let server = io::policy_permits_network()
+                .map_err(|message| format!("endpoint `{id}`: {message}"))
+                .and_then(|()| spark_server(configured, server, token_env.as_deref()))
+                .map_err(failed)?;
+            crate::spark::rows(&server, table, order, columns)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?
+                .into_iter()
+                .map(|row| Value::Data(Arc::new(row)))
+                .collect()
+        }
+        kind @ (Source::Kafka { .. } | Source::Nats { .. } | Source::NatsJetStream { .. }) => {
+            return Err(failed(live_by_source(id, kind)));
         }
     };
     within(documents.len())?;
@@ -1246,8 +1323,44 @@ fn tap_configured(
         let reading = io::policy_permits_network()
             .and_then(|()| brokers.resolve())
             .map(|brokers| {
-                Reading::kafka(
+                Reading::log(
                     crate::kafka::messages(brokers, topic.clone(), *start, *idle),
+                    TypeConstructor("Json"),
+                    format!("endpoint `{id}`"),
+                )
+            })
+            .map_err(|message| {
+                Diagnostic::io_failure(span.clone(), format!("endpoint `{id}`: {message}"))
+            })?;
+        return Ok(live(reading, TypeRef::DATA, span.clone()));
+    }
+    if let crate::endpoints::Kind::Nats {
+        server,
+        subject,
+        idle,
+    } = &configured.kind
+    {
+        let reading = io::policy_permits_network()
+            .and_then(|()| server.resolve())
+            .map(|url| {
+                Reading::log(
+                    crate::nats::subscribed(url, subject.clone(), *idle),
+                    TypeConstructor("Json"),
+                    format!("endpoint `{id}`"),
+                )
+            })
+            .map_err(|message| {
+                Diagnostic::io_failure(span.clone(), format!("endpoint `{id}`: {message}"))
+            })?;
+        return Ok(live(reading, TypeRef::DATA, span.clone()));
+    }
+    if let crate::endpoints::Kind::NatsJetStream { server, held } = &configured.kind {
+        let reading = io::policy_permits_network()
+            .and_then(|()| server.resolve())
+            .map(|url| {
+                Reading::log(
+                    crate::nats::messages(url, held.clone()),
+                    TypeConstructor("Json"),
                     format!("endpoint `{id}`"),
                 )
             })
@@ -1417,8 +1530,8 @@ fn written_to(
 }
 
 /// One cell of a row written through a boundary, in its external type: a
-/// `Decimal` as text where its representation is text, and nothing for an
-/// absent field.
+/// `Decimal` as text where its representation is text, a list or a record
+/// as a tree where the format nests, and nothing for an absent field.
 fn written_cell(value: Option<&Value>, external_type: &str) -> Option<crate::data::Data> {
     use crate::data::Data;
     let value = match value? {
@@ -1441,6 +1554,13 @@ fn written_cell(value: Option<&Value>, external_type: &str) -> Option<crate::dat
         Value::Bool(b) => Data::Bool(*b),
         Value::Str(text) => Data::Str(text.to_string()),
         Value::Data(tree) => tree.as_ref().clone(),
+        // A list or a record in a format that nests is the tree it holds.
+        other if matches!(external_type, "array" | "object") => {
+            crate::extensions::format::piece(other, TypeConstructor("Json"), false)
+                .ok()
+                .and_then(|text| serde_json::from_str(&text).ok())
+                .map_or_else(|| Data::Str(other.to_string()), io::data_of)
+        }
         other => Data::Str(other.to_string()),
     })
 }
@@ -1527,9 +1647,9 @@ fn row_document(row: &Value, fields: &[&crate::boundary::EffectiveField]) -> Val
     Value::Data(Arc::new(Data::Map(entries)))
 }
 
-/// The columns a boundary writes to a PostgreSQL table, each its name and
-/// its declared type.
-fn postgres_columns(fields: &[&crate::boundary::EffectiveField]) -> Vec<(String, String)> {
+/// The columns a boundary writes to a table, each its name and its
+/// declared type.
+fn table_columns(fields: &[&crate::boundary::EffectiveField]) -> Vec<(String, String)> {
     fields
         .iter()
         .map(|field| {
@@ -1553,9 +1673,39 @@ fn postgres_row(row: &Value, fields: &[&crate::boundary::EffectiveField]) -> Vec
         .collect()
 }
 
-/// A value as the text of one Kafka message: its document through the
-/// boundary where it has one, and its JSON otherwise.
-fn kafka_message(
+/// The address and the token of a Spark SQL endpoint, read from the
+/// environment where the configuration names a variable.
+fn spark_server(
+    configured: &crate::endpoints::Configured,
+    server: &crate::endpoints::Address,
+    token_env: Option<&str>,
+) -> Result<crate::spark::Server, String> {
+    let located = |message: String| format!("endpoint `{}`: {message}", configured.id);
+    Ok(crate::spark::Server {
+        url: server.resolve().map_err(located)?,
+        token: token_env
+            .map(|variable| crate::endpoints::secret(variable, "token_env"))
+            .transpose()
+            .map_err(located)?,
+    })
+}
+
+/// A row as the text of each column a boundary writes to a Spark table;
+/// `None` is `NULL`.
+fn spark_row(row: &Value, fields: &[&crate::boundary::EffectiveField]) -> Vec<Option<String>> {
+    fields
+        .iter()
+        .map(|field| {
+            row_cell(row, field)
+                .as_ref()
+                .and_then(crate::spark::text_of)
+        })
+        .collect()
+}
+
+/// A value as the text of one message of a topic or a subject: its document
+/// through the boundary where it has one, and its JSON otherwise.
+fn message_text(
     value: &Value,
     fields: Option<&[&crate::boundary::EffectiveField]>,
 ) -> Result<String, String> {
@@ -1622,9 +1772,54 @@ fn sink_configured(
             let mut producer = crate::kafka::Producer::open(&brokers, topic)
                 .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
             each(cx, &mut |value| {
-                producer.send(kafka_message(&value, fields.as_deref())?)
+                producer.send(message_text(&value, fields.as_deref())?)
             })?;
             producer
+                .flush()
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+        }
+        Source::Nats {
+            server, subject, ..
+        }
+        | Source::NatsJetStream {
+            server,
+            held: crate::endpoints::Subject { subject, .. },
+        } => {
+            let stored = matches!(configured.kind, Source::NatsJetStream { .. });
+            // Refused before the address is read, as before a connection.
+            crate::nats::one_subject(subject)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+            let url = server
+                .resolve()
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+            let mut publisher = crate::nats::Publisher::open(&url, subject, stored)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+            each(cx, &mut |value| {
+                publisher.send(message_text(&value, fields.as_deref())?)
+            })?;
+            publisher
+                .flush()
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+        }
+        Source::Spark {
+            server,
+            token_env,
+            table,
+            ..
+        } => {
+            let fields = fields.ok_or_else(|| {
+                failed(format!("`sink(\"{id}\")` writes rows of a declared record"))
+            })?;
+            let server = spark_server(&configured, server, token_env.as_deref()).map_err(failed)?;
+            let mut writer = crate::spark::Writer::open(
+                &server,
+                table,
+                configured.mode,
+                &table_columns(&fields),
+            )
+            .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+            each(cx, &mut |value| writer.insert(spark_row(&value, &fields)))?;
+            writer
                 .flush()
                 .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
         }
@@ -1637,7 +1832,7 @@ fn sink_configured(
                 &dsn,
                 table,
                 configured.mode,
-                &postgres_columns(&fields),
+                &table_columns(&fields),
             )
             .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
             each(cx, &mut |value| {
@@ -1682,7 +1877,7 @@ fn write_configured(
             other.elements().unwrap_or_default(),
         ),
     };
-    if matches!(configured.kind, Source::Kafka { .. }) {
+    if configured.kind.is_live() {
         return sink_configured(cx, id, Value::list(rows, element), span);
     }
     let boundary = boundary_for(&configured, &element, None)
@@ -1700,7 +1895,27 @@ fn write_configured(
         Source::Vault { .. } => Err(failed(format!(
             "endpoint `{id}` is a vault, which is read and never written"
         ))),
-        Source::Kafka { .. } => unreachable!("a topic is written above"),
+        Source::Kafka { .. } | Source::Nats { .. } | Source::NatsJetStream { .. } => {
+            unreachable!("a topic or a subject is written above")
+        }
+        Source::Spark {
+            server,
+            token_env,
+            table,
+            ..
+        } => {
+            if let Policy::Document { .. } = io::policy() {
+                return Err(failed(format!(
+                    "endpoint `{id}`: a document writes nothing outside itself"
+                )));
+            }
+            let server = spark_server(&configured, server, token_env.as_deref()).map_err(failed)?;
+            let values: Vec<Vec<Option<String>>> =
+                rows.iter().map(|row| spark_row(row, &fields)).collect();
+            crate::spark::write(&server, table, mode, &table_columns(&fields), &values)
+                .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
+            Ok(Value::Unit)
+        }
         Source::Postgres { dsn_env, table, .. } => {
             if let Policy::Document { .. } = io::policy() {
                 return Err(failed(format!(
@@ -1710,7 +1925,7 @@ fn write_configured(
             let dsn = dsn(&configured, dsn_env).map_err(failed)?;
             let values: Vec<Vec<Option<String>>> =
                 rows.iter().map(|row| postgres_row(row, &fields)).collect();
-            crate::postgres::write(&dsn, table, mode, &postgres_columns(&fields), &values)
+            crate::postgres::write(&dsn, table, mode, &table_columns(&fields), &values)
                 .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
             Ok(Value::Unit)
         }
@@ -1950,6 +2165,9 @@ fn eval_sink(
             }
         }
     }
+    destination
+        .finish()
+        .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     Ok(Value::Unit)
 }
 

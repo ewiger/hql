@@ -116,6 +116,7 @@ nav:
                   - Finite or live: learn/09-io/finite-or-live.md
                   - Formats and documents: learn/09-io/formats.md
                   - Endpoints by id: learn/09-io/configured.md
+                  - Subjects and lakehouse tables: learn/09-io/subjects-and-lakehouses.md
                   - Channels: learn/09-io/channels.md
                   - Logging: learn/09-io/logging.md
                   - The network: learn/09-io/network.md
@@ -178,6 +179,8 @@ nav:
           - std/io: reference/std/io/index.md
           - std/io/net: reference/std/io/net/index.md
           - std/io/logging: reference/std/io/logging/index.md
+          - std/io/msg/nats: reference/std/io/msg/nats/index.md
+          - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream/index.md
           - std/vault: reference/std/vault/index.md
           - std/validators: reference/std/validators/index.md
       - search:

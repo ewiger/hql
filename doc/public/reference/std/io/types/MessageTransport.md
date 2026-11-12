@@ -1,0 +1,12 @@
+<!-- hql reference: std/io.MessageTransport -->
+# `MessageTransport`
+
+In [`std/io`](../index.md).
+
+```hql
+abstract type MessageTransport : Transport
+```
+
+A `Transport` that moves framed messages: each message is one document,
+decoded by the format, `Json` where none is named.
+<!-- hql reference: end -->

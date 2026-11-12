@@ -19,26 +19,7 @@ const DEADLINE: Duration = Duration::from_secs(10);
 /// How long one fetch waits at the broker for a message to arrive.
 const WAIT_MS: i32 = 250;
 
-/// Where reading a topic starts in each partition.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum Start {
-    /// The earliest message the topic still keeps.
-    #[default]
-    Earliest,
-    /// The first message written after the read begins.
-    Latest,
-}
-
-impl Start {
-    /// The word `from =` writes it as.
-    #[must_use]
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Earliest => "earliest",
-            Self::Latest => "latest",
-        }
-    }
-}
+pub use crate::endpoints::Start;
 
 /// A connection to a cluster, with the runtime its client runs on.
 struct Session {
