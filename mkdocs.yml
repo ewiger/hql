@@ -116,6 +116,7 @@ nav:
                   - Finite or live: learn/09-io/finite-or-live.md
                   - Formats and documents: learn/09-io/formats.md
                   - Endpoints by id: learn/09-io/configured.md
+                  - Subjects and lakehouse tables: learn/09-io/subjects-and-lakehouses.md
                   - Channels: learn/09-io/channels.md
                   - Logging: learn/09-io/logging.md
                   - The network: learn/09-io/network.md

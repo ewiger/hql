@@ -60,9 +60,11 @@ source("sightings") | map(s => s.species)
 ```
 
 The kinds are `vault`, `csv`, `json`, `json_lines`, `yaml`, `sqlite`, one
-table of a database file, `postgres`, one table of a PostgreSQL database, and
-`kafka`, one Kafka topic; the last two are the subject of
-[topics and tables](#topics-and-tables). A path resolves against the directory of
+table of a database file, `postgres`, one table of a PostgreSQL database,
+`kafka`, one Kafka topic, `nats`, one subject of a NATS JetStream stream, and
+`spark`, one table of a lakehouse. `postgres` and `kafka` are the subject of
+[topics and tables](#topics-and-tables), and `nats` and `spark` of
+[subjects and lakehouse tables](subjects-and-lakehouses.md). A path resolves against the directory of
 `hql.toml`. The type comes from the configuration, so checking a program
 reads `hql.toml` and opens nothing else.
 
@@ -423,5 +425,8 @@ orders : Seq<Event> = source("orders")
 orders | sink("events")
 ```
 
-`sink` takes no format beside an id, and writes to a `kafka` or a `postgres`
-endpoint only; a file or an SQLite table is written whole by `target`.
+`sink` takes no format beside an id, and writes to a `kafka`, `nats`,
+`postgres` or `spark` endpoint only; a file or an SQLite table is written
+whole by `target`. A NATS subject and a lakehouse table take the places of
+the topic and the table on the
+[next page](subjects-and-lakehouses.md).
