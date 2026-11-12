@@ -1,4 +1,4 @@
-# 24. Agents and runs
+# 25. Agents and runs
 
 !!! warning "Design only"
 
@@ -85,7 +85,7 @@ cards
 
 A context is a `Seq<ContextItem>`, so contexts are combined with `concat` and
 narrowed with `filter`, like any other sequence. A ranking from
-[chapter 22](22-retrieval.md) keeps each hit's score and retrieval in its item,
+[chapter 23](23-retrieval.md) keeps each hit's score and retrieval in its item,
 so `cards | semantic(question) | take(10) | Context("evidence")` is evidence
 that says how it was found.
 
@@ -265,6 +265,6 @@ reproducible as one that does not.
 ## What is next
 
 A cell is a program, so a cell may run an agent, and the document around it is
-the prompt. [Chapter 25](25-agents-inside-documents.md) writes a document
+the prompt. [Chapter 26](26-agents-inside-documents.md) writes a document
 whose cells retrieve evidence, run the librarian over the draft they sit in,
 and save the answer where it was asked.

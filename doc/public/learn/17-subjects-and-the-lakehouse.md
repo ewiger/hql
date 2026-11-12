@@ -344,7 +344,7 @@ whatever the first has committed by then.
 The filter and the grouping above run where `hql` runs. The `spark` kind is
 a table, reached over Spark SQL: it is asked for the rows of one table, and
 for nothing else. Running a pipeline's pure steps on a cluster is the
-business of a **backend**, which [chapter 19](19-etl-pipelines.md) describes;
+business of a **backend**, which [chapter 19](19-oltp/index.md) describes;
 the program for it is this one.
 
 What the current release does not do: several programs sharing one consumer

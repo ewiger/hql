@@ -200,7 +200,7 @@ as one object under the prefix, so the archive is files of a thousand
 orders each rather than a million files of one. Read back, the prefix is a
 finite set of objects, and `source("archive")` is a `Seq` of every order in
 it: a replay of last year is a pipeline over the archive instead of over the
-subject, as [chapter 19](19-etl-pipelines.md) shows.
+subject, as [chapter 19](19-oltp/index.md) shows.
 
 A **format** says what the bytes of one object are. Beside the text formats
 of chapter 9, binary formats decode bytes to values with a schema of their
@@ -241,6 +241,6 @@ states it.
 
 ## What is next
 
-[Chapter 19](19-etl-pipelines.md) puts every system of Part II into one
+[Chapter 19](19-oltp/index.md) puts every system of Part II into one
 file: the shop's whole day as a pipeline, checked before it runs, and where
 that pipeline may run.
