@@ -21,7 +21,7 @@ implements. This issue carries that part into code.
 2. `lib/std/time/mod.hql`: module `time` with `Zone`, the `Unit` hierarchy,
    and the signatures of part 1: construction and conversion, zones, parts,
    arithmetic, truncation and ranges, rendering, and the clock.
-3. The runtime: a value for each of the four scalars, built on `chrono`, with
+3. The runtime: a value for each of the four scalars, built on `jiff`, with
    the precision and range part 1 requires.
 4. The `std` extension: the natives behind every `time` signature; `now()`,
    `today()` and the zone read once per evaluation.
@@ -35,3 +35,22 @@ implements. This issue carries that part into code.
    signatures; the learn page on data types gets `Date` in its table and a
    page of its own.
 8. HQL-0041 changelog: part 1 marked implemented.
+
+## State
+
+Items 1 to 4, 6 and 7 are in, with the boundary of item 5 for the tree
+formats, CSV and SQLite, and the PostgreSQL and Spark column types mapped
+without a live server to run against. A declaration with no positional
+parameter takes `Unit` as its input, which `now()`, `today()`,
+`local_zone()` and the named-part constructors need.
+
+Open:
+
+- PostgreSQL `DATE`, `TIMESTAMP` and `TIMESTAMPTZ`, and Spark `DATE`,
+  `TIMESTAMP_NTZ` and `TIMESTAMP`, read and written against a server.
+- `abs` over `Duration`: `math` declares `abs`, and a second module
+  declaring it is not yet resolved.
+- `hql --version` naming the time-zone database it carries.
+- HQL-0040's `Entry` gaining `modified? : Instant`.
+- `g.key` of a `group` over a record type the program declares is refused
+  as an unknown field, whatever the key's type.

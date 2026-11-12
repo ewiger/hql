@@ -130,7 +130,8 @@ conversion it writes.
 
 - A decoder MUST NOT infer a time value from text. YAML's timestamps and
   JSON's date-looking strings decode as `String`; `s.to_date()` or
-  `Instant(s)` converts them.
+  `Instant(s)` converts them, and so does a declared field of a time
+  type, whose declaration is the conversion.
 - An encoder MUST write a time value as its ISO 8601 text (RFC 3339 for an
   `Instant`), and `Duration` as its ISO 8601 duration text.
 - A constructor applied to text that does not parse MUST be an evaluation
@@ -200,3 +201,6 @@ cargo clippy --all-targets -- -D warnings
 ## Changelog
 
 - 2026-10-24: drafted
+- 2026-11-12: part 1, `time`, implemented (issue 0064); `Unit` is
+  `TimeUnit`, `Zone` is not `Orderable`, the zone defaults are overloads,
+  and `abs` over `Duration` waits for `math` to take it

@@ -37,22 +37,22 @@ impl Sub for Duration
 module time
 import core
 
-type Zone : Orderable {
+type Zone {
     name : String           // an IANA name, "Europe/Berlin", or a fixed offset, "+02:00"
 }
 
-abstract type Unit
-type Nanosecond  : Unit
-type Microsecond : Unit
-type Millisecond : Unit
-type Second      : Unit
-type Minute      : Unit
-type Hour        : Unit
-type Day         : Unit
-type Week        : Unit     // ISO: starts on Monday
-type Month       : Unit
-type Quarter     : Unit
-type Year        : Unit
+abstract type TimeUnit      // `Unit` is core's unit type
+type Nanosecond  : TimeUnit
+type Microsecond : TimeUnit
+type Millisecond : TimeUnit
+type Second      : TimeUnit
+type Minute      : TimeUnit
+type Hour        : TimeUnit
+type Day         : TimeUnit
+type Week        : TimeUnit     // ISO: starts on Monday
+type Month       : TimeUnit
+type Quarter     : TimeUnit
+type Year        : TimeUnit
 ```
 
 - An `Instant` MUST have nanosecond precision and MUST cover at least the
@@ -60,7 +60,9 @@ type Year        : Unit
   that holds at least the difference between those bounds.
 - A `DateTime` MUST NOT carry a zone or an offset. It names a wall-clock
   reading, and becomes an instant only through a zone.
-- `Utc` MUST be the zone `Zone("UTC")`, declared as a value in `time`.
+- `Zone("UTC")` is UTC. A module declares no values, so there is no `Utc`
+  binding; an operation that reads an instant in a zone has a form without
+  the zone, which reads it in UTC.
 - A `Zone` MUST be constructed from an IANA name the binary's database holds
   or from a fixed offset `±HH:MM`; any other text is an evaluation error.
 
@@ -177,7 +179,6 @@ fn add_years(self: Date, n: Int) : Date
 fn days_since(self: Date, earlier: Date) : Int
 
 fn negate(self: Duration) : Duration
-fn abs(self: Duration) : Duration
 fn times(self: Duration, n: Int) : Duration
 ```
 
@@ -197,9 +198,10 @@ fn times(self: Duration, n: Int) : Duration
 Grouping by time is truncating to a unit.
 
 ```hql
-fn truncate<U : Unit>(self: Instant, unit: Type<U>, zone: Zone = Utc) : Instant
-fn truncate<U : Unit>(self: DateTime, unit: Type<U>) : DateTime
-fn truncate<U : Unit>(self: Date, unit: Type<U>) : Date
+fn truncate<U : TimeUnit>(self: Instant, unit: Type<U>) : Instant              // in UTC
+fn truncate<U : TimeUnit>(self: Instant, unit: Type<U>, zone: Zone) : Instant
+fn truncate<U : TimeUnit>(self: DateTime, unit: Type<U>) : DateTime
+fn truncate<U : TimeUnit>(self: Date, unit: Type<U>) : Date
 fn dates(start: Date, end: Date) : List<Date>
 ```
 
@@ -220,7 +222,8 @@ fn dates(start: Date, end: Date) : List<Date>
 ```hql
 fn fmt(self: Date, pattern: String) : String
 fn fmt(self: DateTime, pattern: String) : String
-fn fmt(self: Instant, pattern: String, zone: Zone = Utc) : String
+fn fmt(self: Instant, pattern: String) : String              // in UTC
+fn fmt(self: Instant, pattern: String, zone: Zone) : String
 fn str(self: Duration) : String
 ```
 
@@ -239,11 +242,13 @@ effectful fn today() : Date
 effectful fn local_zone() : Zone
 ```
 
+- `now`, `today` and `local_zone` are declared without a positional
+  parameter: their input is `Unit`, and a call writes none.
 - `now` MUST return the evaluation instant, fixed once per evaluation as
   [values fixed per evaluation](../README.md#2-values-fixed-per-evaluation)
   states.
 - `local_zone` MUST return the zone named by `--zone`, else by the `TZ`
-  environment variable, else the host's, else `Utc`. It is read once per
+  environment variable, else the host's, else `Zone("UTC")`. It is read once per
   evaluation.
 - `today()` MUST equal `today(local_zone())`, and `today(z)` MUST equal
   `now().at(z).date()`.

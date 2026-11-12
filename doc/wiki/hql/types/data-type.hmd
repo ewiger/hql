@@ -105,14 +105,17 @@ type Int     : {Scalar, Orderable}
 type Float   : {Scalar, Orderable}
 type Decimal : {Scalar, Orderable}
 type String  : {Scalar, Orderable}
-type Date    : {Scalar, Orderable}
+type Date     : {Scalar, Orderable}
+type DateTime : {Scalar, Orderable}
+type Instant  : {Scalar, Orderable}
+type Duration : {Scalar, Orderable}
 ```
 
-`Scalar` is an abstract type of law: a value with no parts of its own. Being a leaf and having an order are separate contracts, which is why they are separate parents. `Bool` is a leaf with no order worth sorting by. A `Card` has an order, by its name, and is no leaf. The five ordered scalars satisfy both, and `{Scalar, Orderable}` is an ordinary supertype set.
+`Scalar` is an abstract type of law: a value with no parts of its own. Being a leaf and having an order are separate contracts, which is why they are separate parents. `Bool` is a leaf with no order worth sorting by. A `Card` has an order, by its name, and is no leaf. The eight ordered scalars satisfy both, and `{Scalar, Orderable}` is an ordinary supertype set.
 
 A number leaf written with a decimal point keeps the digits it is written with: read as a `Decimal` it is exactly those digits, and read as anything else it is the nearest `Float` ([HQL-0031](../../../proposals/HQL-0031/README.md)).
 
-`Date` is declared so a schema can name it. No literal produces one yet, and its operations remain open.
+`Date`, `DateTime`, `Instant` and `Duration` are the time scalars ([HQL-0041 part 1](../../../proposals/HQL-0041/parts/01-time.md)). No literal produces one: each is built by its constructor from ISO 8601 text or from named parts, and its operations are the `time` module's. As a leaf of a tree a time value is written as its ISO 8601 text, and a text leaf is read as one only where a declared field's type says so.
 
 ## Metadata is Data
 
