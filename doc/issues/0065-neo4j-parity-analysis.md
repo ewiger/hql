@@ -1,4 +1,4 @@
-# 0061 — Neo4j parity analysis: graph patterns, traversal and graph schema
+# 0065 — Neo4j parity analysis: graph patterns, traversal and graph schema
 
 Status: backlog
 Related: [0016](0016-sql-parity-analysis.md),
