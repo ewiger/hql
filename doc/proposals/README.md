@@ -32,7 +32,7 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | HQL-0022 | reserved | The AI harness extension |
 | [HQL-0023](HQL-0023/README.md) | implemented | A document reference is written `@[[..]]` |
 | [HQL-0024](HQL-0024/README.md) | accepted, implemented in part | A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions |
-| [HQL-0025](HQL-0025/README.md) | drafted | Execution contexts and running modes |
+| [HQL-0025](HQL-0025/README.md) | accepted | Execution contexts and running modes |
 | [HQL-0026](HQL-0026/README.md) | implemented | Positions and slices: `xs[i]`, `xs[a:b]` and the `Slice` capability |
 | [HQL-0027](HQL-0027/README.md) | implemented | Generic traits: type parameters on `trait` and `impl` |
 | [HQL-0028](HQL-0028/README.md) | implemented, with `internal` reserved | Import units, the program module and declaration visibility |

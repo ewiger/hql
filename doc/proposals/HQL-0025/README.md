@@ -1,6 +1,6 @@
 # HQL-0025: Execution contexts and running modes
 
-**Status**: drafted
+**Status**: accepted
 **Created**: 2026-10-22
 
 ## Scope
@@ -1471,3 +1471,6 @@ Allow HyperMarkdown and other hosts to construct or supplement an execution cont
 ### Diagnostics
 
 Provide an inspection command capable of explaining how the effective context was constructed.
+## Changelog
+
+- 2026-11-13: accepted
