@@ -2,10 +2,13 @@
 
 This is a book about HQL, read from the first page to the last. It starts with
 a number and ends with a web of vaults, and every chapter builds on the ones
-before it. Every program in it prints what the book shows. Chapter 19 and
-chapters 24 to 26 describe ETL pipelines, the `ai` module and the direction
-beyond one vault, which are design and not in the current release; every
-other chapter runs with it.
+before it. Every program in it prints what the book shows. Chapter 18 and
+chapters 24 to 26 describe APIs and object stores, the `ai` module and the
+direction beyond one vault, which are design and not in the current
+release, as do the sections of chapters 15 and 19 marked so; every other
+chapter runs with it. The programs of chapters 16, 17 and 19 that reach a
+server are checked in the book and run in the
+[hql-demo repository](https://github.com/ewiger/hql-demo).
 
 HQL is a statically typed language for querying, transforming, connecting and
 computing over data, knowledge and AI workflows. A program is checked before it
@@ -77,13 +80,24 @@ one claim about which book inspired which, and a librarian.
 ## Part II: Data flows
 
 14. [Pipelines](14-pipelines.md) — `|` against `.`, the three phases, the
-    step as the unit of execution, `hql` in a shell pipe, and the systems a
-    pipeline will connect: queues, databases, services and jobs.
-19. [ETL pipelines](19-etl-pipelines.md) — one file that reads a queue,
-    enriches from a database and writes tables, alerts and an archive: ids
-    bound in configuration and how they break, streams against tables, a
-    batch as a stream and a stream as a file, rejected rows as a source, and
-    what each platform's wiring finds out when.
+    step as the unit of execution, `hql` in a shell pipe, and the shop whose
+    orders the rest of Part II follows.
+15. [Endpoints](15-endpoints.md) — one model for every system: a file by
+    path or by id, `source`, `tap`, `target` and `sink`, the kind that states
+    the type, secrets in the environment, and transports.
+16. [Tables and topics](16-tables-and-topics.md) — the shop's orders in a
+    SQLite table, a PostgreSQL table and a Kafka topic, what a write
+    promises, and a topic whose messages are not all orders.
+17. [Subjects and the lakehouse](17-subjects-and-the-lakehouse.md) — core
+    NATS notifications, a JetStream log and a durable consumer, and bronze,
+    silver and gold Delta tables.
+18. [APIs, webhooks and stores](18-apis-webhooks-and-stores.md) — a paginated
+    REST API, a GraphQL catalogue, a webhook, an archive in object storage,
+    and the systems the transport families reserve.
+19. [ETL pipelines](19-etl-pipelines.md) — the shop's day in one checked
+    file, where its mistakes are found, a replay as the same file, streams
+    against tables, partitions, schedules and backends, and what each
+    platform's wiring finds out when.
 
 ## Part III: Knowledge and AI
 

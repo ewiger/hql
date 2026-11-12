@@ -1,13 +1,5 @@
 # 19. ETL pipelines
 
-!!! warning "Design only"
-
-    This chapter describes functionality that is not in the current release.
-    It is written as if it existed: apart from the diagnostics the current
-    binary already gives, these programs do not run, and names, kinds, types
-    and outputs may change before any of it ships. It is a story about where
-    the pipeline of chapter 14 is going, told in one file.
-
 Every data platform has a language for the wiring. Data Factory wires
 activities in JSON, PySpark in a DataFrame API, ksqlDB in SQL over topics,
 Kafka Streams in Java, dbt in SQL models with a dependency graph around them.
@@ -17,225 +9,285 @@ validator before deployment, in a cluster at run time, or in a dashboard the
 next morning.
 
 HQL's claim is that the wiring is a program like any other in this book. A
-pipeline is one `.hql` file; what it reads and writes are endpoint ids that
-configuration binds to systems; its types are checked before anything
-connects; and the same text runs over a queue that never ends and over the
-archive of what the queue once carried.
+pipeline is one `.hql` file. What it reads and writes are endpoint ids that
+configuration binds to systems. Its types are checked before anything
+connects. And the same text runs over a subject that never ends and over the
+archive of what the subject once carried.
 
-## A pipeline is a file
+The shop of chapters [14](14-pipelines.md) to
+[18](18-apis-webhooks-and-stores.md) has every piece. This chapter puts them
+into one file, then follows the file to where it fails, to where it is
+replayed, and to where it may run.
 
-A field station publishes bird sightings from its sensors to a Kafka topic.
-A Postgres database holds the sites and receives daily counts. Alerts go to a
-second topic, and everything read is archived as JSON Lines. The station's
-`hql.toml` names each of those systems once:
+## The shop's day in one file
 
-```toml
-[endpoint.sightings]
-kind = "kafka"
-brokers_env = "KAFKA_BROKERS"
-topic = "sightings"
-group = "station-nightly"
+Orders arrive on the JetStream subject `orders.raw`. Each is appended to an
+archive file as it arrived. Each is validated: the valid ones land in the
+silver Delta table, and a placed order of 100 or more is also published as
+an alert to a core NATS subject; the invalid ones go to the dead-letter
+subject with the rules they broke. The configuration is the shop's
+`hql.toml`; the pipeline, `day.hql`, is this:
 
-[endpoint.sites]
-kind = "postgres"
-dsn_env = "STATION_DSN"
-table = "sites"
+<!-- run: check --vault examples/pipelines/shop -->
+```hql
+type EventData : DataContract = {
+    id       : Int
+    kind     : String
+    customer : String
+    amount   : Decimal
+    at       : String
 
-[endpoint.daily_counts]
-kind = "postgres"
-dsn_env = "STATION_DSN"
-table = "daily_counts"
-mode = "append"
+    require amount >= 0 as non_negative
+    require ["order_placed", "order_shipped", "payment_failed"] | contains(kind) as known_kind
+}
 
-[endpoint.alerts]
-kind = "kafka"
-brokers_env = "KAFKA_BROKERS"
-topic = "alerts"
+type Event {
+    id       : Int
+    kind     : String
+    customer : String
+    amount   : Decimal
+    at       : String
+}
 
-[endpoint.archive]
-kind = "json_lines"
-path = "archive/sightings.jsonl"
-mode = "append"
+type Rejected {
+    id      : Int
+    message : Data
+    rules   : List<String>
+}
+
+tap("orders_raw")
+| tee archived = sink(file("archive/orders.jsonl").end, Json)
+| validate(EventData)
+| fork {
+    silver =
+        oks()
+        | map(e => Event(id = e.id, kind = e.kind, customer = e.customer, amount = e.amount, at = e.at))
+        | tee large =
+            filter(e => e.kind == "order_placed" and e.amount >= 100)
+            | map(e => {customer: e.customer, amount: e.amount, text: fmt("large order from {}", e.customer)})
+            | sink("alerts")
+        | sink("orders_silver"),
+    rejected =
+        errs()
+        | map(e => Rejected(
+            id = match e.value.id { some(Int n) => n, _ => 0 },
+            message = e.value,
+            rules = e.violations | map(v => v.rule)))
+        | sink("orders_rejected"),
+}
 ```
 
-The pipeline, `nightly.hql`, names only the ids:
+```text
+{silver: Unit, rejected: Unit}
+```
+
+Read top to bottom, it is the dataflow diagram a platform would draw:
+
+```text
+orders.raw ──┬──▶ archive/orders.jsonl
+             │
+             └──▶ validate ──ok──┬──▶ orders_silver
+                     │           └──▶ alerts.orders   (≥ 100, placed)
+                     └──err─────────▶ orders.rejected
+```
+
+One input, three kinds of fan-out, four outputs. `tee` branches a pipeline
+without ending it: the archive receives every order before validation, and
+the alert branch receives each valid order before the silver table does.
+`fork` sends every value to every branch, and `oks()` and `errs()` keep one
+side each. A branch of either is typed like the trunk, so a branch that
+ended in `target` over this stream would be refused, as any `target` of a
+stream is.
+
+There is no orchestration around the file: no activity names, no cluster,
+no connection strings. `hql check day.hql` reads `hql.toml`, resolves every
+id to its kind and every kind to a type, checks the whole file, and opens
+no connection; the result above is what it prints. Every system in the file
+is in the current release, and the
+[`nats-lakehouse` case](https://github.com/ewiger/hql-demo/tree/main/nats-lakehouse)
+of hql-demo runs the same shape against NATS and a lakehouse.
+
+The gold report of [chapter 17](17-subjects-and-the-lakehouse.md) is the
+second file: it reads the silver table whole when a report is wanted, and
+replaces the gold table in one commit. The two share no state but the silver
+table.
+
+## When a mistake is found
+
+A binding can break, and it breaks at the earliest phase that can see it.
+Checking sees the configuration; evaluation sees the systems:
+
+| What is wrong | Found | What is said |
+| --- | --- | --- |
+| `tap("order_event")` | checking | check error[unknown-name]: no endpoint `order_event` is configured; did you mean `order_events`? |
+| `source("order_events")` | checking | check error[type-mismatch]: `order_events` is a `kafka` endpoint, read by `tap` as a `Stream`, not by `source` as a `Seq` |
+| a stream written by `target("orders")` | checking | check error[type-mismatch]: `target("orders")` writes a Table or a sequence of a declared record, not Stream&lt;Event&gt; |
+| `sink("ledger")` | checking | check error[type-mismatch]: endpoint `ledger` is a `sqlite` endpoint, which `sink` does not write; write it whole with `target` |
+| a password in `hql.toml` | loading the vault | `url` holds credentials; name the environment variable that holds the address, `url_env = "VARIABLE"` |
+| `SHOP_DSN` not set | evaluation, before the first row | execute failure[io-failure]: endpoint `orders`: the environment variable `SHOP_DSN`, which `dsn_env` names, is not set |
+| a raw order read as `Event` | evaluation, at that order | execute failure[io-failure]: endpoint `raw_events`, field `amount`: "free" is not a decimal number |
+| a write to a wildcard subject | evaluation, at the write | execute failure[io-failure]: subject `orders.>` holds a wildcard, which reads many subjects and writes none; a message is published to one subject |
+
+A secret is named by the variable that holds it and never printed. A
+failure at evaluation names the endpoint by its id and the value by its
+field; what it never does is continue past a value it could not read and
+count it later as missing. A pipeline that must continue says so in its
+shape, as `day.hql` does with `validate` and `fork`: the order that would
+have stopped it is a row in the dead-letter subject instead.
+
+## A replay is the same file
+
+The pipeline names one input. Bound to a function, it takes any stream of
+`Data`, and the input is chosen where it is called:
+
+<!-- define: EventData -->
+```hql
+type EventData : DataContract = {
+    id       : Int
+    kind     : String
+    customer : String
+    amount   : Decimal
+    at       : String
+
+    require amount >= 0 as non_negative
+    require ["order_placed", "order_shipped", "payment_failed"] | contains(kind) as known_kind
+}
+```
+
+<!-- run: with EventData --vault examples/pipelines/shop -->
+```hql
+route = (raw: Stream<Data>) => raw
+| validate(EventData)
+| fork {
+    clean    = oks()  | map(e => fmt("ok   {}", e.id)) | sink(stdout, Text),
+    rejected = errs() | map(e => fmt("err  {} {}", e.value.id, e.violations | map(v => v.rule))) | sink(stdout, Text),
+}
+
+tap("raw_events") | route
+```
+
+```text
+ok   1
+ok   2
+ok   4
+ok   6
+err  3 ["EventData.amount.type"]
+err  5 ["EventData.customer.missing"]
+err  7 ["EventData.non_negative"]
+err  8 ["EventData.known_kind"]
+{clean: (), rejected: ()}
+```
+
+`tap` over a file is a `Stream` that ends after the file's last order, so
+the routing written for a subject runs over a file of recorded messages,
+with no broker at all. That is a test. The archive `day.hql` writes is such
+a file, so the same call over `tap(file("archive/orders.jsonl"))` is a
+**replay**: last week's orders through this week's rules. And the call over
+`tap("orders_raw")` is production. The platform words, test, replay,
+backfill, name three inputs to one pipeline, not three pipelines.
+
+The other direction is as short. A stream becomes something finite by
+bounding it: `take(n)` for a count, `collect(n)` for batches of a size,
+each batch a `List` every whole-input step of chapter 6 applies to:
+
+<!-- run: check --vault examples/pipelines/shop -->
+```hql
+tap("orders_raw") | take(100) | size
+```
+
+```text
+Int
+```
+
+A **snapshot** is the first hundred, or the first day, of a stream written
+whole by `target`; a **micro-batch** is `collect(n)` and one write per batch.
+
+## Streams against tables
+
+!!! warning "Design only"
+
+    This section describes functionality that is not in the current release.
+    It is written as if it existed: these programs do not run, and names and
+    types may change before they ship.
+
+The commonest enrichment is a stream against a lookup: each order joined to
+its customer's record in a table. The finite side is read whole; the live
+side passes through one value at a time, and no value waits for another, so
+`join` takes a `Stream` on the left and a `Seq` on the right:
 
 <!-- run: skip -->
 ```hql
-type Sighting { species : String, site : String, seen : String, at : DateTime }
-type Site     { site : String, region : String, protected : Bool }
-type Count    { day : Date, region : String, species : String, sightings : Int }
+type Customer { customer : String, region : String, vip : Bool }
 
-sites : Seq<Site> = source("sites")
+customers : Seq<Customer> = source("customers")
 
-tap("sightings")
-| Sighting
-| tee archived = sink("archive")
-| join(sites, on = (s, p) => s.site == p.site)
-| map(j => {species: j.left.species, region: j.right.region, protected: j.right.protected, at: j.left.at})
-| tee alerts =
-    filter(x => x.protected and x.species == "barn owl")
-    | map(x => {region: x.region, at: x.at, text: fmt("barn owl in protected {}", x.region)})
-    | sink("alerts")
-| window(1d, by = x => x.at)
-| map(w => w
-    | group(by = x => {region: x.region, species: x.species})
-    | map(g => Count(day = w.start.date, region = g.key.region, species = g.key.species, sightings = g.items | size)))
-| emit
-| sink("daily_counts")
+tap("orders_raw")
+| Event
+| join(customers, left = o => o.customer, right = c => c.customer,
+       into = (o, c) => {id: o.id, region: c.region, vip: c.vip, amount: o.amount})
+| filter(x => x.vip)
+| sink("vip_orders")
 ```
-
-Read top to bottom, it is the dataflow diagram a platform would draw: one
-input, a lookup, two side outputs, a windowed aggregate, one main output.
-There is no orchestration around it, no activity names, no cluster
-configuration in the text. `hql check nightly.hql` reads `hql.toml`, resolves
-every id to its kind and every kind to a type, checks the whole file, and
-opens no connection.
-
-## Ids, not connections
-
-`source("sites")` and `tap("sightings")` name configuration. The id is a
-literal, because the type of what it reads is known only from the
-configuration, and a program whose source could be computed would have a type
-nobody could check. Three refusals exist today, on the
-[sources-by-id page](09-io/configured.md) of chapter 9: a computed id and a
-connection string in place of an id are check errors, the second saying where
-connection details belong, and an id the configuration does not declare is a
-check error naming the nearest one.
-
-A binding can break, and the design is that it breaks at the earliest phase
-that can see it. Checking sees configuration; evaluation sees the system:
-
-| What is wrong | When it is found | What is said |
-| --- | --- | --- |
-| `source("sightngs")` | checking | check error[unknown-name]: no endpoint `sightngs` is configured; did you mean `sightings`? |
-| `sites : Seq<Site> = source("sightings")` | checking | check error[type-mismatch]: `sightings` is a `kafka` endpoint, read by `tap` as a `Stream`, not by `source` as a `Seq` |
-| `source("sites")` read as `Seq<Count>` | checking | check error[type-mismatch]: the boundary of `sites` has no field `day`; `Count` declares one |
-| `STATION_DSN` not set | evaluation, before the first row | execute failure[io-failure]: source `sites` reads its connection from `$STATION_DSN`, which is not set |
-| a row whose `protected` is `"yes"` | evaluation, at that row | execute failure[io-failure]: endpoint `sites`: row 14 does not decode as Site: field `protected`: "yes" is not a Bool |
-| the broker unreachable | evaluation, before the first message | execute failure[io-failure]: endpoint `sightings`: no broker at `$KAFKA_BROKERS` answered |
-
-A secret is named by the environment variable that holds it and never
-printed. A failure at evaluation names the source by its id, the system by
-its configured name, and the row or message by its position, as a CSV
-decode error does today; what it never does is continue past a row it could
-not read and count it later as missing.
-
-The configuration is also where a system's names meet the program's. The
-`sites` table may call its region column `region_code`; the boundary of
-chapter 9 maps it, `[endpoint.sites.fields.region] name = "region_code"`, and
-the program keeps the name it reads. Renaming a column is a change to one
-line of configuration, not to every pipeline that reads it.
-
-## Streams in, tables out
-
-`tap("sightings")` is a `Stream<Data>`, and `| Sighting` reads each message
-as a declared record, so the rest of the file is typed. `source("sites")` is
-a `Seq<Site>`: a table is finite, read once, replayable within the
-evaluation. The join between them is the common shape of enrichment, a
-stream against a lookup, and the type says why it is cheap: the finite side
-is read whole, the live side passes through one message at a time, and no
-message waits for another.
 
 Two streams joined would wait for each other without end, and the checker
-says so: `join` over two `Stream`s is refused until one of them is bounded by
-a window. A window is `collect` by time rather than by count,
-`window(1d, by = x => x.at)`, a `Stream<Seq<T>>` whose batches close when the
-day does. Inside a batch every whole-input step of chapter 6 applies, which is
-how the daily counts are a `group` and a `size` over an endless input.
-`emit` lets the counts out one at a time, and `sink("daily_counts")` appends
-each as a row.
-
-The two `tee` branches write without ending the pipeline. The archive is
-every sighting as it arrived, before enrichment; the alerts are a filter and
-a `map`, written to a topic as messages. A `tee` branch is the fan-out a
-platform draws as a diamond, and it is typed like everything else: a branch
-that ended in `target` over the stream would be refused, because a stream may
-never complete, and `sink` is what a stream is written with.
-
-## From a batch to a stream, and back
-
-A pipeline written for a live topic is a pipeline written for its history,
-because the steps are the same and the type is the only difference. The
-archive is a file, so `source("archive")` is a `Seq<Data>`; `stream` turns a
-finite sequence into a stream that produces its elements in order and then
-ends, so the nightly pipeline replays a day from the archive with the topic
-replaced and nothing else changed:
+says so: `join` over two `Stream`s is refused until one of them is bounded.
+A **window** is `collect` by time instead of by count, a
+`Stream<List<T>>` whose batches close when the span does:
 
 <!-- run: skip -->
 ```hql
-fn nightly(sightings: Stream<Sighting>) : Unit = …
-
-source("archive") | Sighting | filter(s => s.at.date == Date(2026, 10, 24)) | stream | nightly
+tap("orders_silver_changes")
+| window(1d, by = e => e.at)
+| map(day => day
+    | group(by = e => e.customer)
+    | map(g => Revenue(customer = g.key, orders = g.items | size, total = g.items | map(e => e.amount) | sum)))
+| emit
+| sink("daily_revenue")
 ```
 
-The other direction is as short. A stream becomes one file by bounding it
-and writing the bound: `take(n)` for a count, `window` for a span,
-`collect(n)` for batches of a size:
-
-<!-- run: skip -->
-```hql
-tap("sightings") | window(1h) | emit | sink(file("last-hour.jsonl"), Json)
-```
-
-<!-- run: skip -->
-```hql
-source(file("examples/io/sightings.jsonl")) | take(2) | target(file("two.json"))
-```
-
-A backfill is the first program over the archive; a snapshot is the second
-over the topic; a replay for a test is either over a file of recorded
-messages, with no broker at all. The platform words, backfill, snapshot,
-replay, name three ways to bound or unbound one pipeline, not three
-pipelines.
-
-## Rows that do not decode
-
-A pipeline over a queue meets messages that are not what the type says. The
-default is the strict one above: the first such message stops the
-evaluation, naming it. A pipeline that must keep running routes them
-instead. `Sighting?` reads each message as a `Result<Sighting, Invalid>`,
-and `fork` splits a stream of results into its two sides without ending
-either:
-
-<!-- run: skip -->
-```hql
-tap("sightings")
-| Sighting?
-| fork
-| tee rejected =
-    errs()
-    | map(e => {message: e.input, why: e.violations | map(v => v.message)})
-    | sink("dead_letter")
-| oks()
-| nightly
-```
-
-The dead-letter queue is a `sink` like the others, and what reaches it is a
-value: the message as it arrived and every violation at once, the way
-[validation as a value](11-advanced-data-typing/validation-as-a-value.md)
-reports them. Nothing is logged and lost; the rejected rows are a source
-another pipeline reads.
+Inside a window every whole-input step applies, which is how a daily total
+is a `group` and a `sum` over an input that never ends.
 
 ## Partitions, schedules and backends
 
 Three things a platform configures stay out of the file.
 
-A **partition** is the logical unit of ownership: `partition(by = x =>
-x.region)` states that values of one region belong together, so a windowed
-group per region may run wherever that region's values are. It names no
-worker and no Kafka partition; a backend maps the logical partitions onto its
-own, and the local backend runs them one after another with the same result.
+A **partition** is the logical unit of ownership. `partition(by = e =>
+e.customer)` is in the current release: it states that the orders of one
+customer belong together, keeps every value and its type, and on
+`localhost` changes nothing else. It names no worker and no Kafka partition.
+It is what a backend reads to know where a per-customer `group` may run
+without the parts having to meet.
 
-A **schedule** is configuration beside the sources, `[jobs.nightly] run =
-"nightly.hql"` with an `at`, or a trigger that is itself a source, a topic
-whose messages start a run. The file does not know when it runs.
+!!! warning "Design only"
 
-A **backend** is the execution strategy of chapter 14: `localhost` in a
-terminal, a distributed one in a cluster, chosen by `[execution] backend` or
-`--backend`, and bound to compute what `localhost` computes. `hql check` is
-the same under every backend, and it is what a deployment runs before it
-deploys: the configuration, the types and the file, with no system touched.
+    The rest of this section describes functionality that is not in the
+    current release. It is written as if it existed: names and keys may
+    change before it ships.
+
+A **schedule** is configuration beside the endpoints, `[jobs.report] run =
+"report.hql"` with an `at`, or a trigger that is itself a source: a subject
+whose messages each start a run. The file does not know when it runs.
+
+A **backend** is the execution strategy of [chapter 14](14-pipelines.md).
+`localhost` evaluates the checked program step by step in one process, and
+is the one backend in the current release. A distributed backend, on Spark,
+Flink or a Databricks cluster, runs the pure steps between two effects
+where the data is: the `filter` and `map` of a branch on whichever worker
+holds the value, a `group` after a `partition` on the worker that owns the
+key. It may not move an effect, run one twice, or change an answer: a
+backend computes what `localhost` computes, at the same type, with the same
+failure, and refuses before running any of a program it cannot run.
+
+```toml
+[execution]
+backend = "spark"
+```
+
+That is the difference between the `spark` kind of chapter 17 and a Spark
+backend. The kind is a table the program reads and writes; the backend is a
+place the program runs. A program names neither its backend nor its
+schedule, so the file a laptop checks is the file the cluster runs.
 
 ## What each of them wires
 
@@ -245,12 +297,13 @@ deploys: the configuration, the types and the file, with no system touched.
 | PySpark | readers and writers, in code | DataFrame operations | when the job runs, at the operation that fails |
 | ksqlDB | topics as streams and tables | SQL over them | when the statement is submitted, or in the records it skips |
 | dbt | models over a warehouse | SQL, with tests after | when the model builds, or when its tests run |
-| HQL, as designed | ids bound in `hql.toml` | the steps of this book | when the file is checked, before anything connects |
+| HQL | ids bound in `hql.toml` | the steps of this book | when the file is checked, before anything connects |
 
 The columns are the same four things. What HQL adds is a type for each
-arrow, so that stream against table, finite against live, declared record
-against configured boundary, are checked where the file is written, and the
-file that passed is the file that runs.
+arrow: stream against table, finite against live, a declared record against
+a configured boundary, a contract against what a producer actually sent,
+each checked where the file is written, so that the file that passed is the
+file that runs.
 
 ## What is next
 
