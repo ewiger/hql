@@ -46,6 +46,7 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/io`](std/io/index.md) — Input and output: endpoints, the data sources read from them, and the data targets written to them.
 - [`std/io/net`](std/io/net/index.md) — Network endpoints: transports, read and written by `source`, `tap`, `target` and `sink` like any other endpoint (module `io`).
 - [`std/io/logging`](std/io/logging/index.md) — Logging: structured events written to a destination, apart from the result.
+- [`std/io/db/sqlite`](std/io/db/sqlite/index.md) — SQLite: one table of a database file, as a transport read by `source` and `tap` and written by `target` like any other endpoint (module `io`).
 - [`std/io/msg/nats`](std/io/msg/nats/index.md) — Core NATS: one subject, as a transport read by `tap` and written by `sink` and `target` like any other endpoint (module `io`).
 - [`std/io/msg/nats_jetstream`](std/io/msg/nats_jetstream/index.md) — NATS JetStream: one subject of a stream, as a transport read by `tap` and written by `sink` and `target` like any other endpoint (module `io`).
 - [`std/vault`](std/vault/index.md) — The current vault: the source a program runs against.

@@ -10,6 +10,15 @@ The language continues to be in active development.
 
 ### Added
 
+- The module `io.db.sqlite` ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Sqlite :
+  {Direct, RowTransport, Replayable, Writable}` and its constructor
+  `sqlite(path, table, order = [])`, which takes the keys of the `sqlite`
+  kind, so `source`, `tap` and `target` reach a table of a database file
+  with no configured endpoint. A row transport takes no format. An
+  annotated read decodes each column as its type holds it; `sink` to a
+  constructed table is refused, naming `target`.
+
 - Kafka topics and PostgreSQL tables as configured endpoints
   ([HQL-0046](doc/proposals/HQL-0046/README.md)). `kind = "postgres"`
   (`dsn_env`, `table`, `order`) is read by `source("id")` as a `Seq` through
