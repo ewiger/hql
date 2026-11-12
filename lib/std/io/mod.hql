@@ -122,7 +122,7 @@ abstract type VaultSource : DataSource
 // format, since its kind fixes one.
 
 /// What a program writes to: an endpoint written in a format, or a
-/// configured target by its id.
+/// configured endpoint by its id.
 abstract type DataTarget
 
 // The operations the `std` extension implements.

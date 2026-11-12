@@ -30,7 +30,7 @@ whether the documents end.
 - [`StreamSource`](types/StreamSource.md) — A log: `Message<T>`s in order, replayable within its retention.
 - [`Catalog`](types/Catalog.md) — An endpoint that contains sources of type `S`: a database of tables, a cluster of topics.
 - [`VaultSource`](types/VaultSource.md) — A vault as a source: an endpoint that holds its cards, as a catalog holds tables, with its members as fields rather than names.
-- [`DataTarget`](types/DataTarget.md) — What a program writes to: an endpoint written in a format, or a configured target by its id.
+- [`DataTarget`](types/DataTarget.md) — What a program writes to: an endpoint written in a format, or a configured endpoint by its id.
 - [`file`](file.md) — The `File` at `path`.
 - [`source`](source.md) — Every document read from `endpoint` in `format`, decoded to `T`: a `Seq` from a `Replayable` endpoint, a `Stream` from a live one.
 - [`tap`](tap.md) — The documents read from `endpoint` in `format`, one held at a time, as a `Stream<T>`.

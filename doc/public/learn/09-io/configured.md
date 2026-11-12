@@ -302,7 +302,7 @@ source("counts") | target("counts", Csv)
 ```
 
 ```text
-check error[type-mismatch]: a configured target's format is its kind's, set in its configuration; name none
+check error[type-mismatch]: a configured endpoint's format is its kind's, set in its configuration; name none
  --> <expression>:1:20
   |
 1 | source("counts") | target("counts", Csv)

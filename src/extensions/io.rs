@@ -44,7 +44,7 @@ const FORMAT_PARAMETER: TypeParameter = TypeParameter {
     bound: Some(crate::types::builtin::FORMAT),
 };
 
-/// A write's endpoint, or the id of a configured target (HQL-0035, HQL-0046).
+/// A write's endpoint, or the id of a configured endpoint (HQL-0035, HQL-0046).
 const TARGET: ArgumentSpec = ArgumentSpec::value(
     "endpoint",
     P::OneOf(&[
@@ -474,7 +474,7 @@ fn check_target(
         .map_err(|message| Diagnostic::typing(span, message))
 }
 
-/// `xs | target("id")`: the id names a configured target that is not a
+/// `xs | target("id")`: the id names a configured endpoint that is not a
 /// vault, no format is named beside it, and what is written is a table or a
 /// sequence of a declared record, which the boundary accepts.
 fn check_configured_target(
@@ -499,7 +499,7 @@ fn check_configured_target(
     if call.bindings.contains_key("F") {
         return Err(Diagnostic::typing(
             span.clone(),
-            "a configured target's format is its kind's, set in its configuration; name none",
+            "a configured endpoint's format is its kind's, set in its configuration; name none",
         ));
     }
     let element = if call.input.constructor.0 == "Table" {
@@ -550,7 +550,7 @@ fn check_configured_sink(
     if call.bindings.contains_key("F") {
         return Err(Diagnostic::typing(
             span.clone(),
-            "a configured target's format is its kind's, set in its configuration; name none",
+            "a configured endpoint's format is its kind's, set in its configuration; name none",
         ));
     }
     let boundary = boundary_for(configured, element, None)
