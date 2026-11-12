@@ -59,8 +59,10 @@ source("sightings") | map(s => s.species)
 ["wren", "owl", "kite"]
 ```
 
-The kinds are `vault`, `csv`, `json`, `json_lines`, `yaml` and `sqlite`, the
-last one table of a database file. A path resolves against the directory of
+The kinds are `vault`, `csv`, `json`, `json_lines`, `yaml`, `sqlite`, one
+table of a database file, `postgres`, one table of a PostgreSQL database, and
+`kafka`, one Kafka topic; the last two are the subject of
+[topics and tables](#topics-and-tables). A path resolves against the directory of
 `hql.toml`. The type comes from the configuration, so checking a program
 reads `hql.toml` and opens nothing else.
 
@@ -319,3 +321,107 @@ holds. It is `replace` unless written:
 Reading a target the same evaluation has replaced is an evaluation failure,
 as for a file, and a document being rendered writes nothing
 ([effects and what a host allows](hosts.md)).
+
+## Topics and tables
+
+A `postgres` source is one table of a PostgreSQL database, and a `kafka`
+source is one Kafka topic. The connection string of a database may hold a
+password, so the configuration names the environment variable that holds it,
+`dsn_env`; a topic's brokers are written as `brokers` or named the same way
+by `brokers_env`:
+
+```toml
+[sources.orders]
+kind = "postgres"
+dsn_env = "DEMO_DSN"
+table = "orders"
+order = ["id"]
+
+[sources.events]
+kind = "kafka"
+brokers_env = "KAFKA_BROKERS"
+topic = "events"
+idle_ms = 2000
+```
+
+Checking a program reads this configuration and connects to neither system.
+The variables are read, and the connections made, when a source is read or a
+target written.
+
+**A table ends.** `source("orders")` is a `Seq` of rows, read through the
+schema boundary as a `sqlite` table is: the columns are compared with the
+record before any row is decoded, and only the columns the record reads are
+selected. A `numeric` column reads as a `Decimal` with its digits, a `jsonb`
+column as the tree it holds, and a `NULL` as an absent field:
+
+<!-- run: skip -->
+```hql
+type Event {
+    id       : Int
+    kind     : String
+    customer : String
+    amount   : Decimal
+    at       : String
+}
+
+events : Seq<Event> = source("orders")
+events
+| filter(e => e.kind == "order_placed")
+| group(by = e => e.customer)
+| map(g => {customer: g.key, total: g.items | map(e => e.amount) | sum})
+```
+
+```text
+{{customer: "ada", total: 135.75}, {customer: "grace", total: 42.00}, {customer: "linus", total: 7.99}}
+```
+
+`target("orders")` writes a `Seq` or a `Table` of a declared record in one
+transaction. A table that does not exist is created, a column per field:
+`BIGINT` for an `Int`, `DOUBLE PRECISION` for a `Float`, `NUMERIC` for a
+`Decimal`, `BOOLEAN` for a `Bool`, `JSONB` for a list or a record, and `TEXT`
+otherwise. Under `mode = "replace"` the rows the table holds are removed and
+its definition, indexes and grants are kept.
+
+**A topic does not end.** `tap("events")` is a `Stream`, one JSON document
+per message, decoded as the element type. `source("events")` is a type
+error, since a `Seq` is a value that ends:
+
+<!-- run: skip -->
+```hql
+source("events")
+```
+
+```text
+check error[type-mismatch]: `events` is a `kafka` source, read by `tap` as a `Stream`, not by `source` as a `Seq`
+ --> <expression>:1:8
+  |
+1 | source("events")
+  |        ^^^^^^^^
+```
+
+The stream starts at the earliest message the topic keeps, or at the next
+one under `from = "latest"`. Without `idle_ms` it waits for messages without
+end; with it, the stream ends once no message has arrived for that many
+milliseconds.
+
+**`sink` writes as values arrive.** `sink("events")` writes each value as one
+message, and `sink("orders")` each row as it arrives, committed one at a
+time. A stream has no last value for `target` to wait for, so moving a topic
+into a table is a `tap` and a `sink`:
+
+<!-- run: skip -->
+```hql
+events : Stream<Event> = tap("events")
+events | sink("orders")
+```
+
+and moving a table into a topic is a `source` and a `sink`:
+
+<!-- run: skip -->
+```hql
+orders : Seq<Event> = source("orders")
+orders | sink("events")
+```
+
+`sink` takes no format beside an id, and writes to a `kafka` or a `postgres`
+source only; a file or an SQLite table is written whole by `target`.

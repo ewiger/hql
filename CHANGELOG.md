@@ -8,6 +8,21 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Added
+
+- Kafka topics and PostgreSQL tables as configured sources
+  ([HQL-0046](doc/proposals/HQL-0046/README.md)). `kind = "postgres"`
+  (`dsn_env`, `table`, `order`) is read by `source("id")` as a `Seq` through
+  the boundary and written by `target("id")` by `mode`, `replace` emptying
+  the table and keeping its definition; a `numeric` column keeps its digits.
+  `kind = "kafka"` (`brokers` or `brokers_env`, `topic`, `from`, `idle_ms`)
+  is read by `tap("id")` as a `Stream`, one JSON document per message;
+  `source("id")` of a topic is a type error.
+- `sink("id")` writes to a configured topic, a message per value, or table,
+  a row per value, as each arrives, so `tap("events") | sink("archive")`
+  moves a topic into a table.
+- `dsn` is a secret key in `[sources.<id>]`, named by `dsn_env`.
+
 ## [0.5.2] — 2026-10-25
 
 ### Changed
