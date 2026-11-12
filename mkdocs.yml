@@ -90,6 +90,7 @@ nav:
                   - Decimal: learn/02-data-types/decimal.md
                   - String: learn/02-data-types/string.md
                   - Bool: learn/02-data-types/bool.md
+                  - Date and time: learn/02-data-types/time.md
                   - Data: learn/02-data-types/data.md
                   - Option: learn/02-data-types/option.md
                   - Sets, Data and maps: learn/02-data-types/sets-data-and-maps.md
