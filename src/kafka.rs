@@ -1,5 +1,5 @@
 //! Kafka at the edge: the messages of one topic, read in order from each of
-//! its partitions, and messages written to it, for the configured sources of
+//! its partitions, and messages written to it, for the configured endpoints of
 //! `kind = "kafka"`.
 //!
 //! The client is asynchronous; each connection owns a runtime of one thread

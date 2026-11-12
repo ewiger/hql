@@ -69,7 +69,7 @@ fn Channel<T>(name: String) : Channel<T>
 // stdout : Stdout
 // stderr : Stderr
 
-/// What a program reads: a configured source by id, or an endpoint read in
+/// What a program reads: a configured endpoint by id, or an endpoint read in
 /// a format. Its contract fixes what its contents are.
 abstract type DataSource
 
@@ -111,12 +111,12 @@ abstract type Catalog<S> : DataSource
 /// filesystem, a git revision, an HTTP server, is the concrete type's.
 abstract type VaultSource : DataSource
 
-// A configured source, by its id: `source("field_notes")`. The run
-// context's configuration, `[sources.<id>]` in hql.toml, states its kind,
-// and the kind its type, read at check time and offline: a `vault` source
+// A configured endpoint, by its id: `source("field_notes")`. The run
+// context's configuration, `[endpoint.<id>]` in hql.toml, states its kind,
+// and the kind its type, read at check time and offline: a `vault` endpoint
 // is a Vault, and a `csv`, `json`, `json_lines`, `yaml`, `sqlite` or
-// `postgres` source a Seq<Data>, or a Seq of the type its `element` names.
-// A `kafka` source is a log that never ends: `tap(id)` reads it as a
+// `postgres` endpoint a Seq<Data>, or a Seq of the type its `element` names.
+// A `kafka` endpoint is a log that never ends: `tap(id)` reads it as a
 // Stream, and `source(id)` of it is a type error. The id is a
 // literal, snake_case, and never a connection string; an id takes no
 // format, since its kind fixes one.

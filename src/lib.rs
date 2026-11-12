@@ -35,6 +35,7 @@ pub mod decimal;
 pub mod diagnostics;
 pub mod docs;
 pub mod document;
+pub mod endpoints;
 pub mod extensions;
 pub mod graph;
 pub mod help;
@@ -272,7 +273,7 @@ pub fn plan(
     Ok(planned)
 }
 
-/// What `hql boundary` prints of a configured source (HQL-0035): its
+/// What `hql boundary` prints of a configured endpoint (HQL-0035): its
 /// effective boundary for an element type, with the source's own policies.
 #[derive(Debug, Clone)]
 pub struct InspectedBoundary {
@@ -281,10 +282,10 @@ pub struct InspectedBoundary {
     /// The boundary, each property with its origin.
     pub boundary: boundary::EffectiveBoundary,
     /// How a write treats what the target holds.
-    pub mode: sources::WriteMode,
+    pub mode: endpoints::WriteMode,
 }
 
-/// The effective boundary of the configured source `id` read as
+/// The effective boundary of the configured endpoint `id` read as
 /// `element`, or as the type its configuration names, the type declared by
 /// `types`, a program the boundary's type is checked in. The external
 /// fields are read where the format knows them before reading: a CSV
@@ -306,26 +307,28 @@ pub fn inspect_boundary(
     )
     .map_err(|error| error.message())?;
     types::program::install(std::sync::Arc::clone(&program.lattice));
-    let configured = vault.sources.get(id).ok_or_else(|| {
-        format!("no source `{id}` is configured; a source is declared under `[sources.<id>]`")
+    let configured = vault.endpoints.get(id).ok_or_else(|| {
+        format!("no endpoint `{id}` is configured; an endpoint is declared under `[endpoint.<id>]`")
     })?;
     let written = element
         .map(str::to_owned)
         .or_else(|| configured.element.clone())
         .ok_or_else(|| {
-            format!("source `{id}` names no `element`; name the type it is read as with `--as`")
+            format!("endpoint `{id}` names no `element`; name the type it is read as with `--as`")
         })?;
     let ty = types::named(&written, &[])
         .ok_or_else(|| format!("`{written}` is not a type the program declares"))?;
     let external = match &configured.kind {
-        sources::Kind::Sqlite { path, table, .. } => Some(sources::sqlite_columns(path, table)?),
-        sources::Kind::Postgres { dsn_env, table, .. } => Some(
-            postgres::columns(&sources::secret(dsn_env, "dsn_env")?, table)?
+        endpoints::Kind::Sqlite { path, table, .. } => {
+            Some(endpoints::sqlite_columns(path, table)?)
+        }
+        endpoints::Kind::Postgres { dsn_env, table, .. } => Some(
+            postgres::columns(&endpoints::secret(dsn_env, "dsn_env")?, table)?
                 .into_iter()
                 .map(|(name, _)| name)
                 .collect(),
         ),
-        sources::Kind::File { path, format } if *format == "Csv" => {
+        endpoints::Kind::File { path, format } if *format == "Csv" => {
             io::read_configured(path, types::TypeConstructor(format), false)?
                 .first()
                 .and_then(|row| match row {

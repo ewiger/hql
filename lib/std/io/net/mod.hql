@@ -18,7 +18,7 @@ import io
 /// `Replayable`. Written, it is a request by `method` whose body is the
 /// document, and the response is not read beyond its status. Both send
 /// `headers`, a map of header names to values. Authentication belongs in a
-/// configured source, not in the program.
+/// configured endpoint, not in the program.
 type Http : {Replayable, Writable} {
     url     : String
     method  : String   // "GET" unless written

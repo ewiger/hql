@@ -10,7 +10,7 @@ The language continues to be in active development.
 
 ### Added
 
-- Kafka topics and PostgreSQL tables as configured sources
+- Kafka topics and PostgreSQL tables as configured endpoints
   ([HQL-0046](doc/proposals/HQL-0046/README.md)). `kind = "postgres"`
   (`dsn_env`, `table`, `order`) is read by `source("id")` as a `Seq` through
   the boundary and written by `target("id")` by `mode`, `replace` emptying
@@ -21,7 +21,16 @@ The language continues to be in active development.
 - `sink("id")` writes to a configured topic, a message per value, or table,
   a row per value, as each arrives, so `tap("events") | sink("archive")`
   moves a topic into a table.
-- `dsn` is a secret key in `[sources.<id>]`, named by `dsn_env`.
+- `dsn` is a secret key in `[endpoint.<id>]`, named by `dsn_env`.
+
+### Changed
+
+- **Breaking:** a configured id is an endpoint, declared under
+  `[endpoint.<id>]` in `hql.toml`, with its boundary under
+  `[endpoint.<id>.fields.<field>]`. `[sources.<id>]` is refused, naming the
+  new table. The id is read by `source` and `tap` and written by `target`
+  and `sink`, so the table no longer says only one of the two. Diagnostics
+  name it as an endpoint: ``no endpoint `count` is configured``.
 
 ## [0.5.2] — 2026-10-25
 

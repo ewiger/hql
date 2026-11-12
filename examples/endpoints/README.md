@@ -1,7 +1,7 @@
-# Data sources: reading what a run context configures
+# Endpoints: reading what a run context configures
 
-`station/` is a vault whose `hql.toml` declares ten sources under
-`[sources.<id>]`: two vaults of notes, `journal` and `archive`, a CSV file
+`station/` is a vault whose `hql.toml` declares ten endpoints under
+`[endpoint.<id>]`: two vaults of notes, `journal` and `archive`, a CSV file
 of counts, a JSON array of sightings, a CSV ledger and a JSON array of
 profiles whose fields a boundary maps, and notes and readings whose
 boundaries say what reads as absent, prices written as decimal strings, and the ledger again under
@@ -13,12 +13,12 @@ kind states the type, so checking reads the configuration and opens nothing.
 
 | Case | What it shows | Result |
 | --- | --- | --- |
-| [two vaults](queries/two-vaults.hql) | two `vault` sources side by side, each a `Vault` with its own `cards` | each vault's card names |
-| [typed counts](queries/typed-counts.hql) | a `csv` source read as `Seq<Tally>` | the sum of the counts |
-| [sightings after noon](queries/sightings-after-noon.hql) | a `json` source is the elements of its one array | the species seen after noon |
-| [journal counts](queries/journal-counts.hql) | a vault source joined to a CSV source by species, the binary `join` of [HQL-0013](../../doc/proposals/HQL-0013/README.md) | each card's title beside its count |
-| [ledger through its boundary](queries/ledger-boundary.hql) | a `csv` source whose headers the boundary maps to `Tally`'s fields | each species and its total |
-| [profiles through their boundary](queries/profiles-boundary.hql) | a `json` source whose `name` is read from `profile.display_name` | each id and name |
+| [two vaults](queries/two-vaults.hql) | two `vault` endpoints side by side, each a `Vault` with its own `cards` | each vault's card names |
+| [typed counts](queries/typed-counts.hql) | a `csv` endpoint read as `Seq<Tally>` | the sum of the counts |
+| [sightings after noon](queries/sightings-after-noon.hql) | a `json` endpoint is the elements of its one array | the species seen after noon |
+| [journal counts](queries/journal-counts.hql) | a vault endpoint joined to a CSV endpoint by species, the binary `join` of [HQL-0013](../../doc/proposals/HQL-0013/README.md) | each card's title beside its count |
+| [ledger through its boundary](queries/ledger-boundary.hql) | a `csv` endpoint whose headers the boundary maps to `Tally`'s fields | each species and its total |
+| [profiles through their boundary](queries/profiles-boundary.hql) | a `json` endpoint whose `name` is read from `profile.display_name` | each id and name |
 | [absent cells](queries/notes-absent.hql) | an empty CSV cell is absent by default; `absent = ["missing"]` reads it as `""` | each species, note and count |
 | [decimal strings](queries/decimal-strings.hql) | a `Decimal` field reads a JSON string's digits, its default representation, and a number's | `16.00` |
 | [open strictness](queries/ledger-open.hql) | a closed record reads a wider ledger, its unmapped `Observer` column not read | `4` |
@@ -31,6 +31,6 @@ From the repository root:
 
 ```sh
 cargo build --locked
-cd examples/sources/station
+cd examples/endpoints/station
 ../../../target/debug/hql run ../queries/two-vaults.hql
 ```

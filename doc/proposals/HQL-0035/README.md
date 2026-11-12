@@ -1,8 +1,8 @@
-# HQL-0035: The schema boundary of a configured source or target
+# HQL-0035: The schema boundary of a configured endpoint
 
 **Status**: proposed, implemented in part
 **Created**: 2026-10-23
-**Source**: [HQL-0012](../HQL-0012/README.md), whose `[sources.<id>]`
+**Source**: [HQL-0012](../HQL-0012/README.md), whose `[endpoint.<id>]`
 configuration names the systems a program reads;
 [HQL-0031](../HQL-0031/README.md), whose formats leave how a decimal is
 carried to the boundary's schema
@@ -11,7 +11,7 @@ carried to the boundary's schema
 
 ## Abstract
 
-A configured source or target has a schema boundary: the place where HQL's
+A configured endpoint or target has a schema boundary: the place where HQL's
 declared types meet an external system's own schema. The boundary is a
 mapping, not a schema language. It states how a declared record type maps to
 a SQL table's columns, a CSV file's headers or a JSON document's paths, a
@@ -374,7 +374,7 @@ A useful precedence model is:
 1. HQL semantic type
 2. extension/format defaults
 3. environment/configuration defaults
-4. configured source/target mapping
+4. configured endpoint mapping
 5. dynamically supplied schema-boundary mapping
 6. explicit invocation-level override, if supported
 ```
@@ -626,7 +626,7 @@ type Event : Data = {
 }
 ```
 
-A JSON source may naturally preserve:
+A JSON endpoint may naturally preserve:
 
 ```json
 {
@@ -726,7 +726,7 @@ Csv defaults
 
 This should be the common case.
 
-### 18. CSV configured source
+### 18. CSV configured endpoint
 
 An external file source may also be configured.
 
@@ -1405,12 +1405,12 @@ This enables validation before reading or writing.
 
 ### 40. Source synchronization
 
-A configured source may synchronize external schema metadata.
+A configured endpoint may synchronize external schema metadata.
 
 Conceptually:
 
 ```text
-configured source
+configured endpoint
     |
     | inspect source metadata
     v
@@ -2403,7 +2403,7 @@ users =
     | UserRow
 ```
 
-Configured source:
+Configured endpoint:
 
 ```text
 finance.users_csv
@@ -2438,7 +2438,7 @@ users =
     | UserRow
 ```
 
-Configured source:
+Configured endpoint:
 
 ```text
 warehouse.users
@@ -2939,25 +2939,25 @@ The Schema Boundary is therefore the explicit seam between HQL's semantic type s
 
 ### The `hql.toml` form
 
-A configured source's boundary is written in `hql.toml`, in the source's own
+A configured endpoint's boundary is written in `hql.toml`, in the endpoint's own
 table, one subtable per HQL field under `fields`:
 
 ```toml
-[sources.users]
+[endpoint.users]
 kind = "csv"
 path = "data/users.csv"
 element = "UserRow"
 
-[sources.users.fields.id]
+[endpoint.users.fields.id]
 name = "user_id"          # the external field: a CSV header, a JSON key, a column
 type = "INTEGER"          # its external type, as the format names it
 
-[sources.users.fields.balance]
+[endpoint.users.fields.balance]
 name = "account_balance"
 position = 3              # its place among the external fields, from 1
 write = false             # read from the source, never written to it
 
-[sources.profiles.fields.name]
+[endpoint.profiles.fields.name]
 path = "profile.display_name"   # a JSON or YAML field below the top level
 absent = ["missing", "null"]    # what reads as an absent optional field
 ```
@@ -2977,9 +2977,9 @@ The keys of a field's table are the core properties of section 57:
 
 A field table names `name` or `path`, not both; where it names neither, the
 external field has the HQL field's name. Keys an extension owns sit in a
-subtable named by the source's kind, `[sources.users.fields.id.csv]`; the
+subtable named by the endpoint's kind, `[endpoint.users.fields.id.csv]`; the
 extension decides them, and a kind that owns no field key refuses every key
-there. A `vault` source has cards rather than fields and takes no `fields`.
+there. A `vault` endpoint has cards rather than fields and takes no `fields`.
 
 A malformed boundary is refused when the configuration loads, as every other
 source key is: a field table that is not a table, an unknown key, a value of
@@ -2991,7 +2991,7 @@ not a Bool, or a subtable named by another kind.
 
 One resolver turns the layers of a boundary into the effective boundary
 I/O proceeds with. Its layers, earliest first, are the format's defaults,
-the configured source's `fields`, and an invocation's override; HQL has no
+the configured endpoint's `fields`, and an invocation's override; HQL has no
 syntax for the last yet, and the resolver takes it all the same. It merges
 them by field-level recursive override: for each HQL field, each property
 takes the value of the latest layer that writes it, and the keys a kind owns
@@ -3092,7 +3092,7 @@ path. It never changes whether the HQL type is open or closed:
 | `strict` | is a boundary error naming the source and the field |
 
 `compatible` is the default. A table's unmapped columns are never selected,
-so a SQLite source applies its strictness to the columns of the table the
+so a SQLite endpoint applies its strictness to the columns of the table the
 boundary does not read, before any row is.
 
 ### Inspecting a boundary
@@ -3111,10 +3111,10 @@ same as one JSON document, each property a value and its origin.
 
 ### Configured targets
 
-A configured source is also a target: `xs | target("id")` writes to what
-`[sources.<id>]` configures, through the same boundary and the same
+A configured endpoint is written by its id as well: `xs | target("id")` writes to what
+`[endpoint.<id>]` configures, through the same boundary and the same
 resolver as a read. The value written is a `Table<R>`, or a `List<R>` or
-`Seq<R>`, of a declared record `R`; anything else, and a `vault` source, is
+`Seq<R>`, of a declared record `R`; anything else, and a `vault` endpoint, is
 a type error, as is a format named beside the id, since the kind fixes one.
 
 Each row writes the fields its boundary writes, a field with `write = false`
@@ -3134,7 +3134,7 @@ empty cell in CSV, and `NULL` in SQLite.
 
 ### Write modes
 
-The source's table takes `mode`, how a write treats what the target already
+The endpoint's table takes `mode`, how a write treats what the endpoint already
 holds. It is `replace` unless written:
 
 | Mode | A file | A SQLite table |
@@ -3152,7 +3152,7 @@ reading a target the same evaluation has replaced is refused.
 - 2026-10-23: specified; status proposed
 - 2026-10-23: the `hql.toml` form of a boundary specified and built
   ([issue 0045](../../issues/archive/0045-errors-validators-boundaries.md), B1):
-  `[sources.<id>.fields.<field>]` with `name`, `path`, `type`, `position`,
+  `[endpoint.<id>.fields.<field>]` with `name`, `path`, `type`, `position`,
   `read`, `write` and `absent`, and extension keys under the kind
 - 2026-10-23: the resolver specified and built (issue 0045, B2): format
   defaults, configuration and an invocation override merged by field-level
@@ -3160,7 +3160,7 @@ reading a target the same evaluation has replaced is refused.
   boundary errors
 - 2026-10-23: reading through a boundary built (issue 0045, B3):
   `source("id")` and `tap("id")` read as a declared record map each field
-  from its external field or path, a SQLite source selects only the columns
+  from its external field or path, a SQLite endpoint selects only the columns
   read, and a CSV header and a table's columns are checked before decoding
 - 2026-10-23: nullability at the boundary specified and built (issue 0045,
   B4): each format's `absent` default, and its override per field

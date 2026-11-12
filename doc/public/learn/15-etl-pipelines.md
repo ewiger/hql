@@ -30,29 +30,29 @@ second topic, and everything read is archived as JSON Lines. The station's
 `hql.toml` names each of those systems once:
 
 ```toml
-[sources.sightings]
+[endpoint.sightings]
 kind = "kafka"
 brokers_env = "KAFKA_BROKERS"
 topic = "sightings"
 group = "station-nightly"
 
-[sources.sites]
+[endpoint.sites]
 kind = "postgres"
 dsn_env = "STATION_DSN"
 table = "sites"
 
-[sources.daily_counts]
+[endpoint.daily_counts]
 kind = "postgres"
 dsn_env = "STATION_DSN"
 table = "daily_counts"
 mode = "append"
 
-[sources.alerts]
+[endpoint.alerts]
 kind = "kafka"
 brokers_env = "KAFKA_BROKERS"
 topic = "alerts"
 
-[sources.archive]
+[endpoint.archive]
 kind = "json_lines"
 path = "archive/sightings.jsonl"
 mode = "append"
@@ -108,12 +108,12 @@ that can see it. Checking sees configuration; evaluation sees the system:
 
 | What is wrong | When it is found | What is said |
 | --- | --- | --- |
-| `source("sightngs")` | checking | check error[unknown-name]: no source `sightngs` is configured; did you mean `sightings`? |
-| `sites : Seq<Site> = source("sightings")` | checking | check error[type-mismatch]: `sightings` is a `kafka` source, read by `tap` as a `Stream`, not by `source` as a `Seq` |
+| `source("sightngs")` | checking | check error[unknown-name]: no endpoint `sightngs` is configured; did you mean `sightings`? |
+| `sites : Seq<Site> = source("sightings")` | checking | check error[type-mismatch]: `sightings` is a `kafka` endpoint, read by `tap` as a `Stream`, not by `source` as a `Seq` |
 | `source("sites")` read as `Seq<Count>` | checking | check error[type-mismatch]: the boundary of `sites` has no field `day`; `Count` declares one |
 | `STATION_DSN` not set | evaluation, before the first row | execute failure[io-failure]: source `sites` reads its connection from `$STATION_DSN`, which is not set |
-| a row whose `protected` is `"yes"` | evaluation, at that row | execute failure[io-failure]: source `sites`: row 14 does not decode as Site: field `protected`: "yes" is not a Bool |
-| the broker unreachable | evaluation, before the first message | execute failure[io-failure]: source `sightings`: no broker at `$KAFKA_BROKERS` answered |
+| a row whose `protected` is `"yes"` | evaluation, at that row | execute failure[io-failure]: endpoint `sites`: row 14 does not decode as Site: field `protected`: "yes" is not a Bool |
+| the broker unreachable | evaluation, before the first message | execute failure[io-failure]: endpoint `sightings`: no broker at `$KAFKA_BROKERS` answered |
 
 A secret is named by the environment variable that holds it and never
 printed. A failure at evaluation names the source by its id, the system by
@@ -123,7 +123,7 @@ not read and count it later as missing.
 
 The configuration is also where a system's names meet the program's. The
 `sites` table may call its region column `region_code`; the boundary of
-chapter 9 maps it, `[sources.sites.fields.region] name = "region_code"`, and
+chapter 9 maps it, `[endpoint.sites.fields.region] name = "region_code"`, and
 the program keeps the name it reads. Renaming a column is a change to one
 line of configuration, not to every pipeline that reads it.
 

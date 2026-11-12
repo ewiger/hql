@@ -266,8 +266,8 @@ wait on.
 Each term below has one meaning.
 
 - **data source**: a named endpoint outside the program whose values HQL reads.
-- **source id**: the name a source has in configuration. A program refers to a
-  source by its id and by nothing else.
+- **endpoint id**: the name an endpoint has in configuration. A program refers
+  to a configured endpoint by its id and by nothing else.
 - **source kind**: what kind of endpoint a source is — `vault`, `postgres`,
   `kafka`. A kind is provided by exactly one extension, which also provides its
   HQL type.
@@ -365,18 +365,18 @@ source(id: String) : S        where S is the type the configuration names for id
 Sources are declared by the context the binary runs in, never by a program.
 
 ```toml
-[sources.field_notes]
+[endpoint.field_notes]
 kind = "vault"
 root = "notes"                       # relative to the vault containing hql.toml
 
-[sources.warehouse]
+[endpoint.warehouse]
 kind         = "postgres"
 host         = "db.internal"
 database     = "birds"
 user         = "reader"
 password_env = "WAREHOUSE_PASSWORD"  # the variable's NAME, as in HQL-0002
 
-[sources.sightings]
+[endpoint.sightings]
 kind     = "kafka"
 brokers  = ["kafka-1:9092", "kafka-2:9092"]
 topic    = "sightings"
@@ -384,7 +384,7 @@ element  = "Data"
 start    = "earliest"
 ```
 
-- Sources MUST be declared under `[sources.<id>]` in `hql.toml`. A user-level
+- Endpoints MUST be declared under `[endpoint.<id>]` in `hql.toml`. A user-level
   configuration file and an environment override are the run context's
   business and MAY add or replace entries, with the vault's file as the base.
 - A secret MUST be given as the name of an environment variable, in a key ending
@@ -475,7 +475,7 @@ The vault a program runs against is a source like any other.
   ordinary binding, and nothing about it is a keyword. Because `vault` is
   typed by the contract, `cards` means the same on a filesystem vault, a pinned
   git revision and a remote vault.
-- `[sources.vault]` MUST NOT be declared; the id is the run context's.
+- `[endpoint.vault]` MUST NOT be declared; the id is the run context's.
 
 This replaces the iterating function the [queries model](../../models/behavior/queries.md)
 sketches for `cards`. Iterating functions remain a language feature in their own
@@ -537,7 +537,7 @@ source whose snapshot is the same on every machine and every day.
 | `mysql` | `MysqlDatabase` | `Catalog<MysqlTable>` | — | — |
 | `duckdb` | `DuckdbDatabase` | `Catalog<DuckdbTable>` | — | — |
 
-A configured source MAY name one table directly, `table = "sightings"`, and is
+A configured endpoint MAY name one table directly, `table = "sightings"`, and is
 then that table's type rather than the catalog's.
 
 **Document, key-value and search stores.**
@@ -657,7 +657,7 @@ MUST NOT appear to the program as fewer elements.
 1. Declare `lib/std/sources/mod.hql`, and expose the filesystem vault as
    `vault : VaultSource`, with `cards` bound to `vault.cards`; no
    configuration change.
-2. Add `[sources.<id>]` and `source(id)` with a second `vault` kind source, so
+2. Add `[endpoint.<id>]` and `source(id)` with a second `vault` kind source, so
    two vaults can be read side by side.
 3. Amend HQL-0001 so an extension may provide source kinds.
 4. Ship one file kind (`csv`) and one database kind (`postgres`) as extensions,
@@ -667,7 +667,7 @@ MUST NOT appear to the program as fewer elements.
 ## Reference Implementation
 
 - `lib/std/sources/mod.hql` — the declarations of the section "The abstract types"
-- `src/sources.rs` — configuration loading, id validation, the secret-key
+- `src/endpoints.rs` — configuration loading, id validation, the secret-key
   refusal and the bounds of the section "Run-context bounds"
 - `src/checker.rs` — typing `source(id)` from configuration
 - `src/extensions/mod.rs` — a source-kind registration beside step
@@ -692,10 +692,10 @@ Unit tests MUST include:
 
 Integration tests MUST include:
 
-- two vault sources in one program, each in name order, `take(2)` over
+- two vault endpoints in one program, each in name order, `take(2)` over
   each identical across runs
 - an unknown id, reported with the nearest configured id
-- `hql check` on a program naming a `postgres` source succeeding with no
+- `hql check` on a program naming a `postgres` endpoint succeeding with no
   network available
 - a source exceeding `max_elements` failing with the source and the bound
   named, and the same source processed whole through `collect`
@@ -717,7 +717,7 @@ None.
 - 2026-10-19: `cards` is stated as `vault.cards` in sorted-walk order
   (HQL-0020); no part of this record is implemented yet beyond the filesystem
   vault
-- 2026-10-22: accepted, implemented in part. `[sources.<id>]` in `hql.toml`
+- 2026-10-22: accepted, implemented in part. `[endpoint.<id>]` in `hql.toml`
   is read with the vault and refused at load for an id off `snake_case`, the
   id `vault`, an unknown kind, a missing or unknown key and a literal secret.
   `source("id")` is typed at check time from the configuration alone, needs a
@@ -734,4 +734,4 @@ None.
   `member`, the stream, live and network kinds and native queries are not
   built
 - 2026-10-22: `tap("id")` gives a finite source's elements as a `Stream`,
-  and a vault source's cards are keyed by name, `notes.cards.get("owl")`
+  and a vault endpoint's cards are keyed by name, `notes.cards.get("owl")`

@@ -21,7 +21,7 @@ whether the documents end.
 - [`FileEnd`](types/FileEnd.md) — The end of a file, after what it holds, as `file(path).end`: a write there appends, and `tap` follows what is written next, as `tail -f` does.
 - [`File`](types/File.md) — A local file, the whole of it: read, every document it holds; written, it is replaced.
 - [`Channel`](types/Channel.md) — An endpoint of values rather than bytes, held in memory for one execution scope: a program run, or one cell.
-- [`DataSource`](types/DataSource.md) — What a program reads: a configured source by id, or an endpoint read in a format.
+- [`DataSource`](types/DataSource.md) — What a program reads: a configured endpoint by id, or an endpoint read in a format.
 - [`FiniteSource`](types/FiniteSource.md) — A source of every document, in order, that ends: read from a `Replayable` endpoint.
 - [`LiveSource`](types/LiveSource.md) — A source of each document as it arrives, with no replay: read from a live endpoint.
 - [`KeyedSource`](types/KeyedSource.md) — A finite source whose contents are addressable by a key of type `K`.

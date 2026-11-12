@@ -12,19 +12,19 @@ use tempfile::{TempDir, tempdir};
 /// The environment variables named below are never set, so no case
 /// connects to anything.
 const CONFIG: &str = r#"
-[sources.events]
+[endpoint.events]
 kind = "kafka"
 brokers_env = "HQL_TEST_UNSET_BROKERS"
 topic = "events"
 idle_ms = 500
 
-[sources.orders]
+[endpoint.orders]
 kind = "postgres"
 dsn_env = "HQL_TEST_UNSET_DSN"
 table = "orders"
 order = ["id"]
 
-[sources.counts]
+[endpoint.counts]
 kind = "csv"
 path = "counts.csv"
 "#;
@@ -66,7 +66,7 @@ fn a_topic_is_tapped_as_a_stream_and_never_read_by_source() {
     );
     let error = refusal(r#"source("events")"#, &vault);
     assert!(
-        error.contains("`events` is a `kafka` source, read by `tap` as a `Stream`"),
+        error.contains("`events` is a `kafka` endpoint, read by `tap` as a `Stream`"),
         "{error}"
     );
 }
@@ -164,7 +164,7 @@ fn a_malformed_topic_or_table_refuses_the_vault() {
         let dir = tempdir().unwrap();
         fs::write(
             dir.path().join("hql.toml"),
-            format!("[sources.db]\n{entry}"),
+            format!("[endpoint.db]\n{entry}"),
         )
         .unwrap();
         let error = vault::load(dir.path()).unwrap_err().to_string();

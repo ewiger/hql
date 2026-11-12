@@ -1,17 +1,17 @@
-# HQL-0046: Kafka topics and PostgreSQL tables as configured sources
+# HQL-0046: Kafka topics and PostgreSQL tables as configured endpoints
 
 **Status**: accepted, implemented
 **Created**: 2026-11-12
-**Source**: [HQL-0012](../HQL-0012/README.md) (configured sources),
+**Source**: [HQL-0012](../HQL-0012/README.md) (configured endpoints),
 [HQL-0021](../HQL-0021/README.md) (endpoints, `source` and `tap`),
 [HQL-0035](../HQL-0035/README.md) (the schema boundary and write modes),
 the design direction of the pipelines and ETL chapters
 (`doc/public/learn/14-pipelines.md`, `doc/public/learn/15-etl-pipelines.md`),
-`src/kafka.rs`, `src/postgres.rs`, `src/sources.rs`, `src/extensions/io.rs`
+`src/kafka.rs`, `src/postgres.rs`, `src/endpoints.rs`, `src/extensions/io.rs`
 
 ## Abstract
 
-Two kinds join `[sources.<id>]` in `hql.toml`. `kind = "postgres"` is one
+Two kinds join `[endpoint.<id>]` in `hql.toml`. `kind = "postgres"` is one
 table of a PostgreSQL database: a finite source, read by `source("id")` as a
 `Seq` through the boundary, and written by `target("id")` in one transaction
 or by `sink("id")` one row at a time. `kind = "kafka"` is one topic: a log
@@ -26,7 +26,7 @@ the environment.
 - A data platform's systems are queues and databases; a pipeline file reaches
   them by id, as it reaches a file, so its types are known offline.
 - `source` and `tap` already say whether documents end. A table ends; a topic
-  does not. The two kinds are the first configured sources on each side of
+  does not. The two kinds are the first configured endpoints on each side of
   that line.
 
 ## Non-goals
@@ -53,16 +53,16 @@ Each kind takes its own keys besides `kind`, `element`, `fields`, `mode` and
   or by `brokers_env`, and `topic`. It MAY name `from`, `earliest` (the
   default) or `latest`, where a read starts in each partition, and `idle_ms`,
   a count above 0.
-- A `postgres` or `kafka` source takes no `*_env` key but its own.
+- A `postgres` or `kafka` endpoint takes no `*_env` key but its own.
 
 ```toml
-[sources.orders]
+[endpoint.orders]
 kind = "postgres"
 dsn_env = "DEMO_DSN"
 table = "orders"
 order = ["id"]
 
-[sources.events]
+[endpoint.events]
 kind = "kafka"
 brokers_env = "KAFKA_BROKERS"
 topic = "events"
@@ -74,15 +74,15 @@ idle_ms = 2000
 The kind states the type, read from the configuration at check time; checking
 opens no connection.
 
-- `source("id")` of a `postgres` source is a `Seq` of the element, as for
+- `source("id")` of a `postgres` endpoint is a `Seq` of the element, as for
   `sqlite`; `tap("id")` gives its rows as a `Stream`.
-- `tap("id")` of a `kafka` source is a `Stream` of the element.
-- `source("id")` of a `kafka` source MUST be a type error: `` `events` is a
-  `kafka` source, read by `tap` as a `Stream`, not by `source` as a `Seq` ``.
-- `sink(xs, "id")` checks that the id names a `kafka` or `postgres` source and
+- `tap("id")` of a `kafka` endpoint is a `Stream` of the element.
+- `source("id")` of a `kafka` endpoint MUST be a type error: `` `events` is a
+  `kafka` endpoint, read by `tap` as a `Stream`, not by `source` as a `Seq` ``.
+- `sink(xs, "id")` checks that the id names a `kafka` or `postgres` endpoint and
   that no format is named. A topic takes values of any type; a table takes
   rows of a declared record. Any other kind is refused, naming `target`.
-- `target(xs, "id")` of a `kafka` source takes a completed collection of any
+- `target(xs, "id")` of a `kafka` endpoint takes a completed collection of any
   element; a stream is refused, as for every target.
 
 ### 3. Reading a table
@@ -145,7 +145,7 @@ The boundary's PostgreSQL types are `BIGINT` (Int), `DOUBLE PRECISION`
 
 ## Reference Implementation
 
-- `src/sources.rs` for the two kinds, `Brokers` and `secret`.
+- `src/endpoints.rs` for the two kinds, `Brokers` and `secret`.
 - `src/postgres.rs` for columns, rows and the writers, on the synchronous
   `postgres` client.
 - `src/kafka.rs` for the reader and the producer, on `rskafka` with gzip and

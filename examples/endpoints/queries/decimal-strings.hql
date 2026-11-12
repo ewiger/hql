@@ -2,7 +2,7 @@
 // feature: a `Decimal` field reads a JSON string's digits, its default representation, and a JSON number's digits too
 // implementation: implemented
 // environment: knowledge-v1
-// vault: sources/station
+// vault: endpoints/station
 // expected-type: Decimal
 // expected: 16.00
 

@@ -1,8 +1,8 @@
 // status: valid-now
-// feature: a CSV source read through its boundary: each field of `Tally` reads the column its configuration names
+// feature: a CSV endpoint read through its boundary: each field of `Tally` reads the column its configuration names
 // implementation: implemented
 // environment: knowledge-v1
-// vault: sources/station
+// vault: endpoints/station
 // expected-type: List<String>
 // expected: ["wren 2", "owl 1", "kite 1"]
 

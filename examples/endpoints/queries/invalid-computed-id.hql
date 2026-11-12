@@ -1,5 +1,5 @@
 // status: invalid
-// feature: a source id is a literal, so its type is known before evaluation
+// feature: an endpoint id is a literal, so its type is known before evaluation
 // implementation: implemented
 // environment: pure
 // phase: check

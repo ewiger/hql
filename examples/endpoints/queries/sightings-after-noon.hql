@@ -1,8 +1,8 @@
 // status: valid-now
-// feature: a configured JSON source is the elements of its array, in order
+// feature: a configured JSON endpoint is the elements of its array, in order
 // implementation: implemented
 // environment: knowledge-v1
-// vault: sources/station
+// vault: endpoints/station
 // expected-type: Seq<Option<Data>>
 // expected-json: ["owl","kite"]
 

@@ -1,8 +1,8 @@
 // status: valid-now
-// feature: a vault source joined to a CSV source by a key on each side
+// feature: a vault endpoint joined to a CSV endpoint by a key on each side
 // implementation: implemented
 // environment: knowledge-v1
-// vault: sources/station
+// vault: endpoints/station
 // expected-type: Seq<Data>
 // expected-json: [{"count":"1","title":"Kite overhead"},{"count":"1","title":"Owl at dusk"},{"count":"2","title":"Wren at dawn"}]
 

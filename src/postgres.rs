@@ -1,5 +1,5 @@
 //! PostgreSQL at the edge: the columns and rows of one table, and writes to
-//! it, for the configured sources of `kind = "postgres"`.
+//! it, for the configured endpoints of `kind = "postgres"`.
 //!
 //! Every value crosses the connection as text and is converted by the
 //! column's type, so a `numeric` keeps its digits and a `jsonb` column reads
@@ -7,7 +7,7 @@
 //! connection is made only when a source is read or a target written.
 
 use crate::data::Data;
-use crate::sources::WriteMode;
+use crate::endpoints::WriteMode;
 use postgres::{Client, GenericClient, NoTls};
 use std::collections::BTreeMap;
 

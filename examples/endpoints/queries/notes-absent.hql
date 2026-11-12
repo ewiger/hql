@@ -2,7 +2,7 @@
 // feature: an empty CSV cell is an absent optional field by default, and a boundary may read it as the empty text instead
 // implementation: implemented
 // environment: knowledge-v1
-// vault: sources/station
+// vault: endpoints/station
 // expected-type: List<String>
 // expected: ["wren [] 2", "owl [dusk] none"]
 
