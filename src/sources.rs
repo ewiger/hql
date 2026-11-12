@@ -132,18 +132,23 @@ fn collect(directory: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
 
 /// The kinds of configured source this binary reads, each with the keys its
 /// `[sources.<id>]` table takes besides `kind` and `element`.
-pub const KINDS: [(&str, &[&str]); 6] = [
+pub const KINDS: [(&str, &[&str]); 8] = [
     ("vault", &["root"]),
     ("csv", &["path"]),
     ("json", &["path"]),
     ("json_lines", &["path"]),
     ("yaml", &["path"]),
     ("sqlite", &["path", "table", "order"]),
+    ("postgres", &["dsn_env", "table", "order"]),
+    (
+        "kafka",
+        &["brokers", "brokers_env", "topic", "from", "idle_ms"],
+    ),
 ];
 
 /// The keys that hold a secret. A configuration names the environment
 /// variable that holds one, `password_env`, and never the secret itself.
-const SECRET_KEYS: [&str; 4] = ["password", "token", "secret", "api_key"];
+const SECRET_KEYS: [&str; 5] = ["password", "token", "secret", "api_key", "dsn"];
 
 /// What a configured source is read from, by kind.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -170,6 +175,84 @@ pub enum Kind {
         /// The columns its rows are ordered by; empty orders by `rowid`.
         order: Vec<String>,
     },
+    /// One table of a PostgreSQL database, a row per element.
+    Postgres {
+        /// The environment variable that holds the connection string,
+        /// `dsn_env`: a connection string may hold a password, so it is
+        /// never written in the configuration.
+        dsn_env: String,
+        /// The table read, schema-qualified where it holds a dot.
+        table: String,
+        /// The columns its rows are ordered by; empty reads them as the
+        /// table is scanned.
+        order: Vec<String>,
+    },
+    /// One Kafka topic, a JSON document per message.
+    Kafka {
+        /// The brokers a connection starts from.
+        brokers: Brokers,
+        /// The topic read and written.
+        topic: String,
+        /// Where a read starts in each partition, `from =`.
+        start: crate::kafka::Start,
+        /// How long a read waits for a message before its stream ends,
+        /// `idle_ms =`; without it the stream never ends.
+        idle: Option<std::time::Duration>,
+    },
+}
+
+/// Where a Kafka source's brokers are named.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Brokers {
+    /// In the configuration, `brokers = "host:9092"`.
+    Listed(Vec<String>),
+    /// In the environment variable `brokers_env` names, as a list separated
+    /// by commas.
+    Env(String),
+}
+
+impl Brokers {
+    /// The brokers, read from the environment where the configuration names
+    /// a variable.
+    ///
+    /// # Errors
+    /// Names the variable when it is not set or names no broker.
+    pub fn resolve(&self) -> Result<Vec<String>, String> {
+        match self {
+            Self::Listed(brokers) => Ok(brokers.clone()),
+            Self::Env(variable) => {
+                let listed = std::env::var(variable).map_err(|_| {
+                    format!("the environment variable `{variable}`, which `brokers_env` names, is not set")
+                })?;
+                let brokers = split_brokers(&listed);
+                if brokers.is_empty() {
+                    return Err(format!(
+                        "the environment variable `{variable}` names no broker"
+                    ));
+                }
+                Ok(brokers)
+            }
+        }
+    }
+}
+
+fn split_brokers(listed: &str) -> Vec<String> {
+    listed
+        .split(',')
+        .map(str::trim)
+        .filter(|broker| !broker.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// The value of the environment variable a `*_env` key names.
+///
+/// # Errors
+/// Names the variable and the key when it is not set.
+pub fn secret(variable: &str, key: &str) -> Result<String, String> {
+    std::env::var(variable).map_err(|_| {
+        format!("the environment variable `{variable}`, which `{key}` names, is not set")
+    })
 }
 
 impl Kind {
@@ -185,7 +268,16 @@ impl Kind {
                 _ => "yaml",
             },
             Self::Sqlite { .. } => "sqlite",
+            Self::Postgres { .. } => "postgres",
+            Self::Kafka { .. } => "kafka",
         }
+    }
+
+    /// Whether the kind is a log read as it arrives, by `tap`, rather than
+    /// a finite source read by `source`.
+    #[must_use]
+    pub fn is_live(&self) -> bool {
+        matches!(self, Self::Kafka { .. })
     }
 }
 
@@ -499,7 +591,7 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
         !matches!(key.as_str(), "kind" | "element")
             && !(matches!(key.as_str(), "fields" | "mode" | "strictness") && *kind != "vault")
             && !keys.contains(&key.as_str())
-            && !key.ends_with("_env")
+            && !(key.ends_with("_env") && !matches!(*kind, "postgres" | "kafka"))
     }) {
         return Err(format!(
             "`[sources.{id}]` of kind `{kind}` takes no `{key}`; it takes {}",
@@ -512,27 +604,78 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
     let required = |key: &str| -> Result<String, String> {
         text(key)?.ok_or_else(|| format!("`[sources.{id}]` of kind `{kind}` names its `{key}`"))
     };
+    let columns = |key: &str| -> Result<Vec<String>, String> {
+        match table.get(key) {
+            None => Ok(Vec::new()),
+            Some(order) => order
+                .as_array()
+                .and_then(|columns| {
+                    columns
+                        .iter()
+                        .map(|column| column.as_str().map(str::to_owned))
+                        .collect::<Option<Vec<_>>>()
+                })
+                .ok_or_else(|| format!("`[sources.{id}] {key}` lists column names, `[\"id\"]`")),
+        }
+    };
     let kind = match *kind {
+        "postgres" => Kind::Postgres {
+            dsn_env: text("dsn_env")?.ok_or_else(|| {
+                format!(
+                    "`[sources.{id}]` of kind `postgres` names the environment variable that \
+                     holds its connection string, `dsn_env = \"VARIABLE\"`"
+                )
+            })?,
+            table: required("table")?,
+            order: columns("order")?,
+        },
+        "kafka" => Kind::Kafka {
+            brokers: match (text("brokers")?, text("brokers_env")?) {
+                (Some(listed), None) => {
+                    let brokers = split_brokers(&listed);
+                    if brokers.is_empty() {
+                        return Err(format!("`[sources.{id}] brokers` names no broker"));
+                    }
+                    Brokers::Listed(brokers)
+                }
+                (None, Some(variable)) => Brokers::Env(variable),
+                _ => {
+                    return Err(format!(
+                        "`[sources.{id}]` of kind `kafka` names its brokers once, with \
+                         `brokers = \"host:9092\"` or `brokers_env = \"VARIABLE\"`"
+                    ));
+                }
+            },
+            topic: required("topic")?,
+            start: match text("from")?.as_deref() {
+                None | Some("earliest") => crate::kafka::Start::Earliest,
+                Some("latest") => crate::kafka::Start::Latest,
+                Some(other) => {
+                    return Err(format!(
+                        "`[sources.{id}] from` is `earliest` or `latest`, not `{other}`"
+                    ));
+                }
+            },
+            idle: match table.get("idle_ms") {
+                None => None,
+                Some(value) => Some(std::time::Duration::from_millis(
+                    value
+                        .as_integer()
+                        .and_then(|ms| u64::try_from(ms).ok())
+                        .filter(|ms| *ms > 0)
+                        .ok_or_else(|| {
+                            format!("`[sources.{id}] idle_ms` is a count of milliseconds, above 0")
+                        })?,
+                )),
+            },
+        },
         "vault" => Kind::Vault {
             root: root.join(required("root")?),
         },
         "sqlite" => Kind::Sqlite {
             path: root.join(required("path")?),
             table: required("table")?,
-            order: match table.get("order") {
-                None => Vec::new(),
-                Some(order) => order
-                    .as_array()
-                    .and_then(|columns| {
-                        columns
-                            .iter()
-                            .map(|column| column.as_str().map(str::to_owned))
-                            .collect::<Option<Vec<_>>>()
-                    })
-                    .ok_or_else(|| {
-                        format!("`[sources.{id}] order` lists column names, `[\"id\"]`")
-                    })?,
-            },
+            order: columns("order")?,
         },
         file => Kind::File {
             path: root.join(required("path")?),
@@ -627,7 +770,7 @@ fn field_mapping(
         match key.as_str() {
             "name" => mapping.external = Some(External::Name(text()?)),
             "path" => {
-                if !matches!(kind, "json" | "json_lines" | "yaml") {
+                if !matches!(kind, "json" | "json_lines" | "yaml" | "kafka") {
                     return Err(format!(
                         "`{at} path` names a nested field, and a `{kind}` record does not \
                          nest; name its field with `name`"

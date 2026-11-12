@@ -226,10 +226,7 @@ fn a_malformed_configuration_refuses_the_vault() {
             "[sources.Notes]\nkind = \"csv\"\npath = \"x\"\n",
             "snake_case",
         ),
-        (
-            "[sources.db]\nkind = \"postgres\"\n",
-            "unknown kind `postgres`",
-        ),
+        ("[sources.db]\nkind = \"mongo\"\n", "unknown kind `mongo`"),
         ("[sources.db]\nkind = \"csv\"\n", "names its `path`"),
         (
             "[sources.db]\nkind = \"csv\"\npath = \"x\"\nstart = \"earliest\"\n",

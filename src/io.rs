@@ -529,7 +529,7 @@ fn separable(format: TypeConstructor) -> bool {
 }
 
 /// A tree read from JSON or YAML.
-fn data_of(json: serde_json::Value) -> Data {
+pub(crate) fn data_of(json: serde_json::Value) -> Data {
     match json {
         serde_json::Value::Null => Data::Empty,
         serde_json::Value::Bool(value) => Data::Bool(value),
@@ -888,6 +888,17 @@ fn fetched(url: &str, headers: &BTreeMap<String, String>) -> Result<Arc<Vec<u8>>
     Ok(body)
 }
 
+/// Whether the host grants the network: a document reaches none.
+///
+/// # Errors
+/// Says so when the host is rendering a document.
+pub(crate) fn policy_permits_network() -> Result<(), String> {
+    match policy() {
+        Policy::Document { .. } => Err("a document reads nothing from the network".to_owned()),
+        Policy::Open => Ok(()),
+    }
+}
+
 /// A connection not yet made.
 type Connect = Box<dyn FnOnce() -> Result<Box<dyn Read + Send>, String> + Send>;
 
@@ -1049,6 +1060,26 @@ impl Reading {
             inner: None,
         };
         Self::shared(pieces(Box::new(reader), format, named))
+    }
+
+    /// The messages of a Kafka topic, each decoded as one JSON document,
+    /// read once however often the stream is traversed.
+    pub(crate) fn kafka(
+        messages: Box<dyn Iterator<Item = Result<String, String>> + Send>,
+        origin: String,
+    ) -> Self {
+        Self::shared(Box::new(messages.flat_map(move |message| {
+            let documents: Vec<Result<Value, String>> = match message {
+                Ok(text) => pieces(
+                    Box::new(std::io::Cursor::new(text.into_bytes())),
+                    TypeConstructor("Json"),
+                    origin.clone(),
+                )
+                .collect(),
+                Err(error) => vec![Err(error)],
+            };
+            documents
+        })))
     }
 
     fn shared(rest: Pieces) -> Self {

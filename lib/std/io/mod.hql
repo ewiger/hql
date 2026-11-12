@@ -114,8 +114,10 @@ abstract type VaultSource : DataSource
 // A configured source, by its id: `source("field_notes")`. The run
 // context's configuration, `[sources.<id>]` in hql.toml, states its kind,
 // and the kind its type, read at check time and offline: a `vault` source
-// is a Vault, and a `csv`, `json`, `json_lines`, `yaml` or `sqlite` source
-// a Seq<Data>, or a Seq of the type its `element` names. The id is a
+// is a Vault, and a `csv`, `json`, `json_lines`, `yaml`, `sqlite` or
+// `postgres` source a Seq<Data>, or a Seq of the type its `element` names.
+// A `kafka` source is a log that never ends: `tap(id)` reads it as a
+// Stream, and `source(id)` of it is a type error. The id is a
 // literal, snake_case, and never a connection string; an id takes no
 // format, since its kind fixes one.
 
@@ -165,9 +167,12 @@ effectful fn target<T, F : Format>(value: T, id: String, format: Type<F>) : Unit
 /// Writes each of `values` to `endpoint` in `format`, one document per
 /// value, and gives `Unit`: `[{a: 1}, {a: 2}] | sink(stdout, Json)` writes
 /// `{"a":1}` and `{"a":2}` on two lines. Written to a `Channel<T>`, each
-/// value is appended and no format is taken. Effectful: it runs once,
-/// where it is written.
+/// value is appended and no format is taken. `sink(id)` writes to the
+/// target configured under `id` as each value arrives: a `kafka` topic
+/// takes one message per value, a `postgres` table one row per value of a
+/// declared record. Effectful: it runs once, where it is written.
 effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Unit
+effectful fn sink<T, F : Format>(values: Iterable<T>, id: String, format: Type<F>) : Unit
 
 // Reading, provided by the `std` extension. The format may be omitted only
 // when the endpoint is `file` of a literal path whose extension implies one.
@@ -184,6 +189,7 @@ effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format
 // sink<T>(xs: Stream<T>, e: Writable, format: Type<F>) : Unit    a document per value
 // target<T>(x: T, c: Channel<T>) : Unit                          appends x
 // sink<T>(xs: Stream<T>, c: Channel<T>) : Unit                   appends each value
+// sink<T>(xs: Stream<T>, id: String) : Unit                      a message or a row per value
 //
 // Without the values, sink(e, F) is a step: Stream<T> -> Unit. A Logger
 // (module `io.logging`) takes one as its destination.

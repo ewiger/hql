@@ -24,6 +24,7 @@ pub mod modules;
 pub mod naming;
 mod net;
 mod parser;
+mod postgres;
 
 pub mod backends;
 pub mod boundary;
@@ -38,6 +39,7 @@ pub mod extensions;
 pub mod graph;
 pub mod help;
 pub mod io;
+pub mod kafka;
 pub mod library;
 pub mod reference;
 pub mod render;
@@ -317,6 +319,12 @@ pub fn inspect_boundary(
         .ok_or_else(|| format!("`{written}` is not a type the program declares"))?;
     let external = match &configured.kind {
         sources::Kind::Sqlite { path, table, .. } => Some(sources::sqlite_columns(path, table)?),
+        sources::Kind::Postgres { dsn_env, table, .. } => Some(
+            postgres::columns(&sources::secret(dsn_env, "dsn_env")?, table)?
+                .into_iter()
+                .map(|(name, _)| name)
+                .collect(),
+        ),
         sources::Kind::File { path, format } if *format == "Csv" => {
             io::read_configured(path, types::TypeConstructor(format), false)?
                 .first()
