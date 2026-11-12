@@ -58,9 +58,6 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
-      - id: "0061"
-        title: "A configured id names an endpoint: `[endpoint.<id>]`"
-        file: 0061-configured-endpoints.md
       - id: "0054"
         title: "The website is for HQL users: Learn, Guides, Reference"
         file: 0054-user-facing-website.md
