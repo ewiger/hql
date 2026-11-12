@@ -46,6 +46,7 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/io`](std/io/index.md) — Input and output: endpoints, the data sources read from them, and the data targets written to them.
 - [`std/io/net`](std/io/net/index.md) — Network endpoints: transports, read and written by `source`, `tap`, `target` and `sink` like any other endpoint (module `io`).
 - [`std/io/logging`](std/io/logging/index.md) — Logging: structured events written to a destination, apart from the result.
+- [`std/io/msg/nats`](std/io/msg/nats/index.md) — NATS JetStream: one subject of a stream, as a transport read by `tap` and written by `sink` and `target` like any other endpoint (module `io`).
 - [`std/vault`](std/vault/index.md) — The current vault: the source a program runs against.
 - [`search/lexical`](search/lexical/index.md) — Lexical retrieval: a corpus ranked by the words it shares with a query, a hashed bag of words compared by cosine.
 - [`search/semantic`](search/semantic/index.md) — Semantic retrieval: a corpus ranked against a query by vectors a language model made ahead of time, read from the index that `[semantics] index` in hql.toml names.

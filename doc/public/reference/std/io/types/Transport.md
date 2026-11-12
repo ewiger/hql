@@ -1,0 +1,13 @@
+<!-- hql reference: std/io.Transport -->
+# `Transport`
+
+In [`std/io`](../index.md).
+
+```hql
+abstract type Transport : Endpoint
+```
+
+An endpoint outside the evaluation: a file, a process stream, a network
+resource, a database table or a broker's log. A `Channel` is the
+endpoint that is not one.
+<!-- hql reference: end -->

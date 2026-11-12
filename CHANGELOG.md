@@ -33,6 +33,17 @@ The language continues to be in active development.
   `target("id")` or `sink("id")`; a `DECIMAL` column keeps its digits.
 - A `url` that holds credentials is refused in `[endpoint.<id>]`, naming
   `url_env`.
+- `consumer = "name"` on a `nats` endpoint reads through a durable JetStream
+  consumer: the server keeps the read's position under that name, so a
+  later read starts after the last message acknowledged. A message is
+  acknowledged once the program asks for the one after it.
+- The module `io.msg.nats` ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Nats` and
+  its constructor `nats(subject, stream = …, url_env = …)`, which takes the
+  keys of the `nats` kind, so `tap`, `sink` and `target` reach a subject
+  with no configured endpoint. `io` declares `Transport`, `Direct`,
+  `Network`, `ByteTransport`, `MessageTransport` and `RowTransport`; over a
+  `MessageTransport` a format may be omitted and is then `Json`.
 
 ### Fixed
 
