@@ -1,10 +1,10 @@
 # 0062 — NATS subjects and lakehouse tables as configured endpoints
 
-Status: doing
+Status: done
 Branch: `feat/nats-lakehouse`
-Related: [HQL-0049](../proposals/HQL-0049/README.md),
-[HQL-0046](../proposals/HQL-0046/README.md),
-[HQL-0035](../proposals/HQL-0035/README.md)
+Related: [HQL-0049](../../proposals/HQL-0049/README.md),
+[HQL-0046](../../proposals/HQL-0046/README.md),
+[HQL-0035](../../proposals/HQL-0035/README.md)
 
 Two kinds join `[endpoint.<id>]`, one on each side of the line `source` and
 `tap` draw. `kind = "nats"` is one subject of a JetStream stream, a log that
