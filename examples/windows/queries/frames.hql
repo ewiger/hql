@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: the frames of a window: `rows(1, 1)` clipped at the ends, `whole`, and the partition's `first`, `last` and `size`
-// implementation: pending
-// proposal: doc/proposals/HQL-0050/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<List<Int>>
 // expected: [[3, 1, 4, 4, 10], [6, 1, 4, 4, 10], [9, 1, 4, 4, 10], [7, 1, 4, 4, 10]]

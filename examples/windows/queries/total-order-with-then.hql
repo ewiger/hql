@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: `then` composes two comparisons into a total order, so the change sequence decides a tie on `at`
-// implementation: pending
-// proposal: doc/proposals/HQL-0050/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: Set<Int>
 // expected: {18}

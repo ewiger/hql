@@ -36,6 +36,17 @@ pub(crate) static STEPS: &[Operation] = &[
     declared("join", eval_join),
     declared("min_by", eval_min_by),
     declared("max_by", eval_max_by),
+    declared("over", super::window::eval_over)
+        .shaped(super::Shape::Partition)
+        .checked(super::window::check_over),
+    declared("row_number", super::window::eval_row_number),
+    declared("rank", super::window::eval_rank),
+    declared("dense_rank", super::window::eval_dense_rank),
+    declared("lag", super::window::eval_lag),
+    declared("lead", super::window::eval_lead),
+    declared("running", super::window::eval_running),
+    declared("rows", super::window::eval_rows),
+    declared("whole", super::window::eval_whole),
     declared("to_map", eval_to_map),
     declared("with", eval_with),
     declared("without", eval_without),
@@ -93,6 +104,9 @@ fn eval_first(
     _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    if let Some(first) = super::window::first(&input) {
+        return Ok(first);
+    }
     let element = element_of(&input);
     let first = elements(&input, "first", &span)?.into_iter().next();
     Ok(optional(first, element))
@@ -104,6 +118,9 @@ fn eval_last(
     _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    if let Some(last) = super::window::last(&input) {
+        return Ok(last);
+    }
     let element = element_of(&input);
     let last = elements(&input, "last", &span)?.pop();
     Ok(optional(last, element))

@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: the replay deduplicated by `over`: the first row of each key, latest first, which is SQL's `row_number() over (...) = 1`
-// implementation: pending
-// proposal: doc/proposals/HQL-0050/README.md
+// implementation: implemented
 // environment: knowledge-v1
 // vault: pipelines/shop
 // expected-type: List<Data>

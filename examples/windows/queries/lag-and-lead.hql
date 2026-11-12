@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: `lag` and `lead` are the rows before and after, `none` past either end
-// implementation: pending
-// proposal: doc/proposals/HQL-0050/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<List<Int>>
 // expected: [[0, 4], [1, 9], [4, 0]]

@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: `over` gives one value per row at the row's input position; `row_number` is the row's place in the order
-// implementation: pending
-// proposal: doc/proposals/HQL-0050/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Int>
 // expected: [3, 1, 2]

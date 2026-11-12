@@ -171,6 +171,12 @@ type Result<T, E>
 /// `compare(1, 2)` is `Less`.
 type Ordering
 
+/// One row's place in its ordered partition under `over`: the rows with
+/// its key, in the order `over` gives them, and its position among them.
+/// It has no fields: the `seq` module's window functions read it, and a
+/// window does not leave the `into` it is handed to. See HQL-0050.
+type Window<T>
+
 /// A type written as an argument: `is(Card)`, `of_type(Card)`. A parameter
 /// of type `Type<U>` takes a type name and binds `U` to the type it names.
 type Type<T>

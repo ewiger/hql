@@ -22,3 +22,5 @@ target/debug/hql run examples/windows/queries/running-balance.hql
 | [running balance](queries/running-balance.hql) | the `running` frame summed per account | the balance after each entry |
 | [latest two per customer](queries/latest-two-per-customer.hql) | `row_number` within each customer, then `filter` | four order ids |
 | [frames](queries/frames.hql) | `rows(1, 1)`, `whole`, `first`, `last` and `size` | each row's frame values |
+| [over a stream](queries/invalid-over-a-stream.hql) | a stream's partitions are never complete; `over` takes a sequence | refused |
+| [a window out of `into`](queries/invalid-window-out-of-into.hql) | a window does not leave the call it is handed to | refused |

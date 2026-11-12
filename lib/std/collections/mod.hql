@@ -33,10 +33,12 @@ type Group<K, T> {
 /// The number of element occurrences in `self`, an `Int`:
 /// `[1, 2, 2, 3] | size` is `4`, and `Set([1, 2, 2]) | size` is `2`.
 reduction fn size<T>(self: Collection<T>) : Int
+reduction fn size<T>(self: Window<T>) : Int
 
 /// The number of element occurrences in `self`, as `size` gives it: `count`
 /// is the kept alias of `size`. `[1, 2, 2, 3] | count` is `4`.
 reduction fn count<T>(self: Collection<T>) : Int
+reduction fn count<T>(self: Window<T>) : Int
 
 /// The number of occurrences in `self` equal to `value`:
 /// `[1, 2, 2, 3] | count(2)` is `2`. `value` is passed by position only.
@@ -150,8 +152,9 @@ elementwise fn flat_map<T, U>(self: Stream<T>, by: T -> Seq<U>) : Stream<U>
 // a Ranking, whose element is Hit<T> and not T, becomes a Seq<Hit<T>>: the
 // new order is not the retrieval's.
 /// The elements in ascending order: by their own value order, by the key
-/// `by` gives each, or by a comparison `by` of two elements. A sequence
-/// keeps its constructor; any other collection becomes a `List`.
+/// `by` gives each, or by a comparison `by` of two elements; elements that
+/// compare equal keep their input order. A sequence keeps its constructor;
+/// any other collection becomes a `List`.
 /// `[3, 1, 2] | sort` is `[1, 2, 3]`, and
 /// `[3, 1, 2] | sort(by = (a, b) => compare(b, a))` is `[3, 2, 1]`.
 fn sort<F<_> : Seq<_>, T : Orderable>(self: F<T>) : F<T>
@@ -160,6 +163,12 @@ fn sort<F<_> : Seq<_>, T, K : Orderable>(self: F<T>, by: T -> K) : F<T>
 fn sort<T, K : Orderable>(self: Collection<T>, by: T -> K) : List<T>
 fn sort<F<_> : Seq<_>, T>(self: F<T>, by: (T, T) -> Ordering) : F<T>
 fn sort<T>(self: Collection<T>, by: (T, T) -> Ordering) : List<T>
+
+/// `self` where it is `Less` or `Greater`, and `next` where it is `Equal`:
+/// a comparison that a second one decides on a tie.
+/// `compare(1, 1) | then(compare("a", "b"))` is `Less`; `next` is
+/// evaluated only on a tie.
+fn then(self: Ordering, next: Ordering) : Ordering
 
 /// The occurrences partitioned by the key `by` gives each, as a set of
 /// `Group`s, each a key and its occurrences in input order.

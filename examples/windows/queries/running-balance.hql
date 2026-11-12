@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a running balance per account: the `running` frame summed, one value per ledger entry
-// implementation: pending
-// proposal: doc/proposals/HQL-0050/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Int>
 // expected: [100, 50, 70, 70, 80]

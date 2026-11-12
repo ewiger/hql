@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: `row_number`, `rank` and `dense_rank` over a partition with a tie
-// implementation: pending
-// proposal: doc/proposals/HQL-0050/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<List<Int>>
 // expected: [[1, 1, 1], [3, 3, 2], [2, 1, 1], [4, 4, 3]]
