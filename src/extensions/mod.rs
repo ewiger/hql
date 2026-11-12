@@ -36,6 +36,7 @@ pub(crate) mod result;
 pub mod semantic;
 pub(crate) mod seq;
 pub mod spec;
+pub mod sqlite;
 pub(crate) mod string;
 pub(crate) mod traits;
 pub use collections::{COMBINERS, Combiner};
@@ -433,6 +434,14 @@ static NET: Extension = Extension {
     metadata: None,
 };
 
+static SQLITE: Extension = Extension {
+    name: "io.db.sqlite",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.db.sqlite"],
+    steps: sqlite::STEPS,
+    metadata: None,
+};
+
 // Each named by the path it provides, not by a word: a transport's module
 // is imported by its full path and has no one-word form (HQL-0048).
 static NATS: Extension = Extension {
@@ -533,6 +542,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &IO,
     &NET,
     &LOGGING,
+    &SQLITE,
     &NATS,
     &NATS_JETSTREAM,
     &LEXICAL,
