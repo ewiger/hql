@@ -1,4 +1,4 @@
-# 15. ETL pipelines
+# 19. ETL pipelines
 
 !!! warning "Design only"
 
@@ -254,5 +254,5 @@ file that passed is the file that runs.
 
 ## What is next
 
-Part III reads a different kind of data. [Chapter 16](16-a-vault.md) opens a
+Part III reads a different kind of data. [Chapter 20](20-a-vault.md) opens a
 folder of documents and asks it the questions chapter 6 asked a table.

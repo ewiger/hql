@@ -490,7 +490,7 @@ the data.
 > [!WARNING]
 > **Design only.** Wiring a pipeline to queues, databases and services is not
 > in the current release; reading and writing files and standard streams is.
-> The book's [ETL pipelines](https://hql-lang.org/latest/learn/15-etl-pipelines/)
+> The book's [ETL pipelines](https://hql-lang.org/latest/learn/19-etl-pipelines/)
 > chapter specifies it.
 
 Sources, transformations, streams, batches and targets all use the same expression model.
@@ -589,7 +589,7 @@ This makes HQL a natural language for AI harnesses: retrieval, context construct
 > [!WARNING]
 > **Design only.** Retrieval and graph expansion ship today. Agents, prompts
 > and runs as values, the `ai` module, are not in the current release; the
-> book's [Agents and runs](https://hql-lang.org/latest/learn/20-agents-and-runs/)
+> book's [Agents and runs](https://hql-lang.org/latest/learn/24-agents-and-runs/)
 > chapter specifies them.
 
 In HyperMarkDown, agent definitions and instructions can themselves be documents.

@@ -2,8 +2,8 @@
 
 This is a book about HQL, read from the first page to the last. It starts with
 a number and ends with a web of vaults, and every chapter builds on the ones
-before it. Every program in it prints what the book shows. Chapter 15 and
-chapters 20 to 22 describe ETL pipelines, the `ai` module and the direction
+before it. Every program in it prints what the book shows. Chapter 19 and
+chapters 24 to 26 describe ETL pipelines, the `ai` module and the direction
 beyond one vault, which are design and not in the current release; every
 other chapter runs with it.
 
@@ -79,7 +79,7 @@ one claim about which book inspired which, and a librarian.
 14. [Pipelines](14-pipelines.md) — `|` against `.`, the three phases, the
     step as the unit of execution, `hql` in a shell pipe, and the systems a
     pipeline will connect: queues, databases, services and jobs.
-15. [ETL pipelines](15-etl-pipelines.md) — one file that reads a queue,
+19. [ETL pipelines](19-etl-pipelines.md) — one file that reads a queue,
     enriches from a database and writes tables, alerts and an archive: ids
     bound in configuration and how they break, streams against tables, a
     batch as a stream and a stream as a file, rejected rows as a source, and
@@ -87,18 +87,18 @@ one claim about which book inspired which, and a librarian.
 
 ## Part III: Knowledge and AI
 
-16. [A vault of documents](16-a-vault.md) — cards, their metadata, a reading
+20. [A vault of documents](20-a-vault.md) — cards, their metadata, a reading
     list nobody maintains, and the vault as a namespace.
-17. [Links and graphs](17-graphs.md) — following links, building graphs,
+21. [Links and graphs](21-graphs.md) — following links, building graphs,
     drawing them.
-18. [Finding cards by meaning](18-retrieval.md) — rankings, hits, and the
+22. [Finding cards by meaning](22-retrieval.md) — rankings, hits, and the
     evidence behind a score.
-19. [Queries inside documents](19-documents.md) — cells, documents built
+23. [Queries inside documents](23-documents.md) — cells, documents built
     from them, and cells that maintain a vault.
-20. [Agents and runs](20-agents-and-runs.md) — agents as cards, context and
+24. [Agents and runs](24-agents-and-runs.md) — agents as cards, context and
     prompts, tools, and runs kept as values.
-21. [Agents inside documents](21-agents-inside-documents.md) — a document
+25. [Agents inside documents](25-agents-inside-documents.md) — a document
     whose cells retrieve evidence, run an agent over the draft they sit in,
     and remember the answer.
-22. [The hyper web](22-the-hyper-web.md) — namespaces beyond one tree,
+26. [The hyper web](26-the-hyper-web.md) — namespaces beyond one tree,
     providers, retrieval and agents across them, and a reader who asks.

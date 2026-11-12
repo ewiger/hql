@@ -2,7 +2,7 @@
 
 Part I was about the steps: what each one takes, what it gives, and the type
 that joins them. This part is about the pipeline the steps form, and the
-systems a pipeline connects. This chapter is the frame; [chapter 15](15-etl-pipelines.md)
+systems a pipeline connects. This chapter is the frame; [chapter 19](19-etl-pipelines.md)
 is the story it frames, an ETL pipeline written as one file.
 
 ## A pipeline language
@@ -83,7 +83,7 @@ A **pure** step may be rewritten by its shape. A step that decides each value
 alone, `filter`, `map`, may run over any part of the input in any order; a
 step that needs the whole input, `sort`, `group`, `sum`, `size`, is where the
 parts meet, and the pipeline holds nothing in between. The reading list of
-chapter 16 is three such steps: `filter` decides each card on its own, `sort`
+chapter 20 is three such steps: `filter` decides each card on its own, `sort`
 needs every card before it can place the first, and `map` turns each card into
 its title. That alternation of per-value steps and whole-input steps is the
 shape of **MapReduce**, and HQL keeps it visible in the pipeline: nothing is
@@ -174,6 +174,6 @@ backend that distributes its pure steps, with the same answer.
 
 ## What is next
 
-[Chapter 15](15-etl-pipelines.md) puts the frame to work: a pipeline that reads
+[Chapter 19](19-etl-pipelines.md) puts the frame to work: a pipeline that reads
 a queue, enriches what it reads from a database, and writes tables, alerts and
 an archive, in one checked file.
