@@ -1324,11 +1324,13 @@ pub(crate) fn decoded(
         crate::types::Leaves::AsWritten
     };
     // A configured source read one element at a time, `tap("id")`, is read
-    // through its boundary, which the read itself has not applied.
+    // through its boundary, which the read itself has not applied. A topic
+    // always is: what `sink("id")` writes through the boundary, a `Decimal`
+    // as text among it, reads back as it was written.
     let boundary = match endpoint {
         Value::Str(id) if traversal.element == TypeRef::DATA => configured(id, vault)
             .ok()
-            .filter(|configured| !configured.fields.is_empty())
+            .filter(|configured| !configured.fields.is_empty() || configured.kind.is_live())
             .map(|configured| boundary_for(configured, element, None))
             .transpose()
             .map_err(|message| Diagnostic::io_failure(span.clone(), message))?

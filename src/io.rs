@@ -1076,7 +1076,7 @@ impl Reading {
                     origin.clone(),
                 )
                 .collect(),
-                Err(error) => vec![Err(error)],
+                Err(error) => vec![Err(format!("{origin}: {error}"))],
             };
             documents
         })))

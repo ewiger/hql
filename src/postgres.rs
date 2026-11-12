@@ -17,7 +17,10 @@ use std::collections::BTreeMap;
 /// Names what failed; the connection string is never repeated, since it may
 /// hold a password.
 fn connect(dsn: &str) -> Result<Client, String> {
-    Client::connect(dsn, NoTls).map_err(|error| format!("no connection to the database: {error}"))
+    Client::connect(dsn, NoTls).map_err(|error| match error.as_db_error() {
+        Some(db) => format!("no connection to the database: {}", db.message()),
+        None => format!("no connection to the database: {error}"),
+    })
 }
 
 /// A name quoted as an SQL identifier, so it is read exactly as written.
