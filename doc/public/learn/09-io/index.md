@@ -62,7 +62,7 @@ Logging and the network are modules of their own, `import logging` and
 | [Finite or live](finite-or-live.md) | `Seq` from a file and `Stream` from a pipe, `tap`, and batches with `collect(n)` |
 | [Formats and documents](formats.md) | what one document reads as, how documents are separated, and which extension implies which format |
 | [Endpoints by id](configured.md) | `[endpoint.<id>]` in `hql.toml`, the kind that states the type, the schema boundary, and writing by id |
-| [Subjects and lakehouse tables](subjects-and-lakehouses.md) | a NATS JetStream subject, a Databricks or Spark table, and a pipeline from one to the other |
+| [Subjects and lakehouse tables](subjects-and-lakehouses.md) | a NATS JetStream subject, a durable consumer, `nats(...)` with `import io.msg.nats`, a Databricks or Spark table, and a pipeline from one to the other |
 | [Channels](channels.md) | `Channel<T>(name)`, an endpoint of values held in memory |
 | [Logging](logging.md) | `Logger`, the five levels, `--log-level`, and logs kept as values |
 | [The network](network.md) | `http`, `websocket` and `socket` with `import net` |

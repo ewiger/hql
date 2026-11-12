@@ -83,15 +83,120 @@ events
 {amount: 15.25, customer: "ada", id: 6}
 ```
 
-The read leaves nothing on the server: no consumer is kept and no position is
-recorded, so reading a subject twice gives the same messages twice. Without
-`idle_ms` the stream waits for messages without end; with it, the stream ends
-once none has arrived for that many milliseconds.
+The read leaves nothing on the server: no position is recorded, so reading a
+subject twice gives the same messages twice. Without `idle_ms` the stream
+waits for messages without end; with it, the stream ends once none has
+arrived for that many milliseconds.
 
 A subject may hold the wildcards `*`, one token, and `>`, every token that
 follows. `subject = "events.>"` reads every subject of the stream under
 `events.`. Such an endpoint is read only: a message is published to one
 subject, and `sink` to a wildcard is an evaluation failure that says so.
+
+## A position the server keeps
+
+A stream stores messages. A **consumer** is the server's record of how far
+one reader has come in a stream, and a durable consumer is one the server
+keeps under a name. An endpoint that names one reads from where the read
+before it ended:
+
+```toml
+[endpoint.billing]
+kind = "nats"
+url_env = "NATS_URL"
+stream = "EVENTS"
+subject = "events.orders"
+consumer = "billing"
+idle_ms = 2000
+```
+
+<!-- run: skip -->
+```hql
+events : Stream<Event> = tap("billing")
+events | map(e => e.id)
+```
+
+The first run reads every event the stream keeps:
+
+```text
+1
+2
+3
+4
+5
+6
+```
+
+A second run prints nothing, and a run after two more events are published
+prints those two. The first read under a name creates the consumer, starting
+where `from` says; every later read finds it, and `from` has no effect then.
+Two endpoints with different consumers each keep their own position over the
+same messages. A consumer keeps one position over one subject, so naming it
+with another subject is an evaluation failure.
+
+A message is acknowledged once the program asks for the one after it, and
+the last one when the stream ends. A message is therefore delivered at least
+once: a program that fails while it holds a message, or that stops early as
+`take(2)` does, is given that message again by the next run.
+
+<!-- run: skip -->
+```hql
+tap("billing") | take(2) | map(e => e.id)
+```
+
+```text
+[1, 2]
+```
+
+The next run of the program above starts with `2`.
+
+## A subject without configuration
+
+The kind is also a transport type, `Nats`, with a constructor in the module
+`io.msg.nats`. Its parameters are the kind's keys, so a program reaches a
+subject with no `hql.toml`:
+
+<!-- run: skip -->
+```hql
+import io.msg.nats
+
+orders = nats("events.orders", stream = "EVENTS", url_env = "NATS_URL", idle_ms = 2000)
+
+tap(orders) | filter(e => e.kind == "order_placed") | map(e => e.id)
+```
+
+```text
+1
+2
+4
+6
+```
+
+A message is one document, so the format may be left out and is then `Json`.
+`Nats` is a transport on the network that carries messages, which is what
+its supertypes state:
+
+<!-- run: check -->
+```hql
+import io.msg.nats
+
+nats("events.orders", stream = "EVENTS", url_env = "NATS_URL") | is(Network)
+```
+
+```text
+Bool
+```
+
+The module is imported by its full path, and naming it in the program's
+first lines is how a program states that it reaches NATS. The address is
+still `url` or the variable `url_env` names: a constructor takes no secret,
+and a `url` that holds credentials is refused.
+
+A constructed transport has no schema boundary: `fields`, `mode` and
+`strictness` are stated only in configuration. A message is read as `Data`,
+or as the type an annotation names. The boundary of a configured endpoint
+writes a `Decimal` as JSON text so that its digits survive, and reads it
+back; to a constructed transport that field is text.
 
 ## A lakehouse table
 
@@ -291,7 +396,7 @@ reads whatever the first has committed by then.
 
 ## What is not here
 
-A read of a subject keeps no position on the server, so there are no durable
-consumers and no acknowledgement of messages read. Credential files for NATS
-are not read. A lakehouse table holds no nested column, and a Databricks
-endpoint is reached with a personal access token only.
+One reader reads through one consumer: several programs sharing a consumer
+to divide its messages is not supported. Credential files for NATS are not
+read. A lakehouse table holds no nested column and has no constructor yet,
+and a Databricks endpoint is reached with a personal access token only.
