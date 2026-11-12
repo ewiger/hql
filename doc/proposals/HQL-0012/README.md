@@ -3,6 +3,9 @@
 - **Status**: accepted, implemented in part
 - **Created**: 2026-10-18
 - **Source**: [HQL is not an HMD query language](../../wiki/hmd-integration.hmd)
+- **Amended by**: [HQL-0047](../HQL-0047/README.md) (a kind is a transport,
+  with a type and a constructor of its name),
+  [HQL-0048](../HQL-0048/README.md) (the module each kind is declared in)
 
 ## Abstract
 
@@ -17,7 +20,7 @@ declares `DataSource` and the contracts that fix what a source's contents are:
 which adds lookup with `get`; `StreamSource<T>`, a replayable
 `Stream<Message<T>>`; `LiveSource<T>`, a stream with no replay; `Catalog<S>`, an
 endpoint that contains sources; and `VaultSource`, documents read as cards.
-Every concrete source type — `Vault`, `PostgresTable`, `KafkaTopic` — is
+Every concrete source type — `Vault`, `Postgres`, `Kafka` — is
 provided by an extension. An id is resolved at check time against the
 configuration of the run context, which holds every connection detail and
 secret. A portion of a source is taken with the operations every sequence and
@@ -266,8 +269,8 @@ wait on.
 Each term below has one meaning.
 
 - **data source**: a named endpoint outside the program whose values HQL reads.
-- **source id**: the name a source has in configuration. A program refers to a
-  source by its id and by nothing else.
+- **endpoint id**: the name an endpoint has in configuration. A program refers
+  to a configured endpoint by its id and by nothing else.
 - **source kind**: what kind of endpoint a source is — `vault`, `postgres`,
   `kafka`. A kind is provided by exactly one extension, which also provides its
   HQL type.
@@ -365,18 +368,18 @@ source(id: String) : S        where S is the type the configuration names for id
 Sources are declared by the context the binary runs in, never by a program.
 
 ```toml
-[sources.field_notes]
+[endpoint.field_notes]
 kind = "vault"
 root = "notes"                       # relative to the vault containing hql.toml
 
-[sources.warehouse]
+[endpoint.warehouse]
 kind         = "postgres"
 host         = "db.internal"
 database     = "birds"
 user         = "reader"
 password_env = "WAREHOUSE_PASSWORD"  # the variable's NAME, as in HQL-0002
 
-[sources.sightings]
+[endpoint.sightings]
 kind     = "kafka"
 brokers  = ["kafka-1:9092", "kafka-2:9092"]
 topic    = "sightings"
@@ -384,7 +387,7 @@ element  = "Data"
 start    = "earliest"
 ```
 
-- Sources MUST be declared under `[sources.<id>]` in `hql.toml`. A user-level
+- Endpoints MUST be declared under `[endpoint.<id>]` in `hql.toml`. A user-level
   configuration file and an environment override are the run context's
   business and MAY add or replace entries, with the vault's file as the base.
 - A secret MUST be given as the name of an environment variable, in a key ending
@@ -475,7 +478,7 @@ The vault a program runs against is a source like any other.
   ordinary binding, and nothing about it is a keyword. Because `vault` is
   typed by the contract, `cards` means the same on a filesystem vault, a pinned
   git revision and a remote vault.
-- `[sources.vault]` MUST NOT be declared; the id is the run context's.
+- `[endpoint.vault]` MUST NOT be declared; the id is the run context's.
 
 This replaces the iterating function the [queries model](../../models/behavior/queries.md)
 sketches for `cards`. Iterating functions remain a language feature in their own
@@ -501,9 +504,15 @@ warehouse | postgres.sql("select species, count(*) from sightings group by 1")
 ### 8. Source kinds
 
 Each kind below is provided by an extension, which provides the HQL type and the
-reader. `vault`, `csv`, `json`, `json_lines`, `yaml` and `sqlite` with one
-`table` are implemented, by the binary's `io` extension; every other row is
-design direction.
+reader. `vault`, `csv`, `json`, `json_lines`, `yaml`, `sqlite`, `postgres`,
+`spark`, `kafka`, `nats` and `nats_jetstream` are implemented, by the `std`
+extension; every other row is design direction.
+
+A kind other than `vault` and the file kinds is a transport
+([HQL-0047](../HQL-0047/README.md)). Its HQL type is named as the kind is,
+in `PascalCase`: `postgres` is `Postgres`. The type and a constructor of the
+kind's name are declared in the module of `std` that
+[HQL-0048](../HQL-0048/README.md) names, `io.db.postgres`.
 
 **Documents.**
 
@@ -512,7 +521,7 @@ design direction.
 | `vault` | `Vault` | `VaultSource` | `Card` | sorted walk, from a filesystem |
 | `git_vault` | `GitVault` | `VaultSource` | `Card` | sorted walk, at a pinned revision |
 | `remote_vault` | `RemoteVault` | `VaultSource` | `Card` | sorted walk, over HTTP or WebDAV |
-| `bucket` | `ObjectBucket` | `KeyedSource<String, Data>` | object metadata and body | object key |
+| `s3` | `S3` | `KeyedSource<String, Data>` | object metadata and body | object key |
 
 A `git_vault` pins a revision in configuration, which makes it the one document
 source whose snapshot is the same on every machine and every day.
@@ -527,74 +536,81 @@ source whose snapshot is the same on every machine and every day.
 | `yaml` | `YamlFile` | `FiniteSource<Data>` | one document | file order |
 | `parquet` | `ParquetFile` | `FiniteSource<Data>` | a row | file order |
 
-**Relational and analytical databases.**
+**Relational and analytical databases.** Module family `io.db`.
 
 | Kind | HQL type | Contract | Element | Order |
 | --- | --- | --- | --- | --- |
-| `postgres` | `PostgresDatabase` | `Catalog<PostgresTable>` | — | — |
-| — | `PostgresTable` | `KeyedSource<Data, Data>` | a row | configured, else primary key |
-| `sqlite` | `SqliteDatabase` | `Catalog<SqliteTable>` | — | — |
-| `mysql` | `MysqlDatabase` | `Catalog<MysqlTable>` | — | — |
-| `duckdb` | `DuckdbDatabase` | `Catalog<DuckdbTable>` | — | — |
+| `sqlite` | `Sqlite` | `FiniteSource<Data>` | a row of one table | `order`, else as scanned |
+| `postgres` | `Postgres` | `FiniteSource<Data>` | a row of one table | `order`, else as scanned |
+| `spark` | `Spark` | `FiniteSource<Data>` | a row of one table behind a Spark SQL endpoint | `order`, else as scanned |
+| `mysql` | `Mysql` | `FiniteSource<Data>` | a row of one table | configured |
+| `duckdb` | `Duckdb` | `FiniteSource<Data>` | a row of one table | configured |
 
-A configured source MAY name one table directly, `table = "sightings"`, and is
-then that table's type rather than the catalog's.
+A configured endpoint names one table, `table = "sightings"`, and is that
+table's rows. A whole database as a `Catalog` of its tables, and a table as a
+`KeyedSource` by its primary key, are design direction.
 
-**Document, key-value and search stores.**
+**Document, key-value and search stores.** Module family `io.db`.
 
 | Kind | HQL type | Contract | Element | Order |
 | --- | --- | --- | --- | --- |
-| `mongodb` | `MongoCollection` | `KeyedSource<Data, Data>` | a document | `_id` |
-| `redis` | `RedisKeyspace` | `KeyedSource<String, Data>` | a value | key |
-| `nats_kv` | `NatsKvBucket` | `KeyedSource<String, Data>` | the latest value of a key | key |
-| `nats_objects` | `NatsObjectStore` | `KeyedSource<String, Data>` | object metadata and body | object name |
-| `search` | `SearchIndex` | `KeyedSource<String, Data>` | a document | document id |
+| `mongodb` | `Mongodb` | `KeyedSource<Data, Data>` | a document | `_id` |
+| `redis` | `Redis` | `KeyedSource<String, Data>` | a value | key |
+| `nats_kv` | `NatsKv` | `KeyedSource<String, Data>` | the latest value of a key | key |
+| `nats_objects` | `NatsObjects` | `KeyedSource<String, Data>` | object metadata and body | object name |
+| `opensearch` | `Opensearch` | `KeyedSource<String, Data>` | a document | document id |
 
 A search index is read as documents. Ranking against it is retrieval, which
 stays with the steps of [HQL-0002](../HQL-0002/README.md) and returns `Hit`s.
 
-**Logs and streams.**
-
-| Kind | HQL type | Contract | Element | Position |
-| --- | --- | --- | --- | --- |
-| `kafka` | `KafkaTopic` | `StreamSource<Data>` | a record | partition and offset |
-| `nats_stream` | `NatsStream` | `StreamSource<Data>` | a JetStream message | stream sequence |
-| `redis_stream` | `RedisStream` | `StreamSource<Data>` | an entry | entry id |
-| `kinesis` | `KinesisStream` | `StreamSource<Data>` | a record | shard and sequence |
-| `postgres_changes` | `PostgresChangeFeed` | `StreamSource<Data>` | a row change | log sequence number |
-
-A Kafka topic of several partitions has no total order across partitions. Its
-contents MUST be in each partition's order and interleave partitions by
-message time, and its configuration MAY name a single partition when a total
-order is wanted.
-
-**Live delivery and work queues.**
-
-| Kind | HQL type | Contract | Element | Why live |
-| --- | --- | --- | --- | --- |
-| `nats` | `NatsSubject` | `LiveSource<Data>` | a message on a subject or wildcard | core NATS keeps nothing |
-| `mqtt` | `MqttTopic` | `LiveSource<Data>` | a publication | only the retained message survives |
-| `amqp` | `AmqpQueue` | `LiveSource<Data>` | a delivery | receiving takes it from other consumers |
-| `sqs` | `SqsQueue` | `LiveSource<Data>` | a message | receiving hides it until it times out |
-| `pubsub` | `PubSubSubscription` | `LiveSource<Data>` | a message | delivery is per subscription |
-| `webhook` | `Webhook` | `LiveSource<Data>` | a request body | the host receives it once |
-
-The same server can back two kinds. A NATS subject read live is `nats`; the
-JetStream stream that captures that subject is `nats_stream`, and is
-replayable.
-
-**HTTP APIs.**
+**Logs and streams.** Module family `io.msg`.
 
 | Kind | HQL type | Contract | Element | Order |
 | --- | --- | --- | --- | --- |
-| `rest` | `RestResource` | `KeyedSource<String, Data>` | an item of a paginated collection | configured |
-| `graphql` | `GraphqlQuery` | `FiniteSource<Data>` | a node of a configured query | configured |
-| `grpc` | `GrpcStream` | `StreamSource<Data>` or `LiveSource<Data>` | a response message | by method |
+| `kafka` | `Kafka` | `LiveSource<Data>` | a message's value | each partition's, partitions in turn |
+| `nats_jetstream` | `NatsJetStream` | `LiveSource<Data>` | a message's data | stream sequence |
+| `redis_streams` | `RedisStreams` | `LiveSource<Data>` | an entry | entry id |
+| `kinesis` | `Kinesis` | `LiveSource<Data>` | a record | shard and sequence |
+| `postgres_changes` | `PostgresChanges` | `LiveSource<Data>` | a row change | log sequence number |
+
+A log is read by `tap` as a `Stream` of its messages' values, from the
+position its configuration names ([HQL-0046](../HQL-0046/README.md),
+[HQL-0049](../HQL-0049/README.md)). A delivery that carries its position, a
+`StreamSource<Data>` of `Message<Data>`, is design direction for every row.
+
+**Live delivery and work queues.** Module family `io.msg`; `webhook` is in
+`io.net`.
+
+| Kind | HQL type | Contract | Element | Why live |
+| --- | --- | --- | --- | --- |
+| `nats` | `Nats` | `LiveSource<Data>` | a message on a subject or wildcard | core NATS keeps nothing |
+| `mqtt` | `Mqtt` | `LiveSource<Data>` | a publication | only the retained message survives |
+| `rabbitmq` | `Rabbitmq` | `LiveSource<Data>` | a delivery | receiving takes it from other consumers |
+| `sqs` | `Sqs` | `LiveSource<Data>` | a message | receiving hides it until it times out |
+| `pubsub` | `Pubsub` | `LiveSource<Data>` | a message | delivery is per subscription |
+| `webhook` | `Webhook` | `LiveSource<Data>` | a request body | the host receives it once |
+
+The same server can back two kinds. A NATS subject read live is `nats`; the
+JetStream stream that captures that subject is `nats_jetstream`, and is read
+from the position its configuration names.
+
+**HTTP and network protocols.** Module `io.net`.
+
+| Kind | HQL type | Contract | Element | Order |
+| --- | --- | --- | --- | --- |
+| `http` | `Http` | `FiniteSource<T>` | a document of the response body | body order |
+| `websocket` | `WebSocket` | `LiveSource<T>` | a message | arrival |
+| `tcp` | `Tcp` | `LiveSource<T>` | a document of the byte stream | arrival |
+| `rest` | `Rest` | `FiniteSource<Data>` | an item of a paginated collection | page order |
+| `graphql` | `Graphql` | `FiniteSource<Data>` | a node of a configured query | response order |
+| `grpc` | `Grpc` | `LiveSource<Data>` | a response message | arrival |
 | `feed` | `Feed` | `FiniteSource<Data>` | an RSS or Atom entry | entry time, then id |
 
-A `rest` source reads with `GET` only. Its configuration names the collection
-path, the pagination scheme and the key of an item, and `get` reads the item
-path. Any other method is an effect.
+`http`, `websocket` and `tcp` are constructors today and kinds by
+[HQL-0047](../HQL-0047/README.md), which also specifies `rest`, `graphql`
+and `webhook`. A `rest` source reads with `GET` only; any other method is a
+write to an `http` endpoint. Lookup of one item with `get`, a `KeyedSource`,
+is design direction.
 
 **Graph stores.**
 
@@ -657,7 +673,7 @@ MUST NOT appear to the program as fewer elements.
 1. Declare `lib/std/sources/mod.hql`, and expose the filesystem vault as
    `vault : VaultSource`, with `cards` bound to `vault.cards`; no
    configuration change.
-2. Add `[sources.<id>]` and `source(id)` with a second `vault` kind source, so
+2. Add `[endpoint.<id>]` and `source(id)` with a second `vault` kind source, so
    two vaults can be read side by side.
 3. Amend HQL-0001 so an extension may provide source kinds.
 4. Ship one file kind (`csv`) and one database kind (`postgres`) as extensions,
@@ -667,7 +683,7 @@ MUST NOT appear to the program as fewer elements.
 ## Reference Implementation
 
 - `lib/std/sources/mod.hql` — the declarations of the section "The abstract types"
-- `src/sources.rs` — configuration loading, id validation, the secret-key
+- `src/endpoints.rs` — configuration loading, id validation, the secret-key
   refusal and the bounds of the section "Run-context bounds"
 - `src/checker.rs` — typing `source(id)` from configuration
 - `src/extensions/mod.rs` — a source-kind registration beside step
@@ -692,10 +708,10 @@ Unit tests MUST include:
 
 Integration tests MUST include:
 
-- two vault sources in one program, each in name order, `take(2)` over
+- two vault endpoints in one program, each in name order, `take(2)` over
   each identical across runs
 - an unknown id, reported with the nearest configured id
-- `hql check` on a program naming a `postgres` source succeeding with no
+- `hql check` on a program naming a `postgres` endpoint succeeding with no
   network available
 - a source exceeding `max_elements` failing with the source and the bound
   named, and the same source processed whole through `collect`
@@ -717,7 +733,7 @@ None.
 - 2026-10-19: `cards` is stated as `vault.cards` in sorted-walk order
   (HQL-0020); no part of this record is implemented yet beyond the filesystem
   vault
-- 2026-10-22: accepted, implemented in part. `[sources.<id>]` in `hql.toml`
+- 2026-10-22: accepted, implemented in part. `[endpoint.<id>]` in `hql.toml`
   is read with the vault and refused at load for an id off `snake_case`, the
   id `vault`, an unknown kind, a missing or unknown key and a literal secret.
   `source("id")` is typed at check time from the configuration alone, needs a
@@ -734,4 +750,10 @@ None.
   `member`, the stream, live and network kinds and native queries are not
   built
 - 2026-10-22: `tap("id")` gives a finite source's elements as a `Stream`,
-  and a vault source's cards are keyed by name, `notes.cards.get("owl")`
+  and a vault endpoint's cards are keyed by name, `notes.cards.get("owl")`
+- 2026-11-12: amended by [HQL-0047](../HQL-0047/README.md) and
+  [HQL-0048](../HQL-0048/README.md). The source kinds follow what is
+  implemented: a kind's type is named as the kind is, `Postgres`, `Kafka`,
+  `Nats`; a configured database endpoint is one table; a log is read as a
+  `Stream` of values; `nats` is a core subject and `nats_jetstream` a stream;
+  `rest`, `graphql` and `webhook` are kinds of `io.net`.

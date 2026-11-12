@@ -1,4 +1,4 @@
-# Endpoints
+# Files and Standard Endpoints
 
 An **endpoint** states where bytes are. Constructing one performs no I/O: it
 opens, stats and resolves nothing, and prints as it was written:
@@ -36,7 +36,7 @@ check error[type-mismatch]: `source` needs (Readable | String), not Stdout
 ```
 
 The `String` in the diagnostic is the other form of `source`, a configured
-source named by its id ([sources and targets by id](configured.md)).
+endpoint named by its id ([endpoints by id](configured.md)).
 
 ## A file and its end
 

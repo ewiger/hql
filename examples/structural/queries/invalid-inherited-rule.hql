@@ -5,7 +5,7 @@
 // phase: execute
 // kind: contract-violation
 // severity: error
-// expected-type: Window
+// expected-type: Interval
 
 type Span : DataContract = {
     low: Int
@@ -14,10 +14,10 @@ type Span : DataContract = {
     require low <= high
 }
 
-type Window : Span = {
+type Interval : Span = {
     width: Int
 }
 
-// `Window` declares no rule, and `Span`'s still holds of it.
+// `Interval` declares no rule, and `Span`'s still holds of it.
 d : Data = {low: 7, high: 3, width: 4}
-d | Window
+d | Interval

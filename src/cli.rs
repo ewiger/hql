@@ -87,6 +87,15 @@ pub struct Options {
     /// `trace`, `debug`, `info`, `warn` or `error`.
     #[arg(long, global = true, value_name = "LEVEL")]
     pub log_level: Option<String>,
+    /// The evaluation instant `time.now()` gives, in RFC 3339:
+    /// `2026-10-24T07:30:00Z`. Without it, the host's clock, read once per
+    /// evaluation.
+    #[arg(long, global = true, value_name = "INSTANT")]
+    pub now: Option<String>,
+    /// The evaluation zone `time.local_zone()` gives: an IANA name or an
+    /// offset `±HH:MM`. Without it, `TZ`, else the host's zone.
+    #[arg(long, global = true, value_name = "ZONE")]
+    pub zone: Option<String>,
     /// When to stop: `strict` at the first error, `collect` to report them all.
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
@@ -126,7 +135,7 @@ enum Command {
         /// A file, or `-` for standard input.
         file: String,
     },
-    /// Print a configured source's effective boundary: for each field of
+    /// Print a configured endpoint's effective boundary: for each field of
     /// the type it is read as, its external field, both types, its position,
     /// whether it is read and written, what reads as absent, and the layer
     /// each property comes from.
@@ -134,7 +143,7 @@ enum Command {
         /// A program declaring the type the source is read as, or `-` for
         /// standard input.
         file: String,
-        /// The source's id, `[sources.<id>]` in the vault's hql.toml.
+        /// The endpoint's id, `[endpoint.<id>]` in the vault's hql.toml.
         id: String,
         /// The type the source is read as; the source's `element` without it.
         #[arg(long = "as", value_name = "TYPE")]
@@ -331,8 +340,10 @@ const COMMANDS: [&str; 12] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 10] = [
+const VALUED: [&str; 12] = [
     "--vault",
+    "--now",
+    "--zone",
     "--envelope",
     "--to",
     "--from",
@@ -418,6 +429,19 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         ));
     }
     crate::io::set_log_level(cli.options.log_level.clone());
+    let now = match cli.options.now.as_deref() {
+        None => None,
+        Some(text) => Some(crate::time::parse_instant(text).ok_or_else(|| {
+            format!("--now {text:?} is not an RFC 3339 instant such as 2026-10-24T07:30:00Z")
+        })?),
+    };
+    if let Some(zone) = &cli.options.zone {
+        crate::time::zone(zone).map_err(|message| format!("--zone: {message}"))?;
+    }
+    crate::time::set_clock(crate::time::Clock {
+        now,
+        zone: cli.options.zone.clone(),
+    });
     crate::io::set_stdin_format(match cli.options.from.as_deref() {
         None => None,
         Some(name) => {
@@ -808,7 +832,7 @@ fn write_boundary(
 ) -> Result<(), String> {
     use crate::boundary::Held;
     let boundary = &inspected.boundary;
-    let absent = |held: &Held<Vec<crate::sources::Absence>>| {
+    let absent = |held: &Held<Vec<crate::endpoints::Absence>>| {
         held.value
             .iter()
             .map(|absence| absence.name())
@@ -859,7 +883,7 @@ fn write_boundary(
     }
     writeln!(
         out,
-        "source {} ({}), read as {}; strictness {}, mode {}",
+        "endpoint {} ({}), read as {}; strictness {}, mode {}",
         boundary.source,
         boundary.kind,
         inspected.element,

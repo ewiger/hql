@@ -890,7 +890,7 @@ fn a_program_outside_every_vault_imports_builtin_modules() {
 /// HQL-0035: `hql boundary` prints a source's effective boundary, each
 /// property with the layer it comes from, and every boundary error.
 #[test]
-fn boundary_prints_a_sources_effective_boundary() {
+fn boundary_prints_an_endpoints_effective_boundary() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("ledger.csv"),
@@ -899,9 +899,9 @@ fn boundary_prints_a_sources_effective_boundary() {
     .unwrap();
     std::fs::write(
         dir.path().join("hql.toml"),
-        "[sources.ledger]\nkind = \"csv\"\npath = \"ledger.csv\"\nstrictness = \"open\"\n\
-         [sources.ledger.fields.species]\nname = \"Species Name\"\n\
-         [sources.ledger.fields.count]\nwrite = false\n",
+        "[endpoint.ledger]\nkind = \"csv\"\npath = \"ledger.csv\"\nstrictness = \"open\"\n\
+         [endpoint.ledger.fields.species]\nname = \"Species Name\"\n\
+         [endpoint.ledger.fields.count]\nwrite = false\n",
     )
     .unwrap();
     std::fs::write(
@@ -916,7 +916,7 @@ fn boundary_prints_a_sources_effective_boundary() {
     assert!(shown.status.success(), "{}", stderr(&shown));
     let text = stdout(&shown);
     assert!(
-        text.starts_with("source ledger (csv), read as Tally; strictness open, mode replace\n"),
+        text.starts_with("endpoint ledger (csv), read as Tally; strictness open, mode replace\n"),
         "{text}"
     );
     assert!(text.contains("count? : Int\n"), "{text}");

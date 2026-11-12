@@ -56,12 +56,13 @@ Logging and the network are modules of their own, `import logging` and
 
 | Page | What it covers |
 | --- | --- |
-| [Endpoints](endpoints.md) | `stdin`, `stdout`, `stderr`, `file(p)` and `file(p).end`; `Readable`, `Writable` and `Replayable`; where a relative path resolves |
+| [Files and Standard Endpoints](endpoints.md) | `stdin`, `stdout`, `stderr`, `file(p)` and `file(p).end`; `Readable`, `Writable` and `Replayable`; where a relative path resolves |
 | [Reading with `source`](source.md) | documents as `Data`, the format from the extension, reading as a declared record, and the decode error |
 | [Writing with `target` and `sink`](target.md) | one document or one document per value, replace or append, and branches that write |
 | [Finite or live](finite-or-live.md) | `Seq` from a file and `Stream` from a pipe, `tap`, and batches with `collect(n)` |
 | [Formats and documents](formats.md) | what one document reads as, how documents are separated, and which extension implies which format |
-| [Sources and targets by id](configured.md) | `[sources.<id>]` in `hql.toml`, the kind that states the type, the schema boundary, and writing by id |
+| [Endpoints by id](configured.md) | `[endpoint.<id>]` in `hql.toml`, the kind that states the type, the schema boundary, and writing by id |
+| [Subjects and lakehouse tables](subjects-and-lakehouses.md) | a core NATS subject, a JetStream subject and its durable consumer, `io.msg.nats` and `io.msg.nats_jetstream`, a Databricks or Spark table, and a pipeline from one to the other |
 | [Channels](channels.md) | `Channel<T>(name)`, an endpoint of values held in memory |
 | [Logging](logging.md) | `Logger`, the five levels, `--log-level`, and logs kept as values |
 | [The network](network.md) | `http`, `websocket` and `socket` with `import net` |

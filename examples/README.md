@@ -36,6 +36,10 @@ functions, with one intentional error for a parameter type.
 The [streams](streams/README.md) cases generate values with `yield`, end an
 unbounded stream with `take`, and refuse `yield` outside a `fn` block body.
 
+The [windows](windows/README.md) cases rank and compare rows within their
+partition with `over`, and order ties with `then`, from
+[HQL-0050](../doc/proposals/HQL-0050/README.md).
+
 The [slicing](slicing/README.md) cases take a position with `xs[i]` and a
 slice with `xs[a:b]` over strings, lists, documents, streams and a declared
 type, from [HQL-0026](../doc/proposals/HQL-0026/README.md).
@@ -77,6 +81,13 @@ The [data sources](sources/README.md) cases read the sources a vault's
 `hql.toml` configures by id with `source("id")`: two vaults side by side, a
 CSV file and a JSON array, typed from the configuration before anything is
 read, from [HQL-0012](../doc/proposals/HQL-0012/README.md).
+
+The [pipelines](pipelines/README.md) shop is the vault Part II of the book
+runs against: files, a SQLite table, PostgreSQL, Kafka, NATS and a
+lakehouse, each under an id. What is on this machine runs here; a program
+over a server is checked here and runs in the hql-demo repository, from
+[HQL-0046](../doc/proposals/HQL-0046/README.md) and
+[HQL-0049](../doc/proposals/HQL-0049/README.md).
 
 The [doc strings](doc-strings/README.md) sessions print `///` doc strings
 with `:help`, `:type` and `hql help`: a program's own function, overloads

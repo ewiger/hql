@@ -1,9 +1,9 @@
-//! The schema boundary of a configured source (HQL-0035): the resolver that
+//! The schema boundary of a configured endpoint (HQL-0035): the resolver that
 //! merges a format's defaults, a source's configuration and an invocation's
 //! override into the one effective boundary I/O proceeds with, each
 //! property keeping the layer it came from.
 
-use crate::sources::{Absence, External, FieldMapping};
+use crate::endpoints::{Absence, External, FieldMapping};
 use crate::types::TypeRef;
 use std::collections::BTreeMap;
 
@@ -24,7 +24,7 @@ pub struct DeclaredField {
 pub enum Origin {
     /// The format's default.
     Format,
-    /// The source's `[sources.<id>.fields]`.
+    /// The source's `[endpoint.<id>.fields]`.
     Configuration,
     /// An invocation's override.
     Invocation,
@@ -85,7 +85,7 @@ pub struct EffectiveBoundary {
     /// The fields, in the order the element type declares them.
     pub fields: Vec<EffectiveField>,
     /// What a read does with an external field no HQL field reads.
-    pub strictness: crate::sources::Strictness,
+    pub strictness: crate::endpoints::Strictness,
 }
 
 impl EffectiveBoundary {
@@ -151,7 +151,7 @@ impl std::fmt::Display for BoundaryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "source `{}`, field `{}`: {} ({}, from the {})",
+            "endpoint `{}`, field `{}`: {} ({}, from the {})",
             self.source,
             self.field,
             self.message,
@@ -379,7 +379,7 @@ pub fn resolve(
             source: source.to_owned(),
             kind: kind.to_owned(),
             fields: resolved,
-            strictness: crate::sources::Strictness::default(),
+            strictness: crate::endpoints::Strictness::default(),
         })
     } else {
         Err(errors)
@@ -419,7 +419,13 @@ enum Class {
     List,
     Object,
     Data,
-    /// Any other scalar, a `Date`, carried as text.
+    /// A `Date`, carried as its ISO 8601 text where the format has no date.
+    Date,
+    /// A `DateTime`, a timestamp with no zone.
+    DateTime,
+    /// An `Instant`, a timestamp on the UTC timeline.
+    Instant,
+    /// Any other scalar, a `Duration`, carried as text.
     Other,
 }
 
@@ -433,6 +439,10 @@ fn class(ty: &TypeRef) -> Class {
         _ if *ty == TypeRef::DECIMAL => Class::Decimal,
         _ if *ty == TypeRef::STR => Class::Text,
         _ if *ty == TypeRef::BOOL => Class::Bool,
+        _ if *ty == TypeRef::DATE => Class::Date,
+        _ if *ty == TypeRef::DATE_TIME => Class::DateTime,
+        _ if *ty == TypeRef::INSTANT => Class::Instant,
+        _ if *ty == TypeRef::DURATION => Class::Other,
         _ if ty.is_sequence() => Class::List,
         _ if crate::types::MapKind::of(ty.constructor).is_some()
             || crate::types::program::record(ty.constructor.0).is_some() =>
@@ -448,6 +458,8 @@ fn family(kind: &str) -> &'static str {
     match kind {
         "csv" => "csv",
         "sqlite" => "sqlite",
+        "postgres" => "postgres",
+        "spark" => "spark",
         _ => "tree",
     }
 }
@@ -459,18 +471,43 @@ fn default_type(kind: &str, ty: &TypeRef) -> &'static str {
         ("sqlite", Class::Int | Class::Bool) => "INTEGER",
         ("sqlite", Class::Float) => "REAL",
         ("sqlite", _) => "TEXT",
+        ("postgres", Class::Int) => "BIGINT",
+        ("postgres", Class::Float) => "DOUBLE PRECISION",
+        ("postgres", Class::Decimal) => "NUMERIC",
+        ("postgres", Class::Bool) => "BOOLEAN",
+        ("postgres", Class::List | Class::Object | Class::Data) => "JSONB",
+        ("postgres", Class::Date) => "DATE",
+        ("postgres", Class::DateTime) => "TIMESTAMP",
+        ("postgres", Class::Instant) => "TIMESTAMPTZ",
+        ("postgres", _) => "TEXT",
+        ("spark", Class::Int) => "BIGINT",
+        ("spark", Class::Float) => "DOUBLE",
+        ("spark", Class::Decimal) => "DECIMAL(38,18)",
+        ("spark", Class::Bool) => "BOOLEAN",
+        ("spark", Class::Date) => "DATE",
+        ("spark", Class::DateTime) => "TIMESTAMP_NTZ",
+        ("spark", Class::Instant) => "TIMESTAMP",
+        ("spark", _) => "STRING",
         (_, Class::Decimal) => "string",
         (_, Class::Int | Class::Float) => "number",
         (_, Class::Bool) => "boolean",
         (_, Class::List) => "array",
         (_, Class::Object | Class::Data) => "object",
-        (_, Class::Text | Class::Other) => "string",
+        (_, Class::Text | Class::Date | Class::DateTime | Class::Instant | Class::Other) => {
+            "string"
+        }
     }
 }
 
 /// The format's type for a type the source declares: of a SQLite column,
 /// its affinity by SQLite's rules, `DECIMAL(10, 2)` being `NUMERIC`.
 fn affinity(kind: &str, declared: &str) -> String {
+    if family(kind) == "postgres" {
+        return postgres_type(declared).to_owned();
+    }
+    if family(kind) == "spark" {
+        return declared.to_ascii_uppercase();
+    }
     if family(kind) != "sqlite" {
         return declared.to_owned();
     }
@@ -490,11 +527,38 @@ fn affinity(kind: &str, declared: &str) -> String {
     .to_owned()
 }
 
+/// The boundary's name for a PostgreSQL column type, from the name the
+/// server gives it, `int8` or `character varying`: every type the boundary
+/// does not tell apart reads as its text.
+fn postgres_type(declared: &str) -> &'static str {
+    match declared.to_ascii_lowercase().as_str() {
+        "int2" | "int4" | "int8" | "smallint" | "integer" | "bigint" | "oid" => "BIGINT",
+        "float4" | "float8" | "real" | "double precision" => "DOUBLE PRECISION",
+        "numeric" | "decimal" => "NUMERIC",
+        "bool" | "boolean" => "BOOLEAN",
+        "json" | "jsonb" => "JSONB",
+        "date" => "DATE",
+        "timestamp" | "timestamp without time zone" => "TIMESTAMP",
+        "timestamptz" | "timestamp with time zone" => "TIMESTAMPTZ",
+        _ => "TEXT",
+    }
+}
+
+/// A Spark SQL type without its parameters: `DECIMAL` of `decimal(12, 2)`.
+fn spark_type(declared: &str) -> String {
+    declared
+        .split('(')
+        .next()
+        .unwrap_or(declared)
+        .trim()
+        .to_ascii_uppercase()
+}
+
 /// What reads as an absent optional field unless the boundary says.
 fn default_absent(kind: &str) -> Vec<Absence> {
     match family(kind) {
         "csv" => vec![Absence::Empty, Absence::Missing],
-        "sqlite" => vec![Absence::Null],
+        "sqlite" | "postgres" | "spark" => vec![Absence::Null],
         _ => vec![Absence::Missing, Absence::Null],
     }
 }
@@ -507,6 +571,19 @@ fn lossy(kind: &str, external: &str, ty: &TypeRef) -> bool {
         && match family(kind) {
             "csv" => external == "float",
             "sqlite" => matches!(external.to_ascii_uppercase().as_str(), "REAL" | "NUMERIC"),
+            "postgres" => matches!(postgres_type(external), "DOUBLE PRECISION" | "BIGINT"),
+            "spark" => matches!(
+                spark_type(external).as_str(),
+                "DOUBLE"
+                    | "FLOAT"
+                    | "REAL"
+                    | "BIGINT"
+                    | "LONG"
+                    | "INT"
+                    | "INTEGER"
+                    | "SMALLINT"
+                    | "TINYINT"
+            ),
             _ => external == "number",
         }
 }
@@ -514,11 +591,15 @@ fn lossy(kind: &str, external: &str, ty: &TypeRef) -> bool {
 /// Whether the format's external type decodes to the HQL type; `None`
 /// where the format has no such type.
 fn decodes(kind: &str, external: &str, ty: &TypeRef) -> Option<bool> {
-    use Class::{Bool, Data, Decimal, Float, Int, List, Object, Other, Text};
+    use Class::{
+        Bool, Data, Date, DateTime, Decimal, Float, Instant, Int, List, Object, Other, Text,
+    };
     let target = class(ty);
     let into: &[Class] = match family(kind) {
         "csv" => match external {
-            "text" => &[Int, Float, Decimal, Text, Bool, Other],
+            "text" => &[
+                Int, Float, Decimal, Text, Bool, Date, DateTime, Instant, Other,
+            ],
             "integer" => &[Int, Float, Decimal],
             "float" => &[Float, Decimal],
             "decimal" => &[Decimal],
@@ -528,13 +609,40 @@ fn decodes(kind: &str, external: &str, ty: &TypeRef) -> Option<bool> {
         "sqlite" => match external.to_ascii_uppercase().as_str() {
             "INTEGER" => &[Int, Float, Decimal, Bool],
             "REAL" => &[Float, Decimal],
-            "TEXT" => &[Text, Decimal, Other],
+            "TEXT" => &[Text, Decimal, Date, DateTime, Instant, Other],
             "NUMERIC" => &[Decimal, Int, Float],
             "BLOB" => &[Text],
             _ => return None,
         },
+        "postgres" => match external.to_ascii_uppercase().as_str() {
+            "BIGINT" | "INTEGER" | "SMALLINT" | "INT8" | "INT4" | "INT2" => &[Int, Float, Decimal],
+            "DOUBLE PRECISION" | "REAL" | "FLOAT8" | "FLOAT4" => &[Float, Decimal],
+            "NUMERIC" | "DECIMAL" => &[Decimal, Int, Float],
+            "BOOLEAN" | "BOOL" => &[Bool],
+            "JSONB" | "JSON" => &[List, Object, Text, Int, Float, Decimal, Bool],
+            "TEXT" | "VARCHAR" | "CHARACTER VARYING" | "UUID" => {
+                &[Text, Decimal, Date, DateTime, Instant, Other]
+            }
+            "DATE" => &[Date, Text],
+            "TIMESTAMP" => &[DateTime, Text],
+            "TIMESTAMPTZ" => &[Instant, Text],
+            _ => return None,
+        },
+        "spark" => match spark_type(external).as_str() {
+            "BIGINT" | "LONG" | "INT" | "INTEGER" | "SMALLINT" | "TINYINT" => {
+                &[Int, Float, Decimal]
+            }
+            "DOUBLE" | "FLOAT" | "REAL" => &[Float, Decimal],
+            "DECIMAL" | "DEC" | "NUMERIC" => &[Decimal, Int, Float],
+            "BOOLEAN" => &[Bool],
+            "STRING" | "VARCHAR" | "CHAR" => &[Text, Decimal, Date, DateTime, Instant, Other],
+            "DATE" => &[Date, Text],
+            "TIMESTAMP_NTZ" => &[DateTime, Text],
+            "TIMESTAMP" => &[Instant, Text],
+            _ => return None,
+        },
         _ => match external {
-            "string" => &[Text, Decimal, Other],
+            "string" => &[Text, Decimal, Date, DateTime, Instant, Other],
             "number" => &[Int, Float, Decimal],
             "boolean" => &[Bool],
             "array" => &[List],

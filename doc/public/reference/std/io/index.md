@@ -15,13 +15,19 @@ whether the documents end.
 - [`Readable`](types/Readable.md) — An endpoint bytes can be read from, by `source` and `tap`.
 - [`Replayable`](types/Replayable.md) — A `Readable` endpoint that gives the same bytes on every read in one evaluation, so `source` reads what it holds as a `Seq`.
 - [`Writable`](types/Writable.md) — An endpoint bytes can be written to, by `target` and `sink`.
+- [`Transport`](types/Transport.md) — An endpoint outside the evaluation: a file, a process stream, a network resource, a database table or a broker's log.
+- [`Direct`](types/Direct.md) — A `Transport` on this machine: a process stream or the file system.
+- [`Network`](types/Network.md) — A `Transport` in another process, reached over a connection.
+- [`ByteTransport`](types/ByteTransport.md) — A `Transport` that moves bytes: a format separates the documents.
+- [`MessageTransport`](types/MessageTransport.md) — A `Transport` that moves framed messages: each message is one document, decoded by the format, `Json` where none is named.
+- [`RowTransport`](types/RowTransport.md) — A `Transport` that moves rows of named columns: it takes no format.
 - [`Stdin`](types/Stdin.md) — The program's standard input, bound as `stdin`: read once, as it arrives.
 - [`Stdout`](types/Stdout.md) — The program's standard output, bound as `stdout`: written while the program runs, before the host presents its result.
 - [`Stderr`](types/Stderr.md) — The program's standard error, bound as `stderr`: where diagnostics go, apart from the result.
 - [`FileEnd`](types/FileEnd.md) — The end of a file, after what it holds, as `file(path).end`: a write there appends, and `tap` follows what is written next, as `tail -f` does.
 - [`File`](types/File.md) — A local file, the whole of it: read, every document it holds; written, it is replaced.
 - [`Channel`](types/Channel.md) — An endpoint of values rather than bytes, held in memory for one execution scope: a program run, or one cell.
-- [`DataSource`](types/DataSource.md) — What a program reads: a configured source by id, or an endpoint read in a format.
+- [`DataSource`](types/DataSource.md) — What a program reads: a configured endpoint by id, or an endpoint read in a format.
 - [`FiniteSource`](types/FiniteSource.md) — A source of every document, in order, that ends: read from a `Replayable` endpoint.
 - [`LiveSource`](types/LiveSource.md) — A source of each document as it arrives, with no replay: read from a live endpoint.
 - [`KeyedSource`](types/KeyedSource.md) — A finite source whose contents are addressable by a key of type `K`.
@@ -30,7 +36,7 @@ whether the documents end.
 - [`StreamSource`](types/StreamSource.md) — A log: `Message<T>`s in order, replayable within its retention.
 - [`Catalog`](types/Catalog.md) — An endpoint that contains sources of type `S`: a database of tables, a cluster of topics.
 - [`VaultSource`](types/VaultSource.md) — A vault as a source: an endpoint that holds its cards, as a catalog holds tables, with its members as fields rather than names.
-- [`DataTarget`](types/DataTarget.md) — What a program writes to: an endpoint written in a format, or a configured target by its id.
+- [`DataTarget`](types/DataTarget.md) — What a program writes to: an endpoint written in a format, or a configured endpoint by its id.
 - [`file`](file.md) — The `File` at `path`.
 - [`source`](source.md) — Every document read from `endpoint` in `format`, decoded to `T`: a `Seq` from a `Replayable` endpoint, a `Stream` from a live one.
 - [`tap`](tap.md) — The documents read from `endpoint` in `format`, one held at a time, as a `Stream<T>`.

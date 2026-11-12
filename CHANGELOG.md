@@ -8,6 +8,85 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Added
+
+- Analytic windows ([HQL-0050](doc/proposals/HQL-0050/README.md)):
+  `over(by, order, into)` partitions a sequence by `by`, orders each
+  partition by `order`, and gives one value per row, at the row's input
+  position, from the row and its `Window`. A window gives `row_number`,
+  `rank`, `dense_rank`, `lag`, `lead`, `first`, `last`, `size` and the
+  frames `running`, `rows(before, after)` and `whole`. `into` may not give
+  a window, and `over` of a `Stream` is refused.
+- `then` composes two comparisons into one, the second deciding a tie:
+  `compare(a.at, b.at) | then(compare(a.seq, b.seq))`.
+- The module `io.db.sqlite` ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Sqlite :
+  {Direct, RowTransport, Replayable, Writable}` and its constructor
+  `sqlite(path, table, order = [])`, which takes the keys of the `sqlite`
+  kind, so `source`, `tap` and `target` reach a table of a database file
+  with no configured endpoint. A row transport takes no format. An
+  annotated read decodes each column as its type holds it; `sink` to a
+  constructed table is refused, naming `target`.
+
+- Kafka topics and PostgreSQL tables as configured endpoints
+  ([HQL-0046](doc/proposals/HQL-0046/README.md)). `kind = "postgres"`
+  (`dsn_env`, `table`, `order`) is read by `source("id")` as a `Seq` through
+  the boundary and written by `target("id")` by `mode`, `replace` emptying
+  the table and keeping its definition; a `numeric` column keeps its digits.
+  `kind = "kafka"` (`brokers` or `brokers_env`, `topic`, `from`, `idle_ms`)
+  is read by `tap("id")` as a `Stream`, one JSON document per message;
+  `source("id")` of a topic is a type error.
+- `sink("id")` writes to a configured topic, a message per value, or table,
+  a row per value, as each arrives, so `tap("events") | sink("archive")`
+  moves a topic into a table.
+- `dsn` is a secret key in `[endpoint.<id>]`, named by `dsn_env`.
+- NATS subjects and lakehouse tables as configured endpoints
+  ([HQL-0049](doc/proposals/HQL-0049/README.md)). `kind = "nats"` (`url` or
+  `url_env`, `subject`, `idle_ms`) is one core NATS subject: `tap("id")`
+  subscribes and is given what is published from then on, and `sink("id")`
+  publishes with nothing confirming it. `kind = "nats_jetstream"` (`url` or
+  `url_env`, `stream`, `subject`, `from`, `idle_ms`, `consumer`) is one
+  subject of a JetStream stream, read by `tap("id")` in the stream's order
+  and written by `sink("id")`, each message acknowledged by the stream.
+  `kind = "spark"`
+  (`url` or `url_env`, `token_env`, `table`, `order`) is one table behind a
+  Spark SQL endpoint, a Databricks SQL warehouse or a Spark Thrift Server,
+  read by `source("id")` as a `Seq` through the boundary and written by
+  `target("id")` or `sink("id")`; a `DECIMAL` column keeps its digits.
+- A `url` that holds credentials is refused in `[endpoint.<id>]`, naming
+  `url_env`.
+- `consumer = "name"` on a `nats_jetstream` endpoint reads through a durable JetStream
+  consumer: the server keeps the read's position under that name, so a
+  later read starts after the last message acknowledged. A message is
+  acknowledged once the program asks for the one after it.
+- The modules `io.msg.nats` and `io.msg.nats_jetstream`
+  ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transports `Nats` and
+  `NatsJetStream`, and their constructors `nats(subject, url_env = …)` and
+  `nats_jetstream(subject, stream = …, url_env = …)`, each taking its kind's
+  keys, so `tap`, `sink` and `target` reach a subject with no configured
+  endpoint. `io` declares `Transport`, `Direct`,
+  `Network`, `ByteTransport`, `MessageTransport` and `RowTransport`; over a
+  `MessageTransport` a format may be omitted and is then `Json`.
+
+### Fixed
+
+- A list or a record field of a declared record written to a topic, a
+  subject or a JSON, JSON Lines or YAML file is written as a list or a map.
+  It was written as its text.
+
+### Changed
+
+- `Window` is a standard type, so a program's own `type Window` is
+  refused; rename it.
+- `sort` is stable: elements that compare equal keep their input order.
+- **Breaking:** a configured id is an endpoint, declared under
+  `[endpoint.<id>]` in `hql.toml`, with its boundary under
+  `[endpoint.<id>.fields.<field>]`. `[sources.<id>]` is refused, naming the
+  new table. The id is read by `source` and `tap` and written by `target`
+  and `sink`, so the table no longer says only one of the two. Diagnostics
+  name it as an endpoint: ``no endpoint `count` is configured``.
+
 ## [0.5.2] — 2026-10-25
 
 ### Changed

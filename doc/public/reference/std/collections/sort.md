@@ -13,8 +13,9 @@ fn sort<T>(self: Collection<T>, by: (T, T) -> Ordering) : List<T>
 ```
 
 The elements in ascending order: by their own value order, by the key
-`by` gives each, or by a comparison `by` of two elements. A sequence
-keeps its constructor; any other collection becomes a `List`.
+`by` gives each, or by a comparison `by` of two elements; elements that
+compare equal keep their input order. A sequence keeps its constructor;
+any other collection becomes a `List`.
 `[3, 1, 2] | sort` is `[1, 2, 3]`, and
 `[3, 1, 2] | sort(by = (a, b) => compare(b, a))` is `[3, 2, 1]`.
 <!-- hql reference: end -->

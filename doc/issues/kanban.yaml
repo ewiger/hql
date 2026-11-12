@@ -45,6 +45,9 @@ board:
         title: "General-purpose gap analysis: what Python and its peers have that HQL lacks"
         file: 0068-general-purpose-gap-analysis.md
     todo:
+      - id: "0063"
+        title: "The result of a write: `Unit` is the wrong answer"
+        file: 0063-the-result-of-a-write.md
       - id: "0058"
         title: "A value read from a card loses where it came from"
         file: 0058-card-values-lose-their-provenance.md
@@ -70,6 +73,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0064"
+        title: "`Date` as a data type, and the `time` module"
+        file: 0064-date-and-the-time-module.md
       - id: "0054"
         title: "The website is for HQL users: Learn, Guides, Reference"
         file: 0054-user-facing-website.md

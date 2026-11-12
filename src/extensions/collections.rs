@@ -150,6 +150,11 @@ fn wrapped(input: &Arc<Traversal>, element: TypeRef, source: Source) -> Value {
 
 /// Every step the core provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
+    // The constructors of `core`'s time scalars (HQL-0041 part 1).
+    super::time::DATE,
+    super::time::DATE_TIME,
+    super::time::INSTANT,
+    super::time::DURATION,
     Operation {
         name: "size",
         spec: Signature::Declared,
@@ -245,6 +250,14 @@ pub(crate) static STEPS: &[Operation] = &[
         shape: super::Shape::Barrier,
         check: None,
         eval: eval_sort,
+    },
+    Operation {
+        name: "then",
+        spec: Signature::Declared,
+        purity: Purity::Pure,
+        shape: super::Shape::Barrier,
+        check: None,
+        eval: eval_then,
     },
     Operation {
         name: "take",
@@ -478,6 +491,13 @@ fn eval_count(
     args: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    if args.is_empty()
+        && let Some(size) = super::window::size(&input)
+    {
+        return i64::try_from(size)
+            .map(Value::Int)
+            .map_err(|_| Diagnostic::runtime(span, "collection size exceeds Int"));
+    }
     let elements = elements(&input, "count", &span)?;
     let count = match args.first() {
         Some(arg) => {
@@ -774,6 +794,24 @@ fn eval_sort(
         }
     }
     Ok(Value::list(elements, element_type(&input)))
+}
+
+/// `self` unless it is `Equal`, and `next`, evaluated only then, if it is.
+fn eval_then(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let Value::Ordering(order) = input else {
+        return Err(wrong("then", "an Ordering", &span));
+    };
+    if order != Ordering::Equal {
+        return Ok(input);
+    }
+    let next = named_or_first(arguments, "next")
+        .ok_or_else(|| wrong("then", "a `next` Ordering", &span))?;
+    cx.evaluate(&next.value)
 }
 
 /// A stable sort by an order only the evaluator can decide, since it may
@@ -2179,6 +2217,7 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
         }
         // Equal decimals share a digest whatever their scale.
         Value::Decimal(x) => text(out, b"d", &x.canonical()),
+        Value::Time(time) => text(out, time.type_name().as_bytes(), &time.to_string()),
         Value::Bool(b) => out.update([b'b', u8::from(*b)]),
         Value::Str(held) => text(out, b"s", held),
         Value::Formatted(formatted) => text(out, b"s", &formatted.text),
@@ -2218,6 +2257,7 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
             crate::data::Data::Int(n) => encode(&Value::Int(*n), out),
             crate::data::Data::Float(x) => encode(&Value::Float(*x), out),
             crate::data::Data::Decimal(x) => encode(&Value::Decimal(x.clone()), out),
+            crate::data::Data::Time(time) => encode(&Value::Time(*time), out),
             crate::data::Data::Bool(b) => encode(&Value::Bool(*b), out),
             crate::data::Data::Str(held) => text(out, b"s", held),
             other => text(out, b"t", &format!("{other:?}")),

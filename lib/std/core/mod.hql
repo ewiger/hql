@@ -41,8 +41,69 @@ type Decimal : {Scalar, Orderable}
 /// `"hello"[1]` is `"e"`.
 type String : {Scalar, Orderable}
 
-/// A calendar date, ordered by time. No literal produces a `Date`.
+// The time scalars (HQL-0041 part 1). No literal produces one: each is
+// built by its constructor from ISO 8601 text or from named parts, and its
+// operations are the `time` module's.
+/// A proleptic Gregorian calendar date, ordered by time:
+/// `Date("2026-10-24")`. It is written as its ISO 8601 text.
 type Date : {Scalar, Orderable}
+
+/// A date and a time of day with no zone or offset, ordered by time:
+/// `DateTime("2026-10-24T09:30:00")`. It names a wall-clock reading and
+/// becomes an `Instant` only through a zone.
+type DateTime : {Scalar, Orderable}
+
+/// A point on the UTC timeline with nanosecond precision, ordered by time:
+/// `Instant("2026-10-24T07:30:00Z")`. It is written in RFC 3339, in UTC.
+type Instant : {Scalar, Orderable}
+
+/// A signed length of time in nanoseconds, ordered by length:
+/// `Duration("PT1H30M")`. `+` and `-` add and subtract two; a day is 24
+/// hours, and a month or a year is no `Duration`.
+type Duration : {Scalar, Orderable}
+
+/// The `Date` an ISO 8601 date reads as: `Date("2026-10-24")`. Any other
+/// text, a time part included, is an evaluation error naming it; `to_date`
+/// gives `none` instead.
+fn Date(text: String) : Date
+
+/// The `Date` of a year, a month `1..12` and a day of that month:
+/// `Date(year = 2026, month = 10, day = 24)`. A part out of range,
+/// February 30 among them, is an evaluation error.
+fn Date(*, year: Int, month: Int, day: Int) : Date
+
+/// The `DateTime` an ISO 8601 date and time with no offset reads as:
+/// `DateTime("2026-10-24T09:30:00")`, with up to nine fraction digits.
+/// Text with an offset or a `Z` is an `Instant`'s, and an evaluation error
+/// here.
+fn DateTime(text: String) : DateTime
+
+/// The `DateTime` of `date` at a time of day: `DateTime(Date("2026-10-24"),
+/// hour = 9, minute = 30)`. A part out of range, `hour = 24` among them,
+/// is an evaluation error.
+fn DateTime(date: Date, *, hour: Int = 0, minute: Int = 0, second: Int = 0, nanosecond: Int = 0) : DateTime
+
+/// The `Instant` RFC 3339 text reads as, with `Z` or an offset:
+/// `Instant("2026-10-24T09:30:00+02:00")` is `2026-10-24T07:30:00Z`. Text
+/// without an offset is a `DateTime`'s, and an evaluation error here.
+fn Instant(text: String) : Instant
+
+/// The `Instant` `unix_seconds` whole seconds after `1970-01-01T00:00:00Z`,
+/// before it when negative.
+fn Instant(*, unix_seconds: Int) : Instant
+
+/// The `Instant` `unix_millis` milliseconds after `1970-01-01T00:00:00Z`.
+fn Instant(*, unix_millis: Int) : Instant
+
+/// The `Duration` ISO 8601 duration text reads as, in weeks, days, hours,
+/// minutes and seconds: `Duration("PT1H30M")`, `Duration("P2DT3H")`. The
+/// year and month designators are an evaluation error, since their length
+/// depends on the date they start from.
+fn Duration(text: String) : Duration
+
+/// The `Duration` of the sum of its parts, each signed:
+/// `Duration(hours = 1, minutes = 30)` is `PT1H30M`.
+fn Duration(*, days: Int = 0, hours: Int = 0, minutes: Int = 0, seconds: Int = 0, millis: Int = 0, nanos: Int = 0) : Duration
 
 // The collection types. See doc/wiki/hql/types/collections/collection-types.md
 // and collection.md.
@@ -171,6 +232,13 @@ type Result<T, E>
 /// `compare(1, 2)` is `Less`.
 type Ordering
 
+/// One row's place in its ordered partition under `over`: the rows with
+/// its key, in the order `over` gives them, and its position among them.
+/// It has no fields: the `seq` module's window functions read it, and a
+/// window does not leave the `into` it is handed to. See
+/// [[/learn/20-olap/windows|Windows]].
+type Window<T>
+
 /// A type written as an argument: `is(Card)`, `of_type(Card)`. A parameter
 /// of type `Type<U>` takes a type name and binds `U` to the type it names.
 type Type<T>
@@ -271,34 +339,43 @@ trait Validator {
 // and binding refuses a header with no native body and a native body with no
 // header. These are every implementation a built-in type has; a program
 // implements a trait only for a type or a trait of its own.
-/// `Bool`, `Int`, `Float`, `Decimal`, `String` and `Date` compare with `==`
-/// by value.
+/// `Bool`, `Int`, `Float`, `Decimal`, `String` and the time scalars compare
+/// with `==` by value.
 impl Eq for Bool
 impl Eq for Int
 impl Eq for Float
 impl Eq for Decimal
 impl Eq for String
 impl Eq for Date
+impl Eq for DateTime
+impl Eq for Instant
+impl Eq for Duration
 
 /// `Int`, `Float` and `Decimal` are ordered by value, `String` character by
-/// character, and `Date` by time.
+/// character, `Date`, `DateTime` and `Instant` by time, and `Duration` by
+/// length.
 impl Ord for Int
 impl Ord for Float
 impl Ord for Decimal
 impl Ord for String
 impl Ord for Date
+impl Ord for DateTime
+impl Ord for Instant
+impl Ord for Duration
 
-/// `+` adds `Int`s, `Float`s and `Decimal`s, and concatenates two
-/// `String`s: `"ab" + "cd"` is `"abcd"`.
+/// `+` adds `Int`s, `Float`s, `Decimal`s and `Duration`s, and concatenates
+/// two `String`s: `"ab" + "cd"` is `"abcd"`.
 impl Add for Int
 impl Add for Float
 impl Add for Decimal
 impl Add for String
+impl Add for Duration
 
-/// `-` subtracts `Int`s, `Float`s and `Decimal`s.
+/// `-` subtracts `Int`s, `Float`s, `Decimal`s and `Duration`s.
 impl Sub for Int
 impl Sub for Float
 impl Sub for Decimal
+impl Sub for Duration
 
 /// `*` multiplies `Int`s, `Float`s and `Decimal`s.
 impl Mul for Int

@@ -21,15 +21,43 @@ atoms! {
     CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
     ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
+    DATE_TIME => "DateTime", INSTANT => "Instant", DURATION => "Duration",
+    ZONE => "Zone", TIME_UNIT => "TimeUnit", NANOSECOND => "Nanosecond",
+    MICROSECOND => "Microsecond", MILLISECOND => "Millisecond", SECOND => "Second",
+    MINUTE => "Minute", HOUR => "Hour", DAY => "Day", WEEK => "Week", MONTH => "Month",
+    QUARTER => "Quarter", YEAR => "Year",
     ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
     FILE => "File", FILE_END => "FileEnd",
     HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
+    TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
+    BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
+    ROW_TRANSPORT => "RowTransport", NATS_JET_STREAM => "NatsJetStream", SQLITE => "Sqlite", NATS => "Nats",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
     CELL => "Cell", RANGE => "Range", TABLE => "Table",
     TYPE_CONTRACT => "TypeContract", DATA_CONTRACT => "DataContract",
     VIOLATION => "Violation", INVALID => "Invalid", DIAGNOSTIC => "Diagnostic",
+}
+
+impl TypeRef {
+    /// The type of a time value: `Date`, `DateTime`, `Instant` or
+    /// `Duration`.
+    #[must_use]
+    pub fn time(time: &crate::time::Time) -> Self {
+        match time {
+            crate::time::Time::Date(_) => Self::DATE,
+            crate::time::Time::DateTime(_) => Self::DATE_TIME,
+            crate::time::Time::Instant(_) => Self::INSTANT,
+            crate::time::Time::Duration(_) => Self::DURATION,
+        }
+    }
+
+    /// Whether this is one of the time scalars.
+    #[must_use]
+    pub fn is_time(&self) -> bool {
+        [Self::DATE, Self::DATE_TIME, Self::INSTANT, Self::DURATION].contains(self)
+    }
 }
 
 macro_rules! applications {
@@ -121,8 +149,12 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::FLOAT, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::DECIMAL, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::STR, TypeKind::Concrete, &ordered_scalar),
-        // Declared so a schema can name it; no literal produces one yet.
+        // The time scalars (HQL-0041 part 1): built by constructors from
+        // ISO 8601 text, with no literal.
         (TypeRef::DATE, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::DATE_TIME, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::INSTANT, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::DURATION, TypeKind::Concrete, &ordered_scalar),
         (
             TypeRef::DATA,
             TypeKind::Union(vec![
@@ -186,6 +218,60 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Concrete,
             &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
         ),
+        // An endpoint outside the evaluation, its locality and its carriage
+        // (HQL-0047): `lib/std/io/mod.hql`.
+        (TypeRef::TRANSPORT, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
+        (TypeRef::DIRECT, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
+        (TypeRef::NETWORK, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
+        (
+            TypeRef::BYTE_TRANSPORT,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::MESSAGE_TRANSPORT,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::ROW_TRANSPORT,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        // A table of a database file: `lib/std/io/db/sqlite/mod.hql`.
+        (
+            TypeRef::SQLITE,
+            TypeKind::Concrete,
+            &[
+                TypeRef::DIRECT,
+                TypeRef::ROW_TRANSPORT,
+                TypeRef::REPLAYABLE,
+                TypeRef::WRITABLE,
+            ],
+        ),
+        // A core NATS subject: `lib/std/io/msg/nats/mod.hql`.
+        (
+            TypeRef::NATS,
+            TypeKind::Concrete,
+            &[
+                TypeRef::NETWORK,
+                TypeRef::MESSAGE_TRANSPORT,
+                TypeRef::READABLE,
+                TypeRef::WRITABLE,
+            ],
+        ),
+        // A subject of a JetStream stream:
+        // `lib/std/io/msg/nats_jetstream/mod.hql`.
+        (
+            TypeRef::NATS_JET_STREAM,
+            TypeKind::Concrete,
+            &[
+                TypeRef::NETWORK,
+                TypeRef::MESSAGE_TRANSPORT,
+                TypeRef::READABLE,
+                TypeRef::WRITABLE,
+            ],
+        ),
         // Transports: `lib/std/io/net/mod.hql`.
         (
             TypeRef::HTTP,
@@ -213,6 +299,33 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::LOG_EVENT, TypeKind::Concrete, &[]),
         (TypeRef::LOGGER, TypeKind::Concrete, &[]),
         (TypeRef::CELL, TypeKind::Concrete, &[]),
+        // Time: `lib/std/time/mod.hql`. A unit is a type, so `truncate`
+        // takes one as `Month` is written.
+        (TypeRef::ZONE, TypeKind::Concrete, &[]),
+        (TypeRef::TIME_UNIT, TypeKind::Abstract, &[]),
+        (
+            TypeRef::NANOSECOND,
+            TypeKind::Concrete,
+            &[TypeRef::TIME_UNIT],
+        ),
+        (
+            TypeRef::MICROSECOND,
+            TypeKind::Concrete,
+            &[TypeRef::TIME_UNIT],
+        ),
+        (
+            TypeRef::MILLISECOND,
+            TypeKind::Concrete,
+            &[TypeRef::TIME_UNIT],
+        ),
+        (TypeRef::SECOND, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::MINUTE, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::HOUR, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::DAY, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::WEEK, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::MONTH, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::QUARTER, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::YEAR, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
     ] {
         system.declare(TypeDefinition {
             kind,
@@ -439,6 +552,19 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         parents: Vec::new(),
         applied: Vec::new(),
     })?;
+    // One row's place in its ordered partition, `type Window<T>` in
+    // `lib/std/collections/mod.hql`: what `over` hands `into` (HQL-0050).
+    system.declare(TypeDefinition {
+        constructor: WINDOW,
+        kind: TypeKind::Concrete,
+        parameters: vec![TypeParameter {
+            name: "T",
+            variance: Variance::Covariant,
+            bound: None,
+        }],
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     Ok(system)
 }
 
@@ -541,6 +667,9 @@ pub const CHANNEL: TypeConstructor = TypeConstructor("Channel");
 
 /// The constructor of one `group` partition.
 pub const GROUP: TypeConstructor = TypeConstructor("Group");
+
+/// The constructor of one row's window under `over`.
+pub const WINDOW: TypeConstructor = TypeConstructor("Window");
 
 /// The constructor of a computation that may have failed.
 pub const RESULT: TypeConstructor = TypeConstructor("Result");

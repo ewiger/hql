@@ -142,6 +142,8 @@ pub(crate) struct Expr {
 
 #[derive(Debug)]
 pub(crate) enum Kind {
+    /// The input of a call that writes none: `Unit`.
+    Unit,
     List(Vec<Expr>),
     Set(Vec<Expr>),
     Construct(Vec<Arg>),
@@ -383,7 +385,8 @@ impl Expr {
     /// written.
     pub(crate) fn children(&self) -> Vec<&Expr> {
         match &self.kind {
-            Kind::Int(_)
+            Kind::Unit
+            | Kind::Int(_)
             | Kind::Float(_)
             | Kind::Decimal(_)
             | Kind::Bool(_)
@@ -623,7 +626,10 @@ impl Field {
         if *receiver.present() == TypeRef::DATA {
             return Some(Self::Key(name.to_owned()));
         }
-        if crate::types::program::is_record_valued(receiver.present().constructor.0) {
+        // `Zone` is a built-in type whose values are records.
+        if crate::types::program::is_record_valued(receiver.present().constructor.0)
+            || *receiver.present() == TypeRef::ZONE
+        {
             return Some(Self::Record(name.to_owned()));
         }
         Some(match name {
@@ -1457,12 +1463,21 @@ impl Checked {
             },
             A::Call { callee, arguments } => {
                 if let Some(step) = self.steps.get(&span) {
-                    let (input, arguments) = arguments
-                        .split_first()
-                        .ok_or_else(|| Diagnostic::typing(span.clone(), "step needs an input"))?;
+                    // No positional input written: the input is `Unit`.
+                    let (input, arguments) = match arguments.split_first() {
+                        Some((input, rest)) if input.name.is_none() => (boxed(&input.value)?, rest),
+                        _ => (
+                            Box::new(Expr {
+                                kind: Kind::Unit,
+                                ty: TypeRef::UNIT,
+                                span: span.clone(),
+                            }),
+                            arguments.as_slice(),
+                        ),
+                    };
                     step_node(
                         step,
-                        boxed(&input.value)?,
+                        input,
                         self.arguments(arguments)?,
                         span.clone(),
                         self.lifted.contains(&span),

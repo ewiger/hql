@@ -28,6 +28,7 @@ pub(crate) mod io;
 pub mod lexical;
 pub mod logging;
 pub(crate) mod math;
+pub mod nats;
 pub mod net;
 pub(crate) mod option;
 pub(crate) mod regex;
@@ -35,8 +36,11 @@ pub(crate) mod result;
 pub mod semantic;
 pub(crate) mod seq;
 pub mod spec;
+pub mod sqlite;
 pub(crate) mod string;
+pub(crate) mod time;
 pub(crate) mod traits;
+pub(crate) mod window;
 pub use collections::{COMBINERS, Combiner};
 use spec::{CheckedCall, OperationSpec};
 
@@ -259,6 +263,15 @@ impl Operation {
         Self { shape, ..self }
     }
 
+    /// The same operation with a check of its own, for a rule its
+    /// declaration cannot state.
+    pub(crate) const fn checked(self, check: Check) -> Self {
+        Self {
+            check: Some(check),
+            ..self
+        }
+    }
+
     /// The structural signature used for checking and help: the first
     /// overload of a name declared more than once.
     pub(crate) fn spec(&self) -> &OperationSpec {
@@ -332,6 +345,14 @@ impl Operation {
 
     /// Every signature the operation takes, most specific first: a call
     /// takes the first one it fits.
+    /// Whether a form of the operation is declared without an input, its
+    /// input `Unit`: a call to it writes no positional argument.
+    pub(crate) fn takes_no_input(&self) -> bool {
+        self.specs().iter().any(|spec| {
+            matches!(spec.input, spec::TypePattern::Type(unit) if unit == TypeRef::UNIT.constructor)
+        })
+    }
+
     pub(crate) fn specs(&self) -> &[OperationSpec] {
         match binding::Environment::get() {
             Ok(environment) => environment.specs(self),
@@ -432,6 +453,32 @@ static NET: Extension = Extension {
     metadata: None,
 };
 
+static SQLITE: Extension = Extension {
+    name: "io.db.sqlite",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.db.sqlite"],
+    steps: sqlite::STEPS,
+    metadata: None,
+};
+
+// Each named by the path it provides, not by a word: a transport's module
+// is imported by its full path and has no one-word form (HQL-0048).
+static NATS: Extension = Extension {
+    name: "io.msg.nats",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.msg.nats"],
+    steps: nats::CORE_STEPS,
+    metadata: None,
+};
+
+static NATS_JETSTREAM: Extension = Extension {
+    name: "io.msg.nats_jetstream",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.msg.nats_jetstream"],
+    steps: nats::JETSTREAM_STEPS,
+    metadata: None,
+};
+
 static LEXICAL: Extension = Extension {
     name: "lexical",
     version: env!("CARGO_PKG_VERSION"),
@@ -472,6 +519,14 @@ static MATH: Extension = Extension {
     metadata: None,
 };
 
+static TIME: Extension = Extension {
+    name: "time",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["time"],
+    steps: time::STEPS,
+    metadata: None,
+};
+
 static OPTION: Extension = Extension {
     name: "option",
     version: env!("CARGO_PKG_VERSION"),
@@ -503,8 +558,24 @@ static REGEX: Extension = Extension {
 /// provides it, so a missing import reports the import rather than a
 /// misspelling.
 pub(crate) static REGISTERED: &[&Extension] = &[
-    &CORE, &STRING, &SEQ, &MATH, &OPTION, &RESULT, &GRAPH, &FORMAT, &IO, &NET, &LOGGING, &LEXICAL,
-    &SEMANTIC, &REGEX,
+    &CORE,
+    &STRING,
+    &SEQ,
+    &MATH,
+    &TIME,
+    &OPTION,
+    &RESULT,
+    &GRAPH,
+    &FORMAT,
+    &IO,
+    &NET,
+    &LOGGING,
+    &SQLITE,
+    &NATS,
+    &NATS_JETSTREAM,
+    &LEXICAL,
+    &SEMANTIC,
+    &REGEX,
 ];
 
 impl Extension {
@@ -1144,6 +1215,23 @@ pub(crate) fn names() -> impl Iterator<Item = &'static str> {
     })
 }
 
+/// Every step name, each with whether a module of the prelude provides it.
+pub(crate) fn names_with_reach() -> impl Iterator<Item = (&'static str, bool)> {
+    let environment = binding::Environment::get().ok();
+    let prelude = prelude();
+    REGISTERED.iter().flat_map(move |extension| {
+        let in_prelude = extension
+            .provides
+            .iter()
+            .any(|module| prelude.contains(module));
+        extension
+            .steps
+            .iter()
+            .filter(move |step| !environment.is_some_and(|held| held.is_private(step)))
+            .map(move |step| (step.name, in_prelude))
+    })
+}
+
 /// One step, as `hql builtins` prints it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listing {
@@ -1290,12 +1378,14 @@ mod tests {
     fn every_registered_step_declares_a_purity_and_a_provider() {
         let listed = listing();
         assert!(!listed.is_empty());
-        // Reading and writing an endpoint, and logging, are the effects;
-        // every other step, constructing an endpoint or a logger included, is
-        // a function of its input.
+        // Reading and writing an endpoint, logging, and reading the
+        // evaluation clock are the effects; every other step, constructing
+        // an endpoint or a logger included, is a function of its input.
         for entry in &listed {
             let effectful = (entry.provider == "io" && entry.name != "file")
-                || (entry.provider == "logging" && entry.name != "Logger");
+                || (entry.provider == "logging" && entry.name != "Logger")
+                || (entry.provider == "time"
+                    && matches!(entry.name, "now" | "today" | "local_zone"));
             let expected = if effectful {
                 Purity::Effectful
             } else {

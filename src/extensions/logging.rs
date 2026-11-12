@@ -317,7 +317,7 @@ fn check_logger(
             "a document writes nothing outside itself; log to `cell.logs`",
         ));
     }
-    super::io::checked_format(call, call.input_expr, "Logger")
+    super::io::checked_format(call, call.input_expr, None, "Logger")
         .map(drop)
         .map_err(|message| Diagnostic::typing(span, message))
 }

@@ -83,9 +83,17 @@ pub(crate) fn derive(
         ),
         (true, Some(receiver)) => (pattern(receiver)?, &declaration.parameters),
         (true, None) => return Err("takes `self` outside a receiver module".to_owned()),
+        // A declaration whose first parameter is not positional, or that
+        // has none, takes no input: a call writes none, and the input is
+        // `Unit`, as `now()` and `Date(year = 2026, month = 10, day = 24)`.
         (false, _) => match declaration.parameters.split_first() {
-            Some((first, rest)) => (pattern(&first.annotation)?, rest),
-            None => return Err("takes no input".to_owned()),
+            Some((first, rest)) if first.passing != Passing::Name && !first.variadic => {
+                (pattern(&first.annotation)?, rest)
+            }
+            _ => (
+                P::Type(TypeRef::UNIT.constructor),
+                &declaration.parameters[..],
+            ),
         },
     };
     let mut arguments = Vec::new();
@@ -697,8 +705,9 @@ mod tests {
     }
 
     #[test]
-    fn a_declaration_without_an_input_or_with_an_unknown_type_states_no_signature() {
-        assert!(declared("fn now() : Int").unwrap_err().contains("no input"));
+    fn a_declaration_without_an_input_takes_unit_and_an_unknown_type_states_no_signature() {
+        let now = declared("fn now() : Int").unwrap();
+        assert!(matches!(now.input, P::Type(unit) if unit == TypeRef::UNIT.constructor));
         assert!(
             declared("fn f(x: Nothing) : Int")
                 .unwrap_err()

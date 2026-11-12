@@ -12,7 +12,7 @@ and the messages `hql` writes when a program is wrong.
 | `hql run <file>` | check and evaluate a program in a file; `-` reads standard input |
 | `hql check <file>` | write the program's type, and the signature of every alias, without evaluating |
 | `hql repl` | read, evaluate and print, keeping bindings between lines |
-| `hql render <file>` | build a document from its cells ([chapter 19](19-documents.md)) |
+| `hql render <file>` | build a document from its cells ([chapter 24](24-documents.md)) |
 | `hql builtins` | list every step, by the provider that implements it, with its signature |
 | `hql config` | the settings in force, and where each came from |
 | `hql doctor` | check the semantic-search chain and name the first missing part |
@@ -145,12 +145,12 @@ backend: localhost (from the default)
 vault: none
 ```
 
-`backend` is the execution backend of [chapter 14](14-pipelines.md), and
+`backend` is the execution backend of [chapter 14](14-etl-pipelines.md), and
 `localhost` is the only one. Run inside a vault, or with `--vault`, the last
 line names it and counts its cards.
 
 ## What is next
 
-Every chapter so far was about a step. [Chapter 14](14-pipelines.md) is about
+Every chapter so far was about a step. [Chapter 14](14-etl-pipelines.md) is about
 the pipeline the steps form: what `|` does, when a program is checked, where
 it runs, and the systems a pipeline will connect.

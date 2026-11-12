@@ -37,10 +37,16 @@ name = "hql"
 path = "src/main.rs"
 
 [dependencies]
+async-nats = { version = "0.52.0", default-features = false, features = ["ring", "jetstream"] }
 bigdecimal = "0.4.11"
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
+futures-util = { version = "0.3.34", default-features = false }
+jiff = { version = "0.2.43", features = ["tzdb-bundle-always"] }
 num-integer = "0.1.47"
+postgres = "0.19"
 regex = "1.13.1"
+rskafka = { version = "0.6", default-features = false, features = ["compression-gzip", "compression-snappy"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 rustyline = { version = "19.0.0", default-features = false, features = ["with-file-history"] }
 serde = "1.0.229"
@@ -48,6 +54,7 @@ serde_json = { version = "1.0.151", features = ["arbitrary_precision"] }
 serde_yaml_ng = "0.10.0"
 sha2 = "0.11.0"
 thiserror = "2"
+tokio = { version = "1.54.1", features = ["rt", "net", "time"] }
 toml = "1.1.6"
 tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
 ureq = { version = "2", default-features = false, features = ["tls"] }

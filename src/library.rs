@@ -40,6 +40,7 @@ pub const STD: &[(&str, &str)] = &[
     ("string", include_str!("../lib/std/string/mod.hql")),
     ("seq", include_str!("../lib/std/seq/mod.hql")),
     ("math", include_str!("../lib/std/math/mod.hql")),
+    ("time", include_str!("../lib/std/time/mod.hql")),
     ("option", include_str!("../lib/std/option/mod.hql")),
     ("result", include_str!("../lib/std/result/mod.hql")),
     ("regex", include_str!("../lib/std/regex/mod.hql")),
@@ -47,6 +48,18 @@ pub const STD: &[(&str, &str)] = &[
     ("io", include_str!("../lib/std/io/mod.hql")),
     ("io.net", include_str!("../lib/std/io/net/mod.hql")),
     ("io.logging", include_str!("../lib/std/io/logging/mod.hql")),
+    (
+        "io.db.sqlite",
+        include_str!("../lib/std/io/db/sqlite/mod.hql"),
+    ),
+    (
+        "io.msg.nats",
+        include_str!("../lib/std/io/msg/nats/mod.hql"),
+    ),
+    (
+        "io.msg.nats_jetstream",
+        include_str!("../lib/std/io/msg/nats_jetstream/mod.hql"),
+    ),
     ("vault", include_str!("../lib/std/vault/mod.hql")),
 ];
 

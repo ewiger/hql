@@ -425,7 +425,7 @@ birds =
     source(file("birds.json"), Json)
 ```
 
-as do configured sources:
+as do configured endpoints:
 
 ```hql
 warehouse =
@@ -487,11 +487,10 @@ the data.
 
 ## HQL as an ETL and integration language
 
-> [!WARNING]
-> **Design only.** Wiring a pipeline to queues, databases and services is not
-> in the current release; reading and writing files and standard streams is.
-> The book's [ETL pipelines](https://hql-lang.org/latest/learn/15-etl-pipelines/)
-> chapter specifies it.
+> The book's [ETL pipelines](https://hql-lang.org/latest/learn/14-etl-pipelines/)
+> chapter is the frame, and Part II follows one shop's orders through files,
+> SQLite, PostgreSQL, Kafka, NATS and a lakehouse, all in the current
+> release; REST, webhooks and object stores are design.
 
 Sources, transformations, streams, batches and targets all use the same expression model.
 
@@ -589,7 +588,7 @@ This makes HQL a natural language for AI harnesses: retrieval, context construct
 > [!WARNING]
 > **Design only.** Retrieval and graph expansion ship today. Agents, prompts
 > and runs as values, the `ai` module, are not in the current release; the
-> book's [Agents and runs](https://hql-lang.org/latest/learn/20-agents-and-runs/)
+> book's [Agents and runs](https://hql-lang.org/latest/learn/25-agents-and-runs/)
 > chapter specifies them.
 
 In HyperMarkDown, agent definitions and instructions can themselves be documents.
@@ -1053,7 +1052,7 @@ hql repl                   read, evaluate and print, one program at a time
 hql render <file>          run the HQL cells in a document
 hql builtins               list the steps a pipeline may use
 hql help <name>            print the declarations and doc strings of a name
-hql boundary <file> <id>   print a configured source's boundary, field by field
+hql boundary <file> <id>   print a configured endpoint's boundary, field by field
 hql config                 show the reporting settings in force and their origin
 hql doctor                 check the semantic-search chain and name what is missing
 ```
@@ -1200,7 +1199,7 @@ HQL cells live next to the knowledge and prose they derive from and can run both
 
 ### One language should span local and larger dataflows
 
-The same language model should remain valid whether computation is executed over a local value, a live stream, a configured data source or a larger execution backend.
+The same language model should remain valid whether computation is executed over a local value, a live stream, a configured endpoint or a larger execution backend.
 
 ---
 

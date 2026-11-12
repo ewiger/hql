@@ -1,0 +1,12 @@
+<!-- hql reference: std/time.day -->
+# `day`
+
+In [`std/time`](index.md).
+
+```hql
+fn day(self: Date) : Int
+fn day(self: DateTime) : Int
+```
+
+The day of the month of `self`, `1..31`.
+<!-- hql reference: end -->

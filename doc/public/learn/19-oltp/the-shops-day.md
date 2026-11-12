@@ -1,0 +1,92 @@
+# The shop's day in one file
+
+Orders arrive on the JetStream subject `orders.raw`. Each is appended to an
+archive file as it arrived. Each is validated: the valid ones land in the
+silver Delta table, and a placed order of 100 or more is also published as
+an alert to a core NATS subject; the invalid ones go to the dead-letter
+subject with the rules they broke. The configuration is the shop's
+`hql.toml`; the pipeline, `day.hql`, is this:
+
+<!-- run: check --vault examples/pipelines/shop -->
+```hql
+type EventData : DataContract = {
+    id       : Int
+    kind     : String
+    customer : String
+    amount   : Decimal
+    at       : String
+
+    require amount >= 0 as non_negative
+    require ["order_placed", "order_shipped", "payment_failed"] | contains(kind) as known_kind
+}
+
+type Event {
+    id       : Int
+    kind     : String
+    customer : String
+    amount   : Decimal
+    at       : String
+}
+
+type Rejected {
+    id      : Int
+    message : Data
+    rules   : List<String>
+}
+
+tap("orders_raw")
+| tee archived = sink(file("archive/orders.jsonl").end, Json)
+| validate(EventData)
+| fork {
+    silver =
+        oks()
+        | map(e => Event(id = e.id, kind = e.kind, customer = e.customer, amount = e.amount, at = e.at))
+        | tee large =
+            filter(e => e.kind == "order_placed" and e.amount >= 100)
+            | map(e => {customer: e.customer, amount: e.amount, text: fmt("large order from {}", e.customer)})
+            | sink("alerts")
+        | sink("orders_silver"),
+    rejected =
+        errs()
+        | map(e => Rejected(
+            id = match e.value.id { some(Int n) => n, _ => 0 },
+            message = e.value,
+            rules = e.violations | map(v => v.rule)))
+        | sink("orders_rejected"),
+}
+```
+
+```text
+{silver: Unit, rejected: Unit}
+```
+
+Read top to bottom, it is the dataflow diagram a platform would draw:
+
+```text
+orders.raw ──┬──▶ archive/orders.jsonl
+             │
+             └──▶ validate ──ok──┬──▶ orders_silver
+                     │           └──▶ alerts.orders   (≥ 100, placed)
+                     └──err─────────▶ orders.rejected
+```
+
+One input, three kinds of fan-out, four outputs. `tee` branches a pipeline
+without ending it: the archive receives every order before validation, and
+the alert branch receives each valid order before the silver table does.
+`fork` sends every value to every branch, and `oks()` and `errs()` keep one
+side each. A branch of either is typed like the trunk, so a branch that
+ended in `target` over this stream would be refused, as any `target` of a
+stream is.
+
+There is no orchestration around the file: no activity names, no cluster,
+no connection strings. `hql check day.hql` reads `hql.toml`, resolves every
+id to its kind and every kind to a type, checks the whole file, and opens
+no connection; the result above is what it prints. Every system in the file
+is in the current release, and the
+[`nats-lakehouse` case](https://github.com/ewiger/hql-demo/tree/main/nats-lakehouse)
+of hql-demo runs the same shape against NATS and a lakehouse.
+
+The gold report of [chapter 17](../17-subjects-and-the-lakehouse.md) is the
+second file, and the subject of [chapter 20](../20-olap/index.md): it reads the silver table whole when a report is wanted, and
+replaces the gold table in one commit. The two share no state but the silver
+table.

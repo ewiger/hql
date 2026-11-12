@@ -70,6 +70,19 @@ everything.
   machine-specific values, `tempfile` for anything touching the filesystem.
 - A behavior change lands with the test that pins it.
 
+The clients of Kafka and NATS are asynchronous, and nothing else in the crate
+is: a Kafka or a NATS connection owns a `tokio` runtime of one thread and
+blocks on it, so the evaluator stays synchronous
+([HQL-0046](proposals/HQL-0046/README.md),
+[HQL-0049](proposals/HQL-0049/README.md)). No dependency may need a C
+toolchain beyond SQLite's bundled build, which is why rskafka's lz4 and zstd
+codecs are off.
+
+A Spark SQL endpoint is reached by the Thrift codec in `src/spark.rs`, over
+the HTTP client the crate already has. The calls of one protocol are a few
+hundred lines; a Thrift crate with generated service code is not added for
+them.
+
 ## Code conventions
 
 - Every module opens with a `//!` doc comment saying what it is for. Public
@@ -96,6 +109,10 @@ Reach for these before introducing an alternative:
 | Serialization | serde |
 | YAML headers and reference annotations | serde_yaml_ng, then fallible conversion to Data |
 | SQLite | rusqlite (`bundled`) |
+| PostgreSQL (`kind = "postgres"`) | postgres (the synchronous client, `NoTls`) |
+| Kafka (`kind = "kafka"`) | rskafka (no default features; `compression-gzip`, `compression-snappy`), on a one-thread tokio runtime per connection |
+| NATS (`kind = "nats"`, `kind = "nats_jetstream"`) | async-nats (no default features; `ring`, `jetstream`), on a one-thread tokio runtime per connection; futures-util for its message stream |
+| Spark SQL, Databricks (`kind = "spark"`) | HiveServer2's Thrift protocol over HTTP, hand-written in `src/spark.rs`, on ureq |
 | Hashing | sha2 |
 | HTTP client (`import net`) | ureq 2 (`tls`, rustls) |
 | WebSocket client (`import net`) | tungstenite (`rustls-tls-webpki-roots`) |
