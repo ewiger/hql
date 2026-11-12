@@ -179,27 +179,14 @@ next run of this program starts with `2`. A program that writes what it
 reads, an invoice per order, writes it so that writing it twice does no
 harm.
 
-## Bronze, silver and gold
+## The lakehouse
 
 The owner's reports need history, and a broker is not where history is
 queried. A **lakehouse** keeps tables as files in object storage, with a
 transaction log beside them, and answers SQL over them. Databricks is one;
 Apache Spark with Delta Lake over an S3 bucket is another, built from
 open-source parts, and the `spark` kind reaches either, by the URL of a
-Databricks SQL warehouse or of a Spark Thrift Server.
-
-Data platforms name three layers of such tables by their metals. **Bronze**
-is what arrived, as it arrived. **Silver** is what passed the checks, typed.
-**Gold** is what a report reads, already aggregated. In the shop, bronze is
-the JetStream subject itself, kept by the stream; silver and gold are Delta
-tables:
-
-```text
-checkout ──▶ orders.raw ──▶ validate ──ok──▶ orders_silver ──▶ customer_revenue
-             (bronze)          │             (silver)          (gold)
-                               └──err──▶ orders.rejected
-                                         (dead letters)
-```
+Databricks SQL warehouse or of a Spark Thrift Server:
 
 ```toml
 [endpoint.orders_silver]
@@ -211,25 +198,15 @@ mode = "append"
 
 [endpoint.orders_silver.fields.amount]
 type = "DECIMAL(12,2)"
-
-[endpoint.customer_revenue]
-kind = "spark"
-url_env = "LAKEHOUSE_URL"
-table = "default.customer_revenue"
-order = ["customer"]
-mode = "replace"
-
-[endpoint.customer_revenue.fields.total]
-type = "DECIMAL(12,2)"
 ```
 
-A `DECIMAL` column states how many digits it holds, so the boundary names
-the type each amount is written as, and the amounts read back with two
-decimal places.
-
-**Bronze to silver** is the quarantine of chapter 16 with four ids changed:
-the subject in place of the topic, a Delta table in place of the clean
-table, and a dead-letter subject in place of the quarantine table.
+A lakehouse table ends, so it sits on the table side of the line: read by
+`source` through the schema boundary, written by `target` in commits of up
+to 500 rows, or by `sink` as rows arrive. A `DECIMAL` column states how
+many digits it holds, so the boundary names the type each amount is written
+as. The valid orders of the subject above land in this table by the
+quarantine of chapter 16 with the ids changed, a subject in place of the
+topic and this table in place of the clean one:
 
 <!-- define: EventData -->
 ```hql
@@ -274,77 +251,18 @@ tap("orders_raw")
 {silver: Unit, rejected: Unit}
 ```
 
-`sink("orders_silver")` appends rows as they arrive, in statements of up to
-500, each one commit to the table's log. The dead letters are a subject a
-stream keeps, so they are themselves a source another program reads, to
-repair or to count:
-
-<!-- run: skip -->
-```hql
-rejected : Stream<Rejected> = tap("orders_rejected")
-rejected | map(r => {id: r.id, rules: r.rules})
-```
-
-```text
-{id: 3, rules: ["EventData.amount.type"]}
-{id: 5, rules: ["EventData.customer.missing"]}
-{id: 7, rules: ["EventData.non_negative"]}
-{id: 8, rules: ["EventData.known_kind"]}
-```
-
-**Silver to gold** reads a table that ends, so it reads it whole, and writes
-the report over the one before it:
-
-<!-- define: Revenue -->
-```hql
-type Revenue {
-    customer : String
-    orders   : Int
-    total    : Decimal
-}
-```
-
-<!-- run: check with Event,Revenue --vault examples/pipelines/shop -->
-```hql
-events : Seq<Event> = source("orders_silver")
-events
-| filter(e => e.kind == "order_placed")
-| group(by = e => e.customer)
-| map(g => Revenue(customer = g.key, orders = g.items | size, total = g.items | map(e => e.amount) | sum))
-| target("customer_revenue")
-```
-
-```text
-Unit
-```
-
-Under `mode = "replace"` the new rows take the place of the old ones in one
-commit, so a reader of the gold table never sees it empty:
-
-<!-- run: skip -->
-```hql
-revenue : Seq<Revenue> = source("customer_revenue")
-revenue
-```
-
-```text
-[{customer: "ada", orders: 1, total: 120.50}, {customer: "grace", orders: 1, total: 42.00}]
-```
-
-Of the eight raw orders, four passed; of those, ada's first and grace's are
-the placed ones, and linus's only placed order was the one sent as
-`"free"`.
-
-The two programs share no state but the silver table. The first runs for as
-long as messages arrive; the second runs when a report is wanted and reads
-whatever the first has committed by then.
+That table is the shop's first analytical one, and what it is for, the
+layers a lakehouse is organized in, and what a report built over it needs
+from it are [chapter 20](20-olap/index.md). This chapter's business with
+it ends at the transport: a subject in, a table out, and what each
+promises.
 
 ## Where the work runs
 
 The filter and the grouping above run where `hql` runs. The `spark` kind is
 a table, reached over Spark SQL: it is asked for the rows of one table, and
 for nothing else. Running a pipeline's pure steps on a cluster is the
-business of a **backend**, which [chapter 19](19-etl-pipelines.md) describes;
+business of a **backend**, which [chapter 14](14-etl-pipelines.md) describes;
 the program for it is this one.
 
 What the current release does not do: several programs sharing one consumer

@@ -146,20 +146,32 @@ nav:
                   - Diagnostics: learn/12-errors/diagnostics.md
               - 13. Working with hql: learn/13-working-with-hql.md
           - "Part II: Data flows":
-              - 14. Pipelines: learn/14-pipelines.md
+              - 14. ETL pipelines: learn/14-etl-pipelines.md
               - 15. Endpoints: learn/15-endpoints.md
               - 16. Tables and topics: learn/16-tables-and-topics.md
               - 17. Subjects and the lakehouse: learn/17-subjects-and-the-lakehouse.md
               - 18. APIs, webhooks and stores: learn/18-apis-webhooks-and-stores.md
-              - 19. ETL pipelines: learn/19-etl-pipelines.md
+              - 19. OLTP:
+                  - learn/19-oltp/index.md
+                  - The shop's day in one file: learn/19-oltp/the-shops-day.md
+                  - When a mistake is found: learn/19-oltp/mistakes.md
+                  - A replay is the same file: learn/19-oltp/replay.md
+                  - Streams against tables: learn/19-oltp/streams-against-tables.md
+              - 20. OLAP:
+                  - learn/20-olap/index.md
+                  - Bronze, silver and gold: learn/20-olap/bronze-silver-and-gold.md
+                  - Grain and keys: learn/20-olap/grain-and-keys.md
+                  - Deduplication: learn/20-olap/deduplication.md
+                  - Merge: learn/20-olap/merge.md
+                  - Incremental loads: learn/20-olap/incremental-loads.md
           - "Part III: Knowledge and AI":
-              - 20. A vault of documents: learn/20-a-vault.md
-              - 21. Links and graphs: learn/21-graphs.md
-              - 22. Finding cards by meaning: learn/22-retrieval.md
-              - 23. Queries inside documents: learn/23-documents.md
-              - 24. Agents and runs: learn/24-agents-and-runs.md
-              - 25. Agents inside documents: learn/25-agents-inside-documents.md
-              - 26. The hyper web: learn/26-the-hyper-web.md
+              - 21. A vault of documents: learn/21-a-vault.md
+              - 22. Links and graphs: learn/22-graphs.md
+              - 23. Finding cards by meaning: learn/23-retrieval.md
+              - 24. Queries inside documents: learn/24-documents.md
+              - 25. Agents and runs: learn/25-agents-and-runs.md
+              - 26. Agents inside documents: learn/26-agents-inside-documents.md
+              - 27. The hyper web: learn/27-the-hyper-web.md
       - Examples: examples.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this

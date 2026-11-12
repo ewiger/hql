@@ -4,7 +4,7 @@ Every system in Part II is reached the same way. A file, a table, a topic, a
 subject and a webhook differ in where their data is and whether it ends; to
 a program each is an **endpoint**, and four steps read and write all of
 them. This chapter is that model, told over the shop of
-[chapter 14](14-pipelines.md). The programs run with
+[chapter 14](14-etl-pipelines.md). The programs run with
 `--vault examples/pipelines/shop`.
 
 ## One file, two spellings
@@ -154,7 +154,7 @@ release, and the chapter each is told in:
 | Kind | What one endpoint is | Ends | Chapter |
 | --- | --- | --- | --- |
 | `csv`, `json`, `json_lines`, `yaml` | a file in that format | yes | [9](09-io/configured.md) |
-| `vault` | a folder of documents | yes | [20](20-a-vault.md) |
+| `vault` | a folder of documents | yes | [20](21-a-vault.md) |
 | `sqlite` | one table of a database file | yes | [16](16-tables-and-topics.md) |
 | `postgres` | one table of a PostgreSQL database | yes | [16](16-tables-and-topics.md) |
 | `kafka` | one Kafka topic | no | [16](16-tables-and-topics.md) |
