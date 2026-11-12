@@ -174,7 +174,8 @@ type Ordering
 /// One row's place in its ordered partition under `over`: the rows with
 /// its key, in the order `over` gives them, and its position among them.
 /// It has no fields: the `seq` module's window functions read it, and a
-/// window does not leave the `into` it is handed to. See HQL-0050.
+/// window does not leave the `into` it is handed to. See
+/// [[/learn/20-olap/windows|Windows]].
 type Window<T>
 
 /// A type written as an argument: `is(Card)`, `of_type(Card)`. A parameter

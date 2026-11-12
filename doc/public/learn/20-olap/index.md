@@ -44,6 +44,7 @@ whether it is loaded by a batch or by a stream is the type of the input.
 | [Bronze, silver and gold](bronze-silver-and-gold.md) | the three layers of a lakehouse, what each promises, and the load rule of each |
 | [Grain and keys](grain-and-keys.md) | what one row stands for, the key that names it, and a duplicate at each grain |
 | [Deduplication](deduplication.md) | exact duplicates with `distinct`, duplicates by key with `group` and `max_by`, and a replayed stream as their source |
+| [Windows](windows.md) | one value per row from its place in its partition: `over`, ranks, neighbours and frames, and a total order with `then` |
 | [Merge](merge.md) | a table kept up to date by key: insert or update, today as a pipeline and as design as a write mode |
 | [Incremental loads](incremental-loads.md) | loading only what is new: a watermark the table holds, and a position the server keeps |
 
