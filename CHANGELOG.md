@@ -22,6 +22,23 @@ The language continues to be in active development.
   a row per value, as each arrives, so `tap("events") | sink("archive")`
   moves a topic into a table.
 - `dsn` is a secret key in `[endpoint.<id>]`, named by `dsn_env`.
+- NATS subjects and lakehouse tables as configured endpoints
+  ([HQL-0049](doc/proposals/HQL-0049/README.md)). `kind = "nats"` (`url` or
+  `url_env`, `stream`, `subject`, `from`, `idle_ms`) is one subject of a
+  JetStream stream, read by `tap("id")` as a `Stream` and written by
+  `sink("id")`, each message acknowledged by the stream. `kind = "spark"`
+  (`url` or `url_env`, `token_env`, `table`, `order`) is one table behind a
+  Spark SQL endpoint, a Databricks SQL warehouse or a Spark Thrift Server,
+  read by `source("id")` as a `Seq` through the boundary and written by
+  `target("id")` or `sink("id")`; a `DECIMAL` column keeps its digits.
+- A `url` that holds credentials is refused in `[endpoint.<id>]`, naming
+  `url_env`.
+
+### Fixed
+
+- A list or a record field of a declared record written to a topic, a
+  subject or a JSON, JSON Lines or YAML file is written as a list or a map.
+  It was written as its text.
 
 ### Changed
 

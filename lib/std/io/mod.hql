@@ -114,10 +114,10 @@ abstract type VaultSource : DataSource
 // A configured endpoint, by its id: `source("field_notes")`. The run
 // context's configuration, `[endpoint.<id>]` in hql.toml, states its kind,
 // and the kind its type, read at check time and offline: a `vault` endpoint
-// is a Vault, and a `csv`, `json`, `json_lines`, `yaml`, `sqlite` or
-// `postgres` endpoint a Seq<Data>, or a Seq of the type its `element` names.
-// A `kafka` endpoint is a log that never ends: `tap(id)` reads it as a
-// Stream, and `source(id)` of it is a type error. The id is a
+// is a Vault, and a `csv`, `json`, `json_lines`, `yaml`, `sqlite`,
+// `postgres` or `spark` endpoint a Seq<Data>, or a Seq of the type its
+// `element` names. A `kafka` or a `nats` endpoint is a log that never ends:
+// `tap(id)` reads it as a Stream, and `source(id)` of it is a type error. The id is a
 // literal, snake_case, and never a connection string; an id takes no
 // format, since its kind fixes one.
 
@@ -168,9 +168,9 @@ effectful fn target<T, F : Format>(value: T, id: String, format: Type<F>) : Unit
 /// value, and gives `Unit`: `[{a: 1}, {a: 2}] | sink(stdout, Json)` writes
 /// `{"a":1}` and `{"a":2}` on two lines. Written to a `Channel<T>`, each
 /// value is appended and no format is taken. `sink(id)` writes to the
-/// target configured under `id` as each value arrives: a `kafka` topic
-/// takes one message per value, a `postgres` table one row per value of a
-/// declared record. Effectful: it runs once, where it is written.
+/// target configured under `id` as each value arrives: a `kafka` topic or
+/// a `nats` subject takes one message per value, a `postgres` or a `spark`
+/// table one row per value of a declared record. Effectful: it runs once, where it is written.
 effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Unit
 effectful fn sink<T, F : Format>(values: Iterable<T>, id: String, format: Type<F>) : Unit
 

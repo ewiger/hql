@@ -1,4 +1,4 @@
-//! Configured NATS subjects and Spark SQL tables (HQL-0047): typed offline
+//! Configured NATS subjects and Spark SQL tables (HQL-0049): typed offline
 //! from the configuration, a subject read by `tap` and never by `source`,
 //! and written by `sink` or `target`; a lakehouse table read by `source`
 //! and written by `target` or `sink`. Nothing here reaches a server; the

@@ -2,7 +2,7 @@
 
 Status: doing
 Branch: `feat/nats-lakehouse`
-Related: [HQL-0047](../proposals/HQL-0047/README.md),
+Related: [HQL-0049](../proposals/HQL-0049/README.md),
 [HQL-0046](../proposals/HQL-0046/README.md),
 [HQL-0035](../proposals/HQL-0035/README.md)
 
@@ -25,7 +25,7 @@ Databricks SQL warehouse or a Spark Thrift Server, which ends.
    types and the refusals offline.
 5. The `hql-demo` repository runs both against real servers in Docker
    Compose: `nats/`, `lakehouse/` and `nats-lakehouse/`.
-6. HQL-0047, the changelog, `doc/stack.md` and the book's I/O pages state
+6. HQL-0049, the changelog, `doc/stack.md` and the book's I/O pages state
    the two kinds.
 
 ## Done when
