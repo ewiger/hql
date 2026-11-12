@@ -1062,9 +1062,10 @@ impl Reading {
         Self::shared(pieces(Box::new(reader), format, named))
     }
 
-    /// The messages of a Kafka topic, each decoded as one JSON document,
-    /// read once however often the stream is traversed.
-    pub(crate) fn kafka(
+    /// The messages of a log, a Kafka topic or a NATS subject, each decoded
+    /// as one JSON document, read once however often the stream is
+    /// traversed.
+    pub(crate) fn log(
         messages: Box<dyn Iterator<Item = Result<String, String>> + Send>,
         origin: String,
     ) -> Self {

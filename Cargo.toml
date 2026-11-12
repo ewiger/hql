@@ -37,9 +37,11 @@ name = "hql"
 path = "src/main.rs"
 
 [dependencies]
+async-nats = { version = "0.52.0", default-features = false, features = ["ring", "jetstream"] }
 bigdecimal = "0.4.11"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
+futures-util = { version = "0.3.34", default-features = false }
 num-integer = "0.1.47"
 postgres = "0.19"
 regex = "1.13.1"

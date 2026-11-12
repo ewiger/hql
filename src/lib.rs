@@ -22,9 +22,11 @@ mod knowledge;
 mod lexer;
 pub mod modules;
 pub mod naming;
+mod nats;
 mod net;
 mod parser;
 mod postgres;
+mod spark;
 
 pub mod backends;
 pub mod boundary;
@@ -327,6 +329,26 @@ pub fn inspect_boundary(
                 .into_iter()
                 .map(|(name, _)| name)
                 .collect(),
+        ),
+        endpoints::Kind::Spark {
+            server,
+            token_env,
+            table,
+            ..
+        } => Some(
+            spark::columns(
+                &spark::Server {
+                    url: server.resolve()?,
+                    token: token_env
+                        .as_deref()
+                        .map(|variable| endpoints::secret(variable, "token_env"))
+                        .transpose()?,
+                },
+                table,
+            )?
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect(),
         ),
         endpoints::Kind::File { path, format } if *format == "Csv" => {
             io::read_configured(path, types::TypeConstructor(format), false)?
