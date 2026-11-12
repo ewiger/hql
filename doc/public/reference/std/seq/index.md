@@ -30,6 +30,15 @@ type, and `F<_> : Seq<_>` rebuilt in its own constructor.
 - [`join`](join.md) — Every pair of a value of `self` and a value of `other` that `by` relates, in the order of `self`, then of `other`: `[1, 2] | join([1, 2, 3], (a, b) => a < b)` gives the pairs `(1, 2)`, `(1, 3)` and `(2, 3)`.
 - [`min_by`](min_by.md) — The value of `self` that is least, by the key `by` gives or by the `Ordering` `by` gives two values; the first of equals, or `none` over an empty collection: `["bb", "a", "ccc"] | min_by(s => size(s))` is `"a"`.
 - [`max_by`](max_by.md) — The value of `self` that is greatest, by the key `by` gives or by the `Ordering` `by` gives two values; the first of equals, or `none` over an empty collection: `["bb", "a", "ccc"] | max_by(s => size(s))` is `"ccc"`.
+- [`over`](over.md) — Each value of `self`, at its input position, as what `into` gives for it and its `Window`: the values with its key `by`, ordered by `order`, a key or a comparison.
+- [`row_number`](row_number.md) — The row's position in its ordered partition, from 1; no two rows share one.
+- [`rank`](rank.md) — One more than the number of rows strictly before the row: rows equal under the order share it, and the next skips the shared positions.
+- [`dense_rank`](dense_rank.md) — The row's rank counting each set of equal rows once: rows equal under the order share it, and the next is one more.
+- [`lag`](lag.md) — The row `n` positions before, or `none` before the first.
+- [`lead`](lead.md) — The row `n` positions after, or `none` past the last.
+- [`running`](running.md) — The rows from the first up to and including the row, in order: SQL's `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
+- [`rows`](rows.md) — The rows from `before` positions before the row to `after` positions after it, clipped to the partition.
+- [`whole`](whole.md) — Every row of the partition, in order.
 - [`to_map`](to_map.md) — A map from the `key` of each value of `self` to its `value`; two values with one key are an evaluation error: `["bb", "a"] | to_map(s => s, s => size(s))` is `Map {"bb": 2, "a": 1}`.
 - [`range`](range.md) — The `Int`s from `start` up to, not including, `end`, each `step` after the one before: `range(1, 6)` is `[1, 2, 3, 4, 5]`, and `range(10, 0, -3)` is `[10, 7, 4, 1]`.
 - [`with`](with.md) — The map `self` with `key` set to `value`, added or replaced, at the type of `self`: `Map(["a"], [1]) | with("b", 2)` is `Map {"a": 1, "b": 2}`.

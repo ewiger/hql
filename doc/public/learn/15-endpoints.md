@@ -217,9 +217,10 @@ properties of a transport matter to a program and to whoever runs it:
   documents, a framed **message** that is one document, or a **row** of
   named columns that needs no format at all.
 
-The two NATS transports are declared with both today. Each is a module of
-its own, imported by its full path, and its constructor takes the keys its
-kind takes, so a program reaches a subject without any configuration:
+`Sqlite` and the two NATS transports are declared with both today. Each is a
+module of its own, imported by its full path, and its constructor takes the
+keys its kind takes, so a program reaches a subject without any
+configuration:
 
 <!-- run: check --vault examples/pipelines/shop -->
 ```hql
@@ -233,9 +234,27 @@ Stream<Data>
 ```
 
 A message is one document, so no format is named, and it is `Json` unless
-one is. A constructor takes no secret, only the name of the variable that
-holds one; and a constructed transport has no schema boundary, which only
-configuration states.
+one is. A table is rows of named columns, so it takes no format at all, and
+naming one is a check error:
+
+<!-- run: check --vault examples/pipelines/shop -->
+```hql
+import io.db.sqlite
+
+source(sqlite("data/shop.db", table = "orders", order = ["id"]))
+```
+
+```text
+Seq<Data>
+```
+
+A constructor takes no secret, only the name of the variable that holds
+one; and a constructed transport has no schema boundary, which only
+configuration states. A row is read as `Data`, or as the record an
+annotation names, each column decoded as its type holds it, and a record
+is written to a constructed table a column per field, replacing the rows
+it held. A database file is written whole, by `target`; `sink` writes
+rows to a server's table, not to a file's.
 
 !!! warning "Design only"
 
@@ -273,7 +292,8 @@ io                     file, stdin, stdout, stderr, source, tap, target, sink
 ```
 
 `import io.db.postgres` brings `postgres(...)` into scope, as
-`import io.msg.nats` brings `nats(...)` today. A configured id needs no
+`import io.db.sqlite` brings `sqlite(...)` and `import io.msg.nats` brings
+`nats(...)` today. A configured id needs no
 import: the configuration names the kind, and the kind names its module.
 A program that constructs a network transport names its module in its
 first lines, so what a program may reach is visible before reading it.

@@ -107,9 +107,12 @@ rows
 ```
 
 `max_by` and `min_by` take any `Orderable` key, so the rule may be a
-timestamp, a version number, or a comparison of two rows written out. Where
-two copies share the key and the timestamp, as the exact duplicates do,
-either one is kept, and they are the same row.
+timestamp, a version number, or a comparison of two rows written out. Of
+two copies equal under the rule, the one earlier in the input is kept.
+Where they are the same row, as the exact duplicates are, that is no
+choice at all; where they differ, a rule that ends in a key no two rows
+share decides between them, and [Windows](windows.md) writes one with
+`then`. `row_number` itself is there too, as the step `over`.
 
 The sum, over the deduplicated rows:
 

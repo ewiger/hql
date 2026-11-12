@@ -13,11 +13,13 @@ module seq for Seq<T>
 import core
 
 /// The element at position 0, or `none` over an empty sequence:
-/// `[3, 1, 2] | first` is `3`.
+/// `[3, 1, 2] | first` is `3`. Of a window, the first row of its partition.
+fn first(self: Window<T>) : T
 fn first(self) : Option<T>
 
 /// The element at the last position, or `none` over an empty sequence:
-/// `[3, 1, 2] | last` is `2`.
+/// `[3, 1, 2] | last` is `2`. Of a window, the last row of its partition.
+fn last(self: Window<T>) : T
 fn last(self) : Option<T>
 
 /// The elements of `self` in the opposite order, in its own constructor:
@@ -108,6 +110,52 @@ fn min_by(self: Collection<T>, by: (T, T) -> Ordering) : Option<T>
 /// empty collection: `["bb", "a", "ccc"] | max_by(s => size(s))` is `"ccc"`.
 fn max_by<K : Orderable>(self: Collection<T>, by: T -> K) : Option<T>
 fn max_by(self: Collection<T>, by: (T, T) -> Ordering) : Option<T>
+
+// Analytic windows: HQL-0050.
+
+/// Each value of `self`, at its input position, as what `into` gives for
+/// it and its `Window`: the values with its key `by`, ordered by `order`, a
+/// key or a comparison. Values equal under `order` keep their input order.
+/// Without `by`, every value is in one partition. No value is merged or
+/// dropped, and `into` gives no `Window`:
+/// `[30, 10, 20] | over(order = x => x, into = (x, w) => w | row_number)`
+/// is `[3, 1, 2]`.
+partition fn over<K, O : Orderable, U>(self, by: T -> K, order: T -> O, into: (T, Window<T>) -> U) : List<U>
+partition fn over<K, U>(self, by: T -> K, order: (T, T) -> Ordering, into: (T, Window<T>) -> U) : List<U>
+partition fn over<O : Orderable, U>(self, order: T -> O, into: (T, Window<T>) -> U) : List<U>
+partition fn over<U>(self, order: (T, T) -> Ordering, into: (T, Window<T>) -> U) : List<U>
+
+/// The row's position in its ordered partition, from 1; no two rows share
+/// one.
+fn row_number(self: Window<T>) : Int
+
+/// One more than the number of rows strictly before the row: rows equal
+/// under the order share it, and the next skips the shared positions.
+fn rank(self: Window<T>) : Int
+
+/// The row's rank counting each set of equal rows once: rows equal under
+/// the order share it, and the next is one more.
+fn dense_rank(self: Window<T>) : Int
+
+/// The row `n` positions before, or `none` before the first. An `n` below
+/// 0 is an evaluation error.
+fn lag(self: Window<T>, n: Int = 1) : Option<T>
+
+/// The row `n` positions after, or `none` past the last. An `n` below 0 is
+/// an evaluation error.
+fn lead(self: Window<T>, n: Int = 1) : Option<T>
+
+/// The rows from the first up to and including the row, in order: SQL's
+/// `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
+fn running(self: Window<T>) : List<T>
+
+/// The rows from `before` positions before the row to `after` positions
+/// after it, clipped to the partition. Either below 0 is an evaluation
+/// error.
+fn rows(self: Window<T>, before: Int, after: Int) : List<T>
+
+/// Every row of the partition, in order.
+fn whole(self: Window<T>) : List<T>
 
 /// A map from the `key` of each value of `self` to its `value`; two values
 /// with one key are an evaluation error:

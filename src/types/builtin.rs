@@ -32,7 +32,7 @@ atoms! {
     HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
     TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
     BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
-    ROW_TRANSPORT => "RowTransport", NATS_JET_STREAM => "NatsJetStream", NATS => "Nats",
+    ROW_TRANSPORT => "RowTransport", NATS_JET_STREAM => "NatsJetStream", SQLITE => "Sqlite", NATS => "Nats",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
     CELL => "Cell", RANGE => "Range", TABLE => "Table",
@@ -237,6 +237,17 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeRef::ROW_TRANSPORT,
             TypeKind::Abstract,
             &[TypeRef::TRANSPORT],
+        ),
+        // A table of a database file: `lib/std/io/db/sqlite/mod.hql`.
+        (
+            TypeRef::SQLITE,
+            TypeKind::Concrete,
+            &[
+                TypeRef::DIRECT,
+                TypeRef::ROW_TRANSPORT,
+                TypeRef::REPLAYABLE,
+                TypeRef::WRITABLE,
+            ],
         ),
         // A core NATS subject: `lib/std/io/msg/nats/mod.hql`.
         (
@@ -541,6 +552,19 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         parents: Vec::new(),
         applied: Vec::new(),
     })?;
+    // One row's place in its ordered partition, `type Window<T>` in
+    // `lib/std/collections/mod.hql`: what `over` hands `into` (HQL-0050).
+    system.declare(TypeDefinition {
+        constructor: WINDOW,
+        kind: TypeKind::Concrete,
+        parameters: vec![TypeParameter {
+            name: "T",
+            variance: Variance::Covariant,
+            bound: None,
+        }],
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     Ok(system)
 }
 
@@ -643,6 +667,9 @@ pub const CHANNEL: TypeConstructor = TypeConstructor("Channel");
 
 /// The constructor of one `group` partition.
 pub const GROUP: TypeConstructor = TypeConstructor("Group");
+
+/// The constructor of one row's window under `over`.
+pub const WINDOW: TypeConstructor = TypeConstructor("Window");
 
 /// The constructor of a computation that may have failed.
 pub const RESULT: TypeConstructor = TypeConstructor("Result");

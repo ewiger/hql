@@ -28,7 +28,8 @@ splits it by.
 - [`collect`](collect.md) — Consecutive elements in batches of `n`, in order; the last batch may be shorter: `[1, 2, 3, 4, 5] | collect(2)` is `[[1, 2], [3, 4], [5]]`.
 - [`emit`](emit.md) — Every member of every sequence, in order, the inverse of `collect`: `[[1, 2], [3]] | emit` is `[1, 2, 3]`.
 - [`flat_map`](flat_map.md) — Each element through `by` to a sequence, and the members of those sequences in order: `map(by) | emit`.
-- [`sort`](sort.md) — The elements in ascending order: by their own value order, by the key `by` gives each, or by a comparison `by` of two elements.
+- [`sort`](sort.md) — The elements in ascending order: by their own value order, by the key `by` gives each, or by a comparison `by` of two elements; elements that compare equal keep their input order.
+- [`then`](then.md) — `self` where it is `Less` or `Greater`, and `next` where it is `Equal`: a comparison that a second one decides on a tie.
 - [`group`](group.md) — The occurrences partitioned by the key `by` gives each, as a set of `Group`s, each a key and its occurrences in input order.
 - [`join`](join.md) — The pairs of an element of the input and an element of `other` that match, each built by `into`, ordered by the input element's position, then `other`'s.
 - [`left_join`](left_join.md) — A `join` that keeps every element of the input: one with no match in `other` is built by `into` with `none` on the right.

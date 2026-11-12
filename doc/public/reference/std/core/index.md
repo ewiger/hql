@@ -38,6 +38,7 @@ over them are the `collections` module's.
 - [`Option`](types/Option.md) — An optional value of `T`: present, holding one `T`, or absent.
 - [`Result`](types/Result.md) — A computation that may have failed: `ok(value)` with a `T`, or `err(error)` with an `E`.
 - [`Ordering`](types/Ordering.md) — The result of `compare(a, b)`: `Less`, `Equal` or `Greater`.
+- [`Window`](types/Window.md) — One row's place in its ordered partition under `over`: the rows with its key, in the order `over` gives them, and its position among them.
 - [`Type`](types/Type.md) — A type written as an argument: `is(Card)`, `of_type(Card)`.
 - [`Format`](types/Format.md) — The category of formats: how bytes are documents.
 - [`Is`](types/Is.md) — What a predicate that tests its parameter's type, `x => x | is(U)`, gives: a `Bool` that, where true, holds the parameter at `U`.

@@ -478,6 +478,22 @@ pub struct Configured {
 }
 
 impl Configured {
+    /// A transport constructed in a program, as a configured endpoint with
+    /// no boundary, `mode` or `strictness` of its own: `id` is how
+    /// diagnostics name it.
+    #[must_use]
+    pub fn constructed(id: String, kind: Kind) -> Self {
+        Self {
+            id,
+            kind,
+            element: None,
+            fields: BTreeMap::new(),
+            mode: WriteMode::default(),
+            strictness: Strictness::default(),
+            loaded: Arc::default(),
+        }
+    }
+
     /// A vault endpoint's vault, loaded on first use and kept, so every use
     /// of one endpoint within a run observes the same cards.
     ///

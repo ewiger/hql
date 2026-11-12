@@ -227,6 +227,9 @@ fn channel_element(ty: &TypeRef) -> Option<&TypeRef> {
 
 const NO_FORMAT: &str = "a channel holds values, not bytes, so it takes no format";
 
+const ROWS_TAKE_NO_FORMAT: &str =
+    "a table holds rows of named columns, not bytes, so it takes no format";
+
 /// The type `source` or `tap` gives.
 pub(crate) fn result(
     name: &str,
@@ -371,6 +374,17 @@ fn read_type(name: &str, call: &CheckedCall<'_>) -> Result<TypeRef, String> {
             TypeRef::seq(element.clone())
         });
     }
+    // A row has columns, and no bytes to decode (HQL-0047).
+    if call.input.is(&TypeRef::ROW_TRANSPORT) {
+        if call.bindings.contains_key("F") {
+            return Err(ROWS_TAKE_NO_FORMAT.to_owned());
+        }
+        return Ok(if name == "tap" {
+            crate::types::collections::STREAM.apply([TypeRef::DATA])
+        } else {
+            TypeRef::seq(TypeRef::DATA)
+        });
+    }
     let format = checked_format(call, call.input_expr, Some(call.input), name)?;
     let element = io::document_type(format)?;
     if name == "tap" {
@@ -480,6 +494,26 @@ fn check_target(
         ));
     }
     let carried = written_endpoint(call).and_then(|endpoint| cx.infer(endpoint).ok());
+    if carried
+        .as_ref()
+        .is_some_and(|endpoint| endpoint.is(&TypeRef::ROW_TRANSPORT))
+    {
+        if call.bindings.contains_key("F") {
+            return Err(Diagnostic::typing(span, ROWS_TAKE_NO_FORMAT));
+        }
+        let element = call
+            .input
+            .iterated()
+            .or_else(|| call.input.element())
+            .unwrap_or(TypeRef::NEVER);
+        if declared_fields(&element).is_none() {
+            return Err(Diagnostic::typing(
+                span,
+                format!("a table is written rows of a declared record, and {element} is not one"),
+            ));
+        }
+        return Ok(());
+    }
     let format = checked_format(call, written_endpoint(call), carried.as_ref(), "target")
         .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     crate::extensions::format::writable(call.input, format.0)
@@ -602,6 +636,15 @@ fn check_sink(
         return Ok(());
     }
     let carried = written_endpoint(call).and_then(|endpoint| cx.infer(endpoint).ok());
+    if carried
+        .as_ref()
+        .is_some_and(|endpoint| endpoint.is(&TypeRef::ROW_TRANSPORT))
+    {
+        return Err(Diagnostic::typing(
+            span,
+            "a table of a database file is written whole by `target`, not row by row by `sink`",
+        ));
+    }
     let format = checked_format(call, written_endpoint(call), carried.as_ref(), "sink")
         .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     if matches!(format.0, "D2" | "Mermaid") {
@@ -687,6 +730,23 @@ fn evaluated_format(
         .ok_or_else(|| Diagnostic::runtime(span.clone(), "no format is named or implied"))
 }
 
+/// The rows of a table transport, each a `Data` map from column to value;
+/// `None` for an endpoint that is not one.
+fn table_rows(endpoint: &Endpoint, span: &Range<usize>) -> Result<Option<Vec<Value>>, Diagnostic> {
+    let Endpoint::Sqlite { path, table, order } = endpoint else {
+        return Ok(None);
+    };
+    let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
+    let full = io::readable_database(path).map_err(failed)?;
+    let rows = crate::endpoints::sqlite_rows(&full, table, order, None)
+        .map_err(|message| failed(format!("{}: {message}", endpoint.describe())))?;
+    Ok(Some(
+        rows.into_iter()
+            .map(|row| Value::Data(Arc::new(row)))
+            .collect(),
+    ))
+}
+
 fn eval_source(
     cx: &mut dyn EvalCx,
     input: Value,
@@ -699,6 +759,12 @@ fn eval_source(
     let endpoint = endpoint(&input, &span)?;
     if let Endpoint::Channel(name, element) = endpoint.as_ref() {
         return Ok(Value::list(io::held(name), element.clone()));
+    }
+    if let Some(rows) = table_rows(&endpoint, &span)? {
+        return Ok(Value::Traversal(Arc::new(Traversal::kept(
+            TypeRef::DATA,
+            rows,
+        ))));
     }
     let format = evaluated_format(arguments, &endpoint, &span)?;
     let element = io::document_type(format)
@@ -741,6 +807,11 @@ fn eval_tap(
             from: io::held(name).len(),
         };
         return Ok(live(reading, element.clone(), span));
+    }
+    if let Some(rows) = table_rows(&endpoint, &span)? {
+        let streamed = Traversal::new(TypeRef::DATA, false, crate::traversal::Source::Kept);
+        streamed.keep(rows);
+        return Ok(Value::Traversal(Arc::new(streamed)));
     }
     let format = evaluated_format(arguments, &endpoint, &span)?;
     let element = io::document_type(format)
@@ -1428,10 +1499,12 @@ pub(crate) fn decoded(
         ),
         _ => {
             let endpoint = self::endpoint(endpoint, span)?;
-            (
-                evaluated_format(arguments, &endpoint, span)?.0,
-                endpoint.describe(),
-            )
+            let format = if endpoint.type_of().is(&TypeRef::ROW_TRANSPORT) {
+                "Data"
+            } else {
+                evaluated_format(arguments, &endpoint, span)?.0
+            };
+            (format, endpoint.describe())
         }
     };
     let leaves = if format == "Csv" {
@@ -1452,6 +1525,33 @@ pub(crate) fn decoded(
             .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
             .flatten()
             .map(Arc::new),
+        // A constructed table has no boundary of its own, and is read
+        // through the one its format gives, so a column reads as its type
+        // holds it: an SQLite `INTEGER` 1 as `true`, a `TEXT` as a
+        // `Decimal` with its digits.
+        // A column the record does not read is not read, as a configured
+        // table selects only the columns its boundary reads.
+        Value::Endpoint(held) => match held.as_ref() {
+            Endpoint::Sqlite { path, table, order } => boundary_for(
+                &{
+                    let mut constructed = crate::endpoints::Configured::constructed(
+                        held.to_string(),
+                        crate::endpoints::Kind::Sqlite {
+                            path: path.clone(),
+                            table: table.clone(),
+                            order: order.clone(),
+                        },
+                    );
+                    constructed.strictness = crate::endpoints::Strictness::Open;
+                    constructed
+                },
+                element,
+                None,
+            )
+            .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
+            .map(Arc::new),
+            _ => None,
+        },
         _ => None,
     };
     if let Some(values) = traversal.forced() {
@@ -1859,10 +1959,26 @@ fn write_configured(
     input: Value,
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    let configured = configured(id, cx.vault())
+        .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
+        .clone();
+    write_to(cx, &configured, input, span)
+}
+
+/// A `Table<R>` or `Seq<R>` written to an endpoint as its configuration
+/// says: one configured under an id, or a transport constructed in the
+/// program, which writes as its kind does with no boundary of its own.
+fn write_to(
+    cx: &mut dyn EvalCx,
+    configured: &crate::endpoints::Configured,
+    input: Value,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
     use crate::data::Data;
     use crate::endpoints::{Kind as Source, WriteMode};
     let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
-    let configured = configured(id, cx.vault()).map_err(failed)?.clone();
+    let id = configured.id.as_str();
+    let configured = configured.clone();
     let (element, rows) = match &input {
         Value::Table(table) => (table.row.clone(), table.rows.clone()),
         Value::Traversal(traversal) => {
@@ -2077,6 +2193,17 @@ fn eval_target(
         return write_configured(cx, id, input, &span);
     }
     let endpoint = written_to(cx, arguments, &span)?;
+    if let Endpoint::Sqlite { path, table, order } = endpoint.as_ref() {
+        let constructed = crate::endpoints::Configured::constructed(
+            endpoint.to_string(),
+            crate::endpoints::Kind::Sqlite {
+                path: io::database_path(path),
+                table: table.clone(),
+                order: order.clone(),
+            },
+        );
+        return write_to(cx, &constructed, input, &span);
+    }
     if let Endpoint::Channel(name, _) = endpoint.as_ref() {
         io::push(name, settled(cx, input)?)
             .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;

@@ -12,13 +12,13 @@ type Span : DataContract = {
     require low <= high
 }
 
-// `Window` reads `low` and `high` as its own, and `width` is checked
+// `Interval` reads `low` and `high` as its own, and `width` is checked
 // against them.
-type Window : Span = {
+type Interval : Span = {
     width: Int
 
     require width == high - low
 }
 
 xs : List<Data> = [{low: 0, high: 5, width: 5}, {low: 1, high: 10, width: 9}]
-xs | Window | map(w => w.width) | List
+xs | Interval | map(w => w.width) | List

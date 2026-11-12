@@ -20,6 +20,7 @@ them, nine rows: two delivered twice, one corrected, one delivered late.
 | --- | --- | --- |
 | [revenue from the ledger](queries/revenue-from-the-ledger.hql) | a `sqlite` table read as `Seq<Event>` and totalled per customer | each customer's total |
 | [deduplication by key](queries/deduplication-by-key.hql) | nine replayed rows grouped by `id`, the latest copy of each kept by `max_by` | six events, order 6 corrected |
+| [ranked deduplication](queries/ranked-deduplication.hql) | the same rows ranked by `over` within each `id`, the first of each kept | six events, in input order |
 | [quarantine from a file](queries/quarantine-from-a-file.hql) | raw events validated against a `DataContract`; the rejected ones with the rules they broke | four rejected ids and their rules |
 | [source of a topic](queries/invalid-source-of-a-topic.hql) | a `kafka` endpoint is read by `tap`; `source` is refused at checking | refused |
 | [target of a stream](queries/invalid-target-of-a-stream.hql) | a stream has no last value for `target`; `sink` writes it | refused |

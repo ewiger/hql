@@ -39,7 +39,7 @@ program writes `import time`.
 - [`weekday`](weekday.md) — The ISO day of the week of `self`: Monday is 1, Sunday is 7.
 - [`day_of_year`](day_of_year.md) — The day of the year of `self`, `1..366`.
 - [`iso_week`](iso_week.md) — The ISO week of `self`, `1..53`, in the year `iso_year` gives.
-- [`iso_year`](iso_year.md) — The year the ISO week of `self` belongs to: `2027` for `2026-12-31` where that day falls in the first week of 2027.
+- [`iso_year`](iso_year.md) — The year the ISO week of `self` belongs to: `2025` for `2024-12-30`, the Monday of the first ISO week of 2025.
 - [`date`](date.md) — The date of `self`.
 - [`hour`](hour.md) — The hour of `self`, `0..23`.
 - [`minute`](minute.md) — The minute of `self`, `0..59`.
