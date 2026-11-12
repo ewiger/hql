@@ -100,8 +100,8 @@ field; an optional field has no default, since absence is its value.
 
 ## Rules a subtype inherits
 
-A record declared under a contract, `type Window : Span = {…}`, has the
-fields and the rules of `Span` and its own, and a rule of `Window` reads
+A record declared under a contract, `type Interval : Span = {…}`, has the
+fields and the rules of `Span` and its own, and a rule of `Interval` reads
 both sets of fields:
 
 ```hql
@@ -112,22 +112,22 @@ type Span : DataContract = {
     require low <= high
 }
 
-type Window : Span = {
+type Interval : Span = {
     width: Int
 
     require width == high - low
 }
 
 d : Data = {low: 1, high: 10, width: 9}
-d | Window
+d | Interval
 ```
 
 ```text
-Window(low = 1, high = 10, width = 9)
+Interval(low = 1, high = 10, width = 9)
 ```
 
 A tree `{low: 10, high: 1, width: 9}` breaks both: `Span`'s rule and
-`Window`'s are named together, `Span`'s first.
+`Interval`'s are named together, `Span`'s first.
 
 ## Where a type contract belongs
 

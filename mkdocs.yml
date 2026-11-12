@@ -162,6 +162,7 @@ nav:
                   - Bronze, silver and gold: learn/20-olap/bronze-silver-and-gold.md
                   - Grain and keys: learn/20-olap/grain-and-keys.md
                   - Deduplication: learn/20-olap/deduplication.md
+                  - Windows: learn/20-olap/windows.md
                   - Merge: learn/20-olap/merge.md
                   - Incremental loads: learn/20-olap/incremental-loads.md
           - "Part III: Knowledge and AI":

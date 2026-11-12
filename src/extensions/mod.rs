@@ -39,6 +39,7 @@ pub mod spec;
 pub mod sqlite;
 pub(crate) mod string;
 pub(crate) mod traits;
+pub(crate) mod window;
 pub use collections::{COMBINERS, Combiner};
 use spec::{CheckedCall, OperationSpec};
 
@@ -259,6 +260,15 @@ impl Operation {
     /// `reduction fn`.
     pub(crate) const fn shaped(self, shape: Shape) -> Self {
         Self { shape, ..self }
+    }
+
+    /// The same operation with a check of its own, for a rule its
+    /// declaration cannot state.
+    pub(crate) const fn checked(self, check: Check) -> Self {
+        Self {
+            check: Some(check),
+            ..self
+        }
     }
 
     /// The structural signature used for checking and help: the first

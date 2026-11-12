@@ -10,6 +10,15 @@ The language continues to be in active development.
 
 ### Added
 
+- Analytic windows ([HQL-0050](doc/proposals/HQL-0050/README.md)):
+  `over(by, order, into)` partitions a sequence by `by`, orders each
+  partition by `order`, and gives one value per row, at the row's input
+  position, from the row and its `Window`. A window gives `row_number`,
+  `rank`, `dense_rank`, `lag`, `lead`, `first`, `last`, `size` and the
+  frames `running`, `rows(before, after)` and `whole`. `into` may not give
+  a window, and `over` of a `Stream` is refused.
+- `then` composes two comparisons into one, the second deciding a tie:
+  `compare(a.at, b.at) | then(compare(a.seq, b.seq))`.
 - The module `io.db.sqlite` ([HQL-0047](doc/proposals/HQL-0047/README.md),
   [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Sqlite :
   {Direct, RowTransport, Replayable, Writable}` and its constructor
@@ -68,6 +77,9 @@ The language continues to be in active development.
 
 ### Changed
 
+- `Window` is a standard type, so a program's own `type Window` is
+  refused; rename it.
+- `sort` is stable: elements that compare equal keep their input order.
 - **Breaking:** a configured id is an endpoint, declared under
   `[endpoint.<id>]` in `hql.toml`, with its boundary under
   `[endpoint.<id>.fields.<field>]`. `[sources.<id>]` is refused, naming the

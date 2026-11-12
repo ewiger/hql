@@ -247,6 +247,14 @@ pub(crate) static STEPS: &[Operation] = &[
         eval: eval_sort,
     },
     Operation {
+        name: "then",
+        spec: Signature::Declared,
+        purity: Purity::Pure,
+        shape: super::Shape::Barrier,
+        check: None,
+        eval: eval_then,
+    },
+    Operation {
         name: "take",
         spec: Signature::Declared,
         purity: Purity::Pure,
@@ -478,6 +486,13 @@ fn eval_count(
     args: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    if args.is_empty()
+        && let Some(size) = super::window::size(&input)
+    {
+        return i64::try_from(size)
+            .map(Value::Int)
+            .map_err(|_| Diagnostic::runtime(span, "collection size exceeds Int"));
+    }
     let elements = elements(&input, "count", &span)?;
     let count = match args.first() {
         Some(arg) => {
@@ -774,6 +789,24 @@ fn eval_sort(
         }
     }
     Ok(Value::list(elements, element_type(&input)))
+}
+
+/// `self` unless it is `Equal`, and `next`, evaluated only then, if it is.
+fn eval_then(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let Value::Ordering(order) = input else {
+        return Err(wrong("then", "an Ordering", &span));
+    };
+    if order != Ordering::Equal {
+        return Ok(input);
+    }
+    let next = named_or_first(arguments, "next")
+        .ok_or_else(|| wrong("then", "a `next` Ordering", &span))?;
+    cx.evaluate(&next.value)
 }
 
 /// A stable sort by an order only the evaluator can decide, since it may

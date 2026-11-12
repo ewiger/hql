@@ -496,6 +496,19 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         parents: Vec::new(),
         applied: Vec::new(),
     })?;
+    // One row's place in its ordered partition, `type Window<T>` in
+    // `lib/std/collections/mod.hql`: what `over` hands `into` (HQL-0050).
+    system.declare(TypeDefinition {
+        constructor: WINDOW,
+        kind: TypeKind::Concrete,
+        parameters: vec![TypeParameter {
+            name: "T",
+            variance: Variance::Covariant,
+            bound: None,
+        }],
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     Ok(system)
 }
 
@@ -598,6 +611,9 @@ pub const CHANNEL: TypeConstructor = TypeConstructor("Channel");
 
 /// The constructor of one `group` partition.
 pub const GROUP: TypeConstructor = TypeConstructor("Group");
+
+/// The constructor of one row's window under `over`.
+pub const WINDOW: TypeConstructor = TypeConstructor("Window");
 
 /// The constructor of a computation that may have failed.
 pub const RESULT: TypeConstructor = TypeConstructor("Result");
