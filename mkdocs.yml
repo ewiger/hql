@@ -149,6 +149,7 @@ nav:
               - 14. Pipelines: learn/14-pipelines.md
               - 15. Endpoints: learn/15-endpoints.md
               - 16. Tables and topics: learn/16-tables-and-topics.md
+              - 17. Subjects and the lakehouse: learn/17-subjects-and-the-lakehouse.md
               - 19. ETL pipelines: learn/19-etl-pipelines.md
           - "Part III: Knowledge and AI":
               - 20. A vault of documents: learn/20-a-vault.md
