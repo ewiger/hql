@@ -32,7 +32,7 @@ journal.cards | map(c => c.name)
 ```
 
 A vault is a folder of documents, each a card with a name, the subject of
-[chapter 16](../16-a-vault.md); `journal.cards` is the cards of that one.
+[chapter 21](../21-a-vault.md); `journal.cards` is the cards of that one.
 Here it is one endpoint among others, read by its id like the rest.
 
 ## The kind states the type

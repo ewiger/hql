@@ -1,0 +1,8 @@
+[
+  {"id": 1, "kind": "order_placed",   "customer": "ada",   "amount": 120.50, "at": "2026-11-01T09:15:00Z"},
+  {"id": 2, "kind": "order_placed",   "customer": "grace", "amount": 42.00,  "at": "2026-11-01T09:20:00Z"},
+  {"id": 3, "kind": "payment_failed", "customer": "grace", "amount": 42.00,  "at": "2026-11-01T09:21:00Z"},
+  {"id": 4, "kind": "order_placed",   "customer": "linus", "amount": 7.99,   "at": "2026-11-01T10:02:00Z"},
+  {"id": 5, "kind": "order_shipped",  "customer": "ada",   "amount": 120.50, "at": "2026-11-02T08:00:00Z"},
+  {"id": 6, "kind": "order_placed",   "customer": "ada",   "amount": 15.25,  "at": "2026-11-02T11:45:00Z"}
+]

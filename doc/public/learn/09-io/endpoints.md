@@ -1,4 +1,4 @@
-# Endpoints
+# Files and Standard Endpoints
 
 An **endpoint** states where bytes are. Constructing one performs no I/O: it
 opens, stats and resolves nothing, and prints as it was written:

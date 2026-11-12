@@ -2,10 +2,13 @@
 
 This is a book about HQL, read from the first page to the last. It starts with
 a number and ends with a web of vaults, and every chapter builds on the ones
-before it. Every program in it prints what the book shows. Chapter 15 and
-chapters 20 to 22 describe ETL pipelines, the `ai` module and the direction
-beyond one vault, which are design and not in the current release; every
-other chapter runs with it.
+before it. Every program in it prints what the book shows. Chapter 18 and
+chapters 25 to 27 describe APIs and object stores, the `ai` module and the
+direction beyond one vault, which are design and not in the current
+release, as do the sections of chapters 15 and 19 marked so; every other
+chapter runs with it. The programs of chapters 16, 17, 19 and 20 that reach a
+server are checked in the book and run in the
+[hql-demo repository](https://github.com/ewiger/hql-demo).
 
 HQL is a statically typed language for querying, transforming, connecting and
 computing over data, knowledge and AI workflows. A program is checked before it
@@ -76,29 +79,43 @@ one claim about which book inspired which, and a librarian.
 
 ## Part II: Data flows
 
-14. [Pipelines](14-pipelines.md) — `|` against `.`, the three phases, the
-    step as the unit of execution, `hql` in a shell pipe, and the systems a
-    pipeline will connect: queues, databases, services and jobs.
-15. [ETL pipelines](15-etl-pipelines.md) — one file that reads a queue,
-    enriches from a database and writes tables, alerts and an archive: ids
-    bound in configuration and how they break, streams against tables, a
-    batch as a stream and a stream as a file, rejected rows as a source, and
-    what each platform's wiring finds out when.
+14. [ETL pipelines](14-etl-pipelines.md) — the wiring as a program: `|`
+    against `.`, the three phases, the step as the unit of execution, `hql`
+    in a shell pipe, the shop whose orders the rest of Part II follows, and
+    partitions, schedules and backends, which stay outside the file.
+15. [Endpoints](15-endpoints.md) — one model for every system: a file by
+    path or by id, `source`, `tap`, `target` and `sink`, the kind that states
+    the type, secrets in the environment, and transports.
+16. [Tables and topics](16-tables-and-topics.md) — the shop's orders in a
+    SQLite table, a PostgreSQL table and a Kafka topic, what a write
+    promises, and a topic whose messages are not all orders.
+17. [Subjects and the lakehouse](17-subjects-and-the-lakehouse.md) — core
+    NATS notifications, a JetStream log and a durable consumer, and bronze,
+    silver and gold Delta tables.
+18. [APIs, webhooks and stores](18-apis-webhooks-and-stores.md) — a paginated
+    REST API, a GraphQL catalogue, a webhook, an archive in object storage,
+    and the systems the transport families reserve.
+19. [OLTP](19-oltp/index.md) — the shop's transactional side: its whole day
+    in one checked file, where its mistakes are found, a replay as the same
+    file, and streams against tables.
+20. [OLAP](20-olap/index.md) — the history those transactions leave: bronze,
+    silver and gold, the grain of a row and its keys, deduplication, a table
+    kept up to date by key, and incremental loads.
 
 ## Part III: Knowledge and AI
 
-16. [A vault of documents](16-a-vault.md) — cards, their metadata, a reading
+21. [A vault of documents](21-a-vault.md) — cards, their metadata, a reading
     list nobody maintains, and the vault as a namespace.
-17. [Links and graphs](17-graphs.md) — following links, building graphs,
+22. [Links and graphs](22-graphs.md) — following links, building graphs,
     drawing them.
-18. [Finding cards by meaning](18-retrieval.md) — rankings, hits, and the
+23. [Finding cards by meaning](23-retrieval.md) — rankings, hits, and the
     evidence behind a score.
-19. [Queries inside documents](19-documents.md) — cells, documents built
+24. [Queries inside documents](24-documents.md) — cells, documents built
     from them, and cells that maintain a vault.
-20. [Agents and runs](20-agents-and-runs.md) — agents as cards, context and
+25. [Agents and runs](25-agents-and-runs.md) — agents as cards, context and
     prompts, tools, and runs kept as values.
-21. [Agents inside documents](21-agents-inside-documents.md) — a document
+26. [Agents inside documents](26-agents-inside-documents.md) — a document
     whose cells retrieve evidence, run an agent over the draft they sit in,
     and remember the answer.
-22. [The hyper web](22-the-hyper-web.md) — namespaces beyond one tree,
+27. [The hyper web](27-the-hyper-web.md) — namespaces beyond one tree,
     providers, retrieval and agents across them, and a reader who asks.
