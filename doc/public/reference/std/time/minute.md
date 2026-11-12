@@ -1,0 +1,11 @@
+<!-- hql reference: std/time.minute -->
+# `minute`
+
+In [`std/time`](index.md).
+
+```hql
+fn minute(self: DateTime) : Int
+```
+
+The minute of `self`, `0..59`.
+<!-- hql reference: end -->

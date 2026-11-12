@@ -358,6 +358,7 @@ impl Evaluator<'_> {
     fn expression(&mut self, expression: &Expr) -> Result<Value, Diagnostic> {
         let span = expression.span.clone();
         match &expression.kind {
+            Kind::Unit => Ok(Value::Unit),
             Kind::List(expressions) | Kind::Set(expressions) => {
                 let mut values = Vec::new();
                 let element = expression.ty.element().unwrap_or(TypeRef::NEVER);
@@ -2424,6 +2425,7 @@ fn as_data(value: &Value) -> Data {
         Value::Int(number) => Data::Int(*number),
         Value::Float(number) => Data::Float(*number),
         Value::Decimal(number) => Data::Decimal(number.clone()),
+        Value::Time(time) => Data::Time(*time),
         Value::Bool(truth) => Data::Bool(*truth),
         Value::Str(text) => Data::Str(text.to_string()),
         Value::Data(data) => data.as_ref().clone(),
@@ -2557,6 +2559,17 @@ pub(crate) fn arithmetic_of(
             }
             .map_err(|refusal| refusal.diagnostic(span))?,
         ),
+        // `Duration` takes `+` and `-`, and no other time type does.
+        (
+            Value::Time(crate::time::Time::Duration(a)),
+            Value::Time(crate::time::Time::Duration(b)),
+        ) if matches!(operator, Arith::Add | Arith::Sub) => {
+            let sum = match operator {
+                Arith::Add => a.checked_add(b),
+                _ => a.checked_sub(b),
+            };
+            Value::Time(crate::time::Time::Duration(sum.ok_or_else(overflow)?))
+        }
         _ => {
             return Err(Diagnostic::runtime(
                 span.clone(),

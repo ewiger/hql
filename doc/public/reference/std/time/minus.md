@@ -1,0 +1,12 @@
+<!-- hql reference: std/time.minus -->
+# `minus`
+
+In [`std/time`](index.md).
+
+```hql
+fn minus(self: Instant, by: Duration) : Instant
+fn minus(self: DateTime, by: Duration) : DateTime
+```
+
+`self` moved earlier by `by`.
+<!-- hql reference: end -->

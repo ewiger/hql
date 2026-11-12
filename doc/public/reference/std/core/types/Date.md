@@ -7,5 +7,22 @@ In [`std/core`](../index.md).
 type Date : {Scalar, Orderable}
 ```
 
-A calendar date, ordered by time. No literal produces a `Date`.
+A proleptic Gregorian calendar date, ordered by time:
+`Date("2026-10-24")`. It is written as its ISO 8601 text.
+
+```hql
+fn Date(text: String) : Date
+```
+
+The `Date` an ISO 8601 date reads as: `Date("2026-10-24")`. Any other
+text, a time part included, is an evaluation error naming it; `to_date`
+gives `none` instead.
+
+```hql
+fn Date(*, year: Int, month: Int, day: Int) : Date
+```
+
+The `Date` of a year, a month `1..12` and a day of that month:
+`Date(year = 2026, month = 10, day = 24)`. A part out of range,
+February 30 among them, is an evaluation error.
 <!-- hql reference: end -->

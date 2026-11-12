@@ -29,6 +29,7 @@ impl PartialEq for Data {
                 Decimal::from_float(*b).is_some_and(|b| Decimal::from_int(*a) == b)
             }
             (Self::Str(a), Self::Str(b)) => a == b,
+            (Self::Time(a), Self::Time(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
             (Self::Map(a), Self::Map(b)) => a == b,
             _ => false,
@@ -51,6 +52,9 @@ pub enum Data {
     /// JSON number, or a `Decimal` value. Read as a `Decimal` it is those
     /// digits; read as anything else it is the nearest `Float`.
     Decimal(Decimal),
+    /// A time value: what a time scalar is as a leaf. A decoder never
+    /// produces one from text; a format writes it as its ISO 8601 text.
+    Time(crate::time::Time),
     /// Text.
     Str(String),
     /// An ordered list.
@@ -116,6 +120,7 @@ impl Data {
             Self::Int(_) => "int",
             Self::Float(_) => "float",
             Self::Decimal(_) => "decimal",
+            Self::Time(_) => "time",
             Self::Str(_) => "string",
             Self::List(_) => "list",
             Self::Map(_) => "map",
@@ -143,6 +148,7 @@ impl Data {
             Self::Float(value) => serde_json::Number::from_f64(*value)
                 .map_or(serde_json::Value::Null, serde_json::Value::Number),
             Self::Decimal(value) => decimal_json(value),
+            Self::Time(time) => serde_json::Value::String(time.to_string()),
             Self::Str(text) => serde_json::Value::String(text.clone()),
             Self::List(items) => {
                 serde_json::Value::Array(items.iter().map(Self::to_json).collect())
@@ -262,6 +268,7 @@ impl fmt::Display for Data {
             Self::Int(value) => write!(f, "{value}"),
             Self::Float(value) => write!(f, "{value:?}"),
             Self::Decimal(value) => write!(f, "{value}"),
+            Self::Time(time) => write!(f, "{time}"),
             Self::Str(text) => write!(f, "{text:?}"),
             Self::List(items) => {
                 f.write_str("[")?;

@@ -49,6 +49,7 @@ pub mod render;
 pub mod reporting;
 pub mod search;
 pub mod sources;
+pub mod time;
 pub mod transclude;
 pub mod traversal;
 pub mod types;

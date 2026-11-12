@@ -21,6 +21,11 @@ atoms! {
     CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
     ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
+    DATE_TIME => "DateTime", INSTANT => "Instant", DURATION => "Duration",
+    ZONE => "Zone", TIME_UNIT => "TimeUnit", NANOSECOND => "Nanosecond",
+    MICROSECOND => "Microsecond", MILLISECOND => "Millisecond", SECOND => "Second",
+    MINUTE => "Minute", HOUR => "Hour", DAY => "Day", WEEK => "Week", MONTH => "Month",
+    QUARTER => "Quarter", YEAR => "Year",
     ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
     FILE => "File", FILE_END => "FileEnd",
@@ -33,6 +38,26 @@ atoms! {
     CELL => "Cell", RANGE => "Range", TABLE => "Table",
     TYPE_CONTRACT => "TypeContract", DATA_CONTRACT => "DataContract",
     VIOLATION => "Violation", INVALID => "Invalid", DIAGNOSTIC => "Diagnostic",
+}
+
+impl TypeRef {
+    /// The type of a time value: `Date`, `DateTime`, `Instant` or
+    /// `Duration`.
+    #[must_use]
+    pub fn time(time: &crate::time::Time) -> Self {
+        match time {
+            crate::time::Time::Date(_) => Self::DATE,
+            crate::time::Time::DateTime(_) => Self::DATE_TIME,
+            crate::time::Time::Instant(_) => Self::INSTANT,
+            crate::time::Time::Duration(_) => Self::DURATION,
+        }
+    }
+
+    /// Whether this is one of the time scalars.
+    #[must_use]
+    pub fn is_time(&self) -> bool {
+        [Self::DATE, Self::DATE_TIME, Self::INSTANT, Self::DURATION].contains(self)
+    }
 }
 
 macro_rules! applications {
@@ -124,8 +149,12 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::FLOAT, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::DECIMAL, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::STR, TypeKind::Concrete, &ordered_scalar),
-        // Declared so a schema can name it; no literal produces one yet.
+        // The time scalars (HQL-0041 part 1): built by constructors from
+        // ISO 8601 text, with no literal.
         (TypeRef::DATE, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::DATE_TIME, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::INSTANT, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::DURATION, TypeKind::Concrete, &ordered_scalar),
         (
             TypeRef::DATA,
             TypeKind::Union(vec![
@@ -270,6 +299,33 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::LOG_EVENT, TypeKind::Concrete, &[]),
         (TypeRef::LOGGER, TypeKind::Concrete, &[]),
         (TypeRef::CELL, TypeKind::Concrete, &[]),
+        // Time: `lib/std/time/mod.hql`. A unit is a type, so `truncate`
+        // takes one as `Month` is written.
+        (TypeRef::ZONE, TypeKind::Concrete, &[]),
+        (TypeRef::TIME_UNIT, TypeKind::Abstract, &[]),
+        (
+            TypeRef::NANOSECOND,
+            TypeKind::Concrete,
+            &[TypeRef::TIME_UNIT],
+        ),
+        (
+            TypeRef::MICROSECOND,
+            TypeKind::Concrete,
+            &[TypeRef::TIME_UNIT],
+        ),
+        (
+            TypeRef::MILLISECOND,
+            TypeKind::Concrete,
+            &[TypeRef::TIME_UNIT],
+        ),
+        (TypeRef::SECOND, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::MINUTE, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::HOUR, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::DAY, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::WEEK, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::MONTH, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::QUARTER, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::YEAR, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
     ] {
         system.declare(TypeDefinition {
             kind,

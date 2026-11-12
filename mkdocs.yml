@@ -90,6 +90,7 @@ nav:
                   - Decimal: learn/02-data-types/decimal.md
                   - String: learn/02-data-types/string.md
                   - Bool: learn/02-data-types/bool.md
+                  - Date and time: learn/02-data-types/time.md
                   - Data: learn/02-data-types/data.md
                   - Option: learn/02-data-types/option.md
                   - Sets, Data and maps: learn/02-data-types/sets-data-and-maps.md
@@ -189,6 +190,7 @@ nav:
           - std/string: reference/std/string/index.md
           - std/seq: reference/std/seq/index.md
           - std/math: reference/std/math/index.md
+          - std/time: reference/std/time/index.md
           - std/option: reference/std/option/index.md
           - std/result: reference/std/result/index.md
           - std/regex: reference/std/regex/index.md

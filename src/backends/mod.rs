@@ -72,6 +72,8 @@ impl Registered {
         bound: Vec<(String, Value)>,
         mode: Mode,
     ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
+        // The evaluation clock is read afresh by each evaluation, once.
+        crate::time::begin_evaluation();
         self.plan(program);
         self.execute(program, vault, bound, mode)
     }

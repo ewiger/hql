@@ -38,6 +38,7 @@ pub(crate) mod seq;
 pub mod spec;
 pub mod sqlite;
 pub(crate) mod string;
+pub(crate) mod time;
 pub(crate) mod traits;
 pub(crate) mod window;
 pub use collections::{COMBINERS, Combiner};
@@ -344,6 +345,14 @@ impl Operation {
 
     /// Every signature the operation takes, most specific first: a call
     /// takes the first one it fits.
+    /// Whether a form of the operation is declared without an input, its
+    /// input `Unit`: a call to it writes no positional argument.
+    pub(crate) fn takes_no_input(&self) -> bool {
+        self.specs().iter().any(|spec| {
+            matches!(spec.input, spec::TypePattern::Type(unit) if unit == TypeRef::UNIT.constructor)
+        })
+    }
+
     pub(crate) fn specs(&self) -> &[OperationSpec] {
         match binding::Environment::get() {
             Ok(environment) => environment.specs(self),
@@ -510,6 +519,14 @@ static MATH: Extension = Extension {
     metadata: None,
 };
 
+static TIME: Extension = Extension {
+    name: "time",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["time"],
+    steps: time::STEPS,
+    metadata: None,
+};
+
 static OPTION: Extension = Extension {
     name: "option",
     version: env!("CARGO_PKG_VERSION"),
@@ -545,6 +562,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &STRING,
     &SEQ,
     &MATH,
+    &TIME,
     &OPTION,
     &RESULT,
     &GRAPH,
@@ -1197,6 +1215,23 @@ pub(crate) fn names() -> impl Iterator<Item = &'static str> {
     })
 }
 
+/// Every step name, each with whether a module of the prelude provides it.
+pub(crate) fn names_with_reach() -> impl Iterator<Item = (&'static str, bool)> {
+    let environment = binding::Environment::get().ok();
+    let prelude = prelude();
+    REGISTERED.iter().flat_map(move |extension| {
+        let in_prelude = extension
+            .provides
+            .iter()
+            .any(|module| prelude.contains(module));
+        extension
+            .steps
+            .iter()
+            .filter(move |step| !environment.is_some_and(|held| held.is_private(step)))
+            .map(move |step| (step.name, in_prelude))
+    })
+}
+
 /// One step, as `hql builtins` prints it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listing {
@@ -1343,12 +1378,14 @@ mod tests {
     fn every_registered_step_declares_a_purity_and_a_provider() {
         let listed = listing();
         assert!(!listed.is_empty());
-        // Reading and writing an endpoint, and logging, are the effects;
-        // every other step, constructing an endpoint or a logger included, is
-        // a function of its input.
+        // Reading and writing an endpoint, logging, and reading the
+        // evaluation clock are the effects; every other step, constructing
+        // an endpoint or a logger included, is a function of its input.
         for entry in &listed {
             let effectful = (entry.provider == "io" && entry.name != "file")
-                || (entry.provider == "logging" && entry.name != "Logger");
+                || (entry.provider == "logging" && entry.name != "Logger")
+                || (entry.provider == "time"
+                    && matches!(entry.name, "now" | "today" | "local_zone"));
             let expected = if effectful {
                 Purity::Effectful
             } else {

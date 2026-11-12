@@ -19,7 +19,10 @@ over them are the `collections` module's.
 - [`Float`](types/Float.md) — A 64-bit binary floating-point number, written with the suffix `f` (`2.5f`), ordered by value.
 - [`Decimal`](types/Decimal.md) — An exact decimal number, written with a decimal point and no suffix (`2.50`), ordered by value: `0.1 + 0.2 == 0.3` is `true`.
 - [`String`](types/String.md) — Text, ordered character by character: `"ab" + "cd"` is `"abcd"`, and `"hello"[1]` is `"e"`.
-- [`Date`](types/Date.md) — A calendar date, ordered by time.
+- [`Date`](types/Date.md) — A proleptic Gregorian calendar date, ordered by time: `Date("2026-10-24")`.
+- [`DateTime`](types/DateTime.md) — A date and a time of day with no zone or offset, ordered by time: `DateTime("2026-10-24T09:30:00")`.
+- [`Instant`](types/Instant.md) — A point on the UTC timeline with nanosecond precision, ordered by time: `Instant("2026-10-24T07:30:00Z")`.
+- [`Duration`](types/Duration.md) — A signed length of time in nanoseconds, ordered by length: `Duration("PT1H30M")`.
 - [`Iterable`](types/Iterable.md) — A value whose elements can each be visited: the bound an operation states when it only visits each value.
 - [`Collection`](types/Collection.md) — A finite multiset of occurrences, unordered, with no runtime representation.
 - [`Stream`](types/Stream.md) — An ordered, possibly unending run of values `x0, x1, x2, ...`.
@@ -69,10 +72,13 @@ impl Eq for Float
 impl Eq for Decimal
 impl Eq for String
 impl Eq for Date
+impl Eq for DateTime
+impl Eq for Instant
+impl Eq for Duration
 ```
 
-`Bool`, `Int`, `Float`, `Decimal`, `String` and `Date` compare with `==`
-by value.
+`Bool`, `Int`, `Float`, `Decimal`, `String` and the time scalars compare
+with `==` by value.
 
 ```hql
 impl Ord for Int
@@ -80,28 +86,34 @@ impl Ord for Float
 impl Ord for Decimal
 impl Ord for String
 impl Ord for Date
+impl Ord for DateTime
+impl Ord for Instant
+impl Ord for Duration
 ```
 
 `Int`, `Float` and `Decimal` are ordered by value, `String` character by
-character, and `Date` by time.
+character, `Date`, `DateTime` and `Instant` by time, and `Duration` by
+length.
 
 ```hql
 impl Add for Int
 impl Add for Float
 impl Add for Decimal
 impl Add for String
+impl Add for Duration
 ```
 
-`+` adds `Int`s, `Float`s and `Decimal`s, and concatenates two
-`String`s: `"ab" + "cd"` is `"abcd"`.
+`+` adds `Int`s, `Float`s, `Decimal`s and `Duration`s, and concatenates
+two `String`s: `"ab" + "cd"` is `"abcd"`.
 
 ```hql
 impl Sub for Int
 impl Sub for Float
 impl Sub for Decimal
+impl Sub for Duration
 ```
 
-`-` subtracts `Int`s, `Float`s and `Decimal`s.
+`-` subtracts `Int`s, `Float`s, `Decimal`s and `Duration`s.
 
 ```hql
 impl Mul for Int

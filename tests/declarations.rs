@@ -604,12 +604,10 @@ fn a_name_off_its_kinds_convention_is_a_warning_at_the_name() {
 #[test]
 fn every_external_declaration_has_an_implementation_and_every_implementation_a_declaration() {
     let catalogue = hql::extensions::catalogue(&hql::extensions::Config::default());
+    let contracts = library::contracts().expect("std parses");
     let mut checked = 0;
-    for (name, contract) in library::contracts().expect("std parses") {
-        let declared: Vec<&str> = contract
-            .iter()
-            .map(|declaration| declaration.name.as_str())
-            .collect();
+    for (name, _) in &contracts {
+        let name = *name;
         let provider = catalogue
             .iter()
             .find(|provider| provider.provides.contains(&name))
@@ -619,8 +617,15 @@ fn every_external_declaration_has_an_implementation_and_every_implementation_a_d
                     library::path(name)
                 )
             });
+        // A provider of several modules, `core` and `collections`,
+        // implements what all of them declare.
+        let mut declared: Vec<&str> = contracts
+            .iter()
+            .filter(|(module, _)| provider.provides.contains(module))
+            .flat_map(|(_, contract)| contract.iter())
+            .map(|declaration| declaration.name.as_str())
+            .collect();
         let mut implemented: Vec<&str> = provider.steps.iter().map(|step| step.name).collect();
-        let mut declared = declared;
         implemented.sort_unstable();
         declared.sort_unstable();
         declared.dedup();

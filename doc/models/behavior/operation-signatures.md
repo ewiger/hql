@@ -65,6 +65,44 @@ mermaid(x: Any)  : Mermaid
 
 lexical<T : Doc>(xs: Collection<T>, query: String)  : Ranking<Card>
 semantic<T : Doc>(xs: Collection<T>, query: String) : Ranking<Card>
+
+// core: the time constructors; a form without a positional parameter
+// takes Unit as its input
+Date(text: String) : Date
+Date(*, year: Int, month: Int, day: Int) : Date
+DateTime(text: String) : DateTime
+DateTime(date: Date, *, hour?: Int, minute?: Int, second?: Int, nanosecond?: Int) : DateTime
+Instant(text: String) : Instant
+Instant(*, unix_seconds: Int) : Instant
+Instant(*, unix_millis: Int) : Instant
+Duration(text: String) : Duration
+Duration(*, days?: Int, hours?: Int, minutes?: Int, seconds?: Int, millis?: Int, nanos?: Int) : Duration
+
+// time (HQL-0041 part 1); T is Date or DateTime where both are declared
+Zone(name: String)                                   : Zone
+to_date(s: String) : Option<Date>   // and to_datetime, to_instant, to_duration
+parse_date(s: String, pattern: String) : Option<Date>   // and parse_datetime, parse_instant
+at(i: Instant, zone: Zone)                           : DateTime
+in_zone(t: DateTime, zone: Zone)                     : Instant
+offset(z: Zone, at: Instant)                         : Duration
+year(t: T) : Int   // and month, day, weekday, day_of_year, iso_week, iso_year
+date(t: DateTime) : Date
+hour(t: DateTime) : Int   // and minute, second, nanosecond
+unix_seconds(i: Instant) : Int   // and unix_millis
+total_seconds(d: Duration) : Decimal
+total_millis(d: Duration)  : Int
+plus(x: Instant | DateTime, by: Duration)            : Instant | DateTime   // and minus
+since(x: Instant | DateTime, earlier: Instant | DateTime) : Duration
+add_days(t: T, n: Int) : T   // and add_months, add_years
+days_since(d: Date, earlier: Date)                   : Int
+negate(d: Duration) : Duration
+times(d: Duration, n: Int) : Duration
+truncate<U : TimeUnit>(x: Date | DateTime | Instant, unit: Type<U>, zone?: Zone) : Date | DateTime | Instant
+dates(start: Date, end: Date)                        : List<Date>
+fmt(x: Date | DateTime | Instant, pattern: String, zone?: Zone) : String
+now()                                                : Instant   // effectful
+today(zone?: Zone)                                   : Date      // effectful
+local_zone()                                         : Zone      // effectful
 ```
 
 ### Proposed

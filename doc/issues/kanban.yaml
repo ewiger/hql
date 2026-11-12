@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 63 # to be incremented when adding a new issue card
+  last_id: 64 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -61,6 +61,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0064"
+        title: "`Date` as a data type, and the `time` module"
+        file: 0064-date-and-the-time-module.md
       - id: "0054"
         title: "The website is for HQL users: Learn, Guides, Reference"
         file: 0054-user-facing-website.md
