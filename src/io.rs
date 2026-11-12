@@ -46,6 +46,15 @@ pub enum Endpoint {
     WebSocket(String),
     /// A TCP connection, carrying documents as their format separates them.
     Socket(String, u16),
+    /// One table of an SQLite database file: one row per element.
+    Sqlite {
+        /// The database file, as the program wrote it.
+        path: PathBuf,
+        /// The table.
+        table: String,
+        /// The columns its rows are ordered by; empty orders by `rowid`.
+        order: Vec<String>,
+    },
     /// One core NATS subject: one document per message, published while a
     /// read is subscribed.
     Nats {
@@ -79,6 +88,7 @@ impl Endpoint {
             Self::Http { .. } => TypeRef::HTTP,
             Self::WebSocket(_) => TypeRef::WEB_SOCKET,
             Self::Socket(..) => TypeRef::SOCKET,
+            Self::Sqlite { .. } => TypeRef::SQLITE,
             Self::Nats { .. } => TypeRef::NATS,
             Self::NatsJetStream { .. } => TypeRef::NATS_JET_STREAM,
         }
@@ -104,6 +114,9 @@ impl Endpoint {
             Self::Channel(name, _) => format!("channel {name:?}"),
             Self::Http { url, .. } | Self::WebSocket(url) => url.clone(),
             Self::Socket(host, port) => format!("{host}:{port}"),
+            Self::Sqlite { path, table, .. } => {
+                format!("table `{table}` of {}", path.display())
+            }
             Self::Nats { subject, .. } => format!("subject `{subject}`"),
             Self::NatsJetStream { held, .. } => {
                 format!("subject `{}` of stream `{}`", held.subject, held.stream)
@@ -142,6 +155,17 @@ impl fmt::Display for Endpoint {
             }
             Self::WebSocket(url) => write!(f, "websocket({url:?})"),
             Self::Socket(host, port) => write!(f, "socket({host:?}, {port})"),
+            Self::Sqlite { path, table, order } => {
+                write!(
+                    f,
+                    "sqlite({:?}, table = {table:?}",
+                    path.display().to_string()
+                )?;
+                if !order.is_empty() {
+                    write!(f, ", order = {order:?}")?;
+                }
+                f.write_str(")")
+            }
             Self::Nats {
                 server,
                 subject,
@@ -500,6 +524,20 @@ fn resolved(path: &Path) -> PathBuf {
         return path.to_path_buf();
     }
     HOST.with(|host| host.borrow().base.join(path))
+}
+
+/// A database file a read may open, under the host's policy, as a file is.
+///
+/// # Errors
+/// As a file read: outside a document's directory, or replaced already.
+pub(crate) fn readable_database(path: &Path) -> Result<PathBuf, String> {
+    readable(path)
+}
+
+/// A database file as a write opens it: resolved as a file is.
+#[must_use]
+pub(crate) fn database_path(path: &Path) -> PathBuf {
+    resolved(path)
 }
 
 /// A file a read may open, under the host's policy.
@@ -1413,6 +1451,10 @@ impl Destination {
             Endpoint::Stdout => Ok((Self::Stdout, false)),
             Endpoint::Stderr => Ok((Self::Stderr, false)),
             Endpoint::Stdin => Err("standard input is not written".to_owned()),
+            Endpoint::Sqlite { .. } => Err(format!(
+                "{} holds rows, not documents; write it with `target`",
+                endpoint.describe()
+            )),
             Endpoint::Channel(name, _) => Ok((Self::Channel(name.clone()), false)),
             Endpoint::File(path) => {
                 let full = record(path, Written::Replaced)?;
