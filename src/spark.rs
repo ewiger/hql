@@ -795,6 +795,7 @@ pub(crate) fn text_of(value: &Data) -> Option<String> {
         Data::Int(n) => n.to_string(),
         Data::Float(x) => x.to_string(),
         Data::Decimal(d) => d.to_string(),
+        Data::Time(time) => time.to_string(),
         Data::Str(text) => text.clone(),
         Data::List(_) | Data::Map(_) => value.to_json().to_string(),
     })

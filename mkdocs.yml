@@ -188,6 +188,7 @@ nav:
           - std/string: reference/std/string/index.md
           - std/seq: reference/std/seq/index.md
           - std/math: reference/std/math/index.md
+          - std/time: reference/std/time/index.md
           - std/option: reference/std/option/index.md
           - std/result: reference/std/result/index.md
           - std/regex: reference/std/regex/index.md

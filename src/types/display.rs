@@ -33,6 +33,7 @@ impl Value {
             Self::Int(value) => J::from(*value),
             Self::Float(value) => serde_json::Number::from_f64(*value).map_or(J::Null, J::Number),
             Self::Decimal(value) => crate::data::decimal_json(value),
+            Self::Time(time) => J::String(time.to_string()),
             Self::Bool(value) => J::Bool(*value),
             Self::Str(text) => J::String(text.to_string()),
             Self::Absent(_) => J::Null,
@@ -166,6 +167,8 @@ impl fmt::Display for Value {
             Self::Float(value) => write!(f, "{value:?}"),
             // The digits, with as many after the point as the scale says.
             Self::Decimal(value) => write!(f, "{value}"),
+            // The ISO 8601 text its constructor reads.
+            Self::Time(time) => write!(f, "{time}"),
             Self::Bool(value) => write!(f, "{value}"),
             Self::Str(text) => write!(f, "{text}"),
             Self::Absent(_) => f.write_str("none"),

@@ -1551,6 +1551,7 @@ fn written_cell(value: Option<&Value>, external_type: &str) -> Option<crate::dat
             Data::Str(d.to_string())
         }
         Value::Decimal(d) => Data::Decimal(d.clone()),
+        Value::Time(time) => Data::Time(*time),
         Value::Bool(b) => Data::Bool(*b),
         Value::Str(text) => Data::Str(text.to_string()),
         Value::Data(tree) => tree.as_ref().clone(),

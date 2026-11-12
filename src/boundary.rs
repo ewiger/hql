@@ -419,7 +419,13 @@ enum Class {
     List,
     Object,
     Data,
-    /// Any other scalar, a `Date`, carried as text.
+    /// A `Date`, carried as its ISO 8601 text where the format has no date.
+    Date,
+    /// A `DateTime`, a timestamp with no zone.
+    DateTime,
+    /// An `Instant`, a timestamp on the UTC timeline.
+    Instant,
+    /// Any other scalar, a `Duration`, carried as text.
     Other,
 }
 
@@ -433,6 +439,10 @@ fn class(ty: &TypeRef) -> Class {
         _ if *ty == TypeRef::DECIMAL => Class::Decimal,
         _ if *ty == TypeRef::STR => Class::Text,
         _ if *ty == TypeRef::BOOL => Class::Bool,
+        _ if *ty == TypeRef::DATE => Class::Date,
+        _ if *ty == TypeRef::DATE_TIME => Class::DateTime,
+        _ if *ty == TypeRef::INSTANT => Class::Instant,
+        _ if *ty == TypeRef::DURATION => Class::Other,
         _ if ty.is_sequence() => Class::List,
         _ if crate::types::MapKind::of(ty.constructor).is_some()
             || crate::types::program::record(ty.constructor.0).is_some() =>
@@ -466,18 +476,26 @@ fn default_type(kind: &str, ty: &TypeRef) -> &'static str {
         ("postgres", Class::Decimal) => "NUMERIC",
         ("postgres", Class::Bool) => "BOOLEAN",
         ("postgres", Class::List | Class::Object | Class::Data) => "JSONB",
+        ("postgres", Class::Date) => "DATE",
+        ("postgres", Class::DateTime) => "TIMESTAMP",
+        ("postgres", Class::Instant) => "TIMESTAMPTZ",
         ("postgres", _) => "TEXT",
         ("spark", Class::Int) => "BIGINT",
         ("spark", Class::Float) => "DOUBLE",
         ("spark", Class::Decimal) => "DECIMAL(38,18)",
         ("spark", Class::Bool) => "BOOLEAN",
+        ("spark", Class::Date) => "DATE",
+        ("spark", Class::DateTime) => "TIMESTAMP_NTZ",
+        ("spark", Class::Instant) => "TIMESTAMP",
         ("spark", _) => "STRING",
         (_, Class::Decimal) => "string",
         (_, Class::Int | Class::Float) => "number",
         (_, Class::Bool) => "boolean",
         (_, Class::List) => "array",
         (_, Class::Object | Class::Data) => "object",
-        (_, Class::Text | Class::Other) => "string",
+        (_, Class::Text | Class::Date | Class::DateTime | Class::Instant | Class::Other) => {
+            "string"
+        }
     }
 }
 
@@ -519,6 +537,9 @@ fn postgres_type(declared: &str) -> &'static str {
         "numeric" | "decimal" => "NUMERIC",
         "bool" | "boolean" => "BOOLEAN",
         "json" | "jsonb" => "JSONB",
+        "date" => "DATE",
+        "timestamp" | "timestamp without time zone" => "TIMESTAMP",
+        "timestamptz" | "timestamp with time zone" => "TIMESTAMPTZ",
         _ => "TEXT",
     }
 }
@@ -570,11 +591,15 @@ fn lossy(kind: &str, external: &str, ty: &TypeRef) -> bool {
 /// Whether the format's external type decodes to the HQL type; `None`
 /// where the format has no such type.
 fn decodes(kind: &str, external: &str, ty: &TypeRef) -> Option<bool> {
-    use Class::{Bool, Data, Decimal, Float, Int, List, Object, Other, Text};
+    use Class::{
+        Bool, Data, Date, DateTime, Decimal, Float, Instant, Int, List, Object, Other, Text,
+    };
     let target = class(ty);
     let into: &[Class] = match family(kind) {
         "csv" => match external {
-            "text" => &[Int, Float, Decimal, Text, Bool, Other],
+            "text" => &[
+                Int, Float, Decimal, Text, Bool, Date, DateTime, Instant, Other,
+            ],
             "integer" => &[Int, Float, Decimal],
             "float" => &[Float, Decimal],
             "decimal" => &[Decimal],
@@ -584,7 +609,7 @@ fn decodes(kind: &str, external: &str, ty: &TypeRef) -> Option<bool> {
         "sqlite" => match external.to_ascii_uppercase().as_str() {
             "INTEGER" => &[Int, Float, Decimal, Bool],
             "REAL" => &[Float, Decimal],
-            "TEXT" => &[Text, Decimal, Other],
+            "TEXT" => &[Text, Decimal, Date, DateTime, Instant, Other],
             "NUMERIC" => &[Decimal, Int, Float],
             "BLOB" => &[Text],
             _ => return None,
@@ -595,8 +620,12 @@ fn decodes(kind: &str, external: &str, ty: &TypeRef) -> Option<bool> {
             "NUMERIC" | "DECIMAL" => &[Decimal, Int, Float],
             "BOOLEAN" | "BOOL" => &[Bool],
             "JSONB" | "JSON" => &[List, Object, Text, Int, Float, Decimal, Bool],
-            "TEXT" | "VARCHAR" | "CHARACTER VARYING" | "TIMESTAMPTZ" | "TIMESTAMP" | "DATE"
-            | "UUID" => &[Text, Decimal, Other],
+            "TEXT" | "VARCHAR" | "CHARACTER VARYING" | "UUID" => {
+                &[Text, Decimal, Date, DateTime, Instant, Other]
+            }
+            "DATE" => &[Date, Text],
+            "TIMESTAMP" => &[DateTime, Text],
+            "TIMESTAMPTZ" => &[Instant, Text],
             _ => return None,
         },
         "spark" => match spark_type(external).as_str() {
@@ -606,13 +635,14 @@ fn decodes(kind: &str, external: &str, ty: &TypeRef) -> Option<bool> {
             "DOUBLE" | "FLOAT" | "REAL" => &[Float, Decimal],
             "DECIMAL" | "DEC" | "NUMERIC" => &[Decimal, Int, Float],
             "BOOLEAN" => &[Bool],
-            "STRING" | "VARCHAR" | "CHAR" | "TIMESTAMP" | "TIMESTAMP_NTZ" | "DATE" => {
-                &[Text, Decimal, Other]
-            }
+            "STRING" | "VARCHAR" | "CHAR" => &[Text, Decimal, Date, DateTime, Instant, Other],
+            "DATE" => &[Date, Text],
+            "TIMESTAMP_NTZ" => &[DateTime, Text],
+            "TIMESTAMP" => &[Instant, Text],
             _ => return None,
         },
         _ => match external {
-            "string" => &[Text, Decimal, Other],
+            "string" => &[Text, Decimal, Date, DateTime, Instant, Other],
             "number" => &[Int, Float, Decimal],
             "boolean" => &[Bool],
             "array" => &[List],

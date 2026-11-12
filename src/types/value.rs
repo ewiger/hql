@@ -182,6 +182,8 @@ pub enum Value {
     Float(f64),
     /// An exact decimal number with its scale.
     Decimal(Decimal),
+    /// A `Date`, `DateTime`, `Instant` or `Duration`.
+    Time(crate::time::Time),
     /// A Boolean truth value.
     Bool(bool),
     /// Text.
@@ -454,6 +456,7 @@ impl Value {
             Self::Int(_) => TypeRef::INT,
             Self::Float(_) => TypeRef::FLOAT,
             Self::Decimal(_) => TypeRef::DECIMAL,
+            Self::Time(time) => TypeRef::time(time),
             Self::Bool(_) => TypeRef::BOOL,
             Self::Str(_) => TypeRef::STR,
             Self::Absent(element) => TypeRef::optional(element.clone()),
@@ -533,6 +536,7 @@ impl Value {
             Self::Int(value) => Some(Key::Integer(*value)),
             Self::Float(value) => Some(Key::Number(if *value == 0.0 { 0.0 } else { *value })),
             Self::Decimal(value) => Some(Key::Exact(value.clone())),
+            Self::Time(time) => Some(Key::Time(*time)),
             Self::Str(text) => Some(Key::text(text)),
             Self::Formatted(formatted) => Some(Key::text(&formatted.text)),
             Self::Doc(doc) => Some(Key::text(&doc.name)),
@@ -621,6 +625,14 @@ impl Value {
                 .to_float()
                 .map(Self::Float)
                 .ok_or_else(|| Mismatch::new(format!("{value} is not a Float")))?,
+            Data::Time(time) => Self::Time(*time),
+            // A declared time field reads its ISO 8601 text: the declaration
+            // is the conversion, and an undeclared leaf stays a String.
+            Data::Str(text) if wanted.is_time() => {
+                crate::time::Time::read_as(wanted.constructor.0, text)
+                    .map(Self::Time)
+                    .ok_or_else(|| Mismatch::new(format!("{text:?} is not a {wanted}")))?
+            }
             Data::Str(text) => match leaves {
                 Leaves::Text => parsed_leaf(text, wanted)?,
                 Leaves::AsWritten => Self::Str(Arc::from(text.as_str())),
@@ -763,6 +775,8 @@ pub enum Key {
     Exact(Decimal),
     /// A text key.
     Text(String),
+    /// A time value, ordered on its own timeline.
+    Time(crate::time::Time),
     /// A retrieval score with a deterministic document tiebreak.
     Scored(f64, String),
 }
@@ -782,6 +796,7 @@ impl Key {
             (Self::Integer(a), Self::Exact(b)) => Decimal::from_int(*a).cmp(b),
             (Self::Exact(a), Self::Integer(b)) => a.cmp(&Decimal::from_int(*b)),
             (Self::Text(a), Self::Text(b)) => a.cmp(b),
+            (Self::Time(a), Self::Time(b)) => a.compare(b),
             (Self::Scored(a, x), Self::Scored(b, y)) => a.total_cmp(b).then_with(|| x.cmp(y)),
             _ => self.family().cmp(&other.family()),
         }
@@ -794,6 +809,7 @@ impl Key {
             Self::Exact(_) => 2,
             Self::Text(_) => 3,
             Self::Scored(..) => 4,
+            Self::Time(_) => 5,
         }
     }
 }
@@ -824,6 +840,7 @@ impl PartialEq for Value {
                 *left == Decimal::from_int(*right)
             }
             (Self::Bool(left), Self::Bool(right)) => left == right,
+            (Self::Time(left), Self::Time(right)) => left == right,
             (Self::Str(left), Self::Str(right)) => left == right,
             // Formatted text is a String, so it equals a String of the same text.
             (Self::Formatted(left), Self::Formatted(right)) => left == right,

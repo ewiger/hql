@@ -57,13 +57,16 @@ pub fn nearest(name: &str) -> Option<&'static str> {
             return Some(constructor.0);
         }
     }
-    extensions::names()
-        .map(|step| (distance(name, step), step))
-        .filter(|(distance, _)| *distance <= 2)
+    // A name of the prelude is preferred; one a program reaches only by
+    // importing its module is suggested for a near miss alone, where the
+    // prelude has none: `pages` is no misspelling of `time.dates`.
+    extensions::names_with_reach()
+        .map(|(step, in_prelude)| (!in_prelude, distance(name, step), step))
+        .filter(|(imported, distance, _)| *distance <= if *imported { 1 } else { 2 })
         // A tie is broken by name, so a suggestion never depends on the
         // order the registry happens to be written in.
-        .min_by_key(|(distance, name)| (*distance, *name))
-        .map(|(_, name)| name)
+        .min_by_key(|(imported, distance, name)| (*imported, *distance, *name))
+        .map(|(_, _, name)| name)
 }
 
 /// The hint for a name a fold's `by` position does not resolve: the
