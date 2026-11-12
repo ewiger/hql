@@ -1,8 +1,9 @@
 # Subjects and lakehouse tables
 
-A `nats` endpoint is one subject of a NATS JetStream stream, and a `spark`
-endpoint is one table behind a Spark SQL endpoint: a Databricks SQL
-warehouse, or an open-source Spark Thrift Server over Delta Lake tables.
+A `nats` endpoint is one core NATS subject, a `nats_jetstream` endpoint is
+one subject of a NATS JetStream stream, and a `spark` endpoint is one table
+behind a Spark SQL endpoint: a Databricks SQL warehouse, or an open-source
+Spark Thrift Server over Delta Lake tables.
 They are configured as a [topic and a table](configured.md#topics-and-tables)
 are, and they sit on the same two sides of the line `source` and `tap` draw:
 a subject is a log that does not end, and a table ends.
@@ -10,7 +11,8 @@ a subject is a log that does not end, and a table ends.
 | Kind | What it is | Read by | Written by |
 | --- | --- | --- | --- |
 | `kafka` | one topic | `tap`, as a `Stream` | `sink`, `target` |
-| `nats` | one subject of a JetStream stream | `tap`, as a `Stream` | `sink`, `target` |
+| `nats` | one core subject, kept by no one | `tap`, as a `Stream` | `sink`, `target` |
+| `nats_jetstream` | one subject of a JetStream stream | `tap`, as a `Stream` | `sink`, `target` |
 | `postgres` | one table | `source`, as a `Seq` | `target`, `sink` |
 | `spark` | one table of a lakehouse | `source`, as a `Seq` | `target`, `sink` |
 
@@ -20,26 +22,59 @@ Each runs in the
 MinIO and a Spark Thrift Server with Docker Compose and compares what the
 programs print with what this page shows.
 
-## A subject
+## A core subject
 
-NATS delivers a message to whoever is subscribed when it is published, and
-keeps nothing. JetStream is the part of the server that keeps messages: a
-**stream** stores every message published to the subjects it is configured
-with, in order. An endpoint names the server, the stream, and one subject
-within it:
+NATS delivers a message to whoever is subscribed to its subject when it is
+published, and keeps nothing. A `nats` endpoint names the server and a
+subject:
 
 ```toml
-[endpoint.events]
+[endpoint.orders]
 kind = "nats"
 url_env = "NATS_URL"
-stream = "EVENTS"
-subject = "events.orders"
-idle_ms = 2000
+subject = "orders.>"
+idle_ms = 3000
 ```
 
 The address is written as `url`, or held by the environment variable
 `url_env` names. An address may hold a user and a password, and one that does
 is refused in `hql.toml`, so it is never written there.
+
+`tap("orders")` subscribes when the stream is first traversed, and is given
+every message published from then on, in the order it arrives. A message
+published before is not there to be given, so a reader must be subscribed
+before the writer publishes; nothing is read from the earliest message, and
+the endpoint takes no `from`. A subject may hold the wildcards `*`, one
+token, and `>`, every token that follows, so `orders.>` reads every subject
+under `orders.`:
+
+<!-- run: skip -->
+```hql
+events : Stream<Event> = tap("orders")
+events
+| filter(e => e.kind == "order_placed")
+| map(e => {id: e.id, customer: e.customer, amount: e.amount})
+```
+
+`sink` publishes each value as one message to one subject, so an endpoint
+with a wildcard is read only. Nothing confirms a core message: `sink` ends
+once the server has the messages, whether or not anyone was subscribed.
+
+## A subject of a stream
+
+JetStream is the part of the server that keeps messages: a **stream** stores
+every message published to the subjects it is configured with, in order. A
+`nats_jetstream` endpoint names the server, the stream, and one subject
+within it:
+
+```toml
+[endpoint.events]
+kind = "nats_jetstream"
+url_env = "NATS_URL"
+stream = "EVENTS"
+subject = "events.orders"
+idle_ms = 2000
+```
 
 `sink("events")` publishes each value as one message, a JSON document. A
 message is written once the stream answers that it stored it, so a program
@@ -102,7 +137,7 @@ before it ended:
 
 ```toml
 [endpoint.billing]
-kind = "nats"
+kind = "nats_jetstream"
 url_env = "NATS_URL"
 stream = "EVENTS"
 subject = "events.orders"
@@ -152,15 +187,16 @@ The next run of the program above starts with `2`.
 
 ## A subject without configuration
 
-The kind is also a transport type, `Nats`, with a constructor in the module
-`io.msg.nats`. Its parameters are the kind's keys, so a program reaches a
-subject with no `hql.toml`:
+Each kind is also a transport type with a constructor, in a module of its
+own: `Nats` and `nats(...)` in `io.msg.nats`, `NatsJetStream` and
+`nats_jetstream(...)` in `io.msg.nats_jetstream`. A constructor's parameters
+are its kind's keys, so a program reaches a subject with no `hql.toml`:
 
 <!-- run: skip -->
 ```hql
-import io.msg.nats
+import io.msg.nats_jetstream
 
-orders = nats("events.orders", stream = "EVENTS", url_env = "NATS_URL", idle_ms = 2000)
+orders = nats_jetstream("events.orders", stream = "EVENTS", url_env = "NATS_URL", idle_ms = 2000)
 
 tap(orders) | filter(e => e.kind == "order_placed") | map(e => e.id)
 ```
@@ -173,22 +209,24 @@ tap(orders) | filter(e => e.kind == "order_placed") | map(e => e.id)
 ```
 
 A message is one document, so the format may be left out and is then `Json`.
-`Nats` is a transport on the network that carries messages, which is what
-its supertypes state:
+Both are transports on the network that carry messages, which is what their
+supertypes state:
 
 <!-- run: check -->
 ```hql
 import io.msg.nats
 
-nats("events.orders", stream = "EVENTS", url_env = "NATS_URL") | is(Network)
+nats("orders.order_placed", url_env = "NATS_URL") | is(Network)
 ```
 
 ```text
 Bool
 ```
 
-The module is imported by its full path, and naming it in the program's
-first lines is how a program states that it reaches NATS. The address is
+A module is imported by its full path, and naming it in the program's first
+lines is how a program states that it reaches NATS. Each module declares only
+its own transport: `nats(...)` takes no `stream`, and `import io.msg.nats`
+does not bring `nats_jetstream` into scope. The address is
 still `url` or the variable `url_env` names: a constructor takes no secret,
 and a `url` that holds credentials is refused.
 
@@ -285,14 +323,14 @@ One stream holds both subjects, and two tables hold the rest:
 
 ```toml
 [endpoint.orders_raw]
-kind = "nats"
+kind = "nats_jetstream"
 url_env = "NATS_URL"
 stream = "ORDERS"
 subject = "orders.raw"
 idle_ms = 2000
 
 [endpoint.orders_rejected]
-kind = "nats"
+kind = "nats_jetstream"
 url_env = "NATS_URL"
 stream = "ORDERS"
 subject = "orders.rejected"
