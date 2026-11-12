@@ -23,6 +23,28 @@ abstract type Replayable : Readable
 /// An endpoint bytes can be written to, by `target` and `sink`.
 abstract type Writable : Endpoint
 
+/// An endpoint outside the evaluation: a file, a process stream, a network
+/// resource, a database table or a broker's log. A `Channel` is the
+/// endpoint that is not one.
+abstract type Transport : Endpoint
+
+/// A `Transport` on this machine: a process stream or the file system.
+abstract type Direct : Transport
+
+/// A `Transport` in another process, reached over a connection. A host
+/// grants or refuses the network as a whole.
+abstract type Network : Transport
+
+/// A `Transport` that moves bytes: a format separates the documents.
+abstract type ByteTransport : Transport
+
+/// A `Transport` that moves framed messages: each message is one document,
+/// decoded by the format, `Json` where none is named.
+abstract type MessageTransport : Transport
+
+/// A `Transport` that moves rows of named columns: it takes no format.
+abstract type RowTransport : Transport
+
 /// The program's standard input, bound as `stdin`: read once, as it
 /// arrives.
 type Stdin : Readable

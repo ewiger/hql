@@ -180,6 +180,7 @@ fn written_endpoint<'a>(call: &CheckedCall<'a>) -> Option<&'a Expr> {
 pub(crate) fn checked_format(
     call: &CheckedCall<'_>,
     endpoint: Option<&Expr>,
+    carried: Option<&TypeRef>,
     verb: &str,
 ) -> Result<TypeConstructor, String> {
     if let Some(format) = call.bindings.get("F") {
@@ -198,6 +199,11 @@ pub(crate) fn checked_format(
         && let Some(format) = io::stdin_format()
     {
         return Ok(format);
+    }
+    // Each message of a message transport is one document, JSON where the
+    // call names no format (HQL-0047).
+    if carried.is_some_and(|endpoint| endpoint.is(&TypeRef::MESSAGE_TRANSPORT)) {
+        return Ok(TypeConstructor("Json"));
     }
     match endpoint.and_then(literal_path) {
         Some(path) => io::format_of_extension(Path::new(path)).ok_or_else(|| {
@@ -365,7 +371,7 @@ fn read_type(name: &str, call: &CheckedCall<'_>) -> Result<TypeRef, String> {
             TypeRef::seq(element.clone())
         });
     }
-    let format = checked_format(call, call.input_expr, name)?;
+    let format = checked_format(call, call.input_expr, Some(call.input), name)?;
     let element = io::document_type(format)?;
     if name == "tap" {
         if !io::streams(format) {
@@ -473,7 +479,8 @@ fn check_target(
             ),
         ));
     }
-    let format = checked_format(call, written_endpoint(call), "target")
+    let carried = written_endpoint(call).and_then(|endpoint| cx.infer(endpoint).ok());
+    let format = checked_format(call, written_endpoint(call), carried.as_ref(), "target")
         .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     crate::extensions::format::writable(call.input, format.0)
         .map_err(|message| Diagnostic::typing(span, message))
@@ -594,7 +601,8 @@ fn check_sink(
     if check_channel_write(cx, call, &element, &span)? {
         return Ok(());
     }
-    let format = checked_format(call, written_endpoint(call), "sink")
+    let carried = written_endpoint(call).and_then(|endpoint| cx.infer(endpoint).ok());
+    let format = checked_format(call, written_endpoint(call), carried.as_ref(), "sink")
         .map_err(|message| Diagnostic::typing(span.clone(), message))?;
     if matches!(format.0, "D2" | "Mermaid") {
         return Err(Diagnostic::typing(
@@ -670,6 +678,9 @@ fn evaluated_format(
     {
         return Ok(format);
     }
+    if endpoint.type_of().is(&TypeRef::MESSAGE_TRANSPORT) {
+        return Ok(TypeConstructor("Json"));
+    }
     endpoint
         .path()
         .and_then(io::format_of_extension)
@@ -698,7 +709,7 @@ fn eval_source(
                 .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             Ok(Value::Traversal(Arc::new(Traversal::kept(element, values))))
         }
-        Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) => {
+        Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) | Endpoint::Nats { .. } => {
             let reading = Reading::live(&endpoint, format)
                 .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             Ok(live(reading, element, span))
@@ -731,7 +742,7 @@ fn eval_tap(
     let element = io::document_type(format)
         .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     let reading = match endpoint.as_ref() {
-        Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) => {
+        Endpoint::Stdin | Endpoint::Socket(..) | Endpoint::WebSocket(_) | Endpoint::Nats { .. } => {
             Reading::live(&endpoint, format)
                 .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
         }
@@ -1308,6 +1319,7 @@ fn tap_configured(
             .map(|brokers| {
                 Reading::log(
                     crate::kafka::messages(brokers, topic.clone(), *start, *idle),
+                    TypeConstructor("Json"),
                     format!("endpoint `{id}`"),
                 )
             })
@@ -1316,19 +1328,13 @@ fn tap_configured(
             })?;
         return Ok(live(reading, TypeRef::DATA, span.clone()));
     }
-    if let crate::endpoints::Kind::Nats {
-        server,
-        stream,
-        subject,
-        start,
-        idle,
-    } = &configured.kind
-    {
+    if let crate::endpoints::Kind::Nats { server, held } = &configured.kind {
         let reading = io::policy_permits_network()
             .and_then(|()| server.resolve())
             .map(|url| {
                 Reading::log(
-                    crate::nats::messages(url, stream.clone(), subject.clone(), *start, *idle),
+                    crate::nats::messages(url, held.clone()),
+                    TypeConstructor("Json"),
                     format!("endpoint `{id}`"),
                 )
             })
@@ -1746,9 +1752,8 @@ fn sink_configured(
                 .flush()
                 .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
         }
-        Source::Nats {
-            server, subject, ..
-        } => {
+        Source::Nats { server, held } => {
+            let subject = &held.subject;
             let url = server
                 .resolve()
                 .map_err(|message| failed(format!("endpoint `{id}`: {message}")))?;
@@ -2125,6 +2130,9 @@ fn eval_sink(
             }
         }
     }
+    destination
+        .finish()
+        .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     Ok(Value::Unit)
 }
 

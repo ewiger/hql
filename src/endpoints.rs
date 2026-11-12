@@ -23,7 +23,9 @@ pub const KINDS: [(&str, &[&str]); 10] = [
     ),
     (
         "nats",
-        &["url", "url_env", "stream", "subject", "from", "idle_ms"],
+        &[
+            "url", "url_env", "stream", "subject", "from", "idle_ms", "consumer",
+        ],
     ),
     ("spark", &["url", "url_env", "token_env", "table", "order"]),
 ];
@@ -85,15 +87,8 @@ pub enum Kind {
     Nats {
         /// The server a connection starts from.
         server: Address,
-        /// The stream that holds the messages read.
-        stream: String,
-        /// The subject read within the stream, and published to.
-        subject: String,
-        /// Where a read starts in the stream, `from =`.
-        start: Start,
-        /// How long a read waits for a message before its stream ends,
-        /// `idle_ms =`; without it the stream never ends.
-        idle: Option<std::time::Duration>,
+        /// The stream, the subject within it, and how it is read.
+        held: Subject,
     },
     /// One table behind a Spark SQL endpoint, a Databricks SQL warehouse or
     /// a Spark Thrift Server, a row per element.
@@ -131,6 +126,94 @@ impl Start {
             Self::Earliest => "earliest",
             Self::Latest => "latest",
         }
+    }
+}
+
+/// One subject of a NATS JetStream stream, and how a read of it proceeds:
+/// what the `nats` kind configures and the `nats` constructor of
+/// `io.msg.nats` takes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Subject {
+    /// The stream that holds the messages read.
+    pub stream: String,
+    /// The subject read within the stream, and published to.
+    pub subject: String,
+    /// Where a read starts in the stream, `from =`.
+    pub start: Start,
+    /// How long a read waits for a message before its stream ends,
+    /// `idle_ms =`; without it the stream never ends.
+    pub idle: Option<std::time::Duration>,
+    /// The durable consumer that keeps the read's position on the server,
+    /// `consumer =`; without it a read keeps none.
+    pub consumer: Option<String>,
+}
+
+impl Subject {
+    /// A subject as its keys state it, each checked.
+    ///
+    /// # Errors
+    /// Names the key whose value is not one it takes.
+    pub fn new(
+        stream: String,
+        subject: String,
+        from: Option<&str>,
+        idle_ms: Option<i64>,
+        consumer: Option<String>,
+    ) -> Result<Self, String> {
+        let start = match from {
+            None | Some("earliest") => Start::Earliest,
+            Some("latest") => Start::Latest,
+            Some(other) => {
+                return Err(format!("`from` is `earliest` or `latest`, not `{other}`"));
+            }
+        };
+        let idle = match idle_ms {
+            None => None,
+            Some(ms) => Some(std::time::Duration::from_millis(
+                u64::try_from(ms)
+                    .ok()
+                    .filter(|ms| *ms > 0)
+                    .ok_or("`idle_ms` is a count of milliseconds, above 0")?,
+            )),
+        };
+        if let Some(name) = &consumer
+            && (name.is_empty()
+                || !name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+        {
+            return Err(format!(
+                "`consumer` is a name of letters, digits, `_` and `-`, not `{name}`"
+            ));
+        }
+        Ok(Self {
+            stream,
+            subject,
+            start,
+            idle,
+            consumer,
+        })
+    }
+}
+
+/// The address of a NATS server as `url` or `url_env` names it, once.
+///
+/// # Errors
+/// Says so when neither or both are written, or `url` holds credentials.
+pub fn nats_address(url: Option<String>, url_env: Option<String>) -> Result<Address, String> {
+    match (url, url_env) {
+        (Some(url), None) if url.contains('@') => Err(
+            "`url` holds credentials; name the environment variable that holds the address, \
+             `url_env = \"VARIABLE\"`"
+                .to_owned(),
+        ),
+        (Some(url), None) => Ok(Address::Written(url)),
+        (None, Some(variable)) => Ok(Address::Env(variable)),
+        _ => Err(
+            "a `nats` endpoint names its address once, with `url = \"nats://host:4222\"` or \
+             `url_env = \"VARIABLE\"`"
+                .to_owned(),
+        ),
     }
 }
 
@@ -662,11 +745,19 @@ fn configured(id: &str, entry: &toml::Value, root: &Path) -> Result<Configured, 
             idle: idle()?,
         },
         "nats" => Kind::Nats {
-            server: address(false)?,
-            stream: required("stream")?,
-            subject: required("subject")?,
-            start: start()?,
-            idle: idle()?,
+            server: nats_address(text("url")?, text("url_env")?)
+                .map_err(|message| format!("`[endpoint.{id}]`: {message}"))?,
+            held: Subject::new(
+                required("stream")?,
+                required("subject")?,
+                text("from")?.as_deref(),
+                // A value that is no integer is no count either.
+                table
+                    .get("idle_ms")
+                    .map(|value| value.as_integer().unwrap_or(0)),
+                text("consumer")?,
+            )
+            .map_err(|message| format!("`[endpoint.{id}]`: {message}"))?,
         },
         "spark" => Kind::Spark {
             server: address(true)?,

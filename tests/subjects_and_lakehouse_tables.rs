@@ -263,3 +263,112 @@ fn a_list_field_is_written_to_a_nesting_format_as_a_list() {
     let written = fs::read_to_string(dir.path().join("rejected.jsonl")).unwrap();
     assert_eq!(written.trim(), r#"{"id":3,"rules":["a.type","b.missing"]}"#);
 }
+
+fn type_of(source: &str, vault: &Vault) -> String {
+    match hql::check_in(source, vault) {
+        Ok(checked) => checked.to_string(),
+        Err(error) => panic!("{source}: {error:?}"),
+    }
+}
+
+#[test]
+fn the_nats_constructor_is_a_message_transport_on_the_network() {
+    let (_dir, vault) = configured();
+    let subject =
+        r#"nats("events.orders", stream = "EVENTS", url_env = "HQL_TEST_UNSET_NATS_URL")"#;
+    // A message is one document, JSON where no format is named.
+    assert_eq!(
+        type_of(&format!("import io.msg.nats\ntap({subject})"), &vault),
+        "Stream<Data>"
+    );
+    checks(
+        &format!("import io.msg.nats\ntap({subject}, Json) | take(1)"),
+        &vault,
+    );
+    checks(
+        &format!("import io.msg.nats\n[{{a: 1}}] | sink({subject})"),
+        &vault,
+    );
+    for supertype in [
+        "Network",
+        "MessageTransport",
+        "Transport",
+        "Readable",
+        "Writable",
+    ] {
+        assert_eq!(
+            type_of(
+                &format!("import io.msg.nats\n{subject} | is({supertype})"),
+                &vault
+            ),
+            "Bool",
+            "{supertype}"
+        );
+    }
+    // The module is imported by its full path and has no short form.
+    let error = hql::check_in(&format!("tap({subject}) | take(1)"), &vault).unwrap_err();
+    assert!(format!("{error:?}").contains("io.msg.nats"), "{error:?}");
+    assert!(hql::check_in("import nats\n1", &vault).is_err());
+}
+
+#[test]
+fn the_nats_constructor_checks_its_parameters_as_the_kind_checks_its_keys() {
+    let (_dir, vault) = configured();
+    for (written, says) in [
+        (r#"nats("s", stream = "S")"#, "names its address once"),
+        (
+            r#"nats("s", stream = "S", url = "nats://h:4222", url_env = "U")"#,
+            "names its address once",
+        ),
+        (
+            r#"nats("s", stream = "S", url = "nats://u:p@h:4222")"#,
+            "`url` holds credentials",
+        ),
+        (
+            r#"nats("s", stream = "S", url_env = "U", from = "middle")"#,
+            "`earliest` or `latest`",
+        ),
+        (
+            r#"nats("s", stream = "S", url_env = "U", idle_ms = -5)"#,
+            "idle_ms",
+        ),
+        (
+            r#"nats("s", stream = "S", url_env = "U", consumer = "a.b")"#,
+            "`consumer` is a name",
+        ),
+    ] {
+        let error = refusal(
+            &format!("import io.msg.nats\ntap({written}) | take(1)"),
+            &vault,
+        );
+        assert!(error.contains(says), "{written}: {error}");
+    }
+    // An unset variable fails where the transport is used, naming it.
+    let error = refusal(
+        "import io.msg.nats\n\
+         tap(nats(\"s\", stream = \"S\", url_env = \"HQL_TEST_UNSET_NATS_URL\")) | take(1)",
+        &vault,
+    );
+    assert!(error.contains("HQL_TEST_UNSET_NATS_URL"), "{error}");
+}
+
+#[test]
+fn a_consumer_is_a_key_of_the_kind_and_a_name() {
+    let dir = tempdir().unwrap();
+    let entry = "[endpoint.events]\nkind = \"nats\"\nurl = \"nats://h:4222\"\n\
+                 stream = \"S\"\nsubject = \"s\"\n";
+    fs::write(
+        dir.path().join("hql.toml"),
+        format!("{entry}consumer = \"billing\"\n"),
+    )
+    .unwrap();
+    let vault = vault::load(dir.path()).unwrap();
+    checks(r#"tap("events") | take(1)"#, &vault);
+    fs::write(
+        dir.path().join("hql.toml"),
+        format!("{entry}consumer = \"billing.eu\"\n"),
+    )
+    .unwrap();
+    let error = vault::load(dir.path()).unwrap_err().to_string();
+    assert!(error.contains("`consumer` is a name"), "{error}");
+}

@@ -7,7 +7,7 @@
 //! only when a stream is first traversed or a write begins, never by
 //! checking a program.
 
-use crate::endpoints::Start;
+use crate::endpoints::{Start, Subject};
 use async_nats::jetstream::{self, consumer};
 use futures_util::StreamExt;
 use std::time::Duration;
@@ -22,6 +22,7 @@ const BATCH: usize = 100;
 struct Session {
     // Dropped before the runtime it was made on.
     context: jetstream::Context,
+    client: async_nats::Client,
     runtime: tokio::runtime::Runtime,
 }
 
@@ -45,21 +46,27 @@ impl Session {
         // The context is made, as it is used, on the runtime.
         let context = {
             let _on = runtime.enter();
-            jetstream::new(client)
+            jetstream::new(client.clone())
         };
-        Ok(Self { context, runtime })
+        Ok(Self {
+            context,
+            client,
+            runtime,
+        })
     }
 }
 
-/// The messages the stream holds under `subject`, each its payload's text,
-/// in the stream's order from where `start` says. With `idle`, the messages
-/// end once none has arrived for that long; without it they never end.
+/// The messages the stream holds under the subject, each its payload's
+/// text, in the stream's order. With `idle`, the messages end once none has
+/// arrived for that long; without it they never end.
+///
+/// Without a consumer the read starts where `start` says and leaves nothing
+/// on the server. With one, the server keeps the position under that name:
+/// the read starts after the last message acknowledged, and `start` is where
+/// the consumer's first read began.
 pub(crate) fn messages(
     url: String,
-    stream: String,
-    subject: String,
-    start: Start,
-    idle: Option<Duration>,
+    held: Subject,
 ) -> Box<dyn Iterator<Item = Result<String, String>> + Send> {
     let mut reader: Option<Reader> = None;
     let mut ended = false;
@@ -69,7 +76,7 @@ pub(crate) fn messages(
         }
         let next = match reader.as_mut() {
             Some(open) => open.next(),
-            None => match Reader::open(&url, &stream, &subject, start, idle) {
+            None => match Reader::open(&url, &held) {
                 Ok(open) => reader.insert(open).next(),
                 Err(error) => Some(Err(error)),
             },
@@ -81,72 +88,199 @@ pub(crate) fn messages(
     }))
 }
 
-/// A stream being read through an ordered consumer, which holds no state on
-/// the server beyond the read.
+/// The messages of an ordered consumer, a failure as its text.
+type Arriving =
+    std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<jetstream::Message, String>> + Send>>;
+
+/// How many messages a durable consumer is asked for at once.
+const PULL: usize = 100;
+
+/// How long one request to a durable consumer waits for a message.
+const WAIT: Duration = Duration::from_secs(1);
+
+/// How a stream's messages arrive.
+enum Feed {
+    /// Through an ordered consumer, which holds no state on the server
+    /// beyond the read.
+    Ordered(Arriving),
+    /// Through a durable consumer, the server's record of a position. The
+    /// messages asked for and not yet given are held here, so a read that
+    /// stops hands each one back.
+    Durable {
+        consumer: Box<consumer::Consumer<consumer::pull::Config>>,
+        ready: std::collections::VecDeque<jetstream::Message>,
+        /// The message given last, acknowledged once the program asks for
+        /// the one after it.
+        given: Option<Box<jetstream::Message>>,
+    },
+}
+
+/// A stream being read through a consumer.
 struct Reader {
     session: Session,
     stream: String,
-    messages: Option<consumer::pull::Ordered>,
+    feed: Option<Feed>,
     idle: Option<Duration>,
 }
 
 impl Drop for Reader {
     fn drop(&mut self) {
-        // The consumer ends on the runtime it was made on.
-        let _on = self.session.runtime.enter();
-        self.messages.take();
+        // The consumer ends on the runtime it was made on. Every message
+        // held and not acknowledged is handed back, so the next read under
+        // the consumer's name starts with it and does not wait for the
+        // server to give up on this one.
+        let feed = self.feed.take();
+        self.session.runtime.block_on(async {
+            if let Some(Feed::Durable { ready, given, .. }) = feed {
+                for message in given.map(|given| *given).into_iter().chain(ready) {
+                    let _ = message.ack_with(jetstream::AckKind::Nak(None)).await;
+                }
+                // Sent before the connection closes.
+                let _ = self.session.client.flush().await;
+            }
+        });
     }
 }
 
 impl Reader {
-    fn open(
-        url: &str,
-        stream: &str,
-        subject: &str,
-        start: Start,
-        idle: Option<Duration>,
-    ) -> Result<Self, String> {
+    fn open(url: &str, held: &Subject) -> Result<Self, String> {
         let session = Session::open(url)?;
-        let messages = session.runtime.block_on(async {
-            let held = session
+        let (stream, subject) = (&held.stream, &held.subject);
+        let deliver_policy = match held.start {
+            Start::Earliest => consumer::DeliverPolicy::All,
+            Start::Latest => consumer::DeliverPolicy::New,
+        };
+        let located = |error: String| format!("stream `{stream}`, subject `{subject}`: {error}");
+        let feed = session.runtime.block_on(async {
+            let on = session
                 .context
                 .get_stream(stream)
                 .await
                 .map_err(|error| format!("stream `{stream}`: {error}"))?;
-            let consumer = held
-                .create_consumer(consumer::pull::OrderedConfig {
-                    filter_subject: subject.to_owned(),
-                    deliver_policy: match start {
-                        Start::Earliest => consumer::DeliverPolicy::All,
-                        Start::Latest => consumer::DeliverPolicy::New,
+            let Some(name) = &held.consumer else {
+                let messages = on
+                    .create_consumer(consumer::pull::OrderedConfig {
+                        filter_subject: subject.clone(),
+                        deliver_policy,
+                        ..Default::default()
+                    })
+                    .await
+                    .map_err(|error| located(error.to_string()))?
+                    .messages()
+                    .await
+                    .map_err(|error| located(error.to_string()))?;
+                return Ok(Feed::Ordered(Box::pin(
+                    messages.map(|message| message.map_err(|error| error.to_string())),
+                )));
+            };
+            // Made by the first read under its name, and found by every
+            // read after it.
+            let mut consumer = on
+                .get_or_create_consumer(
+                    name,
+                    consumer::pull::Config {
+                        durable_name: Some(name.clone()),
+                        filter_subject: subject.clone(),
+                        deliver_policy,
+                        ack_policy: consumer::AckPolicy::Explicit,
+                        ..Default::default()
                     },
-                    ..Default::default()
-                })
+                )
                 .await
-                .map_err(|error| format!("stream `{stream}`, subject `{subject}`: {error}"))?;
-            consumer
-                .messages()
+                .map_err(|error| located(error.to_string()))?;
+            let reads = consumer
+                .info()
                 .await
-                .map_err(|error| format!("stream `{stream}`, subject `{subject}`: {error}"))
+                .map_err(|error| located(error.to_string()))?
+                .config
+                .filter_subject
+                .clone();
+            if reads != *subject {
+                return Err(format!(
+                    "stream `{stream}`: the consumer `{name}` reads the subject `{reads}`, not \
+                     `{subject}`; a consumer keeps one position, over one subject"
+                ));
+            }
+            Ok(Feed::Durable {
+                consumer: Box::new(consumer),
+                ready: std::collections::VecDeque::new(),
+                given: None,
+            })
         })?;
         Ok(Self {
             session,
-            stream: stream.to_owned(),
-            messages: Some(messages),
-            idle,
+            stream: stream.clone(),
+            feed: Some(feed),
+            idle: held.idle,
         })
     }
 
     /// The next message's payload, or `None` once the reader has been idle
-    /// too long.
+    /// too long. Asking for it acknowledges the message given before.
     fn next(&mut self) -> Option<Result<String, String>> {
-        let messages = self.messages.as_mut()?;
+        let stream = &self.stream;
+        let idle = self.idle;
         let arrived = self.session.runtime.block_on(async {
-            match self.idle {
-                Some(idle) => tokio::time::timeout(idle, messages.next())
-                    .await
-                    .unwrap_or(None),
-                None => messages.next().await,
+            match self.feed.as_mut()? {
+                Feed::Ordered(messages) => match idle {
+                    Some(idle) => tokio::time::timeout(idle, messages.next())
+                        .await
+                        .unwrap_or(None),
+                    None => messages.next().await,
+                },
+                Feed::Durable {
+                    consumer,
+                    ready,
+                    given,
+                } => {
+                    if let Some(given) = given.take()
+                        && let Err(error) = given.ack().await
+                    {
+                        return Some(Err(format!("a message was not acknowledged: {error}")));
+                    }
+                    let since = std::time::Instant::now();
+                    while ready.is_empty() {
+                        let waited = since.elapsed();
+                        if idle.is_some_and(|idle| waited >= idle) {
+                            return None;
+                        }
+                        // What the stream holds now, at once; and where it
+                        // holds nothing, the next message to arrive.
+                        let wait = idle.map_or(WAIT, |idle| (idle - waited).min(WAIT));
+                        let pulled = match consumer.fetch().max_messages(PULL).messages().await {
+                            Ok(batch) => batch.collect::<Vec<_>>().await,
+                            Err(error) => return Some(Err(error.to_string())),
+                        };
+                        let pulled = if pulled.is_empty() {
+                            match consumer
+                                .batch()
+                                .max_messages(1)
+                                .expires(wait)
+                                .messages()
+                                .await
+                            {
+                                Ok(batch) => batch.collect::<Vec<_>>().await,
+                                Err(error) => return Some(Err(error.to_string())),
+                            }
+                        } else {
+                            pulled
+                        };
+                        for message in pulled {
+                            match message {
+                                Ok(message) => ready.push_back(message),
+                                Err(error) => return Some(Err(error.to_string())),
+                            }
+                        }
+                    }
+                    let message = ready.pop_front()?;
+                    // Held to be acknowledged; the copy is what is decoded.
+                    let copy = jetstream::Message {
+                        message: message.message.clone(),
+                        context: message.context.clone(),
+                    };
+                    *given = Some(Box::new(message));
+                    Some(Ok(copy))
+                }
             }
         })?;
         Some(match arrived {
@@ -155,12 +289,9 @@ impl Reader {
                     .info()
                     .map(|info| info.stream_sequence.to_string())
                     .unwrap_or_else(|_| "?".to_owned());
-                format!(
-                    "stream `{}`, sequence {sequence}: the message is not UTF-8 text",
-                    self.stream
-                )
+                format!("stream `{stream}`, sequence {sequence}: the message is not UTF-8 text")
             }),
-            Err(error) => Err(format!("stream `{}`: {error}", self.stream)),
+            Err(error) => Err(format!("stream `{stream}`: {error}")),
         })
     }
 }

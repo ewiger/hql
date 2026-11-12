@@ -46,6 +46,13 @@ pub enum Endpoint {
     WebSocket(String),
     /// A TCP connection, carrying documents as their format separates them.
     Socket(String, u16),
+    /// One subject of a NATS JetStream stream: one document per message.
+    Nats {
+        /// The server a connection starts from.
+        server: crate::endpoints::Address,
+        /// The stream, the subject within it, and how it is read.
+        held: crate::endpoints::Subject,
+    },
 }
 
 impl Endpoint {
@@ -62,6 +69,7 @@ impl Endpoint {
             Self::Http { .. } => TypeRef::HTTP,
             Self::WebSocket(_) => TypeRef::WEB_SOCKET,
             Self::Socket(..) => TypeRef::SOCKET,
+            Self::Nats { .. } => TypeRef::NATS,
         }
     }
 
@@ -85,6 +93,9 @@ impl Endpoint {
             Self::Channel(name, _) => format!("channel {name:?}"),
             Self::Http { url, .. } | Self::WebSocket(url) => url.clone(),
             Self::Socket(host, port) => format!("{host}:{port}"),
+            Self::Nats { held, .. } => {
+                format!("subject `{}` of stream `{}`", held.subject, held.stream)
+            }
         }
     }
 }
@@ -119,6 +130,25 @@ impl fmt::Display for Endpoint {
             }
             Self::WebSocket(url) => write!(f, "websocket({url:?})"),
             Self::Socket(host, port) => write!(f, "socket({host:?}, {port})"),
+            Self::Nats { server, held } => {
+                write!(f, "nats({:?}, stream = {:?}", held.subject, held.stream)?;
+                match server {
+                    crate::endpoints::Address::Written(url) => write!(f, ", url = {url:?}")?,
+                    crate::endpoints::Address::Env(variable) => {
+                        write!(f, ", url_env = {variable:?}")?;
+                    }
+                }
+                if held.start != crate::endpoints::Start::default() {
+                    write!(f, ", from = {:?}", held.start.name())?;
+                }
+                if let Some(idle) = held.idle {
+                    write!(f, ", idle_ms = {}", idle.as_millis())?;
+                }
+                if let Some(consumer) = &held.consumer {
+                    write!(f, ", consumer = {consumer:?}")?;
+                }
+                f.write_str(")")
+            }
         }
     }
 }
@@ -1040,6 +1070,11 @@ impl Reading {
                 )))
             }
             Endpoint::WebSocket(url) => Ok(Self::shared(messages(url.clone(), format))),
+            Endpoint::Nats { server, held } => Ok(Self::log(
+                crate::nats::messages(server.resolve()?, held.clone()),
+                format,
+                endpoint.describe(),
+            )),
             other => Err(format!("{} is not read as it arrives", other.describe())),
         }
     }
@@ -1063,17 +1098,18 @@ impl Reading {
     }
 
     /// The messages of a log, a Kafka topic or a NATS subject, each decoded
-    /// as one JSON document, read once however often the stream is
-    /// traversed.
+    /// in `format` as the documents it holds, read once however often the
+    /// stream is traversed.
     pub(crate) fn log(
         messages: Box<dyn Iterator<Item = Result<String, String>> + Send>,
+        format: TypeConstructor,
         origin: String,
     ) -> Self {
         Self::shared(Box::new(messages.flat_map(move |message| {
             let documents: Vec<Result<Value, String>> = match message {
                 Ok(text) => pieces(
                     Box::new(std::io::Cursor::new(text.into_bytes())),
-                    TypeConstructor("Json"),
+                    format,
                     origin.clone(),
                 )
                 .collect(),
@@ -1310,6 +1346,8 @@ pub(crate) enum Destination {
     Socket(std::net::TcpStream),
     /// One message per document.
     WebSocket(String, Box<crate::net::Connection>),
+    /// One message per document, published to a subject.
+    Nats(Box<crate::nats::Publisher>),
 }
 
 impl Destination {
@@ -1359,6 +1397,13 @@ impl Destination {
                 Self::WebSocket(url.clone(), Box::new(crate::net::websocket(url)?)),
                 false,
             )),
+            Endpoint::Nats { server, held } => Ok((
+                Self::Nats(Box::new(crate::nats::Publisher::open(
+                    &server.resolve()?,
+                    &held.subject,
+                )?)),
+                false,
+            )),
             Endpoint::FileEnd(path) => {
                 let full = record(path, Written::Appended)?;
                 let file = fs::OpenOptions::new()
@@ -1397,8 +1442,21 @@ impl Destination {
             } => return crate::net::send(url, method, headers, text),
             Self::Socket(stream) => return crate::net::line(stream, text),
             Self::WebSocket(url, connection) => return crate::net::post(connection, url, text),
+            Self::Nats(publisher) => return publisher.send(text.to_owned()),
         };
         result.map_err(|error| error.to_string())
+    }
+
+    /// End the writes: what a destination holds back until it has a batch
+    /// is written now.
+    ///
+    /// # Errors
+    /// The write's failure.
+    pub(crate) fn finish(&mut self) -> Result<(), String> {
+        match self {
+            Self::Nats(publisher) => publisher.flush(),
+            _ => Ok(()),
+        }
     }
 }
 
@@ -1410,7 +1468,8 @@ impl Destination {
 pub(crate) fn write_whole(endpoint: &Endpoint, text: &str) -> Result<(), String> {
     let Endpoint::File(path) = endpoint else {
         let (mut destination, _) = Destination::open(endpoint)?;
-        return destination.line(text);
+        destination.line(text)?;
+        return destination.finish();
     };
     if let Policy::Document { .. } = policy() {
         return Err(format!(

@@ -25,6 +25,9 @@ atoms! {
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
     FILE => "File", FILE_END => "FileEnd",
     HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
+    TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
+    BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
+    ROW_TRANSPORT => "RowTransport", NATS => "Nats",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
     CELL => "Cell", RANGE => "Range", TABLE => "Table",
@@ -185,6 +188,37 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeRef::FILE,
             TypeKind::Concrete,
             &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
+        ),
+        // An endpoint outside the evaluation, its locality and its carriage
+        // (HQL-0047): `lib/std/io/mod.hql`.
+        (TypeRef::TRANSPORT, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
+        (TypeRef::DIRECT, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
+        (TypeRef::NETWORK, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
+        (
+            TypeRef::BYTE_TRANSPORT,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::MESSAGE_TRANSPORT,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::ROW_TRANSPORT,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        // A subject of a JetStream stream: `lib/std/io/msg/nats/mod.hql`.
+        (
+            TypeRef::NATS,
+            TypeKind::Concrete,
+            &[
+                TypeRef::NETWORK,
+                TypeRef::MESSAGE_TRANSPORT,
+                TypeRef::READABLE,
+                TypeRef::WRITABLE,
+            ],
         ),
         // Transports: `lib/std/io/net/mod.hql`.
         (
