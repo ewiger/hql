@@ -2,8 +2,10 @@
 
 Part I was about the steps: what each one takes, what it gives, and the type
 that joins them. This part is about the pipeline the steps form, and the
-systems a pipeline connects. This chapter is the frame; [chapter 19](19-etl-pipelines.md)
-is the story it frames, an ETL pipeline written as one file.
+systems a pipeline connects. This chapter is the frame. The five after it
+follow one shop's orders through every kind of system a pipeline reaches, and
+end in [chapter 19](19-etl-pipelines.md), the shop's whole day written as one
+file.
 
 ## A pipeline language
 
@@ -103,77 +105,58 @@ each flag; one program there reads a log as it is written, appends its errors
 to a file and prints every message, with no orchestration around it. The
 query is the dataflow, and the shell is the simplest backend of all.
 
-## Connecting systems
+## The shop
 
-!!! warning "Design only"
+A small shop sells to three customers, ada, grace and linus. Each thing that
+happens to an order is an **event**: placed, shipped, or a payment that
+failed. On the first day the events are one JSON file, and the shop's whole
+data platform is a pipeline over it:
 
-    This section describes functionality that is not in the current release.
-    It is written as if it existed: these programs do not run against the
-    current binary, and names, types and outputs may change before they ship.
-
-The systems a data platform joins, queues, databases, services, scheduled
-jobs, are endpoints and configured endpoints to a pipeline. Each is reached by
-`source`, `tap`, `target` and `sink`, with the type saying whether it ends.
-
-**Configured endpoints** keep connection details out of programs. A program
-names an id; `hql.toml` names the system, and a secret is read from the
-environment the configuration names, never written in either:
-
-```toml
-[endpoint.sightings]
-kind = "postgres"
-dsn_env = "BIRDS_DSN"
-table = "sightings"
-```
-
-<!-- run: skip -->
+<!-- run: --vault examples/pipelines/shop -->
 ```hql
-type Sighting { species : String, site : String, seen : String }
-
-sightings : Seq<Sighting> = source("sightings")
-sightings | group(by = s => s.species) | map(g => {species: g.key, seen: g.items | size})
+source("events")
+| filter(e => e.kind == "order_placed")
+| map(e => e.customer)
+| distinct
 ```
 
-A relational table is a `Seq` of rows read through the schema boundary of
-chapter 9; a write by id is `target("sightings")`, in the `mode` the
-configuration states. A connection string in a program is a type error today,
-and stays one.
-
-**Messaging systems** such as Kafka and NATS are live endpoints. A topic is
-read by `tap`, as a `Stream`, and written by `sink`, one document per value;
-`collect(n)` batches what is written, and `partition(by = key)` states which
-values belong together, a logical unit a backend may map onto the system's
-own partitions without the program naming them:
-
-```toml
-[endpoint.events]
-kind = "kafka"
-brokers_env = "KAFKA_BROKERS"
-topic = "sightings"
+```text
+["ada", "grace", "linus"]
 ```
 
-<!-- run: skip -->
-```hql
-tap("events")
-| filter(e => e.seen == "night")
-| partition(by = e => e.site)
-| sink("alerts")
-```
+`source("events")` names no file. The shop's `hql.toml`, in
+[`examples/pipelines/shop/`](https://github.com/ewiger/hql/tree/main/examples/pipelines/shop),
+declares `events` as a `json` endpoint, and the program names the id. That
+one indirection is what lets the rest of Part II happen without the program
+changing shape: as the shop grows, the events move into a table, then onto
+a topic, then onto a subject a stream keeps, then into a lakehouse, and at
+each move the configuration names the new system and the pipeline keeps its
+steps.
 
-**Network endpoints**, `http`, `websocket` and `socket` under `import net`,
-are in the current release, on the [network page](09-io/network.md). An HTTP
-resource read once is a `Seq`; a socket is a `Stream`.
+| Chapter | The shop's events are in | Read by | Written by |
+| --- | --- | --- | --- |
+| [15. Endpoints](15-endpoints.md) | anywhere: the model every system shares | `source`, `tap` | `target`, `sink` |
+| [16. Tables and topics](16-tables-and-topics.md) | a SQLite table, a PostgreSQL table, a Kafka topic | `source` for a table, `tap` for a topic | `target`, `sink` |
+| [17. Subjects and the lakehouse](17-subjects-and-the-lakehouse.md) | NATS subjects, a JetStream stream, Delta tables | `tap` for a subject, `source` for a table | `sink`, `target` |
+| [18. APIs, webhooks and stores](18-apis-webhooks-and-stores.md) | a REST API, a webhook, an object store, as design | `source`, `tap` | `target`, `sink` |
+| [19. ETL pipelines](19-etl-pipelines.md) | all of them at once | | |
 
-**A pipeline file is a job.** What a data platform calls a job, a notebook or
-a workflow, sources, transformations, sinks and a schedule, is an `.hql` file
-whose steps are the transformations and whose `source` and `sink` steps are
-its edges; the schedule, the credentials and the backend are configuration
-around it, and `hql check` reads the configuration and opens nothing. The
-same file runs on `localhost` from a terminal and, as design direction, on a
-backend that distributes its pure steps, with the same answer.
+Every system in chapters 16 and 17 is in the current release. The programs
+that reach a server are checked in this book, against the shop's
+configuration and with no connection made, and run against real servers in
+the [hql-demo repository](https://github.com/ewiger/hql-demo), whose output
+is the output the book shows.
+
+**A pipeline file is a job.** What a data platform calls a job, a notebook
+or a workflow, sources, transformations, sinks and a schedule, is an `.hql`
+file whose steps are the transformations and whose `source`, `tap`,
+`target` and `sink` steps are its edges. The credentials are environment
+variables the configuration names; the schedule and the backend are
+configuration around the file; and `hql check` reads the configuration and
+opens nothing, so a deployment checks the file it will run before it runs
+it.
 
 ## What is next
 
-[Chapter 19](19-etl-pipelines.md) puts the frame to work: a pipeline that reads
-a queue, enriches what it reads from a database, and writes tables, alerts and
-an archive, in one checked file.
+[Chapter 15](15-endpoints.md) looks at what `"events"` names: an endpoint,
+the one model behind a file, a table, a topic and a webhook.

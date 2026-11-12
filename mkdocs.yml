@@ -147,6 +147,7 @@ nav:
               - 13. Working with hql: learn/13-working-with-hql.md
           - "Part II: Data flows":
               - 14. Pipelines: learn/14-pipelines.md
+              - 15. Endpoints: learn/15-endpoints.md
               - 19. ETL pipelines: learn/19-etl-pipelines.md
           - "Part III: Knowledge and AI":
               - 20. A vault of documents: learn/20-a-vault.md
