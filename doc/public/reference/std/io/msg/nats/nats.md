@@ -4,17 +4,15 @@
 In [`std/io/msg/nats`](index.md).
 
 ```hql
-fn nats(subject: String, stream: String, url: String = "", url_env: String = "", from: String = "earliest", idle_ms: Int = 0, consumer: String = "") : Nats
+fn nats(subject: String, url: String = "", url_env: String = "", idle_ms: Int = 0) : Nats
 ```
 
-The subject `subject` of the stream `stream`, as a `Nats` transport; its
-parameters are the keys of the `nats` kind. The server's address is
-`url`, or the value of the environment variable `url_env` names, one of
-the two; an address that holds credentials is named by `url_env`. A read
-starts at the `"earliest"` message the stream keeps, or at the next one
-published under `from = "latest"`, and ends once no message has arrived
-for `idle_ms` milliseconds, or never when that is 0. With `consumer`,
-the server keeps the read's position under that name, so a later read
-starts after the last message acknowledged. Constructing it opens no
-connection.
+The subject `subject`, as a `Nats` transport; its parameters are the
+keys of the `nats` kind. A read may name wildcards, `*` for one token
+and `>` for every token after it; a write names one subject. The
+server's address is `url`, or the value of the environment variable
+`url_env` names, one of the two; an address that holds credentials is
+named by `url_env`. A read ends once no message has arrived for
+`idle_ms` milliseconds, or never when that is 0. Constructing it opens
+no connection.
 <!-- hql reference: end -->

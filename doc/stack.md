@@ -111,7 +111,7 @@ Reach for these before introducing an alternative:
 | SQLite | rusqlite (`bundled`) |
 | PostgreSQL (`kind = "postgres"`) | postgres (the synchronous client, `NoTls`) |
 | Kafka (`kind = "kafka"`) | rskafka (no default features; `compression-gzip`, `compression-snappy`), on a one-thread tokio runtime per connection |
-| NATS JetStream (`kind = "nats"`) | async-nats (no default features; `ring`, `jetstream`), on a one-thread tokio runtime per connection; futures-util for its message stream |
+| NATS (`kind = "nats"`, `kind = "nats_jetstream"`) | async-nats (no default features; `ring`, `jetstream`), on a one-thread tokio runtime per connection; futures-util for its message stream |
 | Spark SQL, Databricks (`kind = "spark"`) | HiveServer2's Thrift protocol over HTTP, hand-written in `src/spark.rs`, on ureq |
 | Hashing | sha2 |
 | HTTP client (`import net`) | ureq 2 (`tls`, rustls) |

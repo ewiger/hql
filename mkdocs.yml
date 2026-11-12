@@ -180,6 +180,7 @@ nav:
           - std/io/net: reference/std/io/net/index.md
           - std/io/logging: reference/std/io/logging/index.md
           - std/io/msg/nats: reference/std/io/msg/nats/index.md
+          - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream/index.md
           - std/vault: reference/std/vault/index.md
           - std/validators: reference/std/validators/index.md
       - search:
