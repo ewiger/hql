@@ -14,13 +14,11 @@ same order on every run.
 `random`: `sample`, `shuffle`, `choice`, `random_int`, `random_float` and
 `uuid`. Each operation is pure when given a `seed` and effectful otherwise,
 drawing from a seed fixed once per evaluation. This issue carries that part
-to code. The proposal is `drafted`, so the part is reviewed and accepted
-first; the other four parts of HQL-0041 (`time`, `stats`, `hash` with
+to code; the other four parts of HQL-0041 (`time`, `stats`, `hash` with
 `encoding`, `io.env`) are not in scope.
 
 ## Done when
 
-- HQL-0041 part 4 is accepted, with any change review makes written into it.
 - `lib/std/random/mod.hql` declares the part's operations, and the `std`
   extension implements them.
 - `random` is imported, not in the prelude, and the effectful forms are

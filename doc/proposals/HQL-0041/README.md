@@ -1,6 +1,6 @@
 # HQL-0041: Time, statistics, digests and encodings, randomness, and the environment
 
-**Status**: drafted
+**Status**: accepted
 **Created**: 2026-10-24
 **Source**: a comparison of `lib/std/` against Python's standard library
 (`datetime`, `statistics`, `hashlib` and `base64`, `random`, `os.environ` and
@@ -204,3 +204,4 @@ cargo clippy --all-targets -- -D warnings
 - 2026-11-12: part 1, `time`, implemented (issue 0064); `Unit` is
   `TimeUnit`, `Zone` is not `Orderable`, the zone defaults are overloads,
   and `abs` over `Duration` waits for `math` to take it
+- 2026-11-13: accepted
