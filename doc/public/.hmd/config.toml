@@ -1,0 +1,16 @@
+# Vault configuration for doc/public/, the published site.
+#
+# This directory makes doc/public/ a vault of its own, nested inside doc/. An
+# HMD tool walking up from a page stops at the nearest .hmd/, so a page here
+# resolves against doc/public/ and never against the design wiki above it. The
+# MkDocs plugin uses the same root (`mkdocs.yml`), which is what makes an
+# absolute reference such as [[/learn/02-data-types/int]] mean the same page in
+# the editor, in `hmd lint --root doc/public` and on hql-lang.org.
+#
+# See ../../wiki/hypermarkdown.hmd for what these settings mean.
+
+wiki = "."
+
+[discovery]
+autodiscovery = true
+mode = "both"

@@ -67,6 +67,13 @@ theme:
 
 plugins:
   - search
+  # Pages are hyper-markdown. `doc/public/` is a vault of its own (it has an
+  # `.hmd/`), and the plugin resolves `[[…]]` against that root and registers
+  # each `.hmd` page under its `.md` name, so the nav below names `x.md` and
+  # the URL is unchanged. The nav stays authored, not derived.
+  - hypermarkdown:
+      root: doc/public
+      build_nav: false
   # Each release is published under its version, `/vX.Y.Z/`, and `latest`
   # is the newest; see the documentation-site section of `doc/stack.md`.
   - mike:
@@ -233,6 +240,11 @@ nav:
 # nav.
 not_in_nav: |
   /reference/
+
+# A `.hmd` source is not served: the plugin registers the page it becomes, and
+# without this MkDocs would also copy the source into the site as a static file.
+exclude_docs: |
+  *.hmd
 
 extra:
   generator: false
