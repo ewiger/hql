@@ -6,8 +6,8 @@ nav:
 # The HQL type system
 
 HQL is **strongly typed**. Every value has one type and an operation accepts
-only the types it declares; no value is converted implicitly, except an `Int`
-widening beside a `Decimal`; the checker type-checks the whole program before
+only the types it declares; no value is converted implicitly (arithmetic on an
+`Int` and a `Decimal` gives a `Decimal` by a rule of the operators); the checker type-checks the whole program before
 evaluation ([[hql/compilation]]); and data from outside is `Data` until a type
 boundary, `tree | T`, reads it as a declared type, checked when it runs
 ([[data-type]]).

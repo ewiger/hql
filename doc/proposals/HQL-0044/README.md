@@ -42,8 +42,7 @@ trait is a **capability contract** over a type, and the checker verifies it.
 - No compiling backend is specified. This record fixes what one MUST preserve.
 - The language's tagline is "strongly typed", as the
   [type system](../../wiki/hql/type-system.hmd) card defines it: every
-  value has one type, nothing converts implicitly but `Int` beside
-  `Decimal`, the checker type-checks the whole program before it executes,
+  value has one type, nothing converts implicitly, the checker type-checks the whole program before it executes,
   and data from outside is `Data` until an explicit type boundary reads it.
 - The Rust implementation compiles. "An extension compiled into the binary"
   speaks of the `hql` binary and stays as it is.

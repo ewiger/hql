@@ -67,9 +67,11 @@ check error[type-mismatch]: addition requires two Int, two Float or two Decimal 
   |       ^^^^^^^
 ```
 
-There is no implicit conversion between types, except that an `Int` beside a
-`Decimal` widens to one. `str` writes a value as text, and `float` turns an
-`Int` into a `Float`:
+There is no implicit conversion between types: a function that takes a
+`Decimal` does not accept an `Int`. Arithmetic and comparison take an `Int`
+and a `Decimal` together, and arithmetic on them gives a `Decimal`; that is
+a rule of those operators, not a conversion. A conversion is written: `str`
+writes a value as text, and `float` turns an `Int` into a `Float`:
 
 ```hql
 412.str()

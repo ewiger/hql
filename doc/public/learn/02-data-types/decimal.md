@@ -52,8 +52,8 @@ the point, and `round(x)` to a whole number:
 
 ## Int, Float and Decimal
 
-An `Int` beside a `Decimal` widens to one of scale 0, in arithmetic and in a
-comparison:
+Arithmetic and comparison take an `Int` and a `Decimal` together. Arithmetic
+gives a `Decimal`, computed as if the `Int` were a `Decimal` of scale 0:
 
 ```hql
 [12.50 * 3, 7 - 0.25]

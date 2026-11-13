@@ -25,8 +25,8 @@ so are `|`, `=` and `:`.
 ## Arithmetic
 
 An arithmetic operator takes two values of one type. For `Int`, `Float` and
-`Decimal` that is built in, except that an `Int` beside a `Decimal` widens
-to one; `+` over two strings is concatenation, since `String` implements
+`Decimal` that is built in, and the built-in operators also take an `Int`
+and a `Decimal` together, giving a `Decimal`; `+` over two strings is concatenation, since `String` implements
 `Add`. Any other type resolves the operator through its trait:
 
 ```hql

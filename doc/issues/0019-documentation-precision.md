@@ -45,8 +45,7 @@ them.
 Each term is defined as the implementation has it.
 
 - **Strong typing.** Every value has one type and an operation accepts only
-  the types it declares; nothing converts implicitly but an `Int` beside a
-  `Decimal`; the program is type-checked before evaluation; data from
+  the types it declares; nothing converts implicitly; the program is type-checked before evaluation; data from
   outside is `Data` until a type boundary `tree | T` reads it, checked when
   it runs.
 - **Type checking.** The complete program is type-checked before
