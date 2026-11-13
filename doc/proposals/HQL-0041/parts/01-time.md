@@ -95,6 +95,9 @@ fn to_duration(self: String) : Option<Duration>
 fn parse_date(self: String, pattern: String) : Option<Date>
 fn parse_datetime(self: String, pattern: String) : Option<DateTime>
 fn parse_instant(self: String, pattern: String) : Option<Instant>
+fn parse_date(self: String) : Option<Date>
+fn parse_datetime(self: String) : Option<DateTime>
+fn parse_instant(self: String) : Option<Instant>
 ```
 
 - A text constructor MUST accept exactly the ISO 8601 extended form named in
@@ -108,6 +111,10 @@ fn parse_instant(self: String, pattern: String) : Option<Instant>
 - `parse_*` MUST read the strftime pattern language: `%Y %m %d %H %M %S %f
   %z %Z %j %a %A %b %B %p %%`, with `%z` an offset and `%Z` an IANA name. A
   pattern directive outside this set is an evaluation error at the call.
+- `parse_*` with no pattern MUST equal the matching `to_*`: `s.parse_date()`
+  is `s.to_date()`, and the same for `DateTime` and `Instant`. No strftime
+  pattern states that reading, since the language has no optional fraction
+  of a second and `%z` does not read `Z` or `+02:00`.
 - The `to_*` and `parse_*` conversions MUST give `none` for text that does
   not parse; the constructors fail on the same text, as
   [no silent coercion](../README.md#3-no-silent-coercion) states.

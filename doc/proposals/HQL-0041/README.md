@@ -238,3 +238,5 @@ cargo clippy --all-targets -- -D warnings
   `hql --version` names the time-zone database zone names resolve against,
   `system` where jiff finds the host's and the bundled release otherwise,
   since the host's database is preferred where one is installed
+- 2026-11-13: part 1 (issue 0076): `parse_date`, `parse_datetime` and
+  `parse_instant` gain a form with no pattern, equal to the matching `to_*`

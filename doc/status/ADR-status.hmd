@@ -100,5 +100,5 @@ cards
 | [HQL-0053](../proposals/HQL-0053/README.md) | Bytes, keys, signatures and encryption                                                                                   | implemented         | yes         |
 | [HQL-0054](../proposals/HQL-0054/README.md) | Key vaults: stored keys, SSH agents, keychains and cloud key managers                                                    | accepted            | no          |
 | [HQL-0055](../proposals/HQL-0055/README.md) | Steps, autes, stages, tasks and jobs: units of computation and units of execution                                        | implemented in part | partially   |
-| [HQL-0056](../proposals/HQL-0056/README.md) | Logical computation model and backend engines: a `Step` run at once or planned                                           | drafted             | no          |
+| [HQL-0056](../proposals/HQL-0056/README.md) | Computation plans and backend engines                                                                                    | drafted             | no          |
 <!-- /hql:output -->

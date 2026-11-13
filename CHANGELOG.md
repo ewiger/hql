@@ -8,6 +8,13 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Added
+
+- `parse_date`, `parse_datetime` and `parse_instant` take no pattern as
+  well: `"1982-05-09".parse_date()` reads the ISO text that `to_date`
+  reads, and the same for `DateTime` and `Instant`
+  ([HQL-0041](doc/proposals/HQL-0041/README.md) part 1, issue 0076).
+
 ## [0.6.0] — 2026-11-13
 
 ### Added

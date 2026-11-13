@@ -8,4 +8,11 @@ fn parse_datetime(self: String, pattern: String) : Option<DateTime>
 ```
 
 `self` read through a strftime `pattern` as a `DateTime`, or `none`.
+
+```hql
+fn parse_datetime(self: String) : Option<DateTime>
+```
+
+`self` read as an ISO 8601 date-time with no offset, or `none`: with no
+pattern, `parse_datetime` is `to_datetime`.
 <!-- hql reference: end -->

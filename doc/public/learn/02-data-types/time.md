@@ -198,6 +198,19 @@ import time
 [2026-10-24, none]
 ```
 
+A parse function given no pattern reads what its `to_*` reads:
+`s.parse_date()` is `s.to_date()`, and the same for `parse_datetime` and
+`parse_instant`:
+
+```hql
+import time
+["1982-05-09".parse_date(), "09.05.1982".parse_date()]
+```
+
+```text
+[1982-05-09, none]
+```
+
 ### The evaluation clock
 
 `now()` gives the evaluation instant, `today()` the date it falls on in the
