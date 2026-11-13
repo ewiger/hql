@@ -15,6 +15,19 @@ The language continues to be in active development.
   reads, and the same for `DateTime` and `Instant`
   ([HQL-0041](doc/proposals/HQL-0041/index.hmd) part 1, issue 0076).
 
+### Changed
+
+- A vault no longer holds the documents of a vault nested inside it: a
+  folder below the root that carries its own `.hmd/` or `hql.toml` is
+  another vault, and `cards` leaves it out, the way discovery stops at the
+  nearest marker (issue 0077).
+- `hql reference` writes each reference page as a hyper-markdown card,
+  `name.hmd`, and a module's page as its folder note, `index.hmd`. A doc
+  string's citation is kept as the wikilink it is written as (issue 0077).
+- The documentation is hyper-markdown throughout: the book, the reference,
+  the proposals, the issues and the design notes are `.hmd` cards, and the
+  site is built from them with unchanged URLs (issue 0077).
+
 ## [0.6.0] — 2026-11-13
 
 ### Added

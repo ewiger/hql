@@ -36,16 +36,21 @@ HQL reads.
 - [x] Proposals.
 - [x] Issues, archive included, and `kanban.yaml`.
 - [x] The book, `doc/public/learn/`.
-- [ ] The reference: `hql reference` writes cards.
-- [ ] Clean-up: no `.md` fallbacks in the tests, and `hmd lint` for both vaults
-  in CI.
+- [x] The reference: `hql reference` writes cards.
+- [x] Clean-up: no `.md` fallbacks in the tests; `hmd lint --root doc/public`
+  in the Pages workflow.
+- [ ] With the `hypermarkdown` release that carries issues 0009 and 0010: bump
+  the dependency, delete `contrib/mkdocs/folder_notes.py` and its `hooks:`
+  entry, and add `hmd lint --root doc` to the Pages workflow.
 
 ## Waits on
 
 Two fixes in the `hypermarkdown` package, both for its next patch release:
 
-- **Issue 0009.** `hmd lint --root doc` sweeps `doc/public/` into `doc/`. The
-  site build is unaffected, since its root is `doc/public/`.
+- **Issue 0009.** `hmd lint --root doc` sweeps `doc/public/` into `doc/`, and
+  reports a bare name such as `[[core]]` as ambiguous with the reference page
+  of the same name. The site build is unaffected, since its root is
+  `doc/public/`.
 - **Issue 0010.** The MkDocs plugin registers a folder note `a/b/index.hmd` as
   the page `a/b.md`, and leaves its relative Markdown links resolving from
   `a/`. The hook `contrib/mkdocs/folder_notes.py` rebases them until then, and
