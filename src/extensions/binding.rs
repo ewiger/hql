@@ -497,12 +497,40 @@ impl Environment {
             .any(|id| self.declaration(*id).private)
     }
 
-    /// Whether the executor may move an operation: its declaration's
-    /// purity, or its extension's marking where it has none.
+    /// Whether the executor may move an operation: effectful where any of
+    /// its declarations is, or its extension's marking where it has none.
+    /// A name whose forms differ, `random.sample` with a seed and without,
+    /// is effectful here; [`Self::purity_of`] gives the form a call took.
     pub(crate) fn purity(&self, operation: &Operation) -> Purity {
-        self.of(operation)
-            .first()
-            .map_or(operation.purity, |id| self.declaration(*id).purity)
+        let forms = self.of(operation);
+        if forms.is_empty() {
+            return operation.purity;
+        }
+        if forms
+            .iter()
+            .any(|id| self.declaration(*id).purity == Purity::Effectful)
+        {
+            Purity::Effectful
+        } else {
+            Purity::Pure
+        }
+    }
+
+    /// Whether the forms of an operation's name differ in purity: a seeded
+    /// form pure and an unseeded one effectful.
+    pub(crate) fn mixed_purity(&self, operation: &Operation) -> bool {
+        let forms = self.of(operation);
+        forms.iter().any(|id| {
+            forms.first().is_some_and(|first| {
+                self.declaration(*id).purity != self.declaration(*first).purity
+            })
+        })
+    }
+
+    /// The purity of the form a call took, or the operation's where the
+    /// form is not known.
+    pub(crate) fn purity_of(&self, operation: &Operation, form: Option<DeclarationId>) -> Purity {
+        form.map_or_else(|| self.purity(operation), |id| self.declaration(id).purity)
     }
 
     /// How the executor may split an operation: its declaration's shape, or
@@ -833,12 +861,19 @@ impl Environment {
                 ));
             }
             // Purity is the declaration's; the extension's marking is checked
-            // against it, and every form of a name states one purity.
-            if declaration.purity != step.purity {
+            // against it. Forms of one name may differ, a seeded draw pure
+            // and an unseeded one effectful, and the marking is then
+            // effectful: the purity of a call whose form is not known.
+            let expected = if self.mixed_purity(step) {
+                Purity::Effectful
+            } else {
+                declaration.purity
+            };
+            if expected != step.purity {
                 return Err(format!(
                     "`{}` is declared {}, and the extension `{}` marks it {}",
                     self.qualified(id),
-                    declaration.purity.label(),
+                    expected.label(),
                     provider.name,
                     step.purity.label()
                 ));

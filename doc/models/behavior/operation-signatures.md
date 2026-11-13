@@ -103,6 +103,17 @@ fmt(x: Date | DateTime | Instant, pattern: String, zone?: Zone) : String
 now()                                                : Instant   // effectful
 today(zone?: Zone)                                   : Date      // effectful
 local_zone()                                         : Zone      // effectful
+
+// random (HQL-0041 part 4); each draw is pure with `seed`, effectful without
+sample<T>(xs: Seq<T>, n: Int, *, seed?: Int)                    : List<T>
+sample<T : Orderable>(xs: Collection<T>, n: Int, *, seed?: Int) : List<T>
+sample<T>(xs: Stream<T>, n: Int)                                : List<T>   // effectful
+shuffle<T>(xs: Seq<T>, *, seed?: Int)                           : List<T>
+choice<T>(xs: Seq<T>, *, seed?: Int)                            : Option<T>
+random_int(low: Int, high: Int)                                 : Int       // effectful
+random_float()                                                  : Float     // effectful
+uuid()                                                          : String    // effectful
+uuid(name: String, namespace: String)                           : String
 ```
 
 ### Proposed

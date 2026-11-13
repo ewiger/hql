@@ -1,0 +1,11 @@
+<!-- hql reference: std/random.random_float -->
+# `random_float`
+
+In [`std/random`](index.md).
+
+```hql
+effectful fn random_float() : Float
+```
+
+A `Float` drawn uniformly from `0.0` included to `1.0` excluded.
+<!-- hql reference: end -->

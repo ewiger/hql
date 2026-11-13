@@ -44,6 +44,7 @@ pub mod help;
 pub mod io;
 pub mod kafka;
 pub mod library;
+pub mod random;
 pub mod reference;
 pub mod render;
 pub mod reporting;

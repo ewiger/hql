@@ -110,7 +110,7 @@ pub static COMBINERS: &[Combiner] = &[
 
 /// The steps that consume a traversal one value at a time and so keep it
 /// lazy. Every other step receives a traversal's values, forced once.
-pub(crate) const LAZY: [&str; 23] = [
+pub(crate) const LAZY: [&str; 24] = [
     "map",
     "filter",
     "take",
@@ -134,6 +134,7 @@ pub(crate) const LAZY: [&str; 23] = [
     "partition",
     "zip",
     "retry",
+    "sample",
 ];
 
 /// A traversal that has not been forced, which a lazy step wraps.
@@ -883,14 +884,25 @@ fn eval_take(
     // sequence already has one, and imposing another here would discard the
     // `sort` that produced it.
     if matches!(input, Value::Set(..)) {
-        if elements.iter().all(|element| element.order_key().is_some()) {
-            elements.sort_by(|left, right| compare(&left.order_key(), &right.order_key()));
-        } else {
-            sort_through(cx, &mut elements, &span, |element| element)?;
-        }
+        in_element_order(cx, &mut elements, &span)?;
     }
     elements.truncate(count);
     Ok(Value::list(elements, element_type(&input)))
+}
+
+/// Sort the elements of an unordered collection by their own order: their
+/// intrinsic keys, or an implementation of `Ord`.
+pub(crate) fn in_element_order(
+    cx: &mut dyn EvalCx,
+    elements: &mut [Value],
+    span: &Range<usize>,
+) -> Result<(), Diagnostic> {
+    if elements.iter().all(|element| element.order_key().is_some()) {
+        elements.sort_by(|left, right| compare(&left.order_key(), &right.order_key()));
+        Ok(())
+    } else {
+        sort_through(cx, elements, span, |element| element)
+    }
 }
 
 fn eval_collect(

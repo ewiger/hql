@@ -31,6 +31,7 @@ pub(crate) mod math;
 pub mod nats;
 pub mod net;
 pub(crate) mod option;
+pub(crate) mod random;
 pub(crate) mod regex;
 pub(crate) mod result;
 pub mod semantic;
@@ -370,6 +371,18 @@ impl Operation {
         binding::Environment::get().map_or(self.purity, |environment| environment.purity(self))
     }
 
+    /// Whether every form of the operation is effectful, so a call is
+    /// whichever form it takes. Where forms differ, the form a call takes
+    /// decides.
+    pub(crate) fn effectful_in_every_form(&self) -> bool {
+        match binding::Environment::get() {
+            Ok(environment) => {
+                environment.purity(self) == Purity::Effectful && !environment.mixed_purity(self)
+            }
+            Err(_) => self.purity == Purity::Effectful,
+        }
+    }
+
     /// How the executor may split it: what its declaration states, `fn` a
     /// barrier and `elementwise fn`, `partition fn` or `reduction fn` the
     /// shape it names. An operation without a declaration keeps its
@@ -527,6 +540,14 @@ static TIME: Extension = Extension {
     metadata: None,
 };
 
+static RANDOM: Extension = Extension {
+    name: "random",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["random"],
+    steps: random::STEPS,
+    metadata: None,
+};
+
 static OPTION: Extension = Extension {
     name: "option",
     version: env!("CARGO_PKG_VERSION"),
@@ -563,6 +584,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &SEQ,
     &MATH,
     &TIME,
+    &RANDOM,
     &OPTION,
     &RESULT,
     &GRAPH,
@@ -1378,14 +1400,17 @@ mod tests {
     fn every_registered_step_declares_a_purity_and_a_provider() {
         let listed = listing();
         assert!(!listed.is_empty());
-        // Reading and writing an endpoint, logging, and reading the
-        // evaluation clock are the effects; every other step, constructing
-        // an endpoint or a logger included, is a function of its input.
+        // Reading and writing an endpoint, logging, reading the evaluation
+        // clock and drawing from the evaluation seed are the effects; every
+        // other step, constructing an endpoint or a logger included, is a
+        // function of its input. Every name of `random` has a form that
+        // draws from the evaluation seed, and its seeded forms are pure.
         for entry in &listed {
             let effectful = (entry.provider == "io" && entry.name != "file")
                 || (entry.provider == "logging" && entry.name != "Logger")
                 || (entry.provider == "time"
-                    && matches!(entry.name, "now" | "today" | "local_zone"));
+                    && matches!(entry.name, "now" | "today" | "local_zone"))
+                || entry.provider == "random";
             let expected = if effectful {
                 Purity::Effectful
             } else {

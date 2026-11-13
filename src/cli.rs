@@ -96,6 +96,10 @@ pub struct Options {
     /// offset `±HH:MM`. Without it, `TZ`, else the host's zone.
     #[arg(long, global = true, value_name = "ZONE")]
     pub zone: Option<String>,
+    /// The evaluation seed the unseeded draws of `random` read: an `Int`.
+    /// Without it, a seed from the host's entropy, reported at `info`.
+    #[arg(long, global = true, value_name = "INT", allow_negative_numbers = true)]
+    pub seed: Option<i64>,
     /// When to stop: `strict` at the first error, `collect` to report them all.
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
@@ -340,10 +344,11 @@ const COMMANDS: [&str; 12] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 12] = [
+const VALUED: [&str; 13] = [
     "--vault",
     "--now",
     "--zone",
+    "--seed",
     "--envelope",
     "--to",
     "--from",
@@ -441,6 +446,10 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     crate::time::set_clock(crate::time::Clock {
         now,
         zone: cli.options.zone.clone(),
+    });
+    crate::random::set_seeding(crate::random::Seeding {
+        seed: cli.options.seed,
+        report: true,
     });
     crate::io::set_stdin_format(match cli.options.from.as_deref() {
         None => None,

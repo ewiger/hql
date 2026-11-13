@@ -45,6 +45,8 @@ futures-util = { version = "0.3.34", default-features = false }
 jiff = { version = "0.2.43", features = ["tzdb-bundle-always"] }
 num-integer = "0.1.47"
 postgres = "0.19"
+rand_chacha = { version = "0.3.1", default-features = false }
+rand_core = { version = "0.6.4", default-features = false }
 regex = "1.13.1"
 rskafka = { version = "0.6", default-features = false, features = ["compression-gzip", "compression-snappy"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
@@ -58,6 +60,7 @@ tokio = { version = "1.54.1", features = ["rt", "net", "time"] }
 toml = "1.1.6"
 tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
 ureq = { version = "2", default-features = false, features = ["tls"] }
+uuid = { version = "1.29.2", default-features = false, features = ["v5"] }
 
 [dev-dependencies]
 rusqlite = { version = "0.40.2", features = ["bundled"] }
