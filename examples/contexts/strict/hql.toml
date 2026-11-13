@@ -1,0 +1,5 @@
+# A workspace that declines the prelude: every module is imported where it
+# is used.
+
+[extensions]
+prelude = false

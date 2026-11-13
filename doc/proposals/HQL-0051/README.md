@@ -1218,3 +1218,9 @@ cargo clippy --locked --all-targets -- -D warnings
   `logging` over a `Logger`, each written in the block. A write inside a
   function the block calls is not seen, and each write is warned once,
   however many attempts run it
+- 2026-11-13: the cases the test plan names are in `examples/transactions/`
+  (issue 0072), each `valid-now` or `invalid` since the phases they cover
+  are built: a transfer committed, rolled back on the balance and on a
+  credit to no account, an exhausted `retry`, a read of the block's own
+  update, and four scopes the checker refuses, over an SQLite file the
+  corpus writes in a temporary copy of the example
