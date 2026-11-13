@@ -10,6 +10,30 @@ The language continues to be in active development.
 
 ### Added
 
+- Descriptive statistics ([HQL-0041](doc/proposals/HQL-0041/README.md)
+  part 2). The module `stats`, imported with `import stats`, declares the
+  reductions `mean`, `variance` and `stdev` (sample, `n - 1`), `pvariance`
+  and `pstdev` (population, `n`), and `covariance` and `correlation` over
+  `Pair`s, and the barriers `median`, `quantile(q)`, `quantiles(n)` and
+  `mode`. A statistic of `Int` or `Float` values is a `Float`, of `Decimal`
+  values a `Decimal`; an `Int` or `Decimal` statistic is computed exactly
+  and rounded once, a `Decimal` root to 100 significant digits. An
+  undefined statistic is `none`: the mean of nothing, the sample variance
+  of one value, the correlation of a constant side. `quantile` is linear
+  interpolation (type 7) and takes a `Float` or a `Decimal` `q`;
+  `quantiles` is Python's inclusive method; `mode` gives the least of the
+  most frequent values. With `stats` imported, `variance` over `Int`s or
+  `Float`s is ambiguous with the prelude's population `variance` and is
+  written `stats.variance`.
+- Environment variables and invocation arguments
+  ([HQL-0041](doc/proposals/HQL-0041/README.md) part 5). The module
+  `io.env`, imported with `import io.env` and reached as `env`, declares the
+  effectful `var`, `vars`, `arg` and `args`. A program run on its own reads
+  every variable; `env = ["NAME", "PREFIX_*"]` in a workspace's `hql.toml`
+  narrows that, and `hql render` reads none. An unset, a withheld and a
+  non-UTF-8 variable all read as `none`. `--arg name=value`, repeatable,
+  passes an argument, always granted; a name outside `[a-z_][a-z0-9_]*` or
+  given twice is a usage error, exit 2, before evaluation.
 - The file system as data ([HQL-0040](doc/proposals/HQL-0040/README.md)).
   `io` declares `Path`, a place in a file system written as text and
   ordered by its segments, with `join`, `parent`, `name`, `stem` and
@@ -105,6 +129,9 @@ The language continues to be in active development.
 
 ### Fixed
 
+- A function declared without an input, called with its module,
+  `time.now()` or `env.vars()`, checks as the bare call does. It was
+  refused as needing its input as the first argument.
 - A list or a record field of a declared record written to a topic, a
   subject or a JSON, JSON Lines or YAML file is written as a list or a map.
   It was written as its text.

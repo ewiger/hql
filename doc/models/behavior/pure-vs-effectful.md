@@ -63,6 +63,7 @@ written is pure.
 | `trace`, `debug`, `info`, `warn`, `error` | `Logger(...)` |
 | `now`, `today`, `local_zone` | every other `time` operation |
 | `sample`, `shuffle`, `choice` without `seed`; `random_int`, `random_float`, `uuid()` | `sample`, `shuffle`, `choice` with `seed`; `uuid(name, namespace)` |
+| `var`, `vars`, `arg`, `args` of `io.env` | every `stats` operation |
 | — | every collection, lexical, graph and format step |
 
 An endpoint, a channel and a logger are values. Making one opens nothing, and

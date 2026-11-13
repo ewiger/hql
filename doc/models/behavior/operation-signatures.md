@@ -104,6 +104,25 @@ now()                                                : Instant   // effectful
 today(zone?: Zone)                                   : Date      // effectful
 local_zone()                                         : Zone      // effectful
 
+// stats (HQL-0041 part 2); N is Int, Float or Decimal, R is Float, or Decimal over Decimal
+mean(xs: Collection<N>)                              : Option<Float | Decimal>   // reduction
+variance(xs: Collection<N>)                          : Option<R>   // reduction; sample, n - 1
+stdev(xs: Collection<N>)                             : Option<R>   // reduction; sample
+pvariance(xs: Collection<N>)                         : Option<R>   // reduction; population, n
+pstdev(xs: Collection<N>)                            : Option<R>   // reduction; population
+covariance(ps: Collection<Pair<N, N>>)               : Option<R>   // reduction
+correlation(ps: Collection<Pair<N, N>>)              : Option<Float>   // reduction
+median(xs: Collection<N>)                            : Option<R>
+quantile(xs: Collection<N>, q: Float | Decimal)      : Option<R>   // type 7
+quantiles(xs: Collection<N>, n: Int)                 : List<R>
+mode<T : Orderable>(xs: Collection<T>)               : Option<T>
+
+// io.env (HQL-0041 part 5); every operation is effectful
+var(name: String)                                    : Option<String>
+vars()                                               : Map<String, String>
+arg(name: String)                                    : Option<String>
+args()                                               : Map<String, String>
+
 // random (HQL-0041 part 4); each draw is pure with `seed`, effectful without
 sample<T>(xs: Seq<T>, n: Int, *, seed?: Int)                    : List<T>
 sample<T : Orderable>(xs: Collection<T>, n: Int, *, seed?: Int) : List<T>
