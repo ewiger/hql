@@ -42,11 +42,6 @@ pub const STD: &[(&str, &str)] = &[
     ("math", include_str!("../lib/std/math/mod.hql")),
     ("time", include_str!("../lib/std/time/mod.hql")),
     ("random", include_str!("../lib/std/random/mod.hql")),
-    (
-        "crypto.digest",
-        include_str!("../lib/std/crypto/digest/mod.hql"),
-    ),
-    ("encoding", include_str!("../lib/std/encoding/mod.hql")),
     ("option", include_str!("../lib/std/option/mod.hql")),
     ("result", include_str!("../lib/std/result/mod.hql")),
     ("regex", include_str!("../lib/std/regex/mod.hql")),
@@ -68,6 +63,11 @@ pub const STD: &[(&str, &str)] = &[
         include_str!("../lib/std/io/msg/nats_jetstream/mod.hql"),
     ),
     ("vault", include_str!("../lib/std/vault/mod.hql")),
+    (
+        "crypto.digest",
+        include_str!("../lib/std/crypto/digest/mod.hql"),
+    ),
+    ("encoding", include_str!("../lib/std/encoding/mod.hql")),
 ];
 
 /// Every module of the `search` package, by name, in loading order, laid out

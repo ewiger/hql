@@ -192,8 +192,6 @@ nav:
           - std/math: reference/std/math/index.md
           - std/time: reference/std/time/index.md
           - std/random: reference/std/random/index.md
-          - std/crypto/digest: reference/std/crypto/digest/index.md
-          - std/encoding: reference/std/encoding/index.md
           - std/option: reference/std/option/index.md
           - std/result: reference/std/result/index.md
           - std/regex: reference/std/regex/index.md
@@ -206,6 +204,8 @@ nav:
           - std/io/msg/nats: reference/std/io/msg/nats/index.md
           - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream/index.md
           - std/vault: reference/std/vault/index.md
+          - std/crypto/digest: reference/std/crypto/digest/index.md
+          - std/encoding: reference/std/encoding/index.md
           - std/validators: reference/std/validators/index.md
       - search:
           - search/lexical: reference/search/lexical/index.md

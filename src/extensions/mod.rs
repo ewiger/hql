@@ -560,22 +560,6 @@ static RANDOM: Extension = Extension {
     metadata: None,
 };
 
-static DIGEST: Extension = Extension {
-    name: "crypto.digest",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["crypto.digest"],
-    steps: digest::STEPS,
-    metadata: None,
-};
-
-static ENCODING: Extension = Extension {
-    name: "encoding",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["encoding"],
-    steps: encoding::STEPS,
-    metadata: None,
-};
-
 static OPTION: Extension = Extension {
     name: "option",
     version: env!("CARGO_PKG_VERSION"),
@@ -600,6 +584,22 @@ static REGEX: Extension = Extension {
     metadata: None,
 };
 
+static DIGEST: Extension = Extension {
+    name: "crypto.digest",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["crypto.digest"],
+    steps: digest::STEPS,
+    metadata: None,
+};
+
+static ENCODING: Extension = Extension {
+    name: "encoding",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["encoding"],
+    steps: encoding::STEPS,
+    metadata: None,
+};
+
 /// Every extension compiled into this binary, core first.
 ///
 /// Registration is not import: a step here is known to diagnostics and to
@@ -613,8 +613,6 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &MATH,
     &TIME,
     &RANDOM,
-    &DIGEST,
-    &ENCODING,
     &OPTION,
     &RESULT,
     &GRAPH,
@@ -629,6 +627,8 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &LEXICAL,
     &SEMANTIC,
     &REGEX,
+    &DIGEST,
+    &ENCODING,
 ];
 
 impl Extension {

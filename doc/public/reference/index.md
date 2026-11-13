@@ -41,8 +41,6 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/math`](std/math/index.md) — Numbers, in the prelude.
 - [`std/time`](std/time/index.md) — Time: zones, the units a value truncates to, and the operations over the time scalars of `core`: conversion from text, parts, arithmetic, truncation, rendering, and the evaluation clock.
 - [`std/random`](std/random/index.md) — Randomness: samples, shuffles, choices, numbers and UUIDs.
-- [`std/crypto/digest`](std/crypto/digest/index.md) — Cryptographic digests of text and of `Data` trees.
-- [`std/encoding`](std/encoding/index.md) — Text-safe encodings of a text's UTF-8 octets.
 - [`std/option`](std/option/index.md) — The ways out of an `Option<T>`, in the prelude, each stating what absence gives.
 - [`std/result`](std/result/index.md) — The ways out of a `Result<T, E>`, in the prelude, each stating what a failure gives.
 - [`std/regex`](std/regex/index.md) — Text matched against a regular expression.
@@ -57,5 +55,7 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/vault`](std/vault/index.md) — The current vault: the source a program runs against.
 - [`search/lexical`](search/lexical/index.md) — Lexical retrieval: a corpus ranked by the words it shares with a query, a hashed bag of words compared by cosine.
 - [`search/semantic`](search/semantic/index.md) — Semantic retrieval: a corpus ranked against a query by vectors a language model made ahead of time, read from the index that `[semantics] index` in hql.toml names.
+- [`std/crypto/digest`](std/crypto/digest/index.md) — Cryptographic digests of text and of `Data` trees.
+- [`std/encoding`](std/encoding/index.md) — Text-safe encodings of a text's UTF-8 octets.
 - [`std/validators`](std/validators/index.md) — Validators: the standard validator types, imported where they are used, `import validators`, and never by the prelude, so a program's own `Email` is its own.
 <!-- hql reference: end -->
