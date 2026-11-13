@@ -101,7 +101,9 @@ implements both modules, and neither is in the prelude.
   `String`, so that a `Data` tree holds one and a format encodes one.
 - `bytes` is a receiver module, `module bytes for Bytes`, and MUST be in the
   prelude, as `string` is.
-- `crypto` imports `core`, `encoding`, `crypto.digest` and `io`;
+- `crypto` imports `core` and `io`. It does not import its child
+  `crypto.digest`, which a parent may not; a thumbprint and a signature
+  over canonical JSON compute their digests natively.
   `crypto.keyvault` imports `core`, `crypto` and `io`. Neither MUST be added
   to the prelude. A program writes `import crypto`, and `import
   crypto.keyvault`, which it reaches as `keyvault`.
@@ -189,8 +191,8 @@ program's source is not one of them.
 
 - The checker MUST refuse a string literal that holds the beginning of a
   private key in any format part 2 reads: `-----BEGIN` followed by a label
-  ending in `PRIVATE KEY-----`, `AGE-SECRET-KEY-1`, or a JWK object with a
-  `"d"` member. The diagnostic names the four places above.
+  ending in `PRIVATE KEY-----`, `AGE-SECRET-KEY-1` followed by an
+  identity's Bech32 text, or a JWK object with a `"d"` member. The diagnostic names the four places above.
 - `hql.toml` holds no key material. A `[keyvault.<id>]` table with a
   secret written into it MUST refuse the vault, naming the `*_env` key that
   replaces it, as `dsn` does in HQL-0046; [part 5](parts/05-keyvault.md)
@@ -373,3 +375,7 @@ cargo clippy --all-targets -- -D warnings
 - 2026-11-13: accepted
 - 2026-11-13: part 1, `Bytes`, implemented; `Index<Int>` and `Slice` are
   the `bytes` module's `at` and `slice`, and `b[i]` is `none` outside
+- 2026-11-13: part 2, keys, implemented with the secret-type checks; `crypto`
+  does not import its child `crypto.digest`; key types carry no bound on
+  their parameter; a type written first in a call is an argument, as in
+  `generate_key_pair(Ed25519)`

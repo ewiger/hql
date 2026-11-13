@@ -22,8 +22,6 @@ verification of an `Ed25519` signature by an `Rsa` key, is a check error.
 // lib/std/crypto/mod.hql
 module crypto
 import core
-import encoding
-import crypto.digest
 import io
 
 /// An asymmetric key algorithm.
@@ -52,20 +50,23 @@ type HmacSha512       : Mac      // RFC 2104 over SHA-512
 abstract type Secret
 
 /// A public key of algorithm `A`. Public keys compare by their octets.
-type PublicKey<A : KeyAlgorithm>
+type PublicKey<A>
 /// A private key of algorithm `A`. It prints as its public key's
 /// thumbprint, and no format writes it.
-type PrivateKey<A : KeyAlgorithm> : Secret
+type PrivateKey<A> : Secret
 /// A private key and its public key.
-type KeyPair<A : KeyAlgorithm> : Secret {
+type KeyPair<A> : Secret {
     public  : PublicKey<A>
     private : PrivateKey<A>
 }
 /// A symmetric key of algorithm `A`.
-type SecretKey<A : SecretAlgorithm> : Secret
-
-impl Eq for PublicKey<A>
+type SecretKey<A> : Secret
 ```
+
+- A type declaration takes no bound on its parameter; every function that
+  builds or takes a key states `A : KeyAlgorithm` or `A : SecretAlgorithm`,
+  so no key of another `A` is made.
+- Two public keys compare with `==` by their SPKI octets.
 
 - `PublicKey<A>` MUST NOT be `Secret`: a program prints, logs, compares and
   writes public keys freely.
@@ -161,6 +162,9 @@ effectful fn generate_secret_key<A : SecretAlgorithm>(algorithm: Type<A>) : Secr
   ignored, as RFC 7468 allows. A `Jwk` object MUST hold the members its key
   type requires and MAY hold `kid`, `use`, `alg` and `key_ops`, which are
   not read. `OpenSsh` public text MAY carry a comment, which is not read.
+- An encrypted PKCS #8 key MUST be read under PBES2 with scrypt or with
+  PBKDF2 over HMAC-SHA-256 or HMAC-SHA-1, the last what OpenSSL 1.x and
+  LibreSSL write by default; `export_private` writes scrypt alone.
 - An encrypted private key read with a wrong passphrase MUST be an
   evaluation error that says the passphrase does not decrypt it, and the
   `to_private_key` form gives `none`.
