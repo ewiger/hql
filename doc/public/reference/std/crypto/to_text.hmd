@@ -1,0 +1,14 @@
+<!-- hql reference: std/crypto.to_text -->
+# `to_text`
+
+In [`std/crypto`](index.hmd).
+
+```hql
+fn to_text<F : KeyFormat, A : KeyAlgorithm>(self: PublicKey<A>, format: Type<F>) : String
+```
+
+`self` written in `format`: `key.to_text(OpenSsh)` is an
+`ssh-ed25519 AAAA…` line. `Pem` has 64-column lines and a final line
+break, `Jwk` is the canonical JSON of the required members, and
+`OpenSsh` has no comment.
+<!-- hql reference: end -->

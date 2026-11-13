@@ -1,7 +1,7 @@
 //! The naming lint: each kind of name has one casing, whoever provides it.
 //!
 //! A name a program introduces that departs from its kind's convention is a
-//! warning, never an error. See [HQL-0011](../../doc/proposals/HQL-0011/README.md).
+//! warning, never an error. See [HQL-0011](../../doc/proposals/HQL-0011/index.hmd).
 
 /// The kinds of name the lint knows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

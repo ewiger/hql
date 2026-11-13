@@ -5,9 +5,9 @@
 //! `tap` and `target` read and write with the reader and the writer the
 //! kind has. Constructing one opens no connection, and the connection
 //! string is read from the environment variable `dsn_env` names where the
-//! endpoint is used. See [HQL-0047](../../doc/proposals/HQL-0047/README.md),
-//! [HQL-0048](../../doc/proposals/HQL-0048/README.md) and
-//! [HQL-0051](../../doc/proposals/HQL-0051/README.md).
+//! endpoint is used. See [HQL-0047](../../doc/proposals/HQL-0047/index.hmd),
+//! [HQL-0048](../../doc/proposals/HQL-0048/index.hmd) and
+//! [HQL-0051](../../doc/proposals/HQL-0051/index.hmd).
 
 use super::Signature;
 use super::{EvalCx, Operation, Purity};

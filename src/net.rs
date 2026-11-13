@@ -3,7 +3,7 @@
 //!
 //! Nothing here is reached by constructing an endpoint. A request is sent and
 //! a connection opened only when [`crate::io`] reads or writes one. See
-//! [HQL-0021](../doc/proposals/HQL-0021/README.md).
+//! [HQL-0021](../doc/proposals/HQL-0021/index.hmd).
 //!
 //! Every connection here is bounded, as HQL-0047 requires of a `Network`
 //! transport: an attempt to connect fails after [`CONNECT`], and an HTTP

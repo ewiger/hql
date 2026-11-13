@@ -1,0 +1,13 @@
+<!-- hql reference: std/string.at -->
+# `at`
+
+In [`std/string`](index.hmd).
+
+```hql
+fn at(self, position: Int) : Option<String>
+```
+
+The character of `self` at `position`, as text, or `none` outside the
+text; a negative position counts from the end: `"hello".at(1)` and
+`"hello"[1]` are `"e"`.
+<!-- hql reference: end -->

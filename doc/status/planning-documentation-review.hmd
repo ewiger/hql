@@ -1,0 +1,102 @@
+# Logical and physical execution documentation review
+
+Date: 2026-11-13
+
+The ADR and public book now explain the same execution model: logical steps
+exist before planning; planning selects an execution strategy; the backend
+or its delegated engine schedules physical work. The meaning of `|` stays
+stable across those choices. Alternative backends are explicitly design
+direction, with `localhost` identified as the current implementation.
+
+## Scope and reading path
+
+- [Logical steps and physical plans](../public/learn/14-planning-and-backends.hmd)
+  is a dedicated book page under chapter 14. It defines step, stage, task
+  and job, compares execution strategies, and explains SQL translation with
+  CTEs. Existing chapter numbers and page paths are preserved.
+- [Chapter 14](../public/learn/14-etl-pipelines.hmd) introduces the distinction
+  in its pipeline and effect sections. Chapters 6, 9, 13 and 17 and the book
+  contents link readers to the dedicated explanation.
+- [[HQL-0055]] states the preservation contract
+  and delegated planning explicitly. Its four companion notes align the
+  execution vocabulary, effects, local and scheduled execution, and the
+  proposed completion type.
+- [[HQL-0005]] retains the implemented
+  annotation model, uses task terminology for scheduled work, and points
+  to the draft extensions. HQL-0055 remains drafted.
+
+## Review loop
+
+### Pass 1: define the boundary
+
+Made types, operations, dependencies and ordered effects part of the checked
+logical program. Described physical planning as resolving execution choices
+as far as the backend owns them. SQL generation is a translation handoff:
+Spark still plans and schedules the submitted computation.
+
+The book includes one small, runnable filter/map expression and a
+hand-written SQL translation. Input positions and final SQL ordering make
+the sequence-preservation requirement visible. These examples explain the
+concept without introducing a production workload, backend API or promised
+translation algorithm. The ADR companion's speculative distributed sink
+plan and fixed worker counts were replaced with a description of planning
+responsibilities.
+
+### Pass 2: check consistency and guarantees
+
+Corrected the following ambiguities:
+
+- A logical step was called the unit of execution, obscuring physical stages.
+- A pipeline file was called a job; a job now means one program run.
+- The shell was called a backend; it connects processes that use HQL's backend.
+- One SQL statement was equated with one task. Engine tasks and jobs now
+  have an explicit distinction from HQL's units.
+- Pure computation was described as freely reorderable. Dependencies,
+  sequence order, results and failures constrain every rewrite.
+- Partitioning a write appeared to weaken its delivery guarantees. The
+  revised text requires the existing ordering and transaction contract.
+- Local stage numbering and conceptual task vocabulary were presented as
+  a global runtime model. The text now describes the actual per-pipeline
+  annotations and the absence of local scheduler task identities.
+- Completion of a sink was equated with completion of the whole job.
+  The draft now allows other work in that job to remain.
+
+### Pass 3: improve the reading flow
+
+Replaced repeated negation-based explanations with direct descriptions of
+what each term means and who chooses it. Kept the overview short enough to
+introduce the topic and moved the detailed comparison into the dedicated
+page. Added links where readers encounter SQL-like queries, endpoint I/O
+and backend configuration. Distinguished current `Unit` behavior from the
+draft `Step`/`Aute` proposal without changing runtime types.
+
+## Verification
+
+- `cargo test --locked --test tutorial`: passed, both tests. This runs the
+  book's HQL examples, including the new expression and expected output.
+- `.venv/bin/mkdocs build --strict --site-dir /tmp/hql-planning-docs-site`:
+  passed after the final public documentation changes.
+- Rendered HTML check: seven affected book pages, 1,183 local link and
+  anchor references, all resolved; the new page appears in book navigation.
+- `git diff --check`: passed.
+- Engine terminology checked against the official
+  [Databricks CTE documentation](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-qry-select-cte)
+  and [Spark EXPLAIN documentation](https://spark.apache.org/docs/3.5.6/sql-ref-syntax-qry-explain.html).
+
+The SQL illustration was not executed against Spark or Databricks. It is
+explicitly hand-written design material. Changes are in repository source;
+the public site has not been deployed by this work.
+
+## Decisions for a future backend
+
+The next backend specification should define its supported expression
+subset, handling of unsupported work, any partial pushdown or local
+fallback, and the mapping between HQL runs and engine identities. It should
+also establish conformance checks for ordering, missing values, numeric
+behavior, diagnostics and effects against `localhost`.
+
+Keep those implementation decisions separate from the book's stable
+terminology. Add engine-specific plans and operational examples when an
+implemented backend can generate and verify them. The logical graph IR,
+adaptive planning details and partitioned write completion remain open;
+the requirement to preserve the checked program's meaning is explicit now.

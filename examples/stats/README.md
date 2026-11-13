@@ -1,6 +1,6 @@
 # Stats: means, spread, quantiles, the mode and correlation
 
-The cases follow [HQL-0041 part 2](../../doc/proposals/HQL-0041/parts/02-stats.md).
+The cases follow [HQL-0041 part 2](../../doc/proposals/HQL-0041/parts/02-stats.hmd).
 The `stats` module is imported with `import stats`. A statistic of `Int` or
 `Float` values is a `Float`, and a statistic of `Decimal` values is a
 `Decimal`, exact except where a quotient does not terminate. A statistic

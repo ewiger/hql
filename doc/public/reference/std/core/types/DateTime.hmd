@@ -1,0 +1,30 @@
+<!-- hql reference: std/core.DateTime -->
+# `DateTime`
+
+In [`std/core`](../index.hmd).
+
+```hql
+type DateTime : {Scalar, Orderable}
+```
+
+A date and a time of day with no zone or offset, ordered by time:
+`DateTime("2026-10-24T09:30:00")`. It names a wall-clock reading and
+becomes an `Instant` only through a zone.
+
+```hql
+fn DateTime(text: String) : DateTime
+```
+
+The `DateTime` an ISO 8601 date and time with no offset reads as:
+`DateTime("2026-10-24T09:30:00")`, with up to nine fraction digits.
+Text with an offset or a `Z` is an `Instant`'s, and an evaluation error
+here.
+
+```hql
+fn DateTime(date: Date, *, hour: Int = 0, minute: Int = 0, second: Int = 0, nanosecond: Int = 0) : DateTime
+```
+
+The `DateTime` of `date` at a time of day: `DateTime(Date("2026-10-24"),
+hour = 9, minute = 30)`. A part out of range, `hour = 24` among them,
+is an evaluation error.
+<!-- hql reference: end -->

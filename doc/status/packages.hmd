@@ -3,7 +3,7 @@
 Every package this hql knows: the builtin packages the binary carries, and
 the installable packages the package registry lists. The terms, builtin and
 installable, official and known, internal and external, are the
-[packages card](../wiki/hql/packages.hmd)'s. Checked on 2026-11-13 against
+[[hql/packages|packages card]]'s. Checked on 2026-11-13 against
 `lib/` of this repository and against `main` of
 [hql-extensions](https://github.com/ewiger/hql-extensions).
 
@@ -39,6 +39,6 @@ crate lives elsewhere.
 There are no known packages. Nothing is installed anywhere: `hql` has no
 `package` command, no `[packages]` table, nothing under `~/.hql/lib/`, and
 no `hql::ext` API a crate can implement an extension against
-([HQL-0057 part 1](../proposals/HQL-0057/parts/01-packages.md), "Current
+([[01-packages|HQL-0057 part 1]], "Current
 state"). No release publishes prebuilt libraries
-([part 3](../proposals/HQL-0057/parts/03-prebuilt-libraries.md)).
+([[03-prebuilt-libraries|part 3]]).

@@ -1,0 +1,282 @@
+# Part 1: Packages, the registry, installation and loading
+
+- **Source**: [[09-packages-and-extensions|HQL-0024 part 9]]
+- **Depends on**: HQL-0024 parts 1, 3 and 9
+- **Needed by**: [[02-ml|part 2, `ml`]]
+
+## Scope
+
+Everything between a crate and an `import`: what a package is, where its
+name is registered, where it is installed, how it is built and loaded, how
+configuration reaches it, and the command that does the work.
+
+## Rules
+
+### 1. A package
+
+A package is a Cargo crate whose library is an HQL extension.
+
+- Its Cargo name MUST begin with `hql-ext-`, and the package name is the
+  rest: `hql-ext-ml` is `ml`. The prefix keeps the crate namespace legible;
+  the package name is what every HQL-facing surface prints.
+- The package name MUST be one lowercase word, as a module name is
+  ([naming](../../../wiki/hql/naming.hmd)), and MUST NOT be the name of a
+  builtin package or of a builtin module.
+- A package owns the top-level module namespace of its name: it provides
+  `ml` and modules under it, `ml.metrics`, and nothing outside it.
+  Namespace ownership is what makes a module's provider unambiguous.
+- A package carries one extension, named as the package is. HQL-0024 part 9
+  states when a second is admitted; no package in this record has one.
+- The crate's `Cargo.toml` MUST carry the package metadata under
+  `[package.metadata.hql]`:
+
+```toml
+[package]
+name = "hql-ext-ml"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hql = "0.7"
+
+[package.metadata.hql]
+package = "ml"
+provides = ["ml", "ml.metrics"]
+modules = "modules"           # the module root, relative to the crate
+```
+
+- `provides` MUST list every module the crate's `modules/` root declares
+  with an external declaration, and the crate's descriptor MUST state the
+  same list. Binding cross-checks the contracts against the descriptor, as
+  it does for `std`.
+- The module root MUST hold `<module>/mod.hql` per provided module and MAY
+  hold `prelude.hql`, the extension's constructor
+  ([[09-packages-and-extensions#an-extension-loads-as-a-whole|HQL-0024 part 9, an extension loads as a whole]]).
+- A crate MAY carry `examples/`, HQL programs with the header the
+  repository's `examples/` use; `hql-extensions` CI runs them.
+
+### 2. The registry
+
+The registry is the file `hql-packages.yaml` at the root of the
+`hql-extensions` repository.
+
+- The repository is a Cargo workspace. Each crate under `crates/` is an
+  official package. The registry MUST list every one of them, and CI MUST
+  fail when a crate under `crates/` is missing from the file or the file
+  names a crate that is not there.
+- A known package is a crate kept elsewhere. It is added to the registry by
+  a pull request that adds one entry; the repository's README states what
+  the review checks. Installation by name reaches official and known
+  packages and nothing else.
+
+```yaml
+registry: 1                      # the format of this file
+packages:
+  - name: ml
+    crate: hql-ext-ml
+    kind: official               # a crate under crates/ of this repository
+    version: 0.1.0
+    hql: ">=0.7.0, <0.8.0"       # the hql versions it builds against
+    provides: [ml, ml.metrics]
+    description: Datasets, fitted models as values, prediction and metrics
+  - name: fancysql
+    crate: hql-ext-fancysql
+    kind: known                  # a crate outside this repository
+    source: { crates-io: "1.2.0" }
+    hql: ">=0.7.0, <0.8.0"
+    provides: [fancysql]
+    description: ...
+    repository: https://github.com/someone/hql-ext-fancysql
+```
+
+- `registry` MUST be `1`; a file with another value is refused, so a newer
+  format is never half-read.
+- `name`, `crate`, `kind`, `version` or `source`, `hql`, `provides` and
+  `description` are required. `hql` is a Cargo version requirement over
+  the `hql` crate's version.
+- An official entry's source is the repository itself at the tag
+  `<crate>-v<version>`; a known entry's `source` is `crates-io` with a
+  version, or `git` with a URL and a `rev`. Every source is pinned: a
+  registry entry never floats.
+- Two entries MUST NOT share a `name`, and no two entries MAY provide one
+  module. The registry is the one place where namespace ownership is
+  settled between packages.
+- `hql` fetches the registry from
+  `https://raw.githubusercontent.com/ewiger/hql-extensions/main/hql-packages.yaml`
+  and caches it at `~/.hql/registry/hql-packages.yaml` with the time of
+  the fetch. A command that needs the registry uses the cache when it is
+  less than one day old or the fetch fails; `hql package registry
+  --refresh` fetches now.
+
+### 3. An installed package
+
+A package is installed into the HQL home.
+
+```text
+~/.hql/lib/
+└── ml/
+    ├── package.toml           what was built, from what, against what
+    ├── modules/               the module root: a copy of the crate's
+    │   ├── prelude.hql
+    │   └── ml/
+    │       ├── mod.hql
+    │       └── metrics.hql
+    └── libhql_ext_ml.dylib    the extension (.so on Linux, .dll on Windows)
+```
+
+```toml
+[package]
+name = "ml"
+crate = "hql-ext-ml"
+version = "0.1.0"
+provides = ["ml", "ml.metrics"]
+
+[source]
+kind = "official"                        # official | known | path
+registry = "2026-11-13T10:00:00Z"        # the registry fetch it came from
+tag = "hql-ext-ml-v0.1.0"
+# path = "/Users/me/code/hql-ext-ml"    # for kind = "path"
+
+[build]
+hql = "0.7.0"                            # the hql crate it was built against
+rustc = "1.95.0 (abcdef123 2026-10-01)"  # rustc -V
+target = "aarch64-apple-darwin"
+library = "libhql_ext_ml.dylib"
+built = "2026-11-13T10:02:41Z"
+```
+
+- `~/.hql/lib/` is the one installation root; `$HQL_HOME` moves it with
+  the rest of the home ([chapter 13](../../../public/learn/13-working-with-hql.hmd)).
+  There is no per-workspace installation: a workspace that needs a package
+  built from source names it in `[packages] paths`.
+- `modules/` is copied from the crate at build time, so the contracts an
+  installed package binds against are the ones its library was built
+  with, whatever the source later becomes.
+- `package.toml` is written by `hql package` and read by discovery and
+  `hql doctor`. A folder under `~/.hql/lib/` with no `package.toml`, or
+  one whose `library` is missing, is reported and skipped.
+
+### 4. Building and loading
+
+A package is built by the user's `cargo` against the running `hql`.
+
+- `hql package install` MUST build with the `cargo` on `PATH`, and MUST
+  refuse with a message naming `rustup` where there is none. Building on
+  the machine is what pins the library to this `hql` and this toolchain.
+  A prebuilt library carries the same pin only when it is built for this
+  exact `hql` release with that release's toolchain; [[03-prebuilt-libraries|part 3]]
+  adds that path, with this build as its fallback.
+- The source is checked out under `~/.hql/src/<package>/`: a sparse
+  checkout of `hql-extensions` at the entry's tag for an official package,
+  `cargo`'s own fetch for a known one, the path itself for a path
+  package. `hql package` then runs `cargo build --release` on the crate's
+  manifest with the `hql` dependency patched to the running binary's
+  version, copies the library and `modules/` into `~/.hql/lib/<package>/`,
+  and writes `package.toml`.
+- The `hql` dependency is patched to the exact version of the running
+  binary, `[patch.crates-io] hql = { version = "=0.7.0" }`, so the crate
+  compiles against the types that binary links. A package whose `hql`
+  requirement excludes that version is refused before the build.
+- The library MUST export one symbol, `hql_extension_v1`, returning the
+  descriptor and implementation table; the `hql::extension!` macro writes
+  it. `abi = 1` is this symbol with Rust types from the `hql` crate: it is
+  stable exactly as long as the `hql` version and the toolchain are the
+  ones recorded in `package.toml`, and no longer.
+- At load, discovery MUST compare `[build] hql` with the binary's version
+  and `[build] rustc` with the one the binary records, and MUST refuse a
+  package where either differs:
+
+```text
+package `ml` was built against hql 0.7.0 with rustc 1.95.0; this is hql
+0.7.1 with rustc 1.95.0: run `hql package rebuild ml`
+```
+
+- A refused package is absent from the registry: `import ml` fails as an
+  import of a module nobody provides, with the refusal as its note. It is
+  never partly loaded.
+- Loading is `libloading` of the library, the call of
+  `hql_extension_v1`, and the registration of its descriptor and
+  implementations against the contracts of its `modules/` root, exactly
+  as binding registers `std`. A descriptor whose `provides` differs from
+  `package.toml` or from the contracts is refused.
+
+### 5. Configuration
+
+Discovery is configured; loading is by import.
+
+```toml
+[packages]
+paths = ["../hql-ext-ml"]            # crates on disk, used as if installed
+
+[extensions]
+import = ["ml"]                      # loaded for every program, without an import
+```
+
+- The execution context discovers packages from `~/.hql/lib/` and from
+  each `[packages] paths` entry, in the layers chapter 13 names; a path
+  entry is read relative to the file that declares it. A path entry is a
+  crate: `hql` builds it under `target/` of that crate on first use and
+  whenever its sources are newer than the library, so a package author
+  edits and runs without installing.
+- Two discovered packages providing one module make the environment
+  invalid, as two module roots providing one module do. Discovery order
+  never picks a winner.
+- A discovered package is loaded when a unit imports a module it
+  provides, or when `[extensions] import` names the package, which loads
+  it for every unit of the run as the prelude is. `[extensions] import`
+  names packages and builtin packages alike; it stops being a list of the
+  Rust source modules of the binary (issue 0049).
+- A program never names a package: `import ml` names the module, and
+  which package provides it is the environment's business
+  ([[02-imports|HQL-0024 part 2]]).
+
+### 6. `hql package`
+
+One command with these actions:
+
+| Action | What it does |
+| --- | --- |
+| `install <name>[@<version>]` | resolve `name` in the registry, check its `hql` requirement, fetch, build and install; `@version` picks an older registry version |
+| `install --path <dir>` | build the crate at `dir` and install it as a path package |
+| `list` | every installed package: name, version, kind, the `hql` it was built against, and whether it loads against this binary |
+| `info <name>` | one package: `package.toml` and the registry entry, with the modules it provides and their declarations' count |
+| `search <text>` | registry entries whose name, modules or description contain `text` |
+| `update [<name>]` | reinstall where the registry has a newer version that this `hql` admits; all installed packages when no name is given |
+| `rebuild [<name>]` | build again from the recorded source against this binary; what an `hql` or toolchain upgrade asks for |
+| `remove <name>` | delete `~/.hql/lib/<name>/` and `~/.hql/src/<name>/` |
+| `registry [--refresh]` | the registry in use: its origin, fetch time and entry count; `--refresh` fetches now |
+
+- Every action prints what it did and nothing it did not: `install`
+  names the folder it wrote, the version and the `hql` it built against.
+- `hql doctor` gains a section listing installed packages and naming each
+  one that does not load, with the reason the load gives.
+- `hql builtins` names the package beside the module for a step an
+  installed package provides, as it names `std`.
+
+## Current state
+
+- The binary registers two descriptors, `std` and `search`, each with
+  `id`, `abi = 1`, an internal origin and `provides`; implementations are
+  keyed by module and declared name, and visibility is per module
+  (issue 0049).
+- `[extensions] import` names builtin modules, or a builtin package, which
+  imports every module it provides.
+- `hql` has no `package` command, no `[packages]` table, nothing under
+  `~/.hql/lib/`, and no public API a crate could implement an extension
+  against.
+
+## Work units
+
+1. Issue 0049: two descriptors with `id`, `abi` and `provides`, and
+   visibility per module.
+2. `hql::ext` and `hql::extension!`; a fixture package under
+   `tests/packages/hello/`.
+3. `package.toml`, discovery, `[packages] paths`, loading and the version
+   check; `install --path`, `list`, `info`, `remove`, `rebuild`.
+4. The registry file, its fetch and cache; `install <name>`, `search`,
+   `update`, `registry`.
+5. `hql doctor` and `hql builtins` report packages.
+6. Chapter 13 documents `[packages]` and `hql package`; the book's
+   Part IV gains the chapter on declarations and extensions.

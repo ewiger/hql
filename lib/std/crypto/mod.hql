@@ -1,7 +1,7 @@
 // Not in the prelude: a program writes `import crypto`. Every declaration is
 // external: the `std` extension implements it.
 //
-// See doc/proposals/HQL-0053/README.md and its parts 2 to 4.
+// See doc/proposals/HQL-0053/index.hmd and its parts 2 to 4.
 
 /// Keys, signatures, MACs, password hashes and encryption. An algorithm and
 /// a key format are each named by a type, as a format is:

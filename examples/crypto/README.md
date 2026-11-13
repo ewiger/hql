@@ -1,7 +1,7 @@
 # Crypto: bytes, keys, signatures, encryption and key vaults
 
-The cases follow [HQL-0053](../../doc/proposals/HQL-0053/README.md), and the
-key vault cases [HQL-0054](../../doc/proposals/HQL-0054/README.md). A case
+The cases follow [HQL-0053](../../doc/proposals/HQL-0053/index.hmd), and the
+key vault cases [HQL-0054](../../doc/proposals/HQL-0054/index.hmd). A case
 at `status: proposed` is written ahead of its implementation, and the
 harness asserts that it does not check yet.
 

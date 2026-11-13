@@ -1,0 +1,11 @@
+<!-- hql reference: std/io/fs.entry -->
+# `entry`
+
+In [`std/io/fs`](index.hmd).
+
+```hql
+effectful fn entry(self: Path) : Option<Entry>
+```
+
+The `Entry` at `self`, `some(Entry)`, or `none` where nothing is there.
+<!-- hql reference: end -->

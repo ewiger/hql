@@ -1,7 +1,5 @@
 ---
 tags: [hql, functions, design]
-nav:
-  visibility: public
 ---
 # HQL pipes
 
@@ -84,11 +82,11 @@ markdown
 the way any constructor is. `text`, `markdown`, `json` and the other
 format-named steps are shorthands of `format`, each writing its input in one
 [[hql/presentation|presentation format]]
-([HQL-0017](../../../proposals/HQL-0017/README.md)). The rule and its list are owned
-by [HQL-0015](../../../proposals/HQL-0015/README.md).
+([[HQL-0017]]). The rule and its list are owned
+by [[HQL-0015]].
 
 `xs | fork { a = …, b = … }` is broadcast fan-out
-([HQL-0037](../../../proposals/HQL-0037/README.md)): every branch is a pipeline
+([[HQL-0037]]): every branch is a pipeline
 over the same input, the input is evaluated once, and the step's value is the
 record of the branches' results, `{a: A, b: B}`, each field typed by its own
 branch. `{ a, b } = xs | fork { … }` binds the branches by name, and
@@ -96,7 +94,7 @@ branch. `{ a, b } = xs | fork { … }` binds the branches by name, and
 upstream's order. Branches are separated by a line break or a comma; a branch
 continues over lines that open with `|`.
 
-**Fan-in** joins flows ([HQL-0037](../../../proposals/HQL-0037/README.md)).
+**Fan-in** joins flows ([[HQL-0037]]).
 `a | merge(b)` over two streams takes one value from each in turn, skipping
 one that has ended, each keeping its own order; over two maps it is the map
 combiner, a later key winning. `a | zip(b)` pairs two streams by position and
@@ -106,7 +104,7 @@ ends with the shorter, and `a | concat(b)` produces one and then the other.
 function type selects.
 
 `xs | partition(by = f)` redistributes values by key
-([HQL-0036](../../../proposals/HQL-0036/README.md)): its type is its input's, a
+([[HQL-0036]]): its type is its input's, a
 `Seq` or `Stream`, each value appears once, and the values of one key are in
 one logical partition. It is a stage boundary in a plan. The local backend
 holds every partition on one worker and passes the values on in their order.
@@ -152,9 +150,9 @@ cannot be assumed associative. Sorting and whole-collection operations may
 require coordination or materialization. Effects must not be reordered or
 duplicated merely because they appear in a pipeline.
 
-[HQL-0004](../../../proposals/HQL-0004/README.md) gives this freedom a shape.
+[[HQL-0004]] gives this freedom a shape.
 `x | f(a)` is typed as `f(x, a)` and lowers to a step the executor still sees.
-[HQL-0005](../../../proposals/HQL-0005/README.md) gives each word one meaning:
+[[HQL-0005]] gives each word one meaning:
 
 ```text
 Pipeline      ordered logical program: a maximal chain of steps joined by |
@@ -187,7 +185,7 @@ The declaration states it before `fn`, as `effectful` states purity:
 extension whose own marking differs, and `hql builtins` prints purity and shape
 for every step. A `reduce` whose `by` names a combiner directly,
 `reduce(0, +)`, is a reduction, because the host states that combiner's laws
-([HQL-0014](../../../proposals/HQL-0014/README.md)); with a lambda it stays a
+([[HQL-0014]]); with a lambda it stays a
 barrier, since nothing is known about the lambda. The combiners and their laws
 are listed by `hql builtins` too. An aggregation whose state is not its
 element — `average`, `variance`, `count_by`, `histogram`, `top_k`,
@@ -273,7 +271,7 @@ line 6: [412, 280, 310]
 ```
 
 A step that splits or joins the dataflow graph names its **topology** after
-its purity ([HQL-0037](../../../proposals/HQL-0037/README.md)): `fork` and
+its purity ([[HQL-0037]]): `fork` and
 `tee` are `fan-out`, and their branches are listed beneath them, each by its
 name, as the stages that read the step's input; `merge`, `zip`, `concat` and
 the joins are `fan-in`. A `fork` followed by `partition` is two steps, a

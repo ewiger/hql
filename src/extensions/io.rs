@@ -5,7 +5,7 @@
 //! documents. Which operation is used says whether the documents are held
 //! (`source`, `target`) or taken one at a time (`tap`, `sink`); which endpoint
 //! says whether a file is replaced or appended to. The I/O itself is in
-//! [`crate::io`]. See [HQL-0021](../../doc/proposals/HQL-0021/README.md).
+//! [`crate::io`]. See [HQL-0021](../../doc/proposals/HQL-0021/index.hmd).
 
 use super::Signature;
 use super::spec::{

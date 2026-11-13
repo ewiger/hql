@@ -1,0 +1,248 @@
+# HQL-0048: I/O transport namespaces and packaging
+
+**Status**: implemented in part
+**Created**: 2026-11-12
+**Source**: [[HQL-0047]] (transports),
+[[HQL-0021]] (`io`, `io.net`, `io.logging`),
+[[HQL-0012]] (source kinds and their contracts),
+[[HQL-0046]] (Kafka and PostgreSQL),
+[[HQL-0040]] (`io.fs`),
+[[01-modules|HQL-0024, modules]],
+[[02-imports|imports]] and
+[[09-packages-and-extensions|packages and extensions]],
+[[status/packages|packages]], `lib/std/io/`, `src/endpoints.rs`
+
+## Abstract
+
+The transports of the `std` package are declared in four families of modules
+below `io`: `io.net` for network protocols, `io.db` for databases, `io.msg`
+for message brokers and `io.store` for remote object and file stores. A
+family is a namespace and declares nothing; each system is one module,
+`io.db.postgres`, declaring its transport type and constructor. `io`,
+`io.net` and `io.logging` keep their contents and their imports. The kinds
+`sqlite`, `postgres`, `spark`, `kafka` and `nats` gain the modules
+`io.db.sqlite`, `io.db.postgres`, `io.db.spark`, `io.msg.kafka` and
+`io.msg.nats` with no change in behaviour. Every module below `io` is a
+module of the one `std` package, which the binary carries: a connector is a
+module, never a package of its own. Every other system named here is design
+direction, and is a `std` module once written.
+
+## Motivation
+
+- The binary reaches eight systems besides files, and they are organized
+  two ways: `http`, `websocket` and `tcp` are constructors of `io.net`,
+  while `sqlite`, `postgres`, `spark`, `kafka` and `nats` are rows of a
+  table in `src/endpoints.rs` with no module, no type and no reference page.
+- [[HQL-0047]] gives every kind a transport type and a
+  constructor. Each needs a module to be declared in.
+- Connectors for further databases, brokers and stores need a place whose
+  name is settled before the first one is written.
+
+## Non-goals
+
+- A package manager, a module loader or an extension ABI. Modules are
+  resolved, loaded and bound by the rules of
+  [[HQL-0024]] as they stand.
+- Operations other than `source`, `tap`, `target` and `sink`. No `connect`,
+  `consume` or `publish`.
+- Namespaces for execution backends.
+- Renaming an existing module, type, kind or configuration key. The one
+  constructor renamed, `socket` to `tcp`, is in
+  [[HQL-0047]].
+
+## Specification
+
+### 1. Families
+
+A family is a module path below `io` that groups transports by the system
+they reach.
+
+| Family | Holds | Carriage, typically |
+| --- | --- | --- |
+| `io.net` | network protocols | bytes, messages |
+| `io.db` | databases and queryable stores | rows |
+| `io.msg` | message brokers, queues and event streams | messages |
+| `io.store` | remote object and file stores | bytes, by key |
+
+- `io.db`, `io.msg` and `io.store` MUST declare nothing. A family is not a
+  contract: what a transport can do is stated by the supertypes of
+  [[HQL-0047]] and the source contracts of
+  [[HQL-0012]], `FiniteSource`, `KeyedSource`,
+  `LiveSource`, `Catalog` and `DataTarget`, and by nothing a family adds.
+- A transport MAY provide any subset of the four operations, stated by its
+  capabilities. A topic is not `Replayable`; a table is.
+- `io.logging` is not a family. It declares loggers, which write to any
+  `Writable`.
+- The local file system is not in `io.store`. `file` and `Path` are declared
+  in `io`, and listing in `io.fs` ([[HQL-0040]]). HQL
+  has no re-export, so one declaration has one module.
+
+### 2. Modules
+
+Each system is one module, and the module declares the transport.
+
+```text
+io                    endpoints, channels, sources, targets, file   the prelude
+├── net               http, websocket, tcp,                        import net
+│                     rest, graphql, webhook
+├── fs                folders, globs, entries (HQL-0040)           import io.fs
+├── logging           loggers                                      import logging
+├── db
+│   ├── sqlite        Sqlite, sqlite(...)                          import io.db.sqlite
+│   ├── postgres      Postgres, postgres(...)                      import io.db.postgres
+│   └── spark         Spark, spark(...)                            import io.db.spark
+└── msg
+    ├── kafka         Kafka, kafka(...)                            import io.msg.kafka
+    ├── nats          Nats, nats(...)                              import io.msg.nats
+    └── nats_jetstream  NatsJetStream, nats_jetstream(...)         import io.msg.nats_jetstream
+```
+
+- A module below `io.db`, `io.msg` or `io.store` MUST be named for its
+  system in lowercase `snake_case`, and MUST declare one transport type, in
+  `PascalCase`, and one constructor of the module's name.
+- `io.net` stays one module declaring `http`, `websocket` and `tcp`. A
+  protocol or an API style over HTTP added to it is a constructor in it:
+  `rest`, `graphql` and `webhook`
+  ([[HQL-0047]], "REST, GraphQL and webhooks") are
+  three, in scope after `import net`. The TCP constructor is
+  `tcp`, renamed from `socket` by [[HQL-0047]].
+- A module is at `lib/std/io/<family>/<system>/mod.hql` and imports `core`
+  and `io`.
+- A program imports a module by its full path, `import io.db.postgres`,
+  which binds it under its final segment. `import net` and `import logging`
+  keep resolving as they do; no other short form is added.
+- None of the modules is in the prelude, so a program that reaches a
+  database or a broker by a constructor says so in its imports. A configured
+  id needs no import: `source("orders")` names configuration, and the
+  configuration names the kind.
+
+### 3. Kinds
+
+A configured kind is named by its module.
+
+- The `kind` of `[endpoint.<id>]` MUST be the final segment of the module
+  that declares its transport: `sqlite`, `postgres`, `spark`, `kafka`,
+  `nats`. The existing kinds keep their names and keys.
+- A kind is provided by the extension that provides its module, as
+  [[HQL-0012]] states: the `std` extension, in the
+  table `KINDS` of `src/endpoints.rs`.
+- Two modules whose final segments are equal MUST NOT both provide a kind.
+
+### 4. One package, many modules
+
+A package is the distribution unit and a module the name a program imports;
+one package provides any number of modules
+([[status/packages|packages]]).
+
+- `io` and every module below it MUST be modules of the `std` package. A
+  transport is added to HQL by adding a module to `std`, with its
+  implementation in the `std` extension, compiled into the binary.
+- No transport named in this record is a package. PostgreSQL is the module
+  `io.db.postgres` of `std`, as `http` is a constructor of `io.net`.
+- One system MAY be several modules. Redis is `io.db.redis` and
+  `io.msg.redis_streams`, both in `std`.
+- A system that speaks another system's protocol is that system's transport
+  with a different address. MinIO and Ceph are reached by the S3 transport.
+- An installed package MUST NOT declare a module below `io`: it owns a
+  top-level namespace of its own
+  ([[09-packages-and-extensions|HQL-0024, packages and extensions]],
+  "Namespace ownership"). Installed packages are for what `std` does not
+  carry, a proprietary or in-house system, and none can be installed today.
+- The default build carries every `std` transport. A build MAY compile a
+  family out by a Cargo feature; the modules of that family are then absent
+  from the registry, and importing one is the name error for an unknown
+  module.
+
+### 5. What `std` carries
+
+| Module | Status |
+| --- | --- |
+| `io.net`: `http`, `websocket`, `tcp` | implemented |
+| `io.db.sqlite`, `io.db.postgres`, `io.db.spark`, `io.msg.nats`, `io.msg.nats_jetstream` | implemented, as kinds and as modules |
+| `io.msg.kafka` | implemented as a kind; the module by this record |
+| `io.net`: `rest`, `graphql`, `webhook` | specified by [HQL-0047](../HQL-0047/index.hmd); not implemented |
+| `io.net`: `grpc`, `feed` | design direction |
+| `io.db`: `redis`, `couchdb`, `mongodb`, `clickhouse`, `duckdb`, `cassandra`, `opensearch`, `neo4j` | design direction |
+| `io.msg`: `rabbitmq`, `pulsar`, `redis_streams`, `artemis`, `mqtt`, `rocketmq`, `nsq`, `zeromq`, `sqs`, `azure_service_bus` | design direction |
+| `io.store`: `s3`, `azure_blob`, `adls`, `gcs`, `sftp`, `hdfs` | design direction |
+
+- A row marked design direction reserves a module name in `std` and nothing
+  else.
+
+### 6. What is not a transport
+
+- An **execution backend** runs a checked program
+  ([[HQL-0004]],
+  [[HQL-0036]]). Spark, Flink and Databricks as places
+  a pipeline runs are backends, selected by host configuration, and have no
+  module below `io`. A SQL endpoint of the same product is a database and
+  belongs in `io.db`: the `spark` kind is one table reached over Spark SQL,
+  on a Databricks warehouse or a Spark Thrift Server, and runs no pipeline.
+- A **format** decodes and encodes documents. Parquet is a format
+  ([[0029-binary-formats-and-codecs|issue 0029]]).
+- A **table format**, Delta Lake or Apache Iceberg, is a source kind over a
+  store: metadata and transactions on top of objects. It is declared as a
+  kind of [[HQL-0012]], reads through an `io.store`
+  transport, and is not one.
+
+## Backwards Compatibility
+
+- `import net`, `import logging`, every endpoint constructor but `socket`,
+  renamed `tcp`, and every
+  `hql.toml` in use keep working unchanged.
+- The new modules add names that exist nowhere today. A program that binds
+  its own `postgres` or `kafka` shadows nothing until it imports the module.
+
+## Security Considerations
+
+- A program that constructs a network transport names its module in an
+  import, so the systems a program may reach are in its first lines or in
+  the configuration it runs under.
+- An installed package cannot place a module below `io`, so a module there
+  is one `std` declares and the binary carries.
+
+## Deployment / Activation
+
+1. A `mod.hql` for each of `io.db.sqlite`, `io.db.postgres`, `io.db.spark`,
+   `io.msg.kafka` and `io.msg.nats`, with the types and constructors of
+   [[HQL-0047]]; the `std` descriptor provides them.
+2. Each constructor resolves to the reader and writer its kind has in
+   `src/postgres.rs`, `src/spark.rs`, `src/kafka.rs`, `src/nats.rs` and
+   `src/endpoints.rs`. No runtime
+   behaviour changes.
+3. Reference pages for the modules, and their rows in
+   [[status/packages|packages]].
+4. A further transport is added by its own issue, under the name this record
+   reserves.
+
+## Reference Implementation
+
+- `lib/std/io/db/`, `lib/std/io/msg/` for the contracts.
+- `src/extensions/mod.rs` for `provides`, and a source module per family for
+  the constructors.
+- `src/endpoints.rs`: `KINDS` gains the module each kind belongs to.
+- `doc/public/reference/std/io/` for the pages.
+
+## Test Plan
+
+- An import of each new module checks, and each constructor without its import is the name error naming
+  the import.
+- A constructed transport and a configured id over one table give the same
+  rows, and over one topic the same messages.
+- Binding cross-checks the new contracts against the `std` descriptor.
+- Every configuration of `tests/topics_and_tables.rs` and
+  `tests/subjects_and_lakehouse_tables.rs` passes unchanged.
+
+```bash
+cargo test
+../hql-demo/run-all.sh
+```
+
+## Changelog
+
+- 2026-11-12: drafted
+- 2026-11-13: implemented in part: `io.db.sqlite`, `io.db.postgres`,
+  `io.db.spark`, `io.msg.nats` and `io.msg.nats_jetstream` are modules, each
+  declaring its transport type and constructor. Not built: `io.msg.kafka`,
+  and the modules marked design direction
+  ([[0069-transports-core|issue 0069]])

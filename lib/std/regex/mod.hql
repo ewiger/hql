@@ -1,7 +1,7 @@
 // Imported where it is used, since a pattern language is a domain of its
 // own. Every declaration is external: the `std` extension implements it.
 //
-// See doc/proposals/HQL-0024/parts/03-standard-library.md.
+// See doc/proposals/HQL-0024/parts/03-standard-library.hmd.
 
 /// Text matched against a regular expression. A pattern is a `String`; one
 /// that does not parse is an evaluation error at the call. The module is

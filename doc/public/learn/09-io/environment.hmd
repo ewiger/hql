@@ -1,0 +1,200 @@
+# Environment and arguments
+
+The `io.env` module reads the invocation that runs a program: its
+**environment variables** and its **arguments**, the `--arg name=value` pairs
+of the command line. A program imports it, `import io.env`, and reaches it as
+`env`. Each operation reads a value fixed for the whole evaluation, so a
+program that reads the same name twice reads the same value.
+
+## Arguments
+
+`env.arg(name)` is the value of the invocation's `--arg name=value`, an
+`Option<String>`: `some` of the text, or `none` where no `--arg` names it.
+This program runs as `hql --arg species=wren eval '…'`:
+
+<!-- run: --arg species=wren -->
+```hql
+import io.env
+
+[env.arg("species"), env.arg("limit")]
+```
+
+```text
+["wren", none]
+```
+
+`env.args()` is every pair of the invocation, a `Map<String, String>` by
+name:
+
+<!-- run: --arg species=wren --arg limit=20 -->
+```hql
+import io.env
+
+env.args()
+```
+
+```text
+Map {"limit": "20", "species": "wren"}
+```
+
+A name is a lowercase letter or `_`, then lowercase letters, digits and `_`;
+the value is the text after the first `=`, and may be empty. A malformed name
+and a name given twice are invocation errors, reported before evaluation
+starts:
+
+```text
+$ hql --arg species=wren --arg species=owl eval '1'
+error: --arg species is given twice: each argument is named once
+
+Usage: hql [OPTIONS] <COMMAND>
+
+For more information, try '--help'.
+```
+
+## Missing values and conversion
+
+An argument the invocation does not pass is `none`, and the program supplies
+its default:
+
+```hql
+import io.env
+
+env.arg("species") | unwrap_or("owl")
+```
+
+```text
+"owl"
+```
+
+An argument is text. A program converts it as it converts any text.
+`to_int` is `none` for text that is not an integer, and `and_then` passes
+that `none` on, so one default covers both a missing argument and a malformed
+one:
+
+<!-- run: --arg limit=20 -->
+```hql
+import io.env
+
+limit = env.arg("limit") | and_then(s => s.to_int()) | unwrap_or(10)
+limit * 2
+```
+
+```text
+40
+```
+
+<!-- run: --arg limit=twenty -->
+```hql
+import io.env
+
+env.arg("limit") | and_then(s => s.to_int()) | unwrap_or(10)
+```
+
+```text
+10
+```
+
+## Environment variables
+
+`env.var(name)` is the value of the environment variable `name`, an
+`Option<String>`, and `env.vars()` is every variable the program may read, a
+`Map<String, String>` by name. A variable that is unset reads as `none`:
+
+```hql
+import io.env
+
+env.var("HQL_BOOK_NEVER_SET") | unwrap_or("anonymous")
+```
+
+```text
+"anonymous"
+```
+
+`env.vars() | get(name)` is the same lookup in the map. A variable whose value
+is not UTF-8 reads as `none` too, and is absent from `vars()`.
+
+`io.env` is not in the prelude. Without the import, `var` is an unknown name,
+reported before the program runs:
+
+```hql
+var("HOME")
+```
+
+```text
+check error[unknown-name]: `var` is declared in the module `io.env`: write `import io.env`
+ --> <expression>:1:1
+  |
+1 | var("HOME")
+  | ^^^^^^^^^^^
+```
+
+## What a host grants
+
+Every operation of `io.env` is effectful, and `hql check` reports a function
+that uses one:
+
+<!-- run: check -->
+```hql
+import io.env
+
+fn limit() : Int = env.arg("limit") | and_then(s => s.to_int()) | unwrap_or(10)
+limit()
+```
+
+```text
+limit is Effectful: it uses `arg`
+Int
+```
+
+Arguments are always granted: the invocation wrote them. The environment is
+read through a **grant** the host fixes before evaluation:
+
+| Host | Variables granted |
+| --- | --- |
+| `hql eval`, `hql run`, `hql repl` | every variable, or the names `env = [...]` lists in the workspace's `hql.toml` |
+| `hql render` | none |
+
+In `hql.toml`, `env` is a list of names and `PREFIX_*` patterns, a `*`
+matching any suffix:
+
+```toml
+env = ["SHOP_*"]
+```
+
+A variable outside the grant reads as `none`. A withheld variable and an
+unset one are indistinguishable, so a program cannot tell which names exist
+beyond its grant. In that workspace, with `SHOP_REGION` set:
+
+```text
+$ cat region.hql
+import io.env
+
+[env.var("SHOP_REGION"), env.var("HOME")]
+
+$ SHOP_REGION=eu hql run region.hql
+["eu", none]
+```
+
+A rendered document reads no variable, so its output depends on nothing in
+the renderer's environment and discloses nothing of it. It reads its
+arguments as any program does ([[hosts|effects and what a host allows]]):
+
+````markdown
+# Notes
+
+```hql
+import io.env
+[env.var("SHOP_REGION"), env.arg("who")]
+```
+````
+
+```text
+$ SHOP_REGION=eu hql --arg who=owl render notes.hmd
+# Notes
+
+- none
+- owl
+```
+
+The [[env|reference]] states each operation of
+`io.env`.

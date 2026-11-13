@@ -1,6 +1,6 @@
 // Provided by the `std` extension.
 //
-// See doc/proposals/HQL-0051/README.md.
+// See doc/proposals/HQL-0051/index.hmd.
 
 /// The control calls of a transaction scope's handle, `tx`, bound by
 /// `with transaction tx on participants { … }` (module `io`): each ends the

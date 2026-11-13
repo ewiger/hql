@@ -1,6 +1,6 @@
 // Every declaration is external: the `std` extension implements it.
 //
-// See doc/proposals/HQL-0041/parts/04-random.md.
+// See doc/proposals/HQL-0041/parts/04-random.hmd.
 
 /// Randomness: samples, shuffles, choices, numbers and UUIDs. Each draw has
 /// two forms. With a `seed` argument it is pure: its result is a function of

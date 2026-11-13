@@ -1,7 +1,5 @@
 ---
 tags: [hql, cards, knowledge, type-system, hypermarkdown]
-nav:
-  visibility: public
 ---
 # Card
 
@@ -48,7 +46,7 @@ card.metadata.knowledge.type : KnowledgeKind   // Concept | Relation
 A card that declares nothing is a concept card. `knowledge.type == Relation`
 makes it a relation card, and — like every refinement — the entry is an author's
 claim that has to be checked against a contract rather than trusted. See
-[[hql/knowledge]] and the [knowledge model](../../../models/domain/knowledge.md)
+[[hql/knowledge]] and the [[domain/knowledge|knowledge model]]
 for what each kind does.
 
 ## A card is a document that knows where it is
@@ -87,9 +85,9 @@ and configuring it later changes behaviour rather than granting it. The
 directory is not optional in the same way: without it there is no root to
 discover, nowhere for vault state to live, and no semantic index, which is why
 working with `.hmd` cards outside one fails
-[semantic search](../semantic-search.hmd) first and more afterwards. The
+[[semantic-search|semantic search]] first and more afterwards. The
 requirements state the chain in full — see
-[semantic search](../../../models/requirements/semantic-search.md).
+[[requirements/semantic-search|semantic search]].
 
 ## A card is a knowledge participant
 

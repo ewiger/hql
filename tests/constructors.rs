@@ -1,6 +1,6 @@
 //! A type's constructor is an operation: declared in HQL beside its type,
 //! called or piped, selected by its first argument, and passed as a value.
-//! See doc/proposals/HQL-0018/README.md.
+//! See doc/proposals/HQL-0018/index.hmd.
 
 use hql::{check, eval};
 

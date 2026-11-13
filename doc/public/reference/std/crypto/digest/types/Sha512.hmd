@@ -1,0 +1,11 @@
+<!-- hql reference: std/crypto/digest.Sha512 -->
+# `Sha512`
+
+In [`std/crypto/digest`](../index.hmd).
+
+```hql
+type Sha512 : Algorithm
+```
+
+A cryptographic hash function.
+<!-- hql reference: end -->

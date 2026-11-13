@@ -1,7 +1,7 @@
 // Provided by the `std` extension.
 //
-// See doc/proposals/HQL-0047/README.md, doc/proposals/HQL-0048/README.md,
-// doc/proposals/HQL-0049/README.md and doc/proposals/HQL-0051/README.md.
+// See doc/proposals/HQL-0047/index.hmd, doc/proposals/HQL-0048/index.hmd,
+// doc/proposals/HQL-0049/index.hmd and doc/proposals/HQL-0051/index.hmd.
 
 /// Spark SQL: one table behind a Spark SQL endpoint, a Databricks SQL
 /// warehouse or a Spark Thrift Server, as a transport read by `source` and

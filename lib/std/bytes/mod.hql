@@ -1,6 +1,6 @@
 // Every declaration here is external: the `std` extension implements it.
 //
-// See doc/proposals/HQL-0053/parts/01-bytes.md.
+// See doc/proposals/HQL-0053/parts/01-bytes.hmd.
 
 /// The functions of a `Bytes` value, in the prelude. A receiver module:
 /// `b.size()`, `bytes.size(b)` and `b | size` are one declaration. `Bytes`

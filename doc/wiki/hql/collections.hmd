@@ -1,7 +1,5 @@
 ---
 tags: [hql, collections, design]
-nav:
-  visibility: public
 ---
 # HQL collections
 
@@ -19,7 +17,7 @@ and concrete carriers. The types are declared in `lib/std/core/mod.hql`, since `
 Sets deduplicate using HQL equality, and cards compare by document identity.
 Maps reject duplicate keys and return `Option<V>` for lookup. `OrderedMap`
 preserves key positions; `SortedMap` orders those positions by intrinsic key
-order. See the [collection model](types/collections/collection-types.md) for
+order. See the [[collection-types|collection model]] for
 the hierarchy and contracts.
 
 ## Cards are a sequence

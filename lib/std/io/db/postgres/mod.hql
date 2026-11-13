@@ -1,7 +1,7 @@
 // Provided by the `std` extension.
 //
-// See doc/proposals/HQL-0047/README.md, doc/proposals/HQL-0048/README.md and
-// doc/proposals/HQL-0051/README.md.
+// See doc/proposals/HQL-0047/index.hmd, doc/proposals/HQL-0048/index.hmd and
+// doc/proposals/HQL-0051/index.hmd.
 
 /// PostgreSQL: one table of a database, as a transport read by `source` and
 /// `tap` and written by `target` like any other endpoint (module `io`). The

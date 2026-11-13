@@ -1,7 +1,5 @@
 ---
 tags: [hql, search, retrieval, knowledge, memory]
-nav:
-  visibility: public
 ---
 # Semantic search
 
@@ -164,5 +162,5 @@ unchanged.
   co-retrieval into derived relations, and eviction. A score may *propose* that
   two concepts are the same and may never *decide* it.
 
-See the [semantic-search requirements](../../models/requirements/semantic-search.md) for the
+See the [[requirements/semantic-search|semantic-search requirements]] for the
 staged implementation path and the full set of open questions.

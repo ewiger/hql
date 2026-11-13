@@ -1,7 +1,7 @@
 # Generic traits: type parameters on `trait` and `impl`
 
 Pure programs, no vault. Each case pins the type and result
-[HQL-0027](../../doc/proposals/HQL-0027/README.md) specifies, and checks
+[HQL-0027](../../doc/proposals/HQL-0027/index.hmd) specifies, and checks
 today. From the repository root:
 
 ```sh

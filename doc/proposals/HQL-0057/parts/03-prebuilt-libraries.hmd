@@ -1,0 +1,170 @@
+# Part 3: Prebuilt libraries, and building from source as the fallback
+
+- **Source**: [[01-packages|part 1]]
+- **Depends on**: part 1; the release workflow, `.github/workflows/release.yml`
+- **Needed by**: nothing yet
+
+## Scope
+
+A later stage of part 1. Under `abi = 1` a library loads only into the
+`hql` version and `rustc` it was built with. Part 1 meets that by building
+every package on the user's machine. This part keeps that build and adds a
+faster path in front of it: for each `hql` release, the `hql-extensions`
+repository publishes the official packages already built with that release's
+toolchain, for that release's targets. `hql package install` uses a matching
+prebuilt library when one exists. When none exists, it falls back to fetching
+the sources and building them with `cargo`. `hql package build` always
+builds from source.
+
+The pinning rule of part 1 is unchanged. A prebuilt library is accepted on
+the same terms as one built locally: its `package.toml` names this `hql`,
+this `rustc` and this target.
+
+## Rules
+
+### 1. One toolchain per `hql` release
+
+- The release workflow MUST build `hql` with an exact `rustc` version, not
+  the floating `stable` channel. That version is the `rustc` the binary
+  records, and the one prebuilt libraries for that release are built with.
+- A prebuilt library exists only for a target that the release itself ships:
+  today `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and
+  `x86_64-apple-darwin`.
+
+### 2. Publishing
+
+- When `hql` `X.Y.Z` is released, the release workflow triggers a build in
+  `hql-extensions`. That build compiles every official package whose
+  registry `hql` requirement admits `X.Y.Z`, at its registry version, with
+  the `hql` dependency patched to `=X.Y.Z`, as part 1 does on a user's
+  machine.
+- The build publishes one GitHub release of `hql-extensions` per `hql`
+  release, tagged `hql-vX.Y.Z`. For each package and target, it holds one
+  archive, `hql-ext-<name>-<version>-<target>.tar.gz`, laid out as the
+  installed folder of part 1 (`package.toml`, `modules/` and the library),
+  and one index, `prebuilt.yaml`:
+
+```yaml
+prebuilt: 1                     # the format of this file
+hql: 0.7.0
+rustc: "1.95.0 (abcdef123 2026-10-01)"
+packages:
+  - name: ml
+    version: 0.1.0
+    target: aarch64-apple-darwin
+    archive: hql-ext-ml-0.1.0-aarch64-apple-darwin.tar.gz
+    sha256: 9f2c...
+```
+
+- Only official packages are prebuilt. A known package comes from a crate
+  outside the repository and is always built on the machine. A path
+  package is always built on the machine.
+- A package that fails to build for one target is missing from the index
+  for that target. The release is still published.
+
+### 3. Installing
+
+`hql package install <name>` resolves the registry entry as part 1 does, then:
+
+1. It fetches `prebuilt.yaml` from the release `hql-v<running version>`.
+2. If the index has the entry's name and version for the running target,
+   and its `hql` and `rustc` equal the binary's, `install` downloads the
+   archive, checks its `sha256` against the index, unpacks it into
+   `~/.hql/lib/<name>/`, and records the origin in `package.toml`:
+
+```toml
+[source]
+kind = "official"
+tag = "hql-ext-ml-v0.1.0"
+prebuilt = "hql-v0.7.0"         # the release the archive came from
+```
+
+3. Otherwise, or when the release, the index or the archive cannot be
+   fetched, `install` builds from source exactly as part 1 describes. It
+   names the reason first:
+
+```text
+no prebuilt `ml` 0.1.0 for hql 0.7.1 on aarch64-apple-darwin; building from source
+```
+
+4. When the fallback needs `cargo` and there is none, `install` refuses with
+   the reason from step 3 and the message naming `rustup` from part 1.
+
+- An archive whose checksum does not match is refused and never unpacked.
+  `install` does not fall back to source after a checksum mismatch. It
+  reports the mismatch and stops, because a mismatch is not a missing
+  artifact.
+- Loading is unchanged. Discovery compares `[build] hql` and `[build] rustc`
+  with the binary and refuses on a difference, wherever the library came
+  from.
+
+### 4. `hql package build`
+
+`hql package build <name>[@<version>]` installs a package by building it
+from source, whether or not a prebuilt library exists. It is `install`
+with step 2 skipped.
+
+- `build` is for a user who wants the library compiled on their own
+  machine, and for a target with no prebuilt libraries.
+- `rebuild [<name>]` keeps its meaning from part 1: build again from the
+  recorded source. For a package installed from a prebuilt archive, the
+  recorded source is the registry tag in `[source] tag`, so `rebuild`
+  builds that version from source.
+- `update [<name>]` and the hint printed by a load refusal behave as
+  `install` does: prebuilt first, then source. The hint names
+  `hql package install <name>`. It names `rebuild` only for a known or
+  path package, which has no prebuilt path.
+
+| Action | What it does |
+| --- | --- |
+| `install <name>[@<version>]` | prebuilt library for this `hql` and target when there is one; otherwise fetch the sources and build |
+| `build <name>[@<version>]` | fetch the sources and build, never the prebuilt library |
+| `rebuild [<name>]` | build again from the recorded source against this binary |
+
+### 5. What changes in practice
+
+- A user on a shipped target installs an official package without `cargo`.
+  The first `hql` they install is enough.
+- An `hql` upgrade still invalidates every installed library. For official
+  packages, recovery is a download instead of a compile:
+  `hql package update` after the upgrade fetches the new release's
+  archives.
+- A user on an unshipped target, a user with a different toolchain policy,
+  and every known and path package keep part 1's path unchanged.
+
+## Security considerations
+
+- Part 1 states that `hql package` adds no fetching of its own. With this
+  part, it adds two fetches: the index and the archive, both over HTTPS
+  from releases of `hql-extensions`. The trust is the same as the trust in
+  the registry file and in the `hql` binary itself, which come from the
+  same GitHub organisation.
+- The checksum guards against a corrupted or truncated download. It does
+  not guard against a compromised release, because the index and the
+  archive come from the same release. Signing the index with the key that
+  signs `hql` releases closes that gap, and would be the step that follows
+  this part.
+- A prebuilt library is native code with the rights of the process, the
+  same as one built locally. `hql package build` is the way to avoid
+  running a binary the user did not compile.
+
+## Current state
+
+- `hql package` does not exist yet ([[01-packages#current-state|part 1, current state]]).
+- `rust-toolchain.toml` names `channel = "stable"`, so release builds do not
+  record a fixed `rustc`.
+- `hql-extensions` has no release workflow.
+
+## Work units
+
+1. Pin the exact `rustc` in `rust-toolchain.toml` and have the binary
+   record it (part 1 already needs this for its load check).
+2. The `hql-extensions` workflow triggered by an `hql` release: build the
+   matrix, write `prebuilt.yaml`, publish the `hql-vX.Y.Z` release.
+3. `install`: the prebuilt path, checksum check, fallback with its reason,
+   and `[source] prebuilt` in `package.toml`.
+4. `hql package build`; the load refusal hint names `install` for official
+   packages.
+5. Integration test: a fixture index and archive served from a temporary
+   directory, installed without `cargo` on `PATH`; a checksum mismatch
+   refused; a missing target falling back to source.

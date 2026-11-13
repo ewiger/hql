@@ -1,0 +1,173 @@
+# Part 4: encryption
+
+- **Depends on**: [[HQL-0053|the proposal]] for effects and secret
+  values; [[01-bytes|part 1]] for `Bytes`; [[02-keys|part 2]] for the
+  key types; [[HQL-0021]] for endpoints, `source`,
+  `tap`, `target` and `sink`
+- **Needed by**: [[HQL-0054]], whose `decrypt_with` and
+  `decrypted_with` take a stored identity
+
+## Scope
+
+Authenticated encryption under a shared key, encryption to the public keys
+of recipients, and endpoints that encrypt what a format writes. Python's
+`cryptography.hazmat.primitives.ciphers.aead` and the `age` command line and
+library cover the same ground.
+
+Encryption is two things here, and neither is a `Format`. Over a value it is
+an operation from `Bytes` to `Bytes`. Over an endpoint it is a layer between
+the format and the transport: the format writes a document's octets, the
+layer encrypts them, and the transport stores the result. A format describes
+a representation ([[07-formats-and-codecs|HQL-0024 part 7]]);
+`orders.jsonl.age` is JSON Lines, encrypted.
+
+## Shared-key encryption
+
+```hql
+// lib/std/crypto/mod.hql
+/// The authenticated encryption of `self` under `key`, with `aad` bound to
+/// it and not encrypted: a new 12-octet nonce, then the ciphertext, then the
+/// 16-octet tag.
+effectful fn encrypt<C : Cipher>(self: Bytes, key: SecretKey<C>, *, aad: Bytes = Bytes("")) : Bytes
+/// The encryption of the UTF-8 octets of `self`.
+effectful fn encrypt<C : Cipher>(self: String, key: SecretKey<C>, *, aad: Bytes = Bytes("")) : Bytes
+/// The plaintext of `self` under `key` and `aad`, or `none` where `self` is
+/// not an encryption of anything under them.
+fn decrypt<C : Cipher>(self: Bytes, key: SecretKey<C>, *, aad: Bytes = Bytes("")) : Option<Bytes>
+```
+
+```text
+nonce (12 octets) || ciphertext (len(plaintext) octets) || tag (16 octets)
+```
+
+- `encrypt` MUST draw the nonce from the host generator on every call.
+  Encryptions of one plaintext under one key therefore differ.
+- `decrypt` MUST give `none` for input shorter than 28 octets, a changed
+  octet anywhere, a wrong key and a wrong `aad`, and MUST NOT give any
+  plaintext before the tag is checked.
+- The reference page of `encrypt` MUST state the bound of 2^32 encryptions
+  per key under random nonces, for both ciphers.
+
+## Encryption to recipients
+
+A message for a public key is an age v1 file: a header with one stanza per
+recipient, then the payload in 64 KiB chunks under ChaCha20-Poly1305
+(age-encryption.org/v1). The `age` command line reads and writes the same
+octets.
+
+```hql
+/// The age encryption of `self` to every key of `recipients`: any one of
+/// their private keys decrypts it.
+effectful fn encrypt_to(self: Bytes, recipients: List<PublicKey<X25519>>) : Bytes
+effectful fn encrypt_to(self: String, recipients: List<PublicKey<X25519>>) : Bytes
+/// The plaintext of the age message `self` for `identity`, or `none` where
+/// it is not a message to that key or has been changed.
+fn decrypt_with(self: Bytes, identity: PrivateKey<X25519>) : Option<Bytes>
+
+/// The age encryption of `self` under a passphrase, by age's scrypt
+/// recipient with work factor 18.
+effectful fn encrypt_with_passphrase(self: Bytes, passphrase: String) : Bytes
+fn decrypt_with_passphrase(self: Bytes, passphrase: String) : Option<Bytes>
+
+/// The ASCII armor of an age message: `-----BEGIN AGE ENCRYPTED FILE-----`.
+fn armor(self: Bytes) : String
+/// The age message an armored text holds, or `none`.
+fn unarmor(self: String) : Option<Bytes>
+```
+
+- `recipients` MUST NOT be empty; an empty list is an evaluation error.
+- `decrypt_with_passphrase` MUST refuse a scrypt work factor above 22 as
+  an evaluation error, so a message cannot make a reader spend unbounded
+  memory and time.
+- An `ssh-ed25519` recipient line is not a recipient here. A program that
+  holds an SSH key and wants age encryption generates an `X25519` pair.
+
+## Encrypted endpoints
+
+```hql
+/// An endpoint whose writes are age-encrypted to `recipients` and stored in
+/// `endpoint`.
+type EncryptedEnd : Writable
+fn encrypted_to(endpoint: Writable, recipients: List<PublicKey<X25519>>) : EncryptedEnd
+
+/// An endpoint whose contents are those of `endpoint`, age-decrypted with
+/// `identity`.
+type DecryptedEnd : Replayable
+type DecryptedLive : Readable
+fn decrypted_with(endpoint: Replayable, identity: PrivateKey<X25519>) : DecryptedEnd
+fn decrypted_with(endpoint: Readable, identity: PrivateKey<X25519>) : DecryptedLive
+```
+
+- The constructors MUST be `Pure`, as every endpoint constructor is; a
+  `target`, `sink`, `source` or `tap` over one is the effect.
+- When the format is omitted, a literal path ending in `.age` MUST imply the
+  format of the path without `.age`: `file("orders.jsonl.age")` under either
+  wrapper is `JsonLines`.
+- `target` over an `EncryptedEnd` MUST write one age file, replacing the
+  file atomically as HQL-0021 has it for every file. `sink` MUST encrypt
+  each chunk as it fills and write the last chunk when the stream ends; an
+  interrupted `sink` leaves the file it replaced.
+- `encrypted_to(file(p).end, …)` MUST be a check error. An age file is one
+  header and one stream of chunks, and nothing is appended to it.
+- `source` over a `DecryptedEnd` MUST authenticate every chunk before it
+  gives any document. `tap` over either MUST give the documents of a chunk
+  once that chunk is authenticated; a chunk that fails, or a file that ends
+  without its final chunk, ends the stream with an evaluation error naming
+  the endpoint and the octet offset of the chunk.
+- An identity that opens no stanza of the header MUST be an evaluation
+  error naming the endpoint and the stanza types the header holds, never a
+  key.
+- The wrappers apply to byte endpoints. `decrypted_with` reads a file,
+  standard input or an HTTP resource; `encrypted_to` writes a file or
+  standard output, and any other endpoint is an evaluation error naming it.
+- A chunk that fails, or a file that ends without its final chunk, is
+  named by the octet offset of the chunk in the age file: the payload's
+  start, after the header and its 16-octet nonce, plus 65552 octets per
+  chunk before it. A message transport, a topic or a subject, carries one value per
+  message; a program encrypts each with `encrypt_to` in a `map`.
+
+## Examples
+
+```hql
+import crypto
+import encoding
+
+// Encrypt one field of each record for the analytics team, and keep the rest.
+team = read_public_key(file("team.age.pub"), Age, X25519)
+patients
+| map(p => {id: p.id, ward: p.ward,
+            diagnosis: p.diagnosis.encrypt_to([team]).encode(Base64)})
+| sink(file("patients.jsonl"))
+
+// Write an export only its recipients can read, and read it back.
+auditor  = read_public_key(file("auditor.age.pub"), Age, X25519)
+identity = read_private_key(file("identity.txt"), Age, X25519)
+orders | target(encrypted_to(file("orders.jsonl.age"), [team, auditor]))
+
+// In a later evaluation: one evaluation does not read a file it replaced.
+source(decrypted_with(file("orders.jsonl.age"), identity))
+
+// A field encrypted under a key the program shares with another service.
+key = generate_secret_key(Aes256Gcm)
+token.encrypt(key, aad = Bytes(user_id)).encode(Base64Url)
+```
+
+Cases: [AEAD round trip](../../../../examples/crypto/queries/aead-round-trip.hql),
+[a field for a recipient](../../../../examples/crypto/queries/encrypt-a-field.hql),
+[an encrypted file](../../../../examples/crypto/queries/encrypted-file.hql).
+
+## Test plan
+
+- AES-256-GCM against the NIST CAVP vectors and ChaCha20-Poly1305 against
+  RFC 8439 section 2.8.2, with a fixed nonce through an internal test
+  entry point that programs cannot reach.
+- `decrypt` gives `none` for each of: a flipped octet in the nonce, the
+  ciphertext and the tag; a truncation; a wrong key; a wrong `aad`.
+- age: the test vectors of the age project (`testkit`), a file written by
+  the `age` command line read here, and a file written here read by it,
+  for X25519 and scrypt recipients; a work factor of 23 refused.
+- Encrypted endpoints: a `target` and a `sink` of 200 000 JSON lines read
+  back by `source` and by `tap`; a file truncated at a chunk boundary and
+  one with a flipped octet in its third chunk, each ending `tap` after the
+  documents of the first two chunks with the declared error.
+- `encrypted_to(file(p).end, …)` refused at check time.

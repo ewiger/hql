@@ -1,0 +1,11 @@
+<!-- hql reference: std/time.total_seconds -->
+# `total_seconds`
+
+In [`std/time`](index.hmd).
+
+```hql
+fn total_seconds(self: Duration) : Decimal
+```
+
+The length of `self` in seconds, exactly: `PT1.5S` is `1.5`.
+<!-- hql reference: end -->

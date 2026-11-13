@@ -4,18 +4,18 @@ Paste the block below into a new session, in this repository.
 
 ---
 
-Carry out [issue 0032](0032-generic-traits.md): traits take type parameters.
+Carry out [issue 0032](0032-generic-traits.hmd): traits take type parameters.
 
 Read `doc/memory/` first, as `CLAUDE.md` requires. Then read the issue, and
 before anything else:
 
-- [traits](../../proposals/HQL-0024/parts/05-traits.md) and
-  [contracts and binding](../../proposals/HQL-0024/parts/12-contracts-and-binding.md):
+- [traits](../../proposals/HQL-0024/parts/05-traits.hmd) and
+  [contracts and binding](../../proposals/HQL-0024/parts/12-contracts-and-binding.hmd):
   what is built, native headers, coherence, ownership;
-- [formats and codecs](../../proposals/HQL-0024/parts/07-formats-and-codecs.md)
-  and [encode, decode, format](../../proposals/HQL-0024/encode-decode-format.md):
+- [formats and codecs](../../proposals/HQL-0024/parts/07-formats-and-codecs.hmd)
+  and [encode, decode, format](../../proposals/HQL-0024/encode-decode-format.hmd):
   the codec contracts this has to admit;
-- [HQL-0026](../../proposals/HQL-0026/README.md): `Index<T>` and the generic
+- [HQL-0026](../../proposals/HQL-0026/index.hmd): `Index<T>` and the generic
   native header `impl Slice for List<T>`;
 - the open questions of the [type system card](../../wiki/hql/type-system.hmd);
 - `lib/std/core/mod.hql`, `lib/std/format/mod.hql`, `src/extensions/traits.rs`,
@@ -30,7 +30,7 @@ before anything else:
    type for an output, how arguments are inferred, the overlap rule) before
    writing the proposal. The choice is mine; do not settle it in code.
 2. Write the proposal record and reserve its number in the
-   [proposals index](../../proposals/README.md).
+   [proposals index](../../proposals/index.hmd).
 3. Write the example programs as `status: proposed` under `examples/`, linked
    from their example README, with the record as `proposal:`.
 4. Implement, in this order: grammar, declarations and bounds in the checker,

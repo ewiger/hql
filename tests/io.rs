@@ -1,6 +1,6 @@
 //! Endpoints through the real process: `source`, `tap`, `target` and `sink`
 //! over standard input, files and their ends, and what `hql render` refuses.
-//! See doc/proposals/HQL-0021/README.md.
+//! See doc/proposals/HQL-0021/index.hmd.
 
 use std::fs;
 use std::io::{BufRead, BufReader, Write};

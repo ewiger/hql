@@ -19,7 +19,7 @@ The package holds one folder per module, the module's declarations in its
 Both import `core`, `doc` and `retrieval` from the standard package, which
 declares `Ranking` and `Hit`
 ([semantic search](../../doc/wiki/hql/semantic-search.hmd),
-[HQL-0002](../../doc/proposals/HQL-0002/README.md)).
+[HQL-0002](../../doc/proposals/HQL-0002/index.hmd)).
 
 ```hql
 import lexical

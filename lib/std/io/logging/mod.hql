@@ -1,4 +1,4 @@
-// Provided by the `std` extension. See doc/proposals/HQL-0021/README.md.
+// Provided by the `std` extension. See doc/proposals/HQL-0021/index.hmd.
 
 /// Logging: structured events written to a destination, apart from the
 /// result. A logger owns no writer: it names a producer and holds a

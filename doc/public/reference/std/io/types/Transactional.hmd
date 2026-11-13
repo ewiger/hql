@@ -1,0 +1,14 @@
+<!-- hql reference: std/io.Transactional -->
+# `Transactional`
+
+In [`std/io`](../index.hmd).
+
+```hql
+abstract type Transactional : Transport
+```
+
+A `Transport` whose system has an atomic scope: statements over it
+begin, commit and roll back as one unit. Which endpoints share one scope
+is the kind's rule, stated with the kind; the type says only that a
+scope exists.
+<!-- hql reference: end -->

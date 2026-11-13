@@ -1,0 +1,14 @@
+<!-- hql reference: std/crypto/digest.fingerprint -->
+# `fingerprint`
+
+In [`std/crypto/digest`](index.hmd).
+
+```hql
+fn fingerprint(self: Data) : String
+```
+
+The SHA-256 digest of the canonical JSON text of a tree (RFC 8785): keys
+sorted by their UTF-16 code units, no whitespace, a number as its digits
+without trailing zeros, a time value as its ISO 8601 text. Two trees
+equal under HQL equality have equal fingerprints.
+<!-- hql reference: end -->

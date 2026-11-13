@@ -11,7 +11,7 @@ A constructor is a function named after its type, declared beside the type,
 returning it. `T(x, a)` and `x | T(a)` are one call, and the first argument
 selects among a type's forms. The standard constructors are declared in
 `lib/std/` and implemented by the binary; a program declares its own with `fn`
-([HQL-0018](../../doc/proposals/HQL-0018/README.md)). `Table` builds the
+([HQL-0018](../../doc/proposals/HQL-0018/index.hmd)). `Table` builds the
 shape every format writes as a table
 ([presentation](../../doc/wiki/hql/presentation.hmd)).
 

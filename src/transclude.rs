@@ -10,7 +10,7 @@
 //! and nothing else it binds. The cells form a dependency graph, checked as a
 //! whole and evaluated in dependency order, document order breaking ties; a
 //! cell that waits on a failed one is skipped. See
-//! [HQL-0009](../../doc/proposals/HQL-0009/README.md).
+//! [HQL-0009](../../doc/proposals/HQL-0009/index.hmd).
 //!
 //! Under [`Emit::Replace`] the output takes the cell's place, and the rendered
 //! document is a build of the source. Under [`Emit::After`] the cell stays and

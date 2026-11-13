@@ -1,0 +1,477 @@
+# Traits
+
+A **trait** is a capability contract over a type: a named set of functions
+that an implementing type provides, each taking that type as `self`. A type
+satisfies a trait through one **implementation**, `impl Trait for Type`. The
+type checker verifies every implementation and every trait bound before the
+program runs. A function of a trait is either **required**, a signature with
+no body that every implementation supplies, or has a **default body**, which an implementation inherits unless it writes the
+function itself.
+
+## In short
+
+- **A trait is not a type.** No value, parameter or binding is typed by a
+  trait. A function over every implementing type takes a bound,
+  `<T : Shape>(s: T)`, and a call through it runs the implementation of the
+  value's own type. See [A trait is not a type](#a-trait-is-not-a-type) and
+  [Generic functions over a trait](#generic-functions-over-a-trait).
+- **One construct, three uses.** A *capability* trait is named in bounds. An
+  *operator* trait is what an operator resolves through: `Eq` for `==`, `Ord`
+  for `<`, `Index` for `xs[i]`. A *validator* trait extends `Validator` and
+  states a check that a value passes. See [Operators are traits](#operators-are-traits)
+  and [[11-advanced-data-typing/validators|Validators]].
+- **Two ways to implement.** `impl Shape for Rect { … }`, or a trait list on a
+  receiver module, `module shapes.circle for Circle : Shape`, whose `self`
+  functions are the implementation. See
+  [A module that implements a trait](#a-module-that-implements-a-trait).
+- **One implementation per trait and type**, whichever form declares it.
+- **A trait may name a type.** `trait Shape as Figure` declares `Figure`, the
+  union of the types that implement `Shape`, so a `List<Figure>` holds a
+  `Rect` and a `Circle` together. See [A trait's type](#a-traits-type).
+- **A validator field is a refinement.** In a field `email: Email`, `Email`
+  is a validator trait. The field's type is the one type that implements it,
+  and the field's value is held to its check. See
+  [[11-advanced-data-typing/validators|Validators]].
+
+## A trait and an implementation
+
+`Shape` requires `area` and gives `describe` a default body. `impl Shape for
+Rect` writes `area` alone:
+
+<!-- define: shape -->
+<!-- run: skip -->
+```hql
+trait Shape {
+    fn area(self) : Float
+    fn describe(self) : String = fmt("area {}", self.area())
+}
+
+type Rect { width : Float, height : Float }
+
+impl Shape for Rect {
+    fn area(self) : Float = self.width * self.height
+}
+```
+
+`describe` is a function of every `Rect` all the same, with the trait's body.
+The programs below run with these declarations before them:
+
+<!-- run: with shape -->
+```hql
+Rect(width = 2.0f, height = 3.0f).describe()
+```
+
+```text
+"area 6.0"
+```
+
+## A default body calls the implementation
+
+Inside a default body, `self.area()` resolves to the `area` of the type
+`self` has. The body is written once, against the required functions, and
+each type it runs over contributes its own:
+
+<!-- run: with shape -->
+```hql
+type Circle { radius : Float }
+
+impl Shape for Circle {
+    fn area(self) : Float = 3.0f * self.radius * self.radius
+}
+
+[Rect(width = 2.0f, height = 3.0f).describe(), Circle(radius = 1.0f).describe()]
+```
+
+```text
+["area 6.0", "area 3.0"]
+```
+
+## Replacing a default
+
+An implementation that writes a function the trait gives a default replaces
+the default for its type, and leaves it in place for every other type:
+
+<!-- run: with shape -->
+```hql
+type Square { side : Float }
+
+impl Shape for Square {
+    fn area(self) : Float = self.side * self.side
+    fn describe(self) : String = fmt("a square of side {}", self.side)
+}
+
+[Rect(width = 2.0f, height = 3.0f).describe(), Square(side = 2.0f).describe()]
+```
+
+```text
+["area 6.0", "a square of side 2.0"]
+```
+
+## What an implementation must supply
+
+An implementation without one of the required functions is a type error at
+its `impl` line, and the diagnostic names the function:
+
+<!-- run: novault -->
+```hql
+trait Shape {
+    fn area(self) : Float
+    fn describe(self) : String = fmt("area {}", self.area())
+}
+
+type Circle { radius : Float }
+
+impl Shape for Circle {
+    fn describe(self) : String = "a circle"
+}
+
+Circle(radius = 1.0f).describe()
+```
+
+```text
+check error[missing-implementation]: `impl Shape for Circle` lacks `area`
+ --> <expression>:8:1
+  |
+8 | impl Shape for Circle {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+A trait has one implementation per type in a program. The checker rejects a
+second:
+
+<!-- run: novault -->
+```hql
+trait Named {
+    fn name(self) : String
+}
+
+type Dog { tag : String }
+
+impl Named for Dog {
+    fn name(self) : String = self.tag
+}
+
+impl Named for Dog {
+    fn name(self) : String = "a dog"
+}
+
+Dog(tag = "rex").name()
+```
+
+```text
+check error[duplicate-implementation]: `Named` is already implemented for Dog: a trait has one implementation per type
+  --> <expression>:11:1
+   |
+11 | impl Named for Dog {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: the first implementation, at <expression>:7:1
+```
+
+## Generic functions over a trait
+
+A **bound**, `T : Shape`, restricts a type parameter to the types that
+implement the trait. Inside the body `x.area()` resolves through the bound,
+and every call is checked against it:
+
+<!-- define: total -->
+<!-- run: skip -->
+```hql
+type Circle { radius : Float }
+
+impl Shape for Circle {
+    fn area(self) : Float = 3.0f * self.radius * self.radius
+}
+
+fn total<T : Shape>(xs: List<T>) : Float = xs | map(x => x.area()) | sum
+```
+
+<!-- run: with shape,total -->
+```hql
+[total([Rect(width = 2.0f, height = 3.0f), Rect(width = 1.0f, height = 1.0f)]), total([Circle(radius = 1.0f)])]
+```
+
+```text
+[7.0, 3.0]
+```
+
+A call with a type that has no implementation is a type error:
+
+<!-- run: novault -->
+```hql
+trait Shape {
+    fn area(self) : Float
+}
+
+type Line { length : Float }
+
+fn total<T : Shape>(xs: List<T>) : Float = xs | map(x => x.area()) | sum
+
+total([Line(length = 2.0f)])
+```
+
+```text
+check error[unsatisfied-bound]: `total` needs T : Shape, and Line does not implement `Shape`
+ --> <expression>:9:1
+  |
+9 | total([Line(length = 2.0f)])
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+## A trait is not a type
+
+A trait's name appears only where a contract is meant: in a bound, in an
+`impl`, in another trait's declaration, in a receiver module's trait list
+and, for a validator trait, in a contract. It is not a type, so no
+parameter, binding or list is typed by one, and the refusal names the bound
+to write instead:
+
+<!-- run: novault -->
+```hql
+trait Shape {
+    fn area(self) : Float
+}
+
+fn doubled(s: Shape) : Float = s.area() * 2.0f
+
+1
+```
+
+```text
+check error[unknown-name]: `Shape` is a trait, not a type: a value of a type implementing it is written with a bound, `<T : Shape>(x: T)`
+ --> <expression>:5:15
+  |
+5 | fn doubled(s: Shape) : Float = s.area() * 2.0f
+  |               ^^^^^
+```
+
+A list that holds a `Rect` and a `Circle` together is typed by a union of the
+two, and a `match` reaches each member at its own type, where its
+implementation applies:
+
+<!-- run: with shape,total -->
+```hql
+type Figure = union { Rect, Circle }
+
+figures : List<Figure> = [Rect(width = 2.0f, height = 3.0f), Circle(radius = 1.0f)]
+
+figures | map(f => match f {
+    Rect r => r.describe(),
+    Circle c => c.describe(),
+})
+```
+
+```text
+["area 6.0", "area 3.0"]
+```
+
+## A trait's type
+
+A trait's declaration may name the union of the types implementing it:
+`trait Shape as Figure` declares the trait `Shape` and the type `Figure`.
+`Figure`'s members are the types with an implementation of `Shape`, so
+`List<Figure>` holds a `Rect` and a `Circle`, and `f.describe()` calls the
+implementation of the value's own type:
+
+<!-- run: novault -->
+```hql
+trait Shape as Figure {
+    fn area(self) : Float
+    fn describe(self) : String = fmt("area {}", self.area())
+}
+
+type Rect { width : Float, height : Float }
+type Circle { radius : Float }
+
+impl Shape for Rect {
+    fn area(self) : Float = self.width * self.height
+}
+
+impl Shape for Circle {
+    fn area(self) : Float = 3.0f * self.radius * self.radius
+}
+
+figures : List<Figure> = [Rect(width = 2.0f, height = 3.0f), Circle(radius = 1.0f)]
+
+figures | map(f => f.describe())
+```
+
+```text
+["area 6.0", "area 3.0"]
+```
+
+`Figure` is a union and is checked as one: a `match` over it covers every
+member. It implements `Shape`, so it satisfies a bound `T : Shape`. Two
+values of `Figure` may be of two members, so a trait naming its type writes
+`Self` only as the receiver, never as a parameter or a result; and a trait
+with type parameters, or a validator trait, names no type.
+
+## A trait extending a trait
+
+A trait may **extend** others, `trait Greeter : Named`. The functions of the
+traits it extends are its own, so its default bodies may call them, and an
+implementation of it supplies them:
+
+```hql
+trait Named {
+    fn name(self) : String
+}
+
+trait Greeter : Named {
+    fn greet(self) : String = fmt("hello, {}", self.name())
+}
+
+type Dog { tag : String }
+
+impl Greeter for Dog {
+    fn name(self) : String = self.tag
+}
+
+Dog(tag = "rex").greet()
+```
+
+```text
+"hello, rex"
+```
+
+Implementing `Greeter` does not implement `Named`. A bound `T : Named` takes
+only the types with an `impl Named` of their own:
+
+<!-- run: novault -->
+```hql
+trait Named {
+    fn name(self) : String
+}
+
+trait Greeter : Named { }
+
+type Dog { tag : String }
+
+impl Greeter for Dog {
+    fn name(self) : String = self.tag
+}
+
+fn names<T : Named>(xs: List<T>) : List<String> = xs | map(x => x.name())
+
+names([Dog(tag = "rex")])
+```
+
+```text
+check error[unsatisfied-bound]: `names` needs T : Named, and Dog does not implement `Named`
+  --> <expression>:15:1
+   |
+15 | names([Dog(tag = "rex")])
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+## Operators are traits
+
+The operators resolve through the **core traits**, which are in scope
+everywhere: `+` through `Add`, `==` through `Eq`, `<` and `sort` through
+`Ord`, `xs[i]` through `Index` and `xs[a:b]` through `Slice`. Implementing
+one gives a type its operator, and [[operators]] has each.
+
+## Traits and inheritance
+
+A default body is the part of class inheritance a trait has: code written
+once against functions each type defines. The rest is absent.
+
+| Class inheritance | A trait |
+| --- | --- |
+| a subclass inherits method bodies | an implementation inherits default bodies |
+| a subclass inherits fields | a trait declares no fields |
+| a subclass is a subtype of its parent | a trait is not a type; no value is held as a `Shape` |
+| a method overrides along a chain of parents, reaching up with `super` | an implementation replaces a default, one level, with no `super` |
+| a class extends one parent or several | a trait extends traits; a type implements each trait it needs, once |
+
+Where one value is genuinely another, as a `Card` is a `Doc`, HQL says so
+with an ordinary `:` between types, not with a trait.
+
+## A receiver function without a trait
+
+A receiver module adds functions to a type with no trait at all.
+`module counting for Int` makes each `self` function after it a function of
+every `Int`:
+
+```hql
+module counting for Int
+
+fn twice(self) : Int = self * 2
+
+[3.twice(), 21.twice()]
+```
+
+```text
+[6, 42]
+```
+
+The functions reach only the source unit that declares the module or imports
+it. Elsewhere the call is a name error, as `"hi".shout()` is without
+`import mighty.text` ([[receiver-modules|receiver modules]]):
+
+<!-- run: --modules examples/mighty-types/lib -->
+```hql
+"hi".shout()
+```
+
+```text
+check error[unknown-name]: String has no function `shout`
+ --> <expression>:1:1
+  |
+1 | "hi".shout()
+  | ^^^^^^^^^^^^
+  = help: did you mean `sort`?
+```
+
+Two imported modules that declare one name over one type make a call by
+that name ambiguous, and the call is a name error until it is qualified. A
+declaration the unit writes itself wins over every import's.
+
+A trait is the form for a function that generic code quantifies over or an
+operator resolves through. A receiver module is the form for a function a
+type gains that nothing quantifies over.
+
+## A module that implements a trait
+
+A receiver module may list traits after its pattern, and its `self`
+functions are then the implementation of those traits for the pattern's
+type. The module `shapes` of `examples/traits/lib` declares `Shape`, with a
+default `describe`, and `shapes/circle.hql` implements it:
+
+<!-- run: skip -->
+```hql
+module shapes.circle for Circle : Shape
+
+import shapes
+
+type Circle { radius : Float }
+
+fn area(self) : Float = 3.0f * self.radius * self.radius
+fn name(self) : String = "circle"
+fn diameter(self) : Float = 2.0f * self.radius
+```
+
+`module shapes.circle for Circle : Shape` declares the one implementation of
+`Shape` for `Circle`, as `impl Shape for Circle` would, with the module's
+`area` and `name` as its functions and the trait's default `describe`.
+`diameter`, which `Shape` does not require, stays a receiver function:
+
+<!-- run: --modules examples/traits/lib -->
+```hql
+import shapes
+import shapes.circle
+
+c = Circle(radius = 1.0f)
+
+[c.describe(), str(shapes.total([c, c])), str(c.diameter())]
+```
+
+```text
+["circle with area 3.0", "6.0", "2.0"]
+```
+
+A module that lists a trait and lacks a function the trait requires, and
+gives no default body for, is refused at its `module` line, and so is a
+module listing two traits that require one function name. The standard
+library states the brackets this way: `module string for String :
+Index<String>, Slice` makes `s[1]` the module's `s.at(1)`, and `s[1:3]` its
+`s.slice(Range(start = 1, end = 3))`.

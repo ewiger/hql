@@ -2,7 +2,7 @@
 
 Pure programs, no vault. The cases check and evaluate the analytic window
 `over` and the total order `then`, which
-[HQL-0050](../../doc/proposals/HQL-0050/README.md) specifies. `over` gives
+[HQL-0050](../../doc/proposals/HQL-0050/index.hmd) specifies. `over` gives
 one value per row, at the row's input position, from the row and its
 `Window`: its place in the ordered partition of rows with its key. From the
 repository root:

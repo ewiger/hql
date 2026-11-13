@@ -1,0 +1,17 @@
+<!-- hql reference: std/io/db/spark.Spark -->
+# `Spark`
+
+In [`std/io/db/spark`](../index.hmd).
+
+```hql
+type Spark : {Network, RowTransport, Replayable, Writable, Transactional, Insertable, Updatable, Deletable}
+```
+
+One table behind a Spark SQL endpoint. It is on the network and carries
+rows of named columns, so it takes no format. A table ends and reads
+the same rows each time in one evaluation, so it is `Replayable`: read,
+it is a `Seq`, a row per element. A Delta table commits one statement
+atomically, so a transaction scope over it holds this one table and at
+most one statement; its rows are inserted, changed and removed in place
+where the table's format allows it (HQL-0051).
+<!-- hql reference: end -->

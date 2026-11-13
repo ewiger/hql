@@ -1,6 +1,6 @@
 # Time: Date, DateTime, Instant and Duration
 
-The cases follow [HQL-0041 part 1](../../doc/proposals/HQL-0041/parts/01-time.md).
+The cases follow [HQL-0041 part 1](../../doc/proposals/HQL-0041/parts/01-time.hmd).
 `core` declares four time scalars with no literal: a `Date`, a `DateTime`
 with no zone, an `Instant` on the UTC timeline, and a `Duration`. Each is
 built by its constructor from ISO 8601 text or from named parts, compares and

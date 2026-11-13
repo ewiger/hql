@@ -1,0 +1,14 @@
+<!-- hql reference: std/collections.then -->
+# `then`
+
+In [`std/collections`](index.hmd).
+
+```hql
+fn then(self: Ordering, next: Ordering) : Ordering
+```
+
+`self` where it is `Less` or `Greater`, and `next` where it is `Equal`:
+a comparison that a second one decides on a tie.
+`compare(1, 1) | then(compare("a", "b"))` is `Less`; `next` is
+evaluated only on a tie.
+<!-- hql reference: end -->

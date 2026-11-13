@@ -1,0 +1,12 @@
+<!-- hql reference: std/io.Insertable -->
+# `Insertable`
+
+In [`std/io`](../index.hmd).
+
+```hql
+abstract type Insertable : Transport
+```
+
+A `Transport` that takes rows it does not hold, by `insert`. Writing a
+whole collection is `Writable`; the two are independent.
+<!-- hql reference: end -->

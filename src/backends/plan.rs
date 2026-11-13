@@ -6,7 +6,7 @@
 //! step invokes, its shape and its purity, and from what the backend
 //! executes. Nothing in the program names a stage, and an annotation never
 //! changes the value a pipeline produces. See
-//! `doc/proposals/HQL-0005/README.md`.
+//! `doc/proposals/HQL-0005/index.hmd`.
 
 use crate::diagnostics::Diagnostic;
 use crate::execution::{OperationType, Program};

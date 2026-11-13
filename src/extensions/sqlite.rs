@@ -4,8 +4,8 @@
 //! program: it takes the kind's keys and gives an endpoint that `source`,
 //! `tap` and `target` read and write with the reader and the writer the
 //! kind has. Constructing one opens nothing. See
-//! [HQL-0047](../../doc/proposals/HQL-0047/README.md) and
-//! [HQL-0048](../../doc/proposals/HQL-0048/README.md).
+//! [HQL-0047](../../doc/proposals/HQL-0047/index.hmd) and
+//! [HQL-0048](../../doc/proposals/HQL-0048/index.hmd).
 
 use super::Signature;
 use super::{EvalCx, Operation, Purity};

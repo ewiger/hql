@@ -4,7 +4,7 @@
 // imported it; `prelude = false` in hql.toml withholds the list, and then
 // every module is imported where it is used.
 //
-// See doc/proposals/HQL-0024/parts/03-standard-library.md.
+// See doc/proposals/HQL-0024/parts/03-standard-library.hmd.
 import core
 import string
 import bytes

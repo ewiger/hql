@@ -1,6 +1,6 @@
 // Every declaration is external: the `std` extension implements it.
 //
-// See doc/proposals/HQL-0041/parts/01-time.md.
+// See doc/proposals/HQL-0041/parts/01-time.hmd.
 
 /// Time: zones, the units a value truncates to, and the operations over the
 /// time scalars of `core`: conversion from text, parts, arithmetic,

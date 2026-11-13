@@ -1,0 +1,11 @@
+<!-- hql reference: std/crypto.public -->
+# `public`
+
+In [`std/crypto`](index.hmd).
+
+```hql
+fn public<A : KeyAlgorithm>(self: PrivateKey<A>) : PublicKey<A>
+```
+
+The public key of a private key.
+<!-- hql reference: end -->

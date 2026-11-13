@@ -1,0 +1,87 @@
+# HQL-0055: effects and what they constrain
+
+Companion to [[HQL-0055]]. A step describes computation, a stage
+describes how the planner groups it, and an effect describes the
+computation's interaction with state outside the evaluation. Planning uses
+all three to preserve what a program computes and what it changes.
+
+## What an effect is
+
+An effect is an observable interaction with state outside the evaluation.
+`lib/std` declares every operation that has one `effectful`:
+
+- reading: `source` and `tap` over an endpoint; `io.fs`'s `entries`, `walk`,
+  `glob`, `exists` and `entry`; `io.env`'s `var`, `vars`, `arg` and `args`;
+  `time`'s `now`, `today` and `local_zone`;
+- writing: `target` and `sink`; the relational mutations `insert`, `update`
+  and `delete` (HQL-0051); a transaction's `commit`, `rollback` and `retry`;
+- emitting: the `Logger` calls `trace`, `debug`, `info`, `warn` and `error`;
+- drawing randomness: `random`'s `sample`, `shuffle`, `choice`, `random_int`,
+  `random_float` and `uuid`;
+- encrypting: `crypto`'s `encrypt_to` and `encrypt_with_passphrase`.
+
+A read returns the data it read. A write currently returns `Unit`, recording
+that it ran. These returned values describe the result of operations that
+also interact with external state.
+
+## Where HQL already records it
+
+- **Purity** (HQL-0001). An operation is pure or not; a user operation is pure
+  only if every call in its body is pure.
+- **`effectful`**. A declaration in `lib/` states that calling the function
+  has an effect.
+- **The checker** records, for every declared function, the effectful
+  operations its body uses, directly or through another function, and `hql
+  plan` prints each step's purity beside its stage.
+- **Transactions** (HQL-0051). A `with transaction` scope groups the writes
+  that commit together.
+
+These existing declarations supply the information for the planning
+constraints below.
+
+## Effect, `effectful` and the aute
+
+- `effectful` is the declaration; the effect is what the call does when it
+  runs. They are one notion from two sides.
+- An aute records completion visible to the program. `x = 1` completes
+  without an effect; `sink` completes with one.
+- Effectful autes carry the ordering, retry and transaction constraints
+  below. Pure computation admits fusion, splitting, duplication or movement
+  where the transformation preserves its contract, dependencies and
+  observable failures.
+
+## The constraints
+
+1. **Pure steps admit equivalent rewrites.** A planner MAY fuse, split,
+   reorder and distribute pure steps within their declared shape
+   (HQL-0004), preserving dependencies, results, sequence order and
+   failures. Purity makes evaluation independent of external state;
+   equivalence still needs to hold for the proposed rewrite.
+2. **Ordered effects stay ordered.** Two effects the program orders, one
+   step before another or one statement before another, MUST happen in that
+   order. Reordering two writes, or a write and the read that follows it,
+   changes what the world observes.
+3. **An effect is a barrier to reordering**, whatever the shape of its
+   operation (HQL-0005). Pure steps MAY still fuse on either side of it.
+4. **A transaction's scope is preserved.** Every write inside one
+   `with transaction` scope commits or none does, however the planner splits
+   the scope into stages and tasks. A backend that cannot hold the scope in
+   one transaction refuses the plan rather than splitting the commit.
+5. **A repeat repeats an effect.** A task MUST NOT repeat an effect it has
+   completed unless the effect is idempotent, the endpoint's delivery
+   semantics allow the repeat (at-least-once with a key the sink deduplicates
+   on), or the repeat is a transaction's attempt, which rolls the earlier one
+   back.
+6. **Partitioning an effect must preserve its delivery contract.** A `sink`
+   may write in parallel only where its endpoint's ordering and transaction
+   guarantees permit that plan (HQL-0036). A planner MUST NOT weaken a
+   global ordering or atomicity guarantee to a per-partition guarantee.
+   The observable completion of a partitioned sink remains an open question
+   of this record.
+
+## What an effect gives
+
+Under this proposal, `Step` records the completion of an operation that
+returns no other value, such as a write. Reads continue to return their
+data. A richer write outcome could also report row counts or a commit;
+issue 0063 keeps that result design open.

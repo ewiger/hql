@@ -4,7 +4,7 @@
 //! Each ends the attempt it is written in: it records the outcome asked for
 //! and leaves the block by the one route an evaluation has, a failure,
 //! which the scope recognizes as its own and acts on. See
-//! [HQL-0051](../../doc/proposals/HQL-0051/README.md).
+//! [HQL-0051](../../doc/proposals/HQL-0051/index.hmd).
 
 use super::{EvalCx, Operation, Purity, Signature};
 use crate::diagnostics::Diagnostic;

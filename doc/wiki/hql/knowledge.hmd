@@ -1,7 +1,5 @@
 ---
 tags: [hql, knowledge, design]
-nav:
-  visibility: public
 ---
 # HQL knowledge
 
@@ -82,7 +80,7 @@ renderer by result type, but Knowledge requires an explicit view because its
 projections are equally valid. Additional views do not require changes to the
 semantic types.
 
-See the [knowledge model](../../models/domain/knowledge.md) for the domain,
-the [graph model](../../models/domain/graphs.md) for its structural peer,
+See the [[domain/knowledge|knowledge model]] for the domain,
+the [[graphs|graph model]] for its structural peer,
 [presentation alternatives](../../../examples/presentation/knowledge-views.hql)
 and [[hql/design-status]].

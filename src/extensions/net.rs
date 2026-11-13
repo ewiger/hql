@@ -4,7 +4,7 @@
 //! Constructing one sends nothing; the request or connection happens when an
 //! `io` operation uses it, in [`crate::io`] and [`crate::net`]. A program
 //! imports the module, `import net`, so network access is visible in its
-//! first lines. See [HQL-0021](../../doc/proposals/HQL-0021/README.md).
+//! first lines. See [HQL-0021](../../doc/proposals/HQL-0021/index.hmd).
 
 use super::Signature;
 use super::spec::CheckedCall;

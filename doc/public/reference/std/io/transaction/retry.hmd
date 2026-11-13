@@ -1,0 +1,13 @@
+<!-- hql reference: std/io/transaction.retry -->
+# `retry`
+
+In [`std/io/transaction`](index.hmd).
+
+```hql
+effectful fn retry(self) : Never
+```
+
+Ends the attempt by rolling it back and runs the block again on a fresh
+transaction, as the next attempt, while the scope's `attempts` remain;
+with none remaining the scope's `err` has the `kind` `"exhausted"`.
+<!-- hql reference: end -->

@@ -1,6 +1,6 @@
 // Every declaration is external: the `result` extension implements it.
 //
-// See doc/proposals/HQL-0024/parts/11-type-system-completion.md.
+// See doc/proposals/HQL-0024/parts/11-type-system-completion.hmd.
 
 /// The ways out of a `Result<T, E>`, in the prelude, each stating what a
 /// failure gives. A result is `ok(v)` or `err(e)`. There is no `unwrap`.

@@ -7,10 +7,10 @@ Paste the block below into a new session, in this repository.
 Two pieces of work, in order. The designs are recorded as ADRs; the issues hold
 the sequence.
 
-- [HQL-0001](../../proposals/HQL-0001/README.md) — the extension mechanism, carried
-  out by [issue 0001](0001-extension-mechanism.md)
-- [HQL-0002](../../proposals/HQL-0002/README.md) — semantic retrieval over a real
-  embedding index, carried out by [issue 0002](0002-semantic-retrieval.md)
+- [HQL-0001](../../proposals/HQL-0001/index.hmd) — the extension mechanism, carried
+  out by [issue 0001](0001-extension-mechanism.hmd)
+- [HQL-0002](../../proposals/HQL-0002/index.hmd) — semantic retrieval over a real
+  embedding index, carried out by [issue 0002](0002-semantic-retrieval.hmd)
 
 Read `doc/memory/` first, as `CLAUDE.md` requires, then both proposals and both
 issues in full.

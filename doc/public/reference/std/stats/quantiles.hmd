@@ -1,0 +1,18 @@
+<!-- hql reference: std/stats.quantiles -->
+# `quantiles`
+
+In [`std/stats`](index.hmd).
+
+```hql
+fn quantiles(self: Collection<Int>, n: Int) : List<Float>
+fn quantiles(self: Collection<Float>, n: Int) : List<Float>
+fn quantiles(self: Collection<Decimal>, n: Int) : List<Decimal>
+```
+
+The `n - 1` cut points that divide the sorted values into `n` groups of
+equal probability, the quantiles at `1/n` to `(n-1)/n` by the same
+interpolation as `quantile`, each computed as
+`(s_j * (n - d) + s_(j+1) * d) / n` with one division. Empty over an
+empty collection; an `n` below `2` is an evaluation error:
+`[1, 2, 3, 4, 5] | quantiles(4)` is `[2.0, 3.0, 4.0]`.
+<!-- hql reference: end -->

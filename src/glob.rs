@@ -2,7 +2,7 @@
 //! segments separated by `/`: `**` is any number of whole segments, and in
 //! any other segment `*` matches within the segment, `?` one character, and
 //! `[abc]` or `[a-z]` one character of the set. Matching reads text and
-//! never the file system. See [HQL-0040](../doc/proposals/HQL-0040/README.md).
+//! never the file system. See [HQL-0040](../doc/proposals/HQL-0040/index.hmd).
 
 /// A compiled pattern.
 #[derive(Debug, Clone, PartialEq, Eq)]

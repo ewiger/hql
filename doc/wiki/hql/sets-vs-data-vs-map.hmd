@@ -1,7 +1,5 @@
 ---
 tags: [hql, syntax, set, data, map, type-system]
-nav:
-  visibility: public
 ---
 
 # Sets, Data and maps
@@ -50,7 +48,7 @@ d : Data = {:}
 
 `{:}` is the empty keyed literal. It has no type of its own: it is `Data`
 where nothing says otherwise, and the empty map where a map type is declared
-for it ([HQL-0032](../../proposals/HQL-0032/README.md)):
+for it ([[HQL-0032]]):
 
 | Written | Type | Value |
 | --- | --- | --- |
@@ -81,12 +79,12 @@ nested: `{a: {:}}`.
 
 A `Set<T>` is a collection of distinct values with no positions, and a
 `Map<K, V>` one of unique keys each with a value; see the
-[collection model](types/collections/collection-types.md). `Data` is an open
+[[collection-types|collection model]]. `Data` is an open
 tree whose keys belong to whoever wrote them; see [[data-type]]. A record
 literal is not a declared record type: `{name: "Alice"}` is `Data`, and reading
 `.name` from it gives an `Option<Data>`.
 
-The rule is specified by [HQL-0029](../../proposals/HQL-0029/README.md), and the
+The rule is specified by [[HQL-0029]], and the
 [braces examples](../../../examples/braces/README.md) run it. The book tells
 the same story for a first reader in
-[sets, Data and maps](../../public/learn/02-data-types/sets-data-and-maps.md).
+[sets, Data and maps](../../public/learn/02-data-types/sets-data-and-maps.hmd).

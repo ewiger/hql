@@ -1,0 +1,49 @@
+---
+# Every page of the site inherits this: publication is opt-in per
+# folder note, and this is the root one.
+nav:
+  visibility: public
+---
+# HQL { .hql-hero }
+
+HQL, the Hyper Query Language, is a strongly typed expression and query
+language. It combines functional expressions with pipelines over files,
+streams, structured data and HyperMarkDown documents, and checks a program's
+types before it evaluates it.
+
+```hql
+type Book { title : String, year : Int, rating : Int }
+
+books = [
+    Book(title = "Dune", year = 1965, rating = 5),
+    Book(title = "Emma", year = 1815, rating = 3),
+    Book(title = "Beloved", year = 1987, rating = 4),
+]
+
+books
+| filter(b => b.rating >= 4)
+| sort(b => b.title)
+| map(b => b.title)
+```
+
+```text
+["Beloved", "Dune"]
+```
+
+`source` reads the documents a file holds, and `target` writes a value to one:
+
+```hql
+source(file("sightings.jsonl"), Json)
+| filter(s => s.seen == "morning")
+| target(file("morning.json"))
+```
+
+<div class="grid cards" markdown>
+
+- **[[install|Install]]** — a release binary or `cargo install hql`.
+- **[[learn|Learn HQL]]** — the book in three parts, the language,
+  data flows, and knowledge and AI, one runnable program at a time.
+- **[[reference|Reference]]** — the grammar, the command line, and
+  reporting.
+
+</div>

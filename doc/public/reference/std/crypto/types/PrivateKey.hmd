@@ -1,0 +1,26 @@
+<!-- hql reference: std/crypto.PrivateKey -->
+# `PrivateKey`
+
+In [`std/crypto`](../index.hmd).
+
+```hql
+type PrivateKey<A> : Secret
+```
+
+A private key of algorithm `A`. It prints as its public key's
+thumbprint, and no format writes it.
+
+```hql
+fn PrivateKey<F : KeyFormat, A : KeyAlgorithm>(text: String, format: Type<F>, algorithm: Type<A>, *, passphrase: String = "") : PrivateKey<A>
+```
+
+The private key `text` holds in `format`. `passphrase` decrypts an
+encrypted PKCS #8 or OpenSSH private key; an empty one reads an
+unencrypted key. A wrong passphrase is an evaluation error that says so.
+
+```hql
+fn PrivateKey<A : KeyAlgorithm>(der: Bytes, algorithm: Type<A>) : PrivateKey<A>
+```
+
+The private key the PKCS #8 DER `der` holds.
+<!-- hql reference: end -->

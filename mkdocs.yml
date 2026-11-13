@@ -4,7 +4,7 @@ site_description: Hyper Query Language — a strongly typed language for queryin
 # Served from GitHub Pages under a custom domain. The build does not need this —
 # MkDocs emits relative links — but canonical URLs and `sitemap.xml` are wrong
 # without it. The domain itself is a DNS record plus the repository's Pages
-# setting; see the documentation-site section of `doc/stack.md`.
+# setting; see the documentation-site section of `doc/stack.hmd`.
 site_url: https://hql-lang.org/
 
 repo_url: https://github.com/ewiger/hql
@@ -67,11 +67,25 @@ theme:
 
 plugins:
   - search
+  # Pages are hyper-markdown. `doc/public/` is a vault of its own (it has an
+  # `.hmd/`), and the plugin resolves `[[…]]` against that root and registers
+  # each `.hmd` page under its `.md` name, so the nav below names `x.md` and
+  # the URL is unchanged. The nav stays authored, not derived.
+  - hypermarkdown:
+      root: doc/public
+      build_nav: false
   # Each release is published under its version, `/vX.Y.Z/`, and `latest`
-  # is the newest; see the documentation-site section of `doc/stack.md`.
+  # is the newest; see the documentation-site section of `doc/stack.hmd`.
   - mike:
       alias_type: redirect
       canonical_version: latest
+
+# Runs after the plugins. A folder note `a/b/index.hmd` is the page `a/b.md`,
+# and this points its relative Markdown links at what they name from the
+# folder note's own directory. Removed once the plugin does this itself
+# (hypermarkdown issue 0010).
+hooks:
+  - contrib/mkdocs/folder_notes.py
 
 # `Learn` is the prose read cold, in reading order. `Reference` is what is
 # consulted afterwards.
@@ -80,11 +94,11 @@ nav:
   - Learn:
       - Install: install.md
       - The HQL book:
-          - learn/index.md
+          - learn.md
           - "Part I: The language":
               - 1. Hello world: learn/01-hello-world.md
               - 2. Data types:
-                  - learn/02-data-types/index.md
+                  - learn/02-data-types.md
                   - Int: learn/02-data-types/int.md
                   - Float: learn/02-data-types/float.md
                   - Decimal: learn/02-data-types/decimal.md
@@ -97,13 +111,13 @@ nav:
                   - Sets, Data and maps: learn/02-data-types/sets-data-and-maps.md
               - 3. Collections: learn/03-collections.md
               - 4. Functions:
-                  - learn/04-functions/index.md
+                  - learn/04-functions.md
                   - Declaring a function: learn/04-functions/declaring.md
                   - Function bodies: learn/04-functions/bodies.md
                   - Generic functions: learn/04-functions/generics.md
                   - Aliases and holes: learn/04-functions/aliases-and-holes.md
               - 5. Modules:
-                  - learn/05-modules/index.md
+                  - learn/05-modules.md
                   - Receiver modules: learn/05-modules/receiver-modules.md
                   - Visibility: learn/05-modules/visibility.md
                   - How names resolve: learn/05-modules/names.md
@@ -112,7 +126,7 @@ nav:
               - 7. Streams that do not end: learn/07-streams.md
               - 8. Writing results out: learn/08-output.md
               - 9. I/O:
-                  - learn/09-io/index.md
+                  - learn/09-io.md
                   - Files and Standard Endpoints: learn/09-io/endpoints.md
                   - Reading with source: learn/09-io/source.md
                   - Writing with target and sink: learn/09-io/target.md
@@ -128,7 +142,7 @@ nav:
                   - Effects and what a host allows: learn/09-io/hosts.md
                   - hql on the command line: learn/09-io/command-line.md
               - 10. The type system:
-                  - learn/10-the-type-system/index.md
+                  - learn/10-the-type-system.md
                   - Records: learn/10-the-type-system/records.md
                   - Unions and match: learn/10-the-type-system/unions-and-match.md
                   - Results: learn/10-the-type-system/results.md
@@ -138,7 +152,7 @@ nav:
                   - Operators: learn/10-the-type-system/operators.md
                   - Traits: learn/10-the-type-system/traits.md
               - 11. Advanced data typing:
-                  - learn/11-advanced-data-typing/index.md
+                  - learn/11-advanced-data-typing.md
                   - Open and closed types: learn/11-advanced-data-typing/open-and-closed.md
                   - Type contracts: learn/11-advanced-data-typing/type-contracts.md
                   - Data contracts: learn/11-advanced-data-typing/data-contracts.md
@@ -146,7 +160,7 @@ nav:
                   - Validation as a value: learn/11-advanced-data-typing/validation-as-a-value.md
                   - Contracts and schemas: learn/11-advanced-data-typing/contracts-and-schemas.md
               - 12. Errors:
-                  - learn/12-errors/index.md
+                  - learn/12-errors.md
                   - Failures as data: learn/12-errors/handling.md
                   - Diagnostics: learn/12-errors/diagnostics.md
               - 13. Working with hql: learn/13-working-with-hql.md
@@ -159,14 +173,14 @@ nav:
               - 17. Subjects and the lakehouse: learn/17-subjects-and-the-lakehouse.md
               - 18. APIs, webhooks and stores: learn/18-apis-webhooks-and-stores.md
               - 19. OLTP:
-                  - learn/19-oltp/index.md
+                  - learn/19-oltp.md
                   - The shop's day in one file: learn/19-oltp/the-shops-day.md
                   - When a mistake is found: learn/19-oltp/mistakes.md
                   - A replay is the same file: learn/19-oltp/replay.md
                   - Streams against tables: learn/19-oltp/streams-against-tables.md
                   - A transfer is one transaction: learn/19-oltp/transfers.md
               - 20. OLAP:
-                  - learn/20-olap/index.md
+                  - learn/20-olap.md
                   - Bronze, silver and gold: learn/20-olap/bronze-silver-and-gold.md
                   - Grain and keys: learn/20-olap/grain-and-keys.md
                   - Deduplication: learn/20-olap/deduplication.md
@@ -191,49 +205,54 @@ nav:
   # reached from its module's page. `cargo test` fails when this
   # differs from the library.
   - Reference:
-      - reference/index.md
+      - reference.md
       - std:
-          - std/core: reference/std/core/index.md
-          - std/doc: reference/std/doc/index.md
-          - std/retrieval: reference/std/retrieval/index.md
-          - std/graph: reference/std/graph/index.md
-          - std/knowledge: reference/std/knowledge/index.md
-          - std/collections: reference/std/collections/index.md
-          - std/string: reference/std/string/index.md
-          - std/seq: reference/std/seq/index.md
-          - std/math: reference/std/math/index.md
-          - std/stats: reference/std/stats/index.md
-          - std/time: reference/std/time/index.md
-          - std/random: reference/std/random/index.md
-          - std/option: reference/std/option/index.md
-          - std/result: reference/std/result/index.md
-          - std/regex: reference/std/regex/index.md
-          - std/format: reference/std/format/index.md
-          - std/io: reference/std/io/index.md
-          - std/io/fs: reference/std/io/fs/index.md
-          - std/io/env: reference/std/io/env/index.md
-          - std/io/net: reference/std/io/net/index.md
-          - std/io/logging: reference/std/io/logging/index.md
-          - std/io/db/sqlite: reference/std/io/db/sqlite/index.md
-          - std/io/db/postgres: reference/std/io/db/postgres/index.md
-          - std/io/db/spark: reference/std/io/db/spark/index.md
-          - std/io/transaction: reference/std/io/transaction/index.md
-          - std/io/msg/nats: reference/std/io/msg/nats/index.md
-          - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream/index.md
-          - std/vault: reference/std/vault/index.md
-          - std/crypto/digest: reference/std/crypto/digest/index.md
-          - std/encoding: reference/std/encoding/index.md
-          - std/bytes: reference/std/bytes/index.md
-          - std/crypto: reference/std/crypto/index.md
-          - std/validators: reference/std/validators/index.md
+          - std/core: reference/std/core.md
+          - std/doc: reference/std/doc.md
+          - std/retrieval: reference/std/retrieval.md
+          - std/graph: reference/std/graph.md
+          - std/knowledge: reference/std/knowledge.md
+          - std/collections: reference/std/collections.md
+          - std/string: reference/std/string.md
+          - std/seq: reference/std/seq.md
+          - std/math: reference/std/math.md
+          - std/stats: reference/std/stats.md
+          - std/time: reference/std/time.md
+          - std/random: reference/std/random.md
+          - std/option: reference/std/option.md
+          - std/result: reference/std/result.md
+          - std/regex: reference/std/regex.md
+          - std/format: reference/std/format.md
+          - std/io: reference/std/io.md
+          - std/io/fs: reference/std/io/fs.md
+          - std/io/env: reference/std/io/env.md
+          - std/io/net: reference/std/io/net.md
+          - std/io/logging: reference/std/io/logging.md
+          - std/io/db/sqlite: reference/std/io/db/sqlite.md
+          - std/io/db/postgres: reference/std/io/db/postgres.md
+          - std/io/db/spark: reference/std/io/db/spark.md
+          - std/io/transaction: reference/std/io/transaction.md
+          - std/io/msg/nats: reference/std/io/msg/nats.md
+          - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream.md
+          - std/vault: reference/std/vault.md
+          - std/crypto/digest: reference/std/crypto/digest.md
+          - std/encoding: reference/std/encoding.md
+          - std/bytes: reference/std/bytes.md
+          - std/crypto: reference/std/crypto.md
+          - std/validators: reference/std/validators.md
       - search:
-          - search/lexical: reference/search/lexical/index.md
-          - search/semantic: reference/search/semantic/index.md
+          - search/lexical: reference/search/lexical.md
+          - search/semantic: reference/search/semantic.md
 
 # A primitive's reference page is reached from its module's page, not from the
 # nav.
 not_in_nav: |
   /reference/
+
+# A `.hmd` source is not served: the plugin registers the page it becomes, and
+# without this MkDocs would also copy the source into the site as a static file.
+exclude_docs: |
+  *.hmd
 
 extra:
   generator: false
@@ -251,7 +270,7 @@ extra:
 extra_css:
   - assets/hql.css
 
-# A miss is reported rather than fatal; `doc/stack.md` asks public pages to
+# A miss is reported rather than fatal; `doc/stack.hmd` asks public pages to
 # link to the repository by URL, so a miss is a page to fix.
 validation:
   links:

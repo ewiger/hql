@@ -1192,6 +1192,12 @@ hql --vault examples/tutorial eval 'cards | size'
 The [examples](examples/) are where HQL's features are designed: each query
 file declares its expected type and result, and the test suite runs every one.
 
+The [hql-demo repository](https://github.com/ewiger/hql-demo) runs HQL
+against real systems: Kafka, PostgreSQL, NATS, a Delta lakehouse on MinIO,
+a transactional ledger and signed release manifests. Each case is a vault
+with the Docker Compose file that starts what it needs and a `run.sh` that
+compares its output with the expected one.
+
 ---
 
 ## Design philosophy

@@ -1,15 +1,15 @@
 # ADR status
 
-Every proposal under [`doc/proposals/`](../proposals/README.md), read from its
-README: the number, the title, the status, and how far it is implemented: `yes` for `implemented` and
+Every proposal under [`doc/proposals/`](../proposals/index.hmd), read from its
+folder note: the number, the title, the status, and how far it is implemented: `yes` for `implemented` and
 `superseded`, `partially` for `implemented in part`, `no` for `drafted`,
 `accepted`, `rejected` and `outdated`. A status outside
-[the list](../proposals/README.md#status) shows as `invalid`.
+[[proposals#status|the list]] shows as `invalid`.
 
 ```hql#eval
 import regex
 
-// The text after `**Status**:` on the README's status line.
+// The text after `**Status**:` on the folder note's status line.
 fn status_of(body: String) : String =
     regex.find(body, "\\*\\*Status\\*\\*:[^\\n]*")
     | map(s => regex.replace_first(s, "^\\*\\*Status\\*\\*: *", ""))
@@ -27,12 +27,12 @@ fn implemented_of(status: String) : String =
     otherwise ("no" given status == "outdated"
     otherwise "invalid"))))))
 
-// A Markdown link from this page to the proposal's README.
+// A wikilink to the proposal, which its folder note answers to.
 fn adr_link(id: String) : String =
-    "[" + id + "](../proposals/" + id + "/README.md)"
+    "[[" + id + "]]"
 
 cards
-| filter(c => c.path.contains("proposals/HQL-") and c.path.ends_with("/README.md"))
+| filter(c => c.path.contains("proposals/HQL-") and c.path.ends_with("/index.hmd"))
 | sort(by = c => c.path)
 | map(c => {
     adr: adr_link(regex.find(c.path, "HQL-[0-9]+").unwrap_or(c.name)),
@@ -43,63 +43,63 @@ cards
 | Table(columns = ["adr", "title", "status", "implemented"])
 | format(as = Markdown)
 ```
-<!-- hql:output hash=4eaad185ccee status=ok -->
-| adr                                         | title                                                                                                                    | status              | implemented |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------- | ----------- |
-| [HQL-0001](../proposals/HQL-0001/README.md) | The extension mechanism                                                                                                  | implemented         | yes         |
-| [HQL-0002](../proposals/HQL-0002/README.md) | Semantic retrieval over a precomputed embedding index                                                                    | implemented         | yes         |
-| [HQL-0003](../proposals/HQL-0003/README.md) | A graph example corpus                                                                                                   | drafted             | no          |
-| [HQL-0004](../proposals/HQL-0004/README.md) | MapReduce: pipeline steps, stages and execution backends                                                                 | implemented         | yes         |
-| [HQL-0005](../proposals/HQL-0005/README.md) | Pipeline vocabulary and the logical/physical separation                                                                  | implemented         | yes         |
-| [HQL-0006](../proposals/HQL-0006/README.md) | `Stream<T>` as a first-class pipeline type                                                                               | implemented         | yes         |
-| [HQL-0007](../proposals/HQL-0007/README.md) | `collect` and `emit` are stream-shape operations                                                                         | implemented         | yes         |
-| [HQL-0008](../proposals/HQL-0008/README.md) | Presentation is separate from computation                                                                                | superseded          | yes         |
-| [HQL-0009](../proposals/HQL-0009/README.md) | Cells: identity, shared values and saved outputs                                                                         | implemented         | yes         |
-| [HQL-0010](../proposals/HQL-0010/README.md) | `tee` branches a pipeline without ending it                                                                              | implemented         | yes         |
-| [HQL-0011](../proposals/HQL-0011/README.md) | Names, their providers, and the naming lint                                                                              | implemented         | yes         |
-| [HQL-0012](../proposals/HQL-0012/README.md) | Data sources, targets and endpoints                                                                                      | implemented in part | partially   |
-| [HQL-0013](../proposals/HQL-0013/README.md) | Joins over named sides                                                                                                   | implemented in part | partially   |
-| [HQL-0014](../proposals/HQL-0014/README.md) | `reduce` as the aggregation primitive, and `merge` as a combiner                                                         | implemented         | yes         |
-| [HQL-0015](../proposals/HQL-0015/README.md) | `:=` is function alias syntax sugar                                                                                      | implemented         | yes         |
-| [HQL-0016](../proposals/HQL-0016/README.md) | Type tests, narrowing, widening and conversion                                                                           | implemented         | yes         |
-| [HQL-0017](../proposals/HQL-0017/README.md) | Presentation formats                                                                                                     | implemented in part | partially   |
-| [HQL-0018](../proposals/HQL-0018/README.md) | A type's constructor is an operation                                                                                     | implemented         | yes         |
-| [HQL-0019](../proposals/HQL-0019/README.md) | Graph construction                                                                                                       | implemented in part | partially   |
-| [HQL-0020](../proposals/HQL-0020/README.md) | The vault and its namespace                                                                                              | implemented in part | partially   |
-| [HQL-0021](../proposals/HQL-0021/README.md) | I/O: endpoints, channels, the network and logging                                                                        | implemented         | yes         |
-| [HQL-0023](../proposals/HQL-0023/README.md) | A document reference is written `@[[..]]`                                                                                | implemented         | yes         |
-| [HQL-0024](../proposals/HQL-0024/README.md) | A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions | implemented in part | partially   |
-| [HQL-0025](../proposals/HQL-0025/README.md) | Execution contexts and running modes                                                                                     | implemented in part | partially   |
-| [HQL-0026](../proposals/HQL-0026/README.md) | Positions and slices: `xs[i]`, `xs[a:b]` and the `Slice` capability                                                      | implemented         | yes         |
-| [HQL-0027](../proposals/HQL-0027/README.md) | Generic traits: type parameters on `trait` and `impl`                                                                    | implemented         | yes         |
-| [HQL-0028](../proposals/HQL-0028/README.md) | Import units, the program module and declaration visibility                                                              | implemented         | yes         |
-| [HQL-0029](../proposals/HQL-0029/README.md) | Braces: `{}` is the empty set, `{:}` the empty Data                                                                      | implemented         | yes         |
-| [HQL-0030](../proposals/HQL-0030/README.md) | Supplementary ADR: Structural Types, Open Data Views, Type Contracts, and Data Contracts                                 | superseded          | yes         |
-| [HQL-0031](../proposals/HQL-0031/README.md) | `Decimal`, an exact decimal number type                                                                                  | implemented         | yes         |
-| [HQL-0032](../proposals/HQL-0032/README.md) | Data Validation with `TypeContract` and `DataContract`                                                                   | implemented in part | partially   |
-| [HQL-0033](../proposals/HQL-0033/README.md) | Errors as values — handling, routing, branching, retry and replay                                                        | implemented         | yes         |
-| [HQL-0034](../proposals/HQL-0034/README.md) | Validator types                                                                                                          | implemented         | yes         |
-| [HQL-0035](../proposals/HQL-0035/README.md) | The schema boundary of a configured endpoint                                                                             | implemented in part | partially   |
-| [HQL-0036](../proposals/HQL-0036/README.md) | Partitioning, shuffle boundaries and execution scheduling                                                                | implemented in part | partially   |
-| [HQL-0037](../proposals/HQL-0037/README.md) | Dataflow DAG, fan-out, fan-in, fork and merge                                                                            | implemented in part | partially   |
-| [HQL-0038](../proposals/HQL-0038/README.md) | Functions                                                                                                                | implemented         | yes         |
-| [HQL-0039](../proposals/HQL-0039/README.md) | Traits, validator traits, a trait's type, and traits a module implements                                                 | implemented         | yes         |
-| [HQL-0040](../proposals/HQL-0040/README.md) | `io.fs`: paths, folders, globs and entries                                                                               | implemented         | yes         |
-| [HQL-0041](../proposals/HQL-0041/README.md) | Time, statistics, digests and encodings, randomness, and the environment                                                 | implemented         | yes         |
-| [HQL-0042](../proposals/HQL-0042/README.md) | Doc strings: HQL is the one source of a declaration's documentation                                                      | implemented         | yes         |
-| [HQL-0043](../proposals/HQL-0043/README.md) | Public documentation: a reference page per primitive, permanent URLs and versions                                        | implemented         | yes         |
-| [HQL-0044](../proposals/HQL-0044/README.md) | Type checking is the semantic boundary; compilation is an execution strategy                                             | implemented         | yes         |
-| [HQL-0045](../proposals/HQL-0045/README.md) | The error model: failures as data, diagnostics as events, and the run-scoped diagnostic channel                          | implemented         | yes         |
-| [HQL-0046](../proposals/HQL-0046/README.md) | Kafka topics and PostgreSQL tables as configured endpoints                                                               | implemented         | yes         |
-| [HQL-0047](../proposals/HQL-0047/README.md) | Transports                                                                                                               | implemented in part | partially   |
-| [HQL-0048](../proposals/HQL-0048/README.md) | I/O transport namespaces and packaging                                                                                   | implemented in part | partially   |
-| [HQL-0049](../proposals/HQL-0049/README.md) | NATS subjects and lakehouse tables as configured endpoints                                                               | implemented         | yes         |
-| [HQL-0050](../proposals/HQL-0050/README.md) | Analytic windows, and a deterministic order for keyed selection                                                          | implemented in part | partially   |
-| [HQL-0051](../proposals/HQL-0051/README.md) | Transactions and relational mutations                                                                                    | implemented in part | partially   |
-| [HQL-0052](../proposals/HQL-0052/README.md) | Heterogeneous transaction coordination                                                                                   | drafted             | no          |
-| [HQL-0053](../proposals/HQL-0053/README.md) | Bytes, keys, signatures and encryption                                                                                   | implemented         | yes         |
-| [HQL-0054](../proposals/HQL-0054/README.md) | Key vaults: stored keys, SSH agents, keychains and cloud key managers                                                    | accepted            | no          |
-| [HQL-0055](../proposals/HQL-0055/README.md) | Steps, autes, stages, tasks and jobs: units of computation and units of execution                                        | implemented in part | partially   |
-| [HQL-0056](../proposals/HQL-0056/README.md) | Computation plans and backend engines                                                                                    | drafted             | no          |
-| [HQL-0057](../proposals/HQL-0057/README.md) | Packages: the `hql-extensions` registry, `hql package`, and installed extensions                                         | drafted             | no          |
+<!-- hql:output hash=f4e3d5f2232a status=ok -->
+| adr          | title                                                                                                                    | status              | implemented |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------- | ----------- |
+| [[HQL-0001]] | The extension mechanism                                                                                                  | implemented         | yes         |
+| [[HQL-0002]] | Semantic retrieval over a precomputed embedding index                                                                    | implemented         | yes         |
+| [[HQL-0003]] | A graph example corpus                                                                                                   | drafted             | no          |
+| [[HQL-0004]] | MapReduce: pipeline steps, stages and execution backends                                                                 | implemented         | yes         |
+| [[HQL-0005]] | Pipeline vocabulary and the logical/physical separation                                                                  | implemented         | yes         |
+| [[HQL-0006]] | `Stream<T>` as a first-class pipeline type                                                                               | implemented         | yes         |
+| [[HQL-0007]] | `collect` and `emit` are stream-shape operations                                                                         | implemented         | yes         |
+| [[HQL-0008]] | Presentation is separate from computation                                                                                | superseded          | yes         |
+| [[HQL-0009]] | Cells: identity, shared values and saved outputs                                                                         | implemented         | yes         |
+| [[HQL-0010]] | `tee` branches a pipeline without ending it                                                                              | implemented         | yes         |
+| [[HQL-0011]] | Names, their providers, and the naming lint                                                                              | implemented         | yes         |
+| [[HQL-0012]] | Data sources, targets and endpoints                                                                                      | implemented in part | partially   |
+| [[HQL-0013]] | Joins over named sides                                                                                                   | implemented in part | partially   |
+| [[HQL-0014]] | `reduce` as the aggregation primitive, and `merge` as a combiner                                                         | implemented         | yes         |
+| [[HQL-0015]] | `:=` is function alias syntax sugar                                                                                      | implemented         | yes         |
+| [[HQL-0016]] | Type tests, narrowing, widening and conversion                                                                           | implemented         | yes         |
+| [[HQL-0017]] | Presentation formats                                                                                                     | implemented in part | partially   |
+| [[HQL-0018]] | A type's constructor is an operation                                                                                     | implemented         | yes         |
+| [[HQL-0019]] | Graph construction                                                                                                       | implemented in part | partially   |
+| [[HQL-0020]] | The vault and its namespace                                                                                              | implemented in part | partially   |
+| [[HQL-0021]] | I/O: endpoints, channels, the network and logging                                                                        | implemented         | yes         |
+| [[HQL-0023]] | A document reference is written `@[[..]]`                                                                                | implemented         | yes         |
+| [[HQL-0024]] | A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions | implemented in part | partially   |
+| [[HQL-0025]] | Execution contexts and running modes                                                                                     | implemented in part | partially   |
+| [[HQL-0026]] | Positions and slices: `xs[i]`, `xs[a:b]` and the `Slice` capability                                                      | implemented         | yes         |
+| [[HQL-0027]] | Generic traits: type parameters on `trait` and `impl`                                                                    | implemented         | yes         |
+| [[HQL-0028]] | Import units, the program module and declaration visibility                                                              | implemented         | yes         |
+| [[HQL-0029]] | Braces: `{}` is the empty set, `{:}` the empty Data                                                                      | implemented         | yes         |
+| [[HQL-0030]] | Supplementary ADR: Structural Types, Open Data Views, Type Contracts, and Data Contracts                                 | superseded          | yes         |
+| [[HQL-0031]] | `Decimal`, an exact decimal number type                                                                                  | implemented         | yes         |
+| [[HQL-0032]] | Data Validation with `TypeContract` and `DataContract`                                                                   | implemented in part | partially   |
+| [[HQL-0033]] | Errors as values — handling, routing, branching, retry and replay                                                        | implemented         | yes         |
+| [[HQL-0034]] | Validator types                                                                                                          | implemented         | yes         |
+| [[HQL-0035]] | The schema boundary of a configured endpoint                                                                             | implemented in part | partially   |
+| [[HQL-0036]] | Partitioning, shuffle boundaries and execution scheduling                                                                | implemented in part | partially   |
+| [[HQL-0037]] | Dataflow DAG, fan-out, fan-in, fork and merge                                                                            | implemented in part | partially   |
+| [[HQL-0038]] | Functions                                                                                                                | implemented         | yes         |
+| [[HQL-0039]] | Traits, validator traits, a trait's type, and traits a module implements                                                 | implemented         | yes         |
+| [[HQL-0040]] | `io.fs`: paths, folders, globs and entries                                                                               | implemented         | yes         |
+| [[HQL-0041]] | Time, statistics, digests and encodings, randomness, and the environment                                                 | implemented         | yes         |
+| [[HQL-0042]] | Doc strings: HQL is the one source of a declaration's documentation                                                      | implemented         | yes         |
+| [[HQL-0043]] | Public documentation: a reference page per primitive, permanent URLs and versions                                        | implemented         | yes         |
+| [[HQL-0044]] | Type checking is the semantic boundary; compilation is an execution strategy                                             | implemented         | yes         |
+| [[HQL-0045]] | The error model: failures as data, diagnostics as events, and the run-scoped diagnostic channel                          | implemented         | yes         |
+| [[HQL-0046]] | Kafka topics and PostgreSQL tables as configured endpoints                                                               | implemented         | yes         |
+| [[HQL-0047]] | Transports                                                                                                               | implemented in part | partially   |
+| [[HQL-0048]] | I/O transport namespaces and packaging                                                                                   | implemented in part | partially   |
+| [[HQL-0049]] | NATS subjects and lakehouse tables as configured endpoints                                                               | implemented         | yes         |
+| [[HQL-0050]] | Analytic windows, and a deterministic order for keyed selection                                                          | implemented in part | partially   |
+| [[HQL-0051]] | Transactions and relational mutations                                                                                    | implemented in part | partially   |
+| [[HQL-0052]] | Heterogeneous transaction coordination                                                                                   | drafted             | no          |
+| [[HQL-0053]] | Bytes, keys, signatures and encryption                                                                                   | implemented         | yes         |
+| [[HQL-0054]] | Key vaults: stored keys, SSH agents, keychains and cloud key managers                                                    | accepted            | no          |
+| [[HQL-0055]] | Steps, autes, stages, tasks and jobs: units of computation and units of execution                                        | implemented in part | partially   |
+| [[HQL-0056]] | Computation plans and backend engines                                                                                    | drafted             | no          |
+| [[HQL-0057]] | Packages: the `hql-extensions` registry, `hql package`, and installed extensions                                         | drafted             | no          |
 <!-- /hql:output -->

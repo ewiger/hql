@@ -1,7 +1,7 @@
 // status: proposed
 // feature: keys lists a vault's keys by name and algorithm, and no listing holds key material
 // implementation: pending
-// proposal: doc/proposals/HQL-0054/parts/01-keyvault.md
+// proposal: doc/proposals/HQL-0054/parts/01-keyvault.hmd
 // environment: knowledge-v1
 // vault: crypto/vault
 // expected-type: List<Data>

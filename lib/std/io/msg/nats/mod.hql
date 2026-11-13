@@ -1,7 +1,7 @@
 // Provided by the `std` extension.
 //
-// See doc/proposals/HQL-0047/README.md, doc/proposals/HQL-0048/README.md and
-// doc/proposals/HQL-0049/README.md.
+// See doc/proposals/HQL-0047/index.hmd, doc/proposals/HQL-0048/index.hmd and
+// doc/proposals/HQL-0049/index.hmd.
 
 /// Core NATS: one subject, as a transport read by `tap` and written by
 /// `sink` and `target` like any other endpoint (module `io`). The server

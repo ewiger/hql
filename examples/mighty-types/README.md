@@ -1,7 +1,7 @@
 # Mighty Types: the language, program by program
 
 Thirty-one programs in the manner of a language textbook, each showing
-one part of the language that [HQL-0024](../../doc/proposals/HQL-0024/README.md)
+one part of the language that [HQL-0024](../../doc/proposals/HQL-0024/index.hmd)
 specifies: records, unions, options and results, traits and operators, generic
 functions, closures, iterators, the standard library, modules written in HQL
 and the dataflow operations a dataframe has. From the repository root:

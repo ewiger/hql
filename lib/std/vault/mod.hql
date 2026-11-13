@@ -1,4 +1,4 @@
-// See doc/issues/archive/0010-yield-and-bind.md and doc/models/behavior/queries.md.
+// See doc/issues/archive/0010-yield-and-bind.hmd and doc/models/behavior/queries.hmd.
 
 /// The current vault: the source a program runs against. A host with a
 /// vault binds it as `vault` in the program module; a program running

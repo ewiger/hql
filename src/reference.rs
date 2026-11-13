@@ -43,13 +43,13 @@ fn primitives(module: &Module) -> Vec<&str> {
 
 /// A page's path within its module's folder. A capitalised name, a type
 /// or a trait with its constructors, is under `types/`, so that `Csv` and a
-/// `csv` beside it, or a trait `Index` and the module's `index.md`, are two
+/// `csv` beside it, or a trait `Index` and the module's `index.hmd`, are two
 /// files on any file system.
 fn page_path(name: &str) -> PathBuf {
     if name.starts_with(char::is_uppercase) {
-        PathBuf::from("types").join(format!("{name}.md"))
+        PathBuf::from("types").join(format!("{name}.hmd"))
     } else {
-        PathBuf::from(format!("{name}.md"))
+        PathBuf::from(format!("{name}.hmd"))
     }
 }
 
@@ -61,10 +61,11 @@ fn link(path: &Path) -> String {
         .join("/")
 }
 
-/// A doc string's text with its citations as Markdown links relative to the
-/// page at `depth` folders below the site's root.
-fn linked(text: &str, depth: usize) -> String {
-    let up = "../".repeat(depth);
+/// A doc string's text as a page shows it. A citation is a wikilink from
+/// the site's root, `[[/learn/…]]`, and `doc/public/` is the vault the page
+/// resolves it in, so it is kept as written; one with no display text gets
+/// its path, without the leading `/`, as its text.
+fn linked(text: &str) -> String {
     let mut out = String::new();
     let mut rest = text;
     while let Some(open) = rest.find("[[") {
@@ -78,22 +79,11 @@ fn linked(text: &str, depth: usize) -> String {
         }
         out.push_str(&rest[..open]);
         let inner = &rest[open + 2..open + close];
-        let (target, display) = inner.split_once('|').unwrap_or((inner, inner));
-        match target.strip_prefix('/') {
-            Some(path) => {
-                let (path, fragment) = path
-                    .split_once('#')
-                    .map_or((path, ""), |(path, fragment)| (path, fragment));
-                let file = format!("{path}.md");
-                let anchor = if fragment.is_empty() {
-                    String::new()
-                } else {
-                    format!("#{fragment}")
-                };
-                let display = display.trim_start_matches('/');
-                let _ = write!(out, "[{display}]({up}{file}{anchor})");
+        match inner.strip_prefix('/') {
+            Some(path) if !inner.contains('|') => {
+                let _ = write!(out, "[[{inner}|{path}]]");
             }
-            None => out.push_str(&rest[open..open + close + 2]),
+            _ => out.push_str(&rest[open..open + close + 2]),
         }
         rest = &rest[open + close + 2..];
     }
@@ -103,11 +93,11 @@ fn linked(text: &str, depth: usize) -> String {
 
 /// The marked part of one primitive's page: its name, its module, and each
 /// entry of its declarations with the doc string they share.
-fn primitive_part(module: &Module, name: &str, depth: usize) -> String {
+fn primitive_part(module: &Module, name: &str) -> String {
     let index = if name.starts_with(char::is_uppercase) {
-        "../index.md"
+        "../index.hmd"
     } else {
-        "index.md"
+        "index.hmd"
     };
     let mut part = format!("# `{name}`\n\nIn [`{}`]({index}).\n", module.label);
     let declarations: Vec<&Declaration> = module
@@ -125,7 +115,7 @@ fn primitive_part(module: &Module, name: &str, depth: usize) -> String {
         part.push_str("```\n");
         if let Some(doc) = &entry[0].doc {
             part.push('\n');
-            part.push_str(&linked(&doc.text, depth));
+            part.push_str(&linked(&doc.text));
             part.push('\n');
         }
         for declaration in entry
@@ -146,7 +136,7 @@ fn primitive_part(module: &Module, name: &str, depth: usize) -> String {
                 part.push_str("```\n");
                 if let Some(doc) = &member[0].doc {
                     part.push('\n');
-                    part.push_str(&linked(&doc.text, depth));
+                    part.push_str(&linked(&doc.text));
                     part.push('\n');
                 }
             }
@@ -157,7 +147,7 @@ fn primitive_part(module: &Module, name: &str, depth: usize) -> String {
 
 /// The marked part of a module's page: its declaration and doc string, a
 /// list of its primitives, and the implementations it declares.
-fn module_part(module: &Module, depth: usize) -> String {
+fn module_part(module: &Module) -> String {
     let mut part = format!("# `{}`\n", module.label);
     if let Some(header) = module
         .declarations
@@ -166,7 +156,7 @@ fn module_part(module: &Module, depth: usize) -> String {
     {
         let _ = write!(part, "\n```hql\n{}\n```\n", header.text);
         if let Some(doc) = &header.doc {
-            let _ = write!(part, "\n{}\n", linked(&doc.text, depth));
+            let _ = write!(part, "\n{}\n", linked(&doc.text));
         }
     }
     let names = primitives(module);
@@ -202,7 +192,7 @@ fn module_part(module: &Module, depth: usize) -> String {
             }
             part.push_str("```\n");
             if let Some(doc) = &entry[0].doc {
-                let _ = write!(part, "\n{}\n", linked(&doc.text, depth));
+                let _ = write!(part, "\n{}\n", linked(&doc.text));
             }
         }
     }
@@ -223,32 +213,27 @@ fn pages() -> Vec<Page> {
             .unwrap_or_default();
         let _ = writeln!(
             index,
-            "- [`{}`]({}/index.md) — {sentence}",
+            "- [`{}`]({}/index.hmd) — {sentence}",
             module.label, module.label
         );
     }
     let mut pages = vec![Page {
-        path: PathBuf::from("index.md"),
+        path: PathBuf::from("index.hmd"),
         key: "index".to_owned(),
         part: index,
     }];
     for module in modules {
-        // A page's folders below the site's root: `reference/`, then the
-        // module's segments.
-        let depth = 1 + module.path.len();
         let folder = PathBuf::from(&module.label);
         pages.push(Page {
-            path: folder.join("index.md"),
+            path: folder.join("index.hmd"),
             key: module.label.clone(),
-            part: module_part(module, depth),
+            part: module_part(module),
         });
         for name in primitives(module) {
-            let path = page_path(name);
-            let depth = depth + path.components().count() - 1;
             pages.push(Page {
-                path: folder.join(path),
+                path: folder.join(page_path(name)),
                 key: format!("{}.{name}", module.label),
-                part: primitive_part(module, name, depth),
+                part: primitive_part(module, name),
             });
         }
     }
@@ -278,7 +263,7 @@ fn with_part(existing: Option<&str>, key: &str, part: &str) -> Result<String, St
     Ok(format!("{}{marked}{}", &text[..start], &text[end..]))
 }
 
-/// Every `.md` file under a folder, relative to it.
+/// Every card under a folder, relative to it.
 fn files(root: &Path) -> Vec<PathBuf> {
     fn visit(root: &Path, directory: &Path, found: &mut Vec<PathBuf>) {
         let Ok(entries) = std::fs::read_dir(directory) else {
@@ -288,7 +273,7 @@ fn files(root: &Path) -> Vec<PathBuf> {
             let path = entry.path();
             if path.is_dir() {
                 visit(root, &path, found);
-            } else if path.extension().is_some_and(|extension| extension == "md")
+            } else if path.extension().is_some_and(|extension| extension == "hmd")
                 && let Ok(relative) = path.strip_prefix(root)
             {
                 found.push(relative.to_path_buf());
@@ -396,16 +381,23 @@ mod tests {
     }
 
     #[test]
-    fn citations_become_relative_links() {
+    fn citations_stay_wikilinks_from_the_sites_root() {
         assert_eq!(
-            linked("See [[/learn/02-data-types/decimal#division|Division]].", 3),
-            "See [Division](../../../learn/02-data-types/decimal.md#division)."
+            linked("See [[/learn/02-data-types/decimal#division|Division]]."),
+            "See [[/learn/02-data-types/decimal#division|Division]]."
         );
+        assert_eq!(
+            linked("See [[/learn/20-olap/windows]]."),
+            "See [[/learn/20-olap/windows|learn/20-olap/windows]]."
+        );
+        assert_eq!(linked("`[[/learn/x]]`"), "`[[/learn/x]]`");
     }
 
     /// The `Reference` entry of the site's `nav` in `mkdocs.yml`: the index,
     /// then each package as a section of its modules' pages, in library order.
     /// A primitive's page is reached from its module's page, not from the nav.
+    /// A module's page is the folder note `reference/std/x/index.hmd`, which
+    /// the site registers as the page `reference/std/x.md`.
     fn nav() -> String {
         let mut packages: Vec<(&str, Vec<&Module>)> = Vec::new();
         for module in help::library() {
@@ -415,13 +407,13 @@ mod tests {
                 None => packages.push((package, vec![module])),
             }
         }
-        let mut nav = String::from("  - Reference:\n      - reference/index.md\n");
+        let mut nav = String::from("  - Reference:\n      - reference.md\n");
         for (package, modules) in packages {
             let _ = writeln!(nav, "      - {package}:");
             for module in modules {
                 let _ = writeln!(
                     nav,
-                    "          - {}: reference/{}/index.md",
+                    "          - {}: reference/{}.md",
                     module.label, module.label
                 );
             }
@@ -443,7 +435,7 @@ mod tests {
 
     #[test]
     fn capitalised_names_are_under_types() {
-        assert_eq!(page_path("Csv"), PathBuf::from("types/Csv.md"));
-        assert_eq!(page_path("csv"), PathBuf::from("csv.md"));
+        assert_eq!(page_path("Csv"), PathBuf::from("types/Csv.hmd"));
+        assert_eq!(page_path("csv"), PathBuf::from("csv.hmd"));
     }
 }

@@ -1,4 +1,4 @@
-// See doc/models/domain/knowledge.md and doc/wiki/hql/knowledge.hmd.
+// See doc/models/domain/knowledge.hmd and doc/wiki/hql/knowledge.hmd.
 
 /// Knowledge: the semantic domain, where everything is a claim. Every
 /// declaration is a type; the module declares no operation.

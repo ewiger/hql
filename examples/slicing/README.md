@@ -1,7 +1,7 @@
 # Slicing: positions and parts of a sequence
 
 Pure programs, no vault. The cases check and evaluate the bracket operator
-[HQL-0026](../../doc/proposals/HQL-0026/README.md) specifies. From the
+[HQL-0026](../../doc/proposals/HQL-0026/index.hmd) specifies. From the
 repository root:
 
 ```sh

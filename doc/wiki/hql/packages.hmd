@@ -10,9 +10,9 @@ thing. A **module** is what a program imports, a **package** is what is
 distributed and installed, an **extension** is the native code that
 implements a package's modules, and a **library** is the compiled file that
 code is loaded from. The rules are
-[HQL-0024, modules](../../proposals/HQL-0024/parts/01-modules.md) ("Three
+[[01-modules|HQL-0024, modules]] ("Three
 identities") and
-[HQL-0057, packages](../../proposals/HQL-0057/parts/01-packages.md).
+[[01-packages|HQL-0057, packages]].
 
 | Term | What it is | Example |
 | --- | --- | --- |
@@ -63,7 +63,7 @@ the word.
 | Name | What it holds | Where |
 | --- | --- | --- |
 | module registry | the modules of the environment, each with its contract | in the process, built from module roots |
-| extension registry | the extensions active in the environment, each with its descriptor | in the process, built by extension discovery ([HQL-0024 part 9](../../proposals/HQL-0024/parts/09-packages-and-extensions.md)) |
+| extension registry | the extensions active in the environment, each with its descriptor | in the process, built by extension discovery ([[09-packages-and-extensions|HQL-0024 part 9]]) |
 | package registry | every official and known package, pinned to a source | `hql-packages.yaml` at the root of hql-extensions |
 
 ## The standard library

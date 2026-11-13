@@ -1,0 +1,21 @@
+<!-- hql reference: std/random.uuid -->
+# `uuid`
+
+In [`std/random`](index.hmd).
+
+```hql
+effectful fn uuid() : String
+```
+
+A version 7 UUID: its first 48 bits are the evaluation instant's Unix
+milliseconds and the next 42 a counter, so the UUIDs of one evaluation
+sort in the order they were drawn.
+
+```hql
+fn uuid(name: String, namespace: String) : String
+```
+
+The version 5 UUID of `name` in `namespace`: a UUID's text, or one of
+the RFC 9562 namespaces `"dns"`, `"url"`, `"oid"` and `"x500"`. Any
+other namespace is an evaluation error.
+<!-- hql reference: end -->

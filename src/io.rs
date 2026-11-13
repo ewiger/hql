@@ -4,7 +4,7 @@
 //! An endpoint is a value and performs nothing; `source`, `tap`, `target` and
 //! `sink` in [`crate::extensions::io`] use one. The I/O itself lives here, at
 //! the edge, so the evaluator stays a function of its program and its inputs.
-//! See [HQL-0021](../../doc/proposals/HQL-0021/README.md).
+//! See [HQL-0021](../../doc/proposals/HQL-0021/index.hmd).
 
 use crate::data::Data;
 use crate::types::{Formatted, TypeConstructor, TypeRef, Value};
