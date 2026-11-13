@@ -58,12 +58,24 @@ pub(crate) struct TraitId(usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct ImplId(usize);
 
-/// A loaded module: its canonical name, and the extension whose descriptor
-/// provides it, where one does.
+/// A loaded module: its canonical name, the extension whose descriptor
+/// provides it, where one does, and the operation bound to each name it
+/// declares externally.
 #[derive(Debug)]
 pub(crate) struct Module {
     pub(crate) name: &'static str,
     pub(crate) provider: Option<&'static Extension>,
+    /// The operation implementing each external declaration of the module,
+    /// by the declared name: every form of a name binds to one operation.
+    operations: HashMap<String, &'static Operation>,
+}
+
+impl Module {
+    /// The local name an import without an alias binds the module under:
+    /// its last segment, `net` of `io.net`.
+    pub(crate) fn local(&self) -> &'static str {
+        self.name.rsplit('.').next().unwrap_or(self.name)
+    }
 }
 
 /// One external declaration and what binding found for it.
@@ -320,8 +332,12 @@ impl Environment {
             .extensions
             .iter()
             .copied()
-            .find(|extension| extension.provides.contains(&name));
-        self.modules.push(Module { name, provider });
+            .find(|extension| extension.provides(name));
+        self.modules.push(Module {
+            name,
+            provider,
+            operations: HashMap::new(),
+        });
         let receiver = program
             .statements
             .iter()
@@ -374,7 +390,11 @@ impl Environment {
                     }
                 }
                 Stmt::External(declaration) => {
-                    let operation = provider.and_then(|provider| provider.step(&declaration.name));
+                    // The implementation is keyed by the declaration's
+                    // identity, the module and the name: `string.contains`
+                    // and `collections.contains` are two.
+                    let operation = provider
+                        .and_then(|provider| provider.implementation(name, &declaration.name));
                     // A declaration named as a type is, which its module's
                     // extension does not implement, is a constructor of the
                     // binary's table: `Logger` is an operation, `List` is not.
@@ -402,6 +422,10 @@ impl Environment {
                     let id = DeclarationId(self.declarations.len());
                     if let Some(operation) = operation {
                         self.operations.entry(key(operation)).or_default().push(id);
+                        self.modules[module.0]
+                            .operations
+                            .entry(declaration.name.clone())
+                            .or_insert(operation);
                     }
                     self.declarations.push(Declaration {
                         module,
@@ -461,9 +485,19 @@ impl Environment {
             .map(|(index, module)| (ModuleId(index), module))
     }
 
-    /// The extension set the environment binds.
-    pub(crate) fn extensions(&self) -> ExtensionSet {
-        self.extensions
+    /// The module of a canonical name that an extension provides: what an
+    /// `import` of a builtin module binds. A module the runtime implements
+    /// is not one; it declares types alone.
+    pub(crate) fn provided_module(&self, name: &str) -> Option<ModuleId> {
+        self.modules()
+            .find(|(_, module)| module.name == name && module.provider.is_some())
+            .map(|(id, _)| id)
+    }
+
+    /// The operation a module's external declaration of a name is bound to,
+    /// private or not: what the module offers an importer, before privacy.
+    pub(crate) fn offered(&self, module: ModuleId, name: &str) -> Option<&'static Operation> {
+        self.module(module).operations.get(name).copied()
     }
 
     /// A loaded declaration.
@@ -865,7 +899,7 @@ impl Environment {
                 return Err(format!(
                     "`{}` is declared, and the extension `{}` implements no such function",
                     self.qualified(id),
-                    provider.name
+                    provider.id
                 ));
             }
         }
@@ -922,7 +956,7 @@ impl Environment {
                     "`{}` is declared {}, and the extension `{}` marks it {}",
                     self.qualified(id),
                     expected.label(),
-                    provider.name,
+                    provider.id,
                     step.purity.label()
                 ));
             }
@@ -933,7 +967,7 @@ impl Environment {
                     "`{}` is declared {}, and the extension `{}` marks it {}",
                     self.qualified(id),
                     declaration.shape.label(),
-                    provider.name,
+                    provider.id,
                     step.shape.label()
                 ));
             }
@@ -986,7 +1020,7 @@ impl Environment {
                             "`{}` is declared with other types than the extension `{}` \
                              implements: {}",
                             self.qualified(id),
-                            provider.name,
+                            provider.id,
                             found.join("; ")
                         ));
                     }
@@ -1003,7 +1037,7 @@ impl Environment {
                          declarations",
                         self.qualified(id),
                         overloads.len(),
-                        provider.name
+                        provider.id
                     ));
                 }
                 let found = match alternatives
@@ -1023,7 +1057,7 @@ impl Environment {
                     return Err(format!(
                         "`{}` is declared with other types than the extension `{}` implements: {}",
                         self.qualified(id),
-                        provider.name,
+                        provider.id,
                         found.join("; ")
                     ));
                 }
@@ -1062,17 +1096,26 @@ impl Environment {
     /// and every signature it takes is well formed.
     fn validate_extensions(&self) -> Result<(), String> {
         for extension in self.extensions {
-            for step in extension.steps {
+            if extension.abi != super::ABI {
+                return Err(format!(
+                    "the extension `{}` reaches the process by abi {}, and this binary loads \
+                     abi {}",
+                    extension.id,
+                    extension.abi,
+                    super::ABI
+                ));
+            }
+            for step in extension.steps() {
                 if matches!(step.spec, Signature::Declared) && self.of(step).is_empty() {
                     return Err(format!(
                         "the extension `{}` takes the signature of `{}` from its declaration, and \
                          no contract under lib/ declares it",
-                        extension.name, step.name
+                        extension.id, step.name
                     ));
                 }
                 for spec in self.specs(step) {
                     spec.validate()
-                        .map_err(|error| format!("{}.{}, {error}", extension.name, step.name))?;
+                        .map_err(|error| format!("{}.{}, {error}", extension.id, step.name))?;
                 }
             }
         }
@@ -1088,10 +1131,10 @@ impl Environment {
             if !claimed {
                 continue;
             }
-            if let Some(step) = extension.steps.iter().find(|step| self.of(step).is_empty()) {
+            if let Some(step) = extension.steps().find(|step| self.of(step).is_empty()) {
                 return Err(format!(
                     "the extension `{}` implements `{}`, which no contract under lib/ declares",
-                    extension.name, step.name
+                    extension.id, step.name
                 ));
             }
         }
@@ -1158,13 +1201,19 @@ impl Runtime {
                     format!("the vault's {}: {message}", crate::reporting::CONFIG_FILE),
                 )
             };
-            // A vault's import list names standard modules; a workspace
-            // module is imported where it is used.
+            // A vault's import list names builtin modules, or packages,
+            // which import every module they provide; a workspace module is
+            // imported where it is used.
             let bound = resolution
                 .import(name, None, &(0..0))
-                .map_err(|failed| configured(failed.message()))?;
+                .map_err(|failed| configured(failed.message()))?
+                || resolution
+                    .import_package(name, &(0..0))
+                    .map_err(|failed| configured(failed.message()))?;
             if !bound {
-                return Err(configured(format!("no standard module named `{name}`")));
+                return Err(configured(format!(
+                    "no builtin module or package named `{name}`"
+                )));
             }
         }
         Ok(Self { resolution })
@@ -1310,14 +1359,16 @@ mod tests {
             .map(|(name, _)| *name)
             .collect();
         assert_eq!(names, expected);
-        let trim = super::super::STRING.step("trim").unwrap();
+        let trim = super::super::STD.implementation("string", "trim").unwrap();
         let [id] = environment.of(trim) else {
             panic!("`trim` is declared once");
         };
         assert_eq!(environment.qualified(*id), "string.trim");
         assert!(environment.declaration(*id).receiver);
         // An overloaded name is one operation behind several declarations.
-        let sort = super::super::CORE.step("sort").unwrap();
+        let sort = super::super::STD
+            .implementation("collections", "sort")
+            .unwrap();
         assert_eq!(environment.of(sort).len(), 6);
     }
 
@@ -1401,7 +1452,7 @@ mod tests {
             ("sink", Purity::Effectful),
             ("file", Purity::Pure),
         ] {
-            let step = super::super::IO.step(name).unwrap();
+            let step = super::super::STD.implementation("io", name).unwrap();
             // `source` and `tap` read, and `target` and `sink` write, an
             // endpoint or a configured endpoint's id; `file` takes a String
             // or a Path.
@@ -1418,10 +1469,14 @@ mod tests {
             assert_eq!(step.purity(), expected, "{name}");
         }
         // `Logger` is an operation of `io.logging`, not a table constructor.
-        let logger = super::super::LOGGING.step("Logger").unwrap();
+        let logger = super::super::STD
+            .implementation("io.logging", "Logger")
+            .unwrap();
         assert_eq!(environment.of(logger).len(), 1);
         assert_eq!(logger.purity(), Purity::Pure);
-        let info = super::super::LOGGING.step("info").unwrap();
+        let info = super::super::STD
+            .implementation("io.logging", "info")
+            .unwrap();
         assert_eq!(info.purity(), Purity::Effectful);
         assert!(!environment.has_receiver(info));
     }
@@ -1435,7 +1490,9 @@ mod tests {
             ("size", Shape::Reduction),
             ("sort", Shape::Barrier),
         ] {
-            let step = super::super::CORE.step(name).unwrap();
+            let step = super::super::STD
+                .implementation("collections", name)
+                .unwrap();
             for id in environment.of(step) {
                 assert_eq!(environment.declaration(*id).shape, expected, "{name}");
             }
@@ -1498,32 +1555,45 @@ mod tests {
         assert!(crate::parser::parse("effectful = 1\neffectful").is_ok());
     }
 
-    /// The probe module's contract: a public receiver function and a
-    /// private one.
+    /// The probe module's contract: a public receiver function, a private
+    /// one, and a second `count`, which `collections` declares too.
     const PROBE_SOURCE: &str = "module probe\n\
                                 import core\n\
                                 fn shout(self: String) : String\n\
-                                private fn whisper(self: String) : String\n";
+                                private fn whisper(self: String) : String\n\
+                                fn count<T>(self: T) : Int\n";
 
     /// The probe extension, implementing the probe module.
     static PROBE: Extension = Extension {
-        name: "probe",
+        id: "probe",
+        abi: super::super::ABI,
+        origin: super::super::Origin::Internal,
         version: "0",
-        provides: &["probe"],
+        provides: &[super::super::Provided {
+            module: "probe",
+            steps: &[
+                declared("shout", |_, input, _, _| Ok(input)),
+                declared("whisper", |_, input, _, _| Ok(input)),
+                declared("count", |_, _, _, _| Ok(Value::Int(0))),
+            ],
+        }],
         metadata: None,
-        steps: &[
-            declared("shout", |_, input, _, _| Ok(input)),
-            declared("whisper", |_, input, _, _| Ok(input)),
-        ],
     };
 
     /// The probe extension without `whisper`, which its module declares.
     static SHORT: Extension = Extension {
-        name: "probe",
+        id: "probe",
+        abi: super::super::ABI,
+        origin: super::super::Origin::Internal,
         version: "0",
-        provides: &["probe"],
+        provides: &[super::super::Provided {
+            module: "probe",
+            steps: &[
+                declared("shout", |_, _, _, _| Ok(Value::Int(0))),
+                declared("count", |_, _, _, _| Ok(Value::Int(0))),
+            ],
+        }],
         metadata: None,
-        steps: &[declared("shout", |_, _, _, _| Ok(Value::Int(0)))],
     };
 
     /// The standard library with the probe module after it.
@@ -1614,8 +1684,8 @@ mod tests {
         let cache = Cache::default();
         let extensions = with(&PROBE);
         let environment = cache.frozen(probe_graph(), extensions).unwrap();
-        let whisper = PROBE.step("whisper").unwrap();
-        let shout = PROBE.step("shout").unwrap();
+        let whisper = PROBE.implementation("probe", "whisper").unwrap();
+        let shout = PROBE.implementation("probe", "shout").unwrap();
         // Binding reads the flag: the declaration is bound to its operation,
         // which its module's provider implements, and marked private.
         let [id] = environment.of(whisper) else {
@@ -1648,5 +1718,60 @@ mod tests {
                 .receiver_providers("whisper", &TypeRef::STR)
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn two_modules_declaring_one_name_are_told_apart_at_the_call() {
+        let cache = Cache::default();
+        let environment = cache.frozen(probe_graph(), with(&PROBE)).unwrap();
+        let mut resolution = Resolution::bare(environment, true);
+        assert!(resolution.import("probe", None, &(0..1)).unwrap());
+        // A collection fits `collections`'s `count` and the probe's, over
+        // any `T`, with no arity to tell them apart: the call is ambiguous
+        // and names both modules.
+        let both = resolution
+            .step_for("count", &TypeRef::list(TypeRef::INT), 0, &[], &(0..1))
+            .unwrap_err();
+        assert!(
+            both.message().contains("`collections` and `probe`")
+                && both.message().contains("`collections.count(…)`"),
+            "{}",
+            both.message()
+        );
+        // An Int fits only the probe's.
+        let probe = resolution
+            .step_for("count", &TypeRef::INT, 0, &[], &(0..1))
+            .unwrap();
+        assert!(std::ptr::eq(
+            probe,
+            PROBE.implementation("probe", "count").unwrap()
+        ));
+        assert!(resolution.step("count", &(0..1)).is_ok());
+    }
+
+    #[test]
+    fn visibility_is_the_modules_not_the_extensions() {
+        // `std` provides `io.net`; importing nothing of it leaves `http`
+        // unresolved, and the refusal names the module, by its kept
+        // one-word import.
+        let resolution = Resolution::bare(Frozen::process().unwrap(), true);
+        let missing = resolution.step("http", &(0..1)).unwrap_err();
+        assert!(
+            missing
+                .message()
+                .contains("`http` is declared in the module `io.net`: write `import net`"),
+            "{}",
+            missing.message()
+        );
+        // `import net` and `import io.net` bind the one module.
+        let mut short = resolution.clone();
+        assert!(short.import("net", None, &(0..1)).unwrap());
+        assert!(short.import("io.net", None, &(0..1)).unwrap());
+        assert!(short.step("http", &(0..1)).is_ok());
+        assert!(short.qualified("net", "http", &(0..1)).is_ok());
+        // `collections` is always visible and declares the core steps;
+        // `core` is visible and declares none of them.
+        assert!(resolution.qualified("collections", "sort", &(0..1)).is_ok());
+        assert!(resolution.qualified("core", "sort", &(0..1)).is_err());
     }
 }

@@ -525,21 +525,24 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
         assert!(stdout(&listed).contains(name), "{name}");
     }
     // A flat list stops being true once a name can come from two places, so
-    // help says who supplies each step and whether this vault has it.
+    // help names the module declaring each step, the extension providing
+    // the module, and whether this vault has it.
+    let version = env!("CARGO_PKG_VERSION");
     for provider in [
-        "core",
-        "graph",
-        "format",
-        "always available",
-        "prelude",
-        "imported where it is used",
+        format!("collections (std {version}, always available)"),
+        format!("graph (std {version}, prelude)"),
+        format!("lexical (search {version}, imported where it is used)"),
+        format!("io.net (std {version}, imported where it is used)"),
     ] {
-        assert!(stdout(&listed).contains(provider), "{provider}");
+        assert!(stdout(&listed).contains(&provider), "{provider}");
     }
     let configured = stdout(&hql(&["--vault", CONFIGURED, "builtins"]));
-    let version = env!("CARGO_PKG_VERSION");
-    assert!(configured.contains(&format!("lexical {version} (imported by this vault)")));
-    assert!(configured.contains(&format!("format {version} (imported where it is used)")));
+    assert!(configured.contains(&format!(
+        "lexical (search {version}, imported by this vault)"
+    )));
+    assert!(configured.contains(&format!(
+        "format (std {version}, imported where it is used)"
+    )));
 
     let configured = hql(&["--vault", VAULT, "config"]);
     assert!(stdout(&configured).contains("strict"));

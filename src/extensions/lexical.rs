@@ -1,4 +1,4 @@
-//! The `lexical` extension: matching a query against shared spellings.
+//! The `lexical` module's operation, in `search`: matching a query against shared spellings.
 //!
 //! The embedding is a hashed bag of words compared by cosine. It is offline,
 //! deterministic and exact, which is what makes it honest about the one thing

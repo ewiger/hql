@@ -37,13 +37,16 @@ modules is imported where it is used.
 
 Which modules each extension provides. A module no extension provides is
 implemented by the runtime: every declaration in it has an HQL body, or it
-declares types alone. `src/extensions/mod.rs` still declares twenty-nine
-descriptors, one per Rust source module; folding them into these two is open
-work.
+declares types alone. `src/extensions/mod.rs` registers these two
+descriptors, each with its `id`, `abi = 1` and `provides`; the
+implementations are keyed by module and declared name, and the Rust source
+modules of that directory contribute their step tables to one descriptor.
+Visibility is the module's: `import io.net` makes `io.net` visible and
+nothing else `std` provides.
 
 | Extension | Kind | Package | Provides | Contract |
 | --- | --- | --- | --- | --- |
-| `std` | internal | `std` | `core`, `collections`, `string`, `seq`, `math`, `option`, `result`, `regex`, `graph`, `format`, `io`, `io.net`, `io.logging` | `lib/std/`, one folder per module |
+| `std` | internal | `std` | `core`, `collections`, `string`, `seq`, `math`, `stats`, `time`, `random`, `option`, `result`, `regex`, `graph`, `format`, `io`, `io.net`, `io.logging`, `io.fs`, `io.env`, `io.db.sqlite`, `io.db.postgres`, `io.db.spark`, `io.transaction`, `io.msg.nats`, `io.msg.nats_jetstream`, `bytes`, `encoding`, `crypto`, `crypto.digest` | `lib/std/`, one folder per module |
 | `search` | internal | `search` | `lexical`, `semantic` | `lib/search/`, one folder per module |
 
 ## Modules

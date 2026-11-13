@@ -2,7 +2,7 @@
 
 `filter` answers a question with a yes or no per card. Retrieval answers a
 question in words with a **ranking**: every card that matches, best first,
-each with a score. HQL has two retrievals, each an extension a program
+each with a score. HQL has two retrievals, each a module a program
 imports.
 
 ## Lexical retrieval
@@ -19,7 +19,7 @@ cards | lexical("desert spice") | take(3)
 [dune (0.2928), frankenstein-inspires-dune (0.2778), frankenstein (0.2471)]
 ```
 
-`import lexical` makes the extension's step available to the program. Without
+`import lexical` makes the module's step available to the program. Without
 it, the name is not a step, and the error says which import provides it:
 
 ```hql
@@ -27,7 +27,7 @@ cards | lexical("desert spice")
 ```
 
 ```text
-check error[unknown-name]: `lexical` is provided by the `lexical` extension: write `import lexical`
+check error[unknown-name]: `lexical` is declared in the module `lexical`: write `import lexical`
  --> <expression>:1:9
   |
 1 | cards | lexical("desert spice")

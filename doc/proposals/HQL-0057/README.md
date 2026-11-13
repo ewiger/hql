@@ -5,7 +5,7 @@
 **Source**: [HQL-0024 part 9](../HQL-0024/parts/09-packages-and-extensions.md),
 whose transport, ABI and package-management records this is;
 [HQL-0024 part 10](../HQL-0024/parts/10-host-boundary.md) (installed-extension
-locations belong to the execution layer); [issue 0049](../../issues/0049-one-extension-per-package.md);
+locations belong to the execution layer); [issue 0049](../../issues/archive/0049-one-extension-per-package.md);
 [issue 0077](../../issues/0077-packages-and-the-ml-extension.md)
 
 ## Companion notes
@@ -175,3 +175,6 @@ authors; the rest of the crate's public surface is unchanged.
 ## Changelog
 
 - 2026-11-13: drafted
+- 2026-11-13: the `hql-extensions` repository committed; the builtin
+  descriptors folded into `std` and `search` with `id`, `abi` and
+  `provides` (issue 0049, deployment step 1 in part)

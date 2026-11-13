@@ -14,6 +14,21 @@ The language continues to be in active development.
   well: `"1982-05-09".parse_date()` reads the ISO text that `to_date`
   reads, and the same for `DateTime` and `Instant`
   ([HQL-0041](doc/proposals/HQL-0041/README.md) part 1, issue 0076).
+- `[extensions] import` in `hql.toml` names a builtin package as well as a
+  module: `import = ["search"]` imports every module the package provides.
+
+### Changed
+
+- The binary registers one extension per builtin package, `std` and
+  `search`, each a descriptor with `id`, `abi` and `provides`, in place of
+  one entry per Rust source module
+  ([HQL-0057](doc/proposals/HQL-0057/README.md), issue 0049). Visibility is
+  the module's: the diagnostic for a step whose module is not imported now
+  reads `` `mean` is declared in the module `stats`: write `import stats` ``,
+  and an ambiguous call names the modules declaring it, so the population
+  `variance` beside `stats.variance` is qualified `collections.variance`,
+  not `core.variance`. `hql builtins` groups steps by module and names the
+  package beside it, `collections (std 0.7.0, always available)`.
 
 ## [0.6.0] — 2026-11-13
 

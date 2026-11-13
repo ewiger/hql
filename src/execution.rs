@@ -2064,7 +2064,9 @@ mod tests {
             panic!("a step");
         };
         let environment = crate::extensions::binding::Environment::get().unwrap();
-        let sort = environment.of(crate::extensions::CORE.step("sort").unwrap());
+        let sort = environment.of(crate::extensions::STD
+            .implementation("collections", "sort")
+            .unwrap());
         assert_eq!(*declaration, Some(sort[0]));
     }
 

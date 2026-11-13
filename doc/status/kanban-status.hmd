@@ -51,10 +51,10 @@ then the archive.
 | lane    | issues |
 | ------- | ------ |
 | backlog | 8      |
-| todo    | 7      |
+| todo    | 6      |
 | doing   | 4      |
 | done    | 1      |
-| archive | 59     |
+| archive | 60     |
 <!-- /hql:output -->
 
 ## Board
@@ -82,16 +82,16 @@ range(0, depth)
 | format(as = Markdown)
 ```
 <!-- hql:output hash=fc2c6467e9c1 status=ok -->
-| backlog                                                                                        | todo                                                                         | doing                                                                    | done                                       |
-| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
-| 0075 Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events | 0069 Transports: the core of HQL-0047 and HQL-0048                           | 0077 Packages: `hql-extensions`, `hql package`, and the `ml` extension   | 0072 Release 0.6.0: fix, finish, tidy, tag |
-| 0074 Time columns read and written against a live PostgreSQL and Spark                         | 0063 The result of a write: `Unit` is the wrong answer                       | 0054 The website is for HQL users                                        |                                            |
-| 0073 Computation plans: align HQL-0056 with the computation life cycle                         | 0058 A value read from a card loses where it came from                       | 0046 Renovate `lib/std/**` under the module, package and extension model |                                            |
-| 0071 Key vaults: `crypto.keyvault` and its backends                                            | 0049 One extension per package: fold the descriptors into `std` and `search` | 0019 Documentation states semantics, not intuition                       |                                            |
-| 0068 General-purpose gap analysis: what Python and its peers have that HQL lacks               | 0029 Binary formats, and codecs an extension or a package provides           |                                                                          |                                            |
-| 0065 Neo4j parity analysis: graph patterns, traversal and graph schema                         | 0027 A partial record type reads card metadata as typed fields               |                                                                          |                                            |
-| 0016 SQL parity analysis: relational operations, aggregation and schema                        | 0011 Wire the semantic-search toolchain together                             |                                                                          |                                            |
-| 0015 jq parity analysis: data formats, types and operations                                    |                                                                              |                                                                          |                                            |
+| backlog                                                                                        | todo                                                               | doing                                                                    | done                                       |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------ |
+| 0075 Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events | 0069 Transports: the core of HQL-0047 and HQL-0048                 | 0077 Packages: `hql-extensions`, `hql package`, and the `ml` extension   | 0072 Release 0.6.0: fix, finish, tidy, tag |
+| 0074 Time columns read and written against a live PostgreSQL and Spark                         | 0063 The result of a write: `Unit` is the wrong answer             | 0054 The website is for HQL users                                        |                                            |
+| 0073 Computation plans: align HQL-0056 with the computation life cycle                         | 0058 A value read from a card loses where it came from             | 0046 Renovate `lib/std/**` under the module, package and extension model |                                            |
+| 0071 Key vaults: `crypto.keyvault` and its backends                                            | 0029 Binary formats, and codecs an extension or a package provides | 0019 Documentation states semantics, not intuition                       |                                            |
+| 0068 General-purpose gap analysis: what Python and its peers have that HQL lacks               | 0027 A partial record type reads card metadata as typed fields     |                                                                          |                                            |
+| 0065 Neo4j parity analysis: graph patterns, traversal and graph schema                         | 0011 Wire the semantic-search toolchain together                   |                                                                          |                                            |
+| 0016 SQL parity analysis: relational operations, aggregation and schema                        |                                                                    |                                                                          |                                            |
+| 0015 jq parity analysis: data formats, types and operations                                    |                                                                    |                                                                          |                                            |
 <!-- /hql:output -->
 
 ## Archive
@@ -124,6 +124,7 @@ issues
 | 0052 | Review follow-ups: Decimal in SQLite, quadratic steps, unreviewed code                |
 | 0051 | A value block as a function body: bindings, then the value                            |
 | 0050 | Every module file declares its name: `module a.b`, `module a.b for T`                 |
+| 0049 | One extension per package: fold the descriptors into `std` and `search`               |
 | 0048 | Builtin packages live under `lib/`: `std` is one of them                              |
 | 0047 | Cardinality is `size`: a String's `size` replaces `length`                            |
 | 0045 | Dataflow, errors as values, validator types and schema boundaries                     |

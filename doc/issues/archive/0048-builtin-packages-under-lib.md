@@ -34,4 +34,4 @@ with their own extensions and are named for what they provide, not `std`.
    provides `lexical` and `semantic`, each declared by a contract under
    `lib/search/`, `lexical/mod.hql` and `semantic/mod.hql`, loaded after the
    standard package's modules; a diagnostic names one as `search/lexical`.
-   Folding the descriptors is [issue 0049](../0049-one-extension-per-package.md).
+   Folding the descriptors is [issue 0049](0049-one-extension-per-package.md).

@@ -18,7 +18,7 @@ import, the name is a check error:
 ```
 
 ```text
-check error[unknown-name]: `digest` is provided by the `crypto.digest` extension: write `import crypto.digest`
+check error[unknown-name]: `digest` is declared in the module `crypto.digest`: write `import crypto.digest`
  --> <expression>:1:1
   |
 1 | "abc".digest(Sha256)

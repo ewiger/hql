@@ -29,11 +29,12 @@ how the Rust code is split into source modules is never a reason for one. An
 extension is **internal** when it is built in, its package under `lib/` and
 its code compiled into the binary, and **external** when an installed
 package, typically a Cargo crate, supplies it. Both extensions today are
-internal ([packages](../../status/packages.hmd)). The table in
-`src/extensions/` still registers one entry per Rust source module, and
-`import` binds one of those entries;
-[issue 0049](../../issues/0049-one-extension-per-package.md) folds them into
-`std` and `search`.
+internal ([packages](../../status/packages.hmd)). Each is a descriptor,
+`id`, `abi = 1` and `provides`, beside implementations keyed by module and
+declared name; the Rust source modules of `src/extensions/` contribute their
+step tables to one descriptor. `import` binds a module, never an extension:
+visibility, the imported set of a unit and the "write `import …`"
+diagnostic all name the module whose declaration a step satisfies.
 
 The signature declares generic parameters and bounds, input and result types,
 argument names and arity, and lambda or type arguments. The checker and

@@ -1,10 +1,10 @@
 # 0049 — One extension per package: fold the descriptors into `std` and `search`
 
-Status: todo
-Related: [packages](../status/packages.hmd),
-[HQL-0024, modules](../proposals/HQL-0024/parts/01-modules.md),
-[HQL-0024, packages and extensions](../proposals/HQL-0024/parts/09-packages-and-extensions.md),
-[issue 0048](archive/0048-builtin-packages-under-lib.md)
+Status: done
+Related: [packages](../../status/packages.hmd),
+[HQL-0024, modules](../../proposals/HQL-0024/parts/01-modules.md),
+[HQL-0024, packages and extensions](../../proposals/HQL-0024/parts/09-packages-and-extensions.md),
+[issue 0048](0048-builtin-packages-under-lib.md)
 
 A package carries one extension, named as the package is, and more only when
 parts of it are enabled or loaded independently. The binary carries two
@@ -29,7 +29,7 @@ what is always visible, in the prelude or imported.
    `io.logging`.
 2. Two descriptors. `STD` and `SEARCH` replace the twenty-nine statics; their
    `provides` lists are the two rows of the Extensions table in
-   [packages](../status/packages.hmd). The Rust source modules
+   [packages](../../status/packages.hmd). The Rust source modules
    (`string.rs`, `seq.rs`, …) stay as they are and contribute their step
    tables to one descriptor; `lexical`'s metadata contribution moves to
    `SEARCH`.
@@ -40,6 +40,6 @@ what is always visible, in the prelude or imported.
 5. Comments: the `//!` headers of the Rust source modules stop calling
    themselves extensions (for example `format.rs`); the module
    headers under `lib/std/` already name `std`.
-6. [Learn, retrieval](../public/learn/23-retrieval.md) quotes the
+6. [Learn, retrieval](../../public/learn/23-retrieval.md) quotes the
    diagnostic "`lexical` is provided by the `lexical` extension"; it is
    updated with the message.

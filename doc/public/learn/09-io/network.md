@@ -80,7 +80,7 @@ source(http("https://api.example.com/birds"), Json)
 ```
 
 ```text
-check error[unknown-name]: `http` is provided by the `net` extension: write `import net`
+check error[unknown-name]: `http` is declared in the module `io.net`: write `import net`
  --> <expression>:1:8
   |
 1 | source(http("https://api.example.com/birds"), Json)

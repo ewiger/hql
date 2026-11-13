@@ -4,7 +4,16 @@
 //! checks it and the function that evaluates it. Keeping both beside the name
 //! is what lets a capability be added without editing the core's checker or
 //! evaluator, and what lets `hql builtins` name a provider rather than print a
-//! flat list that stops being true once two extensions can supply one name.
+//! flat list that stops being true once two modules can declare one name.
+//!
+//! The binary carries two extensions, one per builtin package: `std`,
+//! providing every module of `lib/std/` with an external declaration, and
+//! `search`, providing `lexical` and `semantic`. Each is a descriptor, its
+//! `id`, its `abi` and the modules it `provides`, beside the implementations
+//! of those modules' declarations, keyed by the module and the declared
+//! name. The Rust source modules of this directory contribute their step
+//! tables to one descriptor; how the code is organised is never a reason for
+//! a second extension.
 //!
 //! The `Extension` type is a host mechanism. It is how this binary is
 //! organised; HQL programs see typed functions and never see a trait.
@@ -416,302 +425,270 @@ impl Operation {
     }
 }
 
-/// A named unit supplying pipeline steps.
+/// One module an extension provides: the canonical name of its contract
+/// under `lib/`, and the operations implementing that contract's external
+/// declarations. An implementation is keyed by the declaration identity it
+/// satisfies, the module and the declared name, so two modules of one
+/// extension may each declare a `contains`.
+#[derive(Debug)]
+pub struct Provided {
+    /// The canonical module name, `io.net`.
+    pub(crate) module: &'static str,
+    /// The operations implementing the module's external declarations. Two
+    /// modules may share one table: `core` declares types alone, and the
+    /// operations over its collection types are `collections`'s.
+    pub(crate) steps: &'static [Operation],
+}
+
+/// The ABI every extension compiled into this binary reaches the process
+/// by: `1`, an in-process library with the types of this crate.
+pub(crate) const ABI: u32 = 1;
+
+/// Where an extension's code comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Origin {
+    /// Compiled into the binary: the extension of a builtin package under
+    /// `lib/`.
+    Internal,
+    /// Supplied by an installed package and reached through its transport
+    /// (HQL-0057).
+    External,
+}
+
+/// An extension: the implementation unit of a package. Its descriptor is the
+/// `id`, the `abi` and the modules it `provides`; beside the descriptor are
+/// the implementations of those modules' external declarations. Binding
+/// cross-checks each provided contract against them.
 #[derive(Debug)]
 pub struct Extension {
-    /// The lowercase identifier an `import` names.
-    pub(crate) name: &'static str,
+    /// The descriptor's `id`: the package's name, `std` or `search`.
+    pub(crate) id: &'static str,
+    /// The descriptor's `abi`: how its code reaches the process.
+    pub(crate) abi: u32,
+    /// Whether the code is compiled in or installed.
+    pub(crate) origin: Origin,
     /// The version this extension reports.
     pub(crate) version: &'static str,
-    /// The descriptor's `provides`: the canonical names of the modules whose
-    /// contracts under `lib/` this extension implements. Binding cross-checks
-    /// each contract's external declarations against the steps here.
-    pub(crate) provides: &'static [&'static str],
-    /// What it supplies.
-    pub(crate) steps: &'static [Operation],
+    /// The descriptor's `provides`, each module with its implementations.
+    pub(crate) provides: &'static [Provided],
     pub(crate) metadata: Option<fn(&mut crate::document::Card)>,
 }
 
-/// The core: collection operations, which mention nothing above the core's own
-/// types and so are never imported because they are never absent.
-pub(crate) static CORE: Extension = Extension {
-    name: "core",
+/// The modules visible in every source unit without an import, prelude or
+/// not: `core`, the types every other module is written in, and
+/// `collections`, the operations over its collection types, which mention
+/// nothing above the core's own types and so are never absent.
+pub(crate) const ALWAYS: &[&str] = &["core", "collections"];
+
+/// The one-word imports two modules keep beside their canonical paths:
+/// `import net` is `import io.net`, and `import logging` is `import
+/// io.logging`. A transport's module has no one-word form (HQL-0048).
+const SHORT_NAMES: &[(&str, &str)] = &[("net", "io.net"), ("logging", "io.logging")];
+
+/// The canonical module name an import path names: the path itself, or
+/// the module a kept one-word form stands for.
+pub(crate) fn canonical(path: &str) -> &str {
+    SHORT_NAMES
+        .iter()
+        .find(|(short, _)| *short == path)
+        .map_or(path, |(_, module)| module)
+}
+
+/// The import a diagnostic tells a program to write for a module: its kept
+/// one-word form where it has one, else its canonical path.
+fn import_of(module: &str) -> &str {
+    SHORT_NAMES
+        .iter()
+        .find(|(_, held)| *held == module)
+        .map_or(module, |(short, _)| short)
+}
+
+/// The standard package's extension: every module of `lib/std/` whose
+/// contract declares externally.
+pub(crate) static STD: Extension = Extension {
+    id: "std",
+    abi: ABI,
+    origin: Origin::Internal,
     version: env!("CARGO_PKG_VERSION"),
-    provides: &["core", "collections"],
-    steps: collections::STEPS,
+    provides: &[
+        Provided {
+            module: "core",
+            steps: collections::STEPS,
+        },
+        Provided {
+            module: "collections",
+            steps: collections::STEPS,
+        },
+        Provided {
+            module: "string",
+            steps: string::STEPS,
+        },
+        Provided {
+            module: "seq",
+            steps: seq::STEPS,
+        },
+        Provided {
+            module: "math",
+            steps: math::STEPS,
+        },
+        Provided {
+            module: "stats",
+            steps: stats::STEPS,
+        },
+        Provided {
+            module: "time",
+            steps: time::STEPS,
+        },
+        Provided {
+            module: "random",
+            steps: random::STEPS,
+        },
+        Provided {
+            module: "option",
+            steps: option::STEPS,
+        },
+        Provided {
+            module: "result",
+            steps: result::STEPS,
+        },
+        Provided {
+            module: "regex",
+            steps: regex::STEPS,
+        },
+        Provided {
+            module: "graph",
+            steps: graph::STEPS,
+        },
+        Provided {
+            module: "format",
+            steps: format::STEPS,
+        },
+        Provided {
+            module: "io",
+            steps: io::STEPS,
+        },
+        Provided {
+            module: "io.net",
+            steps: net::STEPS,
+        },
+        Provided {
+            module: "io.logging",
+            steps: logging::STEPS,
+        },
+        Provided {
+            module: "io.fs",
+            steps: fs::STEPS,
+        },
+        Provided {
+            module: "io.env",
+            steps: env::STEPS,
+        },
+        Provided {
+            module: "io.db.sqlite",
+            steps: sqlite::STEPS,
+        },
+        Provided {
+            module: "io.db.postgres",
+            steps: postgres::STEPS,
+        },
+        Provided {
+            module: "io.db.spark",
+            steps: spark::STEPS,
+        },
+        Provided {
+            module: "io.transaction",
+            steps: transaction::STEPS,
+        },
+        Provided {
+            module: "io.msg.nats",
+            steps: nats::CORE_STEPS,
+        },
+        Provided {
+            module: "io.msg.nats_jetstream",
+            steps: nats::JETSTREAM_STEPS,
+        },
+        Provided {
+            module: "bytes",
+            steps: bytes::STEPS,
+        },
+        Provided {
+            module: "encoding",
+            steps: encoding::STEPS,
+        },
+        Provided {
+            module: "crypto",
+            steps: crypto::STEPS,
+        },
+        Provided {
+            module: "crypto.digest",
+            steps: digest::STEPS,
+        },
+    ],
     metadata: None,
 };
 
-static GRAPH: Extension = Extension {
-    name: "graph",
+/// The search package's extension: retrieval over a vault's cards.
+pub(crate) static SEARCH: Extension = Extension {
+    id: "search",
+    abi: ABI,
+    origin: Origin::Internal,
     version: env!("CARGO_PKG_VERSION"),
-    provides: &["graph"],
-    steps: graph::STEPS,
-    metadata: None,
-};
-
-static FORMAT: Extension = Extension {
-    name: "format",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["format"],
-    steps: format::STEPS,
-    metadata: None,
-};
-
-static IO: Extension = Extension {
-    name: "io",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io"],
-    steps: io::STEPS,
-    metadata: None,
-};
-
-static LOGGING: Extension = Extension {
-    name: "logging",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io.logging"],
-    steps: logging::STEPS,
-    metadata: None,
-};
-
-static NET: Extension = Extension {
-    name: "net",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io.net"],
-    steps: net::STEPS,
-    metadata: None,
-};
-
-// Named by the path it provides: `import io.fs` binds it as `fs`.
-static FS: Extension = Extension {
-    name: "io.fs",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io.fs"],
-    steps: fs::STEPS,
-    metadata: None,
-};
-
-// Named by the path it provides: `import io.env` binds it as `env`.
-static ENV: Extension = Extension {
-    name: "io.env",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io.env"],
-    steps: env::STEPS,
-    metadata: None,
-};
-
-static SQLITE: Extension = Extension {
-    name: "io.db.sqlite",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io.db.sqlite"],
-    steps: sqlite::STEPS,
-    metadata: None,
-};
-
-static POSTGRES: Extension = Extension {
-    name: "io.db.postgres",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io.db.postgres"],
-    steps: postgres::STEPS,
-    metadata: None,
-};
-
-static SPARK: Extension = Extension {
-    name: "io.db.spark",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io.db.spark"],
-    steps: spark::STEPS,
-    metadata: None,
-};
-
-static TRANSACTION: Extension = Extension {
-    name: "io.transaction",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io.transaction"],
-    steps: transaction::STEPS,
-    metadata: None,
-};
-
-// Each named by the path it provides, not by a word: a transport's module
-// is imported by its full path and has no one-word form (HQL-0048).
-static NATS: Extension = Extension {
-    name: "io.msg.nats",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io.msg.nats"],
-    steps: nats::CORE_STEPS,
-    metadata: None,
-};
-
-static NATS_JETSTREAM: Extension = Extension {
-    name: "io.msg.nats_jetstream",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["io.msg.nats_jetstream"],
-    steps: nats::JETSTREAM_STEPS,
-    metadata: None,
-};
-
-static LEXICAL: Extension = Extension {
-    name: "lexical",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["lexical"],
-    steps: lexical::STEPS,
+    provides: &[
+        Provided {
+            module: "lexical",
+            steps: lexical::STEPS,
+        },
+        Provided {
+            module: "semantic",
+            steps: semantic::STEPS,
+        },
+    ],
     metadata: Some(lexical::contribute_metadata),
 };
 
-static SEMANTIC: Extension = Extension {
-    name: "semantic",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["semantic"],
-    steps: semantic::STEPS,
-    metadata: None,
-};
-
-static STRING: Extension = Extension {
-    name: "string",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["string"],
-    steps: string::STEPS,
-    metadata: None,
-};
-
-static SEQ: Extension = Extension {
-    name: "seq",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["seq"],
-    steps: seq::STEPS,
-    metadata: None,
-};
-
-static MATH: Extension = Extension {
-    name: "math",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["math"],
-    steps: math::STEPS,
-    metadata: None,
-};
-
-static STATS: Extension = Extension {
-    name: "stats",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["stats"],
-    steps: stats::STEPS,
-    metadata: None,
-};
-
-static TIME: Extension = Extension {
-    name: "time",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["time"],
-    steps: time::STEPS,
-    metadata: None,
-};
-
-static RANDOM: Extension = Extension {
-    name: "random",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["random"],
-    steps: random::STEPS,
-    metadata: None,
-};
-
-static OPTION: Extension = Extension {
-    name: "option",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["option"],
-    steps: option::STEPS,
-    metadata: None,
-};
-
-static RESULT: Extension = Extension {
-    name: "result",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["result"],
-    steps: result::STEPS,
-    metadata: None,
-};
-
-static REGEX: Extension = Extension {
-    name: "regex",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["regex"],
-    steps: regex::STEPS,
-    metadata: None,
-};
-
-static DIGEST: Extension = Extension {
-    name: "crypto.digest",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["crypto.digest"],
-    steps: digest::STEPS,
-    metadata: None,
-};
-
-static ENCODING: Extension = Extension {
-    name: "encoding",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["encoding"],
-    steps: encoding::STEPS,
-    metadata: None,
-};
-
-static BYTES: Extension = Extension {
-    name: "bytes",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["bytes"],
-    steps: bytes::STEPS,
-    metadata: None,
-};
-
-static CRYPTO: Extension = Extension {
-    name: "crypto",
-    version: env!("CARGO_PKG_VERSION"),
-    provides: &["crypto"],
-    steps: crypto::STEPS,
-    metadata: None,
-};
-
-/// Every extension compiled into this binary, core first.
+/// Every extension compiled into this binary, one per builtin package.
 ///
 /// Registration is not import: a step here is known to diagnostics and to
-/// `hql builtins` whether or not the program has imported the extension that
-/// provides it, so a missing import reports the import rather than a
+/// `hql builtins` whether or not the program has imported the module that
+/// declares it, so a missing import reports the import rather than a
 /// misspelling.
-pub(crate) static REGISTERED: &[&Extension] = &[
-    &CORE,
-    &STRING,
-    &SEQ,
-    &MATH,
-    &STATS,
-    &TIME,
-    &RANDOM,
-    &OPTION,
-    &RESULT,
-    &GRAPH,
-    &FORMAT,
-    &IO,
-    &NET,
-    &LOGGING,
-    &FS,
-    &ENV,
-    &SQLITE,
-    &POSTGRES,
-    &SPARK,
-    &TRANSACTION,
-    &NATS,
-    &NATS_JETSTREAM,
-    &LEXICAL,
-    &SEMANTIC,
-    &REGEX,
-    &DIGEST,
-    &ENCODING,
-    &BYTES,
-    &CRYPTO,
-];
+pub(crate) static REGISTERED: &[&Extension] = &[&STD, &SEARCH];
 
 impl Extension {
-    /// The step of a name this extension provides.
-    pub(crate) fn step(&'static self, name: &str) -> Option<&'static Operation> {
-        self.steps.iter().find(|step| step.name == name)
+    /// Whether the descriptor provides a module.
+    pub(crate) fn provides(&self, module: &str) -> bool {
+        self.provides
+            .iter()
+            .any(|provided| provided.module == module)
+    }
+
+    /// The operation implementing a declaration of a provided module, by
+    /// the declaration's identity: the module and the name.
+    pub(crate) fn implementation(&self, module: &str, name: &str) -> Option<&'static Operation> {
+        self.provides
+            .iter()
+            .find(|provided| provided.module == module)
+            .and_then(|provided| provided.steps.iter().find(|step| step.name == name))
+    }
+
+    /// The step tables the extension carries, each once: a table two
+    /// modules share is one table.
+    fn tables(&self) -> Vec<&'static [Operation]> {
+        let mut tables: Vec<&'static [Operation]> = Vec::new();
+        for provided in self.provides {
+            if !tables
+                .iter()
+                .any(|held| std::ptr::eq(held.as_ptr(), provided.steps.as_ptr()))
+            {
+                tables.push(provided.steps);
+            }
+        }
+        tables
+    }
+
+    /// Every operation the extension carries, each once.
+    pub(crate) fn steps(&self) -> impl Iterator<Item = &'static Operation> {
+        self.tables().into_iter().flatten()
     }
 }
 
@@ -733,22 +710,36 @@ pub(crate) fn prelude() -> &'static [&'static str] {
     })
 }
 
-/// The registered extension of a name.
-#[cfg(test)]
-pub(crate) fn extension(name: &str) -> Option<&'static Extension> {
+/// The registered extension of an id.
+pub(crate) fn extension(id: &str) -> Option<&'static Extension> {
     REGISTERED
         .iter()
         .copied()
-        .find(|extension| extension.name == name)
+        .find(|extension| extension.id == id)
 }
 
-/// Every registered extension providing a step name, in registration order.
-#[cfg(test)]
-pub(crate) fn providers(step: &str) -> Vec<&'static Extension> {
+/// The registered extension whose descriptor provides a module, if any.
+pub(crate) fn provider_of(module: &str) -> Option<&'static Extension> {
     REGISTERED
         .iter()
         .copied()
-        .filter(|extension| extension.step(step).is_some())
+        .find(|extension| extension.provides(module))
+}
+
+/// Every builtin module declaring a step name publicly, in loading order.
+#[cfg(test)]
+pub(crate) fn providers(step: &str) -> Vec<&'static str> {
+    let Ok(environment) = binding::Environment::get() else {
+        return Vec::new();
+    };
+    environment
+        .modules()
+        .filter(|(id, _)| {
+            environment
+                .offered(*id, step)
+                .is_some_and(|operation| !environment.is_private(operation))
+        })
+        .map(|(_, module)| module.name)
         .collect()
 }
 
@@ -758,7 +749,9 @@ pub(crate) fn providers(step: &str) -> Vec<&'static Extension> {
 /// capability stated in the program that uses it must be able to decline it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Config {
-    /// Extensions imported for every program this vault runs.
+    /// What is imported for every program this vault runs: builtin modules
+    /// by name, and packages by their id, which imports every module the
+    /// package provides.
     pub imports: Vec<String>,
     /// Whether the prelude's modules arrive without being asked for.
     pub prelude: bool,
@@ -821,10 +814,11 @@ impl Config {
     }
 }
 
-/// Whether an extension is available to a program, and why.
+/// Whether a module is available to a program, and why.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Availability {
-    /// The core, which is never imported because it is never absent.
+    /// `core` and `collections`, which are never imported because they are
+    /// never absent.
     Core,
     /// In the prelude this vault keeps.
     Prelude,
@@ -847,16 +841,19 @@ impl Availability {
     }
 }
 
-/// Which extensions a program has imported, and what they let it write.
+/// Which builtin modules a source unit has imported, and what they let it
+/// write.
 ///
-/// Registration and import are different things: every extension in the binary
-/// is registered, and a program resolves only what it has imported. That is
-/// what lets a diagnostic name the import a program is missing instead of
-/// guessing at a misspelling.
+/// Registration and import are different things: every module of the
+/// binary's packages is registered, and a unit resolves only what it has
+/// imported. That is what lets a diagnostic name the import a program is
+/// missing instead of guessing at a misspelling. Visibility is the module's,
+/// not its extension's: `import io.net` makes `io.net` visible and nothing
+/// else `std` provides.
 #[derive(Debug, Clone)]
 pub(crate) struct Resolution {
-    /// The frozen environment the program runs against: its extension set
-    /// is what an import may name, and its declarations say what an
+    /// The frozen environment the program runs against: its modules are
+    /// what an import may name, and their declarations say what an
     /// importer reaches.
     environment: binding::Frozen,
     /// Each visible builtin module, under the local name it is bound to.
@@ -868,28 +865,7 @@ pub(crate) struct Resolution {
 #[derive(Debug, Clone, Copy)]
 struct Imported {
     local: &'static str,
-    extension: &'static Extension,
-}
-
-/// The builtin module a dotted path names, if any: a module an extension's
-/// descriptor provides, `io.net`, or the extension's own one-word name, which
-/// `net` and `logging` keep.
-pub(crate) fn builtin_module(path: &str) -> Option<&'static Extension> {
-    module_in(REGISTERED, path)
-}
-
-/// The module a dotted path names among an extension set.
-fn module_in(extensions: &[&'static Extension], path: &str) -> Option<&'static Extension> {
-    extensions
-        .iter()
-        .copied()
-        .find(|extension| extension.provides.contains(&path))
-        .or_else(|| {
-            extensions
-                .iter()
-                .copied()
-                .find(|extension| extension.name == path)
-        })
+    module: binding::ModuleId,
 }
 
 /// Bind the standard library's contracts to the extensions implementing them.
@@ -914,33 +890,28 @@ pub fn bind() -> Result<(), String> {
 }
 
 impl Resolution {
-    /// The core, plus the prelude unless the vault declines it, over a
-    /// frozen environment.
+    /// The always-visible modules, plus the prelude's unless the vault
+    /// declines it, over a frozen environment.
     pub(crate) fn bare(environment: binding::Frozen, prelude: bool) -> Self {
-        let extensions = environment.extensions();
-        let core = module_in(extensions, CORE.name).unwrap_or(&CORE);
-        let mut imported = vec![Imported {
-            local: core.name,
-            extension: core,
-        }];
-        if prelude {
-            for name in self::prelude() {
-                if let Some(found) = module_in(extensions, name)
-                    && !imported
-                        .iter()
-                        .any(|held| held.extension.name == found.name)
-                {
-                    imported.push(Imported {
-                        local: found.name,
-                        extension: found,
-                    });
-                }
+        let mut resolution = Self {
+            environment,
+            imported: Vec::new(),
+        };
+        let names = ALWAYS
+            .iter()
+            .copied()
+            .chain(prelude.then(self::prelude).into_iter().flatten().copied());
+        for name in names {
+            if let Some(module) = environment.provided_module(name)
+                && !resolution.imported.iter().any(|held| held.module == module)
+            {
+                resolution.imported.push(Imported {
+                    local: environment.module(module).local(),
+                    module,
+                });
             }
         }
-        Self {
-            environment,
-            imported,
-        }
+        resolution
     }
 
     /// What a vault starts every program with: the configured layer of the
@@ -958,7 +929,8 @@ impl Resolution {
         self.environment
     }
 
-    /// Bind an extension's steps into the program.
+    /// Bind a builtin module an extension provides into the unit, under its
+    /// last segment or an alias; answers whether the path named one.
     ///
     /// A collision is reported here rather than at the use site, where the
     /// failure would depend on which pipeline a reader happened to look at.
@@ -968,7 +940,7 @@ impl Resolution {
         alias: Option<&str>,
         span: &Range<usize>,
     ) -> Result<bool, Diagnostic> {
-        let Some(wanted) = module_in(self.environment.extensions(), path) else {
+        let Some(wanted) = self.environment.provided_module(canonical(path)) else {
             return Ok(false);
         };
         let local = match alias {
@@ -976,6 +948,23 @@ impl Resolution {
             None => crate::types::program::intern(path.rsplit('.').next().unwrap_or(path)),
         };
         self.bind_as(local, wanted, span)?;
+        Ok(true)
+    }
+
+    /// Bind every module a registered extension provides, each under its
+    /// last segment, for `[extensions] import` naming a package; answers
+    /// whether the id named one.
+    pub(crate) fn import_package(
+        &mut self,
+        id: &str,
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        let Some(package) = extension(id) else {
+            return Ok(false);
+        };
+        for provided in package.provides {
+            self.import(provided.module, None, span)?;
+        }
         Ok(true)
     }
 
@@ -989,16 +978,16 @@ impl Resolution {
         })
     }
 
-    /// Bind an extension under a local name. One extension may be bound
-    /// under several names; one name may not stand for two extensions.
-    pub(crate) fn bind_as(
+    /// Bind a module under a local name. One module may be bound under
+    /// several names; one name may not stand for two modules.
+    fn bind_as(
         &mut self,
         local: &'static str,
-        wanted: &'static Extension,
+        wanted: binding::ModuleId,
         span: &Range<usize>,
     ) -> Result<(), Diagnostic> {
         if let Some(held) = self.imported.iter().find(|held| held.local == local) {
-            if held.extension.name == wanted.name {
+            if held.module == wanted {
                 return Ok(());
             }
             return Err(Diagnostic::name(
@@ -1006,7 +995,8 @@ impl Resolution {
                 format!(
                     "`{local}` already names the module `{}` here; import `{}` under another \
                      name with `as`",
-                    held.extension.name, wanted.name
+                    self.environment.module(held.module).name,
+                    self.environment.module(wanted).name
                 ),
             ));
         }
@@ -1015,7 +1005,7 @@ impl Resolution {
         // the input, and a call that fits both is refused there.
         self.imported.push(Imported {
             local,
-            extension: wanted,
+            module: wanted,
         });
         Ok(())
     }
@@ -1031,11 +1021,16 @@ impl Resolution {
     }
 
     /// The operation of a name an imported module offers an importer: one
-    /// its extension implements and its module does not declare private.
+    /// the module declares, and does not declare private.
     fn offered(&self, held: &Imported, name: &str) -> Option<&'static Operation> {
-        held.extension
-            .step(name)
+        self.environment
+            .offered(held.module, name)
             .filter(|step| !self.environment.is_private(step))
+    }
+
+    /// The canonical name of an imported module, for messages.
+    fn name_of(&self, held: &Imported) -> &'static str {
+        self.environment.module(held.module).name
     }
 
     /// The step a name resolves to for an input of a type, among every
@@ -1097,15 +1092,15 @@ impl Resolution {
         span: &Range<usize>,
         receivers: bool,
     ) -> Result<&'static Operation, Diagnostic> {
-        let mut candidates: Vec<(&'static Extension, &'static Operation)> = Vec::new();
+        let mut candidates: Vec<(&Imported, &'static Operation)> = Vec::new();
         for held in &self.imported {
             if let Some(step) = self.offered(held, name)
                 && (!receivers || self.environment.has_receiver(step))
                 && !candidates
                     .iter()
-                    .any(|(extension, _)| extension.name == held.extension.name)
+                    .any(|(candidate, _)| candidate.module == held.module)
             {
-                candidates.push((held.extension, step));
+                candidates.push((held, step));
             }
         }
         let environment = self.environment;
@@ -1178,12 +1173,14 @@ impl Resolution {
                     ([], []) => Ok(many[0].1),
                     (by_arity, fitting) => {
                         // Several fit: by arity where any does, else by input.
-                        let several: Vec<&(&'static Extension, &'static Operation)> =
-                            if by_arity.is_empty() {
-                                fitting.to_vec()
-                            } else {
-                                by_arity.iter().map(|held| **held).collect()
-                            };
+                        let several: Vec<&(&Imported, &'static Operation)> = if by_arity.is_empty()
+                        {
+                            fitting.to_vec()
+                        } else {
+                            by_arity.iter().map(|held| **held).collect()
+                        };
+                        // The modules by their canonical names; the
+                        // qualification by the local name the unit bound.
                         Err(Diagnostic::name(
                             span.clone(),
                             format!(
@@ -1191,10 +1188,10 @@ impl Resolution {
                              ambiguous; qualify it, `{}.{name}(…)`",
                                 several
                                     .iter()
-                                    .map(|(extension, _)| format!("`{}`", extension.name))
+                                    .map(|(held, _)| format!("`{}`", self.name_of(held)))
                                     .collect::<Vec<_>>()
                                     .join(" and "),
-                                several[0].0.name
+                                several[0].0.local
                             ),
                         ))
                     }
@@ -1216,9 +1213,7 @@ impl Resolution {
                     .specs(step)
                     .iter()
                     .any(|spec| spec.input.accepts(input))
-                && !found
-                    .iter()
-                    .any(|known| known.extension.name == held.extension.name)
+                && !found.iter().any(|known| known.module == held.module)
             {
                 found.push(held);
             }
@@ -1244,28 +1239,29 @@ impl Resolution {
         Err(self.unresolved(name, span))
     }
 
-    /// The step `<extension>.<step>` names, which is always available for an
-    /// imported extension unless its module declares it private.
+    /// The step `<module>.<step>` names, which is always available for an
+    /// imported module unless the module declares it private.
     pub(crate) fn qualified(
         &self,
-        extension: &str,
+        module: &str,
         name: &str,
         span: &Range<usize>,
     ) -> Result<&'static Operation, Diagnostic> {
         let held = self
             .imported
             .iter()
-            .find(|held| held.local == extension)
-            .ok_or_else(|| self.unresolved(extension, span))?;
-        if let Some(step) = held.extension.step(name)
+            .find(|held| held.local == module)
+            .ok_or_else(|| self.unresolved(module, span))?;
+        let declared = self.environment.offered(held.module, name);
+        if let Some(step) = declared
             && self.environment.is_private(step)
         {
             return Err(self.private(name, step, span));
         }
-        held.extension.step(name).ok_or_else(|| {
+        declared.ok_or_else(|| {
             let refused = Diagnostic::name(
                 span.clone(),
-                format!("the `{extension}` module provides no function `{name}`"),
+                format!("the `{module}` module provides no function `{name}`"),
             );
             match crate::builtins::explained(name) {
                 Some(help) => refused.with_help(help),
@@ -1294,24 +1290,23 @@ impl Resolution {
     /// module, a missing import, or no such step at all.
     fn unresolved(&self, name: &str, span: &Range<usize>) -> Diagnostic {
         if let Some(step) = self.imported.iter().find_map(|held| {
-            held.extension
-                .step(name)
+            self.environment
+                .offered(held.module, name)
                 .filter(|step| self.environment.is_private(step))
         }) {
             return self.private(name, step, span);
         }
-        let providers: Vec<&'static Extension> = self
+        let declaring: Vec<&'static str> = self
             .environment
-            .extensions()
-            .iter()
-            .copied()
-            .filter(|extension| {
-                extension
-                    .step(name)
+            .modules()
+            .filter(|(id, _)| {
+                self.environment
+                    .offered(*id, name)
                     .is_some_and(|step| !self.environment.is_private(step))
             })
+            .map(|(_, module)| module.name)
             .collect();
-        let message = match providers.as_slice() {
+        let message = match declaring.as_slice() {
             [] => {
                 let refused =
                     Diagnostic::name(span.clone(), format!("`{name}` is not a pipeline step"))
@@ -1322,13 +1317,13 @@ impl Resolution {
                 };
             }
             [only] => format!(
-                "`{name}` is provided by the `{}` extension: write `import {}`",
-                only.name, only.name
+                "`{name}` is declared in the module `{only}`: write `import {}`",
+                import_of(only)
             ),
             many => format!(
-                "`{name}` is provided by the {} extensions: import one of them",
+                "`{name}` is declared in the modules {}: import one of them",
                 many.iter()
-                    .map(|extension| format!("`{}`", extension.name))
+                    .map(|module| format!("`{module}`"))
                     .collect::<Vec<_>>()
                     .join(" and ")
             ),
@@ -1342,35 +1337,44 @@ pub(crate) fn names() -> impl Iterator<Item = &'static str> {
     let environment = binding::Environment::get().ok();
     REGISTERED.iter().flat_map(move |extension| {
         extension
-            .steps
-            .iter()
+            .steps()
             .filter(move |step| !environment.is_some_and(|held| held.is_private(step)))
             .map(|step| step.name)
     })
 }
 
-/// Every step name, each with whether a module of the prelude provides it.
+/// Whether a module is visible in every unit of a vault keeping the
+/// prelude: always, or named by `lib/std/prelude.hql`.
+fn in_reach(module: &str) -> bool {
+    ALWAYS.contains(&module) || prelude().contains(&module)
+}
+
+/// Every step name, each with whether a module in reach of every program
+/// provides it.
 pub(crate) fn names_with_reach() -> impl Iterator<Item = (&'static str, bool)> {
     let environment = binding::Environment::get().ok();
-    let prelude = prelude();
-    REGISTERED.iter().flat_map(move |extension| {
-        let in_prelude = extension
-            .provides
-            .iter()
-            .any(|module| prelude.contains(module));
-        extension
-            .steps
-            .iter()
-            .filter(move |step| !environment.is_some_and(|held| held.is_private(step)))
-            .map(move |step| (step.name, in_prelude))
-    })
+    let mut reach: Vec<(&'static str, bool)> = Vec::new();
+    for provided in REGISTERED.iter().flat_map(|extension| extension.provides) {
+        for step in provided.steps {
+            if environment.is_some_and(|held| held.is_private(step)) {
+                continue;
+            }
+            match reach.iter_mut().find(|(name, _)| *name == step.name) {
+                Some((_, held)) => *held |= in_reach(provided.module),
+                None => reach.push((step.name, in_reach(provided.module))),
+            }
+        }
+    }
+    reach.into_iter()
 }
 
 /// One step, as `hql builtins` prints it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listing {
-    /// Which extension supplies it.
-    pub provider: &'static str,
+    /// The extension implementing it, by its descriptor's id.
+    pub extension: &'static str,
+    /// The module declaring it.
+    pub module: &'static str,
     /// That extension's version.
     pub version: &'static str,
     /// How it is written.
@@ -1390,18 +1394,21 @@ pub struct Listing {
     pub shape: Shape,
 }
 
-/// One extension and its steps, as `hql builtins` prints them.
+/// One builtin module and its steps, as `hql builtins` prints them: the
+/// module an `import` names, and the extension implementing it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Provider {
-    /// The name an `import` writes.
-    pub name: &'static str,
-    /// The version this extension reports.
+    /// The canonical module name an `import` writes.
+    pub module: &'static str,
+    /// The extension providing the module, by its descriptor's id.
+    pub extension: &'static str,
+    /// Whether that extension is compiled in or installed.
+    pub origin: Origin,
+    /// The version that extension reports.
     pub version: &'static str,
-    /// The standard modules whose contracts it implements.
-    pub provides: &'static [&'static str],
-    /// Whether a program in this vault has it without asking.
+    /// Whether a program in this vault has the module without asking.
     pub availability: Availability,
-    /// What it supplies.
+    /// The steps the module declares.
     pub steps: Vec<Listing>,
 }
 
@@ -1420,54 +1427,77 @@ fn description(name: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Every registered extension and its steps, as one vault resolves them.
+/// Every module the registered extensions provide and its steps, as one
+/// vault resolves them.
 ///
-/// Every registered extension is listed, not only what the vault imports:
-/// help and the suggestion index answer the same question, so listing only
-/// the imported ones would leave a reader unable to find the import a
+/// Every provided module is listed, not only what the vault imports: help
+/// and the suggestion index answer the same question, so listing only the
+/// imported ones would leave a reader unable to find the import a
 /// diagnostic has just told them to write.
 #[must_use]
 pub fn catalogue(config: &Config) -> Vec<Provider> {
-    // A private operation is its module's own, and no program reaches it.
-    let private = |step: &Operation| {
-        binding::Environment::get().is_ok_and(|environment| environment.is_private(step))
+    let environment = binding::Environment::get().ok();
+    // The steps a module lists are the ones it declares: of a table two
+    // modules share, each lists its own. A private operation is its
+    // module's own, and no program reaches it. Without an environment, a
+    // defect of the binary, the table stands.
+    let listed = |module: &str, step: &Operation| match environment {
+        Some(environment) => {
+            !environment.is_private(step)
+                && environment.provided_module(module).is_some_and(|id| {
+                    environment
+                        .of(step)
+                        .iter()
+                        .any(|declared| environment.declaration(*declared).module == id)
+                })
+        }
+        None => true,
+    };
+    let configured = |module: &str| {
+        config.imports.iter().any(|held| {
+            canonical(held) == module || extension(held).is_some_and(|held| held.provides(module))
+        })
     };
     REGISTERED
         .iter()
-        .map(|extension| Provider {
-            name: extension.name,
-            version: extension.version,
-            provides: extension.provides,
-            availability: if extension.name == CORE.name {
-                Availability::Core
-            } else if config.prelude && prelude().contains(&extension.name) {
-                Availability::Prelude
-            } else if config.imports.iter().any(|held| held == extension.name) {
-                Availability::Configured
-            } else {
-                Availability::Absent
-            },
-            steps: extension
-                .steps
-                .iter()
-                .filter(|step| !private(step))
-                .map(|step| Listing {
-                    provider: extension.name,
-                    version: extension.version,
-                    name: step.name,
-                    signature: step
-                        .specs()
-                        .iter()
-                        .map(|spec| spec.signature(step.name))
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                    spec: step.spec(),
-                    specs: step.specs(),
-                    description: description(step.name),
-                    purity: step.purity(),
-                    shape: step.shape(),
-                })
-                .collect(),
+        .flat_map(|extension| {
+            extension.provides.iter().map(|provided| Provider {
+                module: provided.module,
+                extension: extension.id,
+                origin: extension.origin,
+                version: extension.version,
+                availability: if ALWAYS.contains(&provided.module) {
+                    Availability::Core
+                } else if config.prelude && prelude().contains(&provided.module) {
+                    Availability::Prelude
+                } else if configured(provided.module) {
+                    Availability::Configured
+                } else {
+                    Availability::Absent
+                },
+                steps: provided
+                    .steps
+                    .iter()
+                    .filter(|step| listed(provided.module, step))
+                    .map(|step| Listing {
+                        extension: extension.id,
+                        module: provided.module,
+                        version: extension.version,
+                        name: step.name,
+                        signature: step
+                            .specs()
+                            .iter()
+                            .map(|spec| spec.signature(step.name))
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                        spec: step.spec(),
+                        specs: step.specs(),
+                        description: description(step.name),
+                        purity: step.purity(),
+                        shape: step.shape(),
+                    })
+                    .collect(),
+            })
         })
         .collect()
 }
@@ -1484,7 +1514,8 @@ pub(crate) fn named_or_first<'a, E>(arguments: &'a [Arg<E>], name: &str) -> Opti
     named(arguments, name).or_else(|| arguments.iter().find(|argument| argument.name.is_none()))
 }
 
-/// Let each registered extension contribute the metadata it owns.
+/// Let each registered extension contribute the metadata it owns: `search`
+/// writes the lexical model and index entries.
 pub(crate) fn contribute_metadata(card: &mut crate::document::Card) {
     for extension in REGISTERED {
         if let Some(contribute) = extension.metadata {
@@ -1520,7 +1551,7 @@ mod tests {
         // seed, and its seeded forms are pure. Every name of `io.env` reads
         // the invocation.
         for entry in &listed {
-            let effectful = (entry.provider == "io"
+            let effectful = (entry.module == "io"
                 && !matches!(
                     entry.name,
                     "file"
@@ -1532,15 +1563,14 @@ mod tests {
                         | "stem"
                         | "extension"
                 ))
-                || entry.provider == "io.transaction"
-                || (entry.provider == "io.fs"
+                || entry.module == "io.transaction"
+                || (entry.module == "io.fs"
                     && matches!(entry.name, "entries" | "walk" | "glob" | "exists" | "entry"))
-                || (entry.provider == "logging" && entry.name != "Logger")
-                || (entry.provider == "time"
-                    && matches!(entry.name, "now" | "today" | "local_zone"))
-                || entry.provider == "random"
+                || (entry.module == "io.logging" && entry.name != "Logger")
+                || (entry.module == "time" && matches!(entry.name, "now" | "today" | "local_zone"))
+                || entry.module == "random"
                 // Reading a key file and drawing from the host generator.
-                || (entry.provider == "crypto"
+                || (entry.module == "crypto"
                     && matches!(
                         entry.name,
                         "read_public_key"
@@ -1552,33 +1582,89 @@ mod tests {
                             | "encrypt_to"
                             | "encrypt_with_passphrase"
                     ))
-                || entry.provider == "io.env";
+                || entry.module == "io.env";
             let expected = if effectful {
                 Purity::Effectful
             } else {
                 Purity::Pure
             };
             assert_eq!(entry.purity, expected, "{}", entry.name);
-            assert!(!entry.provider.is_empty());
+            assert!(
+                matches!(entry.extension, "std" | "search"),
+                "{}",
+                entry.name
+            );
             assert!(!entry.signature.is_empty());
             assert!(!entry.description.is_empty(), "{}", entry.name);
         }
     }
 
     #[test]
-    fn a_step_name_resolves_to_the_extension_that_provides_it() {
+    fn a_step_name_resolves_to_the_module_declaring_it_and_the_extension_providing_it() {
         let listed = listing();
         let count = listed.iter().find(|entry| entry.name == "count").unwrap();
-        assert_eq!(count.provider, "core");
+        assert_eq!((count.module, count.extension), ("collections", "std"));
         let markdown = listed
             .iter()
             .find(|entry| entry.name == "markdown")
             .unwrap();
-        assert_eq!(markdown.provider, "format");
-        assert_eq!(providers("count").len(), 1);
+        assert_eq!((markdown.module, markdown.extension), ("format", "std"));
+        let lexical = listed.iter().find(|entry| entry.name == "lexical").unwrap();
+        assert_eq!((lexical.module, lexical.extension), ("lexical", "search"));
+        assert_eq!(providers("count"), ["collections"]);
         assert!(providers("nonesuch").is_empty());
-        assert!(extension("graph").is_some());
-        assert!(extension("nonesuch").is_none());
+        assert!(extension("std").is_some());
+        assert!(extension("graph").is_none());
+        assert!(provider_of("io.net").is_some_and(|held| held.id == "std"));
+        assert!(provider_of("net").is_none());
+    }
+
+    #[test]
+    fn the_binary_carries_one_extension_per_builtin_package() {
+        assert_eq!(
+            REGISTERED
+                .iter()
+                .map(|extension| (extension.id, extension.abi))
+                .collect::<Vec<_>>(),
+            [("std", ABI), ("search", ABI)]
+        );
+        // `core` and `collections` share one table, and each lists what it
+        // declares: `Date` is `core`'s, `count` is `collections`'s, and
+        // neither is listed twice.
+        let listed = catalogue(&Config::default());
+        let by_module = |wanted: &str| {
+            listed
+                .iter()
+                .find(|provider| provider.module == wanted)
+                .unwrap()
+        };
+        let names = |provider: &Provider| {
+            provider
+                .steps
+                .iter()
+                .map(|step| step.name)
+                .collect::<Vec<_>>()
+        };
+        assert!(names(by_module("core")).contains(&"Date"));
+        assert!(!names(by_module("core")).contains(&"count"));
+        assert!(names(by_module("collections")).contains(&"count"));
+        assert!(!names(by_module("collections")).contains(&"Date"));
+        assert_eq!(by_module("core").availability, Availability::Core);
+        assert_eq!(by_module("collections").availability, Availability::Core);
+        assert!(
+            listed
+                .iter()
+                .all(|provider| provider.origin == Origin::Internal)
+        );
+        // A module is provided by one extension, and every module a
+        // contract declares externally is provided.
+        for (module, _) in crate::library::contracts().unwrap() {
+            let providing: Vec<_> = REGISTERED
+                .iter()
+                .filter(|extension| extension.provides(module))
+                .collect();
+            assert_eq!(providing.len(), 1, "{module}");
+        }
     }
 
     #[test]
@@ -1612,54 +1698,8 @@ mod tests {
         assert!(bare.step("count", &(0..1)).is_ok());
     }
 
-    /// A second provider of a name the core already has, which no registered
-    /// extension is allowed to be — the collision is the point of the test.
-    static PROBE: Extension = Extension {
-        name: "probe",
-        version: "0",
-        provides: &[],
-        metadata: None,
-        steps: &[Operation {
-            name: "count",
-            spec: Signature::Native(OperationSpec {
-                parameters: &[],
-                input: spec::TypePattern::Any,
-                arguments: &[],
-                output: spec::Output::Type(spec::TypePattern::Type(crate::types::TypeConstructor(
-                    "Int",
-                ))),
-            }),
-            purity: Purity::Pure,
-            shape: Shape::Barrier,
-            check: None,
-            eval: |_, _, _, _| Ok(Value::Int(0)),
-        }],
-    };
-
     #[test]
-    fn two_modules_declaring_one_name_are_told_apart_at_the_call() {
-        let mut resolution = bare(true);
-        resolution.bind_as(PROBE.name, &PROBE, &(0..1)).unwrap();
-        // A collection fits the core's `count` and the probe's `Any`, with
-        // no arity to tell them apart: the call is ambiguous and says so.
-        let both = resolution
-            .step_for("count", &TypeRef::list(TypeRef::INT), 0, &[], &(0..1))
-            .unwrap_err();
-        assert!(
-            both.message().contains("`core` and `probe`"),
-            "{}",
-            both.message()
-        );
-        // An Int fits only the probe's.
-        let probe = resolution
-            .step_for("count", &TypeRef::INT, 0, &[], &(0..1))
-            .unwrap();
-        assert!(std::ptr::eq(probe, &PROBE.steps[0]));
-        assert!(resolution.step("count", &(0..1)).is_ok());
-    }
-
-    #[test]
-    fn importing_the_same_extension_twice_is_not_a_collision() {
+    fn importing_the_same_module_twice_is_not_a_collision() {
         let mut resolution = bare(true);
         resolution.import("lexical", None, &(0..1)).unwrap();
         resolution.import("lexical", None, &(0..1)).unwrap();
@@ -1681,21 +1721,49 @@ mod tests {
         let by_name = |wanted: &str| {
             listed
                 .iter()
-                .find(|provider| provider.name == wanted)
+                .find(|provider| provider.module == wanted)
                 .unwrap()
                 .availability
         };
         assert_eq!(by_name("core"), Availability::Core);
+        assert_eq!(by_name("collections"), Availability::Core);
         assert_eq!(by_name("format"), Availability::Absent);
         assert_eq!(by_name("lexical"), Availability::Configured);
+        assert_eq!(by_name("semantic"), Availability::Absent);
         assert_eq!(by_name("graph"), Availability::Absent);
 
         let kept = catalogue(&Config::default());
-        let graph = kept.iter().find(|provider| provider.name == "graph");
+        let graph = kept.iter().find(|provider| provider.module == "graph");
         assert_eq!(
             graph.map(|provider| provider.availability),
             Some(Availability::Prelude)
         );
+    }
+
+    #[test]
+    fn a_vault_may_import_a_package_which_imports_every_module_it_provides() {
+        let config = Config {
+            imports: vec!["search".to_owned(), "logging".to_owned()],
+            prelude: true,
+            module_roots: Vec::new(),
+        };
+        let resolution = Resolution::new(&config).expect("the configuration resolves");
+        assert!(resolution.step("lexical", &(0..1)).is_ok());
+        assert!(resolution.step("semantic", &(0..1)).is_ok());
+        assert!(resolution.has("logging"));
+
+        let listed = catalogue(&config);
+        let by_name = |wanted: &str| {
+            listed
+                .iter()
+                .find(|provider| provider.module == wanted)
+                .unwrap()
+                .availability
+        };
+        assert_eq!(by_name("lexical"), Availability::Configured);
+        assert_eq!(by_name("semantic"), Availability::Configured);
+        assert_eq!(by_name("io.logging"), Availability::Configured);
+        assert_eq!(by_name("io.net"), Availability::Absent);
     }
 
     #[test]
@@ -1727,11 +1795,31 @@ mod tests {
             );
         }
         // Every module declared externally has a provider, and the provider's
-        // name is how `hql builtins` lists it.
+        // id is how `hql builtins` lists it beside the module.
         for (module, _) in crate::library::contracts().unwrap() {
             assert!(
-                builtin_module(module).is_some(),
+                provider_of(module).is_some(),
                 "{module} has no extension providing it"
+            );
+        }
+    }
+
+    #[test]
+    fn a_missing_import_names_the_module_declaring_the_step() {
+        let bare = bare(true);
+        for (step, written) in [
+            ("lexical", "write `import lexical`"),
+            ("http", "write `import net`"),
+            ("Logger", "write `import logging`"),
+            ("walk", "write `import io.fs`"),
+            ("mean", "write `import stats`"),
+        ] {
+            let missing = bare.step(step, &(0..1)).unwrap_err();
+            assert!(
+                missing.message().contains("is declared in the module")
+                    && missing.message().contains(written),
+                "{}",
+                missing.message()
             );
         }
     }

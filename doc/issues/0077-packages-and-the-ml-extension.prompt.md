@@ -35,21 +35,20 @@ Ignore `.grem/**`.
 ## State on 2026-11-13
 
 Done: HQL-0057 drafted (README, part 1 packages, part 2 `ml`); issue 0077
-on the board in `doing`; the `hql-extensions` scaffold. Nothing in `src/`
-has changed yet.
+on the board in `doing`; the `hql-extensions` scaffold committed as the
+first commit on its `main` (not on GitHub); issue 0049 closed in the
+archive: `src/extensions/mod.rs` registers `STD` and `SEARCH`, each an
+`Extension { id, abi, origin, provides }` whose `provides` is a list of
+`Provided { module, steps }`, so an implementation is keyed by module and
+declared name (`Extension::implementation`); `Resolution` binds modules,
+not extensions, and `[extensions] import` takes a package id too. Next is
+item 4.
 
 ## Work, in order
 
 1. Already done: HQL-0057 drafted.
-2. Commit the `hql-extensions` scaffold: `git init -b main`, add all,
-   commit as "Workspace, registry and the ml package's contracts
-   (HQL-0057)". A session isolated in the hql worktree cannot run git
-   there; do it from a shell in that folder, or ask the user.
-3. Issue 0049, the prerequisite: fold the twenty-nine `Extension` entries
-   in `src/extensions/mod.rs` into two descriptors, `std` and `search`,
-   each with `id`, `abi = 1` and `provides`; visibility per module, not per
-   entry; `hql builtins` names the package and the module. Close 0049 in
-   the archive when its "Work" list is done.
+2. Already done: the `hql-extensions` scaffold committed.
+3. Already done: issue 0049.
 4. `hql::ext`: a public module exporting what a crate implements against
    (`Extension`, `Operation`, `Value`, `EvalCx`, `TypedArg`, the helpers
    `declared`/`effectful`) and the macro `hql::extension!` that writes the
@@ -62,7 +61,13 @@ has changed yet.
    toolchain check with the exact refusal text of part 1 section 4, and
    two packages providing one module refused. `hql package install
    --path`, `list`, `info`, `remove`, `rebuild` in `src/cli.rs`.
-   `hql doctor` reports packages.
+   `hql doctor` reports packages. Two things part 3 (prebuilt libraries,
+   a later stage, not implemented in this issue) asks of this item: the
+   load check compares an exact `rustc`, so pin the exact version in
+   `rust-toolchain.toml` in place of `channel = "stable"` while writing
+   the check; and keep the source build of `install` in one function that
+   fetches, builds and installs, so a prebuilt-first path can later sit in
+   front of it without restructuring.
 6. The registry: fetch and cache of `hql-packages.yaml`, `install <name>`,
    `search`, `update`, `registry [--refresh]`. The fetch must be
    mockable so `cargo test` stays offline.

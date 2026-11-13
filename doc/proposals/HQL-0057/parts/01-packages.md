@@ -255,10 +255,12 @@ One command with these actions:
 
 ## Current state
 
-- `Extension` is a static table compiled into the binary with no `id` or
-  `abi`; twenty-nine entries, one per Rust source module, stand where
-  `std` and `search` should (issue 0049).
-- `[extensions] import` names those entries.
+- The binary registers two descriptors, `std` and `search`, each with
+  `id`, `abi = 1`, an internal origin and `provides`; implementations are
+  keyed by module and declared name, and visibility is per module
+  (issue 0049).
+- `[extensions] import` names builtin modules, or a builtin package, which
+  imports every module it provides.
 - `hql` has no `package` command, no `[packages]` table, nothing under
   `~/.hql/lib/`, and no public API a crate could implement an extension
   against.

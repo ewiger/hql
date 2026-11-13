@@ -54,9 +54,6 @@ board:
       - id: "0058"
         title: "A value read from a card loses where it came from"
         file: 0058-card-values-lose-their-provenance.md
-      - id: "0049"
-        title: "One extension per package: fold the descriptors into `std` and `search`"
-        file: 0049-one-extension-per-package.md
       - id: "0029"
         title: "Binary formats, and codecs an extension or a package provides"
         file: 0029-binary-formats-and-codecs.md

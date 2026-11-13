@@ -3,7 +3,7 @@
 Status: doing
 Related: [HQL-0057](../proposals/HQL-0057/README.md),
 [HQL-0024 part 9](../proposals/HQL-0024/parts/09-packages-and-extensions.md),
-[0049](0049-one-extension-per-package.md)
+[0049](archive/0049-one-extension-per-package.md)
 
 HQL-0024 part 9 named the package, the extension and the module and left
 how a package is installed and how its code reaches the process to a later
@@ -15,11 +15,13 @@ on `feat/extensions-ml`.
 
 ## Work
 
-1. HQL-0057 drafted, with part 1 (packages) and part 2 (`ml`).
-2. The `hql-extensions` repository: workspace, `hql-packages.yaml`,
-   `crates/hql-ext-ml` with its contracts, README and CI.
-3. Issue 0049 as the prerequisite: two descriptors with `id`, `abi` and
-   `provides`.
+1. Done: HQL-0057 drafted, with part 1 (packages) and part 2 (`ml`).
+2. Done: the `hql-extensions` repository: workspace, `hql-packages.yaml`,
+   `crates/hql-ext-ml` with its contracts, README and CI, committed on
+   `main` and not yet on GitHub.
+3. Done: issue 0049 as the prerequisite: two descriptors with `id`, `abi`
+   and `provides`, visibility per module, `hql builtins` naming the package
+   beside the module.
 4. `hql::ext`, the entry point, and a fixture package under
    `tests/packages/hello/`.
 5. Discovery, `package.toml`, loading and the version check;

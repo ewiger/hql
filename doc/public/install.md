@@ -36,8 +36,8 @@ hql eval '40 + 2'
 42
 ```
 
-`hql builtins` lists every step a pipeline may use, grouped by the extension
-that provides it.
+`hql builtins` lists every step a pipeline may use, grouped by the module
+that declares it, each with the package providing it.
 
 !!! note "Versions"
 

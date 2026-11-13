@@ -925,11 +925,14 @@ fn dispatch(
 
     match &cli.command {
         Command::Builtins => {
+            // One module per heading, with the extension providing it: a
+            // step is reached by importing its module, never its package.
             for provider in crate::extensions::catalogue(&vault.extensions) {
                 writeln!(
                     out,
-                    "{} {} ({})",
-                    provider.name,
+                    "{} ({} {}, {})",
+                    provider.module,
+                    provider.extension,
                     provider.version,
                     provider.availability.label()
                 )

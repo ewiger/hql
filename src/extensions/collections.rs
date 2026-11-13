@@ -1,7 +1,8 @@
-//! The core's collection steps.
+//! The `collections` module's operations, in `std`, and the constructors of
+//! `core`'s scalars.
 //!
-//! These stay in the core rather than becoming an extension because they
-//! operate on the core's own collection types and mention nothing above them.
+//! They are always visible rather than imported because they operate on the
+//! core's own collection types and mention nothing above them.
 
 use super::Signature;
 use super::{EvalCx, Operation, Purity, named_or_first};

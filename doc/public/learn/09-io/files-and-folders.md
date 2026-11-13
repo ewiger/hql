@@ -82,7 +82,7 @@ folder("examples/fs/tree")
 ```
 
 ```text
-check error[unknown-name]: `folder` is provided by the `io.fs` extension: write `import io.fs`
+check error[unknown-name]: `folder` is declared in the module `io.fs`: write `import io.fs`
  --> <expression>:1:1
   |
 1 | folder("examples/fs/tree")

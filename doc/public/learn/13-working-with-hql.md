@@ -48,17 +48,22 @@ hql> :quit
 
 ## What a step takes
 
-`hql builtins` lists every step with its signature, one line per form:
+`hql builtins` lists every step with its signature, one line per form,
+grouped by the module declaring it. Each heading names the module, the
+package providing it and whether a program has it without an import:
 
 ```text
 $ hql builtins
-core 0.5.0 (always available)
+collections (std 0.6.0, always available)
   size
     Collection<T> | size<T>() -> Int
-    Count all element occurrences.
+    Window<T> | size<T>() -> Int
+    pure, reduction
+    The number of element occurrences in `self`, an `Int`: `[1, 2, 2, 3] | size` is `4`, and `Set([1, 2, 2]) | size` is `2`.
   contains
     Collection<T> | contains<T>(value: T (positional)) -> Bool
-    Whether a value occurs in the collection.
+    pure, reduction
+    `true` when `value` occurs in `self`, and `false` otherwise: `[1, 2, 3] | contains(2)` is `true`.
   …
 ```
 

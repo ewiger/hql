@@ -556,9 +556,10 @@ fn a_function_called_with_the_wrong_number_of_arguments_is_refused() {
 #[test]
 fn every_name_the_binary_provides_follows_its_kind() {
     use hql::naming::{Kind, departure};
-    for extension in hql::extensions::catalogue(&hql::extensions::Config::default()) {
-        assert_eq!(departure(Kind::Extension, extension.name), None);
-        for step in extension.steps {
+    for provider in hql::extensions::catalogue(&hql::extensions::Config::default()) {
+        assert_eq!(departure(Kind::Extension, provider.extension), None);
+        assert_eq!(departure(Kind::Extension, provider.module), None);
+        for step in provider.steps {
             // A step named for a type is that type's constructor, so it is
             // named as the type is: `Logger(stderr, Text, name = "q")`.
             let kind = if hql::types::builtin::constructor(step.name).is_some() {
@@ -638,18 +639,18 @@ fn every_external_declaration_has_an_implementation_and_every_implementation_a_d
         let name = *name;
         let provider = catalogue
             .iter()
-            .find(|provider| provider.provides.contains(&name))
+            .find(|provider| provider.module == name)
             .unwrap_or_else(|| {
                 panic!(
                     "lib/{}/mod.hql declares externally, and no extension provides `{name}`",
                     library::path(name)
                 )
             });
-        // A provider of several modules, `core` and `collections`,
-        // implements what all of them declare.
+        // A module lists what it declares, and only that: `core` declares
+        // types alone, and the operations over them are `collections`'s.
         let mut declared: Vec<&str> = contracts
             .iter()
-            .filter(|(module, _)| provider.provides.contains(module))
+            .filter(|(module, _)| *module == name)
             .flat_map(|(_, contract)| contract.iter())
             .map(|declaration| declaration.name.as_str())
             .collect();
