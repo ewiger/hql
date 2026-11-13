@@ -18,7 +18,8 @@ use crate::diagnostics::Diagnostic;
 use crate::execution::{Arg as TypedArg, Kind as TypedKind};
 use crate::io::{self, Destination, Endpoint, Policy, Reading};
 use crate::traversal::{Source, Traversal};
-use crate::types::{TypeConstructor, TypeRef, Value};
+use crate::types::{Record, TypeConstructor, TypeRef, Value};
+use crate::walk::paths;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -56,18 +57,15 @@ const TARGET: ArgumentSpec = ArgumentSpec::value(
 /// Every operation the `io` extension provides.
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
-        name: "file",
-        spec: Signature::Native(OperationSpec {
-            parameters: &[],
-            input: P::Type(TypeConstructor("String")),
-            arguments: &[],
-            output: O::Type(P::Type(TypeConstructor("File"))),
-        }),
-        purity: Purity::Pure,
-        shape: super::Shape::Barrier,
         check: Some(check_file),
-        eval: eval_file,
+        ..super::declared("file", eval_file)
     },
+    super::declared("Path", eval_path),
+    super::declared("join", eval_join),
+    super::declared("parent", eval_parent),
+    super::declared("name", eval_name),
+    super::declared("stem", eval_stem),
+    super::declared("extension", eval_extension),
     Operation {
         name: "source",
         spec: Signature::Native(OperationSpec {
@@ -682,8 +680,10 @@ fn eval_file(
     _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    let Value::Str(path) = input else {
-        return Err(Diagnostic::runtime(span, "`file` takes a path"));
+    let path = match input {
+        Value::Str(path) => path,
+        record @ Value::Record(_) => Arc::from(path_text(&record, "file", &span)?),
+        _ => return Err(Diagnostic::runtime(span, "`file` takes a path")),
     };
     if path.contains("://") {
         return Err(Diagnostic::runtime(span, url_refused(&path)));
@@ -691,6 +691,121 @@ fn eval_file(
     Ok(Value::Endpoint(Arc::new(Endpoint::File(PathBuf::from(
         path.as_ref(),
     )))))
+}
+
+/// The `Path` value whose text is `text`.
+pub(crate) fn path_value(text: &str) -> Value {
+    Value::Record(Arc::new(Record {
+        ty: TypeRef::PATH,
+        fields: vec![("text".to_owned(), Value::Str(Arc::from(text)))],
+        carrier: None,
+    }))
+}
+
+/// The text of a `Path` value.
+pub(crate) fn path_text(
+    value: &Value,
+    name: &str,
+    span: &Range<usize>,
+) -> Result<String, Diagnostic> {
+    match value {
+        Value::Present(held) => path_text(held, name, span),
+        Value::Record(record) if record.ty == TypeRef::PATH => match record.field("text") {
+            Some(Value::Str(text)) => Ok(text.to_string()),
+            _ => Err(Diagnostic::runtime(
+                span.clone(),
+                format!("`{name}` takes a Path"),
+            )),
+        },
+        other => Err(Diagnostic::runtime(
+            span.clone(),
+            format!("`{name}` takes a Path, not {}", other.type_of()),
+        )),
+    }
+}
+
+fn eval_path(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    match input {
+        Value::Str(text) => Ok(path_value(&text)),
+        other => Err(Diagnostic::runtime(
+            span,
+            format!("`Path` takes a String, not {}", other.type_of()),
+        )),
+    }
+}
+
+fn eval_join(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let text = path_text(&input, "join", &span)?;
+    let segment = match super::named(arguments, "segment").or_else(|| arguments.first()) {
+        Some(argument) => cx.evaluate(&argument.value)?,
+        None => return Err(Diagnostic::runtime(span, "`join` takes a segment")),
+    };
+    let Value::Str(segment) = segment else {
+        return Err(Diagnostic::runtime(
+            span,
+            format!(
+                "the segment of `join` is a String, not {}",
+                segment.type_of()
+            ),
+        ));
+    };
+    Ok(path_value(&paths::join(&text, &segment)))
+}
+
+fn eval_parent(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let text = path_text(&input, "parent", &span)?;
+    Ok(match paths::parent(&text) {
+        Some(parent) => Value::Present(Arc::new(path_value(parent))),
+        None => Value::Absent(TypeRef::PATH),
+    })
+}
+
+fn eval_name(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let text = path_text(&input, "name", &span)?;
+    Ok(Value::Str(Arc::from(paths::name(&text))))
+}
+
+fn eval_stem(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let text = path_text(&input, "stem", &span)?;
+    Ok(Value::Str(Arc::from(paths::stem(&text))))
+}
+
+fn eval_extension(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let text = path_text(&input, "extension", &span)?;
+    Ok(match paths::extension(&text) {
+        Some(extension) => Value::Present(Arc::new(Value::Str(Arc::from(extension)))),
+        None => Value::Absent(TypeRef::STR),
+    })
 }
 
 /// The endpoint a value is.

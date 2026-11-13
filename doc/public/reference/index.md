@@ -46,6 +46,7 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/regex`](std/regex/index.md) — Text matched against a regular expression.
 - [`std/format`](std/format/index.md) — The formats, how bytes are read as values and how values are written as text, and the codec contracts over them.
 - [`std/io`](std/io/index.md) — Input and output: endpoints, the data sources read from them, and the data targets written to them.
+- [`std/io/fs`](std/io/fs/index.md) — The file system as data: folders, globs over paths, and the entries a folder holds, with their kinds and sizes.
 - [`std/io/net`](std/io/net/index.md) — Network endpoints: transports, read and written by `source`, `tap`, `target` and `sink` like any other endpoint (module `io`).
 - [`std/io/logging`](std/io/logging/index.md) — Logging: structured events written to a destination, apart from the result.
 - [`std/io/db/sqlite`](std/io/db/sqlite/index.md) — SQLite: one table of a database file, as a transport read by `source` and `tap` and written by `target` like any other endpoint (module `io`).

@@ -21,8 +21,8 @@ prints each declaration and the doc string's first sentence.
 | [partial overloads](sessions/partial-overloads.session) | Three constructor forms: two in a documented paragraph share its doc string, and one in an undocumented paragraph has none | three entries |
 | [standard overloads](sessions/std-overloads.session) | `:help filter` and `:type filter`: two runs of forms, each with its own doc string | two entries |
 | [citation](sessions/citation.session) | `hql help round`: a `[[/learn/…]]` citation printed as the page's URL under the binary's version | a URL under `/v{version}/` |
-| [unknown name](sessions/unknown-name.session) | `:help rnage` names `range`, and the session goes on | a message |
-| [unknown name on the command line](sessions/unknown-name-cli.session) | `hql help rnage` exits `1` | a message, exit `1` |
+| [unknown name](sessions/unknown-name.session) | `:help rnge` names `range`, and the session goes on | a message |
+| [unknown name on the command line](sessions/unknown-name-cli.session) | `hql help rnge` exits `1` | a message, exit `1` |
 | [workspace module](sessions/workspace-module.session) | `hql help shelf` and `hql help shelf.pages` under a module root | the module's entry and a function's |
 
 [`lib/`](lib/shelf.hql) is a module root, not a set of cases.

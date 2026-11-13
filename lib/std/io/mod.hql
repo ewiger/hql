@@ -73,6 +73,15 @@ type File : {Replayable, Writable} {
     end  : FileEnd   // file(p).end appends, and tap(file(p).end, F) follows
 }
 
+/// A place in a file system, written as text: segments separated by `/`.
+/// Constructing one touches nothing. A relative path resolves against the
+/// directory of the source unit that names it, as a file's does. Paths are
+/// ordered by their segments compared in turn, each by its text, so
+/// `Path("a/b")` sorts before `Path("a-b")`: the order of a sorted walk.
+type Path : Orderable {
+    text : String
+}
+
 /// An endpoint of values rather than bytes, held in memory for one
 /// execution scope: a program run, or one cell. It holds `T`, so it takes
 /// no format, and its values are read in the order they were written. One
@@ -152,8 +161,39 @@ abstract type DataTarget
 /// The `File` at `path`. Constructing it is pure and opens nothing:
 /// `file("birds.json").path` is `"birds.json"`. A URL is a type error when it
 /// is a literal and an evaluation failure when it is computed; a network
-/// resource is read with `http`.
+/// resource is read with `http`. `file(p)` of a `Path` is `file(p.text)`.
 fn file(path: String) : File
+fn file(path: Path) : File
+
+// Paths (HQL-0040). Every operation reads the text and none reads the file
+// system.
+
+/// The `Path` whose text is `text`. Constructing it touches nothing:
+/// `Path("data/birds.csv").text` is `"data/birds.csv"`.
+fn Path(text: String) : Path
+
+/// `self` with `segment` appended as its last segment, separated by `/`:
+/// `Path("data").join("birds.csv")` is `Path("data/birds.csv")`. Onto
+/// `Path(".")` or `Path("")` it is `Path(segment)`.
+fn join(self: Path, segment: String) : Path
+
+/// `self` without its last segment, `some(Path)`, or `none` for a path of
+/// one segment: `Path("a/b").parent()` is `some(Path("a"))`, and
+/// `Path("a").parent()` is `none`.
+fn parent(self: Path) : Option<Path>
+
+/// The last segment of `self`: `Path("data/birds.csv").name()` is
+/// `"birds.csv"`.
+fn name(self: Path) : String
+
+/// The last segment of `self` without its extension:
+/// `Path("data/birds.csv").stem()` is `"birds"`.
+fn stem(self: Path) : String
+
+/// The text after the last `.` of the last segment, `some(String)`, or
+/// `none` where the segment has none: `Path("a/b.csv").extension()` is
+/// `some("csv")`. A segment that opens with its only `.`, `.env`, has none.
+fn extension(self: Path) : Option<String>
 
 /// Every document read from `endpoint` in `format`, decoded to `T`: a `Seq`
 /// from a `Replayable` endpoint, a `Stream` from a live one. `T` is the

@@ -28,7 +28,8 @@ atoms! {
     QUARTER => "Quarter", YEAR => "Year",
     ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
-    FILE => "File", FILE_END => "FileEnd",
+    FILE => "File", FILE_END => "FileEnd", PATH => "Path",
+    FOLDER => "Folder", GLOB => "Glob", ENTRY => "Entry",
     HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
     TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
     BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
@@ -218,6 +219,12 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Concrete,
             &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
         ),
+        // A place in a file system, ordered by its segments: `lib/std/io/mod.hql`.
+        (TypeRef::PATH, TypeKind::Concrete, &[TypeRef::ORDERABLE]),
+        // The file system as data (HQL-0040): `lib/std/io/fs/mod.hql`.
+        (TypeRef::FOLDER, TypeKind::Concrete, &[]),
+        (TypeRef::GLOB, TypeKind::Concrete, &[]),
+        (TypeRef::ENTRY, TypeKind::Concrete, &[]),
         // An endpoint outside the evaluation, its locality and its carriage
         // (HQL-0047): `lib/std/io/mod.hql`.
         (TypeRef::TRANSPORT, TypeKind::Abstract, &[TypeRef::ENDPOINT]),

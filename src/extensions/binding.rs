@@ -1355,9 +1355,10 @@ mod tests {
         ] {
             let step = super::super::IO.step(name).unwrap();
             // `source` and `tap` read, and `target` and `sink` write, an
-            // endpoint or a configured endpoint's id.
+            // endpoint or a configured endpoint's id; `file` takes a String
+            // or a Path.
             let forms = environment.of(step);
-            let count = if matches!(name, "source" | "tap" | "target" | "sink") {
+            let count = if matches!(name, "source" | "tap" | "target" | "sink" | "file") {
                 2
             } else {
                 1

@@ -634,9 +634,18 @@ impl Field {
         if *receiver.present() == TypeRef::DATA {
             return Some(Self::Key(name.to_owned()));
         }
-        // `Zone` is a built-in type whose values are records.
+        // `Zone` and the file system's `Path`, `Folder`, `Glob` and `Entry`
+        // are built-in types whose values are records, built by their
+        // extensions' constructors alone.
         if crate::types::program::is_record_valued(receiver.present().constructor.0)
-            || *receiver.present() == TypeRef::ZONE
+            || [
+                TypeRef::ZONE,
+                TypeRef::PATH,
+                TypeRef::FOLDER,
+                TypeRef::GLOB,
+                TypeRef::ENTRY,
+            ]
+            .contains(receiver.present())
         {
             return Some(Self::Record(name.to_owned()));
         }

@@ -18,6 +18,7 @@ mod constructors;
 mod declarations;
 mod evaluation;
 mod execution;
+mod glob;
 mod knowledge;
 mod lexer;
 pub mod modules;
@@ -27,6 +28,7 @@ mod net;
 mod parser;
 mod postgres;
 mod spark;
+mod walk;
 
 pub mod backends;
 pub mod boundary;

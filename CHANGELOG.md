@@ -10,6 +10,18 @@ The language continues to be in active development.
 
 ### Added
 
+- The file system as data ([HQL-0040](doc/proposals/HQL-0040/README.md)).
+  `io` declares `Path`, a place in a file system written as text and
+  ordered by its segments, with `join`, `parent`, `name`, `stem` and
+  `extension`, which read the text alone; `file(p)` takes a `Path`. The
+  module `io.fs`, imported with `import io.fs`, declares `Folder`, `Glob`
+  and `Entry` (`path`, `name`, `kind`, `size?`), and the effectful
+  `entries`, `walk`, `glob`, `exists` and `entry`. A listing is a held
+  `Seq<Entry>` in the order of the sorted walk the vault reads its cards in,
+  reports a link without following it, is granted where reading a file is,
+  and is bounded by `[execution] max_elements`. `Path`, `Folder`, `Glob` and
+  `Entry` are built-in type names, so a program declares its own record
+  under another name.
 - Analytic windows ([HQL-0050](doc/proposals/HQL-0050/README.md)):
   `over(by, order, into)` partitions a sequence by `by`, orders each
   partition by `order`, and gives one value per row, at the row's input

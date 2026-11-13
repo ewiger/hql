@@ -4,8 +4,8 @@
 // environment: pure
 // session: repl
 
-hql> :help rnage
-no declaration named `rnage`; did you mean `range`?
+hql> :help rnge
+no declaration named `rnge`; did you mean `range`?
 hql> :help range
 fn range(start: Int, end: Int, step: Int = 1) : List<Int>    // std/seq
 
