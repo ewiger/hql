@@ -26,7 +26,7 @@ pub struct RecordField {
     /// What a contract reads where the data holds no entry for the field,
     /// written `name: Type = literal` (HQL-0032).
     pub default: Option<crate::data::Data>,
-    /// The validator type the field is declared with, `email: Email`: the
+    /// The validator trait the field is declared with, `email: Email`: the
     /// field is of the type implementing it and is held to its `validate`
     /// (HQL-0034).
     pub validator: Option<&'static str>,
@@ -87,9 +87,12 @@ pub struct Lattice {
     pub system: Arc<TypeSystem>,
     /// The records the program declared, by name.
     pub records: Arc<HashMap<&'static str, RecordShape>>,
-    /// Each validator type in scope, with the types implementing it
+    /// Each validator trait in scope, with the types implementing it
     /// (HQL-0034).
     pub validators: Arc<HashMap<&'static str, Vec<TypeRef>>>,
+    /// Every trait the program and the modules it loads declare: a name
+    /// refused in a type position (HQL-0039).
+    pub traits: Arc<HashSet<&'static str>>,
 }
 
 thread_local! {
@@ -105,6 +108,7 @@ fn base() -> Result<Arc<Lattice>, TypeError> {
                 system: Arc::new(system),
                 records: Arc::new(HashMap::new()),
                 validators: Arc::new(HashMap::new()),
+                traits: Arc::new(HashSet::new()),
             })
         })
     })
@@ -151,7 +155,7 @@ pub fn declare(definition: TypeDefinition, shape: Option<RecordShape>) -> Result
     install(Arc::new(Lattice {
         system: Arc::new(system),
         records: Arc::new(records),
-        validators: Arc::clone(&held.validators),
+        ..(*held).clone()
     }));
     Ok(())
 }
@@ -171,14 +175,47 @@ pub fn adopt_parent(
     system.adopt(constructor, parent)?;
     install(Arc::new(Lattice {
         system: Arc::new(system),
-        records: Arc::clone(&held.records),
-        validators: Arc::clone(&held.validators),
+        ..(*held).clone()
     }));
     Ok(())
 }
 
-/// Record that `implementing` implements the validator type `name`, or,
-/// with none, that `name` is a validator type (HQL-0034).
+/// Declare the union a trait names, `Figure` of `trait Shape as Figure`,
+/// with no member yet (HQL-0039).
+///
+/// # Errors
+///
+/// Returns why the name cannot join the lattice: it names a type already.
+pub fn declare_trait_type(name: &str) -> Result<TypeRef, TypeError> {
+    let held = current()?;
+    let mut system = (*held.system).clone();
+    let constructor = constructor(name);
+    system.declare_open_union(constructor)?;
+    install(Arc::new(Lattice {
+        system: Arc::new(system),
+        ..(*held).clone()
+    }));
+    Ok(constructor.apply([]))
+}
+
+/// Add an implementing type to the union a trait names.
+///
+/// # Errors
+///
+/// Returns why the type cannot be a member.
+pub fn add_member(union: TypeConstructor, member: TypeRef) -> Result<(), TypeError> {
+    let held = current()?;
+    let mut system = (*held.system).clone();
+    system.add_member(union, member)?;
+    install(Arc::new(Lattice {
+        system: Arc::new(system),
+        ..(*held).clone()
+    }));
+    Ok(())
+}
+
+/// Record that `implementing` implements the validator trait `name`, or,
+/// with none, that `name` is a validator trait (HQL-0034).
 ///
 /// # Errors
 ///
@@ -189,11 +226,36 @@ pub fn validator(name: &str, implementing: Option<TypeRef>) -> Result<(), TypeEr
     let types = validators.entry(intern(name)).or_default();
     types.extend(implementing);
     install(Arc::new(Lattice {
-        system: Arc::clone(&held.system),
-        records: Arc::clone(&held.records),
         validators: Arc::new(validators),
+        ..(*held).clone()
     }));
     Ok(())
+}
+
+/// Record that `name` is a trait: written in a type position, it is refused
+/// with the bound form to write instead (HQL-0039).
+///
+/// # Errors
+///
+/// Returns the built-in lattice's own defect, if it has one.
+pub fn declare_trait(name: &str) -> Result<(), TypeError> {
+    let held = current()?;
+    if held.traits.contains(name) {
+        return Ok(());
+    }
+    let mut traits = (*held.traits).clone();
+    traits.insert(intern(name));
+    install(Arc::new(Lattice {
+        traits: Arc::new(traits),
+        ..(*held).clone()
+    }));
+    Ok(())
+}
+
+/// Whether `name` is a trait the program or a module it loads declares.
+#[must_use]
+pub fn is_trait(name: &str) -> bool {
+    current().is_ok_and(|lattice| lattice.traits.contains(name))
 }
 
 /// The record of a `fork`'s branches, `{a: T, b: U}`: a closed record named
@@ -244,14 +306,14 @@ pub fn is_branch_record(ty: &TypeRef) -> bool {
     ty.constructor.0.starts_with('{')
 }
 
-/// The types implementing a validator type, or `None` where `name` is not
+/// The types implementing a validator trait, or `None` where `name` is not
 /// one.
 #[must_use]
 pub fn implementing(name: &str) -> Option<Vec<TypeRef>> {
     current().ok()?.validators.get(name).cloned()
 }
 
-/// Whether any validator type is in scope, so a record may be held to a
+/// Whether any validator trait is in scope, so a record may be held to a
 /// field's validator.
 #[must_use]
 pub fn has_validators() -> bool {
@@ -313,7 +375,13 @@ pub fn is_builtin(name: &str) -> bool {
 pub fn is_record_valued(name: &str) -> bool {
     if matches!(
         name,
-        "Pair" | "Range" | "Violation" | "Invalid" | "Diagnostic" | "TransactionFailure"
+        "Pair"
+            | "Range"
+            | "Violation"
+            | "Invalid"
+            | "Diagnostic"
+            | "KeyPair"
+            | "TransactionFailure"
     ) {
         return true;
     }

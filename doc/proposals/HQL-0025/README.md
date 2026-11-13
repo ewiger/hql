@@ -1,6 +1,6 @@
 # HQL-0025: Execution contexts and running modes
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-10-22
 
 ## Scope
@@ -1471,3 +1471,61 @@ Allow HyperMarkdown and other hosts to construct or supplement an execution cont
 ### Diagnostics
 
 Provide an inspection command capable of explaining how the effective context was constructed.
+
+---
+
+## Changelog
+
+- 2026-10-22: drafted
+- 2026-11-13: accepted
+- 2026-11-13: implemented in part, in `src/context.rs` and the CLI:
+  - `ExecutionContext` holds the working directory, the anchor, the
+    workspace and how it was selected, the mode (`bare`, `workspace`,
+    `vault`), the HQL home, the configuration files, the selected named
+    context, the effective module roots, extension imports and prelude,
+    each with the layer that supplied it.
+  - The anchor is the program file's directory for `run`, `check`, `plan`,
+    `boundary` and `context <file>`, and the working directory otherwise;
+    `.` and `..` in it resolve by position. Discovery stops at the nearest
+    directory holding `.hmd/` or `hql.toml`.
+  - `--workspace <dir>`, with `--vault <dir>` as its synonym, replaces the
+    walk and requires a marked directory; `--bare` suppresses it; the two
+    together are a usage error. `hql render` keeps per-document discovery,
+    and renders no document under `--bare`.
+  - The system file is `$HQL_SYSTEM_CONFIG`, else `/etc/hql/config.toml`
+    (`%ProgramData%\hql\config.toml` on Windows). The HQL home is
+    `$HQL_HOME`, else `~/.hql`; its `config.toml` is the user file and its
+    `modules/` a module root. Both files take the keys of a workspace's
+    `hql.toml`; a malformed one fails every run, naming the file.
+  - Module roots and extension imports gather in the order system, user,
+    named context, HQL home modules, workspace, `$HQL_PATH`, `--modules`,
+    each directory once; `prelude` is the last layer's that states it.
+  - Report mode, report level and backend resolve as the command line, the
+    workspace's `hql.toml`, the environment, then the named context, the
+    user file and the system file, then the default: the workspace file
+    outranks the environment, as HQL-0045 orders them.
+  - A named context is a `[context.<name>]` table of the system or user
+    file, the user file's replacing the system file's of the same name; a
+    workspace's `hql.toml` defines none. `workspace` in it binds a
+    workspace, read against the declaring file. Selection is `--context`,
+    `$HQL_CONTEXT`, `current-context` (the user file's, else the system
+    file's), then a context named `default`. An undefined selected name
+    fails every run. A binding contradicted by `--bare` or by a
+    `--workspace` naming another directory is an error when `--context` or
+    `$HQL_CONTEXT` selected the context; under a persistent
+    `current-context`, the command line wins.
+  - `hql context [file]` reports the context, also as JSON under
+    `--envelope json`. `hql config current-context`, `get-contexts`,
+    `use-context <name>` and `view` inspect and change the selection;
+    `use-context` rewrites only the `current-context` line of the user
+    file.
+  - A host constructs the context with `Request::host_workspace`, which
+    replaces discovery and needs no marker, and loads it with
+    `ExecutionContext::load_workspace`.
+  - A workspace marked by `hql.toml` alone loads its documents as cards,
+    as before; its mode is `workspace` and it has no vault.
+  - Not implemented: extension locations (`~/.hql/extensions`, workspace
+    extensions), since every extension is compiled into the binary; the
+    package environment, since there is no package resolver; explicit module
+    overrides, since the module registry has no override selection; and
+    system policy.

@@ -90,6 +90,7 @@ nav:
                   - Decimal: learn/02-data-types/decimal.md
                   - String: learn/02-data-types/string.md
                   - Bool: learn/02-data-types/bool.md
+                  - Bytes: learn/02-data-types/bytes.md
                   - Date and time: learn/02-data-types/time.md
                   - Data: learn/02-data-types/data.md
                   - Option: learn/02-data-types/option.md
@@ -121,6 +122,8 @@ nav:
                   - Channels: learn/09-io/channels.md
                   - Logging: learn/09-io/logging.md
                   - The network: learn/09-io/network.md
+                  - Files and folders: learn/09-io/files-and-folders.md
+                  - Environment and arguments: learn/09-io/environment.md
                   - Effects and what a host allows: learn/09-io/hosts.md
                   - hql on the command line: learn/09-io/command-line.md
               - 10. The type system:
@@ -175,6 +178,11 @@ nav:
               - 25. Agents and runs: learn/25-agents-and-runs.md
               - 26. Agents inside documents: learn/26-agents-inside-documents.md
               - 27. The hyper web: learn/27-the-hyper-web.md
+          - "Part IV: The standard library":
+              - 28. Statistics: learn/28-statistics.md
+              - 29. Random values: learn/29-random.md
+              - 30. Digests and encodings: learn/30-digests-and-encodings.md
+              - 31. Keys and cryptography: learn/31-cryptography.md
       - Examples: examples.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this
@@ -191,12 +199,16 @@ nav:
           - std/string: reference/std/string/index.md
           - std/seq: reference/std/seq/index.md
           - std/math: reference/std/math/index.md
+          - std/stats: reference/std/stats/index.md
           - std/time: reference/std/time/index.md
+          - std/random: reference/std/random/index.md
           - std/option: reference/std/option/index.md
           - std/result: reference/std/result/index.md
           - std/regex: reference/std/regex/index.md
           - std/format: reference/std/format/index.md
           - std/io: reference/std/io/index.md
+          - std/io/fs: reference/std/io/fs/index.md
+          - std/io/env: reference/std/io/env/index.md
           - std/io/net: reference/std/io/net/index.md
           - std/io/logging: reference/std/io/logging/index.md
           - std/io/db/sqlite: reference/std/io/db/sqlite/index.md
@@ -206,6 +218,10 @@ nav:
           - std/io/msg/nats: reference/std/io/msg/nats/index.md
           - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream/index.md
           - std/vault: reference/std/vault/index.md
+          - std/crypto/digest: reference/std/crypto/digest/index.md
+          - std/encoding: reference/std/encoding/index.md
+          - std/bytes: reference/std/bytes/index.md
+          - std/crypto: reference/std/crypto/index.md
           - std/validators: reference/std/validators/index.md
       - search:
           - search/lexical: reference/search/lexical/index.md

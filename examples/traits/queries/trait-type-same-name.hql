@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A trait names its type with its own name, read as the trait in a bound and as the type elsewhere
-// implementation: pending
-// proposal: doc/proposals/HQL-0039/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<String>
 // expected-json: ["rex", "rock of 3"]

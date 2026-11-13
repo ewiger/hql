@@ -8,10 +8,17 @@
 /// function takes `self`, so `s.trim()`, `string.trim(s)` and `s | trim` are
 /// one declaration. A `String` is a sequence of Unicode scalar values held
 /// as UTF-8, whatever encoding its text was read from. Positions and size
-/// count code points.
-module string for String
+/// count code points. A `String` implements `Index<String>` and `Slice`
+/// through `at` and `slice`: `s[1]` is `s.at(1)`, and `s[1:3]` is
+/// `s.slice(Range(start = 1, end = 3))`.
+module string for String : Index<String>, Slice
 
 import core
+
+/// The character of `self` at `position`, as text, or `none` outside the
+/// text; a negative position counts from the end: `"hello".at(1)` and
+/// `"hello"[1]` are `"e"`.
+fn at(self, position: Int) : Option<String>
 
 /// The text `self` prints as, for a value of any type: `str(some(2))` is
 /// `"2"`.
@@ -152,8 +159,10 @@ fn truncate(self, width: Int) : String
 /// The characters of `self` from `start` up to, not including, `end`,
 /// counting from 0; `s[start:end]`. The bounds are clamped to the text, and
 /// a negative bound counts from the end: `"hello" | slice(-3, 10)` is
-/// `"llo"`. `s.slice(range)`, with one argument, is the core trait `Slice`.
+/// `"llo"`. With one argument, a `Range`, it is `Slice`'s: `"hello"[1:3]` is
+/// `"hello".slice(Range(start = 1, end = 3))`, `"el"`.
 fn slice(self, start: Int, end: Int) : String
+fn slice(self, range: Range) : String
 
 /// The character of `self` at `position`, counting from 0, or `none`
 /// outside the text: `"hello" | char_at(1)` is `"e"`.

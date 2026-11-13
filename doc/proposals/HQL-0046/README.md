@@ -1,6 +1,6 @@
 # HQL-0046: Kafka topics and PostgreSQL tables as configured endpoints
 
-**Status**: accepted, implemented
+**Status**: implemented
 **Created**: 2026-11-12
 **Source**: [HQL-0012](../HQL-0012/README.md) (configured endpoints),
 [HQL-0021](../HQL-0021/README.md) (endpoints, `source` and `tap`),

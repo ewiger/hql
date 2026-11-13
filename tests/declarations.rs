@@ -533,7 +533,7 @@ fn every_name_the_binary_provides_follows_its_kind() {
         for step in extension.steps {
             // A step named for a type is that type's constructor, so it is
             // named as the type is: `Logger(stderr, Text, name = "q")`.
-            let kind = if hql::types::named(step.name, &[]).is_some() {
+            let kind = if hql::types::builtin::constructor(step.name).is_some() {
                 Kind::Type
             } else {
                 Kind::Function

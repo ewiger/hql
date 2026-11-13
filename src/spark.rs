@@ -829,6 +829,7 @@ pub(crate) fn text_of(value: &Data) -> Option<String> {
         Data::Float(x) => x.to_string(),
         Data::Decimal(d) => d.to_string(),
         Data::Time(time) => time.to_string(),
+        Data::Bytes(octets) => crate::data::base64_text(octets),
         Data::Str(text) => text.clone(),
         Data::List(_) | Data::Map(_) => value.to_json().to_string(),
     })

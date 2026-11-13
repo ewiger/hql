@@ -1,6 +1,8 @@
 # HQL-0024: A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions
 
-- **Status**: accepted, implemented in part (see [issue 0028](../../issues/archive/0028-complete-type-system-implementation.md) and, for part 12, [issue 0036](../../issues/archive/0036-contracts-receivers-purity-identities.md))
+- **Status**: implemented in part
+- **Issues**: [issue 0028](../../issues/archive/0028-complete-type-system-implementation.md),
+  and for part 12 [issue 0036](../../issues/archive/0036-contracts-receivers-purity-identities.md)
 - **Created**: 2026-10-21
 - **Source**: [design draft 1](draft/design-draft-1.md),
   [notes on the implementation half of a module](parts/01a-modules.md), the

@@ -22,13 +22,27 @@ atoms! {
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
     ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
     DATE_TIME => "DateTime", INSTANT => "Instant", DURATION => "Duration",
+    BYTES => "Bytes",
     ZONE => "Zone", TIME_UNIT => "TimeUnit", NANOSECOND => "Nanosecond",
     MICROSECOND => "Microsecond", MILLISECOND => "Millisecond", SECOND => "Second",
     MINUTE => "Minute", HOUR => "Hour", DAY => "Day", WEEK => "Week", MONTH => "Month",
     QUARTER => "Quarter", YEAR => "Year",
+    DIGEST_ALGORITHM => "Algorithm", MD5 => "Md5", SHA1 => "Sha1", SHA256 => "Sha256",
+    SHA512 => "Sha512", BLAKE3 => "Blake3",
+    ENCODING => "Encoding", HEX => "Hex", BASE64 => "Base64", BASE64_URL => "Base64Url",
+    PERCENT => "Percent",
+    KEY_ALGORITHM => "KeyAlgorithm", SIGNING => "Signing", AGREEMENT => "Agreement",
+    ED25519 => "Ed25519", P256 => "P256", RSA => "Rsa", X25519 => "X25519",
+    SECRET_ALGORITHM => "SecretAlgorithm", CIPHER => "Cipher", MAC => "Mac",
+    AES256_GCM => "Aes256Gcm", CHACHA20_POLY1305 => "ChaCha20Poly1305",
+    HMAC_SHA256 => "HmacSha256", HMAC_SHA512 => "HmacSha512", SECRET => "Secret",
+    ENCRYPTED_END => "EncryptedEnd", DECRYPTED_END => "DecryptedEnd",
+    DECRYPTED_LIVE => "DecryptedLive",
+    KEY_FORMAT => "KeyFormat", PEM => "Pem", JWK => "Jwk", OPEN_SSH => "OpenSsh", AGE => "Age",
     ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
-    FILE => "File", FILE_END => "FileEnd",
+    FILE => "File", FILE_END => "FileEnd", PATH => "Path",
+    FOLDER => "Folder", GLOB => "Glob", ENTRY => "Entry",
     HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
     TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
     BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
@@ -161,6 +175,9 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::DATE_TIME, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::INSTANT, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::DURATION, TypeKind::Concrete, &ordered_scalar),
+        // Octets (HQL-0053 part 1): built by constructors and conversions,
+        // with no literal.
+        (TypeRef::BYTES, TypeKind::Concrete, &ordered_scalar),
         (
             TypeRef::DATA,
             TypeKind::Union(vec![
@@ -224,6 +241,12 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Concrete,
             &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
         ),
+        // A place in a file system, ordered by its segments: `lib/std/io/mod.hql`.
+        (TypeRef::PATH, TypeKind::Concrete, &[TypeRef::ORDERABLE]),
+        // The file system as data (HQL-0040): `lib/std/io/fs/mod.hql`.
+        (TypeRef::FOLDER, TypeKind::Concrete, &[]),
+        (TypeRef::GLOB, TypeKind::Concrete, &[]),
+        (TypeRef::ENTRY, TypeKind::Concrete, &[]),
         // An endpoint outside the evaluation, its locality and its carriage
         // (HQL-0047): `lib/std/io/mod.hql`.
         (TypeRef::TRANSPORT, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
@@ -416,6 +439,107 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::MONTH, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
         (TypeRef::QUARTER, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
         (TypeRef::YEAR, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        // Digests and encodings (HQL-0041 part 3): `lib/std/crypto/digest/mod.hql`
+        // and `lib/std/encoding/mod.hql`. An algorithm and an encoding are
+        // types, so a call takes one as `Sha256` or `Hex` is written.
+        (TypeRef::DIGEST_ALGORITHM, TypeKind::Abstract, &[]),
+        (
+            TypeRef::MD5,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::SHA1,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::SHA256,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::SHA512,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::BLAKE3,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (TypeRef::ENCODING, TypeKind::Abstract, &[]),
+        (TypeRef::HEX, TypeKind::Concrete, &[TypeRef::ENCODING]),
+        (TypeRef::BASE64, TypeKind::Concrete, &[TypeRef::ENCODING]),
+        (
+            TypeRef::BASE64_URL,
+            TypeKind::Concrete,
+            &[TypeRef::ENCODING],
+        ),
+        (TypeRef::PERCENT, TypeKind::Concrete, &[TypeRef::ENCODING]),
+        // Keys (HQL-0053 part 2): `lib/std/crypto/mod.hql`. An algorithm and a
+        // key format are types, so a call takes one as `Ed25519` is written.
+        (TypeRef::KEY_ALGORITHM, TypeKind::Abstract, &[]),
+        (
+            TypeRef::SIGNING,
+            TypeKind::Abstract,
+            &[TypeRef::KEY_ALGORITHM],
+        ),
+        (
+            TypeRef::AGREEMENT,
+            TypeKind::Abstract,
+            &[TypeRef::KEY_ALGORITHM],
+        ),
+        (TypeRef::ED25519, TypeKind::Concrete, &[TypeRef::SIGNING]),
+        (TypeRef::P256, TypeKind::Concrete, &[TypeRef::SIGNING]),
+        (TypeRef::RSA, TypeKind::Concrete, &[TypeRef::SIGNING]),
+        (TypeRef::X25519, TypeKind::Concrete, &[TypeRef::AGREEMENT]),
+        (TypeRef::SECRET_ALGORITHM, TypeKind::Abstract, &[]),
+        (
+            TypeRef::CIPHER,
+            TypeKind::Abstract,
+            &[TypeRef::SECRET_ALGORITHM],
+        ),
+        (
+            TypeRef::MAC,
+            TypeKind::Abstract,
+            &[TypeRef::SECRET_ALGORITHM],
+        ),
+        (TypeRef::AES256_GCM, TypeKind::Concrete, &[TypeRef::CIPHER]),
+        (
+            TypeRef::CHACHA20_POLY1305,
+            TypeKind::Concrete,
+            &[TypeRef::CIPHER],
+        ),
+        (TypeRef::HMAC_SHA256, TypeKind::Concrete, &[TypeRef::MAC]),
+        (TypeRef::HMAC_SHA512, TypeKind::Concrete, &[TypeRef::MAC]),
+        (TypeRef::SECRET, TypeKind::Abstract, &[]),
+        (TypeRef::KEY_FORMAT, TypeKind::Abstract, &[]),
+        (TypeRef::PEM, TypeKind::Concrete, &[TypeRef::KEY_FORMAT]),
+        (TypeRef::JWK, TypeKind::Concrete, &[TypeRef::KEY_FORMAT]),
+        (
+            TypeRef::OPEN_SSH,
+            TypeKind::Concrete,
+            &[TypeRef::KEY_FORMAT],
+        ),
+        (TypeRef::AGE, TypeKind::Concrete, &[TypeRef::KEY_FORMAT]),
+        // Encrypted endpoints (HQL-0053 part 4): an age layer between a
+        // format and a byte endpoint.
+        (
+            TypeRef::ENCRYPTED_END,
+            TypeKind::Concrete,
+            &[TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::DECRYPTED_END,
+            TypeKind::Concrete,
+            &[TypeRef::REPLAYABLE],
+        ),
+        (
+            TypeRef::DECRYPTED_LIVE,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE],
+        ),
     ] {
         system.declare(TypeDefinition {
             kind,
@@ -627,6 +751,26 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         parents: Vec::new(),
         applied: Vec::new(),
     })?;
+    // The keys of `crypto` (HQL-0053 part 2), each of one algorithm `A`. A
+    // private key, a key pair and a symmetric key are `Secret`.
+    for (name, parent) in [
+        ("PublicKey", None),
+        ("PrivateKey", Some(TypeRef::SECRET.constructor)),
+        ("KeyPair", Some(TypeRef::SECRET.constructor)),
+        ("SecretKey", Some(TypeRef::SECRET.constructor)),
+    ] {
+        system.declare(TypeDefinition {
+            constructor: TypeConstructor(name),
+            kind: TypeKind::Concrete,
+            parameters: vec![TypeParameter {
+                name: "A",
+                variance: Variance::Invariant,
+                bound: None,
+            }],
+            parents: parent.into_iter().collect(),
+            applied: Vec::new(),
+        })?;
+    }
     // One partition of a `group`: `type Group<K, T> { key: K, items: List<T> }`.
     system.declare(TypeDefinition {
         constructor: GROUP,

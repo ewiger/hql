@@ -1,6 +1,6 @@
 # HQL-0028: Import units, the program module and declaration visibility
 
-**Status**: implemented, with `internal` reserved
+**Status**: implemented
 **Created**: 2026-10-22
 **Source**: [modules, the Visibility section](../HQL-0024/parts/01-modules.md)
 

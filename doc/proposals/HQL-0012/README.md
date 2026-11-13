@@ -1,10 +1,16 @@
-# HQL-0012: Data sources
+# HQL-0012: Data sources, targets and endpoints
 
-- **Status**: accepted, implemented in part
+- **Status**: implemented in part
 - **Created**: 2026-10-18
 - **Source**: [HQL is not an HMD query language](../../wiki/hmd-integration.hmd)
-- **Amended by**: [HQL-0047](../HQL-0047/README.md) (a kind is a transport,
-  with a type and a constructor of its name),
+- **Extended by**: [HQL-0021](../HQL-0021/README.md) (endpoints read with
+  `source` and `tap` and written with `target` and `sink`),
+  [HQL-0035](../HQL-0035/README.md) (the schema boundary of a configured
+  endpoint, and configured targets),
+  [HQL-0046](../HQL-0046/README.md) (Kafka topics and PostgreSQL tables),
+  [HQL-0049](../HQL-0049/README.md) (NATS subjects and lakehouse tables),
+  [HQL-0047](../HQL-0047/README.md) (a kind is a transport, with a type and a
+  constructor of its name),
   [HQL-0048](../HQL-0048/README.md) (the module each kind is declared in)
 
 ## Abstract
@@ -28,6 +34,28 @@ stream already has — `take`, `filter`, slicing, `collect` and `emit` — and h
 the host fetches it is not part of the language. The vault a program runs
 against is the source `vault`, and `cards` is `vault.cards`, its cards in the
 order of a sorted walk.
+
+## Endpoints
+
+The records that extend this one widen it from sources to endpoints. An
+**endpoint** is a place outside the program that values are read from or
+written to: a file, standard input or output, a URL, a channel, or a configured
+table, topic or subject. An endpoint read with `source` or `tap` is a **data
+source**; an endpoint written with `target` or `sink` is a **data target**
+([HQL-0021](../HQL-0021/README.md)). A **configured endpoint** is one
+`[endpoint.<id>]` in `hql.toml`, named by its id as section 3 states; one id may
+serve as a source, a target or both.
+
+- How a configured endpoint's fields map to a declared type, and the write
+  modes of a configured target, are [HQL-0035](../HQL-0035/README.md).
+- The kinds `kafka` and `postgres` are [HQL-0046](../HQL-0046/README.md);
+  `nats`, `nats_jetstream` and `spark` are [HQL-0049](../HQL-0049/README.md).
+- A kind is a transport with a type and a constructor of its name
+  ([HQL-0047](../HQL-0047/README.md)), declared in the module
+  [HQL-0048](../HQL-0048/README.md) names.
+
+What this record states for a source — naming by id, configuration, run-context
+bounds — holds for every configured endpoint.
 
 ## Companion notes
 
@@ -757,3 +785,6 @@ None.
   `Nats`; a configured database endpoint is one table; a log is read as a
   `Stream` of values; `nats` is a core subject and `nats_jetstream` a stream;
   `rest`, `graphql` and `webhook` are kinds of `io.net`.
+- 2026-11-13: retitled "Data sources, targets and endpoints"; extended by
+  HQL-0021, HQL-0035, HQL-0046, HQL-0049, HQL-0047 and HQL-0048, and the
+  section "Endpoints" states the term those records use

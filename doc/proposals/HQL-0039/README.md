@@ -1,6 +1,6 @@
 # HQL-0039: Traits, validator traits, a trait's type, and traits a module implements
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-10-23
 **Source**: [HQL-0024 part 5](../HQL-0024/parts/05-traits.md),
 [HQL-0027](../HQL-0027/README.md), [HQL-0034](../HQL-0034/README.md), and the
@@ -343,3 +343,22 @@ cargo test --locked --test traits --test corpus --test structural --test extensi
 ## Changelog
 
 - 2026-10-23: drafted
+- 2026-11-13: accepted and implemented. A trait's name in a type position is
+  refused as an `unknown-name` error naming the bound `<T : A>(x: T)`.
+  `trait A as F` declares `F` as a union whose members are added as each
+  implementation is checked, so a use checked before an implementation does
+  not see that member. `module m for P : A, B` declares one implementation
+  per listed trait, with the missing-function, shared-name and coherence
+  diagnostics; its pattern may name a type the module declares below the
+  `module` line. A default body of a trait declared in another unit is
+  inherited where it checks with `Self` bound by the trait alone; one that
+  reads more of `Self`, a field, is inherited only in the trait's own unit.
+  `lib/std/string/mod.hql` and `lib/std/seq/mod.hql` state `Index` and `Slice`
+  in their trait lists with bodyless `at` and `slice`, which bind the native
+  bodies and are also the extensions' operations, so `string.at(s, 1)` and
+  `seq.slice(xs, r)` are calls; `core` keeps the headers for `Data`. A trait
+  list of a standard receiver module states traits for a type another module
+  declares, `String` and `Seq`, and is exempt from the rule that an
+  implementation is declared with its trait or its type; a workspace module's
+  trait list keeps the rule. "Validator type" is "validator trait" in
+  HQL-0034, the type system card and `lib/std/core/mod.hql`.

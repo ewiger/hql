@@ -1,0 +1,213 @@
+# Part 2: keys
+
+- **Depends on**: [the proposal](../README.md) for ownership, effects and
+  secret values; [part 1](01-bytes.md) for `Bytes`
+- **Needed by**: [part 3](03-signatures-macs-passwords.md),
+  [part 4](04-encryption.md), and [HQL-0054](../../HQL-0054/README.md)
+
+## Scope
+
+The algorithms `crypto` supports, the types of their keys, the formats a key
+is read from and written to, and the generation of keys. Python's
+`cryptography.hazmat.primitives.serialization` and Go's `crypto/x509`
+`Parse*Key` functions cover the same ground.
+
+## Algorithms and key types
+
+An algorithm is named by a type, as a digest algorithm and a format are. A
+key's type carries its algorithm, so a signature by an `X25519` key, or the
+verification of an `Ed25519` signature by an `Rsa` key, is a check error.
+
+```hql
+// lib/std/crypto/mod.hql
+module crypto
+import core
+import io
+
+/// An asymmetric key algorithm.
+abstract type KeyAlgorithm
+/// An algorithm whose private key signs and whose public key verifies.
+abstract type Signing : KeyAlgorithm
+/// An algorithm whose public key receives encrypted messages.
+abstract type Agreement : KeyAlgorithm
+
+type Ed25519 : Signing     // RFC 8032, pure Ed25519
+type P256    : Signing     // ECDSA over NIST P-256 with SHA-256
+type Rsa     : Signing     // RSASSA-PKCS1-v1_5 with SHA-256, 2048 to 8192 bits
+type X25519  : Agreement   // RFC 7748; receives age messages (part 4)
+
+/// A symmetric algorithm: a cipher or a MAC.
+abstract type SecretAlgorithm
+abstract type Cipher : SecretAlgorithm
+abstract type Mac    : SecretAlgorithm
+type Aes256Gcm        : Cipher   // 256-bit key
+type ChaCha20Poly1305 : Cipher   // 256-bit key, RFC 8439
+type HmacSha256       : Mac      // RFC 2104 over SHA-256
+type HmacSha512       : Mac      // RFC 2104 over SHA-512
+
+/// The values that hold private key material: no format encodes one, and
+/// each prints redacted.
+abstract type Secret
+
+/// A public key of algorithm `A`. Public keys compare by their octets.
+type PublicKey<A>
+/// A private key of algorithm `A`. It prints as its public key's
+/// thumbprint, and no format writes it.
+type PrivateKey<A> : Secret
+/// A private key and its public key.
+type KeyPair<A> : Secret {
+    public  : PublicKey<A>
+    private : PrivateKey<A>
+}
+/// A symmetric key of algorithm `A`.
+type SecretKey<A> : Secret
+```
+
+- A type declaration takes no bound on its parameter; every function that
+  builds or takes a key states `A : KeyAlgorithm` or `A : SecretAlgorithm`,
+  so no key of another `A` is made.
+- Two public keys compare with `==` by their SPKI octets.
+
+- `PublicKey<A>` MUST NOT be `Secret`: a program prints, logs, compares and
+  writes public keys freely.
+- `KeyPair<A>.public` of a pair MUST be the public key of its `private`.
+- An `Rsa` key MUST have a modulus of 2048 to 8192 bits and the public
+  exponent 65537. Any other is refused where it is read or generated.
+
+## Key formats
+
+A key format is named by a type. It is not a `Format`: a `Format` is how a
+`source` reads documents, and a key format is how one key is text.
+
+```hql
+abstract type KeyFormat
+type Pem     : KeyFormat   // RFC 7468 text around DER
+type Jwk     : KeyFormat   // RFC 7517 JSON text of one key
+type OpenSsh : KeyFormat   // the authorized_keys line, or the OpenSSH private key file
+type Age     : KeyFormat   // age's Bech32 recipient and identity text; X25519 only
+```
+
+What each format holds, for each algorithm:
+
+| Algorithm | `Pem` public | `Pem` private | `Jwk` | `OpenSsh` public | `OpenSsh` private | `Age` |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Ed25519` | `PUBLIC KEY` (SPKI) | `PRIVATE KEY` (PKCS #8) | `OKP`, `crv` `Ed25519` | `ssh-ed25519` | `OPENSSH PRIVATE KEY` | refused |
+| `X25519` | `PUBLIC KEY` (SPKI) | `PRIVATE KEY` (PKCS #8) | `OKP`, `crv` `X25519` | refused | refused | `age1…`, `AGE-SECRET-KEY-1…` |
+| `P256` | `PUBLIC KEY` (SPKI) | `PRIVATE KEY` (PKCS #8); `EC PRIVATE KEY` (SEC 1) read | `EC`, `crv` `P-256` | `ecdsa-sha2-nistp256` | `OPENSSH PRIVATE KEY` | refused |
+| `Rsa` | `PUBLIC KEY` (SPKI) | `PRIVATE KEY` (PKCS #8); `RSA PRIVATE KEY` (PKCS #1) read | `RSA` | `ssh-rsa` | `OPENSSH PRIVATE KEY` | refused |
+
+DER is the octets PEM wraps: SPKI for a public key and PKCS #8 for a private
+key.
+
+```hql
+/// The public key `text` holds in `format`, for algorithm `algorithm`:
+/// `PublicKey(text, Pem, Ed25519)`. Text that is not such a key is an
+/// evaluation error naming the format and the algorithm; `to_public_key`
+/// gives `none` instead.
+fn PublicKey<F : KeyFormat, A : KeyAlgorithm>(text: String, format: Type<F>, algorithm: Type<A>) : PublicKey<A>
+/// The public key SPKI DER `der` holds.
+fn PublicKey<A : KeyAlgorithm>(der: Bytes, algorithm: Type<A>) : PublicKey<A>
+fn to_public_key<F : KeyFormat, A : KeyAlgorithm>(self: String, format: Type<F>, algorithm: Type<A>) : Option<PublicKey<A>>
+
+/// The private key `text` holds in `format`. `passphrase` decrypts an
+/// encrypted PKCS #8 or OpenSSH private key; an empty one reads an
+/// unencrypted key.
+fn PrivateKey<F : KeyFormat, A : KeyAlgorithm>(text: String, format: Type<F>, algorithm: Type<A>, *, passphrase: String = "") : PrivateKey<A>
+/// The private key PKCS #8 DER `der` holds.
+fn PrivateKey<A : KeyAlgorithm>(der: Bytes, algorithm: Type<A>) : PrivateKey<A>
+fn to_private_key<F : KeyFormat, A : KeyAlgorithm>(self: String, format: Type<F>, algorithm: Type<A>, *, passphrase: String = "") : Option<PrivateKey<A>>
+
+/// The symmetric key of algorithm `algorithm` that `key` holds: exactly 32
+/// octets for a cipher, and at least one for a MAC. Another length is an
+/// evaluation error naming the length.
+fn SecretKey<A : SecretAlgorithm>(key: Bytes, algorithm: Type<A>) : SecretKey<A>
+
+/// The key a file holds: a read of `file`, then the constructor above. On a
+/// Unix host, a private key file its group or others may read gives a
+/// warning naming the path and its mode.
+effectful fn read_public_key<F : KeyFormat, A : KeyAlgorithm>(file: File, format: Type<F>, algorithm: Type<A>) : PublicKey<A>
+effectful fn read_private_key<F : KeyFormat, A : KeyAlgorithm>(file: File, format: Type<F>, algorithm: Type<A>, *, passphrase: String = "") : PrivateKey<A>
+
+/// `self` written in `format`: `key.to_text(OpenSsh)` is an
+/// `ssh-ed25519 AAAA…` line.
+fn to_text<F : KeyFormat, A : KeyAlgorithm>(self: PublicKey<A>, format: Type<F>) : String
+/// `self` as SPKI DER.
+fn to_der<A : KeyAlgorithm>(self: PublicKey<A>) : Bytes
+
+/// The private key material of `self` written in `format`, encrypted under
+/// `passphrase` where one is given: PKCS #8 with scrypt and AES-256-CBC for
+/// `Pem`, bcrypt-pbkdf and AES-256-CTR for `OpenSsh`. The result is a
+/// `String`, and no longer redacted.
+fn export_private<F : KeyFormat, A : KeyAlgorithm>(self: PrivateKey<A>, format: Type<F>, *, passphrase: String = "") : String
+
+/// The public key of a private key.
+fn public<A : KeyAlgorithm>(self: PrivateKey<A>) : PublicKey<A>
+
+/// The RFC 7638 JWK thumbprint of `self`: base64url, unpadded, of the
+/// SHA-256 of its canonical JWK. It names a key without disclosing it.
+fn thumbprint<A : KeyAlgorithm>(self: PublicKey<A>) : String
+
+/// A new key pair from the host generator. `bits` is read for `Rsa` only.
+effectful fn generate_key_pair<A : KeyAlgorithm>(algorithm: Type<A>, *, bits: Int = 3072) : KeyPair<A>
+/// A new symmetric key from the host generator: 32 octets for a cipher and
+/// `HmacSha256`, 64 for `HmacSha512`.
+effectful fn generate_secret_key<A : SecretAlgorithm>(algorithm: Type<A>) : SecretKey<A>
+```
+
+- A format that the table marks `refused` for an algorithm MUST be a check
+  error where both are written as types: `PublicKey(t, Age, Ed25519)`.
+- Reading MUST check that the key in the text is of the algorithm named.
+  An Ed25519 key read as `P256` is an evaluation error naming both.
+- `Pem` text MUST hold exactly one PEM block; text before and after it is
+  ignored, as RFC 7468 allows. A `Jwk` object MUST hold the members its key
+  type requires and MAY hold `kid`, `use`, `alg` and `key_ops`, which are
+  not read. `OpenSsh` public text MAY carry a comment, which is not read.
+- An encrypted PKCS #8 key MUST be read under PBES2 with scrypt or with
+  PBKDF2 over HMAC-SHA-256 or HMAC-SHA-1, the last what OpenSSL 1.x and
+  LibreSSL write by default; `export_private` writes scrypt alone.
+- An encrypted private key read with a wrong passphrase MUST be an
+  evaluation error that says the passphrase does not decrypt it, and the
+  `to_private_key` form gives `none`.
+- `to_text` and `export_private` MUST write: `Pem` with 64-column lines and
+  a final line break; `Jwk` as canonical JSON (RFC 8785) of the required
+  members; `OpenSsh` public as `<type> <base64>` with no comment.
+- A key's thumbprint is the same whichever format it was read from.
+
+## Examples
+
+```hql
+import crypto
+import net
+
+// Read a deploy key, publish its public half as an authorized_keys line.
+key = read_private_key(file("deploy.pem"), Pem, Ed25519)
+key.public().to_text(OpenSsh)
+
+// A JWKS endpoint's keys, those an issuer signs with.
+source(http("https://issuer.example/.well-known/jwks.json"), Json)
+| map(doc => doc.keys)
+| emit
+| filter(k => k.kty == "OKP")
+| map(k => k | json | to_public_key(Jwk, Ed25519))
+| somes
+
+// A new key pair, written as an age identity file for the age CLI.
+pair = generate_key_pair(X25519)
+pair.private.export_private(Age) | target(file("identity.txt"), Text)
+```
+
+Case: [a key prints redacted](../../../../examples/crypto/queries/a-private-key-prints-redacted.hql).
+
+## Test plan
+
+- Each cell of the format table, read from text written by `ssh-keygen`,
+  `openssl genpkey` and `age-keygen`, and written text read by them.
+- A key read from each of its formats has one thumbprint; RFC 8037's
+  Ed25519 key has the thumbprint `kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k`.
+- Refusals: an RSA key of 1024 bits; a P-256 point not on the curve; a
+  `Jwk` object without `x`; an Ed25519 key read as `P256`; `Age` with
+  `Ed25519` at check time.
+- An encrypted PKCS #8 and an encrypted OpenSSH key read with the right
+  and the wrong passphrase.
+- `read_private_key` of a file with mode `0644` warns, and of `0600` does
+  not.

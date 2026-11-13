@@ -198,17 +198,30 @@ impl Evaluator<'_> {
                 } => {
                     let methods = methods
                         .iter()
-                        .map(|(name, parameters, body, ty)| {
-                            let function = Value::Function(Arc::new(Closure {
-                                name: Some(format!("{trait_name}.{name}")),
-                                parameters: parameters.clone(),
-                                body: Arc::clone(body),
-                                captured: self.scope.clone(),
-                                ty: ty.clone(),
-                            }));
-                            (name.clone(), function)
+                        .map(|(name, method)| {
+                            let function = match method {
+                                crate::execution::ImplMethod::Body(parameters, body, ty) => {
+                                    Value::Function(Arc::new(Closure {
+                                        name: Some(format!("{trait_name}.{name}")),
+                                        parameters: parameters.clone(),
+                                        body: Arc::clone(body),
+                                        captured: self.scope.clone(),
+                                        ty: ty.clone(),
+                                    }))
+                                }
+                                // The module's own function, already bound.
+                                crate::execution::ImplMethod::Function(function) => {
+                                    self.scope.get(function).cloned().ok_or_else(|| {
+                                        Diagnostic::runtime(
+                                            0..0,
+                                            format!("`{function}` of `{trait_name}` is not bound"),
+                                        )
+                                    })?
+                                }
+                            };
+                            Ok((name.clone(), function))
                         })
-                        .collect();
+                        .collect::<Result<_, Diagnostic>>()?;
                     self.impls.push(RuntimeImpl {
                         trait_name: trait_name.clone(),
                         target: target.clone(),
@@ -2470,6 +2483,9 @@ pub(crate) fn slice_of(
                 .collect();
             Ok(Value::Str(part.into()))
         }
+        Value::Bytes(octets) => Ok(Value::Bytes(
+            octets[window(start, end, octets.len())].into(),
+        )),
         Value::Data(data) => match data.as_ref() {
             Data::List(items) => Ok(Value::Data(Arc::new(Data::List(
                 items[window(start, end, items.len())].to_vec(),
@@ -2531,6 +2547,12 @@ pub(crate) fn at_position(
                     Value::Present(Arc::new(Value::Str(character.to_string().into())))
                 }))
         }
+        // A Bytes value's positions are its octets, each read as an Int.
+        Value::Bytes(octets) => Ok(resolved(position, octets.len())
+            .and_then(|index| octets.get(index))
+            .map_or_else(absent, |octet| {
+                Value::Present(Arc::new(Value::Int(i64::from(*octet))))
+            })),
         Value::Data(data) => match data.as_ref() {
             Data::List(items) => Ok(resolved(position, items.len())
                 .and_then(|index| items.get(index))
@@ -2629,12 +2651,13 @@ fn retrieval_data(retrieval: &search::Retrieval) -> Data {
     data
 }
 
-fn as_data(value: &Value) -> Data {
+pub(crate) fn as_data(value: &Value) -> Data {
     match value {
         Value::Int(number) => Data::Int(*number),
         Value::Float(number) => Data::Float(*number),
         Value::Decimal(number) => Data::Decimal(number.clone()),
         Value::Time(time) => Data::Time(*time),
+        Value::Bytes(octets) => Data::Bytes(Arc::clone(octets)),
         Value::Bool(truth) => Data::Bool(*truth),
         Value::Str(text) => Data::Str(text.to_string()),
         Value::Data(data) => data.as_ref().clone(),
@@ -3123,7 +3146,7 @@ impl Evaluator<'_> {
         }
     }
 
-    /// Each field of `record` declared with a validator type whose
+    /// Each field of `record` declared with a validator trait whose
     /// `validate` is false of it, an absent optional field passing.
     fn broken_validators(
         &mut self,

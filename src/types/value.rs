@@ -184,6 +184,10 @@ pub enum Value {
     Decimal(Decimal),
     /// A `Date`, `DateTime`, `Instant` or `Duration`.
     Time(crate::time::Time),
+    /// A finite sequence of octets (HQL-0053 part 1).
+    Bytes(Arc<[u8]>),
+    /// A public, private or symmetric key (HQL-0053 part 2).
+    Key(Arc<crate::crypto::Key>),
     /// A Boolean truth value.
     Bool(bool),
     /// Text.
@@ -457,6 +461,18 @@ impl Value {
             Self::Float(_) => TypeRef::FLOAT,
             Self::Decimal(_) => TypeRef::DECIMAL,
             Self::Time(time) => TypeRef::time(time),
+            Self::Bytes(_) => TypeRef::BYTES,
+            Self::Key(key) => match key.as_ref() {
+                crate::crypto::Key::Public(public) => {
+                    crate::extensions::crypto::key_type("PublicKey", public.algorithm().name())
+                }
+                crate::crypto::Key::Private(private) => {
+                    crate::extensions::crypto::key_type("PrivateKey", private.algorithm().name())
+                }
+                crate::crypto::Key::Secret(secret) => {
+                    crate::extensions::crypto::key_type("SecretKey", secret.algorithm.name())
+                }
+            },
             Self::Bool(_) => TypeRef::BOOL,
             Self::Str(_) => TypeRef::STR,
             Self::Absent(element) => TypeRef::optional(element.clone()),
@@ -537,12 +553,18 @@ impl Value {
             Self::Float(value) => Some(Key::Number(if *value == 0.0 { 0.0 } else { *value })),
             Self::Decimal(value) => Some(Key::Exact(value.clone())),
             Self::Time(time) => Some(Key::Time(*time)),
+            Self::Bytes(octets) => Some(Key::Octets(octets.to_vec())),
             Self::Str(text) => Some(Key::text(text)),
             Self::Formatted(formatted) => Some(Key::text(&formatted.text)),
             Self::Doc(doc) => Some(Key::text(&doc.name)),
             Self::Card(card) => Some(Key::text(card.name())),
             // Best first, then the card's own key, so equal scores are stable.
             Self::Hit(hit) => Some(Key::Scored(-hit.score, hit.name())),
+            // A path by its segments compared in turn: the sorted walk's order.
+            Self::Record(record) if record.ty == TypeRef::PATH => match record.field("text") {
+                Some(Self::Str(text)) => Some(Key::text(&crate::walk::paths::order_key(text))),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -626,6 +648,12 @@ impl Value {
                 .map(Self::Float)
                 .ok_or_else(|| Mismatch::new(format!("{value} is not a Float")))?,
             Data::Time(time) => Self::Time(*time),
+            Data::Bytes(octets) => Self::Bytes(Arc::clone(octets)),
+            // A declared `Bytes` field reads its base64 text, as a declared
+            // time field reads its ISO 8601 text.
+            Data::Str(text) if *wanted == TypeRef::BYTES => crate::data::base64_octets(text)
+                .map(|octets| Self::Bytes(octets.into()))
+                .ok_or_else(|| Mismatch::new(format!("{text:?} is not base64 text")))?,
             // A declared time field reads its ISO 8601 text: the declaration
             // is the conversion, and an undeclared leaf stays a String.
             Data::Str(text) if wanted.is_time() => {
@@ -777,6 +805,8 @@ pub enum Key {
     Text(String),
     /// A time value, ordered on its own timeline.
     Time(crate::time::Time),
+    /// Octets, ordered octet by octet, a shorter prefix first.
+    Octets(Vec<u8>),
     /// A retrieval score with a deterministic document tiebreak.
     Scored(f64, String),
 }
@@ -797,6 +827,7 @@ impl Key {
             (Self::Exact(a), Self::Integer(b)) => a.cmp(&Decimal::from_int(*b)),
             (Self::Text(a), Self::Text(b)) => a.cmp(b),
             (Self::Time(a), Self::Time(b)) => a.compare(b),
+            (Self::Octets(a), Self::Octets(b)) => a.cmp(b),
             (Self::Scored(a, x), Self::Scored(b, y)) => a.total_cmp(b).then_with(|| x.cmp(y)),
             _ => self.family().cmp(&other.family()),
         }
@@ -810,6 +841,7 @@ impl Key {
             Self::Text(_) => 3,
             Self::Scored(..) => 4,
             Self::Time(_) => 5,
+            Self::Octets(_) => 6,
         }
     }
 }
@@ -841,6 +873,8 @@ impl PartialEq for Value {
             }
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::Time(left), Self::Time(right)) => left == right,
+            (Self::Bytes(left), Self::Bytes(right)) => left == right,
+            (Self::Key(left), Self::Key(right)) => left == right,
             (Self::Str(left), Self::Str(right)) => left == right,
             // Formatted text is a String, so it equals a String of the same text.
             (Self::Formatted(left), Self::Formatted(right)) => left == right,

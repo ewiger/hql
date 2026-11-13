@@ -1,6 +1,6 @@
 # HQL-0037: Dataflow DAG, fan-out, fan-in, fork and merge
 
-**Status**: accepted, implemented in part
+**Status**: implemented in part
 **Created**: 2026-10-23
 **Related**: [HQL-0004](../HQL-0004/README.md),
 [HQL-0005](../HQL-0005/README.md),

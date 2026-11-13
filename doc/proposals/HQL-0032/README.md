@@ -1,6 +1,6 @@
 # HQL-0032: Data Validation with `TypeContract` and `DataContract`
 
-**Status**: proposed, implemented in part
+**Status**: implemented in part
 **Created**: 2026-10-23
 **Supersedes**: [HQL-0030](../HQL-0030/README.md), structural types, open Data
 views and contracts, which it restates and extends; tracked by

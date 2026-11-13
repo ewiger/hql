@@ -8,9 +8,11 @@ fn every_catalogue_signature_is_generated_from_its_structural_contract() {
     let providers = catalogue(&Config::default());
     let count: usize = providers.iter().map(|provider| provider.steps.len()).sum();
     // The core, string, seq, math, option, result, graph, format and io
-    // modules of the prelude, and the nine imported where they are used,
-    // `time` and `io.db.postgres` among them.
-    assert_eq!(count, 248);
+    // modules of the prelude, `bytes` among them, and the sixteen imported
+    // where they are used, `time`, `random`, `stats`, `crypto`,
+    // `crypto.digest`, `encoding`, `io.fs`, `io.env` and `io.db.postgres`
+    // among them.
+    assert_eq!(count, 331);
     for provider in providers {
         for step in provider.steps {
             let mut lines = Vec::new();

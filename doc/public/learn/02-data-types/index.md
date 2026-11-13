@@ -2,7 +2,7 @@
 
 Every value in HQL has a type, and the checker knows it before the program
 runs. This chapter meets the types values are built from: the scalars `Int`,
-`Float`, `Decimal`, `String` and `Bool`, the time types `Date`, `DateTime`,
+`Float`, `Decimal`, `String`, `Bool` and `Bytes`, the time types `Date`, `DateTime`,
 `Instant` and `Duration`, and `Data`, the tree JSON and YAML are made of.
 Each has a page of its own; this one tries them in the REPL first.
 
@@ -95,6 +95,7 @@ Int
 | `Decimal` | an exact decimal number, written `2.50` | [Decimal](decimal.md) |
 | `String` | text | [String](string.md) |
 | `Bool` | `true` or `false` | [Bool](bool.md) |
+| `Bytes` | a sequence of octets | [Bytes](bytes.md) |
 | `Date`, `DateTime`, `Instant`, `Duration` | a date, a wall-clock reading, a point in time, a length of time | [Date and time](time.md) |
 | `Data` | a tree of records, lists and scalars | [Data](data.md) |
 | `Option<T>` | a `T`, or nothing | [Option](option.md) |

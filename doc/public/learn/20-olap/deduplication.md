@@ -132,6 +132,46 @@ rows
 188.49
 ```
 
+## Duplicates with no key
+
+A row with no key is identified by its content. Two deliveries of one
+webhook body carry the same fields, written in another key order or with
+`42.00` for `42`, and differ in when each arrived, so `distinct` keeps both.
+The **fingerprint** of a `Data` tree is the SHA-256 of its canonical JSON,
+and two trees equal under HQL equality have one fingerprint. It is the key
+the rows do not have:
+
+```hql
+import crypto.digest
+
+type Delivery {
+    received : String
+    body     : Data
+}
+
+deliveries = [
+    Delivery(received = "2026-11-01T09:15:02Z", body = Data("{\"customer\": \"c-17\", \"sku\": \"tea\", \"amount\": 42.00}", Json)),
+    Delivery(received = "2026-11-01T09:15:09Z", body = Data("{\"amount\": 42, \"sku\": \"tea\", \"customer\": \"c-17\"}", Json)),
+    Delivery(received = "2026-11-01T09:16:40Z", body = Data("{\"customer\": \"c-21\", \"sku\": \"jam\", \"amount\": 6.50}", Json))
+]
+deliveries
+| group(by = d => fingerprint(d.body))
+| map(g => g.items | min_by(d => d.received))
+| somes
+| sort(by = d => d.received)
+| map(d => d.body)
+```
+
+```text
+[{amount: 42.00, customer: "c-17", sku: "tea"}, {amount: 6.50, customer: "c-21", sku: "jam"}]
+```
+
+The step is the one of [Duplicates by key](#duplicates-by-key), with
+`fingerprint(d.body)` as the key and the first delivery as the one to keep.
+A fingerprint is a `String`, so a load may write it as a column and the
+[merge page](merge.md) match on it as on any key. `crypto.digest` and
+canonical JSON are [chapter 30](../30-digests-and-encodings.md).
+
 ## In the load
 
 Deduplication belongs in the load that writes silver, once, at the grain of

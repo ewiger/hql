@@ -36,6 +36,7 @@ whether the documents end.
 - [`Stderr`](types/Stderr.md) — The program's standard error, bound as `stderr`: where diagnostics go, apart from the result.
 - [`FileEnd`](types/FileEnd.md) — The end of a file, after what it holds, as `file(path).end`: a write there appends, and `tap` follows what is written next, as `tail -f` does.
 - [`File`](types/File.md) — A local file, the whole of it: read, every document it holds; written, it is replaced.
+- [`Path`](types/Path.md) — A place in a file system, written as text: segments separated by `/`.
 - [`Channel`](types/Channel.md) — An endpoint of values rather than bytes, held in memory for one execution scope: a program run, or one cell.
 - [`DataSource`](types/DataSource.md) — What a program reads: a configured endpoint by id, or an endpoint read in a format.
 - [`FiniteSource`](types/FiniteSource.md) — A source of every document, in order, that ends: read from a `Replayable` endpoint.
@@ -48,6 +49,11 @@ whether the documents end.
 - [`VaultSource`](types/VaultSource.md) — A vault as a source: an endpoint that holds its cards, as a catalog holds tables, with its members as fields rather than names.
 - [`DataTarget`](types/DataTarget.md) — What a program writes to: an endpoint written in a format, or a configured endpoint by its id.
 - [`file`](file.md) — The `File` at `path`.
+- [`join`](join.md) — `self` with `segment` appended as its last segment, separated by `/`: `Path("data").join("birds.csv")` is `Path("data/birds.csv")`.
+- [`parent`](parent.md) — `self` without its last segment, `some(Path)`, or `none` for a path of one segment: `Path("a/b").parent()` is `some(Path("a"))`, and `Path("a").parent()` is `none`.
+- [`name`](name.md) — The last segment of `self`: `Path("data/birds.csv").name()` is `"birds.csv"`.
+- [`stem`](stem.md) — The last segment of `self` without its extension: `Path("data/birds.csv").stem()` is `"birds"`.
+- [`extension`](extension.md) — The text after the last `.` of the last segment, `some(String)`, or `none` where the segment has none: `Path("a/b.csv").extension()` is `some("csv")`.
 - [`configured`](configured.md) — The endpoint configured under the literal `id` in hql.toml, as the transport its kind states, with its schema boundary: a `postgres` endpoint is a `Postgres`, a `csv` endpoint a `File`.
 - [`source`](source.md) — Every document read from `endpoint` in `format`, decoded to `T`: a `Seq` from a `Replayable` endpoint, a `Stream` from a live one.
 - [`tap`](tap.md) — The documents read from `endpoint` in `format`, one held at a time, as a `Stream<T>`.

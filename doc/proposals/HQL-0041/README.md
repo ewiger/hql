@@ -1,6 +1,6 @@
 # HQL-0041: Time, statistics, digests and encodings, randomness, and the environment
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-10-24
 **Source**: a comparison of `lib/std/` against Python's standard library
 (`datetime`, `statistics`, `hashlib` and `base64`, `random`, `os.environ` and
@@ -14,8 +14,8 @@ file times to a timestamp type
   and the evaluation clock.
 - [`parts/02-stats.md`](parts/02-stats.md) — module `stats`: means, spread,
   medians, quantiles, the mode, covariance and correlation.
-- [`parts/03-hash-and-encoding.md`](parts/03-hash-and-encoding.md) — modules
-  `hash` and `encoding`: digests of text and of `Data`, and the text
+- [`parts/03-digest-and-encoding.md`](parts/03-digest-and-encoding.md) — modules
+  `crypto.digest` and `encoding`: digests of text and of `Data`, and the text
   encodings hex, base64 and percent-encoding.
 - [`parts/04-random.md`](parts/04-random.md) — module `random`: sampling,
   shuffling, choice, numbers and UUIDs, seeded and reproducible.
@@ -24,11 +24,11 @@ file times to a timestamp type
 
 ## Abstract
 
-Five standard modules join `lib/std/`: `time`, `stats`, `hash` with
-`encoding`, `random`, and `io.env`. `time` gives the existing `Date` its
+Five standard modules join `lib/std/`: `time`, `stats`, `crypto.digest`
+with `encoding`, `random`, and `io.env`. `time` gives the existing `Date` its
 operations and adds `Instant`, `DateTime`, `Zone` and `Duration`. `stats` adds
-the descriptive statistics as reductions over numeric collections. `hash`
-gives digests of a `String` and of a `Data` tree; `encoding` converts text to
+the descriptive statistics as reductions over numeric collections.
+`crypto.digest` gives digests of a `String` and of a `Data` tree; `encoding` converts text to
 and from hex, base64 and percent-encoding. `random` samples, shuffles and
 draws numbers and UUIDs, pure when a seed is given and effectful otherwise.
 `io.env` reads environment variables and the arguments an invocation passes.
@@ -83,7 +83,7 @@ imports `core` and `io`.
 | --- | --- | --- |
 | `time` | `lib/std/time/mod.hql` | `Zone`, the units, the operations over the time types, the clock |
 | `stats` | `lib/std/stats/mod.hql` | the statistical reductions |
-| `hash` | `lib/std/hash/mod.hql` | `Algorithm`, the algorithms, `digest`, `fingerprint` |
+| `crypto.digest` | `lib/std/crypto/digest/mod.hql` | `Algorithm`, the algorithms, `digest`, `fingerprint` |
 | `encoding` | `lib/std/encoding/mod.hql` | `Encoding`, the encodings, `encode`, `decode` |
 | `random` | `lib/std/random/mod.hql` | sampling, shuffling, choice, numbers, UUIDs |
 | `io.env` | `lib/std/io/env/mod.hql` | `var`, `vars`, `arg`, `args` |
@@ -95,8 +95,8 @@ imports `core` and `io`.
 - The modules MUST be listed in `library::MODULES` after `core` and before
   any module that imports them; `io.env` MUST follow `io`.
 - None of them is in the prelude, and none MUST be added to it. A program writes `import time`,
-  `import stats`, `import hash`, `import encoding`, `import random` or
-  `import io.env`, and reaches the last as `env`. The unit names (`Day`,
+  `import stats`, `import crypto.digest`, `import encoding`, `import random`
+  or `import io.env`, and reaches the last two as `digest` and `env`. The unit names (`Day`,
   `Week`) and the algorithm names (`Sha256`) are short and common, and the
   prelude stays the list of what every program needs.
 - The `std` extension's descriptor MUST provide each module.
@@ -148,7 +148,7 @@ conversion it writes.
 - HQL-0040's `Entry` MAY gain `modified? : Instant` once `time` lands; its
   non-goal on file times is lifted by this proposal and changed there.
 - `env` becomes a local name in a unit that imports `io.env`, as `fs` does
-  for `io.fs`.
+  for `io.fs`, and `digest` in a unit that imports `crypto.digest`.
 
 ## Security Considerations
 
@@ -157,8 +157,8 @@ conversion it writes.
   `hql render` it grants none.
 - `random` is not a source of secrets. Its generator MUST be documented as
   unfit for keys or tokens, and a seeded draw is predictable by design.
-- `hash` offers `Md5` and `Sha1` for interoperability with existing
-  checksums, and both are documented as broken for collision resistance.
+- `crypto.digest` offers `Md5` and `Sha1` for interoperability with existing
+  digests, and both are documented as broken for collision resistance.
 - `fingerprint` and `digest` read their whole input. They are bounded by the
   run-context limits of [HQL-0012](../HQL-0012/README.md) as any held value
   is.
@@ -170,12 +170,12 @@ conversion it writes.
 
 - `lib/std/core/mod.hql`: `Instant`, `DateTime`, `Duration` and their `Eq`,
   `Ord`, and `Duration`'s `Add` and `Sub` implementations.
-- `lib/std/time/`, `stats/`, `hash/`, `encoding/`, `random/` and `io/env/`:
+- `lib/std/time/`, `stats/`, `crypto/digest/`, `encoding/`, `random/` and `io/env/`:
   one `mod.hql` each, written as external declarations.
 - `src/extensions/std/`: the implementations, one file per module.
 - Crates, each removing work the standard library does not do: `jiff` for
   zones, the time-zone database and calendar arithmetic; `sha2`, `sha1`,
-  `md-5`, `blake3` and `crc32fast` for digests; `base64` for base64;
+  `md-5` and `blake3` for digests; `base64` for base64;
   `rand_chacha` for the seeded generator; `uuid` for UUID layout.
   Each is added with `cargo add` per [the stack](../../stack.md).
 - `src/main.rs`: `--now`, `--zone`, `--seed` and `--arg`.
@@ -204,3 +204,30 @@ cargo clippy --all-targets -- -D warnings
 - 2026-11-12: part 1, `time`, implemented (issue 0064); `Unit` is
   `TimeUnit`, `Zone` is not `Orderable`, the zone defaults are overloads,
   and `abs` over `Duration` waits for `math` to take it
+- 2026-11-13: accepted
+- 2026-11-13: part 4, `random`, implemented (issue 0066); each form of a
+  name states its own purity, a call site is the call's byte offset in the
+  program text, the evaluation seed is reported as an `info` diagnostic,
+  `uuid(name, namespace)` also takes `"dns"`, `"url"`, `"oid"` and
+  `"x500"`, and localhost runs one partition
+- 2026-11-13: part 3's digest module is `crypto.digest`, and its algorithms
+  are cryptographic hash functions only
+- 2026-11-13: part 3, `crypto.digest` and `encoding`, implemented; the
+  algorithms and encodings are built-in type names, and canonical JSON
+  writes a number as its exact digits without an exponent
+- 2026-11-13: part 2, `stats`, implemented; over `Int` and `Decimal` values
+  a reduction's state is `(n, Σx, Σx²)`, exact and combined by addition,
+  which is Chan's update in exact arithmetic, and over `Float` values it is
+  `(n, mean, M2)` combined by Chan's update; a `Decimal` root is rounded
+  from the exact ratio; `quantile` also takes a `Decimal` `q`, a literal
+  being a `Decimal`, and a `Float` `q` is read by its shortest digits over
+  exact values; `quantiles` computes each cut point with one division,
+  Python's inclusive method; a `Float` is finite, so no input holds NaN or
+  an infinity, and a statistic past the `Float` range is an overflow error;
+  with `stats` imported, `variance` over `Int` or `Float` values is
+  ambiguous with the prelude's population `variance` and is written
+  `stats.variance`; localhost runs one partition
+- 2026-11-13: part 5, `io.env`, implemented; the environment is read from
+  the process once and held for the process, the grant filtering it as a
+  program reads it; a name or value that is not UTF-8 is not held; `--arg`
+  without `=` is refused as a malformed name is, exit 2

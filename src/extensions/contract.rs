@@ -86,8 +86,14 @@ pub(crate) fn derive(
         // A declaration whose first parameter is not positional, or that
         // has none, takes no input: a call writes none, and the input is
         // `Unit`, as `now()` and `Date(year = 2026, month = 10, day = 24)`.
+        // A type is no value to pipe, so a first parameter of `Type<A>`
+        // is an argument too: `generate_key_pair(Ed25519)`.
         (false, _) => match declaration.parameters.split_first() {
-            Some((first, rest)) if first.passing != Passing::Name && !first.variadic => {
+            Some((first, rest))
+                if first.passing != Passing::Name
+                    && !first.variadic
+                    && first.annotation.name != "Type" =>
+            {
                 (pattern(&first.annotation)?, rest)
             }
             _ => (

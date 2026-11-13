@@ -13,7 +13,7 @@ target/debug/hql run examples/generic-traits/queries/declared-index.hql
 | --- | --- | --- |
 | [declared index](queries/declared-index.hql) | `impl<T> Index<T> for Ring<T>`: a generic declared type takes `xs[i]` | `["raven", "robin", "wren"]` |
 | [bound inference](queries/bound-inference.hql) | `E : Index<T>` leaves `T` to the implementation each call reaches | `[10, 3, null]` |
-| [built-in index](queries/builtin-index.hql) | A List satisfies `Index<T>` through the native `impl<T> Index<T> for Seq<T>` | `[20, 7, null]` |
+| [built-in index](queries/builtin-index.hql) | A List satisfies `Index<T>` through `module seq for Seq<T> : Index<T>` | `[20, 7, null]` |
 | [trait arguments](queries/trait-arguments.hql) | `Scale<Int>` and `Scale<Float>` for one type, chosen by the argument | `[3.0, 0.75]` |
 | [codec shape](queries/codec-shape.hql) | The representation is `Self`, the value read is the parameter | `[["raven", "robin"], ["wren"]]` |
 

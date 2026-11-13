@@ -17,6 +17,8 @@ pub const PAIR: TypeConstructor = TypeConstructor("Pair");
 
 /// Every step the `seq` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
+    declared("at", eval_at),
+    declared("slice", eval_slice),
     declared("first", eval_first),
     declared("one", eval_one),
     declared("last", eval_last),
@@ -64,6 +66,41 @@ pub(crate) fn pair(first: Value, second: Value, a: TypeRef, b: TypeRef) -> Value
         fields: vec![("first".to_owned(), first), ("second".to_owned(), second)],
         carrier: None,
     }))
+}
+
+/// `xs.at(i)`, `Index`'s function over a sequence: what `xs[i]` reads.
+fn eval_at(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let element = element_of(&input);
+    let position = match arguments.first() {
+        Some(argument) => cx.evaluate(&argument.value)?,
+        None => return Err(wrong("at", "a position", &span)),
+    };
+    let Value::Int(position) = position else {
+        return Err(wrong("at", "a position, an Int", &span));
+    };
+    crate::evaluation::at_position(input, position, &element, &span)
+}
+
+/// `xs.slice(range)`, `Slice`'s function over a sequence: what `xs[a:b]`
+/// reads.
+fn eval_slice(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let range = match arguments.first() {
+        Some(argument) => cx.evaluate(&argument.value)?,
+        None => return Err(wrong("slice", "a Range", &span)),
+    };
+    let (start, end) =
+        crate::evaluation::range_bounds(&range).ok_or_else(|| wrong("slice", "a Range", &span))?;
+    crate::evaluation::slice_of(input, start, end, &span)
 }
 
 fn element_of(input: &Value) -> TypeRef {

@@ -1,0 +1,27 @@
+<!-- hql reference: std/crypto.PublicKey -->
+# `PublicKey`
+
+In [`std/crypto`](../index.md).
+
+```hql
+type PublicKey<A>
+```
+
+A public key of algorithm `A`. Public keys compare by their octets, and
+one prints as its RFC 7638 thumbprint.
+
+```hql
+fn PublicKey<F : KeyFormat, A : KeyAlgorithm>(text: String, format: Type<F>, algorithm: Type<A>) : PublicKey<A>
+```
+
+The public key `text` holds in `format`, for algorithm `algorithm`:
+`PublicKey(text, Pem, Ed25519)`. Text that is not such a key is an
+evaluation error naming the format and the algorithm; `to_public_key`
+gives `none` instead.
+
+```hql
+fn PublicKey<A : KeyAlgorithm>(der: Bytes, algorithm: Type<A>) : PublicKey<A>
+```
+
+The public key the SPKI DER `der` holds.
+<!-- hql reference: end -->

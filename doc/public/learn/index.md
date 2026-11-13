@@ -18,14 +18,16 @@ and streams that do not end; over a vault of Markdown documents, their links
 and their meaning; and through the context, prompts and runs of a language
 model.
 
-The book is in three parts. **The language** is the steps, the values they
+The book is in four parts. **The language** is the steps, the values they
 pass and the types that join them, from the first expression to the type
 system and the boundary where data from outside becomes typed. **Data flows**
 is the pipeline those steps form: what `|` does, when a program is checked,
 where it runs, and the systems a pipeline connects. **Knowledge and AI** is
 a vault of documents as a namespace, its graph, retrieval by meaning,
 documents that compute themselves, agents whose runs are values, documents
-that run them, and the web they point at.
+that run them, and the web they point at. **The standard library** is the
+modules a program imports for work that is neither a type nor I/O:
+statistics, random values, digests and encodings, and cryptography.
 
 ## Following along
 
@@ -46,8 +48,8 @@ one claim about which book inspired which, and a librarian.
 1. [Hello world](01-hello-world.md) — the first program, running it, and
    the check before a program runs.
 2. [Data types](02-data-types/index.md) — `Int`, `Float`, `String` and
-   `Bool` in the REPL, `Data` and its JSON-shaped trees, `Option` for a value
-   that may be missing, and how sets, `Data` and maps differ.
+   `Bool` in the REPL, `Bytes`, `Data` and its JSON-shaped trees, `Option`
+   for a value that may be missing, and how sets, `Data` and maps differ.
 3. [Collections](03-collections.md) — lists, sets and maps, and the steps they
    share.
 4. [Functions](04-functions/index.md) — lambdas, declared functions, the
@@ -63,8 +65,8 @@ one claim about which book inspired which, and a librarian.
    them.
 9. [I/O](09-io/index.md) — sources and targets: endpoints, `source`, `tap`,
    `target` and `sink`, finite or live, formats, endpoints by id and the schema
-   boundary, channels, logging, the network, and `hql` as a command-line data
-   tool.
+   boundary, channels, logging, the network, files and folders, the
+   environment and arguments, and `hql` as a command-line data tool.
 10. [The type system](10-the-type-system/index.md) — records, unions and
     match, results, subtypes and narrowing, generics, receiver calls,
     operators and traits.
@@ -119,3 +121,16 @@ one claim about which book inspired which, and a librarian.
     and remember the answer.
 27. [The hyper web](27-the-hyper-web.md) — namespaces beyond one tree,
     providers, retrieval and agents across them, and a reader who asks.
+
+## Part IV: The standard library
+
+28. [Statistics](28-statistics.md) — means, spread, quantiles, the mode and
+    correlation, over a list and over a query's column.
+29. [Random values](29-random.md) — sampling, shuffling, choice, numbers and
+    UUIDs, and a seed that makes them reproducible.
+30. [Digests and encodings](30-digests-and-encodings.md) — digests of text
+    and bytes, the fingerprint of a `Data` tree, and hex, base64 and the
+    other text encodings.
+31. [Keys and cryptography](31-cryptography.md) — keys and their formats,
+    secrets that print redacted, signatures, MACs and password hashes, and
+    the encryption and key vault that are design.

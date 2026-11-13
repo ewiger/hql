@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A trait's named type satisfies a bound on the trait
-// implementation: pending
-// proposal: doc/proposals/HQL-0039/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: Float
 // expected: 9.0

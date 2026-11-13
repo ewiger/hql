@@ -1,6 +1,6 @@
 # HQL-0036: Partitioning, shuffle boundaries and execution scheduling
 
-**Status:** proposed, implemented in part  
+**Status**: implemented in part
 **Created:** 2026-10-23  
 **Related:** HQL-0010 (`tee`), HQL-0033 (error routing), HQL-0037 (`fork` and the dataflow DAG)
 

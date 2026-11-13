@@ -10,6 +10,64 @@ The language continues to be in active development.
 
 ### Added
 
+- Descriptive statistics ([HQL-0041](doc/proposals/HQL-0041/README.md)
+  part 2). The module `stats`, imported with `import stats`, declares the
+  reductions `mean`, `variance` and `stdev` (sample, `n - 1`), `pvariance`
+  and `pstdev` (population, `n`), and `covariance` and `correlation` over
+  `Pair`s, and the barriers `median`, `quantile(q)`, `quantiles(n)` and
+  `mode`. A statistic of `Int` or `Float` values is a `Float`, of `Decimal`
+  values a `Decimal`; an `Int` or `Decimal` statistic is computed exactly
+  and rounded once, a `Decimal` root to 100 significant digits. An
+  undefined statistic is `none`: the mean of nothing, the sample variance
+  of one value, the correlation of a constant side. `quantile` is linear
+  interpolation (type 7) and takes a `Float` or a `Decimal` `q`;
+  `quantiles` is Python's inclusive method; `mode` gives the least of the
+  most frequent values. With `stats` imported, `variance` over `Int`s or
+  `Float`s is ambiguous with the prelude's population `variance` and is
+  written `stats.variance`.
+- Environment variables and invocation arguments
+  ([HQL-0041](doc/proposals/HQL-0041/README.md) part 5). The module
+  `io.env`, imported with `import io.env` and reached as `env`, declares the
+  effectful `var`, `vars`, `arg` and `args`. A program run on its own reads
+  every variable; `env = ["NAME", "PREFIX_*"]` in a workspace's `hql.toml`
+  narrows that, and `hql render` reads none. An unset, a withheld and a
+  non-UTF-8 variable all read as `none`. `--arg name=value`, repeatable,
+  passes an argument, always granted; a name outside `[a-z_][a-z0-9_]*` or
+  given twice is a usage error, exit 2, before evaluation.
+- The file system as data ([HQL-0040](doc/proposals/HQL-0040/README.md)).
+  `io` declares `Path`, a place in a file system written as text and
+  ordered by its segments, with `join`, `parent`, `name`, `stem` and
+  `extension`, which read the text alone; `file(p)` takes a `Path`. The
+  module `io.fs`, imported with `import io.fs`, declares `Folder`, `Glob`
+  and `Entry` (`path`, `name`, `kind`, `size?`), and the effectful
+  `entries`, `walk`, `glob`, `exists` and `entry`. A listing is a held
+  `Seq<Entry>` in the order of the sorted walk the vault reads its cards in,
+  reports a link without following it, is granted where reading a file is,
+  and is bounded by `[execution] max_elements`. `Path`, `Folder`, `Glob` and
+  `Entry` are built-in type names, so a program declares its own record
+  under another name.
+- Traits ([HQL-0039](doc/proposals/HQL-0039/README.md)): `trait Shape as
+  Figure` declares `Figure`, the union of the types implementing `Shape`,
+  which holds a value of any of them, matches member by member, dispatches
+  `f.area()` on the value's own type and satisfies `T : Shape`. A receiver
+  module lists the traits its type implements, `module shapes.circle for
+  Circle : Shape`, and its own `self` functions are the implementation;
+  `string` and `seq` state `Index` and `Slice` this way, so `string.at(s,
+  1)`, `seq.at(xs, 1)` and `seq.slice(xs, r)` are calls. A trait written as a
+  type is refused, naming the bound `<T : Shape>(x: T)`. A trait extending
+  `Validator` is called a validator trait.
+- Execution contexts ([HQL-0025](doc/proposals/HQL-0025/README.md)): a
+  program's file anchors workspace discovery, which stops at the nearest
+  directory holding `.hmd/` (a vault) or `hql.toml`. `--workspace` names the
+  workspace, `--bare` runs with none, and `hql context` reports the mode,
+  the workspace, the configuration files and the module roots with their
+  layers. The system file (`/etc/hql/config.toml`, `$HQL_SYSTEM_CONFIG`), the
+  user file `~/.hql/config.toml` (`$HQL_HOME`), `~/.hql/modules/` and
+  `$HQL_PATH` contribute module roots, extension settings, report settings
+  and the backend in every mode. Named contexts, `[context.<name>]`, are
+  selected by `--context`, `$HQL_CONTEXT` or `current-context`, and
+  `hql config current-context`, `get-contexts`, `use-context` and `view`
+  manage them.
 - Transactions and relational mutations, phase 1
   ([HQL-0051](doc/proposals/HQL-0051/README.md)): four capabilities of a
   transport in `io`, `Transactional`, `Insertable`, `Updatable` and
@@ -72,12 +130,6 @@ The language continues to be in active development.
   which takes the keys of the `postgres` kind, so `source`, `tap` and
   `target` reach a table with no configured endpoint. The connection string
   is read from the environment where the endpoint is used.
-
-### Fixed
-
-- A call of a name no import offers, written with named arguments only,
-  reports the missing import rather than a missing positional input.
-
 - Analytic windows ([HQL-0050](doc/proposals/HQL-0050/README.md)):
   `over(by, order, into)` partitions a sequence by `by`, orders each
   partition by `order`, and gives one value per row, at the row's input
@@ -136,9 +188,73 @@ The language continues to be in active development.
   endpoint. `io` declares `Transport`, `Direct`,
   `Network`, `ByteTransport`, `MessageTransport` and `RowTransport`; over a
   `MessageTransport` a format may be omitted and is then `Json`.
+- Digests and text encodings ([HQL-0041](doc/proposals/HQL-0041/README.md)
+  part 3). The module `crypto.digest`, imported with `import crypto.digest`
+  and reached as `digest`, declares the algorithms `Md5`, `Sha1`, `Sha256`,
+  `Sha512` and `Blake3`; `s.digest(Sha256)` is the lowercase hex digest of a
+  text's UTF-8 octets, and `fingerprint(x)` the SHA-256 of a tree's
+  canonical JSON (RFC 8785), equal for trees HQL equality calls equal. The
+  module `encoding`, imported with `import encoding`, declares `Hex`,
+  `Base64`, `Base64Url` and `Percent`; `s.encode(E)` writes a text's octets,
+  and `s.decode(E)` reads them back, `none` for text not valid in `E` or
+  octets that are not UTF-8. The algorithm and encoding names are built-in
+  type names.
+- `Bytes`, a finite sequence of octets ([HQL-0053](doc/proposals/HQL-0053/README.md)
+  part 1). `Bytes("hé")` is a text's UTF-8 encoding; `Bytes(t, Hex)`,
+  `t.to_bytes(Base64)` and `b.encode(Hex)` convert through `encoding`. The
+  prelude's `bytes` module gives `size`, `to_text`, `at` and `slice`, so
+  `b[0]` is an octet as an `Int` and `b[0:12]` is `Bytes`; `+`
+  concatenates, and values order octet by octet. A value prints as `0x`
+  and lowercase hex, a text format writes it as base64, and a declared
+  `Bytes` field reads base64 text. `crypto.digest` gains `digest` over
+  `Bytes` and `canonical`, the RFC 8785 text `fingerprint` digests.
+- Keys ([HQL-0053](doc/proposals/HQL-0053/README.md) part 2). `import
+  crypto` declares the algorithms `Ed25519`, `P256`, `Rsa` and `X25519`,
+  the key formats `Pem`, `Jwk`, `OpenSsh` and `Age`, and `PublicKey<A>`,
+  `PrivateKey<A>`, `KeyPair<A>` and `SecretKey<A>`. Keys are read from
+  text and DER (`PublicKey(text, Pem, Ed25519)`, `read_private_key`,
+  encrypted PKCS #8 and OpenSSH keys with `passphrase`), written with
+  `to_text`, `to_der` and `export_private`, named by their RFC 7638
+  `thumbprint`, and generated by `generate_key_pair` and
+  `generate_secret_key`. A format that holds no key of the algorithm is a
+  check error. `PrivateKey`, `KeyPair` and `SecretKey` are `Secret`: each
+  prints as its public key's thumbprint or `redacted`, no format writes
+  one, `==` does not compare one, and a private key written into a
+  program's source is refused.
+- Signatures, MACs and password hashes ([HQL-0053](doc/proposals/HQL-0053/README.md)
+  part 3). `sign` and `verify` over `String` and `Bytes`, and `sign_data`
+  and `verify_data` over the canonical JSON of a tree, for `Ed25519`, `P256`
+  (r || s, as JWS ES256; `p256_signature_from_der` converts OpenSSL's DER)
+  and `Rsa` (PKCS #1 v1.5 over SHA-256); `verify` gives `false`, never an
+  error. `mac` and `verify_mac`, constant-time, under `HmacSha256` and
+  `HmacSha512`. `hash_password` writes an Argon2id PHC string at no less
+  than OWASP's cost, and `verify_password` checks one.
+- `+` concatenates formatted text, `source(file(p), Text)`'s documents
+  among it, as the `String` it is.
+- Encryption ([HQL-0053](doc/proposals/HQL-0053/README.md) part 4).
+  `encrypt` and `decrypt` under `Aes256Gcm` or `ChaCha20Poly1305` (nonce,
+  ciphertext, tag; `aad` bound); `encrypt_to` and `decrypt_with` in the age
+  v1 format to X25519 recipients, `encrypt_with_passphrase` and
+  `decrypt_with_passphrase` under age's scrypt (a work factor above 22
+  refused), and `armor` and `unarmor`. `encrypted_to(endpoint, recipients)`
+  and `decrypted_with(endpoint, identity)` wrap a byte endpoint: `target`
+  and `sink` write one age file, replaced once its last chunk is written;
+  `source` authenticates every chunk before any document, and `tap` gives a
+  chunk's documents once it is authenticated. `orders.jsonl.age` under
+  either wrapper is JSON Lines. `hql render` refuses every operation that
+  draws from the host generator.
 
 ### Fixed
 
+- A call of a name no import offers, written with named arguments only,
+  reports the missing import rather than a missing positional input.
+- A function declared without an input, called with its module,
+  `time.now()` or `env.vars()`, checks as the bare call does. It was
+  refused as needing its input as the first argument.
+- A program that declares a type named as a standard library type parameter,
+  `type R`, no longer loses the fields of the library's records, such as
+  `Entry`'s: the library's declarations are read by name, and checked where
+  the library is checked.
 - A list or a record field of a declared record written to a topic, a
   subject or a JSON, JSON Lines or YAML file is written as a list or a map.
   It was written as its text.
@@ -148,6 +264,11 @@ The language continues to be in active development.
 - `Window` is a standard type, so a program's own `type Window` is
   refused; rename it.
 - `sort` is stable: elements that compare equal keep their input order.
+- **Breaking:** `hql run`, `check`, `plan` and `boundary` find the vault
+  from the program file's directory, not the working directory, so
+  `hql run ~/notes/q.hql` runs in `~/notes`'s vault from anywhere. A
+  malformed `[modules] roots` or `[extensions]` in `hql.toml` fails the run,
+  naming the file.
 - **Breaking:** a configured id is an endpoint, declared under
   `[endpoint.<id>]` in `hql.toml`, with its boundary under
   `[endpoint.<id>.fields.<field>]`. `[sources.<id>]` is refused, naming the

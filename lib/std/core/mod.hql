@@ -62,6 +62,16 @@ type Instant : {Scalar, Orderable}
 /// hours, and a month or a year is no `Duration`.
 type Duration : {Scalar, Orderable}
 
+/// A finite sequence of octets, ordered octet by octet as unsigned numbers,
+/// a shorter prefix first (HQL-0053 part 1). No literal produces one:
+/// `Bytes("hello")` is the UTF-8 encoding of a text, and `encoding`
+/// converts hex and base64 text. It prints as `0x` and lowercase hex, and a
+/// text format writes it as base64.
+type Bytes : {Scalar, Orderable}
+
+/// The UTF-8 encoding of `text`: `Bytes("hé")` holds three octets.
+fn Bytes(text: String) : Bytes
+
 /// The `Date` an ISO 8601 date reads as: `Date("2026-10-24")`. Any other
 /// text, a time part included, is an evaluation error naming it; `to_date`
 /// gives `none` instead.
@@ -325,9 +335,9 @@ trait Slice {
     fn slice(self, range: Range) : Self
 }
 
-// Validator types: HQL-0034.
+// Validator traits: HQL-0034, HQL-0039.
 /// A check a value passes: a trait extending `Validator` is a validator
-/// type. `validate f with V` holds where `V`'s `validate` of `f` is true,
+/// trait. `validate f with V` holds where `V`'s `validate` of `f` is true,
 /// and a field declared `f: V` reads as the type implementing `V`, held to
 /// it.
 trait Validator {
@@ -339,8 +349,8 @@ trait Validator {
 // and binding refuses a header with no native body and a native body with no
 // header. These are every implementation a built-in type has; a program
 // implements a trait only for a type or a trait of its own.
-/// `Bool`, `Int`, `Float`, `Decimal`, `String` and the time scalars compare
-/// with `==` by value.
+/// `Bool`, `Int`, `Float`, `Decimal`, `String`, the time scalars and
+/// `Bytes` compare with `==` by value.
 impl Eq for Bool
 impl Eq for Int
 impl Eq for Float
@@ -350,10 +360,11 @@ impl Eq for Date
 impl Eq for DateTime
 impl Eq for Instant
 impl Eq for Duration
+impl Eq for Bytes
 
 /// `Int`, `Float` and `Decimal` are ordered by value, `String` character by
 /// character, `Date`, `DateTime` and `Instant` by time, and `Duration` by
-/// length.
+/// length, and `Bytes` octet by octet, a shorter prefix first.
 impl Ord for Int
 impl Ord for Float
 impl Ord for Decimal
@@ -362,14 +373,16 @@ impl Ord for Date
 impl Ord for DateTime
 impl Ord for Instant
 impl Ord for Duration
+impl Ord for Bytes
 
 /// `+` adds `Int`s, `Float`s, `Decimal`s and `Duration`s, and concatenates
-/// two `String`s: `"ab" + "cd"` is `"abcd"`.
+/// two `String`s or two `Bytes`: `"ab" + "cd"` is `"abcd"`.
 impl Add for Int
 impl Add for Float
 impl Add for Decimal
 impl Add for String
 impl Add for Duration
+impl Add for Bytes
 
 /// `-` subtracts `Int`s, `Float`s, `Decimal`s and `Duration`s.
 impl Sub for Int
@@ -393,18 +406,12 @@ impl Rem for Float
 impl Rem for Decimal
 
 // Data is a union, so a String, one of its alternatives, takes its own
-// implementations and not Data's.
-/// `xs[i]` over every sequence, a `List` among them, is the element at
-/// `i`; over a `String` it is the character there, as text (`"hello"[1]`
-/// is `"e"`); over `Data` it is the document's own element.
-impl<T> Index<T> for Seq<T>
-impl Index<String> for String
+// implementations and not Data's. A sequence's and a String's `Index` and
+// `Slice` are stated by the trait lists of `seq` and `string` (HQL-0039).
+/// `xs[i]` over `Data` is the document's own element at `i`.
 impl Index<Data> for Data
 
-/// `xs[a:b]` over every sequence, a `String` and `Data` is the part of the
-/// same type: `[1, 2, 3][1:]` is `[2, 3]`, and `"hello"[1:3]` is `"el"`.
-impl<T> Slice for Seq<T>
-impl Slice for String
+/// `xs[a:b]` over `Data` is the part of the document's sequence, as `Data`.
 impl Slice for Data
 
 // The operation types, reserved: one per shape a pipeline step may have, and

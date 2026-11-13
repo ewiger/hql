@@ -416,11 +416,11 @@ fn an_sqlite_table_keeps_a_time_value_as_its_text() {
     .unwrap();
     let vault = vault::load(directory.path()).unwrap();
     let declared =
-        "type Entry {\n    id : Int\n    on : Date\n    at : Instant\n    took : Duration\n}\n";
+        "type LogRow {\n    id : Int\n    on : Date\n    at : Instant\n    took : Duration\n}\n";
     let written = hql::run(
         &format!(
-            "{declared}[Entry(id = 1, on = Date(\"2026-10-24\"), at = Instant(\"2026-10-24T07:30:00Z\"), took = Duration(\"PT5M\")), \
-             Entry(id = 2, on = Date(\"2025-01-02\"), at = Instant(\"2025-01-02T00:00:00Z\"), took = Duration(\"PT1H\"))] \
+            "{declared}[LogRow(id = 1, on = Date(\"2026-10-24\"), at = Instant(\"2026-10-24T07:30:00Z\"), took = Duration(\"PT5M\")), \
+             LogRow(id = 2, on = Date(\"2025-01-02\"), at = Instant(\"2025-01-02T00:00:00Z\"), took = Duration(\"PT1H\"))] \
              | target(\"log\")\n\"written\""
         ),
         &vault,
@@ -443,7 +443,7 @@ fn an_sqlite_table_keeps_a_time_value_as_its_text() {
     assert_eq!(on, "2026-10-24");
     let read = hql::run(
         &format!(
-            "{declared}entries : Seq<Entry> = source(\"log\")\n\
+            "{declared}entries : Seq<LogRow> = source(\"log\")\n\
              entries | sort(by = e => e.on) | map(e => [str(e.on), str(e.at), str(e.took)])"
         ),
         &vault,
@@ -456,5 +456,19 @@ fn an_sqlite_table_keeps_a_time_value_as_its_text() {
         ),
         "{:?}",
         read.diagnostics
+    );
+}
+
+#[test]
+fn a_qualified_call_reaches_a_form_without_an_input() {
+    // `time.now()` is `now()` written with its module, as `random.random_float()`.
+    assert_eq!(
+        hql(&[
+            "--now",
+            "2026-10-24T07:30:00Z",
+            "eval",
+            "import time\n[time.now() == now(), time.local_zone() == local_zone()]",
+        ]),
+        "[true, true]\n"
     );
 }

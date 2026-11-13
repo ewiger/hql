@@ -137,6 +137,9 @@ pub(crate) struct Implementation {
     /// The implementing type as written, `Seq<T>`.
     pub(crate) target_type: TypeAnn,
     pub(crate) body: Body,
+    /// Whether a receiver module's trait list declares it, rather than an
+    /// `impl` (HQL-0039).
+    pub(crate) listed: bool,
 }
 
 /// One constructor declaration, `fn List<T>(xs: Seq<T>) : List<T>`.
@@ -187,6 +190,21 @@ pub(crate) const UNBOUND: OperationSpec = OperationSpec {
     arguments: &[],
     output: spec::Output::Type(spec::TypePattern::Any),
 };
+
+/// The variables of a receiver pattern, `T` of `Seq<T>`: each one-letter
+/// argument that names no type.
+fn pattern_variables(pattern: &TypeAnn) -> Vec<String> {
+    pattern
+        .arguments
+        .iter()
+        .filter(|argument| {
+            argument.arguments.is_empty()
+                && argument.name.len() == 1
+                && crate::types::builtin::constructor(&argument.name).is_none()
+        })
+        .map(|argument| argument.name.clone())
+        .collect()
+}
 
 /// Whether a trait is a codec contract, implemented by the decoder and
 /// encoder tables rather than by trait functions.
@@ -329,6 +347,32 @@ impl Environment {
         }
         for statement in &program.statements {
             match statement {
+                // `module string for String : Index<String>, Slice`: one
+                // implementation per listed trait, whose bodyless functions
+                // bind the native body of the trait and the pattern's type
+                // as a bodyless `impl` header would (HQL-0039).
+                Stmt::Module {
+                    pattern: Some(pattern),
+                    traits,
+                    ..
+                } => {
+                    for listed in traits {
+                        let body = traits::native_header_impl(&listed.name, &pattern.name)
+                            .map_or(Body::Written, Body::Native);
+                        self.implementations.push(Implementation {
+                            module,
+                            trait_name: listed.name.clone(),
+                            trait_id: None,
+                            target: pattern.name.clone(),
+                            target_id: None,
+                            generics: pattern_variables(pattern),
+                            arguments: listed.arguments.clone(),
+                            target_type: pattern.clone(),
+                            body,
+                            listed: true,
+                        });
+                    }
+                }
                 Stmt::External(declaration) => {
                     let operation = provider.and_then(|provider| provider.step(&declaration.name));
                     // A declaration named as a type is, which its module's
@@ -396,6 +440,7 @@ impl Environment {
                         arguments: declaration.trait_arguments.clone(),
                         target_type: declaration.target.clone(),
                         body,
+                        listed: false,
                     });
                 }
                 _ => {}
@@ -497,12 +542,40 @@ impl Environment {
             .any(|id| self.declaration(*id).private)
     }
 
-    /// Whether the executor may move an operation: its declaration's
-    /// purity, or its extension's marking where it has none.
+    /// Whether the executor may move an operation: effectful where any of
+    /// its declarations is, or its extension's marking where it has none.
+    /// A name whose forms differ, `random.sample` with a seed and without,
+    /// is effectful here; [`Self::purity_of`] gives the form a call took.
     pub(crate) fn purity(&self, operation: &Operation) -> Purity {
-        self.of(operation)
-            .first()
-            .map_or(operation.purity, |id| self.declaration(*id).purity)
+        let forms = self.of(operation);
+        if forms.is_empty() {
+            return operation.purity;
+        }
+        if forms
+            .iter()
+            .any(|id| self.declaration(*id).purity == Purity::Effectful)
+        {
+            Purity::Effectful
+        } else {
+            Purity::Pure
+        }
+    }
+
+    /// Whether the forms of an operation's name differ in purity: a seeded
+    /// form pure and an unseeded one effectful.
+    pub(crate) fn mixed_purity(&self, operation: &Operation) -> bool {
+        let forms = self.of(operation);
+        forms.iter().any(|id| {
+            forms.first().is_some_and(|first| {
+                self.declaration(*id).purity != self.declaration(*first).purity
+            })
+        })
+    }
+
+    /// The purity of the form a call took, or the operation's where the
+    /// form is not known.
+    pub(crate) fn purity_of(&self, operation: &Operation, form: Option<DeclarationId>) -> Purity {
+        form.map_or_else(|| self.purity(operation), |id| self.declaration(id).purity)
     }
 
     /// How the executor may split an operation: its declaration's shape, or
@@ -657,8 +730,11 @@ impl Environment {
                     module = crate::library::path(module)
                 ));
             };
-            // An implementation belongs with its trait or its type.
-            if self.trait_declaration(trait_id).module != implementation.module
+            // An implementation belongs with its trait or its type, or is
+            // listed by the type's receiver module, which holds its
+            // functions.
+            if !implementation.listed
+                && self.trait_declaration(trait_id).module != implementation.module
                 && self.type_declaration(target_id).module != implementation.module
             {
                 return Err(format!(
@@ -833,12 +909,19 @@ impl Environment {
                 ));
             }
             // Purity is the declaration's; the extension's marking is checked
-            // against it, and every form of a name states one purity.
-            if declaration.purity != step.purity {
+            // against it. Forms of one name may differ, a seeded draw pure
+            // and an unseeded one effectful, and the marking is then
+            // effectful: the purity of a call whose form is not known.
+            let expected = if self.mixed_purity(step) {
+                Purity::Effectful
+            } else {
+                declaration.purity
+            };
+            if expected != step.purity {
                 return Err(format!(
                     "`{}` is declared {}, and the extension `{}` marks it {}",
                     self.qualified(id),
-                    declaration.purity.label(),
+                    expected.label(),
                     provider.name,
                     step.purity.label()
                 ));
@@ -1320,9 +1403,10 @@ mod tests {
         ] {
             let step = super::super::IO.step(name).unwrap();
             // `source` and `tap` read, and `target` and `sink` write, an
-            // endpoint or a configured endpoint's id.
+            // endpoint or a configured endpoint's id; `file` takes a String
+            // or a Path.
             let forms = environment.of(step);
-            let count = if matches!(name, "source" | "tap" | "target" | "sink") {
+            let count = if matches!(name, "source" | "tap" | "target" | "sink" | "file") {
                 2
             } else {
                 1

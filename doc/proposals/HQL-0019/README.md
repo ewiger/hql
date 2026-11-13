@@ -1,6 +1,6 @@
 # HQL-0019: Graph construction
 
-- **Status**: accepted
+- **Status**: implemented in part
 - **Created**: 2026-10-18
 - **Source**: [graph](../../wiki/hql/types/graph-type.hmd),
   [HQL-0017](../HQL-0017/README.md), [HQL-0018](../HQL-0018/README.md)

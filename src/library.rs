@@ -6,7 +6,6 @@
 //! same way a program's own declarations are.
 
 use crate::ast::{Field, Stmt, TypeAnn};
-use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
 use crate::types::{self, TypeRef};
 use std::collections::HashMap;
@@ -40,12 +39,16 @@ pub const STD: &[(&str, &str)] = &[
     ("string", include_str!("../lib/std/string/mod.hql")),
     ("seq", include_str!("../lib/std/seq/mod.hql")),
     ("math", include_str!("../lib/std/math/mod.hql")),
+    ("stats", include_str!("../lib/std/stats/mod.hql")),
     ("time", include_str!("../lib/std/time/mod.hql")),
+    ("random", include_str!("../lib/std/random/mod.hql")),
     ("option", include_str!("../lib/std/option/mod.hql")),
     ("result", include_str!("../lib/std/result/mod.hql")),
     ("regex", include_str!("../lib/std/regex/mod.hql")),
     ("format", include_str!("../lib/std/format/mod.hql")),
     ("io", include_str!("../lib/std/io/mod.hql")),
+    ("io.fs", include_str!("../lib/std/io/fs/mod.hql")),
+    ("io.env", include_str!("../lib/std/io/env/mod.hql")),
     ("io.net", include_str!("../lib/std/io/net/mod.hql")),
     ("io.logging", include_str!("../lib/std/io/logging/mod.hql")),
     (
@@ -73,6 +76,13 @@ pub const STD: &[(&str, &str)] = &[
         include_str!("../lib/std/io/msg/nats_jetstream/mod.hql"),
     ),
     ("vault", include_str!("../lib/std/vault/mod.hql")),
+    (
+        "crypto.digest",
+        include_str!("../lib/std/crypto/digest/mod.hql"),
+    ),
+    ("encoding", include_str!("../lib/std/encoding/mod.hql")),
+    ("bytes", include_str!("../lib/std/bytes/mod.hql")),
+    ("crypto", include_str!("../lib/std/crypto/mod.hql")),
 ];
 
 /// Every module of the `search` package, by name, in loading order, laid out
@@ -242,19 +252,38 @@ pub fn native_impls() -> Result<Vec<NativeHeader>, String> {
                 let program = crate::parser::parse(source).map_err(|error| {
                     format!("{name}: {}", error.message(), name = self::path(name))
                 })?;
-                found.extend(
-                    program
-                        .statements
-                        .iter()
-                        .filter_map(|statement| match statement {
-                            Stmt::Impl(declaration) if declaration.native => Some(NativeHeader {
-                                module: name,
-                                trait_name: declaration.trait_name.clone(),
-                                target: declaration.target.name.clone(),
-                            }),
-                            _ => None,
+                for statement in &program.statements {
+                    match statement {
+                        Stmt::Impl(declaration) if declaration.native => found.push(NativeHeader {
+                            module: name,
+                            trait_name: declaration.trait_name.clone(),
+                            target: declaration.target.name.clone(),
                         }),
-                );
+                        // A receiver module's trait list, `module string for
+                        // String : Index<String>`, whose functions are native.
+                        Stmt::Module {
+                            pattern: Some(pattern),
+                            traits,
+                            ..
+                        } => found.extend(
+                            traits
+                                .iter()
+                                .filter(|listed| {
+                                    crate::extensions::traits::native_header_impl(
+                                        &listed.name,
+                                        &pattern.name,
+                                    )
+                                    .is_some()
+                                })
+                                .map(|listed| NativeHeader {
+                                    module: name,
+                                    trait_name: listed.name.clone(),
+                                    target: pattern.name.clone(),
+                                }),
+                        ),
+                        _ => {}
+                    }
+                }
             }
             Ok(found)
         })
@@ -463,6 +492,18 @@ pub fn closure(graph: &[(&str, &str)]) -> Result<(), String> {
             }
         }
         check_names(module, &written, &[], &visible, &owners)?;
+        // The traits a receiver module lists are names it writes, over its
+        // pattern's variables.
+        let listed: Vec<&TypeAnn> = program
+            .statements
+            .iter()
+            .filter_map(|statement| match statement {
+                Stmt::Module { traits, .. } => Some(traits),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        check_names(module, &listed, &receiver, &visible, &owners)?;
     }
     Ok(())
 }
@@ -624,14 +665,17 @@ fn records() -> Option<&'static HashMap<String, Record>> {
 }
 
 fn load() -> Result<HashMap<String, Record>, Diagnostic> {
+    // The declarations are read for their names alone. They are checked
+    // where the library is checked as a program of its own ([`check`]): read
+    // here, the first time a program's checking asks, they would be checked
+    // against that program's lattice, where a program's `type R` collides
+    // with `Table<R>`'s parameter and would lose every record's fields.
     let program = crate::parser::parse(&source())?;
-    let mut declarations = Declarations::default();
     let mut records = HashMap::new();
     for statement in program.statements {
         let Stmt::Type(declaration) = statement else {
             continue;
         };
-        declarations.declare(&declaration)?;
         records.insert(
             declaration.name,
             Record {

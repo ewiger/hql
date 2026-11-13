@@ -1,49 +1,60 @@
-# Part 3: `hash` and `encoding`
+# Part 3: `crypto.digest` and `encoding`
 
 - **Depends on**: [the proposal](../README.md) for ownership;
   [issue 0029](../../../issues/0029-binary-formats-and-codecs.md) for binary
   values, which this part stays out of
-- **Needed by**: none
+- **Needed by**: [HQL-0053](../../HQL-0053/README.md), whose `crypto`
+  imports `crypto.digest`
 
 ## Scope
 
-Two modules over text: `hash` gives a digest of a `String` or of a `Data`
-tree, and `encoding` converts a `String` to and from a text-safe encoding.
-Python's `hashlib`, `zlib.crc32`, `base64`, `binascii` and `urllib.parse.quote`
-cover the same ground. A `String` is UTF-8, and its UTF-8 bytes are what each
-operation reads.
+Two modules over text: `crypto.digest` gives a cryptographic digest of a
+`String` or of a `Data` tree, and `encoding` converts a `String` to and from
+a text-safe encoding. Python's `hashlib`, `base64`, `binascii` and
+`urllib.parse.quote` cover the same ground. A `String` is UTF-8, and its UTF-8
+bytes are what each operation reads.
 
-## `hash`
+No standard module or type is named "hash". A digest is a function from
+octets to a fixed-size octet string; a map is a collection.
 
-An algorithm is named by a type, as a format is.
+## `crypto.digest`
+
+An algorithm is named by a type, as a format is. A program writes
+`import crypto.digest` and reaches the module as `digest`. Modules and
+functions are separate namespaces, so `digest.digest(s, Sha256)` is the
+qualified call.
 
 ```hql
-// lib/std/hash/mod.hql
-module hash
+// lib/std/crypto/digest/mod.hql
+module crypto.digest
 import core
 
 abstract type Algorithm
-type Md5    : Algorithm   // broken for collision resistance; checksums only
-type Sha1   : Algorithm   // broken for collision resistance; checksums only
+type Md5    : Algorithm   // broken for collision resistance; interoperability only
+type Sha1   : Algorithm   // broken for collision resistance; interoperability only
 type Sha256 : Algorithm
 type Sha512 : Algorithm
 type Blake3 : Algorithm   // 256-bit output
-type Crc32  : Algorithm   // IEEE polynomial; not a cryptographic hash
 
 fn digest<A : Algorithm>(self: String, as: Type<A>) : String
 fn fingerprint(self: Data) : String
 ```
 
 - `digest` MUST give the algorithm's output over the text's UTF-8 bytes,
-  written as lowercase hexadecimal, two digits per byte. `Crc32` MUST give
-  eight digits, big-endian.
+  written as lowercase hexadecimal, two digits per byte.
+- Every `Algorithm` MUST be a cryptographic hash function. A checksum is
+  not one.
 - `fingerprint` MUST equal `digest(canonical(x), Sha256)`, where
   `canonical(x)` is the JSON Canonicalization Scheme text of the tree
   (RFC 8785): object keys sorted by their UTF-16 code units, no whitespace,
-  numbers in their shortest round-trip form.
-- Two trees equal under HQL equality MUST have equal fingerprints. A
-  `Decimal` MUST be written as its exact digits, and a time value as its
-  ISO 8601 text, so the canonical form loses nothing a tree holds.
+  strings escaped as RFC 8785 escapes them.
+- Two trees equal under HQL equality MUST have equal fingerprints. A number
+  MUST be written as its exact digits with trailing zeros removed and no
+  exponent, so `1`, `1.0` and `1.00` write `1`, and a time value as its
+  ISO 8601 text, so the canonical form loses nothing a tree holds. For a
+  number of magnitude at least 1e-6 and below 1e21 this is RFC 8785's
+  text; outside that range RFC 8785 writes an exponent and loses digits a
+  `Decimal` holds, and `canonical` keeps them.
 
 ## `encoding`
 
@@ -78,7 +89,7 @@ fn decode<E : Encoding>(self: String, as: Type<E>) : Option<String>
 ## Examples
 
 ```hql
-import hash
+import crypto.digest
 import encoding
 
 // A stable id for each record, from its content.
@@ -88,7 +99,7 @@ source(file("sightings.jsonl"), JsonLines)
 // Records that appear more than once.
 records | group(by = r => fingerprint(r)) | filter(g => size(g.items) > 1)
 
-// Checksum a file's text, and read a base64 field.
+// Digest a file's text, and read a base64 field.
 file("data.csv") | text | digest(Sha256)
 payload.body | decode(Base64) | unwrap_or("")
 ```

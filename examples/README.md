@@ -40,6 +40,12 @@ The [windows](windows/README.md) cases rank and compare rows within their
 partition with `over`, and order ties with `then`, from
 [HQL-0050](../doc/proposals/HQL-0050/README.md).
 
+The [crypto](crypto/README.md) cases are design input for
+[HQL-0053](../doc/proposals/HQL-0053/README.md): `Bytes`, keys read from
+PEM, signatures over text and canonical JSON, HMAC, Argon2id password
+hashes, encryption under a shared key and to an age recipient, encrypted
+files, and keys reached through a configured key vault.
+
 The [slicing](slicing/README.md) cases take a position with `xs[i]` and a
 slice with `xs[a:b]` over strings, lists, documents, streams and a declared
 type, from [HQL-0026](../doc/proposals/HQL-0026/README.md).
@@ -76,6 +82,10 @@ failure, and an effect before each error shows whether the program ran, from
 The [I/O](io/README.md) cases read a JSON Lines file and a CSV file with
 `source`, each document decoded as the record its binding declares, from
 [HQL-0021](../doc/proposals/HQL-0021/README.md).
+
+The [file system](fs/README.md) cases list a folder, walk a tree in sorted
+order, match a glob and test a path with `io.fs`, from
+[HQL-0040](../doc/proposals/HQL-0040/README.md).
 
 The [data sources](sources/README.md) cases read the sources a vault's
 `hql.toml` configures by id with `source("id")`: two vaults side by side, a

@@ -287,6 +287,8 @@ impl Translator<'_> {
             Value::Str(text) => Param::Text(text.to_string()),
             Value::Decimal(d) => Param::Numeric(d.to_string()),
             Value::Time(time) => Param::Text(time.to_string()),
+            // `Bytes` is written as base64 text, as `target` writes it.
+            Value::Bytes(octets) => Param::Text(crate::data::base64_text(&octets)),
             Value::Present(held) => return self.bind(held.as_ref().clone(), span),
             Value::Absent(_) => return Ok("NULL".to_owned()),
             Value::Data(tree) => match tree.as_ref() {
@@ -297,6 +299,7 @@ impl Translator<'_> {
                 crate::data::Data::Str(text) => Param::Text(text.clone()),
                 crate::data::Data::Decimal(d) => Param::Numeric(d.to_string()),
                 crate::data::Data::Time(time) => Param::Text(time.to_string()),
+                crate::data::Data::Bytes(octets) => Param::Text(crate::data::base64_text(octets)),
                 crate::data::Data::List(_) | crate::data::Data::Map(_) => {
                     Param::Text(tree.to_json().to_string())
                 }

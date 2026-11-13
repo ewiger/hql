@@ -15,6 +15,11 @@ ordering rules hold there without being consulted.
 Purity is a property of an operation. It says whether evaluating the operation
 does anything other than produce its result.
 
+Each form of a name states its own purity. `random.sample(xs, n, seed = 7)`
+is pure and `random.sample(xs, n)` effectful: the checker resolves a call to
+one form, and the call is as pure as that form. Where the form is not known,
+the name is effectful if any of its forms is, and the extension marks it so.
+
 ```text
 Pure        the result is a function of the input and the arguments alone,
             and evaluation changes nothing outside the result
@@ -56,6 +61,9 @@ written is pure.
 | `source`, `tap` over an endpoint or an id | `file(p)`, `format`, endpoints in general |
 | `target`, `sink` | `Channel<T>(name)` |
 | `trace`, `debug`, `info`, `warn`, `error` | `Logger(...)` |
+| `now`, `today`, `local_zone` | every other `time` operation |
+| `sample`, `shuffle`, `choice` without `seed`; `random_int`, `random_float`, `uuid()` | `sample`, `shuffle`, `choice` with `seed`; `uuid(name, namespace)` |
+| `var`, `vars`, `arg`, `args` of `io.env` | every `stats` operation |
 | — | every collection, lexical, graph and format step |
 
 An endpoint, a channel and a logger are values. Making one opens nothing, and

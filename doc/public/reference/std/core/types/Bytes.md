@@ -1,0 +1,21 @@
+<!-- hql reference: std/core.Bytes -->
+# `Bytes`
+
+In [`std/core`](../index.md).
+
+```hql
+type Bytes : {Scalar, Orderable}
+```
+
+A finite sequence of octets, ordered octet by octet as unsigned numbers,
+a shorter prefix first (HQL-0053 part 1). No literal produces one:
+`Bytes("hello")` is the UTF-8 encoding of a text, and `encoding`
+converts hex and base64 text. It prints as `0x` and lowercase hex, and a
+text format writes it as base64.
+
+```hql
+fn Bytes(text: String) : Bytes
+```
+
+The UTF-8 encoding of `text`: `Bytes("hé")` holds three octets.
+<!-- hql reference: end -->

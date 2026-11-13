@@ -1,6 +1,6 @@
 # HQL-0040: `io.fs`: paths, folders, globs and entries
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-10-23
 **Source**: [HQL-0021](../HQL-0021/README.md), whose non-goals exclude
 directory listing and file metadata, and the sorted walk of
@@ -245,3 +245,27 @@ folder("data")
 ## Changelog
 
 - 2026-10-23: drafted
+- 2026-11-13: accepted and implemented. `Path` and its operations in `io`,
+  `file(path: Path)`, and the module `io.fs` in `lib/std/io/fs/mod.hql`,
+  provided by the extension `io.fs` (`src/extensions/fs.rs`). The sorted walk
+  is `src/walk.rs`, which the vault's filesystem source reads its documents
+  through; globs are `src/glob.rs`, with no added dependency. Cases in
+  `examples/fs/`, tests in `tests/io_fs.rs`.
+- 2026-11-13: `walk` and `entries` list an entry whose name opens with `.`;
+  the vault skips such entries, so a vault's cards are the documents of
+  `walk(folder(root))` outside them, in the same order.
+- 2026-11-13: the vault reads a link as what it points to and `io.fs`
+  reports one without following it; both walks are the one implementation,
+  told apart by that setting.
+- 2026-11-13: `**` matches zero or more whole segments, so `a/**` matches
+  `a` itself. A glob class also takes a range, `[a-z]`. An empty pattern, an
+  empty `[]`, an unclosed `[` and a `**` within a segment do not parse.
+- 2026-11-13: `join` onto `Path(".")` or `Path("")` is `Path(segment)`, so
+  the entries of `folder(".")` have paths without a leading `./`.
+- 2026-11-13: `Path`, `Folder`, `Glob` and `Entry` are built-in type names,
+  as every type of the standard library is, whether or not a program imports
+  `io.fs`; a program that declared its own `Entry` or `Path` declares it
+  under another name.
+- 2026-11-13: `Folder`, `Glob` and `Entry` are built by their constructors
+  alone: `Entry(...)` is not a record constructor a program calls, and
+  `Glob(p)` always parses `p`.

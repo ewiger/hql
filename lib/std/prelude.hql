@@ -7,6 +7,7 @@
 // See doc/proposals/HQL-0024/parts/03-standard-library.md.
 import core
 import string
+import bytes
 import seq
 import math
 import option

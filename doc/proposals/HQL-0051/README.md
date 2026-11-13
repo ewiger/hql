@@ -1,6 +1,6 @@
 # HQL-0051: Transactions and relational mutations
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-11-13
 **Source**: [HQL-0021](../HQL-0021/README.md) (endpoints, effects and what a
 host grants), [HQL-0012](../HQL-0012/README.md) (configured endpoints and
@@ -1178,3 +1178,5 @@ cargo clippy --locked --all-targets -- -D warnings
   checked against the shop vault, and the merge page and the tables chapter
   point at it; the `ledger` case of hql-demo runs the transfer against
   PostgreSQL 17
+- 2026-11-13: implemented in part, phases 1 to 6 as above; the part left is
+  what phases 3 and 4 name as not built

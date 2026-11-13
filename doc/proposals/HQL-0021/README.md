@@ -1,6 +1,6 @@
 # HQL-0021: I/O: endpoints, channels, the network and logging
 
-- **Status**: accepted, implemented in part
+- **Status**: implemented in part
 - **Created**: 2026-10-19
 - **Source**: [design outline](design-outline.md),
   [logging and channels](logging-n-net.md),

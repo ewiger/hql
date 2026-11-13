@@ -44,7 +44,18 @@ fn copy_tree(from: &Path, to: &Path) {
         if entry.path().is_dir() {
             copy_tree(&entry.path(), &target);
         } else {
-            fs::copy(entry.path(), target).unwrap();
+            fs::copy(entry.path(), &target).unwrap();
+            // A private key is read with mode 0600, which git does not keep.
+            #[cfg(unix)]
+            if entry
+                .path()
+                .parent()
+                .is_some_and(|parent| parent.ends_with("keys"))
+                && !target.to_string_lossy().contains(".pub.")
+            {
+                use std::os::unix::fs::PermissionsExt as _;
+                fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+            }
         }
     }
 }
@@ -304,10 +315,10 @@ fn implemented_invalid_cases_fail_with_the_declared_diagnostic() {
             continue;
         }
         count += 1;
-        // A case over a vault runs against it, and its first error is the
-        // one it declares; `eval` exposes the precise diagnostic of a pure
-        // one, and checking it alone must agree.
-        if m["environment"] != "pure" {
+        // A case over a vault or a module root runs against it, and its
+        // first error is the one it declares; `eval` exposes the precise
+        // diagnostic of a pure one, and checking it alone must agree.
+        if m["environment"] != "pure" || m.contains_key("modules") {
             let vault = case.vault();
             let outcome = run(&case.source, &vault, Mode::Strict);
             let error = outcome

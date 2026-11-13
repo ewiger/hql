@@ -7,10 +7,21 @@
 /// bound per call; a function that takes any collection writes its receiver,
 /// `self: Collection<T>`, and the functions over sets and maps take theirs as
 /// a typed first parameter. A receiver `S : Seq<T>` comes back at its own
-/// type, and `F<_> : Seq<_>` rebuilt in its own constructor.
-module seq for Seq<T>
+/// type, and `F<_> : Seq<_>` rebuilt in its own constructor. Every sequence
+/// implements `Index<T>` and `Slice` through `at` and `slice`: `xs[i]` is
+/// `xs.at(i)`, and `xs[a:b]` is `xs.slice(Range(start = a, end = b))`.
+module seq for Seq<T> : Index<T>, Slice
 
 import core
+
+/// The element of `self` at `position`, or `none` past either end; a
+/// negative position counts from the end: `[3, 1, 2].at(1)` and
+/// `[3, 1, 2][1]` are `1`.
+fn at(self, position: Int) : Option<T>
+
+/// The elements of `self` within `range`, clamped to the sequence, a
+/// negative bound counting from the end: `[1, 2, 3][1:]` is `[2, 3]`.
+fn slice(self, range: Range) : Seq<T>
 
 /// The element at position 0, or `none` over an empty sequence:
 /// `[3, 1, 2] | first` is `3`. Of a window, the first row of its partition.

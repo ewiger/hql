@@ -1,0 +1,20 @@
+<!-- hql reference: std/crypto.encrypt -->
+# `encrypt`
+
+In [`std/crypto`](index.md).
+
+```hql
+effectful fn encrypt<C : Cipher>(self: Bytes, key: SecretKey<C>, *, aad: Bytes = Bytes("")) : Bytes
+```
+
+The authenticated encryption of `self` under `key`, with `aad` bound to
+it and not encrypted: a new 12-octet nonce from the host generator, then
+the ciphertext, then the 16-octet tag. Under random nonces a key takes
+at most 2^32 encryptions, for either cipher.
+
+```hql
+effectful fn encrypt<C : Cipher>(self: String, key: SecretKey<C>, *, aad: Bytes = Bytes("")) : Bytes
+```
+
+The authenticated encryption of the UTF-8 octets of `self`.
+<!-- hql reference: end -->

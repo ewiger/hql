@@ -61,9 +61,30 @@ pub(crate) enum Stmt {
     Impl {
         trait_name: String,
         target: TypeRef,
-        methods: Vec<(String, Vec<String>, std::sync::Arc<Expr>, TypeRef)>,
+        methods: Vec<(String, ImplMethod)>,
     },
     Unit,
+}
+
+/// One function of an implementation at run time.
+#[derive(Debug)]
+pub(crate) enum ImplMethod {
+    /// Written in the implementation, or inherited from the trait: `self`
+    /// first among the parameters, then the body and the function's type.
+    Body(Vec<String>, std::sync::Arc<Expr>, TypeRef),
+    /// The module's own function of this name, bound in its scope: what a
+    /// module's trait list implements a trait with (HQL-0039).
+    Function(String),
+}
+
+impl ImplMethod {
+    /// The body to walk, when the implementation writes one here.
+    pub(crate) fn body(&self) -> Option<&Expr> {
+        match self {
+            Self::Body(_, body, _) => Some(body.as_ref()),
+            Self::Function(_) => None,
+        }
+    }
 }
 
 /// What checking established about one implementation, for lowering it.
@@ -115,6 +136,12 @@ pub(crate) struct MethodLowering {
     pub parameters: Vec<String>,
     /// The trait whose default body this is, when the impl did not write one.
     pub default_of: Option<String>,
+    /// The module function that is this one, when a module's trait list
+    /// declares the implementation.
+    pub function: Option<String>,
+    /// The default body lowered where its trait is declared, for a trait
+    /// another unit declares.
+    pub lowered: Option<std::sync::Arc<Expr>>,
     pub ty: TypeRef,
 }
 
@@ -355,12 +382,20 @@ pub(crate) struct OperationType {
 }
 
 impl OperationType {
-    /// A host operation, at the shape its arguments refine it to.
-    pub(crate) fn host(step: &'static Operation, arguments: &[Arg]) -> Self {
+    /// A host operation, at the shape its arguments refine it to and the
+    /// purity of the form the call took.
+    pub(crate) fn host(
+        step: &'static Operation,
+        arguments: &[Arg],
+        form: Option<crate::extensions::binding::DeclarationId>,
+    ) -> Self {
         Self {
             name: step.name.to_owned(),
             shape: shape_of(step, arguments),
-            purity: step.purity(),
+            purity: crate::extensions::binding::Environment::get().map_or_else(
+                |_| step.purity(),
+                |environment| environment.purity_of(step, form),
+            ),
             presentation: crate::extensions::format::STEPS
                 .iter()
                 .any(|presentation| std::ptr::eq(presentation, step)),
@@ -694,9 +729,18 @@ impl Field {
         if *receiver.present() == TypeRef::DATA {
             return Some(Self::Key(name.to_owned()));
         }
-        // `Zone` is a built-in type whose values are records.
+        // `Zone` and the file system's `Path`, `Folder`, `Glob` and `Entry`
+        // are built-in types whose values are records, built by their
+        // extensions' constructors alone.
         if crate::types::program::is_record_valued(receiver.present().constructor.0)
-            || *receiver.present() == TypeRef::ZONE
+            || [
+                TypeRef::ZONE,
+                TypeRef::PATH,
+                TypeRef::FOLDER,
+                TypeRef::GLOB,
+                TypeRef::ENTRY,
+            ]
+            .contains(receiver.present())
         {
             return Some(Self::Record(name.to_owned()));
         }
@@ -787,13 +831,16 @@ pub(crate) struct Checked {
     pub validations: HashMap<Range<usize>, TypeRef>,
     /// Each call of a trait's function, by the trait and the function.
     pub method_calls: HashMap<Range<usize>, (String, String)>,
-    /// Each `validate f with V` naming a validator type, by the validator:
+    /// Each `validate f with V` naming a validator trait, by the validator:
     /// a call of `V`'s `validate` on the field (HQL-0034).
     pub validator_calls: HashMap<Range<usize>, String>,
     /// Each operator resolved through a trait, by the trait.
     pub operator_calls: HashMap<Range<usize>, &'static str>,
     /// Each implementation, by the span of its declaration.
     pub impls: HashMap<Range<usize>, ImplLowering>,
+    /// Each implementation a module's trait list declares, in order: bound
+    /// after the module's functions, which it is made of.
+    pub module_impls: Vec<ImplLowering>,
     /// Each contract with rules, by the span of its declaration: the names a
     /// rule's body reads its fields by, in the order a check binds them.
     pub contracts: HashMap<Range<usize>, Vec<RuleParameter>>,
@@ -922,6 +969,17 @@ impl Checked {
                         })?;
                         let mut methods = Vec::new();
                         for method in &lowering.methods {
+                            if let Some(lowered) = &method.lowered {
+                                methods.push((
+                                    method.name.clone(),
+                                    ImplMethod::Body(
+                                        method.parameters.clone(),
+                                        std::sync::Arc::clone(lowered),
+                                        method.ty.clone(),
+                                    ),
+                                ));
+                                continue;
+                            }
                             let body = match &method.default_of {
                                 None => declaration
                                     .methods
@@ -950,9 +1008,11 @@ impl Checked {
                             })?;
                             methods.push((
                                 method.name.clone(),
-                                method.parameters.clone(),
-                                std::sync::Arc::new(self.expression(body)?),
-                                method.ty.clone(),
+                                ImplMethod::Body(
+                                    method.parameters.clone(),
+                                    std::sync::Arc::new(self.expression(body)?),
+                                    method.ty.clone(),
+                                ),
                             ));
                         }
                         Stmt::Impl {
@@ -965,6 +1025,15 @@ impl Checked {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         let mut statements = statements;
+        // A module's trait list is bound once its functions are, and before
+        // a final expression, which stays the program's value.
+        let at = match statements.last() {
+            Some(Stmt::Expr(_)) => statements.len() - 1,
+            _ => statements.len(),
+        };
+        for (offset, lowering) in self.module_impls.iter().enumerate() {
+            statements.insert(at + offset, self.module_impl(program, lowering)?);
+        }
         unread_branches(&mut statements);
         Ok(Program {
             statements,
@@ -975,6 +1044,60 @@ impl Checked {
             lattice: crate::types::program::current()
                 .map_err(|error| Diagnostic::typing(0..0, error.to_string()))?,
             modules: self.modules.clone(),
+        })
+    }
+
+    /// The implementation a module's trait list declares: each function the
+    /// module's own, or a default body of a trait the module declares.
+    fn module_impl(
+        &self,
+        program: &ast::Program,
+        lowering: &ImplLowering,
+    ) -> Result<Stmt, Diagnostic> {
+        let mut methods = Vec::new();
+        for method in &lowering.methods {
+            let lowered = match (&method.function, &method.default_of) {
+                (Some(function), _) => ImplMethod::Function(function.clone()),
+                (None, _) if method.lowered.is_some() => ImplMethod::Body(
+                    method.parameters.clone(),
+                    method.lowered.clone().expect("matched a lowered body"),
+                    method.ty.clone(),
+                ),
+                (None, Some(trait_name)) => {
+                    let body = program
+                        .statements
+                        .iter()
+                        .find_map(|statement| match statement {
+                            ast::Stmt::Trait(held) if held.name == *trait_name => Some(held),
+                            _ => None,
+                        })
+                        .and_then(|held| held.methods.iter().find(|held| held.name == method.name))
+                        .and_then(|held| held.body.as_ref())
+                        .ok_or_else(|| {
+                            Diagnostic::typing(
+                                0..0,
+                                format!("`{}` has no body to run", method.name),
+                            )
+                        })?;
+                    ImplMethod::Body(
+                        method.parameters.clone(),
+                        std::sync::Arc::new(self.expression(body)?),
+                        method.ty.clone(),
+                    )
+                }
+                (None, None) => {
+                    return Err(Diagnostic::typing(
+                        0..0,
+                        format!("`{}` has no body to run", method.name),
+                    ));
+                }
+            };
+            methods.push((method.name.clone(), lowered));
+        }
+        Ok(Stmt::Impl {
+            trait_name: lowering.trait_name.clone(),
+            target: lowering.target.clone(),
+            methods,
         })
     }
 
@@ -1038,7 +1161,7 @@ impl Checked {
             .collect()
     }
 
-    fn expression(&self, expression: &ast::Expr) -> Result<Expr, Diagnostic> {
+    pub(crate) fn expression(&self, expression: &ast::Expr) -> Result<Expr, Diagnostic> {
         use ast::Kind as A;
         let span = expression.span.clone();
         let ty = if let Some(function) = self.functions.get(&span) {
@@ -1635,9 +1758,15 @@ impl Checked {
             }
             A::Call { callee, arguments } => {
                 if let Some(step) = self.steps.get(&span) {
-                    // No positional input written: the input is `Unit`.
+                    // No positional input written, or a step that takes none,
+                    // whose first argument is a type: the input is `Unit`.
                     let (input, arguments) = match arguments.split_first() {
-                        Some((input, rest)) if input.name.is_none() => (boxed(&input.value)?, rest),
+                        Some((input, rest))
+                            if input.name.is_none()
+                                && !(step.takes_no_input() && names_a_type(&input.value)) =>
+                        {
+                            (boxed(&input.value)?, rest)
+                        }
                         _ => (
                             Box::new(Expr {
                                 kind: Kind::Unit,
@@ -1751,7 +1880,7 @@ fn branches_read(
             Stmt::Fn { body, .. } => vec![body.as_ref()],
             Stmt::Impl { methods, .. } => methods
                 .iter()
-                .map(|(_, _, body, _)| body.as_ref())
+                .filter_map(|(_, method)| method.body())
                 .collect(),
             Stmt::Contract { rules, .. } => rules.iter().map(|rule| rule.body.as_ref()).collect(),
             Stmt::Unit => Vec::new(),
@@ -1815,7 +1944,7 @@ impl Program {
                 Stmt::Bind { value, .. } | Stmt::Expr(value) => roots.push(value),
                 Stmt::Fn { body, .. } => roots.push(body.as_ref()),
                 Stmt::Impl { methods, .. } => {
-                    roots.extend(methods.iter().map(|(_, _, body, _)| body.as_ref()));
+                    roots.extend(methods.iter().filter_map(|(_, method)| method.body()));
                 }
                 Stmt::Contract { rules, .. } => {
                     roots.extend(rules.iter().map(|rule| rule.body.as_ref()));
@@ -1849,7 +1978,7 @@ fn step_node(
     lifted: bool,
     declaration: Option<crate::extensions::binding::DeclarationId>,
 ) -> Kind {
-    let plan = StepPlan::new(OperationType::host(step, &arguments));
+    let plan = StepPlan::new(OperationType::host(step, &arguments, declaration));
     Kind::Step {
         step,
         input,
@@ -1859,6 +1988,13 @@ fn step_node(
         declaration,
         plan,
     }
+}
+
+/// Whether an argument is a bare type name, `Ed25519`: what the checker
+/// reads as an argument, never an input, where a step takes no input.
+fn names_a_type(written: &crate::ast::Expr) -> bool {
+    matches!(&written.kind, crate::ast::Kind::Ident(name)
+        if crate::types::builtin::constructor(name).is_some())
 }
 
 #[cfg(test)]

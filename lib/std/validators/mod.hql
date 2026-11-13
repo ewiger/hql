@@ -1,8 +1,8 @@
-// The standard validator types (HQL-0034). Unlike the modules the binary's
-// extensions implement, this one is written in HQL: each type is a trait
+// The standard validator traits (HQL-0034). Unlike the modules the binary's
+// extensions implement, this one is written in HQL: each is a trait
 // extending `Validator`, implemented once per type of value it checks.
 
-/// Validators: the standard validator types, imported where they are used,
+/// Validators: the standard validator traits, imported where they are used,
 /// `import validators`, and never by the prelude, so a program's own
 /// `Email` is its own. A field declared with one, `email: Email`, is of the
 /// one type that implements it; `NonEmpty`, implemented for more than one

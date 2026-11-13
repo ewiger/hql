@@ -1,6 +1,6 @@
 # HQL-0033: Errors as values — handling, routing, branching, retry and replay
 
-**Status:** accepted, implemented  
+**Status**: implemented
 **Created:** 2026-10-23  
 **Related:** HQL-0032 (`TypeContract`, `DataContract`), HQL-0010 (`tee`), HQL-0021 (sources, sinks, channels and messages), HQL-0036 (`partition`), HQL-0037 (`fork` and the dataflow DAG), HQL-0045 (structured reports)
 

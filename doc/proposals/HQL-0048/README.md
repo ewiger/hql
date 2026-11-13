@@ -1,6 +1,6 @@
 # HQL-0048: I/O transport namespaces and packaging
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-11-12
 **Source**: [HQL-0047](../HQL-0047/README.md) (transports),
 [HQL-0021](../HQL-0021/README.md) (`io`, `io.net`, `io.logging`),
@@ -241,3 +241,8 @@ cargo test
 ## Changelog
 
 - 2026-11-12: drafted
+- 2026-11-13: implemented in part: `io.db.sqlite`, `io.db.postgres`,
+  `io.db.spark`, `io.msg.nats` and `io.msg.nats_jetstream` are modules, each
+  declaring its transport type and constructor. Not built: `io.msg.kafka`,
+  and the modules marked design direction
+  ([issue 0069](../../issues/0069-transports-core.md))

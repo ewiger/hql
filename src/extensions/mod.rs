@@ -20,9 +20,15 @@ use std::ops::Range;
 use std::path::Path;
 
 pub(crate) mod binding;
+pub(crate) mod bytes;
 pub(crate) mod collections;
 pub(crate) mod contract;
+pub(crate) mod crypto;
+pub(crate) mod digest;
+pub(crate) mod encoding;
+pub(crate) mod env;
 pub mod format;
+pub(crate) mod fs;
 pub(crate) mod graph;
 pub(crate) mod io;
 pub mod lexical;
@@ -32,6 +38,7 @@ pub mod nats;
 pub mod net;
 pub(crate) mod option;
 pub mod postgres;
+pub(crate) mod random;
 pub(crate) mod regex;
 pub(crate) mod result;
 pub mod semantic;
@@ -39,6 +46,7 @@ pub(crate) mod seq;
 pub mod spark;
 pub mod spec;
 pub mod sqlite;
+pub(crate) mod stats;
 pub(crate) mod string;
 pub(crate) mod time;
 pub(crate) mod traits;
@@ -379,6 +387,18 @@ impl Operation {
         binding::Environment::get().map_or(self.purity, |environment| environment.purity(self))
     }
 
+    /// Whether every form of the operation is effectful, so a call is
+    /// whichever form it takes. Where forms differ, the form a call takes
+    /// decides.
+    pub(crate) fn effectful_in_every_form(&self) -> bool {
+        match binding::Environment::get() {
+            Ok(environment) => {
+                environment.purity(self) == Purity::Effectful && !environment.mixed_purity(self)
+            }
+            Err(_) => self.purity == Purity::Effectful,
+        }
+    }
+
     /// How the executor may split it: what its declaration states, `fn` a
     /// barrier and `elementwise fn`, `partition fn` or `reduction fn` the
     /// shape it names. An operation without a declaration keeps its
@@ -459,6 +479,24 @@ static NET: Extension = Extension {
     version: env!("CARGO_PKG_VERSION"),
     provides: &["io.net"],
     steps: net::STEPS,
+    metadata: None,
+};
+
+// Named by the path it provides: `import io.fs` binds it as `fs`.
+static FS: Extension = Extension {
+    name: "io.fs",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.fs"],
+    steps: fs::STEPS,
+    metadata: None,
+};
+
+// Named by the path it provides: `import io.env` binds it as `env`.
+static ENV: Extension = Extension {
+    name: "io.env",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.env"],
+    steps: env::STEPS,
     metadata: None,
 };
 
@@ -552,11 +590,27 @@ static MATH: Extension = Extension {
     metadata: None,
 };
 
+static STATS: Extension = Extension {
+    name: "stats",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["stats"],
+    steps: stats::STEPS,
+    metadata: None,
+};
+
 static TIME: Extension = Extension {
     name: "time",
     version: env!("CARGO_PKG_VERSION"),
     provides: &["time"],
     steps: time::STEPS,
+    metadata: None,
+};
+
+static RANDOM: Extension = Extension {
+    name: "random",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["random"],
+    steps: random::STEPS,
     metadata: None,
 };
 
@@ -584,6 +638,38 @@ static REGEX: Extension = Extension {
     metadata: None,
 };
 
+static DIGEST: Extension = Extension {
+    name: "crypto.digest",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["crypto.digest"],
+    steps: digest::STEPS,
+    metadata: None,
+};
+
+static ENCODING: Extension = Extension {
+    name: "encoding",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["encoding"],
+    steps: encoding::STEPS,
+    metadata: None,
+};
+
+static BYTES: Extension = Extension {
+    name: "bytes",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["bytes"],
+    steps: bytes::STEPS,
+    metadata: None,
+};
+
+static CRYPTO: Extension = Extension {
+    name: "crypto",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["crypto"],
+    steps: crypto::STEPS,
+    metadata: None,
+};
+
 /// Every extension compiled into this binary, core first.
 ///
 /// Registration is not import: a step here is known to diagnostics and to
@@ -595,7 +681,9 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &STRING,
     &SEQ,
     &MATH,
+    &STATS,
     &TIME,
+    &RANDOM,
     &OPTION,
     &RESULT,
     &GRAPH,
@@ -603,6 +691,8 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &IO,
     &NET,
     &LOGGING,
+    &FS,
+    &ENV,
     &SQLITE,
     &POSTGRES,
     &SPARK,
@@ -612,6 +702,10 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &LEXICAL,
     &SEMANTIC,
     &REGEX,
+    &DIGEST,
+    &ENCODING,
+    &BYTES,
+    &CRYPTO,
 ];
 
 impl Extension {
@@ -1414,16 +1508,47 @@ mod tests {
     fn every_registered_step_declares_a_purity_and_a_provider() {
         let listed = listing();
         assert!(!listed.is_empty());
-        // Reading and writing an endpoint, logging, and reading the
-        // evaluation clock are the effects; every other step, constructing
-        // an endpoint or a logger included, is a function of its input.
+        // Reading and writing an endpoint, listing the file system,
+        // logging, reading the evaluation clock and drawing from the
+        // evaluation seed are the effects; every other step, constructing an
+        // endpoint, a path or a logger included, is a function of its input.
+        // Every name of `random` has a form that draws from the evaluation
+        // seed, and its seeded forms are pure. Every name of `io.env` reads
+        // the invocation.
         for entry in &listed {
             let effectful = (entry.provider == "io"
-                && !matches!(entry.name, "file" | "configured"))
+                && !matches!(
+                    entry.name,
+                    "file"
+                        | "configured"
+                        | "Path"
+                        | "join"
+                        | "parent"
+                        | "name"
+                        | "stem"
+                        | "extension"
+                ))
                 || entry.provider == "io.transaction"
+                || (entry.provider == "io.fs"
+                    && matches!(entry.name, "entries" | "walk" | "glob" | "exists" | "entry"))
                 || (entry.provider == "logging" && entry.name != "Logger")
                 || (entry.provider == "time"
-                    && matches!(entry.name, "now" | "today" | "local_zone"));
+                    && matches!(entry.name, "now" | "today" | "local_zone"))
+                || entry.provider == "random"
+                // Reading a key file and drawing from the host generator.
+                || (entry.provider == "crypto"
+                    && matches!(
+                        entry.name,
+                        "read_public_key"
+                            | "read_private_key"
+                            | "generate_key_pair"
+                            | "generate_secret_key"
+                            | "hash_password"
+                            | "encrypt"
+                            | "encrypt_to"
+                            | "encrypt_with_passphrase"
+                    ))
+                || entry.provider == "io.env";
             let expected = if effectful {
                 Purity::Effectful
             } else {
