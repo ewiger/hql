@@ -5,10 +5,12 @@ In [`std/string`](index.md).
 
 ```hql
 fn slice(self, start: Int, end: Int) : String
+fn slice(self, range: Range) : String
 ```
 
 The characters of `self` from `start` up to, not including, `end`,
 counting from 0; `s[start:end]`. The bounds are clamped to the text, and
 a negative bound counts from the end: `"hello" | slice(-3, 10)` is
-`"llo"`. `s.slice(range)`, with one argument, is the core trait `Slice`.
+`"llo"`. With one argument, a `Range`, it is `Slice`'s: `"hello"[1:3]` is
+`"hello".slice(Range(start = 1, end = 3))`, `"el"`.
 <!-- hql reference: end -->

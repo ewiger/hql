@@ -1,0 +1,13 @@
+<!-- hql reference: std/seq.at -->
+# `at`
+
+In [`std/seq`](index.md).
+
+```hql
+fn at(self, position: Int) : Option<T>
+```
+
+The element of `self` at `position`, or `none` past either end; a
+negative position counts from the end: `[3, 1, 2].at(1)` and
+`[3, 1, 2][1]` are `1`.
+<!-- hql reference: end -->

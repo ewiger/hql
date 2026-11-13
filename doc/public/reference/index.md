@@ -64,5 +64,5 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/crypto`](std/crypto/index.md) — Keys, signatures, MACs, password hashes and encryption.
 - [`search/lexical`](search/lexical/index.md) — Lexical retrieval: a corpus ranked by the words it shares with a query, a hashed bag of words compared by cosine.
 - [`search/semantic`](search/semantic/index.md) — Semantic retrieval: a corpus ranked against a query by vectors a language model made ahead of time, read from the index that `[semantics] index` in hql.toml names.
-- [`std/validators`](std/validators/index.md) — Validators: the standard validator types, imported where they are used, `import validators`, and never by the prelude, so a program's own `Email` is its own.
+- [`std/validators`](std/validators/index.md) — Validators: the standard validator traits, imported where they are used, `import validators`, and never by the prelude, so a program's own `Email` is its own.
 <!-- hql reference: end -->

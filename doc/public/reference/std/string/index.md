@@ -2,15 +2,18 @@
 # `std/string`
 
 ```hql
-module string for String
+module string for String : Index<String>, Slice
 ```
 
 The functions of a `String`, in the prelude. A receiver module: each
 function takes `self`, so `s.trim()`, `string.trim(s)` and `s | trim` are
 one declaration. A `String` is a sequence of Unicode scalar values held
 as UTF-8, whatever encoding its text was read from. Positions and size
-count code points.
+count code points. A `String` implements `Index<String>` and `Slice`
+through `at` and `slice`: `s[1]` is `s.at(1)`, and `s[1:3]` is
+`s.slice(Range(start = 1, end = 3))`.
 
+- [`at`](at.md) — The character of `self` at `position`, as text, or `none` outside the text; a negative position counts from the end: `"hello".at(1)` and `"hello"[1]` are `"e"`.
 - [`str`](str.md) — The text `self` prints as, for a value of any type: `str(some(2))` is `"2"`.
 - [`fmt`](fmt.md) — The template `self` with each `{}` replaced by the text of the next of `args`, in order: `fmt("{} of {}", 1, some(2))` is `"1 of 2"`.
 - [`length`](length.md) — How many characters `self` has, counting code points: `"héllo" | length` is `5`.
