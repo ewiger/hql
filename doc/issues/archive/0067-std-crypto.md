@@ -1,11 +1,11 @@
 # 0067 — `crypto`: keys, signatures, encryption and a key vault
 
-Status: backlog
-Related: [HQL-0053](../proposals/HQL-0053/README.md) (the proposal),
-[0029](0029-binary-formats-and-codecs.md),
-[HQL-0041 part 3](../proposals/HQL-0041/parts/03-digest-and-encoding.md),
-[HQL-0024 part 7](../proposals/HQL-0024/parts/07-formats-and-codecs.md),
-[HQL-0021](../proposals/HQL-0021/README.md)
+Status: done
+Related: [HQL-0053](../../proposals/HQL-0053/README.md) (the proposal),
+[0029](../0029-binary-formats-and-codecs.md),
+[HQL-0041 part 3](../../proposals/HQL-0041/parts/03-digest-and-encoding.md),
+[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md),
+[HQL-0021](../../proposals/HQL-0021/README.md)
 
 A program cannot sign a value or verify a signature, encrypt a field or a
 file for a recipient, or decrypt one it was sent. HQL-0041 gives digests and
@@ -15,7 +15,7 @@ up. It ends in a proposal, not code.
 Most of the work is format work. A key is read from and written to PEM, DER,
 JWK or OpenSSH text; a ciphertext or a signature is bytes, and encrypted
 output is a format a `target` writes and a `source` reads. So the proposal
-builds on the `Bytes` type and codecs of [0029](0029-binary-formats-and-codecs.md),
+builds on the `Bytes` type and codecs of [0029](../0029-binary-formats-and-codecs.md),
 and its order against that issue is part of the decision.
 
 ## The proposal decides
@@ -39,7 +39,7 @@ and its order against that issue is part of the decision.
   decrypts inside it, how the store is unlocked, and which backends it
   reads: a local encrypted file, the operating system keychain, an SSH or
   GPG agent, and a cloud key manager as a configured source.
-- The Rust crates that implement it, under [`doc/stack.md`](../stack.md).
+- The Rust crates that implement it, under [`doc/stack.md`](../../stack.md).
 
 ## Done when
 
@@ -49,9 +49,18 @@ and its order against that issue is part of the decision.
 
 ## Proposal
 
-[HQL-0053](../proposals/HQL-0053/README.md), drafted, decides each item
+[HQL-0053](../../proposals/HQL-0053/README.md), drafted, decides each item
 above in five parts, and its cases are under
-[`examples/crypto/`](../../examples/crypto/README.md) at `status: proposed`.
+[`examples/crypto/`](../../../examples/crypto/README.md) at `status: proposed`.
 Its section "Order of work" orders it against 0029: `Bytes` (part 1) lands
 first and 0029 builds on it, and nothing in `crypto` waits for 0029's
 binary format kind.
+
+## Outcome
+
+[HQL-0053](../../proposals/HQL-0053/README.md) is implemented: `Bytes`, keys
+in PEM, DER, JWK, OpenSSH and age text, signatures, MACs, password hashes,
+encryption and encrypted endpoints, with the secret-type checks. Module
+`crypto.keyvault` was split into its own record,
+[HQL-0054](../../proposals/HQL-0054/README.md), and its implementation is
+[0071](../0071-key-vaults.md).

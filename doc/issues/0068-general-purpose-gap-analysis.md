@@ -31,7 +31,7 @@ ships and what a proposal already specifies, then ranked.
    arguments are HQL-0041 part 5; running a subprocess and an argument
    parser are its non-goals.
 5. **Binary data**: a `Bytes` type and binary formats, [0029](0029-binary-formats-and-codecs.md).
-6. **Cryptography**: [0067](0067-std-crypto.md).
+6. **Cryptography**: [0067](archive/0067-std-crypto.md); key vaults, [0071](0071-key-vaults.md).
 7. **Concurrency**: tasks, timeouts and cancellation, against what
    partitioning (HQL-0036) and the dataflow DAG (HQL-0037) already give.
 8. **Local state and iteration**: a loop, or an accumulator over a

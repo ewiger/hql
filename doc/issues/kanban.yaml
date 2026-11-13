@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 70 # to be incremented when adding a new issue card
+  last_id: 71 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -35,9 +35,9 @@ board:
       - id: "0065"
         title: "Neo4j parity analysis: graph patterns, traversal and graph schema"
         file: 0065-neo4j-parity-analysis.md
-      - id: "0067"
-        title: "`crypto`: keys, signatures, encryption and a key vault"
-        file: 0067-std-crypto.md
+      - id: "0071"
+        title: "Key vaults: `crypto.keyvault` and its backends"
+        file: 0071-key-vaults.md
       - id: "0068"
         title: "General-purpose gap analysis: what Python and its peers have that HQL lacks"
         file: 0068-general-purpose-gap-analysis.md

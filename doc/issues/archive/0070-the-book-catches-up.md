@@ -2,7 +2,7 @@
 
 Status: done
 Related: [0054](../0054-user-facing-website.md),
-[0067](../0067-std-crypto.md),
+[0067](0067-std-crypto.md),
 [HQL-0025](../../proposals/HQL-0025/README.md),
 [HQL-0039](../../proposals/HQL-0039/README.md),
 [HQL-0040](../../proposals/HQL-0040/README.md),
