@@ -5,7 +5,7 @@ Analysis: [operation signatures compared](../../models/behavior/operation-signat
 Decisions: [HQL-0004](../../proposals/HQL-0004/README.md),
 [HQL-0006](../../proposals/HQL-0006/README.md),
 [HQL-0007](../../proposals/HQL-0007/README.md)
-Related: step 2 and step 5 of [0013](../0013-typed-pipeline-operations.md),
+Related: step 2 and step 5 of [0013](0013-typed-pipeline-operations.md),
 [0016](../0016-sql-parity-analysis.md), [0017](0017-graph-projection-and-view.md),
 [HQL-0015](../../proposals/HQL-0015/README.md), which states the shorthand rule,
 [HQL-0016](../../proposals/HQL-0016/README.md), which separates narrowing from

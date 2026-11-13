@@ -360,7 +360,7 @@ None.
   metadata layers. The named aggregations remain host operations rather than
   `:=` declarations in `lib/std/`, and `variance`, `histogram`, `top_k`,
   `count_by` and `approx_distinct` are not built
-  ([issue 0012](../../issues/0012-mapreduce-backends.md))
+  ([issue 0012](../../issues/archive/0012-mapreduce-backends.md))
 - 2026-10-22: implemented; `variance`, `count_by`, `histogram(width)`,
   `top_k(k)`, `top_k(k, by)` and `approx_distinct` are host steps of shape
   `Reduction`, each with a state combiner that equals its sequential fold, and

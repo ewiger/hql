@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-09-28
-**Source**: [typed pipeline operations](../../issues/0013-typed-pipeline-operations.md)
+**Source**: [typed pipeline operations](../../issues/archive/0013-typed-pipeline-operations.md)
 
 ## Abstract
 
@@ -355,7 +355,7 @@ separate uses listed under Open Questions.
   ([HQL-0004](../HQL-0004/README.md)). An operation type is not yet a function
   type a user operation is written at, so the `Elementwise` body check, stage
   annotations and the planner are not built
-  ([issue 0012](../../issues/0012-mapreduce-backends.md))
+  ([issue 0012](../../issues/archive/0012-mapreduce-backends.md))
 - 2026-10-22: implemented; each operation type is a function type `I -> O`
   carrying its shape, and a lambda or a program's own function bound at one
   is a user operation: an `Elementwise` piped a collection runs over each

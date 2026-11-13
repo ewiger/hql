@@ -491,4 +491,4 @@ resolved before they are.
   printed by `hql builtins`; `src/backends/` holds the `Backend` trait and
   `localhost`, selected by `--backend`, `[execution] backend` and
   `HQL_BACKEND`, reported by `hql config`, with a conformance test over every
-  registered backend ([issue 0012](../../issues/0012-mapreduce-backends.md))
+  registered backend ([issue 0012](../../issues/archive/0012-mapreduce-backends.md))

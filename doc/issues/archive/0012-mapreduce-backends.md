@@ -1,17 +1,17 @@
 # 0012 — MapReduce: pipeline stages and execution backends
 
-Status: backlog
-Decision: [HQL-0004](../proposals/HQL-0004/README.md)
+Status: done
+Decision: [HQL-0004](../../proposals/HQL-0004/README.md)
 Branch: `feat/mapreduce`, off `feat/semantic-search`
-Depends on: nothing; [0010](archive/0010-yield-and-bind.md) makes `collect` observable
+Depends on: nothing; [0010](0010-yield-and-bind.md) makes `collect` observable
 Note: the reduce side (commit 2 below) moves to
 [0013](0013-typed-pipeline-operations.md), which respecifies it against
 `Stream<T>`; rewrite this sequence when 0013 moves to `todo`.
 
-The work that carries out [HQL-0004](../proposals/HQL-0004/README.md). Read the
+The work that carries out [HQL-0004](../../proposals/HQL-0004/README.md). Read the
 proposal first; it holds the design, and this card holds only the sequence and
 what "done" means. The example that pins the intended results is already in the
-corpus: [`examples/mapreduce/`](../../examples/mapreduce/README.md), with three
+corpus: [`examples/mapreduce/`](../../../examples/mapreduce/README.md), with three
 queries at `status: proposed`.
 
 ## Sequence
@@ -54,6 +54,30 @@ makes the rest safe.
 
 ## Settle before starting
 
-The Open Questions at the end of [HQL-0004](../proposals/HQL-0004/README.md).
+The Open Questions at the end of [HQL-0004](../../proposals/HQL-0004/README.md).
 They are frozen before its status moves from `drafted` to `accepted`, and the
 proposal is accepted before this card is picked up.
+
+## Outcome
+
+Done; archived under [issue 0072](../0072-release-0.6.0.md).
+[HQL-0004](../../proposals/HQL-0004/README.md) is `implemented`, and each
+commit of the sequence is in the tree:
+
+- Shapes: a shape is a word before `fn` in the standard library's
+  declarations, checked against the extension at binding (`Shape` in
+  `src/extensions/mod.rs`) and printed by `hql builtins`.
+- The reduce side: built under [0013](0013-typed-pipeline-operations.md)
+  and its feature bundle [0014](0014-next-feature-bundle.md); every
+  `examples/mapreduce/` query is `valid-now` or `invalid`.
+- The backend seam: the `Backend` trait and `localhost` in `src/backends/`,
+  with `plan.rs` beside them.
+- Selection: `--backend`, `[execution] backend` and `HQL_BACKEND`, reported by
+  `hql config`; `config_reports_the_backend_and_an_unknown_one_fails_every_program`
+  in `tests/cli.rs`.
+- Conformance: `every_backend_agrees_with_localhost_on_every_case` in
+  `tests/corpus.rs`.
+
+A second backend is not part of this issue; the
+[planning and backends](../../public/learn/14-planning-and-backends.md)
+chapter describes it as design direction.

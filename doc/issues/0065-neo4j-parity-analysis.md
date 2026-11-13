@@ -48,7 +48,7 @@ proposal and follow-up issues; no code under `src/` changes here.
    belongs here at all.
 6. **Schema and constraints.** Uniqueness and existence constraints, and
    indexes, against contracts and validator types
-   ([0043](0043-contract-validation.md)).
+   ([0043](archive/0043-contract-validation.md)).
 7. **Graph algorithms.** What the Graph Data Science library offers
    (centrality, community detection, similarity), and which belong in an
    extension rather than the language.

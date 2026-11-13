@@ -4,7 +4,7 @@ Status: **design, partly implemented.** `filter`, `map`, `size` and `count` run
 today, sequentially. `reduce`, `group`, `collect`, the shape of a step and the
 backend that runs a program are specified by
 [HQL-0004](../../proposals/HQL-0004/README.md) and carried out by
-[issue 0012](../../issues/0012-mapreduce-backends.md). The example that pins
+[issue 0012](../../issues/archive/0012-mapreduce-backends.md). The example that pins
 the intended results is [`examples/mapreduce/`](../../../examples/mapreduce/README.md).
 
 HQL does not implement MapReduce in the Hadoop sense. The claim is narrower and

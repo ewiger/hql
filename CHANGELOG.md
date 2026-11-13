@@ -472,7 +472,7 @@ The language continues to be in active development.
   A program that passes a literal with a decimal point to a `Float`
   parameter, or mixes one with a `Float`, now writes the suffix `f`.
 - Contract rules and defaults ([HQL-0032](doc/proposals/HQL-0032/README.md);
-  [issue 0043](doc/issues/0043-contract-validation.md), shown in the
+  [issue 0043](doc/issues/archive/0043-contract-validation.md), shown in the
   [structural examples](examples/structural/README.md)): a `TypeContract` or
   `DataContract` body takes `require P` and `validate f with V` beside its
   fields, and `name: T = literal` defaults. In a rule `f?` reads an optional

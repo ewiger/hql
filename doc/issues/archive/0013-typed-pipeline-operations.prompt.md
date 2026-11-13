@@ -9,12 +9,12 @@ general typed programs, with `Stream<T>`, batching, aggregation and
 presentation, rather than one MapReduce cycle.
 
 Read `doc/memory/` first, as `CLAUDE.md` requires. Then read, in this order:
-the issue, [HQL-0005](../proposals/HQL-0005/README.md) (vocabulary),
-[HQL-0006](../proposals/HQL-0006/README.md) (`Stream<T>`),
-[HQL-0007](../proposals/HQL-0007/README.md) (`collect` and `emit`),
-[HQL-0008](../proposals/HQL-0008/README.md) (presentation), the reduce side of
-[HQL-0004](../proposals/HQL-0004/README.md), and
-[queries](../models/behavior/queries.md), which holds the collection hierarchy
+the issue, [HQL-0005](../../proposals/HQL-0005/README.md) (vocabulary),
+[HQL-0006](../../proposals/HQL-0006/README.md) (`Stream<T>`),
+[HQL-0007](../../proposals/HQL-0007/README.md) (`collect` and `emit`),
+[HQL-0008](../../proposals/HQL-0008/README.md) (presentation), the reduce side of
+[HQL-0004](../../proposals/HQL-0004/README.md), and
+[queries](../../models/behavior/queries.md), which holds the collection hierarchy
 and traversal carrier this builds on.
 
 Do not start until the four new records are `accepted`. If an Open Question in
@@ -72,5 +72,5 @@ documentation together — never code now and docs later.
 - `cargo test --locked`, `cargo clippy --locked --all-targets -- -D warnings`
   and `cargo fmt --check` are clean.
 - No document describes an implemented operation as proposed or future work.
-- Move the card to `done` in [kanban.yaml](kanban.yaml), and update issue 0012's
+- Move the card to `done` in [kanban.yaml](../kanban.yaml), and update issue 0012's
   sequence to drop the reduce side it no longer owns.
