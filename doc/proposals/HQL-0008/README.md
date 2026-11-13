@@ -33,7 +33,7 @@ a `Stream<T>` renders incrementally as values arrive.
 - The name of the category has been unsettled. "Visualization" excludes
   `markdown` and `text`, which are presentations and are not visual.
   "Representation" is the natural word for how a value is held in memory, and
-  the runtime carrier discussion in [queries](../../models/behavior/queries.md)
+  the runtime carrier discussion in [queries](../../models/behavior/queries.hmd)
   needs it for that.
 
 ## Non-goals

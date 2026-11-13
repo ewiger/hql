@@ -179,7 +179,7 @@ conversion it writes.
   zones, the time-zone database and calendar arithmetic; `sha2`, `sha1`,
   `md-5` and `blake3` for digests; `base64` for base64;
   `rand_chacha` for the seeded generator; `uuid` for UUID layout.
-  Each is added with `cargo add` per [the stack](../../stack.md).
+  Each is added with `cargo add` per [the stack](../../stack.hmd).
 - `src/main.rs`: `--now`, `--zone`, `--seed` and `--arg`.
 
 ## Test Plan

@@ -71,7 +71,7 @@ bounds — holds for every configured endpoint.
   program to hold, check or pass to a step.
 - The vault is the only source HQL has, and it is special: no source contract
   says what it is, and no second vault can sit beside it. The
-  [queries model](../../models/behavior/queries.md) tries to make it ordinary by
+  [queries model](../../models/behavior/queries.hmd) tries to make it ordinary by
   writing a function over a `vault` value. A source is not a function a program
   writes; it is a value the run context supplies, and the operations over it
   are the same for every source of a kind.
@@ -355,7 +355,7 @@ type Position : Orderable
 
 - Binding a source fetches nothing. Its contents are produced as far as a
   consumer demands, as for any lazy `Seq` or `Stream` in the
-  [queries model](../../models/behavior/queries.md).
+  [queries model](../../models/behavior/queries.hmd).
 - A concrete source type MUST narrow exactly one of `FiniteSource`,
   `StreamSource`, `LiveSource`, `Catalog` or `VaultSource`. The contract fixes what the
   source's contents are, so it is not optional.
@@ -452,7 +452,7 @@ states, and that order MUST be total. A vault's cards come in the order of a
 sorted walk ([HQL-0020](../HQL-0020/README.md)); a table by its configured
 order or its primary key. Without this, `table | take(5)`
 answers differently on two machines, which is the determinism requirement of
-the [queries model](../../models/behavior/queries.md) applied to every source
+the [queries model](../../models/behavior/queries.hmd) applied to every source
 rather than to the vault alone.
 
 **Stability.** Every use of one finite source within one evaluation MUST observe
@@ -508,7 +508,7 @@ The vault a program runs against is a source like any other.
   git revision and a remote vault.
 - `[endpoint.vault]` MUST NOT be declared; the id is the run context's.
 
-This replaces the iterating function the [queries model](../../models/behavior/queries.md)
+This replaces the iterating function the [queries model](../../models/behavior/queries.hmd)
 sketches for `cards`. Iterating functions remain a language feature in their own
 right, in [issue 0010](../../issues/archive/0010-yield-and-bind.md); `cards` does not
 depend on them.
@@ -719,7 +719,7 @@ MUST NOT appear to the program as fewer elements.
 - `src/vault.rs` — the `Vault` struct stays the filesystem vault, and becomes
   one implementation of a host-side interface that every `VaultSource` kind
   implements; that interface, like every Rust trait, stays off HQL's surface
-- `doc/models/behavior/queries.md` and issue 0010 — `cards` bound to
+- `doc/models/behavior/queries.hmd` and issue 0010 — `cards` bound to
   `vault.cards` of the source `vault`
 
 ## Test Plan

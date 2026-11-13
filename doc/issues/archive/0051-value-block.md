@@ -2,7 +2,7 @@
 
 Status: done
 Related: [HQL-0038, functions](../../proposals/HQL-0038/README.md),
-[the implemented grammar](../../models/behavior/expressions.md),
+[the implemented grammar](../../models/behavior/expressions.hmd),
 [function examples](../../../examples/functions/README.md)
 
 A function body written `{ … }` without `=` was only an iterating block of

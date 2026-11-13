@@ -59,13 +59,13 @@ YAML syntax belongs to the YAML library. Conversion to HQL `Data` is fallible:
 unsupported keys, tags, and numbers are diagnosed rather than reinterpreted.
 Invalid documents are skipped with a warning containing their source path.
 Memory sources use the same naming, parsing, and knowledge assembly as files.
-See [the stack](../../stack.md) and [data values](../data/values.md).
+See [[stack|the stack]] and [[values|data values]].
 
 ## Corpus design refinements
 
-[Program values](../behavior/program-values.md) records last-expression results,
+[[program-values|Program values]] records last-expression results,
 lexical cell environments and host-controlled presentation. The
-[knowledge model](knowledge.md) distinguishes structural links, relation cards,
+[[knowledge|knowledge model]] distinguishes structural links, relation cards,
 Knowledge, Graph and HmdGraph. These are settled design, not deferred work; what
 is deferred is the remaining *implementation*, including first-class functions
 and generated query sources. See the [corpus](../../../examples/README.md).

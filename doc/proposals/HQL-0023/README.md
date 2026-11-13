@@ -140,8 +140,8 @@ as unresolved forward links go away.
   [doc-type](../../wiki/hql/types/doc-type.hmd),
   [graph-type](../../wiki/hql/types/graph-type.hmd) and
   [card-type](../../wiki/hql/types/card-type.hmd) cards; the
-  [expressions](../../models/behavior/expressions.md) and
-  [graphs](../../models/domain/graphs.md) models; the link row of
+  [expressions](../../models/behavior/expressions.hmd) and
+  [graphs](../../models/domain/graphs.hmd) models; the link row of
   [HQL-0003](../HQL-0003/README.md); the document-name rule of
   [HQL-0011](../HQL-0011/README.md); and the learn pages under `doc/public/`.
   The spacing note for nested lists in the streams lesson is removed.

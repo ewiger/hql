@@ -43,7 +43,7 @@ Seven commits, in this order. The first changes no behaviour.
    `filter` and `take`, and the finite-input diagnostic on `size`, `count`,
    `contains` and `sort`. Existing result types unchanged.
 3. **Traversal carrier.** The push traversal described in
-   [queries](../../models/behavior/queries.md), so that a stream is not forced by
+   [queries](../../models/behavior/queries.hmd), so that a stream is not forced by
    the steps that consume it, plus an unbounded test-only source for the unit
    tests. Steps 2 and 3 land together with 0010's `yield`, which runs over
    the same carrier.
@@ -119,11 +119,11 @@ values before it is presented. Add, beside them:
 - The decisions are stated where they are owned, and nothing describes an
   implemented operation as future work:
   - `lib/std/collections/mod.hql` — `Stream<T>` and every new signature
-  - `doc/models/behavior/expressions.md` — the grammar, if `emit`/`table`
+  - `doc/models/behavior/expressions.hmd` — the grammar, if `emit`/`table`
     without parentheses or the window argument needs a production
-  - `doc/models/behavior/queries.md` — status line updated for what is now
+  - `doc/models/behavior/queries.hmd` — status line updated for what is now
     implemented
-  - `doc/models/behavior/map-reduce.md` — vocabulary, `list`, and a pipeline
+  - `doc/models/behavior/map-reduce.hmd` — vocabulary, `list`, and a pipeline
     that is not one cycle
   - `doc/wiki/hql/types/pipes.hmd` — the six terms and the sentence above
   - `doc/wiki/hql/types/collections/` — a `Stream<T>` card, separate from the

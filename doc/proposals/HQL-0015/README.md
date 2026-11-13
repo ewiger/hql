@@ -161,7 +161,7 @@ fragment, so they are stated beside their operations instead.
 ## Backwards Compatibility
 
 Additive. `:=` is new syntax and no earlier program uses it. The grammar
-notation in [the grammar](../../models/behavior/expressions.md) writes its
+notation in [the grammar](../../models/behavior/expressions.hmd) writes its
 rules with `::=`, so the notation and the language do not share a symbol.
 
 ## Reference Implementation
@@ -172,7 +172,7 @@ rules with `::=`, so the notation and the language do not share a symbol.
 - `src/builtins.rs` — the full signatures of `lib/std/`'s sugared functions
 - `lib/std/collections/mod.hql` — the longhands of the core shorthands of *Which
   shorthands are admitted*, beside their signatures
-- `doc/models/behavior/expressions.md` — the sugar rule, and `::=` for the
+- `doc/models/behavior/expressions.hmd` — the sugar rule, and `::=` for the
   notation
 
 ## Test Plan

@@ -202,7 +202,7 @@ leaves the two domains peers; that case is below.
 
 A Rust trait is a **host-language** mechanism, and none of it reaches HQL's
 surface: "Rust does it this way" is never an argument for an HQL feature — see
-[the stack scope note](../../stack.md) and [[hql/extensions]]. HQL's `trait` is
+[[stack|the stack scope note]] and [[hql/extensions]]. HQL's `trait` is
 its own construct ([HQL-0024 part 5](../../proposals/HQL-0024/parts/05-traits.md),
 [HQL-0039](../../proposals/HQL-0039/README.md)):
 a capability contract, a named set of functions over `Self` a type satisfies
@@ -400,7 +400,7 @@ Bindings infer their types from expressions. An annotation can request a
 broader view, such as `observations : Collection<String> = sightings`, but
 ordinary pipelines need none. Sorting accepts any `Collection<T>`, keeps a
 sequence's type and orders anything else into a `List<T>`, so
-`cards | sort(by = c => c.title)` directly orders the inferred card set. See the [collection model](types/collections/collection-types.md).
+`cards | sort(by = c => c.title)` directly orders the inferred card set. See the [[collection-types|collection model]].
 
 ## `<T>` abstracts
 
@@ -409,7 +409,7 @@ a type constructor and `fn first<T>(xs: Seq<T>) : T?` binds the parameter. There
 is no second spelling for binders. Square brackets stay value-level — `[alice,
 bob]` is a sequence and `xs[0]` is indexing — so an angle bracket always means
 the type world. The argument is in
-[bind versus apply](../../models/behavior/bind-vs-apply-in-generic-types.md).
+[[bind-vs-apply-in-generic-types|bind versus apply]].
 
 A generic parameter is quantified over every type: a declaration is written
 against it once, so that one declaration serves a whole family:
@@ -536,7 +536,7 @@ pow(_, _)                          // (Int, Int) -> Int
 
 Fixing arguments fills parameters, so it is application, not binding: "bind"
 names only introducing a type parameter
-([bind versus apply](../../models/behavior/bind-vs-apply-in-generic-types.md)).
+([[bind-vs-apply-in-generic-types|bind versus apply]]).
 
 Function types, function values and variadic parameters are implemented, up
 to eight parameters, and up to four for a function written `f(…) := body`. A lambda written as a value types its parameters, by
@@ -875,7 +875,7 @@ view that keeps adjacency and drops rationale. If its result is a
 Relation>` stays available as the weaker result for hosts that only draw
 pictures. Whether these are two operations or one whose result type is stronger
 than it used to be is open — see [[graph-type]] and the
-[knowledge model](../../models/domain/knowledge.md).
+[[domain/knowledge|knowledge model]].
 
 **Conflicts have to have an answer.** Two concrete parents can disagree: a
 member with the same name and different types, or a shared ancestor reached two

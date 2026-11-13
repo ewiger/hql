@@ -199,7 +199,7 @@ no CI.
 - A failing case prints which step failed, the command, and a diff of actual
   against expected output, not only a non-zero exit.
 - The full `run-all.sh` is a pre-release gate: write that into
-  `doc/DEVELOP.md`'s release steps.
+  `doc/DEVELOP.hmd`'s release steps.
 
 ## Small features
 
@@ -354,7 +354,7 @@ Set by the maintainer only. An item behind a closed gate is skipped.
   `2b939e0`
 - [x] CI workflow running `postgres`, `ledger` and `crypto` against an hql
   ref: hql-demo `4f0a946`, not yet run on GitHub
-- [x] `run-all.sh` as a pre-release gate in `doc/DEVELOP.md`: `84524f2`
+- [x] `run-all.sh` as a pre-release gate in `doc/DEVELOP.hmd`: `84524f2`
 
 ### Step 5: housekeeping
 

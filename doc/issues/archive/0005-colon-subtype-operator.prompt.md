@@ -34,7 +34,7 @@ intersection type, and do not touch the normalization rule.
 4. **Tests.** `tests/declarations.rs` carries most of the spellings. Add a case
    pinning that `<:` is now a syntax error, so the old operator cannot quietly
    come back.
-5. **Grammar** (`doc/models/behavior/expressions.md`). The `declaration` and
+5. **Grammar** (`doc/models/behavior/expressions.hmd`). The `declaration` and
    `bounds` productions both name the literal.
 6. **The rest of `doc/` and `examples/`.**
 

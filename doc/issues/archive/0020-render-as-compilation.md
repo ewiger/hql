@@ -3,8 +3,8 @@
 Status: done
 Decisions: [HQL-0008](../../proposals/HQL-0008/README.md), its section
 "Presenting into a document"
-Related: [program values](../../models/behavior/program-values.md), its section
-"HMD cell contexts"; [CLI](../../models/behavior/cli.md), its section "Documents
+Related: [program values](../../models/behavior/program-values.hmd), its section
+"HMD cell contexts"; [CLI](../../models/behavior/cli.hmd), its section "Documents
 that carry queries"
 
 `hql render` treats an `hql#eval` block as a notebook cell: it runs the block
@@ -84,7 +84,7 @@ text of another format is a fenced block with that format's info string.
    markers being idempotent, the override, failure under each mode, and the
    in-place refusal. `tests/fixtures/board.hmd` moves to the new form.
 5. **Documentation.** `README.md` (its section "Queries inside documents" and
-   the commands table), `doc/models/behavior/cli.md`,
+   the commands table), `doc/models/behavior/cli.hmd`,
    `doc/public/documents.md`, `doc/public/reference.md`, the module comment in
    `src/transclude.rs`, and the birds and mapreduce example cards that show
    `hql#result`.

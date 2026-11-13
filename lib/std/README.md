@@ -19,7 +19,7 @@ Checking a declaration is not evaluating one. A declaration yields `Step` and
 introduces no value; constructing a value of a declared record type is separate
 work. What is checked is that each declaration is coherent, and that where it
 restates a type the binary already holds it agrees with it — see
-[the grammar](../../doc/models/behavior/expressions.md).
+[the grammar](../../doc/models/behavior/expressions.hmd).
 
 `type Data = union { Scalar, Seq<Data>, Map<String, Data> }` is the one union
 here: a tree is one of its members rather than all of its parents. The binary
@@ -141,7 +141,7 @@ holds the extension's own markings to both.
 
 Generics are written with **angle brackets** in both positions — `Set<T>`,
 `Edge<S, T>` — and square brackets stay value-level. See
-[bind versus apply](../../doc/models/behavior/bind-vs-apply-in-generic-types.md).
+[bind versus apply](../../doc/models/behavior/bind-vs-apply-in-generic-types.hmd).
 
 Every declaration here appears in a card. Nothing is invented in this folder: if
 a declaration is not settled, it stays in the card as an open question until it

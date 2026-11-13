@@ -59,10 +59,10 @@ that silently lose their free names.
   c.title` checks and evaluates.
 - Implement the declaration form the design already fixes:
   `fn name<T>(x: Seq<T>) : T?`, with the function type spelled `T -> U`, as
-  [generic brackets](../../models/behavior/bind-vs-apply-in-generic-types.md)
+  [generic brackets](../../models/behavior/bind-vs-apply-in-generic-types.hmd)
   decides and `lib/std/collections/mod.hql` already writes in its operation comments.
   The spelling is not open; only its absence from
-  [the expression model](../../models/behavior/expressions.md) is, since that file
+  [the expression model](../../models/behavior/expressions.hmd) is, since that file
   records what the parser accepts.
 - Resolve a call whose callee is a bound function. `Kind::Call` currently
   demands an identifier and resolves it through the step registry, failing with

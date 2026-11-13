@@ -1,7 +1,7 @@
 # 0018 — Operator synonymy: one name, one signature
 
 Status: done (feature 1 of 0014)
-Analysis: [operation signatures compared](../../models/behavior/operation-signatures.md)
+Analysis: [operation signatures compared](../../models/behavior/operation-signatures.hmd)
 Decisions: [HQL-0004](../../proposals/HQL-0004/README.md),
 [HQL-0006](../../proposals/HQL-0006/README.md),
 [HQL-0007](../../proposals/HQL-0007/README.md)
@@ -100,9 +100,9 @@ one name, as the model intends.
 
    Work: write constructor parameters into the
    [type system](../../wiki/hql/type-system.hmd) card beside `<T>` and the
-   [bind versus apply](../../models/behavior/bind-vs-apply-in-generic-types.md)
+   [bind versus apply](../../models/behavior/bind-vs-apply-in-generic-types.hmd)
    model; write these signatures into
-   [queries](../../models/behavior/queries.md), `lib/std/collections/mod.hql`, the
+   [queries](../../models/behavior/queries.hmd), `lib/std/collections/mod.hql`, the
    registry and HQL-0006; teach the checker to bind `S` and `F<_>`; and give
    `sort` an overload for `Ranking<T>` that returns `Seq<Hit<T>>`, since a
    new order is not the retrieval's

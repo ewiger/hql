@@ -54,7 +54,7 @@ context and configuration (`~/.hql/config.toml`, the workspace `hql.toml`,
 vault and workspace discovery, installed-extension locations, named sources),
 package management, trait objects or dynamic dispatch, module-level visibility
 modifiers, or relative module imports. No host-language precedent counts as an
-argument ([the stack](../../stack.md)). Field visibility is not introduced; the
+argument ([the stack](../../stack.hmd)). Field visibility is not introduced; the
 [fields](../../wiki/hql/fields.hmd) card's position stands.
 
 ## Parts

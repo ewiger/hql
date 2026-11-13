@@ -30,7 +30,7 @@ name for `List`, and `List` stops accepting a `Set`. There is no cast.
   widening is checked before the program runs and keeps every value. A cast
   joins them under one name.
 - Concrete collection types already have constructors
-  ([expressions](../../models/behavior/expressions.md)): `Set(sightings)`
+  ([expressions](../../models/behavior/expressions.hmd)): `Set(sightings)`
   collapses duplicates in
   [`examples/birds/`](../../../examples/birds/queries/sightings.hql). `list`
   has the same signature and result as `List`, which the rule in
@@ -166,7 +166,7 @@ Set<T>(xs: Collection<T>)  : Set<T>
   `List<T>` it is an identity and copies nothing.
 - `List` MUST NOT accept a `Set<T>`: a set has no order, and a list built from
   one would expose an iteration order the
-  [collection types](../../wiki/hql/types/collections/collection-types.md)
+  [collection types](../../wiki/hql/types/collections/collection-types.hmd)
   leave unspecified. The message names `sort`, which orders a `Collection<T>`
   into a `List<T>`.
 - `List` MUST NOT accept a `Stream<T>` that is not a `Seq<T>`: the stream may
@@ -230,10 +230,10 @@ names.
 - `lib/std/collections/mod.hql` — `of_type`, and the constructor signatures
 - `doc/wiki/hql/type-interpretation.hmd` — `is`, `of_type`, widening by a
   binding, and construction
-- `doc/wiki/hql/types/collections/collection-types.md` — construction as the
+- `doc/wiki/hql/types/collections/collection-types.hmd` — construction as the
   conversion between collections
-- `doc/models/behavior/expressions.md` — the constructor in pipeline position
-- `doc/models/behavior/queries.md` — `List` in place of `list`
+- `doc/models/behavior/expressions.hmd` — the constructor in pipeline position
+- `doc/models/behavior/queries.hmd` — `List` in place of `list`
 
 ## Test Plan
 

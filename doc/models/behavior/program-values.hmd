@@ -49,5 +49,5 @@ HmdGraph are candidates. Graph is a data projection; HmdGraph is a presentation
 value; neither implicitly renders itself. Embedded evaluation should initially
 be pure; any effects need an explicit execution policy.
 
-See [corpus](../../../examples/README.md), [current grammar](expressions.md),
-and [knowledge model](../domain/knowledge.md).
+See [corpus](../../../examples/README.md), [[expressions|current grammar]],
+and [[domain/knowledge|knowledge model]].

@@ -30,7 +30,7 @@ operation.
 - Lowercase operations that build a value of one type, such as `list` and
   `graph`, are second names for that type's constructor, which the rule of
   [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md) does not admit.
-- The [expressions](../../models/behavior/expressions.md) model leaves open
+- The [expressions](../../models/behavior/expressions.hmd) model leaves open
   whether a constructor may stand where something other than a call is written.
   A pipeline step and a function argument are the two places a program needs
   one.
@@ -154,7 +154,7 @@ before, so restricting them to constructors breaks no program.
 - `lib/std/*.hql` — each constructor declared beside its type: `List`, `Set`,
   `Map`, `OrderedMap` and `SortedMap` in `collections`, `Graph` in `graph`,
   `Channel` in `io`, `Data` in `core`
-- `doc/models/behavior/expressions.md` — the two forms, replacing the open
+- `doc/models/behavior/expressions.hmd` — the two forms, replacing the open
   sentence about a constructor in other positions
 - `doc/wiki/hql/type-system.hmd` — constructors as the way a value of a type is
   built

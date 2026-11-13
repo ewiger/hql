@@ -14,7 +14,7 @@ the issue, [HQL-0005](../../proposals/HQL-0005/README.md) (vocabulary),
 [HQL-0007](../../proposals/HQL-0007/README.md) (`collect` and `emit`),
 [HQL-0008](../../proposals/HQL-0008/README.md) (presentation), the reduce side of
 [HQL-0004](../../proposals/HQL-0004/README.md), and
-[queries](../../models/behavior/queries.md), which holds the collection hierarchy
+[queries](../../models/behavior/queries.hmd), which holds the collection hierarchy
 and traversal carrier this builds on.
 
 Do not start until the four new records are `accepted`. If an Open Question in

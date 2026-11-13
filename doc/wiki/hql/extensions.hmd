@@ -29,7 +29,7 @@ how the Rust code is split into source modules is never a reason for one. An
 extension is **internal** when it is built in, its package under `lib/` and
 its code compiled into the binary, and **external** when an installed
 package, typically a Cargo crate, supplies it. Both extensions today are
-internal ([packages](../../status/packages.hmd)). The table in
+internal ([[packages]]). The table in
 `src/extensions/` still registers one entry per Rust source module, and
 `import` binds one of those entries;
 [issue 0049](../../issues/0049-one-extension-per-package.md) folds them into
@@ -220,8 +220,8 @@ workspace module is an HQL file under a module root, `hql.toml` `[modules] roots
 type tells them apart at the call, and a call that fits both is refused
 naming both ([HQL-0024](../../proposals/HQL-0024/README.md), parts 1 and 2). A vault states its own imports in
 `hql.toml`, and may decline the prelude. The rules are in
-[the grammar](../../models/behavior/expressions.md) and
-[the command line](../../models/behavior/cli.md); the decision is
+[[expressions|the grammar]] and
+[[cli|the command line]]; the decision is
 [HQL-0001](../../proposals/HQL-0001/README.md).
 
 A declaration states whether its operation is pure, `fn`, or effectful,
@@ -304,6 +304,6 @@ parsing part of the core. Native ABI versus another transport, registration,
 versioning, resource limits and capability policy remain open. This document does
 not choose a Rust plugin ABI or prescribe a trait hierarchy.
 
-See [architecture](../../models/domain/architecture.md),
-[cell environments](../../models/behavior/program-values.md) and
+See [[architecture]],
+[[program-values|cell environments]] and
 [[hql/design-status]].

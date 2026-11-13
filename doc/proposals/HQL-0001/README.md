@@ -23,11 +23,11 @@ registered in one table; no dynamic loading is introduced.
 which is retrieval. That contradicts three things the knowledge base already
 says:
 
-- [graphs](../../models/domain/graphs.md) and
-  [knowledge](../../models/domain/knowledge.md) set the layering as core → graph
+- [graphs](../../models/domain/graphs.hmd) and
+  [knowledge](../../models/domain/knowledge.hmd) set the layering as core → graph
   → knowledge, with document sources beside it. Retrieval is not the core's
   business, and neither is drawing.
-- [semantic search](../../models/requirements/semantic-search.md) states that
+- [semantic search](../../models/requirements/semantic-search.hmd) states that
   retrieval is an extension capability, not a peer domain, and mints no type.
 - [type system](../../wiki/hql/type-system.hmd), under *There are no traits*,
   settles that a *capability* is a registration the checker consults rather than

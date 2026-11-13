@@ -52,12 +52,12 @@ it compensates.
 - Documentation: the semantic-search model moves step three to done
   and records why step four is untouched; `doc/wiki/hql/extensions/semantic.hmd`
   and `lexical.hmd` exist and are real, not the zero-byte stubs currently in that
-  folder; `doc/stack.md` records the SQLite crate and a `contrib/` section;
+  folder; `doc/stack.hmd` records the SQLite crate and a `contrib/` section;
   `doc/status/inconsistencies.md` closes `INC-23`, which said an indexer
   contributes embeddings but not scores — this is that split implemented; and
   `README.md` uses the birds vault as the worked example. State each decision in
   the card or model that owns it; `doc/memory/` is for what stays undigested —
-  see its [README](../../memory/README.md).
+  see its [README](../../memory/index.hmd).
 
 ## Settle before starting
 

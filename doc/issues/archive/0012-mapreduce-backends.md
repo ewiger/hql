@@ -47,8 +47,8 @@ makes the rest safe.
   and `cargo fmt --check` are clean.
 - The decisions are stated where they are owned: `lib/std/collections/mod.hql` declares
   `Group<K, T>` and the three signatures; `doc/wiki/hql/types/pipes.hmd` says
-  what a stage is and what a backend may do; `doc/models/behavior/cli.md`
-  documents `--backend` and `[execution]`; `doc/models/domain/architecture.md`
+  what a stage is and what a backend may do; `doc/models/behavior/cli.hmd`
+  documents `--backend` and `[execution]`; `doc/models/domain/architecture.hmd`
   puts the backend in its diagram and stops saying execution is sequential
   by necessity. Use `doc/memory/` only for anything left undigested.
 

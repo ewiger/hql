@@ -8,8 +8,8 @@ HQL names its operations on several fronts at once: the implemented core that
 `hql builtins` prints, [HQL-0004](../../proposals/HQL-0004/README.md),
 [HQL-0006](../../proposals/HQL-0006/README.md) and
 [HQL-0007](../../proposals/HQL-0007/README.md), the
-[queries](queries.md) model, and the
-[type interpretation](../../wiki/hql/type-interpretation.hmd) card. This
+[[queries]] model, and the
+[[type-interpretation|type interpretation]] card. This
 document puts every declared signature side by side and compares them by
 **signature and result**, not by what the names sound like. Two operations are
 the same operation when they accept the same input, take the same arguments,
@@ -20,7 +20,7 @@ is not evidence of anything.
 
 Signatures are written as the sources write them, with the pipe input as the
 first parameter. `S` binds the input's own type and `F<_>` its constructor, as
-the [type system](../../wiki/hql/type-system.hmd) card states.
+the [[type-system|type system]] card states.
 
 ### Implemented (`hql builtins`)
 

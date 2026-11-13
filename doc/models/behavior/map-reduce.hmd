@@ -38,7 +38,7 @@ with two boundaries.
 
 ## Steps have a shape
 
-[Purity](pure-vs-effectful.md) says whether a step may move. Shape says whether it may be split, and it
+[[pure-vs-effectful|Purity]] says whether a step may move. Shape says whether it may be split, and it
 is the whole of what an executor may assume:
 
 ```text
@@ -103,7 +103,7 @@ purity of the operation the step invokes and from what the backend executes
 stage per pipeline. A backend refuses a pipeline that is not fully annotated,
 and no annotation changes a value. `hql plan` prints the plan.
 
-See [queries](queries.md) for the collection hierarchy that says which
+See [[queries]] for the collection hierarchy that says which
 reductions are legal — `size` needs finiteness, `take` needs order — and
-[pipes](../../wiki/hql/types/pipes.hmd) for the execution freedom this model
+[[pipes]] for the execution freedom this model
 gives a shape to.

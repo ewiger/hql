@@ -128,6 +128,6 @@ semantics are a separate design, recorded in [[hql/extensions]]. The extension
 should use the HMD conformance corpus plus projection tests. The present core
 has no HMD dependency and no document placeholder.
 
-See [architecture](../models/domain/architecture.md), [[hypermarkdown]] for the
+See [[architecture]], [[hypermarkdown]] for the
 format, [[doc-type]] for the document type, [[card-type]] for the card type and
 [[design-direction]] for what is still open.

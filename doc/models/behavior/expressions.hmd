@@ -235,7 +235,7 @@ implicit lifting stays beside them until the corpus no longer needs it.
 
 A pipeline step is a name or a call, and `x | f(a)` reads as "`f`, configured
 with `a`, applied to `x`". Writing a step without an input is an error that
-says so. The list is [`hql builtins`](cli.md), and it is ordinary functions
+says so. The list is [`hql builtins`](cli.hmd), and it is ordinary functions
 rather than grammar.
 
 A capitalised name in step position is a type's constructor, and the piped
@@ -289,7 +289,7 @@ is always a set of types rather than a record, which is what keeps `{A, B}` and
 accepted for anyone who writes one. `name? : Type` says the key may be absent,
 which is a claim about the shape of the containing value and not about the
 domain of the contained one — the two are different, and
-[optional fields and optional values](options-in-types-and-fields.md) says why.
+[[options-in-types-and-fields|optional fields and optional values]] says why.
 
 `= union {…}` declares a type as a choice among its members, one member per
 line or comma-separated on one. It says what the type *is*, where `:` says what
@@ -377,10 +377,10 @@ carry an order of their own. A `Card` does — its name — so a prefix of a
 ## Checking
 
 Type checking runs over the whole program before anything is evaluated. Under
-[`collect`](reporting.md) every statement is checked even after one fails, and a
+[`collect`](reporting.hmd) every statement is checked even after one fails, and a
 statement that failed still binds its name so the statements after it are
 reported on their own faults.
 
-Tests: `tests/core.rs`, `tests/vault.rs`. See [the command line](cli.md) for the
-host, [reporting](reporting.md) for what stops a run, and
-[program values](program-values.md) for the design this implements.
+Tests: `tests/core.rs`, `tests/vault.rs`. See [[cli|the command line]] for the
+host, [[reporting]] for what stops a run, and
+[[program-values|program values]] for the design this implements.

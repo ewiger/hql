@@ -81,7 +81,7 @@ nested: `{a: {:}}`.
 
 A `Set<T>` is a collection of distinct values with no positions, and a
 `Map<K, V>` one of unique keys each with a value; see the
-[collection model](types/collections/collection-types.md). `Data` is an open
+[[collection-types|collection model]]. `Data` is an open
 tree whose keys belong to whoever wrote them; see [[data-type]]. A record
 literal is not a declared record type: `{name: "Alice"}` is `Data`, and reading
 `.name` from it gives an `Option<Data>`.

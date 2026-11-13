@@ -351,7 +351,7 @@ needs `doc/public/`, which the published crate does not carry, so it runs in
 ### 6. Migration
 
 The `//` comments above `lib/std` declarations become `///` doc strings,
-rewritten to the documentation style in `doc/stack.md`.
+rewritten to the documentation style in `doc/stack.hmd`.
 
 - A doc string states semantics: the operation, the values and types it takes
   and gives, the phase, and the observable result. The term comes first, then

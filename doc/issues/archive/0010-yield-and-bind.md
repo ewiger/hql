@@ -2,7 +2,7 @@
 
 Status: done
 
-The design is [the queries model](../../models/behavior/queries.md). This issue is
+The design is [the queries model](../../models/behavior/queries.hmd). This issue is
 the work that carries it into the grammar, the type system, and the runtime.
 
 A query should start from a sequence produced by an **iterating function** — a
@@ -40,7 +40,7 @@ machine.
 Partial application is not part of this issue; it is
 [0024](0024-partial-application.md). It is a question for the
 function design, not for query sources, as the
-[queries model](../../models/behavior/queries.md) states.
+[queries model](../../models/behavior/queries.hmd) states.
 
 ## Scope
 

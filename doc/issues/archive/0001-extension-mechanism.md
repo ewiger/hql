@@ -40,10 +40,10 @@ safe to do.
 - The decisions are stated where they are owned, not in a staging note:
   `doc/wiki/hql/extensions.hmd` no longer says no extension runtime exists and
   describes the registry; `doc/wiki/hql/design-status.hmd` records the split;
-  `doc/models/behavior/cli.md` documents `import` and `[extensions]`; and
-  `doc/models/behavior/expressions.md` documents the `import` statement. Use
+  `doc/models/behavior/cli.hmd` documents `import` and `[extensions]`; and
+  `doc/models/behavior/expressions.hmd` documents the `import` statement. Use
   `doc/memory/` only for anything left undigested — see its
-  [README](../../memory/README.md).
+  [README](../../memory/index.hmd).
 
 ## Settle before starting
 

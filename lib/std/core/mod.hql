@@ -115,10 +115,10 @@ fn Duration(text: String) : Duration
 /// `Duration(hours = 1, minutes = 30)` is `PT1H30M`.
 fn Duration(*, days: Int = 0, hours: Int = 0, minutes: Int = 0, seconds: Int = 0, millis: Int = 0, nanos: Int = 0) : Duration
 
-// The collection types. See doc/wiki/hql/types/collections/collection-types.md
+// The collection types. See doc/wiki/hql/types/collections/collection-types.hmd
 // and collection.md.
 
-// See doc/models/behavior/queries.md.
+// See doc/models/behavior/queries.hmd.
 /// A value whose elements can each be visited: the bound an operation
 /// states when it only visits each value. Finiteness, order and uniqueness
 /// are not part of it.

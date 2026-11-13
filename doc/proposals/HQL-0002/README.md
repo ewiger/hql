@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-09-18
-**Source**: [semantic-search requirements](../../models/requirements/semantic-search.md)
+**Source**: [semantic-search requirements](../../models/requirements/semantic-search.hmd)
 
 ## Abstract
 
@@ -41,7 +41,7 @@ The second query is an ordinary English paraphrase of OAuth and finds nothing.
 The name is the harm, not the algorithm. A `Hit` tells every consumer that a
 model produced its score, and `hql.hashbag.v1` is not a model of meaning. A
 score is evidence for the proposition that a card is relevant to a query — the
-rule [knowledge](../../models/domain/knowledge.md) rests on — and evidence whose
+rule [knowledge](../../models/domain/knowledge.hmd) rests on — and evidence whose
 provenance misdescribes it is worse than no evidence.
 
 Two things follow, and they are separable. The lexical matcher is useful and
@@ -49,7 +49,7 @@ should keep existing under a name that describes it. `semantic` should mean what
 it says, which needs a model, which does not belong in this binary.
 
 This is step three of the path in
-[semantic search](../../models/requirements/semantic-search.md). It does not reach
+[semantic search](../../models/requirements/semantic-search.hmd). It does not reach
 step four.
 
 ## Goals
@@ -272,7 +272,7 @@ silent, and neither is fatal.
 ### 6a. The reader
 
 `rusqlite` with the `bundled` feature reads the index. Writing an SQLite reader
-by hand is exactly the significant, well-understood work `doc/stack.md` says a
+by hand is exactly the significant, well-understood work `doc/stack.hmd` says a
 crate may remove, and `bundled` compiles a pinned SQLite rather than trusting
 whichever one a machine happens to carry, which is what a committed fixture
 needs. `#![forbid(unsafe_code)]` binds this crate and is unaffected.
@@ -397,7 +397,7 @@ that ships an index needs none of the producer's dependencies to be queried.
 Wiring the producer to `hmd` is
 [issue 0011](../../issues/0011-wire-the-semantic-search-toolchain.md); the chain
 a query depends on is stated in
-[the semantic-search requirements](../../models/requirements/semantic-search.md).
+[the semantic-search requirements](../../models/requirements/semantic-search.hmd).
 
 ## Reference Implementation
 

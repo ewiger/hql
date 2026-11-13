@@ -10,8 +10,8 @@ so.
 
 Read `doc/memory/` first, as `CLAUDE.md` requires. Then read the issue, the
 section "Partial application is not part of the source model" of the
-[queries model](../../models/behavior/queries.md),
-[generic brackets](../../models/behavior/bind-vs-apply-in-generic-types.md), and
+[queries model](../../models/behavior/queries.hmd),
+[generic brackets](../../models/behavior/bind-vs-apply-in-generic-types.hmd), and
 [0022](0022-generic-functions.md).
 
 Start with step 1 of the issue and bring me the cases you found, with your

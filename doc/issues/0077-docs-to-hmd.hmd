@@ -2,7 +2,7 @@
 
 Status: doing
 Related: [[wiki/hypermarkdown]], [[hmd-integration]],
-[`doc/stack.md`](../stack.md),
+[`doc/stack.hmd`](../stack.hmd),
 [hypermarkdown issue 0009](https://github.com/ewiger/hypermarkdown/blob/main/doc/issues/0009-nested-vault-swept-into-the-outer-one.md)
 
 `doc/` is a vault, but most of it was plain Markdown: the book, the reference,

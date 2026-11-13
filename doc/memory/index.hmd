@@ -4,8 +4,8 @@
 in the knowledge base. It is a staging area, not an archive.
 
 A note belongs here only while it is undigested. Once the decision is stated in
-the place that owns it — a [wiki card](../wiki/README.md), a
-[model document](../models/), [`doc/stack.md`](../stack.md) — the note is
+the place that owns it — a [[wiki|wiki card]], a
+[model document](../models/), [`doc/stack.hmd`](../stack.hmd) — the note is
 deleted rather than kept as a record of how the decision was reached.
 
 **The current state is the source of truth.** Cards and models say what is true

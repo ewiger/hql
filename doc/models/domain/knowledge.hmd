@@ -5,9 +5,9 @@ The *implementation* is a bootstrap evaluator over Int, Float, Bool and same-typ
 addition, so nothing here is executable yet. Type syntax is illustrative.
 
 This document defines one of the two domains HQL reasons in. The other is the
-[graph model](graphs.md). They are peers rather than layers, and a type in one
+[[graphs|graph model]]. They are peers rather than layers, and a type in one
 is never a supertype of a type in the other — see
-[type system](../../wiki/hql/type-system.hmd). The graph domain is structural:
+[[type-system|type system]]. The graph domain is structural:
 nodes, edges, adjacency. This one is semantic, and everything in it is a claim
 that someone or something made.
 
@@ -54,7 +54,7 @@ is a consequence of it.
 
 ## Card is the base representation
 
-A [card](../../wiki/hql/types/card-type.hmd) gives a piece of knowledge a
+A [[card-type|card]] gives a piece of knowledge a
 physical representation. That is all `Card` says, and saying only that is the
 point: the card is the document, and what the document is *about* is declared by
 its two subtypes.
@@ -68,7 +68,7 @@ type RelationCard : Card             // its subject is a relation
 
 `ConceptCard : {Card, Concept}` is the normalized form of
 `{Card, Concept, Doc}`: `Card : Doc` already holds, so naming `Doc` again adds
-nothing — see [type system](../../wiki/hql/type-system.hmd) for the
+nothing — see [[type-system|type system]] for the
 normalization rule. Read it as the declaration it is: a concept card is a
 document, a card, and a concept, and it is `Concept` that puts it in a node
 position.
@@ -153,10 +153,10 @@ type Relation<S, T> : Edge<S, T>
 An edge has source, target and data; a relation adds identity, evidence and
 provenance. Because that identity is its own, the knowledge graph is a
 multigraph and can hold two conflicting claims about one pair — see
-[graph model](graphs.md).
+[[graphs|graph model]].
 
 Ordinary document links stay structural. They may carry data — see the
-[link operator](../../wiki/hql/operators/link-op.hmd) — but interpreting one as
+[[link-op|link operator]] — but interpreting one as
 a semantic relation requires an explicit rule and a checked contract. Building
 the knowledge graph therefore places concept cards as nodes and collects
 relations as edges, including those a relation card represents.
@@ -185,9 +185,9 @@ card's layer is not, because it exists whether or not the file said anything: it
 is assembled from the authored entries, system metadata, extension contributions,
 vault state and other derived information. Each extension contributes under a key
 named after itself, so the inputs do not contest one another; see
-[Card](../../wiki/hql/types/card-type.hmd). Both paths stay addressable, and
+[[card-type|Card]]. Both paths stay addressable, and
 a query has to know which layer it is asking about — see
-[fields](../../wiki/hql/fields.hmd).
+[[fields]].
 
 The knowledge extension then refines it:
 
@@ -260,8 +260,8 @@ relations as edges — and is still knowledge, retaining conflicting claims, pro
 constraints. Both contracts hold at once, so the projection loses nothing and
 the result can still be interrogated as knowledge rather than only drawn. A bare
 `Graph<Concept, Relation>` remains the weaker, lossy result for a host that only
-needs a picture. See [type system](../../wiki/hql/type-system.hmd) for what the
-declaration demands and [graph model](graphs.md) for the structural half.
+needs a picture. See [[type-system|type system]] for what the
+declaration demands and [[graphs|graph model]] for the structural half.
 
 Formatting writes a value as text of a presentation format — `Text`,
 `Markdown`, `Json`, `D2` and others — and changes no claim. A host may pick a
@@ -296,10 +296,10 @@ Namespace visibility and the merge rules for imported knowledge are open, and
 - Effects: constructing knowledge is pure, and contributing it to a store is
   not; the boundary has not been drawn.
 
-See [knowledge](../../wiki/hql/knowledge.hmd) for the wiki card,
-[Card](../../wiki/hql/types/card-type.hmd) for the document that carries
-knowledge, [type system](../../wiki/hql/type-system.hmd) for narrowing and
-refinement, [graph model](graphs.md) for the other domain,
-[semantic search](../requirements/semantic-search.md) for retrieval and the read path of AI
-memory, and [program values](../behavior/program-values.md) for what a program
+See [[hql/knowledge|knowledge]] for the wiki card,
+[[card-type|Card]] for the document that carries
+knowledge, [[type-system|type system]] for narrowing and
+refinement, [[graphs|graph model]] for the other domain,
+[[requirements/semantic-search|semantic search]] for retrieval and the read path of AI
+memory, and [[program-values|program values]] for what a program
 returns.

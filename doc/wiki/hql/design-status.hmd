@@ -106,8 +106,8 @@ registry with `import`, and a reporting queue. The signed 64-bit and double-prec
 Int-to-Float widening, and the addition-chain limit remain provisional
 implementation choices rather than settled language requirements. What the
 parser accepts is recorded in
-[the grammar](../../models/behavior/expressions.md); what it deliberately does
-not is in the [bootstrap requirements](../../models/requirements/bootstrap.md).
+[[expressions|the grammar]]; what it deliberately does
+not is in the [[bootstrap|bootstrap requirements]].
 
 Which findings the implemented slice settled is tracked in
 [consolidation](../../status/consolidation.md) and
@@ -119,13 +119,13 @@ outcome, not the history.
 The sources these cards were drawn from:
 
 - [[design-direction]] and the [example corpus](../../../examples/README.md).
-- [Knowledge model](../../models/domain/knowledge.md) and
-  [integration architecture](../../models/domain/architecture.md).
-- [Program values](../../models/behavior/program-values.md) and the
-  [bootstrap requirements](../../models/requirements/bootstrap.md).
-- [Bind versus apply in generic types](../../models/behavior/bind-vs-apply-in-generic-types.md),
+- [[domain/knowledge|Knowledge model]] and
+  [[architecture|integration architecture]].
+- [[program-values|Program values]] and the
+  [[bootstrap|bootstrap requirements]].
+- [[bind-vs-apply-in-generic-types|Bind versus apply in generic types]],
   which decides the bracket rule, and
-  [optional fields and optional values](../../models/behavior/options-in-types-and-fields.md),
+  [[options-in-types-and-fields|optional fields and optional values]],
   which decides `field?` against `type?`.
 
 Read those sources before changing language design. Keep unresolved alternatives

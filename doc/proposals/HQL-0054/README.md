@@ -122,7 +122,7 @@ implements the module, which is not in the prelude.
 - `src/endpoints.rs`: `[keyvault.<id>]` tables, read and checked as
   `[endpoint.<id>]` tables are.
 - `src/cli.rs`: `hql keyvault`.
-- Crates, each added with `cargo add` per [the stack](../../stack.md), pure
+- Crates, each added with `cargo add` per [the stack](../../stack.hmd), pure
   Rust, none needing a C toolchain:
 
   | Need | Crate |
@@ -134,7 +134,7 @@ implements the module, which is not in the prelude.
   socket in `src/crypto/ssh_agent.rs`, as the Thrift calls of
   `src/spark.rs` are; AWS KMS's calls and their Signature Version 4 signing
   are hand-written over `ureq` in `src/crypto/aws_kms.rs`.
-- `doc/stack.md` gains a row for key vaults.
+- `doc/stack.hmd` gains a row for key vaults.
 
 ## Test Plan
 

@@ -4,7 +4,7 @@ Status: implemented.
 
 `hql` is one host among several. It supplies a vault from outside, chooses a
 reporting mode, delivers the run's diagnostics, and decides what to do with the value a program returns — which
-is the execution context [program values](program-values.md) describes, not a
+is the execution context [[program-values|program values]] describes, not a
 privilege the language grants it.
 
 Everything but argument dispatch lives in the library, because logic only the
@@ -38,13 +38,13 @@ and a result of type `Unit` is written as nothing.
 | --- | --- |
 | `--vault <DIR>` | the namespace `cards`, traversal and retrieval run against; without it, the nearest directory at or above the current one that holds `.hmd/` or `hql.toml` |
 | `--envelope text\|json` | what the answer is wrapped in: the value alone on stdout, written in the `--to` format, or one JSON document with the type, the value and the run's diagnostics |
-| `--diagnostics-format text\|json` | the format diagnostics are delivered to stderr in: `DiagnosticText`, or one JSON document per diagnostic per line; see [reporting](reporting.md) |
+| `--diagnostics-format text\|json` | the format diagnostics are delivered to stderr in: `DiagnosticText`, or one JSON document per diagnostic per line; see [reporting](reporting.hmd) |
 | `--to <format>` | the [presentation format](../../wiki/hql/presentation.hmd) a result is written in when the program did not format it: `hql` (the default), `text`, `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2`, `mermaid`; `none` evaluates and writes no value |
 | `--from <format>` | the format standard input is read in where a program reads `stdin` and names none: `json`, `jsonlines`, `yaml`, `csv`, `lines` or `text`; a format the program names wins, and a format that is only written is refused |
 | `--compact` | a `Json` result written one document per line, as `jq -c` does; without it each document is pretty-printed, as `jq .` does |
 | `--log-level trace\|debug\|info\|warn\|error` | every logger's threshold, overriding the one it was constructed with |
-| `--report-level debug\|info\|warning\|error` | the lowest severity delivered to stderr; see [reporting](reporting.md) |
-| `--report strict\|collect` | how much continuation the run asks its phases for; see [reporting](reporting.md) |
+| `--report-level debug\|info\|warning\|error` | the lowest severity delivered to stderr; see [reporting](reporting.hmd) |
+| `--report strict\|collect` | how much continuation the run asks its phases for; see [reporting](reporting.hmd) |
 | `--backend <name>` | the execution backend that runs a checked program; see *Backends* below |
 
 The vault is found the way `hmd` finds a project: walking up from the current
@@ -63,15 +63,15 @@ one rather than quietly finding nothing. The language requires one too:
 card-ness is a place in a namespace, and a vault is a directory marked as one by
 `.hmd/` or `hql.toml`. The config file inside `.hmd/` is optional and defaults
 for it are assumed.
-See [Card](../../wiki/hql/types/card-type.hmd) and
-[the semantic-search requirements](../requirements/semantic-search.md).
+See [[card-type|Card]] and
+[[requirements/semantic-search|the semantic-search requirements]].
 
 ## Backends
 
 A checked program runs on an execution backend
 ([HQL-0004](../../proposals/HQL-0004/README.md)). The backend changes how a
 program runs and never its answer, so it is host configuration and never
-syntax, resolved with the precedence [reporting](reporting.md) uses:
+syntax, resolved with the precedence [[reporting]] uses:
 
 1. the query — `--backend <name>`
 2. the vault — `hql.toml`, `[execution] backend = "<name>"`
@@ -176,7 +176,7 @@ vault resolves — otherwise a reader told to write `import semantic` would have
 nowhere to look it up.
 
 A vault configures its own imports in `hql.toml`, beside
-[the reporting mode](reporting.md):
+[[reporting|the reporting mode]]:
 
 ```toml
 [extensions]
@@ -186,12 +186,12 @@ prelude = false          # optional; omits graph, present and format
 
 `import` here saves writing the same line at the head of every query in one
 vault; a query that travels between vaults carries its own `import` statement
-instead — see [the grammar](expressions.md). A configured import that names no
+instead — see [[expressions|the grammar]]. A configured import that names no
 registered extension, or that collides with something already imported, fails
 every program in the vault rather than failing quietly, and the diagnostic says
 it came from `hql.toml`.
 
-It also chooses, per type and [presentation format](../../wiki/hql/presentation.hmd),
+It also chooses, per type and [[presentation|presentation format]],
 the renderer that writes it, over built-in defaults:
 
 ```toml
@@ -333,11 +333,11 @@ between the markers, as a notebook cell shows one, and the exit code is still
 `1`.
 
 This is the console implementation of the direction
-[program values](program-values.md) records for `hql#eval`, `hql#query` and
+[[program-values|program values]] records for `hql#eval`, `hql#query` and
 `hql#declare`. A host that draws rather than prints — an editor extension
 showing the result inline — consumes the same value; only the presentation
 differs. `hql#declare` is not implemented, because contributing knowledge to a
-store is the effect boundary the [knowledge model](../domain/knowledge.md)
+store is the effect boundary the [[domain/knowledge|knowledge model]]
 records as undrawn.
 
 Tests: `tests/cli.rs`, `tests/transclude.rs`.

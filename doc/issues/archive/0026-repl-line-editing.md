@@ -1,7 +1,7 @@
 # 0026 — The REPL edits lines and reads multi-line input
 
 Status: done
-Related: the [CLI model](../../models/behavior/cli.md), section "The REPL"
+Related: the [CLI model](../../models/behavior/cli.hmd), section "The REPL"
 
 `hql repl` reads stdin one raw line at a time, so a terminal session has none
 of what a REPL is expected to have:

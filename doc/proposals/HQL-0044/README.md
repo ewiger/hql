@@ -2,8 +2,8 @@
 
 **Status**: implemented
 **Created**: 2026-10-25
-**Source**: the [core architecture](../../models/domain/architecture.md),
-[checking](../../models/behavior/expressions.md#checking) in the expressions
+**Source**: the [core architecture](../../models/domain/architecture.hmd),
+[checking](../../models/behavior/expressions.hmd#checking) in the expressions
 model, and `run_on` in `src/lib.rs`
 
 ## Companion notes

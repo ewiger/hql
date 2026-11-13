@@ -5,9 +5,9 @@ renderer exists. The *implementation* is a bootstrap evaluator over Int, Float,
 Bool and same-type addition. Type syntax here is illustrative.
 
 This document defines one of the two domains HQL reasons in. The other is the
-[knowledge model](knowledge.md). They are peers: neither is a layer of the
+[[knowledge|knowledge model]]. They are peers: neither is a layer of the
 other, and a type in one is not a supertype of a type in the other — the rule
-that [type system](../../wiki/hql/type-system.hmd) states. The graph domain is
+that [[type-system|type system]] states. The graph domain is
 the structural one. It knows
 nodes, edges and adjacency, and it knows nothing about meaning, truth or
 evidence.
@@ -84,11 +84,11 @@ discriminator.
 target and data; a relation has those and adds identity, evidence and
 provenance. What is *not* true is `Relation : Card`. A relation may be
 imported, derived or read from a store with no document anywhere; a
-`RelationCard` merely represents one. See [knowledge model](knowledge.md).
+`RelationCard` merely represents one. See [[knowledge|knowledge model]].
 
 ## Where edges come from
 
-**Authored links.** The [link operator](../../wiki/hql/operators/link-op.hmd)
+**Authored links.** The [[link-op|link operator]]
 writes one:
 
 ```hql
@@ -123,7 +123,7 @@ their provenance and evidence rather than merging them into one annotated edge.
 The knowledge graph is a multigraph, and the identity is the relation's own —
 which is exactly what `Relation` adds to `Edge`.
 
-[Collections](../../wiki/hql/collections.hmd) already require that set
+[[collections|Collections]] already require that set
 membership must not equate distinct claims merely because they share endpoints.
 This is that requirement with a type behind it.
 
@@ -149,7 +149,7 @@ graph.edges : Set<E>
 an ordering guarantee. Less clear is whether a graph over a vault is
 materialized at all. It may be a query a source executes — a store, a database
 or the vault index — which is the execution freedom
-[pipes](../../wiki/hql/types/pipes.hmd) already reserves for collection steps.
+[[pipes]] already reserves for collection steps.
 A traversal, subgraph or path vocabulary has not been designed, and whether it
 is ordinary functions or a separate query surface is undecided.
 
@@ -195,7 +195,7 @@ The layering is core → graph → knowledge, with document sources beside it.
   depends on HMD.
 
 An extension owns type knowledge and operations, not the data. This is the same
-boundary the [architecture](architecture.md) draws for documents.
+boundary the [[architecture]] draws for documents.
 
 ## Variance
 
@@ -217,11 +217,11 @@ graph rather than changing one.
 - **Weights, hyperedges and ordered adjacency** are not part of the model and
   have not been argued for or against.
 
-See [Graph](../../wiki/hql/types/graph-type.hmd) for the type card,
-[link operator](../../wiki/hql/operators/link-op.hmd) for the edge-writing
-syntax, [type system](../../wiki/hql/type-system.hmd) for `:`, generics and
-refinement, [knowledge model](knowledge.md) for the other domain,
-[semantic search](../requirements/semantic-search.md) for the first concrete demand on a
+See [[graph-type|Graph]] for the type card,
+[[link-op|link operator]] for the edge-writing
+syntax, [[type-system|type system]] for `:`, generics and
+refinement, [[knowledge|knowledge model]] for the other domain,
+[[requirements/semantic-search|semantic search]] for the first concrete demand on a
 traversal vocabulary, and the
 [design conversation](../../conversations/sets-n-subtypes.md) this model was
 drawn from.

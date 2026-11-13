@@ -37,7 +37,7 @@ documents that describe today's behaviour still read `typed`.
    [0015](../0015-jq-parity-analysis.md) and issue
    [0016](../0016-sql-parity-analysis.md) read `of_type(…)` where they say
    `typed(as = …)`, and the
-   [operation signatures](../../models/behavior/operation-signatures.md) inventory
+   [operation signatures](../../models/behavior/operation-signatures.hmd) inventory
    lists `is` and `of_type`.
 7. **Record interpretation is `of_type` with the structural test.** 0016's
    proposed operation, which reads a `Data` value as a declared record,

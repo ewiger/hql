@@ -1,7 +1,7 @@
 # 0054 — The website is for HQL users
 
 Status: doing
-Related: [the documentation-site rules](../stack.md),
+Related: [the documentation-site rules](../stack.hmd),
 [`mkdocs.yml`](../../mkdocs.yml), [the HQL book](../public/learn/index.md)
 
 The published site mixes the user documentation with the project's design
@@ -89,5 +89,5 @@ HQL
    extensions that provide I/O connectors, formats or retrieval — and the host
    architecture stays in the repository.
 5. **Add Guides**, starting with the tasks listed above.
-6. **State the rule** in the documentation-site section of `doc/stack.md`.
+6. **State the rule** in the documentation-site section of `doc/stack.hmd`.
    Done.

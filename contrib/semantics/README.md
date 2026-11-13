@@ -10,7 +10,7 @@ binary never invokes this tool. `cargo test` runs against the committed index
 and needs no Python at all. See
 [HQL-0002](../../doc/proposals/HQL-0002/README.md) for the schema, the text
 contract and what is out of scope, and
-[the requirements](../../doc/models/requirements/semantic-search.md) for the
+[the requirements](../../doc/models/requirements/semantic-search.hmd) for the
 chain a query depends on.
 
 `--vault` wants a vault: a directory with `.hmd/` at its root. A

@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-09-28
-**Source**: [queries](../../models/behavior/queries.md)
+**Source**: [queries](../../models/behavior/queries.hmd)
 
 ## Abstract
 
@@ -23,7 +23,7 @@ assumption.
   sources, not only queries over a vault that already sits in memory. Before
   this record every collection type in `lib/std/collections/mod.hql` was finite, so
   such a source had no type.
-- [Queries](../../models/behavior/queries.md) already designs the hierarchy
+- [Queries](../../models/behavior/queries.hmd) already designs the hierarchy
   this needs — `Iterable`, `Collection`, `Stream`, `Seq`, and a lazy traversal
   carrier — but it was a proposed model, not a decision, and nothing in the
   core depended on it.
@@ -61,7 +61,7 @@ abstract type Stream<T> : Iterable<T>
 abstract type Seq<T> : {Collection<T>, Stream<T>}
 ```
 
-`Iterable<T>` is the floor [queries](../../models/behavior/queries.md)
+`Iterable<T>` is the floor [queries](../../models/behavior/queries.hmd)
 describes: values that can be traversed, with no promise of finiteness, order
 or uniqueness. Both `Collection<T>` and `Stream<T>` are `Iterable<T>`, and it is
 the bound an operation states when it needs only to visit each value, as `map`
@@ -77,7 +77,7 @@ and `filter` do.
   value, and a stream's order is.
 - `Stream<T>` is a semantic contract, not a runtime representation. The carrier
   is the restartable traversal described in
-  [queries](../../models/behavior/queries.md), and it MUST NOT itself be named
+  [queries](../../models/behavior/queries.hmd), and it MUST NOT itself be named
   `Stream`.
 
 ### Stream is documented apart from collections
@@ -203,7 +203,7 @@ Unit tests MUST include:
 ## Open Questions
 
 - How does a live source bind? A traversal in
-  [queries](../../models/behavior/queries.md) is a factory, so two traversals
+  [queries](../../models/behavior/queries.hmd) is a factory, so two traversals
   of one value see the same elements. An event source cannot promise that.
   Recommendation: a live source is an `Effectful` operation, and a pipeline
   over it runs once, where it is written, as [HQL-0004](../HQL-0004/README.md)

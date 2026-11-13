@@ -26,7 +26,7 @@ issues, proposals and cards; nothing here restates it.
 
 1. **One signature per name** — steps 1 to 6 of
    [0018](0018-operator-synonymy-audit.md), against the
-   [operation signatures](../../models/behavior/operation-signatures.md)
+   [operation signatures](../../models/behavior/operation-signatures.hmd)
    comparison. `take`, `sort` and `map` read the same in `hql builtins`,
    `lib/std/collections/mod.hql`, the queries model and HQL-0006; "the input's kind"
    gets a written result type; the shorthand rule and tree go on the pipes
@@ -58,7 +58,7 @@ issues, proposals and cards; nothing here restates it.
    `Ordering` constants. Done, except the `Ordering` constants: `<`, `<=`,
    `>`, `>=`; `and`, `or`, `not` as reserved words; `-`, `*`, `/`, `%`, with
    truncating `Int` division. Grammar work in the
-   [expressions](../../models/behavior/expressions.md) model. Unblocks `avg`, a
+   [expressions](../../models/behavior/expressions.hmd) model. Unblocks `avg`, a
    `HAVING` threshold and every range predicate.
 4. **`is` and `of_type`** — [0021](0021-of-type-replaces-typed.md), by
    [HQL-0016](../../proposals/HQL-0016/README.md): the `is(U)` test, the

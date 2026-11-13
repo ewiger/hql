@@ -2,7 +2,7 @@
 
 **Status**: drafted
 **Created**: 2026-09-20
-**Source**: [the graph domain](../../models/domain/graphs.md)
+**Source**: [the graph domain](../../models/domain/graphs.hmd)
 
 ## Abstract
 
@@ -44,7 +44,7 @@ commit.
 
 **The design corpus does not cover the domain.** Examples are where HQL features
 are designed; a domain with no runnable example is a domain whose open questions
-never meet a value. [The graph domain](../../models/domain/graphs.md) closes on
+never meet a value. [The graph domain](../../models/domain/graphs.hmd) closes on
 six open questions — variance, endpoint resolution, horizon, merge policy,
 whether `Graph` is one type or a family, weights — and not one of them is
 currently pressed by anything a reader can run.

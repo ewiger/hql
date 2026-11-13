@@ -381,5 +381,5 @@ See [HQL-0033](../../proposals/HQL-0033/README.md) for errors as values,
 [HQL-0032](../../proposals/HQL-0032/README.md) for contracts,
 [HQL-0021](../../proposals/HQL-0021/README.md) for logging, [[match-op]] and
 [[option-type]] for absence a program handles, the
-[reporting model](../../models/behavior/reporting.md) for the host API, and
-[the command line](../../models/behavior/cli.md) for the flags.
+[[reporting|reporting model]] for the host API, and
+[[cli|the command line]] for the flags.

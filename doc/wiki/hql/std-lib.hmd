@@ -64,14 +64,14 @@ is a name no type already has, and a subtype does not turn a required field
 optional — and that where a declaration restates a type the binary already
 holds, the two agree. `type Card : Doc` checks; `type Card : Edge` is refused
 as a contradiction. The rules are in
-[the grammar](../../models/behavior/expressions.md).
+[[expressions|the grammar]].
 
 That agreement is the point of the folder. `lib/std/` is not a second opinion about
 the type lattice; it is the lattice written down where a reader can find it,
 and a file that drifts from the binary now fails rather than going unread.
 
 A standard library was a bootstrap non-goal in
-[requirements](../../models/requirements/bootstrap.md). It now ships one:
+[[bootstrap|requirements]]. It now ships one:
 the receiver modules of the prelude, `string` over `String`, `seq` over
 `Seq<T>`, `option` and `result`, `math` and `regex`, each a contract in `lib/std/`
 with its implementation in the binary.

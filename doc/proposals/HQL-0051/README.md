@@ -276,7 +276,7 @@ fn configured(id: String) : Transport
 
 Names considered and not taken: `endpoint("id")`, because a lowercase
 spelling of a type names its constructor
-([the grammar](../../models/behavior/expressions.md), "Steps") and
+([the grammar](../../models/behavior/expressions.hmd), "Steps") and
 `Endpoint` is abstract; `Endpoint("id")`, because an abstract type has no
 constructor ([HQL-0018](../HQL-0018/README.md)); a string id in the
 participant set, `on {"accounts", "transfers"}`, because a `Set<String>` has
@@ -322,7 +322,7 @@ with transaction tx on accounts { … }   // the set of one
 
 A heterogeneous set has no type today: the checker's common type of two
 declared types is one of them or `Data`, never a shared ancestor
-([the grammar](../../models/behavior/expressions.md), "Type declarations"),
+([the grammar](../../models/behavior/expressions.hmd), "Type declarations"),
 so `{accounts, ledger_file}` with a `Postgres` and a `Sqlite` is "no common
 type" before this record's rule is reached. The rule above refuses the set
 either way; whether a brace literal with an annotation
@@ -360,7 +360,7 @@ with transaction tx on ledger {
   it is a binding of the block, of type `Transaction`, in scope from the
   block's first line to its last and nowhere after.
 - The block's statements MUST run in program order, each effectful one once,
-  where it is written ([pure and effectful](../../models/behavior/pure-vs-effectful.md)).
+  where it is written ([pure and effectful](../../models/behavior/pure-vs-effectful.hmd)).
   A mutation is effectful. A pure step between two effectful statements may
   be moved as any pure step may; no rewrite crosses an effectful statement.
 - The block MAY end in an expression. Where it does, that expression's

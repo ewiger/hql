@@ -1,6 +1,6 @@
 # Queries: traversal, sequences, generators, and bound sources
 
-Status: **proposed design; not implemented.** Nothing here is yet part of the grammar recorded in [expressions.md](expressions.md). The design depends on function types ([issue 0009](../../issues/archive/0009-function-type-and-constructor.md)) and builds on `cards` being an ordinary bound value ([issue 0008](../../issues/archive/0008-cards-as-a-vault-binding.md), done).
+Status: **proposed design; not implemented.** Nothing here is yet part of the grammar recorded in [[expressions|expressions.md]]. The design depends on function types ([issue 0009](../../issues/archive/0009-function-type-and-constructor.md)) and builds on `cards` being an ordinary bound value ([issue 0008](../../issues/archive/0008-cards-as-a-vault-binding.md), done).
 
 A query does not have one privileged source type. A pipeline receives a value, and each step states the weakest property it needs from that value.
 
@@ -177,7 +177,7 @@ fn filter<S : Iterable<T>, T>(xs: S, f: T -> Bool) : S
 fn map<F<_> : Iterable<_>, T, U>(xs: F<T>, f: T -> U) : F<U>
 ```
 
-A stream maps to a stream, a sequence to a sequence, a set to its image. `S` binds the input's own type and `F<_>` its constructor; the [type system](../../wiki/hql/type-system.hmd) card states both.
+A stream maps to a stream, a sequence to a sequence, a set to its image. `S` binds the input's own type and `F<_>` its constructor; the [[type-system|type system]] card states both.
 
 ## Finiteness belongs to `Collection<T>`
 
@@ -546,7 +546,7 @@ cards
 ```
 
 The function design writes it with a hole, `cards | sort(by =
-distance_to(here, _))`; the [type system](../../wiki/hql/type-system.hmd) card
+distance_to(here, _))`; the [[type-system|type system]] card
 states it, section "Function types". It is never called binding, which names
 introducing a type parameter.
 

@@ -30,7 +30,7 @@ nobody made.
   execution plan the same object, which is exactly what a planner must be free
   to change: fusing `filter | map` into one traversal would, under that wording,
   delete a stage from the program.
-- [map/reduce for queries](../../models/behavior/map-reduce.md) and the
+- [map/reduce for queries](../../models/behavior/map-reduce.hmd) and the
   [pipes](../../wiki/hql/types/pipes.hmd) card inherit that wording, and the
   `examples/mapreduce/` comments say "three stages" for three steps.
 - The Rust registry entry is called `Step` (`src/extensions/mod.rs`), but it is
@@ -295,7 +295,7 @@ change; see Open Questions.
 - `src/cli.rs` — `hql plan`
 - `doc/wiki/hql/types/pipes.hmd` — states the six terms and the sentence in the
   Abstract; stops calling a step a stage
-- `doc/models/behavior/map-reduce.md`, `doc/proposals/HQL-0004/README.md` —
+- `doc/models/behavior/map-reduce.hmd`, `doc/proposals/HQL-0004/README.md` —
   "stage" becomes "step" wherever it names an occurrence; "region" becomes
   "pipeline"
 - `doc/wiki/hql/presentation.hmd` — "a presenter is a terminal stage" becomes
@@ -326,10 +326,10 @@ separate uses listed under Open Questions.
 ## Open Questions
 
 - Does the diagnostic field `stage` in `--envelope json`
-  ([reporting](../../models/behavior/reporting.md)) become `phase`? It names
+  ([reporting](../../models/behavior/reporting.hmd)) become `phase`? It names
   parse/check/evaluate, not a planner unit; keeping it leaves a third meaning of
   the word in a public format, and renaming it is a wire change.
-- Does vault assembly, which [architecture](../../models/domain/architecture.md)
+- Does vault assembly, which [architecture](../../models/domain/architecture.hmd)
   describes as coordinated "stages", adopt "phases" as well, so that the
   reservation holds across the whole knowledge base?
 - Is purity part of the reserved operation type (`Elementwise<I, O>` versus an

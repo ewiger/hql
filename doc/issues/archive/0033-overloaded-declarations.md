@@ -4,7 +4,7 @@ Status: done
 Related: [0030](0030-hql-only-signature-authority.md),
 [0018](0018-operator-synonymy-audit.md),
 [the extensions card](../../wiki/hql/extensions.hmd),
-[operation signatures](../../models/behavior/operation-signatures.md)
+[operation signatures](../../models/behavior/operation-signatures.hmd)
 
 A name declared more than once in a `lib/std/` module is one operation with
 several signatures, and a call takes the first declaration its input and its

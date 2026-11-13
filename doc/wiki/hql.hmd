@@ -23,5 +23,5 @@ knowledge rather than the one written in a particular format. See
 
 The working bootstrap evaluates Int, Float and Bool literals and same-type
 addition. It has no knowledge-source integration yet. See the
-[system declarations](../models/requirements/bootstrap.md) and
+[[bootstrap|system declarations]] and
 [[hql/design-status]] for what is designed but not built.

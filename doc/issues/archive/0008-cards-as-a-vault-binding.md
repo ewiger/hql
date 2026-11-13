@@ -46,7 +46,7 @@ name has no reason to be unnameable.
   `Value::set` in the evaluator's. A vault that is not present seeds nothing.
 - Build the set once at seeding rather than on each mention. Today every
   occurrence of `cards` rebuilds it; a pipeline that names it twice pays twice.
-- Update the grammar in [the expression model](../../models/behavior/expressions.md),
+- Update the grammar in [the expression model](../../models/behavior/expressions.hmd),
   which lists `"cards"` as a primary alternative beside `ident`.
 
 ## The diagnostic to preserve

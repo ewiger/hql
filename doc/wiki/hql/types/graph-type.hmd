@@ -201,7 +201,7 @@ builds a new one, which is what keeps this sound — see [[type-system]].
   traversal, subgraph selection and path queries are functions over it or a
   separate query vocabulary.
 
-See the [graph model](../../../models/domain/graphs.md) for the domain this card
+See the [[graphs|graph model]] for the domain this card
 types, [[link-op]] for the edge-writing operator, [[type-system]] for what `:`
 does and does not cover, [[card-type]] for `Card` and its two kinds, [[hql/knowledge]] for the semantic universe, [[hql/collections]] for
 the node and edge collections and [[hql/design-status]] for what remains

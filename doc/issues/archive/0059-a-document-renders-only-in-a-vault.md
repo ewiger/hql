@@ -2,7 +2,7 @@
 
 Status: done
 Related: [HQL-0045](../../proposals/HQL-0045/README.md),
-[the command line](../../models/behavior/cli.md),
+[the command line](../../models/behavior/cli.hmd),
 [`src/cli.rs`](../../../src/cli.rs), [`src/vault.rs`](../../../src/vault.rs)
 
 A HyperMarkDown document is a card of a vault: its cells read `cards`, link

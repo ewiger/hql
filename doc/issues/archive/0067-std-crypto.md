@@ -39,7 +39,7 @@ and its order against that issue is part of the decision.
   decrypts inside it, how the store is unlocked, and which backends it
   reads: a local encrypted file, the operating system keychain, an SSH or
   GPG agent, and a cloud key manager as a configured source.
-- The Rust crates that implement it, under [`doc/stack.md`](../../stack.md).
+- The Rust crates that implement it, under [`doc/stack.hmd`](../../stack.hmd).
 
 ## Done when
 

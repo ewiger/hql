@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-10-18
-**Source**: [program values](../../models/behavior/program-values.md), its
+**Source**: [program values](../../models/behavior/program-values.hmd), its
 section "HMD cell contexts"; issue
 [0020](../../issues/archive/0020-render-as-compilation.md)
 
@@ -39,7 +39,7 @@ and what it depends on, which is the interface an editor extension drives.
 - **No references across documents.** A cell reads cells of its own document.
   `[[card#cell]]` is a later decision.
 - **No effects.** `hql#declare` and every other cell that changes a store stay
-  out of scope, as the [knowledge model](../../models/domain/knowledge.md)
+  out of scope, as the [knowledge model](../../models/domain/knowledge.hmd)
   records.
 - **No kernel.** No process keeps state between runs. A host MAY cache values
   under the rules in the section "Hashes and staleness"; the cache never changes
@@ -79,7 +79,7 @@ cards | filter(c => c.metadata.status == "todo")
 ### 2. Cell scope
 
 A cell is a closure over the card environment, as
-[program values](../../models/behavior/program-values.md) records: `this:
+[program values](../../models/behavior/program-values.hmd) records: `this:
 Card`, the header's imports, and the card-level bindings. This record adds the
 cell values.
 
@@ -238,7 +238,7 @@ by the same limits as one program of the same total size.
 - `src/checker` and `src/execution`: checking and evaluating a cell in an
   environment extended with typed cell values
 - `src/cli.rs`: `--cell`, and the JSON record under `--envelope json`
-- `doc/models/behavior/program-values.md`: the section "HMD cell contexts"
+- `doc/models/behavior/program-values.hmd`: the section "HMD cell contexts"
   states the scope and order rules and drops them from what it lists as open
 
 ## Test Plan
@@ -277,7 +277,7 @@ cargo test --test transclude --test cli
 - 2026-10-19: implemented: ids, cell scope over the cell values, dependency
   order, skipping, saved outputs with hashes, `--cell` and the JSON record.
   The card environment a cell closes over, `this: Card` and card-level
-  bindings, is the [program values](../../models/behavior/program-values.md)
+  bindings, is the [program values](../../models/behavior/program-values.hmd)
   model's and is not built.
 - 2026-10-19: the reference implementation and test plan name
   `src/transclude.rs` and `--envelope json`, where the cell graph and the JSON

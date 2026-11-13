@@ -39,7 +39,7 @@ typing contexts.
 - The supertype position and the `where` bound both read `Token::Colon` —
   `type SortedMap<K, V> : OrderedMap<K, V> where K : Orderable`.
 - `lib/std/`, the examples, the tests, and the grammar in
-  [expressions](../../models/behavior/expressions.md) take the new spelling.
+  [expressions](../../models/behavior/expressions.hmd) take the new spelling.
 - [type-system](../../wiki/hql/type-system.hmd) is rewritten to state the
   one-symbol rationale rather than to contrast two symbols.
 - **Not a semantic change.** What a declaration means, what a supertype set

@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-09-20
-**Source**: [map/reduce for queries](../../models/behavior/map-reduce.md)
+**Source**: [map/reduce for queries](../../models/behavior/map-reduce.hmd)
 **Amended by**: [HQL-0005](../HQL-0005/README.md) (a step is not a stage),
 [HQL-0007](../HQL-0007/README.md) (`collect` batches; materialization is the `List` constructor)
 
@@ -32,11 +32,11 @@ consuming the promise:
   fusion, source-side query execution and partitioned work" as executor
   options, and [HQL-0001](../HQL-0001/README.md) gave every step a `Purity`
   because that freedom is only safe over pure steps.
-- [architecture](../../models/domain/architecture.md) states: "Execution is
+- [architecture](../../models/domain/architecture.hmd) states: "Execution is
   still sequential: a planner, parallel scheduling, and backend pushdown are
   future consumers of the typed execution boundary." There is a boundary and
   no consumer.
-- [map/reduce for queries](../../models/behavior/map-reduce.md) says the pipe
+- [map/reduce for queries](../../models/behavior/map-reduce.hmd) says the pipe
   is a map/reduce-like execution boundary and that a chain of pipes "forms a
   query execution region". It is the only place the idea lives, and it is a
   note rather than a decision.
@@ -285,7 +285,7 @@ Backend
   arrives into a test rather than writing one.
 
 Selection is host configuration, with the precedence
-[reporting](../../models/behavior/reporting.md) already uses:
+[reporting](../../models/behavior/reporting.hmd) already uses:
 
 1. the query — `--backend <name>`
 2. the vault — `hql.toml`, `[execution] backend = "<name>"`
@@ -464,7 +464,7 @@ resolved before they are.
   the same value with different execution freedom, which is defensible and
   also surprising.
 - Does `localhost` materialize between steps, or is push traversal
-  ([queries](../../models/behavior/queries.md)) a property of `localhost`
+  ([queries](../../models/behavior/queries.hmd)) a property of `localhost`
   rather than of a lazier backend? `localhost` is defined by its result, so
   either is conformant; the question is which one the name promises.
 - Is the failure rule — the earliest failing position, always — too strong for

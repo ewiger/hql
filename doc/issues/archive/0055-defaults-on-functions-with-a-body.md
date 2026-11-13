@@ -25,7 +25,7 @@ defaults out until this is resolved.
 
 1. Decide between the two: admit a default on a function with a body, as
    HQL-0038 states, or narrow HQL-0038 and the grammar in
-   `doc/models/behavior/expressions.md` to external declarations.
+   `doc/models/behavior/expressions.hmd` to external declarations.
 2. If admitted: `src/parser.rs` drops the refusal; the checker types the
    default against its parameter and fills an omitted trailing argument at
    the call; an alias, a hole and a receiver call over such a function are
@@ -48,6 +48,6 @@ it to (issue 0072): **narrow**. A default stays on external declarations only.
   filled at the call, through aliases, holes and receiver calls) for no
   release need.
 - HQL-0038's rule now says so, with a changelog line. The grammar in
-  `doc/models/behavior/expressions.md` already wrote `param` without a
+  `doc/models/behavior/expressions.hmd` already wrote `param` without a
   default. The Learn page "Declaring a function" says it in "Every argument
   is passed".

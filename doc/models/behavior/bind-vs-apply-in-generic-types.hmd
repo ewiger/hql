@@ -46,7 +46,7 @@ the result is a `Card?`.
 "Bind" names only the first operation. Supplying some of a function's value
 arguments fills parameters, so it is application, and it is never called
 binding: partial application is written with a hole, `f(a, _)`
-([type system](../../wiki/hql/type-system.hmd), section "Function types").
+([[type-system|type system]], section "Function types").
 
 ## Binding a constructor
 
@@ -55,7 +55,7 @@ type. `_` stands for that argument and appears only in a binder and its bound:
 `F<_> : Iterable<_>` reads "for every `X`, `F<X> : Iterable<X>`". Inside the
 signature `F` is applied like any constructor, `F<T>` and `F<U>`. The angle
 brackets keep their one meaning, the type world; `_` marks the position a
-binder leaves open. The [type system](../../wiki/hql/type-system.hmd) card
+binder leaves open. The [[type-system|type system]] card
 states what the two kinds of parameter promise.
 
 ## Why angle brackets
@@ -111,7 +111,7 @@ card.metadata.concepts : List<Concept>
 cannot simply be respelled — it needs a semantic choice between `Seq<Concept>`
 and `Set<Concept>`. That choice follows from whether the order of a card's
 concepts carries information, which is a question about what `concepts` means.
-It was therefore left unresolved in [Card](../../wiki/hql/types/card-type.hmd)
+It was therefore left unresolved in [[card-type|Card]]
 rather than settled in passing.
 
 The separation matters more than the bracket choice itself: a syntax migration
@@ -119,10 +119,10 @@ that quietly decides semantics leaves no record that a decision was made.
 
 ## Consequences
 
-- [type-system](../../wiki/hql/type-system.hmd) states the rule and no longer
+- [[type-system]] states the rule and no longer
   lists bracket style as an open question.
-- [core](../../wiki/hql/core.hmd) and
-  [design-status](../../wiki/hql/design-status.hmd) restate it; the vocabulary
+- [[core]] and
+  [[design-status]] restate it; the vocabulary
   tables are `Set<T>`, `Seq<T>`, `Map<K, V>`.
 - Carrying the spelling through every file is tracked as `CON-13` in
   [consolidation](../../status/consolidation.md). The example corpus is not in
@@ -135,15 +135,15 @@ that quietly decides semantics leaves no record that a decision was made.
 
 - **`List` versus `Seq` versus `Set`** at any particular site, including
   `card.metadata.concepts` — `INC-05` and the note on
-  [Card](../../wiki/hql/types/card-type.hmd).
+  [[card-type|Card]].
 - **Whether type arguments are ever written at a call site.** `validate<Person>(card)`
   is one candidate spelling for explicit application; inference is the other.
-  [type-system](../../wiki/hql/type-system.hmd) records that as open.
+  [[type-system]] records that as open.
 - **Bound syntax.** `fn show<T, R>(x: T) where T : Renderable<R>` and the
   inlined `fn show<T : Renderable<R>, R>(x: T)` are both open; that the
   relation is spelled `:` in either is not.
 
-See [type-system](../../wiki/hql/type-system.hmd) for generics and subtyping,
-[collections](../../wiki/hql/collections.hmd) for the collection vocabulary, and
-[optional fields and optional values](options-in-types-and-fields.md) for the
+See [[type-system]] for generics and subtyping,
+[[collections]] for the collection vocabulary, and
+[[options-in-types-and-fields|optional fields and optional values]] for the
 other spelling question settled alongside this one.

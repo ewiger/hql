@@ -17,8 +17,8 @@ Status: bootstrap implemented; the language design continues beyond it.
   over a vault of documents; the card family; semantic retrieval and graph
   traversal; a reporting queue with configurable modes; and a command-line host
   with `run`, `repl`, `render`, standard input and JSON output. See
-  [the grammar](../behavior/expressions.md), [the CLI](../behavior/cli.md) and
-  [reporting](../behavior/reporting.md).
+  [[expressions|the grammar]], [[cli|the CLI]] and
+  [[reporting]].
 - Failures must be diagnostics, not panics or silent arithmetic wrapping.
 - Rust edition 2024, cargo, clap derive, tests, and the grem knowledge structure
   are the bootstrap stack. Preserve the generated dormant control layer.
@@ -32,8 +32,8 @@ no persistence and no `hql#declare` — editor integration, and a complete
 language specification.
 
 The original list also named graphs, a Card runtime, pipelines and functions.
-Those are now implemented at the level [the grammar](../behavior/expressions.md)
+Those are now implemented at the level [[expressions|the grammar]]
 records, which is a working subset and not the designed language.
 
-See [architecture](../domain/architecture.md), [expression behavior](../behavior/expressions.md),
-and [design direction](../../wiki/design-direction.hmd).
+See [[architecture]], [[expressions|expression behavior]],
+and [[design-direction|design direction]].

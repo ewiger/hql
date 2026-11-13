@@ -55,7 +55,7 @@ line stays `done`, and its number is not reused. Links to it from elsewhere
 follow it into `archive/`.
 
 The archive is a lane of its own in
-[the Kanban status](../status/kanban-status.hmd): counted beside the four
+[[kanban-status|the Kanban status]]: counted beside the four
 columns and listed under its own heading, but not a column of the board.
 
 ## Place in the knowledge base

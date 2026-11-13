@@ -360,7 +360,7 @@ fn cards_and_traversal_say_they_need_a_vault_rather_than_finding_nothing() {
 #[test]
 fn generics_are_written_with_angle_brackets() {
     // An angle bracket always means the type world; a square bracket stays
-    // value-level. See doc/models/behavior/bind-vs-apply-in-generic-types.md.
+    // value-level. See doc/models/behavior/bind-vs-apply-in-generic-types.hmd.
     assert_eq!(check("@[[alice]]").unwrap().to_string(), "Option<Card>");
     assert_eq!(
         check("@[[alice]].header").unwrap().to_string(),

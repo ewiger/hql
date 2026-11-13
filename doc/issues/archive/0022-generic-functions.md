@@ -5,7 +5,7 @@ Source: [0009](0009-function-type-and-constructor.md), which implemented
 monomorphic `fn` declarations
 
 `fn first<T>(xs: Seq<T>) : Option<T>` is the declaration form
-[generic brackets](../../models/behavior/bind-vs-apply-in-generic-types.md)
+[generic brackets](../../models/behavior/bind-vs-apply-in-generic-types.hmd)
 fixes. The checker refuses a declaration with type parameters today, because
 it has no type variable: every `TypeRef` names a constructor the built-in
 registry holds.

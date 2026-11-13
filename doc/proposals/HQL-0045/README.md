@@ -7,7 +7,7 @@
 (validation and diagnostic transport are separate), [HQL-0021 section 10](../HQL-0021/README.md#10-channels)
 (channels), [HQL-0044](../HQL-0044/README.md) (the phases), the
 [error-handling card](../../wiki/hql/error-handling.hmd), the
-[reporting model](../../models/behavior/reporting.md), `src/diagnostics.rs`,
+[reporting model](../../models/behavior/reporting.hmd), `src/diagnostics.rs`,
 `src/reporting.rs`, `src/warnings.rs`, `src/io.rs` and `emit` in `src/cli.rs`
 
 ## Companion notes

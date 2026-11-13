@@ -1,6 +1,6 @@
 # Develop
 
-How to build, check and run HQL from a clone. [The stack](stack.md) says how the
+How to build, check and run HQL from a clone. [[stack|The stack]] says how the
 code is written; this page says how to work on it.
 
 ## Prerequisites

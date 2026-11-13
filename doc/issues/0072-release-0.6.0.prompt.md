@@ -11,8 +11,8 @@ Carry out [issue 0072](0072-release-0.6.0.md): bring HQL from 0.5.2 to a
 2026-11-13 audit fixed, the small features finished, and the knowledge base
 telling the truth about what is built.
 
-Read `doc/memory/` first, as `CLAUDE.md` requires, then `doc/stack.md`,
-`doc/DEVELOP.md`, the issue, and the issues and proposals it names as you
+Read `doc/memory/` first, as `CLAUDE.md` requires, then `doc/stack.hmd`,
+`doc/DEVELOP.hmd`, the issue, and the issues and proposals it names as you
 reach them. Ignore `.grem/**`.
 
 ## How to work

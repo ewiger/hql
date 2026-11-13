@@ -4,7 +4,7 @@ site_description: Hyper Query Language — a strongly typed language for queryin
 # Served from GitHub Pages under a custom domain. The build does not need this —
 # MkDocs emits relative links — but canonical URLs and `sitemap.xml` are wrong
 # without it. The domain itself is a DNS record plus the repository's Pages
-# setting; see the documentation-site section of `doc/stack.md`.
+# setting; see the documentation-site section of `doc/stack.hmd`.
 site_url: https://hql-lang.org/
 
 repo_url: https://github.com/ewiger/hql
@@ -75,7 +75,7 @@ plugins:
       root: doc/public
       build_nav: false
   # Each release is published under its version, `/vX.Y.Z/`, and `latest`
-  # is the newest; see the documentation-site section of `doc/stack.md`.
+  # is the newest; see the documentation-site section of `doc/stack.hmd`.
   - mike:
       alias_type: redirect
       canonical_version: latest
@@ -262,7 +262,7 @@ extra:
 extra_css:
   - assets/hql.css
 
-# A miss is reported rather than fatal; `doc/stack.md` asks public pages to
+# A miss is reported rather than fatal; `doc/stack.hmd` asks public pages to
 # link to the repository by URL, so a miss is a page to fix.
 validation:
   links:

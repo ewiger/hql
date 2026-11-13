@@ -108,6 +108,6 @@ Implemented: value arms over `Option`, `Bool`, `Int`, `Float`, `Decimal` and `St
 without `otherwise`. `Result` arms wait for `Result`, and the type arm of
 [[type-interpretation]] is separate work. A string or number pattern also fits
 a `Data` leaf with that value. See [[option-type]] for absence,
-[optional fields and optional values](../../../models/behavior/options-in-types-and-fields.md)
+[[options-in-types-and-fields|optional fields and optional values]]
 for `Option` and `Result` and their operations, and
 [[error-handling]] for the errors that are not values at all.

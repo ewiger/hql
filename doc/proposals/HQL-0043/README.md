@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-10-25
-**Source**: the documentation-site section of [`doc/stack.md`](../../stack.md),
+**Source**: the documentation-site section of [`doc/stack.hmd`](../../stack.hmd),
 [issue 0054](../../issues/0054-user-facing-website.md), and
 [HQL-0042](../HQL-0042/README.md), whose doc strings these pages publish
 
@@ -17,7 +17,7 @@ built once from the release tag by mike; `/latest/` is the newest release.
 Cutting a release updates the reference pages from the doc strings in
 `lib/std`, publishes them as that version, and moves `/latest/` to it. A URL
 that an `hql` binary prints names its own version. This replaces the
-"latest release only, no archive" rule in `doc/stack.md` and the matching
+"latest release only, no archive" rule in `doc/stack.hmd` and the matching
 scope of issue 0054.
 
 ## Motivation
@@ -180,7 +180,7 @@ For a release `X.Y.Z`:
 - Between releases, `main`'s pages may lag its doc strings. Nothing is
   published from `main`, so a reader sees only pages a release checked.
 
-### 5. What changes in `doc/stack.md`
+### 5. What changes in `doc/stack.hmd`
 
 In the documentation-site section:
 
@@ -231,8 +231,8 @@ before the commit, the `build` job gains `hql reference --check`, and a
 1. `hql reference` and `--check`, and the reference pages it creates.
 2. mike, the `docs` job and the `--check` step in `release.yml`; switch the
    Pages source to `gh-pages`. The next release is the first versioned one.
-3. Update `doc/stack.md` and issue 0054 as
-   [What changes in `doc/stack.md`](#5-what-changes-in-docstackmd) and
+3. Update `doc/stack.hmd` and issue 0054 as
+   [What changes in `doc/stack.hmd`](#5-what-changes-in-docstackmd) and
    [What changes in issue 0054](#6-what-changes-in-issue-0054) state.
 
 ## Reference Implementation
@@ -245,7 +245,7 @@ before the commit, the `build` job gains `hql reference --check`, and a
   `not_in_nav`.
 - **Versioned publishing** — `pyproject.toml` and `uv.lock` (mike),
   `mkdocs.yml` (plugin and `extra.version`), `release.yml` (`--check` in
-  `build`, the `docs` job, `CNAME`), the Pages source setting, `doc/stack.md`,
+  `build`, the `docs` job, `CNAME`), the Pages source setting, `doc/stack.hmd`,
   issue 0054.
 
 ## Test Plan

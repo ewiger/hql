@@ -21,7 +21,7 @@ HQL-0045 is implemented in part. This issue carries the rest.
    document.
 5. `DiagnosticText` a format a program can name, beside `Json`.
 6. The [error-handling card](../../wiki/hql/error-handling.hmd), the
-   [reporting model](../../models/behavior/reporting.md) and `cli.md` rewritten
+   [reporting model](../../models/behavior/reporting.hmd) and `cli.md` rewritten
    to the terminology of HQL-0045 (unit 11).
 
 Each lands with a case or a session under `examples/error-handling/` written

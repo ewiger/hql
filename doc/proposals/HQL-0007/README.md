@@ -174,7 +174,7 @@ The API leaves room for three forms; only the first is implemented.
 
 No `examples/mapreduce/` case used `collect` as materialization.
 [HQL-0004](../HQL-0004/README.md) and
-[map/reduce for queries](../../models/behavior/map-reduce.md) write `List` for
+[map/reduce for queries](../../models/behavior/map-reduce.hmd) write `List` for
 it. `emit` and `flat_map` are new names, read only after `|` or
 called directly, so they neither collide with nor shadow a binding.
 
@@ -215,7 +215,7 @@ Unit tests MUST include:
 - Should `emit` generalize to `Stream<Collection<T>>`? It would have to drop to
   an unordered result type, `Iterable<T>`, for set elements.
 - What is the named argument for a duration? `for` reads well but is the
-  iteration keyword in [queries](../../models/behavior/queries.md); `within` and
+  iteration keyword in [queries](../../models/behavior/queries.hmd); `within` and
   `every` avoid the collision.
 - A time window depends on a clock, so its batches are not a function of the
   input alone. Is a time-windowed `collect` `Effectful`, or is the clock an

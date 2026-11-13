@@ -5,7 +5,7 @@ Status: implemented.
 A run produces a value and the contents of its **diagnostic channel**
 ([HQL-0045](../../proposals/HQL-0045/README.md)). What a diagnostic is, its
 four axes and its fields, is the
-[error-handling card](../../wiki/hql/error-handling.hmd). This model is the
+[[error-handling|error-handling card]]. This model is the
 host's side: the channel, the outcome, the mode and level, and delivery.
 
 ## The channel and the outcome
@@ -104,4 +104,4 @@ was read from, and puts the document's path before a cell's `#cell`.
 
 Tests: `tests/reporting.rs`, `tests/cli.rs`, and the sessions under
 [`examples/error-handling/`](../../../examples/error-handling/README.md). See
-[the command line](cli.md).
+[[cli|the command line]].

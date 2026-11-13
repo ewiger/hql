@@ -51,7 +51,7 @@ what makes `Data` the type for querying them.
   so `{Scalar, Orderable}` holds and `{Int, String}` is still refused.
 - `lib/std/core/mod.hql`, the [data-type](../../wiki/hql/types/data-type.hmd) and
   [type-system](../../wiki/hql/type-system.hmd) cards, the grammar in
-  [expressions](../../models/behavior/expressions.md), and a runnable
+  [expressions](../../models/behavior/expressions.hmd), and a runnable
   [tree example](../../../examples/birds/queries/tree.hql).
 - **Not a change of carrier.** A tree literal is still `Value::Data`, and
   viewing a list or a map as `Data` converts nothing.

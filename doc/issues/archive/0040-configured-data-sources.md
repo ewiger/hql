@@ -4,7 +4,7 @@ Status: done
 Related: [HQL-0012](../../proposals/HQL-0012/README.md),
 [HQL-0021](../../proposals/HQL-0021/README.md),
 [0037](0037-io-typed-decoding.md),
-[the CLI model](../../models/behavior/cli.md),
+[the CLI model](../../models/behavior/cli.hmd),
 [the data sources examples](../../../examples/sources/README.md)
 
 HQL-0012 specifies sources a program names by id while the run context

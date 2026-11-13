@@ -1,7 +1,7 @@
 # 0019 — Documentation states semantics, not intuition
 
 Status: doing
-Related: the "Documentation site" section of [stack.md](../stack.md), which
+Related: the "Documentation site" section of [stack.md](../stack.hmd), which
 holds the rule; [0015](0015-jq-parity-analysis.md) and
 [0016](0016-sql-parity-analysis.md), which name the operations HQL adopts
 from jq and SQL
@@ -75,7 +75,7 @@ Each term is defined as the implementation has it.
 ## Work
 
 1. **The rule.** Written into the "Documentation site" section of
-   `doc/stack.md`. Done.
+   `doc/stack.hmd`. Done.
 2. **The public pages.** The landing page, the install page, the
    retrieval chapter, the reference index, `README.md`, the
    `site_description` in `mkdocs.yml`, and the opening of `doc/wiki/hql.hmd`.

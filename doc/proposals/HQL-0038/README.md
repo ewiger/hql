@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-10-23
-**Source**: the `function` rule of [the implemented grammar](../../models/behavior/expressions.md),
+**Source**: the `function` rule of [the implemented grammar](../../models/behavior/expressions.hmd),
 [HQL-0024 part 4](../HQL-0024/parts/04-receiver-modules.md) and
 [part 5](../HQL-0024/parts/05-traits.md), the iterating function of
 [the stream card](../../wiki/hql/types/stream-type.hmd)
@@ -50,7 +50,7 @@ at each call.
 - A declaration `fn f(a: A, b: B) : R` gives `f` the type `(A, B) -> R`.
   Naming `f` where a function is expected passes that value, `xs | map(f)`.
 - A `fn` is pure. `effectful fn` declares an effectful one
-  ([pure and effectful operations](../../models/behavior/pure-vs-effectful.md)).
+  ([pure and effectful operations](../../models/behavior/pure-vs-effectful.hmd)).
 - `reduction fn` declares a reduction ([HQL-0004](../HQL-0004/README.md)).
   `private fn` and `internal fn` set its visibility
   ([HQL-0028](../HQL-0028/README.md)).
@@ -166,7 +166,7 @@ block is new syntax, and no existing program contains one.
   expression, the refusals listed under the block's rules
 - `src/evaluation.rs`: a value block evaluated as its bindings followed by
   its final expression
-- `doc/models/behavior/expressions.md`: the grammar rules above; and a short
+- `doc/models/behavior/expressions.hmd`: the grammar rules above; and a short
   definition of a function next to them
 
 ## Test Plan

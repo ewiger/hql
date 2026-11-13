@@ -13,7 +13,7 @@ k = 10
 ```
 
 That works and stays. This issue decides whether HQL gets a shorter form, and
-if so, which one. The [queries model](../../models/behavior/queries.md) places the
+if so, which one. The [queries model](../../models/behavior/queries.hmd) places the
 question in the function design, not in query sources: section "Partial
 application is not part of the source model".
 

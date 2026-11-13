@@ -274,7 +274,7 @@ done.
   `src/crypto/` for the key formats, signatures and the age layer.
 - `src/checker.rs`: the refusal of a secret type at an encoder and of a
   private key literal in source.
-- Crates, each added with `cargo add` per [the stack](../../stack.md), all
+- Crates, each added with `cargo add` per [the stack](../../stack.hmd), all
   pure Rust, none needing a C toolchain:
 
   | Need | Crate |
@@ -292,7 +292,7 @@ done.
   | secret buffers | `zeroize` |
 
   JWK is read and written with `serde_json`, which the crate has.
-- `doc/stack.md` gains rows for cryptography.
+- `doc/stack.hmd` gains rows for cryptography.
 
 ## Test Plan
 

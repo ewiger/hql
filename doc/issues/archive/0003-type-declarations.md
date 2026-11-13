@@ -33,5 +33,5 @@ and belonged on the board rather than in a comment.
 - Every file under `lib/std/` parses and checks, pinned by a test that walks the
   folder — so a file added there cannot be silently ignored.
 - `hql check lib/std/graph/mod.hql` prints `Unit`.
-- `doc/models/behavior/expressions.md` documents the statement.
+- `doc/models/behavior/expressions.hmd` documents the statement.
 - `doc/wiki/hql/std-lib.hmd` stops describing `lib/std/` as unloadable.

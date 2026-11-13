@@ -6,7 +6,7 @@ Related: [HQL-0024 part 12](../../proposals/HQL-0024/parts/12-contracts-and-bind
 [0030](0030-hql-only-signature-authority.md),
 [0033](0033-overloaded-declarations.md),
 [extensions](../../wiki/hql/extensions.hmd),
-[pure and effectful operations](../../models/behavior/pure-vs-effectful.md),
+[pure and effectful operations](../../models/behavior/pure-vs-effectful.hmd),
 [the receivers corpus](../../../examples/receivers/README.md)
 
 Part 12 states who says what about a declaration. Three of its work units

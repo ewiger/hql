@@ -808,7 +808,7 @@ Built:
   pretty-printed `Json` pieces, and `Unit` written as nothing
 - `tests/io.rs`, `tests/net.rs`, `tests/logging.rs`, and the
   [I/O examples](../../../examples/io/README.md)
-- `doc/models/behavior/cli.md` and `doc/wiki/hql/extensions.hmd` — `io`,
+- `doc/models/behavior/cli.hmd` and `doc/wiki/hql/extensions.hmd` — `io`,
   `net` and `logging` in the command table and the provider table
 
 Nothing remains. `source("id")` and `tap("id")` read a configured endpoint,

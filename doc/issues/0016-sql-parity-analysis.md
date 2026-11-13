@@ -129,7 +129,7 @@ window frame is a different thing and needs a different name.
 | SQL | HQL | Status | Reason |
 | --- | --- | --- | --- |
 | `UPDATE`, `MERGE` on a value | — | supportable | a functional update that returns a new value, shared with jq's `\|=` in [0015](0015-jq-parity-analysis.md) |
-| `INSERT`, `UPDATE`, `DELETE` on the vault | — | supportable | persistence is explicit ([program values](../models/behavior/program-values.md)); writing back to a vault needs its own proposal |
+| `INSERT`, `UPDATE`, `DELETE` on the vault | — | supportable | persistence is explicit ([program values](../models/behavior/program-values.hmd)); writing back to a vault needs its own proposal |
 | Transactions, isolation, locking | — | out | HQL is pure; atomicity belongs to whatever persistence layer that proposal defines |
 | Stored procedures, functions | lambdas | supportable | named functions and function values ([0009](archive/0009-function-type-and-constructor.md)) |
 | Triggers | — | out | there are no events in a pure program |
@@ -170,7 +170,7 @@ Ranked by how many rows above each one unblocks.
    except the `Ordering` constants. They
    unblock `WHERE` beyond equality, `BETWEEN`, `NOT EXISTS`, `AVG`, `HAVING`
    with a threshold, and every window predicate. Grammar work in
-   [the grammar](../models/behavior/expressions.md), plus `Ordering`
+   [the grammar](../models/behavior/expressions.hmd), plus `Ordering`
    constants.
 2. **Interpreting `Data` under a schema.** One checked operation that reads a
    schemaless tree as a declared type, in part or in full. Without it a
@@ -186,7 +186,7 @@ Ranked by how many rows above each one unblocks.
    `somes`. Unblocks `CASE`, `COALESCE`, `COUNT(a)` and outer joins.
 5. **Record and pair values.** A constructor for declared records, and a pair
    or entry type. Unblocks typed projection, `join` results, `enumerate` and
-   `Map` entries, and the `next` of [queries](../models/behavior/queries.md).
+   `Map` entries, and the `next` of [queries](../models/behavior/queries.hmd).
 6. **`flat_map`, `join` and set operations.** Needs 5, and needs collection
    equality to be decided for `UNION`, `INTERSECT` and `EXCEPT`.
 7. **Window steps.** `enumerate`, `scan`, `zip`, `reverse`. Needs 3 and 5.

@@ -47,7 +47,7 @@ effectful step, dropping it would lose the log line. So the declaration is
 what keeps the line.
 
 Purity is independent of shape. Shape (elementwise, partition, reduction,
-barrier; see [map/reduce](map-reduce.md)) says whether a step may be split.
+barrier; see [[map-reduce|map/reduce]]) says whether a step may be split.
 Purity says whether it may move at all. The shape permissions apply only to
 pure steps.
 
@@ -91,8 +91,8 @@ evaluation, however many times the binding is used.
   `sink(x, e)`.
 
 Embedded evaluation in cards starts pure; any effect there needs an explicit
-host policy ([program values](program-values.md)).
+host policy ([[program-values|program values]]).
 
-See [pipes](../../wiki/hql/types/pipes.hmd) for the execution freedom purity
-protects, and [extensions](../../wiki/hql/extensions.hmd) for where a declaration
+See [[pipes]] for the execution freedom purity
+protects, and [[extensions]] for where a declaration
 states it.

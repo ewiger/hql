@@ -10,7 +10,7 @@ The host language's defaults, idioms and vocabulary carry no authority over what
 HQL's syntax, type system or semantics should be — an argument for an HQL feature
 is never "Rust does it this way". HQL is a data language and diverges freely
 where that serves it; `doc/models/` and `doc/wiki/` are where its design is
-argued. See [extensions](wiki/hql/extensions.hmd), which draws the same boundary
+argued. See [[extensions]], which draws the same boundary
 for what extensions may expose.
 
 ## Implementation language

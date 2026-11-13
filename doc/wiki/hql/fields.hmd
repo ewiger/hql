@@ -63,7 +63,7 @@ null. As a *declaration*, `born? : Date` stays a different claim from
 `born : Date?`: the first says the key may be missing, the second that the key
 is there and its value may be `None`. Both read as `Option<Date>`; the schema
 keeps the difference — see
-[optional fields and optional values](../../models/behavior/options-in-types-and-fields.md).
+[[options-in-types-and-fields|optional fields and optional values]].
 
 Reading a key of an undeclared [[data-type|Data]] region follows the same rule:
 it is optional by type, since nothing promised the key.
