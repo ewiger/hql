@@ -1002,6 +1002,25 @@ impl ExecutionContext {
         Ok(None)
     }
 
+    /// Load the workspace's documents into a vault configured by this
+    /// context: its module roots, extension imports and prelude. Bare mode
+    /// gets an empty vault under the same configuration. A host that
+    /// supplies the workspace calls this after [`Self::construct`].
+    ///
+    /// # Errors
+    ///
+    /// The workspace cannot be read, naming it.
+    pub fn load_workspace(&self) -> Result<crate::vault::Vault, String> {
+        let mut vault = match self.workspace_root() {
+            None => crate::vault::Vault::empty(),
+            Some(root) => {
+                crate::vault::load(root).map_err(|error| format!("{}: {error}", root.display()))?
+            }
+        };
+        self.configure(&mut vault.extensions);
+        Ok(vault)
+    }
+
     /// Every configuration file of the layering, in order, present or not.
     pub fn config_files(&self) -> impl Iterator<Item = &ConfigFile> {
         self.layers.files().chain(self.workspace_config.iter())

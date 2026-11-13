@@ -550,3 +550,46 @@ fn user_settings_sit_below_the_workspace_and_the_environment() {
         stderr(&refused)
     );
 }
+
+#[test]
+fn a_host_supplies_the_workspace_and_keeps_the_user_configuration() {
+    use hql::context::{Environment, ExecutionContext, Request, WorkspaceOrigin};
+    let sandbox = Sandbox::new();
+    let outer = sandbox.tree();
+    fs::create_dir_all(outer.join(".hmd")).unwrap();
+    let hosted = outer.join("hosted");
+    sandbox.write(&hosted.join("note.hmd"), "# Note\n");
+    sandbox.write(&outer.join("other.hmd"), "# Other\n");
+    sandbox.write(
+        &sandbox.home().join(".hql/config.toml"),
+        "[modules]\nroots = [\"lib\"]\n",
+    );
+    sandbox.write(
+        &sandbox.home().join(".hql/lib/units.hql"),
+        &module("units", "fn km(m: Int) : Int = m / 1000"),
+    );
+    let environment = Environment {
+        cwd: outer.clone(),
+        home: Some(sandbox.home()),
+        system_config: Some(sandbox.system_config()),
+        ..Environment::default()
+    };
+    let request = Request {
+        anchor: Some(hosted.join("cards")),
+        host_workspace: Some(hosted.clone()),
+        ..Request::default()
+    };
+    let context = ExecutionContext::construct(&request, &environment).unwrap();
+    let workspace = context.workspace.as_ref().unwrap();
+    assert_eq!(workspace.root, hosted);
+    assert_eq!(workspace.origin, WorkspaceOrigin::Host);
+    let vault = context.load_workspace().unwrap();
+    assert_eq!(vault.cards.len(), 1);
+    let outcome = hql::run(
+        "import units\n[units.km(2000), cards | count]",
+        &vault,
+        hql::reporting::Mode::Strict,
+    );
+    assert!(!outcome.failed(), "{:?}", outcome.diagnostics);
+    assert_eq!(outcome.value.unwrap().to_string(), "[2, 1]");
+}

@@ -509,15 +509,15 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     }
     let context = crate::context::ExecutionContext::construct(&request(cli), &environment)
         .map_err(|error| error.to_string())?;
-    let root = context.workspace_root().map(Path::to_path_buf);
     // The run's diagnostic channel exists before the loader runs, so the
     // loader writes into it as every later phase does.
     let opened = crate::io::open_diagnostics();
-    let mut vault = load_vault(root.as_deref())?;
-    for diagnostic in &vault.warnings {
-        crate::io::write_diagnostic(diagnostic.clone());
-    }
-    let result = dispatch(cli, &context, &mut vault, out, err);
+    let result = context.load_workspace().and_then(|vault| {
+        for diagnostic in &vault.warnings {
+            crate::io::write_diagnostic(diagnostic.clone());
+        }
+        dispatch(cli, &context, &vault, out, err)
+    });
     // Every diagnostic was delivered before the run ends: the channel
     // closes, and only then is the exit status returned.
     if opened {
@@ -791,13 +791,11 @@ fn write_context(
 fn dispatch(
     cli: &Cli,
     context: &crate::context::ExecutionContext,
-    vault: &mut Vault,
+    vault: &Vault,
     out: &mut impl Write,
     err: &mut impl Write,
 ) -> Result<u8, String> {
     let root = context.workspace_root();
-    context.configure(&mut vault.extensions);
-    let vault: &Vault = vault;
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
             format!("unknown report mode `{name}`; expected `strict` or `collect`")
@@ -1053,19 +1051,10 @@ fn dispatch(
                 // or the nearest at or above the document. In none, no cell
                 // runs.
                 let found;
-                let vault = match document_vault(file, context, vault)? {
+                let vault = match document_vault(file, cli, context, vault)? {
                     Some(Found::Loaded) => vault,
                     Some(Found::Own(own)) => {
-                        let mut own = *own;
-                        // The document's own workspace, under the same
-                        // system and user layers as the run's.
-                        let request = crate::context::Request {
-                            anchor: Some(own.root.clone()),
-                            ..request(cli)
-                        };
-                        crate::context::ExecutionContext::construct(&request, &context.environment)
-                            .map_err(|error| error.to_string())?
-                            .configure(&mut own.extensions);
+                        let own = *own;
                         for diagnostic in &own.warnings {
                             crate::io::write_diagnostic(diagnostic.clone());
                         }
@@ -1422,6 +1411,7 @@ enum Found {
 /// and always under `--bare`: the document is a card of no vault.
 fn document_vault(
     file: &str,
+    cli: &Cli,
     context: &crate::context::ExecutionContext,
     loaded: &Vault,
 ) -> Result<Option<Found>, String> {
@@ -1446,7 +1436,15 @@ fn document_vault(
     if same {
         return Ok(Some(Found::Loaded));
     }
-    Ok(Some(Found::Own(Box::new(load_vault(Some(&found))?))))
+    // The document's own workspace, under the same system and user layers
+    // as the run's.
+    let request = crate::context::Request {
+        anchor: Some(found),
+        ..request(cli)
+    };
+    let own = crate::context::ExecutionContext::construct(&request, &context.environment)
+        .map_err(|error| error.to_string())?;
+    Ok(Some(Found::Own(Box::new(own.load_workspace()?))))
 }
 
 /// The load failure of a document in no vault.
@@ -1463,26 +1461,6 @@ fn missing_vault(origin: &str) -> Diagnostic {
     .with_help("render it inside a vault, or name one with `--vault <dir>`");
     refused.origin = Some(origin.to_owned());
     refused
-}
-
-fn load_vault(root: Option<&Path>) -> Result<Vault, String> {
-    match root {
-        None => Ok(Vault::empty()),
-        Some(root) => {
-            if !root.is_dir() {
-                return Err(format!("{}: not a directory", root.display()));
-            }
-            // A vault is marked, by `.hmd/` or `hql.toml`; a folder that is
-            // neither is not read as one.
-            if !vault::is_root(root) {
-                return Err(format!(
-                    "{}: not a vault: it holds neither `.hmd/` nor `hql.toml`",
-                    root.display()
-                ));
-            }
-            vault::load(root).map_err(|error| format!("{}: {error}", root.display()))
-        }
-    }
 }
 
 /// Read a program from a file, or from standard input when named `-`.
