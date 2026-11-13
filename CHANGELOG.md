@@ -113,6 +113,15 @@ The language continues to be in active development.
   and `s.decode(E)` reads them back, `none` for text not valid in `E` or
   octets that are not UTF-8. The algorithm and encoding names are built-in
   type names.
+- `Bytes`, a finite sequence of octets ([HQL-0053](doc/proposals/HQL-0053/README.md)
+  part 1). `Bytes("hé")` is a text's UTF-8 encoding; `Bytes(t, Hex)`,
+  `t.to_bytes(Base64)` and `b.encode(Hex)` convert through `encoding`. The
+  prelude's `bytes` module gives `size`, `to_text`, `at` and `slice`, so
+  `b[0]` is an octet as an `Int` and `b[0:12]` is `Bytes`; `+`
+  concatenates, and values order octet by octet. A value prints as `0x`
+  and lowercase hex, a text format writes it as base64, and a declared
+  `Bytes` field reads base64 text. `crypto.digest` gains `digest` over
+  `Bytes` and `canonical`, the RFC 8785 text `fingerprint` digests.
 
 ### Fixed
 
