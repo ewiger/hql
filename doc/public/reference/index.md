@@ -41,6 +41,8 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/math`](std/math/index.md) — Numbers, in the prelude.
 - [`std/time`](std/time/index.md) — Time: zones, the units a value truncates to, and the operations over the time scalars of `core`: conversion from text, parts, arithmetic, truncation, rendering, and the evaluation clock.
 - [`std/random`](std/random/index.md) — Randomness: samples, shuffles, choices, numbers and UUIDs.
+- [`std/crypto/digest`](std/crypto/digest/index.md) — Cryptographic digests of text and of `Data` trees.
+- [`std/encoding`](std/encoding/index.md) — Text-safe encodings of a text's UTF-8 octets.
 - [`std/option`](std/option/index.md) — The ways out of an `Option<T>`, in the prelude, each stating what absence gives.
 - [`std/result`](std/result/index.md) — The ways out of a `Result<T, E>`, in the prelude, each stating what a failure gives.
 - [`std/regex`](std/regex/index.md) — Text matched against a regular expression.
