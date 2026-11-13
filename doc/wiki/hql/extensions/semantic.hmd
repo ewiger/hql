@@ -1,7 +1,5 @@
 ---
 tags: [hql, extensions, retrieval, embeddings]
-nav:
-  visibility: public
 ---
 # The semantic module
 

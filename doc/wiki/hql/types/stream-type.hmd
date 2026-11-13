@@ -1,7 +1,5 @@
 ---
 tags: [hql, types, stream, iteration]
-nav:
-  visibility: public
 ---
 # `Stream<T>`
 

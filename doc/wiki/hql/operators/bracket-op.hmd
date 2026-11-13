@@ -1,7 +1,5 @@
 ---
 tags: [hql, operators, sequences, strings, traits]
-nav:
-  visibility: public
 ---
 # The bracket: positions and slices
 

@@ -1,7 +1,5 @@
 ---
 tags: [hql, naming, extensions, std-lib, design]
-nav:
-  visibility: public
 ---
 # Names and where they live
 

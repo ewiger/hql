@@ -1,7 +1,5 @@
 ---
 tags: [hql, functions, design]
-nav:
-  visibility: public
 ---
 # HQL pipes
 

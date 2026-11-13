@@ -1,7 +1,5 @@
 ---
 tags: [hql, errors, results, validation, diagnostics, reporting, logging]
-nav:
-  visibility: public
 ---
 # Errors: failures as data, diagnostics as events
 

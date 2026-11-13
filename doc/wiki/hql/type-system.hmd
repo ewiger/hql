@@ -1,7 +1,5 @@
 ---
 tags: [hql, type-system, generics, design]
-nav:
-  visibility: public
 ---
 # The HQL type system
 
