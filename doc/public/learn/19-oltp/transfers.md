@@ -170,6 +170,14 @@ match outcome {
 String
 ```
 
+A scope is observed when it is bound, as `outcome` is here, or when it is
+the program's last statement, whose value is the program's result. A scope
+written as a statement before the last one has a value nothing reads, and
+the checker warns, kind `effect`: `` this transaction's `Result` is neither
+bound, nor the program's result, nor matched: its failure would be observed
+by nothing ``. The program still runs; a rollback in that scope goes
+unnoticed.
+
 `attempts = 3` runs the block again, on a fresh transaction, when the
 database refuses an attempt because of a concurrent one: in PostgreSQL a
 serialization failure under `isolation = Serializable` or a deadlock, in
@@ -184,6 +192,17 @@ pass the balance check, one commits, and the other rolls back on the
 balance after a retry or ends `conflict`, with no half of it left. A
 constraint violation is never retried, since the same rows would be
 refused again.
+
+A retried attempt undoes what it wrote to a participant and nothing else. A
+write to an endpoint outside the set, a `target` or `sink` to a file, a
+channel or a topic, or a log call, runs on every attempt and is rolled back
+by none. Where `attempts` is written as a number above 1, the checker warns
+of each such write, kind `effect`, naming the endpoint:
+`` `sink` to `audit` runs on every attempt of the scope and is not rolled
+back ``. A write wanted once per outcome is written after the scope, from
+its value; a log line per attempt is often what is wanted, and the warning
+says what it is.
+
 Any other failure inside the block, a division by zero, a lost connection,
 rolls the attempt back before it is reported, so a program that stops
 leaves no half-made transfer.

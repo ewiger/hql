@@ -129,6 +129,13 @@ The language continues to be in active development.
   transactional endpoint in the block that is no participant, the handle
   outside a control call, a statement after one, and an isolation level
   the kind does not offer.
+- Two transaction warnings ([HQL-0051](doc/proposals/HQL-0051/README.md)),
+  both of kind `effect`. A scope written as a statement before a program's
+  last one, its `Result` neither bound nor the program's result, is warned:
+  its failure would be observed by nothing. Under `attempts` written as a
+  number above 1, each `target`, `sink` or log call in the block whose
+  endpoint is no participant is warned, naming the endpoint: it runs on
+  every attempt and is not rolled back.
 - The module `io.db.spark` ([HQL-0047](doc/proposals/HQL-0047/README.md),
   [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Spark :
   {Network, RowTransport, Replayable, Writable, …}` and its constructor

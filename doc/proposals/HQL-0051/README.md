@@ -372,9 +372,8 @@ with transaction tx on ledger {
   `T` is the common type of the block's final value and of the `value` of
   every `tx.commit(value)` in it. It MAY be bound, `outcome = with transaction …`,
   be the program's result, or stand as a statement. A scope whose value is
-  neither bound, nor the result, nor matched, is a check warning: its
-  failure would be observed by nothing. The warning is not built by
-  phase 3.
+  neither bound, nor the result, nor matched, is a check warning, kind
+  `effect`: its failure would be observed by nothing.
 - A scope MUST NOT be written inside a lambda, a `fork` branch, a `tee`
   branch, a `match` arm or another scope. It is a statement of a program, a
   function's value block or a cell. A function holding one is effectful.
@@ -1208,3 +1207,14 @@ cargo clippy --locked --all-targets -- -D warnings
 - 2026-11-13: the `Stream` rule is checked: a `Stream` that is not a `Seq`,
   written by `sink` to a participant, is refused naming `take(n)` and
   `collect(n)`; `insert` already took declared rows only (issue 0072)
+- 2026-11-13: the two warnings built (issue 0072), each of kind `effect`
+  and each in its narrowest reading. A discarded scope is one written as a
+  statement of a program before its last statement: a scope bound to a
+  name is observed whether or not the name is read, and the last statement
+  is the program's result. A non-participant write is warned where
+  `attempts` is an `Int` literal above 1, and a computed count is not read;
+  the writes are `target` and `sink`, called or piped, whose endpoint is
+  neither a participant nor `Transactional`, and the five log calls of
+  `logging` over a `Logger`, each written in the block. A write inside a
+  function the block calls is not seen, and each write is warned once,
+  however many attempts run it

@@ -95,6 +95,7 @@ pub(crate) fn check_collecting_with<'a>(
     if let Err(diagnostic) = checker.settle_module_traits() {
         found.push(diagnostic);
     }
+    checker.discarded_scopes(&program.statements);
     if !found.is_empty() {
         return (None, found);
     }
@@ -1215,6 +1216,7 @@ impl<'a> Checker<'a> {
             last = self.statement(statement)?;
         }
         self.settle_module_traits()?;
+        self.discarded_scopes(&program.statements);
         self.checked.program(program, last)
     }
 
@@ -6906,6 +6908,14 @@ impl Checker<'_> {
         self.scope = outer;
         self.in_transaction = was;
         let result = checked?;
+        // A write that is no participant's runs on every attempt and is
+        // undone by none, which matters only where an attempt can be
+        // followed by another: `attempts` written as a literal above 1.
+        if attempts.is_some_and(|attempts| matches!(attempts.kind, Kind::Int(n) if n > 1)) {
+            for line in body {
+                self.repeated_writes(line.value(), &names);
+            }
+        }
         self.using("transaction", true);
         self.checked.transactions.insert(span, result.clone());
         Ok(crate::types::builtin::RESULT.apply([result, TypeRef::TRANSACTION_FAILURE]))
@@ -6969,6 +6979,144 @@ impl Checker<'_> {
             self.bounded_into_participants(child, names)?;
         }
         Ok(())
+    }
+
+    /// Warn of each write, in a block of more than one attempt, to an
+    /// endpoint that is no participant: a `target` or a `sink` to a file, a
+    /// channel or a topic, and a log call (HQL-0051, "Effects outside the
+    /// scope"). A participant's write is inside the attempt and is rolled
+    /// back with it.
+    fn repeated_writes(&mut self, expression: &Expr, names: &[String]) {
+        const LEVELS: [&str; 5] = ["trace", "debug", "info", "warn", "error"];
+        fn named(arguments: &[Arg]) -> Option<&Arg> {
+            arguments
+                .iter()
+                .find(|argument| argument.name.as_deref() == Some("endpoint"))
+        }
+        let is_logger = |checker: &Self, value: &Expr| {
+            checker.checked.types.get(&value.span) == Some(&TypeRef::LOGGER)
+        };
+        // The operation, and the endpoint or logger it writes to; a pipe's
+        // step is not walked again as a call of its own.
+        let (written, walked): (Option<(&str, &Expr)>, Vec<&Expr>) = match &expression.kind {
+            Kind::Pipe(left, step) => match &step.kind {
+                Kind::Call { callee, arguments } => match &callee.kind {
+                    Kind::Ident(name) if matches!(name.as_str(), "target" | "sink") => (
+                        named(arguments)
+                            .or_else(|| arguments.first())
+                            .map(|argument| (name.as_str(), &argument.value)),
+                        std::iter::once(left.as_ref())
+                            .chain(arguments.iter().map(|argument| &argument.value))
+                            .collect(),
+                    ),
+                    Kind::Ident(name)
+                        if LEVELS.contains(&name.as_str()) && is_logger(self, left) =>
+                    {
+                        (
+                            Some((name.as_str(), left.as_ref())),
+                            std::iter::once(left.as_ref())
+                                .chain(arguments.iter().map(|argument| &argument.value))
+                                .collect(),
+                        )
+                    }
+                    _ => (None, ast_children(expression)),
+                },
+                _ => (None, ast_children(expression)),
+            },
+            Kind::Call { callee, arguments } => match &callee.kind {
+                Kind::Ident(name) if matches!(name.as_str(), "target" | "sink") => (
+                    named(arguments)
+                        .or_else(|| arguments.get(1))
+                        .map(|argument| (name.as_str(), &argument.value)),
+                    ast_children(expression),
+                ),
+                Kind::Ident(name)
+                    if LEVELS.contains(&name.as_str())
+                        && arguments
+                            .first()
+                            .is_some_and(|argument| is_logger(self, &argument.value)) =>
+                {
+                    (
+                        arguments
+                            .first()
+                            .map(|argument| (name.as_str(), &argument.value)),
+                        ast_children(expression),
+                    )
+                }
+                _ => (None, ast_children(expression)),
+            },
+            _ => (None, ast_children(expression)),
+        };
+        if let Some((operation, endpoint)) = written {
+            let key = match &endpoint.kind {
+                Kind::Ident(name) | Kind::Str(name) => Some(name.as_str()),
+                _ => crate::extensions::io::literal_endpoint_id(endpoint),
+            };
+            // A participant, or a `Transactional` endpoint the scope's
+            // participant check has already judged.
+            let participant = key.is_some_and(|key| names.iter().any(|name| name == key))
+                || self
+                    .checked
+                    .types
+                    .get(&endpoint.span)
+                    .is_some_and(|ty| ty.is(&TypeRef::TRANSACTIONAL));
+            if !participant {
+                let label = key
+                    .map(str::to_owned)
+                    .or_else(|| written_name(endpoint))
+                    .map_or_else(
+                        || "an endpoint that is no participant".to_owned(),
+                        |name| format!("`{name}`"),
+                    );
+                self.warn(
+                    Diagnostic::warning(
+                        crate::diagnostics::Phase::Check,
+                        crate::diagnostics::Kind::Effect,
+                        expression.span.clone(),
+                        format!(
+                            "`{operation}` to {label} runs on every attempt of the scope and is \
+                             not rolled back"
+                        ),
+                    )
+                    .with_help(
+                        "a write wanted once per outcome is written after the scope, from the \
+                         scope's value",
+                    ),
+                );
+            }
+        }
+        for child in walked {
+            self.repeated_writes(child, names);
+        }
+    }
+
+    /// Warn of each transaction scope that stands as a statement of a
+    /// program and is not its last: its value is neither bound, nor the
+    /// program's result, nor matched, so a failure of the scope is observed
+    /// by nothing (HQL-0051, "The scope").
+    fn discarded_scopes(&mut self, statements: &[Stmt]) {
+        let Some((_, before)) = statements.split_last() else {
+            return;
+        };
+        for statement in before {
+            if let Stmt::Expr(expression) = statement
+                && let Kind::Transaction { participants, .. } = &expression.kind
+            {
+                self.warn(
+                    Diagnostic::warning(
+                        crate::diagnostics::Phase::Check,
+                        crate::diagnostics::Kind::Effect,
+                        expression.span.start..participants.span.end,
+                        "this transaction's `Result` is neither bound, nor the program's result, \
+                         nor matched: its failure would be observed by nothing",
+                    )
+                    .with_help(
+                        "bind it, `outcome = with transaction …`, and match `outcome`, or make \
+                         the scope the program's last statement",
+                    ),
+                );
+            }
+        }
     }
 
     /// Refuse a read or a write, in a transaction's block, of a
@@ -7036,6 +7184,25 @@ impl Checker<'_> {
             self.only_participants(child, names)?;
         }
         Ok(())
+    }
+}
+
+/// An endpoint as a diagnostic names it: a binding, an id, a constructor
+/// call with a literal first argument, or a field of one, `file("a").end`.
+fn written_name(endpoint: &Expr) -> Option<String> {
+    match &endpoint.kind {
+        Kind::Ident(name) | Kind::Str(name) => Some(name.clone()),
+        Kind::Call { callee, arguments } => match (
+            &callee.kind,
+            arguments.first().map(|argument| &argument.value.kind),
+        ) {
+            (Kind::Ident(function), Some(Kind::Str(text))) => {
+                Some(format!("{function}(\"{text}\")"))
+            }
+            _ => None,
+        },
+        Kind::Field(inner, field) => written_name(inner).map(|inner| format!("{inner}.{field}")),
+        _ => None,
     }
 }
 

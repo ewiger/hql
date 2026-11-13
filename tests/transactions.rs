@@ -1098,6 +1098,136 @@ fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
     );
 }
 
+// The two warnings of HQL-0051: a scope whose `Result` nothing observes,
+// and a write that runs on every attempt and is not rolled back.
+
+/// A program's value as compact JSON, and the warnings its run reports,
+/// each as its kind and message.
+fn warned(source: &str, vault: &Vault) -> (String, Vec<String>) {
+    let outcome = hql::run(source, vault, Mode::Strict);
+    assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
+    let warnings = outcome
+        .diagnostics
+        .iter()
+        .filter(|report| report.severity == hql::reporting::Severity::Warning)
+        .map(|report| format!("{}: {}", report.kind.label(), report.message))
+        .collect();
+    let value = outcome
+        .value
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    (value, warnings)
+}
+
+#[test]
+fn a_scope_whose_result_nothing_observes_is_warned() {
+    let (_dir, vault) = configured();
+    seeded_ledger(&vault);
+    let head = format!("{ACCOUNT}accounts = configured(\"accounts\")\n");
+    // A scope standing as a statement before the program's last one: its
+    // failure would be observed by nothing.
+    let (value, warnings) = warned(
+        &format!("{head}with transaction tx on accounts {{ tx.rollback(\"no\") }}\n1"),
+        &vault,
+    );
+    assert_eq!(value, "1");
+    assert_eq!(
+        warnings,
+        [
+            "effect: this transaction's `Result` is neither bound, nor the program's result, nor \
+          matched: its failure would be observed by nothing"
+        ]
+    );
+    // Bound, matched, or the program's result, it is observed.
+    for program in [
+        "with transaction tx on accounts { 1 }".to_owned(),
+        "outcome = with transaction tx on accounts { 1 }\noutcome".to_owned(),
+        "outcome = with transaction tx on accounts { 1 }\n\
+         match outcome { ok(n) => n, err(f) => 0 }"
+            .to_owned(),
+        // Bound and never read is bound: the warning reads the statement,
+        // not the binding's uses.
+        "outcome = with transaction tx on accounts { 1 }\n2".to_owned(),
+    ] {
+        let (_, warnings) = warned(&format!("{head}{program}"), &vault);
+        assert!(warnings.is_empty(), "{program}\n{warnings:?}");
+    }
+    // Two scopes in a row: the first is discarded, the second is the result.
+    let (_, warnings) = warned(
+        &format!(
+            "{head}with transaction tx on accounts {{ 1 }}\nwith transaction tx on accounts {{ 2 }}"
+        ),
+        &vault,
+    );
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+}
+
+#[test]
+fn a_write_outside_the_participants_under_several_attempts_is_warned() {
+    let (dir, vault) = configured();
+    seeded_ledger(&vault);
+    let audit = dir.path().join("audit.jsonl");
+    let head = format!(
+        "import logging\n{ACCOUNT}type Note {{ n : Int }}\n\
+         accounts = configured(\"accounts\")\n\
+         log = Logger(stderr, Text, name = \"ledger\", level = Error)\n"
+    );
+    let block = format!(
+        "{{\n\
+             sink([Note(n = 1)], file(\"{}\").end, Json)\n\
+             log | info(\"attempt\")\n\
+             [Account(id = 1, owner = \"ada\", balance = 250)] | target(accounts)\n\
+             tx.retry()\n\
+         }}",
+        audit.display()
+    );
+    // The file is written on each of the three attempts, and warned once.
+    let (value, warnings) = warned(
+        &format!("{head}with transaction(attempts = 3) tx on accounts {block}"),
+        &vault,
+    );
+    assert!(value.contains("kind = \"exhausted\""), "{value}");
+    assert_eq!(
+        warnings,
+        [
+            format!(
+                "effect: `sink` to `file(\"{}\").end` runs on every attempt of the scope and is \
+                 not rolled back",
+                audit.display()
+            ),
+            "effect: `info` to `log` runs on every attempt of the scope and is not rolled back"
+                .to_owned(),
+        ]
+    );
+    assert_eq!(fs::read_to_string(&audit).unwrap().lines().count(), 3);
+    // The participant's write is inside the attempt and is not warned; the
+    // `target` the last attempt made was rolled back with it.
+    assert_eq!(balances(&vault), "[[1, 250], [2, 40], [3, 9]]");
+    // One attempt runs the write once: nothing to warn of.
+    for arguments in ["", "(attempts = 1)"] {
+        let (_, warnings) = warned(
+            &format!("{head}with transaction{arguments} tx on accounts {block}"),
+            &vault,
+        );
+        assert!(warnings.is_empty(), "{arguments}: {warnings:?}");
+    }
+    // A configured file by its id, written by `target` in a pipe.
+    let (_, warnings) = warned(
+        &format!(
+            "{head}type Count {{ species : String, count : Int }}\n\
+             with transaction(attempts = 2) tx on accounts {{\n\
+                 [Count(species = \"wren\", count = 1)] | target(\"counts\")\n\
+                 1\n\
+             }}"
+        ),
+        &vault,
+    );
+    assert_eq!(
+        warnings,
+        ["effect: `target` to `counts` runs on every attempt of the scope and is not rolled back"]
+    );
+}
+
 // Phase 5: the `spark` kind, checked offline: one table, one statement.
 
 #[test]
