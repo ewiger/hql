@@ -1379,10 +1379,16 @@ impl<'a> Checker<'a> {
                     })
                 }),
             Kind::Mutation {
-                target, rows, steps, ..
+                target,
+                rows,
+                steps,
+                ..
             } => self
                 .read_beyond(target, bound)
-                .or_else(|| rows.as_deref().and_then(|rows| self.read_beyond(rows, bound)))
+                .or_else(|| {
+                    rows.as_deref()
+                        .and_then(|rows| self.read_beyond(rows, bound))
+                })
                 .or_else(|| {
                     steps.iter().find_map(|step| match &step.kind {
                         crate::ast::MutationStepKind::OfType(_) => None,
@@ -1585,8 +1591,7 @@ impl<'a> Checker<'a> {
                     }
                     match crate::extensions::io::literal_endpoint_id(value) {
                         Some(id) if !matches!(value.kind, Kind::Str(_)) => {
-                            self.configured_bindings
-                                .insert(name.clone(), id.to_owned());
+                            self.configured_bindings.insert(name.clone(), id.to_owned());
                         }
                         _ => {
                             self.configured_bindings.remove(name);
@@ -5872,10 +5877,10 @@ impl Checker<'_> {
                 }
                 MutationStepKind::Filter(lambda) => {
                     let (parameter, body) = row_lambda(lambda)?;
-                    let produced = self.with_bindings(
-                        [(parameter.to_owned(), row.clone())],
-                        |checker| checker.expression(body),
-                    )?;
+                    let produced = self
+                        .with_bindings([(parameter.to_owned(), row.clone())], |checker| {
+                            checker.expression(body)
+                        })?;
                     if produced != TypeRef::BOOL {
                         return Err(Diagnostic::typing(
                             body.span.clone(),
@@ -5901,10 +5906,10 @@ impl Checker<'_> {
                     }
                     let shape = crate::types::program::record(row.constructor.0);
                     for (key, value) in entries {
-                        let produced = self.with_bindings(
-                            [(parameter.to_owned(), row.clone())],
-                            |checker| checker.expression(value),
-                        )?;
+                        let produced = self
+                            .with_bindings([(parameter.to_owned(), row.clone())], |checker| {
+                                checker.expression(value)
+                            })?;
                         if let Some(shape) = &shape {
                             let declared = shape.field_type(&row.args, key).ok_or_else(|| {
                                 Diagnostic::typing(
@@ -5996,7 +6001,10 @@ fn mentions(expression: &Expr, name: &str) -> bool {
                 Kind::Call { callee, .. } => mentions(callee, name),
                 _ => false,
             };
-            callee || arguments.iter().any(|argument| mentions(&argument.value, name))
+            callee
+                || arguments
+                    .iter()
+                    .any(|argument| mentions(&argument.value, name))
         }
         Kind::Data(entries) => entries.iter().any(|(_, value)| mentions(value, name)),
         Kind::Arith(_, left, right)
@@ -6028,7 +6036,9 @@ fn mentions(expression: &Expr, name: &str) -> bool {
         } => {
             mentions(value, name)
                 || mentions(condition, name)
-                || otherwise.as_deref().is_some_and(|other| mentions(other, name))
+                || otherwise
+                    .as_deref()
+                    .is_some_and(|other| mentions(other, name))
         }
         Kind::Block(_)
         | Kind::Lambda { .. }
@@ -6202,7 +6212,8 @@ impl Checker<'_> {
             .map_err(|message| Diagnostic::typing(participants.span.clone(), message))?;
         if let (Some(first), Some(other)) = (
             held.first(),
-            held.iter().find(|participant| participant.kind != held[0].kind),
+            held.iter()
+                .find(|participant| participant.kind != held[0].kind),
         ) {
             return Err(Diagnostic::typing(
                 other.span.clone(),
@@ -6214,11 +6225,15 @@ impl Checker<'_> {
             ));
         }
         if let Some(first) = held.iter().find(|participant| participant.system.is_some())
-            && let Some(other) = held
-                .iter()
-                .find(|participant| participant.system.is_some() && participant.system != first.system)
+            && let Some(other) = held.iter().find(|participant| {
+                participant.system.is_some() && participant.system != first.system
+            })
         {
-            let what = if first.kind == "sqlite" { "database file" } else { "database" };
+            let what = if first.kind == "sqlite" {
+                "database file"
+            } else {
+                "database"
+            };
             return Err(Diagnostic::typing(
                 other.span.clone(),
                 format!(
@@ -6271,7 +6286,8 @@ impl Checker<'_> {
                     "a `spark` scope runs at the table's own isolation and names none",
                 ));
             }
-            if held.iter().any(|participant| participant.kind == "sqlite") && level != "Serializable"
+            if held.iter().any(|participant| participant.kind == "sqlite")
+                && level != "Serializable"
             {
                 return Err(Diagnostic::typing(
                     level_span.clone(),
@@ -6368,9 +6384,7 @@ impl Checker<'_> {
                     _ => None,
                 },
                 Kind::Pipe(_, step) => match &step.kind {
-                    Kind::Call { callee, arguments }
-                        if matches!(&callee.kind, Kind::Ident(name) if matches!(name.as_str(), "target" | "sink")) =>
-                    {
+                    Kind::Call { callee, arguments } if matches!(&callee.kind, Kind::Ident(name) if matches!(name.as_str(), "target" | "sink")) => {
                         arguments
                             .iter()
                             .find(|argument| argument.name.as_deref() == Some("endpoint"))
@@ -6385,14 +6399,18 @@ impl Checker<'_> {
         }
         if let Some(endpoint) = endpoint_of(expression) {
             let key = match &endpoint.kind {
-                Kind::Ident(name) => Some((name.clone(), self.scope.get(name).is_some_and(|ty| ty.is(&TypeRef::TRANSACTIONAL)))),
+                Kind::Ident(name) => Some((
+                    name.clone(),
+                    self.scope
+                        .get(name)
+                        .is_some_and(|ty| ty.is(&TypeRef::TRANSACTIONAL)),
+                )),
                 _ => crate::extensions::io::literal_endpoint_id(endpoint).map(|id| {
                     (
                         id.to_owned(),
-                        crate::extensions::io::configured_system(id, self.vault)
-                            .is_ok_and(|(kind, _)| {
-                                matches!(kind.as_str(), "sqlite" | "postgres" | "spark")
-                            }),
+                        crate::extensions::io::configured_system(id, self.vault).is_ok_and(
+                            |(kind, _)| matches!(kind.as_str(), "sqlite" | "postgres" | "spark"),
+                        ),
                     )
                 }),
             };
@@ -6474,7 +6492,10 @@ fn ast_children(expression: &Expr) -> Vec<&Expr> {
             .chain(otherwise.as_deref())
             .collect(),
         Kind::Mutation {
-            target, rows, steps, ..
+            target,
+            rows,
+            steps,
+            ..
         } => std::iter::once(target.as_ref())
             .chain(rows.as_deref())
             .chain(steps.iter().filter_map(|step| match &step.kind {
@@ -6496,7 +6517,10 @@ fn ast_children(expression: &Expr) -> Vec<&Expr> {
 }
 
 /// Whether an expression is a control call of the handle, `tx.f(…)`.
-fn control_call<'e>(expression: &'e Expr, handle: &str) -> Option<(&'e str, &'e [crate::ast::Arg])> {
+fn control_call<'e>(
+    expression: &'e Expr,
+    handle: &str,
+) -> Option<(&'e str, &'e [crate::ast::Arg])> {
     let Kind::Call { callee, arguments } = &expression.kind else {
         return None;
     };
@@ -6610,9 +6634,7 @@ fn collect_commits(
 /// Whether a statement changes a table: a mutation, or a `target` or
 /// `sink` written as a call or a step.
 fn changes_rows(expression: &Expr) -> bool {
-    let writes = |callee: &Expr| {
-        matches!(&callee.kind, Kind::Ident(name) if matches!(name.as_str(), "target" | "sink"))
-    };
+    let writes = |callee: &Expr| matches!(&callee.kind, Kind::Ident(name) if matches!(name.as_str(), "target" | "sink"));
     match &expression.kind {
         Kind::Mutation { .. } => true,
         Kind::Call { callee, .. } => writes(callee),
@@ -6642,13 +6664,16 @@ fn is_terminal(expression: &Expr, handle: &str) -> bool {
     }
 }
 
-
 /// Whether `expression`, a clause of a mutation over the row `parameter`,
 /// is one the endpoint's system runs: a sub-expression that reads no field
 /// of the row is computed in HQL and sent as a parameter; one that does is
 /// a field, a comparison, a connective, arithmetic, `contains` of a bound
 /// collection, or `is_none` and `is_some` of a field (HQL-0051).
-fn translatable(verb: crate::ast::Verb, expression: &Expr, parameter: &str) -> Result<(), Diagnostic> {
+fn translatable(
+    verb: crate::ast::Verb,
+    expression: &Expr,
+    parameter: &str,
+) -> Result<(), Diagnostic> {
     if !mentions(expression, parameter) {
         return Ok(());
     }

@@ -28,10 +28,7 @@ fn connect(dsn: &str) -> Result<Client, String> {
 /// Run `f` on a client of the database `dsn` names: the one an open
 /// transaction scope holds (HQL-0051), or one connected for this call
 /// alone.
-fn on_client<T>(
-    dsn: &str,
-    f: impl FnOnce(&mut Client) -> Result<T, String>,
-) -> Result<T, String> {
+fn on_client<T>(dsn: &str, f: impl FnOnce(&mut Client) -> Result<T, String>) -> Result<T, String> {
     let mut f = Some(f);
     if let Some(result) =
         crate::transaction::with_postgres(dsn, |client| f.take().map(|f| f(client))).flatten()
@@ -249,9 +246,9 @@ impl Writer {
         mode: WriteMode,
         columns: &[(String, String)],
     ) -> Result<Self, String> {
-        if let Some(insert) = crate::transaction::with_postgres(dsn, |client| {
-            prepared(client, table, mode, columns)
-        }) {
+        if let Some(insert) =
+            crate::transaction::with_postgres(dsn, |client| prepared(client, table, mode, columns))
+        {
             return Ok(Self {
                 client: None,
                 dsn: dsn.to_owned(),

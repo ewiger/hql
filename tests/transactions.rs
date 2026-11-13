@@ -68,8 +68,7 @@ kind = "vault"
 root = "notes"
 "#;
 
-const ORDER: &str =
-    "type Order { id : Int, customer : String, total : Decimal, paid : Bool }\n";
+const ORDER: &str = "type Order { id : Int, customer : String, total : Decimal, paid : Bool }\n";
 
 fn configured() -> (TempDir, Vault) {
     let dir = tempdir().unwrap();
@@ -127,10 +126,7 @@ fn the_table_transports_declare_the_four_capabilities_and_a_file_declares_none()
     let (_dir, vault) = configured();
     for (module, constructor) in [
         ("io.db.sqlite", "sqlite(\"x.db\", table = \"t\")"),
-        (
-            "io.db.postgres",
-            "postgres(dsn_env = \"D\", table = \"t\")",
-        ),
+        ("io.db.postgres", "postgres(dsn_env = \"D\", table = \"t\")"),
     ] {
         for capability in ["Transactional", "Insertable", "Updatable", "Deletable"] {
             let program = format!("import {module}\nt : {capability} = {constructor}\nt");
@@ -138,10 +134,7 @@ fn the_table_transports_declare_the_four_capabilities_and_a_file_declares_none()
         }
     }
     for capability in ["Transactional", "Insertable", "Updatable", "Deletable"] {
-        let error = refusal(
-            &format!("t : {capability} = file(\"a.json\")\nt"),
-            &vault,
-        );
+        let error = refusal(&format!("t : {capability} = file(\"a.json\")\nt"), &vault);
         assert!(error.contains(capability), "{error}");
     }
     // A capability is independent of the others: each is an abstract type
@@ -177,10 +170,7 @@ fn the_isolation_levels_are_types_below_isolation_level() {
 #[test]
 fn postgres_is_constructed_by_its_module_and_is_a_network_row_transport() {
     let (_dir, vault) = configured();
-    let error = refusal(
-        r#"source(postgres(dsn_env = "D", table = "t"))"#,
-        &vault,
-    );
+    let error = refusal(r#"source(postgres(dsn_env = "D", table = "t"))"#, &vault);
     assert!(error.contains("import io.db.postgres"), "{error}");
     assert_eq!(
         checked(
@@ -224,7 +214,10 @@ fn postgres_is_constructed_by_its_module_and_is_a_network_row_transport() {
         "import io.db.postgres\nsource(postgres(dsn_env = \"D\", table = \"t\"), Json)",
         &vault,
     );
-    assert!(error.contains("rows of named columns, not bytes"), "{error}");
+    assert!(
+        error.contains("rows of named columns, not bytes"),
+        "{error}"
+    );
     let error = refusal(
         &format!(
             "import io.db.postgres\n{ORDER}\
@@ -264,8 +257,11 @@ fn a_configured_id_is_typed_offline_as_its_kinds_transport() {
     assert!(error.contains("is a vault"), "{error}");
     let error = refusal(r#"configured("events")"#, &vault);
     assert!(error.contains("has no type until its module"), "{error}");
-    let error = refusal(r#"id = "orders"
-configured(id)"#, &vault);
+    let error = refusal(
+        r#"id = "orders"
+configured(id)"#,
+        &vault,
+    );
     assert!(error.contains("literal id"), "{error}");
     let error = refusal(r#"configured("postgres://db/orders")"#, &vault);
     assert!(error.contains("not an endpoint id"), "{error}");
@@ -284,21 +280,31 @@ fn a_configured_value_is_read_and_written_as_its_id_is() {
         checked(r#"tap("ledger")"#, &vault)
     );
     let by_value = value(
-        &format!("{ORDER}orders : Seq<Order> = source(configured(\"ledger\"))\norders | map(o => [o.id, o.total])"),
+        &format!(
+            "{ORDER}orders : Seq<Order> = source(configured(\"ledger\"))\norders | map(o => [o.id, o.total])"
+        ),
         &vault,
     );
     let by_id = value(
-        &format!("{ORDER}orders : Seq<Order> = source(\"ledger\")\norders | map(o => [o.id, o.total])"),
+        &format!(
+            "{ORDER}orders : Seq<Order> = source(\"ledger\")\norders | map(o => [o.id, o.total])"
+        ),
         &vault,
     );
     assert_eq!(by_value, by_id);
     assert_eq!(by_value, "[[1, 120.50], [2, 42.00]]");
     assert_eq!(
-        value(r#"source(configured("ledger")) | map(r => r.customer)"#, &vault),
+        value(
+            r#"source(configured("ledger")) | map(r => r.customer)"#,
+            &vault
+        ),
         r#"["ada", "grace"]"#
     );
     assert_eq!(
-        value(r#"tap(configured("ledger")) | map(r => r.id) | take(1)"#, &vault),
+        value(
+            r#"tap(configured("ledger")) | map(r => r.id) | take(1)"#,
+            &vault
+        ),
         "[1]"
     );
     // Bound once, the value is passed as any endpoint is.
@@ -319,10 +325,7 @@ fn a_configured_value_is_read_and_written_as_its_id_is() {
         ),
         &vault,
     );
-    assert_eq!(
-        value(r#"source("ledger") | map(r => r.id)"#, &vault),
-        "[9]"
-    );
+    assert_eq!(value(r#"source("ledger") | map(r => r.id)"#, &vault), "[9]");
     // The checks of a configured write apply: a format is refused, and so
     // is a vault.
     let error = refusal(
@@ -364,7 +367,9 @@ fn ledger(vault: &Vault) {
 
 fn balances(vault: &Vault) -> String {
     value(
-        &format!("{ACCOUNT}rows : Seq<Account> = source(\"accounts\")\nrows | map(a => [a.id, a.balance])"),
+        &format!(
+            "{ACCOUNT}rows : Seq<Account> = source(\"accounts\")\nrows | map(a => [a.id, a.balance])"
+        ),
         vault,
     )
 }
@@ -392,19 +397,26 @@ fn update_delete_and_insert_change_rows_in_place_and_count_them() {
     // inserted by one statement; a statement is also written on its own.
     assert_eq!(
         value(
-            &format!("{ACCOUNT}insert configured(\"accounts\") [{{id: 5, owner: \"eve\", balance: 2}}, {{id: 6, owner: \"bob\", balance: 3}}]"),
+            &format!(
+                "{ACCOUNT}insert configured(\"accounts\") [{{id: 5, owner: \"eve\", balance: 2}}, {{id: 6, owner: \"bob\", balance: 3}}]"
+            ),
             &vault,
         ),
         "2"
     );
     assert_eq!(
         value(
-            &format!("{ACCOUNT}update configured(\"accounts\") | set(a => {{balance: a.balance + 1}})"),
+            &format!(
+                "{ACCOUNT}update configured(\"accounts\") | set(a => {{balance: a.balance + 1}})"
+            ),
             &vault
         ),
         "5"
     );
-    assert_eq!(balances(&vault), "[[1, 151], [2, 41], [4, 2], [5, 3], [6, 4]]");
+    assert_eq!(
+        balances(&vault),
+        "[[1, 151], [2, 41], [4, 2], [5, 3], [6, 4]]"
+    );
     assert_eq!(
         value(&format!("{ACCOUNT}delete configured(\"accounts\")"), &vault),
         "5"
@@ -437,7 +449,9 @@ fn a_constructed_table_is_typed_by_of_type_and_a_clause_translates_what_it_may()
     assert_eq!(counts, "[1, 0, 1]");
     assert_eq!(
         value(
-            &format!("{ACCOUNT}rows : Seq<Account> = source(\"accounts\")\nrows | map(a => [a.id, a.balance, a.status | unwrap_or(\"\")])"),
+            &format!(
+                "{ACCOUNT}rows : Seq<Account> = source(\"accounts\")\nrows | map(a => [a.id, a.balance, a.status | unwrap_or(\"\")])"
+            ),
             &vault
         ),
         r#"[[1, 250, "open"], [2, 90, "open"], [3, 9, "archived"]]"#
@@ -455,11 +469,15 @@ fn a_constructed_table_is_typed_by_of_type_and_a_clause_translates_what_it_may()
     // The pipeline is closed, and a clause holds only what translates.
     for (program, says) in [
         (
-            format!("{ACCOUNT}update configured(\"accounts\") | filter(a => size(a.owner) > 3) | set(a => {{balance: 0}})"),
+            format!(
+                "{ACCOUNT}update configured(\"accounts\") | filter(a => size(a.owner) > 3) | set(a => {{balance: 0}})"
+            ),
             "not translated",
         ),
         (
-            format!("{ACCOUNT}delete configured(\"accounts\") | filter(a => a.owner.upper() == \"ADA\")"),
+            format!(
+                "{ACCOUNT}delete configured(\"accounts\") | filter(a => a.owner.upper() == \"ADA\")"
+            ),
             "not translated",
         ),
         (
@@ -471,7 +489,9 @@ fn a_constructed_table_is_typed_by_of_type_and_a_clause_translates_what_it_may()
             "declares no field `colour`",
         ),
         (
-            format!("{ACCOUNT}update configured(\"accounts\") | filter(a => a.id) | set(a => {{balance: 0}})"),
+            format!(
+                "{ACCOUNT}update configured(\"accounts\") | filter(a => a.id) | set(a => {{balance: 0}})"
+            ),
             "gives a Bool",
         ),
         (
@@ -491,11 +511,15 @@ fn a_constructed_table_is_typed_by_of_type_and_a_clause_translates_what_it_may()
             "an `update` ends in `set`",
         ),
         (
-            format!("{ACCOUNT}update configured(\"accounts\") | filter(a => a.id == 1) | of_type(Account) | set(a => {{balance: 0}})"),
+            format!(
+                "{ACCOUNT}update configured(\"accounts\") | filter(a => a.id == 1) | of_type(Account) | set(a => {{balance: 0}})"
+            ),
             "`of_type` names the rows' type first",
         ),
         (
-            format!("{ACCOUNT}update configured(\"accounts\") | set(a => {{balance: 0}}) | filter(a => a.id == 1)"),
+            format!(
+                "{ACCOUNT}update configured(\"accounts\") | set(a => {{balance: 0}}) | filter(a => a.id == 1)"
+            ),
             "`set` is the last clause",
         ),
         (
@@ -562,7 +586,9 @@ fn the_three_words_are_recognized_by_position_and_a_mutation_is_a_statement() {
     );
     // A table that does not exist is not created by a mutation.
     let error = refusal(
-        &format!("{ACCOUNT}insert configured(\"ledger\") Account(id = 1, owner = \"a\", balance = 1)"),
+        &format!(
+            "{ACCOUNT}insert configured(\"ledger\") Account(id = 1, owner = \"a\", balance = 1)"
+        ),
         &vault,
     );
     assert!(error.contains("does not exist"), "{error}");
@@ -585,13 +611,18 @@ fn a_mutation_over_postgres_checks_offline_as_one_statement() {
     );
     assert_eq!(
         checked(
-            &format!("{order}insert configured(\"orders\") Order(id = 1, customer = \"a\", total = 1.00)"),
+            &format!(
+                "{order}insert configured(\"orders\") Order(id = 1, customer = \"a\", total = 1.00)"
+            ),
             &vault
         ),
         "Int"
     );
     assert_eq!(
-        checked(r#"delete configured("orders") | filter(o => o.id == 1)"#, &vault),
+        checked(
+            r#"delete configured("orders") | filter(o => o.id == 1)"#,
+            &vault
+        ),
         "Int"
     );
     // The connection string is read where the statement runs.
@@ -650,17 +681,17 @@ fn a_scope_commits_its_statements_together_and_reads_its_own_writes() {
     let (_dir, vault) = configured();
     seeded_ledger(&vault);
     let program = format!("{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}{TRANSFER_SCOPE}");
-    assert_eq!(
-        checked(&program, &vault),
-        "Result<Int, TransactionFailure>"
-    );
+    assert_eq!(checked(&program, &vault), "Result<Int, TransactionFailure>");
     // Two transfers commit; the `insert` reads the balance the same attempt
     // updated, so its id is the sender's new balance.
     assert_eq!(value(&program, &vault), "ok(1)");
     assert_eq!(value(&program, &vault), "ok(1)");
     assert_eq!(balances(&vault), "[[1, 50], [2, 240], [3, 9]]");
     assert_eq!(
-        value(&format!("{TRANSFER}source(\"transfers\") | map(t => t.id)"), &vault),
+        value(
+            &format!("{TRANSFER}source(\"transfers\") | map(t => t.id)"),
+            &vault
+        ),
         "[50, 150]"
     );
     // The third rolls back by its own rule, and nothing of it remains.
@@ -700,7 +731,9 @@ fn the_handle_ends_an_attempt_early_and_the_block_binds_its_own_names() {
     assert_eq!(balances(&vault), "[[1, 0], [2, 41], [3, 10]]");
     // A binding of the block is not visible after it.
     let error = refusal(
-        &format!("{ACCOUNT}accounts = configured(\"accounts\")\nwith transaction tx on accounts {{ n = 1 }}\nn"),
+        &format!(
+            "{ACCOUNT}accounts = configured(\"accounts\")\nwith transaction tx on accounts {{ n = 1 }}\nn"
+        ),
         &vault,
     );
     assert!(error.contains("`n` is not bound"), "{error}");
@@ -777,18 +810,22 @@ fn a_failure_in_an_attempt_rolls_it_back_and_a_constraint_or_a_conflict_is_data(
 fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
     let (_dir, vault) = configured();
     seeded_ledger(&vault);
-    let head = format!("{ACCOUNT}{TRANSFER}accounts = configured(\"accounts\")\ntransfers = configured(\"transfers\")\n");
+    let head = format!(
+        "{ACCOUNT}{TRANSFER}accounts = configured(\"accounts\")\ntransfers = configured(\"transfers\")\n"
+    );
     for (program, says) in [
         (
             "with transaction tx on accounts { with transaction u on accounts { 1 } }".to_owned(),
             "not written inside another",
         ),
         (
-            "with transaction tx on accounts { update transfers | set(t => {amount: 0}) }".to_owned(),
+            "with transaction tx on accounts { update transfers | set(t => {amount: 0}) }"
+                .to_owned(),
             "no participant of this scope",
         ),
         (
-            "with transaction tx on accounts { source(configured(\"transfers\")) | size }".to_owned(),
+            "with transaction tx on accounts { source(configured(\"transfers\")) | size }"
+                .to_owned(),
             "no participant of this scope",
         ),
         (
@@ -849,12 +886,17 @@ fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
         assert!(error.contains(says), "{program}\n{error}");
     }
     // A name beside the words keeps its meaning.
-    assert_eq!(value("with = 1\ntransaction = 2\nwith + transaction", &vault), "3");
+    assert_eq!(
+        value("with = 1\ntransaction = 2\nwith + transaction", &vault),
+        "3"
+    );
     // Isolation is accepted where the kind offers it, and the handle may be
     // left out.
     assert_eq!(
         checked(
-            &format!("{head}with transaction(isolation = Serializable) on {{accounts, transfers}} {{ 1 }}"),
+            &format!(
+                "{head}with transaction(isolation = Serializable) on {{accounts, transfers}} {{ 1 }}"
+            ),
             &vault
         ),
         "Result<Int, TransactionFailure>"
@@ -877,7 +919,10 @@ fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
          {postgres(dsn_env = \"D\", table = \"a\"), postgres(dsn_env = \"E\", table = \"b\")} { 1 }",
         &vault,
     );
-    assert!(error.contains("in one database, and these are in two"), "{error}");
+    assert!(
+        error.contains("in one database, and these are in two"),
+        "{error}"
+    );
 }
 
 // Phase 5: the `spark` kind, checked offline: one table, one statement.
@@ -888,13 +933,25 @@ fn a_spark_table_is_constructed_by_its_module_and_takes_one_statement_per_scope(
     let error = refusal(r#"source(spark(table = "t", url_env = "L"))"#, &vault);
     assert!(error.contains("import io.db.spark"), "{error}");
     assert_eq!(
-        checked("import io.db.spark\nspark(table = \"t\", url_env = \"L\")", &vault),
+        checked(
+            "import io.db.spark\nspark(table = \"t\", url_env = \"L\")",
+            &vault
+        ),
         "Spark"
     );
-    for capability in ["Network", "RowTransport", "Transactional", "Insertable", "Updatable", "Deletable"] {
+    for capability in [
+        "Network",
+        "RowTransport",
+        "Transactional",
+        "Insertable",
+        "Updatable",
+        "Deletable",
+    ] {
         assert_eq!(
             checked(
-                &format!("import io.db.spark\nt : {capability} = spark(table = \"t\", url = \"http://h/cliservice\")\nt"),
+                &format!(
+                    "import io.db.spark\nt : {capability} = spark(table = \"t\", url = \"http://h/cliservice\")\nt"
+                ),
                 &vault
             ),
             capability,
@@ -906,7 +963,9 @@ fn a_spark_table_is_constructed_by_its_module_and_takes_one_statement_per_scope(
     // runs.
     assert_eq!(
         checked(
-            &format!("{ACCOUNT}update configured(\"lake\") | filter(a => a.id == 1) | set(a => {{balance: a.balance + 1}})"),
+            &format!(
+                "{ACCOUNT}update configured(\"lake\") | filter(a => a.id == 1) | set(a => {{balance: a.balance + 1}})"
+            ),
             &vault
         ),
         "Int"

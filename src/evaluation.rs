@@ -850,10 +850,7 @@ impl Evaluator<'_> {
                     };
                     match transaction::commit() {
                         Ok(()) => {
-                            return Ok(Value::Ok(
-                                Arc::new(value),
-                                TypeRef::TRANSACTION_FAILURE,
-                            ));
+                            return Ok(Value::Ok(Arc::new(value), TypeRef::TRANSACTION_FAILURE));
                         }
                         Err((Some(Class::Conflict), _)) if more => continue,
                         Err((Some(Class::Conflict), message)) => {
@@ -890,12 +887,7 @@ impl Evaluator<'_> {
                             return Ok(failure("conflict", error.message.clone(), attempt, None));
                         }
                         Some(Class::Constraint) => {
-                            return Ok(failure(
-                                "constraint",
-                                error.message.clone(),
-                                attempt,
-                                None,
-                            ));
+                            return Ok(failure("constraint", error.message.clone(), attempt, None));
                         }
                         None => return Err(error),
                     }

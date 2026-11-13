@@ -731,14 +731,13 @@ fn located(table: &str) -> impl Fn(String) -> String + '_ {
 /// refused it.
 pub(crate) fn execute(server: &Server, statement: &str) -> Result<Option<i64>, String> {
     let session = Session::open(server)?;
-    let operation = session.execute(statement).map_err(|message| {
+    let operation = session.execute(statement).inspect_err(|message| {
         if message.contains("Concurrent")
             || message.contains("ProtocolChanged")
             || message.contains("MetadataChanged")
         {
             crate::transaction::note_conflict();
         }
-        message
     })?;
     let count = if operation.has_result {
         session.result(&operation).ok().and_then(|(types, rows)| {

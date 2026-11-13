@@ -585,7 +585,10 @@ impl Parser {
             }
             _ => None,
         };
-        self.expect(&Token::Ident("on".to_owned()), "before a transaction's participants")?;
+        self.expect(
+            &Token::Ident("on".to_owned()),
+            "before a transaction's participants",
+        )?;
         let participants = self.link()?;
         // The block, as `lines` reads one: line breaks separate statements.
         let saved = std::mem::replace(&mut self.nesting, 0);
@@ -3134,7 +3137,10 @@ fn mutation_step(
         },
         "filter" | "set" => {
             if name == "set" && verb != Verb::Update {
-                return Err(refused(format!("`set` assigns, which `{}` does not", verb.word())));
+                return Err(refused(format!(
+                    "`set` assigns, which `{}` does not",
+                    verb.word()
+                )));
             }
             let Kind::Lambda { parameters, .. } = &argument.kind else {
                 return Err(refused(format!("`{name}` takes a lambda of one row")));

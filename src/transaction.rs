@@ -34,11 +34,17 @@ pub(crate) enum Class {
 /// The one system a scope's participants share.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum System {
-    Sqlite { path: PathBuf },
-    Postgres { dsn: String },
+    Sqlite {
+        path: PathBuf,
+    },
+    Postgres {
+        dsn: String,
+    },
     /// A Spark SQL endpoint: one table, whose one statement is its own
     /// commit, so the scope opens nothing and holds nothing.
-    Spark { url: String },
+    Spark {
+        url: String,
+    },
 }
 
 enum Active {
@@ -157,10 +163,7 @@ fn same_file(held: &Path, asked: &Path) -> bool {
 
 /// Run `f` on the attempt's connection to the database file at `path`,
 /// where one is open; `None` where no attempt holds that file.
-pub(crate) fn with_sqlite<T>(
-    path: &Path,
-    f: impl FnOnce(&rusqlite::Connection) -> T,
-) -> Option<T> {
+pub(crate) fn with_sqlite<T>(path: &Path, f: impl FnOnce(&rusqlite::Connection) -> T) -> Option<T> {
     ACTIVE.with(|active| match active.borrow().as_ref() {
         Some(Active::Sqlite {
             path: held,
@@ -172,10 +175,7 @@ pub(crate) fn with_sqlite<T>(
 
 /// Run `f` on the attempt's client to the database `dsn` names, where one
 /// is open; `None` where no attempt holds that database.
-pub(crate) fn with_postgres<T>(
-    dsn: &str,
-    f: impl FnOnce(&mut postgres::Client) -> T,
-) -> Option<T> {
+pub(crate) fn with_postgres<T>(dsn: &str, f: impl FnOnce(&mut postgres::Client) -> T) -> Option<T> {
     ACTIVE.with(|active| match active.borrow_mut().as_mut() {
         Some(Active::Postgres { dsn: held, client }) if held == dsn => Some(f(client)),
         _ => None,
@@ -221,8 +221,12 @@ pub(crate) fn begin(system: &System, isolation: Option<&str>) -> Result<(), Stri
             }
         }
         System::Postgres { dsn } => {
-            let mut client = postgres::Client::connect(dsn, postgres::NoTls)
-                .map_err(|error| format!("no connection to the database: {}", postgres_message(&error)))?;
+            let mut client = postgres::Client::connect(dsn, postgres::NoTls).map_err(|error| {
+                format!(
+                    "no connection to the database: {}",
+                    postgres_message(&error)
+                )
+            })?;
             let level = match isolation {
                 Some("ReadCommitted") => " ISOLATION LEVEL READ COMMITTED",
                 Some("RepeatableRead") => " ISOLATION LEVEL REPEATABLE READ",

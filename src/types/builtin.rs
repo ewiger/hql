@@ -252,9 +252,21 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Abstract,
             &[TypeRef::TRANSPORT],
         ),
-        (TypeRef::INSERTABLE, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
-        (TypeRef::UPDATABLE, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
-        (TypeRef::DELETABLE, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
+        (
+            TypeRef::INSERTABLE,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::UPDATABLE,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::DELETABLE,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
         // How much of other transactions a scope sees (HQL-0051): a level is
         // a type, passed as one, as a logger's threshold is.
         (TypeRef::ISOLATION_LEVEL, TypeKind::Abstract, &[]),

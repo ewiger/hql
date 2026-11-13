@@ -35,14 +35,14 @@ pub mod postgres;
 pub(crate) mod regex;
 pub(crate) mod result;
 pub mod semantic;
-pub mod spark;
 pub(crate) mod seq;
+pub mod spark;
 pub mod spec;
 pub mod sqlite;
 pub(crate) mod string;
 pub(crate) mod time;
-pub(crate) mod transaction;
 pub(crate) mod traits;
+pub(crate) mod transaction;
 pub(crate) mod window;
 pub use collections::{COMBINERS, Combiner};
 use spec::{CheckedCall, OperationSpec};
@@ -1418,7 +1418,8 @@ mod tests {
         // evaluation clock are the effects; every other step, constructing
         // an endpoint or a logger included, is a function of its input.
         for entry in &listed {
-            let effectful = (entry.provider == "io" && !matches!(entry.name, "file" | "configured"))
+            let effectful = (entry.provider == "io"
+                && !matches!(entry.name, "file" | "configured"))
                 || entry.provider == "io.transaction"
                 || (entry.provider == "logging" && entry.name != "Logger")
                 || (entry.provider == "time"

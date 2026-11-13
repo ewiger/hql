@@ -1542,10 +1542,12 @@ impl Destination {
             Endpoint::Stdout => Ok((Self::Stdout, false)),
             Endpoint::Stderr => Ok((Self::Stderr, false)),
             Endpoint::Stdin => Err("standard input is not written".to_owned()),
-            Endpoint::Sqlite { .. } | Endpoint::Postgres { .. } | Endpoint::Spark { .. } => Err(format!(
-                "{} holds rows, not documents; write it with `target`",
-                endpoint.describe()
-            )),
+            Endpoint::Sqlite { .. } | Endpoint::Postgres { .. } | Endpoint::Spark { .. } => {
+                Err(format!(
+                    "{} holds rows, not documents; write it with `target`",
+                    endpoint.describe()
+                ))
+            }
             Endpoint::Configured { id, .. } => Err(format!(
                 "endpoint `{id}` is written as its configuration says, by `target(\"{id}\")` or \
                  `sink(\"{id}\")`"

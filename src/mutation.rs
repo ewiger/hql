@@ -155,7 +155,11 @@ pub(crate) fn run(
         other => {
             return Err(Diagnostic::runtime(
                 target.span.clone(),
-                format!("`{}` changes an endpoint, not {}", verb.word(), other.type_of()),
+                format!(
+                    "`{}` changes an endpoint, not {}",
+                    verb.word(),
+                    other.type_of()
+                ),
             ));
         }
     };
@@ -193,12 +197,7 @@ pub(crate) fn run(
     let column = |field: &str| -> String {
         boundary
             .as_ref()
-            .and_then(|boundary| {
-                boundary
-                    .fields
-                    .iter()
-                    .find(|held| held.field.name == field)
-            })
+            .and_then(|boundary| boundary.fields.iter().find(|held| held.field.name == field))
             .map_or_else(
                 || field.to_owned(),
                 |held| crate::boundary::written(&held.external.value),
@@ -352,8 +351,7 @@ impl Translator<'_> {
             )
         };
         match &expression.kind {
-            Kind::Field(inner, field)
-                if matches!(&inner.kind, Kind::Ident(held) if held == parameter) =>
+            Kind::Field(inner, field) if matches!(&inner.kind, Kind::Ident(held) if held == parameter) =>
             {
                 let name = match field {
                     Field::Record(name) | Field::Key(name) => name.clone(),
@@ -444,7 +442,11 @@ impl Translator<'_> {
                     let inner = self.expression(input, parameter, column)?;
                     Ok(format!(
                         "({inner} IS {})",
-                        if step.name == "is_none" { "NULL" } else { "NOT NULL" }
+                        if step.name == "is_none" {
+                            "NULL"
+                        } else {
+                            "NOT NULL"
+                        }
                     ))
                 }
                 "contains" if arguments.len() == 1 && !mentions(input, parameter) => {
@@ -488,8 +490,14 @@ mod tests {
 
     #[test]
     fn a_table_name_is_quoted_and_schema_qualified_for_postgres() {
-        assert_eq!(table_name("audit.events", Dialect::Postgres), "\"audit\".\"events\"");
-        assert_eq!(table_name("audit.events", Dialect::Sqlite), "\"audit.events\"");
+        assert_eq!(
+            table_name("audit.events", Dialect::Postgres),
+            "\"audit\".\"events\""
+        );
+        assert_eq!(
+            table_name("audit.events", Dialect::Sqlite),
+            "\"audit.events\""
+        );
         assert_eq!(quoted("odd\"name"), "\"odd\"\"name\"");
     }
 

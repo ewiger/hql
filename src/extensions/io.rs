@@ -161,9 +161,7 @@ fn literal_id(expression: &Expr) -> Option<&str> {
     match &expression.kind {
         Kind::Str(id) => Some(id),
         Kind::Call { callee, arguments } => match (&callee.kind, arguments.as_slice()) {
-            (Kind::Ident(name), [argument])
-                if name == "configured" && argument.name.is_none() =>
-            {
+            (Kind::Ident(name), [argument]) if name == "configured" && argument.name.is_none() => {
                 match &argument.value.kind {
                     Kind::Str(id) => Some(id),
                     _ => None,
@@ -234,7 +232,10 @@ fn eval_configured(
     let Value::Str(id) = &input else {
         return Err(Diagnostic::runtime(
             span,
-            format!("`configured` names an endpoint by its id, not {}", input.type_of()),
+            format!(
+                "`configured` names an endpoint by its id, not {}",
+                input.type_of()
+            ),
         ));
     };
     let failed = |message: String| Diagnostic::runtime(span.clone(), message);
@@ -364,7 +365,9 @@ pub(crate) fn result(
         })?;
         return configured_transport(held).map_err(|message| Diagnostic::typing(span, message));
     }
-    let bound_id = call.input_expr.and_then(|expression| bound_id(expression, cx));
+    let bound_id = call
+        .input_expr
+        .and_then(|expression| bound_id(expression, cx));
     if call.input.is(&TypeRef::STR) || bound_id.is_some() {
         let read = configured_type(call, vault, bound_id.as_deref())?;
         if name != "tap" {
@@ -2221,7 +2224,11 @@ pub(crate) fn insert_rows(
         one => (one.type_of(), vec![one.clone()]),
     };
     // A tree is read as the row the table holds.
-    let element = if *row == TypeRef::DATA { element } else { row.clone() };
+    let element = if *row == TypeRef::DATA {
+        element
+    } else {
+        row.clone()
+    };
     let rows = rows
         .into_iter()
         .enumerate()

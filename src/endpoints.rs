@@ -1016,9 +1016,11 @@ fn kind_names() -> String {
 /// # Errors
 /// Names the database and what failed: opening it, or the query.
 pub fn sqlite_columns(path: &Path, table: &str) -> Result<Vec<String>, String> {
-    on_sqlite(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY, |connection| {
-        sqlite_columns_on(connection, path, table)
-    })
+    on_sqlite(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        |connection| sqlite_columns_on(connection, path, table),
+    )
 }
 
 /// Run `f` on a connection to the database file at `path`: the one an open
@@ -1030,10 +1032,9 @@ fn on_sqlite<T>(
     f: impl FnOnce(&rusqlite::Connection) -> Result<T, String>,
 ) -> Result<T, String> {
     let mut f = Some(f);
-    if let Some(result) = crate::transaction::with_sqlite(path, |connection| {
-        f.take().map(|f| f(connection))
-    })
-    .flatten()
+    if let Some(result) =
+        crate::transaction::with_sqlite(path, |connection| f.take().map(|f| f(connection)))
+            .flatten()
     {
         return result;
     }
@@ -1072,9 +1073,11 @@ fn sqlite_columns_on(
 /// # Errors
 /// Names the database and what failed: opening it, or the query.
 pub fn sqlite_column_types(path: &Path, table: &str) -> Result<BTreeMap<String, String>, String> {
-    on_sqlite(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY, |connection| {
-        sqlite_column_types_on(connection, path, table)
-    })
+    on_sqlite(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        |connection| sqlite_column_types_on(connection, path, table),
+    )
 }
 
 fn sqlite_column_types_on(
@@ -1106,9 +1109,11 @@ pub fn sqlite_rows(
     order: &[String],
     columns: Option<&[String]>,
 ) -> Result<Vec<crate::data::Data>, String> {
-    on_sqlite(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY, |connection| {
-        sqlite_rows_on(connection, path, table, order, columns)
-    })
+    on_sqlite(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        |connection| sqlite_rows_on(connection, path, table, order, columns),
+    )
 }
 
 fn sqlite_rows_on(
@@ -1204,16 +1209,18 @@ pub(crate) fn sqlite_execute(
             Param::Int(n) => rusqlite::types::Value::Integer(*n),
             Param::Float(x) => rusqlite::types::Value::Real(*x),
             Param::Bool(b) => rusqlite::types::Value::Integer(i64::from(*b)),
-            Param::Text(text) | Param::Numeric(text) => {
-                rusqlite::types::Value::Text(text.clone())
-            }
+            Param::Text(text) | Param::Numeric(text) => rusqlite::types::Value::Text(text.clone()),
         })
         .collect();
-    on_sqlite(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE, |connection| {
-        connection
-            .execute(statement, rusqlite::params_from_iter(values.iter()))
-            .map_err(located)
-    })
+    on_sqlite(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE,
+        |connection| {
+            connection
+                .execute(statement, rusqlite::params_from_iter(values.iter()))
+                .map_err(located)
+        },
+    )
 }
 
 /// Write rows to one SQLite table as `mode` says, the table's columns each
