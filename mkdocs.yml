@@ -107,6 +107,7 @@ nav:
                   - Receiver modules: learn/05-modules/receiver-modules.md
                   - Visibility: learn/05-modules/visibility.md
                   - How names resolve: learn/05-modules/names.md
+                  - Modules and packages: learn/05-modules/packages.md
               - 6. SQL-like Queries: learn/06-sql-like-queries.md
               - 7. Streams that do not end: learn/07-streams.md
               - 8. Writing results out: learn/08-output.md

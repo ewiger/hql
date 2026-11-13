@@ -57,7 +57,8 @@ one claim about which book inspired which, and a librarian.
    two body forms `= expr` and `{ … }`, generic functions, aliases, and
    partial application.
 5. [Modules](05-modules/index.md) — modules of your own, imports, receiver
-   modules, public and private declarations, and how a name resolves.
+   modules, public and private declarations, how a name resolves, and the
+   packages modules come in.
 6. [SQL-like Queries](06-sql-like-queries.md) — where, order by, group by and the
    aggregates.
 7. [Streams that do not end](07-streams.md) — generators, laziness, and

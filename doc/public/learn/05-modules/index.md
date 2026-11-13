@@ -143,6 +143,7 @@ The [reference](../../reference/index.md) has a page per standard module.
 | [Receiver modules](receiver-modules.md) | `module m for T`, functions taking `self`, and `value.f()` calls |
 | [Visibility](visibility.md) | public and `private` declarations, and a module's contract |
 | [How names resolve](names.md) | import units, a unit's own names, ambiguity, and modules as closures |
+| [Modules and packages](packages.md) | modules, packages, extensions and libraries; builtin and installable packages |
 
 ## What is next
 
