@@ -17,7 +17,12 @@ roots = ["lib"]
 ```
 
 or from `--modules lib` on the command line. The tutorial vault configures
-`lib/` as its root, and keeps the book's modules there.
+`lib/` as its root, and keeps the book's modules there. Roots outside every
+workspace come from the user's `~/.hql/modules/`, from `[modules] roots` in
+`~/.hql/config.toml`, and from `$HQL_PATH`; the
+[execution context](../13-working-with-hql.md#the-execution-context) lists
+them all. A module provided under two roots is an error, whichever layers
+the roots come from.
 
 Every module file opens with its name, which is checked against the file's
 place under its root. This is `lib/club/reading.hql`:
