@@ -1,5 +1,5 @@
 // status: valid-now
-// feature: `import validators` gives the standard validator types: `Email` for a field, and `NonEmpty`, implemented for `String` and `List`, in a rule
+// feature: `import validators` gives the standard validator traits: `Email` for a field, and `NonEmpty`, implemented for `String` and `List`, in a rule
 // implementation: implemented
 // environment: pure
 // expected-type: List<String>

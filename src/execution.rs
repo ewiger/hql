@@ -746,7 +746,7 @@ pub(crate) struct Checked {
     pub validations: HashMap<Range<usize>, TypeRef>,
     /// Each call of a trait's function, by the trait and the function.
     pub method_calls: HashMap<Range<usize>, (String, String)>,
-    /// Each `validate f with V` naming a validator type, by the validator:
+    /// Each `validate f with V` naming a validator trait, by the validator:
     /// a call of `V`'s `validate` on the field (HQL-0034).
     pub validator_calls: HashMap<Range<usize>, String>,
     /// Each operator resolved through a trait, by the trait.

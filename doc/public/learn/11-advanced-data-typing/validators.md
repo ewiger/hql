@@ -1,6 +1,6 @@
 # Validators
 
-A check that several contracts share gets a name. A **validator type** is a
+A check that several contracts share gets a name. A **validator trait** is a
 trait whose supertype is `Validator`, implemented for the type of value it
 checks with one function, `validate(self) : Bool`. A contract names it in a
 rule, or declares a field with it.
@@ -34,7 +34,7 @@ d | Signup
 Signup(contact = none, work_email = "ada@lovelace.org")
 ```
 
-`Signup.work_email` is a `String`: a field declared with a validator type
+`Signup.work_email` is a `String`: a field declared with a validator trait
 has the type that implements it. The validator adds a check, not a type of
 value.
 
@@ -46,7 +46,7 @@ written, `validate contact? with Email`.
 
 `validate f with V` takes either. A function of the field's type to `Bool`,
 as `is_country_code` was on the [previous page](data-contracts.md), is the
-check written once in the program. A validator type is the check with a
+check written once in the program. A validator trait is the check with a
 name in the type system: a field can be declared with it, a library can
 export it, and a diagnostic can name it. A validator named in a rule must be
 implemented for the field's type; `validate age with Email` over an `Int`

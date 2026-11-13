@@ -38,7 +38,7 @@ UserData(id = "u-42", name = "Alice", age = none, country = "CH")
 
 `validate country with is_country_code` is a rule that hands the field to a
 function: it is `require is_country_code(country)`, with the check named
-once and reused. A check with a name of its own, a validator type, is the
+once and reused. A check with a name of its own, a validator trait, is the
 [next page](validators.md).
 
 An upstream system that adds a field breaks nothing here. That is the

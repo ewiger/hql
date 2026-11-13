@@ -196,11 +196,43 @@ leaves the two domains peers; that case is below.
 A Rust trait is a **host-language** mechanism, and none of it reaches HQL's
 surface: "Rust does it this way" is never an argument for an HQL feature — see
 [the stack scope note](../../stack.md) and [[hql/extensions]]. HQL's `trait` is
-its own construct ([HQL-0024 part 5](../../proposals/HQL-0024/parts/05-traits.md)):
-a capability contract, a named set of functions a type satisfies through an
-`impl` and the checker verifies ([[hql/compilation]]), written for what generic code quantifies over and for the operators,
-and for nothing else. `String.trim()` needs no `Trimmable`; it is a function
-of the `string` receiver module.
+its own construct ([HQL-0024 part 5](../../proposals/HQL-0024/parts/05-traits.md),
+[HQL-0039](../../proposals/HQL-0039/README.md)):
+a capability contract, a named set of functions over `Self` a type satisfies
+through one implementation the checker verifies ([[hql/compilation]]), written
+for what generic code quantifies over and for the operators, and for nothing
+else. `String.trim()` needs no `Trimmable`; it is a function of the `string`
+receiver module.
+
+A trait is not a type. Its name is written in a declaration, `trait A`, an
+extension, `trait A : B`, a bound, `<T : A>`, an implementation, `impl A for
+T`, a receiver module's trait list, `module m for T : A`, a validator rule,
+`validate f with V`, and a validator field, `f: V`. In any other type
+position, a parameter, a binding, a result or an element, it is refused, and
+the diagnostic names the bound `<T : A>(x: T)` that states the requirement.
+
+An implementation is declared in one of two forms, under one coherence rule.
+`impl A for T { … }` writes the functions in braces. A receiver module lists
+the traits its pattern's type implements, `module shapes.circle for Circle :
+Shape`, and its own `self` functions are that implementation: `c.area()`,
+`circle.area(c)` and a call through a bound `T : Shape` reach one declaration,
+and a function no listed trait requires stays an ordinary receiver function.
+Each function a listed trait requires is a `self` function of the module at
+the trait's signature with `Self` the pattern's type, or the trait's default
+body; the module line is refused where one is missing or two listed traits
+require one name. The standard library states `Index` and `Slice` of `String`
+in `module string for String : Index<String>, Slice`, with bodyless functions
+an extension implements.
+
+A trait's declaration may name a type: `trait Shape as Figure` declares the
+trait and `Figure`, the union of the types implementing `Shape`, by `impl` or
+by a module's trait list. `Figure` is a type in every type position; a `match`
+over it covers each member, a function of `Shape` is a function of `Figure`
+that dispatches on the value's own type, and `Figure` implements `Shape`, so it
+satisfies `T : Shape`, and takes no `impl` of its own. A trait naming its type
+writes `Self` only as the receiver, takes no type parameters and is not a
+validator trait. `trait Named as Named` gives the type the trait's own name:
+a trait position reads the trait, a type position the type.
 
 Three different things are kept apart:
 
@@ -235,16 +267,17 @@ map or set is built, structurally, with no `eq` consulted.
 A trait may **extend** others, `trait Email : Validator { }`: the functions of
 the traits it extends are its own, and an implementation of it supplies them;
 it implements none of the traits it extends by doing so. A trait extending
-`Validator` is a **validator type** ([HQL-0034](../../proposals/HQL-0034/README.md)),
+`Validator` is a **validator trait** ([HQL-0034](../../proposals/HQL-0034/README.md)),
 whose `validate(self) : Bool` is a check a value passes. A contract names one
 in a rule, `validate contact? with Email`, which holds where `Email`'s
 `validate` of the field is true and is a type error where the field's type
-does not implement `Email`. A field declared with one, `work_email: Email`, is
-of the one type implementing it and is held to its `validate` wherever the
+does not implement `Email`. A field declared with one, `work_email: Email`, is a
+refinement, not a field of trait type: it is of the one type implementing it
+and is held to its `validate` wherever the
 record is read or built, a broken one reported as the violation
 `UserData.work_email`. `import validators` gives the standard ones: `Email`
 for text and `NonEmpty`, implemented for text and for lists, so it is named in
-a rule, `validate tags with NonEmpty`; a validator type implemented for
+a rule, `validate tags with NonEmpty`; a validator trait implemented for
 several types has no one type to give a field.
 
 A **generic trait** takes type parameters, and an implementation takes its own
@@ -253,7 +286,7 @@ element type its `at(self, position: Int) : Option<T>` returns, and
 `impl<T> Index<T> for Ring<T>` gives it for every `Ring`. A bound names a
 generic trait with its arguments, `E : Index<T>`, and a call fills a parameter
 its arguments leave open from the one implementation that applies:
-`first_of([1, 2])` has `T = Int` through `impl<T> Index<T> for Seq<T>`. There
+`first_of([1, 2])` has `T = Int` through `module seq for Seq<T> : Index<T>`. There
 are no associated types; a parameter the implementing type decides is a trait
 parameter that inference fills. A type may implement one trait at several
 arguments, `Scale<Int>` and `Scale<Float>`, and a call's argument types choose

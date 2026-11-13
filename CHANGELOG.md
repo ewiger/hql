@@ -10,6 +10,16 @@ The language continues to be in active development.
 
 ### Added
 
+- Traits ([HQL-0039](doc/proposals/HQL-0039/README.md)): `trait Shape as
+  Figure` declares `Figure`, the union of the types implementing `Shape`,
+  which holds a value of any of them, matches member by member, dispatches
+  `f.area()` on the value's own type and satisfies `T : Shape`. A receiver
+  module lists the traits its type implements, `module shapes.circle for
+  Circle : Shape`, and its own `self` functions are the implementation;
+  `string` and `seq` state `Index` and `Slice` this way, so `string.at(s,
+  1)`, `seq.at(xs, 1)` and `seq.slice(xs, r)` are calls. A trait written as a
+  type is refused, naming the bound `<T : Shape>(x: T)`. A trait extending
+  `Validator` is called a validator trait.
 - Analytic windows ([HQL-0050](doc/proposals/HQL-0050/README.md)):
   `over(by, order, into)` partitions a sequence by `by`, orders each
   partition by `order`, and gives one value per row, at the row's input

@@ -2927,7 +2927,7 @@ impl Evaluator<'_> {
         }
     }
 
-    /// Each field of `record` declared with a validator type whose
+    /// Each field of `record` declared with a validator trait whose
     /// `validate` is false of it, an absent optional field passing.
     fn broken_validators(
         &mut self,

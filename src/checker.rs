@@ -771,7 +771,7 @@ pub(crate) struct TraitInfo {
 }
 
 impl TraitInfo {
-    /// Whether it is a validator type: `Validator` is among the traits it
+    /// Whether it is a validator trait: `Validator` is among the traits it
     /// extends (HQL-0034).
     pub(crate) fn is_validator(&self) -> bool {
         self.supertraits.iter().any(|name| name == "Validator")
@@ -3908,7 +3908,7 @@ impl<'a> Checker<'a> {
         Ok(ty)
     }
 
-    /// `V(f)`, which `validate f with V` writes, for a validator type `V`:
+    /// `V(f)`, which `validate f with V` writes, for a validator trait `V`:
     /// a `Bool`, `V`'s `validate` of `f`, where `f`'s type implements `V`.
     fn validator_call(
         &mut self,
@@ -3921,7 +3921,7 @@ impl<'a> Checker<'a> {
             return Err(Diagnostic::typing(
                 span,
                 format!(
-                    "`{name}` is a trait, not a validator type: a validator type extends \
+                    "`{name}` is a trait, not a validator trait: a validator trait extends \
                      `Validator`, `trait {name} : Validator`"
                 ),
             ));
@@ -4342,7 +4342,7 @@ impl<'a> Checker<'a> {
             crate::types::program::add_member(named.constructor, target.clone())
                 .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
         }
-        // A field may be declared with a validator type, and is then of the
+        // A field may be declared with a validator trait, and is then of the
         // type implementing it.
         if info.is_validator() {
             crate::types::program::validator(trait_name, Some(target.clone()))

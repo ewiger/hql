@@ -8,10 +8,10 @@ names a validator; tracked by
 
 ## Abstract
 
-A validator type is a trait whose supertype is `Validator` and which
+A validator trait is a trait whose supertype is `Validator` and which
 declares `fn validate(self) : Bool`. A contract names one in a rule,
 `validate email? with Email`, and the rule holds where the field's
-`validate` is `true`. A validator type is the reusable, named form of a
+`validate` is `true`. A validator trait is the reusable, named form of a
 check that a `Bool` function states once: `Email`, `CountryCode`,
 `Currency`, `Uuid`. Because it is a type, a field may also be declared
 with it, `email: Email`, and the record validates the field as it reads
@@ -47,9 +47,9 @@ type UserData : DataContract = {
 }
 ```
 
-- A validator type MUST have `Validator` among its supertypes, and the type
+- A validator trait MUST have `Validator` among its supertypes, and the type
   it is checked against MUST implement its `validate(self) : Bool`.
-- `validate f with V`, for a validator type `V`, holds where `f.validate()`
+- `validate f with V`, for a validator trait `V`, holds where `f.validate()`
   of `V`'s implementation for `f`'s type is `true`.
 - A field declared `f: V` reads as `V` where the value reads as the type
   that implements `V` and its `validate` is `true`.
@@ -57,13 +57,13 @@ type UserData : DataContract = {
 A trait extends others by having their functions as its own: an
 implementation of `Email` supplies `validate`, and does not implement
 `Validator` by doing so. A field declared `f: V` is of the type that
-implements `V`, so `u.work_email` is a `String`; a validator type
+implements `V`, so `u.work_email` is a `String`; a validator trait
 implemented for no type is refused as a field's type.
 
 ### The standard validators
 
 The module `validators`, [`lib/std/validators/mod.hql`](../../../lib/std/validators/mod.hql),
-declares the standard validator types. It is written in HQL, its
+declares the standard validator traits. It is written in HQL, its
 implementations bodies a program runs, and it is imported where it is used,
 `import validators`, never by the prelude, so a program that declares its own
 `Email` keeps it. The first set:
@@ -75,10 +75,10 @@ implementations bodies a program runs, and it is imported where it is used,
 
 ### A validator for more than one type
 
-A validator type is written for more than one type of value by one `impl`
+A validator trait is written for more than one type of value by one `impl`
 per type, as `NonEmpty` is for `String` and for `List<T>`. A rule
 `validate f with V` takes the implementation for `f`'s type. A field
-declared `f: V` has the one type implementing `V`, so a validator type
+declared `f: V` has the one type implementing `V`, so a validator trait
 implemented for several types is refused there, with a diagnostic naming the
 types and the rule form.
 
@@ -95,7 +95,7 @@ message is the fail-fast diagnostic's, ``field `f`: `f: V` does not hold``.
 ## Changelog
 
 - 2026-10-23: drafted as a stub
-- 2026-10-23: `Validator` and validator types built
+- 2026-10-23: `Validator` and validator traits built
   ([issue 0045](../../issues/archive/0045-errors-validators-boundaries.md), V1):
   `trait V : Validator`, `validate f with V`, and a field `f: V` of the one
   type implementing `V`, shown in the

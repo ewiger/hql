@@ -427,9 +427,9 @@ fn structural(
     Ok(constructor.apply(args))
 }
 
-/// A field declared with a validator type `V`: of the one type that
+/// A field declared with a validator trait `V`: of the one type that
 /// implements `V`, and held to it (HQL-0034). `None` where the field's type
-/// names no validator type.
+/// names no validator trait.
 fn validator_field(written: &TypeAnn) -> Result<Option<(TypeRef, &'static str)>, Diagnostic> {
     if !written.arguments.is_empty() {
         return Ok(None);
@@ -443,7 +443,7 @@ fn validator_field(written: &TypeAnn) -> Result<Option<(TypeRef, &'static str)>,
         [] => Err(Diagnostic::typing(
             written.span.clone(),
             format!(
-                "the validator type `{}` is implemented for no type, so a field declared \
+                "the validator trait `{}` is implemented for no type, so a field declared \
                  with it has none",
                 written.name
             ),
@@ -451,7 +451,7 @@ fn validator_field(written: &TypeAnn) -> Result<Option<(TypeRef, &'static str)>,
         _ => Err(Diagnostic::typing(
             written.span.clone(),
             format!(
-                "the validator type `{}` is implemented for {}: declare the field with one of \
+                "the validator trait `{}` is implemented for {}: declare the field with one of \
                  them and `validate f with {}`",
                 written.name,
                 types
@@ -665,7 +665,7 @@ impl Declarations {
                 ));
             }
             seen.push(&field.name);
-            // A validator type is no type of its own: the field is of the
+            // A validator trait is no type of its own: the field is of the
             // type implementing it, resolved where the record is built.
             let validator = field.annotation.arguments.is_empty()
                 && crate::types::program::implementing(&field.annotation.name).is_some();
