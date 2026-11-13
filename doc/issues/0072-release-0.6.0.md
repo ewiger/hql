@@ -345,8 +345,9 @@ Set by the maintainer only. An item behind a closed gate is skipped.
 
 ### Step 4: hql-demo as a release gate (in `../hql-demo`, branch `release-0.6.0`)
 
-- [x] The nine cases audited: `run-all.sh` passes all nine against hql
-  `d6a604d`; re-run against the tag's commit before tagging
+- [x] The nine cases audited: `run-all.sh` passes all nine, 43 steps,
+  against hql `d6a604d` and again against `acfa60d`, the release commit;
+  `hql check` passes the 37 demo programs with no warning
 - [x] A transfer's id is not a balance; the PostgreSQL concurrent-withdrawal
   run in `ledger`: hql-demo `82b16ff`, `b6f7f57`
 - [x] A failing case prints its step, command and an output diff: hql-demo
@@ -372,5 +373,5 @@ Set by the maintainer only. An item behind a closed gate is skipped.
 - [x] Reference pages regenerated; ADR status and Kanban status
   re-rendered (this commit)
 - [x] The six checks clean on the release commit; 0072's card moved to
-  `done`. Left to the maintainer: hql-demo's `run-all.sh` against the tag's
-  commit, and the tag
+  `done`. hql-demo's `run-all.sh` passes against `acfa60d`. Left to the
+  maintainer: the tag, and pushing both `release-0.6.0` branches
