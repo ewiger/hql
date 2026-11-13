@@ -215,6 +215,9 @@ pub(crate) struct AliasDecl {
     /// The input first, then the written parameters.
     pub parameters: Vec<AliasParam>,
     pub body: Expr,
+    /// Where its head ends: after the closing `)` of its parameters, or
+    /// after its name when it has none.
+    pub head_end: usize,
     pub span: Range<usize>,
 }
 

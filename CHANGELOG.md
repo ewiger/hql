@@ -258,6 +258,10 @@ The language continues to be in active development.
 - A list or a record field of a declared record written to a topic, a
   subject or a JSON, JSON Lines or YAML file is written as a list or a map.
   It was written as its text.
+- `hql help`, `:help` and `:type` end a function's signature after its
+  result type, an alias's after its parameters, and a trait function's after
+  its result type (issue 0056). A block body printed its opening `{` and
+  first line in the signature, and a body opening with `(` printed the `(`.
 
 ### Changed
 
