@@ -52,8 +52,9 @@ A novel by [[frank-herbert]]. A desert planet, a spice, and a family that inheri
 ```
 
 A program run inside a vault runs against it: `hql` takes the nearest
-directory at or above the current one that holds `.hmd/` or `hql.toml`.
-`--vault <directory>` names one instead:
+directory at or above the program's file that holds `.hmd/` or `hql.toml`,
+or at or above the working directory for an expression or standard input.
+`--vault <directory>` names one instead, and `--bare` runs with none:
 
 ```sh
 hql --vault examples/tutorial eval 'cards | size'

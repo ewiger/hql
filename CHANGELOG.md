@@ -32,6 +32,18 @@ The language continues to be in active development.
   1)`, `seq.at(xs, 1)` and `seq.slice(xs, r)` are calls. A trait written as a
   type is refused, naming the bound `<T : Shape>(x: T)`. A trait extending
   `Validator` is called a validator trait.
+- Execution contexts ([HQL-0025](doc/proposals/HQL-0025/README.md)): a
+  program's file anchors workspace discovery, which stops at the nearest
+  directory holding `.hmd/` (a vault) or `hql.toml`. `--workspace` names the
+  workspace, `--bare` runs with none, and `hql context` reports the mode,
+  the workspace, the configuration files and the module roots with their
+  layers. The system file (`/etc/hql/config.toml`, `$HQL_SYSTEM_CONFIG`), the
+  user file `~/.hql/config.toml` (`$HQL_HOME`), `~/.hql/modules/` and
+  `$HQL_PATH` contribute module roots, extension settings, report settings
+  and the backend in every mode. Named contexts, `[context.<name>]`, are
+  selected by `--context`, `$HQL_CONTEXT` or `current-context`, and
+  `hql config current-context`, `get-contexts`, `use-context` and `view`
+  manage them.
 - Analytic windows ([HQL-0050](doc/proposals/HQL-0050/README.md)):
   `over(by, order, into)` partitions a sequence by `by`, orders each
   partition by `order`, and gives one value per row, at the row's input
@@ -102,6 +114,11 @@ The language continues to be in active development.
 - `Window` is a standard type, so a program's own `type Window` is
   refused; rename it.
 - `sort` is stable: elements that compare equal keep their input order.
+- **Breaking:** `hql run`, `check`, `plan` and `boundary` find the vault
+  from the program file's directory, not the working directory, so
+  `hql run ~/notes/q.hql` runs in `~/notes`'s vault from anywhere. A
+  malformed `[modules] roots` or `[extensions]` in `hql.toml` fails the run,
+  naming the file.
 - **Breaking:** a configured id is an endpoint, declared under
   `[endpoint.<id>]` in `hql.toml`, with its boundary under
   `[endpoint.<id>.fields.<field>]`. `[sources.<id>]` is refused, naming the

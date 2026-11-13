@@ -34,6 +34,7 @@ pub mod backends;
 pub mod boundary;
 pub mod builtins;
 pub mod cli;
+pub mod context;
 pub mod data;
 pub mod decimal;
 pub mod diagnostics;
