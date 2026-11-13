@@ -143,8 +143,7 @@ pub(crate) type Check =
     fn(&mut dyn CheckCx, &CheckedCall<'_>, Range<usize>) -> Result<(), Diagnostic>;
 
 /// What a step does to a value.
-pub(crate) type Eval =
-    fn(&mut dyn EvalCx, Value, &[TypedArg], Range<usize>) -> Result<Value, Diagnostic>;
+pub type Eval = fn(&mut dyn EvalCx, Value, &[TypedArg], Range<usize>) -> Result<Value, Diagnostic>;
 
 /// What checking a step may ask of the checker around it.
 ///
@@ -180,7 +179,7 @@ pub(crate) trait CheckCx: Send {
 }
 
 /// What evaluating a step may ask of the evaluator around it.
-pub(crate) trait EvalCx: Send {
+pub trait EvalCx: Send {
     /// The vault the program runs against.
     fn vault(&self) -> &Vault;
     /// The value of an argument expression.
@@ -285,7 +284,7 @@ impl Operation {
     /// The same operation marked with another shape, for one its
     /// declaration writes `elementwise fn`, `partition fn` or
     /// `reduction fn`.
-    pub(crate) const fn shaped(self, shape: Shape) -> Self {
+    pub const fn shaped(self, shape: Shape) -> Self {
         Self { shape, ..self }
     }
 
