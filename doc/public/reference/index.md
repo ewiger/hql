@@ -40,6 +40,7 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/seq`](std/seq/index.md) — The sequence, set and map operations beyond the core's membership, order and lookup, in the prelude.
 - [`std/math`](std/math/index.md) — Numbers, in the prelude.
 - [`std/time`](std/time/index.md) — Time: zones, the units a value truncates to, and the operations over the time scalars of `core`: conversion from text, parts, arithmetic, truncation, rendering, and the evaluation clock.
+- [`std/random`](std/random/index.md) — Randomness: samples, shuffles, choices, numbers and UUIDs.
 - [`std/option`](std/option/index.md) — The ways out of an `Option<T>`, in the prelude, each stating what absence gives.
 - [`std/result`](std/result/index.md) — The ways out of a `Result<T, E>`, in the prelude, each stating what a failure gives.
 - [`std/regex`](std/regex/index.md) — Text matched against a regular expression.
