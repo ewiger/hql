@@ -1,7 +1,7 @@
 // status: proposed
 // feature: an age message to a stored identity is decrypted inside the vault
 // implementation: pending
-// proposal: doc/proposals/HQL-0053/parts/05-keyvault.md
+// proposal: doc/proposals/HQL-0054/parts/01-keyvault.md
 // environment: knowledge-v1
 // vault: crypto/vault
 // expected-type: Option<String>

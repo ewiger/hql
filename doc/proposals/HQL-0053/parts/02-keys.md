@@ -3,7 +3,7 @@
 - **Depends on**: [the proposal](../README.md) for ownership, effects and
   secret values; [part 1](01-bytes.md) for `Bytes`
 - **Needed by**: [part 3](03-signatures-macs-passwords.md),
-  [part 4](04-encryption.md), [part 5](05-keyvault.md)
+  [part 4](04-encryption.md), and [HQL-0054](../../HQL-0054/README.md)
 
 ## Scope
 

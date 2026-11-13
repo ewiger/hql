@@ -3,7 +3,7 @@
 - **Depends on**: [the proposal](../README.md) for effects and secret
   values; [part 1](01-bytes.md) for `Bytes` and `canonical`;
   [part 2](02-keys.md) for the key types
-- **Needed by**: [part 5](05-keyvault.md), whose `sign` gives what `sign`
+- **Needed by**: [HQL-0054](../../HQL-0054/README.md), whose `sign` gives what `sign`
   here gives
 
 ## Scope

@@ -4,7 +4,7 @@
   values; [part 1](01-bytes.md) for `Bytes`; [part 2](02-keys.md) for the
   key types; [HQL-0021](../../HQL-0021/README.md) for endpoints, `source`,
   `tap`, `target` and `sink`
-- **Needed by**: [part 5](05-keyvault.md), whose `decrypt_with` and
+- **Needed by**: [HQL-0054](../../HQL-0054/README.md), whose `decrypt_with` and
   `decrypted_with` take a stored identity
 
 ## Scope

@@ -1,6 +1,6 @@
-# HQL-0053: Bytes, keys, signatures, encryption and a key vault
+# HQL-0053: Bytes, keys, signatures and encryption
 
-**Status**: implemented in part
+**Status**: implemented
 **Created**: 2026-11-13
 **Source**: [issue 0067](../../issues/0067-std-crypto.md);
 [HQL-0041 part 3](../HQL-0041/parts/03-digest-and-encoding.md) (digests,
@@ -26,9 +26,6 @@ and host grants); [HQL-0046](../HQL-0046/README.md) and
 - [`parts/04-encryption.md`](parts/04-encryption.md) — authenticated
   symmetric encryption, encryption to public keys in the age format, and
   encrypted endpoints.
-- [`parts/05-keyvault.md`](parts/05-keyvault.md) — module `crypto.keyvault`:
-  configured key stores, key names, signing and decrypting inside a store,
-  and its backends.
 
 ## Abstract
 
@@ -43,10 +40,10 @@ Argon2id; encrypts with AES-256-GCM and ChaCha20-Poly1305; and encrypts to
 X25519 public keys in the age v1 format, as an operation over `Bytes` and as
 an endpoint that encrypts what a format writes. `PrivateKey`, `SecretKey` and
 `KeyPair` are secret types: no format encodes one, and every printed form of
-one is redacted. Module `crypto.keyvault` reaches keys held in a store that
-`hql.toml` configures, by vault id and key name; a private key in a store
-signs and decrypts inside it and never becomes a value. The `std` extension
-implements both modules, and neither is in the prelude.
+one is redacted. The `std` extension implements `crypto`, which is not in
+the prelude. Keys held in a configured store, an SSH agent, an operating
+system keychain or a cloud key manager are
+[HQL-0054](../HQL-0054/README.md)'s.
 
 ## Motivation
 
@@ -69,9 +66,10 @@ implements both modules, and neither is in the prelude.
 
 - TLS configuration, X.509 certificates and certificate chains, and
   certificate signing requests.
-- OpenPGP: its keys, signatures and messages, and a GPG agent as a key
-  vault backend. A key a GPG agent holds for SSH is reached through the
-  `ssh_agent` backend, which it serves.
+- Key vaults: keys held in a configured store, an SSH agent, an operating
+  system keychain or a cloud key manager, which sign and decrypt without
+  becoming a value. [HQL-0054](../HQL-0054/README.md) specifies them.
+- OpenPGP: its keys, signatures and messages.
 - JOSE and COSE envelopes: JWS, JWE, JWT and their compact serialisations. A
   program builds a JWS signing input from `encoding` and signs it with
   `sign`; an envelope module is a later record.
@@ -95,7 +93,6 @@ implements both modules, and neither is in the prelude.
 | `encoding` | `lib/std/encoding/mod.hql` | the `Bytes` forms of `encode`, `to_bytes` and `Bytes(text, as)` |
 | `crypto.digest` | `lib/std/crypto/digest/mod.hql` | the `Bytes` form of `digest`, and `canonical` |
 | `crypto` | `lib/std/crypto/mod.hql` | algorithms, key types, key formats, signatures, MACs, passwords, encryption, encrypted endpoints |
-| `crypto.keyvault` | `lib/std/crypto/keyvault/mod.hql` | `KeyRef`, `KeyInfo`, `key`, `keys`, and the operations over a key in a store |
 
 - `Bytes` MUST be declared in `core` as `{Scalar, Orderable}`, beside
   `String`, so that a `Data` tree holds one and a format encodes one.
@@ -103,10 +100,8 @@ implements both modules, and neither is in the prelude.
   prelude, as `string` is.
 - `crypto` imports `core` and `io`. It does not import its child
   `crypto.digest`, which a parent may not; a thumbprint and a signature
-  over canonical JSON compute their digests natively.
-  `crypto.keyvault` imports `core`, `crypto` and `io`. Neither MUST be added
-  to the prelude. A program writes `import crypto`, and `import
-  crypto.keyvault`, which it reaches as `keyvault`.
+  over canonical JSON compute their digests natively. It MUST NOT be added
+  to the prelude: a program writes `import crypto`.
 - The modules MUST be listed in `library::MODULES` after the modules they
   import. The `std` extension's descriptor MUST provide each.
 
@@ -121,7 +116,6 @@ secure generator.
 | `encrypt`, `encrypt_to`, `encrypt_with_passphrase`, `hash_password` | `effectful` | the host generator |
 | `encrypted_to`, `decrypted_with` | `fn`, an endpoint constructor | nothing; reading and writing the endpoint are the effects |
 | `read_public_key`, `read_private_key` | `effectful` | a file |
-| every operation of `crypto.keyvault` but `key` | `effectful` | a configured key vault |
 | key parsing and writing, `sign`, `verify`, `mac`, `verify_mac`, `verify_password`, `decrypt`, `decrypt_with`, `decrypt_with_passphrase` | `fn` | nothing |
 
 - The host generator MUST be the operating system's, read through
@@ -168,10 +162,11 @@ A secret type is one whose values hold private key material.
 - A diagnostic raised while reading key text MUST name the format, the line
   and what was expected there, and MUST NOT quote the text.
 
-The mechanism is in the representation. A secret value is held in Rust as a
-`SecretBox` of the `secrecy` crate over a `zeroize`-on-drop buffer: its
-`Debug` prints `[REDACTED]`, it implements neither `Display` nor
-`serde::Serialize`, and the memory is overwritten when the value is dropped.
+The mechanism is in the representation. A private key is held in the type
+its crate gives it, each of which overwrites its memory when dropped, and a
+symmetric key's octets in a `zeroize` buffer. A key value's `Debug` writes
+its redacted form, and it implements neither `Display` nor
+`serde::Serialize`.
 The runtime's value type renders a secret through one function, which writes
 the redacted form above, so a diagnostic, a log line or a `tracing` event
 that formats a value cannot reach the bytes. The only paths to the bytes are
@@ -179,28 +174,25 @@ the `crypto` operations that use them and `export_private`.
 
 ### 4. Where key material lives
 
-Private key material enters an evaluation from one of four places, and a
-program's source is not one of them.
+Private key material enters an evaluation from one of three places, and a
+program's source is not one of them. [HQL-0054](../HQL-0054/README.md) adds
+a fourth, a key vault, whose keys sign and decrypt without entering the
+evaluation as a value.
 
 | Place | How a program reaches it |
 | --- | --- |
 | a file | `read_private_key(file(p), Pem, Ed25519)` |
 | an environment variable | `env.var("NAME")` of [HQL-0041 part 5](../HQL-0041/parts/05-env.md), then a key constructor |
-| a key vault | `keyvault.key("vault", "name", Ed25519)`, which never yields the private key |
 | the evaluation itself | `generate_key_pair`, `generate_secret_key` |
 
 - The checker MUST refuse a string literal that holds the beginning of a
   private key in any format part 2 reads: `-----BEGIN` followed by a label
   ending in `PRIVATE KEY-----`, `AGE-SECRET-KEY-1` followed by an
-  identity's Bech32 text, or a JWK object with a `"d"` member. The diagnostic names the four places above.
-- `hql.toml` holds no key material. A `[keyvault.<id>]` table with a
-  secret written into it MUST refuse the vault, naming the `*_env` key that
-  replaces it, as `dsn` does in HQL-0046; [part 5](parts/05-keyvault.md)
-  lists the keys.
+  identity's Bech32 text, or a JWK object with a `"d"` member. The diagnostic names the places above.
 - `read_private_key` MUST warn, on a Unix host, when the file is readable
   by its group or by others, naming the path and the mode, as OpenSSH does.
-- `hql render` MUST grant no key vault, and MUST refuse at check time the
-  operations that read the host generator: a rendered document is shared,
+- `hql render` MUST refuse at check time the operations that read the host
+  generator: a rendered document is shared,
   and its output is a function of its inputs.
 
 ### 5. Order of work
@@ -216,10 +208,7 @@ formats need it as much as `crypto` does.
 4. Part 4: symmetric and age encryption over `Bytes`, then encrypted
    endpoints. An encrypted endpoint transforms the bytes a format writes,
    so it needs no binary format kind, and does not wait for issue 0029.
-5. Part 5: `crypto.keyvault`, the `file` and `ssh_agent` backends first,
-   then `keychain`, then `aws_kms`.
-
-Issue 0029 and steps 3 to 5 are independent of each other once step 2 is
+Issue 0029 and steps 3 and 4 are independent of each other once step 2 is
 done.
 
 ## Backwards Compatibility
@@ -232,9 +221,7 @@ done.
 - A JSON, YAML or CSV decoder never produces a `Bytes`: a declared field of
   type `Bytes` reads its base64 text, as a declared `Date` reads ISO 8601
   text. No existing program's decoded values change.
-- `crypto` and `keyvault` become local names in a unit that imports them.
-- A `[keyvault.<id>]` table in `hql.toml` was ignored and is now read and
-  checked.
+- `crypto` becomes a local name in a unit that imports it.
 
 ## Security Considerations
 
@@ -264,9 +251,6 @@ done.
   [HQL-0012](../HQL-0012/README.md) as any held value is. Age decryption
   reads its input in 64 KiB chunks and holds one at a time; `hash_password`'s
   memory parameter MUST NOT exceed 1 GiB.
-- **Key vaults are visible.** Every use of a vault is `effectful` and names
-  a configured id, so `hql check` reports every vault a program reaches
-  before anything runs, and opens none of them.
 
 ## Deployment / Activation
 
@@ -276,25 +260,20 @@ done.
 3. Add `crypto` with keys, signatures, MACs and passwords; the secret-type
    check and the source-literal check land with the first key type.
 4. Add symmetric and age encryption, then the encrypted endpoints.
-5. Add `crypto.keyvault` and `hql keyvault`, one backend at a time.
-6. Promote each corpus case under `examples/crypto/` as it checks.
+5. Promote each corpus case under `examples/crypto/` as it checks.
 
 ## Reference Implementation
 
 - `lib/std/core/mod.hql`: `Bytes`, `Bytes(text)` and its trait
   implementations.
-- `lib/std/bytes/mod.hql`, `lib/std/crypto/mod.hql` and
-  `lib/std/crypto/keyvault/mod.hql`: the declarations of parts 1 to 5,
-  written as external declarations; `lib/std/encoding/mod.hql` and
-  `lib/std/crypto/digest/mod.hql` gain the `Bytes` forms.
-- `src/extensions/std/`: one file each for `bytes`, `crypto` and
-  `keyvault`; `src/crypto/` for the key formats, the age endpoint layer and
-  the backends of the key vault, each backend in its own file.
+- `lib/std/bytes/mod.hql` and `lib/std/crypto/mod.hql`: the declarations
+  of parts 1 to 4, written as external declarations;
+  `lib/std/encoding/mod.hql` and `lib/std/crypto/digest/mod.hql` gain the
+  `Bytes` forms.
+- `src/extensions/bytes.rs` and `src/extensions/crypto.rs`: the natives;
+  `src/crypto/` for the key formats, signatures and the age layer.
 - `src/checker.rs`: the refusal of a secret type at an encoder and of a
   private key literal in source.
-- `src/endpoints.rs`: `[keyvault.<id>]` tables, read and checked as
-  `[endpoint.<id>]` tables are.
-- `src/cli.rs`: `hql keyvault`.
 - Crates, each added with `cargo add` per [the stack](../../stack.md), all
   pure Rust, none needing a C toolchain:
 
@@ -308,17 +287,12 @@ done.
   | HMAC | `hmac` over the `sha2` the stack has |
   | Argon2id | `argon2` |
   | age v1 | `age` (default features off; `armor`) |
-  | OpenSSH keys and the agent's wire encoding | `ssh-key` (`ed25519`, `p256`, `rsa`, `encryption`) |
+  | OpenSSH keys | `ssh-key` (`encryption`, `ecdsa`) |
   | the host generator | `getrandom` |
-  | secret buffers | `secrecy`, `zeroize` |
-  | OS keychains | `keyring` (`apple-native`, `windows-native`, `async-secret-service`, `crypto-rust`, `tokio`), on a one-thread `tokio` runtime as Kafka and NATS are |
+  | secret buffers | `zeroize` |
 
-  JWK is read and written with `serde_json`, which the crate has. The
-  SSH agent protocol (list identities, sign) is hand-written over a Unix
-  socket in `src/crypto/ssh_agent.rs`, as the Thrift calls of
-  `src/spark.rs` are; AWS KMS's two calls and their SigV4 signing are
-  hand-written over `ureq` in `src/crypto/aws_kms.rs`.
-- `doc/stack.md` gains rows for cryptography and key vaults.
+  JWK is read and written with `serde_json`, which the crate has.
+- `doc/stack.md` gains rows for cryptography.
 
 ## Test Plan
 
@@ -337,9 +311,6 @@ promoted as each checks:
 | [AEAD round trip](../../../examples/crypto/queries/aead-round-trip.hql) | 4 | layout, round trip, and a truncated ciphertext |
 | [a field for a recipient](../../../examples/crypto/queries/encrypt-a-field.hql) | 4 | age to a generated X25519 key |
 | [an encrypted file](../../../examples/crypto/queries/encrypted-file.hql) | 4 | `target` through `encrypted_to`, read back |
-| [sign in a vault](../../../examples/crypto/queries/keyvault-sign.hql) | 5 | a signature from a store, verified by its public key |
-| [decrypt in a vault](../../../examples/crypto/queries/keyvault-decrypt.hql) | 5 | age to a stored identity |
-| [list a vault](../../../examples/crypto/queries/keyvault-keys.hql) | 5 | names and algorithms |
 
 Each part names its unit tests. Across all of them:
 
@@ -356,9 +327,7 @@ Each part names its unit tests. Across all of them:
   the key's hex, base64 or base64url text.
 - Refusals, each a `status: invalid` corpus case once implemented: a
   private key PEM literal in source; `target` of a `KeyPair`; `==` over two
-  `SecretKey`s; `keyvault.decrypt_with` on an `ssh_agent` vault; a vault id
-  `hql.toml` does not configure; a `passphrase` key in `[keyvault.<id>]`;
-  and `encrypt` under `hql render`.
+  `SecretKey`s; and `encrypt` under `hql render`.
 - Determinism: a program that signs and verifies gives the same value twice;
   `encrypt` under one `--seed` gives two different ciphertexts.
 
@@ -386,3 +355,5 @@ cargo clippy --all-targets -- -D warnings
   `encrypted_to` writes a file or standard output, a failing chunk is named
   by its octet offset, and the encrypted-file case reads an age file an
   earlier evaluation wrote
+- 2026-11-13: part 5, key vaults, moved to [HQL-0054](../HQL-0054/README.md);
+  implemented

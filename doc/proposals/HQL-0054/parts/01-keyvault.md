@@ -1,9 +1,11 @@
-# Part 5: `crypto.keyvault`
+# Part 1: `crypto.keyvault`
 
-- **Depends on**: [the proposal](../README.md) for effects, secret values
-  and where key material lives; [part 2](02-keys.md) for the key types;
-  [part 3](03-signatures-macs-passwords.md) and [part 4](04-encryption.md)
-  for what a stored key computes; [HQL-0046](../../HQL-0046/README.md) and
+- **Depends on**: [the proposal](../README.md) for ownership and effects;
+  [HQL-0053](../../HQL-0053/README.md) for secret values and where key
+  material lives, [its part 2](../../HQL-0053/parts/02-keys.md) for the key
+  types, and [its parts 3](../../HQL-0053/parts/03-signatures-macs-passwords.md)
+  and [4](../../HQL-0053/parts/04-encryption.md) for what a stored key
+  computes; [HQL-0046](../../HQL-0046/README.md) and
   [HQL-0049](../../HQL-0049/README.md) for configuration and its secrets
 - **Needed by**: none
 
@@ -131,7 +133,7 @@ fn decrypted_with(endpoint: Readable, identity: KeyRef<X25519>) : DecryptedLive
   stored key of another algorithm than the `KeyRef` states MUST be an
   evaluation error naming both algorithms.
 - `sign` through a vault MUST give the octets `crypto.sign` gives for the
-  same private key and message (part 3's signature layouts). The `ssh_agent`
+  same private key and message (HQL-0053 part 3's signature layouts). The `ssh_agent`
   backend converts the agent's signature blob, asks for `rsa-sha2-256` for
   `Rsa`, and the `aws_kms` backend converts KMS's DER ECDSA signature; a
   program does not see which backend signed.
@@ -141,7 +143,7 @@ fn decrypted_with(endpoint: Readable, identity: KeyRef<X25519>) : DecryptedLive
 - `ssh_agent` and `aws_kms`: the private key never enters the `hql`
   process. The agent and the service compute each signature.
 - `file` and `keychain`: the private key is read into the process for one
-  operation, held in a secret buffer (proposal, "Secret values"), and
+  operation, held in a secret buffer (HQL-0053, "Secret values"), and
   overwritten when the operation returns. It is never a value of the
   program.
 
@@ -194,7 +196,7 @@ hql keyvault delete team backup-2026
 - `generate`, `import` and `delete` apply to `file` and `keychain` vaults;
   for any other kind they are refused, naming the tool that manages that
   kind's keys (`ssh-add`, the cloud provider's console or CLI).
-- `import` reads a key file in any format part 2 reads and stores the
+- `import` reads a key file in any format HQL-0053 part 2 reads and stores the
   private key; it does not delete the file.
 - `public` writes the public key to standard output in the format named,
   `pem` by default.
