@@ -55,11 +55,19 @@ pub struct Cli {
 /// Options every subcommand accepts.
 #[derive(Debug, Clone, Args)]
 pub struct Options {
-    /// The vault to run against; `cards` and traversal need one. Without it,
-    /// the nearest directory at or above this one holding `.hmd/` or
-    /// `hql.toml` is the vault.
-    #[arg(long, global = true, value_name = "DIR")]
+    /// The vault to run against; `cards` and traversal need one. Names the
+    /// workspace as `--workspace` does.
+    #[arg(long, global = true, value_name = "DIR", conflicts_with = "workspace")]
     pub vault: Option<PathBuf>,
+    /// The workspace to run in, a directory holding `.hmd/` or `hql.toml`.
+    /// Without it, the nearest such directory at or above the program's file,
+    /// or above the working directory for an expression or standard input.
+    #[arg(long, global = true, value_name = "DIR")]
+    pub workspace: Option<PathBuf>,
+    /// Run with no workspace: no `.hmd/` or `hql.toml` is discovered. User
+    /// and system configuration still apply.
+    #[arg(long, global = true, conflicts_with_all = ["workspace", "vault"])]
+    pub bare: bool,
     /// A module root: a directory whose `.hql` files are the modules a program
     /// imports by their position, `lib/a/b.hql` as `import a.b`. May be
     /// repeated, and adds to the roots the vault's `hql.toml` names.
@@ -201,6 +209,13 @@ enum Command {
     },
     /// Show the reporting settings in force, and where each came from.
     Config,
+    /// Show the execution context: the mode, the workspace and vault, the
+    /// anchor discovery started from, and where each came from.
+    Context {
+        /// A program file, whose directory is the anchor; the working
+        /// directory without one.
+        file: Option<String>,
+    },
     /// Check the semantic-search chain — vault, configuration, index, model,
     /// query set — and name the first part that is missing.
     Doctor,
@@ -324,7 +339,8 @@ fn directory_of(file: &str) -> PathBuf {
 }
 
 /// The commands a first argument may name; anything else is a program.
-const COMMANDS: [&str; 12] = [
+const COMMANDS: [&str; 13] = [
+    "context",
     "eval",
     "check",
     "plan",
@@ -340,8 +356,9 @@ const COMMANDS: [&str; 12] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 12] = [
+const VALUED: [&str; 13] = [
     "--vault",
+    "--workspace",
     "--now",
     "--zone",
     "--envelope",
@@ -455,11 +472,10 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             Some(format)
         }
     });
-    let root = cli.options.vault.clone().or_else(|| {
-        std::env::current_dir()
-            .ok()
-            .and_then(|here| vault::discover(&here))
-    });
+    let environment = crate::context::Environment::from_process()?;
+    let context = crate::context::ExecutionContext::construct(&request(cli), &environment)
+        .map_err(|error| error.to_string())?;
+    let root = context.workspace_root().map(Path::to_path_buf);
     // The run's diagnostic channel exists before the loader runs, so the
     // loader writes into it as every later phase does.
     let opened = crate::io::open_diagnostics();
@@ -467,7 +483,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     for diagnostic in &vault.warnings {
         crate::io::write_diagnostic(diagnostic.clone());
     }
-    let result = dispatch(cli, &mut vault, root.as_deref(), out, err);
+    let result = dispatch(cli, &context, &mut vault, out, err);
     // Every diagnostic was delivered before the run ends: the channel
     // closes, and only then is the exit status returned.
     if opened {
@@ -476,13 +492,86 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     result
 }
 
+/// What the command line states about the execution context: the anchor of
+/// the program file a command reads, and the workspace options.
+fn request(cli: &Cli) -> crate::context::Request {
+    let file = match &cli.command {
+        Command::Run { file }
+        | Command::Check { file }
+        | Command::Plan { file }
+        | Command::Boundary { file, .. } => Some(file.as_str()),
+        Command::Context { file } => file.as_deref(),
+        _ => None,
+    };
+    let workspace = match (&cli.options.workspace, &cli.options.vault) {
+        (Some(dir), _) => Some((dir.clone(), "--workspace")),
+        (None, Some(dir)) => Some((dir.clone(), "--vault")),
+        (None, None) => None,
+    };
+    crate::context::Request {
+        anchor: file.and_then(crate::context::Request::anchor_of),
+        bare: cli.options.bare,
+        workspace,
+        ..crate::context::Request::default()
+    }
+}
+
+/// `hql context`: the execution context, each part with where it came from.
+fn write_context(
+    context: &crate::context::ExecutionContext,
+    options: &Options,
+    out: &mut impl Write,
+) -> Result<(), String> {
+    let path = |path: Option<&Path>| path.map(|path| path.display().to_string());
+    let workspace = context.workspace.as_ref();
+    if options.envelope == Shape::Json {
+        let document = serde_json::json!({
+            "mode": context.mode().label(),
+            "workspace": path(context.workspace_root()),
+            "workspace_origin": workspace.map(|workspace| workspace.origin.label()),
+            "vault": path(context.vault()),
+            "anchor": context.anchor.display().to_string(),
+            "cwd": context.cwd.display().to_string(),
+        });
+        let text = if options.compact {
+            serde_json::to_string(&document)
+        } else {
+            serde_json::to_string_pretty(&document)
+        }
+        .map_err(|error| error.to_string())?;
+        return writeln!(out, "{text}").map_err(|error| error.to_string());
+    }
+    let none = || "none".to_owned();
+    let lines = [
+        ("mode", context.mode().label().to_owned()),
+        (
+            "workspace",
+            workspace.map_or_else(none, |workspace| {
+                format!(
+                    "{} ({})",
+                    workspace.root.display(),
+                    workspace.origin.label()
+                )
+            }),
+        ),
+        ("vault", path(context.vault()).unwrap_or_else(none)),
+        ("anchor", context.anchor.display().to_string()),
+        ("cwd", context.cwd.display().to_string()),
+    ];
+    for (label, value) in lines {
+        writeln!(out, "{:<11}{value}", format!("{label}:")).map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
 fn dispatch(
     cli: &Cli,
+    context: &crate::context::ExecutionContext,
     vault: &mut Vault,
-    root: Option<&Path>,
     out: &mut impl Write,
     err: &mut impl Write,
 ) -> Result<u8, String> {
+    let root = context.workspace_root();
     vault
         .extensions
         .module_roots
@@ -597,6 +686,10 @@ fn dispatch(
             .map_err(|error| error.to_string())?;
             Ok(0)
         }
+        Command::Context { .. } => {
+            write_context(context, &cli.options, out)?;
+            Ok(0)
+        }
         Command::Eval { expression } => {
             crate::io::set_host(crate::io::Policy::Open, PathBuf::from("."));
             let outcome = crate::run_on(expression, vault, settings.mode, backend);
@@ -695,7 +788,7 @@ fn dispatch(
                 // or the nearest at or above the document. In none, no cell
                 // runs.
                 let found;
-                let vault = match document_vault(file, cli.options.vault.as_deref(), root, vault)? {
+                let vault = match document_vault(file, context, vault)? {
                     Some(Found::Loaded) => vault,
                     Some(Found::Own(own)) => {
                         let mut own = *own;
@@ -1052,19 +1145,26 @@ enum Found {
     Own(Box<Vault>),
 }
 
-/// The vault of the document `file`: the one `--vault` names, or the nearest
-/// directory at or above the document holding `.hmd/` or `hql.toml`;
-/// standard input's is found from the working directory. `None` where there
-/// is none: the document is a card of no vault.
+/// The vault of the document `file`: the workspace an explicit selection
+/// names, or the nearest directory at or above the document holding `.hmd/`
+/// or `hql.toml`; standard input's is the run's. `None` where there is none,
+/// and always under `--bare`: the document is a card of no vault.
 fn document_vault(
     file: &str,
-    named: Option<&Path>,
-    loaded_root: Option<&Path>,
+    context: &crate::context::ExecutionContext,
     loaded: &Vault,
 ) -> Result<Option<Found>, String> {
-    if named.is_some() || file == "-" {
+    let named = context
+        .workspace
+        .as_ref()
+        .is_some_and(|workspace| workspace.origin.is_explicit());
+    if named || file == "-" {
         return Ok(loaded.is_present().then_some(Found::Loaded));
     }
+    if context.bare {
+        return Ok(None);
+    }
+    let loaded_root = context.workspace_root();
     let document = fs::canonicalize(file).map_err(|error| format!("{file}: {error}"))?;
     let Some(found) = document.parent().and_then(vault::discover) else {
         return Ok(None);
