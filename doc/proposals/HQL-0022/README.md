@@ -3,6 +3,7 @@
 **Status**: drafted
 **Created**: 2026-10-19
 **Source**: [discussion](discussion.md), [second discussion](dicussion-2.md)
+**Extended by**: [HQL-0058](../HQL-0058/README.md)
 
 ## Companion notes
 

@@ -2,6 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-09-18
+**Extended by**: [HQL-0058](../HQL-0058/README.md)
 **Source**: [semantic-search requirements](../../models/requirements/semantic-search.md)
 
 ## Abstract
