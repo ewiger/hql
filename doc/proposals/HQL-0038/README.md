@@ -54,9 +54,11 @@ at each call.
 - `reduction fn` declares a reduction ([HQL-0004](../HQL-0004/README.md)).
   `private fn` and `internal fn` set its visibility
   ([HQL-0028](../HQL-0028/README.md)).
-- The result type MUST be written. A parameter MUST have a type, MAY have a
-  default value, `limit: Int = 0`, and the last parameter MAY be variadic,
-  `xs: ...T`.
+- The result type MUST be written. A parameter MUST have a type, and the
+  last parameter MAY be variadic, `xs: ...T`. A parameter of an external
+  declaration, whose body the binary provides, MAY have a default value,
+  `limit: Int = 0`; a function with a body takes every argument it declares,
+  and a default on one is refused.
 - Generic parameters are written in angle brackets after the name, each one
   optionally bounded by a type or a trait, `<T : Shape>`.
 
@@ -190,3 +192,6 @@ cargo test --locked --test corpus --test declarations --test streams
 
 - 2026-10-23: drafted
 - 2026-10-24: implemented
+- 2026-11-13: narrowed (issue 0055): a parameter default is admitted on an
+  external declaration only, as the parser already held; a function with a
+  body takes every argument it declares

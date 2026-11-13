@@ -1,9 +1,9 @@
 # 0055 — A parameter default on a function with a body
 
-Status: todo
-Related: [HQL-0038](../proposals/HQL-0038/README.md),
-[`src/parser.rs`](../../src/parser.rs),
-[Declaring a function](../public/learn/04-functions/declaring.md)
+Status: done
+Related: [HQL-0038](../../proposals/HQL-0038/README.md),
+[`src/parser.rs`](../../../src/parser.rs),
+[Declaring a function](../../public/learn/04-functions/declaring.md)
 
 HQL-0038, "What a function is", states that a parameter MAY have a default
 value, `limit: Int = 0`, and its grammar admits `("=" expression)?` on every
@@ -18,7 +18,7 @@ syntax failure: a default belongs to an external declaration; a function with a 
 ```
 
 A default is accepted only on an external (native) declaration. The book's
-[Declaring a function](../public/learn/04-functions/declaring.md) page leaves
+[Declaring a function](../../public/learn/04-functions/declaring.md) page leaves
 defaults out until this is resolved.
 
 ## Work
@@ -34,4 +34,20 @@ defaults out until this is resolved.
    default of the wrong type refused, a required parameter after a defaulted
    one refused.
 4. The book: a "Default values" section in
-   [Declaring a function](../public/learn/04-functions/declaring.md).
+   [Declaring a function](../../public/learn/04-functions/declaring.md).
+
+## Decision
+
+Decided 2026-11-13 for 0.6.0, by the release loop the maintainer delegated
+it to (issue 0072): **narrow**. A default stays on external declarations only.
+
+- It is the smaller, backward-compatible option. Narrowing changes no
+  program: the parser already refuses a default on a function with a body.
+  Admitting defaults later adds a form and breaks none, so the choice stays
+  open. Admitting them now means work in the checker (an omitted argument
+  filled at the call, through aliases, holes and receiver calls) for no
+  release need.
+- HQL-0038's rule now says so, with a changelog line. The grammar in
+  `doc/models/behavior/expressions.md` already wrote `param` without a
+  default. The Learn page "Declaring a function" says it in "Every argument
+  is passed".

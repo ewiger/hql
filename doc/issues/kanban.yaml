@@ -54,9 +54,6 @@ board:
       - id: "0056"
         title: "`hql help` prints part of a block body in a signature"
         file: 0056-help-prints-a-block-body.md
-      - id: "0055"
-        title: "A parameter default on a function with a body"
-        file: 0055-defaults-on-functions-with-a-body.md
       - id: "0049"
         title: "One extension per package: fold the descriptors into `std` and `search`"
         file: 0049-one-extension-per-package.md
