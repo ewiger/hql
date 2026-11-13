@@ -7,6 +7,23 @@ subtypes, generics, receiver calls, operators and traits. The
 [Mighty Types corpus](https://github.com/ewiger/hql/tree/main/examples/mighty-types)
 has one program per topic.
 
+## Strong typing
+
+HQL is **strongly typed**, and the term means four things the implementation
+does:
+
+- Every value has one type, and an operation accepts only the types it
+  declares: `412 + "pages"` is a type error.
+- No value is converted to another type implicitly, except that an `Int`
+  beside a `Decimal` widens to one
+  ([chapter 2](../02-data-types/index.md)).
+- The checker type-checks the whole program before it is evaluated; a
+  program with a type error evaluates nothing.
+- Data from outside the program is `Data`, a tree whose structure is read
+  as the program runs, until a type boundary, `tree | T`, reads it as a
+  declared type `T`. The boundary is checked when it runs, and fails rather
+  than guess ([chapter 11](../11-advanced-data-typing/index.md)).
+
 ## One relation symbol
 
 Everything the type system says is said with `:`. Between a value and a

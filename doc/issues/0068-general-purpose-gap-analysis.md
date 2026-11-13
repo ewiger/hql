@@ -7,7 +7,7 @@ Related: [0015](0015-jq-parity-analysis.md),
 [HQL-0040](../proposals/HQL-0040/README.md),
 [HQL-0041](../proposals/HQL-0041/README.md)
 
-HQL is a statically typed expression and query language. It already has
+HQL is a strongly typed expression and query language. It already has
 functions and recursion, generics, records, traits, modules, `match`, errors
 as values, streams and typed I/O. This issue measures how far that is from a
 general-purpose language by comparison with Python first, and then

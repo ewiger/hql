@@ -55,7 +55,7 @@ proposal and follow-up issues; no code under `src/` changes here.
 8. **A Neo4j source.** Whether a Neo4j database is a configured data source
    (`source("id")`, [0040](archive/0040-configured-data-sources.md)), and
    whether a query pushes down to Cypher.
-9. **What HQL adds.** Static types over nodes and edges, documents as nodes,
+9. **What HQL adds.** Typed nodes and edges, documents as nodes,
    retrieval beside traversal, so the analysis argues for parity *and more*
    and not for a Cypher clone.
 

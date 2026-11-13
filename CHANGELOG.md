@@ -261,6 +261,8 @@ The language continues to be in active development.
 
 ### Changed
 
+- HQL is described as strongly typed. The book's type-system chapter and
+  the type system card define the term.
 - `Window` is a standard type, so a program's own `type Window` is
   refused; rename it.
 - `sort` is stable: elements that compare equal keep their input order.

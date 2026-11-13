@@ -186,7 +186,7 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
   *resolves*, *infers* and *checks*; retrieval *compares embeddings* or
   *matches text*; a graph *stores a presence per node*. Provenance is never
   *why*.
-- Headings name the term (`Static type checking`, `Node presence`), not the
+- Headings name the term (`Type checking`, `Node presence`), not the
   slogan.
 - Anything the binary does not implement is written as design direction, in
   those words.

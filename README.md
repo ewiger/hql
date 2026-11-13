@@ -4,7 +4,7 @@
 
 # HQL
 
-**Statically typed expression and query language**
+**Strongly typed expression and query language**
 
 [![Crates.io](https://img.shields.io/crates/v/hql.svg)](https://crates.io/crates/hql)
 [![MSRV](https://img.shields.io/crates/msrv/hql?color=orange&label=rust)](https://github.com/ewiger/hql/blob/main/Cargo.toml)
@@ -14,7 +14,7 @@
 
 </div>
 
-**HQL, the Hyper Query Language, is a statically typed expression and query language. It combines functional expressions with pipelines over files, streams, structured data, HyperMarkDown documents, knowledge and AI workflows. A program's types are checked before it runs, and data read from outside is checked against declared contracts where it enters.**
+**HQL, the Hyper Query Language, is a strongly typed expression and query language. It combines functional expressions with pipelines over files, streams, structured data, HyperMarkDown documents, knowledge and AI workflows. A program's types are checked before it runs, and data read from outside is checked against declared contracts where it enters.**
 
 HQL combines functional expressions, data pipelines, streams, structured documents, semantic retrieval and knowledge graphs in one language.
 
@@ -798,7 +798,7 @@ HQL occupies some of the same space as `jq`, but its scope is deliberately broad
 
 ```text
 jq-style structured data processing
-+ static types
++ strong types
 + functions
 + reusable programs
 + streams

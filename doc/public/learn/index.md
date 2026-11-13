@@ -10,7 +10,7 @@ chapter runs with it. The programs of chapters 16, 17, 19 and 20 that reach a
 server are checked in the book and run in the
 [hql-demo repository](https://github.com/ewiger/hql-demo).
 
-HQL is a statically typed language for querying, transforming, connecting and
+HQL is a strongly typed language for querying, transforming, connecting and
 computing over data, knowledge and AI workflows. A program is checked before it
 runs, and values flow through pipelines of typed steps: over records and lists,
 as `jq` works over JSON; over tables, as SQL does; over files, standard input

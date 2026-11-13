@@ -54,8 +54,8 @@ the value's own type.
 
 A sentence about a rejection names what rejects it or the diagnostic kind it
 gives: "the checker rejects", "is a type error", "is a name error", "the
-parser rejects". "Is refused" alone names neither. "Statically typed" stays the
-tagline, since every value's type is known before the program runs; "compile
-time" and "compile-time" describe no HQL rule. "Compiled into the binary"
+parser rejects". "Is refused" alone names neither. The tagline is "strongly
+typed", as the [[type-system]] card defines it. "Compile time" and "compile-time" describe no
+HQL rule. "Compiled into the binary"
 speaks of the Rust implementation, where an extension is, and is accurate there
 ([[hql/extensions]]).

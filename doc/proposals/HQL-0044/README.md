@@ -40,8 +40,11 @@ trait is a **capability contract** over a type, and the checker verifies it.
 ## Non-goals
 
 - No compiling backend is specified. This record fixes what one MUST preserve.
-- "Statically typed", the language's tagline, is unchanged: it states that
-  every value's type is known before the program runs, which is true.
+- The language's tagline is "strongly typed", as the
+  [type system](../../wiki/hql/type-system.hmd) card defines it: every
+  value has one type, nothing converts implicitly but `Int` beside
+  `Decimal`, the checker type-checks the whole program before it executes,
+  and data from outside is `Data` until an explicit type boundary reads it.
 - The Rust implementation compiles. "An extension compiled into the binary"
   speaks of the `hql` binary and stays as it is.
 
@@ -117,8 +120,7 @@ The documentation names the phase that acts.
 - A sentence about a rejection MUST name what rejects it or the diagnostic
   kind it gives; "… is refused" alone does not.
 - "Compile time", "compile-time" and "pre-compilation" MUST NOT describe an
-  HQL rule. "Static" stays in "statically typed" and is not used to name a
-  phase.
+  HQL rule, and "static" does not name a phase.
 
 ## Backwards Compatibility
 
@@ -153,3 +155,4 @@ cargo test --locked
 ## Changelog
 
 - 2026-10-25: accepted; the documentation states checking as the boundary
+- 2026-11-13: the tagline is "strongly typed"

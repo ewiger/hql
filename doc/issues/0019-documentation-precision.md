@@ -12,7 +12,7 @@ friendly paraphrase. The landing page said:
 > Every step is checked before anything runs, and every node in the answer
 > records *why* it is there.
 
-That sentence fuses two unrelated properties, static type checking before
+That sentence fuses two unrelated properties, type checking before
 evaluation and the presence a graph stores per node, and names neither.
 "Step", "anything runs", "answer" and "why" are placeholders; the sentence
 survives having its nouns replaced with "thing", which is the test for a
@@ -44,7 +44,12 @@ them.
 
 Each term is defined as the implementation has it.
 
-- **Static type checking.** The complete program is type-checked before
+- **Strong typing.** Every value has one type and an operation accepts only
+  the types it declares; nothing converts implicitly but an `Int` beside a
+  `Decimal`; the program is type-checked before evaluation; data from
+  outside is `Data` until a type boundary `tree | T` reads it, checked when
+  it runs.
+- **Type checking.** The complete program is type-checked before
   evaluation. A type error is reported with its byte range and the program
   is not evaluated.
 - **Pipeline step.** `xs | f(a)` is `f(xs, a)`. A step consumes the
@@ -84,7 +89,7 @@ Each term is defined as the implementation has it.
    collection's promises") and the Writing results out chapter ("a program
    that formats a value knows what kind"); the Data page's "need to know the
    type" is a reader's phrase, not a mechanism, and stays.
-4. **Headings.** Site-wide, a heading names the term: `Static type checking`,
+4. **Headings.** Site-wide, a heading names the term: `Type checking`,
    `Node presence`, `Semantic retrieval`, `Pipeline evaluation`.
 
 ## Done when
