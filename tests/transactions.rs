@@ -806,6 +806,179 @@ fn a_failure_in_an_attempt_rolls_it_back_and_a_constraint_or_a_conflict_is_data(
     );
 }
 
+/// A transfer of 100 from account 1 to account 2, as the book writes it:
+/// the sender's balance checked, both rows changed, and an `update` that
+/// changed no row failing the scope. `{gate}` is a statement run between
+/// the check and the debit.
+fn transfer(id: i64, gate: &str) -> String {
+    format!(
+        "with transaction(attempts = 3, isolation = Serializable) tx on ledger {{
+    sender = source(accounts) | filter(a => a.id == 1) | one
+    tx.rollback(\"insufficient balance\") given sender.balance < 100
+    {gate}
+    debited = update accounts | filter(a => a.id == 1) | set(a => {{balance: a.balance - 100}})
+    credited = update accounts | filter(a => a.id == 2) | set(a => {{balance: a.balance + 100}})
+    tx.rollback(\"no such account\") given debited != 1 or credited != 1
+    insert transfers Transfer(id = {id}, from_id = 1, to_id = 2, amount = 100)
+}}"
+    )
+}
+
+/// A loopback server that holds the first connection until a second one
+/// arrives, then answers both, and answers every later one at once. Each
+/// answer is one JSON document. It stops when `stop` is set and it is
+/// connected to once more.
+fn gate() -> (
+    std::net::SocketAddr,
+    std::sync::Arc<std::sync::atomic::AtomicBool>,
+    std::thread::JoinHandle<()>,
+) {
+    use std::io::Write;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let stop = std::sync::Arc::new(AtomicBool::new(false));
+    let stopped = std::sync::Arc::clone(&stop);
+    let server = std::thread::spawn(move || {
+        let mut held = Vec::new();
+        let mut open = false;
+        for stream in listener.incoming() {
+            if stopped.load(Ordering::SeqCst) {
+                break;
+            }
+            let Ok(stream) = stream else { continue };
+            held.push(stream);
+            if !open && held.len() < 2 {
+                continue;
+            }
+            open = true;
+            for mut stream in held.drain(..) {
+                // A connection that only woke the gate may be gone already.
+                let _ = stream.write_all(b"{\"go\": true}\n");
+            }
+        }
+    });
+    (address, stop, server)
+}
+
+#[test]
+fn two_withdrawals_racing_for_one_balance_commit_once() {
+    use std::sync::atomic::Ordering;
+    let (dir, vault) = configured();
+    seeded_ledger(&vault);
+    assert_eq!(
+        value(
+            &format!(
+                "{ACCOUNT}update configured(\"accounts\") | filter(a => a.id == 1) | set(a => {{balance: 150}})"
+            ),
+            &vault
+        ),
+        "1"
+    );
+    // Each withdrawal connects to the gate after it has read the sender's
+    // balance and before it debits it, inside its first attempt. The gate
+    // answers neither until both are connected, so both attempts have read
+    // 150 and both pass the balance check before either writes: the two
+    // transactions overlap on every run, with no sleep.
+    let (address, stop, server) = gate();
+    let program = |id: i64| {
+        format!(
+            "import net\n{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}{}",
+            transfer(
+                id,
+                &format!(
+                    "opened = source(tcp(\"127.0.0.1\", {}), Json) | take(1) | size",
+                    address.port()
+                )
+            )
+        )
+    };
+    let outcomes: Vec<String> = std::thread::scope(|threads| {
+        let runs: Vec<_> = [1, 2]
+            .map(|id| {
+                let program = program(id);
+                let root = dir.path().to_path_buf();
+                threads.spawn(move || {
+                    let vault = vault::load(&root).unwrap();
+                    let outcome = hql::run(&program, &vault, Mode::Strict);
+                    // A run that ended without reaching the gate opens it,
+                    // so the other is never left waiting.
+                    let _ = std::net::TcpStream::connect(address);
+                    assert!(!outcome.failed(), "{:?}", outcome.diagnostics);
+                    outcome.value.map(|v| v.to_string()).unwrap_or_default()
+                })
+            })
+            .into();
+        runs.into_iter().map(|run| run.join().unwrap()).collect()
+    });
+    stop.store(true, Ordering::SeqCst);
+    let _ = std::net::TcpStream::connect(address);
+    server.join().unwrap();
+    // Exactly one commits. The other read 150 too and passed the check, so
+    // it ends by a conflict: retried, it reads 50 and rolls back by the
+    // balance rule on a later attempt, or it runs out of attempts.
+    let committed: Vec<&String> = outcomes.iter().filter(|o| *o == "ok(1)").collect();
+    assert_eq!(committed.len(), 1, "{outcomes:?}");
+    let refused = outcomes.iter().find(|o| *o != "ok(1)").unwrap();
+    let after_retry = refused.starts_with(
+        "err(TransactionFailure(kind = \"rolled_back\", reason = \"insufficient balance\", attempts = ",
+    ) && !refused.contains("attempts = 1,");
+    let exhausted = refused.starts_with("err(TransactionFailure(kind = \"conflict\"")
+        && refused.contains("attempts = 3,");
+    assert!(after_retry || exhausted, "{outcomes:?}");
+    // One transfer, whole: no balance is negative, the money is conserved,
+    // and the transfers table holds the one that committed.
+    assert_eq!(balances(&vault), "[[1, 50], [2, 140], [3, 9]]");
+    let recorded = value(
+        &format!("{TRANSFER}source(\"transfers\") | map(t => [t.from_id, t.to_id, t.amount])"),
+        &vault,
+    );
+    assert_eq!(recorded, "[[1, 2, 100]]");
+}
+
+#[test]
+fn an_update_that_matches_no_row_is_zero_and_the_transfer_checks_it() {
+    let (_dir, vault) = configured();
+    seeded_ledger(&vault);
+    // An `update` whose filter matches no row is no failure: its value is
+    // 0, and a scope that does not read it commits the rest.
+    let half = value(
+        &format!(
+            "{ACCOUNT}accounts = configured(\"accounts\")\n\
+             with transaction tx on accounts {{\n\
+                 update accounts | filter(a => a.id == 1) | set(a => {{balance: a.balance - 100}})\n\
+                 update accounts | filter(a => a.id == 9) | set(a => {{balance: a.balance + 100}})\n\
+             }}"
+        ),
+        &vault,
+    );
+    assert_eq!(half, "ok(0)");
+    assert_eq!(balances(&vault), "[[1, 150], [2, 40], [3, 9]]");
+    // The transfer as the book writes it reads both counts, so a credit to
+    // an account that does not exist rolls the debit back with it.
+    let to_nobody = transfer(1, "").replace("a.id == 2", "a.id == 9");
+    let outcome = value(
+        &format!("{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}{to_nobody}"),
+        &vault,
+    );
+    assert_eq!(
+        outcome,
+        r#"err(TransactionFailure(kind = "rolled_back", reason = "no such account", attempts = 1, endpoint = none, detail = none))"#
+    );
+    assert_eq!(balances(&vault), "[[1, 150], [2, 40], [3, 9]]");
+    assert_eq!(
+        value(&format!("{TRANSFER}source(\"transfers\") | size"), &vault),
+        "0"
+    );
+    // To an account that exists, it commits whole.
+    let outcome = value(
+        &format!("{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}{}", transfer(1, "")),
+        &vault,
+    );
+    assert_eq!(outcome, "ok(1)");
+    assert_eq!(balances(&vault), "[[1, 50], [2, 140], [3, 9]]");
+}
+
 #[test]
 fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
     let (_dir, vault) = configured();

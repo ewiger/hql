@@ -68,3 +68,16 @@ subtype of `Step` or a `Result`, once the backends report them uniformly.
   the count and the endpoint in it.
 - Every `Unit` in `lib/std`, the book and the reference is the new name or
   the new type, and `CHANGELOG.md` lists the change under breaking changes.
+
+## Zero-row update (release 0.6.0 audit)
+
+2026-11-13, issue 0072. An `update` (or `delete`) whose filter matches no
+row is no failure: its value is the `Int` 0, the count the system reports,
+and a scope goes on past it. A transfer whose credit names an account that
+does not exist therefore commits its debit alone unless the program reads
+the count. Nothing in the evaluator changed: the book's transfer, the
+benchmark of [HQL-0051](../proposals/HQL-0051/README.md) and its Learn page
+bind both counts and roll the scope back where either is not 1, and
+`tests/transactions.rs` pins both the 0 and that rollback. This is the
+real case the count has served: whatever a write's outcome becomes here,
+it keeps an affected-row count a block can test before it commits.

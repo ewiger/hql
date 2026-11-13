@@ -509,8 +509,12 @@ running ──── end of block, or tx.commit(v) ────► committing   
   included, as `retry` of [HQL-0033](../HQL-0033/README.md) counts it.
 - A **conflict** is the system's refusal of an attempt because of a
   concurrent transaction: a serialization failure or a deadlock in
-  PostgreSQL (`40001`, `40P01`), a busy database in SQLite (`SQLITE_BUSY`),
-  a concurrent-modification failure in a lakehouse table. A conflict is
+  PostgreSQL (`40001`, `40P01`), a busy or locked database file in SQLite
+  (`SQLITE_BUSY`, `SQLITE_LOCKED`), a concurrent-modification failure in a
+  lakehouse table. An SQLite attempt begins deferred and waits at most
+  100 ms for the file's lock before the refusal; an attempt that has read
+  and then asks to write while another holds the write lock is refused at
+  once, since waiting could deadlock. A conflict is
   retried while attempts remain, whether a statement raised it or the
   commit did, and is `err` with `kind = "conflict"` after the last.
 - A **constraint violation** is the system's refusal of a row: a unique,
@@ -616,7 +620,10 @@ are not transactional.
 Three statements change rows in place. Each is an expression of type `Int`,
 the number of rows the system reports affected, as PostgreSQL's command tag
 reports it, so a program checks what it changed: `n = update …` and
-`tx.rollback("no such account") given n == 0`.
+`tx.rollback("no such account") given n == 0`. A filter that matches no
+row is no failure: the count is 0 and the block goes on, so a transfer
+whose credit names an account that does not exist commits its debit alone
+unless it reads the count. The benchmark under "SQL parity" reads both.
 
 ```text
 mutation ::= "insert" link link
@@ -827,6 +834,7 @@ SELECT balance INTO sender FROM accounts WHERE id = 1;
 
 UPDATE accounts SET balance = balance - 100 WHERE id = 1;
 UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+-- the client checks that each UPDATE reports one row, and issues ROLLBACK otherwise
 INSERT INTO transfers (from_id, to_id, amount) VALUES (1, 2, 100);
 
 COMMIT;
@@ -852,13 +860,15 @@ outcome =
 
         tx.rollback("insufficient balance") given sender.balance < 100
 
-        update accounts
+        debited = update accounts
         | filter(a => a.id == 1)
         | set(a => {balance: a.balance - 100})
 
-        update accounts
+        credited = update accounts
         | filter(a => a.id == 2)
         | set(a => {balance: a.balance + 100})
+
+        tx.rollback("no such account") given debited != 1 or credited != 1
 
         insert transfers Transfer(from_id = 1, to_id = 2, amount = 100)
     }
@@ -1100,7 +1110,13 @@ Unit and integration tests MUST include:
   commit; `attempts = 3` with a second connection holding the file giving
   a commit on the second attempt, and `kind = "conflict"` after three;
   `tx.retry()` run `attempts` times giving `kind = "exhausted"`; a `sink`
-  to a file inside the block written three times and warned once;
+  to a file inside the block written three times and warned once; two
+  withdrawals of 100 from a balance of 150 under `isolation = Serializable`
+  and `attempts = 3`, run at once on two threads and held at a gate until
+  both have passed the balance check, one committing and the other ending
+  `rolled_back` after a retry or `conflict`, with no negative balance and
+  no half transfer; an `update` matching no row giving 0, and the
+  benchmark's count check rolling the debit back with it;
 - over PostgreSQL 17 and Spark 3.5 with Delta 3.3, in `hql-demo`: the
   benchmark transfer, committed and rolled back, which is the `ledger`
   case, `../hql-demo/ledger/run.sh`; two programs transferring
@@ -1180,3 +1196,12 @@ cargo clippy --locked --all-targets -- -D warnings
   PostgreSQL 17
 - 2026-11-13: implemented in part, phases 1 to 6 as above; the part left is
   what phases 3 and 4 name as not built
+- 2026-11-13: release 0.6.0 audit (issue 0072). Two concurrent
+  withdrawals racing for one balance are run over SQLite in
+  `tests/transactions.rs`: one commits, the other is refused as a conflict
+  and rolls back on the balance after a retry, or ends `conflict`. The race
+  over PostgreSQL is not run by any test yet. A zero-row `update` is 0 and
+  no failure, so the benchmark and the book's transfer read both counts
+  and roll back where either is not 1; the book's transfers name
+  `isolation = Serializable`. Not built: `TransactionFailure` leaves
+  `endpoint` and `detail` absent for every failure

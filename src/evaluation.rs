@@ -855,7 +855,6 @@ impl Evaluator<'_> {
             let control = transaction::take_control();
             let more = attempt < attempts;
             match (outcome, control) {
-                (Ok(()), None) | (Err(_), Some(Control::Commit(_))) if false => unreachable!(),
                 (Ok(()), _) | (Err(_), Some(Control::Commit(_))) => {
                     let value = match transaction::take_control_value() {
                         Some(value) => value,
