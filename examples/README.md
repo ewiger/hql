@@ -77,6 +77,10 @@ The [I/O](io/README.md) cases read a JSON Lines file and a CSV file with
 `source`, each document decoded as the record its binding declares, from
 [HQL-0021](../doc/proposals/HQL-0021/README.md).
 
+The [file system](fs/README.md) cases list a folder, walk a tree in sorted
+order, match a glob and test a path with `io.fs`, from
+[HQL-0040](../doc/proposals/HQL-0040/README.md).
+
 The [data sources](sources/README.md) cases read the sources a vault's
 `hql.toml` configures by id with `source("id")`: two vaults side by side, a
 CSV file and a JSON array, typed from the configuration before anything is
