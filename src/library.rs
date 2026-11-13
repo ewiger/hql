@@ -83,6 +83,8 @@ pub const STD: &[(&str, &str)] = &[
     ("encoding", include_str!("../lib/std/encoding/mod.hql")),
     ("bytes", include_str!("../lib/std/bytes/mod.hql")),
     ("crypto", include_str!("../lib/std/crypto/mod.hql")),
+    ("ai.models", include_str!("../lib/std/ai/models/mod.hql")),
+    ("ai.agents", include_str!("../lib/std/ai/agents/mod.hql")),
 ];
 
 /// Every module of the `search` package, by name, in loading order, laid out

@@ -19,6 +19,7 @@ use crate::vault::Vault;
 use std::ops::Range;
 use std::path::Path;
 
+pub mod ai;
 pub(crate) mod binding;
 pub(crate) mod bytes;
 pub(crate) mod collections;
@@ -206,6 +207,14 @@ pub(crate) trait EvalCx: Send {
         &mut self,
         argument: &TypedArg,
         values: Vec<Value>,
+    ) -> Result<Value, Diagnostic>;
+    /// A function value applied to arguments: a tool's function, which the
+    /// harness calls with what a model asked for.
+    fn call_function(
+        &mut self,
+        function: &Value,
+        arguments: Vec<Value>,
+        span: &Range<usize>,
     ) -> Result<Value, Diagnostic>;
     /// Apply a comparison to a pair of elements.
     fn apply_comparator(
@@ -558,6 +567,15 @@ static LEXICAL: Extension = Extension {
     metadata: Some(lexical::contribute_metadata),
 };
 
+/// The AI harness (HQL-0022): agents, their runs, and the models they reach.
+static AI: Extension = Extension {
+    name: "ai",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["ai.models", "ai.agents"],
+    steps: ai::STEPS,
+    metadata: None,
+};
+
 static SEMANTIC: Extension = Extension {
     name: "semantic",
     version: env!("CARGO_PKG_VERSION"),
@@ -701,6 +719,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &NATS_JETSTREAM,
     &LEXICAL,
     &SEMANTIC,
+    &AI,
     &REGEX,
     &DIGEST,
     &ENCODING,
@@ -1552,7 +1571,10 @@ mod tests {
                             | "encrypt_to"
                             | "encrypt_with_passphrase"
                     ))
-                || entry.provider == "io.env";
+                || entry.provider == "io.env"
+                // The AI harness's model calls and memory writes (HQL-0022).
+                || (entry.provider == "ai"
+                    && matches!(entry.name, "run" | "ask" | "delegate" | "remember"));
             let expected = if effectful {
                 Purity::Effectful
             } else {

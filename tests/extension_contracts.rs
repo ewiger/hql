@@ -11,8 +11,9 @@ fn every_catalogue_signature_is_generated_from_its_structural_contract() {
     // modules of the prelude, `bytes` among them, and the sixteen imported
     // where they are used, `time`, `random`, `stats`, `crypto`,
     // `crypto.digest`, `encoding`, `io.fs`, `io.env` and `io.db.postgres`
-    // among them.
-    assert_eq!(count, 330);
+    // among them, and the `ai` extension's nine, which `ai.models` and
+    // `ai.agents` declare.
+    assert_eq!(count, 339);
     for provider in providers {
         for step in provider.steps {
             let mut lines = Vec::new();

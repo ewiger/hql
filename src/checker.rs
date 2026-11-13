@@ -349,6 +349,8 @@ fn combined(combiner: &str, left: &TypeRef, right: &TypeRef) -> Result<TypeRef, 
     }
     Ok(match combiner {
         "concat" if stream => joined,
+        // Two contexts are one context (HQL-0022); any other two sequences, a list.
+        "concat" if joined.constructor.0 == "Context" => joined,
         "concat" => TypeRef::list(joined.element().unwrap_or(TypeRef::NEVER)),
         _ => joined,
     })

@@ -369,6 +369,14 @@ impl Value {
             },
             Self::Doc(doc) => doc.body.trim().to_owned(),
             Self::Card(card) => card.document.body.trim().to_owned(),
+            // A harness record reads as the text it stands for (HQL-0022): a
+            // run as its answer, a prompt as what was sent, an item or a
+            // turn as its text.
+            Self::Record(record) if record.is("Run") => record.text("result"),
+            Self::Record(record) if record.is("Prompt") => record.text("rendered"),
+            Self::Record(record) if record.is("ContextItem") || record.is("Turn") => {
+                record.text("text")
+            }
             Self::Set(values, _) | Self::List(values, _) => values
                 .iter()
                 .map(|value| match value.as_card() {

@@ -741,6 +741,7 @@ impl Field {
                 TypeRef::ENTRY,
             ]
             .contains(receiver.present())
+            || crate::types::builtin::AI_RECORDS.contains(&receiver.present().constructor.0)
         {
             return Some(Self::Record(name.to_owned()));
         }

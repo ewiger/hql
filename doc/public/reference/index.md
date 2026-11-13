@@ -62,6 +62,8 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/encoding`](std/encoding/index.md) — Text-safe encodings of a text's UTF-8 octets.
 - [`std/bytes`](std/bytes/index.md) — The functions of a `Bytes` value, in the prelude.
 - [`std/crypto`](std/crypto/index.md) — Keys, signatures, MACs, password hashes and encryption.
+- [`std/ai/models`](std/ai/models/index.md) — What a model is given and what it answers: the turns of a conversation, the tools offered to it and the calls it requests.
+- [`std/ai/agents`](std/ai/agents/index.md) — Agents and their runs: an agent read from a card, the context and prompt it is given, and the run that executes it, each a value a program reads.
 - [`search/lexical`](search/lexical/index.md) — Lexical retrieval: a corpus ranked by the words it shares with a query, a hashed bag of words compared by cosine.
 - [`search/semantic`](search/semantic/index.md) — Semantic retrieval: a corpus ranked against a query by vectors a language model made ahead of time, read from the index that `[semantics] index` in hql.toml names.
 - [`std/validators`](std/validators/index.md) — Validators: the standard validator traits, imported where they are used, `import validators`, and never by the prelude, so a program's own `Email` is its own.

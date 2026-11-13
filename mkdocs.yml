@@ -224,6 +224,8 @@ nav:
           - std/encoding: reference/std/encoding/index.md
           - std/bytes: reference/std/bytes/index.md
           - std/crypto: reference/std/crypto/index.md
+          - std/ai/models: reference/std/ai/models/index.md
+          - std/ai/agents: reference/std/ai/agents/index.md
           - std/validators: reference/std/validators/index.md
       - search:
           - search/lexical: reference/search/lexical/index.md

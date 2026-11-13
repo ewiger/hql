@@ -292,6 +292,62 @@ impl Record {
             .find(|(held, _)| held == name)
             .map(|(_, value)| value)
     }
+
+    /// A closed record of a type, from its fields in declaration order.
+    #[must_use]
+    pub fn new(ty: TypeRef, fields: Vec<(&str, Value)>) -> Self {
+        Self {
+            ty,
+            fields: fields
+                .into_iter()
+                .map(|(name, value)| (name.to_owned(), value))
+                .collect(),
+            carrier: None,
+        }
+    }
+
+    /// A field's value with an optional field's presence removed: `None`
+    /// when the record has no such field or it is absent.
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<&Value> {
+        match self.field(name)? {
+            Value::Present(value) => Some(value),
+            Value::Absent(_) => None,
+            value => Some(value),
+        }
+    }
+
+    /// The text of a `String` field, or empty when it is absent.
+    #[must_use]
+    pub fn text(&self, name: &str) -> String {
+        match self.get(name) {
+            Some(Value::Str(text)) => text.to_string(),
+            Some(Value::Formatted(formatted)) => formatted.text.clone(),
+            _ => String::new(),
+        }
+    }
+
+    /// The elements of a list field, or none when it is absent.
+    #[must_use]
+    pub fn list(&self, name: &str) -> Vec<Value> {
+        self.get(name).and_then(Value::elements).unwrap_or_default()
+    }
+
+    /// Whether the record is of the named type.
+    #[must_use]
+    pub fn is(&self, name: &str) -> bool {
+        self.ty.constructor.0 == name
+    }
+
+    /// A context of items, in order (HQL-0022).
+    #[must_use]
+    pub fn context(items: Vec<Value>) -> Value {
+        let item = TypeRef::from(super::TypeConstructor("ContextItem"));
+        Value::Record(Arc::new(Self::new(
+            TypeRef::from(super::TypeConstructor("Context")),
+            vec![("items", Value::list(items, item))],
+        )))
+    }
 }
 
 /// Rows under ordered columns: `Table(xs, columns = [...])`. Each row is a
@@ -516,6 +572,8 @@ impl Value {
                     .map(|hit| Self::Hit(Arc::new(hit.clone())))
                     .collect(),
             ),
+            // A context is the sequence of its items.
+            Self::Record(record) if record.is("Context") => Some(record.list("items")),
             _ => None,
         }
     }

@@ -2219,6 +2219,15 @@ impl EvalCx for Evaluator<'_> {
         self.apply(argument, vec![element])
     }
 
+    fn call_function(
+        &mut self,
+        function: &Value,
+        arguments: Vec<Value>,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        self.call(function, arguments, span)
+    }
+
     fn apply_function(&mut self, argument: &Arg, values: Vec<Value>) -> Result<Value, Diagnostic> {
         self.apply(argument, values)
     }
@@ -2316,6 +2325,9 @@ pub(crate) fn combine(
         "concat" => {
             let mut values = left.elements().ok_or_else(failed)?;
             values.extend(right.elements().ok_or_else(failed)?);
+            if ty.constructor.0 == "Context" {
+                return Ok(crate::types::Record::context(values));
+            }
             Ok(Value::list(values, ty.element().unwrap_or(TypeRef::NEVER)))
         }
         "merge" => merged(left, right, span),
