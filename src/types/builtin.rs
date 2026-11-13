@@ -18,7 +18,8 @@ macro_rules! atoms {
 atoms! {
     NEVER => "Never", AUTE => "Aute", UNIT => "Step", INT => "Int", FLOAT => "Float", DECIMAL => "Decimal",
     BOOL => "Bool", STR => "String", DATA => "Data", DOC => "Doc", CARD => "Card",
-    CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
+    CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard",
+    HMD_HEADER => "HmdHeader", HMD_DOC => "HmdDoc", HMD_CARD => "HmdCard", MD_CARD => "MdCard", EDGE => "Edge",
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
     ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
     DATE_TIME => "DateTime", INSTANT => "Instant", DURATION => "Duration",
@@ -217,6 +218,16 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::CARD, TypeKind::Concrete, &[TypeRef::DOC]),
         (TypeRef::CONCEPT_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
         (TypeRef::RELATION_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
+        // A document or card by the dialect of its body, `lib/std/doc/mod.hql`:
+        // a card is one of these by its `format`, beside its kind.
+        (TypeRef::HMD_HEADER, TypeKind::Concrete, &[]),
+        (TypeRef::HMD_DOC, TypeKind::Abstract, &[TypeRef::DOC]),
+        (
+            TypeRef::HMD_CARD,
+            TypeKind::Concrete,
+            &[TypeRef::CARD, TypeRef::HMD_DOC],
+        ),
+        (TypeRef::MD_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
         (TypeRef::EDGE, TypeKind::Concrete, &[]),
         (TypeRef::GRAPH, TypeKind::Concrete, &[]),
         (TypeRef::VAULT, TypeKind::Concrete, &[]),

@@ -246,6 +246,12 @@ The language continues to be in active development.
 
 ### Fixed
 
+- After `import doc`, `HmdDoc`, `HmdCard` and `MdCard` are types: `cards |
+  of_type(HmdCard)` keeps the cards written in hyper-markdown and
+  `of_type(MdCard)` those in Markdown, beside a card's kind. They were
+  unknown types. A program's own subtype of `Card`, `type TaskCard : Card {
+  metadata : Task }`, is refused in `of_type` and `is`, naming `c.metadata |
+  T`; it gave an empty result.
 - A call of a name no import offers, written with named arguments only,
   reports the missing import rather than a missing positional input.
 - A function declared without an input, called with its module,

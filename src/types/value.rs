@@ -576,6 +576,27 @@ impl Value {
     /// a leaf is read as the scalar it holds, so the integer leaf of a header
     /// is an `Int` and comes back as one.
     #[must_use]
+    /// Whether a document or card is one of the dialect types by the format
+    /// of its body: `HmdDoc` and `HmdCard` for hyper-markdown, `MdCard` for
+    /// Markdown. A card's type is its kind; its dialect is read here.
+    fn is_in_dialect(&self, wanted: &TypeRef) -> bool {
+        use crate::document::Format;
+        let (format, card) = match self {
+            Self::Card(card) => (card.document.format, true),
+            Self::Doc(document) => (document.format, false),
+            _ => return false,
+        };
+        if *wanted == TypeRef::HMD_DOC {
+            format == Format::Hmd
+        } else if *wanted == TypeRef::HMD_CARD {
+            card && format == Format::Hmd
+        } else if *wanted == TypeRef::MD_CARD {
+            card && format == Format::Markdown
+        } else {
+            false
+        }
+    }
+
     pub fn interpreted(&self, wanted: &TypeRef) -> Option<Self> {
         self.decoded(wanted, Leaves::AsWritten).ok()
     }
@@ -591,7 +612,7 @@ impl Value {
     ///
     /// The value, or a field of it, is not a `wanted`.
     pub fn decoded(&self, wanted: &TypeRef, leaves: Leaves) -> Result<Self, Mismatches> {
-        if self.type_of().is(wanted) {
+        if self.type_of().is(wanted) || self.is_in_dialect(wanted) {
             return Ok(self.clone());
         }
         // An open record is a view: read as another type, it is the tree it

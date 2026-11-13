@@ -357,6 +357,16 @@ pub fn may_be(subject: &TypeRef, wanted: &TypeRef) -> bool {
     wanted.is(subject)
         || subject.is(wanted)
         || (*subject == TypeRef::DATA && tree_shape(wanted).is_some())
+        || across_dialect(subject, wanted)
+        || across_dialect(wanted, subject)
+}
+
+/// Whether a document of `subject`, which states no dialect, may be of the
+/// dialect `dialect`: a card's kind and the dialect of its body are
+/// independent, so a `ConceptCard` may be an `HmdCard`.
+fn across_dialect(subject: &TypeRef, dialect: &TypeRef) -> bool {
+    let dialects = [TypeRef::HMD_DOC, TypeRef::HMD_CARD, TypeRef::MD_CARD];
+    dialects.contains(dialect) && !dialects.contains(subject) && subject.is(&TypeRef::DOC)
 }
 
 /// Whether a name is a type of the built-in lattice, declared by the binary
