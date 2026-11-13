@@ -1,6 +1,6 @@
 # HQL-0041: Time, statistics, digests and encodings, randomness, and the environment
 
-**Status**: accepted
+**Status**: accepted, implemented
 **Created**: 2026-10-24
 **Source**: a comparison of `lib/std/` against Python's standard library
 (`datetime`, `statistics`, `hashlib` and `base64`, `random`, `os.environ` and
@@ -215,3 +215,19 @@ cargo clippy --all-targets -- -D warnings
 - 2026-11-13: part 3, `crypto.digest` and `encoding`, implemented; the
   algorithms and encodings are built-in type names, and canonical JSON
   writes a number as its exact digits without an exponent
+- 2026-11-13: part 2, `stats`, implemented; over `Int` and `Decimal` values
+  a reduction's state is `(n, Σx, Σx²)`, exact and combined by addition,
+  which is Chan's update in exact arithmetic, and over `Float` values it is
+  `(n, mean, M2)` combined by Chan's update; a `Decimal` root is rounded
+  from the exact ratio; `quantile` also takes a `Decimal` `q`, a literal
+  being a `Decimal`, and a `Float` `q` is read by its shortest digits over
+  exact values; `quantiles` computes each cut point with one division,
+  Python's inclusive method; a `Float` is finite, so no input holds NaN or
+  an infinity, and a statistic past the `Float` range is an overflow error;
+  with `stats` imported, `variance` over `Int` or `Float` values is
+  ambiguous with the prelude's population `variance` and is written
+  `stats.variance`; localhost runs one partition
+- 2026-11-13: part 5, `io.env`, implemented; the environment is read from
+  the process once and held for the process, the grant filtering it as a
+  program reads it; a name or value that is not UTF-8 is not held; `--arg`
+  without `=` is refused as a malformed name is, exit 2

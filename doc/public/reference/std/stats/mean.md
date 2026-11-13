@@ -1,0 +1,14 @@
+<!-- hql reference: std/stats.mean -->
+# `mean`
+
+In [`std/stats`](index.md).
+
+```hql
+reduction fn mean(self: Collection<Int>) : Option<Float>
+reduction fn mean(self: Collection<Float>) : Option<Float>
+reduction fn mean(self: Collection<Decimal>) : Option<Decimal>
+```
+
+The arithmetic mean, the sum divided by the count, or `none` over an
+empty collection: `[1, 2, 3, 4] | mean` is `2.5`.
+<!-- hql reference: end -->

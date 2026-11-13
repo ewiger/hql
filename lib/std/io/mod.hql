@@ -45,6 +45,66 @@ abstract type MessageTransport : Transport
 /// A `Transport` that moves rows of named columns: it takes no format.
 abstract type RowTransport : Transport
 
+// What a transport's system can do beyond reading and writing (HQL-0051).
+// Each capability is independent of the others, and a concrete transport
+// declares the subset it has.
+
+/// A `Transport` whose system has an atomic scope: statements over it
+/// begin, commit and roll back as one unit. Which endpoints share one scope
+/// is the kind's rule, stated with the kind; the type says only that a
+/// scope exists.
+abstract type Transactional : Transport
+
+/// A `Transport` that takes rows it does not hold, by `insert`. Writing a
+/// whole collection is `Writable`; the two are independent.
+abstract type Insertable : Transport
+
+/// A `Transport` whose held rows a statement changes in place, by `update`.
+abstract type Updatable : Transport
+
+/// A `Transport` whose held rows a statement removes, by `delete`.
+abstract type Deletable : Transport
+
+/// How much of other transactions a scope sees. The three levels are
+/// SQL's, from least to most isolated. A kind offers a subset, and a level
+/// is passed as a type, `isolation = Serializable`.
+abstract type IsolationLevel
+
+/// The `IsolationLevel` at which a statement sees what was committed before
+/// it began: PostgreSQL's default.
+type ReadCommitted : IsolationLevel
+
+/// The `IsolationLevel` at which every statement of a scope sees the
+/// snapshot its first statement saw.
+type RepeatableRead : IsolationLevel
+
+/// The `IsolationLevel` at which concurrent scopes behave as if run one
+/// after another: SQLite's only level.
+type Serializable : IsolationLevel
+
+/// The handle of a transaction scope, bound by `with transaction tx on …`
+/// (HQL-0051). It has no fields and no constructor. It is used in its own
+/// block, through `tx.commit(value)`, `tx.rollback(reason)` and
+/// `tx.retry()` (module `io.transaction`), and does not leave it: it is not
+/// a parameter, a field, an element or a result, as a `Window` is not.
+type Transaction
+
+/// Why a transaction scope did not commit, the `err` of its `Result`:
+/// `kind` is `"rolled_back"` for `tx.rollback`, `"conflict"` for a
+/// concurrent transaction after the last attempt, `"constraint"` for a row
+/// the system refused, and `"exhausted"` for `tx.retry` with no attempt
+/// left; `reason` is the `rollback` argument or what the system said;
+/// `attempts` counts the attempts run; `endpoint` names the participant a
+/// statement was over, where one was; `detail` holds what the system said,
+/// its state code among it.
+type TransactionFailure : DataContract {
+    kind      : String
+    reason    : String
+    attempts  : Int
+    endpoint? : String
+    detail?   : Data
+}
+
 /// The program's standard input, bound as `stdin`: read once, as it
 /// arrives.
 type Stdin : Readable
@@ -194,6 +254,16 @@ fn stem(self: Path) : String
 /// `none` where the segment has none: `Path("a/b.csv").extension()` is
 /// `some("csv")`. A segment that opens with its only `.`, `.env`, has none.
 fn extension(self: Path) : Option<String>
+
+/// The endpoint configured under the literal `id` in hql.toml, as the
+/// transport its kind states, with its schema boundary: a `postgres`
+/// endpoint is a `Postgres`, a `csv` endpoint a `File`. Constructing it
+/// opens nothing, and it needs no import: the configuration names the
+/// kind. `source(configured("id"))` reads what `source("id")` reads, and
+/// `target(xs, configured("id"))` writes what `target(xs, "id")` writes;
+/// the value is what a statement over the endpoint itself takes
+/// (HQL-0051). A `vault` endpoint has no transport and is refused.
+fn configured(id: String) : Transport
 
 /// Every document read from `endpoint` in `format`, decoded to `T`: a `Seq`
 /// from a `Replayable` endpoint, a `Stream` from a live one. `T` is the

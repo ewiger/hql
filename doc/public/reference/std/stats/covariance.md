@@ -1,0 +1,15 @@
+<!-- hql reference: std/stats.covariance -->
+# `covariance`
+
+In [`std/stats`](index.md).
+
+```hql
+reduction fn covariance(self: Collection<Pair<Int, Int>>) : Option<Float>
+reduction fn covariance(self: Collection<Pair<Float, Float>>) : Option<Float>
+reduction fn covariance(self: Collection<Pair<Decimal, Decimal>>) : Option<Decimal>
+```
+
+The sample covariance of the pairs' `first` and `second` values, the sum
+of the products of their deviations from their means divided by
+`n - 1`, or `none` over fewer than two pairs.
+<!-- hql reference: end -->

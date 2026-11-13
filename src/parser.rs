@@ -503,12 +503,256 @@ impl Parser {
                     name,
                     name_span,
                     annotation,
-                    value: self.expression()?,
+                    value: self.statement_value()?,
                     private: None,
                 });
             }
         }
-        Ok(Stmt::Expr(self.expression()?))
+        Ok(Stmt::Expr(self.statement_value()?))
+    }
+
+    /// The value of a statement or of a binding: a mutation where one opens
+    /// it, and an expression otherwise. A mutation is a statement or the
+    /// whole right side of a binding, never a sub-expression (HQL-0051).
+    fn statement_value(&mut self) -> Result<Expr, Diagnostic> {
+        if self.at_mutation() {
+            self.mutation()
+        } else if self.at_transaction() {
+            self.transaction()
+        } else {
+            self.expression()
+        }
+    }
+
+    /// Whether `with transaction` opens a transaction scope. Neither word is
+    /// reserved: `with` is positional inside a contract's rules as well.
+    fn at_transaction(&self) -> bool {
+        matches!(self.peek(), Token::Ident(word) if word == "with")
+            && matches!(&self.tokens[self.index + 1].token, Token::Ident(word) if word == "transaction")
+    }
+
+    /// `with transaction(attempts = n, isolation = L) tx on participants
+    /// { line* }`: the arguments and the handle optional, and the block a
+    /// sequence of bindings and statements, one per line.
+    fn transaction(&mut self) -> Result<Expr, Diagnostic> {
+        use crate::ast::ScopeStmt;
+        let start = self.advance().span.start;
+        self.advance();
+        let mut attempts = None;
+        let mut isolation = None;
+        if self.eat(&Token::OpenParen) {
+            self.nesting += 1;
+            loop {
+                self.continuation();
+                let named = self.advance();
+                let Token::Ident(name) = named.token else {
+                    return Err(Diagnostic::syntax(
+                        named.span,
+                        "a transaction's arguments are named: `attempts = 3`, \
+                         `isolation = Serializable`",
+                    ));
+                };
+                self.expect(&Token::Equals, "after a transaction's argument name")?;
+                match name.as_str() {
+                    "attempts" if attempts.is_none() => {
+                        attempts = Some(Box::new(self.expression()?));
+                    }
+                    "isolation" if isolation.is_none() => {
+                        let level = self.advance();
+                        let Token::Ident(level_name) = level.token else {
+                            return Err(Diagnostic::syntax(
+                                level.span,
+                                "`isolation` names a level: `ReadCommitted`, \
+                                 `RepeatableRead` or `Serializable`",
+                            ));
+                        };
+                        isolation = Some((level_name, level.span));
+                    }
+                    "attempts" | "isolation" => {
+                        return Err(Diagnostic::syntax(
+                            named.span,
+                            format!("`{name}` is written once"),
+                        ));
+                    }
+                    other => {
+                        return Err(Diagnostic::syntax(
+                            named.span,
+                            format!(
+                                "`{other}` is not an argument of a transaction; `attempts` and \
+                                 `isolation` are"
+                            ),
+                        ));
+                    }
+                }
+                self.continuation();
+                if !self.eat(&Token::Comma) {
+                    break;
+                }
+            }
+            self.expect(&Token::CloseParen, "after a transaction's arguments")?;
+            self.nesting -= 1;
+        }
+        let handle = match self.peek().clone() {
+            Token::Ident(name) if name != "on" => {
+                let span = self.advance().span;
+                Some((name, span))
+            }
+            _ => None,
+        };
+        self.expect(
+            &Token::Ident("on".to_owned()),
+            "before a transaction's participants",
+        )?;
+        let participants = self.link()?;
+        // The block, as `lines` reads one: line breaks separate statements.
+        let saved = std::mem::replace(&mut self.nesting, 0);
+        self.expect(&Token::OpenBrace, "to open the transaction's block")?;
+        let mut body = Vec::new();
+        let end = loop {
+            self.continuation();
+            if matches!(self.peek(), Token::CloseBrace) {
+                break self.advance().span.end;
+            }
+            if matches!(self.peek(), Token::End) {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    "expected `}` to close the transaction's block",
+                ));
+            }
+            let line = match (self.peek().clone(), &self.tokens[self.index + 1].token) {
+                (Token::Ident(name), Token::Equals) => {
+                    let name_span = self.advance().span;
+                    self.advance();
+                    self.continuation();
+                    ScopeStmt::Bind {
+                        name,
+                        name_span,
+                        value: self.nested(Self::statement_value)?,
+                    }
+                }
+                _ => ScopeStmt::Expr(self.nested(Self::statement_value)?),
+            };
+            body.push(line);
+            if !matches!(
+                self.tokens[self.index].token,
+                Token::Newline | Token::CloseBrace
+            ) {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    format!(
+                        "expected end of statement, found {}",
+                        self.peek().describe()
+                    ),
+                ));
+            }
+        };
+        self.nesting = saved;
+        if body.is_empty() {
+            return Err(Diagnostic::syntax(
+                start..end,
+                "a transaction's block holds at least one statement: an empty transaction says \
+                 nothing",
+            ));
+        }
+        Ok(Expr {
+            kind: Kind::Transaction {
+                handle,
+                attempts,
+                isolation,
+                participants: Box::new(participants),
+                body,
+            },
+            span: start..end,
+        })
+    }
+
+    /// Whether `insert`, `update` or `delete` opens a mutation: the word is
+    /// followed, on the same line, by the name an endpoint is bound to or a
+    /// call constructing one. `update(x)`, `update | f` and `update = 1`
+    /// keep their meaning, so none of the three words is reserved.
+    fn at_mutation(&self) -> bool {
+        matches!(self.peek(), Token::Ident(word) if matches!(word.as_str(), "insert" | "update" | "delete"))
+            && matches!(self.tokens[self.index + 1].token, Token::Ident(_))
+    }
+
+    /// `insert E rows`, `update E | filter(p) | set(f)` or
+    /// `delete E | filter(p)`: the endpoint, then what `insert` adds, or the
+    /// clauses that select and assign.
+    fn mutation(&mut self) -> Result<Expr, Diagnostic> {
+        use crate::ast::{MutationStep, MutationStepKind, Verb};
+        let keyword = self.advance();
+        let verb = match &keyword.token {
+            Token::Ident(word) if word == "insert" => Verb::Insert,
+            Token::Ident(word) if word == "update" => Verb::Update,
+            _ => Verb::Delete,
+        };
+        let target = self.link()?;
+        let mut end = target.span.end;
+        let mut rows = None;
+        let mut steps: Vec<MutationStep> = Vec::new();
+        if verb == Verb::Insert {
+            if matches!(self.tokens[self.index].token, Token::Newline | Token::End) {
+                return Err(Diagnostic::syntax(
+                    keyword.span.start..end,
+                    "`insert` names the rows it adds after the endpoint: \
+                     `insert transfers {from_id: 1, to_id: 2, amount: 100}`",
+                ));
+            }
+            let written = self.link()?;
+            end = written.span.end;
+            rows = Some(Box::new(written));
+            if self.at_infix(&Token::Pipe) {
+                return Err(Diagnostic::syntax(
+                    self.tokens[self.index - 1].span.clone(),
+                    "`insert` takes no pipeline: it adds the rows it is given, and a pipeline \
+                     computing them is written in parentheses",
+                ));
+            }
+        } else {
+            while self.at_infix(&Token::Pipe) {
+                self.continuation();
+                let step = self.link()?;
+                let span = step.span.clone();
+                end = span.end;
+                let kind = mutation_step(verb, step)?;
+                if matches!(kind, MutationStepKind::OfType(_)) && !steps.is_empty() {
+                    return Err(Diagnostic::syntax(
+                        span,
+                        "`of_type` names the rows' type first, before `filter` and `set`",
+                    ));
+                }
+                if steps
+                    .iter()
+                    .any(|held| matches!(held.kind, MutationStepKind::Set(_)))
+                {
+                    return Err(Diagnostic::syntax(
+                        span,
+                        "`set` is the last clause of an `update`: nothing follows it",
+                    ));
+                }
+                steps.push(MutationStep { kind, span });
+            }
+            if verb == Verb::Update
+                && !steps
+                    .last()
+                    .is_some_and(|held| matches!(held.kind, MutationStepKind::Set(_)))
+            {
+                return Err(Diagnostic::syntax(
+                    keyword.span.start..end,
+                    "an `update` ends in `set`, the fields that change: \
+                     `update accounts | filter(a => a.id == 1) | set(a => {balance: a.balance - 100})`",
+                ));
+            }
+        }
+        Ok(Expr {
+            kind: Kind::Mutation {
+                verb,
+                target: Box::new(target),
+                rows,
+                steps,
+            },
+            span: keyword.span.start..end,
+        })
     }
 
     /// `type Name<P, Q> : Parent { field : Type }`, with every part optional
@@ -2877,4 +3121,69 @@ fn piped(left: Expr, right: Expr) -> Expr {
         ),
     };
     Expr { kind, span }
+}
+
+/// One clause of a mutation's pipeline: `of_type(T)`, `filter(p)` or, in an
+/// `update`, `set(f)`. Anything else is refused: the pipeline is closed, and
+/// runs on the endpoint's system as one statement.
+fn mutation_step(
+    verb: crate::ast::Verb,
+    step: Expr,
+) -> Result<crate::ast::MutationStepKind, Diagnostic> {
+    use crate::ast::{MutationStepKind, Verb};
+    let span = step.span.clone();
+    let holds = match verb {
+        Verb::Update => "`of_type(T)`, `filter(p)` and, last, `set(f)`",
+        _ => "`of_type(T)` and `filter(p)`",
+    };
+    let refused = |what: String| {
+        Diagnostic::syntax(
+            span.clone(),
+            format!(
+                "{what}; a `{}` pipeline holds {holds}, and runs on the endpoint's system as one \
+                 statement",
+                verb.word()
+            ),
+        )
+    };
+    let Kind::Call {
+        callee,
+        mut arguments,
+    } = step.kind
+    else {
+        return Err(refused("this is not a clause".to_owned()));
+    };
+    let Kind::Ident(name) = &callee.kind else {
+        return Err(refused("this is not a clause".to_owned()));
+    };
+    if arguments.len() != 1 || arguments[0].name.is_some() {
+        return Err(refused(format!("`{name}` takes one argument here")));
+    }
+    let argument = arguments.remove(0).value;
+    match name.as_str() {
+        "of_type" => match argument.kind {
+            Kind::Ident(type_name) => Ok(MutationStepKind::OfType(type_name)),
+            _ => Err(refused("`of_type` names a declared record".to_owned())),
+        },
+        "filter" | "set" => {
+            if name == "set" && verb != Verb::Update {
+                return Err(refused(format!(
+                    "`set` assigns, which `{}` does not",
+                    verb.word()
+                )));
+            }
+            let Kind::Lambda { parameters, .. } = &argument.kind else {
+                return Err(refused(format!("`{name}` takes a lambda of one row")));
+            };
+            if parameters.len() != 1 {
+                return Err(refused(format!("`{name}` takes a lambda of one row")));
+            }
+            Ok(if name == "filter" {
+                MutationStepKind::Filter(argument)
+            } else {
+                MutationStepKind::Set(argument)
+            })
+        }
+        other => Err(refused(format!("`{other}` is not a clause"))),
+    }
 }

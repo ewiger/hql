@@ -6,7 +6,7 @@ design.
 
 ```text
 program     ::= statement (NEWLINE+ statement)*
-statement   ::= import | declaration | function | alias | binding | expression
+statement   ::= import | declaration | function | alias | binding | mutation | transaction | expression
 import      ::= "import" ident
 declaration ::= "abstract"? "type" ident params? (":" supertypes)? record? bounds?
               | "type" ident params? "=" "union" "{" type ("," type)* ","? "}" bounds?
@@ -15,7 +15,15 @@ params      ::= "<" ident ("," ident)* ">"
 supertypes  ::= type | "{" type ("," type)* "}"
 record      ::= "{" field ("," | NEWLINE)* "}"
 field       ::= ident "?"? ":" type
-binding     ::= ident (":" type)? "=" expression
+binding     ::= ident (":" type)? "=" (mutation | transaction | expression)
+transaction ::= "with" "transaction" ("(" argument ("," argument)* ")")? ident? "on" link
+                "{" NEWLINE* (scope_line NEWLINE+)* "}"             HQL-0051: `attempts = n`, `isolation = L`, the handle, the participants
+scope_line  ::= ident "=" (mutation | transaction | expression) | mutation | expression
+mutation    ::= "insert" link link                                  HQL-0051: the endpoint, then the rows
+              | "update" link ("|" of_type)? ("|" filter)* "|" "set" "(" lambda ")"
+              | "delete" link ("|" of_type)? ("|" filter)*
+of_type     ::= "of_type" "(" ident ")"
+filter      ::= "filter" "(" lambda ")"
 function    ::= "fn" ident generics? "(" (param ("," param)*)? ")" ":" type ("=" expression | block)
 generics    ::= "<" generic ("," generic)* ">"
 generic     ::= letter (":" simple)?                                one capital letter, optionally bounded
@@ -115,7 +123,17 @@ arithmetic operators and connectives chain in one expression, and expressions
 nest at most 128 deep.
 
 `and`, `or`, `not`, `match`, `given` and `otherwise` are reserved words, not
-names.
+names. `insert`, `update` and `delete` open a mutation only when a name
+follows them on the same line, the binding or the call an endpoint is held
+by; `update(x)`, `update | f` and `update = 1` keep their meaning
+([HQL-0051](../../proposals/HQL-0051/README.md)). A mutation is a statement
+or the whole value of a binding, its pipeline closed by the grammar above,
+and its value is the `Int` number of rows the endpoint's system changed.
+`with transaction` opens a scope the same way, a statement or a binding's
+value: its block's lines are bindings and statements, its value a
+`Result<T, TransactionFailure>` with `T` the block's final value, and its
+handle, bound in the block alone, ends an attempt by `tx.commit(v)`,
+`tx.rollback(reason)` or `tx.retry()`.
 
 `input | tee name = branch | next` evaluates `input` once, binds the result of
 `branch` applied to it to `name`, and passes `input` on to `next` unchanged.

@@ -375,7 +375,13 @@ pub fn is_builtin(name: &str) -> bool {
 pub fn is_record_valued(name: &str) -> bool {
     if matches!(
         name,
-        "Pair" | "Range" | "Violation" | "Invalid" | "Diagnostic" | "KeyPair"
+        "Pair"
+            | "Range"
+            | "Violation"
+            | "Invalid"
+            | "Diagnostic"
+            | "KeyPair"
+            | "TransactionFailure"
     ) {
         return true;
     }

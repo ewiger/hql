@@ -230,7 +230,10 @@ fn a_private_key_written_into_the_source_is_refused() {
         "\"{\\\"kty\\\": \\\"OKP\\\", \\\"crv\\\": \\\"Ed25519\\\", \\\"x\\\": \\\"a\\\", \\\"d\\\": \\\"b\\\"}\"",
     ] {
         let message = check_refused(&format!("x = {literal}\nx"));
-        assert!(message.contains("never lives in a program's source"), "{literal}: {message}");
+        assert!(
+            message.contains("never lives in a program's source"),
+            "{literal}: {message}"
+        );
     }
     hql::check("x = \"-----BEGIN PUBLIC KEY-----\"\nx").unwrap();
     hql::check("x = \"AGE-SECRET-KEY-1\"\nx").unwrap();

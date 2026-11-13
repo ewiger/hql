@@ -1,0 +1,13 @@
+<!-- hql reference: std/io.IsolationLevel -->
+# `IsolationLevel`
+
+In [`std/io`](../index.md).
+
+```hql
+abstract type IsolationLevel
+```
+
+How much of other transactions a scope sees. The three levels are
+SQL's, from least to most isolated. A kind offers a subset, and a level
+is passed as a type, `isolation = Serializable`.
+<!-- hql reference: end -->

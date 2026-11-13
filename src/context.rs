@@ -958,6 +958,37 @@ impl ExecutionContext {
         config.prelude = self.prelude.value;
     }
 
+    /// The environment variables the workspace grants a program: the
+    /// names and `PREFIX_*` patterns of `env = [...]` in its `hql.toml`, or
+    /// `None` where it states none and every variable is granted.
+    ///
+    /// # Errors
+    ///
+    /// `env` is stated and is not a list of strings.
+    pub fn env_grant(&self) -> Result<Option<Vec<String>>, ContextError> {
+        let Some(file) = &self.workspace_config else {
+            return Ok(None);
+        };
+        let Some(value) = file.table.as_ref().and_then(|table| table.get("env")) else {
+            return Ok(None);
+        };
+        value
+            .as_array()
+            .and_then(|items| {
+                items
+                    .iter()
+                    .map(|item| item.as_str().map(str::to_owned))
+                    .collect::<Option<Vec<_>>>()
+            })
+            .map(Some)
+            .ok_or_else(|| {
+                refuse(
+                    &file.path,
+                    "`env` is a list of variable names and `PREFIX_*` patterns",
+                )
+            })
+    }
+
     /// A scalar setting `[section] key` that the workspace, the environment
     /// and the command line leave to configuration: the selected context's,
     /// else the user file's, else the system file's.

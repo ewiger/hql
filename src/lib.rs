@@ -23,12 +23,14 @@ mod glob;
 mod knowledge;
 mod lexer;
 pub mod modules;
+mod mutation;
 pub mod naming;
 mod nats;
 mod net;
 mod parser;
 mod postgres;
 mod spark;
+mod transaction;
 mod walk;
 
 pub mod backends;

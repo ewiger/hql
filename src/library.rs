@@ -39,6 +39,7 @@ pub const STD: &[(&str, &str)] = &[
     ("string", include_str!("../lib/std/string/mod.hql")),
     ("seq", include_str!("../lib/std/seq/mod.hql")),
     ("math", include_str!("../lib/std/math/mod.hql")),
+    ("stats", include_str!("../lib/std/stats/mod.hql")),
     ("time", include_str!("../lib/std/time/mod.hql")),
     ("random", include_str!("../lib/std/random/mod.hql")),
     ("option", include_str!("../lib/std/option/mod.hql")),
@@ -47,11 +48,24 @@ pub const STD: &[(&str, &str)] = &[
     ("format", include_str!("../lib/std/format/mod.hql")),
     ("io", include_str!("../lib/std/io/mod.hql")),
     ("io.fs", include_str!("../lib/std/io/fs/mod.hql")),
+    ("io.env", include_str!("../lib/std/io/env/mod.hql")),
     ("io.net", include_str!("../lib/std/io/net/mod.hql")),
     ("io.logging", include_str!("../lib/std/io/logging/mod.hql")),
     (
         "io.db.sqlite",
         include_str!("../lib/std/io/db/sqlite/mod.hql"),
+    ),
+    (
+        "io.db.postgres",
+        include_str!("../lib/std/io/db/postgres/mod.hql"),
+    ),
+    (
+        "io.db.spark",
+        include_str!("../lib/std/io/db/spark/mod.hql"),
+    ),
+    (
+        "io.transaction",
+        include_str!("../lib/std/io/transaction/mod.hql"),
     ),
     (
         "io.msg.nats",

@@ -112,6 +112,15 @@ pub struct Options {
     /// Without it, a seed from the host's entropy, reported at `info`.
     #[arg(long, global = true, value_name = "INT", allow_negative_numbers = true)]
     pub seed: Option<i64>,
+    /// A named argument `io.env`'s `arg` reads, `--arg species=owl`; may be
+    /// repeated, each name once. A name is `[a-z_][a-z0-9_]*`.
+    #[arg(
+        long = "arg",
+        global = true,
+        value_name = "NAME=VALUE",
+        value_parser = crate::extensions::env::argument
+    )]
+    pub arguments: Vec<(String, String)>,
     /// When to stop: `strict` at the first error, `collect` to report them all.
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
@@ -385,13 +394,14 @@ const COMMANDS: [&str; 13] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 15] = [
+const VALUED: [&str; 16] = [
     "--context",
     "--vault",
     "--workspace",
     "--now",
     "--zone",
     "--seed",
+    "--arg",
     "--envelope",
     "--to",
     "--from",
@@ -465,6 +475,16 @@ pub fn parse() -> Cli {
                 .exit();
         }
     }
+    // An argument named twice is refused before anything is evaluated.
+    if let Some(name) = crate::extensions::env::repeated(&cli.options.arguments) {
+        use clap::CommandFactory;
+        Cli::command()
+            .error(
+                clap::error::ErrorKind::ArgumentConflict,
+                format!("--arg {name} is given twice: each argument is named once"),
+            )
+            .exit();
+    }
     cli
 }
 
@@ -518,6 +538,16 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     }
     let context = crate::context::ExecutionContext::construct(&request(cli), &environment)
         .map_err(|error| error.to_string())?;
+    // What `io.env` reads: the arguments, and the variables the workspace
+    // grants; `hql render` grants none, by its host policy.
+    let grant = context
+        .env_grant()
+        .map_err(|error| error.to_string())?
+        .map_or(
+            crate::extensions::env::Grant::All,
+            crate::extensions::env::Grant::Only,
+        );
+    crate::extensions::env::set_invocation(grant, cli.options.arguments.clone());
     // The run's diagnostic channel exists before the loader runs, so the
     // loader writes into it as every later phase does.
     let opened = crate::io::open_diagnostics();

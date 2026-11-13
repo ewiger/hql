@@ -458,3 +458,17 @@ fn an_sqlite_table_keeps_a_time_value_as_its_text() {
         read.diagnostics
     );
 }
+
+#[test]
+fn a_qualified_call_reaches_a_form_without_an_input() {
+    // `time.now()` is `now()` written with its module, as `random.random_float()`.
+    assert_eq!(
+        hql(&[
+            "--now",
+            "2026-10-24T07:30:00Z",
+            "eval",
+            "import time\n[time.now() == now(), time.local_zone() == local_zone()]",
+        ]),
+        "[true, true]\n"
+    );
+}

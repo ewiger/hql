@@ -39,6 +39,7 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/string`](std/string/index.md) — The functions of a `String`, in the prelude.
 - [`std/seq`](std/seq/index.md) — The sequence, set and map operations beyond the core's membership, order and lookup, in the prelude.
 - [`std/math`](std/math/index.md) — Numbers, in the prelude.
+- [`std/stats`](std/stats/index.md) — Descriptive statistics over a collection of numbers: the mean, the sample and population variance and standard deviation, the median, quantiles, the mode, covariance and correlation.
 - [`std/time`](std/time/index.md) — Time: zones, the units a value truncates to, and the operations over the time scalars of `core`: conversion from text, parts, arithmetic, truncation, rendering, and the evaluation clock.
 - [`std/random`](std/random/index.md) — Randomness: samples, shuffles, choices, numbers and UUIDs.
 - [`std/option`](std/option/index.md) — The ways out of an `Option<T>`, in the prelude, each stating what absence gives.
@@ -47,9 +48,13 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/format`](std/format/index.md) — The formats, how bytes are read as values and how values are written as text, and the codec contracts over them.
 - [`std/io`](std/io/index.md) — Input and output: endpoints, the data sources read from them, and the data targets written to them.
 - [`std/io/fs`](std/io/fs/index.md) — The file system as data: folders, globs over paths, and the entries a folder holds, with their kinds and sizes.
+- [`std/io/env`](std/io/env/index.md) — What a program reads from the invocation that runs it: environment variables and named arguments.
 - [`std/io/net`](std/io/net/index.md) — Network endpoints: transports, read and written by `source`, `tap`, `target` and `sink` like any other endpoint (module `io`).
 - [`std/io/logging`](std/io/logging/index.md) — Logging: structured events written to a destination, apart from the result.
 - [`std/io/db/sqlite`](std/io/db/sqlite/index.md) — SQLite: one table of a database file, as a transport read by `source` and `tap` and written by `target` like any other endpoint (module `io`).
+- [`std/io/db/postgres`](std/io/db/postgres/index.md) — PostgreSQL: one table of a database, as a transport read by `source` and `tap` and written by `target` like any other endpoint (module `io`).
+- [`std/io/db/spark`](std/io/db/spark/index.md) — Spark SQL: one table behind a Spark SQL endpoint, a Databricks SQL warehouse or a Spark Thrift Server, as a transport read by `source` and `tap` and written by `target` like any other endpoint (module `io`).
+- [`std/io/transaction`](std/io/transaction/index.md) — The control calls of a transaction scope's handle, `tx`, bound by `with transaction tx on participants { … }` (module `io`): each ends the attempt and gives no value, so it stands where any type is expected and nothing after it runs.
 - [`std/io/msg/nats`](std/io/msg/nats/index.md) — Core NATS: one subject, as a transport read by `tap` and written by `sink` and `target` like any other endpoint (module `io`).
 - [`std/io/msg/nats_jetstream`](std/io/msg/nats_jetstream/index.md) — NATS JetStream: one subject of a stream, as a transport read by `tap` and written by `sink` and `target` like any other endpoint (module `io`).
 - [`std/vault`](std/vault/index.md) — The current vault: the source a program runs against.

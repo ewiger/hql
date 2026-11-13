@@ -28,6 +28,12 @@ fn slice(self, range: Range) : Seq<T>
 fn first(self: Window<T>) : T
 fn first(self) : Option<T>
 
+/// The one element of `self`: a sequence of exactly one. Any other count is
+/// an evaluation failure naming it, as `x | T` fails where `x` is not a
+/// `T`; where absence is a case to handle, `first` gives an `Option<T>`.
+/// `[7] | one` is `7`.
+fn one(self) : T
+
 /// The element at the last position, or `none` over an empty sequence:
 /// `[3, 1, 2] | last` is `2`. Of a window, the last row of its partition.
 fn last(self: Window<T>) : T
