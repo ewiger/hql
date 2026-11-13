@@ -8,17 +8,17 @@ program states what it requires of that value beyond its shape. The
 [structural examples](https://github.com/ewiger/hql/tree/main/examples/structural)
 have one program per case.
 
-## Decide at the boundary
+## The type boundary
 
-Data from outside a program has no type the checker can see. A JSON file, a
+Data from outside a program has no declared type when the program is checked. A JSON file, a
 message, a document's frontmatter or an API response decodes to `Data`, a
 tree whose leaves could hold anything. A program may carry the tree as it is
 and test each leaf where it is used, as the `match` arms of chapter 2 do.
 That works, and it spreads one decision over every place the data is read.
 
 HQL's answer is a **type boundary**: one step, written `tree | T`, that reads
-the tree as a declared type `T` and either succeeds, with a value the checker
-knows every field of, or does not. After the boundary the program is ordinary
+the tree as a declared type `T` and either succeeds, giving a value of type `T`
+whose every field has a declared type, or fails when it runs. After the boundary the program is ordinary
 typed code. Before it, the data is `Data`, and nothing is assumed about it.
 
 ```hql
@@ -38,8 +38,8 @@ p.x + p.y
 
 The rule the chapter rests on is this: a type is inferred while the
 information to infer it is present, and where structure is dynamic or
-absent, the program writes an explicit boundary rather than letting anything
-be guessed. The boundary is where a decision about the data is made, once,
+absent, the program writes an explicit boundary rather than leaving a type
+to be assumed. The boundary is where a decision about the data is made, once,
 instead of being postponed to every reader of the value.
 
 ## Four kinds of structural type
@@ -62,10 +62,10 @@ fields is still closed.
 
 ## Typing is not mapping
 
-Reading a tree as a type changes what the program knows about the value. It
+Reading a tree as a type changes the type the value is checked as. It
 does not change the value. An open view over a tree with twelve fields still
 holds twelve fields beneath the three it declares, and the same tree read as
-another view sees the others. Changing the value, renaming a field, trimming
+another view exposes the others. Changing the value, renaming a field, trimming
 a string or dropping what a consumer does not need, is a `map`, written
 where the change is paid for. The two are kept apart on purpose: a reader of
 `raw | UserData` knows nothing was altered, and a reader of `map(…)` knows

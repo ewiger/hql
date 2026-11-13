@@ -3,7 +3,7 @@
 `type A : B` declares that `A` **narrows** `B`: every value of `A` is a
 value of `B`, with structure or constraints of its own. The relation reads
 from the specific toward the general. Nothing is extended or changed by
-writing it: `B` is unaware, and the declaration is a claim about `A` alone.
+writing it: `B`'s declaration is unchanged, and the declaration is a claim about `A` alone.
 
 ## A subtype passes as its supertype
 
@@ -156,4 +156,5 @@ fail.
 | Builds a value | no | yes, the selection | no | yes |
 
 There is no cast. Each of the four has its own name because each has its
-own properties, and a program that reads one knows which it is paying for.
+own properties, and the name written at the call states which check runs,
+and when.

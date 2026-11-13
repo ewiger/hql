@@ -1,7 +1,7 @@
 # 2. Data types
 
-Every value in HQL has a type, and the checker knows it before the program
-runs. This chapter meets the types values are built from: the scalars `Int`,
+Every value in HQL has a type, and the type of every expression is inferred
+and checked before the program is evaluated. This chapter meets the types values are built from: the scalars `Int`,
 `Float`, `Decimal`, `String`, `Bool` and `Bytes`, the time types `Date`, `DateTime`,
 `Instant` and `Duration`, and `Data`, the tree JSON and YAML are made of.
 Each has a page of its own; this one tries them in the REPL first.
@@ -50,7 +50,7 @@ fmt("{} has {} pages", title, pages)
 "Dune has 412 pages"
 ```
 
-## A type is checked, not guessed
+## Type checking
 
 Each operation says which types it takes. An `Int` and a `String` do not add,
 and the checker rejects the program before it runs:

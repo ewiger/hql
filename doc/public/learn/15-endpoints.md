@@ -133,9 +133,9 @@ process that hangs ([finite or live](09-io/finite-or-live.md)).
 
 `source("orders")` is a PostgreSQL table, and the program above was checked
 without a database. Checking reads `hql.toml`, finds `kind = "postgres"`,
-and knows from the kind alone that `orders` ends, is read by `source` as a
-`Seq` of rows, and is written by `target` in one transaction or by `sink`
-row by row. No connection is made until the program runs, and `hql check`
+and types `orders` from the kind alone: it ends, `source` reads it as a
+`Seq` of rows, and `target` writes it in one transaction or `sink` row by
+row. No connection is made until the program runs, and `hql check`
 never runs it:
 
 <!-- run: check --vault examples/pipelines/shop -->

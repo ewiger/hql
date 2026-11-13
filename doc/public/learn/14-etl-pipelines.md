@@ -319,8 +319,8 @@ A **partition** is the logical unit of ownership. `partition(by = e =>
 e.customer)` is in the current release: it states that the orders of one
 customer belong together, keeps every value and its type, and on
 `localhost` changes nothing else. It names no worker and no Kafka partition.
-It is what a backend reads to know where a per-customer `group` may run
-without the parts having to meet.
+A backend reads it as the statement that a per-customer `group` may run on
+separate parts without the parts having to meet.
 
 !!! warning "Design only"
 
@@ -330,7 +330,7 @@ without the parts having to meet.
 
 A **schedule** is configuration beside the endpoints, `[jobs.report] run =
 "report.hql"` with an `at`, or a trigger that is itself a source: a subject
-whose messages each start a run. The file does not know when it runs.
+whose messages each start a run. The program declares no schedule; when it runs is configuration.
 
 A **backend** supplies an execution strategy for the checked program.
 Future backends could use parallel workers in one process, translate a

@@ -2,8 +2,8 @@
 
 A program's value is computed first, and written second. How it is written is
 a **presentation format** — plain text, HQL, Markdown, JSON, YAML, CSV, or a diagram
-— and the format is a type, so a program that formats a value knows what kind
-of text it holds.
+— and each format is a value of type `Format`. A step that formats a value
+returns a `String` that also carries the format it was encoded in.
 
 The programs of this chapter read the shelf of
 [chapter 6](06-sql-like-queries.md), with its typed views, and the book shows
@@ -52,8 +52,8 @@ shelf | filter(b => b.status == "todo") | map(title) | markdown
 String
 ```
 
-A formatted value is a string that remembers its format, so a host prints it
-as it is. A later step may read it, and comparing it with a string compares
+A formatted value is a `String` that carries its format, and a host writes
+its text unchanged instead of encoding it again. A later step may read it, and comparing it with a string compares
 the text:
 
 ```hql

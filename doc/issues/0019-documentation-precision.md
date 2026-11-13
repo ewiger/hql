@@ -76,20 +76,37 @@ Each term is defined as the implementation has it.
 
 1. **The rule.** Written into the "Documentation site" section of
    `doc/stack.md`. Done.
-2. **The public pages.** `doc/index.md`, `doc/public/introduction.md`,
-   `doc/public/retrieval.md`, `doc/public/install.md`, `doc/public/tour.md`,
-   `doc/public/reference.md`, `README.md`, the `site_description` in
-   `mkdocs.yml`, and the opening of `doc/wiki/hql.hmd`. Done.
+2. **The public pages.** The landing page, the install page, the
+   retrieval chapter, the reference index, `README.md`, the
+   `site_description` in `mkdocs.yml`, and the opening of `doc/wiki/hql.hmd`.
+   Done. The site was reorganised under
+   [0054](0054-user-facing-website.md) since: the landing page is
+   `doc/public/index.md`, retrieval is the Learn chapter
+   `doc/public/learn/23-retrieval.md`, the reference is
+   `doc/public/reference/index.md`, and the introduction and tour became the
+   Learn book under `doc/public/learn/`.
 3. **The published pages under `doc/public/`.** Only `doc/public/` is
    published ([0054](0054-user-facing-website.md)), so the wiki cards and the
-   models are out of scope. The book still says *knows* of the checker or a
-   program in the Data types overview ("the checker knows it before the
-   program runs"), the Collections chapter ("the checker knows each
-   collection's promises") and the Writing results out chapter ("a program
-   that formats a value knows what kind"); the Data page's "need to know the
-   type" is a reader's phrase, not a mechanism, and stays.
+   models are out of scope. Done for the Learn pages that said *knows* of the
+   checker or of a program (issue 0072): the Data types overview, the
+   Collections chapter, the Writing results out chapter, the Endpoints
+   chapter, the Advanced data typing overview, the ETL pipelines chapter and
+   the Subtypes page now state what is inferred, checked or refused, and
+   when. The Data page's "need to know the type" is a reader's phrase, not a
+   mechanism, and stays; so do the Advanced data typing overview's "a reader
+   of `raw | UserData` knows nothing was altered", where the reader is a
+   person reading the program.
+
+   What remains: the Graphs chapter still says a node reached by `expand`
+   "records **why it is present**", which is the *why* for provenance the
+   "Done when" list forbids; it stores a presence, `expanded from <seed> at
+   depth <n>`. The opening-sentence and design-direction items of "Done
+   when" have not been audited page by page across the Learn book.
 4. **Headings.** Site-wide, a heading names the term: `Type checking`,
-   `Node presence`, `Semantic retrieval`, `Pipeline evaluation`.
+   `Node presence`, `Semantic retrieval`, `Pipeline evaluation`. Begun: the
+   Data types overview's "A type is checked, not guessed" is now `Type
+   checking`, and the Advanced data typing overview's "Decide at the
+   boundary" is now `The type boundary`. The rest of the site is not swept.
 
 ## Done when
 
