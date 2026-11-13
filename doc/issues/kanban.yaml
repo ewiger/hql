@@ -42,9 +42,6 @@ board:
         title: "General-purpose gap analysis: what Python and its peers have that HQL lacks"
         file: 0068-general-purpose-gap-analysis.md
     todo:
-      - id: "0070"
-        title: "The HQL book catches up with the general-purpose leap"
-        file: 0070-the-book-catches-up.md
       - id: "0069"
         title: "Transports: the core of HQL-0047 and HQL-0048"
         file: 0069-transports-core.md
