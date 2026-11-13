@@ -42,9 +42,6 @@ board:
         title: "General-purpose gap analysis: what Python and its peers have that HQL lacks"
         file: 0068-general-purpose-gap-analysis.md
     todo:
-      - id: "0072"
-        title: "Release 0.6.0: fix, finish, tidy, tag"
-        file: 0072-release-0.6.0.md
       - id: "0069"
         title: "Transports: the core of HQL-0047 and HQL-0048"
         file: 0069-transports-core.md
@@ -76,6 +73,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0072"
+        title: "Release 0.6.0: fix, finish, tidy, tag"
+        file: 0072-release-0.6.0.md
       - id: "0064"
         title: "`Date` as a data type, and the `time` module"
         file: 0064-date-and-the-time-module.md

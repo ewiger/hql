@@ -1,6 +1,6 @@
 # 0072 — Release 0.6.0: fix, finish, tidy, tag
 
-Status: todo
+Status: doing
 Related: [kanban.yaml](kanban.yaml), [ADR status](../status/ADR-status.hmd),
 [Kanban status](../status/kanban-status.hmd), [CHANGELOG](../../CHANGELOG.md),
 [release workflow](../../.github/workflows/release.yml),
@@ -234,3 +234,83 @@ Not to be decided in code. Ask before starting either.
   derived from a balance.
 - The changelog has a 0.6.0 section and the version is 0.6.0.
 - The tag itself is pushed by the maintainer.
+
+## Progress
+
+The checklist the release loop works from, one item per run, top to bottom
+(see [the prompt](0072-release-0.6.0.prompt.md)). Each item names the section
+above that defines it. Marks: `[ ]` open, `[x]` done with its commit,
+`[-]` moved out of 0.6.0 with the reason, `[!]` stuck with the reason.
+
+### Gates
+
+Set by the maintainer only. An item behind a closed gate is skipped.
+
+- Triage approved: **no**. Opens step 3 (small features, pulled-in items,
+  decisions) and step 4 (hql-demo, which needs the renames).
+- Issue 0055 decided: **no**. Opens the 0055 item.
+
+### Step 1: baseline and triage
+
+- [ ] Baseline report written into "Baseline" (checks, `run-all.sh`, the
+  book's blocks that do not run, pull request #2, happy-path-only features)
+- [ ] Triage table written into "Triage of the deferred list" (item,
+  evidence, in or out, size, reason), with the 0063 analysis; then the run
+  ends and asks the maintainer to open the triage gate
+
+### Step 2: fixes and transaction correctness (no gate)
+
+- [ ] The release workflow refuses the tag: regenerate the reference pages,
+  `hql reference --check` in `ci.yml`
+- [ ] `http` never times out: connect and read timeouts, WebSocket and TCP
+  checked
+- [ ] Concurrent withdrawals: the SQLite race test in `cargo test`
+- [ ] Transactions documented as built: the Learn page and HQL-0051 against
+  the implementation; examples name their isolation level
+- [ ] A debit or credit matching no row fails the transfer
+- [ ] `hql help` prints part of a block body (issue 0056)
+- [ ] `HmdCard` and `MdCard` are unknown types
+- [ ] `of_type` over a card subtype is refused at check time
+- [ ] A value prints one way (and the book's outputs with it)
+
+### Step 3: small features and decisions (gate: triage approved)
+
+- [ ] `Unit` renamed `Step`, a subtype of `Aute` (issue 0063, HQL-0055)
+- [ ] A String's `size` replaces `length` (issue 0047)
+- [ ] `socket` renamed `tcp` (issue 0069)
+- [ ] Issue 0064's remainder: `abs` over a `Duration`, `Entry.modified?`,
+  `hql --version` naming its time-zone database; live round trips split out;
+  0064 archived
+- [ ] HQL-0051 warnings: a discarded scope, a non-participant write under
+  `attempts > 1`
+- [ ] Example cases: transactions, `io.env`, execution contexts
+- [ ] The dead match arm in the transaction attempt loop removed
+- [ ] Issue 0019 step 3: "the checker knows" wording in the Learn pages
+- [ ] Items the triage pulled in (one line each, added when the gate opens)
+- [ ] Issue 0055 (gate: 0055 decided)
+
+### Step 4: hql-demo as a release gate (gate: triage approved)
+
+- [ ] The nine cases audited against this branch, each one run
+- [ ] A transfer's id is not a balance (`ledger/transfer.hql`,
+  `ledger/seed.hql`); the PostgreSQL concurrent-withdrawal run in `ledger`
+- [ ] A failing case prints its step, command and an output diff
+- [ ] CI workflow running `postgres`, `ledger` and `crypto` against an hql ref
+- [ ] `run-all.sh` as a pre-release gate in `doc/DEVELOP.md`
+
+### Step 5: housekeeping
+
+- [ ] Proposals: HQL-0008 superseded, HQL-0021 "Remaining", HQL-0019's
+  `Graph` changelog line
+- [ ] Board: archive 0012 and 0013; archive 0043 and file its remainder;
+  repair 0046, 0049 and 0019
+- [ ] README: the general-purpose section names the new modules
+
+### Step 6: release (after every item above is `[x]` or `[-]`)
+
+- [ ] CHANGELOG checked against the merged pull requests, `## [0.6.0]`, with
+  the renames under "Changed"
+- [ ] `Cargo.toml` and `Cargo.lock` at 0.6.0
+- [ ] Reference pages regenerated; ADR status and Kanban status re-rendered
+- [ ] Every "Done when" item checked, the six checks and `run-all.sh` run;
+  0072's card moved to `done`

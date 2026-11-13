@@ -1,6 +1,8 @@
 # Prompt — issue 0072
 
-Paste the block below into a new session, in this repository.
+Run it as a loop, in this repository: `/loop` with the block below, or the
+block pasted into a new session once per item. Each run does one item of the
+issue's "Progress" checklist and ends with a commit.
 
 ---
 
@@ -15,7 +17,7 @@ reach them. Ignore `.grem/**`.
 
 ## How to work
 
-- Work on a branch `release-0.6.0` off `main`. One commit per item, its
+- Work on the branch `release-0.6.0`, which exists. One commit per item, its
   message saying what changed and naming the issue or proposal; never
   mention who or what wrote it, and add no trailer.
 - Every item that changes behaviour lands with its test, its example where
@@ -39,6 +41,28 @@ reach them. Ignore `.grem/**`.
   its `main`.
 - Do not push, open a pull request or tag. Report when the branch is ready.
 
+## One run
+
+1. Read the issue's "Progress" section. If the working tree is dirty, a
+   previous run stopped mid-item: finish that item if its intent is clear
+   from the diff, otherwise stash it, mark the item `[!]` with what you
+   found, and continue.
+2. Take the first `[ ]` item whose gate is open and whose step's earlier
+   items are all `[x]`, `[-]` or `[!]` (step 2 may run while step 1 waits on
+   the triage gate). Read the section of the issue that defines it.
+3. Do that item, completely, as the rules above and the order below say.
+   If it cannot be finished in this run, split it in the checklist into
+   smaller `[ ]` lines, do the first, and leave the rest.
+4. Run the checks, commit, then tick the item `[x]` with the commit's short
+   hash, in the same commit or a second one. Never tick an item whose checks
+   fail or whose case has not run.
+5. End the run with a short report: the item, the commit, the checks, and
+   what is next. If no item can be taken (every open item is behind a closed
+   gate, or step 6 is done), say which gate or decision is needed and stop
+   the loop.
+
+Never open a gate yourself; only the maintainer edits the "Gates" lines.
+
 ## Order
 
 1. **Baseline and triage first, then stop.** Take the issue's "Baseline"
@@ -49,8 +73,8 @@ reach them. Ignore `.grem/**`.
    waiting make it cost more?), not by its size. Write the outcome into the
    issue as a table: item, evidence, in or out, size, reason. Then **stop and
    show me the table**, together with the two decisions under "Decisions for
-   the maintainer". Wait for my answers before step 3; steps 2 and 4 may run
-   while you wait.
+   the maintainer". Step 3 and step 4 wait for the triage gate; step 2 may
+   run while you wait.
 2. **Fixes**, in the issue's order. Fix 1 first: until `hql reference
    --check` is clean, no release can be cut. Then the timeout, since a hang
    is the worst of the rest. Then "Transaction correctness": the concurrent
