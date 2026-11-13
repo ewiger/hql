@@ -143,7 +143,7 @@ documents, module roots and settings it is given.
 ### Modes and workspace discovery
 
 The **anchor** is the directory discovery starts from: the directory of the
-program's file for `hql run`, `check`, `plan` and `context <file>`, and the
+program's file for `hql run`, `check`, `plan`, `boundary` and `context <file>`, and the
 working directory for an expression or standard input. `hql` walks from the
 anchor upward and stops at the first directory holding `.hmd/` or
 `hql.toml`; that directory is the **workspace**. The mode follows from what
@@ -165,7 +165,9 @@ program finds its workspace wherever `hql` is run from. A workspace marked by
 walk; the directory must hold `.hmd/` or `hql.toml`. `--bare` runs with no
 workspace whatever the filesystem holds, and an operation that needs a vault
 fails with `needs a vault` rather than reading the working directory as one.
-`--bare` with `--workspace` is a usage error.
+`--bare` with `--workspace` is a usage error. `hql render` discovers a
+workspace for each document from that document's directory, and under
+`--bare` renders none.
 
 `hql context` writes the context, each part with the layer it came from:
 
@@ -210,7 +212,8 @@ every mode, each read in turn:
 The system and user files take the keys a workspace's `hql.toml` takes:
 `[modules] roots`, `[extensions] import` and `prelude`, `[report] mode` and
 `level`, and `[execution] backend`. A relative path is read against the
-directory of the file that declares it, never the working directory.
+directory of the file that declares it, never the working directory. A
+system or user file that does not parse fails every run, naming the file.
 
 Module roots and extension imports gather across the layers, each once. A
 gathered root is a place to look, not a priority: a module that two roots
@@ -221,8 +224,9 @@ HQL home is the user's environment, not a workspace, and never a vault.
 
 A **named context** is a `[context.<name>]` table of the system or user file:
 settings grouped under a name and reused across workspaces. It takes the
-keys above, and `workspace`, which binds a workspace. A user file's
-definition of a name replaces the system file's.
+keys above, and `workspace`, which binds a workspace, read against the
+directory of the declaring file. A user file's definition of a name replaces
+the system file's; a workspace's `hql.toml` defines no context.
 
 ```toml
 current-context = "work"
@@ -243,7 +247,8 @@ selected name that no file defines fails every run, naming the layer that
 selected it. A context that binds a workspace replaces the walk; a context
 without one leaves discovery as it is. A context selected by `--context` or
 `$HQL_CONTEXT` that binds a workspace, together with `--bare` or a
-`--workspace` naming another directory, is an error.
+`--workspace` naming another directory, is an error; under a context selected
+by `current-context`, the command line wins.
 
 `hql config` lists and changes the selection; `use-context` writes
 `current-context` into the user file and keeps every other line of it:
@@ -258,7 +263,7 @@ mode:      vault
 context:   archive (--context)
 workspace: /home/ada/archive (context `archive`)
 …
-$ hql --context nope 1
+$ hql --context nope eval 1
 hql: no context is named `nope`, which --context selects; the defined contexts are `archive`, `work`
 ```
 

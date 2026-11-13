@@ -121,7 +121,8 @@ which needs only the key's order.
 
 `xs[i]` over a type implementing `Index<T>` is `xs.at(i)`: the element at
 the position, or `none` past the end. The standard library implements it
-for sequences, so a `List` and a `String` take it, and a program's type
+for sequences, so a `List`, a `String` and a [`Bytes`](../02-data-types/bytes.md)
+value take it, and a program's type
 takes it with one implementation, as [generics](generics.md) did for a
 `Ring<T>`.
 

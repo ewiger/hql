@@ -66,5 +66,7 @@ Logging and the network are modules of their own, `import logging` and
 | [Channels](channels.md) | `Channel<T>(name)`, an endpoint of values held in memory |
 | [Logging](logging.md) | `Logger`, the five levels, `--log-level`, and logs kept as values |
 | [The network](network.md) | `http`, `websocket` and `socket` with `import net` |
+| [Files and folders](files-and-folders.md) | `io.fs`: a `Path`, walking a `Folder`, matching a `Glob`, and an `Entry` |
+| [Environment and arguments](environment.md) | `io.env`: environment variables and `--arg` arguments |
 | [Effects and what a host allows](hosts.md) | effectful operations, and what `hql eval`, `hql render` and `hql check` grant |
 | [`hql` on the command line](command-line.md) | `hql '<program>'`, `--to`, `--compact` and `--from` |
