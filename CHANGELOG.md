@@ -8,6 +8,8 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-13
+
 ### Added
 
 - The book's Part II, [Data flows](doc/public/learn/14-etl-pipelines.md):
