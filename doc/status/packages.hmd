@@ -28,7 +28,7 @@ README, not here.
 
 ## Installable packages
 
-Listed in `hql-packages.yaml` at the root of hql-extensions. An official
+Listed in `hql-packages.yaml` at the root of [hql-extensions](https://github.com/ewiger/hql-extensions). An official
 package's crate lives under `crates/` of that repository; a known package's
 crate lives elsewhere.
 
