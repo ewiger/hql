@@ -1061,13 +1061,32 @@ fn same_directory(left: &Path, right: &Path) -> bool {
     canonical(left) == canonical(right)
 }
 
-/// A path as given when absolute, else joined to `base`.
+/// A path as given when absolute, else joined to `base`, with `.` and `..`
+/// resolved by position. The walk upward then visits only the directory's
+/// real ancestors: `/a/tmp/../notes` walks `/a/notes`, then `/a`, and never
+/// `/a/tmp`.
 fn absolute(base: &Path, path: &Path) -> PathBuf {
-    if path.is_absolute() {
+    use std::path::Component;
+    let joined = if path.is_absolute() {
         path.to_path_buf()
     } else {
         base.join(path)
+    };
+    let mut normal = PathBuf::new();
+    for component in joined.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !normal.pop() {
+                    normal.push(component);
+                }
+            }
+            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
+                normal.push(component);
+            }
+        }
     }
+    normal
 }
 
 #[cfg(test)]
@@ -1131,6 +1150,22 @@ mod tests {
         assert_eq!(context.mode(), ExecutionMode::Workspace);
         assert_eq!(context.workspace_root(), Some(root.path()));
         assert_eq!(context.vault(), None);
+    }
+
+    #[test]
+    fn an_anchor_through_a_parent_walks_only_its_real_ancestors() {
+        let root = tempfile::tempdir().unwrap();
+        let tmp = root.path().join("tmp");
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join(CONFIG_FILE), "").unwrap();
+        fs::create_dir_all(root.path().join("notes/scripts")).unwrap();
+        let context = ExecutionContext::construct(
+            &anchored(Path::new("../notes/scripts")),
+            &environment(&tmp),
+        )
+        .unwrap();
+        assert_eq!(context.anchor, root.path().join("notes/scripts"));
+        assert_eq!(context.mode(), ExecutionMode::Bare);
     }
 
     #[test]
