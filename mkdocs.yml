@@ -190,6 +190,7 @@ nav:
           - std/string: reference/std/string/index.md
           - std/seq: reference/std/seq/index.md
           - std/math: reference/std/math/index.md
+          - std/stats: reference/std/stats/index.md
           - std/time: reference/std/time/index.md
           - std/random: reference/std/random/index.md
           - std/option: reference/std/option/index.md

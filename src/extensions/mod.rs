@@ -39,6 +39,7 @@ pub mod semantic;
 pub(crate) mod seq;
 pub mod spec;
 pub mod sqlite;
+pub(crate) mod stats;
 pub(crate) mod string;
 pub(crate) mod time;
 pub(crate) mod traits;
@@ -542,6 +543,14 @@ static MATH: Extension = Extension {
     metadata: None,
 };
 
+static STATS: Extension = Extension {
+    name: "stats",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["stats"],
+    steps: stats::STEPS,
+    metadata: None,
+};
+
 static TIME: Extension = Extension {
     name: "time",
     version: env!("CARGO_PKG_VERSION"),
@@ -593,6 +602,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &STRING,
     &SEQ,
     &MATH,
+    &STATS,
     &TIME,
     &RANDOM,
     &OPTION,

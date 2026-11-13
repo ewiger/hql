@@ -40,6 +40,7 @@ pub const STD: &[(&str, &str)] = &[
     ("string", include_str!("../lib/std/string/mod.hql")),
     ("seq", include_str!("../lib/std/seq/mod.hql")),
     ("math", include_str!("../lib/std/math/mod.hql")),
+    ("stats", include_str!("../lib/std/stats/mod.hql")),
     ("time", include_str!("../lib/std/time/mod.hql")),
     ("random", include_str!("../lib/std/random/mod.hql")),
     ("option", include_str!("../lib/std/option/mod.hql")),
