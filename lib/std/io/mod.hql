@@ -94,9 +94,10 @@ type Transaction
 /// concurrent transaction after the last attempt, `"constraint"` for a row
 /// the system refused, and `"exhausted"` for `tx.retry` with no attempt
 /// left; `reason` is the `rollback` argument or what the system said;
-/// `attempts` counts the attempts run; `endpoint` names the participant a
-/// statement was over, where one was; `detail` holds what the system said,
-/// its state code among it.
+/// `attempts` counts the attempts run. `endpoint` and `detail` are
+/// declared for the participant and the system's state code, and are absent
+/// today: no backend reports them yet, and what the system said is in
+/// `reason`.
 type TransactionFailure : DataContract {
     kind      : String
     reason    : String
