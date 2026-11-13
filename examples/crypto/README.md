@@ -16,7 +16,10 @@ never a value of the program.
 The key in [`keys/`](keys/) is RFC 8032's published Ed25519 test key 1,
 and its signatures are the RFC's, so the expected values are the standard's.
 A private key file is read with mode `0600`; the harness sets that mode on
-its sandbox copy of `keys/`. The [releases](releases.jsonl) are one manifest
+its sandbox copy of `keys/`. [`orders.jsonl.age`](orders.jsonl.age) was
+written by `target` through `encrypted_to` to the X25519 recipient in
+`keys/`, in an evaluation of its own: one evaluation does not read a file
+it has replaced. The [releases](releases.jsonl) are one manifest
 signed by that key and the same manifest with its version changed.
 
 | Case | What it shows | Result |
@@ -32,7 +35,7 @@ signed by that key and the same manifest with its version changed.
 | [password hashes](queries/password-hash.hql) | `hash_password` and `verify_password` | `[true, false, true]` |
 | [AEAD round trip](queries/aead-round-trip.hql) | nonce, ciphertext and tag; a truncated ciphertext | `[true, true, true]` |
 | [a field for a recipient](queries/encrypt-a-field.hql) | `encrypt_to` an X25519 key, `decrypt_with` its identity | the field's text |
-| [an encrypted file](queries/encrypted-file.hql) | `target` through `encrypted_to`, `source` through `decrypted_with` | `[1, 2]` |
+| [an encrypted file](queries/encrypted-file.hql) | `source` through `decrypted_with` of [an age file](orders.jsonl.age), JSON Lines by its path | `[1, 2]` |
 | [sign in a vault](queries/keyvault-sign.hql) | a stored key signs; its public key verifies | `true` |
 | [decrypt in a vault](queries/keyvault-decrypt.hql) | an age message to a stored identity | the message's text |
 | [list a vault](queries/keyvault-keys.hql) | names, algorithms and what each key does | two keys |

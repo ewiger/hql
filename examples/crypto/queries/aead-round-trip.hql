@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: encrypt writes nonce, ciphertext and tag; decrypt gives the text back, and none for a truncated ciphertext
-// implementation: pending
-// proposal: doc/proposals/HQL-0053/parts/04-encryption.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Bool>
 // expected: [true, true, true]

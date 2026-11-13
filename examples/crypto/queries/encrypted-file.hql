@@ -1,15 +1,12 @@
-// status: proposed
-// feature: target through encrypted_to writes an age file, and source through decrypted_with reads its documents back
-// implementation: pending
-// proposal: doc/proposals/HQL-0053/parts/04-encryption.md
+// status: valid-now
+// feature: source through decrypted_with reads the documents of an age file, its format implied by the path without .age
+// implementation: implemented
 // environment: pure
 // io: sandbox
-// expected-type: Seq<Data>
+// expected-type: Seq<Option<Data>>
 // expected-json: [1, 2]
 
 import crypto
 
-pair = generate_key_pair(X25519)
-orders = [{id: 1, total: 12.50}, {id: 2, total: 7.25}]
-orders | target(encrypted_to(file("orders.jsonl.age"), [pair.public]))
-source(decrypted_with(file("orders.jsonl.age"), pair.private)) | map(o => o.id)
+identity = read_private_key(file("../keys/x25519-identity.txt"), Age, X25519)
+source(decrypted_with(file("../orders.jsonl.age"), identity)) | map(o => o.id)
