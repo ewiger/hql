@@ -23,7 +23,7 @@ verification of an `Ed25519` signature by an `Rsa` key, is a check error.
 module crypto
 import core
 import encoding
-import hash
+import crypto.digest
 import io
 
 /// An asymmetric key algorithm.

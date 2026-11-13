@@ -1,8 +1,8 @@
 # Part 1: `Bytes`
 
 - **Depends on**: [the proposal](../README.md) for ownership;
-  [HQL-0041 part 3](../../HQL-0041/parts/03-hash-and-encoding.md) for
-  `hash` and `encoding`, whose `String` forms this part extends
+  [HQL-0041 part 3](../../HQL-0041/parts/03-digest-and-encoding.md) for
+  `crypto.digest` and `encoding`, whose `String` forms this part extends
 - **Needed by**: every other part; [issue 0029](../../../issues/0029-binary-formats-and-codecs.md)
   for the in-memory form of a binary format's encoded value
 
@@ -64,7 +64,7 @@ fn Bytes<E : Encoding>(text: String, as: Type<E>) : Bytes
 ```
 
 ```hql
-// lib/std/hash/mod.hql, beside the String form of HQL-0041 part 3
+// lib/std/crypto/digest/mod.hql, beside the String form of HQL-0041 part 3
 /// The digest of the octets `self` holds, as lowercase hexadecimal.
 fn digest<A : Algorithm>(self: Bytes, as: Type<A>) : String
 
@@ -101,6 +101,27 @@ fn canonical(self: Data) : String
   `Bytes` reads base64 text, and text that is not base64 is a boundary error
   naming the field. This is the rule HQL-0041 states for the time types.
 
+## `Bytes` and binary
+
+`Bytes` names a value; "binary" names a property of a format. The two words
+are not interchangeable, and each has one place.
+
+| Word | Names | Where |
+| --- | --- | --- |
+| `Bytes` | a value: a finite sequence of octets, held, indexed and sliced | the type in `core`, the receiver module `bytes` |
+| binary | how a format encodes a value: as octets, not as UTF-8 text | a binary format kind, [issue 0029](../../../issues/0029-binary-formats-and-codecs.md) |
+
+- A type name in HQL is a noun for what a value is, as `String`, `Int` and
+  `Decimal` are. `Bytes` is that noun; `Binary` would be an adjective, and
+  also reads as base 2, as in `0b1010`.
+- The receiver module is named after its type, `module bytes for Bytes`,
+  as `module string for String` is.
+- A binary format reads and writes `Bytes`, where a text format reads and
+  writes `String`. No standard type, module or function is named
+  `binary` or `Binary` for a value.
+- A digest reads `Bytes` and is a value, not a format; "binary" does not
+  apply to it.
+
 ## The order against issue 0029
 
 - This part is the in-memory representation of octets. Issue 0029 decides
@@ -116,7 +137,7 @@ fn canonical(self: Data) : String
 
 ```hql
 import encoding
-import hash
+import crypto.digest
 
 b = Bytes("hello")
 {size: b.size(), hex: b.encode(Hex), base64: b.encode(Base64),

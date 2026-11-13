@@ -3,7 +3,7 @@
 Status: backlog
 Related: [HQL-0053](../proposals/HQL-0053/README.md) (the proposal),
 [0029](0029-binary-formats-and-codecs.md),
-[HQL-0041 part 3](../proposals/HQL-0041/parts/03-hash-and-encoding.md),
+[HQL-0041 part 3](../proposals/HQL-0041/parts/03-digest-and-encoding.md),
 [HQL-0024 part 7](../proposals/HQL-0024/parts/07-formats-and-codecs.md),
 [HQL-0021](../proposals/HQL-0021/README.md)
 

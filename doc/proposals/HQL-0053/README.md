@@ -3,7 +3,7 @@
 **Status**: drafted
 **Created**: 2026-11-13
 **Source**: [issue 0067](../../issues/0067-std-crypto.md);
-[HQL-0041 part 3](../HQL-0041/parts/03-hash-and-encoding.md) (digests,
+[HQL-0041 part 3](../HQL-0041/parts/03-digest-and-encoding.md) (digests,
 canonical JSON, and cryptography as a non-goal);
 [issue 0029](../../issues/0029-binary-formats-and-codecs.md) (binary formats
 and codecs); [HQL-0024 part 7](../HQL-0024/parts/07-formats-and-codecs.md)
@@ -15,7 +15,8 @@ and host grants); [HQL-0046](../HQL-0046/README.md) and
 
 - [`parts/01-bytes.md`](parts/01-bytes.md) — the scalar `Bytes`, the
   receiver module `bytes`, its conversions to and from text, how formats
-  write it, and the order of this work against issue 0029.
+  write it, `Bytes` against "binary", and the order of this work against
+  issue 0029.
 - [`parts/02-keys.md`](parts/02-keys.md) — module `crypto`: algorithms, the
   key types, reading and writing keys in PEM, DER, JWK, OpenSSH and age
   text, generation, and secret values.
@@ -92,7 +93,7 @@ implements both modules, and neither is in the prelude.
 | `core` | `lib/std/core/mod.hql` | `Bytes`, `Bytes(text)` and its `Eq`, `Ord`, `Add`, `Index<Int>` and `Slice` |
 | `bytes` | `lib/std/bytes/mod.hql` | `size`, `to_text` |
 | `encoding` | `lib/std/encoding/mod.hql` | the `Bytes` forms of `encode`, `to_bytes` and `Bytes(text, as)` |
-| `hash` | `lib/std/hash/mod.hql` | the `Bytes` form of `digest`, and `canonical` |
+| `crypto.digest` | `lib/std/crypto/digest/mod.hql` | the `Bytes` form of `digest`, and `canonical` |
 | `crypto` | `lib/std/crypto/mod.hql` | algorithms, key types, key formats, signatures, MACs, passwords, encryption, encrypted endpoints |
 | `crypto.keyvault` | `lib/std/crypto/keyvault/mod.hql` | `KeyRef`, `KeyInfo`, `key`, `keys`, and the operations over a key in a store |
 
@@ -100,7 +101,7 @@ implements both modules, and neither is in the prelude.
   `String`, so that a `Data` tree holds one and a format encodes one.
 - `bytes` is a receiver module, `module bytes for Bytes`, and MUST be in the
   prelude, as `string` is.
-- `crypto` imports `core`, `encoding`, `hash` and `io`;
+- `crypto` imports `core`, `encoding`, `crypto.digest` and `io`;
   `crypto.keyvault` imports `core`, `crypto` and `io`. Neither MUST be added
   to the prelude. A program writes `import crypto`, and `import
   crypto.keyvault`, which it reaches as `keyvault`.
@@ -205,7 +206,7 @@ program's source is not one of them.
 `Bytes` is the dependency every other part has, and issue 0029's binary
 formats need it as much as `crypto` does.
 
-1. HQL-0041 part 3, `hash` and `encoding` over `String`. `crypto` writes a
+1. HQL-0041 part 3, `crypto.digest` and `encoding` over `String`. `crypto` writes a
    key, a signature and a ciphertext as text through `encoding`.
 2. Part 1 of this proposal, `Bytes`. Issue 0029 adopts it as the in-memory
    form of a binary format's encoded value, and is ordered after this step.
@@ -269,7 +270,7 @@ done.
 
 1. Implement HQL-0041 part 3 if it has not landed.
 2. Add `Bytes` and the module `bytes`, and the `Bytes` forms of `encoding`
-   and `hash`, with the corpus cases of part 1.
+   and `crypto.digest`, with the corpus cases of part 1.
 3. Add `crypto` with keys, signatures, MACs and passwords; the secret-type
    check and the source-literal check land with the first key type.
 4. Add symmetric and age encryption, then the encrypted endpoints.
@@ -283,7 +284,7 @@ done.
 - `lib/std/bytes/mod.hql`, `lib/std/crypto/mod.hql` and
   `lib/std/crypto/keyvault/mod.hql`: the declarations of parts 1 to 5,
   written as external declarations; `lib/std/encoding/mod.hql` and
-  `lib/std/hash/mod.hql` gain the `Bytes` forms.
+  `lib/std/crypto/digest/mod.hql` gain the `Bytes` forms.
 - `src/extensions/std/`: one file each for `bytes`, `crypto` and
   `keyvault`; `src/crypto/` for the key formats, the age endpoint layer and
   the backends of the key vault, each backend in its own file.
@@ -367,3 +368,5 @@ cargo clippy --all-targets -- -D warnings
 ## Changelog
 
 - 2026-11-13: drafted
+- 2026-11-13: digests are module `crypto.digest`; part 1 states `Bytes`
+  as the value and "binary" as a property of a format

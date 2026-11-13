@@ -4,7 +4,8 @@ Status: todo
 Related: [HQL-0024 part 7](../proposals/HQL-0024/parts/07-formats-and-codecs.md),
 [encode, decode and format](../proposals/HQL-0024/encode-decode-format.md),
 [HQL-0024 part 9](../proposals/HQL-0024/parts/09-packages-and-extensions.md),
-[presentation](../wiki/hql/presentation.hmd)
+[presentation](../wiki/hql/presentation.hmd),
+[HQL-0053 part 1](../proposals/HQL-0053/parts/01-bytes.md)
 
 `Format` is a category of its own and every format today is textual: `Text`,
 `Lines`, `Json`, `JsonLines`, `Yaml`, `Csv`, `Markdown`, `Hmd`, `Hql`, `D2`,
@@ -25,7 +26,11 @@ follow from the format model and are not built:
 
 - The format kind: what a binary format is to `source`, `tap`, `target` and
   `sink`, how a schema is named, and what `format(x, Parquet)` means in memory,
-  where the encoded representation is bytes and not a `String`.
+  where the encoded representation is bytes and not a `String`. That
+  representation is the `Bytes` of
+  [HQL-0053 part 1](../proposals/HQL-0053/parts/01-bytes.md); "binary" is
+  the format's property and names no value type (the section "`Bytes` and
+  binary" there).
 - The contract side: an `impl Decoder<Avro, Data> for …` written as an
   extension descriptor, or in HQL once generic traits admit an `impl`.
 - The implementation: one binary codec, end to end, with a test over a file
