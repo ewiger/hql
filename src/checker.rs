@@ -3405,6 +3405,14 @@ impl<'a> Checker<'a> {
                         .join(", ")
                 )
             };
+            // A package that would have provided the module and was
+            // refused: the refusal is why the import finds nothing.
+            if let Some(refused) = crate::package::refusal(name) {
+                return Err(Diagnostic::name(
+                    span.clone(),
+                    format!("no module named `{name}`: {}", refused.reason),
+                ));
+            }
             return Err(Diagnostic::name(
                 span.clone(),
                 format!("no module named `{name}`{hint}"),
@@ -5745,7 +5753,11 @@ impl<'a> Checker<'a> {
                 if let Some(constructor) = crate::constructors::named(name) {
                     return crate::constructors::check(self, constructor, arguments, None, span);
                 }
+                // A record type a package declares with a constructor of its
+                // own, `fn Dataset(…) : Dataset`, is constructed by that
+                // operation, which is reached as a step below.
                 if crate::types::program::is_record_valued(name)
+                    && !crate::extensions::constructs(name)
                     && let Some(shape) = crate::types::program::record(name)
                 {
                     return self.construct_record(name, &shape, arguments, span);

@@ -27,6 +27,7 @@ mod mutation;
 pub mod naming;
 mod nats;
 mod net;
+pub mod package;
 mod parser;
 mod postgres;
 mod spark;

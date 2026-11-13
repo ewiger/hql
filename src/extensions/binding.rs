@@ -20,9 +20,11 @@
 //! one per configuration; the process keeps one cache, so with every
 //! extension compiled in, the process has one environment.
 
+#[cfg(test)]
+use super::REGISTERED;
 use super::spec::OperationSpec;
 use super::traits::NativeImpl;
-use super::{Config, Extension, Operation, Purity, REGISTERED, Resolution, Shape, Signature};
+use super::{Config, Extension, Operation, Purity, Resolution, Shape, Signature};
 use super::{contract, format, spec, traits};
 use crate::ast::{Stmt, TypeAnn};
 use crate::diagnostics::Diagnostic;
@@ -33,10 +35,10 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 /// The modules an environment loads, by canonical name and source, in
 /// loading order: a module may refer only to what an earlier one declares.
-pub(crate) type Graph = &'static [(&'static str, &'static str)];
+pub type Graph = &'static [(&'static str, &'static str)];
 
 /// The extensions an environment binds, in registration order.
-pub(crate) type ExtensionSet = &'static [&'static Extension];
+pub type ExtensionSet = &'static [&'static Extension];
 
 /// A module of the graph, by the position loading gave it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -234,7 +236,7 @@ impl Environment {
     /// Returns the first standard module that does not parse, a defect of
     /// the binary.
     pub(crate) fn get() -> Result<&'static Self, String> {
-        Cache::process().bound(crate::library::MODULES, REGISTERED)
+        Cache::process().bound(crate::package::graph(), crate::package::extensions())
     }
 
     /// Load every module of a graph in order, allocating module,
@@ -1162,7 +1164,7 @@ impl Frozen {
     ///
     /// Returns the defect validation found, naming it.
     pub(crate) fn process() -> Result<Self, String> {
-        Cache::process().frozen(crate::library::MODULES, REGISTERED)
+        Cache::process().frozen(crate::package::graph(), crate::package::extensions())
     }
 
     /// Whether two handles are one environment.
@@ -1189,7 +1191,11 @@ impl Runtime {
     /// Returns a validation failure of the environment, or a configured
     /// import that resolves to no module.
     pub(crate) fn process(config: &Config) -> Result<Arc<Self>, Diagnostic> {
-        Cache::process().runtime(crate::library::MODULES, REGISTERED, config)
+        Cache::process().runtime(
+            crate::package::graph(),
+            crate::package::extensions(),
+            config,
+        )
     }
 
     fn build(environment: Frozen, config: &Config) -> Result<Self, Diagnostic> {

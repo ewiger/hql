@@ -711,15 +711,25 @@ pub(crate) fn prelude() -> &'static [&'static str] {
 
 /// The registered extension of an id.
 pub(crate) fn extension(id: &str) -> Option<&'static Extension> {
-    REGISTERED
+    crate::package::extensions()
         .iter()
         .copied()
         .find(|extension| extension.id == id)
 }
 
+/// Whether a loaded package's extension implements a constructor of a
+/// name: an operation named as a type is, `Dataset`.
+pub(crate) fn constructs(name: &str) -> bool {
+    crate::constructors::is_constructor_name(name)
+        && crate::package::extensions()
+            .iter()
+            .filter(|extension| extension.origin == Origin::External)
+            .any(|extension| extension.steps().any(|step| step.name == name))
+}
+
 /// The registered extension whose descriptor provides a module, if any.
 pub(crate) fn provider_of(module: &str) -> Option<&'static Extension> {
-    REGISTERED
+    crate::package::extensions()
         .iter()
         .copied()
         .find(|extension| extension.provides(module))
@@ -758,6 +768,10 @@ pub struct Config {
     /// roots` in `hql.toml`, resolved against the vault, and `--modules` on
     /// the command line.
     pub module_roots: Vec<std::path::PathBuf>,
+    /// The crates of packages under development: `[packages] paths` in
+    /// `hql.toml`, resolved against the vault. Each is built on first use
+    /// and loaded as an installed package is.
+    pub package_paths: Vec<std::path::PathBuf>,
 }
 
 impl Default for Config {
@@ -766,6 +780,7 @@ impl Default for Config {
             imports: Vec::new(),
             prelude: true,
             module_roots: Vec::new(),
+            package_paths: Vec::new(),
         }
     }
 }
@@ -791,6 +806,17 @@ impl Config {
             .and_then(toml::Value::as_array)
         {
             config.module_roots = roots
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(|path| root.join(path))
+                .collect();
+        }
+        if let Some(paths) = parsed
+            .get("packages")
+            .and_then(|section| section.get("paths"))
+            .and_then(toml::Value::as_array)
+        {
+            config.package_paths = paths
                 .iter()
                 .filter_map(toml::Value::as_str)
                 .map(|path| root.join(path))
@@ -1334,12 +1360,14 @@ impl Resolution {
 /// Every registered step name, for the suggestion index.
 pub(crate) fn names() -> impl Iterator<Item = &'static str> {
     let environment = binding::Environment::get().ok();
-    REGISTERED.iter().flat_map(move |extension| {
-        extension
-            .steps()
-            .filter(move |step| !environment.is_some_and(|held| held.is_private(step)))
-            .map(|step| step.name)
-    })
+    crate::package::extensions()
+        .iter()
+        .flat_map(move |extension| {
+            extension
+                .steps()
+                .filter(move |step| !environment.is_some_and(|held| held.is_private(step)))
+                .map(|step| step.name)
+        })
 }
 
 /// Whether a module is visible in every unit of a vault keeping the
@@ -1353,7 +1381,10 @@ fn in_reach(module: &str) -> bool {
 pub(crate) fn names_with_reach() -> impl Iterator<Item = (&'static str, bool)> {
     let environment = binding::Environment::get().ok();
     let mut reach: Vec<(&'static str, bool)> = Vec::new();
-    for provided in REGISTERED.iter().flat_map(|extension| extension.provides) {
+    for provided in crate::package::extensions()
+        .iter()
+        .flat_map(|extension| extension.provides)
+    {
         for step in provided.steps {
             if environment.is_some_and(|held| held.is_private(step)) {
                 continue;
@@ -1457,7 +1488,7 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
             canonical(held) == module || extension(held).is_some_and(|held| held.provides(module))
         })
     };
-    REGISTERED
+    crate::package::extensions()
         .iter()
         .flat_map(|extension| {
             extension.provides.iter().map(|provided| Provider {
@@ -1516,7 +1547,7 @@ pub(crate) fn named_or_first<'a, E>(arguments: &'a [Arg<E>], name: &str) -> Opti
 /// Let each registered extension contribute the metadata it owns: `search`
 /// writes the lexical model and index entries.
 pub(crate) fn contribute_metadata(card: &mut crate::document::Card) {
-    for extension in REGISTERED {
+    for extension in crate::package::extensions() {
         if let Some(contribute) = extension.metadata {
             contribute(card);
         }
@@ -1711,6 +1742,7 @@ mod tests {
             imports: vec!["lexical".to_owned()],
             prelude: false,
             module_roots: Vec::new(),
+            package_paths: Vec::new(),
         };
         let resolution = Resolution::new(&config).expect("the configuration resolves");
         assert!(resolution.step("lexical", &(0..1)).is_ok());
@@ -1745,6 +1777,7 @@ mod tests {
             imports: vec!["search".to_owned(), "logging".to_owned()],
             prelude: true,
             module_roots: Vec::new(),
+            package_paths: Vec::new(),
         };
         let resolution = Resolution::new(&config).expect("the configuration resolves");
         assert!(resolution.step("lexical", &(0..1)).is_ok());
@@ -1771,6 +1804,7 @@ mod tests {
             imports: vec!["nonesuch".to_owned()],
             prelude: true,
             module_roots: Vec::new(),
+            package_paths: Vec::new(),
         };
         let failed = Resolution::new(&config).unwrap_err();
         assert!(
