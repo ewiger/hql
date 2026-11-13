@@ -2433,7 +2433,7 @@ fn retrieval_data(retrieval: &search::Retrieval) -> Data {
     data
 }
 
-fn as_data(value: &Value) -> Data {
+pub(crate) fn as_data(value: &Value) -> Data {
     match value {
         Value::Int(number) => Data::Int(*number),
         Value::Float(number) => Data::Float(*number),

@@ -38,11 +38,14 @@ path = "src/main.rs"
 
 [dependencies]
 async-nats = { version = "0.52.0", default-features = false, features = ["ring", "jetstream"] }
+base64 = "0.23.1"
 bigdecimal = "0.4.11"
+blake3 = { version = "1.8.7", default-features = false, features = ["pure", "std"] }
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
 futures-util = { version = "0.3.34", default-features = false }
 jiff = { version = "0.2.43", features = ["tzdb-bundle-always"] }
+md-5 = "0.11"
 num-integer = "0.1.47"
 postgres = "0.19"
 rand_chacha = { version = "0.3.1", default-features = false }
@@ -54,6 +57,7 @@ rustyline = { version = "19.0.0", default-features = false, features = ["with-fi
 serde = "1.0.229"
 serde_json = { version = "1.0.151", features = ["arbitrary_precision"] }
 serde_yaml_ng = "0.10.0"
+sha1 = "0.11"
 sha2 = "0.11.0"
 thiserror = "2"
 tokio = { version = "1.54.1", features = ["rt", "net", "time"] }

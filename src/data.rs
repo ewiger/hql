@@ -163,6 +163,83 @@ impl Data {
     }
 }
 
+impl Data {
+    /// The canonical JSON text of the tree (RFC 8785): object keys sorted by
+    /// their UTF-16 code units, no whitespace, strings escaped as JSON
+    /// requires and no further. A number is written as its digits without
+    /// trailing zeros or an exponent, so every number leaf HQL equality
+    /// calls equal, `1`, `1.0` and `1.00`, writes one text; a time value is
+    /// its ISO 8601 text and an empty entry is `null`.
+    #[must_use]
+    pub fn canonical_json(&self) -> String {
+        let mut out = String::new();
+        self.write_canonical(&mut out);
+        out
+    }
+
+    fn write_canonical(&self, out: &mut String) {
+        match self {
+            Self::Empty => out.push_str("null"),
+            Self::Bool(value) => out.push_str(if *value { "true" } else { "false" }),
+            Self::Int(value) => out.push_str(&Decimal::from_int(*value).canonical()),
+            Self::Float(value) => match Decimal::from_float(*value) {
+                Some(value) => out.push_str(&value.canonical()),
+                None => out.push_str("null"),
+            },
+            Self::Decimal(value) => out.push_str(&value.canonical()),
+            Self::Time(time) => canonical_string(&time.to_string(), out),
+            Self::Str(text) => canonical_string(text, out),
+            Self::List(items) => {
+                out.push('[');
+                for (index, item) in items.iter().enumerate() {
+                    if index > 0 {
+                        out.push(',');
+                    }
+                    item.write_canonical(out);
+                }
+                out.push(']');
+            }
+            Self::Map(entries) => {
+                let mut sorted: Vec<_> = entries.iter().collect();
+                sorted.sort_by(|(a, _), (b, _)| a.encode_utf16().cmp(b.encode_utf16()));
+                out.push('{');
+                for (index, (key, value)) in sorted.into_iter().enumerate() {
+                    if index > 0 {
+                        out.push(',');
+                    }
+                    canonical_string(key, out);
+                    out.push(':');
+                    value.write_canonical(out);
+                }
+                out.push('}');
+            }
+        }
+    }
+}
+
+/// A JSON string as RFC 8785 writes it: `"` and `\` escaped, the control
+/// characters as `\b`, `\t`, `\n`, `\f`, `\r` or `\u00xx` in lowercase hex,
+/// every other character as itself.
+fn canonical_string(text: &str, out: &mut String) {
+    out.push('"');
+    for character in text.chars() {
+        match character {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\u{8}' => out.push_str("\\b"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\u{c}' => out.push_str("\\f"),
+            '\r' => out.push_str("\\r"),
+            control if u32::from(control) < 0x20 => {
+                out.push_str(&format!("\\u{:04x}", u32::from(control)));
+            }
+            other => out.push(other),
+        }
+    }
+    out.push('"');
+}
+
 /// A JSON number with a decimal's digits and scale exactly: `1.50` stays
 /// `1.50`.
 #[must_use]

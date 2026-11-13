@@ -22,6 +22,8 @@ use std::path::Path;
 pub(crate) mod binding;
 pub(crate) mod collections;
 pub(crate) mod contract;
+pub(crate) mod digest;
+pub(crate) mod encoding;
 pub mod format;
 pub(crate) mod fs;
 pub(crate) mod graph;
@@ -558,6 +560,22 @@ static RANDOM: Extension = Extension {
     metadata: None,
 };
 
+static DIGEST: Extension = Extension {
+    name: "crypto.digest",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["crypto.digest"],
+    steps: digest::STEPS,
+    metadata: None,
+};
+
+static ENCODING: Extension = Extension {
+    name: "encoding",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["encoding"],
+    steps: encoding::STEPS,
+    metadata: None,
+};
+
 static OPTION: Extension = Extension {
     name: "option",
     version: env!("CARGO_PKG_VERSION"),
@@ -595,6 +613,8 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &MATH,
     &TIME,
     &RANDOM,
+    &DIGEST,
+    &ENCODING,
     &OPTION,
     &RESULT,
     &GRAPH,

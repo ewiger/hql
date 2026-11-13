@@ -26,6 +26,10 @@ atoms! {
     MICROSECOND => "Microsecond", MILLISECOND => "Millisecond", SECOND => "Second",
     MINUTE => "Minute", HOUR => "Hour", DAY => "Day", WEEK => "Week", MONTH => "Month",
     QUARTER => "Quarter", YEAR => "Year",
+    DIGEST_ALGORITHM => "Algorithm", MD5 => "Md5", SHA1 => "Sha1", SHA256 => "Sha256",
+    SHA512 => "Sha512", BLAKE3 => "Blake3",
+    ENCODING => "Encoding", HEX => "Hex", BASE64 => "Base64", BASE64_URL => "Base64Url",
+    PERCENT => "Percent",
     ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
     FILE => "File", FILE_END => "FileEnd", PATH => "Path",
@@ -333,6 +337,20 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::MONTH, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
         (TypeRef::QUARTER, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
         (TypeRef::YEAR, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        // Digests and encodings (HQL-0041 part 3): `lib/std/crypto/digest/mod.hql`
+        // and `lib/std/encoding/mod.hql`. An algorithm and an encoding are
+        // types, so a call takes one as `Sha256` or `Hex` is written.
+        (TypeRef::DIGEST_ALGORITHM, TypeKind::Abstract, &[]),
+        (TypeRef::MD5, TypeKind::Concrete, &[TypeRef::DIGEST_ALGORITHM]),
+        (TypeRef::SHA1, TypeKind::Concrete, &[TypeRef::DIGEST_ALGORITHM]),
+        (TypeRef::SHA256, TypeKind::Concrete, &[TypeRef::DIGEST_ALGORITHM]),
+        (TypeRef::SHA512, TypeKind::Concrete, &[TypeRef::DIGEST_ALGORITHM]),
+        (TypeRef::BLAKE3, TypeKind::Concrete, &[TypeRef::DIGEST_ALGORITHM]),
+        (TypeRef::ENCODING, TypeKind::Abstract, &[]),
+        (TypeRef::HEX, TypeKind::Concrete, &[TypeRef::ENCODING]),
+        (TypeRef::BASE64, TypeKind::Concrete, &[TypeRef::ENCODING]),
+        (TypeRef::BASE64_URL, TypeKind::Concrete, &[TypeRef::ENCODING]),
+        (TypeRef::PERCENT, TypeKind::Concrete, &[TypeRef::ENCODING]),
     ] {
         system.declare(TypeDefinition {
             kind,
