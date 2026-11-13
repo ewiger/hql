@@ -567,3 +567,29 @@ fn discovery_stops_at_the_nearest_marked_directory() {
     std::fs::write(nested.join("hql.toml"), "").unwrap();
     assert_eq!(vault::discover(&deep), Some(nested));
 }
+
+#[test]
+fn a_nested_vault_is_not_part_of_the_vault_around_it() {
+    let root = tempfile::tempdir().unwrap();
+    let outer = root.path();
+    std::fs::create_dir_all(outer.join(".hmd")).unwrap();
+    std::fs::create_dir_all(outer.join("site/.hmd")).unwrap();
+    std::fs::create_dir_all(outer.join("site/learn")).unwrap();
+    std::fs::create_dir_all(outer.join("wiki")).unwrap();
+    std::fs::write(outer.join("wiki/time.hmd"), "# Time").unwrap();
+    std::fs::write(outer.join("site/index.hmd"), "# Site").unwrap();
+    std::fs::write(outer.join("site/learn/time.hmd"), "# Time, taught").unwrap();
+
+    let names = |vault: &vault::Vault| {
+        vault
+            .cards
+            .iter()
+            .map(|card| card.name().to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(names(&vault::load(outer).unwrap()), ["time"]);
+    assert_eq!(
+        names(&vault::load(&outer.join("site")).unwrap()),
+        ["index", "time"]
+    );
+}
