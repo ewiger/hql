@@ -66,6 +66,19 @@ pub enum Endpoint {
         /// table is scanned.
         order: Vec<String>,
     },
+    /// One table behind a Spark SQL endpoint: one row per element.
+    Spark {
+        /// The endpoint's address, as written or by the variable naming it.
+        server: crate::endpoints::Address,
+        /// The environment variable holding an access token, where the
+        /// endpoint asks for one.
+        token_env: Option<String>,
+        /// The table, qualified by catalog and schema where it holds dots.
+        table: String,
+        /// The columns its rows are ordered by; empty reads them as the
+        /// table is scanned.
+        order: Vec<String>,
+    },
     /// The handle of a transaction scope, `tx` (HQL-0051): not an endpoint
     /// anything is read from or written to, held here so the scope binds
     /// one value and its control calls take it.
@@ -114,6 +127,7 @@ impl Endpoint {
             Self::Socket(..) => TypeRef::SOCKET,
             Self::Sqlite { .. } => TypeRef::SQLITE,
             Self::Postgres { .. } => TypeRef::POSTGRES,
+            Self::Spark { .. } => TypeRef::SPARK,
             Self::Configured { ty, .. } => ty.clone(),
             Self::Transaction => TypeRef::TRANSACTION,
             Self::Nats { .. } => TypeRef::NATS,
@@ -157,6 +171,7 @@ impl Endpoint {
             Self::Postgres { table, dsn_env, .. } => {
                 format!("table `{table}` of the database `{dsn_env}` names")
             }
+            Self::Spark { table, .. } => format!("table `{table}` of the Spark SQL endpoint"),
             Self::Configured { id, .. } => format!("endpoint `{id}`"),
             Self::Transaction => "the transaction scope".to_owned(),
             Self::Nats { subject, .. } => format!("subject `{subject}`"),
@@ -214,6 +229,27 @@ impl fmt::Display for Endpoint {
                 order,
             } => {
                 write!(f, "postgres(dsn_env = {dsn_env:?}, table = {table:?}")?;
+                if !order.is_empty() {
+                    write!(f, ", order = {order:?}")?;
+                }
+                f.write_str(")")
+            }
+            Self::Spark {
+                server,
+                token_env,
+                table,
+                order,
+            } => {
+                write!(f, "spark(table = {table:?}")?;
+                match server {
+                    crate::endpoints::Address::Written(url) => write!(f, ", url = {url:?}")?,
+                    crate::endpoints::Address::Env(variable) => {
+                        write!(f, ", url_env = {variable:?}")?;
+                    }
+                }
+                if let Some(variable) = token_env {
+                    write!(f, ", token_env = {variable:?}")?;
+                }
                 if !order.is_empty() {
                     write!(f, ", order = {order:?}")?;
                 }
@@ -1506,7 +1542,7 @@ impl Destination {
             Endpoint::Stdout => Ok((Self::Stdout, false)),
             Endpoint::Stderr => Ok((Self::Stderr, false)),
             Endpoint::Stdin => Err("standard input is not written".to_owned()),
-            Endpoint::Sqlite { .. } | Endpoint::Postgres { .. } => Err(format!(
+            Endpoint::Sqlite { .. } | Endpoint::Postgres { .. } | Endpoint::Spark { .. } => Err(format!(
                 "{} holds rows, not documents; write it with `target`",
                 endpoint.describe()
             )),

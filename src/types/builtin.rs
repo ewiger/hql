@@ -37,7 +37,7 @@ atoms! {
     TRANSACTIONAL => "Transactional", INSERTABLE => "Insertable", UPDATABLE => "Updatable",
     DELETABLE => "Deletable", ISOLATION_LEVEL => "IsolationLevel",
     READ_COMMITTED => "ReadCommitted", REPEATABLE_READ => "RepeatableRead",
-    SERIALIZABLE => "Serializable", TRANSACTION => "Transaction",
+    SERIALIZABLE => "Serializable", TRANSACTION => "Transaction", SPARK => "Spark",
     TRANSACTION_FAILURE => "TransactionFailure",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
@@ -299,6 +299,22 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         // A table of a PostgreSQL database: `lib/std/io/db/postgres/mod.hql`.
         (
             TypeRef::POSTGRES,
+            TypeKind::Concrete,
+            &[
+                TypeRef::NETWORK,
+                TypeRef::ROW_TRANSPORT,
+                TypeRef::REPLAYABLE,
+                TypeRef::WRITABLE,
+                TypeRef::TRANSACTIONAL,
+                TypeRef::INSERTABLE,
+                TypeRef::UPDATABLE,
+                TypeRef::DELETABLE,
+            ],
+        ),
+        // A table behind a Spark SQL endpoint: `lib/std/io/db/spark/mod.hql`.
+        // Its scope is one table and one statement (HQL-0051).
+        (
+            TypeRef::SPARK,
             TypeKind::Concrete,
             &[
                 TypeRef::NETWORK,

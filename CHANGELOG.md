@@ -55,6 +55,16 @@ The language continues to be in active development.
   transactional endpoint in the block that is no participant, the handle
   outside a control call, a statement after one, and an isolation level
   the kind does not offer.
+- The module `io.db.spark` ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Spark :
+  {Network, RowTransport, Replayable, Writable, …}` and its constructor
+  `spark(table = …, url = …, url_env = …, token_env = …, order = [])`,
+  every parameter named, so `source`, `tap` and `target` reach a lakehouse
+  table with no configured endpoint. A `spark` table takes `insert`,
+  `update` and `delete`, each one Spark SQL statement, and a transaction
+  scope over it holds that one table and at most one statement that
+  changes it, since a Delta table commits one statement of itself
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)).
 - The module `io.db.postgres` ([HQL-0047](doc/proposals/HQL-0047/README.md),
   [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Postgres :
   {Network, RowTransport, Replayable, Writable, …}` and its constructor

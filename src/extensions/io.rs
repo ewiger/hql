@@ -212,9 +212,10 @@ fn configured_transport(configured: &crate::endpoints::Configured) -> Result<Typ
         Source::File { .. } => TypeRef::FILE,
         Source::Sqlite { .. } => TypeRef::SQLITE,
         Source::Postgres { .. } => TypeRef::POSTGRES,
+        Source::Spark { .. } => TypeRef::SPARK,
         Source::Nats { .. } => TypeRef::NATS,
         Source::NatsJetStream { .. } => TypeRef::NATS_JET_STREAM,
-        kind @ (Source::Kafka { .. } | Source::Spark { .. }) => {
+        kind @ Source::Kafka { .. } => {
             return Err(format!(
                 "endpoint `{id}` is a `{}` endpoint, whose transport has no type until its module \
                  is declared (HQL-0048); name it by its id",
@@ -486,6 +487,11 @@ pub(crate) fn configured_system(
     let system = match &held.kind {
         Source::Sqlite { path, .. } => Some(path.display().to_string()),
         Source::Postgres { dsn_env, .. } => Some(dsn_env.clone()),
+        Source::Spark { server, .. } => Some(match server {
+            crate::endpoints::Address::Written(url) | crate::endpoints::Address::Env(url) => {
+                url.clone()
+            }
+        }),
         _ => None,
     };
     Ok((held.kind.name().to_owned(), system))
@@ -917,6 +923,19 @@ fn table_rows(endpoint: &Endpoint, span: &Range<usize>) -> Result<Option<Vec<Val
             let dsn = crate::endpoints::secret(dsn_env, "dsn_env").map_err(located)?;
             crate::postgres::rows(&dsn, table, order, None).map_err(located)?
         }
+        Endpoint::Spark {
+            server,
+            token_env,
+            table,
+            order,
+        } => {
+            io::policy_permits_network().map_err(located)?;
+            let constructed =
+                constructed_table(endpoint).ok_or_else(|| located("not a table".to_owned()))?;
+            let server =
+                spark_server(&constructed, server, token_env.as_deref()).map_err(located)?;
+            crate::spark::rows(&server, table, order, None).map_err(located)?
+        }
         _ => return Ok(None),
     };
     Ok(Some(
@@ -942,6 +961,17 @@ pub(crate) fn constructed_table(endpoint: &Endpoint) -> Option<crate::endpoints:
             order,
         } => crate::endpoints::Kind::Postgres {
             dsn_env: dsn_env.clone(),
+            table: table.clone(),
+            order: order.clone(),
+        },
+        Endpoint::Spark {
+            server,
+            token_env,
+            table,
+            order,
+        } => crate::endpoints::Kind::Spark {
+            server: server.clone(),
+            token_env: token_env.clone(),
             table: table.clone(),
             order: order.clone(),
         },
@@ -1970,7 +2000,7 @@ fn postgres_row(row: &Value, fields: &[&crate::boundary::EffectiveField]) -> Vec
 
 /// The address and the token of a Spark SQL endpoint, read from the
 /// environment where the configuration names a variable.
-fn spark_server(
+pub(crate) fn spark_server(
     configured: &crate::endpoints::Configured,
     server: &crate::endpoints::Address,
     token_env: Option<&str>,
@@ -2223,6 +2253,15 @@ pub(crate) fn insert_rows(
         Source::Postgres { dsn_env, table, .. } => {
             let dsn = dsn(configured, dsn_env).map_err(failed)?;
             crate::postgres::columns(&dsn, table).map_err(|_| missing(table))?;
+        }
+        Source::Spark {
+            server,
+            token_env,
+            table,
+            ..
+        } => {
+            let server = spark_server(configured, server, token_env.as_deref()).map_err(failed)?;
+            crate::spark::columns(&server, table).map_err(|_| missing(table))?;
         }
         other => {
             return Err(failed(format!(

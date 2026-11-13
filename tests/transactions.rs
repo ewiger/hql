@@ -46,6 +46,13 @@ table = "accounts"
 order = ["id"]
 element = "Account"
 
+[endpoint.lake]
+kind = "spark"
+url_env = "HQL_TEST_UNSET_LAKE"
+table = "default.orders"
+order = ["id"]
+element = "Account"
+
 [endpoint.events]
 kind = "kafka"
 brokers_env = "HQL_TEST_UNSET_BROKERS"
@@ -852,6 +859,11 @@ fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
         ),
         "Result<Int, TransactionFailure>"
     );
+    let error = refusal(
+        "import io.db.spark\nwith transaction tx on {spark(table = \"a\", url_env = \"L\"), spark(table = \"b\", url_env = \"L\")} { 1 }",
+        &vault,
+    );
+    assert!(error.contains("holds one table"), "{error}");
     assert_eq!(
         checked(
             "import io.db.postgres\nwith transaction(isolation = RepeatableRead, attempts = 2) tx on \
@@ -866,4 +878,80 @@ fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
         &vault,
     );
     assert!(error.contains("in one database, and these are in two"), "{error}");
+}
+
+// Phase 5: the `spark` kind, checked offline: one table, one statement.
+
+#[test]
+fn a_spark_table_is_constructed_by_its_module_and_takes_one_statement_per_scope() {
+    let (_dir, vault) = configured();
+    let error = refusal(r#"source(spark(table = "t", url_env = "L"))"#, &vault);
+    assert!(error.contains("import io.db.spark"), "{error}");
+    assert_eq!(
+        checked("import io.db.spark\nspark(table = \"t\", url_env = \"L\")", &vault),
+        "Spark"
+    );
+    for capability in ["Network", "RowTransport", "Transactional", "Insertable", "Updatable", "Deletable"] {
+        assert_eq!(
+            checked(
+                &format!("import io.db.spark\nt : {capability} = spark(table = \"t\", url = \"http://h/cliservice\")\nt"),
+                &vault
+            ),
+            capability,
+            "{capability}"
+        );
+    }
+    assert_eq!(checked(r#"configured("lake")"#, &vault), "Spark");
+    // A mutation checks as one statement; the address is read where it
+    // runs.
+    assert_eq!(
+        checked(
+            &format!("{ACCOUNT}update configured(\"lake\") | filter(a => a.id == 1) | set(a => {{balance: a.balance + 1}})"),
+            &vault
+        ),
+        "Int"
+    );
+    let error = refusal(
+        &format!("{ACCOUNT}delete configured(\"lake\") | filter(a => a.id == 1)"),
+        &vault,
+    );
+    assert!(error.contains("HQL_TEST_UNSET_LAKE"), "{error}");
+    // A scope over a Delta table holds that table and at most one
+    // statement that changes it, at the table's own isolation.
+    assert_eq!(
+        checked(
+            &format!(
+                "{ACCOUNT}lake = configured(\"lake\")\n\
+                 with transaction(attempts = 2) tx on lake {{\n\
+                     n = update lake | filter(a => a.id == 1) | set(a => {{balance: 0}})\n\
+                     tx.rollback(\"none\") given n == 0\n n }}"
+            ),
+            &vault
+        ),
+        "Result<Int, TransactionFailure>"
+    );
+    for (program, says) in [
+        (
+            "with transaction tx on {configured(\"lake\"), configured(\"lake\")} { 1 }",
+            "holds one table",
+        ),
+        (
+            "lake = configured(\"lake\")\nwith transaction tx on lake { delete lake\n delete lake }",
+            "at most one statement that changes the table",
+        ),
+        (
+            "lake = configured(\"lake\")\nwith transaction(isolation = Serializable) tx on lake { delete lake }",
+            "names none",
+        ),
+        // Two kinds in one set have no common type before the scope's
+        // own rule is reached (HQL-0051, "The participants").
+        (
+            "with transaction tx on {configured(\"lake\"), configured(\"accounts\")} { 1 }",
+            "no common type",
+        ),
+    ] {
+        let program = format!("{ACCOUNT}{program}");
+        let error = refusal(&program, &vault);
+        assert!(error.contains(says), "{program}\n{error}");
+    }
 }

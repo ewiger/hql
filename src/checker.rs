@@ -6134,6 +6134,12 @@ impl Checker<'_> {
                         system: literal("dsn_env"),
                         span: expression.span.clone(),
                     }]),
+                    "spark" => Ok(vec![Participant {
+                        names: Vec::new(),
+                        kind: "spark".to_owned(),
+                        system: literal("url_env").or_else(|| literal("url")),
+                        span: expression.span.clone(),
+                    }]),
                     _ => Err(unknown()),
                 }
             }
@@ -6223,6 +6229,29 @@ impl Checker<'_> {
                 ),
             ));
         }
+        // A Spark SQL endpoint commits one statement of one table: its
+        // scope holds one participant and at most one statement that
+        // changes it (HQL-0051, "Kinds").
+        if held.iter().any(|participant| participant.kind == "spark") {
+            if held.len() > 1 {
+                return Err(Diagnostic::typing(
+                    participants.span.clone(),
+                    "a `spark` scope holds one table: a Delta table commits one statement of \
+                     itself, and no scope spans two",
+                ));
+            }
+            let changing = body
+                .iter()
+                .filter(|line| changes_rows(line.value()))
+                .count();
+            if changing > 1 {
+                return Err(Diagnostic::typing(
+                    span.clone(),
+                    "a `spark` scope holds at most one statement that changes the table: each \
+                     is its own commit, so two are not one transaction",
+                ));
+            }
+        }
         if let Some((level, level_span)) = isolation {
             if !matches!(
                 level.as_str(),
@@ -6234,6 +6263,12 @@ impl Checker<'_> {
                         "`{level}` is not an isolation level; `ReadCommitted`, `RepeatableRead` \
                          and `Serializable` are"
                     ),
+                ));
+            }
+            if held.iter().any(|participant| participant.kind == "spark") {
+                return Err(Diagnostic::typing(
+                    level_span.clone(),
+                    "a `spark` scope runs at the table's own isolation and names none",
                 ));
             }
             if held.iter().any(|participant| participant.kind == "sqlite") && level != "Serializable"
@@ -6355,7 +6390,9 @@ impl Checker<'_> {
                     (
                         id.to_owned(),
                         crate::extensions::io::configured_system(id, self.vault)
-                            .is_ok_and(|(kind, _)| matches!(kind.as_str(), "sqlite" | "postgres")),
+                            .is_ok_and(|(kind, _)| {
+                                matches!(kind.as_str(), "sqlite" | "postgres" | "spark")
+                            }),
                     )
                 }),
             };
@@ -6567,6 +6604,24 @@ fn collect_commits(
             }
         }
         _ => {}
+    }
+}
+
+/// Whether a statement changes a table: a mutation, or a `target` or
+/// `sink` written as a call or a step.
+fn changes_rows(expression: &Expr) -> bool {
+    let writes = |callee: &Expr| {
+        matches!(&callee.kind, Kind::Ident(name) if matches!(name.as_str(), "target" | "sink"))
+    };
+    match &expression.kind {
+        Kind::Mutation { .. } => true,
+        Kind::Call { callee, .. } => writes(callee),
+        Kind::Pipe(_, step) => match &step.kind {
+            Kind::Call { callee, .. } => writes(callee),
+            Kind::Ident(name) => matches!(name.as_str(), "target" | "sink"),
+            _ => false,
+        },
+        _ => false,
     }
 }
 

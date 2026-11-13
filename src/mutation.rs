@@ -41,6 +41,16 @@ pub(crate) fn shared_system(
                 dsn: crate::endpoints::secret(dsn_env, "dsn_env")
                     .map_err(|message| format!("endpoint `{}`: {message}", configured.id))?,
             },
+            Source::Spark {
+                server, token_env, ..
+            } => System::Spark {
+                url: crate::extensions::io::spark_server(
+                    &configured,
+                    server,
+                    token_env.as_deref(),
+                )?
+                .url,
+            },
             other => {
                 return Err(format!(
                     "endpoint `{}` is a `{}` endpoint, which takes part in no transaction",
@@ -56,6 +66,7 @@ pub(crate) fn shared_system(
                 let what = match held {
                     System::Sqlite { .. } => "database file",
                     System::Postgres { .. } => "database",
+                    System::Spark { .. } => "table",
                 };
                 return Err(format!(
                     "a transaction's participants are in one {what}, and {} is in another",
@@ -72,6 +83,9 @@ pub(crate) fn shared_system(
 enum Dialect {
     Sqlite,
     Postgres,
+    /// Spark SQL binds no parameter: each value is written as a literal the
+    /// endpoint reads, text escaped as the kind escapes it.
+    Spark,
 }
 
 /// A value bound to a statement, by what the system is sent.
@@ -111,6 +125,7 @@ fn quoted(name: &str) -> String {
 fn table_name(table: &str, dialect: Dialect) -> String {
     match dialect {
         Dialect::Postgres => table.split('.').map(quoted).collect::<Vec<_>>().join("."),
+        Dialect::Spark => crate::spark::table_name(table),
         Dialect::Sqlite => quoted(table),
     }
 }
@@ -159,6 +174,7 @@ pub(crate) fn run(
     let (dialect, table) = match &configured.kind {
         Source::Sqlite { table, .. } => (Dialect::Sqlite, table.clone()),
         Source::Postgres { table, .. } => (Dialect::Postgres, table.clone()),
+        Source::Spark { table, .. } => (Dialect::Spark, table.clone()),
         other => {
             return Err(failed(format!(
                 "`{}` changes a table of a database, and endpoint `{}` is a `{}` endpoint",
@@ -236,6 +252,19 @@ pub(crate) fn run(
             crate::postgres::execute(&dsn, &statement, &params)
                 .map_err(|message| failed(format!("endpoint `{}`: {message}", configured.id)))?
         }
+        Source::Spark {
+            server, token_env, ..
+        } => {
+            crate::io::policy_permits_network().map_err(failed)?;
+            let server =
+                crate::extensions::io::spark_server(&configured, server, token_env.as_deref())
+                    .map_err(failed)?;
+            // The endpoint reports the rows a Delta statement changed;
+            // another format reports none, and the count is unknown.
+            crate::spark::execute(&server, &statement)
+                .map_err(|message| failed(format!("endpoint `{}`: {message}", configured.id)))?
+                .map_or(0, |n| u64::try_from(n).unwrap_or(0))
+        }
         _ => unreachable!("refused above"),
     };
     Ok(Value::Int(i64::try_from(changed).unwrap_or(i64::MAX)))
@@ -284,11 +313,21 @@ impl Translator<'_> {
                 ));
             }
         };
+        if self.dialect == Dialect::Spark {
+            return Ok(match param {
+                Param::Int(n) => n.to_string(),
+                Param::Float(x) => x.to_string(),
+                Param::Bool(b) => if b { "TRUE" } else { "FALSE" }.to_owned(),
+                Param::Text(text) => crate::spark::literal(&text),
+                Param::Numeric(digits) => digits,
+            });
+        }
         self.params.push(param);
         let n = self.params.len();
         Ok(match self.dialect {
             Dialect::Sqlite => format!("?{n}"),
             Dialect::Postgres => format!("${n}{}", self.params[n - 1].cast()),
+            Dialect::Spark => unreachable!("written above"),
         })
     }
 
@@ -415,7 +454,7 @@ impl Translator<'_> {
                     if members.is_empty() {
                         return Ok(match self.dialect {
                             Dialect::Sqlite => "0".to_owned(),
-                            Dialect::Postgres => "FALSE".to_owned(),
+                            Dialect::Postgres | Dialect::Spark => "FALSE".to_owned(),
                         });
                     }
                     let mut bound = Vec::with_capacity(members.len());

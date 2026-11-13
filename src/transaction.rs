@@ -36,9 +36,14 @@ pub(crate) enum Class {
 pub(crate) enum System {
     Sqlite { path: PathBuf },
     Postgres { dsn: String },
+    /// A Spark SQL endpoint: one table, whose one statement is its own
+    /// commit, so the scope opens nothing and holds nothing.
+    Spark { url: String },
 }
 
 enum Active {
+    /// A Spark scope: nothing held, the one statement its own commit.
+    Spark,
     Sqlite {
         path: PathBuf,
         connection: rusqlite::Connection,
@@ -94,6 +99,12 @@ fn note_failure(class: Class) {
     if in_scope() {
         FAILURE.with(|held| held.set(Some(class)));
     }
+}
+
+/// Note a concurrent writer's refusal by a system whose errors are text,
+/// a Delta table's among them.
+pub(crate) fn note_conflict() {
+    note_failure(Class::Conflict);
 }
 
 /// The class of the last refusal a participant's system gave in this
@@ -188,6 +199,7 @@ pub(crate) fn begin(system: &System, isolation: Option<&str>) -> Result<(), Stri
     CONTROL.with(|held| *held.borrow_mut() = None);
     COMMITTED.with(|held| *held.borrow_mut() = None);
     let active = match system {
+        System::Spark { .. } => Active::Spark,
         System::Sqlite { path } => {
             let connection = rusqlite::Connection::open_with_flags(
                 path,
@@ -238,6 +250,7 @@ pub(crate) fn commit() -> Result<(), (Option<Class>, String)> {
     };
     FAILURE.with(|held| held.set(None));
     let result = match active {
+        Active::Spark => Ok(()),
         Active::Sqlite { path, connection } => connection
             .execute_batch("COMMIT")
             .map_err(|error| sqlite_message_in(&path, &error)),
@@ -261,7 +274,7 @@ pub(crate) fn rollback() {
         Some(Active::Postgres { mut client, .. }) => {
             let _ = client.batch_execute("ROLLBACK");
         }
-        None => {}
+        Some(Active::Spark) | None => {}
     }
 }
 

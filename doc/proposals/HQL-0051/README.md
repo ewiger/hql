@@ -727,7 +727,7 @@ statement; the rule decides what one scope holds.
 | --- | --- | --- | --- | --- | --- | --- |
 | `postgres` | every table of one `dsn_env` | yes | yes | yes | `ReadCommitted` (default), `RepeatableRead`, `Serializable` | this record |
 | `sqlite` | every table of one `path` | yes | yes | yes | `Serializable` (default) | this record |
-| `spark`, a Delta table over Spark SQL | one table, one statement: an atomic table commit, a scope of one participant | yes | yes, `UPDATE` where the table's format allows it | yes, `DELETE` where the table's format allows it | the table's own, `Serializable` in Delta; none named | this record, after the two above |
+| `spark`, a Delta table over Spark SQL | one table, one statement: an atomic table commit, a scope of one participant | yes | yes, `UPDATE` where the table's format allows it | yes, `DELETE` where the table's format allows it | the table's own, `Serializable` in Delta; none named | this record, phase 5: the module `io.db.spark`, the one-table rule and the statements, checked offline; not yet run against a lakehouse |
 | Delta Lake, Iceberg, as kinds over `io.store` ([HQL-0048](../HQL-0048/README.md)) | one table: a snapshot commit; several tables only through a catalog that commits them together, which this record does not require and [HQL-0052](../HQL-0052/README.md) treats as one commit domain | yes | yes, by rewriting the files that hold the rows | yes, likewise | snapshot | design direction |
 | `kafka`, `nats`, `nats_jetstream` | no: a broker's transaction is over messages and offsets, a separate record | no: a message is `sink` | no | no | — | — |
 | `csv`, `json`, `json_lines`, `yaml`, `file` | no: `target` already replaces one file atomically ([HQL-0021](../HQL-0021/README.md)), which is an atomic write of one endpoint and not a scope | no | no | no | — | — |
@@ -1166,3 +1166,10 @@ cargo clippy --locked --all-targets -- -D warnings
   reported. Not built: the warning on a discarded scope, the `Stream`
   rule, a scope in a function's value block, the warning on a
   non-participant write under `attempts > 1`, and the `spark` kind
+- 2026-11-13: phase 5 implemented offline: `io.db.spark` with `Spark` and
+  `spark(table = …, url_env = …)`, the four capabilities, a scope of one
+  `spark` participant with at most one statement that changes it and no
+  isolation named, and `update` and `delete` run as one Spark SQL
+  statement with its values written as literals, the count read from
+  `num_affected_rows` where the table reports one. Not run against Spark
+  3.5 with Delta 3.3 yet

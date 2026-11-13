@@ -35,6 +35,7 @@ pub mod postgres;
 pub(crate) mod regex;
 pub(crate) mod result;
 pub mod semantic;
+pub mod spark;
 pub(crate) mod seq;
 pub mod spec;
 pub mod sqlite;
@@ -477,6 +478,14 @@ static POSTGRES: Extension = Extension {
     metadata: None,
 };
 
+static SPARK: Extension = Extension {
+    name: "io.db.spark",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.db.spark"],
+    steps: spark::STEPS,
+    metadata: None,
+};
+
 static TRANSACTION: Extension = Extension {
     name: "io.transaction",
     version: env!("CARGO_PKG_VERSION"),
@@ -596,6 +605,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &LOGGING,
     &SQLITE,
     &POSTGRES,
+    &SPARK,
     &TRANSACTION,
     &NATS,
     &NATS_JETSTREAM,
