@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: verify_data checks a signature over the canonical JSON of a tree, and a changed member fails it
-// implementation: pending
-// proposal: doc/proposals/HQL-0053/parts/03-signatures-macs-passwords.md
+// implementation: implemented
 // environment: pure
 // io: sandbox
 // expected-type: Seq<Bool>

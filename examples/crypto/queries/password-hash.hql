@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: hash_password writes an Argon2id PHC string, and verify_password accepts only the password it was made from
-// implementation: pending
-// proposal: doc/proposals/HQL-0053/parts/03-signatures-macs-passwords.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<Bool>
 // expected: [true, false, true]

@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: an Ed25519 key read from PKCS #8 PEM signs as RFC 8032 test 1 says
-// implementation: pending
-// proposal: doc/proposals/HQL-0053/parts/03-signatures-macs-passwords.md
+// implementation: implemented
 // environment: pure
 // io: sandbox
 // expected-type: String
