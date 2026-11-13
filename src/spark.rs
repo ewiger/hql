@@ -683,12 +683,12 @@ fn base64(bytes: &[u8]) -> String {
 }
 
 /// A name quoted as an SQL identifier, so it is read exactly as written.
-fn quoted(name: &str) -> String {
+pub(crate) fn quoted(name: &str) -> String {
     format!("`{}`", name.replace('`', "``"))
 }
 
 /// A table name, qualified where it holds dots: `main.sales.orders`.
-fn table_name(table: &str) -> String {
+pub(crate) fn table_name(table: &str) -> String {
     table.split('.').map(quoted).collect::<Vec<_>>().join(".")
 }
 
@@ -696,7 +696,7 @@ fn table_name(table: &str) -> String {
 /// punctuation is written between quotes; any other text is written as the
 /// hexadecimal digits of its bytes, so no character of a value is ever read
 /// as SQL, whatever the session's rules for escapes are.
-fn literal(text: &str) -> String {
+pub(crate) fn literal(text: &str) -> String {
     let plain = text.chars().all(|c| {
         c.is_ascii_alphanumeric()
             || matches!(c, ' ' | '-' | '_' | '.' | ':' | ',' | '+' | '/' | '@')
@@ -719,6 +719,39 @@ fn cast(value: Option<&str>, ty: &str) -> String {
 
 fn located(table: &str) -> impl Fn(String) -> String + '_ {
     move |message| format!("table `{table}`: {message}")
+}
+
+/// Run one statement that changes rows, `UPDATE` or `DELETE`, and give the
+/// number of rows it changed where the endpoint reports one, as a Delta
+/// table does in `num_affected_rows` (HQL-0051). A concurrent writer's
+/// refusal is noted as a conflict for the transaction scope it happened in.
+///
+/// # Errors
+/// Names what failed: the session, or the statement as the endpoint
+/// refused it.
+pub(crate) fn execute(server: &Server, statement: &str) -> Result<Option<i64>, String> {
+    let session = Session::open(server)?;
+    let operation = session.execute(statement).inspect_err(|message| {
+        if message.contains("Concurrent")
+            || message.contains("ProtocolChanged")
+            || message.contains("MetadataChanged")
+        {
+            crate::transaction::note_conflict();
+        }
+    })?;
+    let count = if operation.has_result {
+        session.result(&operation).ok().and_then(|(types, rows)| {
+            let (_, ty) = types.first()?;
+            match value_of(rows.first()?.first()?.clone()?, ty)? {
+                Data::Int(n) => Some(n),
+                _ => None,
+            }
+        })
+    } else {
+        None
+    };
+    session.close(&operation);
+    Ok(count)
 }
 
 /// The columns of one table, each its name and its type's name, `BIGINT`,

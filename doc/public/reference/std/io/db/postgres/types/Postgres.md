@@ -1,0 +1,16 @@
+<!-- hql reference: std/io/db/postgres.Postgres -->
+# `Postgres`
+
+In [`std/io/db/postgres`](../index.md).
+
+```hql
+type Postgres : {Network, RowTransport, Replayable, Writable, Transactional, Insertable, Updatable, Deletable}
+```
+
+One table of a PostgreSQL database. It is on the network and carries
+rows of named columns, so it takes no format. A table ends and reads the
+same rows each time in one evaluation, so it is `Replayable`: read, it
+is a `Seq`, a row per element. The database is one atomic scope over
+every table it holds, and a table's rows are inserted, changed and
+removed in place (HQL-0051).
+<!-- hql reference: end -->

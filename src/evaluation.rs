@@ -598,7 +598,7 @@ impl Evaluator<'_> {
                 if crate::extensions::io::reads(step) {
                     // A configured endpoint is read through its boundary.
                     if step.name == "source"
-                        && let Value::Str(id) = &value
+                        && let Some(id) = crate::extensions::io::configured_id(&value)
                     {
                         let mut warnings = Vec::new();
                         let read = crate::extensions::io::configured_source(
@@ -697,6 +697,215 @@ impl Evaluator<'_> {
                 }
             }
             Kind::Match { subject, arms } => self.matched(subject, arms, span),
+            Kind::Mutation {
+                verb,
+                target,
+                rows,
+                row,
+                filters,
+                set,
+                ..
+            } => crate::mutation::run(
+                self,
+                *verb,
+                target,
+                rows.as_deref(),
+                row,
+                filters,
+                set.as_ref(),
+                &span,
+            ),
+            Kind::Transaction {
+                handle,
+                attempts,
+                isolation,
+                participants,
+                body,
+                committed,
+                ..
+            } => self.transaction_scope(
+                handle.as_deref(),
+                attempts.as_deref(),
+                isolation.as_deref(),
+                participants,
+                body,
+                committed,
+                &span,
+            ),
+        }
+    }
+
+    /// Run a transaction scope (HQL-0051): attempts over one atomic scope
+    /// until one commits, the handle's control calls end one early, or the
+    /// attempts are exhausted. The block's bindings are its own.
+    #[expect(clippy::too_many_arguments, reason = "the lowered node's parts")]
+    fn transaction_scope(
+        &mut self,
+        handle: Option<&str>,
+        attempts: Option<&Expr>,
+        isolation: Option<&str>,
+        participants: &Expr,
+        body: &[crate::execution::ScopeStmt],
+        committed: &TypeRef,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        use crate::transaction::{self, Class, Control};
+        let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
+        let attempts = match attempts {
+            Some(written) => match self.expression(written)? {
+                Value::Int(n) if n >= 1 => n,
+                Value::Int(n) => {
+                    return Err(Diagnostic::runtime(
+                        written.span.clone(),
+                        format!("`attempts` is at least 1, not {n}"),
+                    ));
+                }
+                other => {
+                    return Err(Diagnostic::runtime(
+                        written.span.clone(),
+                        format!("`attempts` is an Int, not {}", other.type_of()),
+                    ));
+                }
+            },
+            None => 1,
+        };
+        let participants = match self.expression(participants)? {
+            Value::Endpoint(endpoint) => vec![endpoint],
+            Value::Set(members, _) => members
+                .iter()
+                .map(|member| match member {
+                    Value::Endpoint(endpoint) => Ok(Arc::clone(endpoint)),
+                    other => Err(Diagnostic::runtime(
+                        participants.span.clone(),
+                        format!("a participant is an endpoint, not {}", other.type_of()),
+                    )),
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            other => {
+                return Err(Diagnostic::runtime(
+                    participants.span.clone(),
+                    format!(
+                        "a transaction's participants are endpoints, not {}",
+                        other.type_of()
+                    ),
+                ));
+            }
+        };
+        let system = crate::mutation::shared_system(&participants, self.vault).map_err(failed)?;
+        // A `TransactionFailure` record, as an `Invalid` is built: its
+        // fields in declaration order, the optional ones absent.
+        let failure = |kind: &str, reason: String, attempt: i64, detail: Option<String>| {
+            use crate::data::Data;
+            let detail = match detail {
+                Some(message) => {
+                    let mut held = std::collections::BTreeMap::new();
+                    held.insert("message".to_owned(), Data::Str(message));
+                    Value::Present(Arc::new(Value::Data(Arc::new(Data::Map(held)))))
+                }
+                None => Value::Absent(TypeRef::DATA),
+            };
+            let record = Value::Record(Arc::new(crate::types::Record {
+                ty: TypeRef::TRANSACTION_FAILURE,
+                fields: vec![
+                    ("kind".to_owned(), Value::Str(kind.into())),
+                    ("reason".to_owned(), Value::Str(reason.into())),
+                    ("attempts".to_owned(), Value::Int(attempt)),
+                    ("endpoint".to_owned(), Value::Absent(TypeRef::STR)),
+                    ("detail".to_owned(), detail),
+                ],
+                carrier: None,
+            }));
+            Value::Err(Arc::new(record), committed.clone())
+        };
+        let outer = self.scope.clone();
+        let mut attempt = 0;
+        loop {
+            attempt += 1;
+            transaction::begin(&system, isolation).map_err(failed)?;
+            if let Some(name) = handle {
+                self.scope.insert(
+                    name.to_owned(),
+                    Value::Endpoint(Arc::new(crate::io::Endpoint::Transaction)),
+                );
+            }
+            let mut last = Value::Unit;
+            let mut outcome = Ok(());
+            for line in body {
+                let produced = match line {
+                    crate::execution::ScopeStmt::Bind { name, value } => {
+                        match self.expression(value) {
+                            Ok(value) => {
+                                self.scope.insert(name.clone(), value);
+                                Ok(Value::Unit)
+                            }
+                            Err(error) => Err(error),
+                        }
+                    }
+                    crate::execution::ScopeStmt::Expr(value) => self.expression(value),
+                };
+                match produced {
+                    Ok(value) => last = value,
+                    Err(error) => {
+                        outcome = Err(error);
+                        break;
+                    }
+                }
+            }
+            self.scope = outer.clone();
+            let control = transaction::take_control();
+            let more = attempt < attempts;
+            match (outcome, control) {
+                (Ok(()), None) | (Err(_), Some(Control::Commit(_))) if false => unreachable!(),
+                (Ok(()), _) | (Err(_), Some(Control::Commit(_))) => {
+                    let value = match transaction::take_control_value() {
+                        Some(value) => value,
+                        None => last,
+                    };
+                    match transaction::commit() {
+                        Ok(()) => {
+                            return Ok(Value::Ok(Arc::new(value), TypeRef::TRANSACTION_FAILURE));
+                        }
+                        Err((Some(Class::Conflict), _)) if more => continue,
+                        Err((Some(Class::Conflict), message)) => {
+                            return Ok(failure("conflict", message, attempt, None));
+                        }
+                        Err((Some(Class::Constraint), message)) => {
+                            return Ok(failure("constraint", message, attempt, None));
+                        }
+                        Err((None, message)) => return Err(failed(message)),
+                    }
+                }
+                (Err(_), Some(Control::Rollback(reason))) => {
+                    transaction::rollback();
+                    return Ok(failure("rolled_back", reason, attempt, None));
+                }
+                (Err(_), Some(Control::Retry)) => {
+                    transaction::rollback();
+                    if more {
+                        continue;
+                    }
+                    return Ok(failure(
+                        "exhausted",
+                        format!("`retry` asked for another attempt after {attempt}"),
+                        attempt,
+                        None,
+                    ));
+                }
+                (Err(error), None) => {
+                    let class = transaction::take_failure();
+                    transaction::rollback();
+                    match class {
+                        Some(Class::Conflict) if more => continue,
+                        Some(Class::Conflict) => {
+                            return Ok(failure("conflict", error.message.clone(), attempt, None));
+                        }
+                        Some(Class::Constraint) => {
+                            return Ok(failure("constraint", error.message.clone(), attempt, None));
+                        }
+                        None => return Err(error),
+                    }
+                }
+            }
         }
     }
 

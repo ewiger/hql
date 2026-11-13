@@ -325,6 +325,47 @@ pub(crate) enum Kind {
         condition: Box<Expr>,
         otherwise: Option<Box<Expr>>,
     },
+    /// `insert E rows`, `update E | … | set(f)` or `delete E | …`: one
+    /// statement of the endpoint's system over the rows it holds, its
+    /// value the number of rows it changed (HQL-0051). Each lambda is kept
+    /// as its parameter and its body, translated where the statement runs.
+    Mutation {
+        verb: crate::ast::Verb,
+        target: Box<Expr>,
+        rows: Option<Box<Expr>>,
+        /// The rows' type: the configured element, or what `of_type` names.
+        row: TypeRef,
+        filters: Vec<(String, Expr)>,
+        set: Option<(String, Vec<(String, Expr)>)>,
+        plan: StepPlan,
+    },
+    /// `with transaction(…) tx on participants { … }`: the block run as
+    /// attempts over one atomic scope, its value a `Result` (HQL-0051).
+    Transaction {
+        handle: Option<String>,
+        attempts: Option<Box<Expr>>,
+        isolation: Option<String>,
+        participants: Box<Expr>,
+        body: Vec<ScopeStmt>,
+        /// The type the scope commits with, the `ok` of its `Result`.
+        committed: TypeRef,
+        plan: StepPlan,
+    },
+}
+
+/// One line of a transaction scope's block, lowered.
+#[derive(Debug)]
+pub(crate) enum ScopeStmt {
+    Bind { name: String, value: Expr },
+    Expr(Expr),
+}
+
+impl ScopeStmt {
+    pub(crate) fn value(&self) -> &Expr {
+        match self {
+            Self::Bind { value, .. } | Self::Expr(value) => value,
+        }
+    }
 }
 
 /// What a step invokes, as a planner reads it: the operation's name, its
@@ -387,6 +428,10 @@ impl Expr {
             Kind::Step { plan, input, .. }
             | Kind::Tee { plan, input, .. }
             | Kind::Fork { plan, input, .. } => Some((plan, input)),
+            Kind::Mutation { plan, target, .. } => Some((plan, target)),
+            Kind::Transaction {
+                plan, participants, ..
+            } => Some((plan, participants)),
             Kind::Combine {
                 plan: Some(plan),
                 left,
@@ -504,6 +549,29 @@ impl Expr {
             } => [value.as_ref(), condition.as_ref()]
                 .into_iter()
                 .chain(otherwise.as_deref())
+                .collect(),
+            Kind::Mutation {
+                target,
+                rows,
+                filters,
+                set,
+                ..
+            } => std::iter::once(target.as_ref())
+                .chain(rows.as_deref())
+                .chain(filters.iter().map(|(_, body)| body))
+                .chain(
+                    set.iter()
+                        .flat_map(|(_, entries)| entries.iter().map(|(_, value)| value)),
+                )
+                .collect(),
+            Kind::Transaction {
+                participants,
+                attempts,
+                body,
+                ..
+            } => std::iter::once(participants.as_ref())
+                .chain(attempts.as_deref())
+                .chain(body.iter().map(ScopeStmt::value))
                 .collect(),
         }
     }
@@ -793,6 +861,12 @@ pub(crate) struct Checked {
     pub signatures: Vec<(String, TypeRef)>,
     /// Each effectful function, with the effectful operations it uses.
     pub effects: Vec<(String, Vec<String>)>,
+    /// Each mutation, by its span, with the type of the rows it changes
+    /// (HQL-0051).
+    pub mutations: HashMap<Range<usize>, TypeRef>,
+    /// Each transaction scope, by its span, with the type it commits with
+    /// (HQL-0051).
+    pub transactions: HashMap<Range<usize>, TypeRef>,
 }
 
 impl Checked {
@@ -1584,6 +1658,104 @@ impl Checked {
                 condition: boxed(condition)?,
                 otherwise: otherwise.as_deref().map(boxed).transpose()?,
             },
+            A::Mutation {
+                verb,
+                target,
+                rows,
+                steps,
+            } => {
+                use crate::ast::MutationStepKind;
+                let row = self.mutations.get(&span).cloned().ok_or_else(|| {
+                    Diagnostic::typing(span.clone(), "a mutation that was not checked")
+                })?;
+                fn lambda(lambda: &ast::Expr) -> Result<(String, &ast::Expr), Diagnostic> {
+                    match &lambda.kind {
+                        A::Lambda {
+                            parameters, body, ..
+                        } if parameters.len() == 1 => Ok((parameters[0].clone(), body)),
+                        _ => Err(Diagnostic::typing(
+                            lambda.span.clone(),
+                            "a mutation's clause takes a lambda of one row",
+                        )),
+                    }
+                }
+                let mut filters = Vec::new();
+                let mut set = None;
+                for step in steps {
+                    match &step.kind {
+                        MutationStepKind::OfType(_) => {}
+                        MutationStepKind::Filter(written) => {
+                            let (parameter, body) = lambda(written)?;
+                            filters.push((parameter, self.expression(body)?));
+                        }
+                        MutationStepKind::Set(written) => {
+                            let (parameter, body) = lambda(written)?;
+                            let A::Data(entries) = &body.kind else {
+                                return Err(Diagnostic::typing(
+                                    body.span.clone(),
+                                    "`set` gives the fields that change as a tree",
+                                ));
+                            };
+                            let entries = entries
+                                .iter()
+                                .map(|(key, value)| Ok((key.clone(), self.expression(value)?)))
+                                .collect::<Result<Vec<_>, Diagnostic>>()?;
+                            set = Some((parameter, entries));
+                        }
+                    }
+                }
+                Kind::Mutation {
+                    verb: *verb,
+                    target: boxed(target)?,
+                    rows: rows.as_deref().map(boxed).transpose()?,
+                    row,
+                    filters,
+                    set,
+                    plan: StepPlan::new(OperationType {
+                        name: verb.word().to_owned(),
+                        shape: Shape::Barrier,
+                        purity: Purity::Effectful,
+                        presentation: false,
+                    }),
+                }
+            }
+            A::Transaction {
+                handle,
+                attempts,
+                isolation,
+                participants,
+                body,
+            } => {
+                let committed = self.transactions.get(&span).cloned().ok_or_else(|| {
+                    Diagnostic::typing(span.clone(), "a transaction that was not checked")
+                })?;
+                let body = body
+                    .iter()
+                    .map(|line| {
+                        Ok(match line {
+                            ast::ScopeStmt::Bind { name, value, .. } => ScopeStmt::Bind {
+                                name: name.clone(),
+                                value: self.expression(value)?,
+                            },
+                            ast::ScopeStmt::Expr(value) => ScopeStmt::Expr(self.expression(value)?),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                Kind::Transaction {
+                    handle: handle.as_ref().map(|(name, _)| name.clone()),
+                    attempts: attempts.as_deref().map(boxed).transpose()?,
+                    isolation: isolation.as_ref().map(|(level, _)| level.clone()),
+                    participants: boxed(participants)?,
+                    body,
+                    committed,
+                    plan: StepPlan::new(OperationType {
+                        name: "transaction".to_owned(),
+                        shape: Shape::Barrier,
+                        purity: Purity::Effectful,
+                        presentation: false,
+                    }),
+                }
+            }
             A::Call { callee, arguments } => {
                 if let Some(step) = self.steps.get(&span) {
                     // No positional input written: the input is `Unit`.

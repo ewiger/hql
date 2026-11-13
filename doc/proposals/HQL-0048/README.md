@@ -158,8 +158,8 @@ one package provides any number of modules
 | Module | Status |
 | --- | --- |
 | `io.net`: `http`, `websocket`, `tcp` | implemented |
-| `io.db.sqlite`, `io.msg.nats`, `io.msg.nats_jetstream` | implemented, as kinds and as modules |
-| `io.db.postgres`, `io.db.spark`, `io.msg.kafka` | implemented as kinds; modules by this record |
+| `io.db.sqlite`, `io.db.postgres`, `io.db.spark`, `io.msg.nats`, `io.msg.nats_jetstream` | implemented, as kinds and as modules |
+| `io.msg.kafka` | implemented as a kind; the module by this record |
 | `io.net`: `rest`, `graphql`, `webhook` | specified by [HQL-0047](../HQL-0047/README.md); not implemented |
 | `io.net`: `grpc`, `feed` | design direction |
 | `io.db`: `redis`, `couchdb`, `mongodb`, `clickhouse`, `duckdb`, `cassandra`, `opensearch`, `neo4j` | design direction |

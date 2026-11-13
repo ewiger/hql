@@ -649,6 +649,18 @@ struct Checker<'a> {
     /// What this program has declared.
     declarations: Declarations,
     checked: Checked,
+    /// Each binding whose value is `configured("id")`, by the id, so a
+    /// mutation over the binding reads the rows' type from the endpoint's
+    /// configuration as one over the call does (HQL-0051).
+    configured_bindings: HashMap<String, String>,
+    /// Each binding whose value names endpoints: a constructor call, a
+    /// `configured` call, or a set literal of such bindings, as the
+    /// participants of a transaction scope are resolved (HQL-0051).
+    endpoint_bindings: HashMap<String, Vec<Participant>>,
+    /// The transaction scope being checked, with its participants' names
+    /// and ids, where one is: a scope inside it is refused, and a
+    /// `Transactional` endpoint that is no participant is.
+    in_transaction: Option<Vec<String>>,
     /// Declared functions whose last parameter collects trailing arguments,
     /// with their parameter count.
     variadic: HashMap<String, usize>,
@@ -1142,6 +1154,9 @@ impl<'a> Checker<'a> {
             resolution,
             declarations: Declarations::default(),
             checked: Checked::default(),
+            configured_bindings: HashMap::new(),
+            endpoint_bindings: HashMap::new(),
+            in_transaction: None,
             variadic: HashMap::new(),
             parameter_names: HashMap::new(),
             generic_functions: HashMap::new(),
@@ -1405,6 +1420,51 @@ impl<'a> Checker<'a> {
             Kind::Fork { branches } => branches
                 .iter()
                 .find_map(|(_, branch)| self.read_beyond(branch, bound)),
+            Kind::Transaction {
+                participants,
+                body,
+                handle,
+                attempts,
+                ..
+            } => self
+                .read_beyond(participants, bound)
+                .or_else(|| {
+                    attempts
+                        .as_deref()
+                        .and_then(|attempts| self.read_beyond(attempts, bound))
+                })
+                .or_else(|| {
+                    if let Some((name, _)) = handle {
+                        bound.push(name.clone());
+                    }
+                    body.iter().find_map(|line| {
+                        let found = self.read_beyond(line.value(), bound);
+                        if let crate::ast::ScopeStmt::Bind { name, .. } = line {
+                            bound.push(name.clone());
+                        }
+                        found
+                    })
+                }),
+            Kind::Mutation {
+                target,
+                rows,
+                steps,
+                ..
+            } => self
+                .read_beyond(target, bound)
+                .or_else(|| {
+                    rows.as_deref()
+                        .and_then(|rows| self.read_beyond(rows, bound))
+                })
+                .or_else(|| {
+                    steps.iter().find_map(|step| match &step.kind {
+                        crate::ast::MutationStepKind::OfType(_) => None,
+                        crate::ast::MutationStepKind::Filter(lambda)
+                        | crate::ast::MutationStepKind::Set(lambda) => {
+                            self.read_beyond(lambda, bound)
+                        }
+                    })
+                }),
             Kind::Given {
                 value,
                 condition,
@@ -1595,6 +1655,22 @@ impl<'a> Checker<'a> {
                         self.scope.insert(name.clone(), declared);
                     } else {
                         self.scope.insert(name.clone(), inferred);
+                    }
+                    match crate::extensions::io::literal_endpoint_id(value) {
+                        Some(id) if !matches!(value.kind, Kind::Str(_)) => {
+                            self.configured_bindings.insert(name.clone(), id.to_owned());
+                        }
+                        _ => {
+                            self.configured_bindings.remove(name);
+                        }
+                    }
+                    match self.participants_of(value) {
+                        Ok(held) => {
+                            self.endpoint_bindings.insert(name.clone(), held);
+                        }
+                        Err(_) => {
+                            self.endpoint_bindings.remove(name);
+                        }
                     }
                     TypeRef::UNIT
                 }
@@ -5330,6 +5406,26 @@ impl<'a> Checker<'a> {
                     )
                 }
             }),
+            Kind::Mutation {
+                verb,
+                target,
+                rows,
+                steps,
+            } => self.mutation(*verb, target, rows.as_deref(), steps, span),
+            Kind::Transaction {
+                handle,
+                attempts,
+                isolation,
+                participants,
+                body,
+            } => self.transaction(
+                handle.as_ref(),
+                attempts.as_deref(),
+                isolation.as_ref(),
+                participants,
+                body,
+                span,
+            ),
             Kind::Given {
                 value,
                 condition,
@@ -5691,17 +5787,26 @@ impl<'a> Checker<'a> {
                     // declared without one, its input `Unit`: `now()`.
                     if arguments.first().is_none_or(|first| first.name.is_some()) {
                         self.not_declared_below(name, &span)?;
-                        if let Ok(step) = self.resolution.step_for(
+                        match self.resolution.step_for(
                             name,
                             &TypeRef::UNIT,
                             0,
                             &written_names(arguments),
                             &span,
-                        ) && step.takes_no_input()
-                        {
-                            self.checked.steps.insert(span.clone(), step);
-                            self.using(step.name, step.effectful_in_every_form());
-                            return self.step(step, &TypeRef::UNIT, None, arguments, span);
+                        ) {
+                            Ok(step) if step.takes_no_input() => {
+                                self.checked.steps.insert(span.clone(), step);
+                                self.using(step.name, step.effectful_in_every_form());
+                                return self.step(step, &TypeRef::UNIT, None, arguments, span);
+                            }
+                            // A name no import offers is reported as such,
+                            // not as a call missing its input.
+                            Err(refused)
+                                if refused.kind == crate::diagnostics::Kind::UnknownName =>
+                            {
+                                return Err(refused);
+                            }
+                            _ => {}
                         }
                     }
                     let Some((input, arguments)) = arguments.split_first() else {
@@ -6166,9 +6271,944 @@ impl<'a> Checker<'a> {
     }
 }
 
+// Mutations (HQL-0051): `insert`, `update … set` and `delete` over an
+// endpoint with the capability, each one statement of the endpoint's
+// system, so the lambdas they hold are restricted to what is translated.
+impl Checker<'_> {
+    fn mutation(
+        &mut self,
+        verb: crate::ast::Verb,
+        target: &Expr,
+        rows: Option<&Expr>,
+        steps: &[crate::ast::MutationStep],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        use crate::ast::{MutationStepKind, Verb};
+        if matches!(crate::io::policy(), crate::io::Policy::Document { .. }) {
+            return Err(Diagnostic::typing(
+                span,
+                format!(
+                    "a document changes no table: `{}` is refused while a document is rendered",
+                    verb.word()
+                ),
+            ));
+        }
+        let endpoint = self.expression(target)?;
+        let capability = match verb {
+            Verb::Insert => TypeRef::INSERTABLE,
+            Verb::Update => TypeRef::UPDATABLE,
+            Verb::Delete => TypeRef::DELETABLE,
+        };
+        if !endpoint.is(&capability) {
+            return Err(Diagnostic::typing(
+                target.span.clone(),
+                format!(
+                    "`{}` changes the rows of an endpoint that is `{}`, and {endpoint} is not one",
+                    verb.word(),
+                    verb.capability()
+                ),
+            ));
+        }
+        // The rows' type: the element the endpoint's configuration names,
+        // `Data` otherwise, and what `of_type` narrows it to.
+        let id = crate::extensions::io::literal_endpoint_id(target)
+            .map(str::to_owned)
+            .or_else(|| match &target.kind {
+                Kind::Ident(name) => self.configured_bindings.get(name).cloned(),
+                _ => None,
+            });
+        let mut row = id
+            .map(|id| crate::extensions::io::configured_element(&id, self.vault))
+            .transpose()
+            .map_err(|message| Diagnostic::typing(target.span.clone(), message))?
+            .flatten()
+            .unwrap_or(TypeRef::DATA);
+        for step in steps {
+            match &step.kind {
+                MutationStepKind::OfType(name) => {
+                    let narrowed = crate::types::named(name, &[]).ok_or_else(|| {
+                        Diagnostic::name(step.span.clone(), format!("unknown type `{name}`"))
+                    })?;
+                    if crate::types::program::record(name).is_none() {
+                        return Err(Diagnostic::typing(
+                            step.span.clone(),
+                            format!(
+                                "`of_type` in a `{}` names the declared record the rows are, and \
+                                 {narrowed} is not one",
+                                verb.word()
+                            ),
+                        ));
+                    }
+                    if row != TypeRef::DATA && !narrowed.is(&row) {
+                        return Err(Diagnostic::typing(
+                            step.span.clone(),
+                            format!("the rows are {row}, which {narrowed} does not narrow"),
+                        ));
+                    }
+                    row = narrowed;
+                }
+                MutationStepKind::Filter(lambda) => {
+                    let (parameter, body) = row_lambda(lambda)?;
+                    let produced = self
+                        .with_bindings([(parameter.to_owned(), row.clone())], |checker| {
+                            checker.expression(body)
+                        })?;
+                    if produced != TypeRef::BOOL {
+                        return Err(Diagnostic::typing(
+                            body.span.clone(),
+                            format!("a `filter` predicate gives a Bool, not {produced}"),
+                        ));
+                    }
+                    translatable(verb, body, parameter)?;
+                }
+                MutationStepKind::Set(lambda) => {
+                    let (parameter, body) = row_lambda(lambda)?;
+                    let Kind::Data(entries) = &body.kind else {
+                        return Err(Diagnostic::typing(
+                            body.span.clone(),
+                            "`set` gives the fields that change as a tree: \
+                             `set(a => {balance: a.balance - 100})`",
+                        ));
+                    };
+                    if entries.is_empty() {
+                        return Err(Diagnostic::typing(
+                            body.span.clone(),
+                            "`set` names at least one field that changes",
+                        ));
+                    }
+                    let shape = crate::types::program::record(row.constructor.0);
+                    for (key, value) in entries {
+                        let produced = self
+                            .with_bindings([(parameter.to_owned(), row.clone())], |checker| {
+                                checker.expression(value)
+                            })?;
+                        if let Some(shape) = &shape {
+                            let declared = shape.field_type(&row.args, key).ok_or_else(|| {
+                                Diagnostic::typing(
+                                    value.span.clone(),
+                                    format!("{row} declares no field `{key}`"),
+                                )
+                            })?;
+                            let fits = produced.is(&declared) || produced.is(declared.present());
+                            if !fits {
+                                return Err(Diagnostic::typing(
+                                    value.span.clone(),
+                                    format!(
+                                        "`{key}` of {row} is {declared}, and `set` gives it {produced}"
+                                    ),
+                                ));
+                            }
+                        }
+                        translatable(verb, value, parameter)?;
+                    }
+                }
+            }
+        }
+        if let Some(rows) = rows {
+            let written = self.expression(rows)?;
+            let element = if written.is_collection() || written.constructor.0 == "Table" {
+                written
+                    .iterated()
+                    .or_else(|| written.args.first().cloned())
+                    .unwrap_or(TypeRef::DATA)
+            } else {
+                written.clone()
+            };
+            if element == TypeRef::DATA {
+                if row == TypeRef::DATA {
+                    return Err(Diagnostic::typing(
+                        rows.span.clone(),
+                        "`insert` adds rows of a declared record: write one, \
+                         `Transfer(from_id = 1, …)`, or name the endpoint's `element` in its \
+                         configuration so a tree is read as one",
+                    ));
+                }
+            } else if !crate::types::program::record(element.constructor.0)
+                .is_some_and(|shape| !shape.fields.is_empty())
+            {
+                return Err(Diagnostic::typing(
+                    rows.span.clone(),
+                    format!("`insert` adds rows of a declared record, and {element} is not one"),
+                ));
+            } else if row != TypeRef::DATA && !element.is(&row) {
+                return Err(Diagnostic::typing(
+                    rows.span.clone(),
+                    format!("the endpoint holds rows of {row}, and `insert` is given {element}"),
+                ));
+            }
+        }
+        self.using(verb.word(), true);
+        self.checked.mutations.insert(span, row);
+        Ok(TypeRef::INT)
+    }
+}
+
+/// The one parameter and the body of a lambda of one row.
+fn row_lambda(lambda: &Expr) -> Result<(&str, &Expr), Diagnostic> {
+    match &lambda.kind {
+        Kind::Lambda {
+            parameters, body, ..
+        } if parameters.len() == 1 => Ok((parameters[0].as_str(), body)),
+        _ => Err(Diagnostic::typing(
+            lambda.span.clone(),
+            "a mutation's clause takes a lambda of one row",
+        )),
+    }
+}
+
+/// Whether an expression reads `name`: a lambda or a block inside it is
+/// taken to, so that no translation looks into one.
+fn mentions(expression: &Expr, name: &str) -> bool {
+    match &expression.kind {
+        Kind::Ident(held) => held == name,
+        Kind::Int(_)
+        | Kind::Float(_)
+        | Kind::Decimal(_)
+        | Kind::Bool(_)
+        | Kind::Str(_)
+        | Kind::DocRef(_) => false,
+        Kind::List(values) | Kind::Set(values) => values.iter().any(|value| mentions(value, name)),
+        Kind::Construct { arguments, .. } | Kind::Call { arguments, .. } => {
+            let callee = match &expression.kind {
+                Kind::Call { callee, .. } => mentions(callee, name),
+                _ => false,
+            };
+            callee
+                || arguments
+                    .iter()
+                    .any(|argument| mentions(&argument.value, name))
+        }
+        Kind::Data(entries) => entries.iter().any(|(_, value)| mentions(value, name)),
+        Kind::Arith(_, left, right)
+        | Kind::Logic(_, left, right)
+        | Kind::Pipe(left, right)
+        | Kind::Index(left, right) => mentions(left, name) || mentions(right, name),
+        Kind::Compare { left, right, .. } | Kind::Relate { left, right, .. } => {
+            mentions(left, name) || mentions(right, name)
+        }
+        Kind::Not(inner) | Kind::Field(inner, _) => mentions(inner, name),
+        Kind::Slice(inner, start, end) => {
+            mentions(inner, name)
+                || start.as_deref().is_some_and(|bound| mentions(bound, name))
+                || end.as_deref().is_some_and(|bound| mentions(bound, name))
+        }
+        Kind::Link {
+            source,
+            target,
+            data,
+        } => {
+            mentions(source, name)
+                || mentions(target, name)
+                || data.as_deref().is_some_and(|data| mentions(data, name))
+        }
+        Kind::Given {
+            value,
+            condition,
+            otherwise,
+        } => {
+            mentions(value, name)
+                || mentions(condition, name)
+                || otherwise
+                    .as_deref()
+                    .is_some_and(|other| mentions(other, name))
+        }
+        Kind::Block(_)
+        | Kind::Lambda { .. }
+        | Kind::Match { .. }
+        | Kind::Tee { .. }
+        | Kind::Fork { .. }
+        | Kind::Mutation { .. }
+        | Kind::Transaction { .. } => true,
+    }
+}
+
+/// One participant of a transaction scope as the checker knows it: how a
+/// statement in the block names it, its kind, and the system it is in,
+/// where the program or the configuration states one.
+#[derive(Debug, Clone)]
+struct Participant {
+    /// The binding name or the configured id a statement names it by.
+    names: Vec<String>,
+    kind: String,
+    system: Option<String>,
+    span: Range<usize>,
+}
+
+// Transaction scopes (HQL-0051): a block over a set of participants in one
+// atomic scope, committed when it ends, with a handle whose control calls
+// end an attempt early.
+impl Checker<'_> {
+    /// The participants an expression names, where they are known at check
+    /// time: a constructor call with literal arguments, `configured("id")`,
+    /// a binding of either, or a set literal of such.
+    fn participants_of(&self, expression: &Expr) -> Result<Vec<Participant>, String> {
+        let unknown = || {
+            "a transaction's participants are known when the program is checked: a set of \
+             endpoints bound by name or named by `configured(\"id\")`"
+                .to_owned()
+        };
+        match &expression.kind {
+            Kind::Set(elements) => {
+                let mut held = Vec::new();
+                for element in elements {
+                    held.extend(self.participants_of(element)?);
+                }
+                Ok(held)
+            }
+            Kind::Ident(name) => {
+                let Some(held) = self.endpoint_bindings.get(name) else {
+                    return Err(unknown());
+                };
+                Ok(held
+                    .iter()
+                    .map(|participant| {
+                        let mut named = participant.clone();
+                        if !named.names.contains(name) {
+                            named.names.push(name.clone());
+                        }
+                        named
+                    })
+                    .collect())
+            }
+            Kind::Call { callee, arguments } => {
+                let Kind::Ident(function) = &callee.kind else {
+                    return Err(unknown());
+                };
+                let literal = |name: &str| -> Option<String> {
+                    arguments
+                        .iter()
+                        .find(|argument| argument.name.as_deref() == Some(name))
+                        .or_else(|| {
+                            arguments
+                                .iter()
+                                .find(|argument| argument.name.is_none())
+                                .filter(|_| name == "path")
+                        })
+                        .and_then(|argument| match &argument.value.kind {
+                            Kind::Str(text) => Some(text.clone()),
+                            _ => None,
+                        })
+                };
+                match function.as_str() {
+                    "configured" => {
+                        let Some(id) = crate::extensions::io::literal_endpoint_id(expression)
+                        else {
+                            return Err(unknown());
+                        };
+                        let (kind, system) =
+                            crate::extensions::io::configured_system(id, self.vault)?;
+                        Ok(vec![Participant {
+                            names: vec![id.to_owned()],
+                            kind,
+                            system,
+                            span: expression.span.clone(),
+                        }])
+                    }
+                    "sqlite" => Ok(vec![Participant {
+                        names: Vec::new(),
+                        kind: "sqlite".to_owned(),
+                        system: literal("path"),
+                        span: expression.span.clone(),
+                    }]),
+                    "postgres" => Ok(vec![Participant {
+                        names: Vec::new(),
+                        kind: "postgres".to_owned(),
+                        system: literal("dsn_env"),
+                        span: expression.span.clone(),
+                    }]),
+                    "spark" => Ok(vec![Participant {
+                        names: Vec::new(),
+                        kind: "spark".to_owned(),
+                        system: literal("url_env").or_else(|| literal("url")),
+                        span: expression.span.clone(),
+                    }]),
+                    _ => Err(unknown()),
+                }
+            }
+            _ => Err(unknown()),
+        }
+    }
+
+    fn transaction(
+        &mut self,
+        handle: Option<&(String, Range<usize>)>,
+        attempts: Option<&Expr>,
+        isolation: Option<&(String, Range<usize>)>,
+        participants: &Expr,
+        body: &[crate::ast::ScopeStmt],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        use crate::ast::ScopeStmt;
+        if self.in_transaction.is_some() {
+            return Err(Diagnostic::typing(
+                span,
+                "a transaction scope is not written inside another: a nested scope is a \
+                 savepoint, which HQL-0051 reserves",
+            ));
+        }
+        if matches!(crate::io::policy(), crate::io::Policy::Document { .. }) {
+            return Err(Diagnostic::typing(
+                span,
+                "a document changes no table: a transaction scope is refused while a document is \
+                 rendered",
+            ));
+        }
+        if let Some(attempts) = attempts {
+            let ty = self.expression(attempts)?;
+            if ty != TypeRef::INT {
+                return Err(Diagnostic::typing(
+                    attempts.span.clone(),
+                    format!("`attempts` is an Int, not {ty}"),
+                ));
+            }
+        }
+        // The participants: one endpoint or a set of them, each
+        // `Transactional`, all in one atomic scope.
+        let ty = self.expression(participants)?;
+        let element = if ty.constructor.0 == "Set" {
+            ty.args.first().cloned().unwrap_or(TypeRef::NEVER)
+        } else {
+            ty.clone()
+        };
+        if !element.is(&TypeRef::TRANSACTIONAL) || element == TypeRef::NEVER {
+            return Err(Diagnostic::typing(
+                participants.span.clone(),
+                format!(
+                    "a transaction runs over a `Transactional` endpoint or a set of them, and \
+                     {ty} is neither"
+                ),
+            ));
+        }
+        let held = self
+            .participants_of(participants)
+            .map_err(|message| Diagnostic::typing(participants.span.clone(), message))?;
+        if let (Some(first), Some(other)) = (
+            held.first(),
+            held.iter()
+                .find(|participant| participant.kind != held[0].kind),
+        ) {
+            return Err(Diagnostic::typing(
+                other.span.clone(),
+                format!(
+                    "no one scope holds a `{}` and a `{}` endpoint: a transaction's participants \
+                     are in one system",
+                    first.kind, other.kind
+                ),
+            ));
+        }
+        if let Some(first) = held.iter().find(|participant| participant.system.is_some())
+            && let Some(other) = held.iter().find(|participant| {
+                participant.system.is_some() && participant.system != first.system
+            })
+        {
+            let what = if first.kind == "sqlite" {
+                "database file"
+            } else {
+                "database"
+            };
+            return Err(Diagnostic::typing(
+                other.span.clone(),
+                format!(
+                    "a transaction's participants are in one {what}, and these are in two: `{}` \
+                     and `{}`",
+                    first.system.as_deref().unwrap_or_default(),
+                    other.system.as_deref().unwrap_or_default()
+                ),
+            ));
+        }
+        // A Spark SQL endpoint commits one statement of one table: its
+        // scope holds one participant and at most one statement that
+        // changes it (HQL-0051, "Kinds").
+        if held.iter().any(|participant| participant.kind == "spark") {
+            if held.len() > 1 {
+                return Err(Diagnostic::typing(
+                    participants.span.clone(),
+                    "a `spark` scope holds one table: a Delta table commits one statement of \
+                     itself, and no scope spans two",
+                ));
+            }
+            let changing = body
+                .iter()
+                .filter(|line| changes_rows(line.value()))
+                .count();
+            if changing > 1 {
+                return Err(Diagnostic::typing(
+                    span.clone(),
+                    "a `spark` scope holds at most one statement that changes the table: each \
+                     is its own commit, so two are not one transaction",
+                ));
+            }
+        }
+        if let Some((level, level_span)) = isolation {
+            if !matches!(
+                level.as_str(),
+                "ReadCommitted" | "RepeatableRead" | "Serializable"
+            ) {
+                return Err(Diagnostic::typing(
+                    level_span.clone(),
+                    format!(
+                        "`{level}` is not an isolation level; `ReadCommitted`, `RepeatableRead` \
+                         and `Serializable` are"
+                    ),
+                ));
+            }
+            if held.iter().any(|participant| participant.kind == "spark") {
+                return Err(Diagnostic::typing(
+                    level_span.clone(),
+                    "a `spark` scope runs at the table's own isolation and names none",
+                ));
+            }
+            if held.iter().any(|participant| participant.kind == "sqlite")
+                && level != "Serializable"
+            {
+                return Err(Diagnostic::typing(
+                    level_span.clone(),
+                    format!("a `sqlite` scope offers `Serializable` only, not `{level}`"),
+                ));
+            }
+        }
+        let names: Vec<String> = held
+            .iter()
+            .flat_map(|participant| participant.names.iter().cloned())
+            .collect();
+        // The block: bindings scoped to it, the handle among them, and the
+        // scope's value the common type of its final value and of every
+        // `commit`.
+        let outer = self.scope.clone();
+        let was = self.in_transaction.replace(names.clone());
+        if let Some((name, name_span)) = handle {
+            self.lint(crate::naming::Kind::Binding, name, name_span);
+            self.scope.insert(name.clone(), TypeRef::TRANSACTION);
+        }
+        let checked = (|| -> Result<TypeRef, Diagnostic> {
+            let mut last = TypeRef::UNIT;
+            let mut commits: Vec<TypeRef> = Vec::new();
+            let count = body.len();
+            for (index, line) in body.iter().enumerate() {
+                let value = line.value();
+                if let Some((name, _)) = handle {
+                    handle_uses(value, name, true)?;
+                    collect_commits(value, name, &self.checked.types, &mut commits);
+                    if index + 1 < count && is_terminal(value, name) {
+                        return Err(Diagnostic::typing(
+                            body[index + 1].value().span.clone(),
+                            "this statement never runs: the one before it ends the transaction",
+                        ));
+                    }
+                }
+                self.only_participants(value, &names)?;
+                match line {
+                    ScopeStmt::Bind {
+                        name,
+                        name_span,
+                        value,
+                    } => {
+                        self.lint(crate::naming::Kind::Binding, name, name_span);
+                        let ty = self.expression(value)?;
+                        self.scope.insert(name.clone(), ty);
+                        last = TypeRef::UNIT;
+                    }
+                    ScopeStmt::Expr(value) => {
+                        last = self.expression(value)?;
+                    }
+                }
+                if let Some((name, _)) = handle {
+                    collect_commits(value, name, &self.checked.types, &mut commits);
+                }
+            }
+            let mut result = last;
+            for committed in commits {
+                result = result.common_type(&committed).ok_or_else(|| {
+                    Diagnostic::typing(
+                        span.clone(),
+                        format!(
+                            "the transaction commits {result} at its end and {committed} by \
+                             `commit`, which have no common type"
+                        ),
+                    )
+                })?;
+            }
+            Ok(result)
+        })();
+        self.scope = outer;
+        self.in_transaction = was;
+        let result = checked?;
+        self.using("transaction", true);
+        self.checked.transactions.insert(span, result.clone());
+        Ok(crate::types::builtin::RESULT.apply([result, TypeRef::TRANSACTION_FAILURE]))
+    }
+
+    /// Refuse a read or a write, in a transaction's block, of a
+    /// `Transactional` endpoint that is no participant: a binding or a
+    /// configured id the set does not hold.
+    fn only_participants(&self, expression: &Expr, names: &[String]) -> Result<(), Diagnostic> {
+        fn endpoint_of(expression: &Expr) -> Option<&Expr> {
+            match &expression.kind {
+                Kind::Call { callee, arguments } => match &callee.kind {
+                    Kind::Ident(name) if matches!(name.as_str(), "source" | "tap") => {
+                        arguments.first().map(|argument| &argument.value)
+                    }
+                    Kind::Ident(name) if matches!(name.as_str(), "target" | "sink") => arguments
+                        .iter()
+                        .find(|argument| argument.name.as_deref() == Some("endpoint"))
+                        .or_else(|| arguments.get(1))
+                        .map(|argument| &argument.value),
+                    _ => None,
+                },
+                Kind::Pipe(_, step) => match &step.kind {
+                    Kind::Call { callee, arguments } if matches!(&callee.kind, Kind::Ident(name) if matches!(name.as_str(), "target" | "sink")) => {
+                        arguments
+                            .iter()
+                            .find(|argument| argument.name.as_deref() == Some("endpoint"))
+                            .or_else(|| arguments.first())
+                            .map(|argument| &argument.value)
+                    }
+                    _ => None,
+                },
+                Kind::Mutation { target, .. } => Some(target),
+                _ => None,
+            }
+        }
+        if let Some(endpoint) = endpoint_of(expression) {
+            let key = match &endpoint.kind {
+                Kind::Ident(name) => Some((
+                    name.clone(),
+                    self.scope
+                        .get(name)
+                        .is_some_and(|ty| ty.is(&TypeRef::TRANSACTIONAL)),
+                )),
+                _ => crate::extensions::io::literal_endpoint_id(endpoint).map(|id| {
+                    (
+                        id.to_owned(),
+                        crate::extensions::io::configured_system(id, self.vault).is_ok_and(
+                            |(kind, _)| matches!(kind.as_str(), "sqlite" | "postgres" | "spark"),
+                        ),
+                    )
+                }),
+            };
+            if let Some((name, transactional)) = key
+                && transactional
+                && !names.contains(&name)
+            {
+                return Err(Diagnostic::typing(
+                    endpoint.span.clone(),
+                    format!(
+                        "`{name}` is a transactional endpoint that is no participant of this \
+                         scope; name it in the set after `on`"
+                    ),
+                ));
+            }
+        }
+        for child in ast_children(expression) {
+            self.only_participants(child, names)?;
+        }
+        Ok(())
+    }
+}
+
+/// The expressions an expression holds directly, for a walk that needs no
+/// more than that.
+fn ast_children(expression: &Expr) -> Vec<&Expr> {
+    match &expression.kind {
+        Kind::Int(_)
+        | Kind::Float(_)
+        | Kind::Decimal(_)
+        | Kind::Bool(_)
+        | Kind::Str(_)
+        | Kind::Ident(_)
+        | Kind::DocRef(_)
+        | Kind::Block(_) => Vec::new(),
+        Kind::List(values) | Kind::Set(values) => values.iter().collect(),
+        Kind::Construct { arguments, .. } => {
+            arguments.iter().map(|argument| &argument.value).collect()
+        }
+        Kind::Call { callee, arguments } => std::iter::once(callee.as_ref())
+            .chain(arguments.iter().map(|argument| &argument.value))
+            .collect(),
+        Kind::Data(entries) => entries.iter().map(|(_, value)| value).collect(),
+        Kind::Arith(_, left, right)
+        | Kind::Logic(_, left, right)
+        | Kind::Pipe(left, right)
+        | Kind::Index(left, right) => vec![left, right],
+        Kind::Compare { left, right, .. } | Kind::Relate { left, right, .. } => {
+            vec![left, right]
+        }
+        Kind::Not(inner) | Kind::Field(inner, _) => vec![inner],
+        Kind::Slice(inner, start, end) => std::iter::once(inner.as_ref())
+            .chain(start.as_deref())
+            .chain(end.as_deref())
+            .collect(),
+        Kind::Link {
+            source,
+            target,
+            data,
+        } => [source.as_ref(), target.as_ref()]
+            .into_iter()
+            .chain(data.as_deref())
+            .collect(),
+        Kind::Lambda { body, .. } => vec![body],
+        Kind::Match { subject, arms } => std::iter::once(subject.as_ref())
+            .chain(
+                arms.iter()
+                    .flat_map(|arm| arm.guard.iter().chain(std::iter::once(&arm.body))),
+            )
+            .collect(),
+        Kind::Tee { branch, .. } => vec![branch],
+        Kind::Fork { branches } => branches.iter().map(|(_, branch)| branch).collect(),
+        Kind::Given {
+            value,
+            condition,
+            otherwise,
+        } => [value.as_ref(), condition.as_ref()]
+            .into_iter()
+            .chain(otherwise.as_deref())
+            .collect(),
+        Kind::Mutation {
+            target,
+            rows,
+            steps,
+            ..
+        } => std::iter::once(target.as_ref())
+            .chain(rows.as_deref())
+            .chain(steps.iter().filter_map(|step| match &step.kind {
+                crate::ast::MutationStepKind::OfType(_) => None,
+                crate::ast::MutationStepKind::Filter(lambda)
+                | crate::ast::MutationStepKind::Set(lambda) => Some(lambda),
+            }))
+            .collect(),
+        Kind::Transaction {
+            participants,
+            attempts,
+            body,
+            ..
+        } => std::iter::once(participants.as_ref())
+            .chain(attempts.as_deref())
+            .chain(body.iter().map(crate::ast::ScopeStmt::value))
+            .collect(),
+    }
+}
+
+/// Whether an expression is a control call of the handle, `tx.f(…)`.
+fn control_call<'e>(
+    expression: &'e Expr,
+    handle: &str,
+) -> Option<(&'e str, &'e [crate::ast::Arg])> {
+    let Kind::Call { callee, arguments } = &expression.kind else {
+        return None;
+    };
+    let Kind::Field(receiver, method) = &callee.kind else {
+        return None;
+    };
+    if !matches!(&receiver.kind, Kind::Ident(name) if name == handle) {
+        return None;
+    }
+    matches!(method.as_str(), "commit" | "rollback" | "retry")
+        .then_some((method.as_str(), arguments.as_slice()))
+}
+
+/// The handle is used in its block's statements, as a control call that is
+/// a statement, or an arm of a `given … otherwise` or a `match` that is
+/// one. Anywhere else, in a lambda, a call's argument, a list, it is
+/// refused: a control call ends the block, and a planner may move what is
+/// not a statement of it.
+fn handle_uses(expression: &Expr, handle: &str, controlling: bool) -> Result<(), Diagnostic> {
+    if let Some((_, arguments)) = control_call(expression, handle) {
+        if !controlling {
+            return Err(Diagnostic::typing(
+                expression.span.clone(),
+                format!(
+                    "`{handle}` ends the block it is written in: a control call is a statement of \
+                     the block, or an arm of a `given … otherwise` or a `match` that is one"
+                ),
+            ));
+        }
+        for argument in arguments {
+            handle_uses(&argument.value, handle, false)?;
+        }
+        return Ok(());
+    }
+    if matches!(&expression.kind, Kind::Ident(name) if name == handle) {
+        return Err(Diagnostic::typing(
+            expression.span.clone(),
+            format!(
+                "`{handle}` is the transaction's handle, used in its block as `{handle}.commit(…)`, \
+                 `{handle}.rollback(…)` or `{handle}.retry()`, and does not leave it"
+            ),
+        ));
+    }
+    match &expression.kind {
+        Kind::Given {
+            value,
+            condition,
+            otherwise,
+        } => {
+            handle_uses(value, handle, controlling)?;
+            handle_uses(condition, handle, false)?;
+            if let Some(other) = otherwise {
+                handle_uses(other, handle, controlling)?;
+            }
+            Ok(())
+        }
+        Kind::Match { subject, arms } => {
+            handle_uses(subject, handle, false)?;
+            for arm in arms {
+                if let Some(guard) = &arm.guard {
+                    handle_uses(guard, handle, false)?;
+                }
+                handle_uses(&arm.body, handle, controlling)?;
+            }
+            Ok(())
+        }
+        _ => {
+            for child in ast_children(expression) {
+                handle_uses(child, handle, false)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+/// The types the handle commits with, from every `commit` in control
+/// position, read after the statement is checked.
+fn collect_commits(
+    expression: &Expr,
+    handle: &str,
+    types: &HashMap<Range<usize>, TypeRef>,
+    into: &mut Vec<TypeRef>,
+) {
+    if let Some(("commit", arguments)) = control_call(expression, handle) {
+        if let Some(argument) = arguments.first()
+            && let Some(ty) = types.get(&argument.value.span)
+            && !into.contains(ty)
+        {
+            into.push(ty.clone());
+        }
+        return;
+    }
+    match &expression.kind {
+        Kind::Given {
+            value, otherwise, ..
+        } => {
+            collect_commits(value, handle, types, into);
+            if let Some(other) = otherwise {
+                collect_commits(other, handle, types, into);
+            }
+        }
+        Kind::Match { arms, .. } => {
+            for arm in arms {
+                collect_commits(&arm.body, handle, types, into);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Whether a statement changes a table: a mutation, or a `target` or
+/// `sink` written as a call or a step.
+fn changes_rows(expression: &Expr) -> bool {
+    let writes = |callee: &Expr| matches!(&callee.kind, Kind::Ident(name) if matches!(name.as_str(), "target" | "sink"));
+    match &expression.kind {
+        Kind::Mutation { .. } => true,
+        Kind::Call { callee, .. } => writes(callee),
+        Kind::Pipe(_, step) => match &step.kind {
+            Kind::Call { callee, .. } => writes(callee),
+            Kind::Ident(name) => matches!(name.as_str(), "target" | "sink"),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// Whether a statement always ends the transaction: a control call on its
+/// own, or a `given … otherwise` or a `match` whose every arm does.
+fn is_terminal(expression: &Expr, handle: &str) -> bool {
+    if control_call(expression, handle).is_some() {
+        return true;
+    }
+    match &expression.kind {
+        Kind::Given {
+            value,
+            otherwise: Some(other),
+            ..
+        } => is_terminal(value, handle) && is_terminal(other, handle),
+        Kind::Match { arms, .. } => arms.iter().all(|arm| is_terminal(&arm.body, handle)),
+        _ => false,
+    }
+}
+
+/// Whether `expression`, a clause of a mutation over the row `parameter`,
+/// is one the endpoint's system runs: a sub-expression that reads no field
+/// of the row is computed in HQL and sent as a parameter; one that does is
+/// a field, a comparison, a connective, arithmetic, `contains` of a bound
+/// collection, or `is_none` and `is_some` of a field (HQL-0051).
+fn translatable(
+    verb: crate::ast::Verb,
+    expression: &Expr,
+    parameter: &str,
+) -> Result<(), Diagnostic> {
+    if !mentions(expression, parameter) {
+        return Ok(());
+    }
+    let refused = || {
+        Diagnostic::typing(
+            expression.span.clone(),
+            format!(
+                "`{}` runs on the endpoint's system, and this is not translated there: a field \
+                 of the row, a literal, a value bound outside the lambda, a comparison, `and`, \
+                 `or`, `not`, arithmetic, `contains` of a bound collection, and `is_none` or \
+                 `is_some` of a field are; compute anything else in HQL and bind it",
+                verb.word()
+            ),
+        )
+    };
+    let is_test = |name: &str| matches!(name, "is_none" | "is_some");
+    match &expression.kind {
+        Kind::Field(inner, _) if matches!(&inner.kind, Kind::Ident(held) if held == parameter) => {
+            Ok(())
+        }
+        Kind::Arith(_, left, right) | Kind::Logic(_, left, right) => {
+            translatable(verb, left, parameter)?;
+            translatable(verb, right, parameter)
+        }
+        Kind::Compare { left, right, .. } | Kind::Relate { left, right, .. } => {
+            translatable(verb, left, parameter)?;
+            translatable(verb, right, parameter)
+        }
+        Kind::Not(inner) => translatable(verb, inner, parameter),
+        Kind::Pipe(input, step) => match &step.kind {
+            Kind::Ident(name) if is_test(name) => translatable(verb, input, parameter),
+            Kind::Call { callee, arguments }
+                if matches!(&callee.kind, Kind::Ident(name) if name == "contains")
+                    && arguments.len() == 1
+                    && !mentions(input, parameter) =>
+            {
+                translatable(verb, &arguments[0].value, parameter)
+            }
+            _ => Err(refused()),
+        },
+        Kind::Call { callee, arguments } => match (&callee.kind, arguments.as_slice()) {
+            (Kind::Ident(name), [collection, value])
+                if name == "contains" && !mentions(&collection.value, parameter) =>
+            {
+                translatable(verb, &value.value, parameter)
+            }
+            (Kind::Ident(name), [value]) if is_test(name) => {
+                translatable(verb, &value.value, parameter)
+            }
+            (Kind::Field(inner, name), []) if is_test(name) => translatable(verb, inner, parameter),
+            _ => Err(refused()),
+        },
+        _ => Err(refused()),
+    }
+}
+
 impl CheckCx for Checker<'_> {
     fn vault(&self) -> &Vault {
         self.vault
+    }
+
+    fn configured_binding(&self, name: &str) -> Option<String> {
+        self.configured_bindings.get(name).cloned()
     }
 
     fn warn(&mut self, warning: Diagnostic) {

@@ -68,6 +68,68 @@ The language continues to be in active development.
   selected by `--context`, `$HQL_CONTEXT` or `current-context`, and
   `hql config current-context`, `get-contexts`, `use-context` and `view`
   manage them.
+- Transactions and relational mutations, phase 1
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)): four capabilities of a
+  transport in `io`, `Transactional`, `Insertable`, `Updatable` and
+  `Deletable`, each an abstract type below `Transport` and independent of
+  the others, which `Sqlite` and `Postgres` declare; `IsolationLevel` with
+  `ReadCommitted`, `RepeatableRead` and `Serializable`; and
+  `configured("id")`, the endpoint configured under an id as a value of its
+  kind's transport type, with its boundary, so `source(configured("id"))`
+  reads what `source("id")` reads and `target(xs, configured("id"))` writes
+  what `target(xs, "id")` writes.
+- Transactions and relational mutations, phase 2
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)): `insert E rows`,
+  `update E | filter(p) | set(f)` and `delete E | filter(p)` change the
+  rows of an `Insertable`, `Updatable` or `Deletable` endpoint in place,
+  each as one statement of the endpoint's system, committed when it ends,
+  with its value the number of rows changed. A clause's lambda is
+  translated, never run row by row: a field of the row, a literal, a value
+  bound outside, comparisons, `and`, `or`, `not`, arithmetic, `contains`
+  of a bound collection and `is_none` or `is_some` of a field; anything
+  else is a check error. The rows' type is the endpoint's configured
+  `element`, or what `of_type(T)`, written first, names; `set` gives the
+  fields that change as a tree, each key a field of the rows. `sqlite` and
+  `postgres` tables take all three. A table that does not exist is not
+  created.
+- `one` in `seq`: the one element of a sequence of exactly one, and an
+  evaluation failure naming the count otherwise.
+- Transactions and relational mutations, phases 3 and 4
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)): `with
+  transaction(attempts = 3, isolation = Serializable) tx on {accounts,
+  transfers} { … }` runs its block as one atomic unit over `Transactional`
+  endpoints of one database, `sqlite` or `postgres`, and commits when the
+  block ends. Inside the block every read and write of a participant runs on
+  the attempt's connection, so a read sees the attempt's own writes. The
+  scope's value is `Result<T, TransactionFailure>`, `T` the block's final
+  value. The handle's control calls, in `io.transaction`, end an attempt:
+  `tx.commit(value)`, `tx.rollback(reason)` and `tx.retry()`, each of type
+  `Never`, written as a statement or an arm of a `given … otherwise` or a
+  `match`. A conflict with a concurrent transaction is retried while
+  `attempts` remain; a constraint violation, a rollback and an exhausted
+  `retry` are the `err` of the result; any other failure rolls the attempt
+  back before it is reported. The checker refuses a nested scope, a
+  participant set spanning two kinds or two databases, a computed set, a
+  transactional endpoint in the block that is no participant, the handle
+  outside a control call, a statement after one, and an isolation level
+  the kind does not offer.
+- The module `io.db.spark` ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Spark :
+  {Network, RowTransport, Replayable, Writable, …}` and its constructor
+  `spark(table = …, url = …, url_env = …, token_env = …, order = [])`,
+  every parameter named, so `source`, `tap` and `target` reach a lakehouse
+  table with no configured endpoint. A `spark` table takes `insert`,
+  `update` and `delete`, each one Spark SQL statement, and a transaction
+  scope over it holds that one table and at most one statement that
+  changes it, since a Delta table commits one statement of itself
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)).
+- The module `io.db.postgres` ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Postgres :
+  {Network, RowTransport, Replayable, Writable, …}` and its constructor
+  `postgres(dsn_env = …, table = …, order = [])`, every parameter named,
+  which takes the keys of the `postgres` kind, so `source`, `tap` and
+  `target` reach a table with no configured endpoint. The connection string
+  is read from the environment where the endpoint is used.
 - Analytic windows ([HQL-0050](doc/proposals/HQL-0050/README.md)):
   `over(by, order, into)` partitions a sequence by `by`, orders each
   partition by `order`, and gives one value per row, at the row's input
@@ -149,6 +211,8 @@ The language continues to be in active development.
 
 ### Fixed
 
+- A call of a name no import offers, written with named arguments only,
+  reports the missing import rather than a missing positional input.
 - A function declared without an input, called with its module,
   `time.now()` or `env.vars()`, checks as the bare call does. It was
   refused as needing its input as the first argument.

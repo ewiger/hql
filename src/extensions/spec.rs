@@ -654,7 +654,7 @@ impl OperationSpec {
             bindings,
         };
         let result = match self.output {
-            Output::Computed(_) => super::io::result(name, &call, cx.vault())?,
+            Output::Computed(_) => super::io::result(name, &call, cx)?,
             _ => result,
         };
         Ok((result, call))

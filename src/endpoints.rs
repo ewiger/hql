@@ -1016,10 +1016,42 @@ fn kind_names() -> String {
 /// # Errors
 /// Names the database and what failed: opening it, or the query.
 pub fn sqlite_columns(path: &Path, table: &str) -> Result<Vec<String>, String> {
-    let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
-    let connection =
-        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(located)?;
+    on_sqlite(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        |connection| sqlite_columns_on(connection, path, table),
+    )
+}
+
+/// Run `f` on a connection to the database file at `path`: the one an open
+/// transaction scope holds (HQL-0051), or one opened with `flags` for this
+/// call alone.
+fn on_sqlite<T>(
+    path: &Path,
+    flags: rusqlite::OpenFlags,
+    f: impl FnOnce(&rusqlite::Connection) -> Result<T, String>,
+) -> Result<T, String> {
+    let mut f = Some(f);
+    if let Some(result) =
+        crate::transaction::with_sqlite(path, |connection| f.take().map(|f| f(connection)))
+            .flatten()
+    {
+        return result;
+    }
+    let connection = rusqlite::Connection::open_with_flags(path, flags)
+        .map_err(|error| crate::transaction::sqlite_message(path, &error))?;
+    f.take().map_or_else(
+        || Err("a connection was used twice".to_owned()),
+        |f| f(&connection),
+    )
+}
+
+fn sqlite_columns_on(
+    connection: &rusqlite::Connection,
+    path: &Path,
+    table: &str,
+) -> Result<Vec<String>, String> {
+    let located = |error: rusqlite::Error| crate::transaction::sqlite_message(path, &error);
     let mut statement = connection
         .prepare(&format!(
             "SELECT * FROM {} LIMIT 0",
@@ -1041,10 +1073,19 @@ pub fn sqlite_columns(path: &Path, table: &str) -> Result<Vec<String>, String> {
 /// # Errors
 /// Names the database and what failed: opening it, or the query.
 pub fn sqlite_column_types(path: &Path, table: &str) -> Result<BTreeMap<String, String>, String> {
-    let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
-    let connection =
-        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(located)?;
+    on_sqlite(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        |connection| sqlite_column_types_on(connection, path, table),
+    )
+}
+
+fn sqlite_column_types_on(
+    connection: &rusqlite::Connection,
+    path: &Path,
+    table: &str,
+) -> Result<BTreeMap<String, String>, String> {
+    let located = |error: rusqlite::Error| crate::transaction::sqlite_message(path, &error);
     let mut statement = connection
         .prepare("SELECT name, type FROM pragma_table_info(?1)")
         .map_err(located)?;
@@ -1068,12 +1109,23 @@ pub fn sqlite_rows(
     order: &[String],
     columns: Option<&[String]>,
 ) -> Result<Vec<crate::data::Data>, String> {
+    on_sqlite(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        |connection| sqlite_rows_on(connection, path, table, order, columns),
+    )
+}
+
+fn sqlite_rows_on(
+    connection: &rusqlite::Connection,
+    path: &Path,
+    table: &str,
+    order: &[String],
+    columns: Option<&[String]>,
+) -> Result<Vec<crate::data::Data>, String> {
     use crate::data::Data;
     use rusqlite::types::ValueRef;
-    let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
-    let connection =
-        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(located)?;
+    let located = |error: rusqlite::Error| crate::transaction::sqlite_message(path, &error);
     let quoted = |name: &str| format!("\"{}\"", name.replace('"', "\"\""));
     // Unordered, a table reads in `rowid` order; a view or a `WITHOUT ROWID`
     // table has none, and reads in the order SQLite scans it.
@@ -1137,6 +1189,40 @@ pub fn sqlite_rows(
     Ok(read)
 }
 
+/// Run one statement that changes rows of an SQLite database, `UPDATE` or
+/// `DELETE`, with its parameters bound, and give the number of rows it
+/// changed (HQL-0051). The database file must exist: a mutation changes
+/// rows that exist.
+///
+/// # Errors
+/// Names the database and what failed: opening it, or the statement.
+pub(crate) fn sqlite_execute(
+    path: &Path,
+    statement: &str,
+    params: &[crate::mutation::Param],
+) -> Result<usize, String> {
+    use crate::mutation::Param;
+    let located = |error: rusqlite::Error| crate::transaction::sqlite_message(path, &error);
+    let values: Vec<rusqlite::types::Value> = params
+        .iter()
+        .map(|param| match param {
+            Param::Int(n) => rusqlite::types::Value::Integer(*n),
+            Param::Float(x) => rusqlite::types::Value::Real(*x),
+            Param::Bool(b) => rusqlite::types::Value::Integer(i64::from(*b)),
+            Param::Text(text) | Param::Numeric(text) => rusqlite::types::Value::Text(text.clone()),
+        })
+        .collect();
+    on_sqlite(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE,
+        |connection| {
+            connection
+                .execute(statement, rusqlite::params_from_iter(values.iter()))
+                .map_err(located)
+        },
+    )
+}
+
 /// Write rows to one SQLite table as `mode` says, the table's columns each
 /// a name and the type it is declared with, the rows in one transaction.
 ///
@@ -1157,17 +1243,41 @@ pub fn sqlite_write(
             path.display()
         ));
     }
-    let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
+    let located = |error: rusqlite::Error| crate::transaction::sqlite_message(path, &error);
+    // Inside a transaction scope the rows join the attempt (HQL-0051);
+    // outside one they are their own transaction.
+    let mut inside = Some(|connection: &rusqlite::Connection| {
+        sqlite_write_on(connection, path, table, mode, columns, rows)
+    });
+    if let Some(result) =
+        crate::transaction::with_sqlite(path, |connection| inside.take().map(|f| f(connection)))
+            .flatten()
+    {
+        return result;
+    }
+    let connection = rusqlite::Connection::open(path).map_err(located)?;
+    let transaction = connection.unchecked_transaction().map_err(located)?;
+    sqlite_write_on(&transaction, path, table, mode, columns, rows)?;
+    transaction.commit().map_err(located)
+}
+
+fn sqlite_write_on(
+    transaction: &rusqlite::Connection,
+    path: &Path,
+    table: &str,
+    mode: WriteMode,
+    columns: &[(String, String)],
+    rows: &[Vec<rusqlite::types::Value>],
+) -> Result<(), String> {
+    let located = |error: rusqlite::Error| crate::transaction::sqlite_message(path, &error);
     let quoted = |name: &str| format!("\"{}\"", name.replace('"', "\"\""));
-    let mut connection = rusqlite::Connection::open(path).map_err(located)?;
-    let held: i64 = connection
+    let held: i64 = transaction
         .query_row(
             "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
             [table],
             |row| row.get(0),
         )
         .map_err(located)?;
-    let transaction = connection.transaction().map_err(located)?;
     match mode {
         WriteMode::Create if held > 0 => {
             return Err(format!(
@@ -1213,5 +1323,5 @@ pub fn sqlite_write(
                 .map_err(located)?;
         }
     }
-    transaction.commit().map_err(located)
+    Ok(())
 }

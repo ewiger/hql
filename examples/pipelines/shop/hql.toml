@@ -45,6 +45,23 @@ dsn_env = "SHOP_DSN"
 table = "order_quarantine"
 order = ["id"]
 
+# The ledger's accounts and transfers: two tables of the same PostgreSQL
+# database, which is what lets a transfer change both in one transaction.
+# Each names the record its rows are read and written as.
+[endpoint.accounts]
+kind = "postgres"
+dsn_env = "SHOP_DSN"
+table = "accounts"
+order = ["id"]
+element = "Account"
+
+[endpoint.transfers]
+kind = "postgres"
+dsn_env = "SHOP_DSN"
+table = "transfers"
+order = ["id"]
+element = "Transfer"
+
 # Kafka topics: the order events, and the raw events as a producer sent
 # them.
 [endpoint.order_events]
