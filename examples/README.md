@@ -40,6 +40,12 @@ The [windows](windows/README.md) cases rank and compare rows within their
 partition with `over`, and order ties with `then`, from
 [HQL-0050](../doc/proposals/HQL-0050/README.md).
 
+The [crypto](crypto/README.md) cases are design input for
+[HQL-0053](../doc/proposals/HQL-0053/README.md): `Bytes`, keys read from
+PEM, signatures over text and canonical JSON, HMAC, Argon2id password
+hashes, encryption under a shared key and to an age recipient, encrypted
+files, and keys reached through a configured key vault.
+
 The [slicing](slicing/README.md) cases take a position with `xs[i]` and a
 slice with `xs[a:b]` over strings, lists, documents, streams and a declared
 type, from [HQL-0026](../doc/proposals/HQL-0026/README.md).
