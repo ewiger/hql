@@ -47,4 +47,13 @@ one, `==` does not compare them, and each prints redacted.
 - [`thumbprint`](thumbprint.md) — The RFC 7638 JWK thumbprint of `self`: base64url, unpadded, of the SHA-256 of its canonical JWK.
 - [`generate_key_pair`](generate_key_pair.md) — A new key pair from the host's cryptographically secure generator.
 - [`generate_secret_key`](generate_secret_key.md) — A new symmetric key from the host generator: 32 octets for a cipher and `HmacSha256`, 64 for `HmacSha512`.
+- [`sign`](sign.md) — The signature of the octets of `self` by `key`.
+- [`sign_data`](sign_data.md) — The signature of `canonical(self)`, the RFC 8785 text of the tree, so two trees equal under HQL equality have one signature.
+- [`verify`](verify.md) — Whether `signature` is `key`'s signature of `self`: `false`, never an error, for a signature of another key, of the wrong length or malformed.
+- [`verify_data`](verify_data.md) — Whether `signature` is `key`'s signature of `canonical(self)`.
+- [`p256_signature_from_der`](p256_signature_from_der.md) — The `r || s` form of an ASN.1 DER ECDSA P-256 signature, as OpenSSL writes one, or `none` where `self` is not one.
+- [`mac`](mac.md) — The HMAC tag of `self` under `key`: 32 octets for `HmacSha256`, 64 for `HmacSha512`.
+- [`verify_mac`](verify_mac.md) — Whether `tag` is the MAC tag of `self` under `key`, compared in time independent of where it first differs.
+- [`hash_password`](hash_password.md) — The Argon2id hash of `self` under a new 16-octet salt from the host generator, as a PHC string: `$argon2id$v=19$m=19456,t=2,p=1$…$…`.
+- [`verify_password`](verify_password.md) — Whether `self` is the password `hash` was made from, under the hash's own parameters.
 <!-- hql reference: end -->

@@ -379,3 +379,6 @@ cargo clippy --all-targets -- -D warnings
   does not import its child `crypto.digest`; key types carry no bound on
   their parameter; a type written first in a call is an argument, as in
   `generate_key_pair(Ed25519)`
+- 2026-11-13: part 3, signatures, MACs and password hashes, implemented;
+  P256 signs in the low-s form and verifies either; `verify_password` reads
+  Argon2id, Argon2i and Argon2d, and spends at most 1 GiB

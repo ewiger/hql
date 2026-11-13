@@ -221,6 +221,16 @@ The language continues to be in active development.
   prints as its public key's thumbprint or `redacted`, no format writes
   one, `==` does not compare one, and a private key written into a
   program's source is refused.
+- Signatures, MACs and password hashes ([HQL-0053](doc/proposals/HQL-0053/README.md)
+  part 3). `sign` and `verify` over `String` and `Bytes`, and `sign_data`
+  and `verify_data` over the canonical JSON of a tree, for `Ed25519`, `P256`
+  (r || s, as JWS ES256; `p256_signature_from_der` converts OpenSSL's DER)
+  and `Rsa` (PKCS #1 v1.5 over SHA-256); `verify` gives `false`, never an
+  error. `mac` and `verify_mac`, constant-time, under `HmacSha256` and
+  `HmacSha512`. `hash_password` writes an Argon2id PHC string at no less
+  than OWASP's cost, and `verify_password` checks one.
+- `+` concatenates formatted text, `source(file(p), Text)`'s documents
+  among it, as the `String` it is.
 
 ### Fixed
 
