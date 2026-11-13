@@ -12,7 +12,7 @@ it by name;
 `io` and `io.logging` declare their operations beside their types.
 `validators` is the one module written in HQL, its implementations bodies a
 program runs: it is loaded when a program writes `import validators`, as a
-workspace module is, and declares the standard validator types
+workspace module is, and declares the standard validator traits
 ([HQL-0034](../../doc/proposals/HQL-0034/README.md)).
 
 Checking a declaration is not evaluating one. A declaration yields `Unit` and
@@ -102,14 +102,14 @@ in import order, so the import graph is acyclic by construction:
 
 | Module | Imports | Holds | Implemented by |
 | --- | --- | --- | --- |
-| `core` | — | scalars, the collection types and their constructors, `Data`, `Option`, `Result`, `Ordering`, `Type`, `Is`, `Format`, `Range`, `Pair`, the operation types, the contract types and violations, the core traits `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index`, `Slice`, `Validator` and the built-in types' implementations of them | the `std` extension |
+| `core` | — | scalars, the collection types and their constructors, `Data`, `Option`, `Result`, `Ordering`, `Type`, `Is`, `Format`, `Range`, `Pair`, the operation types, the contract types and violations, the core traits `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index`, `Slice`, `Validator` and the built-in types' implementations of them, except a sequence's and a `String`'s `Index` and `Slice` | the `std` extension |
 | `doc` | `core` | documents, their headers, and the card family `Card`, `HmdCard`, `MdCard` | the runtime |
 | `retrieval` | `core` | `Hit` and `Ranking`, from [HQL-0002](../../doc/proposals/HQL-0002/README.md) | the runtime |
 | `graph` | `core`, `doc`, `retrieval` | edges, graphs, links and the `Graph` constructor | the `std` extension |
 | `knowledge` | `core`, `doc`, `graph` | concepts, relations, `ConceptCard`, `RelationCard`, `KnowledgeGraph` | the runtime |
 | `collections` | `core`, `doc` | the operations over the collection types: membership, filtering, mapping, order, grouping, joins, reductions; `Group` | the `std` extension |
-| `string` | `core` | `module string for String`: the text functions, `str` and `fmt` | the `std` extension |
-| `seq` | `core` | `module seq for Seq<T>`: the sequence, set and map operations beyond the core's | the `std` extension |
+| `string` | `core` | `module string for String : Index<String>, Slice`: the text functions, `str` and `fmt` | the `std` extension |
+| `seq` | `core` | `module seq for Seq<T> : Index<T>, Slice`: the sequence, set and map operations beyond the core's | the `std` extension |
 | `math` | `core` | numbers and the conversions between `Int`, `Float` and `Decimal` | the `std` extension |
 | `option` | `core` | `module option for Option<T>`: the ways out of an option | the `std` extension |
 | `result` | `core` | `module result for Result<T, E>`: the ways out of a result | the `std` extension |
@@ -119,7 +119,7 @@ in import order, so the import graph is acyclic by construction:
 | `io.net` | `core`, `io` | network endpoints; `import io.net` or `import net` | the `std` extension |
 | `io.logging` | `core`, `io` | loggers, levels, log events and the rendering cell; `import io.logging` or `import logging` | the `std` extension |
 | `vault` | `core`, `doc`, `graph` | the vault a program runs against | the runtime |
-| `validators` | `core`, `string`, `seq`, `option` | the standard validator types, written in HQL; `import validators` | the runtime |
+| `validators` | `core`, `string`, `seq`, `option` | the standard validator traits, written in HQL; `import validators` | the runtime |
 
 A module the runtime implements declares nothing external, so no extension
 provides it; importing it binds no operation.

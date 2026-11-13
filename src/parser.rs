@@ -434,9 +434,23 @@ impl Parser {
             } else {
                 None
             };
+            // `module string for String : Index<String>, Slice`: the traits
+            // the module's own functions implement for its pattern.
+            let mut traits = Vec::new();
+            if pattern.is_some() && self.eat(&Token::Colon) {
+                loop {
+                    let listed = self.simple_type()?;
+                    end = listed.span.end;
+                    traits.push(listed);
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                }
+            }
             return Ok(Stmt::Module {
                 path,
                 pattern,
+                traits,
                 span: head.span.start..end,
             });
         }
@@ -1234,6 +1248,21 @@ impl Parser {
             return Err(Diagnostic::syntax(named.span, "expected a trait name"));
         };
         let (generics, bounds) = self.type_parameters()?;
+        // `trait Shape as Figure`: the trait names the union of the types
+        // implementing it.
+        let named_type = if matches!(self.peek(), Token::Ident(word) if word == "as") {
+            self.advance();
+            let named = self.advance();
+            let Token::Ident(named_type) = named.token else {
+                return Err(Diagnostic::syntax(
+                    named.span,
+                    "expected the name of the trait's type after `as`",
+                ));
+            };
+            Some((named_type, named.span))
+        } else {
+            None
+        };
         let mut supertraits = Vec::new();
         if self.eat(&Token::Colon) {
             supertraits.push(self.simple_type()?);
@@ -1247,6 +1276,7 @@ impl Parser {
             name,
             generics,
             bounds,
+            named_type,
             supertraits,
             methods,
             span: start..end,

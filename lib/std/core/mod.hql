@@ -325,9 +325,9 @@ trait Slice {
     fn slice(self, range: Range) : Self
 }
 
-// Validator types: HQL-0034.
+// Validator traits: HQL-0034, HQL-0039.
 /// A check a value passes: a trait extending `Validator` is a validator
-/// type. `validate f with V` holds where `V`'s `validate` of `f` is true,
+/// trait. `validate f with V` holds where `V`'s `validate` of `f` is true,
 /// and a field declared `f: V` reads as the type implementing `V`, held to
 /// it.
 trait Validator {
@@ -393,18 +393,12 @@ impl Rem for Float
 impl Rem for Decimal
 
 // Data is a union, so a String, one of its alternatives, takes its own
-// implementations and not Data's.
-/// `xs[i]` over every sequence, a `List` among them, is the element at
-/// `i`; over a `String` it is the character there, as text (`"hello"[1]`
-/// is `"e"`); over `Data` it is the document's own element.
-impl<T> Index<T> for Seq<T>
-impl Index<String> for String
+// implementations and not Data's. A sequence's and a String's `Index` and
+// `Slice` are stated by the trait lists of `seq` and `string` (HQL-0039).
+/// `xs[i]` over `Data` is the document's own element at `i`.
 impl Index<Data> for Data
 
-/// `xs[a:b]` over every sequence, a `String` and `Data` is the part of the
-/// same type: `[1, 2, 3][1:]` is `[2, 3]`, and `"hello"[1:3]` is `"el"`.
-impl<T> Slice for Seq<T>
-impl Slice for String
+/// `xs[a:b]` over `Data` is the part of the document's sequence, as `Data`.
 impl Slice for Data
 
 // The operation types, reserved: one per shape a pipeline step may have, and

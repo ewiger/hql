@@ -7,8 +7,9 @@
 // kind: unknown-name
 // severity: error
 
-// `words` is private to `mighty.url`, so `"a b".words()` reaches nothing
-// here, and `url.words("a b")` is refused the same way.
+// `words` is private to `mighty.url`, so `url.words("a b")` reaches nothing
+// here. `"a b".words()` reaches the prelude's own `string.words`, never the
+// private one.
 import mighty.url
 
-"a b".words()
+url.words("a b")

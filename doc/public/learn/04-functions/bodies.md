@@ -122,7 +122,7 @@ check error[unknown-name]: `a` is not bound
   |
 5 | a
   | ^
-  = help: did you mean `abs`?
+  = help: did you mean `at`?
 ```
 
 ## The iterating block

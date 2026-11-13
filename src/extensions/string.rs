@@ -17,6 +17,7 @@ use std::sync::Arc;
 pub(crate) static STEPS: &[Operation] = &[
     declared("str", eval_str),
     declared("fmt", eval_fmt),
+    declared("at", eval_at),
     declared("length", eval_length),
     declared("size", eval_size),
     declared("upper", eval_upper),
@@ -513,11 +514,32 @@ fn eval_slice(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     // `s.slice(start, end)` is `s[start:end]`: clamped, and a negative
-    // bound counts from the end.
+    // bound counts from the end. With one argument, a Range, it is
+    // `Slice`'s function, what `s[a:b]` reads.
     let s = input_text(&input, "slice", &span)?;
+    if let [range] = arguments {
+        let range = cx.evaluate(&range.value)?;
+        let (start, end) = crate::evaluation::range_bounds(&range).ok_or_else(|| {
+            Diagnostic::runtime(span.clone(), "`slice` with one argument takes a Range")
+        })?;
+        return crate::evaluation::slice_of(text(&s), start, end, &span);
+    }
     let start = argument_int(cx, arguments, 0, "slice", &span)?;
     let end = argument_int(cx, arguments, 1, "slice", &span)?;
     crate::evaluation::slice_of(text(&s), Some(start), Some(end), &span)
+}
+
+/// `s.at(i)`, `Index`'s function over a `String`: the character at `i`, as
+/// text, what `s[i]` reads.
+fn eval_at(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let s = input_text(&input, "at", &span)?;
+    let position = argument_int(cx, arguments, 0, "at", &span)?;
+    crate::evaluation::at_position(text(&s), position, &TypeRef::STR, &span)
 }
 
 fn eval_char_at(

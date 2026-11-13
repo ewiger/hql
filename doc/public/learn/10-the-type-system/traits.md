@@ -195,8 +195,10 @@ check error[unsatisfied-bound]: `total` needs T : Shape, and Line does not imple
 ## A trait is not a type
 
 A trait's name appears only where a contract is meant: in a bound, in an
-`impl`, and in another trait's declaration. It is not a type, so no
-parameter, binding or list is typed by one:
+`impl`, in another trait's declaration, in a receiver module's trait list
+and, for a validator trait, in a contract. It is not a type, so no
+parameter, binding or list is typed by one, and the refusal names the bound
+to write instead:
 
 <!-- run: novault -->
 ```hql
@@ -210,7 +212,7 @@ fn doubled(s: Shape) : Float = s.area() * 2.0f
 ```
 
 ```text
-check error[unknown-name]: unknown type `Shape`
+check error[unknown-name]: `Shape` is a trait, not a type: a value of a type implementing it is written with a bound, `<T : Shape>(x: T)`
  --> <expression>:5:15
   |
 5 | fn doubled(s: Shape) : Float = s.area() * 2.0f
@@ -237,9 +239,46 @@ figures | map(f => match f {
 ["area 6.0", "area 3.0"]
 ```
 
-A later release names that union in the trait's declaration, `trait Shape as
-Figure`, so that `List<Figure>` holds every implementing type and
-`f.describe()` needs no `match`. The current release does not parse it yet.
+## A trait's type
+
+A trait's declaration may name the union of the types implementing it:
+`trait Shape as Figure` declares the trait `Shape` and the type `Figure`.
+`Figure`'s members are the types with an implementation of `Shape`, so
+`List<Figure>` holds a `Rect` and a `Circle`, and `f.describe()` calls the
+implementation of the value's own type:
+
+<!-- run: novault -->
+```hql
+trait Shape as Figure {
+    fn area(self) : Float
+    fn describe(self) : String = fmt("area {}", self.area())
+}
+
+type Rect { width : Float, height : Float }
+type Circle { radius : Float }
+
+impl Shape for Rect {
+    fn area(self) : Float = self.width * self.height
+}
+
+impl Shape for Circle {
+    fn area(self) : Float = 3.0f * self.radius * self.radius
+}
+
+figures : List<Figure> = [Rect(width = 2.0f, height = 3.0f), Circle(radius = 1.0f)]
+
+figures | map(f => f.describe())
+```
+
+```text
+["area 6.0", "area 3.0"]
+```
+
+`Figure` is a union and is checked as one: a `match` over it covers every
+member. It implements `Shape`, so it satisfies a bound `T : Shape`. Two
+values of `Figure` may be of two members, so a trait naming its type writes
+`Self` only as the receiver, never as a parameter or a result; and a trait
+with type parameters, or a validator trait, names no type.
 
 ## A trait extending a trait
 
@@ -368,19 +407,46 @@ type gains that nothing quantifies over.
 
 ## A module that implements a trait
 
-A later release joins the two forms: a receiver module lists traits after its pattern, and its
-`self` functions are the implementation of those traits. The current release
-does not parse the trait list yet:
+A receiver module may list traits after its pattern, and its `self`
+functions are then the implementation of those traits for the pattern's
+type. The module `shapes` of `examples/traits/lib` declares `Shape`, with a
+default `describe`, and `shapes/circle.hql` implements it:
 
 <!-- run: skip -->
 ```hql
 module shapes.circle for Circle : Shape
 
+import shapes
+
 type Circle { radius : Float }
 
 fn area(self) : Float = 3.0f * self.radius * self.radius
+fn name(self) : String = "circle"
+fn diameter(self) : Float = 2.0f * self.radius
 ```
 
-`module shapes.circle for Circle : Shape` means `impl Shape for Circle` with
-the module's functions as the body: `describe` comes from the trait's
-default, and `Circle(radius = 1.0f).describe()` is `"area 3.0"`.
+`module shapes.circle for Circle : Shape` declares the one implementation of
+`Shape` for `Circle`, as `impl Shape for Circle` would, with the module's
+`area` and `name` as its functions and the trait's default `describe`.
+`diameter`, which `Shape` does not require, stays a receiver function:
+
+<!-- run: --modules examples/traits/lib -->
+```hql
+import shapes
+import shapes.circle
+
+c = Circle(radius = 1.0f)
+
+[c.describe(), str(shapes.total([c, c])), str(c.diameter())]
+```
+
+```text
+["circle with area 3.0", "6.0", "2.0"]
+```
+
+A module that lists a trait and lacks a function the trait requires, and
+gives no default body for, is refused at its `module` line, and so is a
+module listing two traits that require one function name. The standard
+library states the brackets this way: `module string for String :
+Index<String>, Slice` makes `s[1]` the module's `s.at(1)`, and `s[1:3]` its
+`s.slice(Range(start = 1, end = 3))`.

@@ -1,5 +1,5 @@
 // status: invalid
-// feature: a validator type implemented for more than one type is named in a rule, not as a field's type, since the field would have no one type
+// feature: a validator trait implemented for more than one type is named in a rule, not as a field's type, since the field would have no one type
 // implementation: implemented
 // environment: pure
 // phase: check

@@ -1,5 +1,5 @@
 // status: invalid
-// feature: only a trait extending `Validator` is a validator type
+// feature: only a trait extending `Validator` is a validator trait
 // implementation: implemented
 // environment: pure
 // phase: check

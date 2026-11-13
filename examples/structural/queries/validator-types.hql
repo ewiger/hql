@@ -1,5 +1,5 @@
 // status: valid-now
-// feature: a validator type extends `Validator`; `validate f with V` and a field `f: V` hold where `V`'s `validate` of the field is true
+// feature: a validator trait extends `Validator`; `validate f with V` and a field `f: V` hold where `V`'s `validate` of the field is true
 // implementation: implemented
 // environment: pure
 // expected-type: List<List<String>>

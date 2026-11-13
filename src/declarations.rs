@@ -58,12 +58,7 @@ pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
         .iter()
         .map(annotation)
         .collect::<Result<Vec<_>, _>>()?;
-    let constructor = builtin::constructor(&written.name).ok_or_else(|| {
-        Diagnostic::name(
-            written.span.clone(),
-            format!("unknown type `{}`", written.name),
-        )
-    })?;
+    let constructor = builtin::constructor(&written.name).ok_or_else(|| unknown_type(written))?;
     // `Table` written without its row is a table of `Data` rows.
     let args = if constructor == TypeRef::TABLE.constructor && args.is_empty() {
         vec![TypeRef::DATA]
@@ -76,6 +71,23 @@ pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
         .apply(constructor, args)
         .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
     Ok(reference)
+}
+
+/// The refusal of a written name that is no type. A trait is a contract,
+/// not a type, so its name in a type position is refused with the bound that
+/// states the same requirement (HQL-0039).
+pub(crate) fn unknown_type(written: &TypeAnn) -> Diagnostic {
+    let name = &written.name;
+    if types::program::is_trait(name) || crate::checker::core_traits().contains_key(name) {
+        return Diagnostic::name(
+            written.span.clone(),
+            format!(
+                "`{name}` is a trait, not a type: a value of a type implementing it is \
+                 written with a bound, `<T : {name}>(x: T)`"
+            ),
+        );
+    }
+    Diagnostic::name(written.span.clone(), format!("unknown type `{name}`"))
 }
 
 thread_local! {
@@ -411,18 +423,13 @@ fn structural(
     {
         return Ok(own.apply(args));
     }
-    let constructor = builtin::constructor(&written.name).ok_or_else(|| {
-        Diagnostic::name(
-            written.span.clone(),
-            format!("unknown type `{}`", written.name),
-        )
-    })?;
+    let constructor = builtin::constructor(&written.name).ok_or_else(|| unknown_type(written))?;
     Ok(constructor.apply(args))
 }
 
-/// A field declared with a validator type `V`: of the one type that
+/// A field declared with a validator trait `V`: of the one type that
 /// implements `V`, and held to it (HQL-0034). `None` where the field's type
-/// names no validator type.
+/// names no validator trait.
 fn validator_field(written: &TypeAnn) -> Result<Option<(TypeRef, &'static str)>, Diagnostic> {
     if !written.arguments.is_empty() {
         return Ok(None);
@@ -436,7 +443,7 @@ fn validator_field(written: &TypeAnn) -> Result<Option<(TypeRef, &'static str)>,
         [] => Err(Diagnostic::typing(
             written.span.clone(),
             format!(
-                "the validator type `{}` is implemented for no type, so a field declared \
+                "the validator trait `{}` is implemented for no type, so a field declared \
                  with it has none",
                 written.name
             ),
@@ -444,7 +451,7 @@ fn validator_field(written: &TypeAnn) -> Result<Option<(TypeRef, &'static str)>,
         _ => Err(Diagnostic::typing(
             written.span.clone(),
             format!(
-                "the validator type `{}` is implemented for {}: declare the field with one of \
+                "the validator trait `{}` is implemented for {}: declare the field with one of \
                  them and `validate f with {}`",
                 written.name,
                 types
@@ -658,7 +665,7 @@ impl Declarations {
                 ));
             }
             seen.push(&field.name);
-            // A validator type is no type of its own: the field is of the
+            // A validator trait is no type of its own: the field is of the
             // type implementing it, resolved where the record is built.
             let validator = field.annotation.arguments.is_empty()
                 && crate::types::program::implementing(&field.annotation.name).is_some();
@@ -934,10 +941,7 @@ impl Declarations {
         if builtin::constructor(&written.name).is_some() {
             return Ok(());
         }
-        Err(Diagnostic::name(
-            written.span.clone(),
-            format!("unknown type `{}`", written.name),
-        ))
+        Err(unknown_type(written))
     }
 
     fn scoped_type(&self, written: &TypeAnn, scope: &HashMap<String, TypeRef>) -> Option<TypeRef> {

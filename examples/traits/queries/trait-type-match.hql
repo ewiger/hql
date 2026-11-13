@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A match over a trait's named type covers each implementing type
-// implementation: pending
-// proposal: doc/proposals/HQL-0039/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<String>
 // expected-json: ["rect 2.0 by 3.0", "circle of radius 1.0"]

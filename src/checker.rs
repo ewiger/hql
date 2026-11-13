@@ -92,6 +92,9 @@ pub(crate) fn check_collecting_with<'a>(
             }
         }
     }
+    if let Err(diagnostic) = checker.settle_module_traits() {
+        found.push(diagnostic);
+    }
     if !found.is_empty() {
         return (None, found);
     }
@@ -528,13 +531,15 @@ fn restates_operation_type(declaration: &crate::ast::TypeDecl) -> bool {
 /// field or a supertype. A public signature would otherwise hand importers a
 /// value of a type they cannot name.
 fn public_signatures(program: &Program) -> Result<(), Diagnostic> {
-    let private: std::collections::HashSet<&str> = program
+    let mut private: std::collections::HashSet<&str> = program
         .statements
         .iter()
         .filter(|statement| matches!(statement, Stmt::Type(_) | Stmt::Trait(_)))
         .filter(|statement| statement.private().is_some())
         .filter_map(Stmt::declared_name)
         .collect();
+    // The type a private trait names is private with it.
+    private.extend(private_trait_types(program));
     if private.is_empty() {
         return Ok(());
     }
@@ -600,6 +605,21 @@ fn public_signatures(program: &Program) -> Result<(), Diagnostic> {
         ));
     }
     Ok(())
+}
+
+/// The types the private traits of a unit name, `Figure` of
+/// `private trait Shape as Figure`.
+fn private_trait_types(program: &Program) -> impl Iterator<Item = &str> {
+    program
+        .statements
+        .iter()
+        .filter_map(|statement| match statement {
+            Stmt::Trait(declaration) if declaration.private.is_some() => {
+                declaration.named_type.as_ref()
+            }
+            _ => None,
+        })
+        .map(|(named, _)| named.as_str())
 }
 
 /// The first of `names` a written type mentions, itself or in an argument.
@@ -691,6 +711,18 @@ struct Checker<'a> {
     /// This unit's own functions that take no `self`: a receiver call of one
     /// of their names never reaches an import's.
     own_functions: std::collections::HashSet<String>,
+    /// This unit's own external receiver functions, overloads each once:
+    /// the native functions a module's trait list may name.
+    external_receivers: Vec<(String, TypeRef)>,
+    /// The `module m for P : A, B` line whose trait list is settled once
+    /// the module's functions are checked (HQL-0039).
+    listing_module: Option<&'a Stmt>,
+    /// The types this unit declares, by name: a receiver pattern may name
+    /// one before its declaration.
+    unit_types: std::collections::HashSet<String>,
+    /// A receiver pattern naming a type this unit declares further down,
+    /// the receiver once that declaration is checked.
+    pending_pattern: Option<&'a crate::ast::TypeAnn>,
     /// The functions this unit declares below the statement being checked:
     /// a use of one of their names reaches neither the declaration, not yet
     /// checked, nor an import's, which the declaration wins over.
@@ -698,6 +730,14 @@ struct Checker<'a> {
     /// This unit's own functions, by name, with their parameters and body:
     /// what binding one at `Elementwise<I, O>` verifies.
     function_bodies: HashMap<String, (Vec<String>, &'a Expr)>,
+}
+
+/// The functions a module's trait list implements its traits with: the
+/// module's own `self` functions, each with its type and whether it is
+/// native, a declaration without a body.
+struct Supplied {
+    module: String,
+    functions: Vec<(String, TypeRef, bool)>,
 }
 
 /// Type variables in scope, each by the name it is written as.
@@ -721,10 +761,17 @@ pub(crate) struct TraitInfo {
     pub methods: Vec<MethodSig>,
     /// The traits it extends, nearest first, and theirs after them.
     pub supertraits: Vec<String>,
+    /// The type it names, `Figure` of `trait Shape as Figure`: the union of
+    /// the types implementing it (HQL-0039).
+    pub named_type: Option<TypeRef>,
+    /// Its default bodies that check over `Self` bound by the trait alone,
+    /// lowered, each with its parameters, `self` first: what an
+    /// implementation in a unit other than the trait's inherits.
+    pub defaults: HashMap<String, (Vec<String>, std::sync::Arc<crate::execution::Expr>)>,
 }
 
 impl TraitInfo {
-    /// Whether it is a validator type: `Validator` is among the traits it
+    /// Whether it is a validator trait: `Validator` is among the traits it
     /// extends (HQL-0034).
     pub(crate) fn is_validator(&self) -> bool {
         self.supertraits.iter().any(|name| name == "Validator")
@@ -961,6 +1008,8 @@ pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
             result,
         }],
         supertraits: Vec::new(),
+        named_type: None,
+        defaults: HashMap::new(),
     };
     [
         ("Add", binary("add", self_type.clone())),
@@ -981,6 +1030,8 @@ pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
                     result: self_type.clone(),
                 }],
                 supertraits: Vec::new(),
+                named_type: None,
+                defaults: HashMap::new(),
             },
         ),
         (
@@ -993,6 +1044,8 @@ pub(crate) fn core_traits() -> HashMap<String, TraitInfo> {
                     result: TypeRef::BOOL,
                 }],
                 supertraits: Vec::new(),
+                named_type: None,
+                defaults: HashMap::new(),
             },
         ),
     ]
@@ -1013,6 +1066,8 @@ fn index_trait() -> TraitInfo {
             result: TypeRef::optional(element),
         }],
         supertraits: Vec::new(),
+        named_type: None,
+        defaults: HashMap::new(),
     }
 }
 
@@ -1112,6 +1167,10 @@ impl<'a> Checker<'a> {
             own_functions: std::collections::HashSet::new(),
             declared_below: std::collections::HashSet::new(),
             function_bodies: HashMap::new(),
+            external_receivers: Vec::new(),
+            listing_module: None,
+            unit_types: std::collections::HashSet::new(),
+            pending_pattern: None,
         }
     }
 
@@ -1125,6 +1184,13 @@ impl<'a> Checker<'a> {
             .filter_map(Stmt::declared_name)
             .map(str::to_owned)
             .collect();
+        self.unit_types = program
+            .statements
+            .iter()
+            .filter(|statement| matches!(statement, Stmt::Type(_)))
+            .filter_map(Stmt::declared_name)
+            .map(str::to_owned)
+            .collect();
     }
 
     fn program(&mut self, program: &'a Program) -> Result<TypedProgram, Diagnostic> {
@@ -1133,6 +1199,7 @@ impl<'a> Checker<'a> {
         for statement in &program.statements {
             last = self.statement(statement)?;
         }
+        self.settle_module_traits()?;
         self.checked.program(program, last)
     }
 
@@ -1581,13 +1648,26 @@ impl<'a> Checker<'a> {
                     }
                     TypeRef::UNIT
                 }
-                Stmt::Module { pattern, span, .. } => {
+                Stmt::Module {
+                    pattern,
+                    traits,
+                    span,
+                    ..
+                } => {
+                    // The module before this one, in the standard library
+                    // checked as one text, settles its own trait list.
+                    self.settle_module_traits()?;
+                    if !traits.is_empty() {
+                        self.listing_module = Some(statement);
+                    }
                     // The name is held to the file's position where the file
                     // is loaded as a module; checked on its own, a module
                     // file has no position to hold it to.
                     self.pattern_variables = None;
                     self.own_receivers.clear();
+                    self.external_receivers.clear();
                     self.receiver = None;
+                    self.pending_pattern = None;
                     // The receiver pattern of the declarations that follow. The
                     // standard library's modules, checked one after another,
                     // each open their own declaration.
@@ -1626,7 +1706,16 @@ impl<'a> Checker<'a> {
                         .collect();
                     self.pattern_variables =
                         Some(crate::declarations::TypeVariables::enter(&variables));
-                    self.receiver = Some(crate::declarations::annotation(pattern)?);
+                    // A pattern naming a type the module declares, `module
+                    // shapes.circle for Circle`, is the receiver from that
+                    // declaration on.
+                    if self.unit_types.contains(&pattern.name)
+                        && crate::types::builtin::constructor(&pattern.name).is_none()
+                    {
+                        self.pending_pattern = Some(pattern);
+                    } else {
+                        self.receiver = Some(crate::declarations::annotation(pattern)?);
+                    }
                     TypeRef::UNIT
                 }
                 // A declaration is checked and yields nothing to show. It
@@ -1656,6 +1745,12 @@ impl<'a> Checker<'a> {
                     self.declarations.declare(declaration)?;
                     crate::declarations::enter_lattice(declaration)?;
                     self.contract(declaration)?;
+                    if let Some(pattern) = self.pending_pattern
+                        && pattern.name == declaration.name
+                    {
+                        self.receiver = Some(crate::declarations::annotation(pattern)?);
+                        self.pending_pattern = None;
+                    }
                     TypeRef::UNIT
                 }
                 Stmt::Fn(declaration) => {
@@ -1675,6 +1770,12 @@ impl<'a> Checker<'a> {
                 }
                 Stmt::External(declaration) => {
                     self.external(declaration)?;
+                    if declaration.has_self
+                        && let Some(ty) = self.externals.get(&declaration.name)
+                    {
+                        self.external_receivers
+                            .push((declaration.name.clone(), ty.clone()));
+                    }
                     TypeRef::UNIT
                 }
                 Stmt::Alias(alias) => {
@@ -1686,7 +1787,7 @@ impl<'a> Checker<'a> {
                     TypeRef::UNIT
                 }
                 Stmt::Impl(declaration) => {
-                    self.implement(declaration)?;
+                    self.implement(declaration, None)?;
                     TypeRef::UNIT
                 }
                 Stmt::Expr(expression) => self.expression(expression)?,
@@ -3254,6 +3355,8 @@ impl<'a> Checker<'a> {
                 )
             })?,
         };
+        // A fault inside the module is reported at the import, of the kind
+        // it is.
         let inside = |diagnostic: Diagnostic| {
             Diagnostic::name(
                 span.clone(),
@@ -3264,6 +3367,7 @@ impl<'a> Checker<'a> {
                     diagnostic.message()
                 ),
             )
+            .with_kind(diagnostic.kind)
         };
         let program = crate::parser::parse(&source).map_err(inside)?;
         crate::modules::declared(&program, name)
@@ -3379,6 +3483,7 @@ impl<'a> Checker<'a> {
                 }
                 _ => None,
             })
+            .chain(private_trait_types(&program).map(str::to_owned))
             .collect();
         let core = core_traits();
         let traits = checker
@@ -3660,22 +3765,150 @@ impl<'a> Checker<'a> {
                 ));
             }
         }
-        let info = TraitInfo {
+        let mut info = TraitInfo {
             parameters,
             methods,
             supertraits,
+            named_type: None,
+            defaults: HashMap::new(),
         };
         if info.is_validator() {
             crate::types::program::validator(&declaration.name, None)
                 .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
         }
+        if let Some((named, span)) = &declaration.named_type {
+            info.named_type = Some(self.trait_type(declaration, &info, named, span)?);
+        }
+        crate::types::program::declare_trait(&declaration.name)
+            .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
         self.traits.insert(declaration.name.clone(), info);
         self.trait_decls
             .insert(declaration.name.clone(), declaration);
+        self.lower_defaults(declaration);
         Ok(())
     }
 
-    /// `V(f)`, which `validate f with V` writes, for a validator type `V`:
+    /// Check each default body of a trait over `Self` bound by the trait
+    /// alone, and keep those that check, lowered: what an implementation in
+    /// another unit inherits, without the trait's source. A body that needs
+    /// more of `Self` than the trait gives, a field, is inherited only where
+    /// the trait is declared, and checked there at each implementing type.
+    fn lower_defaults(&mut self, declaration: &TraitDecl) {
+        let Some(info) = self.traits.get(&declaration.name).cloned() else {
+            return;
+        };
+        let receiver = SELF.apply([]);
+        let mut defaults = HashMap::new();
+        for method in &declaration.methods {
+            let (Some(body), Some(signature)) = (
+                &method.body,
+                info.methods.iter().find(|held| held.name == method.name),
+            ) else {
+                continue;
+            };
+            let names: Vec<String> = std::iter::once("self".to_owned())
+                .chain(method.parameters.iter().map(|p| p.name.clone()))
+                .collect();
+            let types: Vec<TypeRef> = std::iter::once(receiver.clone())
+                .chain(signature.parameters.iter().cloned())
+                .collect();
+            let warnings = self.checked.warnings.len();
+            self.trait_bounds.push(Bounded {
+                name: "Self".to_owned(),
+                variable: receiver.clone(),
+                trait_name: declaration.name.clone(),
+                arguments: info
+                    .parameters
+                    .iter()
+                    .map(|(parameter, _)| parameter.clone())
+                    .collect(),
+            });
+            let checked = self.with_bindings(
+                names.iter().cloned().zip(types.iter().cloned()),
+                |checker| checker.expecting(body, Some(&signature.result)),
+            );
+            self.trait_bounds.pop();
+            let lowered = checked
+                .ok()
+                .filter(|ty| ty.is(&signature.result))
+                .and_then(|_| self.checked.expression(body).ok());
+            match lowered {
+                Some(lowered) => {
+                    defaults.insert(method.name.clone(), (names, std::sync::Arc::new(lowered)));
+                }
+                None => self.checked.warnings.truncate(warnings),
+            }
+        }
+        if let Some(info) = self.traits.get_mut(&declaration.name) {
+            info.defaults = defaults;
+        }
+    }
+
+    /// `trait A as F`: declare `F`, the union of the types implementing `A`,
+    /// which implements `A` itself. Two values held at `F` may be of two
+    /// members, so `Self` is written only as the receiver; and a validator
+    /// trait, or one with type parameters, names no type.
+    fn trait_type(
+        &mut self,
+        declaration: &TraitDecl,
+        info: &TraitInfo,
+        named: &str,
+        span: &Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        let name = &declaration.name;
+        self.lint(crate::naming::Kind::Type, named, span);
+        if !declaration.generics.is_empty() {
+            return Err(Diagnostic::typing(
+                span.clone(),
+                format!(
+                    "`{name}` takes type parameters, so it names no type: the types \
+                     implementing it at different arguments form no one union"
+                ),
+            ));
+        }
+        if info.is_validator() {
+            return Err(Diagnostic::typing(
+                span.clone(),
+                format!(
+                    "`{name}` is a validator trait, so it names no type: a field `f: {name}` \
+                     is already of the one type implementing it"
+                ),
+            ));
+        }
+        let receiver = SELF.apply([]);
+        if let Some(method) = info.methods.iter().find(|method| {
+            method.result.mentions(&receiver)
+                || method
+                    .parameters
+                    .iter()
+                    .any(|parameter| parameter.mentions(&receiver))
+        }) {
+            return Err(Diagnostic::typing(
+                declaration.span.clone(),
+                format!(
+                    "`{name}` names its type `{named}`, and its function `{}` writes `Self` \
+                     outside the receiver: two values of `{named}` may be of two types, so a \
+                     trait naming its type writes `Self` only as `self`",
+                    method.name
+                ),
+            ));
+        }
+        let ty = crate::types::program::declare_trait_type(named)
+            .map_err(|error| Diagnostic::name(span.clone(), error.to_string()))?;
+        // The union's own implementation: a call through it dispatches on
+        // the value's own type, to that member's implementation.
+        self.impls.push(ImplInfo {
+            trait_name: name.clone(),
+            parameters: Vec::new(),
+            arguments: Vec::new(),
+            target: ty.clone(),
+            span: declaration.span.clone(),
+            origin: self.unit.clone(),
+        });
+        Ok(ty)
+    }
+
+    /// `V(f)`, which `validate f with V` writes, for a validator trait `V`:
     /// a `Bool`, `V`'s `validate` of `f`, where `f`'s type implements `V`.
     fn validator_call(
         &mut self,
@@ -3688,7 +3921,7 @@ impl<'a> Checker<'a> {
             return Err(Diagnostic::typing(
                 span,
                 format!(
-                    "`{name}` is a trait, not a validator type: a validator type extends \
+                    "`{name}` is a trait, not a validator trait: a validator trait extends \
                      `Validator`, `trait {name} : Validator`"
                 ),
             ));
@@ -3717,7 +3950,14 @@ impl<'a> Checker<'a> {
     /// `self` at the type, and the trait's defaults for the rest. The unit
     /// declaring it declares the trait or the type, and there is one
     /// implementation per trait and type wherever it comes from.
-    fn implement(&mut self, declaration: &'a ImplDecl) -> Result<(), Diagnostic> {
+    ///
+    /// A module's trait list declares the same implementation, with the
+    /// module's own `self` functions, `supplied`, as its functions.
+    fn implement(
+        &mut self,
+        declaration: &ImplDecl,
+        supplied: Option<&Supplied>,
+    ) -> Result<(), Diagnostic> {
         let trait_name = declaration.trait_name.as_str();
         let info = self.traits.get(trait_name).cloned().ok_or_else(|| {
             Diagnostic::name(
@@ -3736,6 +3976,29 @@ impl<'a> Checker<'a> {
             .map(|(_, variable)| variable.constructor.0)
             .collect();
         let target = crate::declarations::annotation(&declaration.target)?;
+        if let Some(named) = &info.named_type {
+            if target.constructor == named.constructor {
+                return Err(Diagnostic::typing(
+                    declaration.span.clone(),
+                    format!(
+                        "{named} is the type `{trait_name}` names, the union of the types \
+                         implementing it: it implements `{trait_name}` through each member's \
+                         implementation, and takes no implementation of its own"
+                    ),
+                )
+                .with_kind(crate::diagnostics::Kind::DuplicateImplementation));
+            }
+            if !declaration.generics.is_empty() {
+                return Err(Diagnostic::typing(
+                    declaration.span.clone(),
+                    format!(
+                        "`{trait_name}` names its type {named}, whose members are types, and an \
+                         implementation with type parameters gives it a family of them: \
+                         implement `{trait_name}` for each type"
+                    ),
+                ));
+            }
+        }
         let arguments = self.trait_arguments(&crate::ast::TypeAnn {
             name: trait_name.to_owned(),
             arguments: declaration.trait_arguments.clone(),
@@ -3762,7 +4025,51 @@ impl<'a> Checker<'a> {
             origin: self.unit.clone(),
         };
         let written = this.written();
-        if declaration.native {
+        // What a module's trait list supplies: each required function the
+        // module declares with `self`, at the signature the trait gives it
+        // for the pattern's type, and whether it is native.
+        let mut from_module: HashMap<String, (TypeRef, bool)> = HashMap::new();
+        if let Some(supplied) = supplied {
+            for signature in &info.methods {
+                let wanted = signature_in_place(signature, &target, &info, &arguments);
+                let named: Vec<&(String, TypeRef, bool)> = supplied
+                    .functions
+                    .iter()
+                    .filter(|(name, _, _)| *name == signature.name)
+                    .collect();
+                let Some(first) = named.first() else {
+                    continue;
+                };
+                let matching = named.iter().find(|(_, ty, _)| {
+                    ty.as_function().is_some_and(|(parameters, result)| {
+                        parameters.first() == Some(&target)
+                            && parameters[1..] == wanted.parameters[..]
+                            && *result == wanted.result
+                    })
+                });
+                let Some((name, ty, native)) = matching else {
+                    let expected = TypeRef::function(
+                        std::iter::once(target.clone())
+                            .chain(wanted.parameters.iter().cloned())
+                            .collect(),
+                        wanted.result.clone(),
+                    )
+                    .map_or_else(String::new, |ty| format!(", {ty}"));
+                    return Err(Diagnostic::typing(
+                        declaration.span.clone(),
+                        format!(
+                            "module `{}` lists `{trait_name}`, and its `{}` is {}: `{trait_name}` \
+                             requires `{}` at {target}{expected}",
+                            supplied.module, first.0, first.1, signature.name
+                        ),
+                    )
+                    .with_kind(crate::diagnostics::Kind::MissingImplementation));
+                };
+                from_module.insert(name.clone(), (ty.clone(), *native));
+            }
+        }
+        let natively = from_module.values().any(|(_, native)| *native);
+        if declaration.native || natively {
             // The header is the declaration a native implementation is bound
             // to: the standard library's, read again, or nothing.
             let bound = self.impls.iter().any(|held| {
@@ -3776,17 +4083,25 @@ impl<'a> Checker<'a> {
             }
             return Err(Diagnostic::typing(
                 declaration.span.clone(),
-                format!(
-                    "`impl {written}` has no body, and no extension implements \
-                     it: a native implementation is declared by a module an extension provides, \
-                     and here the functions are written in braces"
-                ),
+                if let Some(supplied) = supplied {
+                    format!(
+                        "module `{}` lists `{trait_name}` with functions that have no body, and \
+                         no extension implements `{written}`",
+                        supplied.module
+                    )
+                } else {
+                    format!(
+                        "`impl {written}` has no body, and no extension implements \
+                         it: a native implementation is declared by a module an extension \
+                         provides, and here the functions are written in braces"
+                    )
+                },
             ));
         }
         if let Some(previous) = self.impls.iter().find(|held| held.overlaps(&this)) {
-            // The first implementation in this program is a second place in
+            // The first implementation in this unit is a second place in
             // the same source: a label, not a byte offset in the message.
-            let here = previous.origin.is_empty();
+            let here = previous.origin == self.unit;
             let message = if previous.arguments.is_empty() && previous.target == target {
                 if here {
                     format!(
@@ -3862,6 +4177,48 @@ impl<'a> Checker<'a> {
                 .methods
                 .iter()
                 .find(|method| method.name == signature.name);
+            // The module's own function is the implementation's, one
+            // declaration reached by either route.
+            if own.is_none()
+                && let Some((ty, _)) = from_module.get(&signature.name)
+            {
+                lowered.push(crate::execution::MethodLowering {
+                    name: signature.name.clone(),
+                    parameters: Vec::new(),
+                    default_of: None,
+                    function: Some(signature.name.clone()),
+                    lowered: None,
+                    ty: ty.clone(),
+                });
+                continue;
+            }
+            // A default body of a trait another unit declares, lowered there.
+            if own.is_none()
+                && !self.trait_decls.contains_key(trait_name)
+                && let Some((names, body)) = info.defaults.get(&signature.name)
+            {
+                let ty = TypeRef::function(
+                    std::iter::once(target.clone())
+                        .chain(parameters.iter().cloned())
+                        .collect(),
+                    result.clone(),
+                )
+                .ok_or_else(|| {
+                    Diagnostic::typing(
+                        declaration.span.clone(),
+                        "a function takes at most eight parameters",
+                    )
+                })?;
+                lowered.push(crate::execution::MethodLowering {
+                    name: signature.name.clone(),
+                    parameters: names.clone(),
+                    default_of: Some(trait_name.to_owned()),
+                    function: None,
+                    lowered: Some(std::sync::Arc::clone(body)),
+                    ty,
+                });
+                continue;
+            }
             let (method, default_of) = match own {
                 Some(method) => (method, None),
                 None => {
@@ -3877,14 +4234,20 @@ impl<'a> Checker<'a> {
                     match inherited {
                         Some(method) => (method, Some(trait_name.to_owned())),
                         None => {
-                            return Err(Diagnostic::typing(
-                                declaration.span.clone(),
-                                format!(
+                            let message = match supplied {
+                                Some(supplied) => format!(
+                                    "module `{}` lists `{trait_name}` for {target}, and declares \
+                                     no `self` function `{}`, which `{trait_name}` requires and \
+                                     gives no default body",
+                                    supplied.module, signature.name
+                                ),
+                                None => format!(
                                     "`impl {trait_name} for {target}` lacks `{}`",
                                     signature.name
                                 ),
-                            )
-                            .with_kind(crate::diagnostics::Kind::MissingImplementation));
+                            };
+                            return Err(Diagnostic::typing(declaration.span.clone(), message)
+                                .with_kind(crate::diagnostics::Kind::MissingImplementation));
                         }
                     }
                 }
@@ -3968,11 +4331,18 @@ impl<'a> Checker<'a> {
                 name: signature.name.clone(),
                 parameters: names,
                 default_of,
+                function: None,
+                lowered: None,
                 ty,
             });
         }
         self.impls.push(this);
-        // A field may be declared with a validator type, and is then of the
+        // The implementing type is a member of the union the trait names.
+        if let Some(named) = &info.named_type {
+            crate::types::program::add_member(named.constructor, target.clone())
+                .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
+        }
+        // A field may be declared with a validator trait, and is then of the
         // type implementing it.
         if info.is_validator() {
             crate::types::program::validator(trait_name, Some(target.clone()))
@@ -3984,14 +4354,103 @@ impl<'a> Checker<'a> {
             crate::types::program::adopt_parent(target.constructor, TypeRef::ORDERABLE.constructor)
                 .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
         }
-        self.checked.impls.insert(
-            declaration.span.clone(),
-            crate::execution::ImplLowering {
-                trait_name: trait_name.to_owned(),
-                target,
-                methods: lowered,
-            },
-        );
+        let lowering = crate::execution::ImplLowering {
+            trait_name: trait_name.to_owned(),
+            target,
+            methods: lowered,
+        };
+        if supplied.is_some() {
+            self.checked.module_impls.push(lowering);
+        } else {
+            self.checked
+                .impls
+                .insert(declaration.span.clone(), lowering);
+        }
+        Ok(())
+    }
+
+    /// `module m for P : A, B`, once the module's functions are checked:
+    /// one implementation of each listed trait for `P`, whose functions are
+    /// the module's own `self` functions and the traits' default bodies.
+    fn settle_module_traits(&mut self) -> Result<(), Diagnostic> {
+        let Some(Stmt::Module {
+            path,
+            pattern: Some(pattern),
+            traits,
+            span,
+        }) = self.listing_module.take()
+        else {
+            return Ok(());
+        };
+        let module = path.join(".");
+        // One `self` function is one implementation: two listed traits that
+        // require one name are implemented with `impl`.
+        let mut required: Vec<(&str, &str)> = Vec::new();
+        for listed in traits {
+            let info = self.traits.get(&listed.name).ok_or_else(|| {
+                Diagnostic::name(
+                    listed.span.clone(),
+                    format!("no trait named `{}` is in scope", listed.name),
+                )
+            })?;
+            for method in &info.methods {
+                if let Some((_, other)) = required
+                    .iter()
+                    .find(|(function, _)| *function == method.name)
+                {
+                    return Err(Diagnostic::typing(
+                        span.clone(),
+                        format!(
+                            "module `{module}` lists `{other}` and `{}`, which both require \
+                             `{}`: one `self` function is one implementation, so implement \
+                             one of them with `impl`",
+                            listed.name, method.name
+                        ),
+                    ));
+                }
+                required.push((&method.name, &listed.name));
+            }
+        }
+        let functions: Vec<(String, TypeRef, bool)> = self
+            .own_receivers
+            .iter()
+            .map(|(name, ty)| (name.clone(), ty.clone(), false))
+            .chain(
+                self.external_receivers
+                    .iter()
+                    .map(|(name, ty)| (name.clone(), ty.clone(), true)),
+            )
+            .collect();
+        let supplied = Supplied {
+            module: module.clone(),
+            functions,
+        };
+        // The pattern's variables are the implementation's parameters:
+        // `module seq for Seq<T> : Index<T>` implements `Index<T>` for every
+        // `T`.
+        let generics = pattern
+            .arguments
+            .iter()
+            .filter(|argument| {
+                argument.arguments.is_empty()
+                    && argument.name.len() == 1
+                    && crate::types::builtin::constructor(&argument.name).is_none()
+            })
+            .map(|argument| argument.name.clone())
+            .collect();
+        for listed in traits {
+            let declaration = ImplDecl {
+                generics: Vec::clone(&generics),
+                bounds: Vec::new(),
+                trait_name: listed.name.clone(),
+                trait_arguments: listed.arguments.clone(),
+                target: pattern.clone(),
+                native: false,
+                methods: Vec::new(),
+                span: span.clone(),
+            };
+            self.implement(&declaration, Some(&supplied))?;
+        }
         Ok(())
     }
 

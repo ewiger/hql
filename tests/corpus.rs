@@ -304,10 +304,10 @@ fn implemented_invalid_cases_fail_with_the_declared_diagnostic() {
             continue;
         }
         count += 1;
-        // A case over a vault runs against it, and its first error is the
-        // one it declares; `eval` exposes the precise diagnostic of a pure
-        // one, and checking it alone must agree.
-        if m["environment"] != "pure" {
+        // A case over a vault or a module root runs against it, and its
+        // first error is the one it declares; `eval` exposes the precise
+        // diagnostic of a pure one, and checking it alone must agree.
+        if m["environment"] != "pure" || m.contains_key("modules") {
             let vault = case.vault();
             let outcome = run(&case.source, &vault, Mode::Strict);
             let error = outcome
