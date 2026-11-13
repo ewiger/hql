@@ -276,6 +276,36 @@ configuration around the file; and `hql check` reads the configuration and
 opens nothing, so a deployment checks the file it will run before it runs
 it.
 
+A job's own settings, the customer a report is for or the day it covers,
+come from the invocation that runs it. `hql --arg customer=ada run
+report.hql` passes one, and the program reads it with `env.arg` from
+`import io.env`, as text, with a default where it is not passed
+([environment and arguments](09-io/environment.md)):
+
+<!-- run: --vault examples/pipelines/shop --arg customer=ada -->
+```hql
+import io.env
+
+type Event {
+    id       : Int
+    kind     : String
+    customer : String
+    amount   : Decimal
+    at       : String
+}
+
+customer = env.arg("customer") | unwrap_or("grace")
+orders : Seq<Event> = source("ledger")
+orders
+| filter(o => o.kind == "order_placed" and o.customer == customer)
+| map(o => o.amount)
+| sum
+```
+
+```text
+135.75
+```
+
 ## Partitions, schedules and backends
 
 Three things a platform configures stay out of the file.
