@@ -53,7 +53,7 @@ cards
 | [HQL-0005](../proposals/HQL-0005/README.md) | Pipeline vocabulary and the logical/physical separation                                                                  | implemented         | yes         |
 | [HQL-0006](../proposals/HQL-0006/README.md) | `Stream<T>` as a first-class pipeline type                                                                               | implemented         | yes         |
 | [HQL-0007](../proposals/HQL-0007/README.md) | `collect` and `emit` are stream-shape operations                                                                         | implemented         | yes         |
-| [HQL-0008](../proposals/HQL-0008/README.md) | Presentation is separate from computation                                                                                | outdated            | no          |
+| [HQL-0008](../proposals/HQL-0008/README.md) | Presentation is separate from computation                                                                                | superseded          | yes         |
 | [HQL-0009](../proposals/HQL-0009/README.md) | Cells: identity, shared values and saved outputs                                                                         | implemented         | yes         |
 | [HQL-0010](../proposals/HQL-0010/README.md) | `tee` branches a pipeline without ending it                                                                              | implemented         | yes         |
 | [HQL-0011](../proposals/HQL-0011/README.md) | Names, their providers, and the naming lint                                                                              | implemented         | yes         |
@@ -66,7 +66,7 @@ cards
 | [HQL-0018](../proposals/HQL-0018/README.md) | A type's constructor is an operation                                                                                     | implemented         | yes         |
 | [HQL-0019](../proposals/HQL-0019/README.md) | Graph construction                                                                                                       | implemented in part | partially   |
 | [HQL-0020](../proposals/HQL-0020/README.md) | The vault and its namespace                                                                                              | implemented in part | partially   |
-| [HQL-0021](../proposals/HQL-0021/README.md) | I/O: endpoints, channels, the network and logging                                                                        | implemented in part | partially   |
+| [HQL-0021](../proposals/HQL-0021/README.md) | I/O: endpoints, channels, the network and logging                                                                        | implemented         | yes         |
 | [HQL-0023](../proposals/HQL-0023/README.md) | A document reference is written `@[[..]]`                                                                                | implemented         | yes         |
 | [HQL-0024](../proposals/HQL-0024/README.md) | A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions | implemented in part | partially   |
 | [HQL-0025](../proposals/HQL-0025/README.md) | Execution contexts and running modes                                                                                     | implemented in part | partially   |
@@ -99,4 +99,6 @@ cards
 | [HQL-0052](../proposals/HQL-0052/README.md) | Heterogeneous transaction coordination                                                                                   | drafted             | no          |
 | [HQL-0053](../proposals/HQL-0053/README.md) | Bytes, keys, signatures and encryption                                                                                   | implemented         | yes         |
 | [HQL-0054](../proposals/HQL-0054/README.md) | Key vaults: stored keys, SSH agents, keychains and cloud key managers                                                    | accepted            | no          |
+| [HQL-0055](../proposals/HQL-0055/README.md) | Steps, autes, stages, tasks and jobs: units of computation and units of execution                                        | implemented in part | partially   |
+| [HQL-0056](../proposals/HQL-0056/README.md) | Logical computation model and backend engines: a `Step` run at once or planned                                           | drafted             | no          |
 <!-- /hql:output -->
