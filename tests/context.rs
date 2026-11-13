@@ -223,4 +223,137 @@ fn the_context_is_written_as_json() {
     assert_eq!(document["mode"], "bare");
     assert_eq!(document["workspace"], serde_json::Value::Null);
     assert_eq!(document["cwd"], sandbox.tree().display().to_string());
+    assert_eq!(
+        document["hql_home"]["path"],
+        sandbox.home().join(".hql").display().to_string()
+    );
+    assert_eq!(document["config"][0]["layer"], "system configuration");
+    assert_eq!(document["config"][0]["present"], false);
+}
+
+/// A module file that opens with its declaration.
+fn module(name: &str, body: &str) -> String {
+    format!("module {name}\n{body}\n")
+}
+
+#[test]
+fn bare_hql_imports_modules_from_the_hql_home_and_hql_path() {
+    let sandbox = Sandbox::new();
+    let vault = sandbox.tree();
+    fs::create_dir_all(vault.join(".hmd")).unwrap();
+    sandbox.write(
+        &sandbox.home().join(".hql/modules/greet.hql"),
+        &module("greet", "fn one() : Int = 1"),
+    );
+    let shared = sandbox.root().join("shared");
+    sandbox.write(
+        &shared.join("twice.hql"),
+        &module("twice", "fn of(n: Int) : Int = n * 2"),
+    );
+    let output = sandbox
+        .command(
+            &vault,
+            &[
+                "--bare",
+                "import greet\nimport twice\n[greet.one(), twice.of(21)]",
+            ],
+        )
+        .env("HQL_PATH", &shared)
+        .output()
+        .unwrap();
+    assert_eq!(ok(&output), "[1, 42]\n");
+
+    let report = ok(&sandbox
+        .command(&vault, &["--bare", "context"])
+        .env("HQL_PATH", &shared)
+        .output()
+        .unwrap());
+    assert!(
+        report.contains(&format!(
+            "  {} (the HQL home)",
+            sandbox.home().join(".hql/modules").display()
+        )),
+        "{report}"
+    );
+    assert!(
+        report.contains(&format!("  {} ($HQL_PATH)", shared.display())),
+        "{report}"
+    );
+    assert_eq!(
+        field(&report, "hql-home"),
+        format!("{} (the default)", sandbox.home().join(".hql").display())
+    );
+}
+
+#[test]
+fn user_configuration_contributes_in_every_mode_and_names_its_files() {
+    let sandbox = Sandbox::new();
+    let hql_home = sandbox.root().join("custom-home");
+    sandbox.write(
+        &hql_home.join("config.toml"),
+        "[modules]\nroots = [\"lib\"]\n",
+    );
+    sandbox.write(
+        &hql_home.join("lib/units.hql"),
+        &module("units", "fn km(m: Int) : Int = m / 1000"),
+    );
+    let project = sandbox.tree().join("project");
+    sandbox.write(&project.join("hql.toml"), "[modules]\nroots = [\"src\"]\n");
+    sandbox.write(
+        &project.join("src/local.hql"),
+        &module("local", "fn base() : Int = 5000"),
+    );
+    sandbox.write(
+        &project.join("jobs/job.hql"),
+        "import units\nimport local\nunits.km(local.base())\n",
+    );
+    let run = |args: &[&str]| {
+        sandbox
+            .command(&sandbox.tree(), args)
+            .env("HQL_HOME", &hql_home)
+            .output()
+            .unwrap()
+    };
+    let job = project.join("jobs/job.hql");
+    assert_eq!(ok(&run(&["run", job.to_str().unwrap()])), "5\n");
+
+    let report = ok(&run(&["context", job.to_str().unwrap()]));
+    assert_eq!(
+        field(&report, "hql-home"),
+        format!("{} ($HQL_HOME)", hql_home.display())
+    );
+    for line in [
+        format!(
+            "  {} (system configuration, absent)",
+            sandbox.system_config().display()
+        ),
+        format!(
+            "  {} (user configuration)",
+            hql_home.join("config.toml").display()
+        ),
+        format!(
+            "  {} (the workspace's hql.toml)",
+            project.join("hql.toml").display()
+        ),
+        format!("  {} (user configuration)", hql_home.join("lib").display()),
+        format!(
+            "  {} (the workspace's hql.toml)",
+            project.join("src").display()
+        ),
+    ] {
+        assert!(report.contains(&line), "{line}\n{report}");
+    }
+}
+
+#[test]
+fn a_malformed_user_configuration_fails_every_run_naming_the_file() {
+    let sandbox = Sandbox::new();
+    sandbox.write(&sandbox.home().join(".hql/config.toml"), "[modules\n");
+    let output = sandbox.run(&sandbox.tree(), &["1"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr(&output).contains(".hql/config.toml"),
+        "{}",
+        stderr(&output)
+    );
 }

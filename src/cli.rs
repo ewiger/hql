@@ -512,6 +512,7 @@ fn request(cli: &Cli) -> crate::context::Request {
         anchor: file.and_then(crate::context::Request::anchor_of),
         bare: cli.options.bare,
         workspace,
+        modules: cli.options.modules.clone(),
         ..crate::context::Request::default()
     }
 }
@@ -532,6 +533,24 @@ fn write_context(
             "vault": path(context.vault()),
             "anchor": context.anchor.display().to_string(),
             "cwd": context.cwd.display().to_string(),
+            "hql_home": context.layers.home.as_ref().map(|home| serde_json::json!({
+                "path": home.path.display().to_string(),
+                "origin": home.origin.label(),
+            })),
+            "config": context.config_files().map(|file| serde_json::json!({
+                "layer": file.origin.label(),
+                "path": file.path.display().to_string(),
+                "present": file.is_present(),
+            })).collect::<Vec<_>>(),
+            "module_roots": context.module_roots.iter().map(|root| serde_json::json!({
+                "path": root.value.display().to_string(),
+                "origin": root.origin.label(),
+            })).collect::<Vec<_>>(),
+            "imports": context.imports.iter().map(|import| serde_json::json!({
+                "name": import.value,
+                "origin": import.origin.label(),
+            })).collect::<Vec<_>>(),
+            "prelude": { "value": context.prelude.value, "origin": context.prelude.origin.label() },
         });
         let text = if options.compact {
             serde_json::to_string(&document)
@@ -557,10 +576,63 @@ fn write_context(
         ("vault", path(context.vault()).unwrap_or_else(none)),
         ("anchor", context.anchor.display().to_string()),
         ("cwd", context.cwd.display().to_string()),
+        (
+            "hql-home",
+            context.layers.home.as_ref().map_or_else(none, |home| {
+                format!("{} ({})", home.path.display(), home.origin.label())
+            }),
+        ),
+        (
+            "prelude",
+            format!(
+                "{} ({})",
+                if context.prelude.value { "on" } else { "off" },
+                context.prelude.origin.label()
+            ),
+        ),
     ];
     for (label, value) in lines {
         writeln!(out, "{:<11}{value}", format!("{label}:")).map_err(|error| error.to_string())?;
     }
+    let mut list = |label: &str, rows: Vec<(String, String)>| -> Result<(), String> {
+        writeln!(out, "{label}:").map_err(|error| error.to_string())?;
+        if rows.is_empty() {
+            writeln!(out, "  none").map_err(|error| error.to_string())?;
+        }
+        for (value, origin) in rows {
+            writeln!(out, "  {value} ({origin})").map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    };
+    list(
+        "config",
+        context
+            .config_files()
+            .map(|file| {
+                let state = if file.is_present() { "" } else { ", absent" };
+                (
+                    file.path.display().to_string(),
+                    format!("{}{state}", file.origin.label()),
+                )
+            })
+            .collect(),
+    )?;
+    list(
+        "module roots",
+        context
+            .module_roots
+            .iter()
+            .map(|root| (root.value.display().to_string(), root.origin.label()))
+            .collect(),
+    )?;
+    list(
+        "imports",
+        context
+            .imports
+            .iter()
+            .map(|import| (import.value.clone(), import.origin.label()))
+            .collect(),
+    )?;
     Ok(())
 }
 
@@ -572,10 +644,7 @@ fn dispatch(
     err: &mut impl Write,
 ) -> Result<u8, String> {
     let root = context.workspace_root();
-    vault
-        .extensions
-        .module_roots
-        .extend(cli.options.modules.iter().cloned());
+    context.configure(&mut vault.extensions);
     let vault: &Vault = vault;
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
@@ -792,9 +861,15 @@ fn dispatch(
                     Some(Found::Loaded) => vault,
                     Some(Found::Own(own)) => {
                         let mut own = *own;
-                        own.extensions
-                            .module_roots
-                            .extend(cli.options.modules.iter().cloned());
+                        // The document's own workspace, under the same
+                        // system and user layers as the run's.
+                        let request = crate::context::Request {
+                            anchor: Some(own.root.clone()),
+                            ..request(cli)
+                        };
+                        crate::context::ExecutionContext::construct(&request, &context.environment)
+                            .map_err(|error| error.to_string())?
+                            .configure(&mut own.extensions);
                         for diagnostic in &own.warnings {
                             crate::io::write_diagnostic(diagnostic.clone());
                         }
