@@ -1,6 +1,6 @@
 # HQL-0055: Steps, autes, stages, tasks and jobs: units of computation and units of execution
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-11-13
 **Source**: [issue 0063](../../issues/0063-the-result-of-a-write.md) (the
 result of a write); [issue 0072](../../issues/0072-release-0.6.0.md) (release
@@ -337,3 +337,6 @@ cargo run --locked -- reference --check doc/public/reference
 - 2026-11-13: drafted, from a discussion of issue 0063. The maintainer
   decided the name: `Unit` becomes `Step`, before the 0.6.0 tag, as a
   subtype of `Aute`, the atomic unit of execution.
+- 2026-11-13: implemented in part, in 0.6.0: `Unit` is `Step`, a subtype of
+  the builtin `Aute`, and `Unit` is refused naming `Step`. The vocabulary of
+  steps, stages, tasks and jobs is the specification; no planner changed

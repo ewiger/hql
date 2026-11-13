@@ -240,3 +240,7 @@ cargo clippy --locked --all-targets -- -D warnings
   `graph = vault.graph` are implemented, and the generic `Graph<N, E>`, the
   join and predicate forms and `KnowledgeGraph` are not yet, so `vault.graph`
   is a `Graph` over the vault's cards
+- 2026-11-13: corrected. `lib/std/graph/mod.hql` declares the generic
+  `Graph<N, E>` as vocabulary; the binary carries one graph type over cards
+  and edges and ignores its arguments, so the generic graph is declared, not
+  built. The join and predicate forms and `KnowledgeGraph` remain (issue 0072)
