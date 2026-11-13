@@ -1,12 +1,11 @@
 # Writing with `target` and `sink`
 
-Writing has two forms, chosen by the shape of the value. `target(endpoint,
-Format)` writes one completed value as one document. `sink(endpoint, Format)`
-writes one document per value, as each arrives. Both end a program with a
-`Step`, its final computation step. A `Step` carries no value; HQL has no
-void type, and `Step` stands in for one. A local engine runs the step at
-once; another engine may schedule it as part of an execution plan. A `Step`
-prints nothing, so what a program below prints is what was written.
+Writing has two forms, chosen by the shape of the value: 
+
+- `target(endpoint, Format)` writes one completed value as one document. `
+- `sink(endpoint, Format)` writes one document per value, as each arrives. 
+
+Writing is an I/O operation, and so it is **effectful** or produces a side effect. A program prints nothing by itself: it writes to an endpoint. Most examples below write to `stdout`, and the text under each is what was written there.
 
 ## One document with `target`
 
@@ -167,14 +166,15 @@ $ cat dusk.jsonl
 ```
 
 One program reads sightings as they arrive, appends those seen at dusk to a
-file, and prints every species. A failed write on any branch ends the
+file, and writes every species to `stdout`. A failed write on any branch ends the
 evaluation with that error.
 
-## Standard output and the result
+## Writes, logs and the result
 
-`target(stdout, F)` and `sink(stdout, F)` write while the program runs. The
-result of a program is a different thing: the host presents it after
-evaluation, in the format `--to` names
-([`hql` on the command line](command-line.md)). A program that ends in
-`target` or `sink` has the result `Step`, and prints nothing beyond what it
-wrote.
+`stdout` is an endpoint like a file: `target(stdout, F)` and
+`sink(stdout, F)` write to it while the program runs. A program reports on
+itself through two other paths, and neither is a write. Log events go
+through a [logger](logging.md). Failures and diagnostics go through the
+host's [reporting](../12-errors/diagnostics.md). The result of a program is
+also the host's to present, after evaluation, in the format `--to` names
+([`hql` on the command line](command-line.md)).

@@ -35,6 +35,9 @@ board:
       - id: "0068"
         title: "General-purpose gap analysis: what Python and its peers have that HQL lacks"
         file: 0068-general-purpose-gap-analysis.md
+      - id: "0073"
+        title: "Computation plans: align HQL-0056 with the computation life cycle"
+        file: 0073-computation-plans.md
       - id: "0074"
         title: "Time columns read and written against a live PostgreSQL and Spark"
         file: 0074-time-columns-against-live-servers.md
