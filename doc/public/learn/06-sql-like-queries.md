@@ -5,6 +5,10 @@ what. HQL asks the same questions with pipeline steps. This chapter works
 through them over one table — the reading club's shelf, written as a list of
 records.
 
+These examples run locally in `hql`. Translating their logical steps into
+SQL for a database engine is a future backend capability, described in
+[Logical steps and physical plans](14-planning-and-backends.md).
+
 ## The table
 
 <!-- define: shelf -->

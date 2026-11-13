@@ -1,26 +1,35 @@
 # HQL-0055: local evaluation and scheduled execution
 
-Companion to [HQL-0055](../README.md). It contrasts the two ways a program
-runs today and later, and says which level owns which concern.
+Companion to [HQL-0055](../README.md). It describes local evaluation today
+and the responsibilities of future scheduled execution.
 
 ## Two ways to run
 
 **Local evaluation.** The `hql` binary evaluates the checked program in
-process: one job, one stage, one task, steps evaluated one after another.
-This is every program today, including those that read from and write to
+process: each pipeline is planned into one in-process stage. One program run
+is one job in this vocabulary; task identities are not exposed by the local
+runtime. Finite collections pass through steps in turn; streams produce
+values on demand. This applies to every program today, including those that read from and write to
 PostgreSQL, Kafka, NATS or a lakehouse: the endpoint is remote, the
 evaluation is local.
 
-**Scheduled execution.** A backend receives a plan and runs its stages as
-tasks on resources it schedules: Spark executors, a database's own planner,
-independently scheduled workers. Nothing in HQL does this yet. The nearest
-case today is a read or a mutation over a Spark endpoint (HQL-0049): HQL
+**Scheduled execution (design direction).** A backend would run a plan's
+stages as tasks on workers it manages or through an engine's scheduler.
+The nearest case today is a read or a mutation over a Spark endpoint
+(HQL-0049 and HQL-0051): HQL
 sends one SQL statement, and the cluster plans and schedules that statement
-as its own job, out of HQL's sight.
+using its own physical plan, out of HQL's sight. One submitted statement
+may involve multiple engine stages, tasks and jobs.
 
-The program does not say which. Its meaning is the same under both, and the
-choice of backend is configuration and execution context (HQL-0025), not
-syntax.
+**Delegated planning.** A future SQL backend could translate HQL's logical
+steps into a query with CTEs and submit it to Databricks. At that handoff,
+HQL has selected the engine and the translated computation. Spark still
+plans the physical operators and schedules execution. A backend MAY own
+those choices directly or delegate them; either way it owes HQL the same
+observable behavior. The [four levels](01-levels.md) describe this boundary.
+
+Backend configuration and execution context select the strategy (HQL-0025).
+The checked program retains its meaning under each supported strategy.
 
 ## Who owns what
 
@@ -41,12 +50,11 @@ syntax.
 
 ## The aute between the program and the scheduler
 
-The four levels are owned by four parties; the effectful autes are what they
-agree on.
+Each layer has a responsibility for completion visible to the program:
 
 ```text
 program     says which effectful autes happen, and in what order
-planner     places every effectful aute in a stage, never splitting or reordering it
+planner     preserves effect dependencies and transaction scope in the physical plan
 scheduler   runs tasks; a task MUST NOT repeat an effect it completed unless
             the effect is idempotent, the endpoint allows the repeat, or the
             repeat is a transaction's attempt
@@ -59,8 +67,9 @@ effect: a commit, an acknowledged publish, a file renamed into place. A
 backend that cannot confirm an effect cannot claim it happened, and its task
 has not completed.
 
-A stage of pure steps completes no effectful aute. Its tasks may be lost,
-retried and duplicated without the program observing any of it.
+Pure tasks may be retried or duplicated when the backend can preserve
+their results and observable failures. Effectful tasks additionally require
+the delivery and transaction guarantees above.
 
 ## Bounded and unbounded jobs
 
@@ -70,13 +79,14 @@ retried and duplicated without the program observing any of it.
   Kafka topic or a NATS subject feeding a sink. It ends on a signal, a drained
   source or a policy; which, and how a job's end commits its last effects, is
   an open question of the record.
-- A `sink` over an unbounded stream gives `Step` only when the job ends. Until
-  then its progress is a property of the job, read from the runtime, not a
-  value of the program.
+- In this proposal, a `sink` gives `Step` when its input ends and its write
+  completes. An unbounded input keeps it active until an end condition is
+  reached. Other work in the same job may still remain. Progress reporting
+  during that write belongs to the runtime; its interface remains open.
 
-## What 0.6.0 ships
+## Scope of this proposal
 
-Local evaluation, the `localhost` planner and `hql plan` as they are, and
-the vocabulary. No `Stage`, `Task` or `Job` type, no plan IR, no scheduler.
-The record exists so that the first scheduled backend arrives into names
-that already have one meaning each.
+The proposal retains local evaluation, the `localhost` planner and
+`hql plan`. Its execution vocabulary gives future backend specifications
+a shared starting point. A graph IR, scheduler and public `Stage`, `Task`
+or `Job` types are outside this proposal.

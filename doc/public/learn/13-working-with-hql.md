@@ -289,7 +289,8 @@ backend: localhost (from the default)
 vault: none
 ```
 
-`backend` is the execution backend of [chapter 14](14-etl-pipelines.md), and
+`backend` selects the execution strategy described in
+[Logical steps and physical plans](14-planning-and-backends.md), and
 `localhost` is the only one. Run inside a vault, or with `--vault`, the last
 line names it and counts its cards.
 

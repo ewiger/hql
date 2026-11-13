@@ -302,9 +302,10 @@ events
 {{customer: "ada", orders: 2, total: 135.75}, {customer: "grace", orders: 1, total: 42.00}, {customer: "linus", orders: 1, total: 7.99}}
 ```
 
-The query is evaluated by `hql`, not by Spark: the endpoint is asked for the
-rows of one table, and the filter and the grouping run where the program
-runs.
+The endpoint supplies the rows of one table; `hql` evaluates the filter and
+grouping locally. A future execution backend could translate supported
+pipeline steps to Spark SQL. [Logical steps and physical plans](../14-planning-and-backends.md)
+explains that design direction and how engine planning fits into it.
 
 ## From a subject to a lakehouse
 

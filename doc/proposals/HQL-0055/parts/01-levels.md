@@ -1,115 +1,108 @@
-# HQL-0055: the four levels
+# HQL-0055: logical steps and physical execution
 
-Companion to [HQL-0055](../README.md). It states each level with its owner
-and cardinality, places each against the records that already use the word,
-and works one pipeline through two plans.
+Companion to [HQL-0055](../README.md). This note defines the planning
+boundary and its owners. The public book's
+[Logical steps and physical plans](../../../public/learn/14-planning-and-backends.md)
+introduces the same concepts with a small expression and a hand-written SQL
+translation. Alternative execution strategies here are design direction.
 
-## Logical and physical computation
+## Before planning: the logical program
 
-```hql
-source("orders")
-| filter(o => o.amount > 100)
-| map(o => o.customer_id)
-| distinct
-| sink("customers")
-```
+A program declares computation through typed expressions and pipelines.
+Each `|` forms a step that applies an operation or presentation to its input.
+Checking resolves those operations, types and dependencies before physical
+planning begins. Effects constrain the observable order of the work.
 
-The pipeline has a head, `source("orders")`, and four steps, which is how
-`hql plan` lists it. How many stages, tasks and jobs it becomes is not in the
-program; it is in the plan a backend's planner draws for it.
+The logical program is therefore already meaningful before a backend
+chooses traversals, workers or a SQL translation. A `filter` followed by a
+`map` remains two logical steps even if execution performs both in one
+traversal. Logical step positions remain useful for diagnostics and for
+explaining the computation.
 
-```text
-HQL source program
-      |
-      v
-typed expressions                      the checker (HQL-0044)
-      |
-      v
-logical dataflow: steps                the program's own step nodes (HQL-0005)
-      |
-      v
-stages and their dependencies          the planner
-      |
-      v
-backend-specific execution plan        the backend
-      |
-      v
-tasks                                  the backend's scheduler
-      |
-      v
-execution, and the effects it has      the runtime, inside one job
-```
+## Planning: choosing an execution strategy
 
-A plan MUST give the value the `localhost` backend gives (HQL-0004). Within
-that, a planner MAY fuse, split, reorder or distribute steps where doing so is
-safe, and the companion note on [effects](02-effects.md) says where it is not.
-
-## The plan on the `localhost` backend
-
-This is what `hql plan` prints for it today, from the planner in
-`src/backends/plan.rs`:
-
-```text
-backend localhost
-line 1: source("orders")
-  | filter    stage 0  in process    elementwise, pure
-  | map       stage 0  in process    elementwise, pure
-  | distinct  stage 0  in process    barrier, pure
-  | sink      stage 0  in process    barrier, effectful
-```
-
-One job, one stage, one task. This is HQL-0005's trivial plan, and the record
-leaves it as it is.
-
-## A plan on a distributed backend
-
-```text
-job 1
-  stage A   source, filter, map, distinct (partial)     pure, fused; per partition
-    tasks A.0 .. A.63                                   one per input partition
-        |
-        | shuffle by customer_id
-        v
-  stage B   distinct (final)                            per key partition
-    tasks B.0 .. B.15
-        |
-        v
-  stage C   sink                                        effectful
-    tasks C.0 .. C.15                                   one writer per partition
-```
-
-- `filter` and `map` are pure `Elementwise` steps, fused with the source into
-  stage A: one traversal, no intermediate value.
-- `distinct` is one step planned into two stages: a partial deduplication in
-  stage A and the final one in stage B, across a shuffle. This is why a stage
-  may hold part of a step, which HQL-0005 did not allow.
-- `sink` is effectful. It is its own stage here so that its tasks can be
-  retried, committed and counted apart from the pure work; a backend MAY fuse
-  it into stage B when the endpoint's delivery semantics allow.
-- A failed task A.17 is retried as a new task of stage A over partition 17.
-  Nothing in the program changes.
-
-The plan is one of many. Another backend pushes all of it into one SQL
-statement: one stage, one task, run by the database.
-
-## Each level against the records that use its word
-
-| Level | Defined by | Earlier uses this record aligns |
+| Level | Owner | Responsibility |
 | --- | --- | --- |
-| Step | HQL-0005, "The six terms" | unchanged |
-| Stage | HQL-0005, "A stage is an annotation on steps" | widened to part of a step; plans are graphs of stages |
-| Task | this record | HQL-0036 "retrying failed execution tasks"; HQL-0005 "parallel, 8 jobs" means eight tasks |
-| Job | this record | HQL-0005 "distributed as jobs" and "job units" mean tasks |
+| Logical steps | Program and checker | Operations, types, data dependencies and ordered effects |
+| Physical plan and stages | Planner, possibly with an engine planner | Fusion, work division, data movement and execution strategy |
+| Tasks | Backend scheduler | Concrete attempts, partition assignment and retries |
+| Job | Runtime | One program run, its progress, diagnostics and completion |
 
-The discussion this record comes from proposed *work unit* for the
-planner's region. HQL-0005 already reserves *stage* for exactly that, and
-gives each term one meaning, so *work unit* is not adopted. Should a later
-record prefer *work unit*, it renames *stage* everywhere, not beside it.
+A physical plan resolves execution choices as far as the backend can make
+them. Several steps may share a stage; one step may need several stages.
+A reduction, for example, may use partial aggregation and a final combine.
+The permitted transformations follow the operation's shape and the
+[effect constraints](02-effects.md), preserving HQL-0004's observable
+contract. Data dependencies remain constraints even between pure steps.
 
-## Why the step is not a "job unit"
+The logical-to-physical mapping need not use a separate graph object in the
+implementation. Today the planner annotates checked step nodes. A future
+representation must also accommodate split steps and delegated planning;
+its schema remains open.
 
-A step exists when HQL runs in process with no job orchestration at all, and
-a name like *job unit* would make it sound like a subordinate part of a job.
-The step is the program's unit; the job is the runtime's, and the plan
-between them may relate the two in any way that preserves the program's
-value.
+## Local and parallel execution
+
+`localhost` is the only implemented execution backend. Its plan assigns
+`stage 0, in process` to every step within each pipeline. Stage numbering
+is local to that pipeline. A program with several pipelines consequently
+has several pipeline-local annotations, rather than one globally numbered
+stage graph. Finite collections are evaluated step by step; streams are
+consumed on demand.
+
+One invocation is one job in this record's vocabulary. The local runtime
+has no scheduler task identity or retry lifecycle. Describing the work as
+one in-process task is a conceptual view, not an extra runtime object.
+
+A future parallel backend could divide a pure elementwise computation
+among local workers. A distributed backend could place the same computation
+on multiple machines. Both must reconstruct the result's required order
+and preserve failures. Distribution also requires a plan for moving data
+between workers, such as bringing equal keys together before grouping.
+
+## SQL translation and delegated physical planning
+
+A future backend could translate supported logical steps into Spark SQL
+for Databricks. A sequence of CTEs can name intermediate relations in one
+statement. This is a backend representation of the computation, with more
+physical planning still to come:
+
+```text
+checked HQL steps and dependencies
+    -> HQL backend: select engine and translate supported computation
+    -> Spark SQL, possibly using CTEs
+    -> engine: logical optimization and physical planning
+    -> scheduler: execution attempts on workers
+    -> results and effects reported to the HQL run
+```
+
+The engine chooses its physical operators and execution layout. A CTE
+boundary does not prescribe a stage boundary, materialization, or task.
+One submitted SQL statement may execute through many tasks or engine jobs.
+HQL's job remains one run of the whole HQL plan; engine identities need an
+explicit mapping if the backend exposes them to that run.
+
+The backend must account for HQL types, sequence positions, missing values,
+numeric behavior, diagnostics and effect ordering. Matching a pipeline
+operation to a SQL clause alone does not establish equivalence. Unsupported
+work is refused before execution. The supported subset, partial pushdown
+and any local fallback require a later backend specification.
+
+This planning handoff follows the distinction shown by Spark's
+[`EXPLAIN EXTENDED`](https://spark.apache.org/docs/3.5.6/sql-ref-syntax-qry-explain.html),
+which exposes logical and physical plans separately. Databricks documents
+[CTEs](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-qry-select-cte)
+as named results scoped to a statement.
+
+## Relationship to earlier records
+
+| Term | Existing definition | Refinement in this draft |
+| --- | --- | --- |
+| Step | HQL-0005: an occurrence in a pipeline | Explicitly pre-planning; unchanged by backend selection |
+| Stage | HQL-0005: a planned group of whole steps | May also contain part of a step; planning may be delegated |
+| Task | HQL-0036 uses execution tasks | One scheduled attempt over a stage and partition where applicable |
+| Job | Earlier scheduling prose sometimes uses job for a work item | One run of a whole HQL plan |
+
+HQL-0005's current single-stage annotation per step describes the
+implemented representation. This draft's split-step mapping is a proposed
+extension. The public book teaches the separation now and labels that
+extension, SQL translation and parallel execution as design direction.

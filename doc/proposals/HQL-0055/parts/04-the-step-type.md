@@ -28,16 +28,16 @@ Aute
 Step : Aute
 ```
 
-The pipeline occurrence and the type are one idea at two levels: running a
-step, or a statement, is a unit of execution, and `Step` is what that unit
-gives when it gives nothing else. `Aute` is the wider idea, any atomic
-execution that completed, so that a later unit that is not a statement, a
-transaction's attempt perhaps, has a place under it beside `Step`.
+A logical *step* names a computation before planning. The proposed `Step`
+type describes completed evaluation that returns no other value. Its value
+records completion visible to the program, independently of how many
+physical tasks performed the work. `Aute` generalizes this completion
+concept; a transaction's attempt might later have a type beneath it.
 
-`Unit` named a unit of *computation*; `Aute` names a unit of *execution*, and
-the difference is the point of the record. A computation is what the program
-says; a pure one may be executed any number of times in any number of pieces,
-and the program cannot tell. An execution is what happened once.
+The planner may split, combine or repeat pure computation when that
+transformation preserves dependencies, results, ordering and failures.
+The type describes what the program observes after evaluation, while the
+stage and task vocabulary describes how the backend carries it out.
 
 ## Where `Unit` is used
 

@@ -2,8 +2,8 @@
 
 Companion to [HQL-0055](../README.md). A step describes computation, a stage
 describes how the planner groups it, and an effect describes the
-computation's interaction with the world outside the evaluation. The three
-are related and none is another's alias.
+computation's interaction with state outside the evaluation. Planning uses
+all three to preserve what a program computes and what it changes.
 
 ## What an effect is
 
@@ -20,8 +20,9 @@ An effect is an observable interaction with state outside the evaluation.
   `random_float` and `uuid`;
 - encrypting: `crypto`'s `encrypt_to` and `encrypt_with_passphrase`.
 
-An effect is not an execution result. A read's result is the data it read;
-a write's result today is only that it ran.
+A read returns the data it read. A write currently returns `Unit`, recording
+that it ran. These returned values describe the result of operations that
+also interact with external state.
 
 ## Where HQL already records it
 
@@ -35,25 +36,27 @@ a write's result today is only that it ran.
 - **Transactions** (HQL-0051). A `with transaction` scope groups the writes
   that commit together.
 
-This record adds no mechanism. It states what a planner must read from these.
+These existing declarations supply the information for the planning
+constraints below.
 
 ## Effect, `effectful` and the aute
 
 - `effectful` is the declaration; the effect is what the call does when it
   runs. They are one notion from two sides.
-- The aute is a different thing: a completed unit of execution, whether or
-  not it carried an effect. `x = 1` is an aute with no effect; a `sink` is an
-  aute with one.
-- The planner's constraints below are over effectful autes. A pure aute it
-  may fuse, split, duplicate or move, since the program cannot tell.
+- An aute records completion visible to the program. `x = 1` completes
+  without an effect; `sink` completes with one.
+- Effectful autes carry the ordering, retry and transaction constraints
+  below. Pure computation admits fusion, splitting, duplication or movement
+  where the transformation preserves its contract, dependencies and
+  observable failures.
 
 ## The constraints
 
-Each rule, then its reason.
-
-1. **Pure steps move freely.** A planner MAY fuse, split, reorder and
-   distribute pure steps within their declared shape (HQL-0004). A pure step's
-   value depends on its input alone, so where it runs cannot be observed.
+1. **Pure steps admit equivalent rewrites.** A planner MAY fuse, split,
+   reorder and distribute pure steps within their declared shape
+   (HQL-0004), preserving dependencies, results, sequence order and
+   failures. Purity makes evaluation independent of external state;
+   equivalence still needs to hold for the proposed rewrite.
 2. **Ordered effects stay ordered.** Two effects the program orders, one
    step before another or one statement before another, MUST happen in that
    order. Reordering two writes, or a write and the read that follows it,
@@ -69,14 +72,16 @@ Each rule, then its reason.
    semantics allow the repeat (at-least-once with a key the sink deduplicates
    on), or the repeat is a transaction's attempt, which rolls the earlier one
    back.
-6. **Partitioning an effect splits its delivery.** A `sink` planned as one
-   task per partition writes in parallel; the endpoint's ordering guarantee
-   then holds per partition, not across them (HQL-0036).
+6. **Partitioning an effect must preserve its delivery contract.** A `sink`
+   may write in parallel only where its endpoint's ordering and transaction
+   guarantees permit that plan (HQL-0036). A planner MUST NOT weaken a
+   global ordering or atomicity guarantee to a per-partition guarantee.
+   The observable completion of a partitioned sink remains an open question
+   of this record.
 
 ## What an effect gives
 
-That the statement ran is its value: `Step` (the record's "The types `Aute`
-and `Step`"). What the effect did, how many rows and where, is a later and
-separate question that issue 0063 keeps open. The two are kept apart so that
-the type of a write can gain an outcome without the notion of an effect
-changing.
+Under this proposal, `Step` records the completion of an operation that
+returns no other value, such as a write. Reads continue to return their
+data. A richer write outcome could also report row counts or a commit;
+issue 0063 keeps that result design open.

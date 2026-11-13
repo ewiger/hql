@@ -11,8 +11,8 @@ stages and tasks); [HQL-0001](../HQL-0001/README.md) (purity)
 ## Companion notes
 
 - [`parts/01-levels.md`](parts/01-levels.md) — the four levels, step,
-  stage, task and job, each with its owner and cardinality, and a worked plan
-  of one pipeline on the `localhost` backend and on a distributed one.
+  stage, task and job, each with its owner and cardinality, and the planning
+  handoff for local, parallel, SQL and distributed execution.
 - [`parts/02-effects.md`](parts/02-effects.md) — what an effect is, how
   `effectful`, effect and aute name one thing from three sides, and the
   constraints autes put on fusing, reordering, retrying and partitioning.
@@ -26,10 +26,12 @@ stages and tasks); [HQL-0001](../HQL-0001/README.md) (purity)
 
 ## Abstract
 
-A unit of computation in HQL is not a unit of execution in a backend. This
-record separates the two and names each level once. A **step** is one
-occurrence of an operation in a pipeline, as HQL-0005 defines it; it exists
-whether the program runs in process or on a cluster. A **stage** is the region
+A checked HQL program describes logical computation before planning begins.
+Its steps, types, data dependencies and ordered effects define what a run
+must compute. Planning selects a physical execution strategy for that
+program, directly or through an engine such as Spark SQL. This record names
+each level. A **step** is one occurrence of an operation in a pipeline, as
+HQL-0005 defines it. A **stage** is the region
 of a plan a planner chooses for execution, HQL-0005's term, here allowed to
 hold part of a step as well as several. A **task** is one concrete,
 schedulable execution of a stage, one attempt at a time. A **job** is one
@@ -49,17 +51,18 @@ message naming `Step`.
   missing value or a status, and as `none` with a capital letter. The
   maintainer named it for the atomic unit of computation; the name should
   carry that meaning on its own.
-- The backends are arriving (PostgreSQL, Spark, Kafka, NATS, a lakehouse), and
-  with them the words *job*, *task*, *stage* and *work unit*, used loosely.
-  HQL-0005 fixed *step* and *stage*. It also writes "parallel, 8 jobs" for what
-  is eight parallel tasks, and HQL-0036 speaks of "execution tasks" without
-  defining them. Nothing defines a job.
+- The endpoint integrations (PostgreSQL, Spark, Kafka, NATS, a lakehouse)
+  connect local evaluation to remote systems. Future execution backends need
+  equally precise vocabulary for *job*, *task*, *stage* and *work unit*.
+  HQL-0005 fixed *step* and *stage*. Its scheduling examples now use *tasks*,
+  aligning the earlier wording with HQL-0036's "execution tasks". This
+  record supplies the definitions of task and job.
 - A planner needs to know which steps it may fuse, split, reorder, distribute
   or retry. Purity says some of it; the rest belongs to effects, and HQL has
   no record that states what an effect constrains.
-- `|` is a composition operator, not an execution boundary. HQL-0005 says so
-  for stages; the same has to hold for tasks and jobs before a planner exists,
-  or the first backend that maps one pipe to one task fixes it by accident.
+- `|` composes logical steps. HQL-0005 leaves physical stage boundaries to
+  planning; tasks and jobs need the same separation before alternative
+  backends introduce scheduler-specific choices.
 
 ## Goals
 
@@ -87,6 +90,38 @@ message naming `Step`.
   `Step` leaves room for it; see the companion note on [the type `Step`](parts/04-the-step-type.md).
 
 ## Specification
+
+### 0. Logical computation and physical planning
+
+The logical program exists **before planning**. Checking resolves its
+operations, types, data dependencies and effects. `|` composes those typed
+steps and MUST retain that meaning across execution backends.
+
+Planning selects how to execute the checked computation, using operation
+contracts and backend capabilities. It resolves physical choices as far as
+the backend owns them: fusion, partitioning, data movement, materialization
+and execution strategy. A backend MAY delegate further planning to an engine.
+For example, HQL could translate a supported region into Spark SQL on
+Databricks, with CTEs expressing intermediate relations. Spark would then
+derive its physical plan and schedule the work.
+
+Generated SQL is a backend translation of the logical computation. A CTE
+names a relation within a statement; neither a CTE nor a statement fixes
+the count of physical stages, tasks or engine jobs. The integration MUST
+distinguish HQL's units from the engine's units when it exposes them.
+
+Every translation and physical rewrite MUST preserve the observable
+contract of HQL-0004 and HQL-0044: results, types, sequence positions,
+failures and reports, together with ordered effects and transaction scope.
+Purity alone grants no permission to change data dependencies or failures.
+A backend MUST refuse unsupported work before execution. The supported SQL
+subset, partial pushdown, fallback policy and engine mappings remain future
+backend decisions.
+
+The separation is fixed by this record. The representation of a logical
+computation graph and its physical plans remains open. Today the checked
+tree carries step nodes and the local planner annotates them; this record
+does not claim a new graph IR or an alternative backend is implemented.
 
 ### 1. The four levels
 
@@ -120,11 +155,13 @@ Job    the runtime              one execution of a whole plan             one or
 - None of the four is guaranteed to occupy one CPU, thread, process, worker
   or machine. HQL-0036's rule for partitions holds for all of them.
 - `|` MUST NOT be read as a stage, task or job boundary. The `localhost`
-  backend's plan stays the trivial one that `hql plan` prints today: every
-  step in `stage 0, in process`; one job, one stage, one task.
+  backend's plan stays the one that `hql plan` prints today: every
+  step in `stage 0, in process`, numbered within each pipeline. One program
+  run is one job in this vocabulary. Local evaluation has no scheduler task
+  identities; calling it one in-process task is a conceptual description.
 
-The companion note on [the four levels](parts/01-levels.md) works one pipeline through
-both plans.
+The companion note on [the four levels](parts/01-levels.md) follows this
+separation through the different execution strategies.
 
 ### 2. Effect is a property, not a level
 
@@ -136,8 +173,9 @@ effectful operations a function body uses.
 
 - Neither a stage nor a task is defined by the effects it holds. A stage
   holds effectful steps beside pure ones; it is not itself an effect.
-- A planner MAY fuse, split, reorder and distribute pure steps freely, within
-  the shape their operation declares (HQL-0004).
+- A planner MAY fuse, split, reorder and distribute pure steps where their
+  declared shape permits and the transformation preserves data dependencies,
+  results, order and failures (HQL-0004).
 - A planner MUST preserve the order of two effects the program orders, and
   MUST preserve the scope of a transaction (HQL-0051): every write inside a
   `with transaction` scope commits or none does, whatever the stages.
@@ -163,10 +201,10 @@ program, not at all. A statement is an aute once it has run. A step of a
 pipeline is an aute once it has run.
 
 - An aute MAY carry an effect or not. `x = 1` is an aute with none; a `sink`
-  is an aute with one. The planner's rules (see "Effect is a property, not a
-  level") are over the effectful autes: those it may not duplicate, drop or
-  move past one another. A pure aute it MAY fuse, split, run in many tasks
-  or run twice, since the program cannot tell.
+  is an aute with one. The effect constraints above govern repeating or
+  reordering effectful autes. Pure computation MAY be fused, split or
+  repeated when the transformation preserves its observable contract,
+  including dependencies and failures.
 - An aute is not a task. A task is how a backend schedules work; an aute is
   what the program observes of it. A task MAY complete many autes, and
   whether one aute MAY span tasks is an open question.
@@ -198,10 +236,10 @@ Step : Aute     a statement ran and gave no value
   and in a record (issue 0072's value printing fix).
 - `Unit` MUST be refused where a type is expected, with a message naming
   `Step`, for one release at least.
-- `Step` the type and *step* the pipeline occurrence are one idea at two
-  levels: running a step, or a statement, is a unit of execution, and `Step`
-  is what that unit gives when it gives nothing else. The word is not given
-  a second meaning.
+- A logical *step* names a computation before planning. The proposed
+  `Step` type describes the completed evaluation of a statement or operation
+  that returns no other value. Its value represents completion visible to
+  the program, independently of how many physical tasks performed the work.
 - `Never`, the type with no value, is unchanged.
 
 The companion note on [the type `Step`](parts/04-the-step-type.md) lists the uses and the
@@ -286,13 +324,16 @@ cargo run --locked -- reference --check doc/public/reference
   pipelines in one job?
 - How does an unbounded job end: on a signal, on a drained source, or by a
   policy the configuration states?
-- Should HQL's intermediate representation be a first-class computation
-  graph, steps as nodes, effects and data dependencies as edges, stages as
-  planner-chosen regions, so that one program runs locally, pushes down into
-  SQL or becomes a Spark plan without redefining `|`?
+- How should the intermediate representation encode logical steps, data and
+  effect dependencies, and their mapping to physical stages? A computation
+  graph is a candidate. The representation remains open; preserving `|`
+  across local execution, SQL pushdown and Spark plans is a requirement.
 
 ## Changelog
 
+- 2026-11-13: clarified pre-planning logical steps, physical planning and
+  delegated engine planning; aligned the public book and bounded the SQL
+  examples as design direction.
 - 2026-11-13: drafted, from a discussion of issue 0063. The maintainer
   decided the name: `Unit` becomes `Step`, before the 0.6.0 tag, as a
   subtype of `Aute`, the atomic unit of execution.
