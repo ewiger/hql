@@ -199,6 +199,7 @@ nav:
           - std/format: reference/std/format/index.md
           - std/io: reference/std/io/index.md
           - std/io/fs: reference/std/io/fs/index.md
+          - std/io/env: reference/std/io/env/index.md
           - std/io/net: reference/std/io/net/index.md
           - std/io/logging: reference/std/io/logging/index.md
           - std/io/db/sqlite: reference/std/io/db/sqlite/index.md

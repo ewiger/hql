@@ -49,6 +49,7 @@ pub const STD: &[(&str, &str)] = &[
     ("format", include_str!("../lib/std/format/mod.hql")),
     ("io", include_str!("../lib/std/io/mod.hql")),
     ("io.fs", include_str!("../lib/std/io/fs/mod.hql")),
+    ("io.env", include_str!("../lib/std/io/env/mod.hql")),
     ("io.net", include_str!("../lib/std/io/net/mod.hql")),
     ("io.logging", include_str!("../lib/std/io/logging/mod.hql")),
     (

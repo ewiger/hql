@@ -22,6 +22,7 @@ use std::path::Path;
 pub(crate) mod binding;
 pub(crate) mod collections;
 pub(crate) mod contract;
+pub(crate) mod env;
 pub mod format;
 pub(crate) mod fs;
 pub(crate) mod graph;
@@ -477,6 +478,15 @@ static FS: Extension = Extension {
     metadata: None,
 };
 
+// Named by the path it provides: `import io.env` binds it as `env`.
+static ENV: Extension = Extension {
+    name: "io.env",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.env"],
+    steps: env::STEPS,
+    metadata: None,
+};
+
 static SQLITE: Extension = Extension {
     name: "io.db.sqlite",
     version: env!("CARGO_PKG_VERSION"),
@@ -613,6 +623,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &NET,
     &LOGGING,
     &FS,
+    &ENV,
     &SQLITE,
     &NATS,
     &NATS_JETSTREAM,
@@ -1426,7 +1437,8 @@ mod tests {
         // evaluation seed are the effects; every other step, constructing an
         // endpoint, a path or a logger included, is a function of its input.
         // Every name of `random` has a form that draws from the evaluation
-        // seed, and its seeded forms are pure.
+        // seed, and its seeded forms are pure. Every name of `io.env` reads
+        // the invocation.
         for entry in &listed {
             let effectful = (entry.provider == "io"
                 && !matches!(
@@ -1438,7 +1450,8 @@ mod tests {
                 || (entry.provider == "logging" && entry.name != "Logger")
                 || (entry.provider == "time"
                     && matches!(entry.name, "now" | "today" | "local_zone"))
-                || entry.provider == "random";
+                || entry.provider == "random"
+                || entry.provider == "io.env";
             let expected = if effectful {
                 Purity::Effectful
             } else {
