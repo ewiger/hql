@@ -1586,9 +1586,15 @@ impl Checked {
             },
             A::Call { callee, arguments } => {
                 if let Some(step) = self.steps.get(&span) {
-                    // No positional input written: the input is `Unit`.
+                    // No positional input written, or a step that takes none,
+                    // whose first argument is a type: the input is `Unit`.
                     let (input, arguments) = match arguments.split_first() {
-                        Some((input, rest)) if input.name.is_none() => (boxed(&input.value)?, rest),
+                        Some((input, rest))
+                            if input.name.is_none()
+                                && !(step.takes_no_input() && names_a_type(&input.value)) =>
+                        {
+                            (boxed(&input.value)?, rest)
+                        }
                         _ => (
                             Box::new(Expr {
                                 kind: Kind::Unit,
@@ -1810,6 +1816,13 @@ fn step_node(
         declaration,
         plan,
     }
+}
+
+/// Whether an argument is a bare type name, `Ed25519`: what the checker
+/// reads as an argument, never an input, where a step takes no input.
+fn names_a_type(written: &crate::ast::Expr) -> bool {
+    matches!(&written.kind, crate::ast::Kind::Ident(name)
+        if crate::types::builtin::constructor(name).is_some())
 }
 
 #[cfg(test)]

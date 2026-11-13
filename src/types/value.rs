@@ -186,6 +186,8 @@ pub enum Value {
     Time(crate::time::Time),
     /// A finite sequence of octets (HQL-0053 part 1).
     Bytes(Arc<[u8]>),
+    /// A public, private or symmetric key (HQL-0053 part 2).
+    Key(Arc<crate::crypto::Key>),
     /// A Boolean truth value.
     Bool(bool),
     /// Text.
@@ -460,6 +462,17 @@ impl Value {
             Self::Decimal(_) => TypeRef::DECIMAL,
             Self::Time(time) => TypeRef::time(time),
             Self::Bytes(_) => TypeRef::BYTES,
+            Self::Key(key) => match key.as_ref() {
+                crate::crypto::Key::Public(public) => {
+                    crate::extensions::crypto::key_type("PublicKey", public.algorithm().name())
+                }
+                crate::crypto::Key::Private(private) => {
+                    crate::extensions::crypto::key_type("PrivateKey", private.algorithm().name())
+                }
+                crate::crypto::Key::Secret(secret) => {
+                    crate::extensions::crypto::key_type("SecretKey", secret.algorithm.name())
+                }
+            },
             Self::Bool(_) => TypeRef::BOOL,
             Self::Str(_) => TypeRef::STR,
             Self::Absent(element) => TypeRef::optional(element.clone()),
@@ -861,6 +874,7 @@ impl PartialEq for Value {
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::Time(left), Self::Time(right)) => left == right,
             (Self::Bytes(left), Self::Bytes(right)) => left == right,
+            (Self::Key(left), Self::Key(right)) => left == right,
             (Self::Str(left), Self::Str(right)) => left == right,
             // Formatted text is a String, so it equals a String of the same text.
             (Self::Formatted(left), Self::Formatted(right)) => left == right,

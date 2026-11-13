@@ -5243,7 +5243,22 @@ impl<'a> Checker<'a> {
             Kind::Float(_) => Ok(TypeRef::FLOAT),
             Kind::Decimal(_) => Ok(TypeRef::DECIMAL),
             Kind::Bool(_) => Ok(TypeRef::BOOL),
-            Kind::Str(_) => Ok(TypeRef::STR),
+            Kind::Str(text) => {
+                // Private key material is never written into a program's
+                // source (HQL-0053): a file, the environment, a key vault
+                // or the evaluation itself holds it.
+                if let Some(what) = private_key_literal(text) {
+                    return Err(Diagnostic::typing(
+                        span,
+                        format!(
+                            "this literal holds {what}: private key material never lives in a \
+                             program's source; read it from a file (`read_private_key`), the \
+                             environment (`env.var`), a key vault (`keyvault.key`), or generate it"
+                        ),
+                    ));
+                }
+                Ok(TypeRef::STR)
+            }
             Kind::Data(entries) => {
                 for (_, value) in entries {
                     self.expression(value)?;
@@ -5431,6 +5446,17 @@ impl<'a> Checker<'a> {
                     if let Some(message) = mixed_numbers(left_number, right_number) {
                         return Err(Diagnostic::typing(span, message));
                     }
+                }
+                // A secret implements no `Eq`: comparing key material with
+                // `==` is not constant-time, and `verify_mac` is (HQL-0053).
+                if let Some(secret) = held_secret(&left_type).or_else(|| held_secret(&right_type)) {
+                    return Err(Diagnostic::typing(
+                        span,
+                        format!(
+                            "{secret} is a secret and implements no `Eq`: `==` does not compare key \
+                             material; compare public keys, or a MAC with `verify_mac`"
+                        ),
+                    ));
                 }
                 // A type implementing `Eq` decides its own equality, through
                 // `Option` on either side as every equality looks.
@@ -5682,13 +5708,29 @@ impl<'a> Checker<'a> {
                 }
                 if builtins::exists(name) {
                     // A call that writes no positional input reaches a form
-                    // declared without one, its input `Unit`: `now()`.
-                    if arguments.first().is_none_or(|first| first.name.is_some()) {
+                    // declared without one, its input `Unit`: `now()`. A
+                    // type written first is an argument, never an input:
+                    // `generate_key_pair(Ed25519)`.
+                    let type_first = arguments.first().is_some_and(|first| {
+                        first.name.is_none()
+                            && matches!(&first.value.kind, Kind::Ident(held)
+                                if !self.scope.contains_key(held.as_str())
+                                    && crate::types::builtin::constructor(held).is_some())
+                    });
+                    if type_first || arguments.first().is_none_or(|first| first.name.is_some()) {
                         self.not_declared_below(name, &span)?;
+                        let positional = if type_first {
+                            arguments
+                                .iter()
+                                .filter(|argument| argument.name.is_none())
+                                .count()
+                        } else {
+                            0
+                        };
                         if let Ok(step) = self.resolution.step_for(
                             name,
                             &TypeRef::UNIT,
-                            0,
+                            positional,
                             &written_names(arguments),
                             &span,
                         ) && step.takes_no_input()
@@ -6144,6 +6186,19 @@ impl<'a> Checker<'a> {
         if let Some(check) = step.check {
             check(self, &call, span.clone())?;
         }
+        // No format writes private key material: a secret, or a value that
+        // holds one, reaching an encoder is refused (HQL-0053).
+        if matches!(step.name, "format" | "target" | "sink")
+            && let Some(secret) = call.bindings.values().find_map(held_secret)
+        {
+            return Err(Diagnostic::typing(
+                span,
+                format!(
+                    "{secret} holds private key material, which no format writes; \
+                     `export_private` turns a private key into text where a program means to"
+                ),
+            ));
+        }
         // Absence is the empty collection to a step over a collection. A
         // step over anything else is lifted over it: absence gives absence,
         // and what the step produces is present.
@@ -6507,6 +6562,65 @@ pub(crate) fn field_type(receiver: &TypeRef, field: &str) -> Option<TypeRef> {
         _ => crate::types::program::field_type(receiver, field)
             .or_else(|| crate::library::field_type(receiver, field)),
     }
+}
+
+/// What private key material a string literal begins: a PEM private key,
+/// an age identity, or a JWK object with a `d` member.
+fn private_key_literal(text: &str) -> Option<&'static str> {
+    let pem = text.match_indices("-----BEGIN ").any(|(at, _)| {
+        text[at..]
+            .lines()
+            .next()
+            .is_some_and(|line| line.trim_end().ends_with("PRIVATE KEY-----"))
+    });
+    if pem {
+        return Some("a PEM private key");
+    }
+    // The identity's prefix and its Bech32 text, not the prefix alone.
+    let upper = text.to_ascii_uppercase();
+    if upper.match_indices("AGE-SECRET-KEY-1").any(|(at, prefix)| {
+        upper[at + prefix.len()..]
+            .chars()
+            .take_while(char::is_ascii_alphanumeric)
+            .count()
+            >= 52
+    }) {
+        return Some("an age identity");
+    }
+    let trimmed = text.trim_start();
+    if trimmed.starts_with('{')
+        && let Ok(serde_json::Value::Object(object)) = serde_json::from_str(trimmed)
+        && object.contains_key("kty")
+        && object.contains_key("d")
+    {
+        return Some("a private JWK");
+    }
+    None
+}
+
+/// The secret type a type is or holds, through its arguments and a
+/// declared record's fields: `PrivateKey<Ed25519>` in `List<KeyPair<…>>`.
+pub(crate) fn held_secret(ty: &TypeRef) -> Option<TypeRef> {
+    fn walk(ty: &TypeRef, seen: &mut Vec<&'static str>) -> Option<TypeRef> {
+        // A type variable and `Never`, below every type, hold nothing.
+        if ty.constructor.0.starts_with('%') || *ty == TypeRef::NEVER {
+            return None;
+        }
+        if ty.is(&TypeRef::SECRET) {
+            return Some(ty.clone());
+        }
+        if let Some(found) = ty.args.iter().find_map(|arg| walk(arg, seen)) {
+            return Some(found);
+        }
+        if seen.contains(&ty.constructor.0) {
+            return None;
+        }
+        seen.push(ty.constructor.0);
+        let lattice = crate::types::program::current().ok()?;
+        let record = lattice.records.get(ty.constructor.0)?;
+        record.fields.iter().find_map(|field| walk(&field.ty, seen))
+    }
+    walk(ty, &mut Vec::new())
 }
 
 /// The name an absent option is written with when nothing binds it.

@@ -540,6 +540,26 @@ pub(crate) fn database_path(path: &Path) -> PathBuf {
     resolved(path)
 }
 
+/// The text of a file that holds a key, read under the host's policy, and
+/// the file's permission bits on a Unix host.
+///
+/// # Errors
+/// Names the file when it cannot be read or is not UTF-8 text.
+pub(crate) fn read_key_file(path: &Path) -> Result<(String, Option<u32>), String> {
+    let full = readable(path)?;
+    let text = fs::read_to_string(&full).map_err(|error| format!("{}: {error}", path.display()))?;
+    #[cfg(unix)]
+    let mode = {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::metadata(&full)
+            .ok()
+            .map(|metadata| metadata.permissions().mode())
+    };
+    #[cfg(not(unix))]
+    let mode = None;
+    Ok((text, mode))
+}
+
 /// A file a read may open, under the host's policy.
 fn readable(path: &Path) -> Result<PathBuf, String> {
     let full = resolved(path);

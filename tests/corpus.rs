@@ -44,7 +44,21 @@ fn copy_tree(from: &Path, to: &Path) {
         if entry.path().is_dir() {
             copy_tree(&entry.path(), &target);
         } else {
-            fs::copy(entry.path(), target).unwrap();
+            fs::copy(entry.path(), &target).unwrap();
+            // A private key is read with mode 0600, which git does not keep.
+            #[cfg(unix)]
+            if entry
+                .path()
+                .parent()
+                .is_some_and(|parent| parent.ends_with("keys"))
+                && target
+                    .extension()
+                    .is_some_and(|extension| extension == "pem")
+                && !target.to_string_lossy().ends_with(".pub.pem")
+            {
+                use std::os::unix::fs::PermissionsExt as _;
+                fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+            }
         }
     }
 }

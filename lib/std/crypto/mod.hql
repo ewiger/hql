@@ -1,0 +1,135 @@
+// Not in the prelude: a program writes `import crypto`. Every declaration is
+// external: the `std` extension implements it.
+//
+// See doc/proposals/HQL-0053/README.md and its parts 2 to 4.
+
+/// Keys, signatures, MACs, password hashes and encryption. An algorithm and
+/// a key format are each named by a type, as a format is:
+/// `PublicKey(text, Pem, Ed25519)`. A key's type carries its algorithm, so a
+/// key of one algorithm used where another is named is a check error.
+/// `PrivateKey`, `KeyPair` and `SecretKey` are `Secret`: no format writes
+/// one, `==` does not compare them, and each prints redacted.
+module crypto
+
+import core
+import io
+
+/// An asymmetric key algorithm. A `Signing` one's private key signs and
+/// its public key verifies; an `Agreement` one's public key receives
+/// encrypted messages.
+abstract type KeyAlgorithm
+abstract type Signing : KeyAlgorithm
+abstract type Agreement : KeyAlgorithm
+type Ed25519 : Signing     // RFC 8032, pure Ed25519
+type P256    : Signing     // ECDSA over NIST P-256 with SHA-256
+type Rsa     : Signing     // RSASSA-PKCS1-v1_5 with SHA-256, 2048 to 8192 bits
+type X25519  : Agreement   // RFC 7748; receives age messages
+
+/// A symmetric algorithm: a `Cipher` encrypts, a `Mac` authenticates.
+abstract type SecretAlgorithm
+abstract type Cipher : SecretAlgorithm
+abstract type Mac    : SecretAlgorithm
+type Aes256Gcm        : Cipher   // 256-bit key
+type ChaCha20Poly1305 : Cipher   // 256-bit key, RFC 8439
+type HmacSha256       : Mac      // RFC 2104 over SHA-256
+type HmacSha512       : Mac      // RFC 2104 over SHA-512
+
+/// The values that hold private key material: no format encodes one, `==`
+/// does not compare them, and each prints redacted.
+abstract type Secret
+
+/// A public key of algorithm `A`. Public keys compare by their octets, and
+/// one prints as its RFC 7638 thumbprint.
+type PublicKey<A>
+
+/// A private key of algorithm `A`. It prints as its public key's
+/// thumbprint, and no format writes it.
+type PrivateKey<A> : Secret
+
+/// A private key and its public key.
+type KeyPair<A> : Secret {
+    public  : PublicKey<A>
+    private : PrivateKey<A>
+}
+
+/// A symmetric key of algorithm `A`. It prints as `SecretKey<A>(redacted)`.
+type SecretKey<A> : Secret
+
+/// How one key is text. `Pem` is RFC 7468 text around DER: SPKI for a
+/// public key, PKCS #8 for a private key. `Jwk` is the RFC 7517 JSON text of
+/// one key. `OpenSsh` is an authorized_keys line or an OpenSSH private key
+/// file. `Age` is age's Bech32 recipient and identity text, for `X25519`
+/// only; `X25519` has no `OpenSsh` text.
+abstract type KeyFormat
+type Pem     : KeyFormat
+type Jwk     : KeyFormat
+type OpenSsh : KeyFormat
+type Age     : KeyFormat
+
+// Keys.
+
+/// The public key `text` holds in `format`, for algorithm `algorithm`:
+/// `PublicKey(text, Pem, Ed25519)`. Text that is not such a key is an
+/// evaluation error naming the format and the algorithm; `to_public_key`
+/// gives `none` instead.
+fn PublicKey<F : KeyFormat, A : KeyAlgorithm>(text: String, format: Type<F>, algorithm: Type<A>) : PublicKey<A>
+
+/// The public key the SPKI DER `der` holds.
+fn PublicKey<A : KeyAlgorithm>(der: Bytes, algorithm: Type<A>) : PublicKey<A>
+
+/// The public key `self` holds in `format`, or `none`.
+fn to_public_key<F : KeyFormat, A : KeyAlgorithm>(self: String, format: Type<F>, algorithm: Type<A>) : Option<PublicKey<A>>
+
+/// The private key `text` holds in `format`. `passphrase` decrypts an
+/// encrypted PKCS #8 or OpenSSH private key; an empty one reads an
+/// unencrypted key. A wrong passphrase is an evaluation error that says so.
+fn PrivateKey<F : KeyFormat, A : KeyAlgorithm>(text: String, format: Type<F>, algorithm: Type<A>, *, passphrase: String = "") : PrivateKey<A>
+
+/// The private key the PKCS #8 DER `der` holds.
+fn PrivateKey<A : KeyAlgorithm>(der: Bytes, algorithm: Type<A>) : PrivateKey<A>
+
+/// The private key `self` holds in `format`, or `none`.
+fn to_private_key<F : KeyFormat, A : KeyAlgorithm>(self: String, format: Type<F>, algorithm: Type<A>, *, passphrase: String = "") : Option<PrivateKey<A>>
+
+/// The symmetric key of algorithm `algorithm` that `key` holds: exactly 32
+/// octets for a cipher, and at least one for a MAC. Another length is an
+/// evaluation error naming the length.
+fn SecretKey<A : SecretAlgorithm>(key: Bytes, algorithm: Type<A>) : SecretKey<A>
+
+/// The public key a file holds in `format`.
+effectful fn read_public_key<F : KeyFormat, A : KeyAlgorithm>(file: File, format: Type<F>, algorithm: Type<A>) : PublicKey<A>
+
+/// The private key a file holds in `format`. On a Unix host, a file its
+/// group or others may read gives a warning naming the path and its mode.
+effectful fn read_private_key<F : KeyFormat, A : KeyAlgorithm>(file: File, format: Type<F>, algorithm: Type<A>, *, passphrase: String = "") : PrivateKey<A>
+
+/// `self` written in `format`: `key.to_text(OpenSsh)` is an
+/// `ssh-ed25519 AAAA…` line. `Pem` has 64-column lines and a final line
+/// break, `Jwk` is the canonical JSON of the required members, and
+/// `OpenSsh` has no comment.
+fn to_text<F : KeyFormat, A : KeyAlgorithm>(self: PublicKey<A>, format: Type<F>) : String
+
+/// `self` as SPKI DER.
+fn to_der<A : KeyAlgorithm>(self: PublicKey<A>) : Bytes
+
+/// The private key material of `self` written in `format`, encrypted under
+/// `passphrase` where one is given: PKCS #8 with scrypt and AES-256-CBC for
+/// `Pem`, bcrypt-pbkdf and AES-256-CTR for `OpenSsh`. The result is a
+/// `String`, and no longer redacted.
+fn export_private<F : KeyFormat, A : KeyAlgorithm>(self: PrivateKey<A>, format: Type<F>, *, passphrase: String = "") : String
+
+/// The public key of a private key.
+fn public<A : KeyAlgorithm>(self: PrivateKey<A>) : PublicKey<A>
+
+/// The RFC 7638 JWK thumbprint of `self`: base64url, unpadded, of the
+/// SHA-256 of its canonical JWK. It names a key without disclosing it, and
+/// is the same whichever format the key was read from.
+fn thumbprint<A : KeyAlgorithm>(self: PublicKey<A>) : String
+
+/// A new key pair from the host's cryptographically secure generator.
+/// `bits` is read for `Rsa` only, 2048 to 8192.
+effectful fn generate_key_pair<A : KeyAlgorithm>(algorithm: Type<A>, *, bits: Int = 3072) : KeyPair<A>
+
+/// A new symmetric key from the host generator: 32 octets for a cipher and
+/// `HmacSha256`, 64 for `HmacSha512`.
+effectful fn generate_secret_key<A : SecretAlgorithm>(algorithm: Type<A>) : SecretKey<A>

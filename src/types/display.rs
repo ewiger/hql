@@ -35,6 +35,8 @@ impl Value {
             Self::Decimal(value) => crate::data::decimal_json(value),
             Self::Time(time) => J::String(time.to_string()),
             Self::Bytes(octets) => J::String(crate::data::base64_text(octets)),
+            // A key is never written: its text is its redacted form.
+            Self::Key(key) => J::String(key.redacted()),
             Self::Bool(value) => J::Bool(*value),
             Self::Str(text) => J::String(text.to_string()),
             Self::Absent(_) => J::Null,
@@ -114,6 +116,9 @@ impl Value {
                 "key": group.key.to_json(),
                 "items": group.items.iter().map(Self::to_json).collect::<Vec<_>>(),
             }),
+            Self::Record(record) if record.ty.constructor.0 == "KeyPair" => {
+                J::String(key_pair_text(record))
+            }
             Self::Record(record) => J::Object(
                 record
                     .fields
@@ -125,6 +130,22 @@ impl Value {
             Self::Err(error, _) => json!({ "err": error.to_json() }),
         }
     }
+}
+
+/// A key pair's text: `KeyPair<Ed25519>(<thumbprint>)`, never its fields.
+fn key_pair_text(record: &super::Record) -> String {
+    let thumbprint = record
+        .fields
+        .iter()
+        .find_map(|(_, value)| match value {
+            Value::Key(key) => match key.as_ref() {
+                crate::crypto::Key::Public(public) => Some(crate::crypto::keys::thumbprint(public)),
+                _ => None,
+            },
+            _ => None,
+        })
+        .unwrap_or_default();
+    format!("{}({thumbprint})", record.ty)
 }
 
 fn retrieval_json(retrieval: &crate::search::Retrieval) -> serde_json::Value {
@@ -172,6 +193,7 @@ impl fmt::Display for Value {
             Self::Time(time) => write!(f, "{time}"),
             // `0x` and its octets in lowercase hex: a rendering, not a literal.
             Self::Bytes(octets) => write!(f, "{}", crate::data::hex_text(octets)),
+            Self::Key(key) => f.write_str(&key.redacted()),
             Self::Bool(value) => write!(f, "{value}"),
             Self::Str(text) => write!(f, "{text}"),
             Self::Absent(_) => f.write_str("none"),
@@ -238,6 +260,11 @@ impl fmt::Display for Value {
                     write!(f, "{name}: {}", Nested(value))?;
                 }
                 f.write_str("}")
+            }
+            // A key pair prints as its private key does: its type and its
+            // public key's thumbprint (HQL-0053).
+            Self::Record(record) if record.ty.constructor.0 == "KeyPair" => {
+                f.write_str(&key_pair_text(record))
             }
             // A record prints as the call that constructs it.
             Self::Record(record) => {

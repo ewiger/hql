@@ -15,6 +15,7 @@
 mod ast;
 mod checker;
 mod constructors;
+pub mod crypto;
 mod declarations;
 mod evaluation;
 mod execution;

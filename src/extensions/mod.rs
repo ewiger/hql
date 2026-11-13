@@ -23,6 +23,7 @@ pub(crate) mod binding;
 pub(crate) mod bytes;
 pub(crate) mod collections;
 pub(crate) mod contract;
+pub(crate) mod crypto;
 pub(crate) mod digest;
 pub(crate) mod encoding;
 pub mod format;
@@ -609,6 +610,14 @@ static BYTES: Extension = Extension {
     metadata: None,
 };
 
+static CRYPTO: Extension = Extension {
+    name: "crypto",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["crypto"],
+    steps: crypto::STEPS,
+    metadata: None,
+};
+
 /// Every extension compiled into this binary, core first.
 ///
 /// Registration is not import: a step here is known to diagnostics and to
@@ -639,6 +648,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &DIGEST,
     &ENCODING,
     &BYTES,
+    &CRYPTO,
 ];
 
 impl Extension {
@@ -1458,7 +1468,16 @@ mod tests {
                 || (entry.provider == "logging" && entry.name != "Logger")
                 || (entry.provider == "time"
                     && matches!(entry.name, "now" | "today" | "local_zone"))
-                || entry.provider == "random";
+                || entry.provider == "random"
+                // Reading a key file and drawing from the host generator.
+                || (entry.provider == "crypto"
+                    && matches!(
+                        entry.name,
+                        "read_public_key"
+                            | "read_private_key"
+                            | "generate_key_pair"
+                            | "generate_secret_key"
+                    ));
             let expected = if effectful {
                 Purity::Effectful
             } else {
