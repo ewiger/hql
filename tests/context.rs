@@ -357,3 +357,142 @@ fn a_malformed_user_configuration_fails_every_run_naming_the_file() {
         stderr(&output)
     );
 }
+
+/// A user configuration with two contexts, one binding a vault.
+fn with_contexts(sandbox: &Sandbox) -> PathBuf {
+    let production = sandbox.root().join("srv/production");
+    fs::create_dir_all(production.join(".hmd")).unwrap();
+    sandbox.write(&production.join("note.hmd"), "# Note\n");
+    sandbox.write(
+        &sandbox.home().join(".hql/lib/units.hql"),
+        &module("units", "fn km(m: Int) : Int = m / 1000"),
+    );
+    sandbox.write(
+        &sandbox.home().join(".hql/config.toml"),
+        &format!(
+            "# my contexts\n\n[context.work.modules]\nroots = [\"lib\"]\n\n\
+             [context.production]\nworkspace = \"{}\"\n",
+            production.display()
+        ),
+    );
+    production
+}
+
+#[test]
+fn contexts_are_listed_selected_and_shown() {
+    let sandbox = Sandbox::new();
+    let production = with_contexts(&sandbox);
+    let config = sandbox.home().join(".hql/config.toml");
+    let tree = sandbox.tree();
+
+    let none = sandbox.run(&tree, &["config", "current-context"]);
+    assert_eq!(none.status.code(), Some(1));
+    assert!(
+        stderr(&none).contains("no current-context"),
+        "{}",
+        stderr(&none)
+    );
+
+    let listed = ok(&sandbox.run(&tree, &["config", "get-contexts"]));
+    let lines: Vec<&str> = listed.lines().collect();
+    assert!(lines[0].starts_with("CURRENT"), "{listed}");
+    assert!(lines[1].contains("production"), "{listed}");
+    assert!(
+        lines[1].contains(&production.display().to_string()),
+        "{listed}"
+    );
+    assert!(
+        lines[2].contains("work") && lines[2].contains(" - "),
+        "{listed}"
+    );
+
+    assert_eq!(
+        ok(&sandbox.run(&tree, &["config", "use-context", "work"])),
+        "switched to context `work`\n"
+    );
+    let written = fs::read_to_string(&config).unwrap();
+    assert!(
+        written.starts_with("current-context = \"work\"\n# my contexts\n"),
+        "{written}"
+    );
+    assert_eq!(
+        ok(&sandbox.run(&tree, &["config", "current-context"])),
+        "work\n"
+    );
+    let listed = ok(&sandbox.run(&tree, &["config", "get-contexts"]));
+    assert!(
+        listed
+            .lines()
+            .any(|line| line.starts_with('*') && line.contains("work")),
+        "{listed}"
+    );
+    let report = ok(&sandbox.run(&tree, &["context"]));
+    assert_eq!(field(&report, "context"), "work (user configuration)");
+    // The context's module root reaches a program run anywhere.
+    assert_eq!(
+        ok(&sandbox.run(&tree, &["import units\nunits.km(3000)"])),
+        "3\n"
+    );
+
+    let refused = sandbox.run(&tree, &["config", "use-context", "staging"]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(
+        stderr(&refused).contains("the defined contexts are `production`, `work`"),
+        "{}",
+        stderr(&refused)
+    );
+
+    let view = ok(&sandbox.run(&tree, &["config", "view"]));
+    let merged: toml::Table = toml::from_str(&view).unwrap();
+    assert_eq!(merged["current-context"].as_str(), Some("work"));
+}
+
+#[test]
+fn a_context_selected_for_one_invocation_binds_its_workspace() {
+    let sandbox = Sandbox::new();
+    let production = with_contexts(&sandbox);
+    let tree = sandbox.tree();
+    let report = ok(&sandbox.run(&tree, &["--context", "production", "context"]));
+    assert_eq!(field(&report, "context"), "production (--context)");
+    assert_eq!(field(&report, "mode"), "vault");
+    assert_eq!(
+        field(&report, "workspace"),
+        format!("{} (context `production`)", production.display())
+    );
+    assert_eq!(
+        ok(&sandbox.run(&tree, &["--context", "production", "cards | count"])),
+        "1\n"
+    );
+    let environment = sandbox
+        .command(&tree, &["context"])
+        .env("HQL_CONTEXT", "production")
+        .output()
+        .unwrap();
+    assert_eq!(
+        field(&ok(&environment), "context"),
+        "production ($HQL_CONTEXT)"
+    );
+    // `--context` selects once; the persistent setting is untouched.
+    let none = sandbox.run(&tree, &["config", "current-context"]);
+    assert_eq!(none.status.code(), Some(1));
+
+    let conflict = sandbox.run(&tree, &["--bare", "--context", "production", "1"]);
+    assert_eq!(conflict.status.code(), Some(1));
+    assert!(
+        stderr(&conflict).contains("--bare"),
+        "{}",
+        stderr(&conflict)
+    );
+
+    let unknown = sandbox
+        .command(&tree, &["1"])
+        .env("HQL_CONTEXT", "staging")
+        .output()
+        .unwrap();
+    assert_eq!(unknown.status.code(), Some(1));
+    assert!(
+        stderr(&unknown).contains("no context is named `staging`, which $HQL_CONTEXT selects"),
+        "{}",
+        stderr(&unknown)
+    );
+}

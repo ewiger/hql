@@ -14,6 +14,11 @@
 //! contribute in every mode; a workspace's `hql.toml` adds to them. A
 //! relative path in a configuration file is read against the directory of
 //! the file that declares it.
+//!
+//! A named context is a `[context.<name>]` table of the system or user file:
+//! reusable configuration, selected by `--context`, then `$HQL_CONTEXT`,
+//! then `current-context`, then a context named `default`. A context is not
+//! a workspace; it binds one only when it states `workspace`.
 
 use crate::reporting::CONFIG_FILE;
 use std::path::{Path, PathBuf};
@@ -26,6 +31,12 @@ pub const HOME_ENVIRONMENT: &str = "HQL_HOME";
 pub const SYSTEM_ENVIRONMENT: &str = "HQL_SYSTEM_CONFIG";
 /// The environment variable listing further module roots.
 pub const PATH_ENVIRONMENT: &str = "HQL_PATH";
+/// The environment variable selecting a named context for one invocation.
+pub const CONTEXT_ENVIRONMENT: &str = "HQL_CONTEXT";
+/// The key of the system or user file naming the current context.
+pub const CURRENT_CONTEXT: &str = "current-context";
+/// The context selected when nothing else selects one, if it is defined.
+pub const DEFAULT_CONTEXT: &str = "default";
 /// The HQL home's directory under the user's home directory.
 pub const HOME_DIRECTORY: &str = ".hql";
 /// The configuration file of the HQL home and of the system.
@@ -64,6 +75,36 @@ pub enum ContextError {
         /// What is wrong with it.
         message: String,
     },
+    /// A selected context is defined by no configuration file.
+    #[error(
+        "no context is named `{name}`, which {selected_by} selects; {}",
+        defined(known)
+    )]
+    UnknownContext {
+        /// The selected name.
+        name: String,
+        /// The layer that selected it.
+        selected_by: String,
+        /// The names that are defined.
+        known: Vec<String>,
+    },
+}
+
+/// The defined context names, as a refusal lists them.
+fn defined(known: &[String]) -> String {
+    if known.is_empty() {
+        return "no context is defined".to_owned();
+    }
+    let names: Vec<String> = known.iter().map(|name| format!("`{name}`")).collect();
+    format!("the defined contexts are {}", names.join(", "))
+}
+
+/// A refusal naming the configuration file at fault.
+fn refuse(path: &Path, message: impl Into<String>) -> ContextError {
+    ContextError::Config {
+        path: path.to_path_buf(),
+        message: message.into(),
+    }
 }
 
 /// The layer a contribution to the context came from.
@@ -77,6 +118,8 @@ pub enum Origin {
     User,
     /// The HQL home's own directories.
     Home,
+    /// The selected named context.
+    Context(String),
     /// The workspace's `hql.toml`.
     Workspace,
     /// An environment variable, by name.
@@ -94,6 +137,7 @@ impl Origin {
             Self::System => "system configuration".to_owned(),
             Self::User => "user configuration".to_owned(),
             Self::Home => "the HQL home".to_owned(),
+            Self::Context(name) => format!("context `{name}`"),
             Self::Workspace => format!("the workspace's {CONFIG_FILE}"),
             Self::Environment(name) => format!("${name}"),
             Self::Option(name) => (*name).to_owned(),
@@ -168,13 +212,6 @@ impl ConfigFile {
     pub fn base(&self) -> &Path {
         self.path.parent().unwrap_or_else(|| Path::new("."))
     }
-
-    fn error(&self, message: impl Into<String>) -> ContextError {
-        ContextError::Config {
-            path: self.path.clone(),
-            message: message.into(),
-        }
-    }
 }
 
 /// The settings a configuration table contributes to the context: module
@@ -189,8 +226,8 @@ struct Settings {
 
 impl Settings {
     /// Read the settings of `table`, whose paths are read against `base`;
-    /// `file` names the file in a refusal.
-    fn of(table: &toml::Table, base: &Path, file: &ConfigFile) -> Result<Self, ContextError> {
+    /// `path` names the declaring file in a refusal.
+    fn of(table: &toml::Table, base: &Path, path: &Path) -> Result<Self, ContextError> {
         let strings = |section: &str, key: &str| -> Result<Vec<String>, ContextError> {
             let Some(value) = table.get(section).and_then(|section| section.get(key)) else {
                 return Ok(Vec::new());
@@ -203,7 +240,7 @@ impl Settings {
                         .map(|item| item.as_str().map(str::to_owned))
                         .collect::<Option<Vec<_>>>()
                 })
-                .ok_or_else(|| file.error(format!("`[{section}] {key}` is a list of strings")))
+                .ok_or_else(|| refuse(path, format!("`[{section}] {key}` is a list of strings")))
         };
         let prelude = match table
             .get("extensions")
@@ -213,7 +250,7 @@ impl Settings {
             Some(value) => Some(
                 value
                     .as_bool()
-                    .ok_or_else(|| file.error("`[extensions] prelude` is true or false"))?,
+                    .ok_or_else(|| refuse(path, "`[extensions] prelude` is true or false"))?,
             ),
         };
         Ok(Self {
@@ -299,6 +336,207 @@ impl Layers {
     pub fn files(&self) -> impl Iterator<Item = &ConfigFile> {
         self.system.iter().chain(self.user.iter())
     }
+
+    /// Every named context, by name. A user file's definition of a name
+    /// replaces the system file's.
+    ///
+    /// # Errors
+    ///
+    /// A `context` entry that is not a table of tables.
+    pub fn contexts(
+        &self,
+    ) -> Result<std::collections::BTreeMap<String, NamedContext>, ContextError> {
+        let mut contexts = std::collections::BTreeMap::new();
+        for file in self.files() {
+            let Some(entries) = file.table.as_ref().and_then(|table| table.get("context")) else {
+                continue;
+            };
+            let entries = entries
+                .as_table()
+                .ok_or_else(|| refuse(&file.path, "`context` is a table of named contexts"))?;
+            for (name, entry) in entries {
+                let table = entry
+                    .as_table()
+                    .ok_or_else(|| refuse(&file.path, format!("`[context.{name}]` is a table")))?;
+                contexts.insert(
+                    name.clone(),
+                    NamedContext {
+                        name: name.clone(),
+                        origin: file.origin.clone(),
+                        path: file.path.clone(),
+                        table: table.clone(),
+                    },
+                );
+            }
+        }
+        Ok(contexts)
+    }
+
+    /// The persistent `current-context`: the user file's, else the system
+    /// file's.
+    ///
+    /// # Errors
+    ///
+    /// A `current-context` that is not a string.
+    pub fn current_context(&self) -> Result<Option<Contributed<String>>, ContextError> {
+        let mut current = None;
+        for file in self.files() {
+            let Some(value) = file
+                .table
+                .as_ref()
+                .and_then(|table| table.get(CURRENT_CONTEXT))
+            else {
+                continue;
+            };
+            let name = value.as_str().ok_or_else(|| {
+                refuse(&file.path, format!("`{CURRENT_CONTEXT}` is a context name"))
+            })?;
+            current = Some(Contributed {
+                value: name.to_owned(),
+                origin: file.origin.clone(),
+            });
+        }
+        Ok(current)
+    }
+
+    /// The named context an invocation runs under: `--context`, then
+    /// `$HQL_CONTEXT`, then `current-context`, then a context named
+    /// `default` when one is defined. `None` when nothing selects one.
+    ///
+    /// # Errors
+    ///
+    /// The selected name is defined nowhere.
+    pub fn select(
+        &self,
+        option: Option<&str>,
+        environment: Option<&str>,
+    ) -> Result<Option<(Contributed<String>, NamedContext)>, ContextError> {
+        let contexts = self.contexts()?;
+        let choice = if let Some(name) = option {
+            Contributed {
+                value: name.to_owned(),
+                origin: Origin::Option("--context"),
+            }
+        } else if let Some(name) = environment {
+            Contributed {
+                value: name.to_owned(),
+                origin: Origin::Environment(CONTEXT_ENVIRONMENT),
+            }
+        } else if let Some(current) = self.current_context()? {
+            current
+        } else if contexts.contains_key(DEFAULT_CONTEXT) {
+            Contributed {
+                value: DEFAULT_CONTEXT.to_owned(),
+                origin: Origin::Default,
+            }
+        } else {
+            return Ok(None);
+        };
+        let Some(named) = contexts.get(&choice.value).cloned() else {
+            return Err(ContextError::UnknownContext {
+                name: choice.value,
+                selected_by: choice.origin.label(),
+                known: contexts.into_keys().collect(),
+            });
+        };
+        Ok(Some((choice, named)))
+    }
+
+    /// The system and user files merged as the layering reads them: a
+    /// table merges key by key, and any other value of the user file
+    /// replaces the system file's.
+    #[must_use]
+    pub fn merged(&self) -> toml::Table {
+        let mut merged = toml::Table::new();
+        for file in self.files() {
+            if let Some(table) = &file.table {
+                merge(&mut merged, table);
+            }
+        }
+        merged
+    }
+}
+
+/// Merge `over` into `base`, table by table.
+fn merge(base: &mut toml::Table, over: &toml::Table) {
+    for (key, value) in over {
+        match (base.get_mut(key), value) {
+            (Some(toml::Value::Table(held)), toml::Value::Table(table)) => merge(held, table),
+            _ => {
+                base.insert(key.clone(), value.clone());
+            }
+        }
+    }
+}
+
+/// A `[context.<name>]` table: settings grouped under a name, and the
+/// workspace it binds when it states one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NamedContext {
+    /// Its name.
+    pub name: String,
+    /// The layer that defines it.
+    pub origin: Origin,
+    /// The file that defines it.
+    pub path: PathBuf,
+    /// Its settings.
+    pub table: toml::Table,
+}
+
+impl NamedContext {
+    /// The directory its relative paths are read against: its file's.
+    #[must_use]
+    pub fn base(&self) -> &Path {
+        self.path.parent().unwrap_or_else(|| Path::new("."))
+    }
+
+    /// The workspace it binds, if it states one.
+    ///
+    /// # Errors
+    ///
+    /// A `workspace` that is not a path.
+    pub fn workspace(&self) -> Result<Option<PathBuf>, ContextError> {
+        match self.table.get("workspace") {
+            None => Ok(None),
+            Some(value) => value
+                .as_str()
+                .map(|path| Some(absolute(self.base(), Path::new(path))))
+                .ok_or_else(|| {
+                    refuse(
+                        &self.path,
+                        format!("`[context.{}] workspace` is a path", self.name),
+                    )
+                }),
+        }
+    }
+}
+
+/// A configuration file's text with `current-context` set to `name`: the
+/// top-level key is replaced where it is written, or added as the first
+/// line. Every other line, comments included, is kept as it was.
+#[must_use]
+pub fn set_current_context(text: &str, name: &str) -> String {
+    let assignment = format!(
+        "{CURRENT_CONTEXT} = {}",
+        toml::Value::String(name.to_owned())
+    );
+    let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
+    let top = lines
+        .iter()
+        .position(|line| line.trim_start().starts_with('['))
+        .unwrap_or(lines.len());
+    let written = lines[..top].iter().position(|line| {
+        line.trim_start()
+            .strip_prefix(CURRENT_CONTEXT)
+            .is_some_and(|rest| rest.trim_start().starts_with('='))
+    });
+    match written {
+        Some(index) => lines[index] = assignment,
+        None => lines.insert(0, assignment),
+    }
+    let mut written = lines.join("\n");
+    written.push('\n');
+    written
 }
 
 /// The three execution modes an invocation runs in.
@@ -411,6 +649,8 @@ pub struct Environment {
     pub system_config: Option<PathBuf>,
     /// `$HQL_PATH`, as the platform separates paths.
     pub hql_path: Option<std::ffi::OsString>,
+    /// `$HQL_CONTEXT`.
+    pub context: Option<String>,
 }
 
 impl Environment {
@@ -429,6 +669,7 @@ impl Environment {
             hql_home: set(HOME_ENVIRONMENT).map(PathBuf::from),
             system_config: set(SYSTEM_ENVIRONMENT).map(PathBuf::from),
             hql_path: set(PATH_ENVIRONMENT),
+            context: set(CONTEXT_ENVIRONMENT).and_then(|name| name.into_string().ok()),
         })
     }
 }
@@ -448,6 +689,8 @@ pub struct Request {
     /// Module roots named on the command line, read against the working
     /// directory.
     pub modules: Vec<PathBuf>,
+    /// A named context selected for this invocation alone.
+    pub context: Option<String>,
 }
 
 impl Request {
@@ -481,6 +724,10 @@ pub struct ExecutionContext {
     pub environment: Environment,
     /// The system and user layers.
     pub layers: Layers,
+    /// The selected named context, and the layer that selected it.
+    pub context: Option<Contributed<String>>,
+    /// Its definition.
+    pub named: Option<NamedContext>,
     /// The workspace's `hql.toml`, in workspace and vault mode.
     pub workspace_config: Option<ConfigFile>,
     /// Every module root, in layer order, each once.
@@ -505,6 +752,18 @@ impl ExecutionContext {
             || environment.cwd.clone(),
             |anchor| absolute(&environment.cwd, anchor),
         );
+        let selected = layers.select(request.context.as_deref(), environment.context.as_deref())?;
+        let (context, named) = selected.unzip();
+        // A context selected for this invocation is an explicit statement,
+        // and contradicting it is an error; a persistent one yields.
+        let chosen = context.as_ref().is_some_and(|choice| {
+            matches!(choice.origin, Origin::Option(_) | Origin::Environment(_))
+        });
+        let bound = named
+            .as_ref()
+            .map(NamedContext::workspace)
+            .transpose()?
+            .flatten();
         let explicit = match (&request.host_workspace, &request.workspace) {
             (Some(_), Some((_, option))) => {
                 return Err(ContextError::Conflict(format!(
@@ -529,6 +788,37 @@ impl ExecutionContext {
                 explicit.origin.label()
             )));
         }
+        if let (Some(choice), Some(root)) = (&context, &bound)
+            && chosen
+        {
+            if request.bare {
+                return Err(ContextError::Conflict(format!(
+                    "--bare runs with no workspace, and context `{}`, which {} selects, binds {}",
+                    choice.value,
+                    choice.origin.label(),
+                    root.display()
+                )));
+            }
+            if let Some(explicit) = &explicit
+                && !same_directory(&explicit.root, root)
+            {
+                return Err(ContextError::Conflict(format!(
+                    "context `{}`, which {} selects, binds the workspace {}, and {} names {}",
+                    choice.value,
+                    choice.origin.label(),
+                    root.display(),
+                    explicit.origin.label(),
+                    explicit.root.display()
+                )));
+            }
+        }
+        let explicit = explicit.or_else(|| {
+            let name = context.as_ref()?.value.clone();
+            bound.map(|root| Workspace {
+                root,
+                origin: WorkspaceOrigin::Context(name),
+            })
+        });
         let workspace = if request.bare {
             None
         } else if let Some(explicit) = explicit {
@@ -556,6 +846,8 @@ impl ExecutionContext {
             bare: request.bare,
             environment: environment.clone(),
             layers,
+            context,
+            named,
             workspace_config,
             module_roots: Vec::new(),
             imports: Vec::new(),
@@ -569,12 +861,17 @@ impl ExecutionContext {
     }
 
     /// Gather the module roots and extension settings of every layer, in
-    /// order: the system file, the user file, the HQL home's modules, the
-    /// workspace's `hql.toml`, `$HQL_PATH`, then `--modules`.
+    /// order: the system file, the user file, the selected context, the HQL
+    /// home's modules, the workspace's `hql.toml`, `$HQL_PATH`, then
+    /// `--modules`.
     fn contribute(&mut self, request: &Request) -> Result<(), ContextError> {
         let layers: Vec<ConfigFile> = self.layers.files().cloned().collect();
         for file in &layers {
             self.take(file)?;
+        }
+        if let Some(named) = self.named.clone() {
+            let settings = Settings::of(&named.table, named.base(), &named.path)?;
+            self.settle(settings, &Origin::Context(named.name));
         }
         if let Some(home) = &self.layers.home {
             let modules = home.path.join(MODULES_DIRECTORY);
@@ -603,7 +900,7 @@ impl ExecutionContext {
         let Some(table) = &file.table else {
             return Ok(());
         };
-        let settings = Settings::of(table, file.base(), file)?;
+        let settings = Settings::of(table, file.base(), &file.path)?;
         self.settle(settings, &file.origin);
         Ok(())
     }
@@ -632,13 +929,10 @@ impl ExecutionContext {
     /// Add a module root unless it is already one: the same directory named
     /// twice is one root, not two providers of every module under it.
     fn add_root(&mut self, path: PathBuf, origin: Origin) {
-        let canonical =
-            |path: &Path| std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-        let identity = canonical(&path);
         if self
             .module_roots
             .iter()
-            .any(|held| canonical(&held.value) == identity)
+            .any(|held| same_directory(&held.value, &path))
         {
             return;
         }
@@ -695,6 +989,13 @@ impl ExecutionContext {
             .as_ref()
             .map(|workspace| workspace.root.as_path())
     }
+}
+
+/// Whether two paths name one directory.
+fn same_directory(left: &Path, right: &Path) -> bool {
+    let canonical =
+        |path: &Path| std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    canonical(left) == canonical(right)
 }
 
 /// A path as given when absolute, else joined to `base`.
@@ -1041,5 +1342,264 @@ mod tests {
             ExecutionContext::construct(&Request::default(), &configured(root)),
             Err(ContextError::Config { .. })
         ));
+    }
+
+    const CONTEXTS: &str = "\
+current-context = \"work\"
+
+[context.work.modules]
+roots = [\"work-lib\"]
+
+[context.experimental.extensions]
+prelude = false
+
+[context.production]
+workspace = \"../srv/production\"
+";
+
+    fn selected(context: &ExecutionContext) -> Option<(String, Origin)> {
+        context
+            .context
+            .as_ref()
+            .map(|choice| (choice.value.clone(), choice.origin.clone()))
+    }
+
+    #[test]
+    fn a_context_is_selected_by_option_then_environment_then_current_context() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        write(&root.join("home/.hql/config.toml"), CONTEXTS);
+        let mut environment = configured(root);
+        let context = ExecutionContext::construct(&Request::default(), &environment).unwrap();
+        assert_eq!(selected(&context), Some(("work".to_owned(), Origin::User)));
+        assert_eq!(
+            roots(&context),
+            vec![(
+                root.join("home/.hql/work-lib"),
+                Origin::Context("work".to_owned())
+            )]
+        );
+
+        environment.context = Some("experimental".to_owned());
+        let context = ExecutionContext::construct(&Request::default(), &environment).unwrap();
+        assert_eq!(
+            selected(&context),
+            Some((
+                "experimental".to_owned(),
+                Origin::Environment(CONTEXT_ENVIRONMENT)
+            ))
+        );
+        assert_eq!(
+            context.prelude,
+            Contributed {
+                value: false,
+                origin: Origin::Context("experimental".to_owned())
+            }
+        );
+
+        let request = Request {
+            context: Some("work".to_owned()),
+            ..Request::default()
+        };
+        let context = ExecutionContext::construct(&request, &environment).unwrap();
+        assert_eq!(
+            selected(&context),
+            Some(("work".to_owned(), Origin::Option("--context")))
+        );
+    }
+
+    #[test]
+    fn an_undefined_context_is_refused_listing_the_defined_ones() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        write(&root.join("home/.hql/config.toml"), CONTEXTS);
+        let request = Request {
+            context: Some("staging".to_owned()),
+            ..Request::default()
+        };
+        let refused = ExecutionContext::construct(&request, &configured(root)).unwrap_err();
+        assert_eq!(
+            refused.to_string(),
+            "no context is named `staging`, which --context selects; the defined contexts are \
+             `experimental`, `production`, `work`"
+        );
+    }
+
+    #[test]
+    fn a_context_named_default_applies_when_nothing_selects_another() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        let context = ExecutionContext::construct(&Request::default(), &configured(root)).unwrap();
+        assert_eq!(selected(&context), None);
+        write(
+            &root.join("etc/config.toml"),
+            "[context.default.extensions]\nimport = [\"search\"]\n",
+        );
+        let context = ExecutionContext::construct(&Request::default(), &configured(root)).unwrap();
+        assert_eq!(
+            selected(&context),
+            Some((DEFAULT_CONTEXT.to_owned(), Origin::Default))
+        );
+        assert_eq!(context.imports[0].value, "search");
+        assert_eq!(
+            context.imports[0].origin,
+            Origin::Context(DEFAULT_CONTEXT.to_owned())
+        );
+    }
+
+    #[test]
+    fn a_user_definition_replaces_the_system_one_of_the_same_name() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        write(
+            &root.join("etc/config.toml"),
+            "current-context = \"shared\"\n[context.shared.modules]\nroots = [\"system-lib\"]\n",
+        );
+        write(
+            &root.join("home/.hql/config.toml"),
+            "[context.shared.modules]\nroots = [\"user-lib\"]\n",
+        );
+        let context = ExecutionContext::construct(&Request::default(), &configured(root)).unwrap();
+        assert_eq!(
+            selected(&context),
+            Some(("shared".to_owned(), Origin::System))
+        );
+        assert_eq!(
+            roots(&context),
+            vec![(
+                root.join("home/.hql/user-lib"),
+                Origin::Context("shared".to_owned())
+            )]
+        );
+    }
+
+    #[test]
+    fn a_context_that_binds_a_workspace_replaces_discovery() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        write(&root.join("home/.hql/config.toml"), CONTEXTS);
+        let production = root.join("home/srv/production");
+        fs::create_dir_all(production.join(".hmd")).unwrap();
+        fs::create_dir_all(root.join("tree/.hmd")).unwrap();
+        let request = Request {
+            context: Some("production".to_owned()),
+            ..Request::default()
+        };
+        let context = ExecutionContext::construct(&request, &configured(root)).unwrap();
+        let workspace = context.workspace.as_ref().unwrap();
+        assert!(same_directory(&workspace.root, &production));
+        assert_eq!(
+            workspace.origin,
+            WorkspaceOrigin::Context("production".to_owned())
+        );
+        assert_eq!(context.mode(), ExecutionMode::Vault);
+
+        // The same context reused without a binding leaves discovery alone.
+        let context = ExecutionContext::construct(&Request::default(), &configured(root)).unwrap();
+        assert_eq!(
+            context.workspace.unwrap().origin,
+            WorkspaceOrigin::Discovered
+        );
+    }
+
+    #[test]
+    fn contradicting_a_selected_context_is_an_error() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        write(&root.join("home/.hql/config.toml"), CONTEXTS);
+        fs::create_dir_all(root.join("home/srv/production/.hmd")).unwrap();
+        fs::create_dir_all(root.join("tree/.hmd")).unwrap();
+        let production = || Some("production".to_owned());
+        for request in [
+            Request {
+                context: production(),
+                bare: true,
+                ..Request::default()
+            },
+            Request {
+                context: production(),
+                workspace: Some((root.join("tree"), "--workspace")),
+                ..Request::default()
+            },
+        ] {
+            let refused = ExecutionContext::construct(&request, &configured(root)).unwrap_err();
+            assert!(matches!(refused, ContextError::Conflict(_)), "{refused}");
+            assert!(refused.to_string().contains("production"), "{refused}");
+        }
+        // Naming the workspace the context binds is no contradiction.
+        let agreeing = Request {
+            context: production(),
+            workspace: Some((root.join("home/srv/production"), "--workspace")),
+            ..Request::default()
+        };
+        assert!(ExecutionContext::construct(&agreeing, &configured(root)).is_ok());
+    }
+
+    #[test]
+    fn a_persistent_context_yields_to_an_explicit_workspace_or_bare() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        write(
+            &root.join("home/.hql/config.toml"),
+            &CONTEXTS.replace(
+                "current-context = \"work\"",
+                "current-context = \"production\"",
+            ),
+        );
+        fs::create_dir_all(root.join("home/srv/production/.hmd")).unwrap();
+        fs::create_dir_all(root.join("tree/.hmd")).unwrap();
+        let bare = Request {
+            bare: true,
+            ..Request::default()
+        };
+        let context = ExecutionContext::construct(&bare, &configured(root)).unwrap();
+        assert_eq!(context.mode(), ExecutionMode::Bare);
+        let named = Request {
+            workspace: Some((root.join("tree"), "--workspace")),
+            ..Request::default()
+        };
+        let context = ExecutionContext::construct(&named, &configured(root)).unwrap();
+        assert_eq!(context.workspace_root(), Some(root.join("tree").as_path()));
+    }
+
+    #[test]
+    fn setting_the_current_context_keeps_every_other_line() {
+        assert_eq!(
+            set_current_context("", "work"),
+            "current-context = \"work\"\n"
+        );
+        assert_eq!(
+            set_current_context(
+                "# mine\ncurrent-context = \"old\"\n[context.work]\n",
+                "work"
+            ),
+            "# mine\ncurrent-context = \"work\"\n[context.work]\n"
+        );
+        let added = set_current_context("[context.work]\ncurrent-context = 1\n", "work");
+        assert_eq!(
+            added,
+            "current-context = \"work\"\n[context.work]\ncurrent-context = 1\n"
+        );
+        let parsed: toml::Table = toml::from_str(&added).unwrap();
+        assert_eq!(parsed[CURRENT_CONTEXT].as_str(), Some("work"));
+    }
+
+    #[test]
+    fn the_merged_view_takes_the_user_value_over_the_system_one() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        write(
+            &root.join("etc/config.toml"),
+            "current-context = \"a\"\n[context.a]\nworkspace = \"/x\"\n",
+        );
+        write(
+            &root.join("home/.hql/config.toml"),
+            "current-context = \"b\"\n[context.b]\n",
+        );
+        let layers = Layers::load(&configured(root)).unwrap();
+        let merged = layers.merged();
+        assert_eq!(merged[CURRENT_CONTEXT].as_str(), Some("b"));
+        let contexts = merged["context"].as_table().unwrap();
+        assert_eq!(contexts.keys().collect::<Vec<_>>(), ["a", "b"]);
     }
 }

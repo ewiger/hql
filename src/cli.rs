@@ -68,6 +68,10 @@ pub struct Options {
     /// and system configuration still apply.
     #[arg(long, global = true, conflicts_with_all = ["workspace", "vault"])]
     pub bare: bool,
+    /// The named context to run under for this invocation, in place of
+    /// `$HQL_CONTEXT` and the configured `current-context`.
+    #[arg(long, global = true, value_name = "NAME")]
+    pub context: Option<String>,
     /// A module root: a directory whose `.hql` files are the modules a program
     /// imports by their position, `lib/a/b.hql` as `import a.b`. May be
     /// repeated, and adds to the roots the vault's `hql.toml` names.
@@ -207,8 +211,12 @@ enum Command {
         #[arg(long, value_name = "FILE")]
         file: Option<PathBuf>,
     },
-    /// Show the reporting settings in force, and where each came from.
-    Config,
+    /// Show the reporting settings in force, and where each came from; or
+    /// list, show and select named contexts.
+    Config {
+        #[command(subcommand)]
+        action: Option<ConfigAction>,
+    },
     /// Show the execution context: the mode, the workspace and vault, the
     /// anchor discovery started from, and where each came from.
     Context {
@@ -219,6 +227,23 @@ enum Command {
     /// Check the semantic-search chain — vault, configuration, index, model,
     /// query set — and name the first part that is missing.
     Doctor,
+}
+
+/// What `hql config` does with the named contexts of the system and user
+/// configuration.
+#[derive(Debug, Subcommand)]
+enum ConfigAction {
+    /// Print the persistent `current-context`.
+    CurrentContext,
+    /// List the named contexts, marking the current one.
+    GetContexts,
+    /// Set `current-context` in the user configuration file.
+    UseContext {
+        /// A defined context.
+        name: String,
+    },
+    /// Print the system and user configuration, merged.
+    View,
 }
 
 /// Run the CLI, returning the process exit code.
@@ -356,7 +381,8 @@ const COMMANDS: [&str; 13] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 13] = [
+const VALUED: [&str; 14] = [
+    "--context",
     "--vault",
     "--workspace",
     "--now",
@@ -473,6 +499,14 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         }
     });
     let environment = crate::context::Environment::from_process()?;
+    // The context commands read the configuration alone, so they work while
+    // the selected context does not resolve: that is when one is fixed.
+    if let Command::Config {
+        action: Some(action),
+    } = &cli.command
+    {
+        return config_action(action, &environment, out, err);
+    }
     let context = crate::context::ExecutionContext::construct(&request(cli), &environment)
         .map_err(|error| error.to_string())?;
     let root = context.workspace_root().map(Path::to_path_buf);
@@ -513,7 +547,103 @@ fn request(cli: &Cli) -> crate::context::Request {
         bare: cli.options.bare,
         workspace,
         modules: cli.options.modules.clone(),
+        context: cli.options.context.clone(),
         ..crate::context::Request::default()
+    }
+}
+
+/// `hql config <action>`: the named contexts of the system and user
+/// configuration.
+fn config_action(
+    action: &ConfigAction,
+    environment: &crate::context::Environment,
+    out: &mut impl Write,
+    err: &mut impl Write,
+) -> Result<u8, String> {
+    let layers = crate::context::Layers::load(environment).map_err(|error| error.to_string())?;
+    let current = layers
+        .current_context()
+        .map_err(|error| error.to_string())?;
+    match action {
+        ConfigAction::CurrentContext => {
+            let Some(current) = current else {
+                writeln!(err, "hql: no current-context is set")
+                    .map_err(|error| error.to_string())?;
+                return Ok(1);
+            };
+            writeln!(out, "{}", current.value).map_err(|error| error.to_string())?;
+            Ok(0)
+        }
+        ConfigAction::GetContexts => {
+            let contexts = layers.contexts().map_err(|error| error.to_string())?;
+            let mut rows = vec![[
+                "CURRENT".to_owned(),
+                "NAME".to_owned(),
+                "WORKSPACE".to_owned(),
+                "DEFINED IN".to_owned(),
+            ]];
+            for (name, named) in &contexts {
+                let marked = current
+                    .as_ref()
+                    .is_some_and(|current| &current.value == name);
+                let workspace = named.workspace().map_err(|error| error.to_string())?;
+                rows.push([
+                    if marked { "*" } else { "" }.to_owned(),
+                    name.clone(),
+                    workspace.map_or_else(|| "-".to_owned(), |root| root.display().to_string()),
+                    named.path.display().to_string(),
+                ]);
+            }
+            let width = |column: usize| rows.iter().map(|row| row[column].len()).max().unwrap_or(0);
+            let widths = [width(0), width(1), width(2)];
+            for row in &rows {
+                writeln!(
+                    out,
+                    "{:<w0$}  {:<w1$}  {:<w2$}  {}",
+                    row[0],
+                    row[1],
+                    row[2],
+                    row[3],
+                    w0 = widths[0],
+                    w1 = widths[1],
+                    w2 = widths[2]
+                )
+                .map_err(|error| error.to_string())?;
+            }
+            Ok(0)
+        }
+        ConfigAction::UseContext { name } => {
+            let contexts = layers.contexts().map_err(|error| error.to_string())?;
+            if !contexts.contains_key(name) {
+                return Err(crate::context::ContextError::UnknownContext {
+                    name: name.clone(),
+                    selected_by: "use-context".to_owned(),
+                    known: contexts.into_keys().collect(),
+                }
+                .to_string());
+            }
+            let home = layers
+                .home
+                .as_ref()
+                .ok_or("no HQL home is known: set $HQL_HOME or $HOME")?;
+            let path = home.config_file();
+            let text = match fs::read_to_string(&path) {
+                Ok(text) => text,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+                Err(error) => return Err(format!("{}: {error}", path.display())),
+            };
+            fs::create_dir_all(&home.path)
+                .map_err(|error| format!("{}: {error}", home.path.display()))?;
+            fs::write(&path, crate::context::set_current_context(&text, name))
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            writeln!(out, "switched to context `{name}`").map_err(|error| error.to_string())?;
+            Ok(0)
+        }
+        ConfigAction::View => {
+            let text = toml::to_string(&layers.merged()).map_err(|error| error.to_string())?;
+            write!(out, "{text}").map_err(|error| error.to_string())?;
+            Ok(0)
+        }
     }
 }
 
@@ -528,6 +658,10 @@ fn write_context(
     if options.envelope == Shape::Json {
         let document = serde_json::json!({
             "mode": context.mode().label(),
+            "context": context.context.as_ref().map(|choice| serde_json::json!({
+                "name": choice.value,
+                "origin": choice.origin.label(),
+            })),
             "workspace": path(context.workspace_root()),
             "workspace_origin": workspace.map(|workspace| workspace.origin.label()),
             "vault": path(context.vault()),
@@ -563,6 +697,12 @@ fn write_context(
     let none = || "none".to_owned();
     let lines = [
         ("mode", context.mode().label().to_owned()),
+        (
+            "context",
+            context.context.as_ref().map_or_else(none, |choice| {
+                format!("{} ({})", choice.value, choice.origin.label())
+            }),
+        ),
         (
             "workspace",
             workspace.map_or_else(none, |workspace| {
@@ -736,7 +876,7 @@ fn dispatch(
             }
             Ok(u8::from(checks.iter().any(|check| !check.ok)))
         }
-        Command::Config => {
+        Command::Config { .. } => {
             writeln!(
                 out,
                 "report mode: {} (from {})\nreport level: {} (from {})\nbackend: {} (from {})\nvault: {}",
