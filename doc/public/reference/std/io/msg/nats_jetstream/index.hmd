@@ -1,0 +1,18 @@
+<!-- hql reference: std/io/msg/nats_jetstream -->
+# `std/io/msg/nats_jetstream`
+
+```hql
+module io.msg.nats_jetstream
+```
+
+NATS JetStream: one subject of a stream, as a transport read by `tap`
+and written by `sink` and `target` like any other endpoint (module
+`io`). A stream keeps what is published to its subjects, so a read
+starts where it says, and a message is written once the stream
+acknowledges it. The `nats_jetstream` kind of a configured endpoint is
+this transport under an id. A program imports the module:
+`import io.msg.nats_jetstream`.
+
+- [`NatsJetStream`](types/NatsJetStream.hmd) — One subject of a JetStream stream on a NATS server.
+- [`nats_jetstream`](nats_jetstream.hmd) — The subject `subject` of the stream `stream`, as a `NatsJetStream` transport; its parameters are the keys of the `nats_jetstream` kind.
+<!-- hql reference: end -->

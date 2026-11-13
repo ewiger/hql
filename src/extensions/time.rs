@@ -458,13 +458,11 @@ fn parsed(
     name: &str,
     span: &Range<usize>,
 ) -> Result<Value> {
+    // With no pattern the reading is the ISO one of the matching `to_*`.
+    let Some(pattern) = argument(cx, arguments, "pattern", 0)? else {
+        return converted(type_name, input, name, span);
+    };
     let text = text_of(input, name, span)?;
-    let pattern = required(
-        argument(cx, arguments, "pattern", 0)?,
-        "a pattern",
-        name,
-        span,
-    )?;
     let pattern = text_of(pattern, name, span)?;
     Ok(
         match t::parse_pattern(type_name, &text, &pattern).map_err(|m| fail(span, m))? {

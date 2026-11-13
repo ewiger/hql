@@ -1,7 +1,5 @@
 ---
 tags: [hql, extensions, retrieval, embeddings]
-nav:
-  visibility: public
 ---
 # The semantic module
 
@@ -61,7 +59,7 @@ score nobody can reproduce.
 ## Staleness and coverage
 
 Neither is silent and neither is fatal; both go through the
-[diagnostic channel](../error-handling.hmd).
+[[error-handling|diagnostic channel]].
 
 - A card whose text has changed since the build has a vector for text that no
   longer exists. It **ranks anyway**, with a warning naming it. A stale score is
@@ -79,5 +77,5 @@ its pinned `revision`, `metric: cosine`, and `approximate: false` — scoring is
 exact brute force over every stored vector, with no approximate index and no
 top-k pushdown. See [[hql/semantic-search]] for why `approximate` is a field
 rather than an assumption, and
-[HQL-0002](../../../proposals/HQL-0002/README.md) for the schema, the text
+[[HQL-0002]] for the schema, the text
 contract and what is out of scope.

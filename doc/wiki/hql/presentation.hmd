@@ -1,7 +1,5 @@
 ---
 tags: [hql, presentation, rendering, pipes]
-nav:
-  visibility: public
 ---
 # Presentation
 
@@ -18,9 +16,9 @@ result a program leaves unformatted is formatted in the host's **presentation
 context**.
 
 This card is the statement of the presentation model.
-[HQL-0017](../../proposals/HQL-0017/README.md) specifies the shapes, the
+[[HQL-0017]] specifies the shapes, the
 renderers and the context, and
-[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md)
+[[07-formats-and-codecs|HQL-0024 part 7]]
 the format and codec model; both point here for the current rules.
 
 ## Shape types
@@ -96,7 +94,7 @@ nor a `String` subtype. `format(x, F)` applies the encoder for `x`'s type in
 time for a host to print as it is. `source(e, F)` applies the decoder.
 The contracts are the traits `Decoder<T>` and `Encoder<T>` in
 `lib/std/format/mod.hql`, described under [codecs](#codecs), and the model is
-[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md).
+[[07-formats-and-codecs|HQL-0024 part 7]].
 
 ## Codecs
 
@@ -126,7 +124,7 @@ conversion that exists, in the language rather than in a table of the
 binary, and the conversion itself is performed by the `io` and `format`
 extensions when a program calls `source`, `tap`, `sink`, `target` or
 `format`. These are generic traits, described on [[type-system]]
-([HQL-0027](../../proposals/HQL-0027/README.md)).
+([[HQL-0027]]).
 
 ### What runs: `Lines`, end to end
 

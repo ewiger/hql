@@ -1,0 +1,12 @@
+<!-- hql reference: std/time.local_zone -->
+# `local_zone`
+
+In [`std/time`](index.hmd).
+
+```hql
+effectful fn local_zone() : Zone
+```
+
+The evaluation zone: `--zone`, else the `TZ` environment variable, else
+the host's, else `UTC`.
+<!-- hql reference: end -->

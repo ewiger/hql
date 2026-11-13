@@ -1,7 +1,7 @@
 # Braces: sets and Data
 
 Braces hold either values or `key: value` entries, and the colon tells them
-apart ([HQL-0029](../../doc/proposals/HQL-0029/README.md), the
+apart ([HQL-0029](../../doc/proposals/HQL-0029/index.hmd), the
 [set and Data card](../../doc/wiki/hql/sets-vs-data-vs-map.hmd)).
 
 ```hql

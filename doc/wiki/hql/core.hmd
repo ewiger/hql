@@ -1,7 +1,5 @@
 ---
 tags: [hql, language, design]
-nav:
-  visibility: public
 ---
 # HQL core
 
@@ -96,4 +94,4 @@ Namespace imports belong in [[hql/extensions]], including optional `init.hql`.
 
 The design baseline and unresolved choices are collected in [[hql/design-status]].
 See also [[hql]], [[hmd-integration]] and the
-[program-value model](../../models/behavior/program-values.md).
+[[program-values|program-value model]].

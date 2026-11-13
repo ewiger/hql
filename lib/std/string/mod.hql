@@ -1,7 +1,7 @@
 // Every declaration here is external: the `std` extension implements it, and
 // a test holds the two to each other.
 //
-// See doc/proposals/HQL-0024/parts/03-standard-library.md and
+// See doc/proposals/HQL-0024/parts/03-standard-library.hmd and
 // 04-receiver-modules.md.
 
 /// The functions of a `String`, in the prelude. A receiver module: each

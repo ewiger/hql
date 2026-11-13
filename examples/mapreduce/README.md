@@ -100,5 +100,5 @@ comparison of group sizes because a genre read from metadata is a `Data` leaf,
 which is not `Orderable`.
 
 The step vocabulary, the backend contract, and the three steps are specified
-in [HQL-0004](../../doc/proposals/HQL-0004/README.md); the operation types,
-stages and the planner in [HQL-0005](../../doc/proposals/HQL-0005/README.md).
+in [HQL-0004](../../doc/proposals/HQL-0004/index.hmd); the operation types,
+stages and the planner in [HQL-0005](../../doc/proposals/HQL-0005/index.hmd).

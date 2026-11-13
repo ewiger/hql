@@ -1,7 +1,5 @@
 ---
 tags: [hql, types, absence, option]
-nav:
-  visibility: public
 ---
 # `Option<T>` and absence
 
@@ -74,7 +72,7 @@ cards | map(c => c.metadata.genre.unwrap_or("unshelved"))
 ```
 
 These are designed, not yet implemented — see
-[optional fields and optional values](../../../models/behavior/options-in-types-and-fields.md).
+[[options-in-types-and-fields|optional fields and optional values]].
 
 ## The present values of a collection
 
@@ -104,4 +102,4 @@ absence never stands in for failure.
   the edge exists but one of its ends does not.
 
 Implemented in `src/evaluation.rs` and `src/checker.rs`; tests in
-`tests/vault.rs` and `tests/data.rs`. See [the grammar](../../../models/behavior/expressions.md).
+`tests/vault.rs` and `tests/data.rs`. See [[expressions|the grammar]].

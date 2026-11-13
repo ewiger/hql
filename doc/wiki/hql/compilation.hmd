@@ -1,7 +1,5 @@
 ---
 tags: [hql, checking, execution, design]
-nav:
-  visibility: public
 ---
 # Compilation
 
@@ -9,7 +7,7 @@ In HQL, **compilation** is an execution strategy, not a phase of the language.
 What a program means is decided when it is parsed and checked; a backend then
 executes the checked program, and compiling it is one way a backend may do
 that. HQL has no compile time, and no rule of the language is stated against
-one ([HQL-0044](../../proposals/HQL-0044/README.md)).
+one ([[HQL-0044]]).
 
 ## The phases
 

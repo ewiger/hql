@@ -1,0 +1,57 @@
+# 0077 — The knowledge base is hyper-markdown
+
+Status: doing
+Related: [[wiki/hypermarkdown]], [[hmd-integration]],
+[`doc/stack.hmd`](../stack.hmd),
+[hypermarkdown issue 0009](https://github.com/ewiger/hypermarkdown/blob/main/doc/issues/0009-nested-vault-swept-into-the-outer-one.md)
+
+`doc/` is a vault, but most of it was plain Markdown: the book, the reference,
+the proposals, the issues, the models and the stack were outside the wikilink
+graph and joined by relative `.md` links that nothing checked. Every document
+becomes a card, so the knowledge base is one graph that `hmd lint` checks and
+HQL reads.
+
+## Shape
+
+- **Two vaults.** `doc/public/` carries its own `.hmd/`, nested in `doc/`. The
+  site is built by the `hypermarkdown` MkDocs plugin with that root, and each
+  `.hmd` page is registered under its `.md` name, so `mkdocs.yml` and every URL
+  stay as they were.
+- **Folder notes.** A folder's `README.md` or `index.md` becomes `index.hmd`,
+  so `[[HQL-0041]]` names the proposal.
+- **Mechanical conversion.** A file is renamed and its links rewritten. A link
+  within a vault becomes a wikilink with the shortest reference that resolves
+  uniquely. Its fragment stays the heading slug. A link across vaults, or to a
+  file that is not a card, stays a relative Markdown link. Prose is unchanged.
+- **Stays Markdown.** Agent prompts (`*.prompt.md`) and everything under
+  `.grem/`.
+
+## Steps
+
+- [x] The site builds through the plugin; `doc/public/` is a vault; the site
+  root, install and examples pages are cards.
+- [x] HQL's filesystem source skips a nested vault.
+- [x] Dev docs: `stack.md`, `DEVELOP.md`, `models/`, `status/`, `wiki/`,
+  `memory/`.
+- [x] Proposals.
+- [x] Issues, archive included, and `kanban.yaml`.
+- [x] The book, `doc/public/learn/`.
+- [x] The reference: `hql reference` writes cards.
+- [x] Clean-up: no `.md` fallbacks in the tests; `hmd lint --root doc/public`
+  in the Pages workflow.
+- [ ] With the `hypermarkdown` release that carries issues 0009 and 0010: bump
+  the dependency, delete `contrib/mkdocs/folder_notes.py` and its `hooks:`
+  entry, and add `hmd lint --root doc` to the Pages workflow.
+
+## Waits on
+
+Two fixes in the `hypermarkdown` package, both for its next patch release:
+
+- **Issue 0009.** `hmd lint --root doc` sweeps `doc/public/` into `doc/`, and
+  reports a bare name such as `[[core]]` as ambiguous with the reference page
+  of the same name. The site build is unaffected, since its root is
+  `doc/public/`.
+- **Issue 0010.** The MkDocs plugin registers a folder note `a/b/index.hmd` as
+  the page `a/b.md`, and leaves its relative Markdown links resolving from
+  `a/`. The hook `contrib/mkdocs/folder_notes.py` rebases them until then, and
+  is deleted with the dependency bump.

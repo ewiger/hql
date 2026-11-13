@@ -1,6 +1,6 @@
 # Digest: cryptographic digests of text and of trees
 
-The cases follow [HQL-0041 part 3](../../doc/proposals/HQL-0041/parts/03-digest-and-encoding.md).
+The cases follow [HQL-0041 part 3](../../doc/proposals/HQL-0041/parts/03-digest-and-encoding.hmd).
 The module is imported with `import crypto.digest` and reached as `digest`.
 An algorithm is a type, `Sha256`, and a digest is written as lowercase hex.
 `fingerprint` is the SHA-256 of a tree's canonical JSON (RFC 8785), so two

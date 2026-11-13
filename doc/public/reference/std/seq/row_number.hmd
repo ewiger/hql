@@ -1,0 +1,12 @@
+<!-- hql reference: std/seq.row_number -->
+# `row_number`
+
+In [`std/seq`](index.hmd).
+
+```hql
+fn row_number(self: Window<T>) : Int
+```
+
+The row's position in its ordered partition, from 1; no two rows share
+one.
+<!-- hql reference: end -->

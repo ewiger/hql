@@ -1,8 +1,8 @@
 // Implemented by the `std` extension. Another external text encoding than
 // UTF-8 is converted at the codec, never held in a String.
 //
-// See doc/proposals/HQL-0024/parts/07-formats-and-codecs.md and
-// doc/proposals/HQL-0024/encode-decode-format.md.
+// See doc/proposals/HQL-0024/parts/07-formats-and-codecs.hmd and
+// doc/proposals/HQL-0024/encode-decode-format.hmd.
 
 /// The formats, how bytes are read as values and how values are written as
 /// text, and the codec contracts over them.

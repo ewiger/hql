@@ -1,6 +1,6 @@
 // Every declaration is external: the `std` extension implements it.
 //
-// See doc/proposals/HQL-0041/parts/01-time.md.
+// See doc/proposals/HQL-0041/parts/01-time.hmd.
 
 /// Time: zones, the units a value truncates to, and the operations over the
 /// time scalars of `core`: conversion from text, parts, arithmetic,
@@ -58,12 +58,24 @@ fn to_duration(self: String) : Option<Duration>
 /// evaluation error.
 fn parse_date(self: String, pattern: String) : Option<Date>
 
+/// `self` read as an ISO 8601 date, or `none`: with no pattern,
+/// `parse_date` is `to_date`.
+fn parse_date(self: String) : Option<Date>
+
 /// `self` read through a strftime `pattern` as a `DateTime`, or `none`.
 fn parse_datetime(self: String, pattern: String) : Option<DateTime>
+
+/// `self` read as an ISO 8601 date-time with no offset, or `none`: with no
+/// pattern, `parse_datetime` is `to_datetime`.
+fn parse_datetime(self: String) : Option<DateTime>
 
 /// `self` read through a strftime `pattern` as an `Instant`, or `none`; the
 /// pattern writes an offset with `%z` or a zone with `%Z`.
 fn parse_instant(self: String, pattern: String) : Option<Instant>
+
+/// `self` read as an RFC 3339 instant, or `none`: with no pattern,
+/// `parse_instant` is `to_instant`.
+fn parse_instant(self: String) : Option<Instant>
 
 // Zones.
 

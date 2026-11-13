@@ -1,6 +1,6 @@
 # Time: Date, DateTime, Instant and Duration
 
-The cases follow [HQL-0041 part 1](../../doc/proposals/HQL-0041/parts/01-time.md).
+The cases follow [HQL-0041 part 1](../../doc/proposals/HQL-0041/parts/01-time.hmd).
 `core` declares four time scalars with no literal: a `Date`, a `DateTime`
 with no zone, an `Instant` on the UTC timeline, and a `Duration`. Each is
 built by its constructor from ISO 8601 text or from named parts, compares and
@@ -17,6 +17,7 @@ operations over them are the `time` module's, imported with `import time`.
 | [DST gap](queries/dst-gap.hql) | a Berlin reading that does not happen moves forward by the gap | `2026-03-29T01:30:00Z` |
 | [truncation](queries/truncate.hql) | `truncate` to `Week`, `Month`, `Quarter` and `Year` | four dates |
 | [patterns](queries/pattern.hql) | `fmt` and `parse_date` with a strftime pattern | a text and `"true"` |
+| [parse without a pattern](queries/parse-without-pattern.hql) | `parse_date()`, `parse_datetime()` and `parse_instant()` read what `to_*` reads | five `true`s |
 | [conversion](queries/conversion-none.hql) | `to_date` gives `none` for February 30 | `[none, 2026-02-28]` |
 | [JSON decode](queries/json-decode.hql) | declared `Date`, `Instant` and `Duration` fields read their text | two events of October |
 | [invalid text](queries/invalid-date-text.hql) | `Date("2026-02-30")` | an evaluation error |

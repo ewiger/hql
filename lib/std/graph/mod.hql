@@ -1,4 +1,4 @@
-// See doc/models/domain/graphs.md and doc/wiki/hql/types/graph-type.hmd.
+// See doc/models/domain/graphs.hmd and doc/wiki/hql/types/graph-type.hmd.
 
 /// Graphs: nodes and the edges among them, structural only; what a node or
 /// an edge means is the `knowledge` module's. There is no `Node` type: what

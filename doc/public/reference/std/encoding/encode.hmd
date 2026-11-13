@@ -1,0 +1,18 @@
+<!-- hql reference: std/encoding.encode -->
+# `encode`
+
+In [`std/encoding`](index.hmd).
+
+```hql
+fn encode<E : Encoding>(self: String, as: Type<E>) : String
+```
+
+`self`'s UTF-8 octets written in `as`: `"hé".encode(Hex)` is `"68c3a9"`.
+
+```hql
+fn encode<E : Encoding>(self: Bytes, as: Type<E>) : String
+```
+
+`self` written in the encoding `as`: `Bytes("hi").encode(Hex)` is
+`"6869"`.
+<!-- hql reference: end -->

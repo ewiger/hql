@@ -1,7 +1,5 @@
 ---
 tags: [hql, extensions, modules, design]
-nav:
-  visibility: public
 ---
 # HQL extensions and namespace initialization
 
@@ -29,10 +27,10 @@ how the Rust code is split into source modules is never a reason for one. An
 extension is **internal** when it is built in, its package under `lib/` and
 its code compiled into the binary, and **external** when an installed
 package, typically a Cargo crate, supplies it. Both extensions today are
-internal ([packages](../../status/packages.hmd)). The table in
+internal ([[packages]]). The table in
 `src/extensions/` still registers one entry per Rust source module, and
 `import` binds one of those entries;
-[issue 0049](../../issues/0049-one-extension-per-package.md) folds them into
+[[0049-one-extension-per-package|issue 0049]] folds them into
 `std` and `search`.
 
 The signature declares generic parameters and bounds, input and result types,
@@ -57,7 +55,7 @@ them: that a function exists and its signature, that a type exists with its
 parents and fields, that a type implements a trait, are all declared in HQL. A
 module needs no extension at all when its bodies are HQL, and may mix HQL and
 native bodies. The model and its stages are
-[HQL-0024 part 12](../../proposals/HQL-0024/parts/12-contracts-and-binding.md).
+[[12-contracts-and-binding|HQL-0024 part 12]].
 
 | In the `.hql` contract | In the extension | Matched by |
 | --- | --- | --- |
@@ -218,11 +216,11 @@ under `lib/` declares, implemented by that package's internal extension; a
 workspace module is an HQL file under a module root, `hql.toml` `[modules] roots` or
 `--modules`. Two visible modules may declare one function name; the input's
 type tells them apart at the call, and a call that fits both is refused
-naming both ([HQL-0024](../../proposals/HQL-0024/README.md), parts 1 and 2). A vault states its own imports in
+naming both ([[HQL-0024]], parts 1 and 2). A vault states its own imports in
 `hql.toml`, and may decline the prelude. The rules are in
-[the grammar](../../models/behavior/expressions.md) and
-[the command line](../../models/behavior/cli.md); the decision is
-[HQL-0001](../../proposals/HQL-0001/README.md).
+[[expressions|the grammar]] and
+[[cli|the command line]]; the decision is
+[[HQL-0001]].
 
 A declaration states whether its operation is pure, `fn`, or effectful,
 `effectful fn`, because [[pipes]] reserves execution freedom that is only
@@ -232,7 +230,7 @@ effectful, and every other step is pure. An operation of a module without a
 contract, `graph`, `net`, `lexical` or `semantic`, has no declaration, and
 its extension's marking stands. A declaration states the operation's shape
 the same way, before `fn` — elementwise, partition, reduction, or a barrier
-where nothing is written ([HQL-0004](../../proposals/HQL-0004/README.md),
+where nothing is written ([[HQL-0004]],
 [[pipes]]) — and an operation without a declaration keeps its extension's
 marking, a barrier. The backend a checked program runs on is host
 configuration, registered in one table as extensions are; `localhost` is the
@@ -304,6 +302,6 @@ parsing part of the core. Native ABI versus another transport, registration,
 versioning, resource limits and capability policy remain open. This document does
 not choose a Rust plugin ABI or prescribe a trait hierarchy.
 
-See [architecture](../../models/domain/architecture.md),
-[cell environments](../../models/behavior/program-values.md) and
+See [[architecture]],
+[[program-values|cell environments]] and
 [[hql/design-status]].

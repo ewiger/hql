@@ -1,7 +1,5 @@
 ---
 tags: [hql, extensions, retrieval]
-nav:
-  visibility: public
 ---
 # The lexical module
 
@@ -35,7 +33,7 @@ own ordering key, so a prefix never depends on the order a vault loaded in.
 
 The text it sees is the card's title, its authored header strings and its body —
 the same text [[semantic]] embeds, and the contract is in
-[HQL-0002](../../../proposals/HQL-0002/README.md).
+[[HQL-0002]].
 
 ## What it does not compute
 

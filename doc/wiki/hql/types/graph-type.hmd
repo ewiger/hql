@@ -1,7 +1,5 @@
 ---
 tags: [hql, graph, knowledge, type-system]
-nav:
-  visibility: public
 ---
 # Graph
 
@@ -139,7 +137,7 @@ An edge is directed — it has a source and a target — and `uplinks` and
 `downlinks` are the two directions of traversal over one edge set, not two edge
 sets. A node can be its own source and target. See [[doc-type]].
 
-A graph is built by its constructor ([HQL-0019](../../../proposals/HQL-0019/README.md)):
+A graph is built by its constructor ([[HQL-0019]]):
 
 - `Graph(cards)` projects cards, hits or a ranking: the cards as nodes and the
   vault's links among them as edges.
@@ -162,7 +160,7 @@ graph.edges : Set<Edge>
 ordering guarantee. A graph is over the vault's cards, so its nodes are cards;
 a relation card is an edge between two of them, not a node. The fields are
 `Set<N>` and `Set<E>` once the graph value carries its node and edge types
-([HQL-0019](../../../proposals/HQL-0019/README.md)).
+([[HQL-0019]]).
 
 What is less clear is whether a graph over a vault should be materialized at
 all, or whether it is a query that a source may execute — a graph store, a
@@ -201,7 +199,7 @@ builds a new one, which is what keeps this sound — see [[type-system]].
   traversal, subgraph selection and path queries are functions over it or a
   separate query vocabulary.
 
-See the [graph model](../../../models/domain/graphs.md) for the domain this card
+See the [[graphs|graph model]] for the domain this card
 types, [[link-op]] for the edge-writing operator, [[type-system]] for what `:`
 does and does not cover, [[card-type]] for `Card` and its two kinds, [[hql/knowledge]] for the semantic universe, [[hql/collections]] for
 the node and edge collections and [[hql/design-status]] for what remains

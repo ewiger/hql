@@ -4,7 +4,7 @@
 //! nothing else. Listing reads the file system once, where it is written,
 //! through the sorted walk the vault reads its documents with
 //! ([`crate::walk`]), held to the grant a file read is held to, and gives a
-//! held `Seq<Entry>`. See [HQL-0040](../../doc/proposals/HQL-0040/README.md).
+//! held `Seq<Entry>`. See [HQL-0040](../../doc/proposals/HQL-0040/index.hmd).
 
 use super::io::{path_text, path_value};
 use super::{EvalCx, Operation, Purity, Shape, Signature, declared};

@@ -1,6 +1,6 @@
 // Every declaration is external: the `std` extension implements it.
 //
-// See doc/proposals/HQL-0041/parts/05-env.md.
+// See doc/proposals/HQL-0041/parts/05-env.hmd.
 
 /// What a program reads from the invocation that runs it: environment
 /// variables and named arguments. The environment is read through a grant:

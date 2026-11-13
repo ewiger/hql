@@ -1,6 +1,6 @@
 // Every declaration is external: the `std` extension implements it.
 //
-// See doc/proposals/HQL-0024/parts/03-standard-library.md.
+// See doc/proposals/HQL-0024/parts/03-standard-library.hmd.
 
 /// The sequence, set and map operations beyond the core's membership, order
 /// and lookup, in the prelude. A receiver module over `Seq<T>`, with `T`

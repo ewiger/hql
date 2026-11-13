@@ -1,7 +1,7 @@
 # Traits: contracts, a trait's named type, and traits a module implements
 
 Pure programs, no vault. Each case pins the type and result
-[HQL-0039](../../doc/proposals/HQL-0039/README.md) specifies, and checks
+[HQL-0039](../../doc/proposals/HQL-0039/index.hmd) specifies, and checks
 today. From the repository root:
 
 ```sh

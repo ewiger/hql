@@ -1,0 +1,11 @@
+<!-- hql reference: std/crypto.KeyPair -->
+# `KeyPair`
+
+In [`std/crypto`](../index.hmd).
+
+```hql
+type KeyPair<A> : Secret { public : PublicKey<A> private : PrivateKey<A> }
+```
+
+A private key and its public key.
+<!-- hql reference: end -->

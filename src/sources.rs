@@ -1,5 +1,5 @@
 //! How a vault's documents are read, independent of document parsing and
-//! knowledge assembly. See `doc/proposals/HQL-0012/README.md`.
+//! knowledge assembly. See `doc/proposals/HQL-0012/index.hmd`.
 
 use crate::document::Format;
 use std::io;
@@ -79,8 +79,27 @@ impl VaultSource for Filesystem {
     fn read(&self) -> io::Result<Snapshot> {
         // The sorted walk `io.fs` lists entries in, so the documents are
         // those of `walk(folder(root))`, in its order.
+        //
+        // A folder below the root that is a vault root itself is another
+        // vault, and its documents are not this one's: `discover` stops at the
+        // nearest marker, so a card in there resolves against its own root.
+        // The walk visits a folder before what it holds, so the nested roots
+        // are known by the time their documents come up.
         let mut documents = Vec::new();
+        let mut nested: Vec<PathBuf> = Vec::new();
         crate::walk::walk::<io::Error>(&self.root, VAULT_WALK, &mut |listed| {
+            if nested
+                .iter()
+                .any(|vault| listed.relative.starts_with(vault))
+            {
+                return Ok(true);
+            }
+            if listed.stat.kind == crate::walk::Kind::Folder
+                && crate::vault::is_root(&self.root.join(&listed.relative))
+            {
+                nested.push(listed.relative);
+                return Ok(true);
+            }
             if listed.stat.kind == crate::walk::Kind::File
                 && let Some(format) = Format::of(&listed.relative)
             {

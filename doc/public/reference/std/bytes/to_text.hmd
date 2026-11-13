@@ -1,0 +1,12 @@
+<!-- hql reference: std/bytes.to_text -->
+# `to_text`
+
+In [`std/bytes`](index.hmd).
+
+```hql
+fn to_text(self) : Option<String>
+```
+
+`self` read as UTF-8 text, or `none` where it is not valid UTF-8:
+`Bytes("hé").to_text()` is `some("hé")`.
+<!-- hql reference: end -->

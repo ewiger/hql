@@ -33,13 +33,15 @@ fn slug(heading: &str) -> String {
     slug
 }
 
-/// The page a citation's path names: `path.md`, or a folder's `index.md`.
+/// The page a citation's path names, the way a wikilink binds: the card
+/// `path.hmd`, or a folder's `index.hmd`.
 fn page(public: &Path, path: &str) -> Option<PathBuf> {
-    let file = public.join(format!("{path}.md"));
-    let folder = public.join(path).join("index.md");
-    [file, folder]
-        .into_iter()
-        .find(|candidate| candidate.is_file())
+    [
+        public.join(format!("{path}.hmd")),
+        public.join(path).join("index.hmd"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
 }
 
 #[test]

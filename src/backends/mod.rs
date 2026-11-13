@@ -7,12 +7,12 @@
 //! as extensions are. Which backend runs a program is host configuration —
 //! the query's `--backend`, the vault's `[execution] backend`, the user's
 //! `HQL_BACKEND`, then the default — and never syntax, because the answer
-//! does not depend on it. See `doc/proposals/HQL-0004/README.md`.
+//! does not depend on it. See `doc/proposals/HQL-0004/index.hmd`.
 //!
 //! Before a backend accepts a program, the planner annotates every step with
 //! its stage, from the step's shape and purity and from what the backend
 //! executes, and a backend refuses a pipeline a step of which carries no
-//! annotation. See `doc/proposals/HQL-0005/README.md`.
+//! annotation. See `doc/proposals/HQL-0005/index.hmd`.
 
 mod localhost;
 mod plan;

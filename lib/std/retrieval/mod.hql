@@ -1,4 +1,4 @@
-// See doc/wiki/hql/semantic-search.hmd and doc/proposals/HQL-0002/README.md.
+// See doc/wiki/hql/semantic-search.hmd and doc/proposals/HQL-0002/index.hmd.
 
 /// Retrieval: a corpus ranked against a query. A score is evidence for the
 /// proposition that a value is relevant to a query, never relevance itself,

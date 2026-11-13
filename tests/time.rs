@@ -328,6 +328,19 @@ fn a_pattern_writes_and_reads_back_what_it_writes() {
         "2026-10-24T07:30:00Z"
     );
     assert_eq!(shown("\"yesterday\".parse_date(\"%Y-%m-%d\")"), "none");
+    // With no pattern, each reads what its `to_*` reads.
+    assert_eq!(
+        shown("[\"1982-05-09\".parse_date(), \"09.05.1982\".parse_date()]"),
+        "[1982-05-09, none]"
+    );
+    assert_eq!(
+        shown("\"2026-10-24T09:30:00.25\".parse_datetime()"),
+        "2026-10-24T09:30:00.25"
+    );
+    assert_eq!(
+        shown("\"2026-10-24T09:30:00+02:00\".parse_instant()"),
+        "2026-10-24T07:30:00Z"
+    );
     assert!(refused("Date(\"2026-10-24\").fmt(\"%q\")").contains("`%q`"));
 }
 

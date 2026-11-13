@@ -1,6 +1,6 @@
 # File system: folders, globs and entries
 
-The cases follow [HQL-0040](../../doc/proposals/HQL-0040/README.md). `io`
+The cases follow [HQL-0040](../../doc/proposals/HQL-0040/index.hmd). `io`
 declares `Path`, a place in a file system written as text, and its pure
 operations; the `io.fs` module, imported with `import io.fs`, declares
 `Folder`, `Glob` and `Entry`, and the effectful operations that list a

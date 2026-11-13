@@ -1,7 +1,6 @@
 ---
 nav:
   order: 90
-  visibility: public
 ---
 # Hyper-markdown
 
@@ -12,9 +11,9 @@ knowledge format: plain Markdown extended with **wiki features**, above all
 `[[wikilinks]]` between cards. It is the default home for cross-linked, reusable
 explanations of a single idea. A `.hmd` file is a **card**, and cards live in a
 **vault** — the single directory that bounds the graph. This project's vault is
-`doc/`: the cards in [`doc/wiki/`](README.md) and every other `.hmd` file under
-`doc/`, such as the [issues index](../issues/README.hmd) and the
-[status pages](../status/ADR-status.hmd). A card also reads fine as plain Markdown: the format
+`doc/`: the cards in [`doc/wiki/`](index.hmd) and every other `.hmd` file under
+`doc/`, such as the [[issues|issues index]] and the
+[[ADR-status|status pages]]. A card also reads fine as plain Markdown: the format
 is Markdown plus a wiki graph, nothing more exotic, with no external toolchain
 to satisfy.
 
@@ -38,6 +37,14 @@ What makes a directory a vault is an `.hmd/` directory at its root — that
 marker, and the vault state and configuration it holds, are owned by
 [[card-type]]. The settings in [doc/.hmd/config.toml](../.hmd/config.toml) govern every
 card beneath it and are optional; where a key is absent its default is assumed.
+
+Vaults nest, and a marker below the root ends the vault there. `doc/public/`
+carries its own [`.hmd/`](../public/.hmd/config.toml): it is the published
+site, a second vault inside this one, and none of its pages belongs to `doc/`.
+A page there resolves against `doc/public/`, so `[[/learn/…]]` means the same
+page in the editor, in lint and on the site; and no card here can be reached
+from it by a wikilink. Between the two vaults a link is an ordinary relative
+Markdown link, and a public page reaches the design material only by URL.
 
 Binding a reference to a file is uniform: the reference plus `.hmd` is tried as
 a file, and otherwise the reference is tried as a directory holding an

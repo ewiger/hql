@@ -1,6 +1,6 @@
 // Every declaration is external: the `std` extension implements it.
 //
-// See doc/proposals/HQL-0041/parts/02-stats.md.
+// See doc/proposals/HQL-0041/parts/02-stats.hmd.
 
 /// Descriptive statistics over a collection of numbers: the mean, the
 /// sample and population variance and standard deviation, the median,

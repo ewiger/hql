@@ -1,6 +1,6 @@
 # Random: samples, shuffles, choices, numbers and UUIDs
 
-The cases follow [HQL-0041 part 4](../../doc/proposals/HQL-0041/parts/04-random.md).
+The cases follow [HQL-0041 part 4](../../doc/proposals/HQL-0041/parts/04-random.hmd).
 The `random` module is imported with `import random`. Each draw has two forms:
 with a `seed` argument it is pure, a function of the seed, its input and its
 call site; without one it is effectful and draws from the evaluation seed,

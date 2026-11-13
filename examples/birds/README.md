@@ -71,4 +71,4 @@ neither is a tree. Trees of different types are held together as `Data`, so
 `[3, "barn-owl", true]` is a `List<Data>`, as it is in JSON. See [lib/std/core/mod.hql](../../lib/std/core/mod.hql).
 
 The types are declared in [lib/std/core/mod.hql](../../lib/std/core/mod.hql) and the operations in [lib/std/collections/mod.hql](../../lib/std/collections/mod.hql), with
-the laws explained in the [collection model](../../doc/wiki/hql/types/collections/collection-types.md).
+the laws explained in the [collection model](../../doc/wiki/hql/types/collections/collection-types.hmd).

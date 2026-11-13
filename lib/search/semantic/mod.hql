@@ -1,6 +1,6 @@
 // Every declaration is external: the `semantic` extension implements it.
 //
-// See doc/wiki/hql/semantic-search.hmd and doc/proposals/HQL-0002/README.md.
+// See doc/wiki/hql/semantic-search.hmd and doc/proposals/HQL-0002/index.hmd.
 
 /// Semantic retrieval: a corpus ranked against a query by vectors a
 /// language model made ahead of time, read from the index that

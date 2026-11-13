@@ -41,3 +41,8 @@ jobs:
       # Nothing is published that does not build clean.
       - name: Build
         run: uv run mkdocs build --strict
+
+      # The site's wikilinks. An unresolved link is a warning; an ambiguous
+      # one, a link escaping the vault or a missing heading fails.
+      - name: Lint
+        run: uv run hmd lint --root doc/public

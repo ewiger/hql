@@ -1,0 +1,12 @@
+<!-- hql reference: std/io.stem -->
+# `stem`
+
+In [`std/io`](index.hmd).
+
+```hql
+fn stem(self: Path) : String
+```
+
+The last segment of `self` without its extension:
+`Path("data/birds.csv").stem()` is `"birds"`.
+<!-- hql reference: end -->

@@ -1,0 +1,11 @@
+<!-- hql reference: std/time.Microsecond -->
+# `Microsecond`
+
+In [`std/time`](../index.hmd).
+
+```hql
+type Microsecond : TimeUnit
+```
+
+The units a time value truncates to.
+<!-- hql reference: end -->

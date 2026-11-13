@@ -6,8 +6,8 @@
 //! does, and gives an endpoint that `tap`, `sink` and `target` read and
 //! write with the readers and the publisher of [`crate::nats`].
 //! Constructing one opens no connection. See
-//! [HQL-0047](../../doc/proposals/HQL-0047/README.md) and
-//! [HQL-0048](../../doc/proposals/HQL-0048/README.md).
+//! [HQL-0047](../../doc/proposals/HQL-0047/index.hmd) and
+//! [HQL-0048](../../doc/proposals/HQL-0048/index.hmd).
 
 use super::Signature;
 use super::spec::CheckedCall;

@@ -1,6 +1,6 @@
 //! `xs[a:b]`: the part of a value between two positions, of the value's own
 //! type, and the `Slice` capability behind it. See
-//! doc/proposals/HQL-0026/README.md.
+//! doc/proposals/HQL-0026/index.hmd.
 
 use hql::{check, eval};
 

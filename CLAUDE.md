@@ -2,7 +2,7 @@
 
 Treat `doc/` as a modular knowledge base:
 
-- `doc/stack.md` declares the implementation language, tooling, and code
+- `doc/stack.hmd` declares the implementation language, tooling, and code
   conventions. Follow it when writing code or adding a dependency. It does not
   govern HQL's own design.
 - `doc/models/` declares the system through requirements, data, domain, and

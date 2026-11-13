@@ -1,6 +1,6 @@
 // Every declaration is external: the `lexical` extension implements it.
 //
-// See doc/wiki/hql/semantic-search.hmd and doc/proposals/HQL-0002/README.md.
+// See doc/wiki/hql/semantic-search.hmd and doc/proposals/HQL-0002/index.hmd.
 
 /// Lexical retrieval: a corpus ranked by the words it shares with a query,
 /// a hashed bag of words compared by cosine. Offline, deterministic and

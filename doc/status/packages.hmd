@@ -4,7 +4,7 @@ Every package the binary carries, with its extension, its modules and what
 each module declares. A **package** is the distribution unit, an
 **extension** the implementation unit, and a **module** the canonical HQL
 name, a contract bound to one provider: the runtime, or exactly one extension
-([HQL-0024, modules](../proposals/HQL-0024/parts/01-modules.md), "Three
+([[01-modules|HQL-0024, modules]], "Three
 identities"). One extension provides any number of modules.
 
 A package carries one extension, named as the package is. It carries more

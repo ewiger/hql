@@ -1,6 +1,6 @@
 # Env: environment variables and invocation arguments
 
-The cases follow [HQL-0041 part 5](../../doc/proposals/HQL-0041/parts/05-env.md).
+The cases follow [HQL-0041 part 5](../../doc/proposals/HQL-0041/parts/05-env.hmd).
 The `io.env` module is imported with `import io.env` and reached as `env`.
 `env.var` and `env.vars` read the environment through the host's grant:
 every variable for a program run on its own, the names `env = [...]` lists

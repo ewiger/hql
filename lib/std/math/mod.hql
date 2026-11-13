@@ -1,7 +1,7 @@
 // Every declaration is external: the `std` extension implements it.
 //
-// See doc/proposals/HQL-0024/parts/03-standard-library.md and
-// doc/proposals/HQL-0031/README.md.
+// See doc/proposals/HQL-0024/parts/03-standard-library.hmd and
+// doc/proposals/HQL-0031/index.hmd.
 
 /// Numbers, in the prelude. `abs`, `pow` and `sign` take an `Int` or a
 /// `Float`, `abs` and `sign` a `Decimal` too, and `abs` a `Duration`;

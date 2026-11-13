@@ -1,0 +1,108 @@
+# HQL-0055: logical steps and physical execution
+
+Companion to [[HQL-0055]]. This note defines the planning
+boundary and its owners. The public book's
+[Logical steps and physical plans](../../../public/learn/14-planning-and-backends.hmd)
+introduces the same concepts with a small expression and a hand-written SQL
+translation. Alternative execution strategies here are design direction.
+
+## Before planning: the logical program
+
+A program declares computation through typed expressions and pipelines.
+Each `|` forms a step that applies an operation or presentation to its input.
+Checking resolves those operations, types and dependencies before physical
+planning begins. Effects constrain the observable order of the work.
+
+The logical program is therefore already meaningful before a backend
+chooses traversals, workers or a SQL translation. A `filter` followed by a
+`map` remains two logical steps even if execution performs both in one
+traversal. Logical step positions remain useful for diagnostics and for
+explaining the computation.
+
+## Planning: choosing an execution strategy
+
+| Level | Owner | Responsibility |
+| --- | --- | --- |
+| Logical steps | Program and checker | Operations, types, data dependencies and ordered effects |
+| Physical plan and stages | Planner, possibly with an engine planner | Fusion, work division, data movement and execution strategy |
+| Tasks | Backend scheduler | Concrete attempts, partition assignment and retries |
+| Job | Runtime | One program run, its progress, diagnostics and completion |
+
+A physical plan resolves execution choices as far as the backend can make
+them. Several steps may share a stage; one step may need several stages.
+A reduction, for example, may use partial aggregation and a final combine.
+The permitted transformations follow the operation's shape and the
+[[02-effects|effect constraints]], preserving HQL-0004's observable
+contract. Data dependencies remain constraints even between pure steps.
+
+The logical-to-physical mapping need not use a separate graph object in the
+implementation. Today the planner annotates checked step nodes. A future
+representation must also accommodate split steps and delegated planning;
+its schema remains open.
+
+## Local and parallel execution
+
+`localhost` is the only implemented execution backend. Its plan assigns
+`stage 0, in process` to every step within each pipeline. Stage numbering
+is local to that pipeline. A program with several pipelines consequently
+has several pipeline-local annotations, rather than one globally numbered
+stage graph. Finite collections are evaluated step by step; streams are
+consumed on demand.
+
+One invocation is one job in this record's vocabulary. The local runtime
+has no scheduler task identity or retry lifecycle. Describing the work as
+one in-process task is a conceptual view, not an extra runtime object.
+
+A future parallel backend could divide a pure elementwise computation
+among local workers. A distributed backend could place the same computation
+on multiple machines. Both must reconstruct the result's required order
+and preserve failures. Distribution also requires a plan for moving data
+between workers, such as bringing equal keys together before grouping.
+
+## SQL translation and delegated physical planning
+
+A future backend could translate supported logical steps into Spark SQL
+for Databricks. A sequence of CTEs can name intermediate relations in one
+statement. This is a backend representation of the computation, with more
+physical planning still to come:
+
+```text
+checked HQL steps and dependencies
+    -> HQL backend: select engine and translate supported computation
+    -> Spark SQL, possibly using CTEs
+    -> engine: logical optimization and physical planning
+    -> scheduler: execution attempts on workers
+    -> results and effects reported to the HQL run
+```
+
+The engine chooses its physical operators and execution layout. A CTE
+boundary does not prescribe a stage boundary, materialization, or task.
+One submitted SQL statement may execute through many tasks or engine jobs.
+HQL's job remains one run of the whole HQL plan; engine identities need an
+explicit mapping if the backend exposes them to that run.
+
+The backend must account for HQL types, sequence positions, missing values,
+numeric behavior, diagnostics and effect ordering. Matching a pipeline
+operation to a SQL clause alone does not establish equivalence. Unsupported
+work is refused before execution. The supported subset, partial pushdown
+and any local fallback require a later backend specification.
+
+This planning handoff follows the distinction shown by Spark's
+[`EXPLAIN EXTENDED`](https://spark.apache.org/docs/3.5.6/sql-ref-syntax-qry-explain.html),
+which exposes logical and physical plans separately. Databricks documents
+[CTEs](https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-qry-select-cte)
+as named results scoped to a statement.
+
+## Relationship to earlier records
+
+| Term | Existing definition | Refinement in this draft |
+| --- | --- | --- |
+| Step | HQL-0005: an occurrence in a pipeline | Explicitly pre-planning; unchanged by backend selection |
+| Stage | HQL-0005: a planned group of whole steps | May also contain part of a step; planning may be delegated |
+| Task | HQL-0036 uses execution tasks | One scheduled attempt over a stage and partition where applicable |
+| Job | Earlier scheduling prose sometimes uses job for a work item | One run of a whole HQL plan |
+
+HQL-0005's current single-stage annotation per step describes the
+implemented representation. This draft's split-step mapping is a proposed
+extension. The public book teaches the separation now and labels that
+extension, SQL translation and parallel execution as design direction.

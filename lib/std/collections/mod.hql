@@ -1,5 +1,5 @@
 // Module `collections`. Always visible: the `std` extension implements it
-// with `core`. See doc/wiki/hql/types/collections/collection-types.md and
+// with `core`. See doc/wiki/hql/types/collections/collection-types.hmd and
 // collection.md.
 
 /// The operations over the collection types `core` declares: membership,

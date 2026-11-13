@@ -1,6 +1,6 @@
 //! Network endpoints through the real process, against servers on the
 //! loopback interface: `http`, `tcp` and `websocket` read and written by
-//! `source`, `tap`, `target` and `sink`. See doc/proposals/HQL-0021/README.md.
+//! `source`, `tap`, `target` and `sink`. See doc/proposals/HQL-0021/index.hmd.
 
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};

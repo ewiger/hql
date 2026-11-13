@@ -115,10 +115,10 @@ fn Duration(text: String) : Duration
 /// `Duration(hours = 1, minutes = 30)` is `PT1H30M`.
 fn Duration(*, days: Int = 0, hours: Int = 0, minutes: Int = 0, seconds: Int = 0, millis: Int = 0, nanos: Int = 0) : Duration
 
-// The collection types. See doc/wiki/hql/types/collections/collection-types.md
+// The collection types. See doc/wiki/hql/types/collections/collection-types.hmd
 // and collection.md.
 
-// See doc/models/behavior/queries.md.
+// See doc/models/behavior/queries.hmd.
 /// A value whose elements can each be visited: the bound an operation
 /// states when it only visits each value. Finiteness, order and uniqueness
 /// are not part of it.
@@ -274,7 +274,7 @@ type Is<T>
 // The capabilities the language owns, in scope in every program: the
 // operators resolve through them, and a declared type implements them for
 // its own values. `Self` is the implementing type. See
-// doc/proposals/HQL-0024/parts/05-traits.md and 06-operators.md.
+// doc/proposals/HQL-0024/parts/05-traits.hmd and 06-operators.md.
 /// Equality: `a == b` and `a != b` over a type implementing `Eq` call its
 /// `eq`.
 trait Eq {
@@ -416,7 +416,7 @@ impl Slice for Data
 
 // The operation types, reserved: one per shape a pipeline step may have, and
 // their common supertype. A program declares no type of these names. See
-// doc/proposals/HQL-0005/README.md and HQL-0004's shapes.
+// doc/proposals/HQL-0005/index.hmd and HQL-0004's shapes.
 /// A function from `I` to `O` that also carries its shape: what an executor
 /// may assume about splitting the step. A value of one is called as an
 /// `I -> O` function is, and a lambda bound at one is an operation on equal
