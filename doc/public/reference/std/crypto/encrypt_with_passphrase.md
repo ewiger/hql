@@ -1,0 +1,12 @@
+<!-- hql reference: std/crypto.encrypt_with_passphrase -->
+# `encrypt_with_passphrase`
+
+In [`std/crypto`](index.md).
+
+```hql
+effectful fn encrypt_with_passphrase(self: Bytes, passphrase: String) : Bytes
+```
+
+The age encryption of `self` under a passphrase, by age's scrypt
+recipient with work factor 18.
+<!-- hql reference: end -->

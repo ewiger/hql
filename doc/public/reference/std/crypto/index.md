@@ -56,4 +56,17 @@ one, `==` does not compare them, and each prints redacted.
 - [`verify_mac`](verify_mac.md) — Whether `tag` is the MAC tag of `self` under `key`, compared in time independent of where it first differs.
 - [`hash_password`](hash_password.md) — The Argon2id hash of `self` under a new 16-octet salt from the host generator, as a PHC string: `$argon2id$v=19$m=19456,t=2,p=1$…$…`.
 - [`verify_password`](verify_password.md) — Whether `self` is the password `hash` was made from, under the hash's own parameters.
+- [`encrypt`](encrypt.md) — The authenticated encryption of `self` under `key`, with `aad` bound to it and not encrypted: a new 12-octet nonce from the host generator, then the ciphertext, then the 16-octet tag.
+- [`decrypt`](decrypt.md) — The plaintext of `self` under `key` and `aad`, or `none` where `self` is not an encryption of anything under them: shorter than 28 octets, a changed octet anywhere, a wrong key or a wrong `aad`.
+- [`encrypt_to`](encrypt_to.md) — The age encryption of `self` to every key of `recipients`: any one of their private keys decrypts it.
+- [`decrypt_with`](decrypt_with.md) — The plaintext of the age message `self` for `identity`, or `none` where it is not a message to that key or has been changed.
+- [`encrypt_with_passphrase`](encrypt_with_passphrase.md) — The age encryption of `self` under a passphrase, by age's scrypt recipient with work factor 18.
+- [`decrypt_with_passphrase`](decrypt_with_passphrase.md) — The plaintext of the age message `self` under `passphrase`, or `none`.
+- [`armor`](armor.md) — The ASCII armor of an age message: `-----BEGIN AGE ENCRYPTED FILE-----`.
+- [`unarmor`](unarmor.md) — The age message an armored text holds, or `none`.
+- [`EncryptedEnd`](types/EncryptedEnd.md) — An endpoint whose writes are age-encrypted to `recipients` and stored in `endpoint`.
+- [`DecryptedEnd`](types/DecryptedEnd.md) — An endpoint whose contents are those of a replayable `endpoint`, age-decrypted.
+- [`DecryptedLive`](types/DecryptedLive.md) — An endpoint whose contents are those of a live `endpoint`, age-decrypted.
+- [`encrypted_to`](encrypted_to.md) — `endpoint`, its writes age-encrypted to `recipients`.
+- [`decrypted_with`](decrypted_with.md) — `endpoint`, its contents age-decrypted with `identity`.
 <!-- hql reference: end -->

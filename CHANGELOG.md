@@ -231,6 +231,18 @@ The language continues to be in active development.
   than OWASP's cost, and `verify_password` checks one.
 - `+` concatenates formatted text, `source(file(p), Text)`'s documents
   among it, as the `String` it is.
+- Encryption ([HQL-0053](doc/proposals/HQL-0053/README.md) part 4).
+  `encrypt` and `decrypt` under `Aes256Gcm` or `ChaCha20Poly1305` (nonce,
+  ciphertext, tag; `aad` bound); `encrypt_to` and `decrypt_with` in the age
+  v1 format to X25519 recipients, `encrypt_with_passphrase` and
+  `decrypt_with_passphrase` under age's scrypt (a work factor above 22
+  refused), and `armor` and `unarmor`. `encrypted_to(endpoint, recipients)`
+  and `decrypted_with(endpoint, identity)` wrap a byte endpoint: `target`
+  and `sink` write one age file, replaced once its last chunk is written;
+  `source` authenticates every chunk before any document, and `tap` gives a
+  chunk's documents once it is authenticated. `orders.jsonl.age` under
+  either wrapper is JSON Lines. `hql render` refuses every operation that
+  draws from the host generator.
 
 ### Fixed
 

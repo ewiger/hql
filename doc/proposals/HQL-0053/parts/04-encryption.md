@@ -117,8 +117,13 @@ fn decrypted_with(endpoint: Readable, identity: PrivateKey<X25519>) : DecryptedL
 - An identity that opens no stanza of the header MUST be an evaluation
   error naming the endpoint and the stanza types the header holds, never a
   key.
-- The wrappers apply to byte endpoints: files, standard input and output,
-  HTTP. A message transport, a topic or a subject, carries one value per
+- The wrappers apply to byte endpoints. `decrypted_with` reads a file,
+  standard input or an HTTP resource; `encrypted_to` writes a file or
+  standard output, and any other endpoint is an evaluation error naming it.
+- A chunk that fails, or a file that ends without its final chunk, is
+  named by the octet offset of the chunk in the age file: the payload's
+  start, after the header and its 16-octet nonce, plus 65552 octets per
+  chunk before it. A message transport, a topic or a subject, carries one value per
   message; a program encrypts each with `encrypt_to` in a `map`.
 
 ## Examples
@@ -138,6 +143,8 @@ patients
 auditor  = read_public_key(file("auditor.age.pub"), Age, X25519)
 identity = read_private_key(file("identity.txt"), Age, X25519)
 orders | target(encrypted_to(file("orders.jsonl.age"), [team, auditor]))
+
+// In a later evaluation: one evaluation does not read a file it replaced.
 source(decrypted_with(file("orders.jsonl.age"), identity))
 
 // A field encrypted under a key the program shares with another service.

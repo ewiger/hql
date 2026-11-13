@@ -1,0 +1,13 @@
+<!-- hql reference: std/crypto.decrypt -->
+# `decrypt`
+
+In [`std/crypto`](index.md).
+
+```hql
+fn decrypt<C : Cipher>(self: Bytes, key: SecretKey<C>, *, aad: Bytes = Bytes("")) : Option<Bytes>
+```
+
+The plaintext of `self` under `key` and `aad`, or `none` where `self` is
+not an encryption of anything under them: shorter than 28 octets, a
+changed octet anywhere, a wrong key or a wrong `aad`.
+<!-- hql reference: end -->

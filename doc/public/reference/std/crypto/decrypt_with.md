@@ -1,0 +1,12 @@
+<!-- hql reference: std/crypto.decrypt_with -->
+# `decrypt_with`
+
+In [`std/crypto`](index.md).
+
+```hql
+fn decrypt_with(self: Bytes, identity: PrivateKey<X25519>) : Option<Bytes>
+```
+
+The plaintext of the age message `self` for `identity`, or `none` where
+it is not a message to that key or has been changed.
+<!-- hql reference: end -->

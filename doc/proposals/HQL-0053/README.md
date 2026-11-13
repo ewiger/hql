@@ -1,6 +1,6 @@
 # HQL-0053: Bytes, keys, signatures, encryption and a key vault
 
-**Status**: accepted, implemented in part
+**Status**: implemented in part
 **Created**: 2026-11-13
 **Source**: [issue 0067](../../issues/0067-std-crypto.md);
 [HQL-0041 part 3](../HQL-0041/parts/03-digest-and-encoding.md) (digests,
@@ -382,3 +382,7 @@ cargo clippy --all-targets -- -D warnings
 - 2026-11-13: part 3, signatures, MACs and password hashes, implemented;
   P256 signs in the low-s form and verifies either; `verify_password` reads
   Argon2id, Argon2i and Argon2d, and spends at most 1 GiB
+- 2026-11-13: part 4, encryption and encrypted endpoints, implemented;
+  `encrypted_to` writes a file or standard output, a failing chunk is named
+  by its octet offset, and the encrypted-file case reads an age file an
+  earlier evaluation wrote
