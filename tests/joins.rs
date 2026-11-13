@@ -27,16 +27,16 @@ fn each_mode_keeps_what_it_names_in_the_order_of_positions() {
     let shown = "left = x => x, right = y => y, into = (x, y) => {x: x, y: y}";
     assert_eq!(
         value(&format!("{SIDES}xs | left_join(ys, {shown})")),
-        "[{x: 1, y: empty}, {x: 2, y: 2}, {x: 2, y: 2}, {x: 3, y: 3}, {x: 3, y: 3}]"
+        "[{x: 1, y: none}, {x: 2, y: 2}, {x: 2, y: 2}, {x: 3, y: 3}, {x: 3, y: 3}]"
     );
     assert_eq!(
         value(&format!("{SIDES}xs | right_join(ys, {shown})")),
-        "[{x: 2, y: 2}, {x: 2, y: 2}, {x: 3, y: 3}, {x: 3, y: 3}, {x: empty, y: 4}]"
+        "[{x: 2, y: 2}, {x: 2, y: 2}, {x: 3, y: 3}, {x: 3, y: 3}, {x: none, y: 4}]"
     );
     assert_eq!(
         value(&format!("{SIDES}xs | full_join(ys, {shown})")),
-        "[{x: 1, y: empty}, {x: 2, y: 2}, {x: 2, y: 2}, {x: 3, y: 3}, {x: 3, y: 3}, \
-         {x: empty, y: 4}]"
+        "[{x: 1, y: none}, {x: 2, y: 2}, {x: 2, y: 2}, {x: 3, y: 3}, {x: 3, y: 3}, \
+         {x: none, y: 4}]"
     );
     assert_eq!(
         value("[1, 2] | cross_join([10, 20], into = (x, y) => x + y)"),

@@ -246,6 +246,9 @@ The language continues to be in active development.
 
 ### Fixed
 
+- A missing value inside a data tree prints `none`, as it is written and as
+  it prints elsewhere: `{a: none}` printed `{a: empty}`, which reads back as
+  nothing.
 - A PostgreSQL serialization failure, deadlock or constraint refusal inside
   a transaction scope no longer panics: the refusal is noted while the
   attempt holds its connection, and the scope retries or fails as it does
