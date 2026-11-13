@@ -116,3 +116,4 @@ outside this list.
 | [HQL-0054](HQL-0054/README.md) | accepted | Key vaults: stored keys, SSH agents, keychains and cloud key managers |
 | [HQL-0055](HQL-0055/README.md) | implemented in part | Steps, autes, stages, tasks and jobs: units of computation and units of execution |
 | [HQL-0056](HQL-0056/README.md) | drafted | Computation plans and backend engines |
+| [HQL-0057](HQL-0057/README.md) | drafted | Packages: the `hql-extensions` registry, `hql package`, and installed extensions |
