@@ -10,7 +10,7 @@ time scalars of `core`: conversion from text, parts, arithmetic,
 truncation, rendering, and the evaluation clock. Not in the prelude: a
 program writes `import time`.
 
-- [`Zone`](types/Zone.md) — A time zone: an IANA name the binary's database holds, `"Europe/Berlin"`, `"UTC"`, or a fixed offset `"+02:00"`.
+- [`Zone`](types/Zone.md) — A time zone: an IANA name the time-zone database holds, `"Europe/Berlin"`, `"UTC"`, or a fixed offset `"+02:00"`.
 - [`TimeUnit`](types/TimeUnit.md) — The units a time value truncates to.
 - [`Nanosecond`](types/Nanosecond.md) — The units a time value truncates to.
 - [`Microsecond`](types/Microsecond.md) — The units a time value truncates to.

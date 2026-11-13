@@ -26,6 +26,18 @@ The language continues to be in active development.
   without one it is effectful and draws from the evaluation seed, which
   `--seed` fixes. The generator is ChaCha12 and is not for secrets. The book
   teaches it in [Random values](doc/public/learn/29-random.md).
+- `abs` over a `Duration` ([HQL-0041](doc/proposals/HQL-0041/README.md)
+  part 1): the prelude's `math` declares `fn abs(self: Duration) : Duration`
+  beside the numbers, so `abs(Duration("-PT1H"))` is `PT1H` with no
+  `import time`.
+- `Entry.modified? : Instant` in `io.fs`
+  ([HQL-0040](doc/proposals/HQL-0040/README.md)): the time an entry was
+  last modified, a link's own and not its target's, absent where the
+  platform records none. Every listing and `entry` read it with the rest
+  of the entry.
+- `hql --version` names the time-zone database zone names resolve against
+  on a second line, `time-zone database: system` for the host's, or the
+  release of the database compiled into the binary, `2026e, bundled`.
 - Descriptive statistics ([HQL-0041](doc/proposals/HQL-0041/README.md)
   part 2). The module `stats`, imported with `import stats`, declares the
   reductions `mean`, `variance` and `stdev` (sample, `n - 1`), `pvariance`

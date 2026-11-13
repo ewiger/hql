@@ -662,10 +662,21 @@ fn cli_surface_identifies_hql_and_usage_errors_exit_two() {
     let help = hql(&["--help"]);
     assert!(help.status.success());
     assert!(stdout(&help).contains("Hyper Query Language"));
-    assert_eq!(
-        hql(&["--version"]).stdout,
-        format!("hql {}\n", env!("CARGO_PKG_VERSION")).into_bytes()
-    );
+    // The version, then the time-zone database zone names resolve against:
+    // the bundled one's release, or the host's.
+    for flag in ["--version", "-V"] {
+        let version = stdout(&hql(&[flag]));
+        assert_eq!(version, format!("hql {}\n", hql::cli::version()));
+        let lines: Vec<&str> = version.lines().collect();
+        assert_eq!(lines[0], format!("hql {}", env!("CARGO_PKG_VERSION")));
+        let database = lines[1]
+            .strip_prefix("time-zone database: ")
+            .unwrap_or_else(|| panic!("{version}"));
+        assert!(
+            database == "system" || database.ends_with("bundled"),
+            "{version}"
+        );
+    }
     for args in [vec![], vec!["eval"], vec!["check"]] {
         assert_eq!(hql(&args).status.code(), Some(2), "{args:?}");
     }

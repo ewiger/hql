@@ -4,19 +4,22 @@
 // doc/proposals/HQL-0031/README.md.
 
 /// Numbers, in the prelude. `abs`, `pow` and `sign` take an `Int` or a
-/// `Float`, and `abs` and `sign` a `Decimal` too; `round` takes a `Float` or
-/// a `Decimal`, and the rest take a `Float`. `float`, `int` and `decimal`
-/// convert between the three, since no number widens on its own except an
-/// `Int` beside a `Decimal`.
+/// `Float`, `abs` and `sign` a `Decimal` too, and `abs` a `Duration`;
+/// `round` takes a `Float` or a `Decimal`, and the rest take a `Float`.
+/// `float`, `int` and `decimal` convert between the three, since no number
+/// widens on its own except an `Int` beside a `Decimal`.
 module math
 
 import core
 
-/// `self` without its sign, at its own type: `abs(-3)` is `3`, and
-/// `abs(-1.50)` is `1.50`.
+/// `self` without its sign, at its own type: `abs(-3)` is `3`,
+/// `abs(-1.50)` is `1.50`, and `abs(Duration("-PT1H"))` is `PT1H`. The
+/// least `Int` and the least `Duration` have no positive counterpart, and
+/// their `abs` is an overflow error.
 fn abs(self: Int) : Int
 fn abs(self: Float) : Float
 fn abs(self: Decimal) : Decimal
+fn abs(self: Duration) : Duration
 
 /// `self` raised to `exponent`, both of one type: `pow(2, 10)` is `1024`.
 /// Over `Int`s an `exponent` below 0 is an evaluation error, and so is a

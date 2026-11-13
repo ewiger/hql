@@ -10,9 +10,11 @@ module time
 
 import core
 
-/// A time zone: an IANA name the binary's database holds,
+/// A time zone: an IANA name the time-zone database holds,
 /// `"Europe/Berlin"`, `"UTC"`, or a fixed offset `"+02:00"`. A zone turns
-/// a wall-clock `DateTime` into an `Instant` and back.
+/// a wall-clock `DateTime` into an `Instant` and back. The database is the
+/// host's where it has one, else the one compiled into the binary, and
+/// `hql --version` names which: `system`, or the bundled release.
 type Zone {
     name : String
 }

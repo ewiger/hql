@@ -515,6 +515,53 @@ pub fn parse_pattern(type_name: &str, text: &str, pattern: &str) -> Result<Optio
     })
 }
 
+/// The time-zone database a zone name resolves against: the one compiled
+/// into the binary, or the host's, which jiff prefers where the host has
+/// one (`/usr/share/zoneinfo`, or `TZDIR`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ZoneDatabase {
+    /// The database compiled into the binary, with its release, `2026e`,
+    /// where it records one.
+    Bundled(Option<&'static str>),
+    /// The host's database, whose release the binary does not read.
+    System,
+    /// No database: only `UTC` and fixed offsets resolve.
+    Unavailable,
+}
+
+impl ZoneDatabase {
+    /// The database the evaluator resolves zone names against.
+    #[must_use]
+    pub fn in_use() -> Self {
+        Self::of(jiff::tz::db())
+    }
+
+    /// Which database `db` is. jiff names its kind only in its debug text,
+    /// so that text is read; a test pins it against the bundled database.
+    fn of(db: &jiff::tz::TimeZoneDatabase) -> Self {
+        let described = format!("{db:?}");
+        if described.starts_with("TimeZoneDatabase(Bundled") {
+            Self::Bundled(jiff_tzdb::VERSION)
+        } else if db.is_definitively_empty() {
+            Self::Unavailable
+        } else {
+            Self::System
+        }
+    }
+}
+
+impl fmt::Display for ZoneDatabase {
+    /// `2026e, bundled`, `bundled`, `system` or `none`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bundled(Some(release)) => write!(f, "{release}, bundled"),
+            Self::Bundled(None) => f.write_str("bundled"),
+            Self::System => f.write_str("system"),
+            Self::Unavailable => f.write_str("none"),
+        }
+    }
+}
+
 /// The evaluation clock and zone: fixed once per evaluation, so two reads of
 /// `now()` in one evaluation agree.
 #[derive(Debug, Clone, Default)]
@@ -632,6 +679,18 @@ mod tests {
             assert_eq!(Time::read_as(ty, text).unwrap().to_string(), read, "{text}");
         }
         assert_eq!(Time::parse_as("DateTime", "2026-10-24 09:30:00"), None);
+    }
+
+    #[test]
+    fn the_bundled_database_is_told_from_the_others_and_names_its_release() {
+        let bundled = ZoneDatabase::of(&jiff::tz::TimeZoneDatabase::bundled());
+        assert_eq!(bundled, ZoneDatabase::Bundled(jiff_tzdb::VERSION));
+        let release = jiff_tzdb::VERSION.expect("the bundled database names its release");
+        assert_eq!(bundled.to_string(), format!("{release}, bundled"));
+        let none = ZoneDatabase::of(&jiff::tz::TimeZoneDatabase::none());
+        assert_eq!(none, ZoneDatabase::Unavailable);
+        assert_eq!(none.to_string(), "none");
+        assert_eq!(ZoneDatabase::System.to_string(), "system");
     }
 
     #[test]

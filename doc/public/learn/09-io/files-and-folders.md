@@ -125,7 +125,7 @@ them.
 
 ## An entry
 
-An **`Entry`** is one thing a folder holds. It has four fields:
+An **`Entry`** is one thing a folder holds. It has five fields:
 
 | Field | Type | What it holds |
 | --- | --- | --- |
@@ -133,16 +133,43 @@ An **`Entry`** is one thing a folder holds. It has four fields:
 | `name` | `String` | the last segment |
 | `kind` | `String` | `"file"`, `"folder"` or `"link"` |
 | `size` | `Int`, optional | a file's length in bytes; absent for a folder or a link |
+| `modified` | `Instant`, optional | the time the entry was last modified, a link's own and not its target's; absent where the platform records none |
 
 ```hql
 import io.fs
 
-folder("examples/fs/tree") | walk | filter(e => e.name == "birds.csv")
+folder("examples/fs/tree")
+| walk
+| filter(e => e.name == "birds.csv")
+| map(e => [e.path.text, e.kind, str(e.size)])
 ```
 
 ```text
-[Entry(path = Path(text = "examples/fs/tree/data/birds.csv"), name = "birds.csv", kind = "file", size = 28)]
+[["examples/fs/tree/data/birds.csv", "file", "28"]]
 ```
+
+`modified` is an [`Instant`](../02-data-types/time.md), so it compares with an
+instant the program writes and sorts the entries by time. A listing reads it
+once, with the rest of the entry, so the files changed since a cut-off are a
+filter over it:
+
+```hql
+import io.fs
+
+cutoff = Instant("2020-01-01T00:00:00Z")
+folder("examples/fs/tree/data")
+| entries
+| filter(e => e.modified | map(t => t >= cutoff) | unwrap_or(false))
+| map(e => e.name)
+```
+
+```text
+["2026", "2026-notes.md", "birds.csv"]
+```
+
+The times themselves are the file system's, so they differ from one checkout
+of a tree to the next; a program that must give the same answer on every
+machine does not read them.
 
 `size` is optional, so a sum over it states what a folder counts as:
 

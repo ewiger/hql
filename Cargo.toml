@@ -53,6 +53,7 @@ futures-util = { version = "0.3.34", default-features = false }
 getrandom = { version = "0.4", features = ["sys_rng"] }
 hmac = "0.13"
 jiff = { version = "0.2.43", features = ["tzdb-bundle-always"] }
+jiff-tzdb = "0.1.9"
 md-5 = "0.11"
 num-integer = "0.1.47"
 p256 = { version = "0.14", features = ["ecdsa", "pkcs8", "pem"] }

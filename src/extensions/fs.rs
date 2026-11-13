@@ -12,9 +12,10 @@ use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
 use crate::glob::{self, Glob};
 use crate::io::{self, Listing};
+use crate::time::Time;
 use crate::traversal::Traversal;
 use crate::types::{Record, TypeRef, Value};
-use crate::walk::{self, Kind, Links, Listed, Walk, paths};
+use crate::walk::{self, Kind, Links, Listed, Stat, Walk, paths};
 use std::ops::Range;
 use std::path::Path;
 use std::sync::Arc;
@@ -186,23 +187,33 @@ fn entry_value(folder: &str, listed: &Listed) -> Value {
     let path = below.iter().fold(folder.to_owned(), |path, segment| {
         paths::join(&path, segment)
     });
-    entry_at(&path, listed.kind, listed.size)
+    entry_at(&path, &listed.stat)
 }
 
-fn entry_at(path: &str, kind: Kind, size: Option<u64>) -> Value {
-    let size = match size {
+fn entry_at(path: &str, stat: &Stat) -> Value {
+    let size = match stat.size {
         Some(bytes) => Value::Present(Arc::new(Value::Int(
             i64::try_from(bytes).unwrap_or(i64::MAX),
         ))),
         None => Value::Absent(TypeRef::INT),
+    };
+    // A time the platform gives but an `Instant` cannot hold is as absent
+    // as one it does not give.
+    let modified = match stat
+        .modified
+        .and_then(|time| jiff::Timestamp::try_from(time).ok())
+    {
+        Some(instant) => Value::Present(Arc::new(Value::Time(Time::Instant(instant)))),
+        None => Value::Absent(TypeRef::INSTANT),
     };
     record(
         TypeRef::ENTRY,
         vec![
             ("path", path_value(path)),
             ("name", text(paths::name(path))),
-            ("kind", text(kind.label())),
+            ("kind", text(stat.kind.label())),
             ("size", size),
+            ("modified", modified),
         ],
     )
 }
@@ -217,7 +228,9 @@ fn listed_folder(folder: &str, span: &Range<usize>) -> Result<std::path::PathBuf
     let full = io::listable(Path::new(folder), Listing::Folder)
         .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     match walk::stat(&full, Links::Follow) {
-        Ok(Some((Kind::Folder, _))) => Ok(full),
+        Ok(Some(Stat {
+            kind: Kind::Folder, ..
+        })) => Ok(full),
         Ok(Some(_)) => Err(Diagnostic::io_failure(
             span.clone(),
             format!("{folder}: not a folder"),
@@ -348,7 +361,7 @@ fn eval_glob(
 }
 
 /// What is at a path, granted as a listing of it is: a link reported.
-fn stat_at(path: &str, span: &Range<usize>) -> Result<Option<(Kind, Option<u64>)>> {
+fn stat_at(path: &str, span: &Range<usize>) -> Result<Option<Stat>> {
     let full = io::listable(Path::new(path), Listing::Entry)
         .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     walk::stat(&full, Links::Report)
@@ -373,7 +386,7 @@ fn eval_entry(
 ) -> Result<Value> {
     let path = path_text(&input, "entry", &span)?;
     Ok(match stat_at(&path, &span)? {
-        Some((kind, size)) => Value::Present(Arc::new(entry_at(&path, kind, size))),
+        Some(stat) => Value::Present(Arc::new(entry_at(&path, &stat))),
         None => Value::Absent(TypeRef::ENTRY),
     })
 }

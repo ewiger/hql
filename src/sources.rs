@@ -81,7 +81,7 @@ impl VaultSource for Filesystem {
         // those of `walk(folder(root))`, in its order.
         let mut documents = Vec::new();
         crate::walk::walk::<io::Error>(&self.root, VAULT_WALK, &mut |listed| {
-            if listed.kind == crate::walk::Kind::File
+            if listed.stat.kind == crate::walk::Kind::File
                 && let Some(format) = Format::of(&listed.relative)
             {
                 documents.push(SourceDocument {

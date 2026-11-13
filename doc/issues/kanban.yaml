@@ -35,6 +35,9 @@ board:
       - id: "0068"
         title: "General-purpose gap analysis: what Python and its peers have that HQL lacks"
         file: 0068-general-purpose-gap-analysis.md
+      - id: "0074"
+        title: "Time columns read and written against a live PostgreSQL and Spark"
+        file: 0074-time-columns-against-live-servers.md
       - id: "0075"
         title: "Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events"
         file: 0075-validation-rules-thresholds-and-events.md
@@ -64,9 +67,6 @@ board:
       - id: "0072"
         title: "Release 0.6.0: fix, finish, tidy, tag"
         file: 0072-release-0.6.0.md
-      - id: "0064"
-        title: "`Date` as a data type, and the `time` module"
-        file: 0064-date-and-the-time-module.md
       - id: "0054"
         title: "The website is for HQL users: Learn, Guides, Reference"
         file: 0054-user-facing-website.md

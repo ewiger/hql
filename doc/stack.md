@@ -120,6 +120,7 @@ Reach for these before introducing an alternative:
 | Errors | thiserror (library), anyhow (binary) |
 | Logging | tracing |
 | Version numbers | SemVer 2 (`semver`) |
+| Dates, times and zones (`Date`, `Instant`, `import time`) | jiff (`tzdb-bundle-always`); jiff-tzdb, already jiff's dependency, named directly only to read the bundled database's release for `hql --version` |
 | Exact decimals (`Decimal`) | bigdecimal; serde_json with `arbitrary_precision`, so a JSON number keeps its digits |
 
 

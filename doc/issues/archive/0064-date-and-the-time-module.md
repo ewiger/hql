@@ -1,11 +1,12 @@
 # 0064 — `Date` as a data type, and the `time` module
 
-Status: doing
-Related: [HQL-0041](../proposals/HQL-0041/README.md),
-[HQL-0041 part 1](../proposals/HQL-0041/parts/01-time.md),
-[HQL-0040](../proposals/HQL-0040/README.md),
-[`lib/std/core`](../../lib/std/core/mod.hql),
-[the data-type card](../wiki/hql/types/data-type.hmd)
+Status: done
+Related: [HQL-0041](../../proposals/HQL-0041/README.md),
+[HQL-0041 part 1](../../proposals/HQL-0041/parts/01-time.md),
+[HQL-0040](../../proposals/HQL-0040/README.md),
+[`lib/std/core`](../../../lib/std/core/mod.hql),
+[the data-type card](../../wiki/hql/types/data-type.hmd),
+[0074](../0074-time-columns-against-live-servers.md)
 
 `Date` is declared in `core` with native `Eq` and `Ord`, and nothing produces
 one: no literal, no constructor, no parser. SQL `DATE` and `TIMESTAMP` columns
@@ -52,5 +53,26 @@ Open:
   declaring it is not yet resolved.
 - `hql --version` naming the time-zone database it carries.
 - HQL-0040's `Entry` gaining `modified? : Instant`.
-- `g.key` of a `group` over a record type the program declares is refused
-  as an unknown field, whatever the key's type.
+
+## Outcome
+
+Done in 0.6.0 (issue 0072). Items 1 to 4 and 6 to 8 are in, and item 5
+for the tree formats, CSV and SQLite. The remainder closed here:
+
+- `abs` over a `Duration`: `math`, in the prelude, declares
+  `fn abs(self: Duration) : Duration` beside the numbers, so the question
+  of a second module declaring `abs` did not arise.
+- `Entry.modified? : Instant` in `io.fs`: the entry's own modification
+  time, a link's and not its target's, absent where the platform records
+  none. HQL-0040's non-goal on file times narrows to creation and access
+  times.
+- `hql --version` names the time-zone database on a second line:
+  `system` where jiff finds the host's, else the bundled release,
+  `2026e, bundled`.
+- `g.key` of a `group` over a declared record type already resolved; the
+  item is dropped.
+
+`tests/time.rs`, `tests/io_fs.rs` and `tests/cli.rs` pin the three, the
+`io_fs` case with modification times set explicitly. The PostgreSQL and
+Spark round trips against a live server moved to
+[0074](../0074-time-columns-against-live-servers.md).

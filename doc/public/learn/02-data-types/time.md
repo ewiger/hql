@@ -67,6 +67,18 @@ Duration("PT1H") + Duration(minutes = 30) > Duration("PT1H15M")
 true
 ```
 
+`abs`, which the prelude's `math` module declares over numbers, also takes a
+`Duration` and gives its length without its sign, so the gap between two
+times reads the same whichever is subtracted from which:
+
+```hql
+[abs(Duration("PT1H") - Duration("PT90M")), Duration("PT2H").abs()]
+```
+
+```text
+[PT30M, PT2H]
+```
+
 ## The time module
 
 Every operation over a time value is in the module `time`, which is not in
@@ -144,6 +156,18 @@ import time
 
 ```text
 [2026-03-29T01:30:00Z, 2026-10-25T00:30:00Z]
+```
+
+A zone's rules come from a time-zone database: the host's where it has one,
+else the one compiled into `hql`. A reading in the future can move when that
+database changes its rules, so `hql --version` names the database on its
+second line: `system` for the host's, or the bundled database's release,
+`2026e, bundled`:
+
+```text
+$ hql --version
+hql 0.6.0
+time-zone database: system
 ```
 
 ### Text in other forms
