@@ -6887,6 +6887,7 @@ impl Checker<'_> {
                 if let Some((name, _)) = handle {
                     collect_commits(value, name, &self.checked.types, &mut commits);
                 }
+                self.bounded_into_participants(value, &names)?;
             }
             let mut result = last;
             for committed in commits {
@@ -6908,6 +6909,66 @@ impl Checker<'_> {
         self.using("transaction", true);
         self.checked.transactions.insert(span, result.clone());
         Ok(crate::types::builtin::RESULT.apply([result, TypeRef::TRANSACTION_FAILURE]))
+    }
+
+    /// Refuse an unbounded stream consumed by a mutation or by `sink` to a
+    /// participant: a transaction ends, and a `Stream` that is not a `Seq`
+    /// may not (HQL-0051). Runs once the statement's types are known.
+    fn bounded_into_participants(
+        &self,
+        expression: &Expr,
+        names: &[String],
+    ) -> Result<(), Diagnostic> {
+        fn endpoint_argument(arguments: &[Arg], position: usize) -> Option<&Expr> {
+            arguments
+                .iter()
+                .find(|argument| argument.name.as_deref() == Some("endpoint"))
+                .or_else(|| arguments.get(position))
+                .map(|argument| &argument.value)
+        }
+        let participant = |endpoint: &Expr| match &endpoint.kind {
+            Kind::Ident(name) => names.contains(name),
+            _ => crate::extensions::io::literal_endpoint_id(endpoint)
+                .is_some_and(|id| names.iter().any(|name| name == id)),
+        };
+        let is_sink = |callee: &Expr| matches!(&callee.kind, Kind::Ident(name) if name == "sink");
+        let consumed: Option<&Expr> = match &expression.kind {
+            Kind::Pipe(input, step) => match &step.kind {
+                Kind::Call { callee, arguments }
+                    if is_sink(callee)
+                        && endpoint_argument(arguments, 0).is_some_and(participant) =>
+                {
+                    Some(input)
+                }
+                _ => None,
+            },
+            Kind::Call { callee, arguments }
+                if is_sink(callee) && endpoint_argument(arguments, 1).is_some_and(participant) =>
+            {
+                arguments.first().map(|argument| &argument.value)
+            }
+            Kind::Mutation {
+                rows: Some(rows), ..
+            } => Some(rows),
+            _ => None,
+        };
+        if let Some(values) = consumed
+            && let Some(ty) = self.checked.types.get(&values.span)
+            && ty.is_stream()
+            && !ty.is_sequence()
+        {
+            return Err(Diagnostic::typing(
+                values.span.clone(),
+                format!(
+                    "a transaction ends, and this {ty} may not: bound it before it is written \
+                     in the scope, with `take(n)` or `collect(n)`"
+                ),
+            ));
+        }
+        for child in ast_children(expression) {
+            self.bounded_into_participants(child, names)?;
+        }
+        Ok(())
     }
 
     /// Refuse a read or a write, in a transaction's block, of a

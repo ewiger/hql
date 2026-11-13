@@ -395,7 +395,7 @@ with transaction tx on ledger {
   a retry.
 - A `Stream` that is not a `Seq` MUST NOT be consumed by a mutation or by
   `sink` to a participant: a transaction ends, and the stream may not. The
-  error names `take(n)` and `collect(n)`. Phase 3 does not check it.
+  error names `take(n)` and `collect(n)`. It is checked from 0.6.0.
 - What a host grants ([HQL-0021](../HQL-0021/README.md), "Effects and what a
   host grants") applies to each statement of the block as it applies outside
   one. `hql render` refuses every scope, since every `Transactional`
@@ -1205,3 +1205,6 @@ cargo clippy --locked --all-targets -- -D warnings
   and roll back where either is not 1; the book's transfers name
   `isolation = Serializable`. Not built: `TransactionFailure` leaves
   `endpoint` and `detail` absent for every failure
+- 2026-11-13: the `Stream` rule is checked: a `Stream` that is not a `Seq`,
+  written by `sink` to a participant, is refused naming `take(n)` and
+  `collect(n)`; `insert` already took declared rows only (issue 0072)

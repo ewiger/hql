@@ -290,6 +290,9 @@ The language continues to be in active development.
 - **Breaking:** `net.socket(host, port)` is renamed `net.tcp(host, port)`,
   and its type `Socket` is `Tcp` (HQL-0047). Both old names are refused,
   naming the new ones.
+- **Breaking:** inside a transaction scope, an unbounded `Stream` written by
+  `sink` to a participant is refused, naming `take(n)` and `collect(n)`: a
+  transaction ends, and such a stream may not (HQL-0051).
 - HQL is described as strongly typed. The book's type-system chapter and
   the type system card define the term.
 - `Window` is a standard type, so a program's own `type Window` is

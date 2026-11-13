@@ -1187,3 +1187,25 @@ fn a_spark_table_is_constructed_by_its_module_and_takes_one_statement_per_scope(
         assert!(error.contains(says), "{program}\n{error}");
     }
 }
+
+#[test]
+fn an_unbounded_stream_is_not_written_to_a_participant() {
+    let (_dir, vault) = configured();
+    let unbounded = format!(
+        "{ACCOUNT}orders = configured(\"orders\")\n\
+         with transaction tx on orders {{\n\
+             tap(\"events\") | map(e => Account(id = 9, owner = \"x\", balance = 0)) | sink(orders)\n\
+         }}"
+    );
+    let refused = match hql::check_in(&unbounded, &vault) {
+        Err(error) => error.message(),
+        Ok(ty) => panic!("checked as {ty}"),
+    };
+    assert!(
+        refused.contains("a transaction ends") && refused.contains("take(n)"),
+        "{refused}"
+    );
+    // Bounded, the same stream is written inside the scope.
+    let bounded = unbounded.replace("| sink(orders)", "| take(1) | sink(orders)");
+    assert!(checked(&bounded, &vault).ends_with("TransactionFailure>"));
+}
