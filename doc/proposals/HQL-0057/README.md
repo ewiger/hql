@@ -16,6 +16,10 @@ locations belong to the execution layer); [issue 0049](../../issues/archive/0049
   `hql package`.
 - [`parts/02-ml.md`](parts/02-ml.md) — the first official package, `ml`:
   datasets, fitted models as values, prediction and metrics.
+- [`parts/03-prebuilt-libraries.md`](parts/03-prebuilt-libraries.md) — a
+  later stage: official packages prebuilt for each `hql` release, used by
+  `install` when they match, with building from source as the fallback,
+  and `hql package build` to always build from source.
 
 ## Abstract
 
@@ -142,6 +146,9 @@ authors; the rest of the crate's public surface is unchanged.
    `hql-ext-ml`; `install <name>`, `search`, `update` and `registry`.
 4. Known packages: the registry's `known` entries, and the pull-request
    rule in the repository's README.
+5. Prebuilt libraries for official packages, published per `hql` release;
+   `install` falls back to building from source; `hql package build`
+   ([part 3](parts/03-prebuilt-libraries.md)).
 
 ## Reference Implementation
 

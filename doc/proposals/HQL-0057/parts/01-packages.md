@@ -164,8 +164,10 @@ A package is built by the user's `cargo` against the running `hql`.
 
 - `hql package install` MUST build with the `cargo` on `PATH`, and MUST
   refuse with a message naming `rustup` where there is none. Building on
-  the machine is what pins the library to this `hql` and this toolchain;
-  a prebuilt artifact would carry neither guarantee.
+  the machine is what pins the library to this `hql` and this toolchain.
+  A prebuilt library carries the same pin only when it is built for this
+  exact `hql` release with that release's toolchain; [part 3](03-prebuilt-libraries.md)
+  adds that path, with this build as its fallback.
 - The source is checked out under `~/.hql/src/<package>/`: a sparse
   checkout of `hql-extensions` at the entry's tag for an official package,
   `cargo`'s own fetch for a known one, the path itself for a path
