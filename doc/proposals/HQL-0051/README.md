@@ -115,9 +115,9 @@ Each construct this record uses is one of three things.
 | `Transactional`, `Insertable`, `Updatable`, `Deletable` | **proposed** here; implemented by phase 1 |
 | `configured("id")` | **proposed** here; implemented by phase 1 for every kind with a transport type |
 | `insert`, `update … set`, `delete` | **proposed** here; implemented by phase 2 over `sqlite` and `postgres`, outside a scope |
-| `with transaction tx on … { … }`, `Transaction`, `commit`, `rollback`, `retry` | **proposed** here |
+| `with transaction tx on … { … }`, `Transaction`, `commit`, `rollback`, `retry` | **proposed** here; implemented by phase 3 over `sqlite` and `postgres`, with `attempts` and `isolation` |
 | `IsolationLevel` and its three levels | **proposed** here; implemented by phase 1 |
-| `TransactionFailure` | **proposed** here |
+| `TransactionFailure` | **proposed** here; implemented by phase 3 |
 | `one` over a sequence | **proposed** here, in `seq`; implemented by phase 2 |
 
 Every example below that uses a proposed construct is marked `// proposed`
@@ -373,10 +373,18 @@ with transaction tx on ledger {
   every `tx.commit(value)` in it. It MAY be bound, `outcome = with transaction …`,
   be the program's result, or stand as a statement. A scope whose value is
   neither bound, nor the result, nor matched, is a check warning: its
-  failure would be observed by nothing.
+  failure would be observed by nothing. The warning is not built by
+  phase 3.
 - A scope MUST NOT be written inside a lambda, a `fork` branch, a `tee`
   branch, a `match` arm or another scope. It is a statement of a program, a
   function's value block or a cell. A function holding one is effectful.
+  Phase 3 admits it as a statement of a program and the value of a
+  binding; a function's value block is a later unit.
+- The participants are resolved at check time by name: a set literal of
+  bindings, each bound to `configured("id")` or to a constructor call, a
+  binding of such a set, or one such endpoint. Inside the block an endpoint
+  is a participant by the binding name or the configured id it is written
+  with.
 - Inside the block, `source`, `tap`, `target` and `sink` over a participant
   MUST run on the scope's connection, inside its transaction: a `target`
   under `mode = "replace"` truncates within the attempt, and `sink` commits
@@ -387,7 +395,7 @@ with transaction tx on ledger {
   a retry.
 - A `Stream` that is not a `Seq` MUST NOT be consumed by a mutation or by
   `sink` to a participant: a transaction ends, and the stream may not. The
-  error names `take(n)` and `collect(n)`.
+  error names `take(n)` and `collect(n)`. Phase 3 does not check it.
 - What a host grants ([HQL-0021](../HQL-0021/README.md), "Effects and what a
   host grants") applies to each statement of the block as it applies outside
   one. `hql render` refuses every scope, since every `Transactional`
@@ -1147,3 +1155,13 @@ cargo clippy --locked --all-targets -- -D warnings
   over `sqlite` and `postgres` tables outside a scope, each one statement
   with its clauses translated and its values bound, `of_type` naming the
   rows of a constructed table, and `one` in `seq`
+- 2026-11-13: phases 3 and 4 implemented: `with transaction(attempts = n,
+  isolation = L) tx on participants { … }` over `sqlite` and `postgres`,
+  the block's reads and writes of its participants on the attempt's
+  connection, `Transaction` with `commit`, `rollback` and `retry` in
+  `io.transaction`, the scope's `Result<T, TransactionFailure>`, conflicts
+  retried while attempts remain, a constraint violation and an exhausted
+  `retry` as data, and any other failure rolled back before it is
+  reported. Not built: the warning on a discarded scope, the `Stream`
+  rule, a scope in a function's value block, the warning on a
+  non-participant write under `attempts > 1`, and the `spark` kind

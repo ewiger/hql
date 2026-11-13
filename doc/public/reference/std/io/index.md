@@ -29,6 +29,8 @@ whether the documents end.
 - [`ReadCommitted`](types/ReadCommitted.md) — The `IsolationLevel` at which a statement sees what was committed before it began: PostgreSQL's default.
 - [`RepeatableRead`](types/RepeatableRead.md) — The `IsolationLevel` at which every statement of a scope sees the snapshot its first statement saw.
 - [`Serializable`](types/Serializable.md) — The `IsolationLevel` at which concurrent scopes behave as if run one after another: SQLite's only level.
+- [`Transaction`](types/Transaction.md) — The handle of a transaction scope, bound by `with transaction tx on …` (HQL-0051).
+- [`TransactionFailure`](types/TransactionFailure.md) — Why a transaction scope did not commit, the `err` of its `Result`: `kind` is `"rolled_back"` for `tx.rollback`, `"conflict"` for a concurrent transaction after the last attempt, `"constraint"` for a row the system refused, and `"exhausted"` for `tx.retry` with no attempt left; `reason` is the `rollback` argument or what the system said; `attempts` counts the attempts run; `endpoint` names the participant a statement was over, where one was; `detail` holds what the system said, its state code among it.
 - [`Stdin`](types/Stdin.md) — The program's standard input, bound as `stdin`: read once, as it arrives.
 - [`Stdout`](types/Stdout.md) — The program's standard output, bound as `stdout`: written while the program runs, before the host presents its result.
 - [`Stderr`](types/Stderr.md) — The program's standard error, bound as `stderr`: where diagnostics go, apart from the result.

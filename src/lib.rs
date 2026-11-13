@@ -21,6 +21,7 @@ mod execution;
 mod knowledge;
 mod lexer;
 mod mutation;
+mod transaction;
 pub mod modules;
 pub mod naming;
 mod nats;

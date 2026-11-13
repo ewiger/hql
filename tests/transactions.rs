@@ -32,6 +32,20 @@ dsn_env = "HQL_TEST_UNSET_DSN"
 table = "orders"
 order = ["id"]
 
+[endpoint.transfers]
+kind = "sqlite"
+path = "shop.db"
+table = "transfers"
+order = ["id"]
+element = "Transfer"
+
+[endpoint.elsewhere]
+kind = "sqlite"
+path = "other.db"
+table = "accounts"
+order = ["id"]
+element = "Account"
+
 [endpoint.events]
 kind = "kafka"
 brokers_env = "HQL_TEST_UNSET_BROKERS"
@@ -588,4 +602,268 @@ fn one_gives_the_element_of_a_sequence_of_exactly_one() {
     assert!(error.contains("holds 2"), "{error}");
     let error = refusal("[1] | filter(x => x > 5) | one", &vault);
     assert!(error.contains("holds 0"), "{error}");
+}
+
+// Phase 3: the transaction scope over SQLite, run, with its handle's
+// control calls, its lifecycle and its refusals.
+
+const TRANSFER: &str = "type Transfer { id : Int, from_id : Int, to_id : Int, amount : Int }\n";
+
+/// The ledger: accounts and an empty transfers table, through the
+/// configured endpoints.
+fn seeded_ledger(vault: &Vault) {
+    ledger(vault);
+    value(
+        &format!(
+            "{TRANSFER}[Transfer(id = 0, from_id = 0, to_id = 0, amount = 0)] | target(\"transfers\")\n\
+             delete configured(\"transfers\")"
+        ),
+        vault,
+    );
+}
+
+const TRANSFER_HEAD: &str = "\
+accounts = configured(\"accounts\")
+transfers = configured(\"transfers\")
+ledger = {accounts, transfers}
+";
+
+const TRANSFER_SCOPE: &str = "\
+with transaction(attempts = 3) tx on ledger {
+    sender = source(accounts) | filter(a => a.id == 1) | one
+    tx.rollback(\"insufficient balance\") given sender.balance < 100
+    update accounts | filter(a => a.id == 1) | set(a => {balance: a.balance - 100})
+    update accounts | filter(a => a.id == 2) | set(a => {balance: a.balance + 100})
+    after = source(accounts) | filter(a => a.id == 1) | one
+    insert transfers Transfer(id = after.balance, from_id = 1, to_id = 2, amount = 100)
+}";
+
+#[test]
+fn a_scope_commits_its_statements_together_and_reads_its_own_writes() {
+    let (_dir, vault) = configured();
+    seeded_ledger(&vault);
+    let program = format!("{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}{TRANSFER_SCOPE}");
+    assert_eq!(
+        checked(&program, &vault),
+        "Result<Int, TransactionFailure>"
+    );
+    // Two transfers commit; the `insert` reads the balance the same attempt
+    // updated, so its id is the sender's new balance.
+    assert_eq!(value(&program, &vault), "ok(1)");
+    assert_eq!(value(&program, &vault), "ok(1)");
+    assert_eq!(balances(&vault), "[[1, 50], [2, 240], [3, 9]]");
+    assert_eq!(
+        value(&format!("{TRANSFER}source(\"transfers\") | map(t => t.id)"), &vault),
+        "[50, 150]"
+    );
+    // The third rolls back by its own rule, and nothing of it remains.
+    assert_eq!(
+        value(&program, &vault),
+        r#"err(TransactionFailure(kind = "rolled_back", reason = "insufficient balance", attempts = 1, endpoint = none, detail = none))"#
+    );
+    assert_eq!(balances(&vault), "[[1, 50], [2, 240], [3, 9]]");
+    // The failure is a value the program handles.
+    let handled = value(
+        &format!(
+            "{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}outcome = {TRANSFER_SCOPE}\n\
+             match outcome {{ ok(n) => \"moved\", err(f) => f.kind + \": \" + f.reason }}"
+        ),
+        &vault,
+    );
+    assert_eq!(handled, "rolled_back: insufficient balance");
+}
+
+#[test]
+fn the_handle_ends_an_attempt_early_and_the_block_binds_its_own_names() {
+    let (_dir, vault) = configured();
+    seeded_ledger(&vault);
+    let program = format!(
+        "{ACCOUNT}accounts = configured(\"accounts\")\n\
+         a = with transaction tx on accounts {{ match source(accounts) | filter(a => a.id == 9) | first {{ some(x) => x.id, none => tx.rollback(\"no such account\") }} }}\n\
+         b = with transaction(attempts = 2) tx on accounts {{ tx.retry() }}\n\
+         c = with transaction tx on accounts {{ tx.commit(42) given true otherwise 0 }}\n\
+         d = with transaction on accounts {{ update accounts | set(a => {{balance: a.balance + 1}}) }}\n\
+         e = with transaction tx on accounts {{ n = update accounts | filter(a => a.id == 1) | set(a => {{balance: 0}})\n tx.rollback(\"none\") given n == 0\n n }}\n\
+         {{a: a, b: b, c: c, d: d, e: e}}"
+    );
+    assert_eq!(
+        value(&program, &vault),
+        r#"{a: "err(TransactionFailure(kind = \"rolled_back\", reason = \"no such account\", attempts = 1, endpoint = none, detail = none))", b: "err(TransactionFailure(kind = \"exhausted\", reason = \"`retry` asked for another attempt after 2\", attempts = 2, endpoint = none, detail = none))", c: "ok(42)", d: "ok(3)", e: "ok(1)"}"#
+    );
+    assert_eq!(balances(&vault), "[[1, 0], [2, 41], [3, 10]]");
+    // A binding of the block is not visible after it.
+    let error = refusal(
+        &format!("{ACCOUNT}accounts = configured(\"accounts\")\nwith transaction tx on accounts {{ n = 1 }}\nn"),
+        &vault,
+    );
+    assert!(error.contains("`n` is not bound"), "{error}");
+}
+
+#[test]
+fn a_failure_in_an_attempt_rolls_it_back_and_a_constraint_or_a_conflict_is_data() {
+    let (dir, vault) = configured();
+    seeded_ledger(&vault);
+    let path = dir.path().join("shop.db");
+    // A diagnostic inside the block leaves nothing written.
+    let error = refusal(
+        &format!(
+            "{ACCOUNT}accounts = configured(\"accounts\")\n\
+             with transaction tx on accounts {{ update accounts | set(a => {{balance: 0}})\n 1 / 0 }}"
+        ),
+        &vault,
+    );
+    assert!(error.contains("zero"), "{error}");
+    assert_eq!(balances(&vault), "[[1, 250], [2, 40], [3, 9]]");
+    // A constraint the system enforces refuses the attempt as data.
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute_batch("CREATE UNIQUE INDEX owner_once ON accounts(owner)")
+        .unwrap();
+    let outcome = value(
+        &format!(
+            "{ACCOUNT}accounts = configured(\"accounts\")\n\
+             with transaction tx on accounts {{\n\
+                 update accounts | filter(a => a.id == 3) | set(a => {{balance: 1}})\n\
+                 insert accounts Account(id = 4, owner = \"ada\", balance = 1)\n\
+             }}"
+        ),
+        &vault,
+    );
+    assert!(
+        outcome.starts_with("err(TransactionFailure(kind = \"constraint\"")
+            && outcome.contains("UNIQUE constraint failed"),
+        "{outcome}"
+    );
+    assert_eq!(balances(&vault), "[[1, 250], [2, 40], [3, 9]]");
+    // A database another connection holds is a conflict, retried until the
+    // attempts are exhausted.
+    let holder = rusqlite::Connection::open(&path).unwrap();
+    holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let outcome = value(
+        &format!(
+            "{ACCOUNT}accounts = configured(\"accounts\")\n\
+             with transaction(attempts = 3) tx on accounts {{ update accounts | set(a => {{balance: 0}}) }}"
+        ),
+        &vault,
+    );
+    assert!(
+        outcome.starts_with("err(TransactionFailure(kind = \"conflict\"")
+            && outcome.contains("attempts = 3"),
+        "{outcome}"
+    );
+    // Released, the next scope commits.
+    holder.execute_batch("ROLLBACK").unwrap();
+    drop(holder);
+    assert_eq!(
+        value(
+            &format!(
+                "{ACCOUNT}accounts = configured(\"accounts\")\n\
+                 with transaction(attempts = 3) tx on accounts {{ update accounts | set(a => {{balance: 0}}) }}"
+            ),
+            &vault,
+        ),
+        "ok(3)"
+    );
+}
+
+#[test]
+fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
+    let (_dir, vault) = configured();
+    seeded_ledger(&vault);
+    let head = format!("{ACCOUNT}{TRANSFER}accounts = configured(\"accounts\")\ntransfers = configured(\"transfers\")\n");
+    for (program, says) in [
+        (
+            "with transaction tx on accounts { with transaction u on accounts { 1 } }".to_owned(),
+            "not written inside another",
+        ),
+        (
+            "with transaction tx on accounts { update transfers | set(t => {amount: 0}) }".to_owned(),
+            "no participant of this scope",
+        ),
+        (
+            "with transaction tx on accounts { source(configured(\"transfers\")) | size }".to_owned(),
+            "no participant of this scope",
+        ),
+        (
+            "with transaction tx on accounts { [1] | map(x => tx.rollback(\"x\")) }".to_owned(),
+            "a control call is a statement of the block",
+        ),
+        (
+            "fn f(t: Transaction) : Int = 1\nwith transaction tx on accounts { f(tx) }".to_owned(),
+            "does not leave it",
+        ),
+        (
+            "with transaction tx on accounts { tx.commit(1)\n 2 }".to_owned(),
+            "never runs",
+        ),
+        (
+            "with transaction tx on {accounts, configured(\"elsewhere\")} { 1 }".to_owned(),
+            "in one database file, and these are in two",
+        ),
+        (
+            "with transaction tx on {accounts, configured(\"events\")} { 1 }".to_owned(),
+            "no type until its module",
+        ),
+        (
+            "with transaction tx on configured(\"counts\") { 1 }".to_owned(),
+            "runs over a `Transactional` endpoint",
+        ),
+        (
+            "ps = [accounts] | Set\nwith transaction tx on ps { 1 }".to_owned(),
+            "known when the program is checked",
+        ),
+        (
+            "with transaction(isolation = RepeatableRead) tx on accounts { 1 }".to_owned(),
+            "offers `Serializable` only",
+        ),
+        (
+            "with transaction(isolation = Loose) tx on accounts { 1 }".to_owned(),
+            "is not an isolation level",
+        ),
+        (
+            "with transaction(attempts = \"3\") tx on accounts { 1 }".to_owned(),
+            "`attempts` is an Int",
+        ),
+        (
+            "with transaction(attempts = 1, attempts = 2) tx on accounts { 1 }".to_owned(),
+            "written once",
+        ),
+        (
+            "with transaction tx on accounts { }".to_owned(),
+            "at least one statement",
+        ),
+        (
+            "with transaction tx on accounts { tx.commit(1) given true otherwise {2} }".to_owned(),
+            "no common type",
+        ),
+    ] {
+        let program = format!("{head}{program}");
+        let error = refusal(&program, &vault);
+        assert!(error.contains(says), "{program}\n{error}");
+    }
+    // A name beside the words keeps its meaning.
+    assert_eq!(value("with = 1\ntransaction = 2\nwith + transaction", &vault), "3");
+    // Isolation is accepted where the kind offers it, and the handle may be
+    // left out.
+    assert_eq!(
+        checked(
+            &format!("{head}with transaction(isolation = Serializable) on {{accounts, transfers}} {{ 1 }}"),
+            &vault
+        ),
+        "Result<Int, TransactionFailure>"
+    );
+    assert_eq!(
+        checked(
+            "import io.db.postgres\nwith transaction(isolation = RepeatableRead, attempts = 2) tx on \
+             {postgres(dsn_env = \"D\", table = \"a\"), postgres(dsn_env = \"D\", table = \"b\")} { tx.retry() }",
+            &vault
+        ),
+        "Result<Never, TransactionFailure>"
+    );
+    let error = refusal(
+        "import io.db.postgres\nwith transaction tx on \
+         {postgres(dsn_env = \"D\", table = \"a\"), postgres(dsn_env = \"E\", table = \"b\")} { 1 }",
+        &vault,
+    );
+    assert!(error.contains("in one database, and these are in two"), "{error}");
 }

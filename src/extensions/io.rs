@@ -175,6 +175,18 @@ fn literal_id(expression: &Expr) -> Option<&str> {
     }
 }
 
+/// The id an endpoint expression names for the checker: a literal, a
+/// `configured("id")` call, or a binding of one.
+fn bound_id(expression: &Expr, cx: &dyn CheckCx) -> Option<String> {
+    if let Some(id) = literal_id(expression) {
+        return Some(id.to_owned());
+    }
+    match &expression.kind {
+        Kind::Ident(name) => cx.configured_binding(name),
+        _ => None,
+    }
+}
+
 /// The id of a configured endpoint a read or write names, by its literal
 /// or by `configured("id")`, which is read and written exactly as the id is.
 pub(crate) fn configured_id(value: &Value) -> Option<&str> {
@@ -327,8 +339,9 @@ const ROWS_TAKE_NO_FORMAT: &str =
 pub(crate) fn result(
     name: &str,
     call: &CheckedCall<'_>,
-    vault: &crate::vault::Vault,
+    cx: &dyn CheckCx,
 ) -> Result<TypeRef, Diagnostic> {
+    let vault = cx.vault();
     if name == "configured" {
         let span = call
             .input_expr
@@ -350,10 +363,11 @@ pub(crate) fn result(
         })?;
         return configured_transport(held).map_err(|message| Diagnostic::typing(span, message));
     }
-    if call.input.is(&TypeRef::STR) || call.input_expr.and_then(literal_id).is_some() {
-        let read = configured_type(call, vault)?;
+    let bound_id = call.input_expr.and_then(|expression| bound_id(expression, cx));
+    if call.input.is(&TypeRef::STR) || bound_id.is_some() {
+        let read = configured_type(call, vault, bound_id.as_deref())?;
         if name != "tap" {
-            if let Some(id) = call.input_expr.and_then(literal_id)
+            if let Some(id) = bound_id.as_deref()
                 && let Ok(configured) = configured(id, vault)
                 && configured.kind.is_live()
             {
@@ -392,11 +406,12 @@ pub(crate) fn result(
 fn configured_type(
     call: &CheckedCall<'_>,
     vault: &crate::vault::Vault,
+    bound: Option<&str>,
 ) -> Result<TypeRef, Diagnostic> {
     let span = call
         .input_expr
         .map_or(0..0, |expression| expression.span.clone());
-    let Some(id) = call.input_expr.and_then(literal_id) else {
+    let Some(id) = bound else {
         return Err(Diagnostic::typing(
             span,
             "`source` names a configured endpoint by a literal id, `source(\"field_notes\")`: \
@@ -457,6 +472,23 @@ pub(crate) fn configured_endpoint<'v>(
 /// `configured("id")`, for the checker.
 pub(crate) fn literal_endpoint_id(expression: &Expr) -> Option<&str> {
     literal_id(expression)
+}
+
+/// A configured endpoint's kind and the system it is in, for a
+/// transaction's participants: the database file of a `sqlite` endpoint,
+/// the variable naming a `postgres` endpoint's connection string.
+pub(crate) fn configured_system(
+    id: &str,
+    vault: &crate::vault::Vault,
+) -> Result<(String, Option<String>), String> {
+    use crate::endpoints::Kind as Source;
+    let held = configured(id, vault)?;
+    let system = match &held.kind {
+        Source::Sqlite { path, .. } => Some(path.display().to_string()),
+        Source::Postgres { dsn_env, .. } => Some(dsn_env.clone()),
+        _ => None,
+    };
+    Ok((held.kind.name().to_owned(), system))
 }
 
 /// The element type a configured endpoint names, `element = "Order"`:
@@ -620,8 +652,8 @@ fn check_target(
     if check_channel_write(cx, call, call.input, &span)? {
         return Ok(());
     }
-    if let Some(id) = written_endpoint(call).and_then(literal_id) {
-        return check_configured_target(cx.vault(), id, call, &span);
+    if let Some(id) = written_endpoint(call).and_then(|endpoint| bound_id(endpoint, cx)) {
+        return check_configured_target(cx.vault(), &id, call, &span);
     }
     if call.input.is_stream() && !call.input.is_collection() {
         return Err(Diagnostic::typing(
@@ -765,8 +797,8 @@ fn check_sink(
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
     let element = call.input.iterated().unwrap_or(TypeRef::NEVER);
-    if let Some(id) = written_endpoint(call).and_then(literal_id) {
-        return check_configured_sink(cx.vault(), id, call, &element, &span);
+    if let Some(id) = written_endpoint(call).and_then(|endpoint| bound_id(endpoint, cx)) {
+        return check_configured_sink(cx.vault(), &id, call, &element, &span);
     }
     if check_channel_write(cx, call, &element, &span)? {
         return Ok(());

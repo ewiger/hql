@@ -312,6 +312,33 @@ pub(crate) enum Kind {
         set: Option<(String, Vec<(String, Expr)>)>,
         plan: StepPlan,
     },
+    /// `with transaction(…) tx on participants { … }`: the block run as
+    /// attempts over one atomic scope, its value a `Result` (HQL-0051).
+    Transaction {
+        handle: Option<String>,
+        attempts: Option<Box<Expr>>,
+        isolation: Option<String>,
+        participants: Box<Expr>,
+        body: Vec<ScopeStmt>,
+        /// The type the scope commits with, the `ok` of its `Result`.
+        committed: TypeRef,
+        plan: StepPlan,
+    },
+}
+
+/// One line of a transaction scope's block, lowered.
+#[derive(Debug)]
+pub(crate) enum ScopeStmt {
+    Bind { name: String, value: Expr },
+    Expr(Expr),
+}
+
+impl ScopeStmt {
+    pub(crate) fn value(&self) -> &Expr {
+        match self {
+            Self::Bind { value, .. } | Self::Expr(value) => value,
+        }
+    }
 }
 
 /// What a step invokes, as a planner reads it: the operation's name, its
@@ -367,6 +394,9 @@ impl Expr {
             | Kind::Tee { plan, input, .. }
             | Kind::Fork { plan, input, .. } => Some((plan, input)),
             Kind::Mutation { plan, target, .. } => Some((plan, target)),
+            Kind::Transaction {
+                plan, participants, ..
+            } => Some((plan, participants)),
             Kind::Combine {
                 plan: Some(plan),
                 left,
@@ -498,6 +528,15 @@ impl Expr {
                     set.iter()
                         .flat_map(|(_, entries)| entries.iter().map(|(_, value)| value)),
                 )
+                .collect(),
+            Kind::Transaction {
+                participants,
+                attempts,
+                body,
+                ..
+            } => std::iter::once(participants.as_ref())
+                .chain(attempts.as_deref())
+                .chain(body.iter().map(ScopeStmt::value))
                 .collect(),
         }
     }
@@ -778,6 +817,9 @@ pub(crate) struct Checked {
     /// Each mutation, by its span, with the type of the rows it changes
     /// (HQL-0051).
     pub mutations: HashMap<Range<usize>, TypeRef>,
+    /// Each transaction scope, by its span, with the type it commits with
+    /// (HQL-0051).
+    pub transactions: HashMap<Range<usize>, TypeRef>,
 }
 
 impl Checked {
@@ -1548,6 +1590,43 @@ impl Checked {
                     set,
                     plan: StepPlan::new(OperationType {
                         name: verb.word().to_owned(),
+                        shape: Shape::Barrier,
+                        purity: Purity::Effectful,
+                        presentation: false,
+                    }),
+                }
+            }
+            A::Transaction {
+                handle,
+                attempts,
+                isolation,
+                participants,
+                body,
+            } => {
+                let committed = self.transactions.get(&span).cloned().ok_or_else(|| {
+                    Diagnostic::typing(span.clone(), "a transaction that was not checked")
+                })?;
+                let body = body
+                    .iter()
+                    .map(|line| {
+                        Ok(match line {
+                            ast::ScopeStmt::Bind { name, value, .. } => ScopeStmt::Bind {
+                                name: name.clone(),
+                                value: self.expression(value)?,
+                            },
+                            ast::ScopeStmt::Expr(value) => ScopeStmt::Expr(self.expression(value)?),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                Kind::Transaction {
+                    handle: handle.as_ref().map(|(name, _)| name.clone()),
+                    attempts: attempts.as_deref().map(boxed).transpose()?,
+                    isolation: isolation.as_ref().map(|(level, _)| level.clone()),
+                    participants: boxed(participants)?,
+                    body,
+                    committed,
+                    plan: StepPlan::new(OperationType {
+                        name: "transaction".to_owned(),
                         shape: Shape::Barrier,
                         purity: Purity::Effectful,
                         presentation: false,

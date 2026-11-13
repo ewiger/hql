@@ -82,6 +82,29 @@ type RepeatableRead : IsolationLevel
 /// after another: SQLite's only level.
 type Serializable : IsolationLevel
 
+/// The handle of a transaction scope, bound by `with transaction tx on …`
+/// (HQL-0051). It has no fields and no constructor. It is used in its own
+/// block, through `tx.commit(value)`, `tx.rollback(reason)` and
+/// `tx.retry()` (module `io.transaction`), and does not leave it: it is not
+/// a parameter, a field, an element or a result, as a `Window` is not.
+type Transaction
+
+/// Why a transaction scope did not commit, the `err` of its `Result`:
+/// `kind` is `"rolled_back"` for `tx.rollback`, `"conflict"` for a
+/// concurrent transaction after the last attempt, `"constraint"` for a row
+/// the system refused, and `"exhausted"` for `tx.retry` with no attempt
+/// left; `reason` is the `rollback` argument or what the system said;
+/// `attempts` counts the attempts run; `endpoint` names the participant a
+/// statement was over, where one was; `detail` holds what the system said,
+/// its state code among it.
+type TransactionFailure : DataContract {
+    kind      : String
+    reason    : String
+    attempts  : Int
+    endpoint? : String
+    detail?   : Data
+}
+
 /// The program's standard input, bound as `stdin`: read once, as it
 /// arrives.
 type Stdin : Readable

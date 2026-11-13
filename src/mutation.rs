@@ -15,6 +15,58 @@ use crate::extensions::EvalCx;
 use crate::types::{TypeRef, Value};
 use std::ops::Range;
 
+/// The one system a transaction's participants share (HQL-0051): every
+/// participant a table of one SQLite file or of one PostgreSQL database.
+pub(crate) fn shared_system(
+    participants: &[std::sync::Arc<crate::io::Endpoint>],
+    vault: &crate::vault::Vault,
+) -> Result<crate::transaction::System, String> {
+    use crate::transaction::System;
+    let mut shared: Option<System> = None;
+    for endpoint in participants {
+        let configured = match endpoint.configured_id() {
+            Some(id) => crate::extensions::io::configured_endpoint(id, vault)?.clone(),
+            None => crate::extensions::io::constructed_table(endpoint).ok_or_else(|| {
+                format!(
+                    "{} takes part in no transaction: a participant is a table of a database",
+                    endpoint.describe()
+                )
+            })?,
+        };
+        let system = match &configured.kind {
+            Source::Sqlite { path, .. } => System::Sqlite {
+                path: crate::io::database_path(path),
+            },
+            Source::Postgres { dsn_env, .. } => System::Postgres {
+                dsn: crate::endpoints::secret(dsn_env, "dsn_env")
+                    .map_err(|message| format!("endpoint `{}`: {message}", configured.id))?,
+            },
+            other => {
+                return Err(format!(
+                    "endpoint `{}` is a `{}` endpoint, which takes part in no transaction",
+                    configured.id,
+                    other.name()
+                ));
+            }
+        };
+        match &shared {
+            None => shared = Some(system),
+            Some(held) if *held == system => {}
+            Some(held) => {
+                let what = match held {
+                    System::Sqlite { .. } => "database file",
+                    System::Postgres { .. } => "database",
+                };
+                return Err(format!(
+                    "a transaction's participants are in one {what}, and {} is in another",
+                    endpoint.describe()
+                ));
+            }
+        }
+    }
+    shared.ok_or_else(|| "a transaction has at least one participant".to_owned())
+}
+
 /// Which system's text a statement is written in.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Dialect {

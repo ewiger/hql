@@ -37,7 +37,8 @@ atoms! {
     TRANSACTIONAL => "Transactional", INSERTABLE => "Insertable", UPDATABLE => "Updatable",
     DELETABLE => "Deletable", ISOLATION_LEVEL => "IsolationLevel",
     READ_COMMITTED => "ReadCommitted", REPEATABLE_READ => "RepeatableRead",
-    SERIALIZABLE => "Serializable",
+    SERIALIZABLE => "Serializable", TRANSACTION => "Transaction",
+    TRANSACTION_FAILURE => "TransactionFailure",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
     CELL => "Cell", RANGE => "Range", TABLE => "Table",
@@ -271,6 +272,14 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeRef::SERIALIZABLE,
             TypeKind::Concrete,
             &[TypeRef::ISOLATION_LEVEL],
+        ),
+        // The handle of a transaction scope, and why a scope did not commit
+        // (HQL-0051): `lib/std/io/mod.hql`.
+        (TypeRef::TRANSACTION, TypeKind::Concrete, &[]),
+        (
+            TypeRef::TRANSACTION_FAILURE,
+            TypeKind::Concrete,
+            &[TypeRef::DATA_CONTRACT],
         ),
         // A table of a database file: `lib/std/io/db/sqlite/mod.hql`.
         (

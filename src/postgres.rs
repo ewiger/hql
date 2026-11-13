@@ -17,10 +17,32 @@ use std::collections::BTreeMap;
 /// Names what failed; the connection string is never repeated, since it may
 /// hold a password.
 fn connect(dsn: &str) -> Result<Client, String> {
-    Client::connect(dsn, NoTls).map_err(|error| match error.as_db_error() {
-        Some(db) => format!("no connection to the database: {}", db.message()),
-        None => format!("no connection to the database: {error}"),
+    Client::connect(dsn, NoTls).map_err(|error| {
+        format!(
+            "no connection to the database: {}",
+            crate::transaction::postgres_message(&error)
+        )
     })
+}
+
+/// Run `f` on a client of the database `dsn` names: the one an open
+/// transaction scope holds (HQL-0051), or one connected for this call
+/// alone.
+fn on_client<T>(
+    dsn: &str,
+    f: impl FnOnce(&mut Client) -> Result<T, String>,
+) -> Result<T, String> {
+    let mut f = Some(f);
+    if let Some(result) =
+        crate::transaction::with_postgres(dsn, |client| f.take().map(|f| f(client))).flatten()
+    {
+        return result;
+    }
+    let mut client = connect(dsn)?;
+    f.take().map_or_else(
+        || Err("a client was used twice".to_owned()),
+        |f| f(&mut client),
+    )
 }
 
 /// A name quoted as an SQL identifier, so it is read exactly as written.
@@ -34,9 +56,11 @@ fn table_name(table: &str) -> String {
 }
 
 fn located(table: &str) -> impl Fn(postgres::Error) -> String + '_ {
-    move |error| match error.as_db_error() {
-        Some(db) => format!("table `{table}`: {}", db.message()),
-        None => format!("table `{table}`: {error}"),
+    move |error| {
+        format!(
+            "table `{table}`: {}",
+            crate::transaction::postgres_message(&error)
+        )
     }
 }
 
@@ -46,12 +70,13 @@ fn located(table: &str) -> impl Fn(postgres::Error) -> String + '_ {
 /// # Errors
 /// Names the table and what failed: the connection, or the query.
 pub(crate) fn columns(dsn: &str, table: &str) -> Result<Vec<(String, String)>, String> {
-    let mut client = connect(dsn)?;
-    described(
-        &mut client,
-        &format!("SELECT * FROM {} LIMIT 0", table_name(table)),
-        table,
-    )
+    on_client(dsn, |client| {
+        described(
+            client,
+            &format!("SELECT * FROM {} LIMIT 0", table_name(table)),
+            table,
+        )
+    })
 }
 
 fn described(
@@ -80,7 +105,15 @@ pub(crate) fn rows(
     order: &[String],
     columns: Option<&[String]>,
 ) -> Result<Vec<Data>, String> {
-    let mut client = connect(dsn)?;
+    on_client(dsn, |client| rows_on(client, table, order, columns))
+}
+
+fn rows_on(
+    client: &mut Client,
+    table: &str,
+    order: &[String],
+    columns: Option<&[String]>,
+) -> Result<Vec<Data>, String> {
     let selected = columns.filter(|columns| !columns.is_empty()).map_or_else(
         || "*".to_owned(),
         |columns| {
@@ -104,7 +137,7 @@ pub(crate) fn rows(
         )
     };
     let query = format!("SELECT {selected} FROM {}{order}", table_name(table));
-    let types = described(&mut client, &query, table)?;
+    let types = described(client, &query, table)?;
     let messages = client.simple_query(&query).map_err(located(table))?;
     let mut read = Vec::new();
     for message in messages {
@@ -171,7 +204,6 @@ pub(crate) fn execute(
     params: &[crate::mutation::Param],
 ) -> Result<u64, String> {
     use crate::mutation::Param;
-    let mut client = connect(dsn)?;
     let bound: Vec<&(dyn postgres::types::ToSql + Sync)> = params
         .iter()
         .map(|param| match param {
@@ -183,16 +215,23 @@ pub(crate) fn execute(
             }
         })
         .collect();
-    client.execute(statement, &bound).map_err(|error| match error.as_db_error() {
-        Some(db) => format!("statement refused: {}", db.message()),
-        None => format!("statement failed: {error}"),
+    on_client(dsn, |client| {
+        client.execute(statement, &bound).map_err(|error| {
+            format!(
+                "statement refused: {}",
+                crate::transaction::postgres_message(&error)
+            )
+        })
     })
 }
 
 /// A table opened for writing, its `mode` applied: rows are inserted one at
 /// a time, each committed as it is written.
 pub(crate) struct Writer {
-    client: Client,
+    /// The writer's own client, or none where an open transaction scope
+    /// holds the database and each row joins its attempt (HQL-0051).
+    client: Option<Client>,
+    dsn: String,
     insert: postgres::Statement,
     table: String,
 }
@@ -210,10 +249,21 @@ impl Writer {
         mode: WriteMode,
         columns: &[(String, String)],
     ) -> Result<Self, String> {
+        if let Some(insert) = crate::transaction::with_postgres(dsn, |client| {
+            prepared(client, table, mode, columns)
+        }) {
+            return Ok(Self {
+                client: None,
+                dsn: dsn.to_owned(),
+                insert: insert?,
+                table: table.to_owned(),
+            });
+        }
         let mut client = connect(dsn)?;
         let insert = prepared(&mut client, table, mode, columns)?;
         Ok(Self {
-            client,
+            client: Some(client),
+            dsn: dsn.to_owned(),
             insert,
             table: table.to_owned(),
         })
@@ -225,7 +275,13 @@ impl Writer {
     /// # Errors
     /// Names the table and the statement's failure.
     pub(crate) fn insert(&mut self, row: &[Option<String>]) -> Result<(), String> {
-        insert(&mut self.client, &self.insert, row, &self.table)
+        match &mut self.client {
+            Some(client) => insert(client, &self.insert, row, &self.table),
+            None => crate::transaction::with_postgres(&self.dsn, |client| {
+                insert(client, &self.insert, row, &self.table)
+            })
+            .unwrap_or_else(|| Err("the transaction scope closed under a write".to_owned())),
+        }
     }
 }
 
@@ -241,6 +297,17 @@ pub(crate) fn write(
     columns: &[(String, String)],
     rows: &[Vec<Option<String>>],
 ) -> Result<(), String> {
+    // Inside a transaction scope the rows join the attempt (HQL-0051);
+    // outside one they are their own transaction.
+    if crate::transaction::holds_postgres(dsn) {
+        return on_client(dsn, |client| {
+            let statement = prepared(client, table, mode, columns)?;
+            for row in rows {
+                insert(client, &statement, row, table)?;
+            }
+            Ok(())
+        });
+    }
     let mut client = connect(dsn)?;
     let mut transaction = client.transaction().map_err(located(table))?;
     let statement = prepared(&mut transaction, table, mode, columns)?;

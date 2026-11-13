@@ -503,9 +503,150 @@ impl Parser {
     fn statement_value(&mut self) -> Result<Expr, Diagnostic> {
         if self.at_mutation() {
             self.mutation()
+        } else if self.at_transaction() {
+            self.transaction()
         } else {
             self.expression()
         }
+    }
+
+    /// Whether `with transaction` opens a transaction scope. Neither word is
+    /// reserved: `with` is positional inside a contract's rules as well.
+    fn at_transaction(&self) -> bool {
+        matches!(self.peek(), Token::Ident(word) if word == "with")
+            && matches!(&self.tokens[self.index + 1].token, Token::Ident(word) if word == "transaction")
+    }
+
+    /// `with transaction(attempts = n, isolation = L) tx on participants
+    /// { line* }`: the arguments and the handle optional, and the block a
+    /// sequence of bindings and statements, one per line.
+    fn transaction(&mut self) -> Result<Expr, Diagnostic> {
+        use crate::ast::ScopeStmt;
+        let start = self.advance().span.start;
+        self.advance();
+        let mut attempts = None;
+        let mut isolation = None;
+        if self.eat(&Token::OpenParen) {
+            self.nesting += 1;
+            loop {
+                self.continuation();
+                let named = self.advance();
+                let Token::Ident(name) = named.token else {
+                    return Err(Diagnostic::syntax(
+                        named.span,
+                        "a transaction's arguments are named: `attempts = 3`, \
+                         `isolation = Serializable`",
+                    ));
+                };
+                self.expect(&Token::Equals, "after a transaction's argument name")?;
+                match name.as_str() {
+                    "attempts" if attempts.is_none() => {
+                        attempts = Some(Box::new(self.expression()?));
+                    }
+                    "isolation" if isolation.is_none() => {
+                        let level = self.advance();
+                        let Token::Ident(level_name) = level.token else {
+                            return Err(Diagnostic::syntax(
+                                level.span,
+                                "`isolation` names a level: `ReadCommitted`, \
+                                 `RepeatableRead` or `Serializable`",
+                            ));
+                        };
+                        isolation = Some((level_name, level.span));
+                    }
+                    "attempts" | "isolation" => {
+                        return Err(Diagnostic::syntax(
+                            named.span,
+                            format!("`{name}` is written once"),
+                        ));
+                    }
+                    other => {
+                        return Err(Diagnostic::syntax(
+                            named.span,
+                            format!(
+                                "`{other}` is not an argument of a transaction; `attempts` and \
+                                 `isolation` are"
+                            ),
+                        ));
+                    }
+                }
+                self.continuation();
+                if !self.eat(&Token::Comma) {
+                    break;
+                }
+            }
+            self.expect(&Token::CloseParen, "after a transaction's arguments")?;
+            self.nesting -= 1;
+        }
+        let handle = match self.peek().clone() {
+            Token::Ident(name) if name != "on" => {
+                let span = self.advance().span;
+                Some((name, span))
+            }
+            _ => None,
+        };
+        self.expect(&Token::Ident("on".to_owned()), "before a transaction's participants")?;
+        let participants = self.link()?;
+        // The block, as `lines` reads one: line breaks separate statements.
+        let saved = std::mem::replace(&mut self.nesting, 0);
+        self.expect(&Token::OpenBrace, "to open the transaction's block")?;
+        let mut body = Vec::new();
+        let end = loop {
+            self.continuation();
+            if matches!(self.peek(), Token::CloseBrace) {
+                break self.advance().span.end;
+            }
+            if matches!(self.peek(), Token::End) {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    "expected `}` to close the transaction's block",
+                ));
+            }
+            let line = match (self.peek().clone(), &self.tokens[self.index + 1].token) {
+                (Token::Ident(name), Token::Equals) => {
+                    let name_span = self.advance().span;
+                    self.advance();
+                    self.continuation();
+                    ScopeStmt::Bind {
+                        name,
+                        name_span,
+                        value: self.nested(Self::statement_value)?,
+                    }
+                }
+                _ => ScopeStmt::Expr(self.nested(Self::statement_value)?),
+            };
+            body.push(line);
+            if !matches!(
+                self.tokens[self.index].token,
+                Token::Newline | Token::CloseBrace
+            ) {
+                return Err(Diagnostic::syntax(
+                    self.peek_span(),
+                    format!(
+                        "expected end of statement, found {}",
+                        self.peek().describe()
+                    ),
+                ));
+            }
+        };
+        self.nesting = saved;
+        if body.is_empty() {
+            return Err(Diagnostic::syntax(
+                start..end,
+                "a transaction's block holds at least one statement: an empty transaction says \
+                 nothing",
+            ));
+        }
+        Ok(Expr {
+            kind: Kind::Transaction {
+                handle,
+                attempts,
+                isolation,
+                participants: Box::new(participants),
+                body,
+            },
+            span: start..end,
+        })
     }
 
     /// Whether `insert`, `update` or `delete` opens a mutation: the word is

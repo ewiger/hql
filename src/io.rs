@@ -66,6 +66,10 @@ pub enum Endpoint {
         /// table is scanned.
         order: Vec<String>,
     },
+    /// The handle of a transaction scope, `tx` (HQL-0051): not an endpoint
+    /// anything is read from or written to, held here so the scope binds
+    /// one value and its control calls take it.
+    Transaction,
     /// A configured endpoint named by its id, `configured("id")`: the
     /// transport its kind states, with the boundary its configuration
     /// gives (HQL-0051). Read and written exactly as the id is.
@@ -111,6 +115,7 @@ impl Endpoint {
             Self::Sqlite { .. } => TypeRef::SQLITE,
             Self::Postgres { .. } => TypeRef::POSTGRES,
             Self::Configured { ty, .. } => ty.clone(),
+            Self::Transaction => TypeRef::TRANSACTION,
             Self::Nats { .. } => TypeRef::NATS,
             Self::NatsJetStream { .. } => TypeRef::NATS_JET_STREAM,
         }
@@ -153,6 +158,7 @@ impl Endpoint {
                 format!("table `{table}` of the database `{dsn_env}` names")
             }
             Self::Configured { id, .. } => format!("endpoint `{id}`"),
+            Self::Transaction => "the transaction scope".to_owned(),
             Self::Nats { subject, .. } => format!("subject `{subject}`"),
             Self::NatsJetStream { held, .. } => {
                 format!("subject `{}` of stream `{}`", held.subject, held.stream)
@@ -214,6 +220,7 @@ impl fmt::Display for Endpoint {
                 f.write_str(")")
             }
             Self::Configured { id, .. } => write!(f, "configured({id:?})"),
+            Self::Transaction => f.write_str("tx"),
             Self::Nats {
                 server,
                 subject,
@@ -1507,6 +1514,9 @@ impl Destination {
                 "endpoint `{id}` is written as its configuration says, by `target(\"{id}\")` or \
                  `sink(\"{id}\")`"
             )),
+            Endpoint::Transaction => {
+                Err("a transaction's handle is not written; its participants are".to_owned())
+            }
             Endpoint::Channel(name, _) => Ok((Self::Channel(name.clone()), false)),
             Endpoint::File(path) => {
                 let full = record(path, Written::Replaced)?;

@@ -36,6 +36,25 @@ The language continues to be in active development.
   created.
 - `one` in `seq`: the one element of a sequence of exactly one, and an
   evaluation failure naming the count otherwise.
+- Transactions and relational mutations, phases 3 and 4
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)): `with
+  transaction(attempts = 3, isolation = Serializable) tx on {accounts,
+  transfers} { … }` runs its block as one atomic unit over `Transactional`
+  endpoints of one database, `sqlite` or `postgres`, and commits when the
+  block ends. Inside the block every read and write of a participant runs on
+  the attempt's connection, so a read sees the attempt's own writes. The
+  scope's value is `Result<T, TransactionFailure>`, `T` the block's final
+  value. The handle's control calls, in `io.transaction`, end an attempt:
+  `tx.commit(value)`, `tx.rollback(reason)` and `tx.retry()`, each of type
+  `Never`, written as a statement or an arm of a `given … otherwise` or a
+  `match`. A conflict with a concurrent transaction is retried while
+  `attempts` remain; a constraint violation, a rollback and an exhausted
+  `retry` are the `err` of the result; any other failure rolls the attempt
+  back before it is reported. The checker refuses a nested scope, a
+  participant set spanning two kinds or two databases, a computed set, a
+  transactional endpoint in the block that is no participant, the handle
+  outside a control call, a statement after one, and an isolation level
+  the kind does not offer.
 - The module `io.db.postgres` ([HQL-0047](doc/proposals/HQL-0047/README.md),
   [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Postgres :
   {Network, RowTransport, Replayable, Writable, …}` and its constructor

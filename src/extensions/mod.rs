@@ -40,6 +40,7 @@ pub mod spec;
 pub mod sqlite;
 pub(crate) mod string;
 pub(crate) mod time;
+pub(crate) mod transaction;
 pub(crate) mod traits;
 pub(crate) mod window;
 pub use collections::{COMBINERS, Combiner};
@@ -134,6 +135,12 @@ pub(crate) type Eval =
 pub(crate) trait CheckCx: Send {
     /// The vault the program is checked against.
     fn vault(&self) -> &Vault;
+    /// The configured id a binding holds, where the binding's value is
+    /// `configured("id")` (HQL-0051), so a read or a write through the
+    /// binding is checked as one by the id.
+    fn configured_binding(&self, _name: &str) -> Option<String> {
+        None
+    }
     /// The type of an argument expression.
     fn infer(&mut self, expression: &Expr) -> Result<TypeRef, Diagnostic>;
     /// Check a lambda with the parameter types declared by its step contract.
@@ -470,6 +477,14 @@ static POSTGRES: Extension = Extension {
     metadata: None,
 };
 
+static TRANSACTION: Extension = Extension {
+    name: "io.transaction",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.transaction"],
+    steps: transaction::STEPS,
+    metadata: None,
+};
+
 // Each named by the path it provides, not by a word: a transport's module
 // is imported by its full path and has no one-word form (HQL-0048).
 static NATS: Extension = Extension {
@@ -581,6 +596,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &LOGGING,
     &SQLITE,
     &POSTGRES,
+    &TRANSACTION,
     &NATS,
     &NATS_JETSTREAM,
     &LEXICAL,
@@ -1393,6 +1409,7 @@ mod tests {
         // an endpoint or a logger included, is a function of its input.
         for entry in &listed {
             let effectful = (entry.provider == "io" && !matches!(entry.name, "file" | "configured"))
+                || entry.provider == "io.transaction"
                 || (entry.provider == "logging" && entry.name != "Logger")
                 || (entry.provider == "time"
                     && matches!(entry.name, "now" | "today" | "local_zone"));

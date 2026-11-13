@@ -463,6 +463,37 @@ pub(crate) enum Kind {
         rows: Option<Box<Expr>>,
         steps: Vec<MutationStep>,
     },
+    /// `with transaction(attempts = n, isolation = L) tx on participants
+    /// { … }`: the block run as one atomic unit over the participants, its
+    /// value a `Result` (HQL-0051).
+    Transaction {
+        handle: Option<(String, Range<usize>)>,
+        attempts: Option<Box<Expr>>,
+        isolation: Option<(String, Range<usize>)>,
+        participants: Box<Expr>,
+        body: Vec<ScopeStmt>,
+    },
+}
+
+/// One line of a transaction scope's block: a binding, or a statement
+/// whose value is the block's where it is the last.
+#[derive(Debug)]
+pub(crate) enum ScopeStmt {
+    Bind {
+        name: String,
+        name_span: Range<usize>,
+        value: Expr,
+    },
+    Expr(Expr),
+}
+
+impl ScopeStmt {
+    /// The expression the line holds.
+    pub fn value(&self) -> &Expr {
+        match self {
+            Self::Bind { value, .. } | Self::Expr(value) => value,
+        }
+    }
 }
 
 /// Which rows a mutation changes: adds, changes in place, or removes.

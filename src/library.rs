@@ -57,6 +57,10 @@ pub const STD: &[(&str, &str)] = &[
         include_str!("../lib/std/io/db/postgres/mod.hql"),
     ),
     (
+        "io.transaction",
+        include_str!("../lib/std/io/transaction/mod.hql"),
+    ),
+    (
         "io.msg.nats",
         include_str!("../lib/std/io/msg/nats/mod.hql"),
     ),
