@@ -21,12 +21,14 @@ mod execution;
 mod knowledge;
 mod lexer;
 pub mod modules;
+mod mutation;
 pub mod naming;
 mod nats;
 mod net;
 mod parser;
 mod postgres;
 mod spark;
+mod transaction;
 
 pub mod backends;
 pub mod boundary;

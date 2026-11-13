@@ -18,6 +18,7 @@ pub const PAIR: TypeConstructor = TypeConstructor("Pair");
 /// Every step the `seq` module provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
     declared("first", eval_first),
+    declared("one", eval_one),
     declared("last", eval_last),
     declared("reverse", eval_reverse),
     declared("distinct", eval_distinct),
@@ -110,6 +111,25 @@ fn eval_first(
     let element = element_of(&input);
     let first = elements(&input, "first", &span)?.into_iter().next();
     Ok(optional(first, element))
+}
+
+fn eval_one(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let mut held = elements(&input, "one", &span)?;
+    if held.len() == 1 {
+        return Ok(held.remove(0));
+    }
+    Err(Diagnostic::runtime(
+        span,
+        format!(
+            "`one` needs a sequence of exactly one element, and this one holds {}",
+            held.len()
+        ),
+    ))
 }
 
 fn eval_last(

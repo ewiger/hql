@@ -158,6 +158,7 @@ nav:
                   - When a mistake is found: learn/19-oltp/mistakes.md
                   - A replay is the same file: learn/19-oltp/replay.md
                   - Streams against tables: learn/19-oltp/streams-against-tables.md
+                  - A transfer is one transaction: learn/19-oltp/transfers.md
               - 20. OLAP:
                   - learn/20-olap/index.md
                   - Bronze, silver and gold: learn/20-olap/bronze-silver-and-gold.md
@@ -199,6 +200,9 @@ nav:
           - std/io/net: reference/std/io/net/index.md
           - std/io/logging: reference/std/io/logging/index.md
           - std/io/db/sqlite: reference/std/io/db/sqlite/index.md
+          - std/io/db/postgres: reference/std/io/db/postgres/index.md
+          - std/io/db/spark: reference/std/io/db/spark/index.md
+          - std/io/transaction: reference/std/io/transaction/index.md
           - std/io/msg/nats: reference/std/io/msg/nats/index.md
           - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream/index.md
           - std/vault: reference/std/vault/index.md

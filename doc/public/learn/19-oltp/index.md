@@ -33,6 +33,7 @@ transactions leave and the questions a report asks of it, is
 | [When a mistake is found](mistakes.md) | the phase each broken binding is found in, and what is said |
 | [A replay is the same file](replay.md) | the pipeline as a function of its input: a test over a file, a replay over the archive, production over the subject, and a stream bounded into a batch |
 | [Streams against tables](streams-against-tables.md) | enrichment of a stream by a lookup table, and windows, as design |
+| [A transfer is one transaction](transfers.md) | `insert`, `update` and `delete` changing rows in place, and `with transaction` making several of them one transaction, with its rollback, its retries and its failure as data |
 
 ## What is next
 

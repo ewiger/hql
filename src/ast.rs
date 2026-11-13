@@ -452,6 +452,95 @@ pub(crate) enum Kind {
         condition: Box<Expr>,
         otherwise: Option<Box<Expr>>,
     },
+    /// `insert E rows`, `update E | filter(p) | set(f)` and
+    /// `delete E | filter(p)`: a statement that changes the rows an
+    /// endpoint holds, in place, as one statement of the endpoint's system
+    /// (HQL-0051). `target` is the endpoint; `rows` is what `insert` adds;
+    /// `steps` select and assign for `update` and `delete`.
+    Mutation {
+        verb: Verb,
+        target: Box<Expr>,
+        rows: Option<Box<Expr>>,
+        steps: Vec<MutationStep>,
+    },
+    /// `with transaction(attempts = n, isolation = L) tx on participants
+    /// { … }`: the block run as one atomic unit over the participants, its
+    /// value a `Result` (HQL-0051).
+    Transaction {
+        handle: Option<(String, Range<usize>)>,
+        attempts: Option<Box<Expr>>,
+        isolation: Option<(String, Range<usize>)>,
+        participants: Box<Expr>,
+        body: Vec<ScopeStmt>,
+    },
+}
+
+/// One line of a transaction scope's block: a binding, or a statement
+/// whose value is the block's where it is the last.
+#[derive(Debug)]
+pub(crate) enum ScopeStmt {
+    Bind {
+        name: String,
+        name_span: Range<usize>,
+        value: Expr,
+    },
+    Expr(Expr),
+}
+
+impl ScopeStmt {
+    /// The expression the line holds.
+    pub fn value(&self) -> &Expr {
+        match self {
+            Self::Bind { value, .. } | Self::Expr(value) => value,
+        }
+    }
+}
+
+/// Which rows a mutation changes: adds, changes in place, or removes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Verb {
+    Insert,
+    Update,
+    Delete,
+}
+
+impl Verb {
+    /// How the statement is written.
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Insert => "insert",
+            Self::Update => "update",
+            Self::Delete => "delete",
+        }
+    }
+
+    /// The capability the endpoint needs, by name.
+    pub fn capability(self) -> &'static str {
+        match self {
+            Self::Insert => "Insertable",
+            Self::Update => "Updatable",
+            Self::Delete => "Deletable",
+        }
+    }
+}
+
+/// One clause of a mutation's pipeline, after the endpoint.
+#[derive(Debug)]
+pub(crate) struct MutationStep {
+    pub kind: MutationStepKind,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub(crate) enum MutationStepKind {
+    /// `of_type(T)`: the rows are `T`, a declared record, so the lambdas
+    /// after it read typed fields.
+    OfType(String),
+    /// `filter(p)`: the rows `p` accepts, with `p` a lambda of one row.
+    Filter(Expr),
+    /// `set(f)`: the fields `f` gives for a row replace the row's, with `f`
+    /// a lambda of one row giving a tree. The last clause of an `update`.
+    Set(Expr),
 }
 
 /// The name a `tee` branch reads its input by. It cannot be written in a

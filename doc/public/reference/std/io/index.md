@@ -21,6 +21,16 @@ whether the documents end.
 - [`ByteTransport`](types/ByteTransport.md) — A `Transport` that moves bytes: a format separates the documents.
 - [`MessageTransport`](types/MessageTransport.md) — A `Transport` that moves framed messages: each message is one document, decoded by the format, `Json` where none is named.
 - [`RowTransport`](types/RowTransport.md) — A `Transport` that moves rows of named columns: it takes no format.
+- [`Transactional`](types/Transactional.md) — A `Transport` whose system has an atomic scope: statements over it begin, commit and roll back as one unit.
+- [`Insertable`](types/Insertable.md) — A `Transport` that takes rows it does not hold, by `insert`.
+- [`Updatable`](types/Updatable.md) — A `Transport` whose held rows a statement changes in place, by `update`.
+- [`Deletable`](types/Deletable.md) — A `Transport` whose held rows a statement removes, by `delete`.
+- [`IsolationLevel`](types/IsolationLevel.md) — How much of other transactions a scope sees.
+- [`ReadCommitted`](types/ReadCommitted.md) — The `IsolationLevel` at which a statement sees what was committed before it began: PostgreSQL's default.
+- [`RepeatableRead`](types/RepeatableRead.md) — The `IsolationLevel` at which every statement of a scope sees the snapshot its first statement saw.
+- [`Serializable`](types/Serializable.md) — The `IsolationLevel` at which concurrent scopes behave as if run one after another: SQLite's only level.
+- [`Transaction`](types/Transaction.md) — The handle of a transaction scope, bound by `with transaction tx on …` (HQL-0051).
+- [`TransactionFailure`](types/TransactionFailure.md) — Why a transaction scope did not commit, the `err` of its `Result`: `kind` is `"rolled_back"` for `tx.rollback`, `"conflict"` for a concurrent transaction after the last attempt, `"constraint"` for a row the system refused, and `"exhausted"` for `tx.retry` with no attempt left; `reason` is the `rollback` argument or what the system said; `attempts` counts the attempts run; `endpoint` names the participant a statement was over, where one was; `detail` holds what the system said, its state code among it.
 - [`Stdin`](types/Stdin.md) — The program's standard input, bound as `stdin`: read once, as it arrives.
 - [`Stdout`](types/Stdout.md) — The program's standard output, bound as `stdout`: written while the program runs, before the host presents its result.
 - [`Stderr`](types/Stderr.md) — The program's standard error, bound as `stderr`: where diagnostics go, apart from the result.
@@ -38,6 +48,7 @@ whether the documents end.
 - [`VaultSource`](types/VaultSource.md) — A vault as a source: an endpoint that holds its cards, as a catalog holds tables, with its members as fields rather than names.
 - [`DataTarget`](types/DataTarget.md) — What a program writes to: an endpoint written in a format, or a configured endpoint by its id.
 - [`file`](file.md) — The `File` at `path`.
+- [`configured`](configured.md) — The endpoint configured under the literal `id` in hql.toml, as the transport its kind states, with its schema boundary: a `postgres` endpoint is a `Postgres`, a `csv` endpoint a `File`.
 - [`source`](source.md) — Every document read from `endpoint` in `format`, decoded to `T`: a `Seq` from a `Replayable` endpoint, a `Stream` from a live one.
 - [`tap`](tap.md) — The documents read from `endpoint` in `format`, one held at a time, as a `Stream<T>`.
 - [`target`](target.md) — Writes `value` as one document to `endpoint` in `format`, or to the target configured under `id`, and gives `Unit`.

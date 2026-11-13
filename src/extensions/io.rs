@@ -138,7 +138,114 @@ pub(crate) static STEPS: &[Operation] = &[
         check: Some(check_sink),
         eval: eval_sink,
     },
+    // A configured endpoint as a value, typed from the configuration as
+    // `source("id")` is (HQL-0051).
+    Operation {
+        name: "configured",
+        spec: Signature::Native(OperationSpec {
+            parameters: &[],
+            input: P::Type(TypeConstructor("String")),
+            arguments: &[],
+            output: O::Computed("Transport"),
+        }),
+        purity: Purity::Pure,
+        shape: super::Shape::Barrier,
+        check: None,
+        eval: eval_configured,
+    },
 ];
+
+/// The literal id a configured endpoint is named by: `"id"`, or
+/// `configured("id")`, which names the same endpoint as a value.
+fn literal_id(expression: &Expr) -> Option<&str> {
+    match &expression.kind {
+        Kind::Str(id) => Some(id),
+        Kind::Call { callee, arguments } => match (&callee.kind, arguments.as_slice()) {
+            (Kind::Ident(name), [argument]) if name == "configured" && argument.name.is_none() => {
+                match &argument.value.kind {
+                    Kind::Str(id) => Some(id),
+                    _ => None,
+                }
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The id an endpoint expression names for the checker: a literal, a
+/// `configured("id")` call, or a binding of one.
+fn bound_id(expression: &Expr, cx: &dyn CheckCx) -> Option<String> {
+    if let Some(id) = literal_id(expression) {
+        return Some(id.to_owned());
+    }
+    match &expression.kind {
+        Kind::Ident(name) => cx.configured_binding(name),
+        _ => None,
+    }
+}
+
+/// The id of a configured endpoint a read or write names, by its literal
+/// or by `configured("id")`, which is read and written exactly as the id is.
+pub(crate) fn configured_id(value: &Value) -> Option<&str> {
+    match value {
+        Value::Str(id) => Some(id),
+        Value::Endpoint(endpoint) => endpoint.configured_id(),
+        _ => None,
+    }
+}
+
+/// The transport type a configured endpoint's kind states: what
+/// `configured("id")` is, read offline. A vault has no transport, and a
+/// kind whose transport has no module yet has no type to give.
+fn configured_transport(configured: &crate::endpoints::Configured) -> Result<TypeRef, String> {
+    use crate::endpoints::Kind as Source;
+    let id = &configured.id;
+    Ok(match &configured.kind {
+        Source::Vault { .. } => {
+            return Err(format!(
+                "endpoint `{id}` is a vault, which is not a transport; read it with `source`"
+            ));
+        }
+        Source::File { .. } => TypeRef::FILE,
+        Source::Sqlite { .. } => TypeRef::SQLITE,
+        Source::Postgres { .. } => TypeRef::POSTGRES,
+        Source::Spark { .. } => TypeRef::SPARK,
+        Source::Nats { .. } => TypeRef::NATS,
+        Source::NatsJetStream { .. } => TypeRef::NATS_JET_STREAM,
+        kind @ Source::Kafka { .. } => {
+            return Err(format!(
+                "endpoint `{id}` is a `{}` endpoint, whose transport has no type until its module \
+                 is declared (HQL-0048); name it by its id",
+                kind.name()
+            ));
+        }
+    })
+}
+
+fn eval_configured(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let Value::Str(id) = &input else {
+        return Err(Diagnostic::runtime(
+            span,
+            format!(
+                "`configured` names an endpoint by its id, not {}",
+                input.type_of()
+            ),
+        ));
+    };
+    let failed = |message: String| Diagnostic::runtime(span.clone(), message);
+    let held = configured(id, cx.vault()).map_err(failed)?;
+    let ty = configured_transport(held).map_err(failed)?;
+    Ok(Value::Endpoint(Arc::new(Endpoint::Configured {
+        id: id.to_string(),
+        ty,
+    })))
+}
 
 /// The literal path an endpoint expression names: `file("x.json")`, or its
 /// `.end`.
@@ -234,12 +341,37 @@ const ROWS_TAKE_NO_FORMAT: &str =
 pub(crate) fn result(
     name: &str,
     call: &CheckedCall<'_>,
-    vault: &crate::vault::Vault,
+    cx: &dyn CheckCx,
 ) -> Result<TypeRef, Diagnostic> {
-    if call.input.is(&TypeRef::STR) {
-        let read = configured_type(call, vault)?;
+    let vault = cx.vault();
+    if name == "configured" {
+        let span = call
+            .input_expr
+            .map_or(0..0, |expression| expression.span.clone());
+        let Some(Kind::Str(id)) = call.input_expr.map(|expression| &expression.kind) else {
+            return Err(Diagnostic::typing(
+                span,
+                "`configured` names a configured endpoint by a literal id, \
+                 `configured(\"orders\")`: a computed id would leave its type unknown until \
+                 evaluation",
+            ));
+        };
+        let held = configured(id, vault).map_err(|message| {
+            if crate::endpoints::is_id(id) {
+                Diagnostic::name(span.clone(), message)
+            } else {
+                Diagnostic::typing(span.clone(), message)
+            }
+        })?;
+        return configured_transport(held).map_err(|message| Diagnostic::typing(span, message));
+    }
+    let bound_id = call
+        .input_expr
+        .and_then(|expression| bound_id(expression, cx));
+    if call.input.is(&TypeRef::STR) || bound_id.is_some() {
+        let read = configured_type(call, vault, bound_id.as_deref())?;
         if name != "tap" {
-            if let Some(Kind::Str(id)) = call.input_expr.map(|expression| &expression.kind)
+            if let Some(id) = bound_id.as_deref()
                 && let Ok(configured) = configured(id, vault)
                 && configured.kind.is_live()
             {
@@ -278,11 +410,12 @@ pub(crate) fn result(
 fn configured_type(
     call: &CheckedCall<'_>,
     vault: &crate::vault::Vault,
+    bound: Option<&str>,
 ) -> Result<TypeRef, Diagnostic> {
     let span = call
         .input_expr
         .map_or(0..0, |expression| expression.span.clone());
-    let Some(Kind::Str(id)) = call.input_expr.map(|expression| &expression.kind) else {
+    let Some(id) = bound else {
         return Err(Diagnostic::typing(
             span,
             "`source` names a configured endpoint by a literal id, `source(\"field_notes\")`: \
@@ -328,6 +461,58 @@ fn live_by_source(id: &str, kind: &crate::endpoints::Kind) -> String {
         "`{id}` is a `{}` endpoint, read by `tap` as a `Stream`, not by `source` as a `Seq`",
         kind.name()
     )
+}
+
+/// The configuration of the endpoint an id names, for a statement over it
+/// (HQL-0051).
+pub(crate) fn configured_endpoint<'v>(
+    id: &str,
+    vault: &'v crate::vault::Vault,
+) -> Result<&'v crate::endpoints::Configured, String> {
+    configured(id, vault)
+}
+
+/// The literal id an endpoint expression names, `"id"` or
+/// `configured("id")`, for the checker.
+pub(crate) fn literal_endpoint_id(expression: &Expr) -> Option<&str> {
+    literal_id(expression)
+}
+
+/// A configured endpoint's kind and the system it is in, for a
+/// transaction's participants: the database file of a `sqlite` endpoint,
+/// the variable naming a `postgres` endpoint's connection string.
+pub(crate) fn configured_system(
+    id: &str,
+    vault: &crate::vault::Vault,
+) -> Result<(String, Option<String>), String> {
+    use crate::endpoints::Kind as Source;
+    let held = configured(id, vault)?;
+    let system = match &held.kind {
+        Source::Sqlite { path, .. } => Some(path.display().to_string()),
+        Source::Postgres { dsn_env, .. } => Some(dsn_env.clone()),
+        Source::Spark { server, .. } => Some(match server {
+            crate::endpoints::Address::Written(url) | crate::endpoints::Address::Env(url) => {
+                url.clone()
+            }
+        }),
+        _ => None,
+    };
+    Ok((held.kind.name().to_owned(), system))
+}
+
+/// The element type a configured endpoint names, `element = "Order"`:
+/// `None` where it names none.
+pub(crate) fn configured_element(
+    id: &str,
+    vault: &crate::vault::Vault,
+) -> Result<Option<TypeRef>, String> {
+    let held = configured(id, vault)?;
+    match &held.element {
+        Some(written) => crate::types::named(written, &[]).map(Some).ok_or_else(|| {
+            format!("endpoint `{id}` names the element type `{written}`, which is not a type")
+        }),
+        None => Ok(None),
+    }
 }
 
 /// The configuration of the source an id names: the id must be one, and
@@ -476,12 +661,8 @@ fn check_target(
     if check_channel_write(cx, call, call.input, &span)? {
         return Ok(());
     }
-    if let Some(Expr {
-        kind: Kind::Str(id),
-        ..
-    }) = written_endpoint(call)
-    {
-        return check_configured_target(cx.vault(), id, call, &span);
+    if let Some(id) = written_endpoint(call).and_then(|endpoint| bound_id(endpoint, cx)) {
+        return check_configured_target(cx.vault(), &id, call, &span);
     }
     if call.input.is_stream() && !call.input.is_collection() {
         return Err(Diagnostic::typing(
@@ -625,12 +806,8 @@ fn check_sink(
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
     let element = call.input.iterated().unwrap_or(TypeRef::NEVER);
-    if let Some(Expr {
-        kind: Kind::Str(id),
-        ..
-    }) = written_endpoint(call)
-    {
-        return check_configured_sink(cx.vault(), id, call, &element, &span);
+    if let Some(id) = written_endpoint(call).and_then(|endpoint| bound_id(endpoint, cx)) {
+        return check_configured_sink(cx.vault(), &id, call, &element, &span);
     }
     if check_channel_write(cx, call, &element, &span)? {
         return Ok(());
@@ -733,17 +910,79 @@ fn evaluated_format(
 /// The rows of a table transport, each a `Data` map from column to value;
 /// `None` for an endpoint that is not one.
 fn table_rows(endpoint: &Endpoint, span: &Range<usize>) -> Result<Option<Vec<Value>>, Diagnostic> {
-    let Endpoint::Sqlite { path, table, order } = endpoint else {
-        return Ok(None);
-    };
     let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
-    let full = io::readable_database(path).map_err(failed)?;
-    let rows = crate::endpoints::sqlite_rows(&full, table, order, None)
-        .map_err(|message| failed(format!("{}: {message}", endpoint.describe())))?;
+    let located = |message: String| failed(format!("{}: {message}", endpoint.describe()));
+    let rows = match endpoint {
+        Endpoint::Sqlite { path, table, order } => {
+            let full = io::readable_database(path).map_err(failed)?;
+            crate::endpoints::sqlite_rows(&full, table, order, None).map_err(located)?
+        }
+        Endpoint::Postgres {
+            dsn_env,
+            table,
+            order,
+        } => {
+            io::policy_permits_network().map_err(located)?;
+            let dsn = crate::endpoints::secret(dsn_env, "dsn_env").map_err(located)?;
+            crate::postgres::rows(&dsn, table, order, None).map_err(located)?
+        }
+        Endpoint::Spark {
+            server,
+            token_env,
+            table,
+            order,
+        } => {
+            io::policy_permits_network().map_err(located)?;
+            let constructed =
+                constructed_table(endpoint).ok_or_else(|| located("not a table".to_owned()))?;
+            let server =
+                spark_server(&constructed, server, token_env.as_deref()).map_err(located)?;
+            crate::spark::rows(&server, table, order, None).map_err(located)?
+        }
+        _ => return Ok(None),
+    };
     Ok(Some(
         rows.into_iter()
             .map(|row| Value::Data(Arc::new(row)))
             .collect(),
+    ))
+}
+
+/// A constructed table as a configured endpoint with no boundary of its
+/// own, so that it reads and writes as its kind does; `None` for an
+/// endpoint that is not one.
+pub(crate) fn constructed_table(endpoint: &Endpoint) -> Option<crate::endpoints::Configured> {
+    let kind = match endpoint {
+        Endpoint::Sqlite { path, table, order } => crate::endpoints::Kind::Sqlite {
+            path: io::database_path(path),
+            table: table.clone(),
+            order: order.clone(),
+        },
+        Endpoint::Postgres {
+            dsn_env,
+            table,
+            order,
+        } => crate::endpoints::Kind::Postgres {
+            dsn_env: dsn_env.clone(),
+            table: table.clone(),
+            order: order.clone(),
+        },
+        Endpoint::Spark {
+            server,
+            token_env,
+            table,
+            order,
+        } => crate::endpoints::Kind::Spark {
+            server: server.clone(),
+            token_env: token_env.clone(),
+            table: table.clone(),
+            order: order.clone(),
+        },
+        _ => return None,
+    };
+    Some(crate::endpoints::Configured::constructed(
+        endpoint.to_string(),
+        kind,
     ))
 }
 
@@ -753,7 +992,7 @@ fn eval_source(
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    if let Value::Str(id) = &input {
+    if let Some(id) = configured_id(&input) {
         return read_configured(id, cx.vault(), None, &span);
     }
     let endpoint = endpoint(&input, &span)?;
@@ -797,7 +1036,7 @@ fn eval_tap(
     arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    if let Value::Str(id) = &input {
+    if let Some(id) = configured_id(&input) {
         return tap_configured(id, cx.vault(), &span);
     }
     let endpoint = endpoint(&input, &span)?;
@@ -1489,15 +1728,15 @@ pub(crate) fn decoded(
     if traversal.element == *element {
         return Ok(produced);
     }
-    let (format, from) = match endpoint {
-        Value::Str(id) => (
+    let (format, from) = match configured_id(endpoint) {
+        Some(id) => (
             match configured(id, vault).map(|configured| &configured.kind) {
                 Ok(crate::endpoints::Kind::File { format, .. }) => *format,
                 _ => "Data",
             },
             format!("endpoint `{id}`"),
         ),
-        _ => {
+        None => {
             let endpoint = self::endpoint(endpoint, span)?;
             let format = if endpoint.type_of().is(&TypeRef::ROW_TRANSPORT) {
                 "Data"
@@ -1516,8 +1755,8 @@ pub(crate) fn decoded(
     // through its boundary, which the read itself has not applied. A topic
     // always is: what `sink("id")` writes through the boundary, a `Decimal`
     // as text among it, reads back as it was written.
-    let boundary = match endpoint {
-        Value::Str(id) if traversal.element == TypeRef::DATA => configured(id, vault)
+    let boundary = match (configured_id(endpoint), endpoint) {
+        (Some(id), _) if traversal.element == TypeRef::DATA => configured(id, vault)
             .ok()
             .filter(|configured| !configured.fields.is_empty() || configured.kind.is_live())
             .map(|configured| boundary_for(configured, element, None))
@@ -1531,26 +1770,14 @@ pub(crate) fn decoded(
         // `Decimal` with its digits.
         // A column the record does not read is not read, as a configured
         // table selects only the columns its boundary reads.
-        Value::Endpoint(held) => match held.as_ref() {
-            Endpoint::Sqlite { path, table, order } => boundary_for(
-                &{
-                    let mut constructed = crate::endpoints::Configured::constructed(
-                        held.to_string(),
-                        crate::endpoints::Kind::Sqlite {
-                            path: path.clone(),
-                            table: table.clone(),
-                            order: order.clone(),
-                        },
-                    );
-                    constructed.strictness = crate::endpoints::Strictness::Open;
-                    constructed
-                },
-                element,
-                None,
-            )
-            .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
-            .map(Arc::new),
-            _ => None,
+        (None, Value::Endpoint(held)) => match constructed_table(held) {
+            Some(mut constructed) => {
+                constructed.strictness = crate::endpoints::Strictness::Open;
+                boundary_for(&constructed, element, None)
+                    .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
+                    .map(Arc::new)
+            }
+            None => None,
         },
         _ => None,
     };
@@ -1776,7 +2003,7 @@ fn postgres_row(row: &Value, fields: &[&crate::boundary::EffectiveField]) -> Vec
 
 /// The address and the token of a Spark SQL endpoint, read from the
 /// environment where the configuration names a variable.
-fn spark_server(
+pub(crate) fn spark_server(
     configured: &crate::endpoints::Configured,
     server: &crate::endpoints::Address,
     token_env: Option<&str>,
@@ -1963,6 +2190,97 @@ fn write_configured(
         .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
         .clone();
     write_to(cx, &configured, input, span)
+}
+
+/// `insert E rows` (HQL-0051): the rows added to the table the endpoint
+/// names, after the ones it holds, in one statement of its system. A tree
+/// is read as the rows' declared type; a table that does not exist is a
+/// failure, since a mutation changes rows that exist and `target` creates
+/// a table. The value is the number of rows added.
+pub(crate) fn insert_rows(
+    cx: &mut dyn EvalCx,
+    configured: &crate::endpoints::Configured,
+    row: &TypeRef,
+    input: Value,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    use crate::endpoints::{Kind as Source, WriteMode};
+    let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
+    let id = configured.id.as_str();
+    let (element, rows) = match &input {
+        Value::Table(table) => (table.row.clone(), table.rows.clone()),
+        Value::Traversal(traversal) => {
+            let mut values = Vec::new();
+            cx.traverse(traversal, &mut |_, value| {
+                values.push(value);
+                Ok(true)
+            })?;
+            (traversal.element.clone(), values)
+        }
+        other if other.type_of().is_collection() => (
+            other.type_of().element().unwrap_or(TypeRef::DATA),
+            other.elements().unwrap_or_default(),
+        ),
+        one => (one.type_of(), vec![one.clone()]),
+    };
+    // A tree is read as the row the table holds.
+    let element = if *row == TypeRef::DATA {
+        element
+    } else {
+        row.clone()
+    };
+    let rows = rows
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| match value {
+            Value::Data(_) if element != TypeRef::DATA => decode_document(
+                &value,
+                &element,
+                crate::types::Leaves::AsWritten,
+                index + 1,
+                &format!("endpoint `{id}`"),
+            )
+            .map_err(failed),
+            other => Ok(other),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let count = i64::try_from(rows.len()).unwrap_or(i64::MAX);
+    let missing = |table: &str| {
+        failed(format!(
+            "endpoint `{id}`: the table `{table}` does not exist; `insert` adds rows to a table,              and `target` creates one"
+        ))
+    };
+    match &configured.kind {
+        Source::Sqlite { path, table, .. } => {
+            let columns = crate::endpoints::sqlite_columns(path, table).unwrap_or_default();
+            if columns.is_empty() {
+                return Err(missing(table));
+            }
+        }
+        Source::Postgres { dsn_env, table, .. } => {
+            let dsn = dsn(configured, dsn_env).map_err(failed)?;
+            crate::postgres::columns(&dsn, table).map_err(|_| missing(table))?;
+        }
+        Source::Spark {
+            server,
+            token_env,
+            table,
+            ..
+        } => {
+            let server = spark_server(configured, server, token_env.as_deref()).map_err(failed)?;
+            crate::spark::columns(&server, table).map_err(|_| missing(table))?;
+        }
+        other => {
+            return Err(failed(format!(
+                "`insert` adds rows to a table of a database, and endpoint `{id}` is a `{}`                  endpoint",
+                other.name()
+            )));
+        }
+    }
+    let mut appended = configured.clone();
+    appended.mode = WriteMode::Append;
+    write_to(cx, &appended, Value::list(rows, element), span)?;
+    Ok(Value::Int(count))
 }
 
 /// A `Table<R>` or `Seq<R>` written to an endpoint as its configuration
@@ -2193,15 +2511,10 @@ fn eval_target(
         return write_configured(cx, id, input, &span);
     }
     let endpoint = written_to(cx, arguments, &span)?;
-    if let Endpoint::Sqlite { path, table, order } = endpoint.as_ref() {
-        let constructed = crate::endpoints::Configured::constructed(
-            endpoint.to_string(),
-            crate::endpoints::Kind::Sqlite {
-                path: io::database_path(path),
-                table: table.clone(),
-                order: order.clone(),
-            },
-        );
+    if let Some(id) = endpoint.configured_id() {
+        return write_configured(cx, id, input, &span);
+    }
+    if let Some(constructed) = constructed_table(&endpoint) {
         return write_to(cx, &constructed, input, &span);
     }
     if let Endpoint::Channel(name, _) = endpoint.as_ref() {
@@ -2251,6 +2564,9 @@ fn eval_sink(
         return sink_configured(cx, id, input, &span);
     }
     let endpoint = written_to(cx, arguments, &span)?;
+    if let Some(id) = endpoint.configured_id() {
+        return sink_configured(cx, id, input, &span);
+    }
     if let Endpoint::Channel(name, _) = endpoint.as_ref() {
         match &input {
             Value::Traversal(traversal) => {

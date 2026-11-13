@@ -58,3 +58,5 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0048](HQL-0048/README.md) | drafted | I/O transport namespaces and packaging |
 | [HQL-0049](HQL-0049/README.md) | accepted, implemented | NATS subjects and lakehouse tables as configured endpoints |
 | [HQL-0050](HQL-0050/README.md) | accepted, implemented in part | Analytic windows, and a deterministic order for keyed selection |
+| [HQL-0051](HQL-0051/README.md) | drafted | Transactions and relational mutations |
+| [HQL-0052](HQL-0052/README.md) | drafted | Heterogeneous transaction coordination: `Atomic`, `Staged` and `Saga` scopes |

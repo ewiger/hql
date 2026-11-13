@@ -204,6 +204,10 @@ indexes and grants. A table that does not exist is created with a column
 per field. A topic that does not exist is an evaluation failure: creating a
 topic is the cluster's business.
 
+A write replaces or extends what a table holds. Changing rows it holds, in
+place, and several such changes as one transaction, are the statements of
+[chapter 19's transfer page](19-oltp/transfers.md).
+
 Every message one program writes goes to the topic's first partition, so a
 reader is given them in the order they were written. A read records no
 position: each run of a program starts where `from` says, so reading a topic

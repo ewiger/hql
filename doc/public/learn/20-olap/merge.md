@@ -74,7 +74,10 @@ group, since `concat` put the current rows first.
 
 This reads and rewrites the whole table, which is right for a table of
 thousands of rows and wrong for one of billions. The cost is the point of
-having a write mode for it.
+having a write mode for it. A row changed in place, one at a time as a
+transaction does it, is `update` of the
+[transfer page](../19-oltp/transfers.md); a merge is the whole table kept
+up to date by key.
 
 ## Merge as a write mode
 

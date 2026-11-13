@@ -13,6 +13,7 @@ a typed first parameter. A receiver `S : Seq<T>` comes back at its own
 type, and `F<_> : Seq<_>` rebuilt in its own constructor.
 
 - [`first`](first.md) — The element at position 0, or `none` over an empty sequence: `[3, 1, 2] | first` is `3`.
+- [`one`](one.md) — The one element of `self`: a sequence of exactly one.
 - [`last`](last.md) — The element at the last position, or `none` over an empty sequence: `[3, 1, 2] | last` is `2`.
 - [`reverse`](reverse.md) — The elements of `self` in the opposite order, in its own constructor: `[1, 2, 3] | reverse` is `[3, 2, 1]`.
 - [`distinct`](distinct.md) — Each value of `self` once, at its first position, at the type of `self`: `[1, 2, 1, 3, 2] | distinct` is `[1, 2, 3]`.

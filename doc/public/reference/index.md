@@ -48,6 +48,9 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/io/net`](std/io/net/index.md) — Network endpoints: transports, read and written by `source`, `tap`, `target` and `sink` like any other endpoint (module `io`).
 - [`std/io/logging`](std/io/logging/index.md) — Logging: structured events written to a destination, apart from the result.
 - [`std/io/db/sqlite`](std/io/db/sqlite/index.md) — SQLite: one table of a database file, as a transport read by `source` and `tap` and written by `target` like any other endpoint (module `io`).
+- [`std/io/db/postgres`](std/io/db/postgres/index.md) — PostgreSQL: one table of a database, as a transport read by `source` and `tap` and written by `target` like any other endpoint (module `io`).
+- [`std/io/db/spark`](std/io/db/spark/index.md) — Spark SQL: one table behind a Spark SQL endpoint, a Databricks SQL warehouse or a Spark Thrift Server, as a transport read by `source` and `tap` and written by `target` like any other endpoint (module `io`).
+- [`std/io/transaction`](std/io/transaction/index.md) — The control calls of a transaction scope's handle, `tx`, bound by `with transaction tx on participants { … }` (module `io`): each ends the attempt and gives no value, so it stands where any type is expected and nothing after it runs.
 - [`std/io/msg/nats`](std/io/msg/nats/index.md) — Core NATS: one subject, as a transport read by `tap` and written by `sink` and `target` like any other endpoint (module `io`).
 - [`std/io/msg/nats_jetstream`](std/io/msg/nats_jetstream/index.md) — NATS JetStream: one subject of a stream, as a transport read by `tap` and written by `sink` and `target` like any other endpoint (module `io`).
 - [`std/vault`](std/vault/index.md) — The current vault: the source a program runs against.
