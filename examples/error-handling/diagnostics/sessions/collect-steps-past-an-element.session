@@ -1,0 +1,28 @@
+// status: valid-now
+// feature: Under strict a failing element ends the run; under collect map steps past it, the value stands without it and the diagnostic is recoverable
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql run examples/error-handling/diagnostics/collect-past-an-element.hql
+execute failure[division-by-zero]: division by zero
+  --> examples/error-handling/diagnostics/collect-past-an-element.hql:14:22
+   |
+14 | [6, 0, 3] | map(n => 6 / n)
+   |                      ^^^^^
+   = element: 0, position 2 of 3 in `map`
+   = bindings: n = 0
+
+$ hql --report collect run examples/error-handling/diagnostics/collect-past-an-element.hql
+[1, 2]
+execute failure[division-by-zero]: division by zero
+  --> examples/error-handling/diagnostics/collect-past-an-element.hql:14:22
+   |
+14 | [6, 0, 3] | map(n => 6 / n)
+   |                      ^^^^^
+   = element: 0, position 2 of 3 in `map`
+   = bindings: n = 0
+
+$ hql --report collect --diagnostics-format json run examples/error-handling/diagnostics/collect-stops-at-overflow.hql
+{"bindings":{"n":9223372036854775807},"disposition":"fatal","element":{"of":2,"position":2,"step":"map","value":9223372036854775807},"kind":"numeric-overflow","message":"numeric overflow","origin":"examples/error-handling/diagnostics/collect-stops-at-overflow.hql","phase":"execute","severity":"failure","span":{"end":387,"start":382}}

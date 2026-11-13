@@ -1,0 +1,2137 @@
+//! Endpoints and the host's I/O: where a program's values come from and go
+//! to, what the host grants, and what one evaluation has already written.
+//!
+//! An endpoint is a value and performs nothing; `source`, `tap`, `target` and
+//! `sink` in [`crate::extensions::io`] use one. The I/O itself lives here, at
+//! the edge, so the evaluator stays a function of its program and its inputs.
+//! See [HQL-0021](../../doc/proposals/HQL-0021/README.md).
+
+use crate::data::Data;
+use crate::types::{Formatted, TypeConstructor, TypeRef, Value};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt;
+use std::fs;
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+/// Where values come from or go to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Endpoint {
+    /// The program's standard input.
+    Stdin,
+    /// The program's standard output.
+    Stdout,
+    /// The program's standard error.
+    Stderr,
+    /// A whole file, by the path the program wrote.
+    File(PathBuf),
+    /// The end of a file: where an append goes and a follower waits.
+    FileEnd(PathBuf),
+    /// A channel: values of one type, held in memory for one execution scope.
+    Channel(String, TypeRef),
+    /// An HTTP resource: read by a `GET` once per evaluation, written by one
+    /// request per document.
+    Http {
+        /// The resource.
+        url: String,
+        /// The method a write sends.
+        method: String,
+        /// Header names and their values, sent with every request.
+        headers: BTreeMap<String, String>,
+        /// How long a response may send nothing before it fails,
+        /// [`crate::net::RESPONSE`] unless `timeout_ms` is written.
+        timeout: Duration,
+    },
+    /// A WebSocket connection: one document per message.
+    WebSocket(String),
+    /// A TCP connection, carrying documents as their format separates them.
+    Socket(String, u16),
+    /// One table of an SQLite database file: one row per element.
+    Sqlite {
+        /// The database file, as the program wrote it.
+        path: PathBuf,
+        /// The table.
+        table: String,
+        /// The columns its rows are ordered by; empty orders by `rowid`.
+        order: Vec<String>,
+    },
+    /// One table of a PostgreSQL database: one row per element.
+    Postgres {
+        /// The environment variable holding the connection string, read
+        /// where the endpoint is used and never written in a program.
+        dsn_env: String,
+        /// The table, schema-qualified where it holds a dot.
+        table: String,
+        /// The columns its rows are ordered by; empty reads them as the
+        /// table is scanned.
+        order: Vec<String>,
+    },
+    /// One table behind a Spark SQL endpoint: one row per element.
+    Spark {
+        /// The endpoint's address, as written or by the variable naming it.
+        server: crate::endpoints::Address,
+        /// The environment variable holding an access token, where the
+        /// endpoint asks for one.
+        token_env: Option<String>,
+        /// The table, qualified by catalog and schema where it holds dots.
+        table: String,
+        /// The columns its rows are ordered by; empty reads them as the
+        /// table is scanned.
+        order: Vec<String>,
+    },
+    /// The handle of a transaction scope, `tx` (HQL-0051): not an endpoint
+    /// anything is read from or written to, held here so the scope binds
+    /// one value and its control calls take it.
+    Transaction,
+    /// A configured endpoint named by its id, `configured("id")`: the
+    /// transport its kind states, with the boundary its configuration
+    /// gives (HQL-0051). Read and written exactly as the id is.
+    Configured {
+        /// The id in `[endpoint.<id>]`.
+        id: String,
+        /// The kind's transport type, fixed when the value was made.
+        ty: TypeRef,
+    },
+    /// One core NATS subject: one document per message, published while a
+    /// read is subscribed.
+    Nats {
+        /// The server a connection starts from.
+        server: crate::endpoints::Address,
+        /// The subject read, which may hold wildcards, and published to.
+        subject: String,
+        /// How long a read waits for a message before its stream ends.
+        idle: Option<std::time::Duration>,
+    },
+    /// One subject of a NATS JetStream stream: one document per message.
+    NatsJetStream {
+        /// The server a connection starts from.
+        server: crate::endpoints::Address,
+        /// The stream, the subject within it, and how it is read.
+        held: crate::endpoints::Subject,
+    },
+    /// A byte endpoint whose writes are age-encrypted to recipients
+    /// (HQL-0053 part 4): the format writes a document's octets, this
+    /// layer encrypts them, and `inner` stores the result.
+    Encrypted {
+        /// Where the age file is stored.
+        inner: Box<Endpoint>,
+        /// The X25519 public keys any one of whose private keys decrypts it.
+        recipients: Vec<[u8; 32]>,
+    },
+    /// A byte endpoint whose contents are age-decrypted with an identity.
+    Decrypted {
+        /// Where the age file is read from.
+        inner: Box<Endpoint>,
+        /// The X25519 private key that opens it.
+        identity: crate::crypto::Identity,
+    },
+}
+
+impl Endpoint {
+    /// The endpoint's type.
+    #[must_use]
+    pub fn type_of(&self) -> TypeRef {
+        match self {
+            Self::Stdin => TypeRef::STDIN,
+            Self::Stdout => TypeRef::STDOUT,
+            Self::Stderr => TypeRef::STDERR,
+            Self::File(_) => TypeRef::FILE,
+            Self::FileEnd(_) => TypeRef::FILE_END,
+            Self::Channel(_, element) => crate::types::builtin::CHANNEL.apply([element.clone()]),
+            Self::Http { .. } => TypeRef::HTTP,
+            Self::WebSocket(_) => TypeRef::WEB_SOCKET,
+            Self::Socket(..) => TypeRef::SOCKET,
+            Self::Sqlite { .. } => TypeRef::SQLITE,
+            Self::Postgres { .. } => TypeRef::POSTGRES,
+            Self::Spark { .. } => TypeRef::SPARK,
+            Self::Configured { ty, .. } => ty.clone(),
+            Self::Transaction => TypeRef::TRANSACTION,
+            Self::Nats { .. } => TypeRef::NATS,
+            Self::NatsJetStream { .. } => TypeRef::NATS_JET_STREAM,
+            Self::Encrypted { .. } => TypeRef::ENCRYPTED_END,
+            Self::Decrypted { inner, .. } => {
+                if inner.type_of().is(&TypeRef::REPLAYABLE) {
+                    TypeRef::DECRYPTED_END
+                } else {
+                    TypeRef::DECRYPTED_LIVE
+                }
+            }
+        }
+    }
+
+    /// The path a format is implied by: a file's, and through an age
+    /// wrapper its file's without `.age`, so `orders.jsonl.age` is JSON
+    /// Lines.
+    #[must_use]
+    pub fn format_path(&self) -> Option<PathBuf> {
+        match self {
+            Self::Encrypted { inner, .. } | Self::Decrypted { inner, .. } => {
+                let path = inner.path()?;
+                Some(
+                    if path.extension().is_some_and(|extension| extension == "age") {
+                        path.with_extension("")
+                    } else {
+                        path.to_path_buf()
+                    },
+                )
+            }
+            other => other.path().map(Path::to_path_buf),
+        }
+    }
+
+    /// The id of a configured endpoint named by `configured("id")`, which
+    /// is read and written exactly as the id is; `None` for any other.
+    #[must_use]
+    pub fn configured_id(&self) -> Option<&str> {
+        match self {
+            Self::Configured { id, .. } => Some(id),
+            _ => None,
+        }
+    }
+
+    /// The path a file endpoint names, as written.
+    #[must_use]
+    pub fn path(&self) -> Option<&Path> {
+        match self {
+            Self::File(path) | Self::FileEnd(path) => Some(path),
+            _ => None,
+        }
+    }
+
+    /// How a diagnostic names the endpoint.
+    #[must_use]
+    pub fn describe(&self) -> String {
+        match self {
+            Self::Stdin => "<stdin>".to_owned(),
+            Self::Stdout => "<stdout>".to_owned(),
+            Self::Stderr => "<stderr>".to_owned(),
+            Self::File(path) | Self::FileEnd(path) => path.display().to_string(),
+            Self::Channel(name, _) => format!("channel {name:?}"),
+            Self::Http { url, .. } | Self::WebSocket(url) => url.clone(),
+            Self::Socket(host, port) => format!("{host}:{port}"),
+            Self::Sqlite { path, table, .. } => {
+                format!("table `{table}` of {}", path.display())
+            }
+            Self::Postgres { table, dsn_env, .. } => {
+                format!("table `{table}` of the database `{dsn_env}` names")
+            }
+            Self::Spark { table, .. } => format!("table `{table}` of the Spark SQL endpoint"),
+            Self::Configured { id, .. } => format!("endpoint `{id}`"),
+            Self::Transaction => "the transaction scope".to_owned(),
+            Self::Nats { subject, .. } => format!("subject `{subject}`"),
+            Self::NatsJetStream { held, .. } => {
+                format!("subject `{}` of stream `{}`", held.subject, held.stream)
+            }
+            Self::Encrypted { inner, .. } | Self::Decrypted { inner, .. } => inner.describe(),
+        }
+    }
+}
+
+impl fmt::Display for Endpoint {
+    /// The literal that writes the endpoint.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Stdin => f.write_str("stdin"),
+            Self::Stdout => f.write_str("stdout"),
+            Self::Stderr => f.write_str("stderr"),
+            Self::File(path) => write!(f, "file({:?})", path.display().to_string()),
+            Self::FileEnd(path) => write!(f, "file({:?}).end", path.display().to_string()),
+            Self::Channel(name, element) => write!(f, "Channel<{element}>({name:?})"),
+            Self::Http {
+                url,
+                method,
+                headers,
+                timeout,
+            } => {
+                write!(f, "http({url:?}")?;
+                if method != "GET" {
+                    write!(f, ", method = {method:?}")?;
+                }
+                if !headers.is_empty() {
+                    let entries: Vec<String> = headers
+                        .iter()
+                        .map(|(name, value)| format!("{name:?}: {value:?}"))
+                        .collect();
+                    write!(f, ", headers = {{{}}}", entries.join(", "))?;
+                }
+                if *timeout != crate::net::RESPONSE {
+                    write!(f, ", timeout_ms = {}", timeout.as_millis())?;
+                }
+                f.write_str(")")
+            }
+            Self::WebSocket(url) => write!(f, "websocket({url:?})"),
+            Self::Socket(host, port) => write!(f, "tcp({host:?}, {port})"),
+            Self::Sqlite { path, table, order } => {
+                write!(
+                    f,
+                    "sqlite({:?}, table = {table:?}",
+                    path.display().to_string()
+                )?;
+                if !order.is_empty() {
+                    write!(f, ", order = {order:?}")?;
+                }
+                f.write_str(")")
+            }
+            Self::Postgres {
+                dsn_env,
+                table,
+                order,
+            } => {
+                write!(f, "postgres(dsn_env = {dsn_env:?}, table = {table:?}")?;
+                if !order.is_empty() {
+                    write!(f, ", order = {order:?}")?;
+                }
+                f.write_str(")")
+            }
+            Self::Spark {
+                server,
+                token_env,
+                table,
+                order,
+            } => {
+                write!(f, "spark(table = {table:?}")?;
+                match server {
+                    crate::endpoints::Address::Written(url) => write!(f, ", url = {url:?}")?,
+                    crate::endpoints::Address::Env(variable) => {
+                        write!(f, ", url_env = {variable:?}")?;
+                    }
+                }
+                if let Some(variable) = token_env {
+                    write!(f, ", token_env = {variable:?}")?;
+                }
+                if !order.is_empty() {
+                    write!(f, ", order = {order:?}")?;
+                }
+                f.write_str(")")
+            }
+            Self::Configured { id, .. } => write!(f, "configured({id:?})"),
+            Self::Transaction => f.write_str("tx"),
+            Self::Nats {
+                server,
+                subject,
+                idle,
+            } => {
+                write!(f, "nats({subject:?}")?;
+                match server {
+                    crate::endpoints::Address::Written(url) => write!(f, ", url = {url:?}")?,
+                    crate::endpoints::Address::Env(variable) => {
+                        write!(f, ", url_env = {variable:?}")?;
+                    }
+                }
+                if let Some(idle) = idle {
+                    write!(f, ", idle_ms = {}", idle.as_millis())?;
+                }
+                f.write_str(")")
+            }
+            Self::NatsJetStream { server, held } => {
+                write!(
+                    f,
+                    "nats_jetstream({:?}, stream = {:?}",
+                    held.subject, held.stream
+                )?;
+                match server {
+                    crate::endpoints::Address::Written(url) => write!(f, ", url = {url:?}")?,
+                    crate::endpoints::Address::Env(variable) => {
+                        write!(f, ", url_env = {variable:?}")?;
+                    }
+                }
+                if held.start != crate::endpoints::Start::default() {
+                    write!(f, ", from = {:?}", held.start.name())?;
+                }
+                if let Some(idle) = held.idle {
+                    write!(f, ", idle_ms = {}", idle.as_millis())?;
+                }
+                if let Some(consumer) = &held.consumer {
+                    write!(f, ", consumer = {consumer:?}")?;
+                }
+                f.write_str(")")
+            }
+            Self::Encrypted { inner, recipients } => {
+                let recipients: Vec<String> = recipients
+                    .iter()
+                    .map(|key| crate::crypto::keys::age_recipient(key).unwrap_or_default())
+                    .collect();
+                write!(f, "encrypted_to({inner}, {recipients:?})")
+            }
+            // The identity prints as a private key does: its thumbprint.
+            Self::Decrypted { inner, identity } => {
+                let key = crate::crypto::Key::Private(crate::crypto::PrivateKey::X25519(
+                    identity.0.as_ref().clone(),
+                ));
+                write!(f, "decrypted_with({inner}, {})", key.redacted())
+            }
+        }
+    }
+}
+
+/// What a host grants a program.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Policy {
+    /// `hql eval`, `hql run`, `hql repl`: every endpoint.
+    Open,
+    /// `hql render`: files under the document's directory are read, and
+    /// nothing is written.
+    Document {
+        /// The directory reads must stay under.
+        root: PathBuf,
+    },
+}
+
+/// How one evaluation has written a file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Written {
+    Replaced,
+    Appended,
+}
+
+/// A channel's storage: values of one type, bounded, kept in the order they
+/// were committed. Every channel is one, the program's and the run's.
+#[derive(Debug)]
+struct Fifo<T> {
+    values: Vec<T>,
+}
+
+impl<T: Clone> Fifo<T> {
+    const fn new() -> Self {
+        Self { values: Vec::new() }
+    }
+
+    /// Commit a value at the back, refusing one past the bound.
+    fn push(&mut self, value: T) -> Result<(), usize> {
+        if self.values.len() >= CHANNEL_BOUND {
+            return Err(CHANNEL_BOUND);
+        }
+        self.values.push(value);
+        Ok(())
+    }
+
+    fn held(&self) -> Vec<T> {
+        self.values.clone()
+    }
+}
+
+/// An observer of the diagnostic channel.
+type Tap = Box<dyn FnMut(&crate::diagnostics::Diagnostic)>;
+
+struct Host {
+    policy: Policy,
+    base: PathBuf,
+    written: HashMap<PathBuf, Written>,
+    /// Each channel of the scope, by name: its element type and its values in
+    /// the order they were written.
+    channels: BTreeMap<String, (TypeRef, Fifo<Value>)>,
+    /// The run's diagnostic channel (HQL-0045): the same mechanism as a
+    /// program's channel, owned by the runtime, opened before the first
+    /// phase and closed after the last. It is not among `channels`, so no
+    /// program holds a name for it.
+    diagnostics: Option<Fifo<crate::diagnostics::Diagnostic>>,
+    /// Observers of the diagnostic channel, each told of a diagnostic as it
+    /// is committed. A tap delivers nothing the run waits for.
+    taps: Vec<Tap>,
+    /// Every logger's threshold, when the host overrides it.
+    log_level: Option<String>,
+    /// Each HTTP body read this evaluation, by URL: a resource is fetched once.
+    fetched: HashMap<String, Arc<Vec<u8>>>,
+    /// Whether the program itself was read from standard input, which then
+    /// holds no data.
+    program_on_stdin: bool,
+    /// The format `--from` names for standard input, read where a program
+    /// names none.
+    stdin_format: Option<TypeConstructor>,
+}
+
+thread_local! {
+    static HOST: RefCell<Host> = RefCell::new(Host {
+        policy: Policy::Open,
+        base: PathBuf::from("."),
+        written: HashMap::new(),
+        channels: BTreeMap::new(),
+        diagnostics: None,
+        taps: Vec::new(),
+        log_level: None,
+        fetched: HashMap::new(),
+        program_on_stdin: false,
+        stdin_format: None,
+    });
+}
+
+/// Set what the host grants, and the directory relative paths resolve
+/// against: the document, the program file, or the working directory.
+pub fn set_host(policy: Policy, base: PathBuf) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        host.policy = policy;
+        host.base = base;
+        host.program_on_stdin = false;
+    });
+}
+
+/// Say that the program was read from standard input, so `source(stdin, …)`
+/// in it is refused.
+pub fn set_program_on_stdin() {
+    HOST.with(|host| host.borrow_mut().program_on_stdin = true);
+}
+
+/// Whether the program was read from standard input.
+#[must_use]
+pub fn program_on_stdin() -> bool {
+    HOST.with(|host| host.borrow().program_on_stdin)
+}
+
+/// Name the format standard input is read in where a program names none:
+/// `--from json`.
+pub fn set_stdin_format(format: Option<TypeConstructor>) {
+    HOST.with(|host| host.borrow_mut().stdin_format = format);
+}
+
+/// The format `--from` named for standard input, if any.
+#[must_use]
+pub fn stdin_format() -> Option<TypeConstructor> {
+    HOST.with(|host| host.borrow().stdin_format)
+}
+
+/// The most values one channel holds in a scope.
+const CHANNEL_BOUND: usize = 1_000_000;
+
+/// Override every logger's threshold: `trace`, `debug`, `info`, `warn` or
+/// `error`.
+pub fn set_log_level(level: Option<String>) {
+    HOST.with(|host| host.borrow_mut().log_level = level);
+}
+
+/// The threshold the host imposes on every logger, if any.
+#[must_use]
+pub fn log_level() -> Option<String> {
+    HOST.with(|host| host.borrow().log_level.clone())
+}
+
+/// What the host grants.
+#[must_use]
+pub fn policy() -> Policy {
+    HOST.with(|host| host.borrow().policy.clone())
+}
+
+/// Start an evaluation: nothing has been written yet, and every channel is
+/// empty.
+pub(crate) fn begin() {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        host.written.clear();
+        host.channels.clear();
+        host.fetched.clear();
+    });
+}
+
+/// Open a channel by name, refusing a name the scope holds at another type.
+///
+/// # Errors
+/// Names both element types.
+pub(crate) fn open_channel(name: &str, element: &TypeRef) -> Result<(), String> {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        match host.channels.get(name) {
+            Some((held, _)) if held != element => Err(format!(
+                "the channel {name:?} holds {held}, so it is not also a Channel<{element}>"
+            )),
+            Some(_) => Ok(()),
+            None => {
+                host.channels
+                    .insert(name.to_owned(), (element.clone(), Fifo::new()));
+                Ok(())
+            }
+        }
+    })
+}
+
+/// Append a value to a channel.
+///
+/// # Errors
+/// Names the channel when it already holds as many values as a scope allows.
+pub(crate) fn push(name: &str, value: Value) -> Result<(), String> {
+    HOST.with(|host| {
+        if let Some((_, values)) = host.borrow_mut().channels.get_mut(name) {
+            values.push(value).map_err(|bound| {
+                format!("the channel {name:?} holds {bound} values, as many as one scope keeps")
+            })?;
+        }
+        Ok(())
+    })
+}
+
+/// What a channel holds now, in write order.
+pub(crate) fn held(name: &str) -> Vec<Value> {
+    HOST.with(|host| {
+        host.borrow()
+            .channels
+            .get(name)
+            .map(|(_, values)| values.held())
+            .unwrap_or_default()
+    })
+}
+
+/// The value a channel holds at a position, if one has been written there.
+fn held_at(name: &str, index: usize) -> Option<Value> {
+    HOST.with(|host| {
+        host.borrow()
+            .channels
+            .get(name)
+            .and_then(|(_, values)| values.values.get(index).cloned())
+    })
+}
+
+/// The channel a cell's logs are written to, opened for the scope.
+#[must_use]
+pub fn cell_logs() -> Endpoint {
+    let _ = open_channel(CELL_LOGS, &TypeRef::LOG_EVENT);
+    Endpoint::Channel(CELL_LOGS.to_owned(), TypeRef::LOG_EVENT)
+}
+
+/// The name of a cell's logs channel.
+pub const CELL_LOGS: &str = "cell.logs";
+
+/// Every channel the scope wrote, by name, for the host to show beside the
+/// result.
+#[must_use]
+pub fn channels() -> Vec<(String, Vec<Value>)> {
+    HOST.with(|host| {
+        host.borrow()
+            .channels
+            .iter()
+            .map(|(name, (_, values))| (name.clone(), values.held()))
+            .collect()
+    })
+}
+
+/// Open the run's diagnostic channel, unless a run already holds it open.
+/// Gives whether this call opened it: the opener is the run, and only it
+/// closes the channel.
+pub fn open_diagnostics() -> bool {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if host.diagnostics.is_some() {
+            return false;
+        }
+        host.diagnostics = Some(Fifo::new());
+        true
+    })
+}
+
+/// Commit a diagnostic to the run's channel, then tell each tap of it. A
+/// diagnostic written with no run open has no channel to go to, and a
+/// diagnostic past the channel's bound is dropped; neither ends the run.
+pub fn write_diagnostic(diagnostic: crate::diagnostics::Diagnostic) {
+    let mut taps = HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        let Some(channel) = host.diagnostics.as_mut() else {
+            return Vec::new();
+        };
+        if channel.push(diagnostic.clone()).is_err() {
+            return Vec::new();
+        }
+        std::mem::take(&mut host.taps)
+    });
+    // A tap runs with the host released, so it may itself read the host.
+    for tap in &mut taps {
+        tap(&diagnostic);
+    }
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        taps.append(&mut host.taps);
+        host.taps = taps;
+    });
+}
+
+/// What the run's diagnostic channel holds now, in commit order.
+#[must_use]
+pub fn diagnostics_written() -> Vec<crate::diagnostics::Diagnostic> {
+    HOST.with(|host| {
+        host.borrow()
+            .diagnostics
+            .as_ref()
+            .map(Fifo::held)
+            .unwrap_or_default()
+    })
+}
+
+/// Observe the run's diagnostic channel: `tap` is told of each diagnostic
+/// as it is committed, until the channel closes.
+pub fn tap_diagnostics(tap: impl FnMut(&crate::diagnostics::Diagnostic) + 'static) {
+    HOST.with(|host| host.borrow_mut().taps.push(Box::new(tap)));
+}
+
+/// Close the run's diagnostic channel, detaching its taps, and give what it
+/// held for the host to deliver.
+pub fn close_diagnostics() -> Vec<crate::diagnostics::Diagnostic> {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        host.taps.clear();
+        host.diagnostics
+            .take()
+            .map(|channel| channel.values)
+            .unwrap_or_default()
+    })
+}
+
+/// A path as the host reads it: relative to the source unit.
+fn resolved(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    HOST.with(|host| host.borrow().base.join(path))
+}
+
+/// A database file a read may open, under the host's policy, as a file is.
+///
+/// # Errors
+/// As a file read: outside a document's directory, or replaced already.
+pub(crate) fn readable_database(path: &Path) -> Result<PathBuf, String> {
+    readable(path)
+}
+
+/// A database file as a write opens it: resolved as a file is.
+#[must_use]
+pub(crate) fn database_path(path: &Path) -> PathBuf {
+    resolved(path)
+}
+
+/// The text of a file that holds a key, read under the host's policy, and
+/// the file's permission bits on a Unix host.
+///
+/// # Errors
+/// Names the file when it cannot be read or is not UTF-8 text.
+pub(crate) fn read_key_file(path: &Path) -> Result<(String, Option<u32>), String> {
+    let full = readable(path)?;
+    let text = fs::read_to_string(&full).map_err(|error| format!("{}: {error}", path.display()))?;
+    #[cfg(unix)]
+    let mode = {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::metadata(&full)
+            .ok()
+            .map(|metadata| metadata.permissions().mode())
+    };
+    #[cfg(not(unix))]
+    let mode = None;
+    Ok((text, mode))
+}
+
+/// A file a read may open, under the host's policy.
+fn readable(path: &Path) -> Result<PathBuf, String> {
+    let full = resolved(path);
+    if let Policy::Document { root } = policy() {
+        let inside = fs::canonicalize(&full)
+            .ok()
+            .zip(fs::canonicalize(&root).ok())
+            .is_some_and(|(file, root)| file.starts_with(root));
+        if !inside {
+            return Err(format!(
+                "{}: a document reads only files under its own directory",
+                path.display()
+            ));
+        }
+    }
+    if HOST.with(|host| host.borrow().written.get(&full).copied()) == Some(Written::Replaced) {
+        return Err(format!(
+            "{}: this evaluation has replaced the file, so reading it again would see its own \
+             output",
+            path.display()
+        ));
+    }
+    Ok(full)
+}
+
+/// What a listing reads at a path (HQL-0040).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Listing {
+    /// The folder's entries: a link at the path is read through, so the
+    /// folder it reaches is held to the grant.
+    Folder,
+    /// The entry at the path itself, a link reported and not read through.
+    Entry,
+}
+
+/// A path a listing may read, resolved as a file's is: granted exactly
+/// where reading a file at the path is. Under `hql render` that is the
+/// document's directory and below, whether the path leaves it by `..` or by
+/// a link; a missing path is held to the grant by the folder it would be in.
+///
+/// # Errors
+/// The path is outside what the host grants.
+pub(crate) fn listable(path: &Path, listing: Listing) -> Result<PathBuf, String> {
+    let full = resolved(path);
+    if let Policy::Document { root } = policy()
+        && !inside(&full, &root, listing)
+    {
+        return Err(format!(
+            "{}: a document lists only folders under its own directory",
+            path.display()
+        ));
+    }
+    Ok(full)
+}
+
+/// Whether `full` is under `root`, every link but a reported entry's own
+/// read through.
+fn inside(full: &Path, root: &Path, listing: Listing) -> bool {
+    let Ok(root) = fs::canonicalize(root) else {
+        return false;
+    };
+    if listing == Listing::Folder
+        && let Ok(reached) = fs::canonicalize(full)
+    {
+        return reached.starts_with(&root);
+    }
+    // The last segment is not read through, and a missing path is placed by
+    // the nearest folder above it that exists.
+    let (mut existing, mut missing) = match (full.parent(), full.file_name()) {
+        (Some(parent), Some(name)) => (parent, vec![name]),
+        _ => (full, Vec::new()),
+    };
+    let reached = loop {
+        if let Ok(reached) = fs::canonicalize(existing) {
+            break reached;
+        }
+        // A `..` has no name: what it leaves is not known, so it is refused.
+        match (existing.parent(), existing.file_name()) {
+            (Some(parent), Some(name)) => {
+                missing.push(name);
+                existing = parent;
+            }
+            _ => return false,
+        }
+    };
+    let placed = missing
+        .iter()
+        .rev()
+        .fold(reached, |placed, name| placed.join(name));
+    placed.starts_with(&root)
+}
+
+/// Record a write, refusing a second replacement or a replacement mixed with
+/// an append.
+fn record(path: &Path, how: Written) -> Result<PathBuf, String> {
+    let full = resolved(path);
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        match (host.written.get(&full), how) {
+            (None, _) | (Some(Written::Appended), Written::Appended) => {
+                host.written.insert(full.clone(), how);
+                Ok(full)
+            }
+            (Some(Written::Replaced), Written::Replaced) => Err(format!(
+                "{}: this evaluation has already replaced the file; append to `file(p).end`, or \
+                 write it once",
+                path.display()
+            )),
+            (Some(_), _) => Err(format!(
+                "{}: one evaluation either replaces a file or appends to its end, not both",
+                path.display()
+            )),
+        }
+    })
+}
+
+/// The format a path's extension implies.
+#[must_use]
+pub fn format_of_extension(path: &Path) -> Option<TypeConstructor> {
+    let extension = path.extension()?.to_str()?;
+    let format = match extension {
+        "json" => "Json",
+        "jsonl" | "ndjson" => "JsonLines",
+        "yaml" | "yml" => "Yaml",
+        "csv" => "Csv",
+        // A plain text file is read as lines unless a format says otherwise.
+        "txt" | "log" => "Lines",
+        "md" => "Markdown",
+        "hmd" => "Hmd",
+        "hql" => "Hql",
+        "d2" => "D2",
+        "mmd" => "Mermaid",
+        _ => return None,
+    };
+    Some(TypeConstructor(format))
+}
+
+/// The type one document of a format reads as, or why it is not read.
+///
+/// # Errors
+/// Names a format that describes a whole picture and is written only.
+pub fn document_type(format: TypeConstructor) -> Result<TypeRef, String> {
+    match format.0 {
+        "Json" | "JsonLines" | "Yaml" | "Csv" => Ok(TypeRef::DATA),
+        // Text is a String; a document in a text format is its text.
+        "Text" | "Lines" | "Markdown" | "Hmd" | "Hql" => Ok(TypeRef::STR),
+        other => Err(format!("{other} is written, not read")),
+    }
+}
+
+/// Whether a format's documents can be separated, so read one at a time.
+/// `Text` is one whole document; `Lines` frames it one record per line.
+fn separable(format: TypeConstructor) -> bool {
+    matches!(format.0, "Json" | "JsonLines" | "Yaml" | "Csv" | "Lines")
+}
+
+/// A tree read from JSON or YAML.
+pub(crate) fn data_of(json: serde_json::Value) -> Data {
+    match json {
+        serde_json::Value::Null => Data::Empty,
+        serde_json::Value::Bool(value) => Data::Bool(value),
+        // A number keeps the digits it is written with, so it reads exactly
+        // as a Decimal (HQL-0031).
+        serde_json::Value::Number(number) => number
+            .as_i64()
+            .map(Data::Int)
+            .or_else(|| crate::decimal::Decimal::parse(number.as_str()).map(Data::Decimal))
+            .or_else(|| number.as_f64().map(Data::Float))
+            .unwrap_or(Data::Empty),
+        serde_json::Value::String(text) => Data::Str(text),
+        serde_json::Value::Array(items) => Data::List(items.into_iter().map(data_of).collect()),
+        serde_json::Value::Object(entries) => Data::Map(
+            entries
+                .into_iter()
+                .map(|(key, value)| (key, data_of(value)))
+                .collect(),
+        ),
+    }
+}
+
+fn tree(json: serde_json::Value) -> Value {
+    Value::Data(Arc::new(data_of(json)))
+}
+
+/// One CSV record: the fields of a line, with quoted fields that may hold
+/// commas, doubled quotes and line breaks. Answers `None` at the end.
+fn csv_record(
+    lines: &mut dyn Iterator<Item = std::io::Result<String>>,
+) -> Option<Result<Vec<String>, String>> {
+    let mut line = match lines.next()? {
+        Ok(line) => line,
+        Err(error) => return Some(Err(error.to_string())),
+    };
+    let mut fields = Vec::new();
+    let mut field = String::new();
+    let mut quoted = false;
+    loop {
+        let mut chars = line.chars().peekable();
+        while let Some(c) = chars.next() {
+            match (c, quoted) {
+                ('"', true) if chars.peek() == Some(&'"') => {
+                    chars.next();
+                    field.push('"');
+                }
+                ('"', true) => quoted = false,
+                ('"', false) if field.is_empty() => quoted = true,
+                (',', false) => fields.push(std::mem::take(&mut field)),
+                (c, _) => field.push(c),
+            }
+        }
+        if !quoted {
+            break;
+        }
+        // A quoted field runs on to the next line.
+        field.push('\n');
+        line = match lines.next() {
+            Some(Ok(next)) => next,
+            Some(Err(error)) => return Some(Err(error.to_string())),
+            None => return Some(Err("a quoted field is not closed".to_owned())),
+        };
+    }
+    fields.push(field);
+    Some(Ok(fields))
+}
+
+fn row(header: &[String], fields: Vec<String>) -> Value {
+    let map: BTreeMap<String, Data> = header
+        .iter()
+        .cloned()
+        .zip(fields.into_iter().map(Data::Str))
+        .collect();
+    Value::Data(Arc::new(Data::Map(map)))
+}
+
+/// Every document of a configured file source, in file order. `spread`
+/// reads a Json file as the elements of the one array it holds.
+/// Configuration is the access boundary, so the document policy that
+/// confines a document's own reads does not apply.
+pub(crate) fn read_configured(
+    path: &Path,
+    format: TypeConstructor,
+    spread: bool,
+) -> Result<Vec<Value>, String> {
+    let file = fs::File::open(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    if spread {
+        let json: serde_json::Value = serde_json::from_reader(BufReader::new(file))
+            .map_err(|error| format!("{}: not JSON: {error}", path.display()))?;
+        let serde_json::Value::Array(elements) = json else {
+            return Err(format!(
+                "{}: a `json` source holds one array, whose elements it reads",
+                path.display()
+            ));
+        };
+        return Ok(elements.into_iter().map(tree).collect());
+    }
+    pieces(Box::new(file), format, path.display().to_string()).collect()
+}
+
+/// Documents read one at a time from a reader.
+type Pieces = Box<dyn Iterator<Item = Result<Value, String>> + Send>;
+
+/// The documents of a reader, one at a time, as `format` separates them.
+fn pieces(reader: Box<dyn Read + Send>, format: TypeConstructor, origin: String) -> Pieces {
+    let located = move |error: String| format!("{origin}: {error}");
+    match format.0 {
+        "Json" => Box::new(
+            serde_json::Deserializer::from_reader(reader)
+                .into_iter::<serde_json::Value>()
+                .map(move |document| {
+                    document.map(tree).map_err(|error| {
+                        located(format!(
+                            "not JSON at line {}, column {}: {error}",
+                            error.line(),
+                            error.column()
+                        ))
+                    })
+                }),
+        ),
+        // Line framing: the terminator belongs to the representation, so a
+        // record is the line without it.
+        "Lines" => Box::new(BufReader::new(reader).lines().map(move |line| {
+            line.map(|line| Value::Str(line.into()))
+                .map_err(|error| located(error.to_string()))
+        })),
+        // One JSON document per line: the line is the frame.
+        "JsonLines" => Box::new(BufReader::new(reader).lines().enumerate().filter_map(
+            move |(index, line)| {
+                match line {
+                    Err(error) => Some(Err(located(error.to_string()))),
+                    Ok(line) if line.trim().is_empty() => None,
+                    Ok(line) => Some(
+                        serde_json::from_str::<serde_json::Value>(&line)
+                            .map(tree)
+                            .map_err(|error| {
+                                located(format!("not JSON at line {}: {error}", index + 1))
+                            }),
+                    ),
+                }
+            },
+        )),
+        "Csv" => {
+            let mut lines = BufReader::new(reader).lines();
+            let header = csv_record(&mut lines);
+            match header {
+                None => Box::new(std::iter::empty()),
+                Some(Err(error)) => Box::new(std::iter::once(Err(located(error)))),
+                Some(Ok(header)) => Box::new(std::iter::from_fn(move || {
+                    loop {
+                        let record = csv_record(&mut lines)?;
+                        return Some(match record {
+                            // A blank line separates nothing.
+                            Ok(fields) if fields.len() == 1 && fields[0].is_empty() => continue,
+                            Ok(fields) => Ok(row(&header, fields)),
+                            Err(error) => Err(located(error)),
+                        });
+                    }
+                })),
+            }
+        }
+        // YAML documents are split by `---`, which the parser finds only in
+        // the whole text, and a whole-text format is one document.
+        _ => {
+            let mut text = String::new();
+            let mut reader = reader;
+            if let Err(error) = reader.read_to_string(&mut text) {
+                return Box::new(std::iter::once(Err(located(error.to_string()))));
+            }
+            let documents: Vec<Result<Value, String>> = whole(&text, format)
+                .unwrap_or_else(|error| vec![Err(error)])
+                .into_iter()
+                .map(|document| document.map_err(&located))
+                .collect();
+            Box::new(documents.into_iter())
+        }
+    }
+}
+
+/// Text parsed in a format whose decoder reads `Data`: the one document of a
+/// whole-text format, Json or Yaml, or the list of the records of a framed
+/// one, JsonLines or Csv.
+///
+/// # Errors
+/// Text that does not parse in the format, or a whole-text format holding
+/// other than one document.
+pub(crate) fn parse_text(text: &str, format: TypeConstructor) -> Result<Data, String> {
+    let reader = Box::new(std::io::Cursor::new(text.as_bytes().to_vec()));
+    let documents = pieces(reader, format, format!("Data(…, {format})"))
+        .map(|document| match document? {
+            Value::Data(data) => Ok(data.as_ref().clone()),
+            Value::Str(text) => Ok(Data::Str(text.to_string())),
+            other => Err(format!("{format} decodes no Data here, but {other:?}")),
+        })
+        .collect::<Result<Vec<Data>, String>>()?;
+    match format.0 {
+        "JsonLines" | "Csv" => Ok(Data::List(documents)),
+        _ => {
+            let count = documents.len();
+            let mut documents = documents.into_iter();
+            match (documents.next(), count) {
+                (Some(document), 1) => Ok(document),
+                _ => Err(format!(
+                    "the text holds {count} {format} documents, and `Data(s, {format})` parses one"
+                )),
+            }
+        }
+    }
+}
+
+/// Whether a tree holds a number that is not an integer.
+fn has_fraction(json: &serde_json::Value) -> bool {
+    match json {
+        serde_json::Value::Number(number) => number.as_i64().is_none(),
+        serde_json::Value::Array(items) => items.iter().any(has_fraction),
+        serde_json::Value::Object(entries) => entries.values().any(has_fraction),
+        _ => false,
+    }
+}
+
+/// A second read of a YAML document, guided by the tree the first read
+/// gave: each number that is not an integer is read as the text it is
+/// written with, and becomes a JSON number of exactly those digits.
+struct YamlDigits<'a>(&'a serde_json::Value);
+
+impl<'de> serde::de::DeserializeSeed<'de> for YamlDigits<'_> {
+    type Value = serde_json::Value;
+
+    fn deserialize<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error> {
+        use serde::Deserialize;
+        match self.0 {
+            serde_json::Value::Number(number) if number.as_i64().is_none() => {
+                let written = String::deserialize(deserializer)?;
+                Ok(written
+                    .parse::<serde_json::Number>()
+                    .map_or_else(|_| self.0.clone(), serde_json::Value::Number))
+            }
+            serde_json::Value::Array(_) => deserializer.deserialize_seq(self),
+            serde_json::Value::Object(_) => deserializer.deserialize_map(self),
+            _ => serde_json::Value::deserialize(deserializer),
+        }
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for YamlDigits<'_> {
+    type Value = serde_json::Value;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("the YAML document read before")
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(
+        self,
+        mut items: A,
+    ) -> Result<Self::Value, A::Error> {
+        let serde_json::Value::Array(guide) = self.0 else {
+            return Err(serde::de::Error::custom("a sequence where none was read"));
+        };
+        let mut read = Vec::with_capacity(guide.len());
+        for item in guide {
+            match items.next_element_seed(YamlDigits(item))? {
+                Some(value) => read.push(value),
+                None => return Err(serde::de::Error::custom("a shorter sequence")),
+            }
+        }
+        Ok(serde_json::Value::Array(read))
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(
+        self,
+        mut entries: A,
+    ) -> Result<Self::Value, A::Error> {
+        let serde_json::Value::Object(guide) = self.0 else {
+            return Err(serde::de::Error::custom("a mapping where none was read"));
+        };
+        let mut read = serde_json::Map::new();
+        while let Some(key) = entries.next_key::<String>()? {
+            let value = match guide.get(&key) {
+                Some(held) => entries.next_value_seed(YamlDigits(held))?,
+                None => entries.next_value::<serde_json::Value>()?,
+            };
+            read.insert(key, value);
+        }
+        Ok(serde_json::Value::Object(read))
+    }
+}
+
+/// The documents of a whole text in a format that is not read piece by piece.
+fn whole(text: &str, format: TypeConstructor) -> Result<Vec<Result<Value, String>>, String> {
+    use serde::Deserialize;
+    match format.0 {
+        "Yaml" => Ok(serde_yaml_ng::Deserializer::from_str(text)
+            .zip(serde_yaml_ng::Deserializer::from_str(text))
+            .map(|(document, again)| {
+                let read = serde_json::Value::deserialize(document)
+                    .map_err(|error| format!("not YAML: {error}"))?;
+                // YAML reads a number with a point as a binary float; read
+                // once more for the text of each, so its digits are kept.
+                Ok(tree(if has_fraction(&read) {
+                    serde::de::DeserializeSeed::deserialize(YamlDigits(&read), again)
+                        .unwrap_or(read)
+                } else {
+                    read
+                }))
+            })
+            .collect()),
+        _ => Ok(vec![Ok(Value::Formatted(Arc::new(Formatted {
+            text: text.to_owned(),
+            format,
+        })))]),
+    }
+}
+
+/// Every document a replayable endpoint holds, in order.
+///
+/// # Errors
+/// Names the file, and the place in it, when it cannot be read or decoded.
+pub(crate) fn read_all(endpoint: &Endpoint, format: TypeConstructor) -> Result<Vec<Value>, String> {
+    match endpoint {
+        Endpoint::File(path) => {
+            let full = readable(path)?;
+            let file =
+                fs::File::open(&full).map_err(|error| format!("{}: {error}", path.display()))?;
+            pieces(Box::new(file), format, path.display().to_string()).collect()
+        }
+        Endpoint::Http {
+            url,
+            headers,
+            timeout,
+            ..
+        } => {
+            let body = fetched(url, headers, *timeout)?;
+            pieces(
+                Box::new(std::io::Cursor::new(body.as_ref().clone())),
+                format,
+                url.clone(),
+            )
+            .collect()
+        }
+        // Every chunk is authenticated before any document is given: the
+        // documents are collected, and a chunk that fails fails them all.
+        Endpoint::Decrypted { inner, identity } => {
+            pieces(open_decrypted(inner, identity)?, format, inner.describe()).collect()
+        }
+        other => Err(format!("{} is not read as a whole", other.describe())),
+    }
+}
+
+/// The body of an HTTP resource, fetched once per evaluation.
+fn fetched(
+    url: &str,
+    headers: &BTreeMap<String, String>,
+    timeout: Duration,
+) -> Result<Arc<Vec<u8>>, String> {
+    if let Policy::Document { .. } = policy() {
+        return Err(format!("{url}: a document reads nothing from the network"));
+    }
+    if let Some(body) = HOST.with(|host| host.borrow().fetched.get(url).cloned()) {
+        return Ok(body);
+    }
+    let body = Arc::new(crate::net::fetch(url, headers, timeout)?);
+    HOST.with(|host| {
+        host.borrow_mut()
+            .fetched
+            .insert(url.to_owned(), Arc::clone(&body));
+    });
+    Ok(body)
+}
+
+/// Whether the host grants the network: a document reaches none.
+///
+/// # Errors
+/// Says so when the host is rendering a document.
+pub(crate) fn policy_permits_network() -> Result<(), String> {
+    match policy() {
+        Policy::Document { .. } => Err("a document reads nothing from the network".to_owned()),
+        Policy::Open => Ok(()),
+    }
+}
+
+/// A connection not yet made.
+type Connect = Box<dyn FnOnce() -> Result<Box<dyn Read + Send>, String> + Send>;
+
+/// A reader that connects when it is first read, so a stream that is never
+/// traversed opens nothing.
+struct Lazy {
+    connect: Option<Connect>,
+    inner: Option<Box<dyn Read + Send>>,
+}
+
+impl Read for Lazy {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        if let Some(connect) = self.connect.take() {
+            self.inner = Some(connect().map_err(std::io::Error::other)?);
+        }
+        match self.inner.as_mut() {
+            Some(inner) => inner.read(buffer),
+            None => Ok(0),
+        }
+    }
+}
+
+/// The messages of a WebSocket, each decoded as the documents it holds.
+fn messages(url: String, format: TypeConstructor) -> Pieces {
+    let mut connection: Option<crate::net::Connection> = None;
+    let mut ready: std::collections::VecDeque<Result<Value, String>> =
+        std::collections::VecDeque::new();
+    let mut ended = false;
+    Box::new(std::iter::from_fn(move || {
+        loop {
+            if let Some(document) = ready.pop_front() {
+                return Some(document);
+            }
+            if ended {
+                return None;
+            }
+            if connection.is_none() {
+                match crate::net::websocket(&url) {
+                    Ok(opened) => connection = Some(opened),
+                    Err(error) => {
+                        ended = true;
+                        return Some(Err(error));
+                    }
+                }
+            }
+            let open = connection.as_mut()?;
+            match crate::net::message(open, &url) {
+                None => ended = true,
+                Some(Err(error)) => {
+                    ended = true;
+                    return Some(Err(error));
+                }
+                Some(Ok(text)) => ready.extend(pieces(
+                    Box::new(std::io::Cursor::new(text.into_bytes())),
+                    format,
+                    url.clone(),
+                )),
+            }
+        }
+    }))
+}
+
+/// Where a stream of documents comes from.
+pub(crate) enum Reading {
+    /// Standard input, read once: what has been read is kept, so a second use
+    /// of one binding sees the same documents.
+    Shared(Mutex<Shared>),
+    /// The end of a file: documents appended after the traversal began.
+    Follow {
+        path: PathBuf,
+        format: TypeConstructor,
+    },
+    /// A channel's values written from a position on.
+    Channel { name: String, from: usize },
+    /// An HTTP resource's body, fetched once and read one document at a time.
+    Http {
+        url: String,
+        headers: BTreeMap<String, String>,
+        timeout: Duration,
+        format: TypeConstructor,
+    },
+}
+
+/// What standard input has given so far.
+pub(crate) struct Shared {
+    seen: Vec<Value>,
+    rest: Option<Pieces>,
+}
+
+impl fmt::Debug for Reading {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Shared(_) => f.write_str("Reading::Shared(<stdin>)"),
+            Self::Follow { path, format } => {
+                write!(f, "Reading::Follow({}, {})", path.display(), format.0)
+            }
+            Self::Channel { name, from } => write!(f, "Reading::Channel({name:?}, {from})"),
+            Self::Http { url, format, .. } => write!(f, "Reading::Http({url}, {})", format.0),
+        }
+    }
+}
+
+impl Reading {
+    /// Standard input in a format, read when a traversal first asks.
+    pub(crate) fn stdin(format: TypeConstructor) -> Self {
+        Self::shared(pieces(
+            Box::new(std::io::stdin()),
+            format,
+            "<stdin>".to_owned(),
+        ))
+    }
+
+    /// A live endpoint other than standard input, connected when a traversal
+    /// first asks, and read once however often the stream is traversed.
+    ///
+    /// # Errors
+    /// Names an endpoint that is not live.
+    pub(crate) fn live(endpoint: &Endpoint, format: TypeConstructor) -> Result<Self, String> {
+        if let Policy::Document { .. } = policy() {
+            return Err(format!(
+                "{}: a document reads nothing from the network",
+                endpoint.describe()
+            ));
+        }
+        match endpoint {
+            Endpoint::Stdin => Ok(Self::stdin(format)),
+            Endpoint::Socket(host, port) => {
+                let (host, port) = (host.clone(), *port);
+                let reader = Lazy {
+                    connect: Some(Box::new(move || {
+                        crate::net::socket(&host, port)
+                            .map(|stream| Box::new(stream) as Box<dyn Read + Send>)
+                    })),
+                    inner: None,
+                };
+                Ok(Self::shared(pieces(
+                    Box::new(reader),
+                    format,
+                    endpoint.describe(),
+                )))
+            }
+            Endpoint::WebSocket(url) => Ok(Self::shared(messages(url.clone(), format))),
+            Endpoint::Nats {
+                server,
+                subject,
+                idle,
+            } => Ok(Self::log(
+                crate::nats::subscribed(server.resolve()?, subject.clone(), *idle),
+                format,
+                endpoint.describe(),
+            )),
+            Endpoint::NatsJetStream { server, held } => Ok(Self::log(
+                crate::nats::messages(server.resolve()?, held.clone()),
+                format,
+                endpoint.describe(),
+            )),
+            other => Err(format!("{} is not read as it arrives", other.describe())),
+        }
+    }
+
+    /// A file, opened when a traversal first asks and read one document at
+    /// a time, once: every traversal of the stream, the branches of a
+    /// `fork` among them, sees the documents that one read gave
+    /// (HQL-0037).
+    /// The documents of an age file, each chunk's given once it is
+    /// authenticated.
+    pub(crate) fn decrypted(endpoint: &Endpoint, format: TypeConstructor) -> Self {
+        let named = endpoint.describe();
+        let held = endpoint.clone();
+        let reader = Lazy {
+            connect: Some(Box::new(move || match &held {
+                Endpoint::Decrypted { inner, identity } => open_decrypted(inner, identity),
+                other => Err(format!("{} is not an age endpoint", other.describe())),
+            })),
+            inner: None,
+        };
+        Self::shared(pieces(Box::new(reader), format, named))
+    }
+
+    pub(crate) fn file(path: PathBuf, format: TypeConstructor) -> Self {
+        let named = path.display().to_string();
+        let reader = Lazy {
+            connect: Some(Box::new(move || {
+                let full = readable(&path)?;
+                fs::File::open(&full)
+                    .map(|file| Box::new(file) as Box<dyn Read + Send>)
+                    .map_err(|error| format!("{}: {error}", path.display()))
+            })),
+            inner: None,
+        };
+        Self::shared(pieces(Box::new(reader), format, named))
+    }
+
+    /// The messages of a log, a Kafka topic or a NATS subject, each decoded
+    /// in `format` as the documents it holds, read once however often the
+    /// stream is traversed.
+    pub(crate) fn log(
+        messages: Box<dyn Iterator<Item = Result<String, String>> + Send>,
+        format: TypeConstructor,
+        origin: String,
+    ) -> Self {
+        Self::shared(Box::new(messages.flat_map(move |message| {
+            let documents: Vec<Result<Value, String>> = match message {
+                Ok(text) => pieces(
+                    Box::new(std::io::Cursor::new(text.into_bytes())),
+                    format,
+                    origin.clone(),
+                )
+                .collect(),
+                Err(error) => vec![Err(format!("{origin}: {error}"))],
+            };
+            documents
+        })))
+    }
+
+    fn shared(rest: Pieces) -> Self {
+        Self::Shared(Mutex::new(Shared {
+            seen: Vec::new(),
+            rest: Some(rest),
+        }))
+    }
+
+    /// Drive the documents into `sink`, which answers whether it wants
+    /// another. Answers whether the documents ran out with the sink still
+    /// wanting more.
+    ///
+    /// # Errors
+    /// The first document that cannot be read, or the sink's own failure.
+    pub(crate) fn drive<E>(
+        &self,
+        sink: &mut dyn FnMut(Value) -> Result<bool, E>,
+        failed: impl Fn(String) -> E,
+    ) -> Result<bool, E> {
+        match self {
+            Self::Shared(shared) => {
+                let mut index = 0;
+                loop {
+                    let next = {
+                        let mut shared = shared
+                            .lock()
+                            .map_err(|_| failed("standard input was poisoned".to_owned()))?;
+                        if let Some(value) = shared.seen.get(index) {
+                            Some(value.clone())
+                        } else {
+                            match shared.rest.as_mut().and_then(Iterator::next) {
+                                Some(Ok(value)) => {
+                                    shared.seen.push(value.clone());
+                                    Some(value)
+                                }
+                                Some(Err(error)) => return Err(failed(error)),
+                                None => {
+                                    shared.rest = None;
+                                    None
+                                }
+                            }
+                        }
+                    };
+                    let Some(value) = next else {
+                        return Ok(true);
+                    };
+                    index += 1;
+                    if !sink(value)? {
+                        return Ok(false);
+                    }
+                }
+            }
+            Self::Follow { path, format } => follow(path, *format, sink, failed),
+            Self::Http {
+                url,
+                headers,
+                timeout,
+                format,
+            } => {
+                let body = fetched(url, headers, *timeout).map_err(&failed)?;
+                let reader = std::io::Cursor::new(body.as_ref().clone());
+                for document in pieces(Box::new(reader), *format, url.clone()) {
+                    if !sink(document.map_err(&failed)?)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            // The scope runs one evaluation at a time, so what has not been
+            // written when the reader catches up is not written while it waits.
+            Self::Channel { name, from } => {
+                let mut index = *from;
+                while let Some(value) = held_at(name, index) {
+                    index += 1;
+                    if !sink(value)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+        }
+    }
+}
+
+/// Wait at the end of a file and give each document appended after the
+/// follow began, as `tail -F` does. Never ends by itself.
+fn follow<E>(
+    path: &Path,
+    format: TypeConstructor,
+    sink: &mut dyn FnMut(Value) -> Result<bool, E>,
+    failed: impl Fn(String) -> E,
+) -> Result<bool, E> {
+    let full = readable_or_missing(path).map_err(&failed)?;
+    let pause = Duration::from_millis(50);
+    // The header of a CSV file is its first line, wherever the follow starts.
+    let mut header: Option<Vec<String>> = None;
+    let mut offset = fs::metadata(&full).map(|meta| meta.len()).ok();
+    let mut pending = String::new();
+    loop {
+        let Ok(mut file) = fs::File::open(&full) else {
+            std::thread::sleep(pause);
+            continue;
+        };
+        let length = file.metadata().map(|meta| meta.len()).unwrap_or(0);
+        let start = match offset {
+            // A file that shrank was replaced: read it from the start.
+            Some(at) if at <= length => at,
+            _ => 0,
+        };
+        if format.0 == "Csv" && header.is_none() {
+            let mut first = String::new();
+            let _ =
+                BufReader::new(fs::File::open(&full).map_err(|error| failed(error.to_string()))?)
+                    .read_line(&mut first);
+            if !first.is_empty() {
+                let mut lines =
+                    std::iter::once(Ok(first.trim_end_matches(['\r', '\n']).to_owned()));
+                header = csv_record(&mut lines).and_then(Result::ok);
+            }
+        }
+        if length > start {
+            file.seek(SeekFrom::Start(start))
+                .map_err(|error| failed(error.to_string()))?;
+            let mut added = String::new();
+            file.read_to_string(&mut added)
+                .map_err(|error| failed(format!("{}: {error}", path.display())))?;
+            offset = Some(length);
+            pending.push_str(&added);
+            for value in complete(&mut pending, format, header.as_deref(), start == 0)
+                .map_err(|error| failed(format!("{}: {error}", path.display())))?
+            {
+                if !sink(value)? {
+                    return Ok(false);
+                }
+            }
+        } else {
+            offset = Some(length);
+        }
+        std::thread::sleep(pause);
+    }
+}
+
+/// A path that may not exist yet, under the host's policy.
+fn readable_or_missing(path: &Path) -> Result<PathBuf, String> {
+    let full = resolved(path);
+    if full.exists() {
+        readable(path)
+    } else if let Policy::Document { .. } = policy() {
+        Err(format!(
+            "{}: a document reads only files under its own directory",
+            path.display()
+        ))
+    } else {
+        Ok(full)
+    }
+}
+
+/// Take the complete documents off the front of `pending`, leaving a partial
+/// one for the next read.
+fn complete(
+    pending: &mut String,
+    format: TypeConstructor,
+    header: Option<&[String]>,
+    from_start: bool,
+) -> Result<Vec<Value>, String> {
+    let mut values = Vec::new();
+    match format.0 {
+        "Json" | "JsonLines" => {
+            let mut stream =
+                serde_json::Deserializer::from_str(pending).into_iter::<serde_json::Value>();
+            let mut consumed = 0;
+            loop {
+                match stream.next() {
+                    Some(Ok(value)) => {
+                        consumed = stream.byte_offset();
+                        values.push(tree(value));
+                    }
+                    Some(Err(error)) if error.is_eof() => break,
+                    Some(Err(error)) => return Err(format!("not JSON: {error}")),
+                    None => break,
+                }
+            }
+            pending.drain(..consumed);
+        }
+        _ => {
+            let Some(end) = pending.rfind('\n') else {
+                return Ok(values);
+            };
+            let ready: String = pending.drain(..=end).collect();
+            let mut lines = ready.lines().map(|line| Ok(line.to_owned()));
+            if format.0 == "Csv" {
+                if from_start {
+                    // The header is the first line, already read.
+                    lines.next();
+                }
+                let header = header.unwrap_or_default();
+                while let Some(record) = csv_record(&mut lines) {
+                    values.push(row(header, record?));
+                }
+            } else {
+                for line in lines {
+                    values.push(Value::Str(
+                        line.map_err(|error: std::io::Error| error.to_string())?
+                            .into(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(values)
+}
+
+/// Where written text goes.
+pub(crate) enum Destination {
+    Stdout,
+    Stderr,
+    File(fs::File),
+    /// A channel takes values, not text.
+    Channel(String),
+    /// One request per document.
+    Http {
+        url: String,
+        method: String,
+        headers: BTreeMap<String, String>,
+        timeout: Duration,
+    },
+    /// One line per document, as the format separates them.
+    Socket(std::net::TcpStream),
+    /// One message per document.
+    WebSocket(String, Box<crate::net::Connection>),
+    /// One message per document, published to a subject.
+    Nats(Box<crate::nats::Publisher>),
+    /// An age file being written, its chunks encrypted as they fill.
+    Sealed(Box<Sealed>),
+}
+
+/// An age file being written: to a file beside its destination, renamed
+/// over it once the last chunk is written, or to standard output.
+pub(crate) struct Sealed {
+    writer: Option<age::stream::StreamWriter<Box<dyn Write + Send>>>,
+    /// The file written beside the destination, and the destination.
+    commit: Option<(PathBuf, PathBuf)>,
+    named: String,
+}
+
+impl Sealed {
+    fn open(inner: &Endpoint, recipients: &[[u8; 32]]) -> Result<Self, String> {
+        let named = inner.describe();
+        let (output, commit): (Box<dyn Write + Send>, _) = match inner {
+            Endpoint::File(path) => {
+                let full = record(path, Written::Replaced)?;
+                let beside = beside(&full);
+                let file = fs::File::create(&beside)
+                    .map_err(|error| format!("{}: {error}", path.display()))?;
+                (Box::new(file), Some((beside, full)))
+            }
+            Endpoint::Stdout => (Box::new(std::io::stdout()), None),
+            Endpoint::FileEnd(path) => {
+                return Err(format!(
+                    "{}: an age file is one header and one stream of chunks, and nothing is \
+                     appended to it",
+                    path.display()
+                ));
+            }
+            other => {
+                return Err(format!(
+                    "{}: an age file is stored in a file or written to standard output",
+                    other.describe()
+                ));
+            }
+        };
+        let writer = crate::crypto::encrypt::writer_to(recipients, output)
+            .map_err(|error| format!("{named}: {error}"))?;
+        Ok(Self {
+            writer: Some(writer),
+            commit,
+            named,
+        })
+    }
+
+    fn line(&mut self, text: &str) -> Result<(), String> {
+        let writer = self
+            .writer
+            .as_mut()
+            .ok_or_else(|| format!("{}: the age file is finished", self.named))?;
+        writer
+            .write_all(text.as_bytes())
+            .and_then(|()| writer.write_all(b"\n"))
+            .map_err(|error| format!("{}: {error}", self.named))
+    }
+
+    fn finish(&mut self) -> Result<(), String> {
+        let Some(writer) = self.writer.take() else {
+            return Ok(());
+        };
+        let mut output = writer
+            .finish()
+            .map_err(|error| format!("{}: {error}", self.named))?;
+        output
+            .flush()
+            .map_err(|error| format!("{}: {error}", self.named))?;
+        drop(output);
+        if let Some((beside, full)) = self.commit.take()
+            && let Err(error) = fs::rename(&beside, &full)
+        {
+            let _ = fs::remove_file(&beside);
+            return Err(format!("{}: {error}", self.named));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for Sealed {
+    /// A write that never finished leaves the file it would have replaced.
+    fn drop(&mut self) {
+        if let Some((beside, _)) = self.commit.take() {
+            let _ = fs::remove_file(beside);
+        }
+    }
+}
+
+/// The file a whole write goes to before it is renamed over `full`.
+fn beside(full: &Path) -> PathBuf {
+    let parent = full
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    let name = full
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    parent.join(format!(".{name}.hql-{}", std::process::id()))
+}
+
+/// What has been read through a reader: its count, and its first octets,
+/// where an age header is.
+#[derive(Default)]
+struct Seen {
+    count: u64,
+    prefix: Vec<u8>,
+}
+
+/// A reader that counts what passes through it and keeps the first 64 KiB.
+struct Counting {
+    inner: Box<dyn Read + Send>,
+    seen: Arc<Mutex<Seen>>,
+}
+
+impl Read for Counting {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let read = self.inner.read(buf)?;
+        if let Ok(mut seen) = self.seen.lock() {
+            seen.count += read as u64;
+            let room = (64 * 1024_usize).saturating_sub(seen.prefix.len());
+            seen.prefix.extend_from_slice(&buf[..read.min(room)]);
+        }
+        Ok(read)
+    }
+}
+
+/// The plaintext of an age stream, an error naming the chunk's octet
+/// offset where a chunk does not authenticate or the stream ends early.
+struct Located<R> {
+    inner: R,
+    plaintext: u64,
+    payload: u64,
+    named: String,
+}
+
+impl<R: Read> Read for Located<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self.inner.read(buf) {
+            Ok(read) => {
+                self.plaintext += read as u64;
+                Ok(read)
+            }
+            Err(error) => {
+                // A chunk holds 64 KiB of plaintext and a 16-octet tag.
+                let offset = self.payload + (self.plaintext / 65_536) * (65_536 + 16);
+                Err(std::io::Error::other(format!(
+                    "{}: the age chunk at octet offset {offset} does not authenticate, or the \
+                     file ends without its final chunk ({error})",
+                    self.named
+                )))
+            }
+        }
+    }
+}
+
+/// The stanza types an age header holds: `X25519`, `scrypt`.
+fn stanza_types(header: &[u8]) -> Vec<String> {
+    let mut types: Vec<String> = String::from_utf8_lossy(header)
+        .lines()
+        .take_while(|line| !line.starts_with("---"))
+        .filter_map(|line| line.strip_prefix("-> "))
+        .filter_map(|stanza| stanza.split_whitespace().next())
+        .map(str::to_owned)
+        .collect();
+    types.dedup();
+    types
+}
+
+/// The plaintext of the age file a byte endpoint holds, opened with
+/// `identity` and read one authenticated chunk at a time.
+fn open_decrypted(
+    inner: &Endpoint,
+    identity: &crate::crypto::Identity,
+) -> Result<Box<dyn Read + Send>, String> {
+    let named = inner.describe();
+    let raw: Box<dyn Read + Send> = match inner {
+        Endpoint::File(path) => {
+            let full = readable(path)?;
+            Box::new(fs::File::open(&full).map_err(|error| format!("{}: {error}", path.display()))?)
+        }
+        Endpoint::Http {
+            url,
+            headers,
+            timeout,
+            ..
+        } => Box::new(std::io::Cursor::new(
+            fetched(url, headers, *timeout)?.as_ref().clone(),
+        )),
+        Endpoint::Stdin => Box::new(std::io::stdin()),
+        other => {
+            return Err(format!(
+                "{}: an age file is read from a file, standard input or HTTP",
+                other.describe()
+            ));
+        }
+    };
+    let seen = Arc::new(Mutex::new(Seen::default()));
+    let counting = Counting {
+        inner: raw,
+        seen: Arc::clone(&seen),
+    };
+    let reader = crate::crypto::encrypt::reader_with(&identity.0, counting).map_err(|refusal| {
+        let header = seen
+            .lock()
+            .map(|seen| seen.prefix.clone())
+            .unwrap_or_default();
+        match refusal {
+            crate::crypto::encrypt::Refusal::NoStanza(_) => {
+                let types = stanza_types(&header);
+                format!(
+                    "{named}: the identity opens no stanza of the age header, which holds {}",
+                    if types.is_empty() {
+                        "none".to_owned()
+                    } else {
+                        types.join(", ")
+                    }
+                )
+            }
+            _ => format!("{named}: not an age file, or its header has been changed"),
+        }
+    })?;
+    let payload = seen.lock().map(|seen| seen.count).unwrap_or(0);
+    Ok(Box::new(Located {
+        inner: reader,
+        plaintext: 0,
+        payload,
+        named,
+    }))
+}
+
+impl Destination {
+    /// Open an endpoint to be written: a whole file is replaced, its end is
+    /// appended to. Answers whether the destination already holds documents,
+    /// so a header is not written twice.
+    ///
+    /// # Errors
+    /// Names the endpoint when the host refuses it or it cannot be opened.
+    pub(crate) fn open(endpoint: &Endpoint) -> Result<(Self, bool), String> {
+        if let Endpoint::Channel(name, _) = endpoint {
+            return Ok((Self::Channel(name.clone()), false));
+        }
+        if let Policy::Document { .. } = policy() {
+            return Err(format!(
+                "{}: a document writes nothing outside itself",
+                endpoint.describe()
+            ));
+        }
+        match endpoint {
+            Endpoint::Stdout => Ok((Self::Stdout, false)),
+            Endpoint::Stderr => Ok((Self::Stderr, false)),
+            Endpoint::Stdin => Err("standard input is not written".to_owned()),
+            Endpoint::Sqlite { .. } | Endpoint::Postgres { .. } | Endpoint::Spark { .. } => {
+                Err(format!(
+                    "{} holds rows, not documents; write it with `target`",
+                    endpoint.describe()
+                ))
+            }
+            Endpoint::Configured { id, .. } => Err(format!(
+                "endpoint `{id}` is written as its configuration says, by `target(\"{id}\")` or \
+                 `sink(\"{id}\")`"
+            )),
+            Endpoint::Transaction => {
+                Err("a transaction's handle is not written; its participants are".to_owned())
+            }
+            Endpoint::Channel(name, _) => Ok((Self::Channel(name.clone()), false)),
+            Endpoint::File(path) => {
+                let full = record(path, Written::Replaced)?;
+                let file = fs::File::create(&full)
+                    .map_err(|error| format!("{}: {error}", path.display()))?;
+                Ok((Self::File(file), false))
+            }
+            Endpoint::Http {
+                url,
+                method,
+                headers,
+                timeout,
+            } => Ok((
+                Self::Http {
+                    url: url.clone(),
+                    method: method.clone(),
+                    headers: headers.clone(),
+                    timeout: *timeout,
+                },
+                false,
+            )),
+            Endpoint::Socket(host, port) => {
+                Ok((Self::Socket(crate::net::socket(host, *port)?), false))
+            }
+            Endpoint::WebSocket(url) => Ok((
+                Self::WebSocket(url.clone(), Box::new(crate::net::websocket(url)?)),
+                false,
+            )),
+            Endpoint::Nats {
+                server, subject, ..
+            } => Ok((
+                Self::Nats(Box::new(crate::nats::Publisher::open(
+                    &server.resolve()?,
+                    subject,
+                    false,
+                )?)),
+                false,
+            )),
+            Endpoint::NatsJetStream { server, held } => Ok((
+                Self::Nats(Box::new(crate::nats::Publisher::open(
+                    &server.resolve()?,
+                    &held.subject,
+                    true,
+                )?)),
+                false,
+            )),
+            Endpoint::Encrypted { inner, recipients } => Ok((
+                Self::Sealed(Box::new(Sealed::open(inner, recipients)?)),
+                false,
+            )),
+            Endpoint::Decrypted { inner, .. } => Err(format!(
+                "{} is read through `decrypted_with`; write it through `encrypted_to`",
+                inner.describe()
+            )),
+            Endpoint::FileEnd(path) => {
+                let full = record(path, Written::Appended)?;
+                let file = fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&full)
+                    .map_err(|error| format!("{}: {error}", path.display()))?;
+                let held = file.metadata().map(|meta| meta.len() > 0).unwrap_or(false);
+                Ok((Self::File(file), held))
+            }
+        }
+    }
+
+    /// Write one document and a line break, at once.
+    ///
+    /// # Errors
+    /// The write's failure.
+    pub(crate) fn line(&mut self, text: &str) -> Result<(), String> {
+        let result = match self {
+            Self::Stdout => {
+                let mut out = std::io::stdout();
+                writeln!(out, "{text}").and_then(|()| out.flush())
+            }
+            Self::Stderr => {
+                let mut err = std::io::stderr();
+                writeln!(err, "{text}").and_then(|()| err.flush())
+            }
+            Self::File(file) => writeln!(file, "{text}").and_then(|()| file.flush()),
+            Self::Channel(name) => {
+                return Err(format!("the channel {name:?} takes values, not text"));
+            }
+            Self::Http {
+                url,
+                method,
+                headers,
+                timeout,
+            } => return crate::net::send(url, method, headers, text, *timeout),
+            Self::Socket(stream) => return crate::net::line(stream, text),
+            Self::WebSocket(url, connection) => return crate::net::post(connection, url, text),
+            Self::Nats(publisher) => return publisher.send(text.to_owned()),
+            Self::Sealed(sealed) => return sealed.line(text),
+        };
+        result.map_err(|error| error.to_string())
+    }
+
+    /// End the writes: what a destination holds back until it has a batch
+    /// is written now.
+    ///
+    /// # Errors
+    /// The write's failure.
+    pub(crate) fn finish(&mut self) -> Result<(), String> {
+        match self {
+            Self::Nats(publisher) => publisher.flush(),
+            Self::Sealed(sealed) => sealed.finish(),
+            _ => Ok(()),
+        }
+    }
+}
+
+/// Write one completed document to an endpoint. A whole file is replaced
+/// atomically: written beside its destination and renamed over it.
+///
+/// # Errors
+/// Names the endpoint when the host refuses it or the write fails.
+pub(crate) fn write_whole(endpoint: &Endpoint, text: &str) -> Result<(), String> {
+    // An age file is written whole too: beside its destination, renamed
+    // over it once its last chunk is written.
+    let Endpoint::File(path) = endpoint else {
+        let (mut destination, _) = Destination::open(endpoint)?;
+        destination.line(text)?;
+        return destination.finish();
+    };
+    if let Policy::Document { .. } = policy() {
+        return Err(format!(
+            "{}: a document writes nothing outside itself",
+            endpoint.describe()
+        ));
+    }
+    let full = record(path, Written::Replaced)?;
+    let parent = full
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    if !parent.is_dir() {
+        return Err(format!(
+            "{}: the directory {} does not exist",
+            path.display(),
+            parent.display()
+        ));
+    }
+    let name = full
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let beside = parent.join(format!(".{name}.hql-{}", std::process::id()));
+    let written = fs::File::create(&beside).and_then(|mut file| {
+        writeln!(file, "{text}")?;
+        file.sync_all()
+    });
+    if let Err(error) = written.and_then(|()| fs::rename(&beside, &full)) {
+        let _ = fs::remove_file(&beside);
+        return Err(format!("{}: {error}", path.display()));
+    }
+    Ok(())
+}
+
+/// Whether reading a format piece by piece is possible.
+#[must_use]
+pub fn streams(format: TypeConstructor) -> bool {
+    separable(format)
+}

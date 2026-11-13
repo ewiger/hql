@@ -1,4 +1,5 @@
-//! Source I/O, independent of document parsing and knowledge assembly.
+//! How a vault's documents are read, independent of document parsing and
+//! knowledge assembly. See `doc/proposals/HQL-0012/README.md`.
 
 use crate::document::Format;
 use std::io;
@@ -47,7 +48,21 @@ pub trait VaultSource: Send + Sync {
     fn formats(&self) -> Result<crate::extensions::format::Renderers, String> {
         Ok(crate::extensions::format::Renderers::default())
     }
+    /// The endpoints this source's configuration declares.
+    ///
+    /// # Errors
+    /// Names the first malformed `[endpoint.<id>]` entry.
+    fn endpoints(&self) -> Result<crate::endpoints::Endpoints, String> {
+        Ok(crate::endpoints::Endpoints::default())
+    }
 }
+
+/// How a vault walks its root: hidden entries skipped, and a link read as
+/// what it points to.
+const VAULT_WALK: crate::walk::Walk = crate::walk::Walk {
+    links: crate::walk::Links::Follow,
+    hidden: false,
+};
 
 /// Markdown files under a directory, excluding hidden entries.
 pub struct Filesystem {
@@ -66,21 +81,21 @@ impl Filesystem {
 
 impl VaultSource for Filesystem {
     fn read(&self) -> io::Result<Snapshot> {
-        let mut paths = Vec::new();
-        collect(&self.root, &mut paths)?;
-        paths.sort();
-        let documents = paths
-            .into_iter()
-            .filter_map(|path| {
-                let format = Format::of(&path)?;
-                let text = std::fs::read_to_string(&path);
-                Some(SourceDocument {
-                    path: path.strip_prefix(&self.root).unwrap_or(&path).to_owned(),
+        // The sorted walk `io.fs` lists entries in, so the documents are
+        // those of `walk(folder(root))`, in its order.
+        let mut documents = Vec::new();
+        crate::walk::walk::<io::Error>(&self.root, VAULT_WALK, &mut |listed| {
+            if listed.stat.kind == crate::walk::Kind::File
+                && let Some(format) = Format::of(&listed.relative)
+            {
+                documents.push(SourceDocument {
+                    text: std::fs::read_to_string(self.root.join(&listed.relative)),
+                    path: listed.relative,
                     format,
-                    text,
-                })
-            })
-            .collect();
+                });
+            }
+            Ok(true)
+        })?;
         Ok(Snapshot {
             root: self.root.clone(),
             documents,
@@ -102,23 +117,8 @@ impl VaultSource for Filesystem {
     fn ai(&self) -> crate::extensions::ai::transport::Settings {
         crate::extensions::ai::transport::Settings::read(&self.root)
     }
-}
 
-fn collect(directory: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
-    for entry in std::fs::read_dir(directory)? {
-        let path = entry?.path();
-        if path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.starts_with('.'))
-        {
-            continue;
-        }
-        if path.is_dir() {
-            collect(&path, into)?;
-        } else if Format::of(&path).is_some() {
-            into.push(path);
-        }
+    fn endpoints(&self) -> Result<crate::endpoints::Endpoints, String> {
+        crate::endpoints::Endpoints::read(&self.root)
     }
-    Ok(())
 }

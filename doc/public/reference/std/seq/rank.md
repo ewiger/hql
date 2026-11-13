@@ -1,0 +1,12 @@
+<!-- hql reference: std/seq.rank -->
+# `rank`
+
+In [`std/seq`](index.md).
+
+```hql
+fn rank(self: Window<T>) : Int
+```
+
+One more than the number of rows strictly before the row: rows equal
+under the order share it, and the next skips the shared positions.
+<!-- hql reference: end -->

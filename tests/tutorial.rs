@@ -140,11 +140,19 @@ fn run(block: &Block, defined: &HashMap<String, String>) -> String {
 
 #[test]
 fn every_program_in_the_book_writes_what_the_book_shows() {
-    let mut chapters: Vec<_> = std::fs::read_dir("doc/public/learn")
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "md"))
-        .collect();
+    // A chapter may be a folder of pages: `02-data-types/` holds one per type.
+    fn pages(directory: &std::path::Path, into: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(directory).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                pages(&path, into);
+            } else if path.extension().is_some_and(|extension| extension == "md") {
+                into.push(path);
+            }
+        }
+    }
+    let mut chapters = Vec::new();
+    pages(std::path::Path::new("doc/public/learn"), &mut chapters);
     chapters.sort();
     let mut checked = 0;
     for chapter in chapters {
@@ -187,9 +195,9 @@ fn the_notebook_the_book_shows_builds() {
         String::from_utf8_lossy(&output.stderr)
     );
     let built = String::from_utf8(output.stdout).unwrap();
-    let chapter = std::fs::read_to_string("doc/public/learn/11-documents.md").unwrap();
+    let chapter = std::fs::read_to_string("doc/public/learn/24-documents.md").unwrap();
     assert!(
         chapter.contains(built.trim_end()),
-        "chapter 11 shows a different build:\n{built}"
+        "chapter 12 shows a different build:\n{built}"
     );
 }

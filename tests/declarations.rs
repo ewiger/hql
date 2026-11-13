@@ -1,12 +1,10 @@
 //! `type` declarations: the statement, and what makes one hold.
 //!
-//! A declaration is checked and yields `Unit`. It introduces no value, so
+//! A declaration is checked and yields `Step`. It introduces no value, so
 //! everything here is about whether what a declaration says is coherent.
 
 use hql::{
-    check,
-    diagnostics::Diagnostic,
-    eval, library,
+    check, eval, library,
     types::{TypeRef, Value},
 };
 use std::fs;
@@ -18,70 +16,193 @@ fn refused(source: &str) -> String {
     }
 }
 
-#[test]
-fn every_file_in_the_standard_library_is_embedded_as_written() {
-    // The folder is walked rather than listed, so a file added to `std/`
-    // cannot be left out of the binary, and the copy the binary reads its
-    // record fields from is the one on disk.
-    // A module is a file, named by its stem, or a directory, named by itself,
-    // whose entry file is `init.hql`.
-    let mut found = 0;
-    for entry in fs::read_dir("std").expect("the standard library") {
-        let mut path = entry.expect("an entry").path();
+/// Every `.hql` file under `dir`, with the module name it is embedded as: the
+/// path below its package folder, `lib/std/`, without its extension, folders joined by `.`, and a
+/// folder's `mod.hql` named for the folder.
+fn modules_under(
+    dir: &std::path::Path,
+    prefix: &str,
+    found: &mut Vec<(String, std::path::PathBuf)>,
+) {
+    for entry in fs::read_dir(dir).expect("a builtin package") {
+        let path = entry.expect("an entry").path();
         let stem = path
             .file_stem()
             .and_then(|name| name.to_str())
             .unwrap()
             .to_owned();
+        let name = if prefix.is_empty() {
+            stem.clone()
+        } else {
+            format!("{prefix}.{stem}")
+        };
         if path.is_dir() {
-            path = path.join("init.hql");
-            assert!(path.is_file(), "{} has no init.hql", path.display());
-        } else if path.extension().and_then(|name| name.to_str()) != Some("hql") {
-            continue;
+            modules_under(&path, &name, found);
+        } else if path.extension().and_then(|name| name.to_str()) == Some("hql") {
+            let name = if stem == "mod" {
+                prefix.to_owned()
+            } else {
+                name
+            };
+            found.push((name, path));
         }
-        let stem = stem.as_str();
-        let embedded = library::MODULES
-            .iter()
-            .find(|(name, _)| *name == stem)
-            .unwrap_or_else(|| panic!("{} is not embedded", path.display()));
-        assert_eq!(
-            embedded.1,
-            fs::read_to_string(&path).expect("a readable file"),
-            "{}",
-            path.display()
-        );
-        found += 1;
     }
-    assert_eq!(found, library::MODULES.len());
 }
 
 #[test]
-fn every_module_of_the_standard_library_checks_after_the_ones_it_follows() {
-    // Each module is checked with the modules before it, so a declaration
-    // that contradicts the lattice is refused in the module that makes it.
-    // The library's bindings read `vault`, which a vault seeds.
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
-    let mut prefix = String::new();
+fn every_file_in_a_builtin_package_is_embedded_as_written() {
+    // Each folder is walked rather than listed, subfolders included, so a
+    // file added under `lib/` cannot be left out of the binary, and the copy
+    // the binary reads its record fields from is the one on disk.
+    let packages: [(&str, Vec<(&str, &str)>); 2] = [
+        (
+            "std",
+            library::STD
+                .iter()
+                .chain(library::WRITTEN)
+                .copied()
+                .collect(),
+        ),
+        ("search", library::SEARCH.to_vec()),
+    ];
+    let mut folders: Vec<String> = fs::read_dir("lib")
+        .expect("the builtin packages")
+        .map(|entry| entry.expect("an entry").path())
+        .filter(|path| path.is_dir())
+        .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+        .collect();
+    folders.sort_unstable();
+    assert_eq!(folders, ["search", "std"], "one folder per builtin package");
+    for (package, embedded) in &packages {
+        let mut found = Vec::new();
+        modules_under(&std::path::Path::new("lib").join(package), "", &mut found);
+        for (name, path) in &found {
+            let source = embedded
+                .iter()
+                .find(|(module, _)| module == name)
+                .unwrap_or_else(|| panic!("{} is not embedded as {name}", path.display()));
+            assert_eq!(
+                source.1,
+                fs::read_to_string(path).expect("a readable file"),
+                "{}",
+                path.display()
+            );
+        }
+        assert_eq!(found.len(), embedded.len(), "lib/{package}/");
+    }
+    assert_eq!(
+        library::MODULES.len(),
+        library::STD.len() + library::SEARCH.len()
+    );
+}
+
+/// The modules a standard module imports, by name, in the order written.
+fn imports_of(source: &str) -> Vec<&str> {
+    source
+        .lines()
+        .filter_map(|line| line.strip_prefix("import "))
+        .map(str::trim)
+        .collect()
+}
+
+#[test]
+fn every_module_of_the_standard_library_checks_over_its_own_imports() {
+    // Each module is its own import unit, so it is checked with the modules
+    // it imports, theirs in turn, and nothing else: a declaration that
+    // contradicts the lattice is refused in the module that makes it, and a
+    // module leaning on one it does not import fails here. A package's own
+    // prelude does not apply to its own modules, so the library checks with
+    // none: each file names what it imports.
+    let mut vault = hql::vault::Vault::empty();
+    vault.extensions.prelude = false;
+    let source_of = |name: &str| {
+        library::MODULES
+            .iter()
+            .find(|(module, _)| *module == name)
+            .map(|(_, source)| *source)
+            .unwrap_or_else(|| panic!("no standard module `{name}`"))
+    };
     for (name, module) in library::MODULES {
-        let source = format!("{prefix}{module}");
+        // `prelude.hql` is not a module: it is the package's global space,
+        // the implicit import list of every unit outside the library.
+        if *name == "prelude" {
+            continue;
+        }
+        let mut cone: Vec<&str> = Vec::new();
+        let mut pending: Vec<&str> = imports_of(module);
+        while let Some(next) = pending.pop() {
+            if !cone.contains(&next) {
+                cone.push(next);
+                pending.extend(imports_of(source_of(next)));
+            }
+        }
+        // The cone in loading order, then the module; every import hoisted
+        // to the head, since one source unit holds them all.
+        let mut heads = String::new();
+        let mut bodies = String::new();
+        for (held, source) in library::MODULES {
+            if !cone.contains(held) && held != name {
+                continue;
+            }
+            // An empty line between modules and in place of each import
+            // keeps every doc string opening after an empty line.
+            bodies.push('\n');
+            for line in source.lines() {
+                if line.starts_with("import ") {
+                    heads.push_str(line);
+                    heads.push('\n');
+                    bodies.push('\n');
+                } else {
+                    bodies.push_str(line);
+                    bodies.push('\n');
+                }
+            }
+        }
+        let source = format!("{heads}{bodies}");
         assert_eq!(
             hql::check_in(&source, &vault),
             Ok(TypeRef::UNIT),
             "{name}: {:?}",
             hql::check_in(&source, &vault)
         );
-        prefix.push_str(module);
-        prefix.push('\n');
     }
     assert_eq!(library::check(), Ok(()));
 }
 
 #[test]
-fn a_declaration_yields_unit_and_the_program_carries_on() {
+fn a_declaration_yields_step_and_the_program_carries_on() {
     assert_eq!(check("type Colour"), Ok(TypeRef::UNIT));
+    assert_eq!(TypeRef::UNIT.to_string(), "Step");
     assert_eq!(eval("type Colour"), Ok(Value::Unit));
     assert_eq!(check("type Colour\n1 + 1"), Ok(TypeRef::INT));
     assert_eq!(eval("type Colour\n1 + 1"), Ok(Value::Int(2)));
+}
+
+#[test]
+fn a_step_is_an_aute_and_not_the_other_way() {
+    assert_eq!(
+        check("fn ran(a: Aute) : Int = 1\nfn step(s: Step) : Int = ran(s)\n1"),
+        Ok(TypeRef::INT)
+    );
+    assert!(TypeRef::UNIT.is(&TypeRef::AUTE));
+    assert!(!TypeRef::AUTE.is(&TypeRef::UNIT));
+    let message = refused("fn ran(s: Step) : Int = 1\nfn any(a: Aute) : Int = ran(a)");
+    assert!(message.contains("Aute"), "{message}");
+}
+
+#[test]
+fn unit_is_refused_naming_step() {
+    for source in [
+        "fn f(x: Int) : Unit",
+        "fn g(x: Unit) : Int = 1",
+        "type Done { last : Unit }",
+    ] {
+        let message = refused(source);
+        assert!(
+            message.contains("`Unit` is now `Step`"),
+            "{source}: {message}"
+        );
+    }
 }
 
 #[test]
@@ -122,7 +243,13 @@ fn the_former_subtype_operator_is_a_syntax_error() {
         "type Box<T> where T <: Orderable",
     ] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Syntax { .. })),
+            matches!(
+                check(source),
+                Err(hql::diagnostics::Diagnostic {
+                    phase: hql::diagnostics::Phase::Parse,
+                    ..
+                })
+            ),
             "{source}"
         );
     }
@@ -138,7 +265,7 @@ fn a_parent_must_exist() {
 
 #[test]
 fn a_declaration_may_restate_a_built_in_type_but_not_contradict_it() {
-    // This is what `std/` is: the declarations the binary already holds,
+    // This is what `lib/std/` is: the declarations the binary already holds,
     // written down in one place as source rather than as prose.
     assert_eq!(check("type Card : Doc"), Ok(TypeRef::UNIT));
     assert_eq!(check("type ConceptCard : {Card, Doc}"), Ok(TypeRef::UNIT));
@@ -202,7 +329,7 @@ fn a_union_lists_its_alternatives() {
         "type Value = union {Scalar, Seq<Value>, Map<String, Value>}",
         "type Tree<T> = union {T, Seq<Tree<T>>}",
         "type Id = union {Int, String}\ntype Holder { id : Id }",
-        // What `std/core.hql` says, and what the binary holds.
+        // What `lib/std/core/mod.hql` says, and what the binary holds.
         "type Data = union {Scalar, Seq<Data>, Map<String, Data>}",
         "type Data = union {Map<String, Data>, Scalar, Seq<Data>}",
     ] {
@@ -246,7 +373,13 @@ fn a_union_is_written_with_equals_and_nothing_else() {
         "abstract type Id = union {Int}",
     ] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Syntax { .. })),
+            matches!(
+                check(source),
+                Err(hql::diagnostics::Diagnostic {
+                    phase: hql::diagnostics::Phase::Parse,
+                    ..
+                })
+            ),
             "{source}: {:?}",
             check(source)
         );
@@ -305,13 +438,22 @@ fn a_declaration_is_a_statement_and_not_an_expression() {
     assert_eq!(check("type = 1\ntype"), Ok(TypeRef::INT));
     assert!(matches!(
         check("1 | type Colour"),
-        Err(Diagnostic::Syntax { .. }) | Err(Diagnostic::Name { .. })
+        Err(hql::diagnostics::Diagnostic {
+            phase: hql::diagnostics::Phase::Parse,
+            ..
+        }) | Err(hql::diagnostics::Diagnostic {
+            phase: hql::diagnostics::Phase::Check,
+            kind: hql::diagnostics::Kind::UnknownName
+                | hql::diagnostics::Kind::UnknownField
+                | hql::diagnostics::Kind::UnknownStep,
+            ..
+        })
     ));
 }
 
 #[test]
 fn a_built_in_record_field_has_the_type_its_declaration_gives() {
-    // Fields are read from `std/`, so each one a program reads is pinned
+    // Fields are read from `lib/std/`, so each one a program reads is pinned
     // here at the type its declaration states.
     for (receiver, field, declared) in [
         ("Hit<Card>", "value", "Card"),
@@ -417,20 +559,23 @@ fn every_name_the_binary_provides_follows_its_kind() {
     for extension in hql::extensions::catalogue(&hql::extensions::Config::default()) {
         assert_eq!(departure(Kind::Extension, extension.name), None);
         for step in extension.steps {
-            assert_eq!(
-                departure(Kind::Function, step.name),
-                None,
-                "step {}",
-                step.name
-            );
+            // A step named for a type is that type's constructor, so it is
+            // named as the type is: `Logger(stderr, Text, name = "q")`.
+            let kind = if hql::types::builtin::constructor(step.name).is_some() {
+                Kind::Type
+            } else {
+                Kind::Function
+            };
+            assert_eq!(departure(kind, step.name), None, "step {}", step.name);
         }
     }
-    // Every name `std/` declares passes: checking it reports no warning.
+    // Every name `lib/std/` declares passes: checking it reports no warning.
     let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     let outcome = hql::check_reported(&library::source(), &vault, hql::reporting::Mode::Strict);
     let warnings: Vec<_> = outcome
-        .reports
+        .diagnostics
         .iter()
+        .filter(|diagnostic| diagnostic.phase != hql::diagnostics::Phase::Load)
         .map(|report| report.message.clone())
         .collect();
     assert!(warnings.is_empty(), "{warnings:?}");
@@ -469,14 +614,79 @@ fn a_name_off_its_kinds_convention_is_a_warning_at_the_name() {
         let outcome = hql::run(source, &vault, hql::reporting::Mode::Strict);
         assert!(!outcome.failed(), "{source}: a warning never fails");
         let warning = outcome
-            .reports
+            .diagnostics
             .iter()
             .find(|report| report.message.contains(message))
-            .unwrap_or_else(|| panic!("{source}: {:?}", outcome.reports));
+            .unwrap_or_else(|| panic!("{source}: {:?}", outcome.diagnostics));
         assert!(
             source[warning.span.clone()].starts_with(name),
             "{source}: {:?}",
             warning.span
+        );
+    }
+}
+
+/// HQL declares and an extension implements: a standard module written as
+/// external declarations names exactly the functions its extension provides,
+/// so neither side can drift from the other.
+#[test]
+fn every_external_declaration_has_an_implementation_and_every_implementation_a_declaration() {
+    let catalogue = hql::extensions::catalogue(&hql::extensions::Config::default());
+    let contracts = library::contracts().expect("std parses");
+    let mut checked = 0;
+    for (name, _) in &contracts {
+        let name = *name;
+        let provider = catalogue
+            .iter()
+            .find(|provider| provider.provides.contains(&name))
+            .unwrap_or_else(|| {
+                panic!(
+                    "lib/{}/mod.hql declares externally, and no extension provides `{name}`",
+                    library::path(name)
+                )
+            });
+        // A provider of several modules, `core` and `collections`,
+        // implements what all of them declare.
+        let mut declared: Vec<&str> = contracts
+            .iter()
+            .filter(|(module, _)| provider.provides.contains(module))
+            .flat_map(|(_, contract)| contract.iter())
+            .map(|declaration| declaration.name.as_str())
+            .collect();
+        let mut implemented: Vec<&str> = provider.steps.iter().map(|step| step.name).collect();
+        implemented.sort_unstable();
+        declared.sort_unstable();
+        declared.dedup();
+        assert_eq!(declared, implemented, "module `{name}`");
+        checked += 1;
+    }
+    assert!(
+        checked >= 10,
+        "only {checked} modules are declared externally"
+    );
+}
+
+#[test]
+fn a_generic_record_holds_its_fields_to_the_parameter_as_finally_bound() {
+    assert!(
+        refused(
+            "type Box<T> { f : T -> Int, x : T }\nb = Box(f = (n: Int) => n + 1, x = \"s\")\nb"
+        )
+        .contains("`f` of `Box`")
+    );
+    // A parameter a field's function takes is not covariant.
+    assert!(
+        refused("type Box<T> { f : T -> Int }\nb : Box<Data> = Box(f = (n: Int) => n + 1)\nb")
+            .contains("declared Box<Data>")
+    );
+    for source in [
+        "type Box<T> { x : T }\nb : Box<Data> = Box(x = 1)\nb.x",
+        "type Sink<T> { f : T -> Int }\ns : Sink<Int> = Sink(f = (d: Data) => 1)\ng = s.f\ng(3)",
+    ] {
+        assert_eq!(
+            eval(source).map(|value| value.to_string()),
+            Ok("1".to_owned()),
+            "{source}"
         );
     }
 }

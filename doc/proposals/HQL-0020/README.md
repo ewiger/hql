@@ -1,8 +1,8 @@
 # HQL-0020: The vault and its namespace
 
-- **Status**: accepted
+- **Status**: implemented in part
 - **Created**: 2026-10-18
-- **Source**: [issue 0010](../../issues/0010-yield-and-bind.md),
+- **Source**: [issue 0010](../../issues/archive/0010-yield-and-bind.md),
   [HQL-0012](../HQL-0012/README.md), [card type](../../wiki/hql/types/card-type.hmd)
 
 ## Abstract
@@ -26,7 +26,7 @@ own, and is never merged into `cards`. This replaces HQL-0012's binding of
 - A vault has more than one thing to offer a program: its cards, its knowledge
   graph, its name and root. HQL-0012 first made the vault the sequence of its
   cards, which left nowhere to put the rest. `vault.graph` needs a vault with fields.
-- [Issue 0010](../../issues/0010-yield-and-bind.md) decides that a vault yields
+- [Issue 0010](../../issues/archive/0010-yield-and-bind.md) decides that a vault yields
   cards in the order a sorted walk reaches them, so that a lazy source can
   stream them. HQL-0012 first ordered a vault by card name, which a lazy source
   cannot do without reading every card first.
@@ -64,7 +64,7 @@ abstract type VaultSource : DataSource {
 - `vault.cards` MUST be a `KeyedSource<String, Card>`: `get(vault.cards,
   "alice")` gives `Option<Card>`.
 - `vault.knowledge` MUST be the knowledge universe of the vault's cards, as
-  [`std/knowledge.hql`](../../../std/knowledge.hql) declares it: concepts,
+  [`lib/std/knowledge/mod.hql`](../../../lib/std/knowledge/mod.hql) declares it: concepts,
   relations, propositions and evidence, with their provenance.
 - `vault.graph` MUST equal `KnowledgeGraph(vault.cards)`
   ([HQL-0019](../HQL-0019/README.md)): the part of the knowledge that is
@@ -88,7 +88,7 @@ graph     = vault.graph
   for `hql render`, the vault containing the document. Without one, `vault` is
   unbound, and the checker says that it needs `--vault`.
 - The standard library MUST make the three bindings above. The host seeds
-  `vault` alone; `cards` and `graph` are bindings in `std/vault.hql`, and
+  `vault` alone; `cards` and `graph` are bindings in `lib/std/vault/mod.hql`, and
   `knowledge` joins them with `vault.knowledge`. They are ordinary
   bindings, not keywords: a program reads `cards` and `graph` as it reads any
   name, and both are unbound when `vault` is.
@@ -116,7 +116,7 @@ graph     = vault.graph
 ### 5. Other vaults
 
 ```toml
-[sources.field_notes]
+[endpoint.field_notes]
 kind = "vault"
 root = "../field-notes"
 ```
@@ -140,14 +140,14 @@ field_notes.graph
 Breaking against HQL-0012, which is drafted and not implemented: `cards` is
 `vault.cards`, not `vault`, and a vault's order is the sorted walk, not card
 name. `cards` was a `Set<Card>` the host seeded; it is `vault.cards`, a lazy
-`Seq<Card>` in walk order, as [issue 0010](../../issues/0010-yield-and-bind.md)
+`Seq<Card>` in walk order, as [issue 0010](../../issues/archive/0010-yield-and-bind.md)
 carries. `knowledge` is not bound until `vault.knowledge` exists. `vault`,
 `graph` and the vault fields are new names.
 
 ## Reference Implementation
 
-- `std/sources.hql` — `VaultSource` with its fields
-- `std/vault.hql` — `Vault` with its fields, and the bindings
+- `lib/std/sources/mod.hql` — `VaultSource` with its fields
+- `lib/std/vault/mod.hql` — `Vault` with its fields, and the bindings
   `cards = vault.cards`, `knowledge = vault.knowledge` and `graph = vault.graph`
 - `src/traversal.rs`, `src/evaluation.rs` — the sorted walk, yielding cards
   lazily
@@ -189,3 +189,12 @@ cargo clippy --locked --all-targets -- -D warnings
   `graph = vault.graph` and a missing vault naming `--vault` are implemented,
   and keyed `vault.cards`, the `knowledge` binding and other vaults as sources
   are not yet
+- 2026-10-22: other vaults are read as sources of kind `vault`,
+  `source("field_notes")` a `Vault` with its own `cards`, `graph`, `name` and
+  `root`, its cards never merged into `cards`
+  ([HQL-0012](../HQL-0012/README.md), [issue 0040](../../issues/archive/0040-configured-data-sources.md));
+  `lib/std/io/mod.hql` declares `VaultSource : DataSource`. `Vault` does not yet
+  narrow `VaultSource`, and `knowledge` is not built
+- 2026-10-22: cards are keyed by name: `get(vault.cards, "alice")` and
+  `cards.get("alice")` give `Option<Card>`, by a `get` over any collection
+  of documents that `lib/std/collections/mod.hql` declares

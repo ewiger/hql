@@ -1,0 +1,27 @@
+// status: valid-now
+// feature: Under collect every check error is listed, and the effect before them still does not run
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql --report collect run examples/error-handling/boundary/effect-then-three-errors.hql
+check error[unknown-name]: `missing` is not bound
+  --> examples/error-handling/boundary/effect-then-three-errors.hql:14:5
+   |
+14 | a = missing + 1
+   |     ^^^^^^^
+
+check error[type-mismatch]: `Add` for String takes String, not Int
+  --> examples/error-handling/boundary/effect-then-three-errors.hql:15:11
+   |
+15 | b = "a" + 1
+   |           ^
+
+check error[type-mismatch]: addition requires two Int, two Float or two Decimal operands, or two values of a type implementing `Add`, not Option<Int>
+  --> examples/error-handling/boundary/effect-then-three-errors.hql:16:5
+   |
+16 | c = [1, 2].first() + 1
+   |     ^^^^^^^^^^^^^^
+
+3 diagnostics: 0 failure, 3 error, 0 warning

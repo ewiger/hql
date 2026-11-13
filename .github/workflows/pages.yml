@@ -1,7 +1,8 @@
 name: Pages
 
-# Publication, deliberately not a job inside `ci.yml`. A pull request builds
-# the site so a broken page is caught before merge; only `main` deploys.
+# The site's build, deliberately not a job inside `ci.yml`: a pull request
+# and `main` build it so a broken page is caught before a release publishes
+# it.
 on:
   push:
     branches: [main]
@@ -14,18 +15,10 @@ on:
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
-# What `deploy-pages` needs. `id-token` authenticates to the Pages API by OIDC
-# rather than with `GITHUB_TOKEN`.
+# Read-only: this workflow builds the site and publishes nothing. A release
+# publishes its version with mike, in the `docs` job of `release.yml`.
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-# One deploy at a time, and never cancel one that has started — a half-uploaded
-# artifact is a broken site.
-concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -48,25 +41,3 @@ jobs:
       # Nothing is published that does not build clean.
       - name: Build
         run: uv run mkdocs build --strict
-
-      # The built tree never enters git. It is uploaded as a Pages artifact and
-      # served from the CDN, so there is no `gh-pages` branch and `site/` stays
-      # ignored.
-      - name: Upload
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-  deploy:
-    name: deploy
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4

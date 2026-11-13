@@ -22,7 +22,11 @@ fn replacing_compiles_the_cells_away_into_markdown() {
     let rendered = transclude::render(&board(), &fixture(), Mode::Strict, Emit::Replace);
     assert_eq!(rendered.blocks, 2);
     assert!(rendered.complete);
-    assert!(!rendered.reports.has_errors(), "{:?}", rendered.reports);
+    assert!(
+        !hql::diagnostics::reaches(&rendered.diagnostics, hql::diagnostics::Severity::Error),
+        "{:?}",
+        rendered.diagnostics
+    );
 
     // No cell is left: the document reads as if written by hand.
     assert!(!rendered.document.contains("```"), "{}", rendered.document);
@@ -109,7 +113,10 @@ fn a_failed_cell_under_replace_leaves_the_build_incomplete() {
     let source = "# Notes\n\n```hql\ncards | nosuchstep\n```\n";
     let rendered = transclude::render(source, &fixture(), Mode::Strict, Emit::Replace);
     assert_eq!(rendered.blocks, 1);
-    assert!(rendered.reports.has_errors());
+    assert!(hql::diagnostics::reaches(
+        &rendered.diagnostics,
+        hql::diagnostics::Severity::Error
+    ));
     assert!(!rendered.complete);
     // The cell is left as written rather than lost.
     assert_eq!(rendered.document, source);
@@ -119,7 +126,10 @@ fn a_failed_cell_under_replace_leaves_the_build_incomplete() {
 fn a_failed_cell_under_after_shows_its_error_as_output() {
     let source = "```hql\ncards | nosuchstep\n```\n";
     let rendered = transclude::render(source, &fixture(), Mode::Strict, Emit::After);
-    assert!(rendered.reports.has_errors());
+    assert!(hql::diagnostics::reaches(
+        &rendered.diagnostics,
+        hql::diagnostics::Severity::Error
+    ));
     assert!(rendered.complete);
     assert!(
         rendered.document.contains("status=error -->\nerror:"),
@@ -150,13 +160,13 @@ fn the_birds_example_wiki_resolves_and_renders_every_query() {
                 reference.target
             );
         }
-        let source = std::fs::read_to_string(&card.document.path).unwrap();
+        let source = std::fs::read_to_string(vault.file_of(&card.document)).unwrap();
         let rendered = transclude::render(&source, &vault, Mode::Strict, Emit::After);
         assert!(
-            rendered.reports.is_empty(),
+            rendered.diagnostics.is_empty(),
             "{}: {:?}",
             card.name(),
-            rendered.reports
+            rendered.diagnostics
         );
         blocks += rendered.blocks;
         assert_eq!(
@@ -174,6 +184,36 @@ fn the_birds_example_wiki_resolves_and_renders_every_query() {
     assert!(blocks >= 3, "the collection notebook's queries must run");
 }
 
+#[test]
+fn the_todo_example_board_renders_its_lists() {
+    let vault = vault::load(Path::new("examples/todo/wiki")).expect("the example wiki");
+    assert!(vault.warnings.is_empty(), "{:?}", vault.warnings);
+    let source = std::fs::read_to_string("examples/todo/wiki/todo.hmd").unwrap();
+    let built = transclude::render(&source, &vault, Mode::Strict, Emit::Replace);
+    assert!(built.complete, "{:?}", built.diagnostics);
+    assert_eq!(built.blocks, 2);
+    assert!(
+        built.document.contains(
+            "## Still to do\n\n\
+             - Fix broken backlinks\n\
+             - Write HQL documentation\n\
+             - Publish HyperMarkdown 0.4.2 announcement\n"
+        ),
+        "{}",
+        built.document
+    );
+    assert!(
+        built.document.contains(
+            "## Architecture decisions\n\n\
+             - {date: \"2026-10-10\", status: \"accepted\", title: \"Event execution model\"}\n\
+             - {date: \"2026-10-18\", status: \"accepted\", title: \"Reduce and merge\"}\n\
+             - {date: \"2026-10-19\", status: \"proposed\", title: \"Stream IO model\"}\n"
+        ),
+        "{}",
+        built.document
+    );
+}
+
 fn after(source: &str) -> transclude::Rendered {
     transclude::render(source, &fixture(), Mode::Strict, Emit::After)
 }
@@ -186,7 +226,7 @@ fn replaced(source: &str) -> transclude::Rendered {
 fn a_cell_reads_another_by_its_id_whatever_order_they_are_written_in() {
     let source = "```hql\ntotal + 1\n```\n\n```hql id=total\n[1, 2, 3] | sum\n```\n";
     let rendered = replaced(source);
-    assert!(rendered.complete, "{:?}", rendered.reports);
+    assert!(rendered.complete, "{:?}", rendered.diagnostics);
     assert_eq!(rendered.document, "7\n\n6\n");
     assert_eq!(rendered.cells[0].ty.as_deref(), Some("Int"));
 }
@@ -196,7 +236,7 @@ fn a_cell_exports_its_value_and_keeps_its_bindings() {
     let source = "```hql id=open\nhelper = 2\n[1, helper]\n```\n\n```hql\nhelper\n```\n";
     let rendered = replaced(source);
     assert!(!rendered.complete);
-    let message = format!("{:?}", rendered.reports);
+    let message = format!("{:?}", rendered.diagnostics);
     assert!(message.contains("`helper` is not bound"), "{message}");
     let shadowed = "```hql id=n\n1\n```\n\n```hql\nn = 5\nn + 1\n```\n";
     assert_eq!(replaced(shadowed).document, "1\n\n6\n");
@@ -205,14 +245,14 @@ fn a_cell_exports_its_value_and_keeps_its_bindings() {
 #[test]
 fn a_cycle_and_a_duplicate_id_are_check_errors_naming_the_cells() {
     let cycle = replaced("```hql id=a\nb\n```\n\n```hql id=b\na\n```\n");
-    let message = format!("{:?}", cycle.reports);
+    let message = format!("{:?}", cycle.diagnostics);
     assert!(
         message.contains("`a`, `b` read each other in a cycle"),
         "{message}"
     );
     assert_eq!(cycle.blocks, 0);
     let twice = replaced("```hql id=a\n1\n```\n\n```hql id=a\n2\n```\n");
-    let message = format!("{:?}", twice.reports);
+    let message = format!("{:?}", twice.diagnostics);
     assert!(
         message.contains("cells 0 and 1 both have the id `a`"),
         "{message}"
@@ -222,16 +262,10 @@ fn a_cycle_and_a_duplicate_id_are_check_errors_naming_the_cells() {
 
 #[test]
 fn a_type_error_anywhere_stops_the_document_before_any_cell_runs() {
-    let source = "```hql id=a\n[1] | debug\n```\n\n```hql\na | nosuchstep\n```\n";
+    let source = "```hql id=a\n[1] | size\n```\n\n```hql\na | nosuchstep\n```\n";
     let rendered = after(source);
     assert_eq!(rendered.cells[0].status, transclude::Status::NotRun);
     assert_eq!(rendered.cells[1].status, transclude::Status::Error);
-    assert!(
-        rendered
-            .reports
-            .iter()
-            .all(|report| report.code.as_deref() != Some("debug"))
-    );
 }
 
 #[test]
@@ -284,7 +318,7 @@ fn an_output_nobody_owns_is_removed_with_a_warning() {
     let source = "Intro\n\n<!-- hql:output id=gone hash=000000000000 status=ok -->\nold\n<!-- /hql:output -->\n\n```hql\n1\n```\n";
     let rendered = after(source);
     assert!(!rendered.document.contains("old"), "{}", rendered.document);
-    let message = format!("{:?}", rendered.reports);
+    let message = format!("{:?}", rendered.diagnostics);
     assert!(message.contains("no cell directly above it"), "{message}");
 }
 
@@ -292,7 +326,7 @@ fn an_output_nobody_owns_is_removed_with_a_warning() {
 fn an_unknown_attribute_is_a_warning_and_ignored() {
     let rendered = replaced("```hql id=x shiny\n1\n```\n");
     assert_eq!(rendered.document, "1\n");
-    let message = format!("{:?}", rendered.reports);
+    let message = format!("{:?}", rendered.diagnostics);
     assert!(
         message.contains("`shiny` is not a cell attribute"),
         "{message}"
@@ -304,7 +338,7 @@ fn a_cells_report_points_into_the_document() {
     let source = "# Title\n\n```hql\ncards | nosuchstep\n```\n";
     let rendered = replaced(source);
     let report = rendered
-        .reports
+        .diagnostics
         .iter()
         .find(|report| report.message.contains("nosuchstep"))
         .unwrap();

@@ -2,8 +2,9 @@
 // feature: An argument that does not fit the parameter beside a hole
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // The hole leaves `b` open; `a` is fixed to a String, which `add` does not
 // take, and the diagnostic names the parameter.

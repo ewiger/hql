@@ -149,26 +149,28 @@ constructor builds a value of its type — `Set(xs)`, `List(xs)`,
 
 ## Positions are promises
 
-A list, a ranking and a sequence of cards have positions; a set does not. A
-step that needs positions refuses a set, and says what to write instead:
+A list, a ranking and a sequence of cards have positions; a set does not. The
+checker rejects a set given to a step that needs positions, and says what to
+write instead:
 
 ```hql
 {3, 1, 2} | drop(1)
 ```
 
 ```text
-type error: `drop` needs values in a stable order, and Set<Int> has none; sort it first
+check error[type-mismatch]: `drop` needs values in a stable order, and Set<Int> has none; sort it first
  --> <expression>:1:13
   |
 1 | {3, 1, 2} | drop(1)
   |             ^^^^^^^
 ```
 
-The checker knows each collection's promises from its type, so this is found
-before anything runs, not after a wrong answer.
+Whether a collection has a stable order is part of its type: `Set<Int>` has
+none and `drop` requires one, so the program is refused when it is checked,
+before it is evaluated, not after a wrong answer.
 
 ## What is next
 
 Steps take functions — `n => n * 0`, `(a, b) => compare(b, a)`.
-[Chapter 4](04-functions.md) is about functions themselves: naming them,
+[Chapter 4](04-functions/index.md) is about functions themselves: naming them,
 passing them, and making them generic.

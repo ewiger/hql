@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, fs, path::Path};
 
-use hql::{check, check_in, diagnostics::Diagnostic, eval, reporting::Mode, run, vault};
+use hql::{check, check_in, eval, reporting::Mode, run, vault};
 
 struct Case {
     path: String,
@@ -13,7 +13,17 @@ struct Case {
 impl Case {
     fn vault(&self) -> vault::Vault {
         match self.metadata["environment"].as_str() {
-            "pure" => vault::Vault::empty(),
+            "pure" => {
+                let mut vault = vault::Vault::empty();
+                if let Some(modules) = self.metadata.get("modules") {
+                    vault.extensions.module_roots.push(
+                        Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join("examples")
+                            .join(modules),
+                    );
+                }
+                vault
+            }
             "knowledge-v1" => {
                 let path = Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("examples")
@@ -21,6 +31,31 @@ impl Case {
                 vault::load(&path).unwrap_or_else(|e| panic!("{}: {e}", self.path))
             }
             other => panic!("{}: unsupported environment {other}", self.path),
+        }
+    }
+}
+
+/// Copy a directory tree, for a case that writes beside what it reads.
+fn copy_tree(from: &Path, to: &Path) {
+    fs::create_dir_all(to).unwrap();
+    for entry in fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), &target).unwrap();
+            // A private key is read with mode 0600, which git does not keep.
+            #[cfg(unix)]
+            if entry
+                .path()
+                .parent()
+                .is_some_and(|parent| parent.ends_with("keys"))
+                && !target.to_string_lossy().contains(".pub.")
+            {
+                use std::os::unix::fs::PermissionsExt as _;
+                fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+            }
         }
     }
 }
@@ -33,7 +68,10 @@ fn load_cases() -> Vec<Case> {
                 continue;
             }
             if path.is_dir() {
-                visit(root, &path, cases);
+                // A module root holds modules a case imports, not cases.
+                if path.file_name().and_then(|name| name.to_str()) != Some("lib") {
+                    visit(root, &path, cases);
+                }
                 continue;
             }
             // Preserve the original header-free CLI smoke fixture.
@@ -104,6 +142,9 @@ fn corpus_metadata_and_index_cover_every_case() {
             assert_eq!(m["implementation"], "implemented", "{}", case.path);
             assert!(!m.contains_key("proposal"), "{}", case.path);
         }
+        if let Some(modules) = m.get("modules") {
+            assert!(root.join(modules).is_dir(), "{}: no module root", case.path);
+        }
         match m["environment"].as_str() {
             "pure" => assert!(!m.contains_key("vault"), "{}", case.path),
             "knowledge-v1" => assert!(root.join(&m["vault"]).is_dir(), "{}", case.path),
@@ -121,10 +162,12 @@ fn corpus_metadata_and_index_cover_every_case() {
             }
         }
         if status == "invalid" {
-            assert!(m.contains_key("error") && m.contains_key("stage"));
-            // `eval` exposes the precise Diagnostic for pure failure examples.
-            assert_eq!(m["environment"], "pure");
-            if m["stage"] == "evaluate" {
+            // A diagnostic is named by its axes (HQL-0045).
+            for field in ["phase", "kind", "severity"] {
+                assert!(m.contains_key(field), "{}: missing {field}", case.path);
+            }
+            assert!(!m.contains_key("error") && !m.contains_key("stage"));
+            if m["phase"] == "execute" {
                 assert!(m.contains_key("expected-type"), "{}", case.path);
             }
         }
@@ -159,12 +202,36 @@ fn valid_now_cases_check_and_evaluate() {
         count += 1;
         let vault = case.vault();
         let ty = check_in(&case.source, &vault).unwrap_or_else(|e| panic!("{}: {e}", case.path));
+        // A program that reads and writes files runs in a temporary copy of
+        // its example, with paths resolving against its own directory as
+        // `hql run` has them, so the checkout is left as it was.
+        let sandbox = case.metadata.get("io").map(|io| {
+            assert_eq!(io, "sandbox", "{}", case.path);
+            let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
+            let example = Path::new(&case.path)
+                .components()
+                .next()
+                .expect("an example directory")
+                .as_os_str()
+                .to_owned();
+            let copy = tempfile::tempdir().expect("a temporary directory");
+            copy_tree(&root.join(&example), &copy.path().join(&example));
+            let base = copy
+                .path()
+                .join(Path::new(&case.path).parent().expect("a directory"));
+            hql::io::set_host(hql::io::Policy::Open, base);
+            copy
+        });
         let outcome = run(&case.source, &vault, Mode::Strict);
+        if sandbox.is_some() {
+            hql::io::set_host(hql::io::Policy::Open, std::path::PathBuf::from("."));
+        }
+        drop(sandbox);
         assert!(
-            outcome.reports.is_empty(),
+            outcome.diagnostics.is_empty(),
             "{}: {:?}",
             case.path,
-            outcome.reports
+            outcome.diagnostics
         );
         assert_eq!(outcome.inferred.as_ref(), Some(&ty), "{}", case.path);
         let value = outcome
@@ -195,6 +262,31 @@ fn valid_now_cases_check_and_evaluate() {
     assert!(count > 0);
 }
 
+/// Every registered backend gives every corpus case the value, the type and
+/// the reports `localhost` gives: the contract that makes a backend a
+/// backend. With `localhost` alone it compares the oracle with itself; it is
+/// written so that a second backend arrives into it.
+#[test]
+fn every_backend_agrees_with_localhost_on_every_case() {
+    let mut compared = 0;
+    for case in load_cases() {
+        if case.metadata["status"] != "valid-now" || case.metadata.contains_key("io") {
+            continue;
+        }
+        let vault = case.vault();
+        let oracle = run(&case.source, &vault, Mode::Strict);
+        for backend in hql::backends::REGISTERED {
+            let selection =
+                hql::backends::Selection::of(backend.name, hql::backends::Origin::Query)
+                    .expect("a registered backend");
+            let outcome = hql::run_on(&case.source, &vault, Mode::Strict, selection);
+            assert_eq!(outcome, oracle, "{} on {}", case.path, backend.name);
+            compared += 1;
+        }
+    }
+    assert!(compared > 0);
+}
+
 /// A proposed case is a design input, not a regression test. It stays
 /// proposed only while the implementation cannot check it; the day it checks,
 /// this test names it so that its header is promoted rather than left claiming
@@ -215,7 +307,7 @@ fn proposed_cases_do_not_check_yet() {
 }
 
 #[test]
-fn implemented_invalid_cases_fail_at_the_declared_stage() {
+fn implemented_invalid_cases_fail_with_the_declared_diagnostic() {
     let mut count = 0;
     for case in load_cases() {
         let m = &case.metadata;
@@ -223,27 +315,49 @@ fn implemented_invalid_cases_fail_at_the_declared_stage() {
             continue;
         }
         count += 1;
-        let error = match m["stage"].as_str() {
-            "parse" | "typecheck" => {
+        // A case over a vault or a module root runs against it, and its
+        // first error is the one it declares; `eval` exposes the precise
+        // diagnostic of a pure one, and checking it alone must agree.
+        if m["environment"] != "pure" || m.contains_key("modules") {
+            let vault = case.vault();
+            let outcome = run(&case.source, &vault, Mode::Strict);
+            let error = outcome
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.is_error())
+                .unwrap_or_else(|| panic!("{}: no error", case.path));
+            assert_eq!(error.phase.label(), m["phase"], "{}", case.path);
+            assert_eq!(
+                error.kind.label(),
+                m["kind"],
+                "{}: {}",
+                case.path,
+                error.message
+            );
+            assert_eq!(error.severity.label(), m["severity"], "{}", case.path);
+            continue;
+        }
+        let error = match m["phase"].as_str() {
+            "parse" | "check" => {
                 let error = check(&case.source).expect_err(&case.path);
                 assert_eq!(eval(&case.source), Err(error.clone()), "{}", case.path);
                 error
             }
-            "evaluate" => {
+            "execute" => {
                 assert_eq!(check(&case.source).unwrap().to_string(), m["expected-type"]);
                 eval(&case.source).expect_err(&case.path)
             }
-            other => panic!("no implemented corpus runner for {other}"),
+            other => panic!("{}: no corpus runner for phase {other}", case.path),
         };
-        let (name, stage) = match error {
-            Diagnostic::Syntax { .. } => ("SyntaxError", "parse"),
-            Diagnostic::Type { .. } => ("TypeMismatch", "typecheck"),
-            Diagnostic::Overflow { .. } => ("IntegerOverflow", "evaluate"),
-            Diagnostic::Name { .. } => ("NameError", "typecheck"),
-            Diagnostic::Runtime { .. } => ("RuntimeError", "evaluate"),
-        };
-        assert_eq!(name, m["error"], "{}", case.path);
-        assert_eq!(stage, m["stage"], "{}", case.path);
+        assert_eq!(error.phase.label(), m["phase"], "{}", case.path);
+        assert_eq!(
+            error.kind.label(),
+            m["kind"],
+            "{}: {}",
+            case.path,
+            error.message
+        );
+        assert_eq!(error.severity.label(), m["severity"], "{}", case.path);
     }
     assert!(count > 0);
 }

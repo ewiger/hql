@@ -1,0 +1,23 @@
+// status: valid-now
+// feature: What a field carries is not in the message: a nearest name is help, and a second place is a label
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql run examples/error-handling/names/misspelled-step.hql
+check error[unknown-step]: `mapp` is not a pipeline step
+  --> examples/error-handling/names/misspelled-step.hql:10:10
+   |
+10 | [1, 2] | mapp(n => n)
+   |          ^^^^^^^^^^^^
+   = help: did you mean `map`?
+
+$ hql run examples/error-handling/traits/second-implementation.hql
+check error[duplicate-implementation]: `Shape` is already implemented for Circle: a trait has one implementation per type
+  --> examples/error-handling/traits/second-implementation.hql:22:1
+   |
+22 | impl Shape for Circle {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: the first implementation, at examples/error-handling/traits/second-implementation.hql:18:1
+

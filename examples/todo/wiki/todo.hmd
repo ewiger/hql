@@ -1,0 +1,26 @@
+# TODO
+
+The open tasks and the architecture decisions in this vault, as queries rather
+than lists somebody maintains.
+
+## Still to do
+
+```hql#eval
+cards
+| filter(c => c.metadata.status == "todo")
+| sort(by = c => match c.metadata.priority { some(Int p) => p, _ => 0 })
+| map(c => c.title)
+```
+
+## Architecture decisions
+
+```hql#eval
+cards
+| filter(c => c.metadata.type == "adr")
+| sort(by = c => match c.metadata.date { some(String d) => d, _ => "" })
+| map(c => {
+    title: c.title,
+    status: c.metadata.status,
+    date: c.metadata.date
+  })
+```

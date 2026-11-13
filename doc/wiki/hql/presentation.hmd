@@ -5,42 +5,219 @@ nav:
 ---
 # Presentation
 
-A value keeps its type until it is formatted. A **presentation format** is a
-type of text with a known syntax, a subtype of `String`; formatting writes a
-value as text of one format, and the result is ordinary text a later step may
-read. A **renderer** writes values of one type in one format. The design is
-[HQL-0017](../../proposals/HQL-0017/README.md).
+Presenting a result has three parts, each with its own mechanism. A **shape
+type** is what the value is: `Graph` and `Table` are ordinary types, built by
+their constructors. A **format** is the syntax it is written in: a value of
+`Format`, a category of its own, which describes an external representation
+and its framing and is not the text it encodes. An **encoder** writes values
+of one type in one format; formatting applies the encoder for the value's
+type, and the result is a `String` a later step may read, which keeps its
+format for presentation. A **renderer** is a named encoder for one shape in
+one format, chosen per call with `renderer =` or per vault in `hql.toml`. A
+result a program leaves unformatted is formatted in the host's **presentation
+context**.
+
+This card is the statement of the presentation model.
+[HQL-0017](../../proposals/HQL-0017/README.md) specifies the shapes, the
+renderers and the context, and
+[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md)
+the format and codec model; both point here for the current rules.
+
+## Shape types
+
+| Type | Declared | Built by |
+| --- | --- | --- |
+| `Graph` | `lib/std/graph/mod.hql` | `Graph(xs)`: cards, hits or edges as nodes, the links among them as edges |
+| `Table<R>` | `lib/std/format/mod.hql` | `Table(xs, columns = [...])`: one row per record of `R` |
+| `Data` | `lib/std/core/mod.hql` | a literal, a read, or `Data(s, F)`, text parsed in a format |
+| `Doc` | `lib/std/doc/mod.hql` | the vault |
+
+`Tree<T>`, a node and its subtrees, is design direction and not implemented.
+
+### `Table`
+
+```hql
+fn Table<T>(rows: Collection<T>, columns: List<String> = []) : Table<T>
+```
+
+`Table(xs, columns = [...])` builds a `Table` from a finite collection: one
+row per element, each a value of a declared record type or a `Data` map.
+
+- `Table<R>` is a table whose rows are `R`: built from a collection of
+  `Book` records it is a `Table<Book>`, and from `Data` maps a
+  `Table<Data>`. `Table` written without its row is `Table<Data>`. A
+  `Table<Book>` is not a `Table<Film>`, and every format writes a table of
+  any row.
+
+- `columns` names the columns in the order every format writes them. Without
+  it, the columns are the first row's fields in the order the row holds them:
+  declaration order for a record, key order for a `Data` map.
+- Over a declared record type, a column written in `columns` that names no
+  field of the record is a type error when the program is checked.
+- Over `Data`, a field a row does not hold is an empty cell. An absent
+  optional field of a record is an empty cell too.
+- An element type that is neither a record nor `Data`, such as `Int`, is a
+  type error; `map` each element to a record first. A stream that may not
+  end is refused, naming `take(n)` and `collect(n)`.
+- `table` is not a step: written as one, it is a name error whose diagnostic
+  names `Table(xs, columns = [...])`.
+
+```hql
+cards
+| filter(c => c.metadata.category == "book")
+| map(c => {title: c.title, pages: c.metadata.pages})
+| Table(columns = ["title", "pages"])
+| markdown
+```
+
+A `Table` printed as HQL is the call that builds it,
+`Table([...], columns = [...])`.
 
 ## Presentation formats
 
-| Format | Supertype | Text |
+| Format | Supertype | Representation |
 | --- | --- | --- |
-| `Text` | `String` | plain text |
-| `Hql` | `String` | HQL literals |
-| `Markdown` | `String` | CommonMark |
+| `Text` | `Format` | plain text |
+| `Lines` | `Format` | text framed one record per line |
+| `Hql` | `Format` | HQL literals |
+| `Markdown` | `Format` | CommonMark |
 | `Hmd` | `Markdown` | HyperMarkDown |
-| `Json` | `String` | JSON |
-| `Yaml` | `String` | YAML |
-| `Csv` | `String` | RFC 4180 rows |
-| `D2` | `String` | D2 diagram source |
-| `Mermaid` | `String` | Mermaid diagram source |
+| `Json` | `Format` | one JSON document |
+| `JsonLines` | `Format` | one JSON document per line |
+| `Yaml` | `Format` | YAML |
+| `Csv` | `Format` | RFC 4180 rows |
+| `D2` | `Format` | D2 diagram source |
+| `Mermaid` | `Format` | Mermaid diagram source |
 
-A value of a format type is text that parses in that format. The declarations
-are `std/format.hql`.
+A format is a value of `Format`, a category of its own: it describes an
+external representation and its framing, and is neither the text it encodes
+nor a `String` subtype. `format(x, F)` applies the encoder for `x`'s type in
+`F` and gives the encoded text as a `String`, which keeps its format at run
+time for a host to print as it is. `source(e, F)` applies the decoder.
+The contracts are the traits `Decoder<T>` and `Encoder<T>` in
+`lib/std/format/mod.hql`, described under [codecs](#codecs), and the model is
+[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md).
+
+## Codecs
+
+A **codec** is the conversion between a format's text and HQL values: a
+**decoder** reads records of the format as values, an **encoder** writes
+values as records of the format. A codec is declared in HQL and runs in
+Rust.
+
+### What is declared
+
+`lib/std/format/mod.hql` declares two traits whose implementing type is the format,
+and one bodyless header per codec the runtime has:
+
+```hql
+trait Decoder<T> {}
+trait Encoder<T> {}
+
+impl Decoder<String> for Lines
+impl<T> Encoder<T> for Lines
+```
+
+`impl Decoder<String> for Lines` states that the records of `Lines` read as
+`String` values; `impl<T> Encoder<T> for Lines` states that a value of every
+type is written as `Lines` records. The traits have no functions and the
+headers no bodies: a header converts nothing. It is the declaration of a
+conversion that exists, in the language rather than in a table of the
+binary, and the conversion itself is performed by the `io` and `format`
+extensions when a program calls `source`, `tap`, `sink`, `target` or
+`format`. These are generic traits, described on [[type-system]]
+([HQL-0027](../../proposals/HQL-0027/README.md)).
+
+### What runs: `Lines`, end to end
+
+```hql
+source(file("birds.txt"), Lines)
+| map(name => upper(name))
+| sink(file("loud.txt"), Lines)
+```
+
+Over a `birds.txt` holding `raven\nrobin\n`, the steps are these.
+
+1. **Binding**, once per runtime environment, before any program is
+   checked. `validate_codecs` in `src/extensions/binding.rs` compares the headers of
+   `lib/std/format/mod.hql` with the runtime's two tables: `io::document_type`, the
+   decoder table, maps `Lines` to `String`, which is what the one `Decoder`
+   header for `Lines` names; `format::writable`, the encoder table, accepts
+   every type for `Lines`, which is what `impl<T> Encoder<T> for Lines`
+   covers. A disagreement in either direction is a defect of the binary and
+   fails binding, naming the format and the type.
+2. **Checking.** The check the `std` extension supplies for `io`'s `source` reads the format
+   argument, `Lines`, and gives the element type from the decoder table:
+   `String`. A file is finite, so the result is `Seq<String>`. `map` then
+   types `name` as `String`. `sink` writes one record per value, so its check
+   refuses a format that describes a whole, `D2` or `Mermaid`; `format(x, F)`
+   consults the encoder table, and a type `F` does not write is a type error
+   naming both.
+3. **Reading.** `eval_source` calls `io::read_all`, which opens the file and
+   hands the byte stream to `io::pieces` with the format. For `Lines` that is
+   a buffered reader split at each line terminator, `\n` or `\r\n`: each line,
+   without its terminator, becomes one `Value::Str`. The terminator belongs to
+   the representation, so the values are `"raven"` and `"robin"`, not
+   `"raven\n"`. A final line without a terminator is still a record.
+4. **Writing.** `eval_sink` opens the destination once, then for each value
+   calls `format::piece(value, Lines)` for the record's text and writes it
+   followed by a terminator: `RAVEN\nROBIN\n`. A `String` is written as its
+   characters; any other value as its own rendering in `Text`, one value per
+   line.
+
+`Json` follows the same route with a different reader and writer: `pieces`
+runs a streaming JSON deserializer and turns each document into a `Data`
+tree, and `piece` serializes the value's data. `lib/std/format/mod.hql` is the
+statement of which routes exist; `src/io.rs` and `src/extensions/format.rs`
+are the routes.
+
+### Decoding and encoding are not symmetric
+
+A decoder and an encoder are declared apart because a format does not read
+and write the same types:
+
+| Format | Decodes as | Encodes |
+| --- | --- | --- |
+| `Json`, `JsonLines`, `Yaml`, `Csv` | `Data` | every type |
+| `Text`, `Lines`, `Markdown`, `Hmd`, `Hql` | `String` | every type |
+| `D2`, `Mermaid` | nothing | `Graph`, and `Data` whose value is a graph |
+
+- **Encoding is many to one.** Every value has a rendering in a text format:
+  a `Person`, a `List<Int>` and a `Graph` all have JSON text. One header with
+  a type parameter, `impl<T> Encoder<T> for Json`, covers them.
+- **Decoding is one to one.** The text of a JSON document does not record the
+  type of the value it was written from, so reading it gives the open tree,
+  `Data`, and a `Person` is obtained from that tree by
+  [[type-interpretation|refinement]], not by the decoder. The header names
+  exactly one type, `impl Decoder<Data> for Json`. A read whose expected
+  type names a record, `people : Seq<Person> = source(file("people.json"))`,
+  applies that refinement to each document as it is read; a CSV cell, which
+  is text, is parsed as the scalar its field declares.
+- **Some formats are written only.** `D2` and `Mermaid` are diagram source
+  for a viewer; no decoder reads them back, so they have encoders and no
+  `Decoder` header.
+
+A single trait for both directions would state one set of types for both,
+which holds for none of these formats: `Json` would claim to read every type
+or to write only `Data`, and `D2` would claim to be read. Two traits let each
+direction state its own coverage, and binding checks each against its own
+table.
 
 ## `format` and its shorthands
 
 ```hql
-format<T, F : String>(x: T, as: Type<F>, limit: Int = 0, renderer: String = "") : F
+fn format<T, F : Format>(x: T, as: Type<F>, *, limit: Int = 0, renderer: String = "") : String
 ```
 
 `format` is pure and not terminal: its result type is the format, so a step
 after it is checked like any other.
 
 - `limit`, when positive, keeps the first `limit` top-level elements — items
-  of a list, hits of a ranking, nodes of a graph — and the text marks how many
-  were cut.
-- `renderer` names the renderer for this call, over the configured one.
+  of a list, hits of a ranking, nodes of a graph, rows of a table — and the
+  text marks how many were cut.
+- `renderer` names the renderer for this call, over the configured one. A
+  renderer for a format other than `F` is a type error, and so is a table
+  renderer over a value whose checked type is not `Table`.
 - A type and format no renderer writes is a check error naming both. `D2` and
   `Mermaid` describe graphs, so only a `Graph` is written in them.
 - Over text already in a format `F`: `format(F)` and `format(Text)` are the
@@ -77,52 +254,82 @@ cards
 | `node-link` | `Graph` | `Json` | the Cytoscape elements form: `nodes` and `edges`, each under `data` |
 | `d2` | `Graph` | `D2`, `Markdown`, `Hmd` | D2 source; in `Markdown`, fenced as `d2` |
 | `mermaid` | `Graph` | `Mermaid`, `Markdown`, `Hmd` | a Mermaid `graph` block; in `Markdown`, fenced as `mermaid` |
-| `aligned` | any | `Text` | space-aligned columns |
-| `pipe` | any | `Markdown`, `Hmd` | a pipe table with header and delimiter rows |
-| `rows` | any | `Csv` | rows, header first |
-| `records` | any | `Json` | the value's data |
+| `aligned` | `Table` | `Text` | space-aligned columns under a dashed rule |
+| `pipe` | `Table` | `Markdown`, `Hmd` | a pipe table with header and delimiter rows |
+| `rows` | `Table` | `Csv` | RFC 4180 rows, header first |
+| `records` | `Table` | `Json` | an array of objects, keys in column order |
 | `list` | any | `Markdown`, `Hmd` | the value's own Markdown rendering |
 
-A `Graph` defaults to `adjacency` in `Text`, `node-link` in `Json`, `d2` in
-`Markdown`, `Hmd` and `D2`, and `mermaid` in `Mermaid`. Any other value is
-written in `Text` and `Markdown` as its own rendering, in `Json` and `Yaml` as
-its data, and in `Csv` as rows.
+A graph renderer writes only a `Graph` and a table renderer only a `Table`;
+naming one for another value is refused. A `Graph` defaults to `adjacency` in
+`Text`, `node-link` in `Json`, `d2` in `Markdown`, `Hmd` and `D2`, and
+`mermaid` in `Mermaid`.
+
+A `Table` is written by each format's own encoder for `Table`, with no
+renderer named, and every one of them writes the columns in the table's
+order:
+
+| Format | A `Table` written |
+| --- | --- |
+| `Text`, `Lines` | space-aligned columns under a dashed rule, as `aligned` |
+| `Markdown`, `Hmd` | a pipe table, as `pipe` |
+| `Csv` | RFC 4180 rows, header first, as `rows` |
+| `Json` | an array of objects, as `records`; a missing cell is `null` |
+| `JsonLines` | one object per row, per line |
+| `Yaml` | a sequence of mappings; a cell that is not a scalar in flow style |
+| `Hql` | the call that builds it |
+
+Any other value is written in `Text` and `Markdown` as its own rendering, in
+`Json` and `Yaml` as its data, and in `Csv` as rows.
 
 A value in `Hql` is the literal that writes it, so the text reads back as the
 same value: a string in quotes, a list in square brackets, a set in braces —
-`{"novel", "essay"}`, or `Set<Int>([])` when it is empty, since `{}` is an
-empty record. A cut is marked with a `//` comment. Text of another format
+`{"novel", "essay"}`; the empty set is `{}`, and an empty set of a known
+element type is written `Set<Int>([])`, so it reads back with that type. The
+empty `Data` is `{:}` ([[sets-vs-data-vs-map]]). A cut is marked with a `//` comment. Text of another format
 written as `Hql` is a string literal. A value's own rendering in `Text` is the
 same with one exception: a string standing alone is written bare.
 
-A vault chooses a renderer per type and format in `hql.toml`; a value whose
-type has no entry takes the entry of its nearest supertype, then the default:
+### The vault's `[format]` configuration
+
+A vault chooses a renderer per type and format in `hql.toml`, one table per
+type, mapping a format's lowercase name to a renderer. A value whose type has
+no entry takes the entry of its nearest supertype, then the default:
 
 ```toml
 [format.Graph]
 markdown = "mermaid"
+
+[format.Table]
+json = "records"
 ```
 
-A renderer or format the binary does not have, or a renderer named for a type
-or format it does not write, fails loading the vault.
+A renderer or format the binary does not have, a renderer named for a format
+it does not write, or a graph or table renderer named for another type fails
+loading the vault, before any program runs.
 
-## A result that is not formatted
+## The presentation context
 
-Over a stream that may not end, `format` gives a `Stream<F>`: one piece per
-value, written as the value arrives — a line in `Text`, a list item in
-`Markdown`, a row in `Csv` with the header first, a value per line in `Json`,
-a `---` document in `Yaml`. `D2` and `Mermaid` describe a whole, so a stream is
-refused there until `take(n)` or `collect(n)` bounds it.
-
-A host writes a result that is not of a format type in a presentation
+A host writes a result that is not already formatted in a presentation
 context, as if the program ended in `| format(<context>)`. The context is,
-first match wins, a final `format` step in the program, then `--to <format>` on
-the command line, then the host's own: `hmd` for `hql render`, `hql` for
-`hql eval`, `hql run` and the REPL. A result already of a format type is written as it is, and
-`--to none` evaluates the program and writes no value. A stream result is
-written piece by piece as it arrives, and ends when its reader stops reading. [[hql/knowledge|Knowledge]] has no default,
-because its views are equally valid and picking one silently would make a
-presentation choice look like a property of the knowledge.
+first match wins, a final `format` step in the program, then `--to <format>`
+on the command line, then the host's own: `hmd` for `hql render`, `hql` for
+`hql eval`, `hql run` and the REPL. A result already formatted is written as
+it is: in a document, `Markdown` spliced in and any other format fenced with
+its info string. `--to none` evaluates the program and writes no value.
+[[hql/knowledge|Knowledge]] has no default, because its views are equally
+valid and picking one silently would make a presentation choice look like a
+property of the knowledge.
+
+### Streams
+
+Over a stream that may not end, `format` gives a `Stream<String>`: one piece
+per value, written as the value arrives — a line in `Text`, a list item in
+`Markdown`, a row in `Csv` with the header first, a value per line in `Json`,
+a `---` document in `Yaml`. `D2` and `Mermaid` describe a whole, so a stream
+is refused there until `take(n)` or `collect(n)` bounds it. A host writes a
+stream result piece by piece as it arrives, and the stream ends when its
+reader stops reading.
 
 Rendering belongs to the host. Printing or saving is an explicit effect, and
 constructing an updated [[card-type|Card]] does not itself persist a document.

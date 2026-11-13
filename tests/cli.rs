@@ -69,10 +69,10 @@ fn eval_prints_values() {
 #[test]
 fn expression_failures_use_stderr_and_exit_one() {
     for (source, message) in [
-        ("1 +", "syntax"),
+        ("1 +", "parse failure[unexpected-token]"),
         ("true + 1", "addition requires"),
         ("9223372036854775807 + 1", "numeric overflow"),
-        ("1 + 2.0", "addition requires"),
+        ("1 + 2.0f", "addition requires"),
         ("nosuchname", "is not bound"),
     ] {
         let output = hql(&["eval", source]);
@@ -130,20 +130,22 @@ fn run_evaluates_a_file_and_dash_reads_standard_input() {
 }
 
 #[test]
-fn json_carries_the_type_the_value_and_the_queue() {
+fn json_carries_the_type_the_value_and_the_diagnostics() {
     let output = hql(&["--envelope", "json", "eval", "40 + 2"]);
     let parsed: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
     assert_eq!(parsed["type"], "Int");
     assert_eq!(parsed["value"], 42);
-    assert_eq!(parsed["reports"].as_array().unwrap().len(), 0);
+    assert_eq!(parsed["diagnostics"].as_array().unwrap().len(), 0);
 
     let output = hql(&["--envelope", "json", "eval", "nosuchname"]);
     assert_eq!(output.status.code(), Some(1));
     let parsed: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
     assert!(parsed["value"].is_null());
-    let reports = parsed["reports"].as_array().unwrap();
-    assert_eq!(reports[0]["severity"], "error");
-    assert_eq!(reports[0]["stage"], "name");
+    let diagnostics = parsed["diagnostics"].as_array().unwrap();
+    assert_eq!(diagnostics[0]["severity"], "error");
+    assert_eq!(diagnostics[0]["phase"], "check");
+    assert_eq!(diagnostics[0]["kind"], "unknown-name");
+    assert_eq!(diagnostics[0]["origin"], "<expression>");
 }
 
 #[test]
@@ -204,12 +206,12 @@ fn the_whole_pipeline_runs_from_the_command_line() {
 fn collect_mode_reports_every_error_and_strict_reports_the_first() {
     let source = "a = nosuchthing\nb = alsomissing";
     let strict = hql(&["eval", source]);
-    assert_eq!(stderr(&strict).matches("error:").count(), 1);
+    assert_eq!(stderr(&strict).matches("check error[").count(), 1);
 
     let collected = hql(&["--report", "collect", "eval", source]);
-    assert_eq!(stderr(&collected).matches("error:").count(), 2);
+    assert_eq!(stderr(&collected).matches("check error[").count(), 2);
     assert!(
-        stderr(&collected).contains("2 reports"),
+        stderr(&collected).contains("2 diagnostics"),
         "{}",
         stderr(&collected)
     );
@@ -227,22 +229,53 @@ fn the_environment_supplies_a_default_mode_and_the_flag_outranks_it() {
         .env("HQL_REPORT", "collect")
         .output()
         .unwrap();
-    assert_eq!(stderr(&from_environment).matches("error:").count(), 2);
+    assert_eq!(stderr(&from_environment).matches("check error[").count(), 2);
 
     let overridden = Command::new(env!("CARGO_BIN_EXE_hql"))
         .args(["--report", "strict", "eval", source])
         .env("HQL_REPORT", "collect")
         .output()
         .unwrap();
-    assert_eq!(stderr(&overridden).matches("error:").count(), 1);
+    assert_eq!(stderr(&overridden).matches("check error[").count(), 1);
 }
 
 #[test]
 fn a_warning_does_not_change_the_exit_status() {
-    let output = hql(&["--vault", VAULT, "eval", "[[nowhere]]"]);
+    let output = hql(&["--vault", VAULT, "eval", "@[[nowhere]]"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(stdout(&output), "none\n");
-    assert!(stderr(&output).contains("warning:"));
+    assert!(stderr(&output).contains("execute warning[unresolved-link]:"));
+}
+
+#[test]
+fn json_diagnostics_are_one_document_per_line_in_the_order_written() {
+    let output = hql(&[
+        "--diagnostics-format",
+        "json",
+        "eval",
+        "fn totalOf(xs : List<Int>) : Int = xs | sum\ntotalOf([1]) / 0",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    let lines: Vec<serde_json::Value> = stderr(&output)
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["phase"], "check");
+    assert_eq!(lines[0]["severity"], "warning");
+    assert_eq!(lines[1]["phase"], "execute");
+    assert_eq!(lines[1]["kind"], "division-by-zero");
+}
+
+#[test]
+fn the_repl_gives_each_line_typed_its_own_origin() {
+    let output = piped(&["repl"], "x = 1\nx = \"a\" + 1\n");
+    assert!(
+        stdout(&output).contains("<repl:2>:1:11") || stderr(&output).contains("<repl:2>:1:11"),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
 }
 
 #[test]
@@ -302,6 +335,44 @@ fn render_in_place_after_is_idempotent() {
         "after",
     ]);
     assert_eq!(std::fs::read_to_string(&path).unwrap(), once);
+}
+
+#[test]
+fn render_in_place_renders_several_documents() {
+    let directory = tempdir().unwrap();
+    let first = directory.path().join("first.hmd");
+    let second = directory.path().join("second.hmd");
+    std::fs::copy("tests/fixtures/board.hmd", &first).unwrap();
+    std::fs::copy("tests/fixtures/board.hmd", &second).unwrap();
+
+    let output = hql(&[
+        "--vault",
+        VAULT,
+        "render",
+        first.to_str().unwrap(),
+        second.to_str().unwrap(),
+        "--in-place",
+        "--emit",
+        "after",
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output).matches("blocks rendered").count(), 2);
+    let rendered = std::fs::read_to_string(&first).unwrap();
+    assert!(rendered.contains("<!-- hql:output hash="));
+    assert_eq!(std::fs::read_to_string(&second).unwrap(), rendered);
+}
+
+#[test]
+fn render_refuses_several_documents_without_in_place() {
+    let output = hql(&[
+        "--vault",
+        VAULT,
+        "render",
+        "tests/fixtures/board.hmd",
+        "tests/fixtures/board.hmd",
+    ]);
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(stderr(&output).contains("several files need --in-place"));
 }
 
 #[test]
@@ -372,6 +443,31 @@ fn the_repl_keeps_bindings_and_answers_type_questions() {
     assert!(printed.contains("42"), "{printed}");
     assert!(printed.contains("Int"), "{printed}");
     assert!(output.status.success());
+}
+
+#[test]
+fn the_repl_types_a_function_name_by_its_declarations() {
+    let output = piped(&["repl"], ":type range\n:type sort\n:quit\n");
+    let printed = stdout(&output);
+    assert!(
+        printed.contains("fn range(start: Int, end: Int, step: Int = 1) : List<Int>    // std/seq"),
+        "{printed}"
+    );
+    assert_eq!(printed.matches("fn sort").count(), 6, "{printed}");
+    assert!(stderr(&output).is_empty(), "{}", stderr(&output));
+    assert!(output.status.success());
+}
+
+#[test]
+fn the_repl_leaves_on_exit_and_quit() {
+    for word in ["exit", "quit"] {
+        let session = format!("{word}\n1 + 1\n");
+        let output = piped(&["repl"], &session);
+        let printed = stdout(&output);
+        assert!(!printed.contains('2'), "{word}: {printed}");
+        assert!(stderr(&output).is_empty(), "{word}: {}", stderr(&output));
+        assert!(output.status.success());
+    }
 }
 
 #[test]
@@ -451,17 +547,148 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
 }
 
 #[test]
+fn builtins_print_purity_and_shape_for_every_step_and_the_combiner_laws() {
+    let listed = stdout(&hql(&["builtins"]));
+    assert!(listed.contains("  map\n"), "{listed}");
+    assert!(listed.contains("pure, elementwise"));
+    assert!(listed.contains("pure, partition"));
+    assert!(listed.contains("pure, reduction"));
+    assert!(listed.contains("pure, barrier"));
+    assert!(listed.contains("effectful, barrier"));
+    // Each step's third line is its purity and shape.
+    let steps = listed
+        .lines()
+        .filter(|line| line.starts_with("  ") && !line.starts_with("    "))
+        .count();
+    let shaped = listed
+        .lines()
+        .filter(|line| {
+            ["pure, ", "effectful, "]
+                .iter()
+                .any(|purity| line.trim_start().starts_with(purity))
+        })
+        .count();
+    let combiners = hql::extensions::COMBINERS.len();
+    assert_eq!(shaped + combiners, steps, "{listed}");
+    assert!(listed.contains("combiners\n  +\n    over numbers, identity 0\n"));
+    assert!(listed.contains("associative, order-sensitive; folds Seq"));
+}
+
+#[test]
+fn config_reports_the_backend_and_an_unknown_one_fails_every_program() {
+    let plain = stdout(&hql(&["config"]));
+    assert!(
+        plain.contains("backend: localhost (from the default)"),
+        "{plain}"
+    );
+    let mapreduce = stdout(&hql(&["--vault", "examples/mapreduce/wiki", "config"]));
+    assert!(
+        mapreduce.contains("backend: localhost (from the vault's hql.toml)"),
+        "{mapreduce}"
+    );
+    let chosen = hql(&["--backend", "localhost", "eval", "1 + 1"]);
+    assert_eq!(stdout(&chosen), "2\n");
+    let refused = hql(&["--backend", "threads", "eval", "1 + 1"]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(
+        stderr(&refused).contains("no backend is named `threads`, which --backend names"),
+        "{}",
+        stderr(&refused)
+    );
+}
+
+#[test]
+fn plan_prints_each_step_with_its_stage_on_the_backend_in_force() {
+    let program = "doubled : Elementwise<Int, Int> = n => n * 2\n\
+                   [3, 1, 2] | filter(n => n > 1) | doubled | sort\n";
+    let planned = piped(&["plan", "-"], program);
+    assert!(planned.status.success(), "{}", stderr(&planned));
+    assert_eq!(
+        stdout(&planned),
+        "backend localhost\n\
+         line 2: [3, 1, 2]\n  \
+         | filter   stage 0  in process    elementwise, pure\n  \
+         | doubled  stage 0  in process    elementwise, pure\n  \
+         | sort     stage 0  in process    barrier, pure\n"
+    );
+    let json = piped(&["--envelope", "json", "--compact", "plan", "-"], program);
+    let document: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
+    assert_eq!(document["backend"], "localhost");
+    assert_eq!(document["pipelines"][0]["steps"][1]["name"], "doubled");
+    assert_eq!(
+        document["pipelines"][0]["steps"][1]["strategy"],
+        "in process"
+    );
+    // A program that does not check has no plan, and says why.
+    let refused = piped(&["plan", "-"], "[1] | take(true)\n");
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(stderr(&refused).contains("error"), "{}", stderr(&refused));
+}
+
+/// HQL-0037: a `fork` and a `tee` are fan-out nodes with their branches
+/// beneath them, a combiner written as a step is a fan-in node, and a
+/// `fork` followed by `partition` stays two graph operations.
+#[test]
+fn plan_shows_fan_out_and_fan_in_nodes() {
+    let program = "parts = [5, 3, 8] | fork { odd = filter(x => x % 2 == 1), n = size() }\n\
+                   parts.odd | partition(by = x => x) | concat([1]) | size\n";
+    let planned = piped(&["plan", "-"], program);
+    assert!(planned.status.success(), "{}", stderr(&planned));
+    assert_eq!(
+        stdout(&planned),
+        "backend localhost\n\
+         line 1: [5, 3, 8]\n  \
+         | fork  stage 0  in process    barrier, pure, fan-out\n      \
+         odd =\n        \
+         | filter  stage 0  in process    elementwise, pure\n      \
+         n =\n        \
+         | size  stage 0  in process    reduction, pure\n\
+         line 2: parts.odd\n  \
+         | partition  stage 0  in process    partition, pure\n  \
+         | concat     stage 0  in process    barrier, pure, fan-in\n  \
+         | size       stage 0  in process    reduction, pure\n"
+    );
+    let json = piped(&["--envelope", "json", "--compact", "plan", "-"], program);
+    let document: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
+    let fork = &document["pipelines"][0]["steps"][0];
+    assert_eq!(fork["topology"], "fan-out");
+    assert_eq!(fork["branches"][0]["name"], "odd");
+    assert_eq!(fork["branches"][1]["steps"][0]["name"], "size");
+    assert_eq!(document["pipelines"][1]["steps"][1]["topology"], "fan-in");
+}
+
+#[test]
 fn cli_surface_identifies_hql_and_usage_errors_exit_two() {
     let help = hql(&["--help"]);
     assert!(help.status.success());
     assert!(stdout(&help).contains("Hyper Query Language"));
-    assert_eq!(
-        hql(&["--version"]).stdout,
-        format!("hql {}\n", env!("CARGO_PKG_VERSION")).into_bytes()
-    );
-    for args in [vec![], vec!["eval"], vec!["check"], vec!["unknown"]] {
+    // The version, then the time-zone database zone names resolve against:
+    // the bundled one's release, or the host's.
+    for flag in ["--version", "-V"] {
+        let version = stdout(&hql(&[flag]));
+        assert_eq!(version, format!("hql {}\n", hql::cli::version()));
+        let lines: Vec<&str> = version.lines().collect();
+        assert_eq!(lines[0], format!("hql {}", env!("CARGO_PKG_VERSION")));
+        let database = lines[1]
+            .strip_prefix("time-zone database: ")
+            .unwrap_or_else(|| panic!("{version}"));
+        assert!(
+            database == "system" || database.ends_with("bundled"),
+            "{version}"
+        );
+    }
+    for args in [vec![], vec!["eval"], vec!["check"]] {
         assert_eq!(hql(&args).status.code(), Some(2), "{args:?}");
     }
+    // A first word that names no command is a program: `hql '<program>'`.
+    let program = hql(&["unknown"]);
+    assert_eq!(program.status.code(), Some(1));
+    assert!(
+        stderr(&program).contains("`unknown` is not bound"),
+        "{}",
+        stderr(&program)
+    );
+    assert_eq!(stdout(&hql(&["1 + 2"])), "3\n");
     let missing = hql(&["--vault", "tests/fixtures/nowhere", "eval", "1"]);
     assert_eq!(missing.status.code(), Some(1));
     assert!(stderr(&missing).contains("not a directory"));
@@ -493,29 +720,30 @@ fn a_vault_may_decline_the_prelude_and_import_for_every_program() {
 
 #[test]
 fn the_standard_library_checks_from_the_command_line() {
-    let checked = hql(&["check", "std/graph.hql"]);
+    let checked = hql(&["check", "lib/std/graph/mod.hql"]);
     assert!(checked.status.success(), "{}", stderr(&checked));
-    assert_eq!(stdout(&checked).trim(), "Unit");
+    assert_eq!(stdout(&checked).trim(), "Step");
     assert_eq!(stderr(&checked), "");
 }
 
 #[test]
-fn debug_entries_are_hidden_by_default_and_shown_on_request() {
-    let source = "[1, 2] | debug(label = \"xs\") | size";
+fn a_logger_writes_beside_the_result_and_the_host_sets_its_threshold() {
+    let source = "import logging\nlog = Logger(stderr, Text, name = \"xs\")\n\
+                  log | debug(\"hidden\")\nlog | info(\"counted\", {n: 2})\n[1, 2] | size";
     let quiet = hql(&["eval", source]);
     assert_eq!(stdout(&quiet), "2\n");
-    assert!(stderr(&quiet).is_empty(), "{}", stderr(&quiet));
+    assert_eq!(stderr(&quiet), "INFO xs counted {n: 2}\n");
 
-    let shown = hql(&["--report-level", "debug", "eval", source]);
-    assert!(shown.status.success());
-    assert!(stderr(&shown).contains("debug[xs]: List<Int>, 2 elements"));
-    assert!(stderr(&shown).contains("= value: [1, 2]"));
+    let loud = hql(&["--log-level", "debug", "eval", source]);
+    assert_eq!(stderr(&loud), "DEBUG xs hidden\nINFO xs counted {n: 2}\n");
+    let quieter = hql(&["--log-level", "warn", "eval", source]);
+    assert!(stderr(&quieter).is_empty(), "{}", stderr(&quieter));
+    let unknown = hql(&["--log-level", "loud", "eval", "1"]);
+    assert_eq!(unknown.status.code(), Some(1));
+}
 
-    // JSON carries every entry, whatever the shown level.
-    let json = hql(&["--envelope", "json", "eval", source]);
-    let document: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
-    assert_eq!(document["reports"][0]["label"], "xs");
-
+#[test]
+fn the_report_level_is_named_from_a_known_set() {
     let refused = hql(&["--report-level", "loud", "eval", "1"]);
     assert_eq!(refused.status.code(), Some(1));
     assert!(stderr(&refused).contains("unknown report level"));
@@ -544,12 +772,10 @@ fn to_names_the_format_a_result_is_written_in() {
         "{}",
         stdout(&mermaid)
     );
-    // A result the program formatted is written as it is.
+    // A result the program formatted is text; asked for in another format,
+    // it is that String encoded again.
     let formatted = hql(&["--to", "json", "eval", "[1, 2] | markdown"]);
-    assert!(
-        !formatted.status.success(),
-        "Markdown text has no JSON renderer"
-    );
+    assert_eq!(stdout(&formatted), "\"- 1\\n- 2\"\n");
     let kept = hql(&["eval", "[1, 2] | json"]);
     assert_eq!(stdout(&kept), "[\n  1,\n  2\n]\n");
 }
@@ -605,6 +831,8 @@ fn a_stream_is_written_line_by_line_as_it_arrives() {
 #[test]
 fn render_runs_one_cell_and_reports_every_cell_as_json() {
     let directory = tempdir().unwrap();
+    // A document renders only in a vault.
+    std::fs::write(directory.path().join("hql.toml"), "").unwrap();
     let path = directory.path().join("notes.hmd");
     std::fs::write(
         &path,
@@ -642,4 +870,112 @@ fn render_runs_one_cell_and_reports_every_cell_as_json() {
     assert_eq!(cells[2]["status"], "error");
     assert_eq!(cells[0]["span"][0], 0);
     assert_eq!(json.status.code(), Some(1));
+}
+
+#[test]
+fn a_program_outside_every_vault_imports_builtin_modules() {
+    // No vault above the directory: the standard modules still resolve, by
+    // import and through the prelude, and only host bindings are missing.
+    let dir = tempdir().unwrap();
+    let program = dir.path().join("q.hql");
+    std::fs::write(
+        &program,
+        "import regex\nimport io.logging as log\n[regex.is_match(\"wren\", \"^w\"), \"  x \".trim() == \"x\"]\n",
+    )
+    .unwrap();
+    let output = hql_in(dir.path(), &["run", "q.hql"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "[true, true]"
+    );
+    let unbound = hql_in(dir.path(), &["eval", "cards | size"]);
+    assert!(!unbound.status.success());
+    assert!(String::from_utf8_lossy(&unbound.stderr).contains("needs a vault"));
+}
+
+/// HQL-0035: `hql boundary` prints a source's effective boundary, each
+/// property with the layer it comes from, and every boundary error.
+#[test]
+fn boundary_prints_an_endpoints_effective_boundary() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("ledger.csv"),
+        "Species Name,count\nwren,2\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("hql.toml"),
+        "[endpoint.ledger]\nkind = \"csv\"\npath = \"ledger.csv\"\nstrictness = \"open\"\n\
+         [endpoint.ledger.fields.species]\nname = \"Species Name\"\n\
+         [endpoint.ledger.fields.count]\nwrite = false\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("types.hql"),
+        "type Tally {\n    species : String\n    count? : Int\n}\n",
+    )
+    .unwrap();
+    let shown = hql_in(
+        dir.path(),
+        &["boundary", "types.hql", "ledger", "--as", "Tally"],
+    );
+    assert!(shown.status.success(), "{}", stderr(&shown));
+    let text = stdout(&shown);
+    assert!(
+        text.starts_with("endpoint ledger (csv), read as Tally; strictness open, mode replace\n"),
+        "{text}"
+    );
+    assert!(text.contains("count? : Int\n"), "{text}");
+    let line = |property: &str, value: &str| {
+        text.lines()
+            .find(|line| line.trim_start().starts_with(property) && line.contains(value))
+            .map(|line| line.split_whitespace().last().unwrap_or("").to_owned())
+    };
+    assert_eq!(
+        line("external", "Species Name").as_deref(),
+        Some("configuration"),
+        "{text}"
+    );
+    assert_eq!(
+        line("write", "false").as_deref(),
+        Some("configuration"),
+        "{text}"
+    );
+    assert_eq!(line("type", "text").as_deref(), Some("format"), "{text}");
+    let json = hql_in(
+        dir.path(),
+        &[
+            "--envelope",
+            "json",
+            "boundary",
+            "types.hql",
+            "ledger",
+            "--as",
+            "Tally",
+        ],
+    );
+    let document: serde_json::Value = serde_json::from_str(&stdout(&json)).unwrap();
+    assert_eq!(document["fields"][1]["write"]["origin"], "configuration");
+    assert_eq!(document["fields"][0]["external_type"]["value"], "text");
+    // A required field the header does not hold is a boundary error.
+    std::fs::write(
+        dir.path().join("types.hql"),
+        "type Tally {\n    species : String\n    total : Int\n}\n",
+    )
+    .unwrap();
+    let refused = hql_in(
+        dir.path(),
+        &["boundary", "types.hql", "ledger", "--as", "Tally"],
+    );
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(
+        stderr(&refused).contains("field `total`") && stderr(&refused).contains("unmapped field"),
+        "{}",
+        stderr(&refused)
+    );
 }

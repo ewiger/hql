@@ -1,6 +1,6 @@
 //! Declared types: what a `type` statement says, and whether it holds.
 //!
-//! A declaration is checked and yields `Unit`. It introduces no value and no
+//! A declaration is checked and yields `Step`. It introduces no value and no
 //! case in the [lattice](crate::types) — constructing a value of a declared
 //! record type is separate work. What is checked here is that the declaration
 //! is coherent: its parents exist, its parents can be narrowed together, a
@@ -29,6 +29,16 @@ fn lattice(written: &TypeAnn) -> Option<TypeRef> {
 
 /// Resolve a runtime annotation recursively and validate every supplied argument.
 pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
+    // `Self` is the implementing type inside an impl, and stands for itself
+    // inside a trait, where no type has implemented it yet.
+    if written.name == "Self" && written.arguments.is_empty() {
+        return Ok(SELF_TYPE.with(|held| {
+            held.borrow()
+                .last()
+                .cloned()
+                .unwrap_or_else(|| crate::checker::SELF.apply([]))
+        }));
+    }
     if written.arguments.is_empty()
         && let Some(variable) = VARIABLES.with(|held| {
             held.borrow()
@@ -40,17 +50,21 @@ pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
     {
         return Ok(variable);
     }
+    if let Some(module) = hidden(&written.name) {
+        return Err(private_type(&written.name, &module, &written.span));
+    }
     let args = written
         .arguments
         .iter()
         .map(annotation)
         .collect::<Result<Vec<_>, _>>()?;
-    let constructor = builtin::constructor(&written.name).ok_or_else(|| {
-        Diagnostic::name(
-            written.span.clone(),
-            format!("unknown type `{}`", written.name),
-        )
-    })?;
+    let constructor = builtin::constructor(&written.name).ok_or_else(|| unknown_type(written))?;
+    // `Table` written without its row is a table of `Data` rows.
+    let args = if constructor == TypeRef::TABLE.constructor && args.is_empty() {
+        vec![TypeRef::DATA]
+    } else {
+        args
+    };
     let system = builtin::system()
         .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
     let reference = system
@@ -59,9 +73,105 @@ pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
     Ok(reference)
 }
 
+/// The refusal of a written name that is no type. A trait is a contract,
+/// not a type, so its name in a type position is refused with the bound that
+/// states the same requirement (HQL-0039).
+pub(crate) fn unknown_type(written: &TypeAnn) -> Diagnostic {
+    let name = &written.name;
+    if types::program::is_trait(name) || crate::checker::core_traits().contains_key(name) {
+        return Diagnostic::name(
+            written.span.clone(),
+            format!(
+                "`{name}` is a trait, not a type: a value of a type implementing it is \
+                 written with a bound, `<T : {name}>(x: T)`"
+            ),
+        );
+    }
+    if let Some(message) = builtin::withdrawn(name) {
+        return Diagnostic::name(written.span.clone(), message);
+    }
+    Diagnostic::name(written.span.clone(), format!("unknown type `{name}`"))
+}
+
 thread_local! {
     /// The type parameters of the generic function being checked.
     static VARIABLES: std::cell::RefCell<Vec<(String, TypeRef)>> = const { std::cell::RefCell::new(Vec::new()) };
+    /// The implementing type of the impl being checked, innermost last.
+    static SELF_TYPE: std::cell::RefCell<Vec<TypeRef>> = const { std::cell::RefCell::new(Vec::new()) };
+    /// For each import unit being checked, innermost last, the private
+    /// types of the modules it imported, each with its module: in the one
+    /// lattice, and named by no unit but their own.
+    static HIDDEN: std::cell::RefCell<Vec<Vec<(String, String)>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The private types an import unit may not name, while it is checked: a
+/// fresh, empty set until the guard is dropped.
+pub(crate) struct HiddenTypes;
+
+impl HiddenTypes {
+    pub(crate) fn enter() -> Self {
+        HIDDEN.with(|held| held.borrow_mut().push(Vec::new()));
+        Self
+    }
+}
+
+impl Drop for HiddenTypes {
+    fn drop(&mut self) {
+        HIDDEN.with(|held| {
+            held.borrow_mut().pop();
+        });
+    }
+}
+
+/// Withhold a private type of `module` from the unit being checked.
+pub(crate) fn hide(name: &str, module: &str) {
+    HIDDEN.with(|held| {
+        if let Some(frame) = held.borrow_mut().last_mut() {
+            frame.push((name.to_owned(), module.to_owned()));
+        }
+    });
+}
+
+/// The module whose private type `name` is, when the unit being checked
+/// imported it and so may not name it.
+pub(crate) fn hidden(name: &str) -> Option<String> {
+    HIDDEN.with(|held| {
+        held.borrow().last().and_then(|frame| {
+            frame
+                .iter()
+                .find(|(held, _)| held == name)
+                .map(|(_, module)| module.clone())
+        })
+    })
+}
+
+/// The refusal of a private type named outside its module.
+pub(crate) fn private_type(name: &str, module: &str, span: &Range<usize>) -> Diagnostic {
+    Diagnostic::name(
+        span.clone(),
+        format!(
+            "`{name}` is private to the module `{module}`: a private declaration is visible \
+             only within its own module"
+        ),
+    )
+}
+
+/// The implementing type `Self` stands for while an impl is checked.
+pub(crate) struct SelfType;
+
+impl SelfType {
+    pub(crate) fn enter(target: TypeRef) -> Self {
+        SELF_TYPE.with(|held| held.borrow_mut().push(target));
+        Self
+    }
+}
+
+impl Drop for SelfType {
+    fn drop(&mut self) {
+        SELF_TYPE.with(|held| {
+            held.borrow_mut().pop();
+        });
+    }
 }
 
 /// The type parameters of a generic function, in scope while it is checked:
@@ -85,6 +195,350 @@ impl Drop for TypeVariables {
     }
 }
 
+/// Add a checked declaration to the lattice of the program, so that its name
+/// is a type the rest of the program can construct, read and match.
+///
+/// A declaration that restates a built-in type is checked for agreement by
+/// [`Declarations::declare`] and adds nothing here.
+pub(crate) fn enter_lattice(declaration: &TypeDecl) -> Result<(), Diagnostic> {
+    use crate::types::program::{self, RecordField, RecordShape};
+    use crate::types::{TypeDefinition, TypeParameter, Variance};
+    if builtin::constructor(&declaration.name).is_some() {
+        return Ok(());
+    }
+    // A union over a parameter, `union {T, Seq<Tree<T>>}`, has no closed
+    // members to enter; it is checked as a declaration and stays one.
+    if declaration.union.is_some() && !declaration.parameters.is_empty() {
+        return Ok(());
+    }
+    let parameters: Vec<&'static str> = declaration
+        .parameters
+        .iter()
+        .map(|parameter| program::intern(parameter))
+        .collect();
+    let own = program::constructor(&declaration.name);
+    let structural = |written: &TypeAnn| structural(written, &parameters, Some(own));
+    // A declaration with fields is a record, with values of its own. One
+    // without is a tag: a contract other types name in their supertype sets,
+    // which no value is built as.
+    let kind = match &declaration.union {
+        Some(members) => TypeKind::Union(
+            members
+                .iter()
+                .map(|member| {
+                    let member_type = structural(member)?;
+                    if mentions_parameter(&member_type, &parameters) {
+                        return Err(Diagnostic::typing(
+                            member.span.clone(),
+                            "a union's member is a closed type, not a type parameter",
+                        ));
+                    }
+                    Ok(member_type)
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+        None if declaration.abstract_type || declaration.fields.is_empty() => TypeKind::Abstract,
+        None => TypeKind::Concrete,
+    };
+    let mut parents = Vec::new();
+    let mut applied = Vec::new();
+    for supertype in &declaration.supertypes {
+        let parent = structural(supertype)?;
+        // The graph carriers are monomorphic: `Edge<S, T>` names `Edge`.
+        if parent.args.is_empty() || matches!(parent.constructor.0, "Graph" | "Edge") {
+            parents.push(parent.constructor);
+        } else {
+            applied.push(parent);
+        }
+    }
+    let mut typed_parameters = Vec::new();
+    for name in &parameters {
+        let bound = declaration
+            .bounds
+            .iter()
+            .find(|(bounded, _)| bounded == name)
+            .map(|(_, bound)| annotation(bound))
+            .transpose()?;
+        typed_parameters.push(TypeParameter {
+            name,
+            variance: Variance::Covariant,
+            bound,
+        });
+    }
+    let shape = (kind == TypeKind::Concrete).then(|| {
+        let supertypes = declaration
+            .supertypes
+            .iter()
+            .map(structural)
+            .collect::<Result<Vec<_>, _>>()?;
+        // A record under another record has its fields too, the parent's
+        // first; one it declares again is its own.
+        let mut fields: Vec<RecordField> = supertypes
+            .iter()
+            .filter_map(|parent| {
+                let shape = program::record(parent.constructor.0)?;
+                Some(
+                    shape
+                        .fields
+                        .iter()
+                        .map(|field| RecordField {
+                            ty: shape.bound(&field.ty, &parent.args),
+                            ..field.clone()
+                        })
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .flatten()
+            .filter(|inherited| {
+                !declaration
+                    .fields
+                    .iter()
+                    .any(|field| field.name == inherited.name)
+            })
+            .collect();
+        fields.extend(
+            declaration
+                .fields
+                .iter()
+                .map(|field| {
+                    let (ty, validator) = match validator_field(&field.annotation)? {
+                        Some((ty, validator)) => (ty, Some(validator)),
+                        None => (structural(&field.annotation)?, None),
+                    };
+                    let default = field
+                        .default
+                        .as_ref()
+                        .map(|written| default(field, written, &ty))
+                        .transpose()?;
+                    Ok(RecordField {
+                        name: field.name.clone(),
+                        ty,
+                        optional: field.optional,
+                        default,
+                        validator,
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?,
+        );
+        Ok::<_, Diagnostic>(RecordShape {
+            parameters: parameters.clone(),
+            parents: supertypes,
+            fields,
+        })
+    });
+    let shape = shape.transpose()?;
+    if let Some(shape) = &shape {
+        for parameter in &mut typed_parameters {
+            parameter.variance = variance_in(parameter.name, &shape.fields);
+        }
+    }
+    program::declare(
+        TypeDefinition {
+            constructor: program::constructor(&declaration.name),
+            kind,
+            parameters: typed_parameters,
+            parents,
+            applied,
+        },
+        shape,
+    )
+    .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))
+}
+
+/// How a record's parameter takes part in subtyping, from where its fields
+/// hold it: covariant where it is only read out, as `T` in `x : T`;
+/// contravariant where only a function takes it, as in `f : T -> Int`;
+/// invariant where both. `Box<Int>` is a `Box<Data>` only when nothing in
+/// it takes a `T`.
+fn variance_in(parameter: &str, fields: &[types::program::RecordField]) -> types::Variance {
+    let system = types::builtin::system().ok();
+    let (mut read, mut taken) = (false, false);
+    for field in fields {
+        occurrences(
+            &field.ty,
+            parameter,
+            true,
+            system.as_deref(),
+            &mut read,
+            &mut taken,
+        );
+    }
+    match (read, taken) {
+        (_, false) => types::Variance::Covariant,
+        (false, true) => types::Variance::Contravariant,
+        (true, true) => types::Variance::Invariant,
+    }
+}
+
+fn occurrences(
+    ty: &TypeRef,
+    parameter: &str,
+    positive: bool,
+    system: Option<&types::TypeSystem>,
+    read: &mut bool,
+    taken: &mut bool,
+) {
+    if ty.constructor.0 == parameter && ty.args.is_empty() {
+        *if positive { &mut *read } else { &mut *taken } = true;
+        return;
+    }
+    let definition = system.and_then(|system| system.definition(ty.constructor).ok());
+    for (index, arg) in ty.args.iter().enumerate() {
+        let variance = definition
+            .and_then(|definition| definition.parameters.get(index))
+            .map_or(types::Variance::Covariant, |held| held.variance);
+        match variance {
+            types::Variance::Covariant => {
+                occurrences(arg, parameter, positive, system, read, taken)
+            }
+            types::Variance::Contravariant => {
+                occurrences(arg, parameter, !positive, system, read, taken)
+            }
+            types::Variance::Invariant => {
+                occurrences(arg, parameter, true, system, read, taken);
+                occurrences(arg, parameter, false, system, read, taken);
+            }
+        }
+    }
+}
+
+/// A written type as a reference built from names: a parameter of the
+/// declaration stays a nullary application of its name, every other name
+/// must be a type, and nothing is validated, since the parameters are bound
+/// only when the type is applied.
+fn structural(
+    written: &TypeAnn,
+    parameters: &[&'static str],
+    own: Option<types::TypeConstructor>,
+) -> Result<TypeRef, Diagnostic> {
+    if let Some(parameter) = parameters.iter().find(|held| **held == written.name) {
+        return Ok(types::TypeConstructor(parameter).apply([]));
+    }
+    let args = written
+        .arguments
+        .iter()
+        .map(|argument| structural(argument, parameters, own))
+        .collect::<Result<Vec<_>, _>>()?;
+    // A union may list the type being declared inside an argument, which is
+    // what makes a tree.
+    if let Some(own) = own
+        && own.0 == written.name
+    {
+        return Ok(own.apply(args));
+    }
+    let constructor = builtin::constructor(&written.name).ok_or_else(|| unknown_type(written))?;
+    Ok(constructor.apply(args))
+}
+
+/// A field declared with a validator trait `V`: of the one type that
+/// implements `V`, and held to it (HQL-0034). `None` where the field's type
+/// names no validator trait.
+fn validator_field(written: &TypeAnn) -> Result<Option<(TypeRef, &'static str)>, Diagnostic> {
+    if !written.arguments.is_empty() {
+        return Ok(None);
+    }
+    use crate::types::program;
+    let Some(types) = program::implementing(&written.name) else {
+        return Ok(None);
+    };
+    match types.as_slice() {
+        [ty] => Ok(Some((ty.clone(), program::intern(&written.name)))),
+        [] => Err(Diagnostic::typing(
+            written.span.clone(),
+            format!(
+                "the validator trait `{}` is implemented for no type, so a field declared \
+                 with it has none",
+                written.name
+            ),
+        )),
+        _ => Err(Diagnostic::typing(
+            written.span.clone(),
+            format!(
+                "the validator trait `{}` is implemented for {}: declare the field with one of \
+                 them and `validate f with {}`",
+                written.name,
+                types
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" and "),
+                written.name
+            ),
+        )),
+    }
+}
+
+/// A field's default as the data a contract reads in its place: a literal
+/// of the field's type, on a field that is not optional, since a default is
+/// what makes the entry always there.
+fn default(
+    field: &crate::ast::Field,
+    written: &crate::ast::Expr,
+    ty: &TypeRef,
+) -> Result<crate::data::Data, Diagnostic> {
+    if field.optional {
+        return Err(Diagnostic::typing(
+            written.span.clone(),
+            format!(
+                "`{}` is optional and has a default: a default makes it always present, so \
+                 write `{}: {}`",
+                field.name, field.name, field.annotation.name
+            ),
+        ));
+    }
+    let data = literal(written).ok_or_else(|| {
+        Diagnostic::typing(
+            written.span.clone(),
+            format!(
+                "the default of `{}` is written as a literal, with no call or name in it",
+                field.name
+            ),
+        )
+    })?;
+    crate::types::Value::Data(std::sync::Arc::new(data.clone()))
+        .decoded(ty, crate::types::Leaves::AsWritten)
+        .map_err(|_| {
+            Diagnostic::typing(
+                written.span.clone(),
+                format!("the default of `{}` is not {ty}", field.name),
+            )
+        })?;
+    Ok(data)
+}
+
+/// A default as data: a scalar literal, or a list, set or `Data` literal of
+/// them.
+pub(crate) fn literal(written: &crate::ast::Expr) -> Option<crate::data::Data> {
+    use crate::ast::Kind;
+    use crate::data::Data;
+    Some(match &written.kind {
+        Kind::Int(value) => Data::Int(*value),
+        Kind::Float(value) => Data::Float(*value),
+        Kind::Decimal(value) => Data::Decimal(value.clone()),
+        Kind::Bool(value) => Data::Bool(*value),
+        Kind::Str(text) => Data::Str(text.clone()),
+        Kind::List(items) | Kind::Set(items) => {
+            Data::List(items.iter().map(literal).collect::<Option<_>>()?)
+        }
+        Kind::Data(entries) => Data::Map(
+            entries
+                .iter()
+                .map(|(key, value)| Some((key.clone(), literal(value)?)))
+                .collect::<Option<_>>()?,
+        ),
+        _ => return None,
+    })
+}
+
+/// Whether a structural type mentions one of the declaration's parameters.
+pub(crate) fn mentions_parameter(ty: &TypeRef, parameters: &[&'static str]) -> bool {
+    (ty.args.is_empty() && parameters.contains(&ty.constructor.0))
+        || ty
+            .args
+            .iter()
+            .any(|arg| mentions_parameter(arg, parameters))
+}
+
 /// What a program has declared so far.
 #[derive(Debug, Default)]
 pub(crate) struct Declarations {
@@ -99,10 +553,18 @@ struct Declared {
     parents: Vec<String>,
     /// Each field, and whether the key may be absent.
     fields: Vec<(String, bool)>,
+    /// Whether it is `abstract type`, which has no constructor.
+    abstract_type: bool,
     span: Range<usize>,
 }
 
 impl Declarations {
+    /// Whether this source unit declares a type of this name, and whether
+    /// that type is abstract: a function named after it is its constructor.
+    pub(crate) fn declares(&self, name: &str) -> Option<bool> {
+        self.known.get(name).map(|declared| declared.abstract_type)
+    }
+
     /// Check a declaration and record it.
     pub(crate) fn declare(&mut self, declaration: &TypeDecl) -> Result<(), Diagnostic> {
         self.name_is_free(declaration)?;
@@ -194,26 +656,29 @@ impl Declarations {
         self.agrees_with_the_lattice(declaration, &parents)?;
         Self::parents_are_jointly_inhabitable(&parents)?;
 
-        // A field may name the record being declared — a run's `parent` is a
-        // run — so the name resolves while the fields are read, and is
-        // withdrawn again if they do not hold.
-        let provisional = !self.known.contains_key(&declaration.name);
-        if provisional {
-            self.known.insert(
-                declaration.name.clone(),
-                Declared {
-                    parameters: declaration.parameters.len(),
-                    parents: Vec::new(),
-                    fields: Vec::new(),
-                    span: declaration.span.clone(),
-                },
-            );
+        let mut seen: Vec<&str> = Vec::new();
+        for field in &declaration.fields {
+            if seen.contains(&field.name.as_str()) {
+                return Err(Diagnostic::typing(
+                    field.span.clone(),
+                    format!(
+                        "`{}` declares `{}` twice, and a record holds one entry per key",
+                        declaration.name, field.name
+                    ),
+                ));
+            }
+            seen.push(&field.name);
+            // A validator trait is no type of its own: the field is of the
+            // type implementing it, resolved where the record is built.
+            let validator = field.annotation.arguments.is_empty()
+                && crate::types::program::implementing(&field.annotation.name).is_some();
+            if !validator {
+                self.resolve(&field.annotation, &scope)?;
+            }
+            if field.optional {
+                self.field_stays_required(declaration, &field.name, &field.span)?;
+            }
         }
-        let fields = self.fields_hold(declaration, &scope);
-        if fields.is_err() && provisional {
-            self.known.remove(&declaration.name);
-        }
-        fields?;
 
         self.known.insert(
             declaration.name.clone(),
@@ -229,35 +694,10 @@ impl Declarations {
                     .iter()
                     .map(|field| (field.name.clone(), field.optional))
                     .collect(),
+                abstract_type: declaration.abstract_type,
                 span: declaration.span.clone(),
             },
         );
-        Ok(())
-    }
-
-    /// Each field of a record names a type and appears once.
-    fn fields_hold(
-        &self,
-        declaration: &TypeDecl,
-        scope: &HashMap<String, TypeRef>,
-    ) -> Result<(), Diagnostic> {
-        let mut seen: Vec<&str> = Vec::new();
-        for field in &declaration.fields {
-            if seen.contains(&field.name.as_str()) {
-                return Err(Diagnostic::typing(
-                    field.span.clone(),
-                    format!(
-                        "`{}` declares `{}` twice, and a record holds one entry per key",
-                        declaration.name, field.name
-                    ),
-                ));
-            }
-            seen.push(&field.name);
-            self.resolve(&field.annotation, scope)?;
-            if field.optional {
-                self.field_stays_required(declaration, &field.name, &field.span)?;
-            }
-        }
         Ok(())
     }
 
@@ -277,6 +717,7 @@ impl Declarations {
                 parameters: declaration.parameters.len(),
                 parents: Vec::new(),
                 fields: Vec::new(),
+                abstract_type: declaration.abstract_type,
                 span: declaration.span.clone(),
             },
         );
@@ -460,22 +901,6 @@ impl Declarations {
                 ),
             ));
         }
-        if let Ok(system) = builtin::system()
-            && let Some(constructor) = system.constructor(&written.name)
-            && !written.arguments.is_empty()
-            && !matches!(constructor.0, "Graph" | "Edge")
-        {
-            let args = written
-                .arguments
-                .iter()
-                .map(|argument| self.scoped_type(argument, scope))
-                .collect::<Option<Vec<_>>>();
-            if let Some(args) = args {
-                system
-                    .apply(constructor, args)
-                    .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
-            }
-        }
         if let Some(declared) = self.known.get(&written.name) {
             // A bare name is the constructor itself — `Graph<Card, Link>`
             // passes `Link`, not a `Link` of something. Whether a constructor
@@ -500,13 +925,26 @@ impl Declarations {
                 ),
             ));
         }
+        if let Ok(system) = builtin::system()
+            && let Some(constructor) = system.constructor(&written.name)
+            && !written.arguments.is_empty()
+            && !matches!(constructor.0, "Graph" | "Edge")
+        {
+            let args = written
+                .arguments
+                .iter()
+                .map(|argument| self.scoped_type(argument, scope))
+                .collect::<Option<Vec<_>>>();
+            if let Some(args) = args {
+                system
+                    .apply(constructor, args)
+                    .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
+            }
+        }
         if builtin::constructor(&written.name).is_some() {
             return Ok(());
         }
-        Err(Diagnostic::name(
-            written.span.clone(),
-            format!("unknown type `{}`", written.name),
-        ))
+        Err(unknown_type(written))
     }
 
     fn scoped_type(&self, written: &TypeAnn, scope: &HashMap<String, TypeRef>) -> Option<TypeRef> {
@@ -532,7 +970,7 @@ impl Declarations {
     }
 
     /// A declaration may restate a type the binary already has — that is what
-    /// `std/` is for — but it may not contradict it.
+    /// `lib/std/` is for — but it may not contradict it.
     fn agrees_with_the_lattice(
         &self,
         declaration: &TypeDecl,
@@ -563,6 +1001,9 @@ impl Declarations {
             ) -> Option<TypeRef> {
                 if let Some(index) = names.iter().position(|name| name == &written.name) {
                     return parameters.get(index).cloned();
+                }
+                if !crate::types::program::is_builtin(&written.name) {
+                    return None;
                 }
                 let args = written
                     .arguments
@@ -608,8 +1049,12 @@ impl Declarations {
                 if one.is(&other) || other.is(&one) {
                     continue;
                 }
+                // Only the binary's own concrete types exclude each other; a
+                // declared record may be narrowed together with anything.
                 if one.is_concrete()
                     && other.is_concrete()
+                    && crate::types::program::is_builtin(one.constructor.0)
+                    && crate::types::program::is_builtin(other.constructor.0)
                     && one.declared_common_type(&other).is_none()
                 {
                     return Err(Diagnostic::typing(

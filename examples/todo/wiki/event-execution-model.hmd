@@ -1,0 +1,10 @@
+---
+title: Event execution model
+metadata:
+  type: adr
+  status: accepted
+  date: 2026-10-10
+---
+# Event execution model
+
+An architecture decision listed on the [[todo]] board.

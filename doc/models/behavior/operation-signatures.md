@@ -2,7 +2,7 @@
 
 Status: audit of the design as of 2026-10-18; **decides nothing by itself**.
 Decisions it points at are owned by the proposals and cards it names, and the
-work is tracked by [issue 0018](../../issues/0018-operator-synonymy-audit.md).
+work is tracked by [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md).
 
 HQL names its operations on several fronts at once: the implemented core that
 `hql builtins` prints, [HQL-0004](../../proposals/HQL-0004/README.md),
@@ -45,6 +45,7 @@ reduce<T, R>(xs: Seq<T>, initial: R, by: (R, T) -> R)   : R
 reduce<T>(xs: Seq<T>, by: (T, T) -> T)                  : Option<T>
 sum(xs: Collection<Int>)                                : Int
 sum(xs: Collection<Float>)                              : Float
+sum(xs: Collection<Decimal>)                            : Decimal
 min<T : Orderable>(xs: Collection<T>)                   : Option<T>
 max<T : Orderable>(xs: Collection<T>)                   : Option<T>
 
@@ -64,6 +65,80 @@ mermaid(x: Any)  : Mermaid
 
 lexical<T : Doc>(xs: Collection<T>, query: String)  : Ranking<Card>
 semantic<T : Doc>(xs: Collection<T>, query: String) : Ranking<Card>
+
+// core: the time constructors; a form without a positional parameter
+// takes Unit as its input
+Date(text: String) : Date
+Date(*, year: Int, month: Int, day: Int) : Date
+DateTime(text: String) : DateTime
+DateTime(date: Date, *, hour?: Int, minute?: Int, second?: Int, nanosecond?: Int) : DateTime
+Instant(text: String) : Instant
+Instant(*, unix_seconds: Int) : Instant
+Instant(*, unix_millis: Int) : Instant
+Duration(text: String) : Duration
+Duration(*, days?: Int, hours?: Int, minutes?: Int, seconds?: Int, millis?: Int, nanos?: Int) : Duration
+
+// time (HQL-0041 part 1); T is Date or DateTime where both are declared
+Zone(name: String)                                   : Zone
+to_date(s: String) : Option<Date>   // and to_datetime, to_instant, to_duration
+parse_date(s: String, pattern: String) : Option<Date>   // and parse_datetime, parse_instant
+at(i: Instant, zone: Zone)                           : DateTime
+in_zone(t: DateTime, zone: Zone)                     : Instant
+offset(z: Zone, at: Instant)                         : Duration
+year(t: T) : Int   // and month, day, weekday, day_of_year, iso_week, iso_year
+date(t: DateTime) : Date
+hour(t: DateTime) : Int   // and minute, second, nanosecond
+unix_seconds(i: Instant) : Int   // and unix_millis
+total_seconds(d: Duration) : Decimal
+total_millis(d: Duration)  : Int
+plus(x: Instant | DateTime, by: Duration)            : Instant | DateTime   // and minus
+since(x: Instant | DateTime, earlier: Instant | DateTime) : Duration
+add_days(t: T, n: Int) : T   // and add_months, add_years
+days_since(d: Date, earlier: Date)                   : Int
+negate(d: Duration) : Duration
+times(d: Duration, n: Int) : Duration
+truncate<U : TimeUnit>(x: Date | DateTime | Instant, unit: Type<U>, zone?: Zone) : Date | DateTime | Instant
+dates(start: Date, end: Date)                        : List<Date>
+fmt(x: Date | DateTime | Instant, pattern: String, zone?: Zone) : String
+now()                                                : Instant   // effectful
+today(zone?: Zone)                                   : Date      // effectful
+local_zone()                                         : Zone      // effectful
+
+// stats (HQL-0041 part 2); N is Int, Float or Decimal, R is Float, or Decimal over Decimal
+mean(xs: Collection<N>)                              : Option<Float | Decimal>   // reduction
+variance(xs: Collection<N>)                          : Option<R>   // reduction; sample, n - 1
+stdev(xs: Collection<N>)                             : Option<R>   // reduction; sample
+pvariance(xs: Collection<N>)                         : Option<R>   // reduction; population, n
+pstdev(xs: Collection<N>)                            : Option<R>   // reduction; population
+covariance(ps: Collection<Pair<N, N>>)               : Option<R>   // reduction
+correlation(ps: Collection<Pair<N, N>>)              : Option<Float>   // reduction
+median(xs: Collection<N>)                            : Option<R>
+quantile(xs: Collection<N>, q: Float | Decimal)      : Option<R>   // type 7
+quantiles(xs: Collection<N>, n: Int)                 : List<R>
+mode<T : Orderable>(xs: Collection<T>)               : Option<T>
+
+// io.env (HQL-0041 part 5); every operation is effectful
+var(name: String)                                    : Option<String>
+vars()                                               : Map<String, String>
+arg(name: String)                                    : Option<String>
+args()                                               : Map<String, String>
+
+// random (HQL-0041 part 4); each draw is pure with `seed`, effectful without
+sample<T>(xs: Seq<T>, n: Int, *, seed?: Int)                    : List<T>
+sample<T : Orderable>(xs: Collection<T>, n: Int, *, seed?: Int) : List<T>
+sample<T>(xs: Stream<T>, n: Int)                                : List<T>   // effectful
+shuffle<T>(xs: Seq<T>, *, seed?: Int)                           : List<T>
+choice<T>(xs: Seq<T>, *, seed?: Int)                            : Option<T>
+random_int(low: Int, high: Int)                                 : Int       // effectful
+random_float()                                                  : Float     // effectful
+uuid()                                                          : String    // effectful
+uuid(name: String, namespace: String)                           : String
+
+// crypto.digest and encoding (HQL-0041 part 3)
+digest<A : Algorithm>(s: String, as: Type<A>)   : String   // lowercase hex
+fingerprint(x: Data)                            : String   // SHA-256 of canonical JSON
+encode<E : Encoding>(s: String, as: Type<E>)    : String
+decode<E : Encoding>(s: String, as: Type<E>)    : Option<String>
 ```
 
 ### Proposed
@@ -118,7 +193,7 @@ These are the duplicates. Each has a decision already.
 | Signatures | Decision |
 | --- | --- |
 | `collect<T>(Seq<T>) : List<T>` (HQL-0004), `list<T>(Seq<T>) : List<T>` (HQL-0007) and the `List(xs)` constructor | the `List` constructor ([HQL-0016](../../proposals/HQL-0016/README.md)); HQL-0004's text still says `collect` |
-| `size<T>(Collection<T>) : Int` and `count<T>(Collection<T>) : Int` (the no-argument form) | kept as a declared alias, the only one; `std/collections.hql` says so |
+| `size<T>(Collection<T>) : Int` and `count<T>(Collection<T>) : Int` (the no-argument form) | kept as a declared alias, the only one; `lib/std/collections/mod.hql` says so |
 | `graph(x) : Graph` and `expand(x, depth = 0) : Graph` over the same input union | the `Graph` constructor ([HQL-0017](../../proposals/HQL-0017/README.md)); `expand` refuses depth `0` |
 
 ### Same signature, different result: not duplicates
@@ -133,7 +208,7 @@ The type alone cannot separate these. The value does.
 ### Same name, different signatures: one operation declared inconsistently
 
 None. Every source above writes each name with one signature, in the form
-[issue 0018](../../issues/0018-operator-synonymy-audit.md) settles: an
+[issue 0018](../../issues/archive/0018-operator-synonymy-audit.md) settles: an
 operation returns the type it was given. `filter`, `take`, `drop` and `sort`
 bind the input's type `S` and return it; `map` binds its constructor `F<_>`
 and returns `F<U>`. `take` over a stream and `take` or `sort` over a
@@ -168,4 +243,4 @@ the queries model states, and one name is right.
 
 - **HQL-0004's `collect`.** The proposal still declares
   `collect<T>(Seq<T>) : List<T>`; it reads `List` once
-  [0013](../../issues/0013-typed-pipeline-operations.md) reaches it.
+  [0013](../../issues/archive/0013-typed-pipeline-operations.md) reaches it.

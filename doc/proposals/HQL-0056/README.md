@@ -1,0 +1,100 @@
+# HQL-0056: Computation plans and backend engines
+
+**Status**: drafted
+**Created**: 2026-11-13
+**Source**: the maintainer's notes on the Learn page
+[Writing with `target` and `sink`](../../public/learn/09-io/target.md);
+[HQL-0055](../HQL-0055/README.md) (steps, autes, stages, tasks and jobs);
+[HQL-0004](../HQL-0004/README.md) (backends held to `localhost`);
+[HQL-0005](../HQL-0005/README.md) (logical steps and physical planning)
+
+> **To be reworked.** This record is an early design sketch, not a
+> specification. Its one firm idea is that a **computation plan is a DAG**,
+> returned by the planning phase of a computation. Everything else here,
+> names included, MUST be aligned with the computation life cycle (check,
+> plan, execute, report) into one complete model before this record is
+> specified further. Tracked in
+> [issue 0073](../../issues/0073-computation-plans.md).
+
+## Abstract
+
+A checked program describes logical computation. Planning turns it into a
+**computation plan**: a directed acyclic graph (DAG) whose nodes are units
+of computation and whose edges are data dependencies and effect order. A
+backend engine then executes the plan, either at once (an **immediate
+engine**, such as `localhost`) or by scheduling it as stages, tasks and a
+job (a **planning engine**, HQL-0055). Planning and execution are two
+phases of one life cycle, and each gives a value of its own: a plan of an
+operation, and the result of running it. A new module `core.computation`
+names the two as **`OpPlan<T>`** and **`OpResult<T>`**. Both can be
+inspected, and both serialize to a string.
+
+## What works today
+
+The record specifies nothing new yet. What runs today, and what the sketch
+starts from:
+
+- `crate::execution::Program` is the checked execution tree. Every backend
+  receives it and nothing earlier (`Backend::run` in `src/backends/mod.rs`).
+- The planner in `src/backends/plan.rs` annotates every step with a stage.
+  `Execution::InProcess` puts every step of a pipeline in stage `0`;
+  `Execution::Partitioned`, used in tests, cuts stages by shape.
+- `localhost` is the only registered backend. It runs each step to
+  completion before the next. `hql plan` prints the annotated program.
+- There is no plan value in HQL source, and no `core.computation` module.
+
+## Sketch
+
+### 1. The computation plan is a DAG
+
+- The plan MUST be a DAG. Units are nodes; data dependencies and effect
+  order are edges. A cycle would make a unit depend on its own result.
+- Every planning engine SHOULD build the same DAG form from `Program`.
+- Building the DAG from `Program` is the **identity**: one node per unit as
+  written. A computation written twice is two nodes.
+- A planner (the engine, a separate tool, or an agent acting for the
+  engine) MAY then rewrite the DAG: merge, duplicate, fuse, split or reorder
+  pure units. Each rewrite MUST preserve the observable contract of HQL-0004
+  and HQL-0044, and MUST NOT merge, drop or duplicate an effectful unit
+  unless the effect is idempotent (HQL-0055).
+- The DAG the rewrites end with is the **physical plan**. The planner cuts
+  it into stages; the backend runs the stages as tasks; one run is a job.
+
+```text
+check     Program (tree)
+plan      --identity--> logical DAG --rewrites--> physical plan   OpPlan<T>
+execute   stages --> tasks --> job                                 OpResult<T>
+```
+
+### 2. `OpPlan<T>` and `OpResult<T>`
+
+- `OpPlan<T>` is the plan of an operation whose result has type `T`. The
+  planning phase returns it.
+- `OpResult<T>` is the result of running that operation. The execution
+  phase returns it.
+- Both live in a new module `core.computation`
+  (`lib/std/core/computation/mod.hql`). Both MUST serialize to a string, so
+  a host can print, store or compare them.
+
+## Open Questions
+
+- What is the computation life cycle, phase by phase, and which value does
+  each phase give? This decides everything else in the record.
+- What are the DAG's node and edge types, and where does the shared form
+  live in `src/`?
+- Is a program of several pipelines one plan, or one per pipeline joined by
+  effect order?
+- When does a program see an `OpPlan<T>` and when an `OpResult<T>`, and how
+  does that stay the same across engines (HQL-0004)?
+- How do `OpPlan` and `OpResult` relate to `Aute` and `Step` in HQL-0055?
+- What string form do `OpPlan<T>` and `OpResult<T>` serialize to?
+- Does `hql run` on a planning engine wait for a bounded job to finish?
+- Should a planner record the rewrites it applied, so `hql plan` can show
+  them?
+
+## Changelog
+
+- 2026-11-13: drafted as a sketch to be reworked: the computation plan is a
+  DAG returned by the planning phase; `OpPlan<T>` and `OpResult<T>` in
+  `core.computation`; alignment with the computation life cycle tracked in
+  issue 0073.

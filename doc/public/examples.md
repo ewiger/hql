@@ -6,8 +6,8 @@ expected type and result in a header, and the test suite runs every one.
 
 | Corpus | What it shows |
 | --- | --- |
-| [tutorial](https://github.com/ewiger/hql/tree/main/examples/tutorial) | The reading-club vault [the HQL book](learn/index.md) runs against: books, authors, their links and a relation card |
-| [notebook](https://github.com/ewiger/hql/tree/main/examples/notebook) | A document whose cells share values by id, built with `hql render` |
+| [tutorial](https://github.com/ewiger/hql/tree/main/examples/tutorial) | The reading-club vault [the HQL book](learn/index.md) runs against: books, authors, their links, a relation card, an agent card and an embedding index for the questions the book asks |
+| [notebook](https://github.com/ewiger/hql/tree/main/examples/notebook) | A reading list whose cells share values by id, built with `hql render`, and a meeting note whose cells run an agent over the draft, written as design |
 | [birds](https://github.com/ewiger/hql/tree/main/examples/birds) | Linked cards with runnable collection queries: repeated sightings, distinct species, keyed counts, ordered routes and sorted keys — plus intentional errors for duplicate keys and non-orderable sorted-map keys |
 | [mapreduce](https://github.com/ewiger/hql/tree/main/examples/mapreduce) | Book cards filtered, grouped and reduced, read as a chain of steps |
 | [functions](https://github.com/ewiger/hql/tree/main/examples/functions) | Declared, generic and aliased functions, partial application, and intentional errors |

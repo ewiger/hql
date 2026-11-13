@@ -1,0 +1,136 @@
+# The shop's run context: every system its pipelines read and write, each
+# under an id. Files and the SQLite table are on this machine; every other
+# endpoint is a server whose address is named by an environment variable,
+# so checking a program reads this file and connects to nothing.
+
+# The order events the shop starts from, and the raw events a producer
+# sends, some of which are not orders.
+[endpoint.events]
+kind = "json"
+path = "data/events.json"
+
+[endpoint.raw_events]
+kind = "json"
+path = "data/raw-events.json"
+
+# The valid events as a replay delivered them: two delivered twice, one
+# corrected after the fact, one delivered late.
+[endpoint.silver_replayed]
+kind = "json"
+path = "data/silver-replayed.json"
+
+# The ledger: one SQLite table in a file beside this one.
+[endpoint.ledger]
+kind = "sqlite"
+path = "data/shop.db"
+table = "orders"
+order = ["id"]
+
+# The same orders in PostgreSQL, and two tables a quarantine writes.
+[endpoint.orders]
+kind = "postgres"
+dsn_env = "SHOP_DSN"
+table = "orders"
+order = ["id"]
+
+[endpoint.order_clean]
+kind = "postgres"
+dsn_env = "SHOP_DSN"
+table = "order_clean"
+order = ["id"]
+
+[endpoint.order_quarantine]
+kind = "postgres"
+dsn_env = "SHOP_DSN"
+table = "order_quarantine"
+order = ["id"]
+
+# The ledger's accounts and transfers: two tables of the same PostgreSQL
+# database, which is what lets a transfer change both in one transaction.
+# Each names the record its rows are read and written as.
+[endpoint.accounts]
+kind = "postgres"
+dsn_env = "SHOP_DSN"
+table = "accounts"
+order = ["id"]
+element = "Account"
+
+[endpoint.transfers]
+kind = "postgres"
+dsn_env = "SHOP_DSN"
+table = "transfers"
+order = ["id"]
+element = "Transfer"
+
+# Kafka topics: the order events, and the raw events as a producer sent
+# them.
+[endpoint.order_events]
+kind = "kafka"
+brokers_env = "KAFKA_BROKERS"
+topic = "order_events"
+idle_ms = 2000
+
+[endpoint.order_events_raw]
+kind = "kafka"
+brokers_env = "KAFKA_BROKERS"
+topic = "order_events_raw"
+idle_ms = 2000
+
+# Core NATS: every subject under `orders.`, kept by no one, and the one
+# subject alerts are published to.
+[endpoint.notifications]
+kind = "nats"
+url_env = "NATS_URL"
+subject = "orders.>"
+idle_ms = 3000
+
+[endpoint.alerts]
+kind = "nats"
+url_env = "NATS_URL"
+subject = "alerts.orders"
+
+# JetStream: the raw orders a stream keeps, the same subject read through
+# billing's durable consumer, and the dead-letter subject.
+[endpoint.orders_raw]
+kind = "nats_jetstream"
+url_env = "NATS_URL"
+stream = "ORDERS"
+subject = "orders.raw"
+idle_ms = 2000
+
+[endpoint.billing]
+kind = "nats_jetstream"
+url_env = "NATS_URL"
+stream = "ORDERS"
+subject = "orders.raw"
+consumer = "billing"
+idle_ms = 2000
+
+[endpoint.orders_rejected]
+kind = "nats_jetstream"
+url_env = "NATS_URL"
+stream = "ORDERS"
+subject = "orders.rejected"
+idle_ms = 2000
+
+# The lakehouse: silver, the valid orders appended as they arrive, and
+# gold, revenue per customer, replaced whole by each report.
+[endpoint.orders_silver]
+kind = "spark"
+url_env = "LAKEHOUSE_URL"
+table = "default.orders_silver"
+order = ["id"]
+mode = "append"
+
+[endpoint.orders_silver.fields.amount]
+type = "DECIMAL(12,2)"
+
+[endpoint.customer_revenue]
+kind = "spark"
+url_env = "LAKEHOUSE_URL"
+table = "default.customer_revenue"
+order = ["customer"]
+mode = "replace"
+
+[endpoint.customer_revenue.fields.total]
+type = "DECIMAL(12,2)"

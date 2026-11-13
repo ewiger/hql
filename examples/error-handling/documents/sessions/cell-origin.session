@@ -1,0 +1,17 @@
+// status: valid-now
+// feature: A cell's diagnostics name the cell as their origin, the document and the cell's id or index; the span is a range of the document
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql render examples/error-handling/documents/last-cell-type-error.hmd
+check error[type-mismatch]: addition requires two Int, two Float or two Decimal operands
+  --> examples/error-handling/documents/last-cell-type-error.hmd:16:17
+   |
+16 | (pages | sum) + " pages"
+   |                 ^^^^^^^^
+   = cell: 2
+
+$ hql --diagnostics-format json render examples/error-handling/documents/last-cell-type-error.hmd
+{"disposition":"fatal","kind":"type-mismatch","message":"addition requires two Int, two Float or two Decimal operands","origin":"examples/error-handling/documents/last-cell-type-error.hmd#2","phase":"check","severity":"error","span":{"end":163,"start":155}}

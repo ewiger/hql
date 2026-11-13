@@ -2,8 +2,9 @@
 // feature: Sorted maps require intrinsically ordered keys
 // implementation: implemented
 // environment: pure
-// error: TypeMismatch
-// stage: typecheck
+// phase: check
+// kind: type-mismatch
+// severity: error
 
 // A list of sightings has positions, but is not intrinsically Orderable.
 // OrderedMap accepts these keys; SortedMap rejects them.

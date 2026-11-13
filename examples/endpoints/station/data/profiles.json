@@ -1,0 +1,4 @@
+[
+  {"user_id": "u-1", "profile": {"display_name": "Ada", "city": "London"}},
+  {"user_id": "u-2", "profile": {"display_name": "Grace"}}
+]

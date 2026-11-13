@@ -21,7 +21,7 @@ assumption.
 
 - HQL pipelines are meant to describe long-running computations over event
   sources, not only queries over a vault that already sits in memory. Before
-  this record every collection type in `std/collections.hql` was finite, so
+  this record every collection type in `lib/std/collections/mod.hql` was finite, so
   such a source had no type.
 - [Queries](../../models/behavior/queries.md) already designs the hierarchy
   this needs — `Iterable`, `Collection`, `Stream`, `Seq`, and a lazy traversal
@@ -91,7 +91,7 @@ and `filter` do.
 ### Operations over a stream
 
 Each operation declares the weakest input it needs and returns the type it
-was given, in the form [issue 0018](../../issues/0018-operator-synonymy-audit.md)
+was given, in the form [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md)
 settles: `S` binds the input's own type, `F<_>` its constructor.
 
 ```text
@@ -174,13 +174,13 @@ them.
 
 ## Reference Implementation
 
-- `std/collections.hql` — `Stream<T>`, `Seq<T> : {Collection<T>, Stream<T>}`,
+- `lib/std/collections/mod.hql` — `Stream<T>`, `Seq<T> : {Collection<T>, Stream<T>}`,
   and the stream signatures as comments beside the collection ones
 - `src/types/` — `Stream` in the constructor table and the subtype relation
 - `src/extensions/collections.rs` — stream overloads for `map`, `filter`,
   `take`, and `drop`; the finite-input diagnostic for whole-input operations
 - `src/evaluation.rs` — a traversal carrier that does not force its input,
-  shared with [issue 0010](../../issues/0010-yield-and-bind.md)
+  shared with [issue 0010](../../issues/archive/0010-yield-and-bind.md)
 - `doc/wiki/hql/types/collections/` — a stream card, and `Seq<T>` described as
   the meeting point
 

@@ -11,8 +11,9 @@
 - [`dicussion-2.md`](dicussion-2.md): the design conversation it came from. It
   covers agents as cards, `Agent` versus `Run`, and the four layers of
   retrieval, assembly, execution and observability.
-- [`std/ai/init.hql`](../../../std/ai/init.hql): the declarations this record
-  specifies, written in HQL.
+- [`lib/std/ai/models/mod.hql`](../../../lib/std/ai/models/mod.hql) and
+  [`lib/std/ai/agents/mod.hql`](../../../lib/std/ai/agents/mod.hql): the
+  declarations this record specifies, written in HQL.
 - [`sessions.md`](sessions.md): agent sessions in the editor. It covers the
   `claude-code` transport, which runs an agent through a headless Claude Code
   session the user can open in the chat panel. It also covers the `--ai host`
@@ -35,7 +36,7 @@ those. `ask` continues a run and `delegate` hands it to another agent; both
 return a new `Run` whose `parent` is the old one. A tool is an HQL function
 exposed to a model through the `Tool` constructor. A tool is pure. `remember`
 writes a memory card into a configured directory, and memory is read the way
-any card is. `trace` returns a run's events as a `List<Event>`. `run`, `ask`,
+any card is. `trace` returns a run's events as a `List<RunEvent>`. `run`, `ask`,
 `delegate` and `remember` are the first `Effectful` steps. They execute only
 under a mode the host is given explicitly. In the default mode, `replay`, they
 answer from recorded responses and never reach the network. Retrieval stays
@@ -99,9 +100,6 @@ and an agent graph is the `parent` and `children` fields of runs.
 - **No token budgeting, truncation, streaming, parallel tool calls, images or
   typed (structured) results.** A context the model cannot hold is a failure
   the provider reports, never a context silently shortened.
-- **No namespace initialization.** `std/ai/init.hql` is a module's entry file
-  in the standard library. It does not decide what a vault's `init.hql` means,
-  which stays with the [extensions](../../wiki/hql/extensions.hmd) card.
 
 ## Specification
 
@@ -110,17 +108,26 @@ Depends on [HQL-0001](../HQL-0001/README.md) for the registry,
 [HQL-0017](../HQL-0017/README.md) for `markdown` and `json`, and
 [HQL-0018](../HQL-0018/README.md) for constructors.
 
-### 1. The extension and its module
+### 1. The modules and their extension
 
-The extension supplies steps. The module declares the types those steps return.
+Two standard modules declare the harness; one internal extension implements
+them, in the [package and extension terms](../HQL-0024/parts/09-packages-and-extensions.md)
+of HQL-0024.
 
-- The extension MUST be registered as `ai` and imported explicitly with
-  `import ai`. It MUST NOT be in the prelude, because importing it is how a
-  program states that it may spend money and send text to a third party.
-- The declarations MUST live in `std/ai/init.hql`, the standard library's first
-  module directory. Its entry file is `init.hql`, and its module name is the
-  directory's, `ai`. The module MUST check after `retrieval` and `format`,
-  whose types it names.
+- `ai.models`, in `lib/std/ai/models/mod.hql`, declares what a model is given
+  and answers: `Turn`, `Tool`, `ToolCall`, and the `Tool` constructor.
+- `ai.agents`, in `lib/std/ai/agents/mod.hql`, declares agents and their runs:
+  `Agent`, `ContextItem`, `Context`, `Prompt`, `RunEvent`, `Run`, their
+  constructors, and `run`, `ask`, `delegate`, `remember` and `trace`.
+- Both are part of the builtin `std` package. The extension `ai`, compiled
+  into the binary, provides both modules.
+- A program imports a module, `import ai.agents`, or the extension's two at
+  once, `import ai`. Neither MUST be in the prelude, because importing one is
+  how a program states that it may spend money and send text to a third
+  party.
+- The record types are named so that no program's own vocabulary collides
+  with them: a run's event is a `RunEvent`, because `Event` is a name programs
+  declare for their own data.
 - Constructors (`Agent`, `Context`, `Prompt`, `Tool`) MUST be `Pure`, as
   HQL-0018 requires of every constructor.
 - `run`, `ask`, `delegate` and `remember` MUST be `Effectful`. An executor
@@ -152,7 +159,7 @@ inference.
 ````
 
 ```hql
-reviewer = [[architecture_reviewer]] | Agent
+reviewer = @[[architecture_reviewer]] | Agent
 ```
 
 - `Agent(card: Card) : Agent` MUST refuse a card with no `agent` header table,
@@ -167,12 +174,12 @@ reviewer = [[architecture_reviewer]] | Agent
   defaults to `8` and MUST be between `1` and `64`.
 - An unknown key in the `agent` table MUST be refused by name, so that a
   misspelt `max_turn` does not silently select the default.
-- `[[name]]` is `Option<Card>`, and `Agent` accepts one. Over an absent card
+- `@[[name]]` is `Option<Card>`, and `Agent` accepts one. Over an absent card
   it MUST fail, saying that the link did not resolve. Unlike a query over
   nothing, an agent built from nothing has no empty answer, and a model call
   that did not happen must not read as an answer that is missing.
-- The constructors need no `import ai`: they are pure and build values of
-  library types. The steps that reach a model or write a file do.
+- The constructors are imported with their module, like every other
+  operation outside the prelude.
 
 ### 3. Context
 
@@ -364,7 +371,7 @@ review | remember("memory-ownership")
 review | trace | filter(e => e.kind == "tool_call")
 ```
 
-- `trace(r: Run) : List<Event>` MUST be `r.events` with each child's trace
+- `trace(r: Run) : List<RunEvent>` MUST be `r.events` with each child's trace
   inserted after the `tool_call` event that started that child. Ancestors are
   not included. They are reached by `r.parent | trace`.
 - `kind` MUST be one of `prompt`, `request`, `response`, `tool_call`,
@@ -467,7 +474,7 @@ the implementation notes.
 
 ```hql id=review
 import ai
-sources | Context("evidence") | run([[architecture_reviewer]] | Agent)
+sources | Context("evidence") | run(@[[architecture_reviewer]] | Agent)
 ```
 
 ## Initial review
@@ -478,7 +485,7 @@ review.result
 
 ```hql id=check
 import ai
-review | delegate([[code_reviewer]] | Agent, "Verify these claims against src/.")
+review | delegate(@[[code_reviewer]] | Agent, "Verify these claims against src/.")
 ```
 
 ## Execution
@@ -497,7 +504,7 @@ inspection. Every intermediate value is readable by the next cell.
 Additive. No existing step, type or binding changes. The extension is not in
 the prelude, so no existing program gains a name. `run`, `ask`, `delegate`,
 `remember` and `trace` are new step names. `Agent`, `Context`, `ContextItem`,
-`Prompt`, `Turn`, `Tool`, `ToolCall`, `Event` and `Run` are new type names.
+`Prompt`, `Turn`, `Tool`, `ToolCall`, `RunEvent` and `Run` are new type names.
 
 ## Security Considerations
 
@@ -513,7 +520,7 @@ the prelude, so no existing program gains a name. `run`, `ask`, `delegate`,
   a reviewed file, and the person running the program authorizes sending with
   `--ai`. Neither of them alone can cause a send.
 - **Credentials** live in the environment, are named by `api_key_env`, and
-  MUST NOT appear in a `Run`, an `Event`, a recording, stdout or stderr.
+  MUST NOT appear in a `Run`, a `RunEvent`, a recording, stdout or stderr.
 - **Recordings are untrusted files.** The reader MUST bound a recording's size
   at `16 MiB` (`16777216` bytes), MUST check that the request it holds hashes
   to its file name, and MUST resolve the directory inside the vault.
@@ -523,35 +530,34 @@ the prelude, so no existing program gains a name. `run`, `ask`, `delegate`,
 
 ## Deployment / Activation
 
-1. accept recursive record fields in the checker, so that `std/ai/init.hql`
-   checks as written
-2. embed `std/ai/init.hql` as module `ai`, and teach the `std/` walk to descend
-   into a module directory
-3. add the constructors, which are pure and testable with no model
-4. add `run` with a recording-only transport, so that `replay` works end to
+1. declare `ai.models` and `ai.agents` under `lib/std/ai/`, and register
+   their records in the lattice
+2. add the constructors, which are pure and testable with no model
+3. add `run` with a recording-only transport, so that `replay` works end to
    end before any network code exists
-5. add the `messages` and `chat-completions` transports and `--ai record|live`
-6. add tools, then `ask` and `delegate`, then agent tools
-7. add `remember` and `[ai.memory]`
-8. only then document the extension in the [extensions](../../wiki/hql/extensions.hmd)
+4. add the `messages` and `chat-completions` transports and `--ai record|live`
+5. add tools, then `ask` and `delegate`, then agent tools
+6. add `remember` and `[ai.memory]`
+7. only then document the extension in the [extensions](../../wiki/hql/extensions.hmd)
    card and `hql builtins`
 
 ## Reference Implementation
 
-- `src/checker.rs`, `src/declarations.rs`: a record may name itself in a field
-- `std/ai/init.hql`: the declarations, and `src/library.rs`, which embeds it
-  after `format`
-- `src/extensions/ai/mod.rs`: registration, `run`, `ask`, `delegate`,
-  `remember` and `trace`
-- `src/extensions/ai/context.rs`, `prompt.rs`: the `Context` and `Prompt`
-  constructors and the rendered layout
-- `src/extensions/ai/tools.rs`: the `Tool` constructor, the schema mapping and
-  the purity check
-- `src/extensions/ai/transport/`: `replay.rs`, `messages.rs` and
-  `chat_completions.rs`, behind one request/response interface
-- `src/cli.rs`: `--ai`, and `[ai]` in `hql.toml`
-- `tests/fixtures/ai/`: a vault with agent cards, memory and committed
-  recordings
+- `lib/std/ai/models/mod.hql` and `lib/std/ai/agents/mod.hql`: the
+  declarations, which `src/library.rs` embeds in the `std` package
+- `src/types/builtin.rs`: the records in the lattice, `Context` a
+  `Seq<ContextItem>`
+- `src/extensions/ai/mod.rs`: the extension, its constructors and steps, and
+  the harness loop
+- `src/extensions/ai/wire.rs`: the `messages` and `chat-completions` formats
+  and a session's result
+- `src/extensions/ai/transport.rs`: `[ai]` in `hql.toml`, the modes,
+  recordings and pending requests
+- `src/extensions/ai/session.rs`: the `claude-code` transport
+- `src/transclude.rs`: `this`, a cell's section, and the `pending` status
+- `src/cli.rs`: `--ai`, `hql ai pending` and `hql ai answer`
+- `tests/ai.rs`: the harness end to end against a scripted model server and a
+  stand-in `claude`
 
 ## Test Plan
 
@@ -614,3 +620,8 @@ cargo clippy --locked --all-targets -- -D warnings
   instructions of a prompt. Query-time embedding, a new section, amends
   [HQL-0002](../HQL-0002/README.md): a query the index lacks is embedded by
   the index's own `http` embedder, through the recordings
+- 2026-11-13: merged with HQL 0.6.0. The declarations move to two standard
+  modules, `ai.models` and `ai.agents` under `lib/std/ai/`, implemented by
+  the internal extension `ai`; the constructors become declared operations of
+  that extension; `Event` is `RunEvent`; the records are the library's
+  general `Record` values

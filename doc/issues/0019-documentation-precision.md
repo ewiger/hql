@@ -12,7 +12,7 @@ friendly paraphrase. The landing page said:
 > Every step is checked before anything runs, and every node in the answer
 > records *why* it is there.
 
-That sentence fuses two unrelated properties, static type checking before
+That sentence fuses two unrelated properties, type checking before
 evaluation and the presence a graph stores per node, and names neither.
 "Step", "anything runs", "answer" and "why" are placeholders; the sentence
 survives having its nouns replaced with "thing", which is the test for a
@@ -44,7 +44,11 @@ them.
 
 Each term is defined as the implementation has it.
 
-- **Static type checking.** The complete program is type-checked before
+- **Strong typing.** Every value has one type and an operation accepts only
+  the types it declares; nothing converts implicitly; the program is type-checked before evaluation; data from
+  outside is `Data` until a type boundary `tree | T` reads it, checked when
+  it runs.
+- **Type checking.** The complete program is type-checked before
   evaluation. A type error is reported with its byte range and the program
   is not evaluated.
 - **Pipeline step.** `xs | f(a)` is `f(xs, a)`. A step consumes the
@@ -63,8 +67,8 @@ Each term is defined as the implementation has it.
   `expanded from <seed> at depth <n>` for a node reached by traversal
   (`src/graph.rs`). It records the seed and the distance, not a predecessor
   edge, so the prose must not claim that a path can be reconstructed.
-- **Extension.** A registered provider of typed steps. The implemented
-  extensions are `core`, `graph`, `present`, `lexical` and `semantic`;
+- **Extension.** A registered provider of typed steps. The extensions the
+  binary carries are listed in [packages](../status/packages.hmd);
   extensions over SQL databases, JSON and YAML documents, message queues and
   REST APIs are design direction, and are described as such.
 
@@ -72,31 +76,45 @@ Each term is defined as the implementation has it.
 
 1. **The rule.** Written into the "Documentation site" section of
    `doc/stack.md`. Done.
-2. **The public pages.** `doc/index.md`, `doc/public/introduction.md`,
-   `doc/public/retrieval.md`, `doc/public/install.md`, `doc/public/tour.md`,
-   `doc/public/reference.md`, `README.md`, the `site_description` in
-   `mkdocs.yml`, and the opening of `doc/wiki/hql.hmd`. Done.
-3. **The public wiki cards.** Every card with `nav: visibility: public`.
-   Start with the `knows` hits: `doc/wiki/hql/types/card-type.hmd` (the
-   heading "A card is a document that knows where it is", and lines 68, 162,
-   286), `doc/wiki/hql/type-system.hmd` (lines 168, 376, 531),
-   `doc/wiki/hql/types/data-type.hmd:80`, `doc/wiki/hql/types/graph-type.hmd:16`,
-   `doc/wiki/hql/operators/link-op.hmd:133`, `doc/wiki/hql/fields.hmd:85`,
-   `doc/wiki/hql/design-status.hmd:66`; and `doc/wiki/hql/semantic-search.hmd:139`
-   ("carrying why each node is present").
-4. **The Reference models in the nav.** `doc/models/domain/graphs.md` lines
-   11-12 and 45 (`knows`); the tagline in
-   `doc/models/requirements/bootstrap.md:9`.
-5. **Headings.** Site-wide, a heading names the term: `Static type checking`,
-   `Node presence`, `Semantic retrieval`, `Pipeline evaluation`.
+2. **The public pages.** The landing page, the install page, the
+   retrieval chapter, the reference index, `README.md`, the
+   `site_description` in `mkdocs.yml`, and the opening of `doc/wiki/hql.hmd`.
+   Done. The site was reorganised under
+   [0054](0054-user-facing-website.md) since: the landing page is
+   `doc/public/index.md`, retrieval is the Learn chapter
+   `doc/public/learn/23-retrieval.md`, the reference is
+   `doc/public/reference/index.md`, and the introduction and tour became the
+   Learn book under `doc/public/learn/`.
+3. **The published pages under `doc/public/`.** Only `doc/public/` is
+   published ([0054](0054-user-facing-website.md)), so the wiki cards and the
+   models are out of scope. Done for the Learn pages that said *knows* of the
+   checker or of a program (issue 0072): the Data types overview, the
+   Collections chapter, the Writing results out chapter, the Endpoints
+   chapter, the Advanced data typing overview, the ETL pipelines chapter and
+   the Subtypes page now state what is inferred, checked or refused, and
+   when. The Data page's "need to know the type" is a reader's phrase, not a
+   mechanism, and stays; so do the Advanced data typing overview's "a reader
+   of `raw | UserData` knows nothing was altered", where the reader is a
+   person reading the program.
+
+   What remains: the Graphs chapter still says a node reached by `expand`
+   "records **why it is present**", which is the *why* for provenance the
+   "Done when" list forbids; it stores a presence, `expanded from <seed> at
+   depth <n>`. The opening-sentence and design-direction items of "Done
+   when" have not been audited page by page across the Learn book.
+4. **Headings.** Site-wide, a heading names the term: `Type checking`,
+   `Node presence`, `Semantic retrieval`, `Pipeline evaluation`. Begun: the
+   Data types overview's "A type is checked, not guessed" is now `Type
+   checking`, and the Advanced data typing overview's "Decide at the
+   boundary" is now `The type boundary`. The rest of the site is not swept.
 
 ## Done when
 
-- No public page or card uses *why* for provenance; *knows*, *understands*
+- No page under `doc/public/` uses *why* for provenance; *knows*, *understands*
   or *figures out* for a language mechanism; or a slash compound such as
   "authored/storage" in place of two sentences.
 - The opening sentence of every public page names an operation, a value, a
   phase or a type.
-- Every integration beyond the five implemented extensions is marked as
-  design direction.
+- Every integration the binary does not carry is marked as design
+  direction.
 - `uv run mkdocs build --strict` passes.

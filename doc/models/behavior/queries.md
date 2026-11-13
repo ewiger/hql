@@ -1,6 +1,6 @@
 # Queries: traversal, sequences, generators, and bound sources
 
-Status: **proposed design; not implemented.** Nothing here is yet part of the grammar recorded in [expressions.md](expressions.md). The design depends on function types ([issue 0009](../../issues/0009-function-type-and-constructor.md)) and builds on `cards` being an ordinary bound value ([issue 0008](../../issues/0008-cards-as-a-vault-binding.md), done).
+Status: **proposed design; not implemented.** Nothing here is yet part of the grammar recorded in [expressions.md](expressions.md). The design depends on function types ([issue 0009](../../issues/archive/0009-function-type-and-constructor.md)) and builds on `cards` being an ordinary bound value ([issue 0008](../../issues/archive/0008-cards-as-a-vault-binding.md), done).
 
 A query does not have one privileged source type. A pipeline receives a value, and each step states the weakest property it needs from that value.
 
@@ -288,7 +288,7 @@ This avoids inventing a false subtype relationship just for structural symmetry.
 
 ## `cards` is a `Seq<Card>`
 
-The vault is finite, and card enumeration must be reproducible. Therefore the standard `cards` value, the library binding `cards = vault.cards` declared in `std/vault.hql`, is a lazy sequence:
+The vault is finite, and card enumeration must be reproducible. Therefore the standard `cards` value, the program module's binding `cards = vault.cards` over the host's `vault`, is a lazy sequence:
 
 ```hql
 cards : Seq<Card>

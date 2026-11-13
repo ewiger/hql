@@ -12,13 +12,12 @@ pub mod transport;
 pub(crate) mod wire;
 
 use super::collections::wrong;
-use super::spec::{ArgumentKind, ArgumentSpec, OperationSpec, Output as O, TypePattern as P};
-use super::{CheckCx, EvalCx, Operation, Purity, named, named_or_first};
-use crate::ast::Arg;
+use super::{CheckCx, EvalCx, Operation, Purity, Shape, Signature, named, named_or_first};
 use crate::data::Data;
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
-use crate::types::{Formatted, Record, TypeConstructor, TypeRef, Value};
+use crate::extensions::spec::CheckedCall;
+use crate::types::{Record, TypeConstructor, TypeRef, Value};
 use serde_json::{Value as J, json};
 use std::cell::Cell;
 use std::ops::Range;
@@ -58,222 +57,167 @@ fn section() -> Option<String> {
     SECTION.with(|held| held.borrow().clone())
 }
 
-const fn ty(name: &'static str) -> P {
-    P::Type(TypeConstructor(name))
-}
-
-const fn optional(name: &'static str, kind: ArgumentKind) -> ArgumentSpec {
-    ArgumentSpec {
+/// One operation whose signature is its declaration's in `lib/std/ai/`.
+const fn declared(
+    name: &'static str,
+    purity: Purity,
+    check: Option<super::Check>,
+    eval: super::Eval,
+) -> Operation {
+    Operation {
         name,
-        kind,
-        required: false,
-        positional: false,
-        named: true,
+        spec: Signature::Declared,
+        purity,
+        shape: Shape::Barrier,
+        check,
+        eval,
     }
 }
 
-const TOOLS: ArgumentSpec = optional(
-    "tools",
-    ArgumentKind::Value(P::Apply(TypeConstructor("List"), &[ty("Tool")])),
-);
-
-/// Every step the `ai` extension provides.
+/// Every operation the `ai` extension provides: `ai.models`' and
+/// `ai.agents`' external declarations.
 pub(crate) static STEPS: &[Operation] = &[
-    Operation {
-        name: "run",
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::OneOf(&[ty("Context"), ty("Prompt")]),
-            arguments: &[ArgumentSpec::value("agent", ty("Agent")), TOOLS],
-            output: O::Type(ty("Run")),
-        },
-        summary: "Execute an agent over a context or a prompt, keeping every turn, call and event.",
-        purity: Purity::Effectful,
-        check: None,
-        eval: eval_run,
-    },
-    Operation {
-        name: "ask",
-        spec: OperationSpec {
-            parameters: &[],
-            input: ty("Run"),
-            arguments: &[ArgumentSpec::value("message", ty("String"))],
-            output: O::Type(ty("Run")),
-        },
-        summary: "Continue a run's conversation with one more message, as a new run.",
-        purity: Purity::Effectful,
-        check: None,
-        eval: eval_ask,
-    },
-    Operation {
-        name: "delegate",
-        spec: OperationSpec {
-            parameters: &[],
-            input: ty("Run"),
-            arguments: &[
-                ArgumentSpec::value("agent", ty("Agent")),
-                ArgumentSpec::value("task", ty("String")),
-                TOOLS,
-            ],
-            output: O::Type(ty("Run")),
-        },
-        summary: "Hand a run's context and answer to another agent, as a new run.",
-        purity: Purity::Effectful,
-        check: None,
-        eval: eval_delegate,
-    },
-    Operation {
-        name: "remember",
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::OneOf(&[ty("Run"), ty("String")]),
-            arguments: &[ArgumentSpec::value("name", ty("String"))],
-            output: O::Type(ty("Card")),
-        },
-        summary: "Write a run's answer, or a text, as a memory card.",
-        purity: Purity::Effectful,
-        check: None,
-        eval: eval_remember,
-    },
-    Operation {
-        name: "trace",
-        spec: OperationSpec {
-            parameters: &[],
-            input: ty("Run"),
-            arguments: &[],
-            output: O::Type(P::Apply(TypeConstructor("List"), &[ty("Event")])),
-        },
-        summary: "A run's events, with each child's inserted after the call that started it.",
-        purity: Purity::Pure,
-        check: None,
-        eval: eval_trace,
-    },
+    declared("Tool", Purity::Pure, Some(check_tool), eval_tool),
+    declared("Agent", Purity::Pure, Some(check_agent), eval_agent),
+    declared("Context", Purity::Pure, None, eval_context),
+    declared("Prompt", Purity::Pure, None, eval_prompt),
+    declared("run", Purity::Effectful, Some(check_run), eval_run),
+    declared("ask", Purity::Effectful, None, eval_ask),
+    declared("delegate", Purity::Effectful, None, eval_delegate),
+    declared("remember", Purity::Effectful, None, eval_remember),
+    declared("trace", Purity::Pure, None, eval_trace),
 ];
-
-// Constructors ---------------------------------------------------------------
-
-/// The types this module constructs.
-pub(crate) const CONSTRUCTORS: [&str; 4] = ["Agent", "Context", "Prompt", "Tool"];
 
 fn of(name: &'static str) -> TypeRef {
     TypeRef::from(TypeConstructor(name))
 }
 
-/// The type a constructor call has, or why its arguments do not fit.
-pub(crate) fn check_constructor(
-    cx: &mut dyn CheckCx,
-    name: &str,
-    args: &[Arg],
+fn check_tool(
+    _cx: &mut dyn CheckCx,
+    call: &CheckedCall<'_>,
     span: Range<usize>,
-) -> Result<TypeRef, Diagnostic> {
-    let positional: Vec<&Arg> = args.iter().filter(|arg| arg.name.is_none()).collect();
-    let refuse = |message: String| Err::<TypeRef, _>(Diagnostic::typing(span.clone(), message));
-    let Some(first) = positional.first() else {
-        return refuse(format!("{name} needs an argument"));
-    };
-    let first_type = cx.infer(&first.value)?;
-    // The text argument a constructor takes second, positionally or by name.
-    let mut text = |label: &str, required: bool| -> Result<(), Diagnostic> {
-        let argument = named(args, label).or_else(|| positional.get(1).copied());
-        match argument {
-            None if required => refuse(format!("{name} needs `{label}`, a String")).map(drop),
-            None => Ok(()),
-            Some(argument) => {
-                let found = cx.infer(&argument.value)?;
-                if found.is(&TypeRef::STR) {
-                    Ok(())
-                } else {
-                    refuse(format!("{name}'s `{label}` is a String, not {found}")).map(drop)
-                }
-            }
-        }
-    };
-    match name {
-        "Agent" => {
-            if !first_type.present().is(&TypeRef::CARD) {
-                return refuse(format!("an Agent is read from a card, not {first_type}"));
-            }
-        }
-        "Context" => text("label", false)?,
-        "Prompt" => {
-            if !first_type.is(&of("Context")) {
-                return refuse(format!(
-                    "a Prompt is built from a Context, not {first_type}"
-                ));
-            }
-            // Inside a cell, the cell's section is the default.
-            text("instructions", false)?;
-        }
-        "Tool" => {
-            if !first_type.constructor.0.starts_with("Fn") {
-                return refuse(format!("a Tool is made from a function, not {first_type}"));
-            }
-            text("description", true)?;
-        }
-        _ => return refuse(format!("{name} has no constructor")),
+) -> Result<(), Diagnostic> {
+    if call.input.constructor.0.starts_with("Fn") {
+        return Ok(());
     }
-    Ok(of(match name {
-        "Agent" => "Agent",
-        "Context" => "Context",
-        "Prompt" => "Prompt",
-        _ => "Tool",
-    }))
+    Err(Diagnostic::typing(
+        span,
+        format!("a Tool is made from a function, not {}", call.input),
+    ))
 }
 
-/// Construct a value of one of this module's types.
-pub(crate) fn construct(
+fn check_agent(
+    _cx: &mut dyn CheckCx,
+    call: &CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    if call.input.present().is(&TypeRef::CARD) {
+        return Ok(());
+    }
+    Err(Diagnostic::typing(
+        span,
+        format!("an Agent is read from a card, not {}", call.input),
+    ))
+}
+
+fn check_run(
+    _cx: &mut dyn CheckCx,
+    call: &CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<(), Diagnostic> {
+    if call.input.is(&of("Context")) || call.input.is(&of("Prompt")) {
+        return Ok(());
+    }
+    Err(Diagnostic::typing(
+        span,
+        format!("`run` takes a Context or a Prompt, not {}", call.input),
+    ))
+}
+
+/// The text of a constructor's second argument, positional or by name.
+fn second(
     cx: &mut dyn EvalCx,
-    name: &str,
-    args: &[TypedArg],
+    arguments: &[TypedArg],
+    label: &str,
+) -> Result<Option<String>, Diagnostic> {
+    match named(arguments, label).or_else(|| arguments.iter().find(|arg| arg.name.is_none())) {
+        Some(argument) => Ok(Some(string_of(&cx.evaluate(&argument.value)?))),
+        None => Ok(None),
+    }
+}
+
+fn eval_agent(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    _arguments: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    let positional: Vec<&TypedArg> = args.iter().filter(|arg| arg.name.is_none()).collect();
-    let first = match positional.first() {
-        Some(argument) => cx.evaluate(&argument.value)?,
-        None => {
-            return Err(Diagnostic::runtime(
-                span,
-                format!("{name} needs an argument"),
-            ));
-        }
-    };
-    let mut text = |label: &str| -> Result<Option<String>, Diagnostic> {
-        match named(args, label).or_else(|| positional.get(1).copied()) {
-            Some(argument) => Ok(Some(string_of(&cx.evaluate(&argument.value)?))),
-            None => Ok(None),
-        }
-    };
-    match name {
-        "Agent" => agent(cx, &first, &span),
-        "Context" => {
-            let label = text("label")?.unwrap_or_else(|| "context".to_owned());
-            context(cx, first, &label, &span)
-        }
-        "Prompt" => {
-            let instructions = match text("instructions")? {
-                Some(instructions) => instructions,
-                None => section().ok_or_else(|| {
-                    runtime(
-                        &span,
-                        "a Prompt outside a cell needs `instructions`; inside one, the cell's \
-                         section is the default",
-                    )
-                })?,
-            };
-            Ok(prompt(first, &instructions))
-        }
-        "Tool" => {
-            let description = text("description")?.unwrap_or_default();
-            tool(first, &description, &span)
-        }
-        _ => Err(Diagnostic::runtime(
-            span,
-            format!("{name} has no constructor"),
-        )),
-    }
+    agent(cx, &input, &span)
 }
 
-fn record(name: &'static str, fields: Vec<(&str, Value)>) -> Value {
+fn eval_context(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let label = second(cx, arguments, "label")?.unwrap_or_else(|| "context".to_owned());
+    context(cx, input, &label, &span)
+}
+
+fn eval_prompt(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let instructions = match second(cx, arguments, "instructions")? {
+        Some(instructions) => instructions,
+        None => section().ok_or_else(|| {
+            runtime(
+                &span,
+                "a Prompt outside a cell needs `instructions`; inside one, the cell's \
+                 section is the default",
+            )
+        })?,
+    };
+    Ok(prompt(input, &instructions))
+}
+
+fn eval_tool(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let description = second(cx, arguments, "description")?.unwrap_or_default();
+    tool(input, &description, &span)
+}
+
+/// The optional fields of the harness's records: absent unless given.
+const OPTIONAL: [(&str, &str, &str); 3] = [
+    ("ContextItem", "score", "Float"),
+    ("Run", "parent", "Run"),
+    ("Run", "result", "String"),
+];
+
+/// A record of a harness type. An optional field holds an `Option`: present
+/// when given, absent at its type otherwise.
+fn record(name: &'static str, mut fields: Vec<(&str, Value)>) -> Value {
+    for (owner, field, ty) in OPTIONAL {
+        if owner != name {
+            continue;
+        }
+        let at = fields.iter().position(|(held, _)| *held == field);
+        match at {
+            Some(at) if !matches!(fields[at].1, Value::Absent(_)) => {
+                let value = std::mem::replace(&mut fields[at].1, Value::Unit);
+                fields[at].1 = Value::Present(Arc::new(value));
+            }
+            Some(_) => {}
+            None => fields.push((field, Value::Absent(TypeRef::from(TypeConstructor(ty))))),
+        }
+    }
     Value::Record(Arc::new(Record::new(of(name), fields)))
 }
 
@@ -281,11 +225,9 @@ fn text(value: impl Into<String>) -> Value {
     Value::Str(Arc::from(value.into()))
 }
 
-fn formatted(value: impl Into<String>, format: &'static str) -> Value {
-    Value::Formatted(Arc::new(Formatted {
-        text: value.into(),
-        format: TypeConstructor(format),
-    }))
+/// Text the harness writes in a presentation format: to HQL, a `String`.
+fn formatted_text(value: impl Into<String>, _format: &'static str) -> Value {
+    text(value)
 }
 
 fn strings(values: Vec<String>) -> Value {
@@ -375,7 +317,7 @@ fn agent(cx: &dyn EvalCx, value: &Value, span: &Range<usize>) -> Result<Value, D
             ("name", text(name.clone())),
             (
                 "instructions",
-                formatted(card.document.body.trim(), "Markdown"),
+                formatted_text(card.document.body.trim(), "Markdown"),
             ),
             ("model", text(model)),
             ("tools", strings(names("tools")?)),
@@ -455,11 +397,12 @@ fn item(value: Value, label: &str, span: &Range<usize>) -> Result<Value, Diagnos
     let mut fields = vec![
         ("label", text(label)),
         ("kind", text(kind)),
-        ("text", formatted(shown, "Markdown")),
+        ("text", formatted_text(shown, "Markdown")),
     ];
-    if let Some(score) = score {
-        fields.push(("score", Value::Float(score)));
-    }
+    fields.push((
+        "score",
+        score.map_or(Value::Absent(TypeRef::FLOAT), Value::Float),
+    ));
     fields.push(("provenance", Value::Data(Arc::new(data(&provenance)))));
     Ok(record("ContextItem", fields))
 }
@@ -507,9 +450,9 @@ fn prompt(context: Value, instructions: &str) -> Value {
     record(
         "Prompt",
         vec![
-            ("instructions", formatted(instructions, "Markdown")),
+            ("instructions", formatted_text(instructions, "Markdown")),
             ("context", context),
-            ("rendered", formatted(rendered, "Markdown")),
+            ("rendered", formatted_text(rendered, "Markdown")),
         ],
     )
 }
@@ -550,7 +493,7 @@ fn tool(function: Value, description: &str, span: &Range<usize>) -> Result<Value
         vec![
             ("name", text(name)),
             ("description", text(description)),
-            ("parameters", formatted(parameters.to_string(), "Json")),
+            ("parameters", formatted_text(parameters.to_string(), "Json")),
             ("function", function),
         ],
     ))
@@ -881,7 +824,7 @@ impl Log {
     fn event(&mut self, kind: &str, payload: J) {
         let seq = i64::try_from(self.events.len()).unwrap_or_default();
         let event = record(
-            "Event",
+            "RunEvent",
             vec![
                 ("kind", text(kind)),
                 ("run", text(self.id.clone())),
@@ -1085,7 +1028,7 @@ fn execute(cx: &mut dyn EvalCx, start: Start, span: &Range<usize>) -> Result<Val
                     ("tool", text(call.tool.clone())),
                     ("arguments", Value::Data(Arc::new(data(&call.arguments)))),
                     ("status", text(status)),
-                    ("output", formatted(output.clone(), "Json")),
+                    ("output", formatted_text(output.clone(), "Json")),
                     ("turn", Value::Int(turn)),
                 ],
             ));
@@ -1104,7 +1047,9 @@ fn execute(cx: &mut dyn EvalCx, start: Start, span: &Range<usize>) -> Result<Val
     }
     log.event("stop", json!({"stop": stop}));
     if stop == "max_turns" {
-        cx.warn(crate::warnings::Warning::new(
+        cx.warn(Diagnostic::warning(
+            crate::diagnostics::Phase::Execute,
+            crate::diagnostics::Kind::InvalidArgument,
             span.clone(),
             format!(
                 "`{}` stopped after {max_turns} requests without an answer",
@@ -1118,23 +1063,22 @@ fn execute(cx: &mut dyn EvalCx, start: Start, span: &Range<usize>) -> Result<Val
         ("agent", Value::Record(Arc::clone(&start.agent))),
         ("prompt", start.prompt),
     ];
-    if let Some(parent) = start.parent {
-        fields.push(("parent", parent));
-    }
+    fields.push(("parent", start.parent.unwrap_or(Value::Absent(of("Run")))));
     fields.extend([
         ("turns", Value::list(log.turns, of("Turn"))),
         ("calls", Value::list(log.calls, of("ToolCall"))),
         ("children", Value::list(log.children, of("Run"))),
     ]);
-    if let Some(result) = result {
-        fields.push(("result", text(result)));
-    }
+    fields.push(("result", result.map_or(Value::Absent(TypeRef::STR), text)));
     fields.extend([
         ("stop", text(stop)),
         ("model", Value::Data(Arc::new(data(&reported)))),
         ("usage", Value::Data(Arc::new(data(&usage)))),
-        ("request", formatted(transport::canonical(&body), "Json")),
-        ("events", Value::list(log.events, of("Event"))),
+        (
+            "request",
+            formatted_text(transport::canonical(&body), "Json"),
+        ),
+        ("events", Value::list(log.events, of("RunEvent"))),
         (
             "tools",
             Value::list(
@@ -1370,7 +1314,7 @@ fn eval_trace(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let run = as_record(&input, "Run", &span)?;
-    Ok(Value::list(trace(&run), of("Event")))
+    Ok(Value::list(trace(&run), of("RunEvent")))
 }
 
 fn trace(run: &Record) -> Vec<Value> {

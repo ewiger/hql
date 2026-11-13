@@ -10,7 +10,7 @@ nav:
 illustrate intent only; neither is accepted by the bootstrap parser:
 
 ```hql
-alice : Doc = [[alice]]
+alice : Doc = @[[alice]]
 ```
 
 ```hql
@@ -18,7 +18,7 @@ knowledge
 | Graph
 ```
 
-`[[..]]` is a doc reference, and `[[..]] -> [[..]] {..}` the link operator over
+`@[[..]]` is a doc reference, and `@[[..]] -> @[[..]] {..}` the link operator over
 two of them; card-ness is a separate checked narrowing — see [[link-op]].
 Functions, `.hql` module
 imports, value construction, transformations, constraint validation, and typed

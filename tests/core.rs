@@ -2,22 +2,34 @@
 
 use hql::{
     check,
-    diagnostics::Diagnostic,
+    diagnostics::{Diagnostic, Kind, Phase},
     eval,
     types::{TypeRef, Value},
 };
 use std::ops::Range;
 
+fn decimal(text: &str) -> Value {
+    Value::Decimal(hql::decimal::Decimal::parse(text).expect("a decimal literal"))
+}
+
 fn type_error(source: &str) -> Range<usize> {
     match check(source).or_else(|_| eval(source).map(|_| TypeRef::UNIT)) {
-        Err(Diagnostic::Type { span, .. }) => span,
+        Err(Diagnostic {
+            phase: Phase::Check,
+            span,
+            ..
+        }) => span,
         other => panic!("{source}: expected a type error, got {other:?}"),
     }
 }
 
 fn eval_type_error(source: &str) -> Range<usize> {
     match eval(source) {
-        Err(Diagnostic::Type { span, .. }) => span,
+        Err(Diagnostic {
+            phase: Phase::Check,
+            span,
+            ..
+        }) => span,
         other => panic!("{source}: expected a type error, got {other:?}"),
     }
 }
@@ -33,10 +45,17 @@ fn literals_and_addition() {
         ("-9223372036854775808", Value::Int(i64::MIN), TypeRef::INT),
         ("9223372036854775807", Value::Int(i64::MAX), TypeRef::INT),
         ("\u{2003}1 +\n2", Value::Int(3), TypeRef::INT),
-        ("1.5", Value::Float(1.5), TypeRef::FLOAT),
-        ("-0.25 + 0.5", Value::Float(0.25), TypeRef::FLOAT),
-        ("1.0 + 2.0", Value::Float(3.0), TypeRef::FLOAT),
-        ("007.50", Value::Float(7.5), TypeRef::FLOAT),
+        ("1.5f", Value::Float(1.5), TypeRef::FLOAT),
+        ("-0.25f + 0.5f", Value::Float(0.25), TypeRef::FLOAT),
+        ("1.0f + 2.0f", Value::Float(3.0), TypeRef::FLOAT),
+        ("007.50f", Value::Float(7.5), TypeRef::FLOAT),
+        ("2f", Value::Float(2.0), TypeRef::FLOAT),
+        ("6.02e23f", Value::Float(6.02e23), TypeRef::FLOAT),
+        ("1.5", decimal("1.5"), TypeRef::DECIMAL),
+        ("-0.25 + 0.5", decimal("0.25"), TypeRef::DECIMAL),
+        ("0.1 + 0.2", decimal("0.3"), TypeRef::DECIMAL),
+        ("1.5e-3", decimal("0.0015"), TypeRef::DECIMAL),
+        ("1.5 + 2", decimal("3.5"), TypeRef::DECIMAL),
     ] {
         assert_eq!(check(source), Ok(ty), "{source}");
         assert_eq!(eval(source), Ok(value), "{source}");
@@ -60,18 +79,29 @@ fn rejects_incomplete_or_unsupported_syntax() {
         ".5",
         "1.2.3",
         "1e3",
-        "1.5e3",
+        "1.5e",
+        "1.5fx",
+        "1.5f2",
         "-",
         "- 1",
         "1 ++ 2",
         "9223372036854775808",
         "-9223372036854775809",
         "\u{1f600}",
-        "[[unterminated",
+        "@[[unterminated",
         "\"unterminated",
+        "max(",
+        "max(1,",
+        "[1] | reduce(0, +",
     ] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Syntax { .. })),
+            matches!(
+                check(source),
+                Err(Diagnostic {
+                    phase: Phase::Parse,
+                    ..
+                })
+            ),
             "{source}: {:?}",
             check(source)
         );
@@ -81,11 +111,18 @@ fn rejects_incomplete_or_unsupported_syntax() {
 #[test]
 fn an_unknown_name_is_a_name_error_rather_than_a_syntax_one() {
     // These parse now that the grammar has identifiers and calls, so the
-    // failure moved from the scanner to the checker. `resolve([[alice]])` is
+    // failure moved from the scanner to the checker. `resolve(@[[alice]])` is
     // the withdrawn spelling, and it still fails — for the right reason.
-    for source in ["trueish", "resolve([[alice]])", "nosuchthing"] {
+    for source in ["trueish", "resolve(@[[alice]])", "nosuchthing"] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Name { .. })),
+            matches!(
+                check(source),
+                Err(Diagnostic {
+                    phase: Phase::Check,
+                    kind: Kind::UnknownName | Kind::UnknownField | Kind::UnknownStep,
+                    ..
+                })
+            ),
             "{source}: {:?}",
             check(source)
         );
@@ -94,21 +131,31 @@ fn an_unknown_name_is_a_name_error_rather_than_a_syntax_one() {
 
 #[test]
 fn addition_does_not_mix_int_and_float() {
-    assert_eq!(type_error("1 + 2.0"), 4..7);
-    assert_eq!(type_error("1.0 + 2"), 6..7);
-    assert_eq!(eval_type_error("1.0 + true"), 6..10);
-    assert_eq!(eval_type_error("true + 1.0"), 0..4);
+    assert_eq!(type_error("1 + 2.0f"), 4..8);
+    assert_eq!(type_error("1.0f + 2"), 7..8);
+    assert_eq!(eval_type_error("1.0f + true"), 7..11);
+    assert_eq!(eval_type_error("true + 1.0f"), 0..4);
+    assert_eq!(type_error("1.0 + 2.0f"), 6..10);
 }
 
 #[test]
 fn float_addition_reports_overflow_instead_of_infinity() {
-    let large = format!("{}.0", "1".repeat(309));
+    let large = format!("{}.0f", "1".repeat(309));
     assert_eq!(check(&large), Ok(TypeRef::FLOAT));
     let source = format!("{large} + {large}");
-    assert!(matches!(eval(&source), Err(Diagnostic::Overflow { .. })));
     assert!(matches!(
-        check(&format!("{}.0", "1".repeat(400))),
-        Err(Diagnostic::Syntax { .. })
+        eval(&source),
+        Err(Diagnostic {
+            kind: Kind::NumericOverflow,
+            ..
+        })
+    ));
+    assert!(matches!(
+        check(&format!("{}.0f", "1".repeat(400))),
+        Err(Diagnostic {
+            phase: Phase::Parse,
+            ..
+        })
     ));
 }
 
@@ -123,23 +170,34 @@ fn type_errors_point_to_the_operand() {
 fn checking_does_not_evaluate_and_evaluation_checks_first() {
     let source = "9223372036854775807 + 1";
     assert_eq!(check(source), Ok(TypeRef::INT));
-    assert_eq!(eval(source), Err(Diagnostic::Overflow { span: 0..23 }));
+    assert!(matches!(
+        eval(source),
+        Err(Diagnostic { kind: Kind::NumericOverflow, span, .. }) if span == (0..23)
+    ));
     assert!(matches!(
         eval("-9223372036854775808 + -1"),
-        Err(Diagnostic::Overflow { .. })
+        Err(Diagnostic {
+            kind: Kind::NumericOverflow,
+            ..
+        })
     ));
     assert!(matches!(
         eval("9223372036854775807 + 1 + true"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
 }
 
 #[test]
 fn diagnostics_use_utf8_byte_ranges_and_eof_positions() {
     assert!(
-        matches!(check("1 + \u{1f600}"), Err(Diagnostic::Syntax { span, .. }) if span == (4..8))
+        matches!(check("1 + \u{1f600}"), Err(Diagnostic { phase: Phase::Parse, span, .. }) if span == (4..8))
     );
-    assert!(matches!(check("1 +"), Err(Diagnostic::Syntax { span, .. }) if span == (3..3)));
+    assert!(
+        matches!(check("1 +"), Err(Diagnostic { phase: Phase::Parse, span, .. }) if span == (3..3))
+    );
 }
 
 #[test]
@@ -148,11 +206,17 @@ fn bounds_addition_depth_and_evaluates_left_to_right() {
     assert_eq!(eval(&at_limit), Ok(Value::Int(256)));
     assert!(matches!(
         eval(&format!("{at_limit} + 1")),
-        Err(Diagnostic::Syntax { .. })
+        Err(Diagnostic {
+            phase: Phase::Parse,
+            ..
+        })
     ));
     assert!(matches!(
         eval("9223372036854775807 + 1 + -1"),
-        Err(Diagnostic::Overflow { .. })
+        Err(Diagnostic {
+            kind: Kind::NumericOverflow,
+            ..
+        })
     ));
 }
 
@@ -172,11 +236,18 @@ fn a_binding_may_be_annotated_and_the_annotation_is_checked() {
     assert_eq!(eval("n : Int = 1\nn"), Ok(Value::Int(1)));
     assert!(matches!(
         check("n : Bool = 1\nn"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
     assert!(matches!(
         check("n : Nonesuch = 1"),
-        Err(Diagnostic::Name { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            kind: Kind::UnknownName | Kind::UnknownField | Kind::UnknownStep,
+            ..
+        })
     ));
 }
 
@@ -195,13 +266,30 @@ fn strings_and_data_literals() {
 }
 
 #[test]
+fn a_string_size_counts_code_points_not_bytes() {
+    assert_eq!(eval(r#""héllo".size()"#), Ok(Value::Int(5)));
+    assert_eq!(eval(r#""héllo" | size"#), Ok(Value::Int(5)));
+    assert_eq!(eval(r#""héllo".chars().size()"#), Ok(Value::Int(5)));
+    assert_eq!(eval(r#""héllo".bytes().size()"#), Ok(Value::Int(6)));
+}
+
+#[test]
+fn a_string_length_is_refused_naming_size() {
+    for source in [r#""héllo".length()"#, r#""héllo" | length"#] {
+        let refusal = check(source).expect_err(source);
+        let help = refusal.to_json().to_string();
+        assert!(help.contains("`length` is now `size`"), "{source}: {help}");
+    }
+}
+
+#[test]
 fn the_link_operator_builds_an_edge() {
-    assert_eq!(check("[[alice]] -> [[bob]]"), Ok(TypeRef::EDGE));
+    assert_eq!(check("@[[alice]] -> @[[bob]]"), Ok(TypeRef::EDGE));
     assert_eq!(
-        check("[[alice]] -> [[bob]] { relation: \"parent\" }"),
+        check("@[[alice]] -> @[[bob]] { relation: \"parent\" }"),
         Ok(TypeRef::EDGE)
     );
-    match eval("[[alice]] -> [[bob]]") {
+    match eval("@[[alice]] -> @[[bob]]") {
         Ok(Value::Edge(edge)) => {
             assert_eq!(edge.source, "alice");
             assert_eq!(edge.target, "bob");
@@ -211,10 +299,59 @@ fn the_link_operator_builds_an_edge() {
 }
 
 #[test]
+fn a_document_reference_is_written_with_an_at_sign() {
+    for (source, target) in [
+        ("@[[alice]]", "alice"),
+        ("@[[people/alice]]", "people/alice"),
+        ("@[[alice#Bio]]", "alice#Bio"),
+        ("@[[ A Room of One's Own ]]", "A Room of One's Own"),
+    ] {
+        assert_eq!(check(source).unwrap().to_string(), "Option<Card>");
+        match eval(&format!("{source} -> @[[x]]")) {
+            Ok(Value::Edge(edge)) => assert_eq!(edge.source, target),
+            other => panic!("{source}: expected an edge, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn two_brackets_are_a_list_of_lists() {
+    assert_eq!(
+        check("[[1, 2], [3]]").unwrap().to_string(),
+        "List<List<Int>>"
+    );
+    assert!(check("[[]]").unwrap().to_string().starts_with("List<List<"));
+    assert_eq!(eval("[[1, 2], [3]] | emit | sum"), Ok(Value::Int(6)));
+}
+
+#[test]
+fn a_reference_is_refused_with_what_it_lacks() {
+    let message = |source: &str| check(source).unwrap_err().message().to_owned();
+    assert_eq!(message("@[[]]"), "a document reference needs a name");
+    assert_eq!(
+        message("@[[alice"),
+        "unterminated document reference: expected `]]`"
+    );
+    assert_eq!(
+        message("@alice"),
+        "`@` opens a document reference: `@[[name]]`"
+    );
+    assert!(message("[[alice]]").contains("`@[[alice]]`"));
+    assert!(message("1 -> @[[bob]]").contains("a link endpoint is a document reference"));
+}
+
+#[test]
 fn cards_and_traversal_say_they_need_a_vault_rather_than_finding_nothing() {
     for source in ["cards", "cards | count", "cards | expand(depth = 1)"] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Name { .. })),
+            matches!(
+                check(source),
+                Err(Diagnostic {
+                    phase: Phase::Check,
+                    kind: Kind::UnknownName | Kind::UnknownField | Kind::UnknownStep,
+                    ..
+                })
+            ),
             "{source}"
         );
     }
@@ -224,13 +361,13 @@ fn cards_and_traversal_say_they_need_a_vault_rather_than_finding_nothing() {
 fn generics_are_written_with_angle_brackets() {
     // An angle bracket always means the type world; a square bracket stays
     // value-level. See doc/models/behavior/bind-vs-apply-in-generic-types.md.
-    assert_eq!(check("[[alice]]").unwrap().to_string(), "Option<Card>");
+    assert_eq!(check("@[[alice]]").unwrap().to_string(), "Option<Card>");
     assert_eq!(
-        check("[[alice]].header").unwrap().to_string(),
+        check("@[[alice]].header").unwrap().to_string(),
         "Option<Data>"
     );
     assert_eq!(
-        check("x : Option<Card> = [[alice]]\nx")
+        check("x : Option<Card> = @[[alice]]\nx")
             .unwrap()
             .to_string(),
         "Option<Card>"
@@ -238,7 +375,10 @@ fn generics_are_written_with_angle_brackets() {
     // Nesting closes with two separate `>`, so `>>` needs no special token.
     assert!(matches!(
         check("x : Seq<Hit<Card>> = 1"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
 }
 
@@ -247,7 +387,13 @@ fn square_brackets_are_not_the_type_world() {
     assert_eq!(check("[1, 2]"), Ok(TypeRef::list(TypeRef::INT)));
     for source in ["x : Set[Card] = 1", "x : Option[Int] = 1"] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Syntax { .. })),
+            matches!(
+                check(source),
+                Err(Diagnostic {
+                    phase: Phase::Parse,
+                    ..
+                })
+            ),
             "{source}: {:?}",
             check(source)
         );
@@ -256,14 +402,30 @@ fn square_brackets_are_not_the_type_world() {
 
 #[test]
 fn a_lambda_is_an_argument_and_not_a_value() {
-    assert!(matches!(check("c => c"), Err(Diagnostic::Type { .. })));
-    assert!(matches!(check("f = c => c"), Err(Diagnostic::Type { .. })));
+    assert!(matches!(
+        check("c => c"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
+    ));
+    assert!(matches!(
+        check("f = c => c"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
+    ));
 }
 
 #[test]
 fn a_step_without_an_input_says_so() {
     match check("take()") {
-        Err(Diagnostic::Type { message, .. }) => assert!(message.contains("needs an input")),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            message,
+            ..
+        }) => assert!(message.contains("needs an input")),
         other => panic!("expected a type error, got {other:?}"),
     }
 }
@@ -271,30 +433,41 @@ fn a_step_without_an_input_says_so() {
 #[test]
 fn a_direct_step_call_takes_its_input_as_the_first_argument() {
     assert_eq!(eval("take([3, 2, 1], 2)").unwrap().to_string(), "[3, 2]");
-    assert!(matches!(check("take(5)"), Err(Diagnostic::Type { .. })));
+    assert!(matches!(
+        check("take(5)"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
+    ));
 }
 
 #[test]
 fn long_addition_chains_preserve_grouping_and_diagnostics() {
-    let floats = vec!["0.5"; 256].join(" + ");
+    let floats = vec!["0.5f"; 256].join(" + ");
     assert_eq!(eval(&floats), Ok(Value::Float(128.0)));
     assert_eq!(
-        eval("1.0 + (10000000000000000.0 + -10000000000000000.0)"),
+        eval("1.0f + (10000000000000000.0f + -10000000000000000.0f)"),
         Ok(Value::Float(1.0))
     );
     let prefix = vec!["1"; 255].join(" + ");
     let invalid = format!("{prefix} + false");
     assert_eq!(type_error(&invalid), prefix.len() + 3..invalid.len());
-    assert_eq!(
+    assert!(matches!(
         eval("1 + 9223372036854775807 + -1"),
-        Err(Diagnostic::Overflow { span: 0..23 })
-    );
+        Err(Diagnostic { kind: Kind::NumericOverflow, span, .. }) if span == (0..23)
+    ));
 }
 
 #[test]
 fn a_near_miss_on_a_step_name_is_suggested() {
     match check("1 | mapp") {
-        Err(Diagnostic::Name { message, .. }) => assert!(message.contains("`map`"), "{message}"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            kind: Kind::UnknownStep,
+            context,
+            ..
+        }) => assert_eq!(context.help, ["did you mean `map`?"]),
         other => panic!("expected a name error, got {other:?}"),
     }
 }
@@ -302,7 +475,7 @@ fn a_near_miss_on_a_step_name_is_suggested() {
 #[test]
 fn a_retired_step_names_what_replaces_it() {
     for (source, replacement) in [
-        ("[[oauth]] | graph", "`Graph`"),
+        ("@[[oauth]] | graph", "`Graph`"),
         ("1 | table", "`Table`"),
         ("[1] | typed(Int)", "`of_type`"),
     ] {
@@ -312,9 +485,12 @@ fn a_retired_step_names_what_replaces_it() {
         )
         .expect_err(source);
         assert!(
-            failed.message().contains(replacement),
-            "{source}: {}",
-            failed.message()
+            failed
+                .context
+                .help
+                .iter()
+                .any(|help| help.contains(replacement)),
+            "{source}: {failed}"
         );
     }
 }
@@ -338,9 +514,9 @@ fn an_unimported_step_reports_the_import_rather_than_a_misspelling() {
 
 #[test]
 fn an_import_names_a_registered_extension() {
-    let failed = check("import nonesuch\n1").expect_err("no such extension");
+    let failed = check("import nonesuch\n1").expect_err("no such module");
     assert!(
-        failed.message().contains("no extension named `nonesuch`"),
+        failed.message().contains("no module named `nonesuch`"),
         "{}",
         failed.message()
     );
@@ -360,9 +536,9 @@ fn a_binding_shadows_the_namespace_and_not_the_step() {
         "{}",
         shadowed.message()
     );
-    let text = hql::types::builtin::named("Text", &[]).expect("Text is built in");
-    assert_eq!(check("format = 1\n1 | text"), Ok(text.clone()));
-    assert_eq!(check("1 | format.text"), Ok(text));
+    // Encoded text is a String, whatever the format.
+    assert_eq!(check("format = 1\n1 | text"), Ok(TypeRef::STR));
+    assert_eq!(check("1 | format.text"), Ok(TypeRef::STR));
 }
 
 #[test]
@@ -376,22 +552,56 @@ fn arithmetic_has_precedence_and_truncates_integer_division() {
         ("-7 / 2", Value::Int(-3)),
         ("7 % 3", Value::Int(1)),
         ("-7 % 3", Value::Int(-1)),
-        ("7.0 / 2.0", Value::Float(3.5)),
-        ("1.5 * 2.0 - 0.5", Value::Float(2.5)),
+        ("7.0f / 2.0f", Value::Float(3.5)),
+        ("1.5f * 2.0f - 0.5f", Value::Float(2.5)),
+        ("7.0 / 2.0", decimal("3.5")),
+        ("1.5 * 2.0 - 0.5", decimal("2.5")),
+        ("7 / 2.0", decimal("3.5")),
     ] {
         assert_eq!(eval(source), Ok(value), "{source}");
     }
-    assert_eq!(type_error("7 / 2.0"), 4..7);
-    assert!(matches!(eval("1 / 0"), Err(Diagnostic::Runtime { .. })));
-    assert!(matches!(eval("1 % 0"), Err(Diagnostic::Runtime { .. })));
-    assert!(matches!(eval("1.0 / 0.0"), Err(Diagnostic::Runtime { .. })));
+    assert_eq!(type_error("7 / 2.0f"), 4..8);
+    assert!(matches!(
+        eval("1 / 0"),
+        Err(Diagnostic {
+            phase: Phase::Execute,
+            ..
+        })
+    ));
+    assert!(matches!(
+        eval("1 % 0"),
+        Err(Diagnostic {
+            phase: Phase::Execute,
+            ..
+        })
+    ));
+    assert!(matches!(
+        eval("1.0f / 0.0f"),
+        Err(Diagnostic {
+            phase: Phase::Execute,
+            ..
+        })
+    ));
+    assert!(matches!(
+        eval("1.0 / 0"),
+        Err(Diagnostic {
+            phase: Phase::Execute,
+            ..
+        })
+    ));
     assert!(matches!(
         eval("-9223372036854775808 / -1"),
-        Err(Diagnostic::Overflow { .. })
+        Err(Diagnostic {
+            kind: Kind::NumericOverflow,
+            ..
+        })
     ));
     assert!(matches!(
         eval("9223372036854775807 * 2"),
-        Err(Diagnostic::Overflow { .. })
+        Err(Diagnostic {
+            kind: Kind::NumericOverflow,
+            ..
+        })
     ));
 }
 
@@ -408,15 +618,36 @@ fn ordering_relations_compare_one_orderable_type() {
         assert_eq!(check(source), Ok(TypeRef::BOOL), "{source}");
         assert_eq!(eval(source), Ok(Value::Bool(value)), "{source}");
     }
-    // No widening, and no comparing what has no order.
-    assert!(matches!(check("1 < 2.0"), Err(Diagnostic::Type { .. })));
+    // No widening but an Int's to a Decimal, and no comparing what has no
+    // order.
+    assert_eq!(eval("1 < 2.0"), Ok(Value::Bool(true)));
+    assert!(matches!(
+        check("1 < 2.0f"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
+    ));
+    assert!(matches!(
+        check("1.0 < 2.0f"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
+    ));
     assert!(matches!(
         check("true < false"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
     assert!(matches!(
         check("{ a: 1 } < { a: 2 }"),
-        Err(Diagnostic::Type { .. })
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
 }
 
@@ -447,8 +678,11 @@ fn connectives_take_bools_and_short_circuit() {
     assert_eq!(type_error("true and 1"), 9..10);
     assert_eq!(type_error("not 1"), 4..5);
     assert!(matches!(
-        check("[[alice]].metadata.done and true"),
-        Err(Diagnostic::Type { .. })
+        check("@[[alice]].metadata.done and true"),
+        Err(Diagnostic {
+            phase: Phase::Check,
+            ..
+        })
     ));
 }
 
@@ -458,7 +692,10 @@ fn connective_chains_are_bounded_like_arithmetic() {
     assert_eq!(eval(&at_limit), Ok(Value::Bool(true)));
     assert!(matches!(
         eval(&format!("{at_limit} and true")),
-        Err(Diagnostic::Syntax { .. })
+        Err(Diagnostic {
+            phase: Phase::Parse,
+            ..
+        })
     ));
 }
 
@@ -497,9 +734,10 @@ fn a_type_test_that_always_holds_is_a_warning() {
         hql::reporting::Mode::Strict,
     );
     assert!(!outcome.failed());
-    let warning = outcome.reports.iter().next().expect("a warning");
+    let warning = outcome.diagnostics.first().expect("a warning");
     assert_eq!(warning.severity, hql::reporting::Severity::Warning);
-    assert_eq!(warning.stage, "type");
+    assert_eq!(warning.phase, Phase::Check);
+    assert_eq!(warning.kind, Kind::AlwaysTrueTest);
     assert!(
         warning.message.contains("always true"),
         "{}",
@@ -507,7 +745,7 @@ fn a_type_test_that_always_holds_is_a_warning() {
     );
     // An open tree is asked at run time, so it warns of nothing.
     let open = hql::run("{a: 1}.a | is(Int)", &vault, hql::reporting::Mode::Strict);
-    assert!(open.reports.is_empty(), "{:?}", open.reports);
+    assert!(open.diagnostics.is_empty(), "{:?}", open.diagnostics);
 }
 
 #[test]
@@ -557,11 +795,11 @@ fn an_alias_is_a_function_whose_types_the_checker_writes() {
     let vault = hql::vault::Vault::empty();
     let signature = |source: &str| {
         let outcome = hql::check_reported(source, &vault, hql::reporting::Mode::Strict);
-        assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+        assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
         outcome
-            .reports
+            .diagnostics
             .iter()
-            .find(|report| report.code.as_deref() == Some("signature"))
+            .find(|report| report.kind == Kind::Signature)
             .map(|report| report.message.clone())
             .unwrap()
     };
@@ -605,8 +843,56 @@ fn an_alias_whose_body_fixes_no_type_is_refused() {
     );
     assert!(
         shadow
-            .reports
+            .diagnostics
             .iter()
             .any(|report| report.message.contains("shadows the step"))
     );
+}
+
+#[test]
+fn a_destructuring_pattern_breaks_lines_and_ends_in_a_comma() {
+    for pattern in ["{a, b}", "{a,\n b}", "{ a, b, }", "{\n  a,\n  b,\n}"] {
+        let source = format!("type P = {{a: Int, b: Int}}\n{pattern} = P(a = 1, b = 2)\na + b");
+        assert_eq!(eval(&source), Ok(Value::Int(3)), "{source}");
+    }
+}
+
+#[test]
+fn import_and_impl_are_keywords_only_by_position() {
+    assert_eq!(eval("import = 5\nimport"), Ok(Value::Int(5)));
+    assert_eq!(eval("impl = 2\nimpl < 3"), Ok(Value::Bool(true)));
+    assert_eq!(eval("module = 1\nmodule"), Ok(Value::Int(1)));
+}
+
+#[test]
+fn a_structural_body_may_follow_a_line_break_after_equals() {
+    assert_eq!(eval("type X =\n{ a: Int }\nX(a = 1).a"), Ok(Value::Int(1)));
+    assert_eq!(
+        eval("type X : Data =\n{ a: Int }\nX(a = 1).a"),
+        Ok(Value::Int(1))
+    );
+}
+
+#[test]
+fn empty_brackets_are_refused_alike_across_a_line_break() {
+    for source in ["[1, 2, 3][ ]", "[1, 2, 3][\n]"] {
+        match check(source) {
+            Err(Diagnostic {
+                phase: Phase::Parse,
+                message,
+                ..
+            }) => {
+                assert!(
+                    message.contains("a bracket holds a position"),
+                    "{source}: {message}"
+                )
+            }
+            other => panic!("{source}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn none_alone_covers_an_option_of_never() {
+    assert_eq!(eval("match none { none => 1 }"), Ok(Value::Int(1)));
 }

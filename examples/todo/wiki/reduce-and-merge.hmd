@@ -1,0 +1,10 @@
+---
+title: Reduce and merge
+metadata:
+  type: adr
+  status: accepted
+  date: 2026-10-18
+---
+# Reduce and merge
+
+An architecture decision listed on the [[todo]] board.

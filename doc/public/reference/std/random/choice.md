@@ -1,0 +1,12 @@
+<!-- hql reference: std/random.choice -->
+# `choice`
+
+In [`std/random`](index.md).
+
+```hql
+fn choice<T>(self: Seq<T>, *, seed: Int) : Option<T>
+effectful fn choice<T>(self: Seq<T>) : Option<T>
+```
+
+One element of `self` drawn uniformly, or `none` where `self` is empty.
+<!-- hql reference: end -->

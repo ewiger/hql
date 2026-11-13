@@ -1,0 +1,32 @@
+<!-- hql reference: std/stats -->
+# `std/stats`
+
+```hql
+module stats
+```
+
+Descriptive statistics over a collection of numbers: the mean, the
+sample and population variance and standard deviation, the median,
+quantiles, the mode, covariance and correlation. A statistic of `Int` or
+`Float` values is a `Float`; a statistic of `Decimal` values is a
+`Decimal`, exact except where a quotient does not terminate, which is
+rounded half to even to 100 significant digits as `Decimal` `/` is. An
+`Int` statistic is computed exactly and rounded to a `Float` once. A
+statistic that is undefined over its input, the mean of nothing or the
+sample variance of one value, is `none`. Not in the prelude: a program
+writes `import stats`. The prelude's `variance` is the population
+variance of `Int` and `Float` values, so a program importing `stats`
+writes `stats.variance` for the sample variance of those.
+
+- [`mean`](mean.md) — The arithmetic mean, the sum divided by the count, or `none` over an empty collection: `[1, 2, 3, 4] | mean` is `2.5`.
+- [`variance`](variance.md) — The sample variance, the sum of squared deviations from the mean divided by `n - 1`, or `none` over fewer than two values: `[1, 2, 3, 4] | stats.variance` is `1.6666666666666667`.
+- [`stdev`](stdev.md) — The sample standard deviation, the square root of `variance`, or `none` over fewer than two values.
+- [`pvariance`](pvariance.md) — The population variance, the sum of squared deviations from the mean divided by `n`, or `none` over an empty collection: `[1, 2, 3, 4] | pvariance` is `1.25`.
+- [`pstdev`](pstdev.md) — The population standard deviation, the square root of `pvariance`, or `none` over an empty collection.
+- [`covariance`](covariance.md) — The sample covariance of the pairs' `first` and `second` values, the sum of the products of their deviations from their means divided by `n - 1`, or `none` over fewer than two pairs.
+- [`correlation`](correlation.md) — Pearson's correlation coefficient of the pairs' `first` and `second` values, the covariance divided by the product of the two standard deviations, or `none` over fewer than two pairs or where either side has zero variance.
+- [`median`](median.md) — The middle value of the collection sorted ascending, the mean of the two middle values where the count is even; `quantile(0.5)`.
+- [`quantile`](quantile.md) — The `q` quantile, by linear interpolation between the sorted values (Hyndman and Fan's type 7, the default of R and NumPy): with the values sorted as `s_0` to `s_(n-1)` and `h = (n - 1) * q`, it is `s_floor(h) + (h - floor(h)) * (s_(floor(h) + 1) - s_floor(h))`.
+- [`quantiles`](quantiles.md) — The `n - 1` cut points that divide the sorted values into `n` groups of equal probability, the quantiles at `1/n` to `(n-1)/n` by the same interpolation as `quantile`, each computed as `(s_j * (n - d) + s_(j+1) * d) / n` with one division.
+- [`mode`](mode.md) — The most frequent value, and among equally frequent values the least by the type's order, or `none` over an empty collection: `[3, 1, 3, 1, 2] | mode` is `1`.
+<!-- hql reference: end -->

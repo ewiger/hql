@@ -4,7 +4,11 @@ use hql::types::{
     TypeRef, Value, builtin,
     collections::{self, SortOrder},
 };
-use hql::{check, diagnostics::Diagnostic, eval};
+use hql::{
+    check,
+    diagnostics::{Diagnostic, Phase},
+    eval,
+};
 
 #[test]
 fn execution_preserves_checked_collection_types_and_empty_map_results() {
@@ -85,7 +89,13 @@ fn inference_still_checks_the_ordering_contract() {
         "1 | sort",
     ] {
         assert!(
-            matches!(check(source), Err(Diagnostic::Type { .. })),
+            matches!(
+                check(source),
+                Err(Diagnostic {
+                    phase: Phase::Check,
+                    ..
+                })
+            ),
             "{source}"
         );
     }
@@ -102,14 +112,14 @@ fn the_type_system_accepts_sorting_every_collection_view() {
         TypeRef::list(TypeRef::INT),
     ] {
         assert_eq!(
-            collections::sort_type(system, &input, SortOrder::Intrinsic),
+            collections::sort_type(&system, &input, SortOrder::Intrinsic),
             Ok(TypeRef::list(TypeRef::INT))
         );
     }
     let input = TypeRef::set(TypeRef::list(TypeRef::STR));
-    assert!(collections::sort_type(system, &input, SortOrder::Intrinsic).is_err());
+    assert!(collections::sort_type(&system, &input, SortOrder::Intrinsic).is_err());
     assert_eq!(
-        collections::sort_type(system, &input, SortOrder::ExplicitComparison),
+        collections::sort_type(&system, &input, SortOrder::ExplicitComparison),
         Ok(TypeRef::list(TypeRef::list(TypeRef::STR)))
     );
 }
@@ -197,7 +207,11 @@ fn group_partitions_by_key_and_keeps_input_order_within_a_group() {
 #[test]
 fn sum_min_and_max_equal_their_folds_and_have_empty_results() {
     assert_eq!(eval("[1, 2, 3] | sum"), Ok(Value::Int(6)));
-    assert_eq!(eval("{1.5, 2.5} | sum"), Ok(Value::Float(4.0)));
+    assert_eq!(eval("{1.5f, 2.5f} | sum"), Ok(Value::Float(4.0)));
+    assert_eq!(
+        eval("{1.5, 2.5} | sum").map(|sum| sum.to_string()),
+        Ok("4.0".to_owned())
+    );
     assert_eq!(
         eval("empty : List<Int> = []\nempty | sum"),
         Ok(Value::Int(0))
@@ -365,7 +379,7 @@ fn a_combiner_names_how_two_values_become_one() {
         ("[2, 3, 4] | reduce(*)", "24"),
         ("[4, 9, 2] | reduce(max)", "9"),
         ("[ [1], [2] ] | reduce([], concat)", "[1, 2]"),
-        ("[{a: 1}, {b: 2}] | reduce({}, merge)", "{a: 1, b: 2}"),
+        ("[{a: 1}, {b: 2}] | reduce({:}, merge)", "{a: 1, b: 2}"),
         // A combiner that ignores order folds a set; one that does not, a sequence.
         ("{3, 1, 2} | reduce(0, +)", "6"),
     ] {
@@ -373,7 +387,7 @@ fn a_combiner_names_how_two_values_become_one() {
         assert_eq!(value.to_string(), expected, "{source}");
     }
     let ordered =
-        hql::check("{ {a: 1} } | reduce({}, merge)").expect_err("merge cares about order");
+        hql::check("{ {a: 1} } | reduce({:}, merge)").expect_err("merge cares about order");
     assert!(
         ordered.message().contains("sort it first"),
         "{}",
@@ -414,7 +428,7 @@ fn a_constructor_is_a_function_value_where_one_is_expected() {
     );
     let bare = hql::check("f = Set\n1").expect_err("not a value on its own");
     assert!(
-        bare.message().contains("is a constructor: call it"),
+        bare.to_string().contains("is a constructor: call it"),
         "{}",
         bare.message()
     );
@@ -423,5 +437,63 @@ fn a_constructor_is_a_function_value_where_one_is_expected() {
         named.message().contains("snake_case"),
         "{}",
         named.message()
+    );
+}
+
+#[test]
+fn collection_steps_compare_as_equality_does() {
+    let shown = |source: &str| {
+        eval(source)
+            .unwrap_or_else(|error| panic!("{source}: {}", error.message()))
+            .to_string()
+    };
+    let filtered_none = "[none, some(1) | filter(x => x > 5)]";
+    for (source, expected) in [
+        ("[1, 1.0] | approx_distinct".to_owned(), "1"),
+        ("[[1, 2.5], [1.0, 2.5]] | approx_distinct".to_owned(), "1"),
+        (format!("{filtered_none} | approx_distinct"), "1"),
+        (
+            format!("{filtered_none} | count_by(x => x)"),
+            "Map {none: 2}",
+        ),
+        (format!("{filtered_none} | group(x => x) | size"), "1"),
+    ] {
+        assert_eq!(shown(&source), expected, "{source}");
+    }
+    let declared = "type P { a : Int, b : Int }\n\
+                    impl Eq for P { fn eq(self, other: P) : Bool = self.a == other.a }\n\
+                    xs = [P(a = 1, b = 1), P(a = 2, b = 2)]\n\
+                    ys = [P(a = 1, b = 9)]\n";
+    for (query, expected) in [
+        ("xs | count(P(a = 1, b = 9))", "1"),
+        ("xs | contains(P(a = 1, b = 9))", "true"),
+        (
+            "xs | join(ys, left = x => x, right = y => y, into = (x, y) => 1) | size",
+            "1",
+        ),
+        (
+            "xs | semi_join(ys, left = x => x, right = y => y) | size",
+            "1",
+        ),
+    ] {
+        assert_eq!(shown(&format!("{declared}{query}")), expected, "{query}");
+    }
+}
+
+#[test]
+fn take_orders_a_set_by_an_implementation_of_ord() {
+    let source = "type Version { major : Int, minor : Int }\n\
+                  impl Ord for Version {\n\
+                    fn compare(self, other: Version) : Ordering =\n\
+                      compare(self.major * 100 + self.minor, other.major * 100 + other.minor)\n\
+                  }\n\
+                  vs = Set([Version(major = 3, minor = 0), Version(major = 1, minor = 10),\n\
+                            Version(major = 0, minor = 9), Version(major = 2, minor = 0)])\n\
+                  vs | take(2) | map(v => v.major)";
+    assert_eq!(
+        eval(source)
+            .unwrap_or_else(|error| panic!("{}", error.message()))
+            .to_string(),
+        "[0, 1]"
     );
 }

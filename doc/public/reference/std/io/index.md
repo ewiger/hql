@@ -1,0 +1,62 @@
+<!-- hql reference: std/io -->
+# `std/io`
+
+```hql
+module io
+```
+
+Input and output: endpoints, the data sources read from them, and the
+data targets written to them. An endpoint names where bytes are and
+performs no I/O; a format type (module `format`) states how the bytes are
+documents; a source or target joins the two, and `Seq` and `Stream` state
+whether the documents end.
+
+- [`Endpoint`](types/Endpoint.md) — The abstract type of every endpoint: where bytes are.
+- [`Readable`](types/Readable.md) — An endpoint bytes can be read from, by `source` and `tap`.
+- [`Replayable`](types/Replayable.md) — A `Readable` endpoint that gives the same bytes on every read in one evaluation, so `source` reads what it holds as a `Seq`.
+- [`Writable`](types/Writable.md) — An endpoint bytes can be written to, by `target` and `sink`.
+- [`Transport`](types/Transport.md) — An endpoint outside the evaluation: a file, a process stream, a network resource, a database table or a broker's log.
+- [`Direct`](types/Direct.md) — A `Transport` on this machine: a process stream or the file system.
+- [`Network`](types/Network.md) — A `Transport` in another process, reached over a connection.
+- [`ByteTransport`](types/ByteTransport.md) — A `Transport` that moves bytes: a format separates the documents.
+- [`MessageTransport`](types/MessageTransport.md) — A `Transport` that moves framed messages: each message is one document, decoded by the format, `Json` where none is named.
+- [`RowTransport`](types/RowTransport.md) — A `Transport` that moves rows of named columns: it takes no format.
+- [`Transactional`](types/Transactional.md) — A `Transport` whose system has an atomic scope: statements over it begin, commit and roll back as one unit.
+- [`Insertable`](types/Insertable.md) — A `Transport` that takes rows it does not hold, by `insert`.
+- [`Updatable`](types/Updatable.md) — A `Transport` whose held rows a statement changes in place, by `update`.
+- [`Deletable`](types/Deletable.md) — A `Transport` whose held rows a statement removes, by `delete`.
+- [`IsolationLevel`](types/IsolationLevel.md) — How much of other transactions a scope sees.
+- [`ReadCommitted`](types/ReadCommitted.md) — The `IsolationLevel` at which a statement sees what was committed before it began: PostgreSQL's default.
+- [`RepeatableRead`](types/RepeatableRead.md) — The `IsolationLevel` at which every statement of a scope sees the snapshot its first statement saw.
+- [`Serializable`](types/Serializable.md) — The `IsolationLevel` at which concurrent scopes behave as if run one after another: SQLite's only level.
+- [`Transaction`](types/Transaction.md) — The handle of a transaction scope, bound by `with transaction tx on …` (HQL-0051).
+- [`TransactionFailure`](types/TransactionFailure.md) — Why a transaction scope did not commit, the `err` of its `Result`: `kind` is `"rolled_back"` for `tx.rollback`, `"conflict"` for a concurrent transaction after the last attempt, `"constraint"` for a row the system refused, and `"exhausted"` for `tx.retry` with no attempt left; `reason` is the `rollback` argument or what the system said; `attempts` counts the attempts run.
+- [`Stdin`](types/Stdin.md) — The program's standard input, bound as `stdin`: read once, as it arrives.
+- [`Stdout`](types/Stdout.md) — The program's standard output, bound as `stdout`: written while the program runs, before the host presents its result.
+- [`Stderr`](types/Stderr.md) — The program's standard error, bound as `stderr`: where diagnostics go, apart from the result.
+- [`FileEnd`](types/FileEnd.md) — The end of a file, after what it holds, as `file(path).end`: a write there appends, and `tap` follows what is written next, as `tail -f` does.
+- [`File`](types/File.md) — A local file, the whole of it: read, every document it holds; written, it is replaced.
+- [`Path`](types/Path.md) — A place in a file system, written as text: segments separated by `/`.
+- [`Channel`](types/Channel.md) — An endpoint of values rather than bytes, held in memory for one execution scope: a program run, or one cell.
+- [`DataSource`](types/DataSource.md) — What a program reads: a configured endpoint by id, or an endpoint read in a format.
+- [`FiniteSource`](types/FiniteSource.md) — A source of every document, in order, that ends: read from a `Replayable` endpoint.
+- [`LiveSource`](types/LiveSource.md) — A source of each document as it arrives, with no replay: read from a live endpoint.
+- [`KeyedSource`](types/KeyedSource.md) — A finite source whose contents are addressable by a key of type `K`.
+- [`Position`](types/Position.md) — A message's place in its log, ordered as the log is.
+- [`Message`](types/Message.md) — One element of a stream with where and when it sits in it: its `value`, its `position`, an optional `key` and `time`, and its `headers`.
+- [`StreamSource`](types/StreamSource.md) — A log: `Message<T>`s in order, replayable within its retention.
+- [`Catalog`](types/Catalog.md) — An endpoint that contains sources of type `S`: a database of tables, a cluster of topics.
+- [`VaultSource`](types/VaultSource.md) — A vault as a source: an endpoint that holds its cards, as a catalog holds tables, with its members as fields rather than names.
+- [`DataTarget`](types/DataTarget.md) — What a program writes to: an endpoint written in a format, or a configured endpoint by its id.
+- [`file`](file.md) — The `File` at `path`.
+- [`join`](join.md) — `self` with `segment` appended as its last segment, separated by `/`: `Path("data").join("birds.csv")` is `Path("data/birds.csv")`.
+- [`parent`](parent.md) — `self` without its last segment, `some(Path)`, or `none` for a path of one segment: `Path("a/b").parent()` is `some(Path("a"))`, and `Path("a").parent()` is `none`.
+- [`name`](name.md) — The last segment of `self`: `Path("data/birds.csv").name()` is `"birds.csv"`.
+- [`stem`](stem.md) — The last segment of `self` without its extension: `Path("data/birds.csv").stem()` is `"birds"`.
+- [`extension`](extension.md) — The text after the last `.` of the last segment, `some(String)`, or `none` where the segment has none: `Path("a/b.csv").extension()` is `some("csv")`.
+- [`configured`](configured.md) — The endpoint configured under the literal `id` in hql.toml, as the transport its kind states, with its schema boundary: a `postgres` endpoint is a `Postgres`, a `csv` endpoint a `File`.
+- [`source`](source.md) — Every document read from `endpoint` in `format`, decoded to `T`: a `Seq` from a `Replayable` endpoint, a `Stream` from a live one.
+- [`tap`](tap.md) — The documents read from `endpoint` in `format`, one held at a time, as a `Stream<T>`.
+- [`target`](target.md) — Writes `value` as one document to `endpoint` in `format`, or to the target configured under `id`, and gives `Step`.
+- [`sink`](sink.md) — Writes each of `values` to `endpoint` in `format`, one document per value, and gives `Step`: `[{a: 1}, {a: 2}] | sink(stdout, Json)` writes `{"a":1}` and `{"a":2}` on two lines.
+<!-- hql reference: end -->

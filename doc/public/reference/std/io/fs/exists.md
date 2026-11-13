@@ -1,0 +1,12 @@
+<!-- hql reference: std/io/fs.exists -->
+# `exists`
+
+In [`std/io/fs`](index.md).
+
+```hql
+effectful fn exists(self: Path) : Bool
+```
+
+Whether something is at `self`: a file, a folder or a link. A missing
+path is `false`, not an error.
+<!-- hql reference: end -->

@@ -3,13 +3,13 @@
 use hql::types::{TypeRef, Value};
 
 fn check(source: &str) -> Result<TypeRef, String> {
-    hql::check(source).map_err(|failure| failure.message())
+    hql::check(source).map_err(|failure| failure.to_string())
 }
 
 fn eval(source: &str) -> Value {
     let vault = hql::vault::Vault::empty();
     let outcome = hql::run(source, &vault, hql::reporting::Mode::Strict);
-    assert!(!outcome.failed(), "{source}: {:?}", outcome.reports);
+    assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     outcome.value.expect("a value")
 }
 
@@ -75,6 +75,15 @@ const NATURALS: &str = "fn naturals(from: Int) : Stream<Int> {
     }
 }
 ";
+
+#[test]
+fn a_stream_zipped_with_a_list_ends_with_the_list() {
+    let source = format!(
+        "{NATURALS}[naturals(1) | zip([\"a\", \"b\"]) | List | map(p => p.first), \
+         [\"x\", \"y\", \"z\"] | zip(naturals(10)) | List | map(p => p.second)]"
+    );
+    assert_eq!(eval(&source), eval("[[1, 2], [10, 11, 12]]"));
+}
 
 #[test]
 fn take_ends_a_traversal_that_would_not_end_by_itself() {
@@ -146,7 +155,10 @@ fn an_iterating_function_declares_what_it_yields() {
             "fn f(xs: List<Int>) : Seq<String> {\n    for x in xs {\n        yield x\n    }\n}\n1",
             "yields String, and this is Int",
         ),
-        ("fn f() : Seq<Int> {\n    x = 1\n}\n1", "never yields"),
+        (
+            "fn f() : Seq<Int> {\n    x = 1\n}\n1",
+            "holds only bindings",
+        ),
         (
             "fn f() : Seq<Int> {\n    for x in 1 {\n        yield x\n    }\n}\n1",
             "`for` traverses",
@@ -234,23 +246,21 @@ fn formatting_a_stream_gives_a_stream_of_pieces() {
     };
     assert_eq!(
         check(&format!("{NATURALS}naturals(1) | json")),
-        Ok(stream("Json"))
+        Ok(stream("String"))
     );
     assert_eq!(
         check(&format!("{NATURALS}naturals(1) | format(Csv)")),
-        Ok(stream("Csv"))
+        Ok(stream("String"))
     );
     // A finite input is still written whole.
-    assert_eq!(
-        check("[1, 2] | json"),
-        Ok(hql::types::builtin::named("Json", &[]).unwrap())
-    );
+    assert_eq!(check("[1, 2] | json"), Ok(TypeRef::STR));
     assert_eq!(
         eval(&format!("{NATURALS}naturals(1) | json | take(2)")),
         eval("[\"1\", \"2\"]")
     );
     let pieces = format!("{NATURALS}naturals(1) | map(n => {{n: n}}) | csv | take(2)");
-    assert_eq!(eval(&pieces).to_string(), "[n\r\n1, 2]");
+    // Every piece ends its lines the same way, the header's included.
+    assert_eq!(eval(&pieces).to_string(), "[n\n1, 2]");
     let whole = check(&format!("{NATURALS}naturals(1) | d2")).expect_err("D2 is a whole");
     assert!(
         whole.contains("describes a whole") && whole.contains("collect(n)"),
@@ -285,11 +295,32 @@ fn the_small_diagnostics_name_what_to_write() {
         finite.contains("take(n)") && finite.contains("collect(n)"),
         "{finite}"
     );
+    // A time window is no argument `collect` declares.
     let window = check("[1, 2] | collect(for = 5)").expect_err("no time windows");
-    assert!(window.contains("not implemented yet"), "{window}");
+    assert!(
+        window.contains("`collect` has no argument `for`"),
+        "{window}"
+    );
     let renderer = check("[1] | format(Markdown, renderer = \"shiny\")").expect_err("unknown");
     assert!(
         renderer.contains("no renderer is named `shiny`"),
         "{renderer}"
     );
+}
+
+#[test]
+fn collect_emit_and_flat_map_take_a_finite_iterating_function() {
+    let declared = "fn few() : Seq<Int> {\n  yield 3\n  yield 1\n  yield 2\n}\n\
+                    fn pairs() : Seq<List<Int>> {\n  yield [1, 2]\n  yield [3]\n}\n";
+    for (query, expected) in [
+        ("few() | collect(2)", "[[3, 1], [2]]"),
+        ("pairs() | emit", "[1, 2, 3]"),
+        ("few() | flat_map(n => [n, n])", "[3, 3, 1, 1, 2, 2]"),
+    ] {
+        assert_eq!(
+            eval(&format!("{declared}{query}")).to_string(),
+            expected,
+            "{query}"
+        );
+    }
 }

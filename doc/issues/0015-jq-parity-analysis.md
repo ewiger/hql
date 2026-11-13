@@ -4,7 +4,7 @@ Status: backlog
 
 jq is the reference tool for querying and reshaping JSON. HQL already has the
 pipeline shape jq has, and a `Data` type that is the JSON/YAML data model
-([0006](0006-scalar-and-data-union.md),
+([0006](archive/0006-scalar-and-data-union.md),
 [data-type](../wiki/hql/types/data-type.hmd)). What it lacks is a way to
 treat a JSON, YAML or CSV document as a query source, and much of the
 vocabulary jq uses on one.
@@ -18,7 +18,7 @@ no code under `src/` changes here.
 
 1. **Input and output formats.** What it takes to read JSON, YAML and CSV as
    a query source, from a file, from stdin, or as a binding beside `cards`
-   ([0008](0008-cards-as-a-vault-binding.md)), and to write them back out.
+   ([0008](archive/0008-cards-as-a-vault-binding.md)), and to write them back out.
    Today JSON is output only, through the `json` presentation step and
    `--envelope json`. The binary already depends on `serde_json` and
    `serde_yaml_ng`. CSV output is the `csv` presentation format, and CSV input
@@ -64,7 +64,7 @@ no code under `src/` changes here.
      `to_entries` / `from_entries`, `keys`, `has`.
    - Aggregation: `reduce`, `group_by`, `unique_by`, `min_by`, `max_by`,
      `add`. These overlap with `group` / `reduce` in
-     [0014](0014-next-feature-bundle.md) and
+     [0014](archive/0014-next-feature-bundle.md) and
      [HQL-0004](../proposals/HQL-0004/README.md).
    - Updates: `|=`, `del`, `setpath`. In a functional, typed language these
      return a new tree.

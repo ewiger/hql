@@ -1,0 +1,95 @@
+# Incremental loads
+
+A load that reads everything every time is simple and, past a certain
+size, impossible. An **incremental** load reads only what is new since the
+last one. There are two places the pipeline can learn where "new" starts:
+from the table it writes, or from the system it reads.
+
+## A watermark the table holds
+
+If every fact carries a timestamp, the latest one in the table is the
+**watermark**: everything after it is new. The load reads the watermark,
+filters the incoming rows by it, and appends:
+
+<!-- define: Event -->
+```hql
+type Event {
+    id       : Int
+    kind     : String
+    customer : String
+    amount   : Decimal
+    at       : String
+}
+```
+
+<!-- run: with Event --vault examples/pipelines/shop -->
+```hql
+current  : Seq<Event> = source("ledger")
+incoming : Seq<Event> = source("silver_replayed")
+
+watermark = current | map(o => o.at) | max
+
+incoming
+| filter(o => o.at > watermark.unwrap_or(""))
+| map(o => {id: o.id, at: o.at})
+```
+
+```text
+[{at: "2026-11-02T11:50:00Z", id: 6}]
+```
+
+The ledger holds the six orders as first reported, so its watermark is order
+6's first timestamp, and the only row after it is the correction. `max`
+over an empty table is `none`, and `unwrap_or("")` makes the first load a
+full one.
+
+A watermark is only as good as the timestamp: a row that arrives late, with
+an `at` before the watermark, is never loaded. The replay has one, the
+second copy of order 4, which here is harmless because it is an exact
+duplicate of a row the table holds, and in general is the reason a
+watermark load is paired with the [merge](merge.md) of the previous page, or
+replaced by a position the reading side keeps.
+
+## A position the server keeps
+
+The durable consumer of [chapter 17](../17-subjects-and-the-lakehouse.md)
+is an incremental load with no watermark in the program at all. The server
+records how far the consumer has read, so each run of the load is given only
+what was published since the run before, and the program is the plain
+append:
+
+<!-- run: check with Event --vault examples/pipelines/shop -->
+```hql
+events : Stream<Event> = tap("billing")
+events | sink("orders_silver")
+```
+
+```text
+Step
+```
+
+A message is acknowledged once the program asks for the next one, so a run
+that fails is given its last message again, and the silver table it appends
+to needs the deduplication of this chapter exactly once: at that message. A
+late message is no problem, because the position is in the stream's order,
+not the message's timestamp.
+
+The two mechanisms suit the two sides. A watermark is what an analytical
+table can offer a batch load over another table, where no server keeps a
+position for it. A consumer is what a transactional system offers a
+streaming load, and it is the better of the two whenever it is there.
+
+## The three loads together
+
+| Load | Reads | Writes | Guards against |
+| --- | --- | --- | --- |
+| full | the whole source | `replace` | nothing; it starts over |
+| incremental by watermark | rows after the table's latest timestamp | `append` | reading what is already held |
+| incremental by consumer | messages after the server's position | `append` or `sink` | reading what is already held, and late arrival |
+
+None of them guards against a duplicate on its own; that is the
+[deduplication](deduplication.md) in the load, or the [merge](merge.md)
+mode of the table. Bronze is loaded in full and never again; silver is
+loaded incrementally and merged; gold is rebuilt in full from silver. The
+layers of the [first page](bronze-silver-and-gold.md) are the three loads,
+one each.

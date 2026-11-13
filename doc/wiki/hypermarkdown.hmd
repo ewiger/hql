@@ -12,7 +12,9 @@ knowledge format: plain Markdown extended with **wiki features**, above all
 `[[wikilinks]]` between cards. It is the default home for cross-linked, reusable
 explanations of a single idea. A `.hmd` file is a **card**, and cards live in a
 **vault** — the single directory that bounds the graph. This project's vault is
-[`doc/wiki/`](README.md). A card also reads fine as plain Markdown: the format
+`doc/`: the cards in [`doc/wiki/`](README.md) and every other `.hmd` file under
+`doc/`, such as the [issues index](../issues/README.hmd) and the
+[status pages](../status/ADR-status.hmd). A card also reads fine as plain Markdown: the format
 is Markdown plus a wiki graph, nothing more exotic, with no external toolchain
 to satisfy.
 
@@ -34,7 +36,7 @@ outside the vault** is reached by an ordinary relative Markdown link, never by
 
 What makes a directory a vault is an `.hmd/` directory at its root — that
 marker, and the vault state and configuration it holds, are owned by
-[[card-type]]. The settings in [.hmd/config.toml](.hmd/config.toml) govern every
+[[card-type]]. The settings in [doc/.hmd/config.toml](../.hmd/config.toml) govern every
 card beneath it and are optional; where a key is absent its default is assumed.
 
 Binding a reference to a file is uniform: the reference plus `.hmd` is tried as
@@ -63,6 +65,11 @@ and the search is what the next section describes.
 **Forward links are fine.** Linking a concept that has no card yet marks it as
 worth writing later; an unresolved link is a warning (`HMD001`), not an error.
 
+**Code is not scanned.** HQL collects references and their annotations from a
+card's prose only. A `[[ ]]` inside a fenced code block, opened by ```` ``` ````
+or `~~~`, or inside an inline code span is shown to the reader and authors no
+edge. In HQL source a reference is written `@[[target]]` — see [[link-op]].
+
 ## How an unqualified reference resolves
 
 Four phases, in order, first match wins:
@@ -84,8 +91,9 @@ directive, so phases 1 and 3 never fire.
 ## Autodiscovery is load-bearing here
 
 The sweep is not a fallback this vault tolerates — it is how roughly a third of
-the links resolve, and deliberately so. `[[card-type]]` written in `hql/` is the
-ordinary case: the spine of a card in `hql/` never enters `hql/types/`, and the
+the links resolve, and deliberately so. `[[card-type]]` written in `wiki/hql/` is
+the ordinary case: the spine of a card in `wiki/hql/` never enters
+`wiki/hql/types/`, and the
 link works because the sweep finds the card anywhere in the vault. That is the
 feature being used, and it is what keeps a card free to move between subfolders
 without its inbound links being rewritten.
@@ -102,9 +110,9 @@ where the setting is written.
 ## When to qualify a link
 
 Qualify with an unqualified path when a bare name would match more than one
-card. Two filenames occur twice in this vault: `knowledge.hmd` in `hql/` and
-in `hql/extensions/`, and `hypermarkdown.hmd` at the root and in
-`hql/extensions/`. A bare `[[knowledge]]` resolves on the spine to whichever is
+card. Two filenames occur twice in this vault: `knowledge.hmd` in `wiki/hql/`
+and in `wiki/hql/extensions/`, and `hypermarkdown.hmd` in `wiki/` and in
+`wiki/hql/extensions/`. A bare `[[knowledge]]` resolves on the spine to whichever is
 nearer the writing card, but from a card whose spine reaches neither it falls to
 the sweep, matches both, and is an ambiguity error (`HMD002`). The remedy is to
 write `[[hql/knowledge]]`, not to memorise a tie-break.

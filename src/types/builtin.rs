@@ -4,7 +4,7 @@ use super::{
     TypeConstructor, TypeDefinition, TypeError, TypeKind, TypeParameter, TypeRef, TypeSystem,
     Variance, collections,
 };
-use std::sync::OnceLock;
+use std::sync::Arc;
 
 macro_rules! atoms {
     ($($constant:ident => $name:literal),* $(,)?) => {
@@ -16,11 +16,69 @@ macro_rules! atoms {
 }
 
 atoms! {
-    NEVER => "Never", UNIT => "Unit", INT => "Int", FLOAT => "Float",
+    NEVER => "Never", AUTE => "Aute", UNIT => "Step", INT => "Int", FLOAT => "Float", DECIMAL => "Decimal",
     BOOL => "Bool", STR => "String", DATA => "Data", DOC => "Doc", CARD => "Card",
-    CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
+    CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard",
+    HMD_HEADER => "HmdHeader", HMD_DOC => "HmdDoc", HMD_CARD => "HmdCard", MD_CARD => "MdCard", EDGE => "Edge",
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
     ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
+    DATE_TIME => "DateTime", INSTANT => "Instant", DURATION => "Duration",
+    BYTES => "Bytes",
+    ZONE => "Zone", TIME_UNIT => "TimeUnit", NANOSECOND => "Nanosecond",
+    MICROSECOND => "Microsecond", MILLISECOND => "Millisecond", SECOND => "Second",
+    MINUTE => "Minute", HOUR => "Hour", DAY => "Day", WEEK => "Week", MONTH => "Month",
+    QUARTER => "Quarter", YEAR => "Year",
+    DIGEST_ALGORITHM => "Algorithm", MD5 => "Md5", SHA1 => "Sha1", SHA256 => "Sha256",
+    SHA512 => "Sha512", BLAKE3 => "Blake3",
+    ENCODING => "Encoding", HEX => "Hex", BASE64 => "Base64", BASE64_URL => "Base64Url",
+    PERCENT => "Percent",
+    KEY_ALGORITHM => "KeyAlgorithm", SIGNING => "Signing", AGREEMENT => "Agreement",
+    ED25519 => "Ed25519", P256 => "P256", RSA => "Rsa", X25519 => "X25519",
+    SECRET_ALGORITHM => "SecretAlgorithm", CIPHER => "Cipher", MAC => "Mac",
+    AES256_GCM => "Aes256Gcm", CHACHA20_POLY1305 => "ChaCha20Poly1305",
+    HMAC_SHA256 => "HmacSha256", HMAC_SHA512 => "HmacSha512", SECRET => "Secret",
+    ENCRYPTED_END => "EncryptedEnd", DECRYPTED_END => "DecryptedEnd",
+    DECRYPTED_LIVE => "DecryptedLive",
+    KEY_FORMAT => "KeyFormat", PEM => "Pem", JWK => "Jwk", OPEN_SSH => "OpenSsh", AGE => "Age",
+    ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
+    WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
+    FILE => "File", FILE_END => "FileEnd", PATH => "Path",
+    FOLDER => "Folder", GLOB => "Glob", ENTRY => "Entry",
+    HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Tcp",
+    TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
+    BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
+    ROW_TRANSPORT => "RowTransport", NATS_JET_STREAM => "NatsJetStream", SQLITE => "Sqlite", NATS => "Nats",
+    POSTGRES => "Postgres",
+    TRANSACTIONAL => "Transactional", INSERTABLE => "Insertable", UPDATABLE => "Updatable",
+    DELETABLE => "Deletable", ISOLATION_LEVEL => "IsolationLevel",
+    READ_COMMITTED => "ReadCommitted", REPEATABLE_READ => "RepeatableRead",
+    SERIALIZABLE => "Serializable", TRANSACTION => "Transaction", SPARK => "Spark",
+    TRANSACTION_FAILURE => "TransactionFailure",
+    LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
+    WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
+    CELL => "Cell", RANGE => "Range", TABLE => "Table",
+    TYPE_CONTRACT => "TypeContract", DATA_CONTRACT => "DataContract",
+    VIOLATION => "Violation", INVALID => "Invalid", DIAGNOSTIC => "Diagnostic",
+}
+
+impl TypeRef {
+    /// The type of a time value: `Date`, `DateTime`, `Instant` or
+    /// `Duration`.
+    #[must_use]
+    pub fn time(time: &crate::time::Time) -> Self {
+        match time {
+            crate::time::Time::Date(_) => Self::DATE,
+            crate::time::Time::DateTime(_) => Self::DATE_TIME,
+            crate::time::Time::Instant(_) => Self::INSTANT,
+            crate::time::Time::Duration(_) => Self::DURATION,
+        }
+    }
+
+    /// Whether this is one of the time scalars.
+    #[must_use]
+    pub fn is_time(&self) -> bool {
+        [Self::DATE, Self::DATE_TIME, Self::INSTANT, Self::DURATION].contains(self)
+    }
 }
 
 macro_rules! applications {
@@ -34,7 +92,7 @@ macro_rules! applications {
     };
 }
 
-applications! { list => "List", seq => "Seq", set => "Set", hit => "Hit", ranking => "Ranking", optional => "Option", collection => "Collection" }
+applications! { list => "List", seq => "Seq", set => "Set", hit => "Hit", ranking => "Ranking", optional => "Option", collection => "Collection", table => "Table" }
 
 /// The type variables a generic function's parameters stand for, one per
 /// capital letter.
@@ -90,27 +148,40 @@ impl TypeRef {
     }
 }
 
-/// The shared built-in declaration registry.
-pub fn system() -> Result<&'static TypeSystem, TypeError> {
-    static SYSTEM: OnceLock<Result<TypeSystem, TypeError>> = OnceLock::new();
-    SYSTEM.get_or_init(build).as_ref().map_err(Clone::clone)
+/// The declaration registry in force: the built-in lattice, plus whatever
+/// the program being checked or run has declared
+/// ([`program`](super::program)).
+pub fn system() -> Result<Arc<TypeSystem>, TypeError> {
+    super::program::current().map(|lattice| Arc::clone(&lattice.system))
 }
 
-fn build() -> Result<TypeSystem, TypeError> {
+/// Build the built-in lattice alone.
+pub(crate) fn build() -> Result<TypeSystem, TypeError> {
     let mut system = collections::type_system()?;
     // A leaf of a tree: a value with no parts of its own. `Bool` is one and is
     // not `Orderable`, which is why the two contracts are separate parents.
     let ordered_scalar = [TypeRef::SCALAR, TypeRef::ORDERABLE];
     for (reference, kind, parents) in [
         (TypeRef::NEVER, TypeKind::Bottom, &[][..]),
-        (TypeRef::UNIT, TypeKind::Concrete, &[]),
+        // An atomic unit of execution completed, and its one subtype so far:
+        // a statement ran and gave no other value (HQL-0055).
+        (TypeRef::AUTE, TypeKind::Abstract, &[]),
+        (TypeRef::UNIT, TypeKind::Concrete, &[TypeRef::AUTE]),
         (TypeRef::SCALAR, TypeKind::Abstract, &[]),
         (TypeRef::BOOL, TypeKind::Concrete, &[TypeRef::SCALAR]),
         (TypeRef::INT, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::FLOAT, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::DECIMAL, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::STR, TypeKind::Concrete, &ordered_scalar),
-        // Declared so a schema can name it; no literal produces one yet.
+        // The time scalars (HQL-0041 part 1): built by constructors from
+        // ISO 8601 text, with no literal.
         (TypeRef::DATE, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::DATE_TIME, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::INSTANT, TypeKind::Concrete, &ordered_scalar),
+        (TypeRef::DURATION, TypeKind::Concrete, &ordered_scalar),
+        // Octets (HQL-0053 part 1): built by constructors and conversions,
+        // with no literal.
+        (TypeRef::BYTES, TypeKind::Concrete, &ordered_scalar),
         (
             TypeRef::DATA,
             TypeKind::Union(vec![
@@ -120,14 +191,369 @@ fn build() -> Result<TypeSystem, TypeError> {
             ]),
             &[],
         ),
+        // The structural categories of `lib/std/core/mod.hql` (HQL-0030): a
+        // contract closed as a plain record is, and one open by being Data.
+        (TypeRef::TYPE_CONTRACT, TypeKind::Abstract, &[]),
+        (TypeRef::DATA_CONTRACT, TypeKind::Abstract, &[TypeRef::DATA]),
+        // What `validate(T)` gives where a value does not read (HQL-0033):
+        // `type Violation` and `type Invalid` in `lib/std/core/mod.hql`.
+        (
+            TypeRef::VIOLATION,
+            TypeKind::Concrete,
+            &[TypeRef::DATA_CONTRACT],
+        ),
+        (
+            TypeRef::INVALID,
+            TypeKind::Concrete,
+            &[TypeRef::DATA_CONTRACT],
+        ),
+        // What a run delivered, read back as data (HQL-0045): `type
+        // Diagnostic` in `lib/std/core/mod.hql`.
+        (
+            TypeRef::DIAGNOSTIC,
+            TypeKind::Concrete,
+            &[TypeRef::DATA_CONTRACT],
+        ),
         (TypeRef::DOC, TypeKind::Concrete, &[TypeRef::ORDERABLE]),
         (TypeRef::CARD, TypeKind::Concrete, &[TypeRef::DOC]),
         (TypeRef::CONCEPT_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
         (TypeRef::RELATION_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
+        // A document or card by the dialect of its body, `lib/std/doc/mod.hql`:
+        // a card is one of these by its `format`, beside its kind.
+        (TypeRef::HMD_HEADER, TypeKind::Concrete, &[]),
+        (TypeRef::HMD_DOC, TypeKind::Abstract, &[TypeRef::DOC]),
+        (
+            TypeRef::HMD_CARD,
+            TypeKind::Concrete,
+            &[TypeRef::CARD, TypeRef::HMD_DOC],
+        ),
+        (TypeRef::MD_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
         (TypeRef::EDGE, TypeKind::Concrete, &[]),
         (TypeRef::GRAPH, TypeKind::Concrete, &[]),
         (TypeRef::VAULT, TypeKind::Concrete, &[]),
         (TypeRef::ORDERING, TypeKind::Concrete, &[]),
+        // Where values come from and go to: `lib/std/io/mod.hql`. A capability
+        // is a supertype, so the checker reads it off the endpoint's type.
+        (TypeRef::ENDPOINT, TypeKind::Abstract, &[]),
+        (TypeRef::READABLE, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
+        (
+            TypeRef::REPLAYABLE,
+            TypeKind::Abstract,
+            &[TypeRef::READABLE],
+        ),
+        (TypeRef::WRITABLE, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
+        (TypeRef::STDIN, TypeKind::Concrete, &[TypeRef::READABLE]),
+        (TypeRef::STDOUT, TypeKind::Concrete, &[TypeRef::WRITABLE]),
+        (TypeRef::STDERR, TypeKind::Concrete, &[TypeRef::WRITABLE]),
+        (
+            TypeRef::FILE_END,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE, TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::FILE,
+            TypeKind::Concrete,
+            &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
+        ),
+        // A place in a file system, ordered by its segments: `lib/std/io/mod.hql`.
+        (TypeRef::PATH, TypeKind::Concrete, &[TypeRef::ORDERABLE]),
+        // The file system as data (HQL-0040): `lib/std/io/fs/mod.hql`.
+        (TypeRef::FOLDER, TypeKind::Concrete, &[]),
+        (TypeRef::GLOB, TypeKind::Concrete, &[]),
+        (TypeRef::ENTRY, TypeKind::Concrete, &[]),
+        // An endpoint outside the evaluation, its locality and its carriage
+        // (HQL-0047): `lib/std/io/mod.hql`.
+        (TypeRef::TRANSPORT, TypeKind::Abstract, &[TypeRef::ENDPOINT]),
+        (TypeRef::DIRECT, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
+        (TypeRef::NETWORK, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
+        (
+            TypeRef::BYTE_TRANSPORT,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::MESSAGE_TRANSPORT,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::ROW_TRANSPORT,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        // What a transport's system can do beyond reading and writing
+        // (HQL-0051): take part in an atomic scope, and take, change or
+        // remove rows in place. Each is independent of the others.
+        (
+            TypeRef::TRANSACTIONAL,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::INSERTABLE,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::UPDATABLE,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (
+            TypeRef::DELETABLE,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        // How much of other transactions a scope sees (HQL-0051): a level is
+        // a type, passed as one, as a logger's threshold is.
+        (TypeRef::ISOLATION_LEVEL, TypeKind::Abstract, &[]),
+        (
+            TypeRef::READ_COMMITTED,
+            TypeKind::Concrete,
+            &[TypeRef::ISOLATION_LEVEL],
+        ),
+        (
+            TypeRef::REPEATABLE_READ,
+            TypeKind::Concrete,
+            &[TypeRef::ISOLATION_LEVEL],
+        ),
+        (
+            TypeRef::SERIALIZABLE,
+            TypeKind::Concrete,
+            &[TypeRef::ISOLATION_LEVEL],
+        ),
+        // The handle of a transaction scope, and why a scope did not commit
+        // (HQL-0051): `lib/std/io/mod.hql`.
+        (TypeRef::TRANSACTION, TypeKind::Concrete, &[]),
+        (
+            TypeRef::TRANSACTION_FAILURE,
+            TypeKind::Concrete,
+            &[TypeRef::DATA_CONTRACT],
+        ),
+        // A table of a database file: `lib/std/io/db/sqlite/mod.hql`.
+        (
+            TypeRef::SQLITE,
+            TypeKind::Concrete,
+            &[
+                TypeRef::DIRECT,
+                TypeRef::ROW_TRANSPORT,
+                TypeRef::REPLAYABLE,
+                TypeRef::WRITABLE,
+                TypeRef::TRANSACTIONAL,
+                TypeRef::INSERTABLE,
+                TypeRef::UPDATABLE,
+                TypeRef::DELETABLE,
+            ],
+        ),
+        // A table of a PostgreSQL database: `lib/std/io/db/postgres/mod.hql`.
+        (
+            TypeRef::POSTGRES,
+            TypeKind::Concrete,
+            &[
+                TypeRef::NETWORK,
+                TypeRef::ROW_TRANSPORT,
+                TypeRef::REPLAYABLE,
+                TypeRef::WRITABLE,
+                TypeRef::TRANSACTIONAL,
+                TypeRef::INSERTABLE,
+                TypeRef::UPDATABLE,
+                TypeRef::DELETABLE,
+            ],
+        ),
+        // A table behind a Spark SQL endpoint: `lib/std/io/db/spark/mod.hql`.
+        // Its scope is one table and one statement (HQL-0051).
+        (
+            TypeRef::SPARK,
+            TypeKind::Concrete,
+            &[
+                TypeRef::NETWORK,
+                TypeRef::ROW_TRANSPORT,
+                TypeRef::REPLAYABLE,
+                TypeRef::WRITABLE,
+                TypeRef::TRANSACTIONAL,
+                TypeRef::INSERTABLE,
+                TypeRef::UPDATABLE,
+                TypeRef::DELETABLE,
+            ],
+        ),
+        // A core NATS subject: `lib/std/io/msg/nats/mod.hql`.
+        (
+            TypeRef::NATS,
+            TypeKind::Concrete,
+            &[
+                TypeRef::NETWORK,
+                TypeRef::MESSAGE_TRANSPORT,
+                TypeRef::READABLE,
+                TypeRef::WRITABLE,
+            ],
+        ),
+        // A subject of a JetStream stream:
+        // `lib/std/io/msg/nats_jetstream/mod.hql`.
+        (
+            TypeRef::NATS_JET_STREAM,
+            TypeKind::Concrete,
+            &[
+                TypeRef::NETWORK,
+                TypeRef::MESSAGE_TRANSPORT,
+                TypeRef::READABLE,
+                TypeRef::WRITABLE,
+            ],
+        ),
+        // Transports: `lib/std/io/net/mod.hql`.
+        (
+            TypeRef::HTTP,
+            TypeKind::Concrete,
+            &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::WEB_SOCKET,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE, TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::SOCKET,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE, TypeRef::WRITABLE],
+        ),
+        // Logging: `lib/std/io/logging/mod.hql`. A level is a type, so a threshold is
+        // passed as one and an event's level is tested with `is`.
+        (TypeRef::LOG_LEVEL, TypeKind::Abstract, &[]),
+        (TypeRef::TRACE, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::DEBUG, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::INFO, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::WARN, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::ERROR, TypeKind::Concrete, &[TypeRef::LOG_LEVEL]),
+        (TypeRef::LOG_EVENT, TypeKind::Concrete, &[]),
+        (TypeRef::LOGGER, TypeKind::Concrete, &[]),
+        (TypeRef::CELL, TypeKind::Concrete, &[]),
+        // Time: `lib/std/time/mod.hql`. A unit is a type, so `truncate`
+        // takes one as `Month` is written.
+        (TypeRef::ZONE, TypeKind::Concrete, &[]),
+        (TypeRef::TIME_UNIT, TypeKind::Abstract, &[]),
+        (
+            TypeRef::NANOSECOND,
+            TypeKind::Concrete,
+            &[TypeRef::TIME_UNIT],
+        ),
+        (
+            TypeRef::MICROSECOND,
+            TypeKind::Concrete,
+            &[TypeRef::TIME_UNIT],
+        ),
+        (
+            TypeRef::MILLISECOND,
+            TypeKind::Concrete,
+            &[TypeRef::TIME_UNIT],
+        ),
+        (TypeRef::SECOND, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::MINUTE, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::HOUR, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::DAY, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::WEEK, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::MONTH, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::QUARTER, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        (TypeRef::YEAR, TypeKind::Concrete, &[TypeRef::TIME_UNIT]),
+        // Digests and encodings (HQL-0041 part 3): `lib/std/crypto/digest/mod.hql`
+        // and `lib/std/encoding/mod.hql`. An algorithm and an encoding are
+        // types, so a call takes one as `Sha256` or `Hex` is written.
+        (TypeRef::DIGEST_ALGORITHM, TypeKind::Abstract, &[]),
+        (
+            TypeRef::MD5,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::SHA1,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::SHA256,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::SHA512,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::BLAKE3,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (TypeRef::ENCODING, TypeKind::Abstract, &[]),
+        (TypeRef::HEX, TypeKind::Concrete, &[TypeRef::ENCODING]),
+        (TypeRef::BASE64, TypeKind::Concrete, &[TypeRef::ENCODING]),
+        (
+            TypeRef::BASE64_URL,
+            TypeKind::Concrete,
+            &[TypeRef::ENCODING],
+        ),
+        (TypeRef::PERCENT, TypeKind::Concrete, &[TypeRef::ENCODING]),
+        // Keys (HQL-0053 part 2): `lib/std/crypto/mod.hql`. An algorithm and a
+        // key format are types, so a call takes one as `Ed25519` is written.
+        (TypeRef::KEY_ALGORITHM, TypeKind::Abstract, &[]),
+        (
+            TypeRef::SIGNING,
+            TypeKind::Abstract,
+            &[TypeRef::KEY_ALGORITHM],
+        ),
+        (
+            TypeRef::AGREEMENT,
+            TypeKind::Abstract,
+            &[TypeRef::KEY_ALGORITHM],
+        ),
+        (TypeRef::ED25519, TypeKind::Concrete, &[TypeRef::SIGNING]),
+        (TypeRef::P256, TypeKind::Concrete, &[TypeRef::SIGNING]),
+        (TypeRef::RSA, TypeKind::Concrete, &[TypeRef::SIGNING]),
+        (TypeRef::X25519, TypeKind::Concrete, &[TypeRef::AGREEMENT]),
+        (TypeRef::SECRET_ALGORITHM, TypeKind::Abstract, &[]),
+        (
+            TypeRef::CIPHER,
+            TypeKind::Abstract,
+            &[TypeRef::SECRET_ALGORITHM],
+        ),
+        (
+            TypeRef::MAC,
+            TypeKind::Abstract,
+            &[TypeRef::SECRET_ALGORITHM],
+        ),
+        (TypeRef::AES256_GCM, TypeKind::Concrete, &[TypeRef::CIPHER]),
+        (
+            TypeRef::CHACHA20_POLY1305,
+            TypeKind::Concrete,
+            &[TypeRef::CIPHER],
+        ),
+        (TypeRef::HMAC_SHA256, TypeKind::Concrete, &[TypeRef::MAC]),
+        (TypeRef::HMAC_SHA512, TypeKind::Concrete, &[TypeRef::MAC]),
+        (TypeRef::SECRET, TypeKind::Abstract, &[]),
+        (TypeRef::KEY_FORMAT, TypeKind::Abstract, &[]),
+        (TypeRef::PEM, TypeKind::Concrete, &[TypeRef::KEY_FORMAT]),
+        (TypeRef::JWK, TypeKind::Concrete, &[TypeRef::KEY_FORMAT]),
+        (
+            TypeRef::OPEN_SSH,
+            TypeKind::Concrete,
+            &[TypeRef::KEY_FORMAT],
+        ),
+        (TypeRef::AGE, TypeKind::Concrete, &[TypeRef::KEY_FORMAT]),
+        // Encrypted endpoints (HQL-0053 part 4): an age layer between a
+        // format and a byte endpoint.
+        (
+            TypeRef::ENCRYPTED_END,
+            TypeKind::Concrete,
+            &[TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::DECRYPTED_END,
+            TypeKind::Concrete,
+            &[TypeRef::REPLAYABLE],
+        ),
+        (
+            TypeRef::DECRYPTED_LIVE,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE],
+        ),
     ] {
         system.declare(TypeDefinition {
             kind,
@@ -155,7 +581,7 @@ fn build() -> Result<TypeSystem, TypeError> {
         }
     }
     // A ranking is a sequence of hits that also states where its order came
-    // from: `type Ranking<T> : Seq<Hit<T>>` in `std/retrieval.hql`.
+    // from: `type Ranking<T> : Seq<Hit<T>>` in `lib/std/retrieval/mod.hql`.
     let parameter = TypeConstructor("T").apply([]);
     for (name, parent, applied) in [
         ("Option", None, None),
@@ -202,17 +628,67 @@ fn build() -> Result<TypeSystem, TypeError> {
             applied: Vec::new(),
         })?;
     }
-    // The presentation formats: text with a known syntax, each a `String`.
+    // The operation types, `lib/std/core/mod.hql`: each a function from `I` to `O`
+    // that also carries the shape its name states, under their common
+    // supertype. The input is contravariant and the output covariant, as a
+    // function's are.
+    let operation_parameters = || {
+        vec![
+            TypeParameter {
+                name: "I",
+                variance: Variance::Contravariant,
+                bound: None,
+            },
+            TypeParameter {
+                name: "O",
+                variance: Variance::Covariant,
+                bound: None,
+            },
+        ]
+    };
+    system.declare(TypeDefinition {
+        constructor: OPERATION,
+        kind: TypeKind::Abstract,
+        parameters: operation_parameters(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    let (input, output) = (
+        TypeConstructor("I").apply([]),
+        TypeConstructor("O").apply([]),
+    );
+    for (constructor, _) in &OPERATION_SHAPES {
+        system.declare(TypeDefinition {
+            constructor: *constructor,
+            kind: TypeKind::Abstract,
+            parameters: operation_parameters(),
+            parents: Vec::new(),
+            applied: vec![OPERATION.apply([input.clone(), output.clone()])],
+        })?;
+    }
+    // The formats: a category of its own, `lib/std/format/mod.hql`. A format
+    // describes an external representation and its framing; it is not the
+    // text it encodes, so none narrows `String`.
+    system.declare(TypeDefinition {
+        constructor: FORMAT,
+        kind: TypeKind::Abstract,
+        parameters: Vec::new(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     for (format, parent) in [
-        ("Text", "String"),
-        ("Hql", "String"),
-        ("Markdown", "String"),
+        ("Text", "Format"),
+        ("Lines", "Format"),
+        ("Hql", "Format"),
+        ("Markdown", "Format"),
         ("Hmd", "Markdown"),
-        ("Json", "String"),
-        ("Yaml", "String"),
-        ("Csv", "String"),
-        ("D2", "String"),
-        ("Mermaid", "String"),
+        ("Json", "Format"),
+        ("JsonLines", "Format"),
+        ("Yaml", "Format"),
+        ("Csv", "Format"),
+        ("D2", "Format"),
+        ("Mermaid", "Format"),
+        ("DiagnosticText", "Format"),
     ] {
         system.declare(TypeDefinition {
             constructor: TypeConstructor(format),
@@ -222,8 +698,96 @@ fn build() -> Result<TypeSystem, TypeError> {
             applied: Vec::new(),
         })?;
     }
-    // The AI harness's records, declared in `std/ai/init.hql`. A context is a
-    // sequence of its items, as a ranking is of its hits.
+    // An endpoint of values held in memory: `type Channel<T> : {Readable,
+    // Writable}`. It is written and read at `T`, so `T` is invariant.
+    system.declare(TypeDefinition {
+        constructor: CHANNEL,
+        kind: TypeKind::Concrete,
+        parameters: vec![TypeParameter {
+            name: "T",
+            variance: Variance::Invariant,
+            bound: None,
+        }],
+        parents: vec![TypeRef::READABLE.constructor, TypeRef::WRITABLE.constructor],
+        applied: Vec::new(),
+    })?;
+    // A computation that may have failed: `type Result<T, E>`, `ok(value)`
+    // or `err(error)`, each covariant.
+    system.declare(TypeDefinition {
+        constructor: RESULT,
+        kind: TypeKind::Concrete,
+        parameters: ["T", "E"]
+            .into_iter()
+            .map(|name| TypeParameter {
+                name,
+                variance: Variance::Covariant,
+                bound: None,
+            })
+            .collect(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    // Rows under ordered columns: `type Table<R>` in `lib/std/format/mod.hql`, `R`
+    // the row, a record type or `Data`.
+    system.declare(TypeDefinition {
+        constructor: TypeRef::TABLE.constructor,
+        kind: TypeKind::Concrete,
+        parameters: vec![TypeParameter {
+            name: "R",
+            variance: Variance::Covariant,
+            bound: None,
+        }],
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    // Two values held together: `type Pair<A, B> { first : A, second : B }`,
+    // the element of `zip`, `enumerate`, `entries` and `join`.
+    system.declare(TypeDefinition {
+        constructor: crate::extensions::seq::PAIR,
+        kind: TypeKind::Concrete,
+        parameters: ["A", "B"]
+            .into_iter()
+            .map(|name| TypeParameter {
+                name,
+                variance: Variance::Covariant,
+                bound: None,
+            })
+            .collect(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    // A window of positions: `type Range { start? : Int, end? : Int }`, the
+    // index of `xs[a:b]`.
+    system.declare(TypeDefinition {
+        constructor: TypeRef::RANGE.constructor,
+        kind: TypeKind::Concrete,
+        parameters: Vec::new(),
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
+    // The keys of `crypto` (HQL-0053 part 2), each of one algorithm `A`. A
+    // private key, a key pair and a symmetric key are `Secret`.
+    for (name, parent) in [
+        ("PublicKey", None),
+        ("PrivateKey", Some(TypeRef::SECRET.constructor)),
+        ("KeyPair", Some(TypeRef::SECRET.constructor)),
+        ("SecretKey", Some(TypeRef::SECRET.constructor)),
+    ] {
+        system.declare(TypeDefinition {
+            constructor: TypeConstructor(name),
+            kind: TypeKind::Concrete,
+            parameters: vec![TypeParameter {
+                name: "A",
+                variance: Variance::Invariant,
+                bound: None,
+            }],
+            parents: parent.into_iter().collect(),
+            applied: Vec::new(),
+        })?;
+    }
+    // The AI harness's records (HQL-0022), declared in `lib/ai/mod.hql` and
+    // built by the `ai` extension alone. A context is a sequence of its
+    // items, as a ranking is of its hits.
     for name in AI_RECORDS {
         system.declare(TypeDefinition {
             constructor: TypeConstructor(name),
@@ -252,10 +816,23 @@ fn build() -> Result<TypeSystem, TypeError> {
         parents: Vec::new(),
         applied: Vec::new(),
     })?;
+    // One row's place in its ordered partition, `type Window<T>` in
+    // `lib/std/collections/mod.hql`: what `over` hands `into` (HQL-0050).
+    system.declare(TypeDefinition {
+        constructor: WINDOW,
+        kind: TypeKind::Concrete,
+        parameters: vec![TypeParameter {
+            name: "T",
+            variance: Variance::Covariant,
+            bound: None,
+        }],
+        parents: Vec::new(),
+        applied: Vec::new(),
+    })?;
     Ok(system)
 }
 
-/// The records of the `ai` module, in the order `std/ai/init.hql` declares
+/// The records of the `ai` module, in the order `lib/ai/mod.hql` declares
 /// them; each is built by the `ai` extension and read through its fields.
 pub const AI_RECORDS: [&str; 9] = [
     "Agent",
@@ -265,19 +842,23 @@ pub const AI_RECORDS: [&str; 9] = [
     "Turn",
     "Tool",
     "ToolCall",
-    "Event",
+    "RunEvent",
     "Run",
 ];
 
 /// The function type constructors, indexed by arity.
-pub const FUNCTIONS: [TypeConstructor; 5] = [
+pub const FUNCTIONS: [TypeConstructor; 9] = [
     TypeConstructor("Fn0"),
     TypeConstructor("Fn1"),
     TypeConstructor("Fn2"),
     TypeConstructor("Fn3"),
     TypeConstructor("Fn4"),
+    TypeConstructor("Fn5"),
+    TypeConstructor("Fn6"),
+    TypeConstructor("Fn7"),
+    TypeConstructor("Fn8"),
 ];
-const ARGUMENT_NAMES: [&str; 4] = ["A", "B", "C", "D"];
+const ARGUMENT_NAMES: [&str; 8] = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
 impl TypeRef {
     /// The type of a function from `parameters` to `result`, or `None` past
@@ -290,19 +871,120 @@ impl TypeRef {
         Some(constructor.apply(args))
     }
 
-    /// A function type's parameters and result.
+    /// A function type's parameters and result. An operation type,
+    /// `Elementwise<I, O>`, is a function from `I` to `O` and is called as
+    /// one.
     #[must_use]
     pub fn as_function(&self) -> Option<(&[Self], &Self)> {
-        if !FUNCTIONS.contains(&self.constructor) {
+        if !FUNCTIONS.contains(&self.constructor) && !self.is_operation() {
             return None;
         }
         let (result, parameters) = self.args.split_last()?;
         Some((parameters, result))
     }
+
+    /// Whether this is one of the reserved operation types.
+    #[must_use]
+    pub fn is_operation(&self) -> bool {
+        self.args.len() == 2
+            && (self.constructor == OPERATION
+                || OPERATION_SHAPES
+                    .iter()
+                    .any(|(constructor, _)| *constructor == self.constructor))
+    }
+
+    /// The shape an operation type states: `Some` for one of the four
+    /// shape types, `None` for `Operation<I, O>` itself and for any other
+    /// type.
+    #[must_use]
+    pub fn operation_shape(&self) -> Option<crate::extensions::Shape> {
+        if self.args.len() != 2 {
+            return None;
+        }
+        OPERATION_SHAPES
+            .iter()
+            .find(|(constructor, _)| *constructor == self.constructor)
+            .map(|(_, shape)| *shape)
+    }
+
+    /// The plain function type an operation type is: `I -> O`.
+    #[must_use]
+    pub fn operation_function(&self) -> Option<Self> {
+        if !self.is_operation() {
+            return None;
+        }
+        Self::function(vec![self.args[0].clone()], self.args[1].clone())
+    }
 }
+
+/// The common supertype of the operation types.
+pub const OPERATION: TypeConstructor = TypeConstructor("Operation");
+
+/// The operation type of each shape.
+pub const OPERATION_SHAPES: [(TypeConstructor, crate::extensions::Shape); 4] = [
+    (
+        TypeConstructor("Elementwise"),
+        crate::extensions::Shape::Elementwise,
+    ),
+    (
+        TypeConstructor("Partition"),
+        crate::extensions::Shape::Partition,
+    ),
+    (
+        TypeConstructor("Reduction"),
+        crate::extensions::Shape::Reduction,
+    ),
+    (
+        TypeConstructor("Barrier"),
+        crate::extensions::Shape::Barrier,
+    ),
+];
+
+/// The constructor of an in-memory channel.
+pub const CHANNEL: TypeConstructor = TypeConstructor("Channel");
 
 /// The constructor of one `group` partition.
 pub const GROUP: TypeConstructor = TypeConstructor("Group");
+
+/// The constructor of one row's window under `over`.
+pub const WINDOW: TypeConstructor = TypeConstructor("Window");
+
+/// The constructor of a computation that may have failed.
+pub const RESULT: TypeConstructor = TypeConstructor("Result");
+
+/// The category every format narrows.
+pub const FORMAT: TypeConstructor = TypeConstructor("Format");
+
+impl TypeRef {
+    /// `Result<T, E>`.
+    #[must_use]
+    pub fn result(value: Self, error: Self) -> Self {
+        RESULT.apply([value, error])
+    }
+
+    /// The value and error types of a `Result`.
+    #[must_use]
+    pub fn as_result(&self) -> Option<(&Self, &Self)> {
+        if self.constructor != RESULT {
+            return None;
+        }
+        Some((self.args.first()?, self.args.get(1)?))
+    }
+}
+
+/// The refusal of a type name withdrawn in a rename, naming its
+/// replacement: in 0.6.0 `Unit` became `Step` (HQL-0055) and `Socket`
+/// became `Tcp` (issue 0069).
+#[must_use]
+pub fn withdrawn(name: &str) -> Option<String> {
+    match name {
+        "Unit" => {
+            Some("`Unit` is now `Step`: a statement that ran and gave no other value".to_owned())
+        }
+        "Socket" => Some("`Socket` is now `Tcp`, built by `net.tcp(host, port)`".to_owned()),
+        _ => None,
+    }
+}
 
 /// Resolve a constructor's spelling without instantiating its parameters.
 pub fn constructor(name: &str) -> Option<TypeConstructor> {
@@ -324,12 +1006,23 @@ pub fn named(name: &str, args: &[TypeRef]) -> Option<TypeRef> {
     } else {
         args
     };
+    // `Table` written without its row is a table of `Data` rows.
+    if constructor.0 == "Table" && args.is_empty() {
+        return Some(TypeRef::table(TypeRef::DATA));
+    }
     system().ok()?.apply(constructor, args.iter().cloned()).ok()
 }
 
 impl TypeRef {
     /// Whether this type satisfies the expected type's contract.
     pub fn is(&self, expected: &Self) -> bool {
+        // A value of an operation type is callable exactly as the function
+        // it is, so it satisfies that function type.
+        if FUNCTIONS.contains(&expected.constructor)
+            && let Some(function) = self.operation_function()
+        {
+            return function.is(expected);
+        }
         system().is_ok_and(|system| system.is_subtype(self, expected).unwrap_or(false))
     }
 
@@ -343,6 +1036,25 @@ impl TypeRef {
         })
     }
 
+    /// Whether this type is a union: its values are those of its members.
+    pub fn is_union(&self) -> bool {
+        system().is_ok_and(|system| {
+            system
+                .definition(self.constructor)
+                .is_ok_and(|definition| matches!(definition.kind, TypeKind::Union(_)))
+        })
+    }
+
+    /// Whether an implementation for `target` is one for this type: the
+    /// type narrows it, and a union's is the union's own, not each member's.
+    /// `Int` narrows `Data`, and `Data`'s implementations are not `Int`'s.
+    pub fn takes_implementation_of(&self, target: &Self) -> bool {
+        if target.is_union() {
+            return self.constructor == target.constructor;
+        }
+        self.is(target)
+    }
+
     /// Whether values of this type carry an intrinsic total ordering.
     pub fn is_orderable(&self) -> bool {
         self.is(&Self::ORDERABLE)
@@ -350,7 +1062,8 @@ impl TypeRef {
 
     /// The occurrence type of a collection, including a retrieval's hits.
     pub fn element(&self) -> Option<Self> {
-        collections::element_type(system().ok()?, self).ok()
+        let system = system().ok()?;
+        collections::element_type(&system, self).ok()
     }
 
     /// The element of anything that can be traversed, a stream included.
@@ -466,7 +1179,8 @@ impl TypeRef {
             return Some(Self::CARD);
         }
         if self.constructor == other.constructor && self.args.len() == other.args.len() {
-            let definition = system().ok()?.definition(self.constructor).ok()?;
+            let system = system().ok()?;
+            let definition = system.definition(self.constructor).ok()?;
             let args = self
                 .args
                 .iter()

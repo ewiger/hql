@@ -1,4 +1,5 @@
-//! The suggestion index over every registered step name.
+//! The suggestion index over every registered step name, and over the
+//! combiners a fold names.
 //!
 //! The names themselves live with the extensions that provide them, in
 //! [`crate::extensions`]. What stays here is the question a diagnostic asks:
@@ -19,28 +20,47 @@ const RETIRED: &[(&str, &str)] = &[("typed", "of_type"), ("flatten", "emit")];
 
 /// Names that were steps and have no single replacement, with what to write
 /// instead.
-const EXPLAINED: &[(&str, &str)] = &[(
-    "table",
-    "a table is the type `Table`, which arrives with record values; \
-     `text` and `markdown` lay a collection out in rows",
-)];
+const EXPLAINED: &[(&str, &str)] = &[
+    (
+        "table",
+        "a table is a value of the type `Table`, built by its constructor: \
+         `Table(xs, columns = [...])`",
+    ),
+    (
+        "socket",
+        "`socket` is now `tcp`: `net.tcp(host, port)` is the TCP endpoint",
+    ),
+    (
+        "length",
+        "`length` is now `size`: `s.size()` counts a String's code points, as \
+         `xs.size()` counts a collection's elements",
+    ),
+];
 
-/// The hint a diagnostic appends for a name that is not a step: what to write
-/// instead, or the closest name.
+/// What to write instead of a withdrawn name, `length` or `socket`, if it
+/// is one.
 #[must_use]
-pub fn hint(name: &str) -> String {
-    if let Some((_, explanation)) = EXPLAINED.iter().find(|(retired, _)| *retired == name) {
-        return format!("; {explanation}");
+pub fn explained(name: &str) -> Option<String> {
+    EXPLAINED
+        .iter()
+        .find(|(retired, _)| *retired == name)
+        .map(|(_, explanation)| (*explanation).to_owned())
+}
+
+/// The help a diagnostic carries for a name that is not a step: what to
+/// write instead, or the closest name.
+#[must_use]
+pub fn hint(name: &str) -> Option<String> {
+    if let Some(explanation) = explained(name) {
+        return Some(explanation);
     }
     if crate::constructors::named(name).is_some() {
-        return format!(
-            "; `{name}` is a constructor: call it, `{name}(xs)`, or pass it to a step that takes \
+        return Some(format!(
+            "`{name}` is a constructor: call it, `{name}(xs)`, or pass it to a step that takes \
              a function, `map({name})`"
-        );
+        ));
     }
-    nearest(name)
-        .map(|near| format!("; did you mean `{near}`?"))
-        .unwrap_or_default()
+    nearest(name).map(|near| format!("did you mean `{near}`?"))
 }
 
 /// The closest step name by edit distance, for a "did you mean" hint. A
@@ -58,16 +78,43 @@ pub fn nearest(name: &str) -> Option<&'static str> {
             return Some(constructor.0);
         }
     }
-    extensions::names()
-        .map(|step| (distance(name, step), step))
-        .filter(|(distance, _)| *distance <= 2)
+    // A name of the prelude is preferred; one a program reaches only by
+    // importing its module is suggested for a near miss alone, where the
+    // prelude has none: `pages` is no misspelling of `time.dates`.
+    extensions::names_with_reach()
+        .map(|(step, in_prelude)| (!in_prelude, distance(name, step), step))
+        .filter(|(imported, distance, _)| *distance <= if *imported { 1 } else { 2 })
         // A tie is broken by name, so a suggestion never depends on the
         // order the registry happens to be written in.
-        .min_by_key(|(distance, name)| (*distance, *name))
-        .map(|(_, name)| name)
+        .min_by_key(|(imported, distance, name)| (*imported, *distance, *name))
+        .map(|(_, _, name)| name)
 }
 
-fn distance(left: &str, right: &str) -> usize {
+/// The hint for a name a fold's `by` position does not resolve: the
+/// closest combiner, or the list of them. A fold names a combiner or a
+/// function, so a step or a math function is no suggestion there.
+#[must_use]
+pub fn combiner_hint(name: &str) -> String {
+    let near = extensions::COMBINERS
+        .iter()
+        .filter(|combiner| combiner.name.chars().all(char::is_alphabetic))
+        .map(|combiner| (distance(name, combiner.name), combiner.name))
+        .filter(|(distance, _)| *distance <= 2)
+        .min_by_key(|(distance, name)| (*distance, *name));
+    if let Some((_, combiner)) = near {
+        return format!("a fold names a combiner or a function: did you mean `{combiner}`?");
+    }
+    let all: Vec<String> = extensions::COMBINERS
+        .iter()
+        .map(|combiner| format!("`{}`", combiner.name))
+        .collect();
+    format!(
+        "a fold names a function or one of the combiners {}",
+        all.join(", ")
+    )
+}
+
+pub(crate) fn distance(left: &str, right: &str) -> usize {
     let right: Vec<char> = right.chars().collect();
     let mut previous: Vec<usize> = (0..=right.len()).collect();
     for (row, from) in left.chars().enumerate() {
@@ -94,6 +141,18 @@ mod tests {
         assert_eq!(nearest("tabel"), Some("take"));
         assert_eq!(nearest("lexicl"), Some("lexical"));
         assert_eq!(nearest("qwertyuiop"), None);
+    }
+
+    #[test]
+    fn a_fold_suggests_among_the_combiners_only() {
+        assert!(combiner_hint("mn").contains("`min`"));
+        assert!(combiner_hint("merg").contains("`merge`"));
+        let listed = combiner_hint("foo");
+        assert!(!listed.contains("cos"), "{listed}");
+        assert!(
+            listed.contains("`+`") && listed.contains("`concat`"),
+            "{listed}"
+        );
     }
 
     #[test]

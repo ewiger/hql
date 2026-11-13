@@ -1,0 +1,2 @@
+{"disposition":"warning","help":["write it `total_of`"],"kind":"naming-convention","message":"`totalOf` is a function, written in snake_case","origin":"examples/error-handling/diagnostics/warning-then-failure.hql","phase":"check","severity":"warning","span":{"end":544,"start":501}}
+{"disposition":"fatal","kind":"division-by-zero","message":"division by zero","origin":"examples/error-handling/diagnostics/warning-then-failure.hql","phase":"execute","severity":"failure","span":{"end":568,"start":546}}

@@ -47,6 +47,11 @@ jobs:
         if: ${{ !matrix.cross }}
         run: cargo test --locked --target ${{ matrix.target }}
       - run: cargo build --locked --release --target ${{ matrix.target }}
+      # The reference pages were updated from the doc strings when the release
+      # was cut; a tag whose pages differ from its library is not released.
+      - name: Check the reference pages
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: target/${{ matrix.target }}/release/hql reference --check doc/public/reference
       - name: Package
         id: package
         run: |
@@ -102,11 +107,62 @@ jobs:
             --notes-file notes.md \
             dist/*
 
+  # The release's documentation, at `/vX.Y.Z/`, and `/latest/` moved to it.
+  # mike commits each version's build to its own folder on `gh-pages`, which
+  # Pages serves; a version is published once and never rebuilt.
+  docs:
+    name: Publish the documentation
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked
+      - name: Publish the version and move latest to it
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          manifest=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          if [ "${tag#v}" != "$manifest" ]; then
+            echo "tag $tag does not name version $manifest from Cargo.toml" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages:gh-pages || true
+          if uv run mike list 2>/dev/null | grep -Eq "^$tag( |$)"; then
+            echo "$tag is already published; a version is published once" >&2
+            exit 1
+          fi
+          uv run mike deploy --push --update-aliases "$tag" latest
+          uv run mike set-default --push latest
+      # The custom domain lives at the branch root, beside the versions; mike
+      # leaves root files it did not write.
+      - name: Keep the custom domain
+        run: |
+          git worktree add ../pages gh-pages
+          if [ ! -f ../pages/CNAME ]; then
+            echo hql-lang.org > ../pages/CNAME
+            git -C ../pages add CNAME
+            git -C ../pages commit -m "Pages: the custom domain"
+            git -C ../pages push origin gh-pages
+          fi
+
   # Last, because it is the one step that cannot be undone: a GitHub release can
-  # be deleted and cut again, a published crate version stays published.
+  # be deleted and cut again, a published crate version stays published. It
+  # runs once the documentation is published.
   crates-io:
     name: Publish to crates.io
-    needs: release
+    needs: [release, docs]
     runs-on: ubuntu-latest
     environment: crates-io
     permissions:

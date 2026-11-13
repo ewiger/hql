@@ -2,8 +2,8 @@
 
 Status: backlog
 Related: [0015](0015-jq-parity-analysis.md),
-[0014](0014-next-feature-bundle.md),
-[0013](0013-typed-pipeline-operations.md),
+[0014](archive/0014-next-feature-bundle.md),
+[0013](archive/0013-typed-pipeline-operations.md),
 [HQL-0004](../proposals/HQL-0004/README.md)
 
 HQL is SQL and more: anything a query can compute over a relational database,
@@ -58,7 +58,7 @@ written with.
 | `COUNT(a)` (non-absent) | `filter` then `size` | workaround | a test for absence (`match`, or `is_some`) |
 | `SUM`, `MIN`, `MAX` | — | supportable | `reduce` ([HQL-0004](../proposals/HQL-0004/README.md)); `sum`, `min`, `max` with executor-held combiners |
 | `AVG` | — | supportable | division; an `Int`-to-`Float` conversion, since `Int` never widens |
-| `GROUP BY` | — | supportable | `group` and `Group<K, T>` — the `group` / `reduce` feature of [0014](0014-next-feature-bundle.md) |
+| `GROUP BY` | — | supportable | `group` and `Group<K, T>` — the `group` / `reduce` feature of [0014](archive/0014-next-feature-bundle.md) |
 | `HAVING` | `filter` after `group` | supportable | `group` |
 | `ROLLUP`, `CUBE`, `GROUPING SETS` | several `group` calls | supportable | nothing beyond `group`; no dedicated form |
 
@@ -79,7 +79,7 @@ written with.
 | --- | --- | --- | --- |
 | `+` | `+` on two `Int` or two `Float` | now | — |
 | `-`, `*`, `/`, `%`, unary minus | — | supportable | the operators; the grammar has addition only |
-| `\|\|`, `CONCAT`, `LIKE`, `UPPER`, `SUBSTRING`, `LENGTH` | — | supportable | string functions; `+` refuses strings |
+| `\|\|`, `CONCAT`, `LIKE`, `UPPER`, `SUBSTRING`, `LENGTH` | — | supportable | string functions; `+` concatenates strings |
 | `CASE WHEN` | — | supportable | `if` or `match`; `match` is open in [option-type](../wiki/hql/types/option-type.hmd) |
 | `COALESCE`, `IFNULL` | absence lifts through a field | workaround | a default for `Option<T>` |
 | `CAST` | `of_type(…)` over a collection | workaround | `is` and `match` on a single value, and the structural test on leaves read out of `Data` |
@@ -94,7 +94,7 @@ written with.
 | Scalar and correlated subqueries | a nested pipeline in a lambda | now | — |
 | `LATERAL` | `map` with a nested query | workaround | `flat_map` |
 | `WITH RECURSIVE` over the link graph | `expand(depth = …)` | now | — |
-| `WITH RECURSIVE` over any relation | — | supportable | recursion or `yield` ([0010](0010-yield-and-bind.md)) |
+| `WITH RECURSIVE` over any relation | — | supportable | recursion or `yield` ([0010](archive/0010-yield-and-bind.md)) |
 | `CREATE VIEW` | a binding | workaround | a view that outlives one program needs module resolution and `init.hql` |
 
 ## Window functions
@@ -131,7 +131,7 @@ window frame is a different thing and needs a different name.
 | `UPDATE`, `MERGE` on a value | — | supportable | a functional update that returns a new value, shared with jq's `\|=` in [0015](0015-jq-parity-analysis.md) |
 | `INSERT`, `UPDATE`, `DELETE` on the vault | — | supportable | persistence is explicit ([program values](../models/behavior/program-values.md)); writing back to a vault needs its own proposal |
 | Transactions, isolation, locking | — | out | HQL is pure; atomicity belongs to whatever persistence layer that proposal defines |
-| Stored procedures, functions | lambdas | supportable | named functions and function values ([0009](0009-function-type-and-constructor.md)) |
+| Stored procedures, functions | lambdas | supportable | named functions and function values ([0009](archive/0009-function-type-and-constructor.md)) |
 | Triggers | — | out | there are no events in a pure program |
 | `GRANT`, `REVOKE` | — | out | values are data and HQL has no visibility, by design |
 
@@ -139,7 +139,7 @@ window frame is a different thing and needs a different name.
 
 | SQL | HQL | Status | Missing piece |
 | --- | --- | --- | --- |
-| `FROM table` | `cards` | now | `cards` becomes an ordinary binding ([0008](0008-cards-as-a-vault-binding.md)) |
+| `FROM table` | `cards` | now | `cards` becomes an ordinary binding ([0008](archive/0008-cards-as-a-vault-binding.md)) |
 | Reading JSON, YAML, CSV | — | supportable | [0015](0015-jq-parity-analysis.md) |
 | Querying a live database | — | supportable | an extension that supplies a document source, and a backend that pushes `filter` and `take` into SQL |
 | Result set as table or JSON | `table`, `json` | now | CSV output is in [0015](0015-jq-parity-analysis.md) |
@@ -166,7 +166,7 @@ window frame is a different thing and needs a different name.
 Ranked by how many rows above each one unblocks.
 
 1. **Scalar operators.** Comparison, boolean and the rest of arithmetic, done
-   by the scalar operators feature of [0014](0014-next-feature-bundle.md)
+   by the scalar operators feature of [0014](archive/0014-next-feature-bundle.md)
    except the `Ordering` constants. They
    unblock `WHERE` beyond equality, `BETWEEN`, `NOT EXISTS`, `AVG`, `HAVING`
    with a threshold, and every window predicate. Grammar work in
@@ -180,7 +180,7 @@ Ranked by how many rows above each one unblocks.
    field can be summed, sorted and compared. A record schema waits for
    roadblock 5, "Record and pair values".
 3. **`group` and `reduce`.** Done: the `group` / `reduce` feature of
-   [0014](0014-next-feature-bundle.md), with `sum`, `min` and `max`; `avg`
+   [0014](archive/0014-next-feature-bundle.md), with `sum`, `min` and `max`; `avg`
    follows with executor-held combiners.
 4. **Conditionals and absence.** Done: `match`, `given … otherwise` and
    `somes`. Unblocks `CASE`, `COALESCE`, `COUNT(a)` and outer joins.
@@ -250,7 +250,7 @@ After `of_type`, `m.pages` is an `Int` and `m.genre` a `String`, so `+`,
 - **Partial interpretation.** A schema names only the fields it cares about.
   Each named field is checked and typed; every other key stays in the value
   as `Data`, reachable as before. This is the partial schema `HmdHeader`
-  already is in [std/doc.hql](../../std/doc.hql).
+  already is in [lib/std/doc/mod.hql](../../lib/std/doc/mod.hql).
 - **Complete interpretation.** A schema that names every field leaves nothing
   as `Data`, and the value is fully typed. Whether such a schema also refuses
   keys it does not name is a property of the schema, to be specified with

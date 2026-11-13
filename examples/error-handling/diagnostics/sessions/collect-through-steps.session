@@ -1,0 +1,27 @@
+// status: valid-now
+// feature: Under collect, filter and flat_map step past an element whose function failed, each naming itself as the step
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql --report collect eval [6,0,3]|filter(n=>6/n>1)
+[3]
+execute failure[division-by-zero]: division by zero
+ --> <expression>:1:19
+  |
+1 | [6,0,3]|filter(n=>6/n>1)
+  |                   ^^^
+  = element: 0, position 2 of 3 in `filter`
+  = bindings: n = 0
+
+$ hql --report collect eval [6,0,3]|flat_map(n=>[6/n,n])
+[1, 6, 2, 3]
+execute failure[division-by-zero]: division by zero
+ --> <expression>:1:22
+  |
+1 | [6,0,3]|flat_map(n=>[6/n,n])
+  |                      ^^^
+  = element: 0, position 2 of 3 in `flat_map`
+  = bindings: n = 0
+

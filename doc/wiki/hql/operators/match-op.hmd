@@ -103,11 +103,11 @@ operations, every place absence is consumed can say what it means there. Whether
 the implicit lifting survives once they exist is decided by what the corpus
 still needs it for.
 
-Implemented: value arms over `Option`, `Bool`, `Int`, `Float` and `String`,
+Implemented: value arms over `Option`, `Bool`, `Int`, `Float`, `Decimal` and `String`,
 `_` and binding names, guards, exhaustiveness, and `given … otherwise` with and
 without `otherwise`. `Result` arms wait for `Result`, and the type arm of
 [[type-interpretation]] is separate work. A string or number pattern also fits
 a `Data` leaf with that value. See [[option-type]] for absence,
 [optional fields and optional values](../../../models/behavior/options-in-types-and-fields.md)
 for `Option` and `Result` and their operations, and
-[[error-reporting]] for the errors that are not values at all.
+[[error-handling]] for the errors that are not values at all.

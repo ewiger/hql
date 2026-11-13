@@ -1,0 +1,25 @@
+// status: valid-now
+// feature: A document is checked as a whole: a type error in the last cell stops the build before the first cell runs
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql render examples/error-handling/documents/every-cell-checks.hmd
+# Checked as a whole
+
+## Books
+
+3
+
+## Pages
+
+804
+$ hql render examples/error-handling/documents/last-cell-type-error.hmd
+check error[type-mismatch]: addition requires two Int, two Float or two Decimal operands
+  --> examples/error-handling/documents/last-cell-type-error.hmd:16:17
+   |
+16 | (pages | sum) + " pages"
+   |                 ^^^^^^^^
+   = cell: 2
+

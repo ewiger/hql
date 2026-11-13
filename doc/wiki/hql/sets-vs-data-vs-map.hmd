@@ -1,0 +1,92 @@
+---
+tags: [hql, syntax, set, data, map, type-system]
+nav:
+  visibility: public
+---
+
+# Sets, Data and maps
+
+Three types hold several values and are easily confused:
+
+| Type | What it is | Written |
+| --- | --- | --- |
+| `Set<T>` | distinct values of one type, with no positions | `{1, 2, 3}` |
+| `Data` | schemaless, heterogeneous, recursively structured runtime data: what JSON or YAML decodes to | `{name: "Alice", age: 42}` |
+| `Map<K, V>` | a typed, homogeneous mapping: every key a `K`, every value a `V` | `Map(["a"], [1])` |
+
+`Data` is not a hash map and not a `Map<String, Any>`: its fields may hold
+different types, nested as deep as the document goes. A declared structural
+type, a record, is a fourth thing again, and is not `Data` or a map merely
+because it is written with `{ key: value }` too.
+
+Braces write two of them, and the colon is the discriminator:
+
+> Braces without `:` denote sets. Braces containing key/value entries denote
+> `Data`. The empty `Data` literal is `{:}`.
+
+```hql
+{}                        // Set<Never>, the empty set
+{1, 2, 3}                 // Set<Int>
+{"a", "b"}                // Set<String>
+
+{:}                       // Data, the empty record
+{name: "Alice"}           // Data
+{name: "Alice", age: 42}  // Data
+```
+
+A set is values in braces; `Data` is key/value structure in braces. The empty
+forms keep exactly that distinction, so no literal takes its meaning from the
+type expected of it.
+
+## Empty forms
+
+`{}` is a `Set<Never>`: a set with no elements, of no element type yet. Like
+every `Set<Never>`, a declared set type accepts it:
+
+```hql
+x : Set<Int> = {}
+d : Data = {:}
+```
+
+`{:}` is the empty keyed literal. It has no type of its own: it is `Data`
+where nothing says otherwise, and the empty map where a map type is declared
+for it ([HQL-0032](../../proposals/HQL-0032/README.md)):
+
+| Written | Type | Value |
+| --- | --- | --- |
+| `{:}` with nothing around it | `Data` | the empty `Data` record, printed `{:}` |
+| `d : Data = {:}` | `Data` | the same |
+| `m : Map<String, Int> = {:}` | `Map<String, Int>` | an empty map, equal to `Map<String, Int>([], [])` |
+| `m : SortedMap<String, Int> = {:}`, or `OrderedMap` | that map type | an empty map of that kind |
+| `f({:})` where `f` takes a `Map<String, Int>` | `Map<String, Int>` | an empty map |
+
+An empty literal carries no information, so the type around it decides: HQL
+infers a type while the literal says enough, and asks for an explicit one
+where it does not. This holds for the empty literal only. A non-empty keyed
+literal is always `Data`, so `m : Map<String, Int> = {a: 1}` is refused; a
+non-empty map is built with the constructor, `Map(["a"], [1])`.
+
+`d : Data = {}` is a type error, since `{}` is already a set:
+
+```text
+type error: `d` is declared Data but its value is Set<Never>
+```
+
+The constructor writes the same empty set with its element type,
+`Set<Int>([])`, which is how an empty set of a known type prints so that the
+text reads back as the same value. The empty `Data` prints as `{:}`, alone or
+nested: `{a: {:}}`.
+
+## What each is
+
+A `Set<T>` is a collection of distinct values with no positions, and a
+`Map<K, V>` one of unique keys each with a value; see the
+[collection model](types/collections/collection-types.md). `Data` is an open
+tree whose keys belong to whoever wrote them; see [[data-type]]. A record
+literal is not a declared record type: `{name: "Alice"}` is `Data`, and reading
+`.name` from it gives an `Option<Data>`.
+
+The rule is specified by [HQL-0029](../../proposals/HQL-0029/README.md), and the
+[braces examples](../../../examples/braces/README.md) run it. The book tells
+the same story for a first reader in
+[sets, Data and maps](../../public/learn/02-data-types/sets-data-and-maps.md).

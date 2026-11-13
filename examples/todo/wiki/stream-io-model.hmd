@@ -1,0 +1,10 @@
+---
+title: Stream IO model
+metadata:
+  type: adr
+  status: proposed
+  date: 2026-10-19
+---
+# Stream IO model
+
+An architecture decision listed on the [[todo]] board.

@@ -1,0 +1,12 @@
+<!-- hql reference: std/seq.running -->
+# `running`
+
+In [`std/seq`](index.md).
+
+```hql
+fn running(self: Window<T>) : List<T>
+```
+
+The rows from the first up to and including the row, in order: SQL's
+`ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
+<!-- hql reference: end -->

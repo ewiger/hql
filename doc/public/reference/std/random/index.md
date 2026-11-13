@@ -1,0 +1,22 @@
+<!-- hql reference: std/random -->
+# `std/random`
+
+```hql
+module random
+```
+
+Randomness: samples, shuffles, choices, numbers and UUIDs. Each draw has
+two forms. With a `seed` argument it is pure: its result is a function of
+the seed, its input and its call site. Without one it is effectful and
+draws from the evaluation seed, fixed once per evaluation from the host's
+entropy or `--seed`. The generator is ChaCha12 and is not fit for keys,
+tokens or any other secret: a seeded draw is predictable by design. Not
+in the prelude: a program writes `import random`.
+
+- [`sample`](sample.md) — `n` elements of `self` drawn without replacement, in their order in `self`; all of `self` where `n` is not below its size.
+- [`shuffle`](shuffle.md) — The elements of `self` in a uniformly random order (Fisher–Yates).
+- [`choice`](choice.md) — One element of `self` drawn uniformly, or `none` where `self` is empty.
+- [`random_int`](random_int.md) — An `Int` drawn uniformly from `low` to `high`, both included.
+- [`random_float`](random_float.md) — A `Float` drawn uniformly from `0.0` included to `1.0` excluded.
+- [`uuid`](uuid.md) — A version 7 UUID: its first 48 bits are the evaluation instant's Unix milliseconds and the next 42 a counter, so the UUIDs of one evaluation sort in the order they were drawn.
+<!-- hql reference: end -->

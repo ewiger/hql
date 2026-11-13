@@ -1,6 +1,7 @@
 # HQL-0008: Presentation is separate from computation
 
-**Status**: superseded by [HQL-0017](../HQL-0017/README.md)
+**Status**: superseded
+**Superseded by**: [HQL-0017](../HQL-0017/README.md)
 **Created**: 2026-09-28
 **Source**: [presentation](../../wiki/hql/presentation.hmd)
 
@@ -112,7 +113,7 @@ records that it is doing two jobs.
 
 `hql render` writes a cell's output into a Markdown or HyperMarkDown document
 as part of the document, not inside a fence. Issue
-[0020](../../issues/0020-render-as-compilation.md) carries the command.
+[0020](../../issues/archive/0020-render-as-compilation.md) carries the command.
 
 - A host that writes into a document MUST produce Markdown: the output is
   spliced into the document as written.

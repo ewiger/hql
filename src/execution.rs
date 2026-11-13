@@ -2,7 +2,7 @@
 
 use crate::ast::{self, Arith, Logic, Relation};
 use crate::diagnostics::Diagnostic;
-use crate::extensions::Operation;
+use crate::extensions::{Operation, Purity, Shape};
 use crate::types::TypeRef;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -14,9 +14,25 @@ pub(crate) struct Program {
     pub statements: Vec<Stmt>,
     pub result: TypeRef,
     /// The warnings checking reported.
-    pub warnings: Vec<crate::warnings::Warning>,
+    pub warnings: Vec<crate::diagnostics::Diagnostic>,
     /// Each alias the program defines, with the signature the checker wrote.
     pub signatures: Vec<(String, TypeRef)>,
+    /// Each function the program defines whose body is effectful, with the
+    /// effectful operations it uses.
+    pub effects: Vec<(String, Vec<String>)>,
+    /// The lattice the program was checked under: the built-in types and the
+    /// ones it declared, which evaluation reads its values against.
+    pub lattice: std::sync::Arc<crate::types::program::Lattice>,
+    /// The workspace modules the program imported, in import order, each
+    /// evaluated before the program for the functions it binds.
+    pub modules: Vec<LoadedModule>,
+}
+
+/// A workspace module bound into a program under a local name.
+#[derive(Debug, Clone)]
+pub(crate) struct LoadedModule {
+    pub local: String,
+    pub program: std::sync::Arc<Program>,
 }
 
 #[derive(Debug)]
@@ -27,6 +43,12 @@ pub(crate) enum Stmt {
         value: Expr,
     },
     Expr(Expr),
+    /// A contract's rules, each run over the fields of every value read as
+    /// the contract.
+    Contract {
+        name: String,
+        rules: Vec<RuleLowering>,
+    },
     /// A declared function, bound under its name.
     Fn {
         name: String,
@@ -34,7 +56,93 @@ pub(crate) enum Stmt {
         body: std::sync::Arc<Expr>,
         ty: TypeRef,
     },
+    /// An implementation of a trait for a type: each function, `self` first
+    /// among its parameters, as a closure over the scope at this point.
+    Impl {
+        trait_name: String,
+        target: TypeRef,
+        methods: Vec<(String, ImplMethod)>,
+    },
     Unit,
+}
+
+/// One function of an implementation at run time.
+#[derive(Debug)]
+pub(crate) enum ImplMethod {
+    /// Written in the implementation, or inherited from the trait: `self`
+    /// first among the parameters, then the body and the function's type.
+    Body(Vec<String>, std::sync::Arc<Expr>, TypeRef),
+    /// The module's own function of this name, bound in its scope: what a
+    /// module's trait list implements a trait with (HQL-0039).
+    Function(String),
+}
+
+impl ImplMethod {
+    /// The body to walk, when the implementation writes one here.
+    pub(crate) fn body(&self) -> Option<&Expr> {
+        match self {
+            Self::Body(_, body, _) => Some(body.as_ref()),
+            Self::Function(_) => None,
+        }
+    }
+}
+
+/// What checking established about one implementation, for lowering it.
+#[derive(Debug, Clone)]
+pub(crate) struct ImplLowering {
+    pub trait_name: String,
+    pub target: TypeRef,
+    pub methods: Vec<MethodLowering>,
+}
+
+/// A name a contract rule binds, and what of the value it binds.
+#[derive(Debug, Clone)]
+pub(crate) struct RuleParameter {
+    pub name: String,
+    pub field: String,
+    pub reads: RuleRead,
+}
+
+/// What a rule parameter holds of its field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RuleRead {
+    /// The field's value as declared: an optional one as an `Option`.
+    Value,
+    /// An optional field's value where present, written `f?`: a rule that
+    /// reads one that is absent does not apply.
+    Present,
+    /// Whether an optional field is present, `f?` standing as a condition.
+    Presence,
+}
+
+/// A contract rule lowered for evaluation: a function of its parameters.
+#[derive(Debug)]
+pub(crate) struct RuleLowering {
+    pub text: String,
+    pub severity: ast::Severity,
+    pub name: Option<String>,
+    /// The optional fields it reads as `f?`: it applies where all are
+    /// present.
+    pub reads: Vec<String>,
+    pub parameters: Vec<RuleParameter>,
+    pub body: std::sync::Arc<Expr>,
+}
+
+/// One function of an implementation: its own, or inherited from the trait.
+#[derive(Debug, Clone)]
+pub(crate) struct MethodLowering {
+    pub name: String,
+    /// `self` first, then the parameters.
+    pub parameters: Vec<String>,
+    /// The trait whose default body this is, when the impl did not write one.
+    pub default_of: Option<String>,
+    /// The module function that is this one, when a module's trait list
+    /// declares the implementation.
+    pub function: Option<String>,
+    /// The default body lowered where its trait is declared, for a trait
+    /// another unit declares.
+    pub lowered: Option<std::sync::Arc<Expr>>,
+    pub ty: TypeRef,
 }
 
 /// One statement of an iterating function's body.
@@ -61,11 +169,14 @@ pub(crate) struct Expr {
 
 #[derive(Debug)]
 pub(crate) enum Kind {
+    /// The input of a call that writes none: `Unit`.
+    Unit,
     List(Vec<Expr>),
     Set(Vec<Expr>),
     Construct(Vec<Arg>),
     Int(i64),
     Float(f64),
+    Decimal(crate::decimal::Decimal),
     Bool(bool),
     Str(String),
     Ident(String),
@@ -100,6 +211,21 @@ pub(crate) enum Kind {
         arguments: Vec<Arg>,
         /// Where the step itself is written: `debug(…)` in `xs | debug(…)`.
         at: Range<usize>,
+        /// Whether the step is lifted over an optional input it takes no
+        /// collection of: absence gives absence, and a value it produces
+        /// is present.
+        lifted: bool,
+        /// The declaration the call resolved to, whichever of a call, a
+        /// receiver call or a pipeline step wrote it: none for an operation
+        /// of a module without a contract. The evaluator dispatches on the
+        /// operation bound to it; a planner reads the declaration.
+        #[cfg_attr(
+            not(test),
+            expect(dead_code, reason = "read by a planner, not by the evaluator")
+        )]
+        declaration: Option<crate::extensions::binding::DeclarationId>,
+        /// What the planner reads of the step and the stage it writes.
+        plan: StepPlan,
     },
     Link {
         source: Box<Expr>,
@@ -107,6 +233,10 @@ pub(crate) enum Kind {
         data: Option<Box<Expr>>,
     },
     Field(Box<Expr>, Field),
+    /// `xs[i]`: the element at a position, or its absence.
+    Index(Box<Expr>, Box<Expr>),
+    /// `xs[a:b]`: the part between two positions, either one left out.
+    Slice(Box<Expr>, Option<Box<Expr>>, Option<Box<Expr>>),
     Lambda {
         parameters: Vec<String>,
         body: std::sync::Arc<Expr>,
@@ -120,6 +250,8 @@ pub(crate) enum Kind {
         combiner: &'static str,
         left: Box<Expr>,
         right: Box<Expr>,
+        /// The step node it is when written as a step, `a | concat(b)`.
+        plan: Option<StepPlan>,
     },
     /// An iterating function's body: evaluating it makes a traversal and
     /// runs nothing.
@@ -135,15 +267,54 @@ pub(crate) enum Kind {
         callee: Box<Expr>,
         arguments: Vec<Expr>,
         pack: Option<(usize, TypeRef)>,
+        /// Present when the application is a pipeline step, `x | f`: the
+        /// input is the first argument.
+        plan: Option<StepPlan>,
     },
     /// `some(value)`.
     Some(Box<Expr>),
+    /// `ok(value)`: a result that succeeded.
+    Ok(Box<Expr>),
+    /// `err(error)`: a result that failed.
+    Err(Box<Expr>),
+    /// `Point(x = 1, y = 2)`: a record of the expression's type, from the
+    /// fields written, each by name.
+    Record(Vec<(String, Expr)>),
+    /// `data | User`: the input read as a declared type, each `Data` of it
+    /// where it is optional or a collection. Typing a value changes what is
+    /// known of it, not the value: an open record keeps the whole tree.
+    Interpret {
+        input: Box<Expr>,
+        element: TypeRef,
+        /// `x | validate(T)`: each read gives a `Result<T, Invalid>`
+        /// (HQL-0033).
+        validated: bool,
+    },
+    /// A trait's function called on a receiver, `v.area()` or `a + b`,
+    /// dispatched at run time on the receiver's type.
+    Method {
+        trait_name: String,
+        method: String,
+        receiver: Box<Expr>,
+        arguments: Vec<Expr>,
+    },
     /// `input | tee name = branch`: the input, evaluated once, is read by
     /// the branch under [`crate::ast::TEE_INPUT`] and passed on.
     Tee {
         input: Box<Expr>,
         name: String,
         branch: Box<Expr>,
+        plan: StepPlan,
+    },
+    /// `input | fork { a = branch, … }`: the input, evaluated once, read
+    /// by each branch under [`crate::ast::FORK_INPUT`], and the record of
+    /// their results (HQL-0037).
+    Fork {
+        input: Box<Expr>,
+        branches: Vec<(String, Expr)>,
+        /// The pure branches nothing reads, which are not run.
+        unread: Vec<String>,
+        plan: StepPlan,
     },
     Match {
         subject: Box<Expr>,
@@ -154,6 +325,353 @@ pub(crate) enum Kind {
         condition: Box<Expr>,
         otherwise: Option<Box<Expr>>,
     },
+    /// `insert E rows`, `update E | … | set(f)` or `delete E | …`: one
+    /// statement of the endpoint's system over the rows it holds, its
+    /// value the number of rows it changed (HQL-0051). Each lambda is kept
+    /// as its parameter and its body, translated where the statement runs.
+    Mutation {
+        verb: crate::ast::Verb,
+        target: Box<Expr>,
+        rows: Option<Box<Expr>>,
+        /// The rows' type: the configured element, or what `of_type` names.
+        row: TypeRef,
+        filters: Vec<(String, Expr)>,
+        set: Option<(String, Vec<(String, Expr)>)>,
+        plan: StepPlan,
+    },
+    /// `with transaction(…) tx on participants { … }`: the block run as
+    /// attempts over one atomic scope, its value a `Result` (HQL-0051).
+    Transaction {
+        handle: Option<String>,
+        attempts: Option<Box<Expr>>,
+        isolation: Option<String>,
+        participants: Box<Expr>,
+        body: Vec<ScopeStmt>,
+        /// The type the scope commits with, the `ok` of its `Result`.
+        committed: TypeRef,
+        plan: StepPlan,
+    },
+}
+
+/// One line of a transaction scope's block, lowered.
+#[derive(Debug)]
+pub(crate) enum ScopeStmt {
+    Bind { name: String, value: Expr },
+    Expr(Expr),
+}
+
+impl ScopeStmt {
+    pub(crate) fn value(&self) -> &Expr {
+        match self {
+            Self::Bind { value, .. } | Self::Expr(value) => value,
+        }
+    }
+}
+
+/// What a step invokes, as a planner reads it: the operation's name, its
+/// shape and its purity, and whether it presents its input. A host
+/// operation and a program's own function reach the step node through this
+/// one type, so the planner has one code path for both.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OperationType {
+    pub name: String,
+    pub shape: Shape,
+    pub purity: Purity,
+    /// Whether the operation is a presentation: `format` and its shorthands.
+    pub presentation: bool,
+}
+
+impl OperationType {
+    /// A host operation, at the shape its arguments refine it to and the
+    /// purity of the form the call took.
+    pub(crate) fn host(
+        step: &'static Operation,
+        arguments: &[Arg],
+        form: Option<crate::extensions::binding::DeclarationId>,
+    ) -> Self {
+        Self {
+            name: step.name.to_owned(),
+            shape: shape_of(step, arguments),
+            purity: crate::extensions::binding::Environment::get().map_or_else(
+                |_| step.purity(),
+                |environment| environment.purity_of(step, form),
+            ),
+            presentation: crate::extensions::format::STEPS
+                .iter()
+                .any(|presentation| std::ptr::eq(presentation, step)),
+        }
+    }
+}
+
+/// The planner's field on a step node: what the step invokes, and the stage
+/// annotation, empty until the planner fills it.
+#[derive(Debug)]
+pub(crate) struct StepPlan {
+    pub invokes: OperationType,
+    pub stage: std::sync::OnceLock<crate::backends::Stage>,
+}
+
+impl StepPlan {
+    pub(crate) fn new(invokes: OperationType) -> Self {
+        Self {
+            invokes,
+            stage: std::sync::OnceLock::new(),
+        }
+    }
+}
+
+impl Expr {
+    /// The step node this expression is, with its input: a host
+    /// operation's step, a function applied by `|`, or a `tee`.
+    pub(crate) fn as_step(&self) -> Option<(&StepPlan, &Expr)> {
+        match &self.kind {
+            Kind::Step { plan, input, .. }
+            | Kind::Tee { plan, input, .. }
+            | Kind::Fork { plan, input, .. } => Some((plan, input)),
+            Kind::Mutation { plan, target, .. } => Some((plan, target)),
+            Kind::Transaction {
+                plan, participants, ..
+            } => Some((plan, participants)),
+            Kind::Combine {
+                plan: Some(plan),
+                left,
+                ..
+            } => Some((plan, left)),
+            Kind::Apply {
+                plan: Some(plan),
+                arguments,
+                ..
+            } => arguments.first().map(|input| (plan, input)),
+            _ => None,
+        }
+    }
+
+    /// The step nodes of the pipeline this expression ends, first to last,
+    /// and the expression the first one reads. Expressions inside a step's
+    /// arguments, a lambda's body among them, are evaluated within that
+    /// step and are not steps of the pipeline.
+    pub(crate) fn steps(&self) -> (Vec<&StepPlan>, &Expr) {
+        let mut steps = Vec::new();
+        let mut at = self;
+        while let Some((plan, input)) = at.as_step() {
+            steps.push(plan);
+            at = input;
+        }
+        steps.reverse();
+        (steps, at)
+    }
+
+    /// The expressions this one holds directly, in the order they are
+    /// written.
+    pub(crate) fn children(&self) -> Vec<&Expr> {
+        match &self.kind {
+            Kind::Unit
+            | Kind::Int(_)
+            | Kind::Float(_)
+            | Kind::Decimal(_)
+            | Kind::Bool(_)
+            | Kind::Str(_)
+            | Kind::Ident(_)
+            | Kind::DocRef(_)
+            | Kind::Type => Vec::new(),
+            Kind::List(values) | Kind::Set(values) => values.iter().collect(),
+            Kind::Construct(held) => argument_values(held),
+            Kind::Data(entries) => entries.iter().map(|(_, value)| value).collect(),
+            Kind::Record(fields) => fields.iter().map(|(_, value)| value).collect(),
+            Kind::Interpret { input, .. } => vec![input],
+            Kind::Arith { first, rest } => std::iter::once(first.as_ref())
+                .chain(rest.iter().map(|(_, operand, _)| operand))
+                .collect(),
+            Kind::Logic { first, rest } => std::iter::once(first.as_ref())
+                .chain(rest.iter().map(|(_, operand)| operand))
+                .collect(),
+            Kind::Compare { left, right, .. }
+            | Kind::Relate { left, right, .. }
+            | Kind::Order(left, right)
+            | Kind::Index(left, right)
+            | Kind::Combine { left, right, .. } => vec![left, right],
+            Kind::Not(inner)
+            | Kind::Field(inner, _)
+            | Kind::Some(inner)
+            | Kind::Ok(inner)
+            | Kind::Err(inner) => vec![inner],
+            Kind::Slice(value, start, end) => std::iter::once(value.as_ref())
+                .chain(start.as_deref())
+                .chain(end.as_deref())
+                .collect(),
+            Kind::Step {
+                input,
+                arguments: held,
+                ..
+            } => std::iter::once(input.as_ref())
+                .chain(argument_values(held))
+                .collect(),
+            Kind::Link {
+                source,
+                target,
+                data,
+            } => [source.as_ref(), target.as_ref()]
+                .into_iter()
+                .chain(data.as_deref())
+                .collect(),
+            Kind::Lambda { body, .. } => vec![body.as_ref()],
+            Kind::Generate { statements, .. } => {
+                let mut held = Vec::new();
+                block_expressions(statements, &mut held);
+                held
+            }
+            Kind::Apply {
+                callee, arguments, ..
+            } => std::iter::once(callee.as_ref()).chain(arguments).collect(),
+            Kind::Method {
+                receiver,
+                arguments,
+                ..
+            } => std::iter::once(receiver.as_ref())
+                .chain(arguments)
+                .collect(),
+            Kind::Tee { input, branch, .. } => vec![input, branch],
+            Kind::Fork {
+                input, branches, ..
+            } => std::iter::once(input.as_ref())
+                .chain(branches.iter().map(|(_, branch)| branch))
+                .collect(),
+            Kind::Match { subject, arms } => std::iter::once(subject.as_ref())
+                .chain(
+                    arms.iter()
+                        .flat_map(|arm| arm.guard.iter().chain(std::iter::once(&arm.body))),
+                )
+                .collect(),
+            Kind::Given {
+                value,
+                condition,
+                otherwise,
+            } => [value.as_ref(), condition.as_ref()]
+                .into_iter()
+                .chain(otherwise.as_deref())
+                .collect(),
+            Kind::Mutation {
+                target,
+                rows,
+                filters,
+                set,
+                ..
+            } => std::iter::once(target.as_ref())
+                .chain(rows.as_deref())
+                .chain(filters.iter().map(|(_, body)| body))
+                .chain(
+                    set.iter()
+                        .flat_map(|(_, entries)| entries.iter().map(|(_, value)| value)),
+                )
+                .collect(),
+            Kind::Transaction {
+                participants,
+                attempts,
+                body,
+                ..
+            } => std::iter::once(participants.as_ref())
+                .chain(attempts.as_deref())
+                .chain(body.iter().map(ScopeStmt::value))
+                .collect(),
+        }
+    }
+
+    /// Every pipeline under this expression, each by the step node that
+    /// ends it, outermost first. A pipeline inside a step's arguments, a
+    /// lambda's body among them, is a pipeline of its own.
+    pub(crate) fn pipelines<'e>(&'e self, found: &mut Vec<&'e Expr>) {
+        if self.as_step().is_none() {
+            for child in self.children() {
+                child.pipelines(found);
+            }
+            return;
+        }
+        found.push(self);
+        let mut at = self;
+        while let Some((_, input)) = at.as_step() {
+            for child in at.children() {
+                if !std::ptr::eq(child, input) {
+                    child.pipelines(found);
+                }
+            }
+            at = input;
+        }
+        at.pipelines(found);
+    }
+
+    /// Whether a step under this expression is effectful.
+    pub(crate) fn reaches_effect(&self) -> bool {
+        let mut found = Vec::new();
+        self.pipelines(&mut found);
+        found.iter().any(|end| {
+            end.steps()
+                .0
+                .iter()
+                .any(|plan| plan.invokes.purity == Purity::Effectful)
+        })
+    }
+
+    /// The steps of the pipeline this expression ends, first to last, each
+    /// with the shape it was checked to.
+    pub(crate) fn pipeline(&self) -> Vec<(String, Shape)> {
+        self.steps()
+            .0
+            .into_iter()
+            .map(|plan| (plan.invokes.name.clone(), plan.invokes.shape))
+            .collect()
+    }
+}
+
+/// The shape of a checked step: its operation's, refined by a combiner. A
+/// fold whose `by` names an associative combiner the host holds is a
+/// `Reduction`, since its splits may be folded and combined; a fold with a
+/// lambda stays the barrier `reduce` is declared, because nothing is known
+/// about the lambda.
+pub(crate) fn shape_of(step: &Operation, arguments: &[Arg]) -> Shape {
+    let declared = step.shape();
+    if step.name != "reduce" {
+        return declared;
+    }
+    let named = arguments
+        .iter()
+        .find(|argument| argument.name.as_deref() == Some("by"))
+        .or_else(|| arguments.last());
+    match named.and_then(known_combiner) {
+        Some(combiner) if combiner.associative => Shape::Reduction,
+        _ => declared,
+    }
+}
+
+/// The combiner an argument names directly, `+` in `reduce(0, +)`: the
+/// lambda the parser writes for it, whose parameters no program can name.
+pub(crate) fn known_combiner(argument: &Arg) -> Option<&'static crate::extensions::Combiner> {
+    let Kind::Lambda {
+        parameters, body, ..
+    } = &argument.value.kind
+    else {
+        return None;
+    };
+    if !parameters
+        .first()
+        .is_some_and(|parameter| parameter.starts_with('%'))
+    {
+        return None;
+    }
+    let name = match &body.kind {
+        Kind::Combine { combiner, .. } => combiner,
+        Kind::Arith { rest, .. } => match rest.first().map(|(operator, _, _)| operator) {
+            Some(Arith::Add) => "+",
+            Some(Arith::Mul) => "*",
+            _ => return None,
+        },
+        Kind::Method { trait_name, .. } => match trait_name.as_str() {
+            "Add" => "+",
+            "Mul" => "*",
+            _ => return None,
+        },
+        _ => return None,
+    };
+    crate::extensions::combiner(name)
 }
 
 /// A checked `match` arm.
@@ -168,6 +686,8 @@ pub(crate) struct Arm {
 #[derive(Debug, Clone)]
 pub(crate) enum Field {
     Key(String),
+    /// A field of a declared record, by name.
+    Record(String),
     Name,
     Title,
     Path,
@@ -192,6 +712,16 @@ pub(crate) enum Field {
     Cards,
     Root,
     Graph,
+    End,
+    Level,
+    Logger,
+    Message,
+    Logs,
+    Url,
+    Method,
+    Headers,
+    Host,
+    Port,
 }
 
 impl Field {
@@ -199,9 +729,21 @@ impl Field {
         if *receiver.present() == TypeRef::DATA {
             return Some(Self::Key(name.to_owned()));
         }
-        // A declared record's fields are read by name, whatever they are called.
-        if crate::types::builtin::AI_RECORDS.contains(&receiver.present().constructor.0) {
-            return Some(Self::Key(name.to_owned()));
+        // `Zone` and the file system's `Path`, `Folder`, `Glob` and `Entry`
+        // are built-in types whose values are records, built by their
+        // extensions' constructors alone.
+        if crate::types::program::is_record_valued(receiver.present().constructor.0)
+            || [
+                TypeRef::ZONE,
+                TypeRef::PATH,
+                TypeRef::FOLDER,
+                TypeRef::GLOB,
+                TypeRef::ENTRY,
+            ]
+            .contains(receiver.present())
+            || crate::types::builtin::AI_RECORDS.contains(&receiver.present().constructor.0)
+        {
+            return Some(Self::Record(name.to_owned()));
         }
         Some(match name {
             "name" => Self::Name,
@@ -228,6 +770,16 @@ impl Field {
             "cards" => Self::Cards,
             "root" => Self::Root,
             "graph" => Self::Graph,
+            "end" => Self::End,
+            "level" => Self::Level,
+            "logger" => Self::Logger,
+            "message" => Self::Message,
+            "logs" => Self::Logs,
+            "url" => Self::Url,
+            "method" => Self::Method,
+            "headers" => Self::Headers,
+            "host" => Self::Host,
+            "port" => Self::Port,
             _ => return None,
         })
     }
@@ -241,6 +793,8 @@ pub(crate) struct Checked {
     pub fields: HashMap<Range<usize>, Field>,
     pub views: HashMap<Range<usize>, TypeRef>,
     pub steps: HashMap<Range<usize>, &'static Operation>,
+    /// The steps lifted over an optional input, absence giving absence.
+    pub lifted: HashSet<Range<usize>>,
     /// A lambda written as a value, or a declared function, at its type.
     pub functions: HashMap<Range<usize>, TypeRef>,
     /// A call or pipe that applies a function value, with how many leading
@@ -252,52 +806,120 @@ pub(crate) struct Checked {
     pub constructor_values: HashMap<Range<usize>, (TypeRef, TypeRef)>,
     /// The calls that combine two values, by the combiner they name.
     pub combiners: HashMap<Range<usize>, &'static str>,
+    /// Each combiner named as a value, `f : … = merge`: the two-parameter
+    /// function that combines with it.
+    pub combiner_refs: HashMap<Range<usize>, &'static str>,
+    /// The calls that construct a record, at the type they build.
+    pub records: HashMap<Range<usize>, TypeRef>,
+    /// The declaration each step call resolved to, by where the step is
+    /// written.
+    pub declarations: HashMap<Range<usize>, crate::extensions::binding::DeclarationId>,
+    /// The calls written `receiver.f(…)`, whose receiver is the input.
+    pub receiver_calls: HashSet<Range<usize>>,
+    /// Each step named as a function value, `map(str)`, with the type it
+    /// takes and the type it produces.
+    pub step_values: HashMap<Range<usize>, (&'static Operation, TypeRef, TypeRef)>,
+    /// Each pipeline step whose operation is a function value, `x | f`, by
+    /// the pipe's span: the operation type the planner reads, and whether
+    /// an `Elementwise` runs over each element of its input.
+    pub user_steps: HashMap<Range<usize>, (OperationType, bool)>,
+    /// Each pipe that reads its input as a declared type, `data | User`, by
+    /// the pipe's span: the type each `Data` is read as (HQL-0030).
+    pub interpretations: HashMap<Range<usize>, TypeRef>,
+    /// Each pipe that validates its input as a declared type,
+    /// `data | validate(User)`, by the pipe's span: the type each value is
+    /// read as (HQL-0033).
+    pub validations: HashMap<Range<usize>, TypeRef>,
+    /// Each call of a trait's function, by the trait and the function.
+    pub method_calls: HashMap<Range<usize>, (String, String)>,
+    /// Each `validate f with V` naming a validator trait, by the validator:
+    /// a call of `V`'s `validate` on the field (HQL-0034).
+    pub validator_calls: HashMap<Range<usize>, String>,
+    /// Each operator resolved through a trait, by the trait.
+    pub operator_calls: HashMap<Range<usize>, &'static str>,
+    /// Each implementation, by the span of its declaration.
+    pub impls: HashMap<Range<usize>, ImplLowering>,
+    /// Each implementation a module's trait list declares, in order: bound
+    /// after the module's functions, which it is made of.
+    pub module_impls: Vec<ImplLowering>,
+    /// Each contract with rules, by the span of its declaration: the names a
+    /// rule's body reads its fields by, in the order a check binds them.
+    pub contracts: HashMap<Range<usize>, Vec<RuleParameter>>,
+    /// Each reference to a workspace module's function, `geo.area`, by the
+    /// name it is bound under.
+    pub module_refs: HashMap<Range<usize>, String>,
+    /// Each function bound under another name than it is declared with: a
+    /// program's constructor, one name per form, by its declaration's span.
+    pub bound_names: HashMap<Range<usize>, String>,
+    /// Each receiver call of a workspace module's function, `"hi".shout()`,
+    /// by the name it is bound under and its type.
+    pub module_calls: HashMap<Range<usize>, (String, TypeRef)>,
+    /// The workspace modules imported, in order.
+    pub modules: Vec<LoadedModule>,
     /// What checking found worth saying that does not make the program wrong.
-    pub warnings: Vec<crate::warnings::Warning>,
+    pub warnings: Vec<crate::diagnostics::Diagnostic>,
     /// Each alias the program defines, with the signature the checker wrote.
     pub signatures: Vec<(String, TypeRef)>,
+    /// Each effectful function, with the effectful operations it uses.
+    pub effects: Vec<(String, Vec<String>)>,
+    /// Each mutation, by its span, with the type of the rows it changes
+    /// (HQL-0051).
+    pub mutations: HashMap<Range<usize>, TypeRef>,
+    /// Each transaction scope, by its span, with the type it commits with
+    /// (HQL-0051).
+    pub transactions: HashMap<Range<usize>, TypeRef>,
 }
 
 impl Checked {
     pub fn program(&self, program: &ast::Program, result: TypeRef) -> Result<Program, Diagnostic> {
-        let statements =
-            program
-                .statements
-                .iter()
-                .map(|statement| {
-                    Ok(match statement {
-                        ast::Stmt::Bind { name, value, .. } => {
-                            let value = self.expression(value)?;
-                            let view = self
-                                .views
-                                .get(&value.span)
-                                .cloned()
-                                .unwrap_or_else(|| value.ty.clone());
-                            Stmt::Bind {
-                                name: name.clone(),
-                                view,
-                                value,
-                            }
+        let statements = program
+            .statements
+            .iter()
+            .map(|statement| {
+                Ok(match statement {
+                    ast::Stmt::Bind { name, value, .. } => {
+                        let value = self.expression(value)?;
+                        let view = self
+                            .views
+                            .get(&value.span)
+                            .cloned()
+                            .unwrap_or_else(|| value.ty.clone());
+                        Stmt::Bind {
+                            name: name.clone(),
+                            view,
+                            value,
                         }
-                        ast::Stmt::Expr(value) => Stmt::Expr(self.expression(value)?),
-                        ast::Stmt::Alias(alias) => Stmt::Fn {
-                            name: alias.name.clone(),
-                            parameters: alias
-                                .parameters
-                                .iter()
-                                .map(|parameter| parameter.name.clone())
-                                .collect(),
-                            body: std::sync::Arc::new(self.expression(&alias.body)?),
-                            ty: self.functions.get(&alias.span).cloned().ok_or_else(|| {
-                                Diagnostic::typing(alias.span.clone(), "alias was not checked")
-                            })?,
-                        },
-                        ast::Stmt::Fn(declaration) => Stmt::Fn {
-                            name: declaration.name.clone(),
+                    }
+                    ast::Stmt::Expr(value) => Stmt::Expr(self.expression(value)?),
+                    ast::Stmt::Alias(alias) => Stmt::Fn {
+                        name: alias.name.clone(),
+                        parameters: alias
+                            .parameters
+                            .iter()
+                            .map(|parameter| parameter.name.clone())
+                            .collect(),
+                        body: std::sync::Arc::new(self.expression(&alias.body)?),
+                        ty: self.functions.get(&alias.span).cloned().ok_or_else(|| {
+                            Diagnostic::typing(alias.span.clone(), "alias was not checked")
+                        })?,
+                    },
+                    ast::Stmt::Fn(declaration) => {
+                        Stmt::Fn {
+                            name: self
+                                .bound_names
+                                .get(&declaration.span)
+                                .cloned()
+                                .unwrap_or_else(|| declaration.name.clone()),
                             parameters: declaration
-                                .parameters
-                                .iter()
-                                .map(|parameter| parameter.name.clone())
+                                .has_self
+                                .then(|| "self".to_owned())
+                                .into_iter()
+                                .chain(
+                                    declaration
+                                        .parameters
+                                        .iter()
+                                        .map(|parameter| parameter.name.clone()),
+                                )
                                 .collect(),
                             body: std::sync::Arc::new(self.expression(&declaration.body)?),
                             ty: self.functions.get(&declaration.span).cloned().ok_or_else(
@@ -308,16 +930,175 @@ impl Checked {
                                     )
                                 },
                             )?,
+                        }
+                    }
+                    ast::Stmt::Type(declaration) => match self.contracts.get(&declaration.span) {
+                        Some(parameters) => Stmt::Contract {
+                            name: declaration.name.clone(),
+                            rules: declaration
+                                .rules
+                                .iter()
+                                .map(|rule| {
+                                    Ok(RuleLowering {
+                                        text: rule.text.clone(),
+                                        severity: rule.severity,
+                                        name: rule.name.clone(),
+                                        reads: rule.reads.clone(),
+                                        parameters: parameters.clone(),
+                                        body: std::sync::Arc::new(
+                                            self.expression(&rule.predicate)?,
+                                        ),
+                                    })
+                                })
+                                .collect::<Result<_, Diagnostic>>()?,
                         },
-                        ast::Stmt::Import { .. } | ast::Stmt::Type(_) => Stmt::Unit,
-                    })
+                        None => Stmt::Unit,
+                    },
+                    ast::Stmt::Import { .. }
+                    | ast::Stmt::Module { .. }
+                    | ast::Stmt::External(_)
+                    | ast::Stmt::Trait(_) => Stmt::Unit,
+                    // A native implementation runs no HQL: its header is
+                    // bound to an extension's bodies.
+                    ast::Stmt::Impl(declaration) if declaration.native => Stmt::Unit,
+                    ast::Stmt::Impl(declaration) => {
+                        let lowering = self.impls.get(&declaration.span).ok_or_else(|| {
+                            Diagnostic::typing(
+                                declaration.span.clone(),
+                                "implementation was not checked",
+                            )
+                        })?;
+                        let mut methods = Vec::new();
+                        for method in &lowering.methods {
+                            if let Some(lowered) = &method.lowered {
+                                methods.push((
+                                    method.name.clone(),
+                                    ImplMethod::Body(
+                                        method.parameters.clone(),
+                                        std::sync::Arc::clone(lowered),
+                                        method.ty.clone(),
+                                    ),
+                                ));
+                                continue;
+                            }
+                            let body = match &method.default_of {
+                                None => declaration
+                                    .methods
+                                    .iter()
+                                    .find(|held| held.name == method.name)
+                                    .and_then(|held| held.body.as_ref()),
+                                Some(trait_name) => program
+                                    .statements
+                                    .iter()
+                                    .find_map(|statement| match statement {
+                                        ast::Stmt::Trait(held) if held.name == *trait_name => {
+                                            Some(held)
+                                        }
+                                        _ => None,
+                                    })
+                                    .and_then(|held| {
+                                        held.methods.iter().find(|held| held.name == method.name)
+                                    })
+                                    .and_then(|held| held.body.as_ref()),
+                            };
+                            let body = body.ok_or_else(|| {
+                                Diagnostic::typing(
+                                    declaration.span.clone(),
+                                    format!("`{}` has no body to run", method.name),
+                                )
+                            })?;
+                            methods.push((
+                                method.name.clone(),
+                                ImplMethod::Body(
+                                    method.parameters.clone(),
+                                    std::sync::Arc::new(self.expression(body)?),
+                                    method.ty.clone(),
+                                ),
+                            ));
+                        }
+                        Stmt::Impl {
+                            trait_name: lowering.trait_name.clone(),
+                            target: lowering.target.clone(),
+                            methods,
+                        }
+                    }
                 })
-                .collect::<Result<_, Diagnostic>>()?;
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let mut statements = statements;
+        // A module's trait list is bound once its functions are, and before
+        // a final expression, which stays the program's value.
+        let at = match statements.last() {
+            Some(Stmt::Expr(_)) => statements.len() - 1,
+            _ => statements.len(),
+        };
+        for (offset, lowering) in self.module_impls.iter().enumerate() {
+            statements.insert(at + offset, self.module_impl(program, lowering)?);
+        }
+        unread_branches(&mut statements);
         Ok(Program {
             statements,
             result,
             warnings: self.warnings.clone(),
             signatures: self.signatures.clone(),
+            effects: self.effects.clone(),
+            lattice: crate::types::program::current()
+                .map_err(|error| Diagnostic::typing(0..0, error.to_string()))?,
+            modules: self.modules.clone(),
+        })
+    }
+
+    /// The implementation a module's trait list declares: each function the
+    /// module's own, or a default body of a trait the module declares.
+    fn module_impl(
+        &self,
+        program: &ast::Program,
+        lowering: &ImplLowering,
+    ) -> Result<Stmt, Diagnostic> {
+        let mut methods = Vec::new();
+        for method in &lowering.methods {
+            let lowered = match (&method.function, &method.default_of) {
+                (Some(function), _) => ImplMethod::Function(function.clone()),
+                (None, _) if method.lowered.is_some() => ImplMethod::Body(
+                    method.parameters.clone(),
+                    method.lowered.clone().expect("matched a lowered body"),
+                    method.ty.clone(),
+                ),
+                (None, Some(trait_name)) => {
+                    let body = program
+                        .statements
+                        .iter()
+                        .find_map(|statement| match statement {
+                            ast::Stmt::Trait(held) if held.name == *trait_name => Some(held),
+                            _ => None,
+                        })
+                        .and_then(|held| held.methods.iter().find(|held| held.name == method.name))
+                        .and_then(|held| held.body.as_ref())
+                        .ok_or_else(|| {
+                            Diagnostic::typing(
+                                0..0,
+                                format!("`{}` has no body to run", method.name),
+                            )
+                        })?;
+                    ImplMethod::Body(
+                        method.parameters.clone(),
+                        std::sync::Arc::new(self.expression(body)?),
+                        method.ty.clone(),
+                    )
+                }
+                (None, None) => {
+                    return Err(Diagnostic::typing(
+                        0..0,
+                        format!("`{}` has no body to run", method.name),
+                    ));
+                }
+            };
+            methods.push((method.name.clone(), lowered));
+        }
+        Ok(Stmt::Impl {
+            trait_name: lowering.trait_name.clone(),
+            target: lowering.target.clone(),
+            methods,
         })
     }
 
@@ -381,7 +1162,7 @@ impl Checked {
             .collect()
     }
 
-    fn expression(&self, expression: &ast::Expr) -> Result<Expr, Diagnostic> {
+    pub(crate) fn expression(&self, expression: &ast::Expr) -> Result<Expr, Diagnostic> {
         use ast::Kind as A;
         let span = expression.span.clone();
         let ty = if let Some(function) = self.functions.get(&span) {
@@ -414,8 +1195,38 @@ impl Checked {
             A::Construct { arguments, .. } => Kind::Construct(self.arguments(arguments)?),
             A::Int(value) => Kind::Int(*value),
             A::Float(value) => Kind::Float(*value),
+            A::Decimal(value) => Kind::Decimal(value.clone()),
             A::Bool(value) => Kind::Bool(*value),
             A::Str(value) => Kind::Str(value.clone()),
+            // A combiner named as a value is the function that combines two
+            // values with it, written as the parser writes `reduce(0, +)`.
+            A::Ident(_) if self.combiner_refs.contains_key(&span) => {
+                let parameters = vec!["%left".to_owned(), "%right".to_owned()];
+                let (inputs, result) = ty.as_function().unwrap_or((&[], &ty));
+                let operand = |name: &str, held: Option<&TypeRef>| Expr {
+                    kind: Kind::Ident(name.to_owned()),
+                    ty: held.cloned().unwrap_or(TypeRef::NEVER),
+                    span: span.clone(),
+                };
+                let body = Expr {
+                    kind: Kind::Combine {
+                        combiner: self.combiner_refs[&span],
+                        left: Box::new(operand(&parameters[0], inputs.first())),
+                        right: Box::new(operand(&parameters[1], inputs.get(1))),
+                        plan: None,
+                    },
+                    ty: result.clone(),
+                    span: span.clone(),
+                };
+                Kind::Lambda {
+                    parameters,
+                    body: std::sync::Arc::new(body),
+                    function: Some(ty.clone()),
+                }
+            }
+            A::Ident(_) if self.module_refs.contains_key(&span) => {
+                Kind::Ident(self.module_refs[&span].clone())
+            }
             A::Ident(name) if self.constructor_values.contains_key(&span) => {
                 let (parameter, built) = self.constructor_values[&span].clone();
                 let held = Expr {
@@ -437,6 +1248,30 @@ impl Checked {
                     function: TypeRef::function(vec![parameter], built),
                 }
             }
+            A::Ident(_) if self.step_values.contains_key(&span) => {
+                let (step, parameter, produced) = self.step_values[&span].clone();
+                let held = Expr {
+                    kind: Kind::Ident(crate::checker::CONSTRUCTED.to_owned()),
+                    ty: parameter.clone(),
+                    span: span.clone(),
+                };
+                Kind::Lambda {
+                    parameters: vec![crate::checker::CONSTRUCTED.to_owned()],
+                    body: std::sync::Arc::new(Expr {
+                        kind: step_node(
+                            step,
+                            Box::new(held),
+                            Vec::new(),
+                            span.clone(),
+                            self.lifted.contains(&span),
+                            self.declarations.get(&span).copied(),
+                        ),
+                        ty: produced.clone(),
+                        span: span.clone(),
+                    }),
+                    function: TypeRef::function(vec![parameter], produced),
+                }
+            }
             A::Ident(name) => Kind::Ident(name.clone()),
             A::DocRef(name) => Kind::DocRef(name.clone()),
             A::Data(entries) => Kind::Data(
@@ -445,6 +1280,42 @@ impl Checked {
                     .map(|(key, value)| Ok((key.clone(), self.expression(value)?)))
                     .collect::<Result<_, Diagnostic>>()?,
             ),
+            A::Arith(operator, left, right) if self.operator_calls.contains_key(&span) => {
+                let (trait_name, method) = match operator {
+                    Arith::Add => ("Add", "add"),
+                    Arith::Sub => ("Sub", "sub"),
+                    Arith::Mul => ("Mul", "mul"),
+                    Arith::Div => ("Div", "div"),
+                    Arith::Rem => ("Rem", "rem"),
+                };
+                Kind::Method {
+                    trait_name: trait_name.to_owned(),
+                    method: method.to_owned(),
+                    receiver: boxed(left)?,
+                    arguments: vec![self.expression(right)?],
+                }
+            }
+            A::Compare {
+                left,
+                right,
+                negated,
+            } if self.operator_calls.contains_key(&span) => {
+                let equal = Expr {
+                    kind: Kind::Method {
+                        trait_name: "Eq".to_owned(),
+                        method: "eq".to_owned(),
+                        receiver: boxed(left)?,
+                        arguments: vec![self.expression(right)?],
+                    },
+                    ty: TypeRef::BOOL,
+                    span: span.clone(),
+                };
+                if *negated {
+                    Kind::Not(Box::new(equal))
+                } else {
+                    equal.kind
+                }
+            }
             A::Arith(..) => {
                 let mut first = expression;
                 let mut rest = Vec::new();
@@ -490,6 +1361,15 @@ impl Checked {
                 right: boxed(right)?,
                 negated: *negated,
             },
+            A::Index(receiver, index) => Kind::Index(boxed(receiver)?, boxed(index)?),
+            A::Slice(receiver, start, end) => Kind::Slice(
+                boxed(receiver)?,
+                start.as_deref().map(boxed).transpose()?,
+                end.as_deref().map(boxed).transpose()?,
+            ),
+            A::Field(_, _) if self.module_refs.contains_key(&span) => {
+                Kind::Ident(self.module_refs[&span].clone())
+            }
             A::Field(receiver, _) => {
                 let receiver = boxed(receiver)?;
                 let field = self
@@ -515,11 +1395,129 @@ impl Checked {
                 body: std::sync::Arc::new(self.expression(body)?),
                 function: self.functions.get(&span).cloned(),
             },
+            A::Call { callee, arguments } if self.module_calls.contains_key(&span) => {
+                let A::Field(receiver, _) = &callee.kind else {
+                    return Err(Diagnostic::typing(span, "a receiver call reads a receiver"));
+                };
+                let (key, function) = self.module_calls[&span].clone();
+                let mut values = vec![self.expression(receiver)?];
+                for argument in arguments {
+                    values.push(self.expression(&argument.value)?);
+                }
+                Kind::Apply {
+                    callee: Box::new(Expr {
+                        kind: Kind::Ident(key),
+                        ty: function,
+                        span: callee.span.clone(),
+                    }),
+                    arguments: values,
+                    pack: self.applications.get(&span).cloned().flatten(),
+                    plan: None,
+                }
+            }
+            A::Call { arguments, .. } if self.validator_calls.contains_key(&span) => {
+                let [checked] = arguments.as_slice() else {
+                    return Err(Diagnostic::typing(span, "a validator checks one value"));
+                };
+                Kind::Method {
+                    trait_name: self.validator_calls[&span].clone(),
+                    method: "validate".to_owned(),
+                    receiver: Box::new(self.expression(&checked.value)?),
+                    arguments: Vec::new(),
+                }
+            }
+            A::Call { callee, arguments } if self.method_calls.contains_key(&span) => {
+                let A::Field(receiver, _) = &callee.kind else {
+                    return Err(Diagnostic::typing(span, "a method call reads a receiver"));
+                };
+                let (trait_name, method) = self.method_calls[&span].clone();
+                Kind::Method {
+                    trait_name,
+                    method,
+                    receiver: boxed(receiver)?,
+                    arguments: arguments
+                        .iter()
+                        .map(|argument| self.expression(&argument.value))
+                        .collect::<Result<_, _>>()?,
+                }
+            }
+            A::Call { callee, arguments } if self.receiver_calls.contains(&span) => {
+                let A::Field(receiver, _) = &callee.kind else {
+                    return Err(Diagnostic::typing(span, "a receiver call reads a receiver"));
+                };
+                if let Some(combiner) = self.combiners.get(&span) {
+                    Kind::Combine {
+                        combiner,
+                        left: boxed(receiver)?,
+                        right: Box::new(self.expression(&arguments[0].value)?),
+                        plan: None,
+                    }
+                } else if let Some(step) = self.steps.get(&span) {
+                    step_node(
+                        step,
+                        boxed(receiver)?,
+                        self.arguments(arguments)?,
+                        span.clone(),
+                        self.lifted.contains(&span),
+                        self.declarations.get(&span).copied(),
+                    )
+                } else {
+                    Kind::Order(
+                        boxed(receiver)?,
+                        Box::new(self.expression(&arguments[0].value)?),
+                    )
+                }
+            }
+            // `a | merge(b)`: the input is the combiner's left value.
+            A::Pipe(input, written) if self.combiners.contains_key(&span) => {
+                let A::Call { arguments, .. } = &written.kind else {
+                    return Err(Diagnostic::typing(span, "a combiner step is a call"));
+                };
+                let combiner = self.combiners[&span];
+                Kind::Combine {
+                    combiner,
+                    left: boxed(input)?,
+                    right: Box::new(self.expression(&arguments[0].value)?),
+                    plan: Some(StepPlan::new(OperationType {
+                        name: combiner.to_owned(),
+                        shape: Shape::Barrier,
+                        purity: Purity::Pure,
+                        presentation: false,
+                    })),
+                }
+            }
             A::Call { arguments, .. } if self.combiners.contains_key(&span) => Kind::Combine {
                 combiner: self.combiners[&span],
                 left: Box::new(self.expression(&arguments[0].value)?),
                 right: Box::new(self.expression(&arguments[1].value)?),
+                plan: None,
             },
+            A::Call { arguments, .. } if self.interpretations.contains_key(&span) => {
+                Kind::Interpret {
+                    input: Box::new(self.expression(&arguments[0].value)?),
+                    element: self.interpretations[&span].clone(),
+                    validated: false,
+                }
+            }
+            A::Call { arguments, .. } if self.records.contains_key(&span) => {
+                let shape = crate::types::program::record(self.records[&span].constructor.0)
+                    .ok_or_else(|| Diagnostic::typing(span.clone(), "record was not declared"))?;
+                let mut fields = Vec::new();
+                for (index, argument) in arguments.iter().enumerate() {
+                    let name = match &argument.name {
+                        Some(name) => name.clone(),
+                        None => shape
+                            .fields
+                            .get(index)
+                            .map(|field| field.name.clone())
+                            .ok_or_else(|| {
+                                Diagnostic::typing(span.clone(), "field out of range")
+                            })?,
+                    };
+                    fields.push((name, self.expression(&argument.value)?));
+                }
+                Kind::Record(fields)
+            }
             A::Call { callee, arguments } if self.applications.contains_key(&span) => Kind::Apply {
                 callee: boxed(callee)?,
                 arguments: arguments
@@ -527,19 +1525,88 @@ impl Checked {
                     .map(|argument| self.expression(&argument.value))
                     .collect::<Result<_, _>>()?,
                 pack: self.applications[&span].clone(),
+                plan: None,
+            },
+            A::Pipe(input, _) if self.validations.contains_key(&span) => Kind::Interpret {
+                input: Box::new(self.expression(input)?),
+                element: self.validations[&span].clone(),
+                validated: true,
             },
             A::Pipe(input, written) if matches!(written.kind, A::Tee { .. }) => {
                 let A::Tee { name, branch } = &written.kind else {
                     unreachable!("matched above");
                 };
+                let branch = boxed(branch)?;
+                let purity = if branch.reaches_effect() {
+                    Purity::Effectful
+                } else {
+                    Purity::Pure
+                };
                 Kind::Tee {
                     input: boxed(input)?,
                     name: name.clone(),
-                    branch: boxed(branch)?,
+                    branch,
+                    plan: StepPlan::new(OperationType {
+                        name: "tee".to_owned(),
+                        shape: Shape::Barrier,
+                        purity,
+                        presentation: false,
+                    }),
                 }
             }
             A::Tee { .. } => {
                 return Err(Diagnostic::syntax(span, "`tee` is a pipeline step"));
+            }
+            A::Pipe(input, written) if matches!(written.kind, A::Fork { .. }) => {
+                let A::Fork { branches } = &written.kind else {
+                    unreachable!("matched above");
+                };
+                let branches = branches
+                    .iter()
+                    .map(|(name, branch)| Ok((name.clone(), self.expression(branch)?)))
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                let purity = if branches.iter().any(|(_, branch)| branch.reaches_effect()) {
+                    Purity::Effectful
+                } else {
+                    Purity::Pure
+                };
+                Kind::Fork {
+                    input: boxed(input)?,
+                    branches,
+                    unread: Vec::new(),
+                    plan: StepPlan::new(OperationType {
+                        name: "fork".to_owned(),
+                        shape: Shape::Barrier,
+                        purity,
+                        presentation: false,
+                    }),
+                }
+            }
+            A::Fork { .. } => {
+                return Err(Diagnostic::syntax(span, "`fork` is a pipeline step"));
+            }
+            A::Pipe(input, written)
+                if self.user_steps.get(&span).is_some_and(|(_, each)| *each) =>
+            {
+                // An `Elementwise<I, O>` over a collection of `I` is the
+                // step `map` runs, invoking the program's operation.
+                let (invokes, _) = self.user_steps[&span].clone();
+                let map = crate::extensions::collections::STEPS
+                    .iter()
+                    .find(|step| step.name == "map")
+                    .ok_or_else(|| Diagnostic::typing(span.clone(), "`map` is not registered"))?;
+                Kind::Step {
+                    step: map,
+                    input: boxed(input)?,
+                    arguments: vec![Arg {
+                        name: None,
+                        value: self.expression(written)?,
+                    }],
+                    at: written.span.clone(),
+                    lifted: false,
+                    declaration: None,
+                    plan: StepPlan::new(invokes),
+                }
             }
             A::Pipe(input, written) if self.applications.contains_key(&span) => {
                 let (callee, rest) = match &written.kind {
@@ -550,10 +1617,20 @@ impl Checked {
                 for argument in rest {
                     arguments.push(self.expression(&argument.value)?);
                 }
+                let invokes = self.user_steps.get(&span).map_or_else(
+                    || OperationType {
+                        name: "<function>".to_owned(),
+                        shape: Shape::Barrier,
+                        purity: Purity::Effectful,
+                        presentation: false,
+                    },
+                    |(invokes, _)| invokes.clone(),
+                );
                 Kind::Apply {
                     callee: boxed(callee)?,
                     arguments,
                     pack: self.applications[&span].clone(),
+                    plan: Some(StepPlan::new(invokes)),
                 }
             }
             A::Match { subject, arms } => Kind::Match {
@@ -582,19 +1659,138 @@ impl Checked {
                 condition: boxed(condition)?,
                 otherwise: otherwise.as_deref().map(boxed).transpose()?,
             },
+            A::Mutation {
+                verb,
+                target,
+                rows,
+                steps,
+            } => {
+                use crate::ast::MutationStepKind;
+                let row = self.mutations.get(&span).cloned().ok_or_else(|| {
+                    Diagnostic::typing(span.clone(), "a mutation that was not checked")
+                })?;
+                fn lambda(lambda: &ast::Expr) -> Result<(String, &ast::Expr), Diagnostic> {
+                    match &lambda.kind {
+                        A::Lambda {
+                            parameters, body, ..
+                        } if parameters.len() == 1 => Ok((parameters[0].clone(), body)),
+                        _ => Err(Diagnostic::typing(
+                            lambda.span.clone(),
+                            "a mutation's clause takes a lambda of one row",
+                        )),
+                    }
+                }
+                let mut filters = Vec::new();
+                let mut set = None;
+                for step in steps {
+                    match &step.kind {
+                        MutationStepKind::OfType(_) => {}
+                        MutationStepKind::Filter(written) => {
+                            let (parameter, body) = lambda(written)?;
+                            filters.push((parameter, self.expression(body)?));
+                        }
+                        MutationStepKind::Set(written) => {
+                            let (parameter, body) = lambda(written)?;
+                            let A::Data(entries) = &body.kind else {
+                                return Err(Diagnostic::typing(
+                                    body.span.clone(),
+                                    "`set` gives the fields that change as a tree",
+                                ));
+                            };
+                            let entries = entries
+                                .iter()
+                                .map(|(key, value)| Ok((key.clone(), self.expression(value)?)))
+                                .collect::<Result<Vec<_>, Diagnostic>>()?;
+                            set = Some((parameter, entries));
+                        }
+                    }
+                }
+                Kind::Mutation {
+                    verb: *verb,
+                    target: boxed(target)?,
+                    rows: rows.as_deref().map(boxed).transpose()?,
+                    row,
+                    filters,
+                    set,
+                    plan: StepPlan::new(OperationType {
+                        name: verb.word().to_owned(),
+                        shape: Shape::Barrier,
+                        purity: Purity::Effectful,
+                        presentation: false,
+                    }),
+                }
+            }
+            A::Transaction {
+                handle,
+                attempts,
+                isolation,
+                participants,
+                body,
+            } => {
+                let committed = self.transactions.get(&span).cloned().ok_or_else(|| {
+                    Diagnostic::typing(span.clone(), "a transaction that was not checked")
+                })?;
+                let body = body
+                    .iter()
+                    .map(|line| {
+                        Ok(match line {
+                            ast::ScopeStmt::Bind { name, value, .. } => ScopeStmt::Bind {
+                                name: name.clone(),
+                                value: self.expression(value)?,
+                            },
+                            ast::ScopeStmt::Expr(value) => ScopeStmt::Expr(self.expression(value)?),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                Kind::Transaction {
+                    handle: handle.as_ref().map(|(name, _)| name.clone()),
+                    attempts: attempts.as_deref().map(boxed).transpose()?,
+                    isolation: isolation.as_ref().map(|(level, _)| level.clone()),
+                    participants: boxed(participants)?,
+                    body,
+                    committed,
+                    plan: StepPlan::new(OperationType {
+                        name: "transaction".to_owned(),
+                        shape: Shape::Barrier,
+                        purity: Purity::Effectful,
+                        presentation: false,
+                    }),
+                }
+            }
             A::Call { callee, arguments } => {
                 if let Some(step) = self.steps.get(&span) {
-                    let (input, arguments) = arguments
-                        .split_first()
-                        .ok_or_else(|| Diagnostic::typing(span.clone(), "step needs an input"))?;
-                    Kind::Step {
+                    // No positional input written, or a step that takes none,
+                    // whose first argument is a type: the input is `Unit`.
+                    let (input, arguments) = match arguments.split_first() {
+                        Some((input, rest))
+                            if input.name.is_none()
+                                && !(step.takes_no_input() && names_a_type(&input.value)) =>
+                        {
+                            (boxed(&input.value)?, rest)
+                        }
+                        _ => (
+                            Box::new(Expr {
+                                kind: Kind::Unit,
+                                ty: TypeRef::UNIT,
+                                span: span.clone(),
+                            }),
+                            arguments.as_slice(),
+                        ),
+                    };
+                    step_node(
                         step,
-                        input: boxed(&input.value)?,
-                        arguments: self.arguments(arguments)?,
-                        at: span.clone(),
-                    }
+                        input,
+                        self.arguments(arguments)?,
+                        span.clone(),
+                        self.lifted.contains(&span),
+                        self.declarations.get(&span).copied(),
+                    )
                 } else if matches!(&callee.kind, A::Ident(name) if name == "some") {
                     Kind::Some(boxed(&arguments[0].value)?)
+                } else if matches!(&callee.kind, A::Ident(name) if name == "ok") {
+                    Kind::Ok(boxed(&arguments[0].value)?)
+                } else if matches!(&callee.kind, A::Ident(name) if name == "err") {
+                    Kind::Err(boxed(&arguments[0].value)?)
                 } else if matches!(&callee.kind, A::Ident(name) if name == "compare") {
                     Kind::Order(boxed(&arguments[0].value)?, boxed(&arguments[1].value)?)
                 } else {
@@ -610,16 +1806,196 @@ impl Checked {
                     A::Call { arguments, .. } => arguments.as_slice(),
                     _ => &[],
                 };
-                Kind::Step {
+                step_node(
                     step,
-                    input: boxed(input)?,
-                    arguments: self.arguments(arguments)?,
-                    at: written.span.clone(),
-                }
+                    boxed(input)?,
+                    self.arguments(arguments)?,
+                    written.span.clone(),
+                    self.lifted.contains(&written.span),
+                    self.declarations.get(&written.span).copied(),
+                )
             }
         };
         Ok(Expr { kind, ty, span })
     }
+}
+
+/// The values of a step's or a constructor's arguments.
+fn argument_values(arguments: &[Arg]) -> Vec<&Expr> {
+    arguments.iter().map(|argument| &argument.value).collect()
+}
+
+/// The expressions an iterating function's body holds, in order.
+/// A pure branch of a bound `fork` that nothing reads is not run
+/// (HQL-0037): every later read of the binding names a branch, `parts.a`,
+/// and a destructured branch counts as read only where its own name is. An
+/// effectful branch runs whether read or not, and a binding read whole
+/// keeps every branch.
+fn unread_branches(statements: &mut [Stmt]) {
+    for index in 0..statements.len() {
+        let (before, after) = statements.split_at_mut(index + 1);
+        let Stmt::Bind { name, value, .. } = &mut before[index] else {
+            continue;
+        };
+        let Kind::Fork {
+            branches, unread, ..
+        } = &mut value.kind
+        else {
+            continue;
+        };
+        let mut read = std::collections::BTreeSet::new();
+        if !branches_read(name, after, &mut read) {
+            continue;
+        }
+        *unread = branches
+            .iter()
+            .filter(|(branch, body)| !read.contains(branch) && !body.reaches_effect())
+            .map(|(branch, _)| branch.clone())
+            .collect();
+    }
+}
+
+/// The branches of the record bound at `name` that `statements` read, into
+/// `read`; false where the record is read whole.
+fn branches_read(
+    name: &str,
+    statements: &[Stmt],
+    read: &mut std::collections::BTreeSet<String>,
+) -> bool {
+    for (index, statement) in statements.iter().enumerate() {
+        // `{ a, b } = parts` binds `a = parts.a`: the branch is read where
+        // `a` is.
+        if let Stmt::Bind {
+            name: bound, value, ..
+        } = statement
+            && let Kind::Field(receiver, Field::Record(branch)) = &value.kind
+            && matches!(&receiver.kind, Kind::Ident(held) if held == name)
+        {
+            if names_read(bound, &statements[index + 1..]) {
+                read.insert(branch.clone());
+            }
+            continue;
+        }
+        let roots: Vec<&Expr> = match statement {
+            Stmt::Bind { value, .. } | Stmt::Expr(value) => vec![value],
+            Stmt::Fn { body, .. } => vec![body.as_ref()],
+            Stmt::Impl { methods, .. } => methods
+                .iter()
+                .filter_map(|(_, method)| method.body())
+                .collect(),
+            Stmt::Contract { rules, .. } => rules.iter().map(|rule| rule.body.as_ref()).collect(),
+            Stmt::Unit => Vec::new(),
+        };
+        for root in roots {
+            if !fields_read(name, root, read) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Whether any of `statements` reads `name`.
+fn names_read(name: &str, statements: &[Stmt]) -> bool {
+    let mut ignored = std::collections::BTreeSet::new();
+    !branches_read(name, statements, &mut ignored) || !ignored.is_empty()
+}
+
+/// The fields of `name` that `expression` reads, into `read`; false where
+/// it reads `name` other than by a field.
+fn fields_read(
+    name: &str,
+    expression: &Expr,
+    read: &mut std::collections::BTreeSet<String>,
+) -> bool {
+    match &expression.kind {
+        Kind::Ident(held) => held != name,
+        Kind::Field(receiver, Field::Record(field)) if matches!(&receiver.kind, Kind::Ident(held) if held == name) =>
+        {
+            read.insert(field.clone());
+            true
+        }
+        _ => expression
+            .children()
+            .into_iter()
+            .all(|child| fields_read(name, child, read)),
+    }
+}
+
+fn block_expressions<'e>(statements: &'e [BlockStmt], held: &mut Vec<&'e Expr>) {
+    for statement in statements {
+        match statement {
+            BlockStmt::Bind { value, .. } | BlockStmt::Yield(value) => held.push(value),
+            BlockStmt::For { iterable, body, .. } => {
+                held.push(iterable);
+                block_expressions(body, held);
+            }
+        }
+    }
+}
+
+impl Program {
+    /// The roots of the program's expression trees: each statement's, a
+    /// function's body and an implementation's among them, then each
+    /// imported module's.
+    pub(crate) fn roots(&self) -> Vec<&Expr> {
+        let mut roots = Vec::new();
+        for statement in &self.statements {
+            match statement {
+                Stmt::Bind { value, .. } | Stmt::Expr(value) => roots.push(value),
+                Stmt::Fn { body, .. } => roots.push(body.as_ref()),
+                Stmt::Impl { methods, .. } => {
+                    roots.extend(methods.iter().filter_map(|(_, method)| method.body()));
+                }
+                Stmt::Contract { rules, .. } => {
+                    roots.extend(rules.iter().map(|rule| rule.body.as_ref()));
+                }
+                Stmt::Unit => {}
+            }
+        }
+        for module in &self.modules {
+            roots.extend(module.program.roots());
+        }
+        roots
+    }
+
+    /// Every pipeline of the program, each by the step node that ends it.
+    pub(crate) fn pipelines(&self) -> Vec<&Expr> {
+        let mut found = Vec::new();
+        for root in self.roots() {
+            root.pipelines(&mut found);
+        }
+        found
+    }
+}
+
+/// A host operation's step node, carrying the operation type the planner
+/// reads.
+fn step_node(
+    step: &'static Operation,
+    input: Box<Expr>,
+    arguments: Vec<Arg>,
+    at: Range<usize>,
+    lifted: bool,
+    declaration: Option<crate::extensions::binding::DeclarationId>,
+) -> Kind {
+    let plan = StepPlan::new(OperationType::host(step, &arguments, declaration));
+    Kind::Step {
+        step,
+        input,
+        arguments,
+        at,
+        lifted,
+        declaration,
+        plan,
+    }
+}
+
+/// Whether an argument is a bare type name, `Ed25519`: what the checker
+/// reads as an argument, never an input, where a step takes no input.
+fn names_a_type(written: &crate::ast::Expr) -> bool {
+    matches!(&written.kind, crate::ast::Kind::Ident(name)
+        if crate::types::builtin::constructor(name).is_some())
 }
 
 #[cfg(test)]
@@ -646,6 +2022,51 @@ mod tests {
         let (program, errors) = crate::checker::check_collecting(&syntax, &vault);
         assert!(program.is_none());
         assert_eq!(errors.len(), 1);
+    }
+
+    #[test]
+    fn a_call_a_receiver_call_and_a_pipeline_step_resolve_one_declaration() {
+        fn declarations(expression: &Expr, found: &mut Vec<String>) {
+            if let Kind::Step {
+                input, declaration, ..
+            } = &expression.kind
+            {
+                let environment = crate::extensions::binding::Environment::get().unwrap();
+                found.push(declaration.map_or_else(String::new, |id| environment.qualified(id)));
+                declarations(input, found);
+            }
+        }
+        let vault = crate::vault::Vault::empty();
+        let mut found = Vec::new();
+        for source in [
+            "\"x\".pad_left(3, \"0\")",
+            "string.pad_left(\"x\", 3, \"0\")",
+            "\"x\" | pad_left(3, \"0\")",
+            "pad_left(\"x\", 3, \"0\")",
+        ] {
+            let syntax = crate::parser::parse(source).unwrap();
+            let program = crate::checker::check(&syntax, &vault).unwrap();
+            let [statement] = program.statements.as_slice() else {
+                panic!("one statement");
+            };
+            let Stmt::Expr(expression) = statement else {
+                panic!("an expression");
+            };
+            declarations(expression, &mut found);
+        }
+        assert_eq!(found, vec!["string.pad_left"; 4]);
+        // An overloaded name resolves the form the call took.
+        let syntax = crate::parser::parse("[2, 1] | sort").unwrap();
+        let program = crate::checker::check(&syntax, &vault).unwrap();
+        let Stmt::Expr(expression) = &program.statements[0] else {
+            panic!("an expression");
+        };
+        let Kind::Step { declaration, .. } = &expression.kind else {
+            panic!("a step");
+        };
+        let environment = crate::extensions::binding::Environment::get().unwrap();
+        let sort = environment.of(crate::extensions::CORE.step("sort").unwrap());
+        assert_eq!(*declaration, Some(sort[0]));
     }
 
     #[test]

@@ -6,7 +6,7 @@ nav:
 # HQL collections
 
 HQL distinguishes membership, positions and lookup through collection contracts
-and concrete carriers. Their declarations are in `std/collections.hql`.
+and concrete carriers. The types are declared in `lib/std/core/mod.hql`, since `Data` is a tree of sequences and maps, and the operations over them in `lib/std/collections/mod.hql`.
 
 | Type | Intended meaning | Design consequence |
 | --- | --- | --- |
@@ -30,7 +30,7 @@ cards : Seq<Card>
 
 This is a type statement for the context value, not a proposed standalone
 declaration syntax. `cards` represents the current vault or namespace. It is the
-standard-library binding `cards = vault.cards`, a lazy sequence — see
+program module's binding `cards = vault.cards`, a lazy sequence — see
 [[stream-type]] — whose order is the sorted walk's: the entries of each
 directory sorted by name, depth first. The order is the walk's, never the
 filesystem's. Any other order is introduced by sorting, which requires a defined
@@ -116,7 +116,7 @@ The second form is what makes `Seq<Function>` sortable without `Function` being
 says the values *have* a key, and supplying one from outside is the other
 signature, not the same one narrowed.
 
-`Ordering` is declared in `std/core.hql`. `SortedSeq<T>` remains a design name;
+`Ordering` is declared in `lib/std/core/mod.hql`. `SortedSeq<T>` remains a design name;
 sorting a `Seq` returns the same sequence type, and sorting any other collection
 returns `List<T>`. A key selector such as `by = c => c.title`
 uses the selected key's intrinsic order. Equal keys retain their relative

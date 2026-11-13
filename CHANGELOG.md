@@ -8,13 +8,941 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-13
+
 ### Added
 
+- The book's Part II, [Data flows](doc/public/learn/14-etl-pipelines.md):
+  one shop's story from files to a lakehouse, in endpoints, tables and
+  topics, subjects and the lakehouse, APIs and stores (as design), OLTP (the
+  shop's day, mistakes, replays, streams against tables, a transfer as one
+  transaction) and OLAP (bronze, silver and gold, grain and keys,
+  deduplication, windows, merge, incremental loads), with a page on logical
+  steps and physical plans. Checked programs are shown with what
+  `hql check` prints; the programs that reach a server run in hql-demo.
+- Randomness ([HQL-0041](doc/proposals/HQL-0041/README.md) part 4). The
+  module `random`, imported with `import random`, declares `sample`,
+  `shuffle` and `choice` over a sequence, `sample` over a stream by
+  reservoir, `random_int`, `random_float`, a version 7 `uuid()` and a
+  version 5 `uuid(name, namespace)`. A draw with a `seed` argument is pure;
+  without one it is effectful and draws from the evaluation seed, which
+  `--seed` fixes. The generator is ChaCha12 and is not for secrets. The book
+  teaches it in [Random values](doc/public/learn/29-random.md).
+- `abs` over a `Duration` ([HQL-0041](doc/proposals/HQL-0041/README.md)
+  part 1): the prelude's `math` declares `fn abs(self: Duration) : Duration`
+  beside the numbers, so `abs(Duration("-PT1H"))` is `PT1H` with no
+  `import time`.
+- `Entry.modified? : Instant` in `io.fs`
+  ([HQL-0040](doc/proposals/HQL-0040/README.md)): the time an entry was
+  last modified, a link's own and not its target's, absent where the
+  platform records none. Every listing and `entry` read it with the rest
+  of the entry.
+- `hql --version` names the time-zone database zone names resolve against
+  on a second line, `time-zone database: system` for the host's, or the
+  release of the database compiled into the binary, `2026e, bundled`.
+- Descriptive statistics ([HQL-0041](doc/proposals/HQL-0041/README.md)
+  part 2). The module `stats`, imported with `import stats`, declares the
+  reductions `mean`, `variance` and `stdev` (sample, `n - 1`), `pvariance`
+  and `pstdev` (population, `n`), and `covariance` and `correlation` over
+  `Pair`s, and the barriers `median`, `quantile(q)`, `quantiles(n)` and
+  `mode`. A statistic of `Int` or `Float` values is a `Float`, of `Decimal`
+  values a `Decimal`; an `Int` or `Decimal` statistic is computed exactly
+  and rounded once, a `Decimal` root to 100 significant digits. An
+  undefined statistic is `none`: the mean of nothing, the sample variance
+  of one value, the correlation of a constant side. `quantile` is linear
+  interpolation (type 7) and takes a `Float` or a `Decimal` `q`;
+  `quantiles` is Python's inclusive method; `mode` gives the least of the
+  most frequent values. With `stats` imported, `variance` over `Int`s or
+  `Float`s is ambiguous with the prelude's population `variance` and is
+  written `stats.variance`.
+- Environment variables and invocation arguments
+  ([HQL-0041](doc/proposals/HQL-0041/README.md) part 5). The module
+  `io.env`, imported with `import io.env` and reached as `env`, declares the
+  effectful `var`, `vars`, `arg` and `args`. A program run on its own reads
+  every variable; `env = ["NAME", "PREFIX_*"]` in a workspace's `hql.toml`
+  narrows that, and `hql render` reads none. An unset, a withheld and a
+  non-UTF-8 variable all read as `none`. `--arg name=value`, repeatable,
+  passes an argument, always granted; a name outside `[a-z_][a-z0-9_]*` or
+  given twice is a usage error, exit 2, before evaluation.
+- The file system as data ([HQL-0040](doc/proposals/HQL-0040/README.md)).
+  `io` declares `Path`, a place in a file system written as text and
+  ordered by its segments, with `join`, `parent`, `name`, `stem` and
+  `extension`, which read the text alone; `file(p)` takes a `Path`. The
+  module `io.fs`, imported with `import io.fs`, declares `Folder`, `Glob`
+  and `Entry` (`path`, `name`, `kind`, `size?`), and the effectful
+  `entries`, `walk`, `glob`, `exists` and `entry`. A listing is a held
+  `Seq<Entry>` in the order of the sorted walk the vault reads its cards in,
+  reports a link without following it, is granted where reading a file is,
+  and is bounded by `[execution] max_elements`. `Path`, `Folder`, `Glob` and
+  `Entry` are built-in type names, so a program declares its own record
+  under another name.
+- Traits ([HQL-0039](doc/proposals/HQL-0039/README.md)): `trait Shape as
+  Figure` declares `Figure`, the union of the types implementing `Shape`,
+  which holds a value of any of them, matches member by member, dispatches
+  `f.area()` on the value's own type and satisfies `T : Shape`. A receiver
+  module lists the traits its type implements, `module shapes.circle for
+  Circle : Shape`, and its own `self` functions are the implementation;
+  `string` and `seq` state `Index` and `Slice` this way, so `string.at(s,
+  1)`, `seq.at(xs, 1)` and `seq.slice(xs, r)` are calls. A trait written as a
+  type is refused, naming the bound `<T : Shape>(x: T)`. A trait extending
+  `Validator` is called a validator trait.
+- Execution contexts ([HQL-0025](doc/proposals/HQL-0025/README.md)): a
+  program's file anchors workspace discovery, which stops at the nearest
+  directory holding `.hmd/` (a vault) or `hql.toml`. `--workspace` names the
+  workspace, `--bare` runs with none, and `hql context` reports the mode,
+  the workspace, the configuration files and the module roots with their
+  layers. The system file (`/etc/hql/config.toml`, `$HQL_SYSTEM_CONFIG`), the
+  user file `~/.hql/config.toml` (`$HQL_HOME`), `~/.hql/modules/` and
+  `$HQL_PATH` contribute module roots, extension settings, report settings
+  and the backend in every mode. Named contexts, `[context.<name>]`, are
+  selected by `--context`, `$HQL_CONTEXT` or `current-context`, and
+  `hql config current-context`, `get-contexts`, `use-context` and `view`
+  manage them.
+- Transactions and relational mutations, phase 1
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)): four capabilities of a
+  transport in `io`, `Transactional`, `Insertable`, `Updatable` and
+  `Deletable`, each an abstract type below `Transport` and independent of
+  the others, which `Sqlite` and `Postgres` declare; `IsolationLevel` with
+  `ReadCommitted`, `RepeatableRead` and `Serializable`; and
+  `configured("id")`, the endpoint configured under an id as a value of its
+  kind's transport type, with its boundary, so `source(configured("id"))`
+  reads what `source("id")` reads and `target(xs, configured("id"))` writes
+  what `target(xs, "id")` writes.
+- Transactions and relational mutations, phase 2
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)): `insert E rows`,
+  `update E | filter(p) | set(f)` and `delete E | filter(p)` change the
+  rows of an `Insertable`, `Updatable` or `Deletable` endpoint in place,
+  each as one statement of the endpoint's system, committed when it ends,
+  with its value the number of rows changed. A clause's lambda is
+  translated, never run row by row: a field of the row, a literal, a value
+  bound outside, comparisons, `and`, `or`, `not`, arithmetic, `contains`
+  of a bound collection and `is_none` or `is_some` of a field; anything
+  else is a check error. The rows' type is the endpoint's configured
+  `element`, or what `of_type(T)`, written first, names; `set` gives the
+  fields that change as a tree, each key a field of the rows. `sqlite` and
+  `postgres` tables take all three. A table that does not exist is not
+  created.
+- `one` in `seq`: the one element of a sequence of exactly one, and an
+  evaluation failure naming the count otherwise.
+- Transactions and relational mutations, phases 3 and 4
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)): `with
+  transaction(attempts = 3, isolation = Serializable) tx on {accounts,
+  transfers} { … }` runs its block as one atomic unit over `Transactional`
+  endpoints of one database, `sqlite` or `postgres`, and commits when the
+  block ends. Inside the block every read and write of a participant runs on
+  the attempt's connection, so a read sees the attempt's own writes. The
+  scope's value is `Result<T, TransactionFailure>`, `T` the block's final
+  value. The handle's control calls, in `io.transaction`, end an attempt:
+  `tx.commit(value)`, `tx.rollback(reason)` and `tx.retry()`, each of type
+  `Never`, written as a statement or an arm of a `given … otherwise` or a
+  `match`. A conflict with a concurrent transaction is retried while
+  `attempts` remain; a constraint violation, a rollback and an exhausted
+  `retry` are the `err` of the result; any other failure rolls the attempt
+  back before it is reported. The checker refuses a nested scope, a
+  participant set spanning two kinds or two databases, a computed set, a
+  transactional endpoint in the block that is no participant, the handle
+  outside a control call, a statement after one, and an isolation level
+  the kind does not offer.
+- Two transaction warnings ([HQL-0051](doc/proposals/HQL-0051/README.md)),
+  both of kind `effect`. A scope written as a statement before a program's
+  last one, its `Result` neither bound nor the program's result, is warned:
+  its failure would be observed by nothing. Under `attempts` written as a
+  number above 1, each `target`, `sink` or log call in the block whose
+  endpoint is no participant is warned, naming the endpoint: it runs on
+  every attempt and is not rolled back.
+- The module `io.db.spark` ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Spark :
+  {Network, RowTransport, Replayable, Writable, …}` and its constructor
+  `spark(table = …, url = …, url_env = …, token_env = …, order = [])`,
+  every parameter named, so `source`, `tap` and `target` reach a lakehouse
+  table with no configured endpoint. A `spark` table takes `insert`,
+  `update` and `delete`, each one Spark SQL statement, and a transaction
+  scope over it holds that one table and at most one statement that
+  changes it, since a Delta table commits one statement of itself
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)).
+- The module `io.db.postgres` ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Postgres :
+  {Network, RowTransport, Replayable, Writable, …}` and its constructor
+  `postgres(dsn_env = …, table = …, order = [])`, every parameter named,
+  which takes the keys of the `postgres` kind, so `source`, `tap` and
+  `target` reach a table with no configured endpoint. The connection string
+  is read from the environment where the endpoint is used.
+- Analytic windows ([HQL-0050](doc/proposals/HQL-0050/README.md)):
+  `over(by, order, into)` partitions a sequence by `by`, orders each
+  partition by `order`, and gives one value per row, at the row's input
+  position, from the row and its `Window`. A window gives `row_number`,
+  `rank`, `dense_rank`, `lag`, `lead`, `first`, `last`, `size` and the
+  frames `running`, `rows(before, after)` and `whole`. `into` may not give
+  a window, and `over` of a `Stream` is refused.
+- `then` composes two comparisons into one, the second deciding a tie:
+  `compare(a.at, b.at) | then(compare(a.seq, b.seq))`.
+- The module `io.db.sqlite` ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Sqlite :
+  {Direct, RowTransport, Replayable, Writable}` and its constructor
+  `sqlite(path, table, order = [])`, which takes the keys of the `sqlite`
+  kind, so `source`, `tap` and `target` reach a table of a database file
+  with no configured endpoint. A row transport takes no format. An
+  annotated read decodes each column as its type holds it; `sink` to a
+  constructed table is refused, naming `target`.
+
+- Kafka topics and PostgreSQL tables as configured endpoints
+  ([HQL-0046](doc/proposals/HQL-0046/README.md)). `kind = "postgres"`
+  (`dsn_env`, `table`, `order`) is read by `source("id")` as a `Seq` through
+  the boundary and written by `target("id")` by `mode`, `replace` emptying
+  the table and keeping its definition; a `numeric` column keeps its digits.
+  `kind = "kafka"` (`brokers` or `brokers_env`, `topic`, `from`, `idle_ms`)
+  is read by `tap("id")` as a `Stream`, one JSON document per message;
+  `source("id")` of a topic is a type error.
+- `sink("id")` writes to a configured topic, a message per value, or table,
+  a row per value, as each arrives, so `tap("events") | sink("archive")`
+  moves a topic into a table.
+- `dsn` is a secret key in `[endpoint.<id>]`, named by `dsn_env`.
+- NATS subjects and lakehouse tables as configured endpoints
+  ([HQL-0049](doc/proposals/HQL-0049/README.md)). `kind = "nats"` (`url` or
+  `url_env`, `subject`, `idle_ms`) is one core NATS subject: `tap("id")`
+  subscribes and is given what is published from then on, and `sink("id")`
+  publishes with nothing confirming it. `kind = "nats_jetstream"` (`url` or
+  `url_env`, `stream`, `subject`, `from`, `idle_ms`, `consumer`) is one
+  subject of a JetStream stream, read by `tap("id")` in the stream's order
+  and written by `sink("id")`, each message acknowledged by the stream.
+  `kind = "spark"`
+  (`url` or `url_env`, `token_env`, `table`, `order`) is one table behind a
+  Spark SQL endpoint, a Databricks SQL warehouse or a Spark Thrift Server,
+  read by `source("id")` as a `Seq` through the boundary and written by
+  `target("id")` or `sink("id")`; a `DECIMAL` column keeps its digits.
+- A `url` that holds credentials is refused in `[endpoint.<id>]`, naming
+  `url_env`.
+- `consumer = "name"` on a `nats_jetstream` endpoint reads through a durable JetStream
+  consumer: the server keeps the read's position under that name, so a
+  later read starts after the last message acknowledged. A message is
+  acknowledged once the program asks for the one after it.
+- The modules `io.msg.nats` and `io.msg.nats_jetstream`
+  ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transports `Nats` and
+  `NatsJetStream`, and their constructors `nats(subject, url_env = …)` and
+  `nats_jetstream(subject, stream = …, url_env = …)`, each taking its kind's
+  keys, so `tap`, `sink` and `target` reach a subject with no configured
+  endpoint. `io` declares `Transport`, `Direct`,
+  `Network`, `ByteTransport`, `MessageTransport` and `RowTransport`; over a
+  `MessageTransport` a format may be omitted and is then `Json`.
+- Digests and text encodings ([HQL-0041](doc/proposals/HQL-0041/README.md)
+  part 3). The module `crypto.digest`, imported with `import crypto.digest`
+  and reached as `digest`, declares the algorithms `Md5`, `Sha1`, `Sha256`,
+  `Sha512` and `Blake3`; `s.digest(Sha256)` is the lowercase hex digest of a
+  text's UTF-8 octets, and `fingerprint(x)` the SHA-256 of a tree's
+  canonical JSON (RFC 8785), equal for trees HQL equality calls equal. The
+  module `encoding`, imported with `import encoding`, declares `Hex`,
+  `Base64`, `Base64Url` and `Percent`; `s.encode(E)` writes a text's octets,
+  and `s.decode(E)` reads them back, `none` for text not valid in `E` or
+  octets that are not UTF-8. The algorithm and encoding names are built-in
+  type names.
+- `Bytes`, a finite sequence of octets ([HQL-0053](doc/proposals/HQL-0053/README.md)
+  part 1). `Bytes("hé")` is a text's UTF-8 encoding; `Bytes(t, Hex)`,
+  `t.to_bytes(Base64)` and `b.encode(Hex)` convert through `encoding`. The
+  prelude's `bytes` module gives `size`, `to_text`, `at` and `slice`, so
+  `b[0]` is an octet as an `Int` and `b[0:12]` is `Bytes`; `+`
+  concatenates, and values order octet by octet. A value prints as `0x`
+  and lowercase hex, a text format writes it as base64, and a declared
+  `Bytes` field reads base64 text. `crypto.digest` gains `digest` over
+  `Bytes` and `canonical`, the RFC 8785 text `fingerprint` digests.
+- Keys ([HQL-0053](doc/proposals/HQL-0053/README.md) part 2). `import
+  crypto` declares the algorithms `Ed25519`, `P256`, `Rsa` and `X25519`,
+  the key formats `Pem`, `Jwk`, `OpenSsh` and `Age`, and `PublicKey<A>`,
+  `PrivateKey<A>`, `KeyPair<A>` and `SecretKey<A>`. Keys are read from
+  text and DER (`PublicKey(text, Pem, Ed25519)`, `read_private_key`,
+  encrypted PKCS #8 and OpenSSH keys with `passphrase`), written with
+  `to_text`, `to_der` and `export_private`, named by their RFC 7638
+  `thumbprint`, and generated by `generate_key_pair` and
+  `generate_secret_key`. A format that holds no key of the algorithm is a
+  check error. `PrivateKey`, `KeyPair` and `SecretKey` are `Secret`: each
+  prints as its public key's thumbprint or `redacted`, no format writes
+  one, `==` does not compare one, and a private key written into a
+  program's source is refused.
+- Signatures, MACs and password hashes ([HQL-0053](doc/proposals/HQL-0053/README.md)
+  part 3). `sign` and `verify` over `String` and `Bytes`, and `sign_data`
+  and `verify_data` over the canonical JSON of a tree, for `Ed25519`, `P256`
+  (r || s, as JWS ES256; `p256_signature_from_der` converts OpenSSL's DER)
+  and `Rsa` (PKCS #1 v1.5 over SHA-256); `verify` gives `false`, never an
+  error. `mac` and `verify_mac`, constant-time, under `HmacSha256` and
+  `HmacSha512`. `hash_password` writes an Argon2id PHC string at no less
+  than OWASP's cost, and `verify_password` checks one.
+- `+` concatenates formatted text, `source(file(p), Text)`'s documents
+  among it, as the `String` it is.
+- Encryption ([HQL-0053](doc/proposals/HQL-0053/README.md) part 4).
+  `encrypt` and `decrypt` under `Aes256Gcm` or `ChaCha20Poly1305` (nonce,
+  ciphertext, tag; `aad` bound); `encrypt_to` and `decrypt_with` in the age
+  v1 format to X25519 recipients, `encrypt_with_passphrase` and
+  `decrypt_with_passphrase` under age's scrypt (a work factor above 22
+  refused), and `armor` and `unarmor`. `encrypted_to(endpoint, recipients)`
+  and `decrypted_with(endpoint, identity)` wrap a byte endpoint: `target`
+  and `sink` write one age file, replaced once its last chunk is written;
+  `source` authenticates every chunk before any document, and `tap` gives a
+  chunk's documents once it is authenticated. `orders.jsonl.age` under
+  either wrapper is JSON Lines. `hql render` refuses every operation that
+  draws from the host generator.
+
+### Fixed
+
+- A missing value inside a data tree prints `none`, as it is written and as
+  it prints elsewhere: `{a: none}` printed `{a: empty}`, which reads back as
+  nothing.
+- A PostgreSQL serialization failure, deadlock or constraint refusal inside
+  a transaction scope no longer panics: the refusal is noted while the
+  attempt holds its connection, and the scope retries or fails as it does
+  over SQLite.
+- After `import doc`, `HmdDoc`, `HmdCard` and `MdCard` are types: `cards |
+  of_type(HmdCard)` keeps the cards written in hyper-markdown and
+  `of_type(MdCard)` those in Markdown, beside a card's kind. They were
+  unknown types. A program's own subtype of `Card`, `type TaskCard : Card {
+  metadata : Task }`, is refused in `of_type` and `is`, naming `c.metadata |
+  T`; it gave an empty result.
+- A call of a name no import offers, written with named arguments only,
+  reports the missing import rather than a missing positional input.
+- A function declared without an input, called with its module,
+  `time.now()` or `env.vars()`, checks as the bare call does. It was
+  refused as needing its input as the first argument.
+- A program that declares a type named as a standard library type parameter,
+  `type R`, no longer loses the fields of the library's records, such as
+  `Entry`'s: the library's declarations are read by name, and checked where
+  the library is checked.
+- A list or a record field of a declared record written to a topic, a
+  subject or a JSON, JSON Lines or YAML file is written as a list or a map.
+  It was written as its text.
+- `hql help`, `:help` and `:type` end a function's signature after its
+  result type, an alias's after its parameters, and a trait function's after
+  its result type (issue 0056). A block body printed its opening `{` and
+  first line in the signature, and a body opening with `(` printed the `(`.
+- A network endpoint no longer waits forever on a server that does not
+  answer. A connection to an `http`, `websocket` or `tcp` endpoint not made
+  within 10 seconds fails, and so does an `http` response or a WebSocket
+  handshake that sends nothing for 30 seconds; each failure names the URL
+  or the address. `http(url, timeout_ms = n)` sets one endpoint's response
+  bound ([HQL-0047](doc/proposals/HQL-0047/README.md), issue 0069).
+
+### Changed
+
+- **Breaking:** `Unit` is renamed `Step`, the type of a statement that ran
+  and gave no other value, and is a subtype of a new builtin `Aute`, an
+  atomic unit of execution completed (HQL-0055). `target`, `sink`, the
+  mutations and the log calls give `Step`, and `hql check` prints it. `Unit`
+  where a type is expected is refused: ``Unit` is now `Step` ``. A program's
+  own `type Step` or `type Aute` is refused; rename it.
+- **Breaking:** a String's `length` is withdrawn; `size` counts its code
+  points, as it counts a collection's elements (HQL-0014, issue 0047).
+  `s.length()` and `s | length` are refused with help naming `s.size()`.
+- **Breaking:** `net.socket(host, port)` is renamed `net.tcp(host, port)`,
+  and its type `Socket` is `Tcp` (HQL-0047). Both old names are refused,
+  naming the new ones.
+- **Breaking:** inside a transaction scope, an unbounded `Stream` written by
+  `sink` to a participant is refused, naming `take(n)` and `collect(n)`: a
+  transaction ends, and such a stream may not (HQL-0051).
+- HQL is described as strongly typed. The book's type-system chapter and
+  the type system card define the term.
+- `Window` is a standard type, so a program's own `type Window` is
+  refused; rename it.
+- `sort` is stable: elements that compare equal keep their input order.
+- **Breaking:** `hql run`, `check`, `plan` and `boundary` find the vault
+  from the program file's directory, not the working directory, so
+  `hql run ~/notes/q.hql` runs in `~/notes`'s vault from anywhere. A
+  malformed `[modules] roots` or `[extensions]` in `hql.toml` fails the run,
+  naming the file.
+- **Breaking:** a configured id is an endpoint, declared under
+  `[endpoint.<id>]` in `hql.toml`, with its boundary under
+  `[endpoint.<id>.fields.<field>]`. `[sources.<id>]` is refused, naming the
+  new table. The id is read by `source` and `tap` and written by `target`
+  and `sink`, so the table no longer says only one of the two. Diagnostics
+  name it as an endpoint: ``no endpoint `count` is configured``.
+
+## [0.5.2] — 2026-10-25
+
+### Changed
+
+- The error model ([HQL-0045](doc/proposals/HQL-0045/README.md), shown in the
+  [error-handling examples](examples/error-handling/README.md)): a failure is
+  data or it is a diagnostic. A diagnostic names its `phase` (`load`,
+  `parse`, `check`, `plan`, `execute`, `render`), its `kind`, a stable
+  kebab-case name, its `severity` and its `disposition` (`warning`,
+  `recoverable`, `fatal`), each set by the phase that wrote it; the severity
+  is no longer derived from a stage. A contract read `x | T` that fails is
+  an `execute error[contract-violation]` carrying the `Violation`s
+  `validate` would give; a data failure found while executing is of the
+  `execute` phase, where it was stamped `type`. A `Data` value of the
+  wrong shape, `name` read from a string, is an
+  `execute error[shape-mismatch]`.
+- The text form of a diagnostic is headed by its phase, severity and kind,
+  `check error[type-mismatch]: …`, where it named a stage,
+  `type error: …`. A nearest name moves out of the message onto a
+  `= help:` line, a second place in the source onto a `= note:` line, and
+  an element a step failed on onto `= element:`. A count of several reads
+  `3 diagnostics: …`, where it read `3 reports: …`.
+- `--envelope json` carries the run's diagnostics under `diagnostics`, where
+  it carried `reports`; each has `phase` and `kind` in place of `stage`.
+- In `hql repl` each line typed is its own origin, `<repl:N>`, counted in
+  what was typed: the second line's diagnostic points at `<repl:2>:1`, where
+  it pointed into the replayed session.
+- The library API: `Outcome.reports: Reports` is
+  `Outcome.diagnostics: Vec<Diagnostic>`, the channel's contents in order;
+  `Diagnostic` is one record, and `Report`, `Reports` and `Warning` are
+  removed.
+
+### Added
+
+- One diagnostic channel per run, opened before the vault loads and closed
+  after the last phase: every phase writes into it, in order, and a fatal
+  diagnostic leaves what was written before it intact. The program holds no
+  name for it. A host may tap it; a tap does not keep the run open.
+- The loader writes `load warning[skipped-document]` for a document it does
+  not load, a header that does not parse among them, and reads the rest; a
+  warning does not change the exit status.
+- `--diagnostics-format json` writes each diagnostic to standard error as
+  one JSON document per line, every field that applies present.
+- Under `--report collect`, `map` steps past an element whose function
+  failed and writes the diagnostic as `recoverable`; the value stands
+  without the element and the exit status is still `1`. An overflow or an
+  I/O failure stops under both modes.
+- A naming-convention warning gives the conventional spelling as help:
+  ``write it `total_of` ``.
+- `Diagnostic` is a record of the standard library: diagnostics a run
+  delivered with `--diagnostics-format json` read back in a later run with
+  `source(file(p), JsonLines) | Diagnostic`.
+- `DiagnosticText` is a format a program names: `| format(DiagnosticText)`
+  writes `Diagnostic` records as the report a run prints, and `--to
+  diagnostictext` names it.
+- A failure inside called functions carries a `call` frame for each call
+  that reached it, outermost first, and the `bindings` of the function or
+  lambda it failed in; one over a card's value names the card's document as
+  its `source`. The text form shows them as `= trace:`, `= bindings:` and
+  `= source:` lines.
+- Under `--report collect`, `filter` and `flat_map` step past a failing
+  element as `map` does, each naming itself as the step.
+- A cell's diagnostics in `hql render` name the cell as their origin,
+  `path#id` or `path#index`, with a `= cell:` line in the text form.
+- A document renders only in a vault. `hql render` finds a document's vault
+  from the document, not the working directory, so it renders from
+  anywhere; a document in no vault is `load failure[missing-vault]`, runs no
+  cell and exits `1`. A program outside any document still runs without a
+  vault.
+- `--vault` names a vault: a directory holding neither `.hmd/` nor
+  `hql.toml` is refused, where it was read as one.
+
+### Fixed
+
+- A card's `path` is its place in the vault, `authors/frank-herbert.hmd`,
+  as `lib/std/doc` declares it. It was the vault root joined with it, so the
+  same card's path depended on the working directory and on how the vault
+  was named. A diagnostic's `source` and a skipped document's origin name the
+  same path.
+- Chapter 18 of the book, [Errors](doc/public/learn/18-errors/index.md):
+  failures kept as data, diagnostics and the run's channel, `strict` and
+  `collect`.
+
+## [0.5.1] — 2026-10-25
+
+### Fixed
+
+- The documentation site and the crate are published for this version;
+  0.5.0 was released on GitHub only, with neither.
+
+## [0.5.0] — 2026-10-25
+
+### Changed
+
+- A `Decimal`'s significand is bounded at 512 bits and its scale at 154
+  digits ([HQL-0031](doc/proposals/HQL-0031/README.md)). A literal outside the
+  bounds is a syntax error, `to_decimal` gives none, and arithmetic or
+  `round` past them is a numeric overflow, where before a large exponent or
+  place count exhausted memory.
+
+### Fixed
+
+- `zip` of a stream with a list, in either order, is a `Seq` traversed one
+  position at a time; it failed with "needs a collection".
+- `Data` number leaves compare transitively: an integer and a float leaf of
+  one value are equal, as each already was to a decimal leaf.
+
+### Added
+
+- Doc strings ([HQL-0042](doc/proposals/HQL-0042/README.md), shown in the
+  [doc-string sessions](examples/doc-strings/README.md)): a block of `///`
+  lines opened after an empty line documents the declarations below it, up
+  to the next empty line. A doc block anywhere else, one with no declaration
+  directly below it, or a binding or expression in a documented paragraph is
+  a syntax error. Every exported declaration of the standard library carries
+  one, and its citations of published pages, `[[/learn/…]]`, are checked.
+- `hql help <name>` and `:help <name>` in `hql repl` print each declaration
+  of a function, type, trait or module, with its module and its doc string;
+  a citation prints as its page's URL under the binary's version. A name
+  nothing declares names the nearest one, and `hql help` exits `1`.
+- `:type <function>` in `hql repl` prints each declaration of the function,
+  the standard library's or the session's own, with its module and the
+  first sentence of its doc string.
+- `hql builtins` describes each step with the first sentence of its doc
+  string; the Rust descriptions it printed before are gone.
+- The site gains a page for every function, type, trait and module of the
+  standard library under `reference/`, written from the doc strings by
+  `hql reference` when a release is cut
+  ([HQL-0043](doc/proposals/HQL-0043/README.md)). Each release's site is
+  published under `/vX.Y.Z/`, and `/latest/` is the newest.
+- `+` on two strings is concatenation: `String` implements `Add`, so
+  `"- [ ] " + title` and `reduce("", +)` over strings type-check. Both
+  operands are strings; `"a" + 1` is still a type error.
+- `hql repl` leaves on the bare words `exit` and `quit`, as it does on
+  `:quit` and Ctrl-D; they were unbound names.
+- A value block as a function body ([HQL-0038](doc/proposals/HQL-0038/README.md);
+  [issue 0051](doc/issues/archive/0051-value-block.md), shown in the
+  [function examples](examples/functions/README.md)): `{ … }` written without
+  `=` is bindings followed by a final expression, which is the function's
+  value and has its declared result type. Any `fn` takes one, a trait's
+  default body and an `impl` function included. A block containing `yield`
+  stays an iterating block; a block that yields and ends in an expression,
+  one that only binds, and `for` in a value block are refused.
+
+- `Decimal`, an exact decimal number ([HQL-0031](doc/proposals/HQL-0031/README.md);
+  [issue 0042](doc/issues/archive/0042-decimal.md), shown in the
+  [decimal examples](examples/decimal/README.md)): a number written with a
+  decimal point, `12.50` or `1.5e-3`, is an arbitrary-precision `Decimal`
+  whose scale is kept for display and whose equality and order are by value;
+  a `Float` is written with the suffix `f`, `0.5f`, `6.02e23f` or `2f`.
+  `+`, `-` and `*` are exact, `/` is exact where the quotient terminates and
+  otherwise rounded half to even to 100 significant digits, and
+  `round(x, places)` rounds half to even. `Decimal` is `Scalar` and
+  `Orderable`, and `min`, `max`, `sum`, `product`, `average`, `abs` and
+  `sign` take it. An `Int` beside a `Decimal` widens to one; a `Float` beside
+  one is a type error naming `decimal(x)` and `float(d)`. `decimal`, `float`,
+  `int` and `s.to_decimal()` convert. A JSON or YAML number or a CSV cell
+  read as a `Decimal` keeps its digits, and a `Decimal` is written to JSON
+  and YAML as a number with its scale, and to CSV and text as its digits.
+  A program that passes a literal with a decimal point to a `Float`
+  parameter, or mixes one with a `Float`, now writes the suffix `f`.
+- Contract rules and defaults ([HQL-0032](doc/proposals/HQL-0032/README.md);
+  [issue 0043](doc/issues/archive/0043-contract-validation.md), shown in the
+  [structural examples](examples/structural/README.md)): a `TypeContract` or
+  `DataContract` body takes `require P` and `validate f with V` beside its
+  fields, and `name: T = literal` defaults. In a rule `f?` reads an optional
+  field, applying the rule only where it is present, or tests its presence
+  as a condition, and `=>` is implication. `x | T` and a decoded stream
+  check every rule, and a value that breaks some is an evaluation error
+  naming each as written. A contract's constructor, `T(…)`, fills its
+  defaults and checks its rules too. `warn P` is a rule whose violation
+  leaves the value valid, and `as name` names a rule, reported as
+  `Contract.name`. A default may be a list, set or `Data` literal of
+  literals, never a call.
+
+- Errors as values ([HQL-0033](doc/proposals/HQL-0033/README.md), shown in
+  the [structural examples](examples/structural/README.md)):
+  `x | validate(T)` reads a `Data`, a collection or a stream as `T` and
+  gives a `Result<T, Invalid>` for each value instead of stopping. An
+  `Invalid` holds the value and every `Violation` of it, each with its
+  contract, path, kind (`missing`, `undeclared`, `type` or `rule`), rule
+  identity, the rule as written and a message; a value that breaks only
+  warnings is `ok`. `oks()` and `errs()` keep the successes and the
+  failures of a collection of results. A `missing` or `type` violation
+  fills `expected` with the type the field was read as, and a `type` or
+  `undeclared` one fills `actual` with the tree the field holds;
+  `Violation.severity` defaults to `"error"`, so `| Invalid` reads a stored
+  `Invalid` back. `x | T` and `x | validate(T)` derive their violations from
+  one reading, so the fail-fast diagnostic says each error's message.
+  `oks()` and `errs()` take a `Stream` of results to a `Stream`, one value
+  at a time, as they take a `List`, `Seq` or `Set` to its own kind.
+
+- `fork`, broadcast fan-out ([HQL-0037](doc/proposals/HQL-0037/README.md),
+  shown in the [dataflow examples](examples/dataflow/README.md)):
+  `xs | fork { a = …, b = … }` gives every branch the same input, evaluated
+  once, and its value is the record of the branches' results, typed
+  `{a: A, b: B}`. `{ a, b } = xs | fork { … }` binds the branches, and
+  over a `Stream` each branch is a stream in the upstream's order.
+  A producer bound once is evaluated once: a `tap` of a file is read once
+  and replayed for every later traversal, as standard input and sockets
+  were, and a pure branch of a bound `fork` that nothing reads is not run.
+  `fork { accepted = oks(), rejected = errs() }` gives both sides of a
+  `List`, `Seq` or `Stream` of results. Rejected values written with
+  `errs() | sink(…)` read back with `| Invalid`, `null` for an absent
+  `expected` or `actual`, and repair from `e.value`.
+  `xs | retry(operation, attempts = n, when = …)` reinvokes a fallible
+  operation for each value while it fails, up to `attempts` invocations,
+  the last failure standing; over a stream it is a stream. HQL-0033 is
+  accepted, and HQL-0032's validation result and stream-routing sections
+  are marked superseded by it.
+
+- Fan-in over streams ([HQL-0037](doc/proposals/HQL-0037/README.md)):
+  `a | merge(b)` interleaves two streams, one value from each in turn,
+  `a | zip(b)` pairs them by position, and `a | concat(b)` produces one and
+  then the other. `merge` keeps its map form; over a `List`, `Seq`, `Set`
+  or `Table` it is a type error naming `concat` or `union`, and `f = merge`
+  with no expected function type is an ambiguous reference.
+  `hql plan` names each step's topology, `fan-out` or `fan-in`, and lists a
+  `fork`'s or `tee`'s branches beneath it.
+
+- Validator types ([HQL-0034](doc/proposals/HQL-0034/README.md), shown in
+  the [structural examples](examples/structural/README.md)): a trait may
+  extend others, `trait Email : Validator { }`, and has their functions as
+  its own. A trait extending the core trait `Validator` is a validator type.
+  `validate f with V` holds where `V`'s `validate` of the field is true, and
+  is a type error where the field's type does not implement `V`; a field
+  declared `f: V` is of the type implementing `V` and is held to it,
+  reported as the violation `Contract.f`. `import validators` gives the
+  standard validator types, `Email` and `NonEmpty`, the first module of
+  the standard library written in HQL rather than declared for an
+  extension; a validator implemented for several types is named in a rule.
+
+- `Table<R>` ([issue 0044](doc/issues/archive/0044-typed-tables.md), shown in the
+  [constructors examples](examples/constructors/README.md)): a table is
+  typed by its row, `[Book(…)] | Table` a `Table<Book>` and a table of
+  `Data` maps a `Table<Data>`. `Table` written without its row is
+  `Table<Data>`, and a `Table<Book>` is not a `Table<Film>`.
+
+- Schema boundaries in `hql.toml` ([HQL-0035](doc/proposals/HQL-0035/README.md)):
+  a configured source maps its fields under
+  `[sources.<id>.fields.<field>]` with `name` or a dotted `path`, `type`,
+  `position`, `read`, `write` and `absent`, and keys its kind's extension
+  owns in a subtable named by the kind; a malformed boundary refuses the
+  vault. One resolver merges the format's defaults, the configuration and
+  an invocation's override field by field, each property keeping its
+  origin, and reports every boundary error at once: an undeclared or
+  unmapped field, a shared or missing external field, and an external type
+  with no decoder. A source read as a declared record is read through its
+  boundary: a CSV header, a nested JSON `path` and a SQLite column map onto
+  a field, and a SQLite source selects only the columns the record reads.
+  An optional field is absent where its external field holds what its
+  `absent` lists, each format's default or the boundary's own. A
+  `Decimal` field is a JSON and YAML `string` by default and reads a
+  string's digits; a representation that may not keep its value needs
+  `lossy = true`. `xs | target("id")` writes a `Table<R>` or a sequence of
+  a declared record through the boundary to CSV, JSON, JSON Lines, YAML or
+  SQLite, the columns in position order and a field with `write = false`
+  left out, as the target's `mode`, `create`, `append` or `replace`, says.
+  A source's `strictness` says what a read does with an external field no
+  HQL field reads: `compatible` passes it to the type, `open` does not read
+  it, `warn` does not read it and reports it, and `strict` refuses it.
+  `hql boundary <file> <id> [--as T]` prints a source's effective
+  boundary, each property with the layer it comes from, or every boundary
+  error.
+
+### Changed
+
+- `partition` redistributes by key ([HQL-0036](doc/proposals/HQL-0036/README.md),
+  shown in the [dataflow examples](examples/dataflow/README.md)):
+  `xs | partition(by = f)` over a `Seq` or a `Stream` keeps the input's
+  type and every value, and is a stage boundary in a plan; the local
+  backend passes the values on in order. The predicate
+  `partition(by: T -> Bool) : Pair<List<T>, List<T>>` is removed: its
+  values are two branches of a `fork`,
+  `fork { yes = filter(p), no = filter(x => not p(x)) }`.
+
+### Fixed
+
+- A record declared under another record, `type Sub : Base = {…}`, has its
+  parent's fields, the parent's first: `Sub(n = 1, m = 2)` builds and
+  `(d | Sub).n` reads. A contract's rules read inherited fields, and a value
+  read as `Sub` holds `Base`'s rules before its own.
+- `Table` ([HQL-0017](doc/proposals/HQL-0017/README.md);
+  [issue 0039](doc/issues/archive/0039-table-shape-and-presentation-review.md), shown
+  in the [constructors examples](examples/constructors/README.md)):
+  `Table(xs, columns = [...])` builds rows from records or `Data` maps, the
+  columns in the order named, or the first row's fields. Each format writes a
+  `Table` with its own encoder, with no renderer named: `Text` aligned
+  columns, `Markdown` and `Hmd` a pipe table, `Csv` rows header first, `Json`
+  and `Yaml` an array of objects, keys in column order. A column naming no
+  field of a declared record is a type error. The
+  [presentation](doc/wiki/hql/presentation.hmd) card states the
+  presentation model.
+- Declaration visibility ([HQL-0028](doc/proposals/HQL-0028/README.md);
+  [issue 0038](doc/issues/archive/0038-import-units-and-visibility.md), shown in the
+  [Mighty Types programs](examples/mighty-types/README.md)): `private` before
+  a function, a type, a trait or a binding of a module makes it visible
+  within that module only. No importer reaches it, by name, as a receiver
+  call or as a step; a private type is named by no importer; a public
+  signature that mentions a private type or trait is refused. `private` is
+  refused on an `impl` and in a program, and `internal` is reserved. A
+  module's public bindings are read as `m.name`.
+- Typed decoding ([HQL-0021](doc/proposals/HQL-0021/README.md), accepted,
+  implemented in part; [issue 0037](doc/issues/archive/0037-io-typed-decoding.md),
+  shown in the [I/O examples](examples/io/README.md)): the declared type of a
+  binding or a function result decodes each document of a read as a declared
+  record, `s : Seq<Sighting> = source(file("birds.jsonl"))`, a live read one
+  document at a time. A CSV cell is parsed as the scalar its field declares.
+  A document that does not decode is an evaluation error naming the
+  endpoint, the document and the field.
+
+- Purity is declared in HQL ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.md),
+  [issue 0036](doc/issues/archive/0036-contracts-receivers-purity-identities.md)):
+  `effectful fn source(…)` declares an external operation effectful and a
+  plain `fn` pure, and binding refuses an extension whose own marking
+  differs. `std/io/mod.hql` and `std/io/logging.hql` declare `file`,
+  `source`, `tap`, `target`, `sink`, `Logger` and the five log levels.
+  `effectful` before a function with a body is a syntax error: such a
+  function is effectful exactly when its body uses an effectful operation.
+
+- Slices ([HQL-0026](doc/proposals/HQL-0026/README.md), shown in the
+  [slicing corpus](examples/slicing/README.md) and stated in
+  [the bracket operator](doc/wiki/hql/operators/bracket-op.hmd)): `xs[a:b]`,
+  either bound left out, takes the part between two positions, of the
+  receiver's own type, its bounds clamped so a slice never fails. `a:b` is a
+  `Range`, a core record a program also builds and passes to the bracket. A
+  String is indexed and sliced by character, `"hello"[1:3]`. A Stream's
+  bounded slice is a List and an open one a Stream, produced lazily. The core
+  trait `Slice` gives a declared type the bracket, and `Seq`, `String` and
+  `Data` implement it natively.
+
+- A type's constructor is an operation declared in HQL
+  ([HQL-0018](doc/proposals/HQL-0018/README.md), shown in the
+  [constructors corpus](examples/constructors/README.md)): `List`, `Set`,
+  `Map`, `OrderedMap`, `SortedMap`, `Graph`, `Channel` and `Data` are
+  declared as `fn` beside their types in `std/` and bound to the binary's
+  constructors. A program declares its own, `fn Temp(celsius: Float) : Temp`
+  beside `type Temp`, several told apart by their first parameter, called,
+  piped or passed to `map`; a constructor value whose expected parameter
+  fits no form or several is refused naming them. Text is parsed by
+  construction: `Data(s, Json)`, `s | Data(Csv)`.
+
+- A `Data` tree is read as a record the program declares, by its shape
+  ([HQL-0016](doc/proposals/HQL-0016/README.md), shown in
+  [reading records](examples/mighty-types/queries/26-reading-records.hql)):
+  `d | is(Book)`, `of_type(Book)` and a `Book b` arm of `match` take a map
+  with an entry for every required field at its type, ignore the entries
+  `Book` does not name, and bind or keep the `Book` its constructor builds.
+  A built-in record, a card kind among them, is not read from a tree.
+
+- Generic traits ([HQL-0027](doc/proposals/HQL-0027/README.md), shown in the
+  [generic traits corpus](examples/generic-traits/README.md)): a trait takes
+  type parameters, `trait Index<T>`, an implementation its own,
+  `impl<T> Index<T> for Ring<T>`, and a bound names a generic trait,
+  `E : Index<T>`, a call filling `T` from the implementation that applies.
+  One type may implement a trait at several arguments, chosen by a call's
+  argument types; overlapping implementations are refused, generic or
+  concrete. `Index<T>` is a core trait: `xs[i]` over a declared type is its
+  `xs.at(i)`, and a sequence and Data implement it natively. The codec
+  contracts are the traits `Decoder<T>` and `Encoder<T>` over the format,
+  their native headers bound to the decoder and encoder tables.
+
+- Overloaded declarations in the standard library: one name declared more
+  than once in a `std/` module is one operation with several signatures, and
+  a call takes the first its input and arguments fit. A bound written with
+  arguments, `S : Seq<T>`, holds the input at its own type, and a constructor
+  parameter, `F<_> : Iterable<_>`, rebuilds it around another element as
+  `F<U>`; `Type<U>` takes a type name. The core's collection operations,
+  `std/collections.hql`, are declared this way rather than described in
+  comments: `take`, `sort`, `collect`, `emit`, `flat_map`, `reduce`, `count`,
+  `sum`, `product` and `average` by overload, `map`, `of_type` and `somes`
+  over `F<_>`, `filter` and `drop` over `S`, and `map` and `filter` over one
+  `Option` and `map` over a `Result` as overloads of their own. So are `reverse`, `distinct`,
+  `take_while`, `drop_while`, `min_by`, `max_by`, `with`, `without`,
+  `intersection` and `difference` of `seq`, and `abs`, `pow` and `sign` of
+  `math`, over an `Int` or a `Float`. `hql builtins` prints each overload.
+  Every core, `seq`, `math`, `string` and `format` operation now takes its
+  types from its declaration ([issue 0033](doc/issues/archive/0033-overloaded-declarations.md),
+  shown in the [overloads corpus](examples/overloads/README.md)):
+  - A `/` in an external declaration ends the parameters a call supplies by
+    position only, and a `*` opens those it supplies by name only:
+    `count(value = 1)`, `contains(value = 1)`, `get(key = …)` and
+    `pow(exponent = 2)` are refused, and `format`'s `limit` and `renderer`
+    are named.
+  - An overload is chosen by its value arguments' types where the input and
+    the arity leave several; a call that fits no form, `2 | pow(2.0)`, is
+    refused naming every form of that arity.
+  - Binding refuses an overload declared after one that takes every call it
+    fits.
+  - `format` and its shorthands are declared in `std/format.hql`, a stream
+    giving a `Stream<String>` and a collection or any other value a `String`.
+  - `fmt` is declared `fmt(self, args: ...Any)`: `...Any` takes a value of
+    any type in each position, where `...T` binds one type for them all.
+  - A constructor parameter takes as many arguments as its bound,
+    `M<_, _> : Map<_, _>`.
+  - The narrowing `filter(x => x | is(U))` is a declaration whose predicate is
+    a `T -> Is<U>`, binding `U` to the type tested.
+
+- String functions in the prelude
+  ([issue 0031](doc/issues/archive/0031-missing-string-functions.md)):
+  `last_index_of`, `occurrences`, `strip_prefix` and `strip_suffix` (an
+  `Option`), `trim_prefix` and `trim_suffix` (the text unchanged when the part
+  is missing), `is_blank`, `equals_ignore_case`, `to_bool`, `ord`, `chr`,
+  `bytes` (UTF-8), `truncate` and `center`. `split` takes an optional
+  `limit` that keeps at most that many pieces, the last holding the rest.
+
+- A complete type system and the language model around it, from
+  [HQL-0024](doc/proposals/HQL-0024/README.md), shown program by program in
+  the [Mighty Types corpus](examples/mighty-types/README.md):
+  - Records: `type Point { x : Int, y : Int }` is a type of the program,
+    constructed as `Point(x = 1, y = 2)` or `Point(1, 2)`, read with `p.x`,
+    generic over its fields, `Stack(items = [1])` being a `Stack<Int>`, and
+    matched by type inside a union, which a `match` must cover.
+  - Receiver calls: `value.f(args)` calls `f` with the value first, resolved
+    among the visible modules by the receiver's type; `module.f(x)` qualifies
+    one. Two modules may declare one name, `contains` of a String and of a
+    collection, told apart at the call.
+  - The `string`, `seq`, `math`, `option` and `result` modules of the
+    prelude, which is the import list of `std/prelude.hql`: `str`, `fmt`,
+    `trim`, `split`, `join`, `first`, `last`, `zip`, `enumerate`, `range`,
+    `any`, `all`, `find`, `take_while`, `window`, `distinct`, `to_map`,
+    `with`, `entries`, `join` of two collections, `sqrt`, `pow`, `int`,
+    `float`, `unwrap_or`, `and_then` and the rest; `Pair<A, B>`; a step as a
+    function value, `map(str)`.
+  - `Result<T, E>`: `ok(v)` and `err(e)` as values and patterns, with
+    `is_ok`, `map_err`, `and_then` and the ways out beside `Option`'s.
+  - Traits: `trait Shape { fn area(self) : Float }` with default bodies,
+    `impl Shape for Circle { … }` once per trait and type, `T : Shape` bounds
+    checked at every call, dispatch on the value's own type; the operators
+    resolve through `Add`, `Sub`, `Mul`, `Div`, `Rem` and `Eq`, and a type
+    implementing `Ord` is `Orderable` for `<`, `sort`, `min` and `max`.
+  - Strict traits: `std/core.hql` declares the built-in types' native
+    implementations as bodyless headers, `impl Ord for Int`, so `T : Eq`
+    takes `Int` and `T : Add` refuses `String`; binding refuses a header
+    without a native body and a native body without a header; one
+    implementation per trait and type across the standard library, imported
+    modules and the program, the error naming both; an implementation is
+    declared with its trait or its type ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.md)).
+  - A standard module's `.hql` declaration is its functions' signature: an
+    operation implementing one writes no type in Rust, binding derives what
+    the checker uses, and an operation that keeps a native signature is
+    compared with its declaration in full, so the two cannot drift. A
+    declaration may write its receiver's type, `fn join(self: Collection<String>, …)`,
+    and a default for an argument that may be omitted, `step: Int = 1`.
+  - Modules: `import a.b as c` binds one module under a local name, builtin
+    (`io.net`) or a workspace module found by its position under a module
+    root, `hql.toml` `[modules] roots` or `--modules`; a module file declares
+    functions, types, traits and implementations, may open with `module for
+    T` to make its `self` functions receiver functions, and imports for
+    itself. Imports sit at the head of a unit.
+  - The `regex` module, imported where it is used: `is_match`, `find`,
+    `find_all`, `captures`, `replace` and `split`.
+  - Function types reach eight parameters; an argument list takes a trailing
+    comma; an integer literal takes a call, `7.max(3)`.
+
+### Changed
+
+- The table renderers `aligned`, `pipe`, `rows` and `records` write only a
+  `Table`. Named for another value, in `format(..., renderer = ...)` or in a
+  vault's `[format.<Type>]`, they are refused before the program runs;
+  `xs | format(Markdown, renderer = "pipe")` is written
+  `xs | Table(columns = [...]) | markdown`.
+- A module is a closure ([HQL-0028](doc/proposals/HQL-0028/README.md)): it
+  sees its own declarations and imports and no host binding, so `vault`,
+  `cards`, `graph`, `stdin` and the vault's configured imports belong to the
+  program module alone. `cards = vault.cards` and `graph = vault.graph` moved
+  out of `std/vault.hql` into the program module. A module that read one of
+  them takes it as a parameter.
+- Two imports declaring one receiver function are an ambiguity, the
+  prelude's modules included: with `mighty.text` imported,
+  `"   ".is_blank()` names `text.is_blank` and `string.is_blank` and is
+  qualified. A unit's own declaration wins over every import's; a use above
+  that declaration is refused, and a receiver call of the name of an own
+  function without `self` is refused rather than reaching an import's.
+- A receiver call, `value.f()`, reaches only a declaration that takes `self`
+  ([issue 0036](doc/issues/archive/0036-contracts-receivers-purity-identities.md),
+  shown in the [receivers corpus](examples/receivers/README.md)). The core's
+  collection operations, `math`, and `seq`'s map and set functions write
+  their receiver, `fn size<T>(self: Collection<T>)`, `fn abs(self: Int)`, so
+  `xs.size()` and `42.abs()` still call them; `1.range(3)` and
+  `"ab".is_match("a")` are refused naming the call and pipeline forms, which
+  still reach them.
+
+- A negative position counts from the end: `xs[-1]` is the last element, not
+  absence, and `s.slice(start, end)` counts a negative bound from the end
+  ([HQL-0026](doc/proposals/HQL-0026/README.md)). An index that is neither an
+  `Int` nor a `Range` is refused as "an index is an Int position or a Range".
+
+- A generic variadic parameter binds its type from the trailing arguments:
+  `fn pack<T>(xs: ...T)` makes `pack(1, 2)` a `List<Int>`, and refuses
+  `pack(1, "owl")`, whose arguments share no declared ancestor.
+
+- A step over a value applied to an optional input is lifted over it
+  ([issue 0033](doc/issues/archive/0033-overloaded-declarations.md)): `none | abs`,
+  `none | sqrt` and `none | upper` check and evaluate to absence, and
+  `some(-2) | abs` is an `Option<Int>`. A step over a collection still takes
+  absence as the empty collection.
+- `collect(for = …)` is refused as an argument `collect` does not declare.
+
+- `string.replace` and `regex.replace` are now `replace_all`, and each has a
+  `replace_first` beside it, so a replacement names whether it applies to
+  the first occurrence or to every occurrence.
+
+- A format is a `Format`, a category of its own, not a `String` subtype
+  ([HQL-0024 part 7](doc/proposals/HQL-0024/parts/07-formats-and-codecs.md),
+  from [encode, decode and format](doc/proposals/HQL-0024/encode-decode-format.md)).
+  `format(x, Json)` and its shorthands give a `String` that keeps its format
+  for presentation, so `xs | json` is a `String` and encoding it again in
+  another format encodes that text. `Lines` and `JsonLines` are framing
+  formats: `source(file(p), Lines)` is a `Seq<String>` and `source(stdin,
+  JsonLines)` a `Stream<Data>`; `.jsonl` and `.ndjson` imply `JsonLines`.
+  `std/format.hql` declares the codec contracts `Decoder<F, T>` and
+  `Encoder<T, F>`. `Text` is one whole document; a `.txt` or `.log` path
+  implies `Lines`; and `lines` and `jsonlines` encode one record per line.
+  `sink` writes a stream, one document per value, and `target` one whole
+  document, as before. The Mighty Types corpus
+  shows `source(file, Lines)`, `target(file, Lines)` and
+  `sink(file(p).end, Lines)`.
+- `import` names a module, not an extension; `import nonesuch` is refused as
+  "no module named".
+- The binary runs on a thread with a large stack, so a program may recurse
+  thousands of calls deep.
+
+- Endpoints, from [HQL-0021](doc/proposals/HQL-0021/README.md): `stdin`,
+  `stdout` and `stderr`, `file(path)`, and a file's `.end`. `source(e, F)`
+  reads an endpoint's documents in a format, as a `Seq` from a file and as a
+  `Stream` from standard input; `tap` reads them one at a time, and at a
+  file's `.end` follows what is appended. `target` writes one completed value
+  and `sink` one document per value; a file is replaced, atomically for
+  `target`, and its `.end` appended to. A literal path's extension implies the
+  format. `hql render` reads files beside the document and refuses every
+  write.
+- Channels: `Channel<T>(name)` is an endpoint of values held in memory for one
+  evaluation. `target` and `sink` append to it, `source` gives what it holds
+  now without removing it, and `tap` what is written from then on. A document
+  may write its own channels.
+- Logging, with `import logging`: `Logger(endpoint, Format, name = …, level =
+  …)` writes `LogEvent`s as `sink` would, one document per event, or the
+  events themselves to a `Channel<LogEvent>`. `trace`, `debug`, `info`, `warn`
+  and `error` write one event when its level reaches the threshold, and
+  `--log-level` overrides every threshold. A level is a type, tested with
+  `e.level | is(Error)`. `hql render` binds `cell.logs`, a cell's own channel,
+  and never saves it into the document.
+- Network endpoints, with `import net`: `http(url, method = …, headers =
+  …)`, `websocket(url)` and `socket(host, port)`. `source` over `http` sends
+  one `GET` per evaluation and reads the body as a `Seq`; a write sends one
+  request per document and fails on a status that is not a success, naming
+  the URL. A WebSocket message is one document, and a socket's documents are
+  separated as their format separates them. `hql render` refuses every
+  network endpoint at check time, and `file("https://…")` is refused, naming
+  `http`.
+- A function whose body uses an effectful operation, or calls an effectful
+  function, is effectful, and `hql check` reports it with what it uses:
+  ``load is Effectful: it uses `source` ``.
+- `hql run -` refuses `source(stdin, …)` and `tap(stdin, …)` at check time:
+  standard input holds the program.
+- A channel holds at most a million values in one scope; one more ends the
+  evaluation, naming the channel.
+- Indexing: `xs[i]` reads position `i` of a sequence, counting from `0`, as
+  an `Option`; past either end it is `none`. A `Data` tree that is a sequence
+  is indexed too, and a `Set`, a `Map` or an unbounded stream is refused.
+- `hql '<program>'` is `hql eval '<program>'`.
+- `--compact` writes each JSON document on one line, as `jq -c` does.
+- In HQL source a document reference is written `@[[name]]`, from
+  [HQL-0023](doc/proposals/HQL-0023/README.md): `@` directly before a
+  wikilink. `[[` is two brackets, so `[[1, 2], [3]]` is a list of lists. A
+  bare `@` is refused, and `[[alice]]` with `alice` unbound is refused,
+  naming `@[[alice]]`. Document bodies keep writing `[[name]]`, and a link
+  inside a fenced code block or an inline code span authors no edge.
 - Without `--vault`, `hql` finds the vault itself: the nearest directory at or
   above the current one that holds `.hmd/` or `hql.toml`. `--vault` still
   overrides it, and outside every vault a program runs with no vault.
 
+### Removed
+
+- The core `debug` step, which captured a value into the run's report queue.
+  `debug` is now the logging operation; a program reports on itself through a
+  `Logger`.
+
 ### Changed
+
+- A stream written with `--to json` pretty-prints each document, as `jq .`
+  does; concatenated, they read back as the same stream.
+- A result of type `Unit` prints nothing, so a program that ends in a write
+  is silent.
+- A first argument that names no command is a program, not a usage error.
+- Every streamed CSV piece ends its lines with `\n`, the header's included.
+
+- A `Data` tree that is one string is written as its bare text in `Text`, as
+  a `String` is, so `map(e => e.message) | sink(stdout, Text)` writes lines.
 
 - `hql run` writes an unformatted result as `Hql` too, so every command that
   evaluates writes the same text for the same value. `--to text` gives a bare
@@ -319,7 +1247,10 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/ewiger/hql/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/ewiger/hql/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/ewiger/hql/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/ewiger/hql/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/ewiger/hql/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/ewiger/hql/compare/v0.3.0...v0.4.0

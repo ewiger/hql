@@ -1,0 +1,14 @@
+// status: valid-now
+// feature: `:help` on a name no declaration has: a message with the nearest declared name, and the session goes on
+// implementation: implemented
+// environment: pure
+// session: repl
+
+hql> :help rnge
+no declaration named `rnge`; did you mean `range`?
+hql> :help range
+fn range(start: Int, end: Int, step: Int = 1) : List<Int>    // std/seq
+
+    The `Int`s from `start` up to, not including, `end`, each `step` after
+    the one before: `range(1, 6)` is `[1, 2, 3, 4, 5]`, and
+    `range(10, 0, -3)` is `[10, 7, 4, 1]`.

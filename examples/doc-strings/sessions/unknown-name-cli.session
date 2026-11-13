@@ -1,0 +1,9 @@
+// status: valid-now
+// feature: `hql help` on a name no declaration has fails with exit 1 and names the nearest declared name
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql help rnge
+no declaration named `rnge`; did you mean `range`?

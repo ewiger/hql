@@ -1,6 +1,6 @@
 # HQL-0019: Graph construction
 
-- **Status**: accepted
+- **Status**: implemented in part
 - **Created**: 2026-10-18
 - **Source**: [graph](../../wiki/hql/types/graph-type.hmd),
   [HQL-0017](../HQL-0017/README.md), [HQL-0018](../HQL-0018/README.md)
@@ -124,7 +124,7 @@ fn Graph<N>(nodes: Collection<N>, by: (N, N) -> Bool) : Graph<N, Edge<N, N>>
 ```text
 xs | Graph(by = p)
     ≡  Graph(xs, {a: xs, b: xs} | join(on = r => r.a != r.b and p(r.a, r.b))
-                                | map(r => Edge(source = r.a, target = r.b, data = {})))
+                                | map(r => Edge(source = r.a, target = r.b, data = {:})))
 ```
 
 - It MUST equal its longhand above: an edge from `a` to `b` for every ordered
@@ -203,9 +203,9 @@ apart from refusing depth `0`.
 
 - `src/extensions/graph.rs` — the constructors; `project` keeping only induced
   edges; `expand` over a graph or cards
-- `std/graph.hql` — the constructor signatures beside `Graph` and `Edge`;
+- `lib/std/graph/mod.hql` — the constructor signatures beside `Graph` and `Edge`;
   `nodes` and `edges` as fields
-- `std/knowledge.hql` — `KnowledgeGraph`'s constructor
+- `lib/std/knowledge/mod.hql` — `KnowledgeGraph`'s constructor
 - `src/checker.rs`, `field_type` — `nodes` and `edges` on `Graph`
 - `doc/wiki/hql/types/graph-type.hmd` — construction, the readable node and
   edge sets, and the projection section rewritten around `Graph(…)`
@@ -240,3 +240,7 @@ cargo clippy --locked --all-targets -- -D warnings
   `graph = vault.graph` are implemented, and the generic `Graph<N, E>`, the
   join and predicate forms and `KnowledgeGraph` are not yet, so `vault.graph`
   is a `Graph` over the vault's cards
+- 2026-11-13: corrected. `lib/std/graph/mod.hql` declares the generic
+  `Graph<N, E>` as vocabulary; the binary carries one graph type over cards
+  and edges and ignores its arguments, so the generic graph is declared, not
+  built. The join and predicate forms and `KnowledgeGraph` remain (issue 0072)

@@ -1,0 +1,12 @@
+<!-- hql reference: std/time.unix_seconds -->
+# `unix_seconds`
+
+In [`std/time`](index.md).
+
+```hql
+fn unix_seconds(self: Instant) : Int
+```
+
+The whole seconds from `1970-01-01T00:00:00Z` to `self`, rounded toward
+negative infinity.
+<!-- hql reference: end -->

@@ -29,6 +29,30 @@ pub enum Mode {
     Host,
 }
 
+/// The mode the host chose for this process, which every vault loaded in it
+/// takes: `--ai`, never `hql.toml`.
+static DEFAULT_MODE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+/// Set the mode every vault loaded from now on takes.
+pub fn set_default_mode(mode: Mode) {
+    let code = match mode {
+        Mode::Replay => 0,
+        Mode::Record => 1,
+        Mode::Live => 2,
+        Mode::Host => 3,
+    };
+    DEFAULT_MODE.store(code, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn default_mode() -> Mode {
+    match DEFAULT_MODE.load(std::sync::atomic::Ordering::Relaxed) {
+        1 => Mode::Record,
+        2 => Mode::Live,
+        3 => Mode::Host,
+        _ => Mode::Replay,
+    }
+}
+
 impl Mode {
     /// The mode a command-line word names.
     ///
@@ -133,6 +157,7 @@ impl Settings {
     pub fn read(root: &Path) -> Self {
         let mut settings = Self {
             recordings: PathBuf::from(".hql/runs"),
+            mode: default_mode(),
             ..Self::default()
         };
         let Ok(text) = std::fs::read_to_string(root.join("hql.toml")) else {
@@ -549,9 +574,11 @@ fn post(model: &Model, body: &J) -> Result<J, String> {
             return Err("a claude-code session is not reached over HTTP".to_owned());
         }
     };
-    match request.send_json(body) {
+    match request.send_string(&body.to_string()) {
         Ok(response) => response
-            .into_json::<J>()
+            .into_string()
+            .map_err(|error| error.to_string())
+            .and_then(|text| serde_json::from_str::<J>(&text).map_err(|error| error.to_string()))
             .map_err(|error| format!("{}: unreadable response: {error}", model.endpoint)),
         // The body says why; the credential never appears in it.
         Err(ureq::Error::Status(code, response)) => Err(format!(

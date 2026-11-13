@@ -14,7 +14,7 @@ use std::sync::Arc;
 pub(crate) fn build_card(
     document: Document,
     names: &BTreeSet<String>,
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<crate::diagnostics::Diagnostic>,
 ) -> Card {
     let mut metadata = match document.header.path("metadata") {
         Some(Data::Map(entries)) => Data::Map(entries.clone()),
@@ -41,11 +41,15 @@ pub(crate) fn build_card(
                 Kind::Relation
             }
             _ => {
-                warnings.push(format!(
-                    "{}: declares knowledge.type: Relation but its endpoints do not resolve; \
+                let mut unresolved = crate::diagnostics::Diagnostic::warning(
+                    crate::diagnostics::Phase::Load,
+                    crate::diagnostics::Kind::UnresolvedLink,
+                    0..0,
+                    "declares knowledge.type: Relation but its endpoints do not resolve; \
                      kept as a ConceptCard",
-                    document.name
-                ));
+                );
+                unresolved.origin = Some(document.path.display().to_string());
+                warnings.push(unresolved);
                 metadata.insert_path(
                     "knowledge.unverified",
                     Data::Str("relation endpoints do not resolve".to_owned()),

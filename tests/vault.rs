@@ -14,7 +14,7 @@ fn value(source: &str) -> Value {
     let outcome = run(source, &fixture(), Mode::Strict);
     outcome
         .value
-        .unwrap_or_else(|| panic!("{source}: {:?}", outcome.reports))
+        .unwrap_or_else(|| panic!("{source}: {:?}", outcome.diagnostics))
 }
 
 fn text(source: &str) -> String {
@@ -59,10 +59,10 @@ fn a_declared_relation_is_checked_rather_than_trusted() {
         "the failed claim is kept"
     );
     assert!(
-        vault
-            .warnings
-            .iter()
-            .any(|warning| warning.contains("broken-relation")),
+        vault.warnings.iter().any(|warning| warning
+            .origin
+            .as_deref()
+            .is_some_and(|origin| origin.contains("broken-relation"))),
         "loading said so"
     );
 }
@@ -75,6 +75,51 @@ fn of_type_selects_the_kind_the_checker_established() {
         text("cards | of_type(RelationCard) | map(c => c.name)"),
         "[\"oauth-defines-bearer\"]"
     );
+}
+
+#[test]
+fn of_type_selects_the_dialect_of_a_cards_body() {
+    assert_eq!(
+        text("import doc\ncards | of_type(MdCard) | map(c => c.name)"),
+        "[\"http-headers\"]"
+    );
+    assert_eq!(text("import doc\ncards | of_type(HmdCard) | count"), "5");
+    assert_eq!(text("import doc\ncards | of_type(HmdDoc) | count"), "5");
+    // A card's kind and its dialect are independent.
+    assert_eq!(
+        text("import doc\ncards | of_type(RelationCard) | of_type(HmdCard) | count"),
+        "1"
+    );
+    assert_eq!(
+        text("import doc\ncards | filter(c => c | is(MdCard)) | count"),
+        "1"
+    );
+    let vault = fixture();
+    let refused = hql::check_in(
+        "import doc\ncards | of_type(HmdCard) | of_type(MdCard)",
+        &vault,
+    )
+    .expect_err("two dialects exclude each other");
+    assert!(refused.message().contains("no HmdCard can be a MdCard"));
+}
+
+#[test]
+fn a_programs_own_card_subtype_is_refused_rather_than_silently_empty() {
+    let vault = fixture();
+    let declared = "type Task { status : String }\ntype TaskCard : Card { metadata : Task }\n";
+    for test in [
+        "cards | of_type(TaskCard)",
+        "cards | filter(c => c | is(TaskCard))",
+    ] {
+        let refused = hql::check_in(&format!("{declared}{test}"), &vault)
+            .expect_err("a program's card subtype");
+        assert!(
+            refused.message().contains("no card is a TaskCard")
+                && refused.message().contains("c.metadata | T"),
+            "{test}: {}",
+            refused.message()
+        );
+    }
 }
 
 #[test]
@@ -94,7 +139,7 @@ fn a_filtered_card_pipeline_needs_no_annotations_or_conversions() {
         ),
         (
             "open | sort(by = c => c.title) | map(c => c.title) | markdown",
-            hql::types::builtin::named("Markdown", &[]).expect("Markdown is built in"),
+            TypeRef::STR,
         ),
     ] {
         assert_eq!(
@@ -126,24 +171,27 @@ fn a_prefix_comes_from_the_cards_own_order_not_the_order_they_were_found() {
 
 #[test]
 fn fields_reach_both_metadata_layers() {
-    assert_eq!(text("[[bearer-tokens]].title"), "Bearer tokens");
-    assert_eq!(text("[[bearer-tokens]].kind"), "ConceptCard");
+    assert_eq!(text("@[[bearer-tokens]].title"), "Bearer tokens");
+    assert_eq!(text("@[[bearer-tokens]].kind"), "ConceptCard");
     // The authored block and the assembled layer are different fields.
-    assert_eq!(text("[[bearer-tokens]].header.metadata.status"), "\"todo\"");
-    assert_eq!(text("[[bearer-tokens]].metadata.status"), "\"todo\"");
+    assert_eq!(
+        text("@[[bearer-tokens]].header.metadata.status"),
+        "\"todo\""
+    );
+    assert_eq!(text("@[[bearer-tokens]].metadata.status"), "\"todo\"");
     // An extension contributes under a key it owns, so nothing collides.
     assert_eq!(
-        text("[[bearer-tokens]].metadata.lexical.model"),
+        text("@[[bearer-tokens]].metadata.lexical.model"),
         "\"hql.hashbag.v1\""
     );
 }
 
 #[test]
 fn uplinks_and_downlinks_traverse_one_edge_set_in_two_directions() {
-    assert_eq!(text("[[bearer-tokens]] | uplinks | count"), "2");
-    assert_eq!(text("[[bearer-tokens]] | downlinks | count"), "2");
+    assert_eq!(text("@[[bearer-tokens]] | uplinks | count"), "2");
+    assert_eq!(text("@[[bearer-tokens]] | downlinks | count"), "2");
     assert_eq!(
-        text("[[http-headers]] | downlinks | map(e => e.source)"),
+        text("@[[http-headers]] | downlinks | map(e => e.source)"),
         "[\"bearer-tokens\"]"
     );
 }
@@ -300,35 +348,40 @@ fn a_relation_card_contributes_an_edge_without_becoming_a_node() {
 
 #[test]
 fn an_unresolved_reference_warns_and_yields_absence() {
-    let outcome = run("[[nowhere]]", &fixture(), Mode::Strict);
+    let outcome = run("@[[nowhere]]", &fixture(), Mode::Strict);
     assert_eq!(outcome.value, Some(Value::Absent(TypeRef::CARD)));
     assert!(!outcome.failed(), "a forward link is permitted");
-    assert_eq!(outcome.reports.len(), 1);
-    let report = outcome.reports.iter().next().expect("one warning");
+    // What the loader wrote about the fixture comes first; the run's own
+    // warning is the one execute wrote.
+    let report = outcome
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.phase == hql::diagnostics::Phase::Execute)
+        .expect("one warning");
     assert_eq!(report.severity, hql::reporting::Severity::Warning);
     assert!(report.message.contains("nowhere"));
 
     // Absence propagates through a field rather than becoming a failure.
-    let outcome = run("[[nowhere]].title", &fixture(), Mode::Strict);
+    let outcome = run("@[[nowhere]].title", &fixture(), Mode::Strict);
     assert_eq!(outcome.value, Some(Value::Absent(TypeRef::STR)));
 }
 
 #[test]
 fn the_expansion_direction_is_stated_rather_than_assumed() {
     let outcome = run(
-        "[[http-headers]] | Graph | expand(depth = 1, direction = \"uplinks\")",
+        "@[[http-headers]] | Graph | expand(depth = 1, direction = \"uplinks\")",
         &fixture(),
         Mode::Strict,
     );
     let Some(Value::Graph(graph)) = &outcome.value else {
-        panic!("expected a graph, got {:?}", outcome.reports)
+        panic!("expected a graph, got {:?}", outcome.diagnostics)
     };
     // http-headers writes no references, so following only what leaves it
     // reaches nothing further.
     assert_eq!(graph.nodes, ["http-headers"]);
 
     let outcome = run(
-        "[[http-headers]] | Graph | expand(depth = 1, direction = \"downlinks\")",
+        "@[[http-headers]] | Graph | expand(depth = 1, direction = \"downlinks\")",
         &fixture(),
         Mode::Strict,
     );
@@ -434,7 +487,7 @@ fn filter_over_one_optional_value_keeps_it_or_makes_it_absent() {
     // A narrowing predicate narrows the optional value.
     assert_eq!(
         hql::check_in(
-            "[[oauth-defines-bearer]] | filter(c => c | is(RelationCard))",
+            "@[[oauth-defines-bearer]] | filter(c => c | is(RelationCard))",
             &vault
         ),
         Ok(TypeRef::optional(TypeRef::RELATION_CARD))
@@ -469,16 +522,16 @@ fn a_refused_annotation_says_what_to_write_instead() {
 fn a_graph_is_built_from_cards_from_edges_or_from_both() {
     let vault = fixture();
     assert_eq!(
-        hql::check_in("[[oauth]] | uplinks | Graph", &vault),
+        hql::check_in("@[[oauth]] | uplinks | Graph", &vault),
         Ok(TypeRef::GRAPH)
     );
     assert_eq!(
-        text("([[oauth]] | uplinks | Graph).nodes | map(c => c.name) | sort"),
+        text("(@[[oauth]] | uplinks | Graph).nodes | map(c => c.name) | sort"),
         "[\"bearer-tokens\", \"oauth\"]"
     );
     assert_eq!(
         text(
-            "Graph(cards | filter(c => c.name == \"sessions\"), [[oauth]] | uplinks).nodes | map(c => c.name) | sort"
+            "Graph(cards | filter(c => c.name == \"sessions\"), @[[oauth]] | uplinks).nodes | map(c => c.name) | sort"
         ),
         "[\"bearer-tokens\", \"oauth\", \"sessions\"]"
     );

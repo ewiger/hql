@@ -168,27 +168,27 @@ HyperMarkDown addresses content at three granularities, and HQL should be able
 to name all three:
 
 ```hql
-[[alice]]           // the document
-[[alice#Bio]]       // a heading fragment
-[[alice#^claim]]    // an anchored block
+@[[alice]]          // the document
+@[[alice#Bio]]      // a heading fragment
+@[[alice#^claim]]   // an anchored block
 ```
 
-A bracket pair is a doc reference, defined in [[link-op]] along with the `->`
+`@[[..]]` is a doc reference, defined in [[link-op]] along with the `->`
 edge form built from it. What matters here is what it addresses: a reference to a
 part carries the type of that part, so the three granularities above are `Doc`,
 `Section` and `Block`.
 
 ```hql
-bio : Section = [[alice#Bio]]
+bio : Section = @[[alice#Bio]]
 ```
 
-What resolution does **not** hand back is a [[card-type|Card]]. `[[alice]]` names
+What resolution does **not** hand back is a [[card-type|Card]]. `@[[alice]]` names
 a document, and card-ness is a knowledge property that has to be established
 rather than assumed: a reference cannot know that its target represents a piece
 of knowledge, and only a checked narrowing can say so.
 
 ```hql
-doc  : Doc  = [[alice]]
+doc  : Doc  = @[[alice]]
 card : Card = doc as Card        // a narrowing, and it can fail
 ```
 
@@ -210,7 +210,7 @@ ambiguous references as outcomes rather than silently picking a document.
 ## Links
 
 A link is an edge from this document to a reference, and an authored `[[bob]]`
-is `[[this]] -> [[bob]]` with whatever data the author attached — see
+is `@[[this]] -> @[[bob]]` with whatever data the author attached — see
 [[link-op]]. Display text declares nothing: `[[alice|Alice B.]]` links the same
 way `[[alice]]` does, and data on an edge does not assert a relationship type.
 

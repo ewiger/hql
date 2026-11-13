@@ -87,9 +87,10 @@ fn vault_on(root: &Path, port: u16) -> vault::Vault {
     vault::load(root).unwrap()
 }
 
-const PROGRAM: &str = r#"import ai
+const PROGRAM: &str = r#"import ai.agents
+import ai.models
 fn count_named(name: String) : Int = cards | filter(c => c.name == name) | size
-reviewer = [[reviewer]] | Agent
+reviewer = @[[reviewer]] | Agent
 ctx = cards | filter(c => c.name == "owl") | Context("evidence")
 ctx | run(reviewer, tools = [Tool(count_named, "Count the cards with a name")])"#;
 
@@ -111,13 +112,13 @@ fn value(source: &str, vault: &vault::Vault) -> Value {
     let outcome = run(source, vault, Report::Strict);
     outcome
         .value
-        .unwrap_or_else(|| panic!("{source}: {:?}", outcome.reports))
+        .unwrap_or_else(|| panic!("{source}: {:?}", outcome.diagnostics))
 }
 
 fn failure(source: &str, vault: &vault::Vault) -> String {
     let outcome = run(source, vault, Report::Strict);
     assert!(outcome.value.is_none(), "{source}: expected a failure");
-    format!("{:?}", outcome.reports)
+    format!("{:?}", outcome.diagnostics)
 }
 
 fn field(source: &str, vault: &vault::Vault, path: &str) -> String {
@@ -131,7 +132,7 @@ fn recorded() -> (tempfile::TempDir, vault::Vault, Vec<J>) {
     let mut vault = vault_on(directory.path(), port);
     vault.ai.mode = Mode::Record;
     let review = format!("review = {}", PROGRAM.lines().last().unwrap());
-    let program = PROGRAM.lines().take(4).collect::<Vec<_>>().join("\n");
+    let program = PROGRAM.lines().take(5).collect::<Vec<_>>().join("\n");
     let first = field(&format!("{program}\n{review}"), &vault, "review.result");
     assert_eq!(first, "There is one owl, and it hunts after dark.");
     let sent = seen.lock().unwrap().clone();
@@ -141,7 +142,7 @@ fn recorded() -> (tempfile::TempDir, vault::Vault, Vec<J>) {
 
 fn reviewed(path: &str, vault: &vault::Vault) -> String {
     let review = format!("review = {}", PROGRAM.lines().last().unwrap());
-    let program = PROGRAM.lines().take(4).collect::<Vec<_>>().join("\n");
+    let program = PROGRAM.lines().take(5).collect::<Vec<_>>().join("\n");
     field(&format!("{program}\n{review}"), vault, path)
 }
 
@@ -186,7 +187,7 @@ fn a_run_keeps_every_call_child_and_event_and_replays_without_a_network() {
     );
     assert_eq!(
         reviewed("review.calls | map(c => c.output)", &vault),
-        r#"[1, "Yes."]"#
+        r#"["1", "\"Yes.\""]"#
     );
     assert_eq!(
         reviewed("review.children | map(c => c.origin)", &vault),
@@ -213,7 +214,7 @@ fn trace_puts_a_childs_events_after_the_call_that_started_it() {
 fn a_continuation_not_recorded_fails_by_naming_the_mode_that_records() {
     let (_directory, vault, _) = recorded();
     let review = format!("review = {}", PROGRAM.lines().last().unwrap());
-    let program = PROGRAM.lines().take(4).collect::<Vec<_>>().join("\n");
+    let program = PROGRAM.lines().take(5).collect::<Vec<_>>().join("\n");
     let reports = failure(
         &format!("{program}\n{review}\nreview | ask(\"Why?\")"),
         &vault,
@@ -231,7 +232,7 @@ fn a_continuation_keeps_the_conversation_and_points_back() {
     let mut vault = vault_on(directory.path(), port);
     vault.ai.mode = Mode::Record;
     let review = format!("review = {}", PROGRAM.lines().last().unwrap());
-    let program = PROGRAM.lines().take(4).collect::<Vec<_>>().join("\n");
+    let program = PROGRAM.lines().take(5).collect::<Vec<_>>().join("\n");
     let source = format!("{program}\n{review}\nwhy = review | ask(\"Why?\")");
     assert_eq!(
         field(&source, &vault, "why.result"),
@@ -255,14 +256,18 @@ fn an_agent_is_a_card_that_says_it_is_one() {
     let directory = tempfile::tempdir().unwrap();
     let vault = vault_on(directory.path(), 9);
     assert_eq!(
-        field("import ai", &vault, "([[reviewer]] | Agent).max_turns"),
+        field(
+            "import ai.agents",
+            &vault,
+            "(@[[reviewer]] | Agent).max_turns"
+        ),
         "4"
     );
     assert_eq!(
-        field("import ai", &vault, "([[checker]] | Agent).model"),
+        field("import ai.agents", &vault, "(@[[checker]] | Agent).model"),
         "default"
     );
-    let reports = failure("[[plain]] | Agent", &vault);
+    let reports = failure("import ai.agents\n@[[plain]] | Agent", &vault);
     assert!(reports.contains("no `agent` table"), "{reports}");
 }
 
@@ -271,7 +276,7 @@ fn a_run_must_be_given_exactly_the_tools_its_card_lists() {
     let directory = tempfile::tempdir().unwrap();
     let vault = vault_on(directory.path(), 9);
     let reports = failure(
-        "import ai\ncards | Context | run([[reviewer]] | Agent)",
+        "import ai.agents\nimport ai.models\ncards | Context | run(@[[reviewer]] | Agent)",
         &vault,
     );
     assert!(
@@ -284,7 +289,8 @@ fn a_run_must_be_given_exactly_the_tools_its_card_lists() {
 fn a_prompt_writes_its_instructions_then_each_label_in_order() {
     let directory = tempfile::tempdir().unwrap();
     let vault = vault_on(directory.path(), 9);
-    let source = r#"owl = cards | filter(c => c.name == "owl") | Context("evidence")
+    let source = r#"import ai.agents
+owl = cards | filter(c => c.name == "owl") | Context("evidence")
 notes = "Herons are not owls." | Context("memory")
 p = concat(owl, notes) | Prompt("Which birds hunt at night?")"#;
     assert_eq!(
@@ -298,7 +304,7 @@ p = concat(owl, notes) | Prompt("Which birds hunt at night?")"#;
             &vault,
             "concat(owl, notes) | filter(i => i.label == \"memory\") | map(i => i.text)"
         ),
-        "[Herons are not owls.]"
+        r#"["Herons are not owls."]"#
     );
 }
 
@@ -306,12 +312,16 @@ p = concat(owl, notes) | Prompt("Which birds hunt at night?")"#;
 fn a_tool_is_made_from_a_named_function_whose_parameters_a_schema_describes() {
     let directory = tempfile::tempdir().unwrap();
     let vault = vault_on(directory.path(), 9);
-    let source = "fn pick(names: List<String>, limit: Option<Int>) : Int = size(names)";
+    let source =
+        "import ai.models\nfn pick(names: List<String>, limit: Option<Int>) : Int = size(names)";
     assert_eq!(
         field(source, &vault, "Tool(pick, \"Pick\").parameters"),
         r#"{"properties":{"limit":{"type":"integer"},"names":{"items":{"type":"string"},"type":"array"}},"required":["names"],"type":"object"}"#
     );
-    let reports = failure("fn see(c: Card) : Int = 1\nTool(see, \"See\")", &vault);
+    let reports = failure(
+        "import ai.models\nfn see(c: Card) : Int = 1\nTool(see, \"See\")",
+        &vault,
+    );
     assert!(reports.contains("no JSON Schema"), "{reports}");
 }
 
@@ -319,7 +329,8 @@ fn a_tool_is_made_from_a_named_function_whose_parameters_a_schema_describes() {
 fn memory_is_written_once_and_never_rewritten() {
     let directory = tempfile::tempdir().unwrap();
     let mut vault = vault_on(directory.path(), 9);
-    let source = "import ai\n\"Owls hunt after dark.\" | remember(\"owls\")";
+    let source =
+        "import ai.agents\nimport ai.models\n\"Owls hunt after dark.\" | remember(\"owls\")";
     // Replay writes nothing.
     assert!(failure(source, &vault).contains("--ai replay writes nothing"));
     vault.ai.mode = Mode::Record;
@@ -332,7 +343,7 @@ fn memory_is_written_once_and_never_rewritten() {
     vault.ai.mode = Mode::Replay;
     assert_eq!(value(source, &vault).to_string(), "owls");
     vault.ai.mode = Mode::Record;
-    let other = "import ai\n\"Owls sleep by day.\" | remember(\"owls\")";
+    let other = "import ai.agents\nimport ai.models\n\"Owls sleep by day.\" | remember(\"owls\")";
     assert!(failure(other, &vault).contains("not rewritten"));
 }
 
@@ -349,7 +360,7 @@ fn a_cell_reads_its_card_as_this_and_its_section_as_the_prompts_instructions() {
     use hql::transclude::{Emit, render_document};
     let directory = tempfile::tempdir().unwrap();
     let vault = vault_on(directory.path(), 9);
-    let card = "---\ntags: [birds]\n---\n# Intro\n\nNot this.\n\n## Review\n\nWhich birds hunt after dark?\n\n```hql#eval id=title\nthis.title\n```\n\nAnswer from the evidence.\n\n```hql#eval id=p\nimport ai\ncards | filter(c => c.name == \"owl\") | Context(\"evidence\") | Prompt\n```\n";
+    let card = "---\ntags: [birds]\n---\n# Intro\n\nNot this.\n\n## Review\n\nWhich birds hunt after dark?\n\n```hql#eval id=title\nthis.title\n```\n\nAnswer from the evidence.\n\n```hql#eval id=p\nimport ai.agents\nimport ai.models\ncards | filter(c => c.name == \"owl\") | Context(\"evidence\") | Prompt\n```\n";
     let rendered = render_document(
         card,
         Some(Path::new("review.hmd")),
@@ -371,7 +382,10 @@ fn a_cell_reads_its_card_as_this_and_its_section_as_the_prompts_instructions() {
         "## Review\n\nWhich birds hunt after dark?\n\nAnswer from the evidence.\n\n## evidence\n\nSource: owl\n\n# Owl\n\nOwls hunt after dark."
     );
     // Outside a cell there is no section, and the instructions are required.
-    let reports = failure("import ai\ncards | Context | Prompt", &vault);
+    let reports = failure(
+        "import ai.agents\nimport ai.models\ncards | Context | Prompt",
+        &vault,
+    );
     assert!(
         reports.contains("outside a cell needs `instructions`"),
         "{reports}"
@@ -404,7 +418,7 @@ fn under_host_a_request_waits_for_the_chat_and_its_answers_replay() {
     let directory = tempfile::tempdir().unwrap();
     let mut vault = vault_on(directory.path(), 9);
     vault.ai.mode = Mode::Host;
-    let card = "# Review\n\nIs the owl nocturnal?\n\n```hql#eval id=answer\nimport ai\ncards | filter(c => c.name == \"owl\") | Context(\"evidence\") | run([[checker]] | Agent)\n```\n\n```hql#eval id=why\nimport ai\nanswer | ask(\"Why?\")\n```\n\n```hql#eval id=title\nthis.title\n```\n";
+    let card = "# Review\n\nIs the owl nocturnal?\n\n```hql#eval id=answer\nimport ai.agents\nimport ai.models\ncards | filter(c => c.name == \"owl\") | Context(\"evidence\") | run(@[[checker]] | Agent)\n```\n\n```hql#eval id=why\nimport ai.agents\nimport ai.models\nanswer | ask(\"Why?\")\n```\n\n```hql#eval id=title\nthis.title\n```\n";
     // First pass: the first question waits, what reads it is skipped, and
     // what does not read it runs.
     let first = render(card, &vault);
@@ -507,7 +521,7 @@ fn a_claude_code_session_runs_in_the_vault_and_a_continuation_forks_it() {
     let directory = tempfile::tempdir().unwrap();
     let mut vault = session_vault(directory.path(), "plan");
     vault.ai.mode = Mode::Record;
-    let source = "import ai\nreview = cards | filter(c => c.name == \"owl\") | Context(\"evidence\") | run([[checker]] | Agent)\nwhy = review | ask(\"Why?\")";
+    let source = "import ai.agents\nimport ai.models\nreview = cards | filter(c => c.name == \"owl\") | Context(\"evidence\") | run(@[[checker]] | Agent)\nwhy = review | ask(\"Why?\")";
     assert_eq!(
         field(source, &vault, "review.result"),
         "Owls hunt at night."
@@ -543,12 +557,12 @@ fn a_session_that_acts_without_approval_is_refused() {
     let mut vault = session_vault(directory.path(), "bypassPermissions");
     vault.ai.mode = Mode::Record;
     let reports = failure(
-        "import ai\ncards | Context | run([[checker]] | Agent)",
+        "import ai.agents\nimport ai.models\ncards | Context | run(@[[checker]] | Agent)",
         &vault,
     );
     assert!(reports.contains("acts without approval"), "{reports}");
     let reports = failure(
-        "import ai\nfn count_named(name: String) : Int = 1\ncards | Context | run([[reviewer]] | Agent, tools = [Tool(count_named, \"x\")])",
+        "import ai.agents\nimport ai.models\nfn count_named(name: String) : Int = 1\ncards | Context | run(@[[reviewer]] | Agent, tools = [Tool(count_named, \"x\")])",
         &session_vault(directory.path(), "plan"),
     );
     assert!(reports.contains("offered no HQL tools"), "{reports}");

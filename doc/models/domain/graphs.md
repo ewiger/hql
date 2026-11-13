@@ -92,10 +92,10 @@ imported, derived or read from a store with no document anywhere; a
 writes one:
 
 ```hql
-[[alice]] -> [[bob]] { relation: parent }
+@[[alice]] -> @[[bob]] { relation: parent }
 ```
 
-Inside `alice`, the short form `[[bob]] { ... }` means the same thing, because
+Inside the body of `alice`, the short form `[[bob]] { ... }` means the same thing, because
 the containing document supplies the source. Authoring it adds the edge to the
 vault's graph; authoring it again updates the annotation rather than adding a
 second edge.
@@ -162,7 +162,7 @@ knowledge
 
 `Graph` is the constructor from a knowledge value to a graph, not a
 presentation keyword and not a magical pipeline step. The value it returns happens to
-have a renderer registered by the graph extension, which is what makes it appear
+have a renderer registered for the `graph` module, which is what makes it appear
 in a host as a picture.
 
 Its result type is the open question. A `KnowledgeGraph` keeps both contracts,

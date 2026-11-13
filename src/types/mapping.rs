@@ -76,6 +76,47 @@ pub struct MapValue {
     value_view: TypeRef,
 }
 
+/// A key held twice among `entries`, if any. Keys with an order are sorted
+/// so only neighbours are compared; others are compared pairwise.
+fn duplicate_key(entries: &[(Value, Value)]) -> Option<&Value> {
+    let keys: Vec<&Value> = entries.iter().map(|(key, _)| key).collect();
+    let Some(ordered) = keys
+        .iter()
+        .map(|key| key.order_key())
+        .collect::<Option<Vec<_>>>()
+    else {
+        return keys
+            .iter()
+            .enumerate()
+            .find(|(index, key)| keys[..*index].contains(key))
+            .map(|(_, key)| *key);
+    };
+    let mut positions: Vec<usize> = (0..keys.len()).collect();
+    positions.sort_by(|left, right| ordered[*left].compare(&ordered[*right]));
+    // Within each run of keys that order alike, any two may be equal.
+    let mut start = 0;
+    while start < positions.len() {
+        let mut end = start + 1;
+        while end < positions.len()
+            && ordered[positions[start]].compare(&ordered[positions[end]])
+                == std::cmp::Ordering::Equal
+        {
+            end += 1;
+        }
+        let run = &positions[start..end];
+        for (index, position) in run.iter().enumerate() {
+            if run[..index]
+                .iter()
+                .any(|other| keys[*other] == keys[*position])
+            {
+                return Some(keys[*position]);
+            }
+        }
+        start = end;
+    }
+    None
+}
+
 impl MapValue {
     /// Construct unique associations, sorting only when the contract requires it.
     pub fn new(
@@ -102,10 +143,10 @@ impl MapValue {
                     });
                 }
             }
-            if entries.iter().any(|(existing, _)| existing == &held_key) {
-                return Err(CollectionError::DuplicateKey(held_key.to_string()));
-            }
             entries.push((held_key, held_value));
+        }
+        if let Some(duplicate) = duplicate_key(&entries) {
+            return Err(CollectionError::DuplicateKey(duplicate.to_string()));
         }
         if kind == MapKind::Sorted {
             let mut keyed = entries
@@ -136,6 +177,12 @@ impl MapValue {
         self.concrete
             .constructor()
             .apply([self.key.clone(), self.value.clone()])
+    }
+
+    /// Whether the map's entries are in an order its equality compares:
+    /// an ordered or sorted map's are, an unordered one's are not.
+    pub fn ordered(&self) -> bool {
+        self.view != MapKind::Unordered
     }
 
     /// Borrow the associations for runtime traversal; unordered maps promise no order.
@@ -192,5 +239,29 @@ impl PartialEq for MapValue {
             }
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_key_held_twice_is_found_ordered_or_not() {
+        let entries = |keys: Vec<Value>| -> Vec<(Value, Value)> {
+            keys.into_iter().map(|key| (key, Value::Int(0))).collect()
+        };
+        let ints = |keys: &[i64]| entries(keys.iter().map(|key| Value::Int(*key)).collect());
+        assert_eq!(duplicate_key(&ints(&[3, 1, 2])), None);
+        assert_eq!(duplicate_key(&ints(&[3, 1, 2, 1])), Some(&Value::Int(1)));
+        let lists = |keys: &[i64]| {
+            entries(
+                keys.iter()
+                    .map(|key| Value::list(vec![Value::Int(*key)], TypeRef::INT))
+                    .collect(),
+            )
+        };
+        assert_eq!(duplicate_key(&lists(&[1, 2])), None);
+        assert!(duplicate_key(&lists(&[1, 2, 1])).is_some());
     }
 }

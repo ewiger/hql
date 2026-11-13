@@ -1,0 +1,22 @@
+// status: valid-now
+// feature: A document renders only in a vault: one in no vault is a load failure and no cell runs; a document's vault is found from the document, not the working directory
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql render examples/error-handling/documents/every-cell-checks.hmd
+# Checked as a whole
+
+## Books
+
+3
+
+## Pages
+
+804
+$ hql render examples/error-handling/outside/lone.hmd
+load failure[missing-vault]: no directory at or above this document holds `.hmd/` or `hql.toml`, so it is a card of no vault
+ --> examples/error-handling/outside/lone.hmd
+  = help: render it inside a vault, or name one with `--vault <dir>`
+

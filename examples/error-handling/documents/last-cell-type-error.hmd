@@ -1,0 +1,17 @@
+# Checked as a whole
+
+```hql id=pages hidden
+[412, 280, 112]
+```
+
+## Books
+
+```hql
+pages | size
+```
+
+## A cell that does not check
+
+```hql
+(pages | sum) + " pages"
+```

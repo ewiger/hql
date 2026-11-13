@@ -1,0 +1,887 @@
+//! The schema boundary of a configured endpoint (HQL-0035): the resolver that
+//! merges a format's defaults, a source's configuration and an invocation's
+//! override into the one effective boundary I/O proceeds with, each
+//! property keeping the layer it came from.
+
+use crate::endpoints::{Absence, External, FieldMapping};
+use crate::types::TypeRef;
+use std::collections::BTreeMap;
+
+/// One field of the element type a boundary maps: its name, its type with
+/// optionality taken off, and whether it is written `f?`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DeclaredField {
+    /// The HQL field's name.
+    pub name: String,
+    /// Its type; an optional field's present type.
+    pub ty: TypeRef,
+    /// Whether the field is optional.
+    pub optional: bool,
+}
+
+/// The layer a boundary property comes from, earliest first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Origin {
+    /// The format's default.
+    Format,
+    /// The source's `[endpoint.<id>.fields]`.
+    Configuration,
+    /// An invocation's override.
+    Invocation,
+}
+
+impl Origin {
+    /// The word an inspection prints for the layer.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Format => "format",
+            Self::Configuration => "configuration",
+            Self::Invocation => "invocation",
+        }
+    }
+}
+
+/// A resolved property and the layer it came from.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Held<T> {
+    /// The property's value.
+    pub value: T,
+    /// The layer that wrote it.
+    pub origin: Origin,
+}
+
+/// One HQL field of an effective boundary and every external property of it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EffectiveField {
+    /// The HQL field.
+    pub field: DeclaredField,
+    /// The external field it is held in.
+    pub external: Held<External>,
+    /// The external type, in the format's vocabulary.
+    pub external_type: Held<String>,
+    /// Its place among the external fields, from 1.
+    pub position: Held<usize>,
+    /// Whether it is read from the source.
+    pub readable: Held<bool>,
+    /// Whether it is written to a target.
+    pub writable: Held<bool>,
+    /// The external representations an optional field reads as absent.
+    pub absent: Held<Vec<Absence>>,
+    /// Whether a representation that may not keep the value is permitted.
+    pub lossy: Held<bool>,
+    /// The keys the kind's extension owns.
+    pub owned: BTreeMap<String, Held<toml::Value>>,
+}
+
+/// The boundary a source's I/O proceeds with: every field of its element
+/// type, in declaration order.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EffectiveBoundary {
+    /// The source's id.
+    pub source: String,
+    /// The source's kind, `csv`.
+    pub kind: String,
+    /// The fields, in the order the element type declares them.
+    pub fields: Vec<EffectiveField>,
+    /// What a read does with an external field no HQL field reads.
+    pub strictness: crate::endpoints::Strictness,
+}
+
+impl EffectiveBoundary {
+    /// The effective field of an HQL field.
+    #[must_use]
+    pub fn field(&self, name: &str) -> Option<&EffectiveField> {
+        self.fields.iter().find(|held| held.field.name == name)
+    }
+}
+
+/// The kinds of boundary error (HQL-0035).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorKind {
+    /// The configuration maps a field the element type does not declare.
+    UndeclaredField,
+    /// A required field's external field is not among the external fields.
+    UnmappedField,
+    /// Two HQL fields read one external field.
+    SharedExternalField,
+    /// A configured external field is not among the external fields.
+    MissingExternalField,
+    /// The external type is not the format's, or does not decode to the
+    /// field's type.
+    NoDecoder,
+    /// The external type may not keep the field's value, and the field does
+    /// not permit it.
+    LossyRepresentation,
+}
+
+impl ErrorKind {
+    /// The kind as a diagnostic names it.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::UndeclaredField => "undeclared field",
+            Self::UnmappedField => "unmapped field",
+            Self::SharedExternalField => "shared external field",
+            Self::MissingExternalField => "missing external field",
+            Self::NoDecoder => "no decoder",
+            Self::LossyRepresentation => "lossy representation",
+        }
+    }
+}
+
+/// One boundary error: what is wrong, of which field, and from which layer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundaryError {
+    /// What kind of error it is.
+    pub kind: ErrorKind,
+    /// The source's id.
+    pub source: String,
+    /// The HQL field at fault.
+    pub field: String,
+    /// The external field at fault, where there is one.
+    pub external: Option<String>,
+    /// The layer of the property at fault.
+    pub origin: Origin,
+    /// The error as a sentence.
+    pub message: String,
+}
+
+impl std::fmt::Display for BoundaryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "endpoint `{}`, field `{}`: {} ({}, from the {})",
+            self.source,
+            self.field,
+            self.message,
+            self.kind.name(),
+            self.origin.label()
+        )
+    }
+}
+
+/// The external field as a diagnostic and a header name it.
+#[must_use]
+pub fn written(external: &External) -> String {
+    match external {
+        External::Name(name) => name.clone(),
+        External::Path(segments) => segments.join("."),
+    }
+}
+
+/// Whether two external fields are one: a name and a path of one segment
+/// are, a name holding a dot and a path through two levels are not.
+fn same_external(left: &External, right: &External) -> bool {
+    match (left, right) {
+        (External::Name(name), External::Path(segments))
+        | (External::Path(segments), External::Name(name)) => {
+            matches!(segments.as_slice(), [only] if only == name)
+        }
+        _ => left == right,
+    }
+}
+
+/// Whether two names of an external field are one in `kind`: SQLite column
+/// names compare without regard to ASCII case, every other format's exactly.
+#[must_use]
+pub fn same_name(kind: &str, left: &str, right: &str) -> bool {
+    if family(kind) == "sqlite" {
+        left.eq_ignore_ascii_case(right)
+    } else {
+        left == right
+    }
+}
+
+/// The layers of one boundary, earliest first after the format's defaults.
+#[derive(Debug, Clone, Copy)]
+pub struct Layers<'a> {
+    /// The source's configured fields.
+    pub configuration: &'a BTreeMap<String, FieldMapping>,
+    /// An invocation's override.
+    pub invocation: &'a BTreeMap<String, FieldMapping>,
+    /// The type the source itself declares for each external field, where
+    /// it declares one: a table's column types. It refines the format's
+    /// default where it decodes to the field's type.
+    pub declared: Option<&'a BTreeMap<String, String>>,
+}
+
+/// Resolve a source's boundary for `fields`, the element type's, against
+/// `external`, the external fields where the format knows them before
+/// reading. Every error is reported, not only the first.
+///
+/// # Errors
+///
+/// Returns every boundary error, each naming the field and the layer at
+/// fault.
+pub fn resolve(
+    source: &str,
+    kind: &str,
+    fields: &[DeclaredField],
+    layers: Layers<'_>,
+    external: Option<&[String]>,
+) -> Result<EffectiveBoundary, Vec<BoundaryError>> {
+    let mut errors = Vec::new();
+    let error = |kind_of: ErrorKind,
+                 field: &str,
+                 outside: Option<String>,
+                 origin: Origin,
+                 message: String| BoundaryError {
+        kind: kind_of,
+        source: source.to_owned(),
+        field: field.to_owned(),
+        external: outside,
+        origin,
+        message,
+    };
+    for (layer, origin) in [
+        (layers.configuration, Origin::Configuration),
+        (layers.invocation, Origin::Invocation),
+    ] {
+        for name in layer.keys() {
+            if !fields.iter().any(|field| field.name == *name) {
+                errors.push(error(
+                    ErrorKind::UndeclaredField,
+                    name,
+                    None,
+                    origin,
+                    "the element type declares no such field".to_owned(),
+                ));
+            }
+        }
+    }
+    let mut resolved = Vec::with_capacity(fields.len());
+    for (index, field) in fields.iter().enumerate() {
+        let written_layers = [
+            (layers.configuration.get(&field.name), Origin::Configuration),
+            (layers.invocation.get(&field.name), Origin::Invocation),
+        ];
+        let mut owned = BTreeMap::new();
+        for (mapping, origin) in &written_layers {
+            for (key, value) in mapping.iter().flat_map(|mapping| &mapping.owned) {
+                owned.insert(
+                    key.clone(),
+                    Held {
+                        value: value.clone(),
+                        origin: *origin,
+                    },
+                );
+            }
+        }
+        let external = pick(
+            &written_layers,
+            External::Name(field.name.clone()),
+            |mapping| mapping.external.clone(),
+        );
+        let format_type = layers
+            .declared
+            .and_then(|declared| declared.get(&written(&external.value)))
+            .map(|declared| affinity(kind, declared))
+            .filter(|affinity| decodes(kind, affinity, &field.ty) == Some(true))
+            .unwrap_or_else(|| default_type(kind, &field.ty).to_owned());
+        resolved.push(EffectiveField {
+            external,
+            external_type: pick(&written_layers, format_type, |mapping| {
+                mapping.external_type.clone()
+            }),
+            position: pick(&written_layers, index + 1, |mapping| mapping.position),
+            readable: pick(&written_layers, true, |mapping| mapping.readable),
+            writable: pick(&written_layers, true, |mapping| mapping.writable),
+            absent: pick(&written_layers, default_absent(kind), |mapping| {
+                mapping.absent.clone()
+            }),
+            lossy: pick(&written_layers, false, |mapping| mapping.lossy),
+            owned,
+            field: field.clone(),
+        });
+    }
+    for held in &resolved {
+        let name = &held.field.name;
+        let outside = written(&held.external.value);
+        match decodes(kind, &held.external_type.value, &held.field.ty) {
+            Some(true) => {}
+            Some(false) => errors.push(error(
+                ErrorKind::NoDecoder,
+                name,
+                Some(outside.clone()),
+                held.external_type.origin,
+                format!(
+                    "`{kind}`'s `{}` does not decode to {}",
+                    held.external_type.value, held.field.ty
+                ),
+            )),
+            None => errors.push(error(
+                ErrorKind::NoDecoder,
+                name,
+                Some(outside.clone()),
+                held.external_type.origin,
+                format!("`{kind}` has no type `{}`", held.external_type.value),
+            )),
+        }
+        if !held.lossy.value && lossy(kind, &held.external_type.value, &held.field.ty) {
+            errors.push(error(
+                ErrorKind::LossyRepresentation,
+                name,
+                Some(outside.clone()),
+                held.external_type.origin,
+                format!(
+                    "`{kind}`'s `{}` may not keep every {}; write `lossy = true` to permit it",
+                    held.external_type.value, held.field.ty
+                ),
+            ));
+        }
+        if let Some(known) = external
+            && held.readable.value
+            && !known.iter().any(|name| same_name(kind, name, &outside))
+        {
+            if held.external.origin != Origin::Format {
+                errors.push(error(
+                    ErrorKind::MissingExternalField,
+                    name,
+                    Some(outside.clone()),
+                    held.external.origin,
+                    format!("the source has no field `{outside}`"),
+                ));
+            } else if !held.field.optional {
+                errors.push(error(
+                    ErrorKind::UnmappedField,
+                    name,
+                    Some(outside.clone()),
+                    held.external.origin,
+                    format!(
+                        "the field is required, and the source has no field `{outside}`; map \
+                         it with `name`"
+                    ),
+                ));
+            }
+        }
+        if held.readable.value
+            && let Some(first) = resolved.iter().find(|other| {
+                other.readable.value && same_external(&other.external.value, &held.external.value)
+            })
+            && first.field.name != *name
+        {
+            errors.push(error(
+                ErrorKind::SharedExternalField,
+                name,
+                Some(outside.clone()),
+                held.external.origin,
+                format!(
+                    "`{outside}` is read by `{}` already; each external field is read by one \
+                     HQL field",
+                    first.field.name
+                ),
+            ));
+        }
+    }
+    if errors.is_empty() {
+        Ok(EffectiveBoundary {
+            source: source.to_owned(),
+            kind: kind.to_owned(),
+            fields: resolved,
+            strictness: crate::endpoints::Strictness::default(),
+        })
+    } else {
+        Err(errors)
+    }
+}
+
+/// A property's value from the latest layer that writes it, the format's
+/// `default` where none does.
+fn pick<T>(
+    layers: &[(Option<&FieldMapping>, Origin)],
+    default: T,
+    read: impl Fn(&FieldMapping) -> Option<T>,
+) -> Held<T> {
+    layers.iter().fold(
+        Held {
+            value: default,
+            origin: Origin::Format,
+        },
+        |held, (mapping, origin)| match mapping.and_then(&read) {
+            Some(value) => Held {
+                value,
+                origin: *origin,
+            },
+            None => held,
+        },
+    )
+}
+
+/// What an HQL type is, as the boundary tables tell types apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Class {
+    Int,
+    Float,
+    Decimal,
+    Text,
+    Bool,
+    List,
+    Object,
+    Data,
+    /// A `Date`, carried as its ISO 8601 text where the format has no date.
+    Date,
+    /// A `DateTime`, a timestamp with no zone.
+    DateTime,
+    /// An `Instant`, a timestamp on the UTC timeline.
+    Instant,
+    /// Any other scalar, a `Duration`, carried as text.
+    Other,
+}
+
+fn class(ty: &TypeRef) -> Class {
+    if *ty == TypeRef::DATA {
+        return Class::Data;
+    }
+    match ty {
+        _ if *ty == TypeRef::INT => Class::Int,
+        _ if *ty == TypeRef::FLOAT => Class::Float,
+        _ if *ty == TypeRef::DECIMAL => Class::Decimal,
+        _ if *ty == TypeRef::STR => Class::Text,
+        _ if *ty == TypeRef::BOOL => Class::Bool,
+        _ if *ty == TypeRef::DATE => Class::Date,
+        _ if *ty == TypeRef::DATE_TIME => Class::DateTime,
+        _ if *ty == TypeRef::INSTANT => Class::Instant,
+        _ if *ty == TypeRef::DURATION => Class::Other,
+        _ if ty.is_sequence() => Class::List,
+        _ if crate::types::MapKind::of(ty.constructor).is_some()
+            || crate::types::program::record(ty.constructor.0).is_some() =>
+        {
+            Class::Object
+        }
+        _ => Class::Other,
+    }
+}
+
+/// The three families of format the tables distinguish.
+fn family(kind: &str) -> &'static str {
+    match kind {
+        "csv" => "csv",
+        "sqlite" => "sqlite",
+        "postgres" => "postgres",
+        "spark" => "spark",
+        _ => "tree",
+    }
+}
+
+/// The format's type for an HQL type: the first that decodes to it.
+fn default_type(kind: &str, ty: &TypeRef) -> &'static str {
+    match (family(kind), class(ty)) {
+        ("csv", _) => "text",
+        ("sqlite", Class::Int | Class::Bool) => "INTEGER",
+        ("sqlite", Class::Float) => "REAL",
+        ("sqlite", _) => "TEXT",
+        ("postgres", Class::Int) => "BIGINT",
+        ("postgres", Class::Float) => "DOUBLE PRECISION",
+        ("postgres", Class::Decimal) => "NUMERIC",
+        ("postgres", Class::Bool) => "BOOLEAN",
+        ("postgres", Class::List | Class::Object | Class::Data) => "JSONB",
+        ("postgres", Class::Date) => "DATE",
+        ("postgres", Class::DateTime) => "TIMESTAMP",
+        ("postgres", Class::Instant) => "TIMESTAMPTZ",
+        ("postgres", _) => "TEXT",
+        ("spark", Class::Int) => "BIGINT",
+        ("spark", Class::Float) => "DOUBLE",
+        ("spark", Class::Decimal) => "DECIMAL(38,18)",
+        ("spark", Class::Bool) => "BOOLEAN",
+        ("spark", Class::Date) => "DATE",
+        ("spark", Class::DateTime) => "TIMESTAMP_NTZ",
+        ("spark", Class::Instant) => "TIMESTAMP",
+        ("spark", _) => "STRING",
+        (_, Class::Decimal) => "string",
+        (_, Class::Int | Class::Float) => "number",
+        (_, Class::Bool) => "boolean",
+        (_, Class::List) => "array",
+        (_, Class::Object | Class::Data) => "object",
+        (_, Class::Text | Class::Date | Class::DateTime | Class::Instant | Class::Other) => {
+            "string"
+        }
+    }
+}
+
+/// The format's type for a type the source declares: of a SQLite column,
+/// its affinity by SQLite's rules, `DECIMAL(10, 2)` being `NUMERIC`.
+fn affinity(kind: &str, declared: &str) -> String {
+    if family(kind) == "postgres" {
+        return postgres_type(declared).to_owned();
+    }
+    if family(kind) == "spark" {
+        return declared.to_ascii_uppercase();
+    }
+    if family(kind) != "sqlite" {
+        return declared.to_owned();
+    }
+    let upper = declared.to_ascii_uppercase();
+    let has = |part: &str| upper.contains(part);
+    if has("INT") {
+        "INTEGER"
+    } else if has("CHAR") || has("CLOB") || has("TEXT") {
+        "TEXT"
+    } else if has("BLOB") || upper.trim().is_empty() {
+        "BLOB"
+    } else if has("REAL") || has("FLOA") || has("DOUB") {
+        "REAL"
+    } else {
+        "NUMERIC"
+    }
+    .to_owned()
+}
+
+/// The boundary's name for a PostgreSQL column type, from the name the
+/// server gives it, `int8` or `character varying`: every type the boundary
+/// does not tell apart reads as its text.
+fn postgres_type(declared: &str) -> &'static str {
+    match declared.to_ascii_lowercase().as_str() {
+        "int2" | "int4" | "int8" | "smallint" | "integer" | "bigint" | "oid" => "BIGINT",
+        "float4" | "float8" | "real" | "double precision" => "DOUBLE PRECISION",
+        "numeric" | "decimal" => "NUMERIC",
+        "bool" | "boolean" => "BOOLEAN",
+        "json" | "jsonb" => "JSONB",
+        "date" => "DATE",
+        "timestamp" | "timestamp without time zone" => "TIMESTAMP",
+        "timestamptz" | "timestamp with time zone" => "TIMESTAMPTZ",
+        _ => "TEXT",
+    }
+}
+
+/// A Spark SQL type without its parameters: `DECIMAL` of `decimal(12, 2)`.
+fn spark_type(declared: &str) -> String {
+    declared
+        .split('(')
+        .next()
+        .unwrap_or(declared)
+        .trim()
+        .to_ascii_uppercase()
+}
+
+/// What reads as an absent optional field unless the boundary says.
+fn default_absent(kind: &str) -> Vec<Absence> {
+    match family(kind) {
+        "csv" => vec![Absence::Empty, Absence::Missing],
+        "sqlite" | "postgres" | "spark" => vec![Absence::Null],
+        _ => vec![Absence::Missing, Absence::Null],
+    }
+}
+
+/// Whether the format's external type may not keep every value of the HQL
+/// type: a `Decimal` as a JSON number, a CSV float, or a SQLite `REAL` or
+/// `NUMERIC`.
+fn lossy(kind: &str, external: &str, ty: &TypeRef) -> bool {
+    class(ty) == Class::Decimal
+        && match family(kind) {
+            "csv" => external == "float",
+            "sqlite" => matches!(external.to_ascii_uppercase().as_str(), "REAL" | "NUMERIC"),
+            "postgres" => matches!(postgres_type(external), "DOUBLE PRECISION" | "BIGINT"),
+            "spark" => matches!(
+                spark_type(external).as_str(),
+                "DOUBLE"
+                    | "FLOAT"
+                    | "REAL"
+                    | "BIGINT"
+                    | "LONG"
+                    | "INT"
+                    | "INTEGER"
+                    | "SMALLINT"
+                    | "TINYINT"
+            ),
+            _ => external == "number",
+        }
+}
+
+/// Whether the format's external type decodes to the HQL type; `None`
+/// where the format has no such type.
+fn decodes(kind: &str, external: &str, ty: &TypeRef) -> Option<bool> {
+    use Class::{
+        Bool, Data, Date, DateTime, Decimal, Float, Instant, Int, List, Object, Other, Text,
+    };
+    let target = class(ty);
+    let into: &[Class] = match family(kind) {
+        "csv" => match external {
+            "text" => &[
+                Int, Float, Decimal, Text, Bool, Date, DateTime, Instant, Other,
+            ],
+            "integer" => &[Int, Float, Decimal],
+            "float" => &[Float, Decimal],
+            "decimal" => &[Decimal],
+            "boolean" => &[Bool],
+            _ => return None,
+        },
+        "sqlite" => match external.to_ascii_uppercase().as_str() {
+            "INTEGER" => &[Int, Float, Decimal, Bool],
+            "REAL" => &[Float, Decimal],
+            "TEXT" => &[Text, Decimal, Date, DateTime, Instant, Other],
+            "NUMERIC" => &[Decimal, Int, Float],
+            "BLOB" => &[Text],
+            _ => return None,
+        },
+        "postgres" => match external.to_ascii_uppercase().as_str() {
+            "BIGINT" | "INTEGER" | "SMALLINT" | "INT8" | "INT4" | "INT2" => &[Int, Float, Decimal],
+            "DOUBLE PRECISION" | "REAL" | "FLOAT8" | "FLOAT4" => &[Float, Decimal],
+            "NUMERIC" | "DECIMAL" => &[Decimal, Int, Float],
+            "BOOLEAN" | "BOOL" => &[Bool],
+            "JSONB" | "JSON" => &[List, Object, Text, Int, Float, Decimal, Bool],
+            "TEXT" | "VARCHAR" | "CHARACTER VARYING" | "UUID" => {
+                &[Text, Decimal, Date, DateTime, Instant, Other]
+            }
+            "DATE" => &[Date, Text],
+            "TIMESTAMP" => &[DateTime, Text],
+            "TIMESTAMPTZ" => &[Instant, Text],
+            _ => return None,
+        },
+        "spark" => match spark_type(external).as_str() {
+            "BIGINT" | "LONG" | "INT" | "INTEGER" | "SMALLINT" | "TINYINT" => {
+                &[Int, Float, Decimal]
+            }
+            "DOUBLE" | "FLOAT" | "REAL" => &[Float, Decimal],
+            "DECIMAL" | "DEC" | "NUMERIC" => &[Decimal, Int, Float],
+            "BOOLEAN" => &[Bool],
+            "STRING" | "VARCHAR" | "CHAR" => &[Text, Decimal, Date, DateTime, Instant, Other],
+            "DATE" => &[Date, Text],
+            "TIMESTAMP_NTZ" => &[DateTime, Text],
+            "TIMESTAMP" => &[Instant, Text],
+            _ => return None,
+        },
+        _ => match external {
+            "string" => &[Text, Decimal, Date, DateTime, Instant, Other],
+            "number" => &[Int, Float, Decimal],
+            "boolean" => &[Bool],
+            "array" => &[List],
+            "object" => &[Object],
+            _ => return None,
+        },
+    };
+    Some(target == Data || into.contains(&target))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn declared(name: &str, ty: TypeRef, optional: bool) -> DeclaredField {
+        DeclaredField {
+            name: name.to_owned(),
+            ty,
+            optional,
+        }
+    }
+
+    fn mapping(external: &str) -> FieldMapping {
+        FieldMapping {
+            external: Some(External::Name(external.to_owned())),
+            ..FieldMapping::default()
+        }
+    }
+
+    fn user_row() -> Vec<DeclaredField> {
+        vec![
+            declared("id", TypeRef::INT, false),
+            declared("name", TypeRef::STR, false),
+            declared("balance", TypeRef::DECIMAL, true),
+        ]
+    }
+
+    #[test]
+    fn the_format_supplies_every_property_nothing_overrides() {
+        let none = BTreeMap::new();
+        let layers = Layers {
+            configuration: &none,
+            invocation: &none,
+            declared: None,
+        };
+        let boundary = resolve("users", "sqlite", &user_row(), layers, None).unwrap();
+        let balance = boundary.field("balance").unwrap();
+        assert_eq!(balance.external.value, External::Name("balance".to_owned()));
+        assert_eq!(balance.external_type.value, "TEXT");
+        assert_eq!(balance.position.value, 3);
+        assert_eq!(balance.absent.value, vec![Absence::Null]);
+        assert!(
+            boundary
+                .fields
+                .iter()
+                .all(|field| { field.external.origin == Origin::Format && field.readable.value })
+        );
+    }
+
+    #[test]
+    fn each_property_takes_the_latest_layer_that_writes_it() {
+        let configuration = BTreeMap::from([(
+            "balance".to_owned(),
+            FieldMapping {
+                external_type: Some("NUMERIC".to_owned()),
+                ..mapping("account_balance")
+            },
+        )]);
+        let invocation = BTreeMap::from([(
+            "balance".to_owned(),
+            FieldMapping {
+                external_type: Some("TEXT".to_owned()),
+                ..FieldMapping::default()
+            },
+        )]);
+        let layers = Layers {
+            configuration: &configuration,
+            invocation: &invocation,
+            declared: None,
+        };
+        let boundary = resolve("users", "sqlite", &user_row(), layers, None).unwrap();
+        let balance = boundary.field("balance").unwrap();
+        assert_eq!(
+            balance.external,
+            Held {
+                value: External::Name("account_balance".to_owned()),
+                origin: Origin::Configuration
+            }
+        );
+        assert_eq!(
+            balance.external_type,
+            Held {
+                value: "TEXT".to_owned(),
+                origin: Origin::Invocation
+            }
+        );
+        assert_eq!(balance.position.origin, Origin::Format);
+    }
+
+    #[test]
+    fn every_boundary_error_is_reported_with_its_field_and_layer() {
+        let configuration = BTreeMap::from([
+            ("name".to_owned(), mapping("user_id")),
+            ("nickname".to_owned(), mapping("nick")),
+            (
+                "balance".to_owned(),
+                FieldMapping {
+                    external_type: Some("boolean".to_owned()),
+                    ..mapping("account_balance")
+                },
+            ),
+        ]);
+        let none = BTreeMap::new();
+        let layers = Layers {
+            configuration: &configuration,
+            invocation: &none,
+            declared: None,
+        };
+        let header = ["user_id".to_owned()];
+        let errors = resolve("users", "csv", &user_row(), layers, Some(&header)).unwrap_err();
+        let found: Vec<(ErrorKind, &str, Origin)> = errors
+            .iter()
+            .map(|error| (error.kind, error.field.as_str(), error.origin))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                (
+                    ErrorKind::UndeclaredField,
+                    "nickname",
+                    Origin::Configuration
+                ),
+                (ErrorKind::UnmappedField, "id", Origin::Format),
+                (ErrorKind::NoDecoder, "balance", Origin::Configuration),
+                (
+                    ErrorKind::MissingExternalField,
+                    "balance",
+                    Origin::Configuration
+                ),
+            ]
+        );
+        let configuration = BTreeMap::from([("name".to_owned(), mapping("id"))]);
+        let layers = Layers {
+            configuration: &configuration,
+            invocation: &none,
+            declared: None,
+        };
+        let header = ["id".to_owned(), "balance".to_owned()];
+        let errors = resolve("users", "csv", &user_row(), layers, Some(&header)).unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].kind, ErrorKind::SharedExternalField);
+        assert_eq!(errors[0].field, "name");
+        assert!(
+            errors[0].to_string().contains("read by `id` already"),
+            "{}",
+            errors[0]
+        );
+        // A name holding a dot is not the path through two levels.
+        let fields = [
+            declared("flat", TypeRef::STR, false),
+            declared("deep", TypeRef::STR, false),
+        ];
+        let configuration = BTreeMap::from([
+            ("flat".to_owned(), mapping("a.b")),
+            (
+                "deep".to_owned(),
+                FieldMapping {
+                    external: Some(External::Path(vec!["a".to_owned(), "b".to_owned()])),
+                    ..FieldMapping::default()
+                },
+            ),
+        ]);
+        let layers = Layers {
+            configuration: &configuration,
+            invocation: &none,
+            declared: None,
+        };
+        assert!(resolve("dotted", "json", &fields, layers, None).is_ok());
+    }
+
+    #[test]
+    fn a_lossy_representation_needs_permission() {
+        let number = |lossy| {
+            BTreeMap::from([(
+                "balance".to_owned(),
+                FieldMapping {
+                    external_type: Some("number".to_owned()),
+                    lossy,
+                    ..FieldMapping::default()
+                },
+            )])
+        };
+        let none = BTreeMap::new();
+        let refused = number(None);
+        let layers = Layers {
+            configuration: &refused,
+            invocation: &none,
+            declared: None,
+        };
+        let errors = resolve("users", "json", &user_row(), layers, None).unwrap_err();
+        assert_eq!(errors[0].kind, ErrorKind::LossyRepresentation);
+        assert!(errors[0].message.contains("lossy = true"));
+        let permitted = number(Some(true));
+        let layers = Layers {
+            configuration: &permitted,
+            invocation: &none,
+            declared: None,
+        };
+        assert!(resolve("users", "json", &user_row(), layers, None).is_ok());
+        // Unwritten, a JSON `Decimal` is a string, which keeps its digits.
+        let layers = Layers {
+            configuration: &none,
+            invocation: &none,
+            declared: None,
+        };
+        let boundary = resolve("users", "json", &user_row(), layers, None).unwrap();
+        assert_eq!(
+            boundary.field("balance").unwrap().external_type.value,
+            "string"
+        );
+    }
+
+    #[test]
+    fn an_unknown_external_type_has_no_decoder() {
+        let configuration = BTreeMap::from([(
+            "id".to_owned(),
+            FieldMapping {
+                external_type: Some("uuid".to_owned()),
+                ..FieldMapping::default()
+            },
+        )]);
+        let none = BTreeMap::new();
+        let layers = Layers {
+            configuration: &configuration,
+            invocation: &none,
+            declared: None,
+        };
+        let errors = resolve("users", "json", &user_row(), layers, None).unwrap_err();
+        assert_eq!(errors[0].kind, ErrorKind::NoDecoder);
+        assert!(errors[0].message.contains("no type `uuid`"));
+    }
+}

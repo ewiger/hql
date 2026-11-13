@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-09-28
-**Source**: [typed pipeline operations](../../issues/0013-typed-pipeline-operations.md)
+**Source**: [typed pipeline operations](../../issues/archive/0013-typed-pipeline-operations.md)
 
 ## Abstract
 
@@ -189,9 +189,9 @@ exceeds a host limit. The limit is an open question.
 - `src/extensions/collections.rs` — `collect`, `emit`, `flat_map`, and the
   reserved `for` argument; the `Batch` shape arrives with HQL-0004's shape
   metadata
-- `std/collections.hql` — the signature comments
+- `lib/std/collections/mod.hql` — the signature comments
 - `examples/pipelines/` — the batching queries listed in
-  [issue 0013](../../issues/0013-typed-pipeline-operations.md)
+  [issue 0013](../../issues/archive/0013-typed-pipeline-operations.md)
 
 ## Test Plan
 

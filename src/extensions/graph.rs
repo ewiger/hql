@@ -4,8 +4,8 @@
 //! Drawing a graph is not the core's business. The layering is core → graph →
 //! knowledge, and these steps are the graph layer's half of it.
 
+use super::Signature;
 use super::collections::wrong;
-use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypePattern as P};
 use super::{EvalCx, Operation, Purity, named, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
@@ -22,99 +22,25 @@ use std::sync::Arc;
 pub(crate) static STEPS: &[Operation] = &[
     Operation {
         name: "uplinks",
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::OneOf(&[
-                P::OneOf(&[
-                    P::Type(crate::types::TypeConstructor("Doc")),
-                    P::Apply(
-                        crate::types::TypeConstructor("Hit"),
-                        &[P::Type(crate::types::TypeConstructor("Card"))],
-                    ),
-                ]),
-                P::Collection(&P::OneOf(&[
-                    P::Type(crate::types::TypeConstructor("Doc")),
-                    P::Apply(
-                        crate::types::TypeConstructor("Hit"),
-                        &[P::Type(crate::types::TypeConstructor("Card"))],
-                    ),
-                ])),
-            ]),
-            arguments: &[],
-            output: O::Type(P::Apply(
-                crate::types::collections::LIST,
-                &[P::Type(crate::types::TypeConstructor("Edge"))],
-            )),
-        },
-        summary: "The edges leaving a card.",
+        spec: Signature::Declared,
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: None,
         eval: eval_uplinks,
     },
     Operation {
         name: "downlinks",
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::OneOf(&[
-                P::OneOf(&[
-                    P::Type(crate::types::TypeConstructor("Doc")),
-                    P::Apply(
-                        crate::types::TypeConstructor("Hit"),
-                        &[P::Type(crate::types::TypeConstructor("Card"))],
-                    ),
-                ]),
-                P::Collection(&P::OneOf(&[
-                    P::Type(crate::types::TypeConstructor("Doc")),
-                    P::Apply(
-                        crate::types::TypeConstructor("Hit"),
-                        &[P::Type(crate::types::TypeConstructor("Card"))],
-                    ),
-                ])),
-            ]),
-            arguments: &[],
-            output: O::Type(P::Apply(
-                crate::types::collections::LIST,
-                &[P::Type(crate::types::TypeConstructor("Edge"))],
-            )),
-        },
-        summary: "The edges entering a card, which needs a vault.",
+        spec: Signature::Declared,
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check_downlinks),
         eval: eval_downlinks,
     },
     Operation {
         name: "expand",
-        spec: OperationSpec {
-            parameters: &[],
-            input: P::OneOf(&[
-                P::Type(crate::types::TypeConstructor("Graph")),
-                P::Type(crate::types::TypeConstructor("Doc")),
-                P::Collection(&P::OneOf(&[
-                    P::Type(crate::types::TypeConstructor("Doc")),
-                    P::Apply(
-                        crate::types::TypeConstructor("Hit"),
-                        &[P::Type(crate::types::TypeConstructor("Card"))],
-                    ),
-                ])),
-            ]),
-            arguments: &[
-                ArgumentSpec {
-                    required: false,
-                    ..ArgumentSpec::value("depth", P::Type(crate::types::TypeConstructor("Int")))
-                },
-                ArgumentSpec {
-                    required: false,
-                    positional: false,
-                    ..ArgumentSpec::value(
-                        "direction",
-                        P::Type(crate::types::TypeConstructor("String")),
-                    )
-                },
-            ],
-            output: O::Type(P::Type(crate::types::TypeConstructor("Graph"))),
-        },
-        summary: "Traverse outwards, keeping why each node is present.",
+        spec: Signature::Declared,
         purity: Purity::Pure,
+        shape: super::Shape::Barrier,
         check: Some(check_expand),
         eval: eval_expand,
     },

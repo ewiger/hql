@@ -1,0 +1,15 @@
+<!-- hql reference: std/io.file -->
+# `file`
+
+In [`std/io`](index.md).
+
+```hql
+fn file(path: String) : File
+fn file(path: Path) : File
+```
+
+The `File` at `path`. Constructing it is pure and opens nothing:
+`file("birds.json").path` is `"birds.json"`. A URL is a type error when it
+is a literal and an evaluation failure when it is computed; a network
+resource is read with `http`. `file(p)` of a `Path` is `file(p.text)`.
+<!-- hql reference: end -->

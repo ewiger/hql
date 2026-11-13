@@ -1,6 +1,6 @@
 [package]
 name = "hql"
-version = "0.4.2"
+version = "0.6.0"
 description = "HQL — Hyper Query Language: a typed functional language for structured knowledge"
 license = "MIT"
 edition = "2024"
@@ -37,15 +37,56 @@ name = "hql"
 path = "src/main.rs"
 
 [dependencies]
+aes-gcm = "0.11"
+age = { version = "0.12", default-features = false, features = ["armor"] }
+argon2 = "0.6"
+async-nats = { version = "0.52.0", default-features = false, features = ["ring", "jetstream"] }
+base64 = "0.23.1"
+bech32 = "0.11"
+bigdecimal = "0.4.11"
+blake3 = { version = "1.8.7", default-features = false, features = ["pure", "std"] }
+chacha20poly1305 = "0.11"
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
+ed25519-dalek = { version = "3", features = ["pkcs8", "pem", "rand_core", "zeroize"] }
+futures-util = { version = "0.3.34", default-features = false }
+getrandom = { version = "0.4", features = ["sys_rng"] }
+hmac = "0.13"
+jiff = { version = "0.2.43", features = ["tzdb-bundle-always"] }
+jiff-tzdb = "0.1.9"
+md-5 = "0.11"
+num-integer = "0.1.47"
+p256 = { version = "0.14", features = ["ecdsa", "pkcs8", "pem"] }
+pem-rfc7468 = "1"
+pkcs5 = { version = "0.8", features = ["sha1-insecure"] }
+pkcs8 = { version = "0.11", features = ["pem", "encryption", "std"] }
+postgres = "0.19"
+rand_chacha = { version = "0.3.1", default-features = false }
+rand_core = { version = "0.6.4", default-features = false, features = ["getrandom"] }
+rand_core_10 = { version = "0.10", package = "rand_core" }
+regex = "1.13.1"
+rsa = { version = "0.10", features = ["pkcs1v15"] }
+rskafka = { version = "0.6", default-features = false, features = ["compression-gzip", "compression-snappy"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 rustyline = { version = "19.0.0", default-features = false, features = ["with-file-history"] }
-serde_json = "1.0.151"
+serde = "1.0.229"
+serde_json = { version = "1.0.151", features = ["arbitrary_precision"] }
 serde_yaml_ng = "0.10.0"
-sha2 = "0.11.0"
+sha1 = "0.11"
+sha2 = { version = "0.11", features = ["oid"] }
+signature = "3"
+spki = "0.8"
+ssh-encoding = "0.2"
+ssh-key = { version = "0.6", default-features = false, features = ["std", "encryption", "ecdsa"] }
+subtle = "2.6.1"
 thiserror = "2"
+tokio = { version = "1.54.1", features = ["rt", "net", "time"] }
 toml = "1.1.6"
-ureq = { version = "2", features = ["json"] }
+tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
+ureq = { version = "2", default-features = false, features = ["tls"] }
+uuid = { version = "1.29.2", default-features = false, features = ["v5"] }
+x25519-dalek = { version = "3", features = ["static_secrets", "zeroize"] }
+zeroize = "1.9.1"
 
 [dev-dependencies]
 rusqlite = { version = "0.40.2", features = ["bundled"] }

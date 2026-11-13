@@ -1,0 +1,34 @@
+# Dataflow: fork and shared producers
+
+The cases follow [HQL-0037](../../doc/proposals/HQL-0037/README.md): a
+program is a logical dataflow graph, and `fork` is its broadcast fan-out.
+`xs | fork { a = …, b = … }` gives every branch the same input, and its
+value is the record of the branches' results, `{a: A, b: B}`, each field
+typed by its own branch pipeline. A producer bound once is evaluated once,
+however many pipelines and branches read it.
+
+| Case | What it shows | Result |
+| --- | --- | --- |
+| [record of branches](queries/fork-record.hql) | three branches of different types over one list | `{small: [1, 2], large: [30, 40, 50], count: 5}` |
+| [destructuring](queries/fork-destructure.hql) | `{ early, late } = … \| fork { … }` and `parts.early` | the names before and after 1950 |
+| [over a stream](queries/fork-stream.hql) | each branch of a `Stream` is a stream in the upstream's order | `[[2, 4, 6], [1, 3, 5]]` |
+| [unread branch](queries/fork-unread-branch.hql) | a pure branch nothing reads is not run, so its division by zero never happens | `[1, 2, 3]` |
+| [shared read](queries/shared-read.hql) | a `tap` bound once is read once: later pipelines and both branches of a `fork` see that read after the file is replaced | the species, then those counted more and less than once |
+| [accepted and rejected, live](queries/fork-results-live.hql) | a file validated and forked into `oks()` and `errs()` is read once | the accepted names, the broken rules |
+| [repairing rejected values](queries/repair-rejected.hql) | stored `errs()` read back as `Invalid`, repaired from `e.value`, validated and forked again | the repaired users, the stored rules |
+| [provenance outside `Invalid`](queries/invalid-provenance.hql) | an envelope holds a broker key beside the `Invalid`; a producer's extra field rides on the open record | `["users/7", "UserData", …]` |
+| [partition by key](queries/partition-by-key.hql) | `partition(by = …)` keeps the type and every value, in order, over a list and a stream | `[[5, 3, 8, 1], [1, 2, 3, 4]]` |
+| [complementary filters](queries/fork-complementary-filters.hql) | a predicate's accepted and rejected values as two `fork` branches | `{large: [5, 8], small: [3, 1]}` |
+| [no pair from `partition`](queries/invalid-partition-pair.hql) | `partition` keeps its input's type, so it has no `.first` | a name error |
+| [fan-in over streams](queries/fan-in-streams.hql) | `merge` interleaves two streams, `zip` pairs them by position, `concat` plays one then the other | the three prefixes |
+| [`merge` of maps](queries/merge-maps.hql) | the map form keeps its meaning in `reduce({:}, merge)`, as a step and as an annotated value | three merged maps |
+| [`merge` of lists](queries/invalid-merge-list.hql) | two lists are joined with `concat` | a type error |
+| [ambiguous `merge`](queries/invalid-merge-reference.hql) | `f = merge` selects no form | a type error |
+| [branch named twice](queries/invalid-fork-branch-twice.hql) | a branch name is written once | a syntax error |
+
+From the repository root:
+
+```sh
+cargo build --locked
+target/debug/hql run examples/dataflow/queries/fork-record.hql
+```

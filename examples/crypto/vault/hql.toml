@@ -1,0 +1,16 @@
+# The key vaults the crypto cases reach by id. Checking a program reads this
+# file and opens no vault.
+
+# A store of named keys in an age-encrypted file beside this one, unlocked
+# by the passphrase in an environment variable. `keys.age` is written by
+# `hql keyvault generate team release-2026 ed25519` and
+# `hql keyvault generate team backup-2026 x25519` when the cases are
+# promoted.
+[keyvault.team]
+kind = "file"
+path = "keys.age"
+passphrase_env = "HQL_TEAM_VAULT_PASSPHRASE"
+
+# The keys an SSH agent holds: they sign, and never enter the hql process.
+[keyvault.workstation]
+kind = "ssh_agent"

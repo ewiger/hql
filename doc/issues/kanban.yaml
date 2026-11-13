@@ -3,10 +3,10 @@
 # board.items holds the columns (swimlanes); top to bottom is the flow. Each
 # column is an ordered list of issue cards, highest priority first. Move a card
 # between columns as work progresses, and bump last_id when adding an issue.
-# When an issue is Done and no longer relevant, archive its file to
-# .grem/issues/archive/ and delete its card here.
+# When an issue is done, move its file to doc/issues/archive/ and delete its
+# card here; doc/status/kanban-status.hmd counts and lists the archive.
 #
-# Convention: doc/wiki/kanban.hmd
+# Convention: doc/issues/README.hmd
 
 board:
   title: "doc/issues/ Kanban board"
@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 26 # to be incremented when adding a new issue card
+  last_id: 75 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -26,81 +26,57 @@ board:
       - id: "0015"
         title: "jq parity analysis: data formats, types and operations"
         file: 0015-jq-parity-analysis.md
-      - id: "0013"
-        title: "Typed pipeline operations: streams, batching, aggregation, presentation"
-        file: 0013-typed-pipeline-operations.md
-      - id: "0012"
-        title: "MapReduce: pipeline stages and execution backends"
-        file: 0012-mapreduce-backends.md
+      - id: "0065"
+        title: "Neo4j parity analysis: graph patterns, traversal and graph schema"
+        file: 0065-neo4j-parity-analysis.md
+      - id: "0071"
+        title: "Key vaults: `crypto.keyvault` and its backends"
+        file: 0071-key-vaults.md
+      - id: "0068"
+        title: "General-purpose gap analysis: what Python and its peers have that HQL lacks"
+        file: 0068-general-purpose-gap-analysis.md
+      - id: "0073"
+        title: "Computation plans: align HQL-0056 with the computation life cycle"
+        file: 0073-computation-plans.md
+      - id: "0074"
+        title: "Time columns read and written against a live PostgreSQL and Spark"
+        file: 0074-time-columns-against-live-servers.md
+      - id: "0075"
+        title: "Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events"
+        file: 0075-validation-rules-thresholds-and-events.md
     todo:
+      - id: "0069"
+        title: "Transports: the core of HQL-0047 and HQL-0048"
+        file: 0069-transports-core.md
+      - id: "0063"
+        title: "The result of a write: `Unit` is the wrong answer"
+        file: 0063-the-result-of-a-write.md
+      - id: "0058"
+        title: "A value read from a card loses where it came from"
+        file: 0058-card-values-lose-their-provenance.md
+      - id: "0049"
+        title: "One extension per package: fold the descriptors into `std` and `search`"
+        file: 0049-one-extension-per-package.md
+      - id: "0029"
+        title: "Binary formats, and codecs an extension or a package provides"
+        file: 0029-binary-formats-and-codecs.md
+      - id: "0027"
+        title: A partial record type reads card metadata as typed fields
+        file: 0027-typed-metadata-sort-keys.md
       - id: "0011"
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
+      - id: "0054"
+        title: "The website is for HQL users: Learn, Guides, Reference"
+        file: 0054-user-facing-website.md
+      - id: "0046"
+        title: "Renovate `lib/std/**` under the module, package and extension model"
+        file: 0046-renovate-std.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
     done:
-      - id: "0026"
-        title: The REPL edits lines and reads multi-line input
-        file: 0026-repl-line-editing.md
-      - id: "0025"
-        title: "Next feature bundle: generics, aliases, reductions and the open ends of the proposals"
-        file: 0025-next-feature-bundle.md
-      - id: "0022"
-        title: Generic functions
-        file: 0022-generic-functions.md
-      - id: "0014"
-        title: "Next feature bundle: signatures and aggregation first, then the pipeline foundations"
-        file: 0014-next-feature-bundle.md
-      - id: "0020"
-        title: "`hql render` compiles a document"
-        file: 0020-render-as-compilation.md
-      - id: "0024"
-        title: Partial application
-        file: 0024-partial-application.md
-      - id: "0010"
-        title: "`yield`: generated sequences as query sources"
-        file: 0010-yield-and-bind.md
-      - id: "0023"
-        title: Built-in record fields from their declarations
-        file: 0023-built-in-fields-from-declarations.md
-      - id: "0017"
-        title: "`graph` is two operations under one name"
-        file: 0017-graph-projection-and-view.md
-      - id: "0009"
-        title: A function type, and functions as values
-        file: 0009-function-type-and-constructor.md
-      - id: "0021"
-        title: "`of_type` replaces `typed`"
-        file: 0021-of-type-replaces-typed.md
-      - id: "0018"
-        title: "Operator synonymy: one name, one signature"
-        file: 0018-operator-synonymy-audit.md
-      - id: "0008"
-        title: "`cards` is a vault binding, not a keyword"
-        file: 0008-cards-as-a-vault-binding.md
-      - id: "0004"
-        title: Unify the collection-order vocabulary
-        file: 0004-collection-order-vocabulary.md
-      - id: "0011"
-        title: Refactor checked execution, vault assembly, YAML, and extension contracts
-        file: 0011-runtime-architecture-refactoring.md
-      - id: "0007"
-        title: Evaluate a collection literal at its checked element type
-        file: 0007-checked-element-type-at-runtime.md
-      - id: "0006"
-        title: "`Scalar`, and `Data` as a union"
-        file: 0006-scalar-and-data-union.md
-      - id: "0005"
-        title: Replace `<:` with `:`
-        file: 0005-colon-subtype-operator.md
-      - id: "0003"
-        title: Parse and check `type` declarations
-        file: 0003-type-declarations.md
-      - id: "0002"
-        title: Semantic retrieval over a real embedding index
-        file: 0002-semantic-retrieval.md
-      - id: "0001"
-        title: The extension mechanism
-        file: 0001-extension-mechanism.md
+      - id: "0072"
+        title: "Release 0.6.0: fix, finish, tidy, tag"
+        file: 0072-release-0.6.0.md

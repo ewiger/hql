@@ -8,7 +8,6 @@ use crate::document::Card;
 use crate::extensions::Config;
 use crate::extensions::semantic::Semantics;
 use crate::graph::Edge;
-use crate::warnings::Warning;
 use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -26,15 +25,17 @@ pub struct Vault {
     /// Link and relation edges over the vault.
     pub edges: Vec<Edge>,
     /// What loading wanted to say without refusing to load.
-    pub warnings: Vec<String>,
+    pub warnings: Vec<crate::diagnostics::Diagnostic>,
     /// What the vault's `hql.toml` says about extensions.
     pub extensions: Config,
     /// What it says about its embedding index.
     pub semantics: Semantics,
     /// Which renderer writes a type in a presentation format.
     pub formats: crate::extensions::format::Renderers,
+    /// The endpoints its `hql.toml` configures, by id.
+    pub endpoints: crate::endpoints::Endpoints,
     /// What it says about models, recordings and memory, and the mode the
-    /// host chose.
+    /// host chose (HQL-0022).
     pub ai: crate::extensions::ai::transport::Settings,
 }
 
@@ -51,30 +52,9 @@ impl Vault {
             extensions: Config::default(),
             semantics: Semantics::default(),
             formats: crate::extensions::format::Renderers::default(),
+            endpoints: crate::endpoints::Endpoints::default(),
             ai: crate::extensions::ai::transport::Settings::default(),
         }
-    }
-
-    /// Whether a vault was supplied at all.
-    #[must_use]
-    pub fn is_present(&self) -> bool {
-        !self.root.as_os_str().is_empty()
-    }
-
-    /// The name this vault reports as the index a retrieval used.
-    #[must_use]
-    pub fn index_name(&self) -> String {
-        if self.is_present() {
-            self.root.display().to_string()
-        } else {
-            "<no vault>".to_owned()
-        }
-    }
-
-    /// Resolve a document reference by name.
-    #[must_use]
-    pub fn resolve(&self, name: &str) -> Option<Arc<Card>> {
-        self.by_name.get(name).map(Arc::clone)
     }
 
     /// A card read from text at a path in this vault, as loading would read
@@ -97,6 +77,35 @@ impl Vault {
         let mut card = crate::knowledge::build_card(document, &names, &mut warnings);
         crate::extensions::contribute_metadata(&mut card);
         Some(card)
+    }
+
+    /// Whether a vault was supplied at all.
+    #[must_use]
+    pub fn is_present(&self) -> bool {
+        !self.root.as_os_str().is_empty()
+    }
+
+    /// The name this vault reports as the index a retrieval used.
+    #[must_use]
+    pub fn index_name(&self) -> String {
+        if self.is_present() {
+            self.root.display().to_string()
+        } else {
+            "<no vault>".to_owned()
+        }
+    }
+
+    /// Where a document of this vault is on disk: the root joined with its
+    /// path, which is its place in the vault.
+    #[must_use]
+    pub fn file_of(&self, document: &crate::document::Document) -> PathBuf {
+        self.root.join(&document.path)
+    }
+
+    /// Resolve a document reference by name.
+    #[must_use]
+    pub fn resolve(&self, name: &str) -> Option<Arc<Card>> {
+        self.by_name.get(name).map(Arc::clone)
     }
 
     /// The edges leaving a node.
@@ -181,19 +190,13 @@ pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault
         formats: source
             .formats()
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,
+        endpoints: source
+            .endpoints()
+            .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,
         root,
         cards,
         by_name,
         edges,
         warnings,
     })
-}
-/// Turn loader notes into warnings a caller can report.
-#[must_use]
-pub fn warnings(vault: &Vault, span: std::ops::Range<usize>) -> Vec<Warning> {
-    vault
-        .warnings
-        .iter()
-        .map(|message| Warning::new(span.clone(), message.clone()))
-        .collect()
 }

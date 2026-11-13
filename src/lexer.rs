@@ -7,6 +7,7 @@ use std::ops::Range;
 pub(crate) enum Token {
     Int(i64),
     Float(f64),
+    Decimal(crate::decimal::Decimal),
     Bool(bool),
     Str(String),
     Ident(String),
@@ -54,11 +55,12 @@ impl Token {
     pub(crate) fn describe(&self) -> String {
         match self {
             Self::Int(value) => format!("`{value}`"),
-            Self::Float(value) => format!("`{value:?}`"),
+            Self::Float(value) => format!("`{value:?}f`"),
+            Self::Decimal(value) => format!("`{value}`"),
             Self::Bool(value) => format!("`{value}`"),
             Self::Str(_) => "a string".to_owned(),
             Self::Ident(name) => format!("`{name}`"),
-            Self::DocRef(name) => format!("`[[{name}]]`"),
+            Self::DocRef(name) => format!("`@[[{name}]]`"),
             Self::Plus => "`+`".to_owned(),
             Self::Minus => "`-`".to_owned(),
             Self::Star => "`*`".to_owned(),
@@ -138,7 +140,7 @@ impl Scanner<'_> {
 
     fn run(&mut self) -> Result<(), Diagnostic> {
         loop {
-            self.trivia();
+            self.trivia()?;
             let start = self.offset;
             let Some(character) = self.rest().chars().next() else {
                 self.tokens.push(Spanned {
@@ -218,9 +220,15 @@ impl Scanner<'_> {
                 self.push(Token::Equals, start);
                 continue;
             }
-            if self.rest().starts_with("[[") {
+            if self.rest().starts_with("@[[") {
                 self.doc_reference(start)?;
                 continue;
+            }
+            if character == '@' {
+                return Err(Diagnostic::syntax(
+                    start..start + 1,
+                    "`@` opens a document reference: `@[[name]]`",
+                ));
             }
             if character == '[' {
                 self.offset += 1;
@@ -268,6 +276,7 @@ impl Scanner<'_> {
                 last.token,
                 Token::Int(_)
                     | Token::Float(_)
+                    | Token::Decimal(_)
                     | Token::Bool(_)
                     | Token::Str(_)
                     | Token::Ident(_)
@@ -280,16 +289,27 @@ impl Scanner<'_> {
     }
 
     /// Skip spaces, tabs and `//` line comments, but never newlines.
-    fn trivia(&mut self) {
+    fn trivia(&mut self) -> Result<(), Diagnostic> {
         loop {
             let rest = self.rest();
+            if rest.starts_with("///") && !rest.starts_with("////") {
+                let line = self.source[..self.offset]
+                    .rfind('\n')
+                    .map_or(0, |at| at + 1);
+                if !self.source[line..self.offset].trim().is_empty() {
+                    return Err(Diagnostic::syntax(
+                        self.offset..self.offset + 3,
+                        "a doc string stands on its own lines, directly above a declaration",
+                    ));
+                }
+            }
             if rest.starts_with("//") {
                 self.offset += rest.find('\n').unwrap_or(rest.len());
                 continue;
             }
             match rest.chars().next() {
                 Some(c) if c.is_whitespace() && c != '\n' => self.offset += c.len_utf8(),
-                _ => return,
+                _ => return Ok(()),
             }
         }
     }
@@ -317,7 +337,7 @@ impl Scanner<'_> {
     }
 
     fn doc_reference(&mut self, start: usize) -> Result<(), Diagnostic> {
-        self.offset += 2;
+        self.offset += 3;
         let Some(end) = self.rest().find("]]") else {
             return Err(Diagnostic::syntax(
                 start..self.source.len(),
@@ -385,11 +405,25 @@ impl Scanner<'_> {
         if fraction {
             self.offset += 1;
             self.digits();
+            self.exponent();
         }
-        // A trailing point, or an exponent, is not part of the literal grammar.
-        if self
-            .rest()
-            .starts_with(|c: char| c == '.' || c.is_alphanumeric())
+        let digits_end = self.offset;
+        // `f` directly after the digits makes the literal a Float.
+        let float = self.rest().starts_with('f')
+            && !self.source[self.offset + 1..]
+                .starts_with(|next: char| next.is_alphanumeric() || next == '_');
+        if float {
+            self.offset += 1;
+        }
+        // A point followed by a name ends the literal: `7.max(3)` calls
+        // `max` on `7`. A trailing point is not part of the literal grammar.
+        let receiver_call = self.rest().starts_with('.')
+            && self.source[self.offset + 1..]
+                .starts_with(|next: char| next.is_alphabetic() || next == '_');
+        if !receiver_call
+            && self
+                .rest()
+                .starts_with(|c: char| c == '.' || c.is_alphanumeric())
         {
             self.offset += self.rest().chars().next().map_or(0, char::len_utf8);
             return Err(Diagnostic::syntax(
@@ -397,8 +431,8 @@ impl Scanner<'_> {
                 "malformed numeric literal",
             ));
         }
-        let text = &self.source[start..self.offset];
-        let token = if fraction {
+        let text = &self.source[start..digits_end];
+        let token = if float {
             let value = text
                 .parse::<f64>()
                 .ok()
@@ -410,17 +444,45 @@ impl Scanner<'_> {
                     )
                 })?;
             Token::Float(value)
+        } else if fraction {
+            let value = crate::decimal::Decimal::parse(text).ok_or_else(|| {
+                // The digits are already scanned, so only the bounds refuse it.
+                Diagnostic::syntax(
+                    start..self.offset,
+                    "decimal literal is outside the Decimal range: a significand of at most \
+                     512 bits, at most 154 digits after the point",
+                )
+            })?;
+            Token::Decimal(value)
         } else {
             let value = text.parse::<i64>().map_err(|_| {
                 Diagnostic::syntax(
                     start..self.offset,
                     "integer literal is outside the signed 64-bit range",
                 )
+                .with_kind(crate::diagnostics::Kind::NumericOverflow)
             })?;
             Token::Int(value)
         };
         self.push(token, start);
         Ok(())
+    }
+
+    /// An exponent after a literal's fraction: `e` or `E`, an optional sign
+    /// and digits. Without digits after it, the `e` is not consumed.
+    fn exponent(&mut self) {
+        let bytes = self.source.as_bytes();
+        if !matches!(bytes.get(self.offset), Some(b'e' | b'E')) {
+            return;
+        }
+        let mut at = self.offset + 1;
+        if matches!(bytes.get(at), Some(b'+' | b'-')) {
+            at += 1;
+        }
+        if bytes.get(at).is_some_and(u8::is_ascii_digit) {
+            self.offset = at;
+            self.digits();
+        }
     }
 
     fn digits(&mut self) {

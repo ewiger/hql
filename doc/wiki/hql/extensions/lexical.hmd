@@ -3,9 +3,11 @@ tags: [hql, extensions, retrieval]
 nav:
   visibility: public
 ---
-# The lexical extension
+# The lexical module
 
-`lexical` ranks a corpus by the words it shares with a query. It is the
+`lexical` ranks a corpus by the words it shares with a query. It is a module
+of the builtin `search` package, implemented by its internal extension,
+`search`. It is the
 retrieval HQL always has: no index, no model file, no configuration, nothing to
 build. Written out with `import lexical`, it supplies one step.
 
