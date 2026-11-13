@@ -3669,6 +3669,8 @@ impl<'a> Checker<'a> {
             crate::types::program::validator(&declaration.name, None)
                 .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
         }
+        crate::types::program::declare_trait(&declaration.name)
+            .map_err(|error| Diagnostic::typing(declaration.span.clone(), error.to_string()))?;
         self.traits.insert(declaration.name.clone(), info);
         self.trait_decls
             .insert(declaration.name.clone(), declaration);

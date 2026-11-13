@@ -361,3 +361,22 @@ fn a_container_is_equal_by_its_rule_and_its_elements_by_their_eq() {
         assert_eq!(shown(&format!("{declared}{query}")), expected, "{query}");
     }
 }
+
+#[test]
+fn a_trait_in_a_type_position_is_refused_with_the_bound_to_write() {
+    let shape = "trait Shape {\n    fn area(self) : Float\n}\n";
+    for written in [
+        "fn f(s: Shape) : Int = 1\n1",
+        "fn f() : Shape = 1\n1",
+        "xs : List<Shape> = []\nxs",
+        "x : Eq = 1\nx",
+    ] {
+        let message = refused(&format!("{shape}{written}"));
+        assert!(
+            message.contains("is a trait, not a type")
+                && message.contains("written with a bound, `<T :"),
+            "{written}: {message}"
+        );
+    }
+    assert!(refused("x : Nowhere = 1\nx").contains("unknown type `Nowhere`"));
+}

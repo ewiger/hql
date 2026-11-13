@@ -210,7 +210,7 @@ fn doubled(s: Shape) : Float = s.area() * 2.0f
 ```
 
 ```text
-check error[unknown-name]: unknown type `Shape`
+check error[unknown-name]: `Shape` is a trait, not a type: a value of a type implementing it is written with a bound, `<T : Shape>(x: T)`
  --> <expression>:5:15
   |
 5 | fn doubled(s: Shape) : Float = s.area() * 2.0f

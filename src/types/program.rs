@@ -90,6 +90,9 @@ pub struct Lattice {
     /// Each validator type in scope, with the types implementing it
     /// (HQL-0034).
     pub validators: Arc<HashMap<&'static str, Vec<TypeRef>>>,
+    /// Every trait the program and the modules it loads declare: a name
+    /// refused in a type position (HQL-0039).
+    pub traits: Arc<HashSet<&'static str>>,
 }
 
 thread_local! {
@@ -105,6 +108,7 @@ fn base() -> Result<Arc<Lattice>, TypeError> {
                 system: Arc::new(system),
                 records: Arc::new(HashMap::new()),
                 validators: Arc::new(HashMap::new()),
+                traits: Arc::new(HashSet::new()),
             })
         })
     })
@@ -151,7 +155,7 @@ pub fn declare(definition: TypeDefinition, shape: Option<RecordShape>) -> Result
     install(Arc::new(Lattice {
         system: Arc::new(system),
         records: Arc::new(records),
-        validators: Arc::clone(&held.validators),
+        ..(*held).clone()
     }));
     Ok(())
 }
@@ -171,8 +175,7 @@ pub fn adopt_parent(
     system.adopt(constructor, parent)?;
     install(Arc::new(Lattice {
         system: Arc::new(system),
-        records: Arc::clone(&held.records),
-        validators: Arc::clone(&held.validators),
+        ..(*held).clone()
     }));
     Ok(())
 }
@@ -189,11 +192,36 @@ pub fn validator(name: &str, implementing: Option<TypeRef>) -> Result<(), TypeEr
     let types = validators.entry(intern(name)).or_default();
     types.extend(implementing);
     install(Arc::new(Lattice {
-        system: Arc::clone(&held.system),
-        records: Arc::clone(&held.records),
         validators: Arc::new(validators),
+        ..(*held).clone()
     }));
     Ok(())
+}
+
+/// Record that `name` is a trait: written in a type position, it is refused
+/// with the bound form to write instead (HQL-0039).
+///
+/// # Errors
+///
+/// Returns the built-in lattice's own defect, if it has one.
+pub fn declare_trait(name: &str) -> Result<(), TypeError> {
+    let held = current()?;
+    if held.traits.contains(name) {
+        return Ok(());
+    }
+    let mut traits = (*held.traits).clone();
+    traits.insert(intern(name));
+    install(Arc::new(Lattice {
+        traits: Arc::new(traits),
+        ..(*held).clone()
+    }));
+    Ok(())
+}
+
+/// Whether `name` is a trait the program or a module it loads declares.
+#[must_use]
+pub fn is_trait(name: &str) -> bool {
+    current().is_ok_and(|lattice| lattice.traits.contains(name))
 }
 
 /// The record of a `fork`'s branches, `{a: T, b: U}`: a closed record named

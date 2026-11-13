@@ -1,8 +1,8 @@
-# Traits: a trait's named type
+# Traits: contracts, a trait's named type, and traits a module implements
 
-Pure programs, no vault. Each case is proposed: it pins the type and result
-[HQL-0039](../../doc/proposals/HQL-0039/README.md) specifies for
-`trait Shape as Figure`, and does not check yet. From the repository root:
+Pure programs, no vault. Each case pins the type and result
+[HQL-0039](../../doc/proposals/HQL-0039/README.md) specifies; a case marked
+proposed does not check yet. From the repository root:
 
 ```sh
 cargo build --locked

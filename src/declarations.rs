@@ -58,12 +58,7 @@ pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
         .iter()
         .map(annotation)
         .collect::<Result<Vec<_>, _>>()?;
-    let constructor = builtin::constructor(&written.name).ok_or_else(|| {
-        Diagnostic::name(
-            written.span.clone(),
-            format!("unknown type `{}`", written.name),
-        )
-    })?;
+    let constructor = builtin::constructor(&written.name).ok_or_else(|| unknown_type(written))?;
     // `Table` written without its row is a table of `Data` rows.
     let args = if constructor == TypeRef::TABLE.constructor && args.is_empty() {
         vec![TypeRef::DATA]
@@ -76,6 +71,23 @@ pub(crate) fn annotation(written: &TypeAnn) -> Result<TypeRef, Diagnostic> {
         .apply(constructor, args)
         .map_err(|error| Diagnostic::typing(written.span.clone(), error.to_string()))?;
     Ok(reference)
+}
+
+/// The refusal of a written name that is no type. A trait is a contract,
+/// not a type, so its name in a type position is refused with the bound that
+/// states the same requirement (HQL-0039).
+pub(crate) fn unknown_type(written: &TypeAnn) -> Diagnostic {
+    let name = &written.name;
+    if types::program::is_trait(name) || crate::checker::core_traits().contains_key(name) {
+        return Diagnostic::name(
+            written.span.clone(),
+            format!(
+                "`{name}` is a trait, not a type: a value of a type implementing it is \
+                 written with a bound, `<T : {name}>(x: T)`"
+            ),
+        );
+    }
+    Diagnostic::name(written.span.clone(), format!("unknown type `{name}`"))
 }
 
 thread_local! {
@@ -411,12 +423,7 @@ fn structural(
     {
         return Ok(own.apply(args));
     }
-    let constructor = builtin::constructor(&written.name).ok_or_else(|| {
-        Diagnostic::name(
-            written.span.clone(),
-            format!("unknown type `{}`", written.name),
-        )
-    })?;
+    let constructor = builtin::constructor(&written.name).ok_or_else(|| unknown_type(written))?;
     Ok(constructor.apply(args))
 }
 
@@ -934,10 +941,7 @@ impl Declarations {
         if builtin::constructor(&written.name).is_some() {
             return Ok(());
         }
-        Err(Diagnostic::name(
-            written.span.clone(),
-            format!("unknown type `{}`", written.name),
-        ))
+        Err(unknown_type(written))
     }
 
     fn scoped_type(&self, written: &TypeAnn, scope: &HashMap<String, TypeRef>) -> Option<TypeRef> {
