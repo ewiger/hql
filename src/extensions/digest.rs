@@ -97,7 +97,9 @@ fn eval_digest(
             )
         })?;
     let text = input_text(&input, "digest", &span)?;
-    Ok(Value::Str(Arc::from(hex(&algorithm.digest(text.as_bytes())))))
+    Ok(Value::Str(Arc::from(hex(
+        &algorithm.digest(text.as_bytes())
+    ))))
 }
 
 fn eval_fingerprint(
@@ -158,8 +160,10 @@ mod tests {
     #[test]
     fn canonical_json_sorts_keys_by_utf16_and_writes_numbers_by_value() {
         let tree = crate::io::data_of(
-            serde_json::from_str(r#"{"b": 1.50, "a": [1, 1.0, "x\n\u0001"], "é": null, "😀": true, "｡": false}"#)
-                .unwrap(),
+            serde_json::from_str(
+                r#"{"b": 1.50, "a": [1, 1.0, "x\n\u0001"], "é": null, "😀": true, "｡": false}"#,
+            )
+            .unwrap(),
         );
         // U+1F600 is the surrogate pair D83D DE00, which sorts before U+FF61
         // in UTF-16 and after it in UTF-8.

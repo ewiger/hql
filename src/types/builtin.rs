@@ -341,15 +341,39 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         // and `lib/std/encoding/mod.hql`. An algorithm and an encoding are
         // types, so a call takes one as `Sha256` or `Hex` is written.
         (TypeRef::DIGEST_ALGORITHM, TypeKind::Abstract, &[]),
-        (TypeRef::MD5, TypeKind::Concrete, &[TypeRef::DIGEST_ALGORITHM]),
-        (TypeRef::SHA1, TypeKind::Concrete, &[TypeRef::DIGEST_ALGORITHM]),
-        (TypeRef::SHA256, TypeKind::Concrete, &[TypeRef::DIGEST_ALGORITHM]),
-        (TypeRef::SHA512, TypeKind::Concrete, &[TypeRef::DIGEST_ALGORITHM]),
-        (TypeRef::BLAKE3, TypeKind::Concrete, &[TypeRef::DIGEST_ALGORITHM]),
+        (
+            TypeRef::MD5,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::SHA1,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::SHA256,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::SHA512,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
+        (
+            TypeRef::BLAKE3,
+            TypeKind::Concrete,
+            &[TypeRef::DIGEST_ALGORITHM],
+        ),
         (TypeRef::ENCODING, TypeKind::Abstract, &[]),
         (TypeRef::HEX, TypeKind::Concrete, &[TypeRef::ENCODING]),
         (TypeRef::BASE64, TypeKind::Concrete, &[TypeRef::ENCODING]),
-        (TypeRef::BASE64_URL, TypeKind::Concrete, &[TypeRef::ENCODING]),
+        (
+            TypeRef::BASE64_URL,
+            TypeKind::Concrete,
+            &[TypeRef::ENCODING],
+        ),
         (TypeRef::PERCENT, TypeKind::Concrete, &[TypeRef::ENCODING]),
     ] {
         system.declare(TypeDefinition {

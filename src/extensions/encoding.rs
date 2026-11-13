@@ -10,8 +10,8 @@ use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
 use crate::types::{TypeRef, Value};
 use base64::Engine as _;
-use base64::engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig, STANDARD};
 use base64::engine::DecodePaddingMode;
+use base64::engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig, STANDARD};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -151,7 +151,11 @@ fn input_text(input: &Value, name: &str, span: &Range<usize>) -> Result<String, 
 }
 
 /// The encoding a call names, as its `as` argument or its first one.
-fn encoding(arguments: &[TypedArg], name: &str, span: &Range<usize>) -> Result<Encoding, Diagnostic> {
+fn encoding(
+    arguments: &[TypedArg],
+    name: &str,
+    span: &Range<usize>,
+) -> Result<Encoding, Diagnostic> {
     super::named(arguments, "as")
         .or_else(|| arguments.iter().find(|argument| argument.name.is_none()))
         .and_then(|argument| Encoding::named(argument.value.ty.constructor.0))
@@ -236,7 +240,10 @@ mod tests {
 
     #[test]
     fn percent_encoding_keeps_the_unreserved_characters() {
-        assert_eq!(Encoding::Percent.encode(b"Az09-._~ +/"), "Az09-._~%20%2B%2F");
+        assert_eq!(
+            Encoding::Percent.encode(b"Az09-._~ +/"),
+            "Az09-._~%20%2B%2F"
+        );
         assert_eq!(Encoding::Percent.decode("%4a%4A+"), Some(b"JJ+".to_vec()));
         assert_eq!(Encoding::Percent.decode("%4"), None);
         assert_eq!(Encoding::Percent.decode("%zz"), None);
@@ -252,7 +259,9 @@ mod tests {
             Encoding::Percent,
         ] {
             assert_eq!(
-                encoding.decode(&encoding.encode(text.as_bytes())).as_deref(),
+                encoding
+                    .decode(&encoding.encode(text.as_bytes()))
+                    .as_deref(),
                 Some(text.as_bytes()),
                 "{encoding:?}"
             );
