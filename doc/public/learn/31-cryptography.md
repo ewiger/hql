@@ -1,0 +1,655 @@
+# 31. Keys and cryptography
+
+The module `crypto` holds keys: the algorithms they belong to, the types that
+hold them, the text formats other tools write them in, and the rules that
+keep a private key out of every output. This chapter reads, writes and
+generates keys, signs and verifies with them, computes MACs and hashes
+passwords, and then describes the operations that are not in the current
+release: encryption and the key vault. Digests and text encodings, which need no key, are
+[chapter 30](30-digests-and-encodings.md), and the octets a key is made of are
+the [Bytes](02-data-types/bytes.md) type of chapter 2.
+
+## Algorithms and key types
+
+`crypto` is not in the prelude: a program writes `import crypto`. An
+algorithm is named by a type, as a format is, and a key's type carries its
+algorithm:
+
+| Algorithm | Kind | What it is |
+| --- | --- | --- |
+| `Ed25519` | signing | RFC 8032, pure Ed25519 |
+| `P256` | signing | ECDSA over NIST P-256 with SHA-256 |
+| `Rsa` | signing | RSASSA-PKCS1-v1_5 with SHA-256, 2048 to 8192 bits |
+| `X25519` | agreement | RFC 7748; the key of an age recipient |
+| `Aes256Gcm`, `ChaCha20Poly1305` | cipher | a 256-bit shared key |
+| `HmacSha256`, `HmacSha512` | MAC | a shared key of any length |
+
+The first four are asymmetric, each key a pair of a public and a private
+half. The last four are symmetric, one shared key. Four types hold them:
+
+| Type | What it holds |
+| --- | --- |
+| `PublicKey<A>` | the public half of a key of algorithm `A` |
+| `PrivateKey<A>` | the private half |
+| `KeyPair<A>` | both halves, as the fields `public` and `private` |
+| `SecretKey<A>` | a symmetric key of a cipher or a MAC |
+
+`PrivateKey`, `KeyPair` and `SecretKey` are **secret types**, the subject of
+the section [Private keys](#private-keys) below.
+
+## Reading a public key
+
+`read_public_key(file, format, algorithm)` reads the key a file holds. The
+key here is the published test key 1 of RFC 8032, kept in the repository's
+examples:
+
+```hql
+import crypto
+
+key = read_public_key(file("examples/crypto/keys/rfc8032-test-1.pub.pem"), Pem, Ed25519)
+key
+```
+
+```text
+PublicKey<Ed25519>(kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k)
+```
+
+A public key prints as its type and its **thumbprint**: the RFC 7638 JWK
+thumbprint, the base64url SHA-256 of the key's canonical JWK. `thumbprint()`
+gives it as a `String`. It names a key in one short line, and is the same
+whichever format the key was read from.
+
+A key format is named by a type:
+
+| Format | Text |
+| --- | --- |
+| `Pem` | RFC 7468 text around DER: SPKI for a public key, PKCS #8 for a private one |
+| `Jwk` | the RFC 7517 JSON text of one key |
+| `OpenSsh` | an `authorized_keys` line, or an OpenSSH private key file |
+| `Age` | age's Bech32 recipient and identity text, for `X25519` only |
+
+`PublicKey(text, format, algorithm)` reads a key from a `String`. A public
+key is not a secret, so its text may be written in a program. The same key
+as an OpenSSH line and as a JWK is one value:
+
+```hql
+import crypto
+
+line = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea"
+jwk = "{\"kty\": \"OKP\", \"crv\": \"Ed25519\", \"x\": \"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}"
+a = PublicKey(line, OpenSsh, Ed25519)
+b = PublicKey(jwk, Jwk, Ed25519)
+[a == b, a.thumbprint()]
+```
+
+```text
+[true, "kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k"]
+```
+
+Public keys compare by their octets, so `==` holds across formats.
+
+Text that is not a key of the format and the algorithm is an evaluation
+error. `to_public_key` gives `none` instead, for text whose validity is not
+known in advance:
+
+```hql
+import crypto
+
+"ssh-ed25519 AAAA" | to_public_key(OpenSsh, Ed25519)
+```
+
+```text
+none
+```
+
+A key of one algorithm read as another is an evaluation error naming both:
+
+```hql
+import crypto
+
+read_public_key(file("examples/crypto/keys/rfc8032-test-1.pub.pem"), Pem, P256)
+```
+
+```text
+execute failure[invalid-argument]: examples/crypto/keys/rfc8032-test-1.pub.pem: the DER text holds an Ed25519 key, and it is read as P256
+ --> <expression>:3:1
+  |
+3 | read_public_key(file("examples/crypto/keys/rfc8032-test-1.pub.pem"), Pem, P256)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+A format that holds no key of the algorithm at all is a check error, found
+before anything is read. `Age` holds `X25519` keys alone, and `X25519` has
+no `OpenSsh` text:
+
+```hql
+import crypto
+
+PublicKey("age1qyqszqgpqyqszqgpqyqszqgp", Age, Ed25519)
+```
+
+```text
+check error[type-mismatch]: Age text holds no Ed25519 key: `Age` holds `X25519` keys alone
+ --> <expression>:3:1
+  |
+3 | PublicKey("age1qyqszqgpqyqszqgpqyqszqgp", Age, Ed25519)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+## Writing a public key
+
+`to_text(format)` writes a public key in a format another tool reads.
+`OpenSsh` is an `authorized_keys` line with no comment, `Jwk` the canonical
+JSON of the required members, and `Pem` 64-column lines with a final line
+break:
+
+```hql
+import crypto
+
+key = read_public_key(file("examples/crypto/keys/rfc8032-test-1.pub.pem"), Pem, Ed25519)
+[key.to_text(OpenSsh), key.to_text(Jwk)]
+```
+
+```text
+["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea", "{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}"]
+```
+
+`to_der()` gives the key's SPKI DER as `Bytes`, and `PublicKey(der,
+algorithm)` reads it back:
+
+```hql
+import crypto
+
+key = read_public_key(file("examples/crypto/keys/rfc8032-test-1.pub.pem"), Pem, Ed25519)
+der = key.to_der()
+[str(der.size()), str(der), str(PublicKey(der, Ed25519) == key)]
+```
+
+```text
+["44", "0x302a300506032b6570032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a", "true"]
+```
+
+The last 32 octets are the Ed25519 key itself; the 12 before them name the
+algorithm.
+
+## Private keys
+
+A **secret type** is a type whose values hold private key material:
+`PrivateKey`, `KeyPair` and `SecretKey`. Four rules hold for every value of
+one:
+
+- it prints redacted;
+- no format writes it;
+- `==` does not compare it;
+- its text does not appear in a program's source.
+
+`read_private_key(file, format, algorithm)` reads a private key. It prints
+as its type and its public key's thumbprint, which names the key and
+discloses nothing of it:
+
+```hql
+import crypto
+
+key = read_private_key(file("examples/crypto/keys/rfc8032-test-1.pem"), Pem, Ed25519)
+[str(key), key.public().thumbprint()]
+```
+
+```text
+["PrivateKey<Ed25519>(kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k)", "kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k"]
+```
+
+`public()` gives a private key's public key. On a Unix host, a private key
+file that its group or others may read gives a warning naming the path and
+its mode; `chmod 600` the file to clear it. The warning is a diagnostic, and
+the result is unchanged.
+
+A secret reaches no format. Writing one is a check error that names the
+operation that turns a private key into text:
+
+```hql
+import crypto
+
+pair = generate_key_pair(Ed25519)
+pair.private | format(Json)
+```
+
+```text
+check error[type-mismatch]: PrivateKey<Ed25519> holds private key material, which no format writes; `export_private` turns a private key into text where a program means to
+ --> <expression>:4:16
+  |
+4 | pair.private | format(Json)
+  |                ^^^^^^^^^^^^
+```
+
+A secret type implements no `Eq`. Two private keys are the same key when
+their public keys are equal, and that is the comparison to write:
+
+```hql
+import crypto
+
+pair = generate_key_pair(Ed25519)
+pair.private == pair.private
+```
+
+```text
+check error[type-mismatch]: PrivateKey<Ed25519> is a secret and implements no `Eq`: `==` does not compare key material; compare public keys, or a MAC with `verify_mac`
+ --> <expression>:4:1
+  |
+4 | pair.private == pair.private
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+A string literal that holds private key material is a check error. A
+private key is read from a file, the environment or a key vault, or
+generated:
+
+```hql
+import crypto
+
+text = "-----BEGIN OPENSSH PRIVATE KEY-----"
+text
+```
+
+```text
+check error[type-mismatch]: this literal holds a PEM private key: private key material never lives in a program's source; read it from a file (`read_private_key`), the environment (`env.var`), a key vault (`keyvault.key`), or generate it
+ --> <expression>:3:8
+  |
+3 | text = "-----BEGIN OPENSSH PRIVATE KEY-----"
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+### Exporting a private key
+
+`export_private(format)` writes a private key's material as a `String`, the
+one operation that does. The result is no longer a secret type: it prints,
+and a format writes it. With `passphrase`, the text is encrypted: PKCS #8
+under scrypt and AES-256-CBC for `Pem`, bcrypt-pbkdf and AES-256-CTR for
+`OpenSsh`. `PrivateKey(text, format, algorithm, passphrase = …)` reads it
+back, and `to_private_key` gives `none` for a wrong passphrase:
+
+```hql
+import crypto
+
+pair = generate_key_pair(Ed25519)
+sealed = pair.private.export_private(OpenSsh, passphrase = "correct horse")
+[PrivateKey(sealed, OpenSsh, Ed25519, passphrase = "correct horse").public() == pair.public,
+ sealed | to_private_key(OpenSsh, Ed25519, passphrase = "wrong") | is_none]
+```
+
+```text
+[true, true]
+```
+
+`PrivateKey` with a wrong passphrase is an evaluation error that says so:
+
+```hql
+import crypto
+
+pair = generate_key_pair(Ed25519)
+sealed = pair.private.export_private(OpenSsh, passphrase = "correct horse")
+PrivateKey(sealed, OpenSsh, Ed25519, passphrase = "wrong")
+```
+
+```text
+execute failure[invalid-argument]: the passphrase does not decrypt the OpenSsh private key
+ --> <expression>:5:1
+  |
+5 | PrivateKey(sealed, OpenSsh, Ed25519, passphrase = "wrong")
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+## Generating keys
+
+`generate_key_pair(algorithm)` gives a new `KeyPair` from the host's
+cryptographically secure generator, and is effectful. `bits` sets the size
+of an `Rsa` key, 2048 to 8192 and 3072 by default. A generated key differs
+on every evaluation, so the programs here show what holds of every one:
+
+```hql
+import crypto
+
+pair = generate_key_pair(X25519)
+[pair.public == pair.private.public(),
+ pair.public.to_text(Age) | starts_with("age1"),
+ str(pair) | starts_with("KeyPair<X25519>(")]
+```
+
+```text
+[true, true, true]
+```
+
+An `X25519` public key in `Age` text is an age recipient, `age1…`, and its
+private key exported in `Age` is an age identity, the text the `age` command
+line reads with `-i`.
+
+`generate_secret_key(algorithm)` gives a new symmetric key: 32 octets for a
+cipher and for `HmacSha256`, 64 for `HmacSha512`. `SecretKey(bytes,
+algorithm)` builds one from octets the program already holds. A secret key
+prints with no thumbprint, since it has no public half:
+
+```hql
+import crypto
+
+[str(generate_secret_key(Aes256Gcm)), str(SecretKey(Bytes("Jefe"), HmacSha256))]
+```
+
+```text
+["SecretKey<Aes256Gcm>(redacted)", "SecretKey<HmacSha256>(redacted)"]
+```
+
+A cipher's key is exactly 32 octets, and a MAC's at least one. Another
+length is an evaluation error naming it:
+
+```hql
+import crypto
+
+SecretKey(Bytes("short"), Aes256Gcm)
+```
+
+```text
+execute failure[invalid-argument]: a Aes256Gcm key is 32 octets, and this one is 5
+ --> <expression>:3:1
+  |
+3 | SecretKey(Bytes("short"), Aes256Gcm)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+## Signatures
+
+A **signature** is `Bytes`, detached from what it signs. `sign(key)` signs a
+`String`'s UTF-8 octets or a `Bytes` value with a private key of a signing
+algorithm. Every scheme signs deterministically: one key and one message
+give one signature. The Ed25519 test key signs the empty message as RFC 8032
+says:
+
+```hql
+import crypto
+import encoding
+
+key = read_private_key(file("examples/crypto/keys/rfc8032-test-1.pem"), Pem, Ed25519)
+"" | sign(key) | encode(Hex)
+```
+
+```text
+"e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+```
+
+| Algorithm | Signature |
+| --- | --- |
+| `Ed25519` | 64 octets, R and S |
+| `P256` | 64 octets, r and s, as JWS ES256 |
+| `Rsa` | the modulus length, PKCS #1 v1.5 over SHA-256, as JWS RS256 |
+
+`verify(signature, key)` checks a signature with the public key. A
+signature of another message, of another key, of the wrong length or
+malformed gives `false`, never an error:
+
+```hql
+import crypto
+
+pair = generate_key_pair(Ed25519)
+signature = "ship order 1042" | sign(pair.private)
+["ship order 1042".verify(signature, pair.public),
+ "ship order 1043".verify(signature, pair.public),
+ "ship order 1042".verify(signature[0:63], pair.public)]
+```
+
+```text
+[true, false, false]
+```
+
+OpenSSL writes a P-256 signature as ASN.1 DER. `p256_signature_from_der`
+converts one to the 64 octets `verify` reads, and gives `none` for octets
+that are not one.
+
+### Signing a tree
+
+`sign_data(key)` signs a `Data` tree over its canonical JSON, the RFC 8785
+text [chapter 30](30-digests-and-encodings.md) fingerprints, and
+`verify_data(signature, key)` checks one. Two trees equal under HQL equality
+have one signature, whatever their key order:
+
+```hql
+import crypto
+
+pair = generate_key_pair(Ed25519)
+a = Data("{\"name\": \"hql\", \"version\": \"0.4.0\"}", Json)
+b = Data("{\"version\": \"0.4.0\", \"name\": \"hql\"}", Json)
+a.sign_data(pair.private) == b.sign_data(pair.private)
+```
+
+```text
+true
+```
+
+A verifier in another language checks the signature with any RFC 8785
+implementation. The examples hold two releases, each a manifest and a
+base64 signature by the test key. The second manifest has its version
+changed, and its signature fails:
+
+```hql
+import crypto
+import encoding
+
+type Release {
+    manifest  : Data
+    signature : String
+}
+
+public = read_public_key(file("examples/crypto/keys/rfc8032-test-1.pub.pem"), Pem, Ed25519)
+releases : Seq<Release> = source(file("examples/crypto/releases.jsonl"))
+releases
+| map(r => r.manifest.verify_data(r.signature.to_bytes(Base64) | unwrap_or(Bytes("")), public))
+```
+
+```text
+[true, false]
+```
+
+A `String` and a `Data` tree are signed by different names: `sign` signs a
+text's octets, and `sign_data` a tree's canonical JSON, in which a string
+is written with its quotes.
+
+## MACs
+
+A **MAC** is a tag computed under a shared `SecretKey` of `HmacSha256` or
+`HmacSha512`: 32 octets for the first, 64 for the second. `mac(key)` gives
+the tag. A webhook's secret is the length its sender chose, and a MAC key
+takes any length from one octet. RFC 4231's test case 2:
+
+```hql
+import crypto
+import encoding
+
+key = SecretKey(Bytes("Jefe"), HmacSha256)
+"what do ya want for nothing?" | mac(key) | encode(Hex)
+```
+
+```text
+"5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+```
+
+`verify_mac(tag, key)` checks a tag, comparing it in time independent of
+where it first differs. `==` over two `Bytes` is not constant-time, and a
+received tag is checked with `verify_mac`:
+
+```hql
+import crypto
+import encoding
+
+key = SecretKey(Bytes("Jefe"), HmacSha256)
+tag = Bytes("5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843", Hex)
+["what do ya want for nothing?".verify_mac(tag, key),
+ "what do ya want for something?".verify_mac(tag, key)]
+```
+
+```text
+[true, false]
+```
+
+## Password hashes
+
+A **password hash** is an Argon2id PHC string:
+`$argon2id$v=19$m=19456,t=2,p=1$`, then the salt and the hash. `hash_password`
+draws a new 16-octet salt on every call, so it is effectful and two hashes
+of one password differ. `verify_password(hash)` gives whether a password is
+the one the hash was made from, under the parameters the hash names:
+
+```hql
+import crypto
+
+stored = "correct horse battery staple" | hash_password
+["correct horse battery staple".verify_password(stored),
+ "Tr0ub4dor&3".verify_password(stored),
+ stored.starts_with("$argon2id$v=19$m=19456,t=2,p=1$")]
+```
+
+```text
+[true, false, true]
+```
+
+`memory_kib`, `iterations` and `parallelism` raise the cost. A cost below
+OWASP's minimum is an evaluation error naming the parameter:
+
+```hql
+import crypto
+
+"correct horse battery staple" | hash_password(memory_kib = 4096)
+```
+
+```text
+execute failure[invalid-argument]: `memory_kib` is 19456 to 1048576, and 4096 is outside: a cost below OWASP's minimum is refused
+ --> <expression>:3:34
+  |
+3 | "correct horse battery staple" | hash_password(memory_kib = 4096)
+  |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+`verify_password` reads Argon2id, Argon2i and Argon2d hashes. A stored hash
+of another scheme, such as bcrypt's `$2b$`, is an evaluation error naming
+the scheme, not a wrong password.
+
+## Encryption
+
+!!! warning "Design only"
+
+    This section describes functionality that is not in the current release.
+    It is written as if it existed: these programs do not run against the
+    current binary, and names, types and outputs may change before they
+    ship.
+
+**Shared-key encryption** is authenticated: `encrypt(key)` under a
+`SecretKey` of `Aes256Gcm` or `ChaCha20Poly1305` gives a new 12-octet nonce,
+the ciphertext and a 16-octet tag, as one `Bytes`. `decrypt(key)` gives the
+plaintext, or `none` for octets that are not an encryption of anything
+under that key:
+
+<!-- run: skip -->
+```hql
+import crypto
+
+key = generate_secret_key(ChaCha20Poly1305)
+sealed = "meet at the north gate" | encrypt(key)
+[(sealed.decrypt(key) | and_then(to_text)) == some("meet at the north gate"),
+ sealed[:-1].decrypt(key) | is_none]
+```
+
+```text
+[true, true]
+```
+
+**Encryption to a recipient** writes an age v1 message to one or more
+`X25519` public keys, and any of their private keys decrypts it. The `age`
+command line reads and writes the same octets:
+
+<!-- run: skip -->
+```hql
+import crypto
+
+pair = generate_key_pair(X25519)
+sealed = "J45.909" | encrypt_to([pair.public])
+sealed | decrypt_with(pair.private) | and_then(to_text)
+```
+
+```text
+"J45.909"
+```
+
+An **encrypted endpoint** encrypts what a format writes. `encrypted_to`
+wraps an endpoint that `target` writes, and `decrypted_with` one that
+`source` reads; `orders.jsonl.age` is JSON Lines, encrypted:
+
+<!-- run: skip -->
+```hql
+import crypto
+
+pair = generate_key_pair(X25519)
+orders = [{id: 1, total: 12.50}, {id: 2, total: 7.25}]
+orders | target(encrypted_to(file("orders.jsonl.age"), [pair.public]))
+source(decrypted_with(file("orders.jsonl.age"), pair.private)) | map(o => o.id)
+```
+
+```text
+[1, 2]
+```
+
+## The key vault
+
+!!! warning "Design only"
+
+    This section describes functionality that is not in the current release.
+    It is written as if it existed: these programs do not run against the
+    current binary, and names, keys, types and outputs may change before
+    they ship.
+
+A **key vault** is a store of named keys that `hql.toml` configures, as it
+configures an endpoint. Its secrets are named by `*_env` keys and never
+written:
+
+```toml
+[keyvault.team]
+kind = "file"
+path = "keys.age"
+passphrase_env = "HQL_TEAM_VAULT_PASSPHRASE"
+```
+
+The module `crypto.keyvault`, imported with `import crypto.keyvault` and
+reached as `keyvault`, names a key by the vault's id and the key's name.
+`keyvault.key` gives a `KeyRef`, which holds the two names and no key
+material. A stored private key signs and decrypts inside the vault and is
+never a value of the program:
+
+<!-- run: skip -->
+```hql
+import crypto
+import crypto.keyvault
+
+signer = keyvault.key("team", "release-2026", Ed25519)
+manifest = {name: "hql", version: "0.4.0"}
+signature = keyvault.sign_data(manifest, signer)
+manifest.verify_data(signature, keyvault.public_key(signer))
+```
+
+```text
+true
+```
+
+`keyvault.keys` lists a vault's keys by name, algorithm and what each one
+does:
+
+<!-- run: skip -->
+```hql
+import crypto.keyvault
+
+keyvault.keys("team") | map(k => {name: k.name, algorithm: k.algorithm, decrypts: k.decrypts})
+```
+
+```text
+[{algorithm: "X25519", decrypts: true, name: "backup-2026"}, {algorithm: "Ed25519", decrypts: false, name: "release-2026"}]
+```
+
+A vault is a `file` store encrypted with age, the operating system's
+`keychain`, an `ssh_agent`, or `aws_kms`. In an `ssh_agent` or `aws_kms`
+vault the private key never enters the `hql` process. `hql keyvault`
+generates, imports, lists and deletes the keys of a store; a program does
+none of these.

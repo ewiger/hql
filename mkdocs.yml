@@ -90,6 +90,7 @@ nav:
                   - Decimal: learn/02-data-types/decimal.md
                   - String: learn/02-data-types/string.md
                   - Bool: learn/02-data-types/bool.md
+                  - Bytes: learn/02-data-types/bytes.md
                   - Date and time: learn/02-data-types/time.md
                   - Data: learn/02-data-types/data.md
                   - Option: learn/02-data-types/option.md
@@ -121,6 +122,8 @@ nav:
                   - Channels: learn/09-io/channels.md
                   - Logging: learn/09-io/logging.md
                   - The network: learn/09-io/network.md
+                  - Files and folders: learn/09-io/files-and-folders.md
+                  - Environment and arguments: learn/09-io/environment.md
                   - Effects and what a host allows: learn/09-io/hosts.md
                   - hql on the command line: learn/09-io/command-line.md
               - 10. The type system:
@@ -175,6 +178,11 @@ nav:
               - 25. Agents and runs: learn/25-agents-and-runs.md
               - 26. Agents inside documents: learn/26-agents-inside-documents.md
               - 27. The hyper web: learn/27-the-hyper-web.md
+          - "Part IV: The standard library":
+              - 28. Statistics: learn/28-statistics.md
+              - 29. Random values: learn/29-random.md
+              - 30. Digests and encodings: learn/30-digests-and-encodings.md
+              - 31. Keys and cryptography: learn/31-cryptography.md
       - Examples: examples.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this
