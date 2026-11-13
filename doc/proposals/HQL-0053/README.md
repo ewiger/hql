@@ -1,6 +1,6 @@
 # HQL-0053: Bytes, keys, signatures, encryption and a key vault
 
-**Status**: accepted
+**Status**: accepted, implemented in part
 **Created**: 2026-11-13
 **Source**: [issue 0067](../../issues/0067-std-crypto.md);
 [HQL-0041 part 3](../HQL-0041/parts/03-digest-and-encoding.md) (digests,
