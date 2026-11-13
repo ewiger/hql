@@ -51,7 +51,7 @@ then the archive.
 | lane    | issues |
 | ------- | ------ |
 | backlog | 7      |
-| todo    | 10     |
+| todo    | 11     |
 | doing   | 5      |
 | done    | 0      |
 | archive | 51     |
@@ -84,13 +84,14 @@ range(0, depth)
 <!-- hql:output hash=fc2c6467e9c1 status=ok -->
 | backlog                                                                          | todo                                                                         | doing                                                                    | done |
 | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---- |
-| 0071 Key vaults: `crypto.keyvault` and its backends                              | 0069 Transports: the core of HQL-0047 and HQL-0048                           | 0064 `Date` as a data type, and the `time` module                        |      |
-| 0068 General-purpose gap analysis: what Python and its peers have that HQL lacks | 0063 The result of a write: `Unit` is the wrong answer                       | 0054 The website is for HQL users                                        |      |
-| 0065 Neo4j parity analysis: graph patterns, traversal and graph schema           | 0058 A value read from a card loses where it came from                       | 0046 Renovate `lib/std/**` under the module, package and extension model |      |
-| 0016 SQL parity analysis: relational operations, aggregation and schema          | 0056 `hql help` prints part of a block body in a signature                   | 0043 Contract validation: rules, structured errors and stream policies   |      |
-| 0015 jq parity analysis: data formats, types and operations                      | 0055 A parameter default on a function with a body                           | 0019 Documentation states semantics, not intuition                       |      |
-| 0013 Typed pipeline operations: streams, batching, aggregation, presentation     | 0049 One extension per package: fold the descriptors into `std` and `search` |                                                                          |      |
-| 0012 MapReduce: pipeline stages and execution backends                           | 0047 Cardinality is `size`: a String's `size` replaces `length`              |                                                                          |      |
+| 0071 Key vaults: `crypto.keyvault` and its backends                              | 0072 Release 0.6.0: fix, finish, tidy, tag                                   | 0064 `Date` as a data type, and the `time` module                        |      |
+| 0068 General-purpose gap analysis: what Python and its peers have that HQL lacks | 0069 Transports: the core of HQL-0047 and HQL-0048                           | 0054 The website is for HQL users                                        |      |
+| 0065 Neo4j parity analysis: graph patterns, traversal and graph schema           | 0063 The result of a write: `Unit` is the wrong answer                       | 0046 Renovate `lib/std/**` under the module, package and extension model |      |
+| 0016 SQL parity analysis: relational operations, aggregation and schema          | 0058 A value read from a card loses where it came from                       | 0043 Contract validation: rules, structured errors and stream policies   |      |
+| 0015 jq parity analysis: data formats, types and operations                      | 0056 `hql help` prints part of a block body in a signature                   | 0019 Documentation states semantics, not intuition                       |      |
+| 0013 Typed pipeline operations: streams, batching, aggregation, presentation     | 0055 A parameter default on a function with a body                           |                                                                          |      |
+| 0012 MapReduce: pipeline stages and execution backends                           | 0049 One extension per package: fold the descriptors into `std` and `search` |                                                                          |      |
+|                                                                                  | 0047 Cardinality is `size`: a String's `size` replaces `length`              |                                                                          |      |
 |                                                                                  | 0029 Binary formats, and codecs an extension or a package provides           |                                                                          |      |
 |                                                                                  | 0027 A partial record type reads card metadata as typed fields               |                                                                          |      |
 |                                                                                  | 0011 Wire the semantic-search toolchain together                             |                                                                          |      |

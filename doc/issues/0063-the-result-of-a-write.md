@@ -50,6 +50,15 @@ in a record. Whatever the type becomes, its one spelling is part of this.
 - The book and reference pages that say `Unit`, and the `hql check` output
   the book shows.
 
+## Decided: the name
+
+2026-11-13. `Unit` becomes `Step`, a subtype of a new type `Aute`, the
+atomic unit of execution, before the 0.6.0 tag. The reasoning and the
+migration are in [HQL-0055](../proposals/HQL-0055/README.md) and its
+companion note on [the type `Step`](../proposals/HQL-0055/parts/04-the-step-type.md).
+What stays open here is the outcome of a write: a count and an endpoint, a
+subtype of `Step` or a `Result`, once the backends report them uniformly.
+
 ## Done when
 
 - A program that ends in a write checks to a type whose name says what the

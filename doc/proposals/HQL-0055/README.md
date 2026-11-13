@@ -1,0 +1,298 @@
+# HQL-0055: Steps, autes, stages, tasks and jobs: units of computation and units of execution
+
+**Status**: drafted
+**Created**: 2026-11-13
+**Source**: [issue 0063](../../issues/0063-the-result-of-a-write.md) (the
+result of a write); [issue 0072](../../issues/0072-release-0.6.0.md) (release
+0.6.0); [HQL-0005](../HQL-0005/README.md) (pipeline vocabulary and the
+logical/physical separation); [HQL-0036](../HQL-0036/README.md) (execution
+stages and tasks); [HQL-0001](../HQL-0001/README.md) (purity)
+
+## Companion notes
+
+- [`parts/01-levels.md`](parts/01-levels.md) — the four levels, step,
+  stage, task and job, each with its owner and cardinality, and a worked plan
+  of one pipeline on the `localhost` backend and on a distributed one.
+- [`parts/02-effects.md`](parts/02-effects.md) — what an effect is, how
+  `effectful`, effect and aute name one thing from three sides, and the
+  constraints autes put on fusing, reordering, retrying and partitioning.
+- [`parts/03-local-and-scheduled.md`](parts/03-local-and-scheduled.md) —
+  local evaluation against scheduled backend execution: who owns a task's
+  identity, retries and lifecycle, what each party owes an aute, and how a
+  bounded and an unbounded job end.
+- [`parts/04-the-step-type.md`](parts/04-the-step-type.md) — `Unit` renamed
+  `Step` under `Aute`: the names weighed, the inventory of uses, the value's
+  spelling, the migration, and the room left for a write's outcome.
+
+## Abstract
+
+A unit of computation in HQL is not a unit of execution in a backend. This
+record separates the two and names each level once. A **step** is one
+occurrence of an operation in a pipeline, as HQL-0005 defines it; it exists
+whether the program runs in process or on a cluster. A **stage** is the region
+of a plan a planner chooses for execution, HQL-0005's term, here allowed to
+hold part of a step as well as several. A **task** is one concrete,
+schedulable execution of a stage, one attempt at a time. A **job** is one
+execution of a whole plan. An **effect** is not a level: it is a property of
+an operation, the interaction with state outside the program, and it
+constrains how a planner may draw stages and retry tasks. An **aute**, the
+atomic unit of execution, is the smallest execution the program observes as
+complete: whole, or not at all. The aute becomes a type, **`Aute`**, and the
+one-valued type of a statement that gives no value, today `Unit`, is renamed
+**`Step`** and declared its subtype, `Step : Aute`. `Unit` is refused with a
+message naming `Step`.
+
+## Motivation
+
+- Issue 0063: `Unit`, the result of `target`, `sink`, the relational
+  mutations and the log calls, reads on a book page as a type, a value, a
+  missing value or a status, and as `none` with a capital letter. The
+  maintainer named it for the atomic unit of computation; the name should
+  carry that meaning on its own.
+- The backends are arriving (PostgreSQL, Spark, Kafka, NATS, a lakehouse), and
+  with them the words *job*, *task*, *stage* and *work unit*, used loosely.
+  HQL-0005 fixed *step* and *stage*. It also writes "parallel, 8 jobs" for what
+  is eight parallel tasks, and HQL-0036 speaks of "execution tasks" without
+  defining them. Nothing defines a job.
+- A planner needs to know which steps it may fuse, split, reorder, distribute
+  or retry. Purity says some of it; the rest belongs to effects, and HQL has
+  no record that states what an effect constrains.
+- `|` is a composition operator, not an execution boundary. HQL-0005 says so
+  for stages; the same has to hold for tasks and jobs before a planner exists,
+  or the first backend that maps one pipe to one task fixes it by accident.
+
+## Goals
+
+- Each of *step*, *stage*, *task* and *job* has one meaning, one owner and one
+  cardinality, and none is a synonym for another.
+- The same HQL program evaluates in process, pushes down into SQL, or runs as
+  a distributed plan without a change in what `|` means.
+- An effect's constraints on planning are stated once.
+- A program that ends in a write, a mutation or a log call checks to a type
+  whose name says what it gives.
+
+## Non-goals
+
+- **No new planner.** The planner in `src/backends/plan.rs` annotates every
+  step with its stage on the `localhost` backend, and `hql plan` prints the
+  result. This record names the units any planner works in; how one chooses
+  stage boundaries stays open, as in HQL-0005.
+- **No new surface syntax.** No keyword, no annotation, no way for a program
+  to name a stage, a task or a job. HQL-0005's rule that syntax MUST NOT expose
+  a physical choice stands.
+- **No public `Stage`, `Task` or `Job` type** in 0.6.0. Which planner
+  boundaries become stable semantics is too early to know.
+- **No write outcome yet.** The count, endpoint and commit of a write (issue
+  0063's "what was written") wait until the backends report them uniformly.
+  `Step` leaves room for it; see the companion note on [the type `Step`](parts/04-the-step-type.md).
+
+## Specification
+
+### 1. The four levels
+
+Each level is defined by what owns it, not by where it runs.
+
+```text
+Level  Owner                    Is                                        Cardinality
+Step   the program (HQL source) one occurrence of an operation in a pipeline  one per position in the pipeline
+Stage  the planner              a region of a plan chosen for execution   part of one step, or one or more steps
+Task   the backend's scheduler  one execution of a stage                  one per partition per attempt
+Job    the runtime              one execution of a whole plan             one or more pipelines; many stages
+```
+
+- **Step** keeps HQL-0005's definition: one occurrence, at one position, in a
+  pipeline, invoking exactly one operation or presentation. A step MAY be pure
+  or effectful. It prescribes nothing about where, when or how it runs.
+- **Stage** keeps HQL-0005's definition, a physical, planned execution unit,
+  and widens it: a stage MAY hold part of a step as well as one or more whole
+  steps. A `distinct` or a `reduce` planned as a local aggregation, a shuffle
+  and a final aggregation is one step in two stages. A stage MAY depend on the
+  output of several stages, so a plan is a graph of stages, not a list.
+- **Task** is a concrete execution a backend schedules: one stage, in one
+  attempt, over one partition (HQL-0036) where the stage is partitioned and
+  over the whole input where it is not. A retry is a new task of the same
+  stage and partition. A task's identity, lifecycle and retry policy are the
+  backend's, never a property of the program.
+- **Job** is one execution of a plan: everything one `hql run` or one
+  submission to a backend starts. A job MAY be bounded, ending when its
+  sources end, or unbounded, running until stopped. A job is not a pipeline:
+  a program of several pipelines is one job, and a job MAY run a graph.
+- None of the four is guaranteed to occupy one CPU, thread, process, worker
+  or machine. HQL-0036's rule for partitions holds for all of them.
+- `|` MUST NOT be read as a stage, task or job boundary. The `localhost`
+  backend's plan stays the trivial one that `hql plan` prints today: every
+  step in `stage 0, in process`; one job, one stage, one task.
+
+The companion note on [the four levels](parts/01-levels.md) works one pipeline through
+both plans.
+
+### 2. Effect is a property, not a level
+
+An **effect** is an operation's interaction with state outside the
+evaluation: reading an endpoint, writing a file, mutating a table, emitting a
+log record. HQL already records it: an operation's purity (HQL-0001), the
+`effectful` keyword on a declaration, and the checker's tracking of the
+effectful operations a function body uses.
+
+- Neither a stage nor a task is defined by the effects it holds. A stage
+  holds effectful steps beside pure ones; it is not itself an effect.
+- A planner MAY fuse, split, reorder and distribute pure steps freely, within
+  the shape their operation declares (HQL-0004).
+- A planner MUST preserve the order of two effects the program orders, and
+  MUST preserve the scope of a transaction (HQL-0051): every write inside a
+  `with transaction` scope commits or none does, whatever the stages.
+- A task MUST NOT repeat an effect it has completed unless the effect is
+  idempotent, the endpoint's delivery semantics allow the repeat, or the
+  repeat is a transaction's attempt, which rolls the earlier one back.
+- An effect is not a result. That a statement ran is its value (see "The
+  types `Aute` and `Step`"); what the effect did is a separate, later
+  question.
+- `effectful` is the declaration, on an operation, that calling it has an
+  effect; the effect is what the call does when it runs. The two are one
+  notion from two sides, and the checker propagates the first through every
+  function body that uses the operation.
+
+The companion note on [effects](parts/02-effects.md) states each constraint with
+its reason.
+
+### 3. The types `Aute` and `Step`
+
+An **aute** (Atomic UniT of Execution; said like *byte*) is the smallest
+execution the program observes as complete: it completed whole, or, to the
+program, not at all. A statement is an aute once it has run. A step of a
+pipeline is an aute once it has run.
+
+- An aute MAY carry an effect or not. `x = 1` is an aute with none; a `sink`
+  is an aute with one. The planner's rules (see "Effect is a property, not a
+  level") are over the effectful autes: those it may not duplicate, drop or
+  move past one another. A pure aute it MAY fuse, split, run in many tasks
+  or run twice, since the program cannot tell.
+- An aute is not a task. A task is how a backend schedules work; an aute is
+  what the program observes of it. A task MAY complete many autes, and
+  whether one aute MAY span tasks is an open question.
+- Locally, an aute is complete when its statement or step returns. On a
+  scheduled backend an effectful aute is complete when the backend confirms
+  its effect: a commit, an acknowledged publish, a file renamed into place.
+
+The aute becomes a type, and the one-valued type that `Unit` names today is
+renamed `Step` and placed under it. In the terms of a declaration:
+
+```text
+Aute            an atomic unit of execution completed
+Step : Aute     a statement ran and gave no value
+```
+
+- `Aute` is the supertype of every value whose meaning is "this execution
+  completed". It names the concept; a function SHOULD give the most specific
+  subtype it can.
+- `Step` is the type of a statement that gives no value: a binding, a `type`,
+  `fn`, `trait` or `impl` declaration, an `import`, and a call to an
+  effectful operation that has nothing else to give. `target`, `sink` and its
+  step form (`Stream<T> -> Step`), `insert`, `update`, `delete` and the
+  `Logger` calls give it. A program whose last statement is any of these
+  checks to `Step`, as it checks to `Unit` today.
+- A value of type `Step` is an `Aute`, by the subtyping rule of HQL-0016, so
+  a parameter of type `Aute` accepts it.
+- `Step` has one value. Its spelling and printed form are one open question
+  below; whichever is chosen, it prints one way at the top level, in a list
+  and in a record (issue 0072's value printing fix).
+- `Unit` MUST be refused where a type is expected, with a message naming
+  `Step`, for one release at least.
+- `Step` the type and *step* the pipeline occurrence are one idea at two
+  levels: running a step, or a statement, is a unit of execution, and `Step`
+  is what that unit gives when it gives nothing else. The word is not given
+  a second meaning.
+- `Never`, the type with no value, is unchanged.
+
+The companion note on [the type `Step`](parts/04-the-step-type.md) lists the uses and the
+migration.
+
+## Backwards Compatibility
+
+- Renaming `Unit` to `Step` breaks every program that writes `Unit` in a
+  signature; the refusal names the replacement. It is listed under "Changed"
+  in `CHANGELOG.md` for 0.6.0, with `length` to `size` and `socket` to `tcp`.
+- A program that declares a type named `Step` or `Aute` stops checking: both
+  become builtin names. `Stage`, `Task` and `Job` do not; a program's own
+  `type Task` is unaffected.
+- HQL-0005's "parallel, 8 jobs" and "job units" are reworded as tasks; its
+  rule that every step carries exactly one stage annotation becomes "every
+  step carries the stages it is planned into, in order". The `localhost`
+  backend is unaffected: one step, one stage.
+- No program's value changes. The planner terms are not in HQL source.
+
+## Security Considerations
+
+None from the vocabulary. The retry rule under "Effect is a property, not a level" closes one hazard a
+backend could otherwise introduce: a retried task that repeats a
+non-idempotent write.
+
+## Reference Implementation
+
+For 0.6.0, only the rename:
+
+- `src/types/builtin.rs`: `UNIT => "Unit"` becomes `"Step"`, a builtin
+  `Aute` is added as its supertype, and `Unit` is refused with a message
+  naming `Step`.
+- `src/extensions/io.rs` and `src/extensions/logging.rs`: the result types.
+- `lib/std/io/mod.hql`, `lib/std/io/logging/mod.hql` and any other `lib/`
+  signature and doc string.
+- The Learn pages and reference pages that name `Unit`, and the recorded
+  `hql check` outputs; `hql reference` regenerates the marked parts.
+- HQL-0005's job wording, as above.
+
+## Test Plan
+
+- `tests/`: a write, a mutation, a log call and a program ending in a
+  binding or a declaration check to `Step`; a `Step` is accepted where an
+  `Aute` is expected and not the other way; `Unit` in a
+  signature is refused with the message naming `Step`; `Step`'s value prints
+  one way at the top level, in a list and in a record.
+- The tutorial suite (`tests/tutorial.rs`) runs the book's changed outputs.
+- `hql reference --check doc/public/reference` is clean.
+
+```bash
+cargo test --locked
+cargo run --locked -- reference --check doc/public/reference
+```
+
+## Open Questions
+
+- When a planner partitions a `sink` into one task per partition, is each
+  partition's write an aute, or is the whole sink one aute that spans tasks?
+  The answer decides whether a partial sink is observable.
+- When an endpoint buffers a write, is the aute complete when the call
+  returns or when the endpoint acknowledges? Locally the two coincide today;
+  a scheduled backend has to say which it reports.
+- Is the body of a `with transaction` scope an aute, many writes committed as
+  one, and so a subtype of `Aute` beside `Step`?
+- Does `Aute` have a value of its own, or only through its subtypes? If
+  only through them, it is abstract and no program constructs one.
+- Which other subtypes does `Aute` take: a cell, a transaction's attempt?
+- How is `Step`'s one value spelled and printed? `()` is today's spelling and
+  prints as JSON `null`. A named value, `done` or `step`, reads better on a
+  book page; `()` costs no new name. Issue 0063 asks for one form.
+- Can `: Step` in a signature be read as "returns a step", a deferred
+  computation, rather than "ran, and gave nothing"? The book's first use of
+  the type has to say which, in one sentence.
+- When a write's outcome arrives, is it a record that subtypes `Step`
+  (`Written : Step { endpoint, count }`), so a program checked against `Step`
+  still checks, or a `Result`, so a failed write can be routed?
+- Do stages need identities that are stable across planning and execution,
+  for progress reports and replays?
+- Does a stage expose a cost estimate, resource claims or required backend
+  capabilities, as HQL-0005's placeholder "Plan IR" anticipates?
+- How do effect dependencies constrain the parallel execution of independent
+  pipelines in one job?
+- How does an unbounded job end: on a signal, on a drained source, or by a
+  policy the configuration states?
+- Should HQL's intermediate representation be a first-class computation
+  graph, steps as nodes, effects and data dependencies as edges, stages as
+  planner-chosen regions, so that one program runs locally, pushes down into
+  SQL or becomes a Spark plan without redefining `|`?
+
+## Changelog
+
+- 2026-11-13: drafted, from a discussion of issue 0063. The maintainer
+  decided the name: `Unit` becomes `Step`, before the 0.6.0 tag, as a
+  subtype of `Aute`, the atomic unit of execution.

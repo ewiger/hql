@@ -113,3 +113,5 @@ outside this list.
 | [HQL-0051](HQL-0051/README.md) | implemented in part | Transactions and relational mutations |
 | [HQL-0052](HQL-0052/README.md) | drafted | Heterogeneous transaction coordination: `Atomic`, `Staged` and `Saga` scopes |
 | [HQL-0053](HQL-0053/README.md) | implemented | Bytes, keys, signatures and encryption |
+| [HQL-0054](HQL-0054/README.md) | accepted | Key vaults: stored keys, SSH agents, keychains and cloud key managers |
+| [HQL-0055](HQL-0055/README.md) | drafted | Steps, autes, stages, tasks and jobs: units of computation and units of execution |
