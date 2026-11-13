@@ -2950,6 +2950,12 @@ impl<'a> Checker<'a> {
         {
             let step = self.resolution.qualified(module, name, &span)?;
             let Some((input, rest)) = arguments.split_first() else {
+                // `time.now()`: a form declared without an input, `Unit`.
+                if step.takes_no_input() {
+                    self.checked.steps.insert(span.clone(), step);
+                    self.using(step.name, step.effectful_in_every_form());
+                    return self.step(step, &TypeRef::UNIT, None, arguments, span);
+                }
                 return Err(Diagnostic::typing(
                     span,
                     format!("`{module}.{name}` needs its input as the first argument"),
