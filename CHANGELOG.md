@@ -10,6 +10,17 @@ The language continues to be in active development.
 
 ### Added
 
+- Digests and text encodings ([HQL-0041](doc/proposals/HQL-0041/README.md)
+  part 3). The module `crypto.digest`, imported with `import crypto.digest`
+  and reached as `digest`, declares the algorithms `Md5`, `Sha1`, `Sha256`,
+  `Sha512` and `Blake3`; `s.digest(Sha256)` is the lowercase hex digest of a
+  text's UTF-8 octets, and `fingerprint(x)` the SHA-256 of a tree's
+  canonical JSON (RFC 8785), equal for trees HQL equality calls equal. The
+  module `encoding`, imported with `import encoding`, declares `Hex`,
+  `Base64`, `Base64Url` and `Percent`; `s.encode(E)` writes a text's octets,
+  and `s.decode(E)` reads them back, `none` for text not valid in `E` or
+  octets that are not UTF-8. The algorithm and encoding names are built-in
+  type names.
 - The file system as data ([HQL-0040](doc/proposals/HQL-0040/README.md)).
   `io` declares `Path`, a place in a file system written as text and
   ordered by its segments, with `join`, `parent`, `name`, `stem` and
