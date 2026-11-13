@@ -44,6 +44,17 @@ The tutorial vault, [`examples/tutorial/`](https://github.com/ewiger/hql/tree/ma
 is a small reading club: seven books, five authors, the links between them,
 one claim about which book inspired which, and a librarian.
 
+The programs that reach a server — Kafka, PostgreSQL, NATS, a lakehouse —
+run in the [hql-demo repository](https://github.com/ewiger/hql-demo). Each
+of its cases is a vault with the Docker Compose file that starts what it
+needs and a `run.sh` that compares the output with the expected one. With
+Docker and `hql` on the `PATH`:
+
+```sh
+git clone https://github.com/ewiger/hql-demo && cd hql-demo
+./run-all.sh
+```
+
 ## Part I: The language
 
 1. [[01-hello-world|Hello world]] — the first program, running it, and
