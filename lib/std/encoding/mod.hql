@@ -26,3 +26,17 @@ fn encode<E : Encoding>(self: String, as: Type<E>) : String
 /// it or the octets are not UTF-8: `"aGk/".decode(Base64)` is `some("hi?")`.
 /// Percent-decoding does not read `+` as a space.
 fn decode<E : Encoding>(self: String, as: Type<E>) : Option<String>
+
+/// `self` written in the encoding `as`: `Bytes("hi").encode(Hex)` is
+/// `"6869"`.
+fn encode<E : Encoding>(self: Bytes, as: Type<E>) : String
+
+/// The octets `self` encodes in `as`, or `none` where the text is not valid
+/// in it: `"6869".to_bytes(Hex)` is `some(0x6869)`. Unlike `decode`, the
+/// octets need not be UTF-8.
+fn to_bytes<E : Encoding>(self: String, as: Type<E>) : Option<Bytes>
+
+/// The octets `text` encodes in `as`: `Bytes("6869", Hex)`. Text that is
+/// not valid in the encoding is an evaluation error naming the encoding and
+/// the first invalid position; `to_bytes` gives `none` instead.
+fn Bytes<E : Encoding>(text: String, as: Type<E>) : Bytes

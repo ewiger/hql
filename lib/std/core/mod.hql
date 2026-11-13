@@ -62,6 +62,16 @@ type Instant : {Scalar, Orderable}
 /// hours, and a month or a year is no `Duration`.
 type Duration : {Scalar, Orderable}
 
+/// A finite sequence of octets, ordered octet by octet as unsigned numbers,
+/// a shorter prefix first (HQL-0053 part 1). No literal produces one:
+/// `Bytes("hello")` is the UTF-8 encoding of a text, and `encoding`
+/// converts hex and base64 text. It prints as `0x` and lowercase hex, and a
+/// text format writes it as base64.
+type Bytes : {Scalar, Orderable}
+
+/// The UTF-8 encoding of `text`: `Bytes("hé")` holds three octets.
+fn Bytes(text: String) : Bytes
+
 /// The `Date` an ISO 8601 date reads as: `Date("2026-10-24")`. Any other
 /// text, a time part included, is an evaluation error naming it; `to_date`
 /// gives `none` instead.
@@ -339,8 +349,8 @@ trait Validator {
 // and binding refuses a header with no native body and a native body with no
 // header. These are every implementation a built-in type has; a program
 // implements a trait only for a type or a trait of its own.
-/// `Bool`, `Int`, `Float`, `Decimal`, `String` and the time scalars compare
-/// with `==` by value.
+/// `Bool`, `Int`, `Float`, `Decimal`, `String`, the time scalars and
+/// `Bytes` compare with `==` by value.
 impl Eq for Bool
 impl Eq for Int
 impl Eq for Float
@@ -350,10 +360,11 @@ impl Eq for Date
 impl Eq for DateTime
 impl Eq for Instant
 impl Eq for Duration
+impl Eq for Bytes
 
 /// `Int`, `Float` and `Decimal` are ordered by value, `String` character by
 /// character, `Date`, `DateTime` and `Instant` by time, and `Duration` by
-/// length.
+/// length, and `Bytes` octet by octet, a shorter prefix first.
 impl Ord for Int
 impl Ord for Float
 impl Ord for Decimal
@@ -362,14 +373,16 @@ impl Ord for Date
 impl Ord for DateTime
 impl Ord for Instant
 impl Ord for Duration
+impl Ord for Bytes
 
 /// `+` adds `Int`s, `Float`s, `Decimal`s and `Duration`s, and concatenates
-/// two `String`s: `"ab" + "cd"` is `"abcd"`.
+/// two `String`s or two `Bytes`: `"ab" + "cd"` is `"abcd"`.
 impl Add for Int
 impl Add for Float
 impl Add for Decimal
 impl Add for String
 impl Add for Duration
+impl Add for Bytes
 
 /// `-` subtracts `Int`s, `Float`s, `Decimal`s and `Duration`s.
 impl Sub for Int

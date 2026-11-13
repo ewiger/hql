@@ -30,6 +30,7 @@ impl PartialEq for Data {
             }
             (Self::Str(a), Self::Str(b)) => a == b,
             (Self::Time(a), Self::Time(b)) => a == b,
+            (Self::Bytes(a), Self::Bytes(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
             (Self::Map(a), Self::Map(b)) => a == b,
             _ => false,
@@ -55,6 +56,9 @@ pub enum Data {
     /// A time value: what a time scalar is as a leaf. A decoder never
     /// produces one from text; a format writes it as its ISO 8601 text.
     Time(crate::time::Time),
+    /// Octets: what a `Bytes` value is as a leaf. A decoder never produces
+    /// one from text; a text format writes it as its base64 text.
+    Bytes(std::sync::Arc<[u8]>),
     /// Text.
     Str(String),
     /// An ordered list.
@@ -121,6 +125,7 @@ impl Data {
             Self::Float(_) => "float",
             Self::Decimal(_) => "decimal",
             Self::Time(_) => "time",
+            Self::Bytes(_) => "bytes",
             Self::Str(_) => "string",
             Self::List(_) => "list",
             Self::Map(_) => "map",
@@ -149,6 +154,7 @@ impl Data {
                 .map_or(serde_json::Value::Null, serde_json::Value::Number),
             Self::Decimal(value) => decimal_json(value),
             Self::Time(time) => serde_json::Value::String(time.to_string()),
+            Self::Bytes(octets) => serde_json::Value::String(base64_text(octets)),
             Self::Str(text) => serde_json::Value::String(text.clone()),
             Self::List(items) => {
                 serde_json::Value::Array(items.iter().map(Self::to_json).collect())
@@ -188,6 +194,7 @@ impl Data {
             },
             Self::Decimal(value) => out.push_str(&value.canonical()),
             Self::Time(time) => canonical_string(&time.to_string(), out),
+            Self::Bytes(octets) => canonical_string(&base64_text(octets), out),
             Self::Str(text) => canonical_string(text, out),
             Self::List(items) => {
                 out.push('[');
@@ -238,6 +245,33 @@ fn canonical_string(text: &str, out: &mut String) {
         }
     }
     out.push('"');
+}
+
+/// Octets as a text format writes them: base64, RFC 4648 standard
+/// alphabet, padded.
+#[must_use]
+pub fn base64_text(octets: &[u8]) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(octets)
+}
+
+/// The octets padded standard base64 text holds, or `None`.
+#[must_use]
+pub fn base64_octets(text: &str) -> Option<Vec<u8>> {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.decode(text).ok()
+}
+
+/// Octets as a value prints them: `0x` and lowercase hex, two digits each.
+#[must_use]
+pub fn hex_text(octets: &[u8]) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(2 + octets.len() * 2);
+    out.push_str("0x");
+    for octet in octets {
+        let _ = write!(out, "{octet:02x}");
+    }
+    out
 }
 
 /// A JSON number with a decimal's digits and scale exactly: `1.50` stays
@@ -346,6 +380,7 @@ impl fmt::Display for Data {
             Self::Float(value) => write!(f, "{value:?}"),
             Self::Decimal(value) => write!(f, "{value}"),
             Self::Time(time) => write!(f, "{time}"),
+            Self::Bytes(octets) => write!(f, "{}", hex_text(octets)),
             Self::Str(text) => write!(f, "{text:?}"),
             Self::List(items) => {
                 f.write_str("[")?;

@@ -19,6 +19,8 @@ use std::sync::Arc;
 pub(crate) static STEPS: &[Operation] = &[
     declared("encode", eval_encode),
     declared("decode", eval_decode),
+    declared("to_bytes", eval_to_bytes),
+    super::bytes::BYTES,
 ];
 
 /// Base64 over the URL-safe alphabet: unpadded on encode, padding optional
@@ -48,6 +50,60 @@ impl Encoding {
             "Base64Url" => Self::Base64Url,
             "Percent" => Self::Percent,
             _ => return None,
+        })
+    }
+
+    /// The encoding an argument names by its checked type: `Hex`.
+    pub(crate) fn of(argument: &TypedArg) -> Option<Self> {
+        Self::named(argument.value.ty.constructor.0)
+    }
+
+    /// The type name of this encoding.
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Hex => "Hex",
+            Self::Base64 => "Base64",
+            Self::Base64Url => "Base64Url",
+            Self::Percent => "Percent",
+        }
+    }
+
+    /// The octets `text` encodes, or the character position of the first
+    /// thing that is not valid in this encoding.
+    pub(crate) fn decode_at(self, text: &str) -> Result<Vec<u8>, usize> {
+        if let Some(octets) = self.decode(text) {
+            return Ok(octets);
+        }
+        let at = |byte: usize| text[..byte.min(text.len())].chars().count();
+        Err(match self {
+            Self::Hex => text
+                .bytes()
+                .position(|digit| nibble(digit).is_none())
+                .map_or_else(|| text.chars().count(), at),
+            Self::Base64 | Self::Base64Url => {
+                let engine: &GeneralPurpose = if self == Self::Base64 {
+                    &STANDARD
+                } else {
+                    &BASE64_URL
+                };
+                match engine.decode(text) {
+                    Err(
+                        base64::DecodeError::InvalidByte(offset, _)
+                        | base64::DecodeError::InvalidLastSymbol { offset, .. },
+                    ) => at(offset),
+                    _ => text.chars().count(),
+                }
+            }
+            Self::Percent => text
+                .match_indices('%')
+                .find(|(index, _)| {
+                    let digits = text.as_bytes();
+                    !matches!(
+                        (digits.get(index + 1), digits.get(index + 2)),
+                        (Some(high), Some(low)) if nibble(*high).is_some() && nibble(*low).is_some()
+                    )
+                })
+                .map_or_else(|| text.chars().count(), |(index, _)| at(index)),
         })
     }
 
@@ -174,6 +230,10 @@ fn eval_encode(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let encoding = encoding(arguments, "encode", &span)?;
+    // A `Bytes` input is its octets; a `String` input its UTF-8 octets.
+    if let Ok(octets) = super::bytes::input_octets(&input, "encode", &span) {
+        return Ok(Value::Str(Arc::from(encoding.encode(&octets))));
+    }
     let text = input_text(&input, "encode", &span)?;
     Ok(Value::Str(Arc::from(encoding.encode(text.as_bytes()))))
 }
@@ -195,6 +255,20 @@ fn eval_decode(
             None => Value::Absent(TypeRef::STR),
         },
     )
+}
+
+fn eval_to_bytes(
+    _cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let encoding = encoding(arguments, "to_bytes", &span)?;
+    let text = input_text(&input, "to_bytes", &span)?;
+    Ok(match encoding.decode(&text) {
+        Some(octets) => Value::Present(Arc::new(Value::Bytes(octets.into()))),
+        None => Value::Absent(TypeRef::BYTES),
+    })
 }
 
 #[cfg(test)]

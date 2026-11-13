@@ -43,6 +43,7 @@ pub(crate) static NATIVE_IMPLS: &[NativeImpl] = &[
     native("Eq", "DateTime", eq),
     native("Eq", "Instant", eq),
     native("Eq", "Duration", eq),
+    native("Eq", "Bytes", eq),
     native("Ord", "Int", compare),
     native("Ord", "Float", compare),
     native("Ord", "Decimal", compare),
@@ -51,11 +52,13 @@ pub(crate) static NATIVE_IMPLS: &[NativeImpl] = &[
     native("Ord", "DateTime", compare),
     native("Ord", "Instant", compare),
     native("Ord", "Duration", compare),
+    native("Ord", "Bytes", compare),
     native("Add", "Int", arithmetic),
     native("Add", "Float", arithmetic),
     native("Add", "Decimal", arithmetic),
     native("Add", "String", concatenation),
     native("Add", "Duration", arithmetic),
+    native("Add", "Bytes", concatenation),
     native("Sub", "Int", arithmetic),
     native("Sub", "Float", arithmetic),
     native("Sub", "Decimal", arithmetic),
@@ -71,9 +74,11 @@ pub(crate) static NATIVE_IMPLS: &[NativeImpl] = &[
     native("Rem", "Decimal", arithmetic),
     native("Index", "Seq", position),
     native("Index", "String", position),
+    native("Index", "Bytes", position),
     native("Index", "Data", position),
     native("Slice", "Seq", part),
     native("Slice", "String", part),
+    native("Slice", "Bytes", part),
     native("Slice", "Data", part),
 ];
 
@@ -155,9 +160,12 @@ fn concatenation(
 ) -> Result<Value, Diagnostic> {
     match (receiver, other(method, arguments, span)?) {
         (Value::Str(left), Value::Str(right)) => Ok(Value::Str(format!("{left}{right}").into())),
+        (Value::Bytes(left), Value::Bytes(right)) => {
+            Ok(Value::Bytes([&left[..], &right[..]].concat().into()))
+        }
         _ => Err(Diagnostic::runtime(
             span.clone(),
-            "`add` over String takes two Strings",
+            "`add` takes two Strings or two Bytes",
         )),
     }
 }

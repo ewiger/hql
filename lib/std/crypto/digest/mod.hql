@@ -30,3 +30,12 @@ fn digest<A : Algorithm>(self: String, as: Type<A>) : String
 /// without trailing zeros, a time value as its ISO 8601 text. Two trees
 /// equal under HQL equality have equal fingerprints.
 fn fingerprint(self: Data) : String
+
+/// The digest of the octets `self` holds, as lowercase hexadecimal:
+/// `Bytes("abc").digest(Sha256)` is `"abc".digest(Sha256)`.
+fn digest<A : Algorithm>(self: Bytes, as: Type<A>) : String
+
+/// The canonical JSON text of a tree (RFC 8785), the text `fingerprint`
+/// digests: `fingerprint(x) == canonical(x).digest(Sha256)`. A `Bytes` leaf
+/// is written as its base64 text.
+fn canonical(self: Data) : String

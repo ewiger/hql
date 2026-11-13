@@ -18,6 +18,7 @@ use std::sync::Arc;
 pub(crate) static STEPS: &[Operation] = &[
     declared("digest", eval_digest),
     declared("fingerprint", eval_fingerprint),
+    declared("canonical", eval_canonical),
 ];
 
 /// A cryptographic hash function, as `Algorithm`'s subtypes name it.
@@ -96,6 +97,10 @@ fn eval_digest(
                 "`digest` needs an algorithm: `Sha256`, `Sha512`, `Blake3`, `Sha1` or `Md5`",
             )
         })?;
+    // A `Bytes` input is its octets; a `String` input its UTF-8 octets.
+    if let Ok(octets) = super::bytes::input_octets(&input, "digest", &span) {
+        return Ok(Value::Str(Arc::from(hex(&algorithm.digest(&octets)))));
+    }
     let text = input_text(&input, "digest", &span)?;
     Ok(Value::Str(Arc::from(hex(
         &algorithm.digest(text.as_bytes())
@@ -110,6 +115,16 @@ fn eval_fingerprint(
 ) -> Result<Value, Diagnostic> {
     let data = crate::evaluation::as_data(&input);
     Ok(Value::Str(Arc::from(fingerprint(&data))))
+}
+
+fn eval_canonical(
+    _cx: &mut dyn EvalCx,
+    input: Value,
+    _arguments: &[TypedArg],
+    _span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    let data = crate::evaluation::as_data(&input);
+    Ok(Value::Str(Arc::from(data.canonical_json())))
 }
 
 #[cfg(test)]

@@ -22,6 +22,7 @@ atoms! {
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
     ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
     DATE_TIME => "DateTime", INSTANT => "Instant", DURATION => "Duration",
+    BYTES => "Bytes",
     ZONE => "Zone", TIME_UNIT => "TimeUnit", NANOSECOND => "Nanosecond",
     MICROSECOND => "Microsecond", MILLISECOND => "Millisecond", SECOND => "Second",
     MINUTE => "Minute", HOUR => "Hour", DAY => "Day", WEEK => "Week", MONTH => "Month",
@@ -160,6 +161,9 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::DATE_TIME, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::INSTANT, TypeKind::Concrete, &ordered_scalar),
         (TypeRef::DURATION, TypeKind::Concrete, &ordered_scalar),
+        // Octets (HQL-0053 part 1): built by constructors and conversions,
+        // with no literal.
+        (TypeRef::BYTES, TypeKind::Concrete, &ordered_scalar),
         (
             TypeRef::DATA,
             TypeKind::Union(vec![
