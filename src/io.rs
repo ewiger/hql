@@ -565,6 +565,73 @@ fn readable(path: &Path) -> Result<PathBuf, String> {
     Ok(full)
 }
 
+/// What a listing reads at a path (HQL-0040).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Listing {
+    /// The folder's entries: a link at the path is read through, so the
+    /// folder it reaches is held to the grant.
+    Folder,
+    /// The entry at the path itself, a link reported and not read through.
+    Entry,
+}
+
+/// A path a listing may read, resolved as a file's is: granted exactly
+/// where reading a file at the path is. Under `hql render` that is the
+/// document's directory and below, whether the path leaves it by `..` or by
+/// a link; a missing path is held to the grant by the folder it would be in.
+///
+/// # Errors
+/// The path is outside what the host grants.
+pub(crate) fn listable(path: &Path, listing: Listing) -> Result<PathBuf, String> {
+    let full = resolved(path);
+    if let Policy::Document { root } = policy()
+        && !inside(&full, &root, listing)
+    {
+        return Err(format!(
+            "{}: a document lists only folders under its own directory",
+            path.display()
+        ));
+    }
+    Ok(full)
+}
+
+/// Whether `full` is under `root`, every link but a reported entry's own
+/// read through.
+fn inside(full: &Path, root: &Path, listing: Listing) -> bool {
+    let Ok(root) = fs::canonicalize(root) else {
+        return false;
+    };
+    if listing == Listing::Folder
+        && let Ok(reached) = fs::canonicalize(full)
+    {
+        return reached.starts_with(&root);
+    }
+    // The last segment is not read through, and a missing path is placed by
+    // the nearest folder above it that exists.
+    let (mut existing, mut missing) = match (full.parent(), full.file_name()) {
+        (Some(parent), Some(name)) => (parent, vec![name]),
+        _ => (full, Vec::new()),
+    };
+    let reached = loop {
+        if let Ok(reached) = fs::canonicalize(existing) {
+            break reached;
+        }
+        // A `..` has no name: what it leaves is not known, so it is refused.
+        match (existing.parent(), existing.file_name()) {
+            (Some(parent), Some(name)) => {
+                missing.push(name);
+                existing = parent;
+            }
+            _ => return false,
+        }
+    };
+    let placed = missing
+        .iter()
+        .rev()
+        .fold(reached, |placed, name| placed.join(name));
+    placed.starts_with(&root)
+}
+
 /// Record a write, refusing a second replacement or a replacement mixed with
 /// an append.
 fn record(path: &Path, how: Written) -> Result<PathBuf, String> {

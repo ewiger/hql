@@ -23,6 +23,7 @@ pub(crate) mod binding;
 pub(crate) mod collections;
 pub(crate) mod contract;
 pub mod format;
+pub(crate) mod fs;
 pub(crate) mod graph;
 pub(crate) mod io;
 pub mod lexical;
@@ -453,6 +454,15 @@ static NET: Extension = Extension {
     metadata: None,
 };
 
+// Named by the path it provides: `import io.fs` binds it as `fs`.
+static FS: Extension = Extension {
+    name: "io.fs",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.fs"],
+    steps: fs::STEPS,
+    metadata: None,
+};
+
 static SQLITE: Extension = Extension {
     name: "io.db.sqlite",
     version: env!("CARGO_PKG_VERSION"),
@@ -570,6 +580,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &IO,
     &NET,
     &LOGGING,
+    &FS,
     &SQLITE,
     &NATS,
     &NATS_JETSTREAM,
@@ -1378,11 +1389,18 @@ mod tests {
     fn every_registered_step_declares_a_purity_and_a_provider() {
         let listed = listing();
         assert!(!listed.is_empty());
-        // Reading and writing an endpoint, logging, and reading the
-        // evaluation clock are the effects; every other step, constructing
-        // an endpoint or a logger included, is a function of its input.
+        // Reading and writing an endpoint, listing the file system,
+        // logging, and reading the evaluation clock are the effects; every
+        // other step, constructing an endpoint, a path or a logger included,
+        // is a function of its input.
         for entry in &listed {
-            let effectful = (entry.provider == "io" && entry.name != "file")
+            let effectful = (entry.provider == "io"
+                && !matches!(
+                    entry.name,
+                    "file" | "Path" | "join" | "parent" | "name" | "stem" | "extension"
+                ))
+                || (entry.provider == "io.fs"
+                    && matches!(entry.name, "entries" | "walk" | "glob" | "exists" | "entry"))
                 || (entry.provider == "logging" && entry.name != "Logger")
                 || (entry.provider == "time"
                     && matches!(entry.name, "now" | "today" | "local_zone"));

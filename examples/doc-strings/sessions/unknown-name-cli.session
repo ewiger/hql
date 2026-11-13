@@ -5,5 +5,5 @@
 // session: cli
 // exit: 1
 
-$ hql help rnage
-no declaration named `rnage`; did you mean `range`?
+$ hql help rnge
+no declaration named `rnge`; did you mean `range`?

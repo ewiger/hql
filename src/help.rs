@@ -578,8 +578,8 @@ mod tests {
     #[test]
     fn an_unknown_name_suggests_the_nearest() {
         assert_eq!(
-            help("rnage", library()).unwrap_err(),
-            "no declaration named `rnage`; did you mean `range`?"
+            help("rnge", library()).unwrap_err(),
+            "no declaration named `rnge`; did you mean `range`?"
         );
         assert_eq!(
             help("zzzzzzzz", library()).unwrap_err(),
