@@ -263,10 +263,14 @@ fn a_union_implementation_is_the_union_own_and_not_each_member_s() {
     // implementation, at its own element type.
     let message = refused("true[0]");
     assert!(message.contains("Bool is not indexed"), "{message}");
-    // `at` of Index is not an Int's; `time` declares an `at` of its own,
-    // over an Instant, which an Int does not reach either.
+    // `at` of Index is not an Int's; `string`, `seq` and `time` declare an
+    // `at` each, over a String, a sequence and an Instant, which an Int
+    // does not reach either.
     let message = refused("import time\n5.at(0)");
-    assert!(message.contains("`at` needs Instant, not Int"), "{message}");
+    assert!(
+        message.contains("`at` needs") && message.contains("not Int"),
+        "{message}"
+    );
     assert_eq!(
         hql::check("\"hello\".at(0)").unwrap().to_string(),
         "Option<String>"

@@ -230,19 +230,38 @@ pub fn native_impls() -> Result<Vec<NativeHeader>, String> {
                 let program = crate::parser::parse(source).map_err(|error| {
                     format!("{name}: {}", error.message(), name = self::path(name))
                 })?;
-                found.extend(
-                    program
-                        .statements
-                        .iter()
-                        .filter_map(|statement| match statement {
-                            Stmt::Impl(declaration) if declaration.native => Some(NativeHeader {
-                                module: name,
-                                trait_name: declaration.trait_name.clone(),
-                                target: declaration.target.name.clone(),
-                            }),
-                            _ => None,
+                for statement in &program.statements {
+                    match statement {
+                        Stmt::Impl(declaration) if declaration.native => found.push(NativeHeader {
+                            module: name,
+                            trait_name: declaration.trait_name.clone(),
+                            target: declaration.target.name.clone(),
                         }),
-                );
+                        // A receiver module's trait list, `module string for
+                        // String : Index<String>`, whose functions are native.
+                        Stmt::Module {
+                            pattern: Some(pattern),
+                            traits,
+                            ..
+                        } => found.extend(
+                            traits
+                                .iter()
+                                .filter(|listed| {
+                                    crate::extensions::traits::native_header_impl(
+                                        &listed.name,
+                                        &pattern.name,
+                                    )
+                                    .is_some()
+                                })
+                                .map(|listed| NativeHeader {
+                                    module: name,
+                                    trait_name: listed.name.clone(),
+                                    target: pattern.name.clone(),
+                                }),
+                        ),
+                        _ => {}
+                    }
+                }
             }
             Ok(found)
         })
@@ -451,6 +470,18 @@ pub fn closure(graph: &[(&str, &str)]) -> Result<(), String> {
             }
         }
         check_names(module, &written, &[], &visible, &owners)?;
+        // The traits a receiver module lists are names it writes, over its
+        // pattern's variables.
+        let listed: Vec<&TypeAnn> = program
+            .statements
+            .iter()
+            .filter_map(|statement| match statement {
+                Stmt::Module { traits, .. } => Some(traits),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        check_names(module, &listed, &receiver, &visible, &owners)?;
     }
     Ok(())
 }

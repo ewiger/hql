@@ -137,6 +137,9 @@ pub(crate) struct Implementation {
     /// The implementing type as written, `Seq<T>`.
     pub(crate) target_type: TypeAnn,
     pub(crate) body: Body,
+    /// Whether a receiver module's trait list declares it, rather than an
+    /// `impl` (HQL-0039).
+    pub(crate) listed: bool,
 }
 
 /// One constructor declaration, `fn List<T>(xs: Seq<T>) : List<T>`.
@@ -187,6 +190,21 @@ pub(crate) const UNBOUND: OperationSpec = OperationSpec {
     arguments: &[],
     output: spec::Output::Type(spec::TypePattern::Any),
 };
+
+/// The variables of a receiver pattern, `T` of `Seq<T>`: each one-letter
+/// argument that names no type.
+fn pattern_variables(pattern: &TypeAnn) -> Vec<String> {
+    pattern
+        .arguments
+        .iter()
+        .filter(|argument| {
+            argument.arguments.is_empty()
+                && argument.name.len() == 1
+                && crate::types::builtin::constructor(&argument.name).is_none()
+        })
+        .map(|argument| argument.name.clone())
+        .collect()
+}
 
 /// Whether a trait is a codec contract, implemented by the decoder and
 /// encoder tables rather than by trait functions.
@@ -329,6 +347,32 @@ impl Environment {
         }
         for statement in &program.statements {
             match statement {
+                // `module string for String : Index<String>, Slice`: one
+                // implementation per listed trait, whose bodyless functions
+                // bind the native body of the trait and the pattern's type
+                // as a bodyless `impl` header would (HQL-0039).
+                Stmt::Module {
+                    pattern: Some(pattern),
+                    traits,
+                    ..
+                } => {
+                    for listed in traits {
+                        let body = traits::native_header_impl(&listed.name, &pattern.name)
+                            .map_or(Body::Written, Body::Native);
+                        self.implementations.push(Implementation {
+                            module,
+                            trait_name: listed.name.clone(),
+                            trait_id: None,
+                            target: pattern.name.clone(),
+                            target_id: None,
+                            generics: pattern_variables(pattern),
+                            arguments: listed.arguments.clone(),
+                            target_type: pattern.clone(),
+                            body,
+                            listed: true,
+                        });
+                    }
+                }
                 Stmt::External(declaration) => {
                     let operation = provider.and_then(|provider| provider.step(&declaration.name));
                     // A declaration named as a type is, which its module's
@@ -396,6 +440,7 @@ impl Environment {
                         arguments: declaration.trait_arguments.clone(),
                         target_type: declaration.target.clone(),
                         body,
+                        listed: false,
                     });
                 }
                 _ => {}
@@ -657,8 +702,11 @@ impl Environment {
                     module = crate::library::path(module)
                 ));
             };
-            // An implementation belongs with its trait or its type.
-            if self.trait_declaration(trait_id).module != implementation.module
+            // An implementation belongs with its trait or its type, or is
+            // listed by the type's receiver module, which holds its
+            // functions.
+            if !implementation.listed
+                && self.trait_declaration(trait_id).module != implementation.module
                 && self.type_declaration(target_id).module != implementation.module
             {
                 return Err(format!(
