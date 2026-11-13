@@ -33,8 +33,8 @@ extension implements both modules. A program imports `io.fs`; the prelude does n
 
 - Deleting, renaming, moving or copying files, and creating folders. These
   change the file system rather than read it.
-- File times. `Date` is a calendar date with no time of day; a modification
-  time waits for a timestamp type.
+- File times other than the modification time: creation and access times,
+  which platforms record unevenly.
 - Owners, permissions and other platform-specific metadata.
 - Following symbolic links.
 - Watching a folder for changes, `tap(folder(p))`.
@@ -105,10 +105,11 @@ type Glob {
 }
 
 type Entry {
-    path  : Path     // the folder's path joined with the entry's own
-    name  : String   // the last segment
-    kind  : String   // "file", "folder" or "link"
-    size? : Int      // a file's length in bytes
+    path      : Path     // the folder's path joined with the entry's own
+    name      : String   // the last segment
+    kind      : String   // "file", "folder" or "link"
+    size?     : Int      // a file's length in bytes
+    modified? : Instant  // the entry's own modification time, where recorded
 }
 
 fn folder(path: String) : Folder
@@ -203,8 +204,8 @@ folder("data")
 - Additive. `file(path: String)` keeps its meaning, and no existing name
   changes.
 - This narrows a non-goal of [HQL-0021](../HQL-0021/README.md): directory
-  listing and file sizes move in, while deletion, renaming and file times
-  stay out.
+  listing, file sizes and modification times move in, while deletion,
+  renaming and other file times stay out.
 - `fs` becomes a local name in a unit that imports `io.fs`; a program binding
   `fs` itself imports it under another name, `import io.fs as files`.
 
@@ -269,3 +270,7 @@ folder("data")
 - 2026-11-13: `Folder`, `Glob` and `Entry` are built by their constructors
   alone: `Entry(...)` is not a record constructor a program calls, and
   `Glob(p)` always parses `p`.
+- 2026-11-13: `Entry` gains `modified? : Instant`, the entry's own
+  modification time, a link's and not its target's, absent where the
+  platform records none; the non-goal on file times narrows to creation and
+  access times (HQL-0041, issue 0064).

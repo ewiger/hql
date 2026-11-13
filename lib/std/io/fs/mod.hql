@@ -3,12 +3,13 @@
 // See doc/proposals/HQL-0040/README.md.
 
 /// The file system as data: folders, globs over paths, and the entries a
-/// folder holds, with their kinds and sizes. Constructing a `Folder` or a
-/// `Glob` opens, stats and resolves nothing; the listing operations read
-/// the file system, each once, where it is written, and give a `Seq<Entry>`
-/// in the order of a sorted walk, never the file system's. A listing is
-/// granted exactly where reading a file at the same path is. A program
-/// imports the module: `import io.fs`, and reaches it as `fs`.
+/// folder holds, with their kinds, sizes and modification times.
+/// Constructing a `Folder` or a `Glob` opens, stats and resolves nothing;
+/// the listing operations read the file system, each once, where it is
+/// written, and give a `Seq<Entry>` in the order of a sorted walk, never
+/// the file system's. A listing is granted exactly where reading a file at
+/// the same path is. A program imports the module: `import io.fs`, and
+/// reaches it as `fs`.
 module io.fs
 
 import core
@@ -31,14 +32,17 @@ type Glob {
 
 /// One thing a folder holds: its `path`, the listed folder's path joined
 /// with the entry's path below it, so `file(e.path)` reads it; its `name`,
-/// the last segment; its `kind`, `"file"`, `"folder"` or `"link"`; and its
-/// `size`, a file's length in bytes, absent for a folder or a link. A link
-/// is reported and not followed.
+/// the last segment; its `kind`, `"file"`, `"folder"` or `"link"`; its
+/// `size`, a file's length in bytes, absent for a folder or a link; and its
+/// `modified`, the time the entry was last modified, a link's own and not
+/// its target's, absent where the platform does not record one. A link is
+/// reported and not followed.
 type Entry {
-    path  : Path
-    name  : String
-    kind  : String
-    size? : Int
+    path      : Path
+    name      : String
+    kind      : String
+    size?     : Int
+    modified? : Instant
 }
 
 /// The `Folder` at `path`, a `String` or a `Path`. Constructing it opens

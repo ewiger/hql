@@ -41,7 +41,10 @@ Important principles:
 - The standard library is itself a package using the same module semantics as other packages.
 - Built-in modules and third-party modules should differ mainly in provisioning, not in language semantics.
 - Do not equate arbitrary source files with modules. Follow the adopted module-root rules.
-- Do not invent `
+- Do not invent `std`-only mechanisms. Whatever the standard library needs
+  to declare, import or provide its modules is a language or package feature
+  any other package can use, so that `std` differs from a third-party package
+  in provisioning alone.
 
 ## Trace log
 

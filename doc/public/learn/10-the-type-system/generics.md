@@ -15,7 +15,7 @@ bound:
 
 ```hql
 fn shortest<T : Orderable>(xs: List<T>) : Option<T> = xs | min
-[shortest([3, 1, 2]), shortest(["b", "a"]) | map(s => s.length())]
+[shortest([3, 1, 2]), shortest(["b", "a"]) | map(s => s.size())]
 ```
 
 ```text

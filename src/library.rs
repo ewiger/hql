@@ -295,7 +295,7 @@ pub fn native_impls() -> Result<Vec<NativeHeader>, String> {
 /// A type or trait name a module writes, in a declaration's parents, fields,
 /// bounds, parameters, result, receiver pattern or `impl` header, resolves
 /// to the module's own declaration or to one of a module it imports, and to
-/// nothing else. A name no module of the graph declares, `Any`, `Unit` or a
+/// nothing else. A name no module of the graph declares, `Any`, `Step` or a
 /// function type, is the language's and needs no import. A module imports
 /// only modules listed before it, so the listed order is a topological order
 /// of the import graph and the graph is acyclic; a module never imports its
@@ -831,9 +831,9 @@ mod tests {
         // written names as much as a field is.
         for source in [
             "module user\nfn f<T : Shape>(x: T) : T\n",
-            "module user\nfn f(x: Thing) : Unit\n",
+            "module user\nfn f(x: Thing) : Step\n",
             "module user\nimpl Shape for Int\n",
-            "module user for Thing\nfn f(self) : Unit\n",
+            "module user for Thing\nfn f(self) : Step\n",
         ] {
             assert!(closure(&[base, ("user", source)]).is_err(), "{source}");
         }

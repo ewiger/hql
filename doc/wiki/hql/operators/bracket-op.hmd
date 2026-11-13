@@ -65,7 +65,7 @@ on any `Int` bounds.
 | `Set<T>`, `Map<K, V>` | refused | refused |
 | a declared type | through its `Index<T>` | through its `Slice` |
 
-A String's positions count characters, as `length`, `char_at` and `slice` do.
+A String's positions count characters, as `size`, `char_at` and `slice` do.
 `Data` that is not a sequence is an evaluation error naming its shape.
 
 ## Streams

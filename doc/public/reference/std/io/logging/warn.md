@@ -4,10 +4,10 @@
 In [`std/io/logging`](index.md).
 
 ```hql
-effectful fn warn(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn warn(log: Logger, message: String, data: Data = {:}) : Step
 ```
 
 Writes one `Warn` event with `message` and `data` to `log`'s destination
-when `log`'s threshold is at most `Warn`, and gives `Unit`. Effectful:
+when `log`'s threshold is at most `Warn`, and gives `Step`. Effectful:
 `log | warn("no sightings")`.
 <!-- hql reference: end -->

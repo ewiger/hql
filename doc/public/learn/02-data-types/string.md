@@ -11,10 +11,10 @@ with a dot:
 "ADA LOVELACE"
 ```
 
-Its length counts characters, not bytes:
+Its `size` counts characters, not bytes:
 
 ```hql
-"héllo".length()
+"héllo".size()
 ```
 
 ```text

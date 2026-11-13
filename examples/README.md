@@ -99,6 +99,20 @@ over a server is checked here and runs in the hql-demo repository, from
 [HQL-0046](../doc/proposals/HQL-0046/README.md) and
 [HQL-0049](../doc/proposals/HQL-0049/README.md).
 
+The [transactions](transactions/README.md) cases keep a ledger in one SQLite
+file: a transfer of two updates and an insert committed as one
+transaction, a rollback and an exhausted retry matched as data, a read that
+sees the block's own update, and the scopes the checker refuses, from
+[HQL-0051](../doc/proposals/HQL-0051/README.md).
+
+The [env](env/README.md) cases read invocation arguments and environment
+variables with `io.env`, each defaulted where it is absent, from
+[HQL-0041](../doc/proposals/HQL-0041/parts/05-env.md) part 5.
+
+The [contexts](contexts/README.md) cases run in two workspaces whose
+`hql.toml` gives a program a module root, an extension imported for every
+program, or no prelude, from [HQL-0025](../doc/proposals/HQL-0025/README.md).
+
 The [doc strings](doc-strings/README.md) sessions print `///` doc strings
 with `:help`, `:type` and `hql help`: a program's own function, overloads
 documented in part, a standard overload set, a citation printed as a

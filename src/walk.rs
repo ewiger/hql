@@ -8,6 +8,7 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 /// What a listed entry is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,14 +29,23 @@ impl Kind {
     }
 }
 
+/// What a stat reads of an entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Stat {
+    pub kind: Kind,
+    /// A file's length in bytes; `None` for a folder or a link.
+    pub size: Option<u64>,
+    /// The entry's own modification time, a link's and not its target's
+    /// where links are reported; `None` where the platform gives none.
+    pub modified: Option<SystemTime>,
+}
+
 /// One entry a walk reaches.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Listed {
     /// Its path below the folder walked.
     pub relative: PathBuf,
-    pub kind: Kind,
-    /// A file's length in bytes; `None` for a folder or a link.
-    pub size: Option<u64>,
+    pub stat: Stat,
 }
 
 /// What a walk does at a symbolic link.
@@ -62,7 +72,7 @@ pub(crate) struct Walk {
 ///
 /// # Errors
 /// A metadata read that fails for a reason other than absence.
-pub(crate) fn stat(path: &Path, links: Links) -> io::Result<Option<(Kind, Option<u64>)>> {
+pub(crate) fn stat(path: &Path, links: Links) -> io::Result<Option<Stat>> {
     let metadata = match links {
         Links::Report => fs::symlink_metadata(path),
         Links::Follow => fs::metadata(path),
@@ -80,7 +90,11 @@ pub(crate) fn stat(path: &Path, links: Links) -> io::Result<Option<(Kind, Option
         Kind::File
     };
     let size = (kind == Kind::File).then_some(metadata.len());
-    Ok(Some((kind, size)))
+    Ok(Some(Stat {
+        kind,
+        size,
+        modified: metadata.modified().ok(),
+    }))
 }
 
 /// The entries directly in `folder`, sorted by name.
@@ -100,11 +114,10 @@ pub(crate) fn entries(folder: &Path, walk: Walk) -> io::Result<Vec<Listed>> {
     let mut listed = Vec::with_capacity(names.len());
     for name in names {
         // An entry removed between the listing and its stat is not there.
-        if let Some((kind, size)) = stat(&folder.join(&name), walk.links)? {
+        if let Some(stat) = stat(&folder.join(&name), walk.links)? {
             listed.push(Listed {
                 relative: PathBuf::from(name),
-                kind,
-                size,
+                stat,
             });
         }
     }
@@ -133,7 +146,7 @@ fn below<E: From<io::Error>>(
 ) -> Result<bool, E> {
     for listed in entries(&root.join(prefix), walk)? {
         let relative = prefix.join(&listed.relative);
-        let folder = listed.kind == Kind::Folder;
+        let folder = listed.stat.kind == Kind::Folder;
         if !visit(Listed {
             relative: relative.clone(),
             ..listed
@@ -278,8 +291,8 @@ mod tests {
         super::walk::<io::Error>(root, walk, &mut |listed| {
             seen.push((
                 listed.relative.display().to_string(),
-                listed.kind,
-                listed.size,
+                listed.stat.kind,
+                listed.stat.size,
             ));
             Ok(true)
         })

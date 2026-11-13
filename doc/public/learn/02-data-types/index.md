@@ -1,7 +1,7 @@
 # 2. Data types
 
-Every value in HQL has a type, and the checker knows it before the program
-runs. This chapter meets the types values are built from: the scalars `Int`,
+Every value in HQL has a type, and the type of every expression is inferred
+and checked before the program is evaluated. This chapter meets the types values are built from: the scalars `Int`,
 `Float`, `Decimal`, `String`, `Bool` and `Bytes`, the time types `Date`, `DateTime`,
 `Instant` and `Duration`, and `Data`, the tree JSON and YAML are made of.
 Each has a page of its own; this one tries them in the REPL first.
@@ -50,7 +50,7 @@ fmt("{} has {} pages", title, pages)
 "Dune has 412 pages"
 ```
 
-## A type is checked, not guessed
+## Type checking
 
 Each operation says which types it takes. An `Int` and a `String` do not add,
 and the checker rejects the program before it runs:
@@ -67,9 +67,11 @@ check error[type-mismatch]: addition requires two Int, two Float or two Decimal 
   |       ^^^^^^^
 ```
 
-There is no implicit conversion between types, except that an `Int` beside a
-`Decimal` widens to one. `str` writes a value as text, and `float` turns an
-`Int` into a `Float`:
+There is no implicit conversion between types: a function that takes a
+`Decimal` does not accept an `Int`. Arithmetic and comparison take an `Int`
+and a `Decimal` together, and arithmetic on them gives a `Decimal`; that is
+a rule of those operators, not a conversion. A conversion is written: `str`
+writes a value as text, and `float` turns an `Int` into a `Float`:
 
 ```hql
 412.str()

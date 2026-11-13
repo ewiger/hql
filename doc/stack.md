@@ -120,6 +120,7 @@ Reach for these before introducing an alternative:
 | Errors | thiserror (library), anyhow (binary) |
 | Logging | tracing |
 | Version numbers | SemVer 2 (`semver`) |
+| Dates, times and zones (`Date`, `Instant`, `import time`) | jiff (`tzdb-bundle-always`); jiff-tzdb, already jiff's dependency, named directly only to read the bundled database's release for `hql --version` |
 | Exact decimals (`Decimal`) | bigdecimal; serde_json with `arbitrary_precision`, so a JSON number keeps its digits |
 
 
@@ -186,7 +187,7 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
   *resolves*, *infers* and *checks*; retrieval *compares embeddings* or
   *matches text*; a graph *stores a presence per node*. Provenance is never
   *why*.
-- Headings name the term (`Static type checking`, `Node presence`), not the
+- Headings name the term (`Type checking`, `Node presence`), not the
   slogan.
 - Anything the binary does not implement is written as design direction, in
   those words.

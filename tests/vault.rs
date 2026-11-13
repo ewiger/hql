@@ -78,6 +78,51 @@ fn of_type_selects_the_kind_the_checker_established() {
 }
 
 #[test]
+fn of_type_selects_the_dialect_of_a_cards_body() {
+    assert_eq!(
+        text("import doc\ncards | of_type(MdCard) | map(c => c.name)"),
+        "[\"http-headers\"]"
+    );
+    assert_eq!(text("import doc\ncards | of_type(HmdCard) | count"), "5");
+    assert_eq!(text("import doc\ncards | of_type(HmdDoc) | count"), "5");
+    // A card's kind and its dialect are independent.
+    assert_eq!(
+        text("import doc\ncards | of_type(RelationCard) | of_type(HmdCard) | count"),
+        "1"
+    );
+    assert_eq!(
+        text("import doc\ncards | filter(c => c | is(MdCard)) | count"),
+        "1"
+    );
+    let vault = fixture();
+    let refused = hql::check_in(
+        "import doc\ncards | of_type(HmdCard) | of_type(MdCard)",
+        &vault,
+    )
+    .expect_err("two dialects exclude each other");
+    assert!(refused.message().contains("no HmdCard can be a MdCard"));
+}
+
+#[test]
+fn a_programs_own_card_subtype_is_refused_rather_than_silently_empty() {
+    let vault = fixture();
+    let declared = "type Task { status : String }\ntype TaskCard : Card { metadata : Task }\n";
+    for test in [
+        "cards | of_type(TaskCard)",
+        "cards | filter(c => c | is(TaskCard))",
+    ] {
+        let refused = hql::check_in(&format!("{declared}{test}"), &vault)
+            .expect_err("a program's card subtype");
+        assert!(
+            refused.message().contains("no card is a TaskCard")
+                && refused.message().contains("c.metadata | T"),
+            "{test}: {}",
+            refused.message()
+        );
+    }
+}
+
+#[test]
 fn a_filtered_card_pipeline_needs_no_annotations_or_conversions() {
     let vault = fixture();
     let binding = "open = cards | filter(c => c.metadata.status == \"todo\")\n";

@@ -374,7 +374,9 @@ impl serde::Serialize for YamlTree<'_> {
 impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Empty => f.write_str("empty"),
+            // As it is written: `{a: none}` prints as it reads back, and as
+            // a missing value prints outside a tree.
+            Self::Empty => f.write_str("none"),
             Self::Bool(value) => write!(f, "{value}"),
             Self::Int(value) => write!(f, "{value}"),
             Self::Float(value) => write!(f, "{value:?}"),

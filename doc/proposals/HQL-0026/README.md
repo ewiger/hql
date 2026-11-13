@@ -216,3 +216,5 @@ cargo test --locked --test corpus
   ([issue 0035](../../issues/archive/0035-positions-and-slices.md))
 - 2026-10-23: a String's positions are its code points, counted by
   `s.size()`; `length` is withdrawn by HQL-0014. Decided, not yet implemented
+- 2026-11-13: `length` withdrawn in 0.6.0; a String's positions are counted
+  by `s.size()` alone (issue 0047)

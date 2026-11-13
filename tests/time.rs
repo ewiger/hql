@@ -145,6 +145,27 @@ fn durations_add_and_subtract_and_nothing_else_does() {
 }
 
 #[test]
+fn abs_of_a_duration_is_its_length_without_its_sign() {
+    // `math`, in the prelude, declares `abs` over `Duration` beside the
+    // numbers: no `import time` is needed.
+    let shown = |source: &str| hql::eval(source).unwrap().to_string();
+    assert_eq!(shown("abs(Duration(\"-PT1H30M\"))"), "PT1H30M");
+    assert_eq!(shown("Duration(\"PT2H\").abs()"), "PT2H");
+    assert_eq!(shown("abs(Duration(\"PT0S\"))"), "PT0S");
+    assert_eq!(
+        shown("abs(Duration(\"PT1H\") - Duration(\"PT90M\"))"),
+        "PT30M"
+    );
+    assert_eq!(
+        hql::check("abs(Duration(\"-PT1S\"))").unwrap().to_string(),
+        "Duration"
+    );
+    assert_eq!(shown("abs(-3)"), "3");
+    let error = hql::check("abs(Date(\"2026-10-24\"))").unwrap_err();
+    assert!(error.message.contains("abs"), "{}", error.message);
+}
+
+#[test]
 fn calendar_arithmetic_clamps_to_the_end_of_a_month() {
     for (source, expected) in [
         ("Date(\"2026-01-31\").add_months(1)", "2026-02-28"),

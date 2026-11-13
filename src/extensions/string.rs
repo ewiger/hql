@@ -18,7 +18,6 @@ pub(crate) static STEPS: &[Operation] = &[
     declared("str", eval_str),
     declared("fmt", eval_fmt),
     declared("at", eval_at),
-    declared("length", eval_length),
     declared("size", eval_size),
     declared("upper", eval_upper),
     declared("lower", eval_lower),
@@ -216,7 +215,6 @@ macro_rules! unary {
 }
 
 unary! {
-    eval_length => "length", |s| Value::Int(i64::try_from(s.chars().count()).unwrap_or(i64::MAX));
     eval_size => "size", |s| Value::Int(i64::try_from(s.chars().count()).unwrap_or(i64::MAX));
     eval_upper => "upper", |s| text(&s.to_uppercase());
     eval_lower => "lower", |s| text(&s.to_lowercase());

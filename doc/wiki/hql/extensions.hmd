@@ -201,7 +201,7 @@ the rest by `std`.
 | `graph` | `uplinks` `downlinks` `expand` | the prelude |
 | `format` | `format` `text` `markdown` `hmd` `json` `yaml` `csv` `d2` `mermaid` | the prelude |
 | `io` | `file` `source` `tap` `target` `sink` | the prelude |
-| `io.net` | `http` `websocket` `socket` | `import net` |
+| `io.net` | `http` `websocket` `tcp` | `import net` |
 | `io.logging` | `Logger` `trace` `debug` `info` `warn` `error` | `import logging` |
 | `lexical` | `lexical` | `import lexical` |
 | `semantic` | `semantic` | `import semantic` |

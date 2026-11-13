@@ -64,32 +64,32 @@ type Logger {
 fn Logger<F : Format, L : LogLevel>(to: Writable, format: Type<F>, *, name: String, level: Type<L> = Info) : Logger
 
 /// Writes one `Trace` event with `message` and `data` to `log`'s
-/// destination when `log`'s threshold is `Trace`, and gives `Unit`.
+/// destination when `log`'s threshold is `Trace`, and gives `Step`.
 /// Effectful. Called directly or through a pipe: `trace(log, "step")` is
 /// `log | trace("step")`.
-effectful fn trace(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn trace(log: Logger, message: String, data: Data = {:}) : Step
 
 /// Writes one `Debug` event with `message` and `data` to `log`'s
-/// destination when `log`'s threshold is at most `Debug`, and gives `Unit`.
+/// destination when `log`'s threshold is at most `Debug`, and gives `Step`.
 /// Effectful: `log | debug("parsed", {rows: 3})`.
-effectful fn debug(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn debug(log: Logger, message: String, data: Data = {:}) : Step
 
 /// Writes one `Info` event with `message` and `data` to `log`'s destination
-/// when `log`'s threshold is at most `Info`, and gives `Unit`. Effectful:
+/// when `log`'s threshold is at most `Info`, and gives `Step`. Effectful:
 /// with `log = Logger(stdout, Text, name = "birds")`,
 /// `log | info("loaded", {count: 312})` writes
 /// `INFO birds loaded {count: 312}`.
-effectful fn info(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn info(log: Logger, message: String, data: Data = {:}) : Step
 
 /// Writes one `Warn` event with `message` and `data` to `log`'s destination
-/// when `log`'s threshold is at most `Warn`, and gives `Unit`. Effectful:
+/// when `log`'s threshold is at most `Warn`, and gives `Step`. Effectful:
 /// `log | warn("no sightings")`.
-effectful fn warn(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn warn(log: Logger, message: String, data: Data = {:}) : Step
 
 /// Writes one `Error` event with `message` and `data` to `log`'s
-/// destination, whatever `log`'s threshold, and gives `Unit`. Effectful:
+/// destination, whatever `log`'s threshold, and gives `Step`. Effectful:
 /// `log | error("unreadable", {path: "birds.json"})`.
-effectful fn error(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn error(log: Logger, message: String, data: Data = {:}) : Step
 
 /// The cell `hql render` is running, bound as `cell`. The events written
 /// to its `logs` are shown beside the cell's result and never saved into

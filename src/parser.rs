@@ -1355,7 +1355,9 @@ impl Parser {
         {
             return Ok(None);
         }
-        let start = self.advance().span.start;
+        let named = self.advance().span;
+        let start = named.start;
+        let mut head_end = named.end;
         let mut parameters = Vec::new();
         if self.eat(&Token::OpenParen) {
             self.nesting += 1;
@@ -1383,7 +1385,10 @@ impl Parser {
                     }
                 }
             }
-            self.expect(&Token::CloseParen, "to close the parameters")?;
+            head_end = self
+                .expect(&Token::CloseParen, "to close the parameters")?
+                .span
+                .end;
             self.nesting -= 1;
         }
         self.expect(&Token::Colon, "in `:=`")?;
@@ -1423,6 +1428,7 @@ impl Parser {
             name,
             parameters,
             body,
+            head_end,
             span,
         }))
     }

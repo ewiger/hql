@@ -24,7 +24,7 @@ The event goes to standard error and the result to standard output. A logger
 has five operations, one per level, ordered from least to most severe:
 `trace`, `debug`, `info`, `warn` and `error`. Each takes a message and,
 optionally, structured data, and is called through a pipe or directly:
-`info(log, "x")` is `log | info("x")`. Each gives `Unit`, so a log call never
+`info(log, "x")` is `log | info("x")`. Each gives `Step`, so a log call never
 becomes part of a result.
 
 ## The threshold

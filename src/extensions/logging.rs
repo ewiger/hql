@@ -218,7 +218,7 @@ macro_rules! levels {
                         ..ArgumentSpec::value("data", P::Type(TypeConstructor("Data")))
                     },
                 ],
-                output: O::Type(P::Type(TypeConstructor("Unit"))),
+                output: O::Type(P::Type(TypeConstructor("Step"))),
             }),
             purity: Purity::Effectful,
             shape: super::Shape::Barrier,

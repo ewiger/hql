@@ -66,7 +66,7 @@ for_kind("order_shipped") | sink(subject("order_shipped"))
 ```
 
 ```text
-Unit
+Step
 ```
 
 A reader names one subject or a family of them. A subject may hold the
@@ -126,7 +126,7 @@ source("raw_events") | sink("orders_raw")
 ```
 
 ```text
-Unit
+Step
 ```
 
 A message is written once the stream answers that it stored it, so a
@@ -248,7 +248,7 @@ tap("orders_raw")
 ```
 
 ```text
-{silver: Unit, rejected: Unit}
+{silver: Step, rejected: Step}
 ```
 
 That table is the shop's first analytical one, and what it is for, the
@@ -259,11 +259,14 @@ promises.
 
 ## Where the work runs
 
-The filter and the grouping above run where `hql` runs. The `spark` kind is
-a table, reached over Spark SQL: it is asked for the rows of one table, and
-for nothing else. Running a pipeline's pure steps on a cluster is the
-business of a **backend**, which [chapter 14](14-etl-pipelines.md) describes;
-the program for it is this one.
+The filter and the grouping above run where `hql` runs. The `spark` endpoint
+reaches a table over Spark SQL and sends the statements needed to read or
+write it. The surrounding HQL pipeline is evaluated locally.
+
+A future Spark execution backend could translate supported pipeline steps
+into SQL and let the engine plan their execution on the cluster. The
+companion [Logical steps and physical plans](14-planning-and-backends.md)
+explains that handoff and the requirement to preserve the meaning of `|`.
 
 What the current release does not do: several programs sharing one consumer
 to divide its messages, NATS credential files, a lakehouse column holding a

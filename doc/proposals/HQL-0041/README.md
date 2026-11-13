@@ -162,9 +162,11 @@ conversion it writes.
 - `fingerprint` and `digest` read their whole input. They are bounded by the
   run-context limits of [HQL-0012](../HQL-0012/README.md) as any held value
   is.
-- Time-zone data is compiled into the binary. A program's results for future
-  instants in a zone can change when the binary's zone database changes; the
-  binary MUST report the database version it carries in `hql --version`.
+- Time-zone data is compiled into the binary, and the host's database is
+  read instead where one is installed. A program's results for future
+  instants in a zone can change when that database changes; the binary MUST
+  report in `hql --version` which database it resolves zone names against:
+  `system` for the host's, or the release of the one it carries.
 
 ## Reference Implementation
 
@@ -231,3 +233,8 @@ cargo clippy --all-targets -- -D warnings
   the process once and held for the process, the grant filtering it as a
   program reads it; a name or value that is not UTF-8 is not held; `--arg`
   without `=` is refused as a malformed name is, exit 2
+- 2026-11-13: part 1's remainder (issue 0064): `math` declares `abs` over
+  `Duration`; HQL-0040's `Entry` gains `modified? : Instant`; and
+  `hql --version` names the time-zone database zone names resolve against,
+  `system` where jiff finds the host's and the bundled release otherwise,
+  since the host's database is preferred where one is installed

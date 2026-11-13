@@ -1,5 +1,5 @@
 site_name: HQL
-site_description: Hyper Query Language — a statically typed language for querying, transforming, connecting and computing over data, knowledge and AI workflows.
+site_description: Hyper Query Language — a strongly typed language for querying, transforming, connecting and computing over data, knowledge and AI workflows.
 
 # Served from GitHub Pages under a custom domain. The build does not need this —
 # MkDocs emits relative links — but canonical URLs and `sitemap.xml` are wrong
@@ -150,7 +150,9 @@ nav:
                   - Diagnostics: learn/12-errors/diagnostics.md
               - 13. Working with hql: learn/13-working-with-hql.md
           - "Part II: Data flows":
-              - 14. ETL pipelines: learn/14-etl-pipelines.md
+              - 14. ETL pipelines:
+                  - Overview: learn/14-etl-pipelines.md
+                  - Logical steps and physical plans: learn/14-planning-and-backends.md
               - 15. Endpoints: learn/15-endpoints.md
               - 16. Tables and topics: learn/16-tables-and-topics.md
               - 17. Subjects and the lakehouse: learn/17-subjects-and-the-lakehouse.md

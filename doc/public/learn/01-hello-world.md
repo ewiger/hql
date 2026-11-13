@@ -1,6 +1,6 @@
 # 1. Hello world
 
-HQL is a statically typed expression and query language. A program is an
+HQL is a strongly typed expression and query language. A program is an
 expression, or a few statements ending in one; `hql` checks its type, then
 evaluates it, and writes the value. This chapter is about that loop.
 

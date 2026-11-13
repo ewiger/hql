@@ -8,7 +8,7 @@ trait Validator
 ```
 
 A check a value passes: a trait extending `Validator` is a validator
-type. `validate f with V` holds where `V`'s `validate` of `f` is true,
+trait. `validate f with V` holds where `V`'s `validate` of `f` is true,
 and a field declared `f: V` reads as the type implementing `V`, held to
 it.
 

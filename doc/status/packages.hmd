@@ -37,7 +37,7 @@ modules is imported where it is used.
 
 Which modules each extension provides. A module no extension provides is
 implemented by the runtime: every declaration in it has an HQL body, or it
-declares types alone. `src/extensions/mod.rs` still declares fourteen
+declares types alone. `src/extensions/mod.rs` still declares twenty-nine
 descriptors, one per Rust source module; folding them into these two is open
 work.
 

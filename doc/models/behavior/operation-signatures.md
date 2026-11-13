@@ -243,4 +243,4 @@ the queries model states, and one name is right.
 
 - **HQL-0004's `collect`.** The proposal still declares
   `collect<T>(Seq<T>) : List<T>`; it reads `List` once
-  [0013](../../issues/0013-typed-pipeline-operations.md) reaches it.
+  [0013](../../issues/archive/0013-typed-pipeline-operations.md) reaches it.

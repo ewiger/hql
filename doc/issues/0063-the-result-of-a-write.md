@@ -50,6 +50,15 @@ in a record. Whatever the type becomes, its one spelling is part of this.
 - The book and reference pages that say `Unit`, and the `hql check` output
   the book shows.
 
+## Decided: the name
+
+2026-11-13. `Unit` becomes `Step`, a subtype of a new type `Aute`, the
+atomic unit of execution, before the 0.6.0 tag. The reasoning and the
+migration are in [HQL-0055](../proposals/HQL-0055/README.md) and its
+companion note on [the type `Step`](../proposals/HQL-0055/parts/04-the-step-type.md).
+What stays open here is the outcome of a write: a count and an endpoint, a
+subtype of `Step` or a `Result`, once the backends report them uniformly.
+
 ## Done when
 
 - A program that ends in a write checks to a type whose name says what the
@@ -59,3 +68,16 @@ in a record. Whatever the type becomes, its one spelling is part of this.
   the count and the endpoint in it.
 - Every `Unit` in `lib/std`, the book and the reference is the new name or
   the new type, and `CHANGELOG.md` lists the change under breaking changes.
+
+## Zero-row update (release 0.6.0 audit)
+
+2026-11-13, issue 0072. An `update` (or `delete`) whose filter matches no
+row is no failure: its value is the `Int` 0, the count the system reports,
+and a scope goes on past it. A transfer whose credit names an account that
+does not exist therefore commits its debit alone unless the program reads
+the count. Nothing in the evaluator changed: the book's transfer, the
+benchmark of [HQL-0051](../proposals/HQL-0051/README.md) and its Learn page
+bind both counts and roll the scope back where either is not 1, and
+`tests/transactions.rs` pins both the 0 and that rollback. This is the
+real case the count has served: whatever a write's outcome becomes here,
+it keeps an affected-row count a block can test before it commits.

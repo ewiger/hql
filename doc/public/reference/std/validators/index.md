@@ -5,7 +5,7 @@
 module validators
 ```
 
-Validators: the standard validator types, imported where they are used,
+Validators: the standard validator traits, imported where they are used,
 `import validators`, and never by the prelude, so a program's own
 `Email` is its own. A field declared with one, `email: Email`, is of the
 one type that implements it; `NonEmpty`, implemented for more than one

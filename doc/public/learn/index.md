@@ -5,12 +5,13 @@ a number and ends with a web of vaults, and every chapter builds on the ones
 before it. Every program in it prints what the book shows. Chapter 18 and
 chapters 25 to 27 describe APIs and object stores, the `ai` module and the
 direction beyond one vault, which are design and not in the current
-release, as do the sections of chapters 15 and 19 marked so; every other
-chapter runs with it. The programs of chapters 16, 17, 19 and 20 that reach a
+release, as do the marked sections of chapters 14, 15 and 19. Chapter 14's
+companion on planning separates the local backend from future execution
+strategies. The programs of chapters 16, 17, 19 and 20 that reach a
 server are checked in the book and run in the
 [hql-demo repository](https://github.com/ewiger/hql-demo).
 
-HQL is a statically typed language for querying, transforming, connecting and
+HQL is a strongly typed language for querying, transforming, connecting and
 computing over data, knowledge and AI workflows. A program is checked before it
 runs, and values flow through pipelines of typed steps: over records and lists,
 as `jq` works over JSON; over tables, as SQL does; over files, standard input
@@ -82,9 +83,12 @@ one claim about which book inspired which, and a librarian.
 ## Part II: Data flows
 
 14. [ETL pipelines](14-etl-pipelines.md) — the wiring as a program: `|`
-    against `.`, the three phases, the step as the unit of execution, `hql`
+    and `.`, the three phases, logical steps and effects, `hql`
     in a shell pipe, the shop whose orders the rest of Part II follows, and
-    partitions, schedules and backends, which stay outside the file.
+    partitioning, schedules and backends. Its companion,
+    [Logical steps and physical plans](14-planning-and-backends.md), follows
+    a checked program into local execution and the design direction for
+    parallel workers, SQL translation and distributed execution.
 15. [Endpoints](15-endpoints.md) — one model for every system: a file by
     path or by id, `source`, `tap`, `target` and `sink`, the kind that states
     the type, secrets in the environment, and transports.

@@ -4,7 +4,7 @@
 
 # HQL
 
-**Statically typed expression and query language**
+**Strongly typed expression and query language**
 
 [![Crates.io](https://img.shields.io/crates/v/hql.svg)](https://crates.io/crates/hql)
 [![MSRV](https://img.shields.io/crates/msrv/hql?color=orange&label=rust)](https://github.com/ewiger/hql/blob/main/Cargo.toml)
@@ -14,7 +14,7 @@
 
 </div>
 
-**HQL, the Hyper Query Language, is a statically typed expression and query language. It combines functional expressions with pipelines over files, streams, structured data, HyperMarkDown documents, knowledge and AI workflows. A program's types are checked before it runs, and data read from outside is checked against declared contracts where it enters.**
+**HQL, the Hyper Query Language, is a strongly typed expression and query language. It combines functional expressions with pipelines over files, streams, structured data, HyperMarkDown documents, knowledge and AI workflows. A program's types are checked before it runs, and data read from outside is checked against declared contracts where it enters.**
 
 HQL combines functional expressions, data pipelines, streams, structured documents, semantic retrieval and knowledge graphs in one language.
 
@@ -190,6 +190,35 @@ and `module a.b for String` makes its `self` functions receiver functions. The
 [Mighty Types corpus](examples/mighty-types/README.md) walks all of it,
 program by program.
 
+The standard library adds transactions and six general-purpose modules.
+Transactions are in the prelude; each module after them is imported by name,
+`import time` or `import io.fs`:
+
+- **Transactions.** `with transaction(isolation = Serializable) tx on ledger
+  { … }` runs `insert`, `update` and `delete` over its participants as one
+  database transaction, committed together or not at all, and `attempts = n`
+  retries a serialization failure
+  ([a transfer is one transaction](https://hql-lang.org/latest/learn/19-oltp/transfers/)).
+- **`time`.** `Date`, `DateTime`, `Instant` and `Duration`, constructed from
+  ISO 8601 text, with their parts and calendar arithmetic
+  ([time types](https://hql-lang.org/latest/learn/02-data-types/time/)).
+- **`stats`.** `mean`, `median`, `mode`, `variance`, `stdev`, `quantile`,
+  `correlation` and their relatives over a list or a query's column
+  ([statistics](https://hql-lang.org/latest/learn/28-statistics/)).
+- **`random`.** `sample`, `shuffle`, `choice` and `uuid`, each pure when given
+  a `seed` and drawn from the evaluation seed otherwise
+  ([random values](https://hql-lang.org/latest/learn/29-random/)).
+- **`crypto`.** Typed public, private and secret keys, read, written and
+  generated; `sign` and `verify`, `mac` and password hashes; a private key is
+  kept out of every output
+  ([keys and cryptography](https://hql-lang.org/latest/learn/31-cryptography/)).
+- **`io.fs`.** `folder(path)`, its `entries`, `walk` and `glob`, and `exists`,
+  so a program lists a folder before it reads the files
+  ([files and folders](https://hql-lang.org/latest/learn/09-io/files-and-folders/)).
+- **`io.env`.** `env.var(name)` and `env.arg(name)` read the environment and
+  the `--arg name=value` pairs of the invocation, fixed for the whole
+  evaluation ([environment and arguments](https://hql-lang.org/latest/learn/09-io/environment/)).
+
 ### Checked before it runs
 
 `hql check` and every run check the whole program before a step evaluates. A
@@ -263,7 +292,7 @@ reads it as that type, and a `DataContract` states what such a value must
 hold beyond its shape:
 
 ```hql
-fn is_country_code(code: String) : Bool = code.length() == 2 and code.upper() == code
+fn is_country_code(code: String) : Bool = code.size() == 2 and code.upper() == code
 
 type User : DataContract = {
     id: String
@@ -798,7 +827,7 @@ HQL occupies some of the same space as `jq`, but its scope is deliberately broad
 
 ```text
 jq-style structured data processing
-+ static types
++ strong types
 + functions
 + reusable programs
 + streams

@@ -62,6 +62,14 @@ twice(adder(3), 30)
 36
 ```
 
+## Every argument is passed
+
+A function with a body takes every argument it declares: its parameters have
+no default values. Write `fn per_week(per_day: Int = 40) : Int = per_day * 7`
+and `hql` refuses the `= 40`. A default belongs to a declaration whose body
+the binary provides, as some standard library functions have: `limit: Int = 0`.
+Where a value is usually the same, bind it and pass it.
+
 ## Variadic parameters
 
 A last parameter written `...T` collects any number of trailing arguments into

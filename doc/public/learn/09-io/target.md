@@ -2,9 +2,11 @@
 
 Writing has two forms, chosen by the shape of the value. `target(endpoint,
 Format)` writes one completed value as one document. `sink(endpoint, Format)`
-writes one document per value, as each arrives. Both give `Unit`, and a
-`Unit` result prints nothing, so what a program below prints is what the
-step wrote.
+writes one document per value, as each arrives. Both end a program with a
+`Step`, its final computation step. A `Step` carries no value; HQL has no
+void type, and `Step` stands in for one. A local engine runs the step at
+once; another engine may schedule it as part of an execution plan. A `Step`
+prints nothing, so what a program below prints is what was written.
 
 ## One document with `target`
 
@@ -174,5 +176,5 @@ evaluation with that error.
 result of a program is a different thing: the host presents it after
 evaluation, in the format `--to` names
 ([`hql` on the command line](command-line.md)). A program that ends in
-`target` or `sink` has the result `Unit`, and prints nothing beyond what it
+`target` or `sink` has the result `Step`, and prints nothing beyond what it
 wrote.

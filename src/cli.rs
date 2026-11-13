@@ -437,12 +437,29 @@ pub fn with_default_command(arguments: Vec<String>) -> Vec<String> {
     arguments
 }
 
+/// What `hql --version` writes after `hql`: the crate's version, and on a
+/// line of its own the time-zone database zone names resolve against, since
+/// a future instant read in a zone can change with it.
+#[must_use]
+pub fn version() -> String {
+    format!(
+        "{}\ntime-zone database: {}",
+        env!("CARGO_PKG_VERSION"),
+        crate::time::ZoneDatabase::in_use()
+    )
+}
+
 /// Parse arguments from the process, for the binary.
 ///
 /// A combination clap cannot express is still a usage error, exit `2`.
 #[must_use]
 pub fn parse() -> Cli {
-    let cli = Cli::parse_from(with_default_command(std::env::args().collect()));
+    use clap::{CommandFactory, FromArgMatches};
+    static VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(version);
+    let matches = Cli::command()
+        .version(VERSION.as_str())
+        .get_matches_from(with_default_command(std::env::args().collect()));
+    let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
     if let Command::Render {
         files,
         in_place,

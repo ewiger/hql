@@ -18,7 +18,8 @@ cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 ```
 
-CI runs the same four commands. A clippy warning fails the build.
+CI runs the same four commands and `hql reference --check doc/public/reference`.
+A clippy warning fails the build.
 
 ## Run from the source tree
 
@@ -49,3 +50,39 @@ compiled: an edit takes effect after the next release build, not before.
 build. To go back to an installed release, remove the link first
 (`rm ~/.cargo/bin/hql`). Otherwise `cargo install` refuses to overwrite a binary
 it did not install.
+
+## Before a release
+
+A tag is cut from a tree where all of these hold:
+
+```sh
+cargo build --locked
+cargo test --locked
+cargo fmt --check
+cargo clippy --locked --all-targets -- -D warnings
+target/debug/hql reference --check doc/public/reference
+uv run mkdocs build --strict
+```
+
+Then run every use case in [hql-demo](https://github.com/ewiger/hql-demo)
+against this build. Clone it beside this repository; each case starts its
+own containers, so Docker with Compose is needed:
+
+```sh
+../hql-demo/run-all.sh
+```
+
+Every step must print `ok`. A failing step prints the case, the step, the
+command, hql's error output and a diff against the expected output. A case
+that cannot run, because a service does not start, is not a pass. The
+hql-demo CI runs only `postgres`, `ledger` and `crypto`, against hql's
+`main`, so the full run here is what covers Kafka, NATS and the lakehouse.
+To run that CI subset against a branch before it merges, start hql-demo's
+CI workflow by hand with that branch as `hql_ref`.
+
+Then turn the changelog's Unreleased heading into `## [X.Y.Z] — date`, set
+`version` in `Cargo.toml` (and `Cargo.lock` with it, by `cargo build`), and
+push the tag `vX.Y.Z`. The release workflow refuses a tag that does not
+name `Cargo.toml`'s version or has no changelog section of that version,
+and runs the tests and the reference check again on each target before it
+publishes the binaries, the documentation and the crate.

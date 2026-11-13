@@ -3,7 +3,7 @@
 Status: backlog
 Related: [0015](0015-jq-parity-analysis.md),
 [0014](archive/0014-next-feature-bundle.md),
-[0013](0013-typed-pipeline-operations.md),
+[0013](archive/0013-typed-pipeline-operations.md),
 [HQL-0004](../proposals/HQL-0004/README.md)
 
 HQL is SQL and more: anything a query can compute over a relational database,

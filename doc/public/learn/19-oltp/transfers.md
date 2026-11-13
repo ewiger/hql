@@ -83,10 +83,12 @@ gone  = delete transfers | filter(t => t.amount == 0.00)
 List<Int>
 ```
 
-A statement outside a transaction is its own transaction, committed when it
-ends, as `target` of a table is. The checker refuses a statement over an
-endpoint that cannot take it: a Kafka topic is not `Updatable`, a CSV file
-is not `Deletable`. A `sqlite` or `postgres` table is all three, and a
+A filter that matches no row is no failure: the statement changes nothing
+and its value is `0`. A program that needs the row to exist reads the
+count. A statement outside a transaction is its own transaction, committed
+when it ends, as `target` of a table is. The checker refuses a statement
+over an endpoint that cannot take it: a Kafka topic is not `Updatable`, a
+CSV file is not `Deletable`. A `sqlite` or `postgres` table is all three, and a
 `spark` table too, where the table's format allows it.
 
 ## Two updates and an insert, or none
@@ -100,12 +102,13 @@ accounts = configured("accounts")
 transfers = configured("transfers")
 ledger = {accounts, transfers}
 
-with transaction tx on ledger {
+with transaction(isolation = Serializable) tx on ledger {
     sender = source(accounts) | filter(a => a.id == 1) | one
     tx.rollback("insufficient balance") given sender.balance < 100.00
 
-    update accounts | filter(a => a.id == 1) | set(a => {balance: a.balance - 100.00})
-    update accounts | filter(a => a.id == 2) | set(a => {balance: a.balance + 100.00})
+    debited = update accounts | filter(a => a.id == 1) | set(a => {balance: a.balance - 100.00})
+    credited = update accounts | filter(a => a.id == 2) | set(a => {balance: a.balance + 100.00})
+    tx.rollback("no such account") given debited != 1 or credited != 1
 
     insert transfers Transfer(id = 1, from_id = 1, to_id = 2, amount = 100.00)
 }
@@ -118,7 +121,18 @@ Result<Int, TransactionFailure>
 Inside the block every read and write of a participant runs on the scope's
 own connection: a `source` after an `update` sees the update, and a `sink`
 commits no row of its own. `one` gives the one element of a sequence of
-exactly one, and fails otherwise. The handle `tx` ends the attempt early:
+exactly one, and fails otherwise. Each `update` is bound so that its count
+is read: a credit to an account that does not exist changes no row, and
+without the check the scope would commit the debit alone.
+
+`isolation = Serializable` is what keeps the balance check true when two
+transfers run at once. Under it, two scopes that both read a balance of
+150 and both debit 100 cannot both commit: the database refuses one of
+them as a conflict. PostgreSQL's default level, `ReadCommitted`, does not
+refuse it: the second debit waits for the first, then subtracts from the
+committed 50, and the balance ends at -50. SQLite has no other level.
+
+The handle `tx` ends the attempt early:
 `tx.rollback(reason)` undoes it and gives the reason back,
 `tx.commit(value)` commits before the end, and `tx.retry()` runs the block
 again. Each is written as a statement of the block or as an arm of a
@@ -140,8 +154,9 @@ outcome =
     with transaction(attempts = 3, isolation = Serializable) tx on {accounts, transfers} {
         sender = source(accounts) | filter(a => a.id == 1) | one
         tx.rollback("insufficient balance") given sender.balance < 100.00
-        update accounts | filter(a => a.id == 1) | set(a => {balance: a.balance - 100.00})
-        update accounts | filter(a => a.id == 2) | set(a => {balance: a.balance + 100.00})
+        debited = update accounts | filter(a => a.id == 1) | set(a => {balance: a.balance - 100.00})
+        credited = update accounts | filter(a => a.id == 2) | set(a => {balance: a.balance + 100.00})
+        tx.rollback("no such account") given debited != 1 or credited != 1
         insert transfers Transfer(id = 1, from_id = 1, to_id = 2, amount = 100.00)
     }
 
@@ -155,10 +170,39 @@ match outcome {
 String
 ```
 
+A scope is observed when it is bound, as `outcome` is here, or when it is
+the program's last statement, whose value is the program's result. A scope
+written as a statement before the last one has a value nothing reads, and
+the checker warns, kind `effect`: `` this transaction's `Result` is neither
+bound, nor the program's result, nor matched: its failure would be observed
+by nothing ``. The program still runs; a rollback in that scope goes
+unnoticed.
+
 `attempts = 3` runs the block again, on a fresh transaction, when the
-database refuses an attempt because of a concurrent one, a serialization
-failure under `isolation = Serializable` or a deadlock; a constraint
-violation is never retried, since the same rows would be refused again.
+database refuses an attempt because of a concurrent one: in PostgreSQL a
+serialization failure under `isolation = Serializable` or a deadlock, in
+SQLite a database file another transaction is writing. The attempt is
+retried with no delay, whether a statement or the commit was refused, and
+after the last one the scope is `err` with `kind = "conflict"`. A retried
+attempt reads the balance again, so a transfer that lost the race to
+another one meets the balance that one left, and rolls back by its own
+rule where it no longer holds. HQL's own tests run that race over SQLite:
+two of these transfers of 100 start together from a balance of 150, both
+pass the balance check, one commits, and the other rolls back on the
+balance after a retry or ends `conflict`, with no half of it left. A
+constraint violation is never retried, since the same rows would be
+refused again.
+
+A retried attempt undoes what it wrote to a participant and nothing else. A
+write to an endpoint outside the set, a `target` or `sink` to a file, a
+channel or a topic, or a log call, runs on every attempt and is rolled back
+by none. Where `attempts` is written as a number above 1, the checker warns
+of each such write, kind `effect`, naming the endpoint:
+`` `sink` to `audit` runs on every attempt of the scope and is not rolled
+back ``. A write wanted once per outcome is written after the scope, from
+its value; a log line per attempt is often what is wanted, and the warning
+says what it is.
+
 Any other failure inside the block, a division by zero, a lost connection,
 rolls the attempt back before it is reported, so a program that stops
 leaves no half-made transfer.
@@ -174,8 +218,8 @@ the kind's.
 
 | Kind | One scope holds | `insert`, `update`, `delete` |
 | --- | --- | --- |
-| `postgres` | every table of one database | all three, as one statement each |
-| `sqlite` | every table of one database file, at `Serializable` | all three; a `Decimal` computed on the server is a float |
+| `postgres` | every table of one database, at `ReadCommitted` unless the scope names `RepeatableRead` or `Serializable` | all three, as one statement each |
+| `sqlite` | every table of one database file, at `Serializable`, the one level it offers | all three; a `Decimal` computed on the server is a float |
 | `spark`, a Delta table | one table, and at most one statement that changes it: a Delta table commits one statement of itself | all three where the table's format allows it |
 
 A set of two kinds, or two databases, is refused where the program is

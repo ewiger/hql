@@ -41,6 +41,9 @@ pub enum Endpoint {
         method: String,
         /// Header names and their values, sent with every request.
         headers: BTreeMap<String, String>,
+        /// How long a response may send nothing before it fails,
+        /// [`crate::net::RESPONSE`] unless `timeout_ms` is written.
+        timeout: Duration,
     },
     /// A WebSocket connection: one document per message.
     WebSocket(String),
@@ -241,6 +244,7 @@ impl fmt::Display for Endpoint {
                 url,
                 method,
                 headers,
+                timeout,
             } => {
                 write!(f, "http({url:?}")?;
                 if method != "GET" {
@@ -253,10 +257,13 @@ impl fmt::Display for Endpoint {
                         .collect();
                     write!(f, ", headers = {{{}}}", entries.join(", "))?;
                 }
+                if *timeout != crate::net::RESPONSE {
+                    write!(f, ", timeout_ms = {}", timeout.as_millis())?;
+                }
                 f.write_str(")")
             }
             Self::WebSocket(url) => write!(f, "websocket({url:?})"),
-            Self::Socket(host, port) => write!(f, "socket({host:?}, {port})"),
+            Self::Socket(host, port) => write!(f, "tcp({host:?}, {port})"),
             Self::Sqlite { path, table, order } => {
                 write!(
                     f,
@@ -1196,8 +1203,13 @@ pub(crate) fn read_all(endpoint: &Endpoint, format: TypeConstructor) -> Result<V
                 fs::File::open(&full).map_err(|error| format!("{}: {error}", path.display()))?;
             pieces(Box::new(file), format, path.display().to_string()).collect()
         }
-        Endpoint::Http { url, headers, .. } => {
-            let body = fetched(url, headers)?;
+        Endpoint::Http {
+            url,
+            headers,
+            timeout,
+            ..
+        } => {
+            let body = fetched(url, headers, *timeout)?;
             pieces(
                 Box::new(std::io::Cursor::new(body.as_ref().clone())),
                 format,
@@ -1215,14 +1227,18 @@ pub(crate) fn read_all(endpoint: &Endpoint, format: TypeConstructor) -> Result<V
 }
 
 /// The body of an HTTP resource, fetched once per evaluation.
-fn fetched(url: &str, headers: &BTreeMap<String, String>) -> Result<Arc<Vec<u8>>, String> {
+fn fetched(
+    url: &str,
+    headers: &BTreeMap<String, String>,
+    timeout: Duration,
+) -> Result<Arc<Vec<u8>>, String> {
     if let Policy::Document { .. } = policy() {
         return Err(format!("{url}: a document reads nothing from the network"));
     }
     if let Some(body) = HOST.with(|host| host.borrow().fetched.get(url).cloned()) {
         return Ok(body);
     }
-    let body = Arc::new(crate::net::fetch(url, headers)?);
+    let body = Arc::new(crate::net::fetch(url, headers, timeout)?);
     HOST.with(|host| {
         host.borrow_mut()
             .fetched
@@ -1320,6 +1336,7 @@ pub(crate) enum Reading {
     Http {
         url: String,
         headers: BTreeMap<String, String>,
+        timeout: Duration,
         format: TypeConstructor,
     },
 }
@@ -1511,9 +1528,10 @@ impl Reading {
             Self::Http {
                 url,
                 headers,
+                timeout,
                 format,
             } => {
-                let body = fetched(url, headers).map_err(&failed)?;
+                let body = fetched(url, headers, *timeout).map_err(&failed)?;
                 let reader = std::io::Cursor::new(body.as_ref().clone());
                 for document in pieces(Box::new(reader), *format, url.clone()) {
                     if !sink(document.map_err(&failed)?)? {
@@ -1678,6 +1696,7 @@ pub(crate) enum Destination {
         url: String,
         method: String,
         headers: BTreeMap<String, String>,
+        timeout: Duration,
     },
     /// One line per document, as the format separates them.
     Socket(std::net::TcpStream),
@@ -1867,8 +1886,13 @@ fn open_decrypted(
             let full = readable(path)?;
             Box::new(fs::File::open(&full).map_err(|error| format!("{}: {error}", path.display()))?)
         }
-        Endpoint::Http { url, headers, .. } => Box::new(std::io::Cursor::new(
-            fetched(url, headers)?.as_ref().clone(),
+        Endpoint::Http {
+            url,
+            headers,
+            timeout,
+            ..
+        } => Box::new(std::io::Cursor::new(
+            fetched(url, headers, *timeout)?.as_ref().clone(),
         )),
         Endpoint::Stdin => Box::new(std::io::stdin()),
         other => {
@@ -1957,11 +1981,13 @@ impl Destination {
                 url,
                 method,
                 headers,
+                timeout,
             } => Ok((
                 Self::Http {
                     url: url.clone(),
                     method: method.clone(),
                     headers: headers.clone(),
+                    timeout: *timeout,
                 },
                 false,
             )),
@@ -2033,7 +2059,8 @@ impl Destination {
                 url,
                 method,
                 headers,
-            } => return crate::net::send(url, method, headers, text),
+                timeout,
+            } => return crate::net::send(url, method, headers, text, *timeout),
             Self::Socket(stream) => return crate::net::line(stream, text),
             Self::WebSocket(url, connection) => return crate::net::post(connection, url, text),
             Self::Nats(publisher) => return publisher.send(text.to_owned()),

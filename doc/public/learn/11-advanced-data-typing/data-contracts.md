@@ -13,7 +13,7 @@ beyond it. The tree below carries a `signup_source` the contract never
 mentions, and reads:
 
 ```hql
-fn is_country_code(code: String) : Bool = code.length() == 2 and code.upper() == code
+fn is_country_code(code: String) : Bool = code.size() == 2 and code.upper() == code
 
 type UserData : DataContract = {
     id: String

@@ -16,9 +16,10 @@ macro_rules! atoms {
 }
 
 atoms! {
-    NEVER => "Never", UNIT => "Unit", INT => "Int", FLOAT => "Float", DECIMAL => "Decimal",
+    NEVER => "Never", AUTE => "Aute", UNIT => "Step", INT => "Int", FLOAT => "Float", DECIMAL => "Decimal",
     BOOL => "Bool", STR => "String", DATA => "Data", DOC => "Doc", CARD => "Card",
-    CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
+    CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard",
+    HMD_HEADER => "HmdHeader", HMD_DOC => "HmdDoc", HMD_CARD => "HmdCard", MD_CARD => "MdCard", EDGE => "Edge",
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
     ORDERING => "Ordering", SCALAR => "Scalar", DATE => "Date",
     DATE_TIME => "DateTime", INSTANT => "Instant", DURATION => "Duration",
@@ -43,7 +44,7 @@ atoms! {
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
     FILE => "File", FILE_END => "FileEnd", PATH => "Path",
     FOLDER => "Folder", GLOB => "Glob", ENTRY => "Entry",
-    HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
+    HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Tcp",
     TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
     BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
     ROW_TRANSPORT => "RowTransport", NATS_JET_STREAM => "NatsJetStream", SQLITE => "Sqlite", NATS => "Nats",
@@ -162,7 +163,10 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
     let ordered_scalar = [TypeRef::SCALAR, TypeRef::ORDERABLE];
     for (reference, kind, parents) in [
         (TypeRef::NEVER, TypeKind::Bottom, &[][..]),
-        (TypeRef::UNIT, TypeKind::Concrete, &[]),
+        // An atomic unit of execution completed, and its one subtype so far:
+        // a statement ran and gave no other value (HQL-0055).
+        (TypeRef::AUTE, TypeKind::Abstract, &[]),
+        (TypeRef::UNIT, TypeKind::Concrete, &[TypeRef::AUTE]),
         (TypeRef::SCALAR, TypeKind::Abstract, &[]),
         (TypeRef::BOOL, TypeKind::Concrete, &[TypeRef::SCALAR]),
         (TypeRef::INT, TypeKind::Concrete, &ordered_scalar),
@@ -214,6 +218,16 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
         (TypeRef::CARD, TypeKind::Concrete, &[TypeRef::DOC]),
         (TypeRef::CONCEPT_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
         (TypeRef::RELATION_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
+        // A document or card by the dialect of its body, `lib/std/doc/mod.hql`:
+        // a card is one of these by its `format`, beside its kind.
+        (TypeRef::HMD_HEADER, TypeKind::Concrete, &[]),
+        (TypeRef::HMD_DOC, TypeKind::Abstract, &[TypeRef::DOC]),
+        (
+            TypeRef::HMD_CARD,
+            TypeKind::Concrete,
+            &[TypeRef::CARD, TypeRef::HMD_DOC],
+        ),
+        (TypeRef::MD_CARD, TypeKind::Concrete, &[TypeRef::CARD]),
         (TypeRef::EDGE, TypeKind::Concrete, &[]),
         (TypeRef::GRAPH, TypeKind::Concrete, &[]),
         (TypeRef::VAULT, TypeKind::Concrete, &[]),
@@ -925,6 +939,20 @@ impl TypeRef {
             return None;
         }
         Some((self.args.first()?, self.args.get(1)?))
+    }
+}
+
+/// The refusal of a type name withdrawn in a rename, naming its
+/// replacement: in 0.6.0 `Unit` became `Step` (HQL-0055) and `Socket`
+/// became `Tcp` (issue 0069).
+#[must_use]
+pub fn withdrawn(name: &str) -> Option<String> {
+    match name {
+        "Unit" => {
+            Some("`Unit` is now `Step`: a statement that ran and gave no other value".to_owned())
+        }
+        "Socket" => Some("`Socket` is now `Tcp`, built by `net.tcp(host, port)`".to_owned()),
+        _ => None,
     }
 }
 

@@ -132,6 +132,84 @@ fn an_entry_states_its_kind_and_a_files_size() {
     assert_eq!(read, "[\"1\"]");
 }
 
+/// Set the modification time of the file at `path` to `seconds` after the
+/// Unix epoch.
+fn touch(path: &Path, seconds: u64) {
+    let time = std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds);
+    fs::File::options()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_modified(time)
+        .unwrap();
+}
+
+#[test]
+fn an_entry_states_when_it_was_modified_as_an_instant() {
+    let dir = tree();
+    let root = root(&dir);
+    for (file, seconds) in [
+        ("t/a/b.md", 1_792_827_000), // 2026-10-24T07:30:00Z
+        ("t/a/c/d.csv", 1_000_000_000),
+        ("t/a-b.md", 0),
+        ("t/top.json", 1_792_827_001),
+        ("t/z/y.md", 86_400),
+        ("t/.hidden.md", 1_700_000_000),
+    ] {
+        touch(&dir.path().join(file), seconds);
+    }
+    let modified = value(
+        &format!(
+            "folder({root:?}) | walk | filter(e => e.kind == \"file\") \
+             | map(e => [e.name, str(e.modified)])"
+        ),
+        &empty(),
+    );
+    assert_eq!(
+        modified,
+        "[[\".hidden.md\", \"2023-11-14T22:13:20Z\"], [\"b.md\", \"2026-10-24T07:30:00Z\"], \
+         [\"d.csv\", \"2001-09-09T01:46:40Z\"], [\"a-b.md\", \"1970-01-01T00:00:00Z\"], \
+         [\"top.json\", \"2026-10-24T07:30:01Z\"], [\"y.md\", \"1970-01-02T00:00:00Z\"]]"
+    );
+    // An `Instant` orders the files and compares with one the program
+    // writes; `entry` reads the same time a listing does.
+    let newest = value(
+        &format!(
+            "folder({root:?}) | walk | filter(e => e.kind == \"file\") \
+             | filter(e => e.modified | map(t => t >= Instant(\"2001-01-01T00:00:00Z\")) | unwrap_or(false)) \
+             | sort(by = e => e.modified | unwrap_or(Instant(\"1970-01-01T00:00:00Z\"))) \
+             | map(e => e.name)"
+        ),
+        &empty(),
+    );
+    assert_eq!(
+        newest,
+        "[\"d.csv\", \".hidden.md\", \"b.md\", \"top.json\"]"
+    );
+    let entry = value(
+        &format!(
+            "Path({:?}).entry() | map(e => str(e.modified)) | unwrap_or(\"?\")",
+            format!("{root}/top.json")
+        ),
+        &empty(),
+    );
+    assert_eq!(entry, "2026-10-24T07:30:01Z");
+    // A folder records a time too, on every platform the tests run on.
+    let folders = value(
+        &format!(
+            "folder({root:?}) | entries | filter(e => e.kind == \"folder\") \
+             | map(e => e.modified | map(t => true) | unwrap_or(false))"
+        ),
+        &empty(),
+    );
+    assert_eq!(folders, "[true, true]");
+    assert_eq!(
+        hql::check("import io.fs\nfn m(e: Entry) : Option<Instant> = e.modified\n1")
+            .map(|ty| ty.to_string()),
+        Ok("Int".to_owned())
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn a_link_is_reported_and_not_followed() {

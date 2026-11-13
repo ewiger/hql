@@ -85,7 +85,7 @@ pub(crate) fn derive(
         (true, None) => return Err("takes `self` outside a receiver module".to_owned()),
         // A declaration whose first parameter is not positional, or that
         // has none, takes no input: a call writes none, and the input is
-        // `Unit`, as `now()` and `Date(year = 2026, month = 10, day = 24)`.
+        // `Step`, as `now()` and `Date(year = 2026, month = 10, day = 24)`.
         // A type is no value to pipe, so a first parameter of `Type<A>`
         // is an argument too: `generate_key_pair(Ed25519)`.
         (false, _) => match declaration.parameters.split_first() {
@@ -230,8 +230,10 @@ fn pattern(written: &TypeAnn, scope: &Scope) -> Result<P, String> {
             _ => {}
         }
     }
-    let constructor = crate::types::builtin::constructor(&written.name)
-        .ok_or_else(|| format!("unknown type `{}`", written.name))?;
+    let constructor = crate::types::builtin::constructor(&written.name).ok_or_else(|| {
+        crate::types::builtin::withdrawn(&written.name)
+            .unwrap_or_else(|| format!("unknown type `{}`", written.name))
+    })?;
     if written.arguments.is_empty() {
         return Ok(P::Type(constructor));
     }

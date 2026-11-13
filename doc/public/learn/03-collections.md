@@ -165,8 +165,9 @@ check error[type-mismatch]: `drop` needs values in a stable order, and Set<Int> 
   |             ^^^^^^^
 ```
 
-The checker knows each collection's promises from its type, so this is found
-before anything runs, not after a wrong answer.
+Whether a collection has a stable order is part of its type: `Set<Int>` has
+none and `drop` requires one, so the program is refused when it is checked,
+before it is evaluated, not after a wrong answer.
 
 ## What is next
 

@@ -4,7 +4,7 @@
 **Created**: 2026-10-23
 **Source**: [HQL-0032](../HQL-0032/README.md), whose `validate f with V`
 names a validator; tracked by
-[issue 0043](../../issues/0043-contract-validation.md)
+[issue 0043](../../issues/archive/0043-contract-validation.md)
 
 ## Abstract
 

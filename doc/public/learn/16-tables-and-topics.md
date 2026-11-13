@@ -37,7 +37,7 @@ order = ["id"]
 in the same order. Filling the table is a `target`: the events are read as
 `Event`s, and each field becomes a column. The program is shown checked
 rather than run, so that the book's tests do not rewrite the table, and
-`Unit` is the type of a program whose result is what it wrote:
+`Step` is the type of a program whose result is what it wrote:
 
 <!-- run: check with Event --vault examples/pipelines/shop -->
 ```hql
@@ -46,7 +46,7 @@ events | target("ledger")
 ```
 
 ```text
-Unit
+Step
 ```
 
 A table ends, so `source` reads it whole, as a `Seq`, and every step of
@@ -167,7 +167,7 @@ orders | sink("order_events")
 ```
 
 ```text
-Unit
+Step
 ```
 
 and the topic's messages into the table, one row per message, committed as
@@ -180,7 +180,7 @@ events | sink("orders")
 ```
 
 ```text
-Unit
+Step
 ```
 
 These are the first two programs of the
@@ -295,7 +295,7 @@ tap("order_events_raw")
 ```
 
 ```text
-{clean: Unit, quarantine: Unit}
+{clean: Step, quarantine: Step}
 ```
 
 Each message goes to exactly one branch, in the order the topic holds them,

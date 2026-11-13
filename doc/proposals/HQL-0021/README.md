@@ -1,6 +1,6 @@
 # HQL-0021: I/O: endpoints, channels, the network and logging
 
-- **Status**: implemented in part
+- **Status**: implemented
 - **Created**: 2026-10-19
 - **Source**: [design outline](design-outline.md),
   [logging and channels](logging-n-net.md),
@@ -811,13 +811,9 @@ Built:
 - `doc/models/behavior/cli.md` and `doc/wiki/hql/extensions.hmd` — `io`,
   `net` and `logging` in the command table and the provider table
 
-Remaining, each waiting for [HQL-0012](../HQL-0012/README.md), which is
-drafted:
-
-- `source("id")` and `tap("id")`, a configured endpoint read by id, and a
-  configured `json_lines`, `csv` or `json` endpoint decoded by this record's
-  rules
-- HQL-0012's `max_bytes` bounding `source` over a replayable endpoint
+Nothing remains. `source("id")` and `tap("id")` read a configured endpoint,
+decoded by this record's rules, and `max_bytes` bounds one, as the changelog
+records ([issue 0040](../../issues/archive/0040-configured-data-sources.md)).
 
 ## Test Plan
 
@@ -903,3 +899,5 @@ None.
   finite one one element at a time, a file of documents as `tap` reads the
   file; `max_bytes` bounds a configured endpoint
   ([issue 0040](../../issues/archive/0040-configured-data-sources.md))
+- 2026-11-13: implemented; the "Remaining" list named only what issue 0040
+  built, and now says so (issue 0072)

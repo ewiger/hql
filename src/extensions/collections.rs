@@ -1445,6 +1445,23 @@ fn check_of_type(
 ) -> Result<(), Diagnostic> {
     let element = &call.bindings["T"];
     let wanted = &call.bindings["U"];
+    // A card's type is set by the vault, from its kind and the dialect of
+    // its body; no card is ever of a program's own subtype of `Card`, so
+    // asking for one would be silently empty. Its metadata is read as a
+    // type with `|` instead (issue 0027 would narrow by it).
+    if wanted.is(&TypeRef::CARD)
+        && !crate::types::program::is_builtin(wanted.constructor.0)
+        && element.is(&TypeRef::DOC)
+    {
+        return Err(Diagnostic::typing(
+            span,
+            format!(
+                "no card is a {wanted}: a card's type is its kind and dialect, which the vault \
+                 sets, never a program's own subtype of `Card`; read a card's metadata as a \
+                 type instead, `c.metadata | T`"
+            ),
+        ));
+    }
     if !crate::types::program::may_be(element, wanted) {
         return Err(Diagnostic::typing(
             span,

@@ -3,7 +3,7 @@
 Status: done
 Decisions: [HQL-0008](../../proposals/HQL-0008/README.md), its section
 "`graph` is a presentation"
-Related: step 6 of [0013](../0013-typed-pipeline-operations.md)
+Related: step 6 of [0013](0013-typed-pipeline-operations.md)
 
 `graph` has two jobs under one name, as the
 [presentation](../../wiki/hql/presentation.hmd) card says in its section

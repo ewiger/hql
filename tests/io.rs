@@ -407,14 +407,24 @@ fn tapping_the_end_of_a_file_follows_what_is_appended() {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    // Give the follower time to start at the end, then append.
-    std::thread::sleep(Duration::from_millis(500));
-    fs::OpenOptions::new()
-        .append(true)
-        .open(&log)
-        .unwrap()
-        .write_all(b"new\n")
-        .unwrap();
+    // The follower starts at the end whenever it starts, so a line is
+    // appended until it has read one: a single append could land before
+    // it opens the file, and then it would wait for ever.
+    let mut child = child;
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    while child.try_wait().unwrap().is_none() {
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            panic!("the follower read nothing in a minute");
+        }
+        fs::OpenOptions::new()
+            .append(true)
+            .open(&log)
+            .unwrap()
+            .write_all(b"new\n")
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(200));
+    }
     let output = child.wait_with_output().unwrap();
     assert_eq!(String::from_utf8(output.stdout).unwrap(), "[\"new\"]\n");
 }

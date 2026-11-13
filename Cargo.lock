@@ -1415,7 +1415,7 @@ dependencies = [
 
 [[package]]
 name = "hql"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "aes-gcm 0.11.1",
  "age",
@@ -1433,6 +1433,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hmac 0.13.0",
  "jiff",
+ "jiff-tzdb",
  "md-5",
  "num-integer",
  "p256 0.14.0",

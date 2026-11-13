@@ -1,0 +1,31 @@
+# 0074 — Time columns read and written against a live PostgreSQL and Spark
+
+Status: backlog
+Related: [HQL-0041 part 1](../proposals/HQL-0041/parts/01-time.md),
+[0064](archive/0064-date-and-the-time-module.md),
+[0072](0072-release-0.6.0.md),
+[`src/postgres.rs`](../../src/postgres.rs),
+[`src/spark.rs`](../../src/spark.rs)
+
+Issue 0064 carried `Date`, `DateTime`, `Instant` and `Duration` across the
+boundary of the tree formats, CSV and SQLite, each pinned by an offline
+test. For PostgreSQL and Spark it mapped the column types and the text a
+server writes, the SQL form with a space for the `T` and an offset of whole
+hours (`2026-10-24 09:30:00+02`), and nothing has run that mapping against a
+server. A table read through a field declared `Date`, `DateTime` or
+`Instant` should give that type, and a time value written should land in
+the column as the same time, but only a live round trip shows it does.
+
+## Work
+
+- PostgreSQL: `DATE`, `TIMESTAMP` and `TIMESTAMPTZ` columns read through a
+  declared record as `Date`, `DateTime` and `Instant`, written back from
+  each, and read again equal; a `TIMESTAMPTZ` under a session time zone
+  other than UTC read as the same instant.
+- Spark: `DATE`, `TIMESTAMP_NTZ` and `TIMESTAMP` the same way, the
+  `TIMESTAMP` written in the session's zone and read as UTC unless
+  configured otherwise.
+- A sub-second value, a date before 1970 and a date after 2038 in each.
+- The round trips run where a live server is: hql-demo's cases, which
+  issue 0072 runs against containers, not `cargo test`, which stays
+  offline.

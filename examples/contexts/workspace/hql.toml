@@ -1,0 +1,8 @@
+# The workspace of the execution-context cases: its own module root, and
+# one extension imported for every program it runs.
+
+[modules]
+roots = ["lib"]
+
+[extensions]
+import = ["stats"]

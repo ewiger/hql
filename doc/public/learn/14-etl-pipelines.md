@@ -39,9 +39,9 @@ invokes exactly one **operation**, `filter`, `sort`, `map`, or one
 [20, 30]
 ```
 
-A dot is not a step. `s.trim()` is a receiver call, and `b.title` a field
-read; both are expression evaluation inside the step that holds them, and
-neither is a position in the pipeline:
+A dot selects a field or calls a function on a value. `s.trim()` is a
+receiver call, and `b.title` a field read. Inside a pipeline step, these
+expressions compute the values that its operation uses:
 
 ```hql
 ["Dune ", " Emma"] | map(s => s.trim().upper())
@@ -51,10 +51,11 @@ neither is a position in the pipeline:
 ["DUNE", "EMMA"]
 ```
 
-The two operators answer two questions. `|` says what happens to the whole
-collection, one operation at a time, in the order written. `.` says what is
-computed from one value, inside one of those operations. A reader finds the
-shape of a program in its pipes, and the detail of each stage in its dots.
+The pipes describe the logical steps and their data dependencies. The dots
+express computations within those steps. A planner uses that checked
+program to choose physical execution stages; several steps may share a
+stage. The companion [Logical steps and physical plans](14-planning-and-backends.md)
+follows this distinction through local, parallel and SQL execution.
 
 ## Three phases
 
@@ -76,36 +77,39 @@ List<Int>
 ```
 
 Execution is a strategy a **backend** chooses. `localhost`, the one backend
-the current release has, evaluates the checked program step by step, each
-step run to completion before the next, in memory. A backend that compiles a
-program, or runs it over many machines, is bound to the same contract: it
-accepts exactly what the checker accepts, and it computes the value
-`localhost` computes, at the same type, with the same failure where
-`localhost` fails. There is no syntax for choosing a backend, because a
-program's answer does not depend on it; the choice is configuration, and
-`hql config` reports it.
+the current release has, evaluates the checked program in process. Finite
+collections pass through each step in turn; streams produce values on
+demand. A future backend that compiles a program or runs it over many
+machines receives the same checked program. For the work it supports, it
+must compute the value `localhost` computes, at the same type, with the
+same failure where `localhost` fails. Unsupported work is a planning
+refusal before execution. Backend selection belongs to configuration,
+and `hql config` reports it.
 
-## The unit of execution
+## Logical steps and effects
 
-A step is the unit of execution. It runs over its whole input, and a backend
-may not break it, reorder it against an effect, or run it twice. Two rules
-follow.
+A step is a logical unit of computation, established before planning. Its
+operation defines the transformation from input to result. Physical planning
+chooses how to perform that transformation, subject to its data dependencies,
+shape and effects.
 
-An **effectful** step, one that reaches outside the program, `source`,
-`target`, `sink`, a logger's `info`, runs once, where it is written, in
-program order. A backend may plan how the pure steps between two effects are
-fused or distributed; it may not move an effect, and a backend that cannot
-run a program refuses it before running any part of it.
+An **effectful** operation interacts with state outside the evaluation:
+`source` reads, `target` and `sink` write, and a logger's `info` emits a
+record. Planning preserves the order of effects that the program orders and
+the scope of each transaction. Repeating an effect requires a delivery or
+transaction guarantee that permits the repeat. A backend that cannot honor
+the program's contract refuses it before execution.
 
-A **pure** step may be rewritten by its shape. A step that decides each value
-alone, `filter`, `map`, may run over any part of the input in any order; a
-step that needs the whole input, `sort`, `group`, `sum`, `size`, is where the
-parts meet, and the pipeline holds nothing in between. The reading list of
-chapter 21 is three such steps: `filter` decides each card on its own, `sort`
-needs every card before it can place the first, and `map` turns each card into
-its title. That alternation of per-value steps and whole-input steps is the
-shape of **MapReduce**, and HQL keeps it visible in the pipeline: nothing is
-stored between steps, and nothing is a loop. `collect(n)` and `emit` change
+A **pure** step may be rewritten as its shape and dependencies permit, while
+preserving results, sequence order and failures. A step that processes each
+value alone, `filter`, `map`, may run over separate parts of the input; a
+step such as `sort`, `group`, `sum` or `size` needs coordination to produce
+its complete result. The reading list of chapter 21 has three steps:
+`filter` tests each card, `sort` orders the retained cards, and `map` turns
+each card into its title. **MapReduce** is one possible execution strategy
+for suitable steps: work on parts, then combine the results. The planner
+chooses traversals and intermediate storage while preserving the pipeline's
+result. `collect(n)` and `emit` change
 the shape of what flows, batches of values or their members, and `tee`
 branches a pipeline without ending it; each of them is a step like any other,
 and the type says what the next step may ask.
@@ -119,7 +123,8 @@ program, output is `target` or `sink` in the program, or the result, presented
 by `--to`. The [command-line page](09-io/command-line.md) of chapter 9 shows
 each flag; one program there reads a log as it is written, appends its errors
 to a file and prints every message, with no orchestration around it. The
-query is the dataflow, and the shell is the simplest backend of all.
+shell connects the processes, and each `hql` process evaluates its program
+with the `localhost` backend.
 
 ## Streaming and batching
 
@@ -264,17 +269,16 @@ configuration and with no connection made, and run against real servers in
 the [hql-demo repository](https://github.com/ewiger/hql-demo), whose output
 is the output the book shows. A checked program is shown with what
 `hql check` prints, the type its result would have, and a pipeline that
-ends in `target` or `sink` has the type `Unit`: its result is nothing,
+ends in `target` or `sink` has the type `Step`: its result is nothing,
 because its work is the writing.
 
-**A pipeline file is a job.** What a data platform calls a job, a notebook
-or a workflow, sources, transformations, sinks and a schedule, is an `.hql`
-file whose steps are the transformations and whose `source`, `tap`,
-`target` and `sink` steps are its edges. The credentials are environment
-variables the configuration names; the schedule and the backend are
-configuration around the file; and `hql check` reads the configuration and
-opens nothing, so a deployment checks the file it will run before it runs
-it.
+**A job is one run of a program's plan.** An `.hql` file defines the program;
+each invocation starts another run, which may include several pipelines.
+Its steps describe transformations, reads and writes. Configuration names
+the environment variables that supply credentials and selects the backend.
+The schedule determines when the program runs. `hql check` reads the
+configuration without connecting to endpoints, so a deployment can check
+the program before running it.
 
 A job's own settings, the customer a report is for or the day it covers,
 come from the invocation that runs it. `hql --arg customer=ada run
@@ -308,44 +312,42 @@ orders
 
 ## Partitions, schedules and backends
 
-Three things a platform configures stay out of the file.
+The program can declare logical partitioning. Scheduling and backend
+selection are configuration around it.
 
 A **partition** is the logical unit of ownership. `partition(by = e =>
 e.customer)` is in the current release: it states that the orders of one
 customer belong together, keeps every value and its type, and on
 `localhost` changes nothing else. It names no worker and no Kafka partition.
-It is what a backend reads to know where a per-customer `group` may run
-without the parts having to meet.
+A backend reads it as the statement that a per-customer `group` may run on
+separate parts without the parts having to meet.
 
 !!! warning "Design only"
 
     The rest of this section describes functionality that is not in the
-    current release. It is written as if it existed: names and keys may
-    change before it ships.
+    current release. The configuration examples illustrate design direction;
+    names and keys may change before it ships.
 
 A **schedule** is configuration beside the endpoints, `[jobs.report] run =
 "report.hql"` with an `at`, or a trigger that is itself a source: a subject
-whose messages each start a run. The file does not know when it runs.
+whose messages each start a run. The program declares no schedule; when it runs is configuration.
 
-A **backend** is the execution strategy of the three phases above.
-`localhost` evaluates the checked program step by step in one process, and
-is the one backend in the current release. A distributed backend, on Spark,
-Flink or a Databricks cluster, runs the pure steps between two effects
-where the data is: the `filter` and `map` of a branch on whichever worker
-holds the value, a `group` after a `partition` on the worker that owns the
-key. It may not move an effect, run one twice, or change an answer: a
-backend computes what `localhost` computes, at the same type, with the same
-failure, and refuses before running any of a program it cannot run.
+A **backend** supplies an execution strategy for the checked program.
+Future backends could use parallel workers in one process, translate a
+supported computation into SQL, or distribute it across a cluster. Each
+must preserve the result, types, sequence order, failures and effects of
+local evaluation. The companion [Logical steps and physical plans](14-planning-and-backends.md)
+explains the planning handoff, including Spark SQL and CTEs on Databricks.
 
 ```toml
 [execution]
 backend = "spark"
 ```
 
-That is the difference between the `spark` kind of chapter 17 and a Spark
-backend. The kind is a table the program reads and writes; the backend is a
-place the program runs. A program names neither its backend nor its
-schedule, so the file a laptop checks is the file the cluster runs.
+This illustrates future execution configuration. The `spark` endpoint kind
+in chapter 17 already identifies a table the program reads and writes.
+Backend selection would additionally choose where pipeline computation
+runs, while keeping the checked program's meaning.
 
 ## What each of them wires
 

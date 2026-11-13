@@ -7,6 +7,34 @@ subtypes, generics, receiver calls, operators and traits. The
 [Mighty Types corpus](https://github.com/ewiger/hql/tree/main/examples/mighty-types)
 has one program per topic.
 
+## Strong typing
+
+HQL is **strongly typed**. Every value has one type, and an operation
+accepts only the types it declares: `412 + "pages"` is a type error. No
+value is converted to another type implicitly: a function that takes a
+`Decimal` does not accept an `Int`. Arithmetic on an `Int` and a `Decimal`
+gives a `Decimal`, `12.50 * 3` is `37.50`, and that is a rule of the
+operators, not a conversion ([Decimal](../02-data-types/decimal.md)). The
+checker type-checks the whole program before it is evaluated, and a program
+with a type error evaluates nothing.
+
+Strong typing does not mean every value has a fixed shape. A program states
+as much about a value's structure as it needs to, from nothing to every
+field and rule:
+
+| Type | What it states about a value |
+| --- | --- |
+| `Data` | A tree of records, lists and scalars, as JSON and YAML have it. The type is `Data`; which keys a record holds is read as the program runs. |
+| Open type, `type B : Data = {…}` | The declared fields, each with its type. Whatever else the tree holds is kept. |
+| Closed type, `type A = {…}` | Exactly the declared fields. A tree with any other field does not read as it. |
+| Contract, `TypeContract` or `DataContract` | A closed or an open shape, plus rules its values must hold: an `id` not empty, an `age` in a range, an `email` that is one. |
+
+A value moves down the table only by a type boundary, `tree | T`, which
+reads a tree as a declared type and either succeeds or fails; nothing is
+guessed. After the boundary every declared field has its declared type, and
+the program is ordinary typed code. [Chapter 11](../11-advanced-data-typing/index.md)
+is the whole of it.
+
 ## One relation symbol
 
 Everything the type system says is said with `:`. Between a value and a

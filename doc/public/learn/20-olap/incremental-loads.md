@@ -65,7 +65,7 @@ events | sink("orders_silver")
 ```
 
 ```text
-Unit
+Step
 ```
 
 A message is acknowledged once the program asks for the next one, so a run

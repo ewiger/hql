@@ -6,7 +6,7 @@ Bundles: [0008](0008-cards-as-a-vault-binding.md),
 [0009](0009-function-type-and-constructor.md),
 [0010](0010-yield-and-bind.md),
 [0011](../0011-wire-the-semantic-search-toolchain.md),
-[0013](../0013-typed-pipeline-operations.md),
+[0013](0013-typed-pipeline-operations.md),
 [0017](0017-graph-projection-and-view.md),
 [0018](0018-operator-synonymy-audit.md),
 [0021](0021-of-type-replaces-typed.md),
@@ -42,7 +42,7 @@ issues, proposals and cards; nothing here restates it.
    signature writes it in the form this one settles.
 2. **`group` / `reduce` over finite inputs** — the reduce side of
    [HQL-0004](../../proposals/HQL-0004/README.md), step 5 of
-   [0013](../0013-typed-pipeline-operations.md), with `reduce`'s two forms as
+   [0013](0013-typed-pipeline-operations.md), with `reduce`'s two forms as
    [HQL-0014](../../proposals/HQL-0014/README.md) states them: a fold from an
    initial value, and a fold from the first element returning `Option<T>`.
    Needs neither `Stream<T>` nor function values: lambdas already work in
@@ -181,7 +181,7 @@ These stay in their own issues and are not ticked here:
   values, `flat_map`, `join` and set operations, the window steps other than
   `drop`, other sources and writes.
 - Format input and output from [0015](../0015-jq-parity-analysis.md).
-- Execution backends from [0012](../0012-mapreduce-backends.md).
+- Execution backends from [0012](0012-mapreduce-backends.md).
 
 ## Working rule
 

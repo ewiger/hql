@@ -8,8 +8,38 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-13
+
 ### Added
 
+- The book's Part II, [Data flows](doc/public/learn/14-etl-pipelines.md):
+  one shop's story from files to a lakehouse, in endpoints, tables and
+  topics, subjects and the lakehouse, APIs and stores (as design), OLTP (the
+  shop's day, mistakes, replays, streams against tables, a transfer as one
+  transaction) and OLAP (bronze, silver and gold, grain and keys,
+  deduplication, windows, merge, incremental loads), with a page on logical
+  steps and physical plans. Checked programs are shown with what
+  `hql check` prints; the programs that reach a server run in hql-demo.
+- Randomness ([HQL-0041](doc/proposals/HQL-0041/README.md) part 4). The
+  module `random`, imported with `import random`, declares `sample`,
+  `shuffle` and `choice` over a sequence, `sample` over a stream by
+  reservoir, `random_int`, `random_float`, a version 7 `uuid()` and a
+  version 5 `uuid(name, namespace)`. A draw with a `seed` argument is pure;
+  without one it is effectful and draws from the evaluation seed, which
+  `--seed` fixes. The generator is ChaCha12 and is not for secrets. The book
+  teaches it in [Random values](doc/public/learn/29-random.md).
+- `abs` over a `Duration` ([HQL-0041](doc/proposals/HQL-0041/README.md)
+  part 1): the prelude's `math` declares `fn abs(self: Duration) : Duration`
+  beside the numbers, so `abs(Duration("-PT1H"))` is `PT1H` with no
+  `import time`.
+- `Entry.modified? : Instant` in `io.fs`
+  ([HQL-0040](doc/proposals/HQL-0040/README.md)): the time an entry was
+  last modified, a link's own and not its target's, absent where the
+  platform records none. Every listing and `entry` read it with the rest
+  of the entry.
+- `hql --version` names the time-zone database zone names resolve against
+  on a second line, `time-zone database: system` for the host's, or the
+  release of the database compiled into the binary, `2026e, bundled`.
 - Descriptive statistics ([HQL-0041](doc/proposals/HQL-0041/README.md)
   part 2). The module `stats`, imported with `import stats`, declares the
   reductions `mean`, `variance` and `stdev` (sample, `n - 1`), `pvariance`
@@ -113,6 +143,13 @@ The language continues to be in active development.
   transactional endpoint in the block that is no participant, the handle
   outside a control call, a statement after one, and an isolation level
   the kind does not offer.
+- Two transaction warnings ([HQL-0051](doc/proposals/HQL-0051/README.md)),
+  both of kind `effect`. A scope written as a statement before a program's
+  last one, its `Result` neither bound nor the program's result, is warned:
+  its failure would be observed by nothing. Under `attempts` written as a
+  number above 1, each `target`, `sink` or log call in the block whose
+  endpoint is no participant is warned, naming the endpoint: it runs on
+  every attempt and is not rolled back.
 - The module `io.db.spark` ([HQL-0047](doc/proposals/HQL-0047/README.md),
   [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Spark :
   {Network, RowTransport, Replayable, Writable, …}` and its constructor
@@ -246,6 +283,19 @@ The language continues to be in active development.
 
 ### Fixed
 
+- A missing value inside a data tree prints `none`, as it is written and as
+  it prints elsewhere: `{a: none}` printed `{a: empty}`, which reads back as
+  nothing.
+- A PostgreSQL serialization failure, deadlock or constraint refusal inside
+  a transaction scope no longer panics: the refusal is noted while the
+  attempt holds its connection, and the scope retries or fails as it does
+  over SQLite.
+- After `import doc`, `HmdDoc`, `HmdCard` and `MdCard` are types: `cards |
+  of_type(HmdCard)` keeps the cards written in hyper-markdown and
+  `of_type(MdCard)` those in Markdown, beside a card's kind. They were
+  unknown types. A program's own subtype of `Card`, `type TaskCard : Card {
+  metadata : Task }`, is refused in `of_type` and `is`, naming `c.metadata |
+  T`; it gave an empty result.
 - A call of a name no import offers, written with named arguments only,
   reports the missing import rather than a missing positional input.
 - A function declared without an input, called with its module,
@@ -258,9 +308,36 @@ The language continues to be in active development.
 - A list or a record field of a declared record written to a topic, a
   subject or a JSON, JSON Lines or YAML file is written as a list or a map.
   It was written as its text.
+- `hql help`, `:help` and `:type` end a function's signature after its
+  result type, an alias's after its parameters, and a trait function's after
+  its result type (issue 0056). A block body printed its opening `{` and
+  first line in the signature, and a body opening with `(` printed the `(`.
+- A network endpoint no longer waits forever on a server that does not
+  answer. A connection to an `http`, `websocket` or `tcp` endpoint not made
+  within 10 seconds fails, and so does an `http` response or a WebSocket
+  handshake that sends nothing for 30 seconds; each failure names the URL
+  or the address. `http(url, timeout_ms = n)` sets one endpoint's response
+  bound ([HQL-0047](doc/proposals/HQL-0047/README.md), issue 0069).
 
 ### Changed
 
+- **Breaking:** `Unit` is renamed `Step`, the type of a statement that ran
+  and gave no other value, and is a subtype of a new builtin `Aute`, an
+  atomic unit of execution completed (HQL-0055). `target`, `sink`, the
+  mutations and the log calls give `Step`, and `hql check` prints it. `Unit`
+  where a type is expected is refused: ``Unit` is now `Step` ``. A program's
+  own `type Step` or `type Aute` is refused; rename it.
+- **Breaking:** a String's `length` is withdrawn; `size` counts its code
+  points, as it counts a collection's elements (HQL-0014, issue 0047).
+  `s.length()` and `s | length` are refused with help naming `s.size()`.
+- **Breaking:** `net.socket(host, port)` is renamed `net.tcp(host, port)`,
+  and its type `Socket` is `Tcp` (HQL-0047). Both old names are refused,
+  naming the new ones.
+- **Breaking:** inside a transaction scope, an unbounded `Stream` written by
+  `sink` to a participant is refused, naming `take(n)` and `collect(n)`: a
+  transaction ends, and such a stream may not (HQL-0051).
+- HQL is described as strongly typed. The book's type-system chapter and
+  the type system card define the term.
 - `Window` is a standard type, so a program's own `type Window` is
   refused; rename it.
 - `sort` is stable: elements that compare equal keep their input order.
@@ -438,7 +515,7 @@ The language continues to be in active development.
   A program that passes a literal with a decimal point to a `Float`
   parameter, or mixes one with a `Float`, now writes the suffix `f`.
 - Contract rules and defaults ([HQL-0032](doc/proposals/HQL-0032/README.md);
-  [issue 0043](doc/issues/0043-contract-validation.md), shown in the
+  [issue 0043](doc/issues/archive/0043-contract-validation.md), shown in the
   [structural examples](examples/structural/README.md)): a `TypeContract` or
   `DataContract` body takes `require P` and `validate f with V` beside its
   fields, and `name: T = literal` defaults. In a rule `f?` reads an optional

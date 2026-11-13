@@ -2,7 +2,7 @@
 
 The type declarations HQL ships with, written in HQL.
 
-**Status: parsed and checked.** `hql check lib/std/graph/mod.hql` prints `Unit`, and
+**Status: parsed and checked.** `hql check lib/std/graph/mod.hql` prints `Step`, and
 `tests/declarations.rs` walks this folder, so a file added here cannot be
 silently left unchecked. These files are the single place the declarations live
 as *source* rather than as prose inside a card. The modules written as external
@@ -15,7 +15,7 @@ program runs: it is loaded when a program writes `import validators`, as a
 workspace module is, and declares the standard validator traits
 ([HQL-0034](../../doc/proposals/HQL-0034/README.md)).
 
-Checking a declaration is not evaluating one. A declaration yields `Unit` and
+Checking a declaration is not evaluating one. A declaration yields `Step` and
 introduces no value; constructing a value of a declared record type is separate
 work. What is checked is that each declaration is coherent, and that where it
 restates a type the binary already holds it agrees with it — see

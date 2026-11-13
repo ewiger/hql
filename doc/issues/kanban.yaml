@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 71 # to be incremented when adding a new issue card
+  last_id: 75 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -26,12 +26,6 @@ board:
       - id: "0015"
         title: "jq parity analysis: data formats, types and operations"
         file: 0015-jq-parity-analysis.md
-      - id: "0013"
-        title: "Typed pipeline operations: streams, batching, aggregation, presentation"
-        file: 0013-typed-pipeline-operations.md
-      - id: "0012"
-        title: "MapReduce: pipeline stages and execution backends"
-        file: 0012-mapreduce-backends.md
       - id: "0065"
         title: "Neo4j parity analysis: graph patterns, traversal and graph schema"
         file: 0065-neo4j-parity-analysis.md
@@ -41,6 +35,12 @@ board:
       - id: "0068"
         title: "General-purpose gap analysis: what Python and its peers have that HQL lacks"
         file: 0068-general-purpose-gap-analysis.md
+      - id: "0074"
+        title: "Time columns read and written against a live PostgreSQL and Spark"
+        file: 0074-time-columns-against-live-servers.md
+      - id: "0075"
+        title: "Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events"
+        file: 0075-validation-rules-thresholds-and-events.md
     todo:
       - id: "0069"
         title: "Transports: the core of HQL-0047 and HQL-0048"
@@ -51,18 +51,9 @@ board:
       - id: "0058"
         title: "A value read from a card loses where it came from"
         file: 0058-card-values-lose-their-provenance.md
-      - id: "0056"
-        title: "`hql help` prints part of a block body in a signature"
-        file: 0056-help-prints-a-block-body.md
-      - id: "0055"
-        title: "A parameter default on a function with a body"
-        file: 0055-defaults-on-functions-with-a-body.md
       - id: "0049"
         title: "One extension per package: fold the descriptors into `std` and `search`"
         file: 0049-one-extension-per-package.md
-      - id: "0047"
-        title: "Cardinality is `size`: a String's `size` replaces `length`"
-        file: 0047-cardinality-is-size.md
       - id: "0029"
         title: "Binary formats, and codecs an extension or a package provides"
         file: 0029-binary-formats-and-codecs.md
@@ -73,19 +64,16 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.md
     doing:
-      - id: "0064"
-        title: "`Date` as a data type, and the `time` module"
-        file: 0064-date-and-the-time-module.md
       - id: "0054"
         title: "The website is for HQL users: Learn, Guides, Reference"
         file: 0054-user-facing-website.md
       - id: "0046"
         title: "Renovate `lib/std/**` under the module, package and extension model"
         file: 0046-renovate-std.md
-      - id: "0043"
-        title: "Contract validation: rules, structured errors and stream policies"
-        file: 0043-contract-validation.md
       - id: "0019"
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.md
-    done: []
+    done:
+      - id: "0072"
+        title: "Release 0.6.0: fix, finish, tidy, tag"
+        file: 0072-release-0.6.0.md

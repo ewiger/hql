@@ -1,6 +1,6 @@
 //! `type` declarations: the statement, and what makes one hold.
 //!
-//! A declaration is checked and yields `Unit`. It introduces no value, so
+//! A declaration is checked and yields `Step`. It introduces no value, so
 //! everything here is about whether what a declaration says is coherent.
 
 use hql::{
@@ -170,11 +170,39 @@ fn every_module_of_the_standard_library_checks_over_its_own_imports() {
 }
 
 #[test]
-fn a_declaration_yields_unit_and_the_program_carries_on() {
+fn a_declaration_yields_step_and_the_program_carries_on() {
     assert_eq!(check("type Colour"), Ok(TypeRef::UNIT));
+    assert_eq!(TypeRef::UNIT.to_string(), "Step");
     assert_eq!(eval("type Colour"), Ok(Value::Unit));
     assert_eq!(check("type Colour\n1 + 1"), Ok(TypeRef::INT));
     assert_eq!(eval("type Colour\n1 + 1"), Ok(Value::Int(2)));
+}
+
+#[test]
+fn a_step_is_an_aute_and_not_the_other_way() {
+    assert_eq!(
+        check("fn ran(a: Aute) : Int = 1\nfn step(s: Step) : Int = ran(s)\n1"),
+        Ok(TypeRef::INT)
+    );
+    assert!(TypeRef::UNIT.is(&TypeRef::AUTE));
+    assert!(!TypeRef::AUTE.is(&TypeRef::UNIT));
+    let message = refused("fn ran(s: Step) : Int = 1\nfn any(a: Aute) : Int = ran(a)");
+    assert!(message.contains("Aute"), "{message}");
+}
+
+#[test]
+fn unit_is_refused_naming_step() {
+    for source in [
+        "fn f(x: Int) : Unit",
+        "fn g(x: Unit) : Int = 1",
+        "type Done { last : Unit }",
+    ] {
+        let message = refused(source);
+        assert!(
+            message.contains("`Unit` is now `Step`"),
+            "{source}: {message}"
+        );
+    }
 }
 
 #[test]

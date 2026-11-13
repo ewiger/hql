@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-09-28
-**Source**: [typed pipeline operations](../../issues/0013-typed-pipeline-operations.md)
+**Source**: [typed pipeline operations](../../issues/archive/0013-typed-pipeline-operations.md)
 
 ## Abstract
 
@@ -151,9 +151,15 @@ off its name.
 
 ### A stage is an annotation on steps
 
+This section describes the implemented annotation model. The draft
+[HQL-0055](../HQL-0055/README.md) extends the vocabulary to tasks and jobs,
+allows the work of one step to span stages, and describes delegated engine
+planning. Those extensions do not change the current single-stage
+annotation representation.
+
 Before a backend accepts a pipeline, the planner compiles a **schedule**: it
 partitions the pipeline's steps into stages and decides how those stages are
-distributed as jobs. It records that decision by annotating the steps, not by
+scheduled as tasks. It records that decision by annotating the steps, not by
 building a second tree.
 
 ```text
@@ -161,7 +167,7 @@ step node                 annotation
 events                    stage 0  streaming
 | filter(e => e.active)   stage 0  streaming
 | collect(100)            stage 1  batch boundary
-| map(b => summarize(b))  stage 2  parallel, 8 jobs
+| map(b => summarize(b))  stage 2  parallel, 8 tasks
 | emit                    stage 3  streaming
 | filter(r => r.accepted) stage 3  streaming
 | table                   stage 4  presentation
@@ -174,7 +180,7 @@ events                    stage 0  streaming
   MUST be contiguous in the pipeline.
 - A stage annotation names the stage and the execution properties the backend
   needs to dispatch it: its strategy (streaming, batch, parallel, presentation)
-  and its job units. Its exact fields are backend metadata and are not fixed
+  and its task scheduling. Its exact fields are backend metadata and are not fixed
   here.
 - A backend MUST refuse a pipeline that is not fully annotated. Annotation is
   the step at which the pipeline is accepted for execution; there is no
@@ -191,13 +197,19 @@ events                    stage 0  streaming
 
 *Placeholder; not yet designed.*
 
+Logical steps already exist in the checked program before these planning
+decisions. A backend may translate them to another declarative form, such
+as SQL, and delegate physical planning to an engine. Such a translation
+must preserve their meaning; SQL clauses and CTEs do not establish HQL
+stage or task boundaries. HQL-0055 develops this planning handoff.
+
 The plan IR is the low-level form of an annotated plan, in the spirit of LLVM
 IR rather than a bytecode: the checked query itself, with each step carrying
 its annotations, stating what is scheduled where. It is the form a schedule is
 inspected and debugged in.
 
 The IR is bound to a backend topology. It states the nodes a plan runs on and
-the resources each job requires, so that it says up front what running the
+the resources each scheduled task requires, so that it says up front what running the
 query takes: on a Kubernetes cluster, for example, the resource claims that
 must be granted before the query can run at all.
 
@@ -343,7 +355,7 @@ separate uses listed under Open Questions.
   ([HQL-0004](../HQL-0004/README.md)). An operation type is not yet a function
   type a user operation is written at, so the `Elementwise` body check, stage
   annotations and the planner are not built
-  ([issue 0012](../../issues/0012-mapreduce-backends.md))
+  ([issue 0012](../../issues/archive/0012-mapreduce-backends.md))
 - 2026-10-22: implemented; each operation type is a function type `I -> O`
   carrying its shape, and a lambda or a program's own function bound at one
   is a user operation: an `Elementwise` piped a collection runs over each

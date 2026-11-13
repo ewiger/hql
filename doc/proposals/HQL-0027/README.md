@@ -87,7 +87,7 @@ trait Index<T> {
 
 ```hql
 impl<T> Index<T> for Ring<T> {
-    fn at(self, position: Int) : Option<T> = self.items[position % length(self.items)]
+    fn at(self, position: Int) : Option<T> = self.items[position % size(self.items)]
 }
 impl Index<Data> for Data
 ```

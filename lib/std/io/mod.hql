@@ -94,9 +94,10 @@ type Transaction
 /// concurrent transaction after the last attempt, `"constraint"` for a row
 /// the system refused, and `"exhausted"` for `tx.retry` with no attempt
 /// left; `reason` is the `rollback` argument or what the system said;
-/// `attempts` counts the attempts run; `endpoint` names the participant a
-/// statement was over, where one was; `detail` holds what the system said,
-/// its state code among it.
+/// `attempts` counts the attempts run. `endpoint` and `detail` are
+/// declared for the participant and the system's state code, and are absent
+/// today: no backend reports them yet, and what the system said is in
+/// `reason`.
 type TransactionFailure : DataContract {
     kind      : String
     reason    : String
@@ -288,23 +289,23 @@ effectful fn tap<F : Format, T>(endpoint: Readable, format: Type<F>) : Stream<T>
 effectful fn tap<F : Format, T>(id: String, format: Type<F>) : Stream<T>
 
 /// Writes `value` as one document to `endpoint` in `format`, or to the
-/// target configured under `id`, and gives `Unit`. A `Seq` is one
+/// target configured under `id`, and gives `Step`. A `Seq` is one
 /// document, in `Json` an array; a `Stream` that is not a `Seq` is a type error:
 /// write it with `sink`, or bound it with `take(n)` first. Written to a
 /// `Channel<T>`, `value` is appended and no format is taken. Effectful: it
 /// runs once, where it is written.
-effectful fn target<T, F : Format>(value: T, endpoint: Writable, format: Type<F>) : Unit
-effectful fn target<T, F : Format>(value: T, id: String, format: Type<F>) : Unit
+effectful fn target<T, F : Format>(value: T, endpoint: Writable, format: Type<F>) : Step
+effectful fn target<T, F : Format>(value: T, id: String, format: Type<F>) : Step
 
 /// Writes each of `values` to `endpoint` in `format`, one document per
-/// value, and gives `Unit`: `[{a: 1}, {a: 2}] | sink(stdout, Json)` writes
+/// value, and gives `Step`: `[{a: 1}, {a: 2}] | sink(stdout, Json)` writes
 /// `{"a":1}` and `{"a":2}` on two lines. Written to a `Channel<T>`, each
 /// value is appended and no format is taken. `sink(id)` writes to the
 /// target configured under `id` as each value arrives: a `kafka` topic or
 /// a `nats` or `nats_jetstream` subject takes one message per value, a `postgres` or a `spark`
 /// table one row per value of a declared record. Effectful: it runs once, where it is written.
-effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Unit
-effectful fn sink<T, F : Format>(values: Iterable<T>, id: String, format: Type<F>) : Unit
+effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Step
+effectful fn sink<T, F : Format>(values: Iterable<T>, id: String, format: Type<F>) : Step
 
 // Reading, provided by the `std` extension. The format may be omitted only
 // when the endpoint is `file` of a literal path whose extension implies one.
@@ -316,14 +317,14 @@ effectful fn sink<T, F : Format>(values: Iterable<T>, id: String, format: Type<F
 // tap<T>(id: String) : Stream<T>
 // tap<T>(c: Channel<T>) : Stream<T>                            each value as it is written
 //
-// Writing, provided by the `std` extension. Both return Unit and are Effectful.
-// target<T>(x: T, e: Writable, format: Type<F>) : Unit           x as one document
-// sink<T>(xs: Stream<T>, e: Writable, format: Type<F>) : Unit    a document per value
-// target<T>(x: T, c: Channel<T>) : Unit                          appends x
-// sink<T>(xs: Stream<T>, c: Channel<T>) : Unit                   appends each value
-// sink<T>(xs: Stream<T>, id: String) : Unit                      a message or a row per value
+// Writing, provided by the `std` extension. Both return Step and are Effectful.
+// target<T>(x: T, e: Writable, format: Type<F>) : Step           x as one document
+// sink<T>(xs: Stream<T>, e: Writable, format: Type<F>) : Step    a document per value
+// target<T>(x: T, c: Channel<T>) : Step                          appends x
+// sink<T>(xs: Stream<T>, c: Channel<T>) : Step                   appends each value
+// sink<T>(xs: Stream<T>, id: String) : Step                      a message or a row per value
 //
-// Without the values, sink(e, F) is a step: Stream<T> -> Unit. A Logger
+// Without the values, sink(e, F) is a step: Stream<T> -> Step. A Logger
 // (module `io.logging`) takes one as its destination.
 //
 // What each accepts, by the shape of the values:

@@ -6,7 +6,7 @@ nav:
 ---
 # HQL — Hyper Query Language
 
-HQL is a statically typed expression and query language. A program is
+HQL is a strongly typed expression and query language. A program is
 type-checked before it is evaluated. Querying is one capability: the intended
 language also constructs values, evaluates functions, transforms data,
 validates constraints, and returns typed results. Its direction is closer to

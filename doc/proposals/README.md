@@ -67,7 +67,7 @@ outside this list.
 | [HQL-0005](HQL-0005/README.md) | implemented | Pipeline vocabulary and the logical/physical separation |
 | [HQL-0006](HQL-0006/README.md) | implemented | `Stream<T>` as a first-class pipeline type |
 | [HQL-0007](HQL-0007/README.md) | implemented | `collect` and `emit` are stream-shape operations |
-| [HQL-0008](HQL-0008/README.md) | outdated | Presentation is separate from computation |
+| [HQL-0008](HQL-0008/README.md) | superseded | Presentation is separate from computation |
 | [HQL-0009](HQL-0009/README.md) | implemented | Cells: identity, shared values and saved outputs |
 | [HQL-0010](HQL-0010/README.md) | implemented | `tee` branches a pipeline without ending it |
 | [HQL-0011](HQL-0011/README.md) | implemented | Names, their providers, and the naming lint |
@@ -80,7 +80,7 @@ outside this list.
 | [HQL-0018](HQL-0018/README.md) | implemented | A type's constructor is an operation |
 | [HQL-0019](HQL-0019/README.md) | implemented in part | Graph construction |
 | [HQL-0020](HQL-0020/README.md) | implemented in part | The vault and its namespace |
-| [HQL-0021](HQL-0021/README.md) | implemented in part | I/O: endpoints, channels, the network and logging |
+| [HQL-0021](HQL-0021/README.md) | implemented | I/O: endpoints, channels, the network and logging |
 | HQL-0022 | reserved | The AI harness extension |
 | [HQL-0023](HQL-0023/README.md) | implemented | A document reference is written `@[[..]]` |
 | [HQL-0024](HQL-0024/README.md) | implemented in part | A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions |
@@ -113,3 +113,6 @@ outside this list.
 | [HQL-0051](HQL-0051/README.md) | implemented in part | Transactions and relational mutations |
 | [HQL-0052](HQL-0052/README.md) | drafted | Heterogeneous transaction coordination: `Atomic`, `Staged` and `Saga` scopes |
 | [HQL-0053](HQL-0053/README.md) | implemented | Bytes, keys, signatures and encryption |
+| [HQL-0054](HQL-0054/README.md) | accepted | Key vaults: stored keys, SSH agents, keychains and cloud key managers |
+| [HQL-0055](HQL-0055/README.md) | implemented in part | Steps, autes, stages, tasks and jobs: units of computation and units of execution |
+| [HQL-0056](HQL-0056/README.md) | drafted | Logical computation model and backend engines: a `Step` run at once or planned |

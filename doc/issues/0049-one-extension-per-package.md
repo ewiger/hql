@@ -12,9 +12,9 @@ builtin packages, so it registers two internal extensions: `std`, providing
 every module of `lib/std/` that has an external declaration, and `search`,
 providing `lexical` and `semantic`.
 
-`src/extensions/mod.rs` registers fourteen `Extension` entries instead, one
-per Rust source module, and visibility hangs on them: `core` is always
-visible, an entry named in `lib/std/prelude.hql` is visible through the
+`src/extensions/mod.rs` registers twenty-nine `Extension` entries instead,
+in its `REGISTERED` list, mostly one per Rust source module, and visibility
+hangs on them: `core` is always visible, an entry named in `lib/std/prelude.hql` is visible through the
 prelude, and `import <name>` binds an entry of that name. Folding the entries
 is therefore a change to visibility first: a module, not an extension, is
 what is always visible, in the prelude or imported.
@@ -27,7 +27,7 @@ what is always visible, in the prelude or imported.
    the `Extension` entry that registers the step. `import net` and
    `import logging` keep resolving as the last segments of `io.net` and
    `io.logging`.
-2. Two descriptors. `STD` and `SEARCH` replace the fourteen statics; their
+2. Two descriptors. `STD` and `SEARCH` replace the twenty-nine statics; their
    `provides` lists are the two rows of the Extensions table in
    [packages](../status/packages.hmd). The Rust source modules
    (`string.rs`, `seq.rs`, …) stay as they are and contribute their step
@@ -40,6 +40,6 @@ what is always visible, in the prelude or imported.
 5. Comments: the `//!` headers of the Rust source modules stop calling
    themselves extensions (for example `format.rs`); the module
    headers under `lib/std/` already name `std`.
-6. [Learn, retrieval](../public/learn/08-retrieval.md) quotes the
+6. [Learn, retrieval](../public/learn/23-retrieval.md) quotes the
    diagnostic "`lexical` is provided by the `lexical` extension"; it is
    updated with the message.

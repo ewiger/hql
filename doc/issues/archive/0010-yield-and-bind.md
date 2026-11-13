@@ -27,7 +27,7 @@ program.
 
 `Stream<T>` lands with this issue, as one feature of
 [0014](0014-next-feature-bundle.md) together with steps 2 and 3 of
-[0013](../0013-typed-pipeline-operations.md). An iterating function declares
+[0013](0013-typed-pipeline-operations.md). An iterating function declares
 `Seq<T>` or `Stream<T>`, so the type and the first unbounded source arrive
 together, over one push traversal carrier.
 

@@ -1,6 +1,6 @@
 # HQL { .hql-hero }
 
-HQL, the Hyper Query Language, is a statically typed expression and query
+HQL, the Hyper Query Language, is a strongly typed expression and query
 language. It combines functional expressions with pipelines over files,
 streams, structured data and HyperMarkDown documents, and checks a program's
 types before it evaluates it.

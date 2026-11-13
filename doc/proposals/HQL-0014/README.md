@@ -360,7 +360,7 @@ None.
   metadata layers. The named aggregations remain host operations rather than
   `:=` declarations in `lib/std/`, and `variance`, `histogram`, `top_k`,
   `count_by` and `approx_distinct` are not built
-  ([issue 0012](../../issues/0012-mapreduce-backends.md))
+  ([issue 0012](../../issues/archive/0012-mapreduce-backends.md))
 - 2026-10-22: implemented; `variance`, `count_by`, `histogram(width)`,
   `top_k(k)`, `top_k(k, by)` and `approx_distinct` are host steps of shape
   `Reduction`, each with a state combiner that equals its sequential fold, and
@@ -379,3 +379,5 @@ None.
 - 2026-10-23: cardinality has one name: `size`, with `count(xs)` its kept
   alias; a String declares `size(self)`, its number of code points, and
   `length` is withdrawn. Decided, not yet implemented
+- 2026-11-13: implemented in 0.6.0; a String's `length` is removed, and
+  `s.length()` is refused with help naming `s.size()` (issue 0047)

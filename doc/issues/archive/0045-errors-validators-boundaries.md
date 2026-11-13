@@ -7,7 +7,7 @@ Related: [HQL-0032](../../proposals/HQL-0032/README.md),
 [HQL-0035](../../proposals/HQL-0035/README.md),
 [HQL-0036](../../proposals/HQL-0036/README.md),
 [HQL-0037](../../proposals/HQL-0037/README.md),
-[0043](../0043-contract-validation.md),
+[0043](0043-contract-validation.md),
 [0044](0044-typed-tables.md),
 [the structural examples](../../../examples/structural/README.md)
 
@@ -98,7 +98,7 @@ that in its commit. It does not add open questions.
   proposal leaves it open.
 - **E6 — HQL-0032 aligned.** HQL-0032's conceptual `ValidationResult<T>` and
   its stream-routing items are marked superseded by HQL-0033 where they
-  conflict; [0043](../0043-contract-validation.md)'s stream policies are closed
+  conflict; [0043](0043-contract-validation.md)'s stream policies are closed
   by E2 to E4. HQL-0033 is marked accepted once E1 to E4 are built.
 
 ### Validator types ([HQL-0034](../../proposals/HQL-0034/README.md))

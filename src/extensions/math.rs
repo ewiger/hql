@@ -1,11 +1,12 @@
 //! The `math` module: numeric functions over `Int`, `Float` and `Decimal`,
-//! and the conversions between them.
+//! and the conversions between them; `abs` also takes a `Duration`.
 
 use super::declared;
 use super::{EvalCx, Operation};
 use crate::decimal::Decimal;
 use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
+use crate::time::Time;
 use crate::types::Value;
 use std::ops::Range;
 
@@ -46,6 +47,15 @@ fn number(input: &Value, name: &str, span: &Range<usize>) -> Result<Value, Diagn
             span.clone(),
             format!("`{name}` needs a number, not {}", other.type_of()),
         )),
+    }
+}
+
+/// The length a `Duration` holds, seen through a present optional.
+fn duration(input: &Value) -> Option<jiff::SignedDuration> {
+    match input {
+        Value::Time(Time::Duration(length)) => Some(*length),
+        Value::Present(inner) => duration(inner),
+        _ => None,
     }
 }
 
@@ -92,6 +102,16 @@ fn eval_abs(
     _: &[TypedArg],
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
+    if let Some(length) = duration(&input) {
+        return if length.is_negative() {
+            length
+                .checked_neg()
+                .map(|length| Value::Time(Time::Duration(length)))
+                .ok_or(Diagnostic::overflow(span))
+        } else {
+            Ok(Value::Time(Time::Duration(length)))
+        };
+    }
     match number(&input, "abs", &span)? {
         Value::Int(n) => n
             .checked_abs()

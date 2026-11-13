@@ -111,8 +111,8 @@ fn line_start(source: &str, at: usize) -> usize {
 }
 
 /// A declaration's text on one line: from the start of its line, so the
-/// words before `fn` are kept, to `end`, with `private` and the `=` or `:=`
-/// before a body dropped.
+/// words before `fn` are kept, to `end`, the end of its head, with `private`
+/// dropped.
 fn one_line(source: &str, start: usize, end: usize) -> String {
     let written = &source[line_start(source, start)..end];
     let mut text = written.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -120,11 +120,6 @@ fn one_line(source: &str, start: usize, end: usize) -> String {
         text = text.replace(spaced, tight);
     }
     let text = text.trim_end();
-    let text = text
-        .strip_suffix(":=")
-        .or_else(|| text.strip_suffix('='))
-        .unwrap_or(text)
-        .trim_end();
     text.strip_prefix("private ").unwrap_or(text).to_owned()
 }
 
@@ -157,7 +152,7 @@ fn declaration(
         Stmt::Fn(declaration) => (
             Kind::Function,
             declaration.name.clone(),
-            declaration.body.span.start,
+            declaration.result.span.end,
             declaration.span.end,
             Vec::new(),
         ),
@@ -171,7 +166,7 @@ fn declaration(
         Stmt::Alias(declaration) => (
             Kind::Function,
             declaration.name.clone(),
-            declaration.body.span.start,
+            declaration.head_end,
             declaration.span.end,
             Vec::new(),
         ),
@@ -186,14 +181,7 @@ fn declaration(
                 .map(|method| Declaration {
                     kind: Kind::Function,
                     name: method.name.clone(),
-                    text: one_line(
-                        source,
-                        method.span.start,
-                        method
-                            .body
-                            .as_ref()
-                            .map_or(method.span.end, |body| body.span.start),
-                    ),
+                    text: one_line(source, method.span.start, method.result.span.end),
                     doc: program.docs.member(method.span.start).cloned(),
                     private: false,
                     span: method.span.clone(),
@@ -572,6 +560,52 @@ mod tests {
              fn Temp(whole: Int) : Temp    // program\n\n\
              fn Temp(celsius: Float) : Temp    // program\n\
              fn Temp(label: String) : Temp    // program\n\n    From Celsius.\n"
+        );
+    }
+
+    #[test]
+    fn a_block_body_is_not_part_of_the_signature() {
+        let program = Module::program(
+            "/// Every day.\nfn total(shelf: List<Int>) : Int {\n    each = shelf | map(pages => pages)\n    each | sum\n}\n\ntotal([1])",
+        );
+        assert_eq!(
+            types("total", &[program]).unwrap(),
+            "fn total(shelf: List<Int>) : Int    // program\n    Every day.\n"
+        );
+    }
+
+    #[test]
+    fn an_expression_body_is_not_part_of_the_signature() {
+        let program = Module::program("fn up(n: Int, d: Int) : Int = (n + d - 1) / d\n\nup(1, 2)");
+        let modules = [program];
+        assert_eq!(
+            types("up", &modules).unwrap(),
+            "fn up(n: Int, d: Int) : Int    // program\n"
+        );
+    }
+
+    #[test]
+    fn an_alias_body_is_not_part_of_the_signature() {
+        let program = Module::program("evens(n: Int) := (n + 1) * 2\nfirst := take(1)\n\nevens(1)");
+        let modules = [program];
+        assert_eq!(
+            types("evens", &modules).unwrap(),
+            "evens(n: Int)    // program\n"
+        );
+        assert_eq!(types("first", &modules).unwrap(), "first    // program\n");
+    }
+
+    #[test]
+    fn a_trait_method_body_is_not_part_of_its_signature() {
+        let program = Module::program(
+            "trait Sized {\n    fn size(self) : Int\n    fn twice(self) : Int {\n        once = self.size()\n        once * 2\n    }\n    fn half(self) : Int = (self.size()) / 2\n}\n\n1",
+        );
+        assert_eq!(
+            help("Sized", &[program]).unwrap(),
+            "trait Sized    // program\n\n\
+             fn size(self) : Int\n\
+             fn twice(self) : Int\n\
+             fn half(self) : Int\n"
         );
     }
 

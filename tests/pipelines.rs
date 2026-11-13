@@ -306,7 +306,7 @@ fn each_aggregation_whose_state_differs_equals_its_longhand() {
     }
     holds(
         r#"xs = ["bb", "a", "ccc", "dd", "ee"]
-(xs | top_k(3, by = w => w.length())) == (xs | reduce(initial = List<String>([]), by = (top, x) => concat(top, [x]) | sort(by = (a, b) => compare(b.length(), a.length())) | take(3)))"#,
+(xs | top_k(3, by = w => w.size())) == (xs | reduce(initial = List<String>([]), by = (top, x) => concat(top, [x]) | sort(by = (a, b) => compare(b.size(), a.size())) | take(3)))"#,
     );
 }
 
@@ -319,7 +319,7 @@ fn a_top_k_split_into_partitions_gives_the_sequential_result() {
         ));
         holds(&format!(
             r#"xs = ["bb", "a", "ccc", "dd", "ee", "f"]
-(xs | top_k(3, by = w => w.length())) == (concat(xs[0:{split}] | top_k(3, by = w => w.length()), xs[{split}:] | top_k(3, by = w => w.length())) | top_k(3, by = w => w.length()))"#
+(xs | top_k(3, by = w => w.size())) == (concat(xs[0:{split}] | top_k(3, by = w => w.size()), xs[{split}:] | top_k(3, by = w => w.size())) | top_k(3, by = w => w.size()))"#
         ));
     }
 }
@@ -366,7 +366,7 @@ fn a_histogram_needs_a_positive_width_and_a_count_cannot_be_negative() {
         "SortedMap<Int, Int>"
     );
     assert_eq!(
-        check(r#"["a"] | count_by(w => w.length())"#)
+        check(r#"["a"] | count_by(w => w.size())"#)
             .unwrap()
             .to_string(),
         "Map<Int, Int>"

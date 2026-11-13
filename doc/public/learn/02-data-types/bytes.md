@@ -16,11 +16,11 @@ octets in lowercase hexadecimal, two digits each:
 
 The `0x` text is how a value is printed by the REPL, `str` and `fmt`; it is
 not a literal a program can write. `é` is two octets in UTF-8, so `size`
-counts three where a `String`'s `length` counts two characters:
+counts three where a `String`'s `size` counts two characters:
 
 ```hql
 b = Bytes("hé")
-[b.size(), "hé".length()]
+[b.size(), "hé".size()]
 ```
 
 ```text

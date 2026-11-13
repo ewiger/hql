@@ -159,7 +159,7 @@ fn the_isolation_levels_are_types_below_isolation_level() {
     for level in ["ReadCommitted", "RepeatableRead", "Serializable"] {
         assert_eq!(
             checked(&format!("type {level} : IsolationLevel"), &vault),
-            "Unit",
+            "Step",
             "{level}"
         );
         let error = refusal(&format!("type {level} : LogLevel\n1"), &vault);
@@ -249,7 +249,7 @@ fn a_configured_id_is_typed_offline_as_its_kinds_transport() {
     );
     assert_eq!(
         checked(r#"t : Set<Transactional> = {configured("orders")}"#, &vault),
-        "Unit"
+        "Step"
     );
     let error = refusal(r#"configured("ordres")"#, &vault);
     assert!(error.contains("did you mean `orders`"), "{error}");
@@ -806,6 +806,179 @@ fn a_failure_in_an_attempt_rolls_it_back_and_a_constraint_or_a_conflict_is_data(
     );
 }
 
+/// A transfer of 100 from account 1 to account 2, as the book writes it:
+/// the sender's balance checked, both rows changed, and an `update` that
+/// changed no row failing the scope. `{gate}` is a statement run between
+/// the check and the debit.
+fn transfer(id: i64, gate: &str) -> String {
+    format!(
+        "with transaction(attempts = 3, isolation = Serializable) tx on ledger {{
+    sender = source(accounts) | filter(a => a.id == 1) | one
+    tx.rollback(\"insufficient balance\") given sender.balance < 100
+    {gate}
+    debited = update accounts | filter(a => a.id == 1) | set(a => {{balance: a.balance - 100}})
+    credited = update accounts | filter(a => a.id == 2) | set(a => {{balance: a.balance + 100}})
+    tx.rollback(\"no such account\") given debited != 1 or credited != 1
+    insert transfers Transfer(id = {id}, from_id = 1, to_id = 2, amount = 100)
+}}"
+    )
+}
+
+/// A loopback server that holds the first connection until a second one
+/// arrives, then answers both, and answers every later one at once. Each
+/// answer is one JSON document. It stops when `stop` is set and it is
+/// connected to once more.
+fn gate() -> (
+    std::net::SocketAddr,
+    std::sync::Arc<std::sync::atomic::AtomicBool>,
+    std::thread::JoinHandle<()>,
+) {
+    use std::io::Write;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let stop = std::sync::Arc::new(AtomicBool::new(false));
+    let stopped = std::sync::Arc::clone(&stop);
+    let server = std::thread::spawn(move || {
+        let mut held = Vec::new();
+        let mut open = false;
+        for stream in listener.incoming() {
+            if stopped.load(Ordering::SeqCst) {
+                break;
+            }
+            let Ok(stream) = stream else { continue };
+            held.push(stream);
+            if !open && held.len() < 2 {
+                continue;
+            }
+            open = true;
+            for mut stream in held.drain(..) {
+                // A connection that only woke the gate may be gone already.
+                let _ = stream.write_all(b"{\"go\": true}\n");
+            }
+        }
+    });
+    (address, stop, server)
+}
+
+#[test]
+fn two_withdrawals_racing_for_one_balance_commit_once() {
+    use std::sync::atomic::Ordering;
+    let (dir, vault) = configured();
+    seeded_ledger(&vault);
+    assert_eq!(
+        value(
+            &format!(
+                "{ACCOUNT}update configured(\"accounts\") | filter(a => a.id == 1) | set(a => {{balance: 150}})"
+            ),
+            &vault
+        ),
+        "1"
+    );
+    // Each withdrawal connects to the gate after it has read the sender's
+    // balance and before it debits it, inside its first attempt. The gate
+    // answers neither until both are connected, so both attempts have read
+    // 150 and both pass the balance check before either writes: the two
+    // transactions overlap on every run, with no sleep.
+    let (address, stop, server) = gate();
+    let program = |id: i64| {
+        format!(
+            "import net\n{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}{}",
+            transfer(
+                id,
+                &format!(
+                    "opened = source(tcp(\"127.0.0.1\", {}), Json) | take(1) | size",
+                    address.port()
+                )
+            )
+        )
+    };
+    let outcomes: Vec<String> = std::thread::scope(|threads| {
+        let runs: Vec<_> = [1, 2]
+            .map(|id| {
+                let program = program(id);
+                let root = dir.path().to_path_buf();
+                threads.spawn(move || {
+                    let vault = vault::load(&root).unwrap();
+                    let outcome = hql::run(&program, &vault, Mode::Strict);
+                    // A run that ended without reaching the gate opens it,
+                    // so the other is never left waiting.
+                    let _ = std::net::TcpStream::connect(address);
+                    assert!(!outcome.failed(), "{:?}", outcome.diagnostics);
+                    outcome.value.map(|v| v.to_string()).unwrap_or_default()
+                })
+            })
+            .into();
+        runs.into_iter().map(|run| run.join().unwrap()).collect()
+    });
+    stop.store(true, Ordering::SeqCst);
+    let _ = std::net::TcpStream::connect(address);
+    server.join().unwrap();
+    // Exactly one commits. The other read 150 too and passed the check, so
+    // it ends by a conflict: retried, it reads 50 and rolls back by the
+    // balance rule on a later attempt, or it runs out of attempts.
+    let committed: Vec<&String> = outcomes.iter().filter(|o| *o == "ok(1)").collect();
+    assert_eq!(committed.len(), 1, "{outcomes:?}");
+    let refused = outcomes.iter().find(|o| *o != "ok(1)").unwrap();
+    let after_retry = refused.starts_with(
+        "err(TransactionFailure(kind = \"rolled_back\", reason = \"insufficient balance\", attempts = ",
+    ) && !refused.contains("attempts = 1,");
+    let exhausted = refused.starts_with("err(TransactionFailure(kind = \"conflict\"")
+        && refused.contains("attempts = 3,");
+    assert!(after_retry || exhausted, "{outcomes:?}");
+    // One transfer, whole: no balance is negative, the money is conserved,
+    // and the transfers table holds the one that committed.
+    assert_eq!(balances(&vault), "[[1, 50], [2, 140], [3, 9]]");
+    let recorded = value(
+        &format!("{TRANSFER}source(\"transfers\") | map(t => [t.from_id, t.to_id, t.amount])"),
+        &vault,
+    );
+    assert_eq!(recorded, "[[1, 2, 100]]");
+}
+
+#[test]
+fn an_update_that_matches_no_row_is_zero_and_the_transfer_checks_it() {
+    let (_dir, vault) = configured();
+    seeded_ledger(&vault);
+    // An `update` whose filter matches no row is no failure: its value is
+    // 0, and a scope that does not read it commits the rest.
+    let half = value(
+        &format!(
+            "{ACCOUNT}accounts = configured(\"accounts\")\n\
+             with transaction tx on accounts {{\n\
+                 update accounts | filter(a => a.id == 1) | set(a => {{balance: a.balance - 100}})\n\
+                 update accounts | filter(a => a.id == 9) | set(a => {{balance: a.balance + 100}})\n\
+             }}"
+        ),
+        &vault,
+    );
+    assert_eq!(half, "ok(0)");
+    assert_eq!(balances(&vault), "[[1, 150], [2, 40], [3, 9]]");
+    // The transfer as the book writes it reads both counts, so a credit to
+    // an account that does not exist rolls the debit back with it.
+    let to_nobody = transfer(1, "").replace("a.id == 2", "a.id == 9");
+    let outcome = value(
+        &format!("{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}{to_nobody}"),
+        &vault,
+    );
+    assert_eq!(
+        outcome,
+        r#"err(TransactionFailure(kind = "rolled_back", reason = "no such account", attempts = 1, endpoint = none, detail = none))"#
+    );
+    assert_eq!(balances(&vault), "[[1, 150], [2, 40], [3, 9]]");
+    assert_eq!(
+        value(&format!("{TRANSFER}source(\"transfers\") | size"), &vault),
+        "0"
+    );
+    // To an account that exists, it commits whole.
+    let outcome = value(
+        &format!("{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}{}", transfer(1, "")),
+        &vault,
+    );
+    assert_eq!(outcome, "ok(1)");
+    assert_eq!(balances(&vault), "[[1, 50], [2, 140], [3, 9]]");
+}
+
 #[test]
 fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
     let (_dir, vault) = configured();
@@ -925,6 +1098,136 @@ fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
     );
 }
 
+// The two warnings of HQL-0051: a scope whose `Result` nothing observes,
+// and a write that runs on every attempt and is not rolled back.
+
+/// A program's value as compact JSON, and the warnings its run reports,
+/// each as its kind and message.
+fn warned(source: &str, vault: &Vault) -> (String, Vec<String>) {
+    let outcome = hql::run(source, vault, Mode::Strict);
+    assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
+    let warnings = outcome
+        .diagnostics
+        .iter()
+        .filter(|report| report.severity == hql::reporting::Severity::Warning)
+        .map(|report| format!("{}: {}", report.kind.label(), report.message))
+        .collect();
+    let value = outcome
+        .value
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    (value, warnings)
+}
+
+#[test]
+fn a_scope_whose_result_nothing_observes_is_warned() {
+    let (_dir, vault) = configured();
+    seeded_ledger(&vault);
+    let head = format!("{ACCOUNT}accounts = configured(\"accounts\")\n");
+    // A scope standing as a statement before the program's last one: its
+    // failure would be observed by nothing.
+    let (value, warnings) = warned(
+        &format!("{head}with transaction tx on accounts {{ tx.rollback(\"no\") }}\n1"),
+        &vault,
+    );
+    assert_eq!(value, "1");
+    assert_eq!(
+        warnings,
+        [
+            "effect: this transaction's `Result` is neither bound, nor the program's result, nor \
+          matched: its failure would be observed by nothing"
+        ]
+    );
+    // Bound, matched, or the program's result, it is observed.
+    for program in [
+        "with transaction tx on accounts { 1 }".to_owned(),
+        "outcome = with transaction tx on accounts { 1 }\noutcome".to_owned(),
+        "outcome = with transaction tx on accounts { 1 }\n\
+         match outcome { ok(n) => n, err(f) => 0 }"
+            .to_owned(),
+        // Bound and never read is bound: the warning reads the statement,
+        // not the binding's uses.
+        "outcome = with transaction tx on accounts { 1 }\n2".to_owned(),
+    ] {
+        let (_, warnings) = warned(&format!("{head}{program}"), &vault);
+        assert!(warnings.is_empty(), "{program}\n{warnings:?}");
+    }
+    // Two scopes in a row: the first is discarded, the second is the result.
+    let (_, warnings) = warned(
+        &format!(
+            "{head}with transaction tx on accounts {{ 1 }}\nwith transaction tx on accounts {{ 2 }}"
+        ),
+        &vault,
+    );
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+}
+
+#[test]
+fn a_write_outside_the_participants_under_several_attempts_is_warned() {
+    let (dir, vault) = configured();
+    seeded_ledger(&vault);
+    let audit = dir.path().join("audit.jsonl");
+    let head = format!(
+        "import logging\n{ACCOUNT}type Note {{ n : Int }}\n\
+         accounts = configured(\"accounts\")\n\
+         log = Logger(stderr, Text, name = \"ledger\", level = Error)\n"
+    );
+    let block = format!(
+        "{{\n\
+             sink([Note(n = 1)], file(\"{}\").end, Json)\n\
+             log | info(\"attempt\")\n\
+             [Account(id = 1, owner = \"ada\", balance = 250)] | target(accounts)\n\
+             tx.retry()\n\
+         }}",
+        audit.display()
+    );
+    // The file is written on each of the three attempts, and warned once.
+    let (value, warnings) = warned(
+        &format!("{head}with transaction(attempts = 3) tx on accounts {block}"),
+        &vault,
+    );
+    assert!(value.contains("kind = \"exhausted\""), "{value}");
+    assert_eq!(
+        warnings,
+        [
+            format!(
+                "effect: `sink` to `file(\"{}\").end` runs on every attempt of the scope and is \
+                 not rolled back",
+                audit.display()
+            ),
+            "effect: `info` to `log` runs on every attempt of the scope and is not rolled back"
+                .to_owned(),
+        ]
+    );
+    assert_eq!(fs::read_to_string(&audit).unwrap().lines().count(), 3);
+    // The participant's write is inside the attempt and is not warned; the
+    // `target` the last attempt made was rolled back with it.
+    assert_eq!(balances(&vault), "[[1, 250], [2, 40], [3, 9]]");
+    // One attempt runs the write once: nothing to warn of.
+    for arguments in ["", "(attempts = 1)"] {
+        let (_, warnings) = warned(
+            &format!("{head}with transaction{arguments} tx on accounts {block}"),
+            &vault,
+        );
+        assert!(warnings.is_empty(), "{arguments}: {warnings:?}");
+    }
+    // A configured file by its id, written by `target` in a pipe.
+    let (_, warnings) = warned(
+        &format!(
+            "{head}type Count {{ species : String, count : Int }}\n\
+             with transaction(attempts = 2) tx on accounts {{\n\
+                 [Count(species = \"wren\", count = 1)] | target(\"counts\")\n\
+                 1\n\
+             }}"
+        ),
+        &vault,
+    );
+    assert_eq!(
+        warnings,
+        ["effect: `target` to `counts` runs on every attempt of the scope and is not rolled back"]
+    );
+}
+
 // Phase 5: the `spark` kind, checked offline: one table, one statement.
 
 #[test]
@@ -1013,4 +1316,26 @@ fn a_spark_table_is_constructed_by_its_module_and_takes_one_statement_per_scope(
         let error = refusal(&program, &vault);
         assert!(error.contains(says), "{program}\n{error}");
     }
+}
+
+#[test]
+fn an_unbounded_stream_is_not_written_to_a_participant() {
+    let (_dir, vault) = configured();
+    let unbounded = format!(
+        "{ACCOUNT}orders = configured(\"orders\")\n\
+         with transaction tx on orders {{\n\
+             tap(\"events\") | map(e => Account(id = 9, owner = \"x\", balance = 0)) | sink(orders)\n\
+         }}"
+    );
+    let refused = match hql::check_in(&unbounded, &vault) {
+        Err(error) => error.message(),
+        Ok(ty) => panic!("checked as {ty}"),
+    };
+    assert!(
+        refused.contains("a transaction ends") && refused.contains("take(n)"),
+        "{refused}"
+    );
+    // Bounded, the same stream is written inside the scope.
+    let bounded = unbounded.replace("| sink(orders)", "| take(1) | sink(orders)");
+    assert!(checked(&bounded, &vault).ends_with("TransactionFailure>"));
 }

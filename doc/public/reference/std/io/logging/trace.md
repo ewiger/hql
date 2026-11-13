@@ -4,11 +4,11 @@
 In [`std/io/logging`](index.md).
 
 ```hql
-effectful fn trace(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn trace(log: Logger, message: String, data: Data = {:}) : Step
 ```
 
 Writes one `Trace` event with `message` and `data` to `log`'s
-destination when `log`'s threshold is `Trace`, and gives `Unit`.
+destination when `log`'s threshold is `Trace`, and gives `Step`.
 Effectful. Called directly or through a pipe: `trace(log, "step")` is
 `log | trace("step")`.
 <!-- hql reference: end -->

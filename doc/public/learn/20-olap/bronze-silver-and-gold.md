@@ -112,7 +112,7 @@ tap("orders_raw")
 ```
 
 ```text
-{silver: Unit, rejected: Unit}
+{silver: Step, rejected: Step}
 ```
 
 `sink("orders_silver")` appends rows as they arrive, in statements of up to
@@ -162,7 +162,7 @@ events
 ```
 
 ```text
-Unit
+Step
 ```
 
 Under `mode = "replace"` the new rows take the place of the old ones in one
