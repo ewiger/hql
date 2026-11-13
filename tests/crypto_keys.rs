@@ -127,7 +127,8 @@ fn encrypted_keys_read_with_the_right_passphrase_and_say_so_for_a_wrong_one() {
         assert!(message.contains("passphrase does not decrypt"), "{message}");
         assert_eq!(
             shown(&format!(
-                "file({path:?}) | text | to_private_key({format}, {algorithm}, passphrase = \"wrong\")"
+                "texts : Seq<String> = source(file({path:?}), Text)\n\
+                 texts[0] | unwrap_or(\"\") | to_private_key({format}, {algorithm}, passphrase = \"wrong\")"
             )),
             "none"
         );

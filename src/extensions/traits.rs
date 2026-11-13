@@ -160,6 +160,13 @@ fn concatenation(
 ) -> Result<Value, Diagnostic> {
     match (receiver, other(method, arguments, span)?) {
         (Value::Str(left), Value::Str(right)) => Ok(Value::Str(format!("{left}{right}").into())),
+        // Formatted text is a String: `file(p) | text` concatenates as one.
+        (
+            left @ (Value::Str(_) | Value::Formatted(_)),
+            right @ (Value::Str(_) | Value::Formatted(_)),
+        ) => Ok(Value::Str(
+            format!("{}{}", plain_text(&left), plain_text(&right)).into(),
+        )),
         (Value::Bytes(left), Value::Bytes(right)) => {
             Ok(Value::Bytes([&left[..], &right[..]].concat().into()))
         }
@@ -167,6 +174,15 @@ fn concatenation(
             span.clone(),
             "`add` takes two Strings or two Bytes",
         )),
+    }
+}
+
+/// The text of a `String` value, plain or formatted.
+fn plain_text(value: &Value) -> &str {
+    match value {
+        Value::Str(text) => text,
+        Value::Formatted(formatted) => &formatted.text,
+        _ => "",
     }
 }
 

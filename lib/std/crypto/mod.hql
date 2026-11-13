@@ -133,3 +133,62 @@ effectful fn generate_key_pair<A : KeyAlgorithm>(algorithm: Type<A>, *, bits: In
 /// A new symmetric key from the host generator: 32 octets for a cipher and
 /// `HmacSha256`, 64 for `HmacSha512`.
 effectful fn generate_secret_key<A : SecretAlgorithm>(algorithm: Type<A>) : SecretKey<A>
+
+// Signatures (part 3). A signature is `Bytes`, detached from what it signs:
+// Ed25519's 64 octets (R || S), P256's 64 (r || s, as JWS ES256), Rsa's
+// modulus length (PKCS #1 v1.5 over SHA-256, as JWS RS256). Every scheme
+// signs deterministically.
+
+/// The signature of the octets of `self` by `key`.
+fn sign<A : Signing>(self: Bytes, key: PrivateKey<A>) : Bytes
+
+/// The signature of the UTF-8 octets of `self`.
+fn sign<A : Signing>(self: String, key: PrivateKey<A>) : Bytes
+
+/// The signature of `canonical(self)`, the RFC 8785 text of the tree, so
+/// two trees equal under HQL equality have one signature.
+fn sign_data<A : Signing>(self: Data, key: PrivateKey<A>) : Bytes
+
+/// Whether `signature` is `key`'s signature of `self`: `false`, never an
+/// error, for a signature of another key, of the wrong length or malformed.
+fn verify<A : Signing>(self: Bytes, signature: Bytes, key: PublicKey<A>) : Bool
+
+/// Whether `signature` is `key`'s signature of the UTF-8 octets of `self`.
+fn verify<A : Signing>(self: String, signature: Bytes, key: PublicKey<A>) : Bool
+
+/// Whether `signature` is `key`'s signature of `canonical(self)`.
+fn verify_data<A : Signing>(self: Data, signature: Bytes, key: PublicKey<A>) : Bool
+
+/// The `r || s` form of an ASN.1 DER ECDSA P-256 signature, as OpenSSL
+/// writes one, or `none` where `self` is not one.
+fn p256_signature_from_der(self: Bytes) : Option<Bytes>
+
+// MACs.
+
+/// The HMAC tag of `self` under `key`: 32 octets for `HmacSha256`, 64 for
+/// `HmacSha512`. `mac(m, k) == tag` compares with `==`, which is not
+/// constant-time; `verify_mac` is.
+fn mac<A : Mac>(self: Bytes, key: SecretKey<A>) : Bytes
+
+/// The HMAC tag of the UTF-8 octets of `self` under `key`.
+fn mac<A : Mac>(self: String, key: SecretKey<A>) : Bytes
+
+/// Whether `tag` is the MAC tag of `self` under `key`, compared in time
+/// independent of where it first differs.
+fn verify_mac<A : Mac>(self: Bytes, tag: Bytes, key: SecretKey<A>) : Bool
+
+/// Whether `tag` is the MAC tag of the UTF-8 octets of `self`.
+fn verify_mac<A : Mac>(self: String, tag: Bytes, key: SecretKey<A>) : Bool
+
+// Password hashes.
+
+/// The Argon2id hash of `self` under a new 16-octet salt from the host
+/// generator, as a PHC string: `$argon2id$v=19$m=19456,t=2,p=1$…$…`. A cost
+/// below OWASP's minimum is refused: `memory_kib` is 19456 to 1048576,
+/// `iterations` at least 2, `parallelism` 1 to 16.
+effectful fn hash_password(self: String, *, memory_kib: Int = 19456, iterations: Int = 2, parallelism: Int = 1) : String
+
+/// Whether `self` is the password `hash` was made from, under the hash's
+/// own parameters. `hash` is a PHC string of Argon2id, Argon2i or Argon2d;
+/// any other is an evaluation error naming its algorithm identifier.
+fn verify_password(self: String, hash: String) : Bool

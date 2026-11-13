@@ -50,6 +50,15 @@ pub(crate) static STEPS: &[Operation] = &[
     declared("thumbprint", eval_thumbprint),
     effectful("generate_key_pair", eval_generate_key_pair),
     effectful("generate_secret_key", eval_generate_secret_key),
+    declared("sign", eval_sign),
+    declared("sign_data", eval_sign_data),
+    declared("verify", eval_verify),
+    declared("verify_data", eval_verify_data),
+    declared("p256_signature_from_der", eval_p256_signature_from_der),
+    declared("mac", eval_mac),
+    declared("verify_mac", eval_verify_mac),
+    effectful("hash_password", eval_hash_password),
+    declared("verify_password", eval_verify_password),
 ];
 
 /// `F` and `A` of a call that names both: a format that holds no key of
@@ -154,10 +163,6 @@ pub(crate) fn private_of<'a>(
     }
 }
 
-#[allow(
-    dead_code,
-    reason = "the MACs and ciphers of HQL-0053 parts 3 and 4 read it"
-)]
 pub(crate) fn secret_of<'a>(
     value: &'a Value,
     name: &str,
@@ -540,6 +545,206 @@ fn eval_generate_secret_key(
         algorithm,
         octets,
     }))))
+}
+
+// Signatures, MACs and password hashes (part 3).
+
+/// The octets a message is: a `Bytes` value's, or a `String`'s UTF-8.
+pub(crate) fn message_octets(
+    value: &Value,
+    name: &str,
+    span: &Range<usize>,
+) -> Result<Zeroizing<Vec<u8>>> {
+    if let Ok(octets) = super::bytes::input_octets(value, name, span) {
+        return Ok(Zeroizing::new(octets.to_vec()));
+    }
+    text_of(value, name, span).map(|text| Zeroizing::new(text.into_bytes()))
+}
+
+/// The octets `sign_data` signs: the canonical JSON of the tree.
+pub(crate) fn canonical_octets(value: &Value) -> Vec<u8> {
+    crate::evaluation::as_data(value)
+        .canonical_json()
+        .into_bytes()
+}
+
+/// The argument at `index` among the positional ones, evaluated.
+fn argument(
+    cx: &mut dyn EvalCx,
+    arguments: &[TypedArg],
+    index: usize,
+    name: &str,
+    what: &str,
+    span: &Range<usize>,
+) -> Result<Value> {
+    let argument = positional(arguments)
+        .get(index)
+        .copied()
+        .ok_or_else(|| fail(span, format!("`{name}` needs {what}")))?;
+    cx.evaluate(&argument.value)
+}
+
+fn signed(message: &[u8], key: &Value, span: &Range<usize>) -> Result<Value> {
+    let key = private_of(key, "sign", span)?;
+    crate::crypto::sign::sign(message, key)
+        .map(|signature| Value::Bytes(signature.into()))
+        .map_err(|message| fail(span, message))
+}
+
+fn eval_sign(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let message = message_octets(&input, "sign", &span)?;
+    let key = argument(cx, arguments, 0, "sign", "a private key", &span)?;
+    signed(&message, &key, &span)
+}
+
+fn eval_sign_data(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let key = argument(cx, arguments, 0, "sign_data", "a private key", &span)?;
+    signed(&canonical_octets(&input), &key, &span)
+}
+
+fn verified(
+    cx: &mut dyn EvalCx,
+    message: &[u8],
+    arguments: &[TypedArg],
+    name: &str,
+    span: &Range<usize>,
+) -> Result<Value> {
+    let signature = argument(cx, arguments, 0, name, "a signature", span)?;
+    let signature = super::bytes::input_octets(&signature, name, span)?;
+    let key = argument(cx, arguments, 1, name, "a public key", span)?;
+    let key = public_of(&key, name, span)?;
+    Ok(Value::Bool(crate::crypto::sign::verify(
+        message, &signature, key,
+    )))
+}
+
+fn eval_verify(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let message = message_octets(&input, "verify", &span)?;
+    verified(cx, &message, arguments, "verify", &span)
+}
+
+fn eval_verify_data(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    verified(
+        cx,
+        &canonical_octets(&input),
+        arguments,
+        "verify_data",
+        &span,
+    )
+}
+
+fn eval_p256_signature_from_der(
+    _cx: &mut dyn EvalCx,
+    input: Value,
+    _arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let der = super::bytes::input_octets(&input, "p256_signature_from_der", &span)?;
+    Ok(match crate::crypto::sign::p256_from_der(&der) {
+        Some(signature) => Value::Present(Arc::new(Value::Bytes(signature.into()))),
+        None => Value::Absent(TypeRef::BYTES),
+    })
+}
+
+fn eval_mac(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let message = message_octets(&input, "mac", &span)?;
+    let key = argument(cx, arguments, 0, "mac", "a MAC key", &span)?;
+    crate::crypto::sign::mac(&message, secret_of(&key, "mac", &span)?)
+        .map(|tag| Value::Bytes(tag.into()))
+        .map_err(|message| fail(&span, message))
+}
+
+fn eval_verify_mac(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let message = message_octets(&input, "verify_mac", &span)?;
+    let tag = argument(cx, arguments, 0, "verify_mac", "a tag", &span)?;
+    let tag = super::bytes::input_octets(&tag, "verify_mac", &span)?;
+    let key = argument(cx, arguments, 1, "verify_mac", "a MAC key", &span)?;
+    Ok(Value::Bool(crate::crypto::sign::verify_mac(
+        &message,
+        &tag,
+        secret_of(&key, "verify_mac", &span)?,
+    )))
+}
+
+fn int_named(
+    cx: &mut dyn EvalCx,
+    arguments: &[TypedArg],
+    key: &str,
+    default: i64,
+    span: &Range<usize>,
+) -> Result<i64> {
+    match super::named(arguments, key) {
+        Some(argument) => match cx.evaluate(&argument.value)? {
+            Value::Int(value) => Ok(value),
+            _ => Err(fail(span, format!("`{key}` needs an Int"))),
+        },
+        None => Ok(default),
+    }
+}
+
+fn eval_hash_password(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let password = Zeroizing::new(text_of(&input, "hash_password", &span)?);
+    let memory = int_named(
+        cx,
+        arguments,
+        "memory_kib",
+        crate::crypto::sign::MINIMUM_MEMORY_KIB,
+        &span,
+    )?;
+    let iterations = int_named(cx, arguments, "iterations", 2, &span)?;
+    let parallelism = int_named(cx, arguments, "parallelism", 1, &span)?;
+    crate::crypto::sign::hash_password(&password, memory, iterations, parallelism)
+        .map(|hash| Value::Str(Arc::from(hash)))
+        .map_err(|message| fail(&span, message))
+}
+
+fn eval_verify_password(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let password = Zeroizing::new(text_of(&input, "verify_password", &span)?);
+    let hash = argument(cx, arguments, 0, "verify_password", "a PHC hash", &span)?;
+    let hash = text_of(&hash, "verify_password", &span)?;
+    crate::crypto::sign::verify_password(&password, &hash)
+        .map(Value::Bool)
+        .map_err(|message| fail(&span, message))
 }
 
 #[cfg(test)]

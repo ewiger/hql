@@ -9,6 +9,7 @@
 //! `crypto` that use them and [`keys::export_private`].
 
 pub mod keys;
+pub mod sign;
 
 use std::fmt;
 use zeroize::Zeroizing;

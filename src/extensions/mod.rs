@@ -1543,6 +1543,7 @@ mod tests {
                             | "read_private_key"
                             | "generate_key_pair"
                             | "generate_secret_key"
+                            | "hash_password"
                     ))
                 || entry.provider == "io.env";
             let expected = if effectful {
