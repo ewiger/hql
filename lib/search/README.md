@@ -4,7 +4,7 @@ The builtin package for ranking a vault's cards against a query, written as
 HQL contracts its internal extension, `search`, implements.
 
 **Status: parsed and checked.** `hql check lib/search/lexical/mod.hql` prints
-`Unit`, and `tests/declarations.rs` walks this folder as it walks
+`Step`, and `tests/declarations.rs` walks this folder as it walks
 [`lib/std/`](../std/README.md), so a file added here cannot be left out of the
 binary.
 

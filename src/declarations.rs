@@ -1,6 +1,6 @@
 //! Declared types: what a `type` statement says, and whether it holds.
 //!
-//! A declaration is checked and yields `Unit`. It introduces no value and no
+//! A declaration is checked and yields `Step`. It introduces no value and no
 //! case in the [lattice](crate::types) — constructing a value of a declared
 //! record type is separate work. What is checked here is that the declaration
 //! is coherent: its parents exist, its parents can be narrowed together, a
@@ -86,6 +86,9 @@ pub(crate) fn unknown_type(written: &TypeAnn) -> Diagnostic {
                  written with a bound, `<T : {name}>(x: T)`"
             ),
         );
+    }
+    if let Some(message) = builtin::withdrawn(name) {
+        return Diagnostic::name(written.span.clone(), message);
     }
     Diagnostic::name(written.span.clone(), format!("unknown type `{name}`"))
 }

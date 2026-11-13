@@ -67,7 +67,7 @@ $ cat examples/io/sightings.jsonl | hql --from json 'source(stdin) | map(s => s.
 The command line names no input and no output of a program's own. Input is
 `source` or `tap` in the program, output is `target` or `sink` in the
 program, and `--to` only chooses how the host writes the final result. A
-program whose result is `Unit` prints nothing:
+program whose result is `Step` prints nothing:
 
 ```text
 $ cat examples/io/sightings.jsonl | hql 'source(stdin, Json) | filter(s => s.seen == "morning") | map(s => s.species) | sink(stdout, Text)'

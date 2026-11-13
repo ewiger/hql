@@ -16,7 +16,7 @@ macro_rules! atoms {
 }
 
 atoms! {
-    NEVER => "Never", UNIT => "Unit", INT => "Int", FLOAT => "Float", DECIMAL => "Decimal",
+    NEVER => "Never", AUTE => "Aute", UNIT => "Step", INT => "Int", FLOAT => "Float", DECIMAL => "Decimal",
     BOOL => "Bool", STR => "String", DATA => "Data", DOC => "Doc", CARD => "Card",
     CONCEPT_CARD => "ConceptCard", RELATION_CARD => "RelationCard", EDGE => "Edge",
     GRAPH => "Graph", VAULT => "Vault", ORDERABLE => "Orderable",
@@ -162,7 +162,10 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
     let ordered_scalar = [TypeRef::SCALAR, TypeRef::ORDERABLE];
     for (reference, kind, parents) in [
         (TypeRef::NEVER, TypeKind::Bottom, &[][..]),
-        (TypeRef::UNIT, TypeKind::Concrete, &[]),
+        // An atomic unit of execution completed, and its one subtype so far:
+        // a statement ran and gave no other value (HQL-0055).
+        (TypeRef::AUTE, TypeKind::Abstract, &[]),
+        (TypeRef::UNIT, TypeKind::Concrete, &[TypeRef::AUTE]),
         (TypeRef::SCALAR, TypeKind::Abstract, &[]),
         (TypeRef::BOOL, TypeKind::Concrete, &[TypeRef::SCALAR]),
         (TypeRef::INT, TypeKind::Concrete, &ordered_scalar),
@@ -925,6 +928,18 @@ impl TypeRef {
             return None;
         }
         Some((self.args.first()?, self.args.get(1)?))
+    }
+}
+
+/// The refusal of a type name withdrawn in a rename, naming its
+/// replacement: `Unit` became `Step` in 0.6.0 (HQL-0055).
+#[must_use]
+pub fn withdrawn(name: &str) -> Option<String> {
+    match name {
+        "Unit" => {
+            Some("`Unit` is now `Step`: a statement that ran and gave no other value".to_owned())
+        }
+        _ => None,
     }
 }
 

@@ -120,7 +120,7 @@ events | sink("orders")
 ```
 
 ```text
-Unit
+Step
 ```
 
 `tap` reads an endpoint that ends as well: `tap("ledger")` gives the table's

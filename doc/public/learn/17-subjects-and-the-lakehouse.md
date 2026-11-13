@@ -66,7 +66,7 @@ for_kind("order_shipped") | sink(subject("order_shipped"))
 ```
 
 ```text
-Unit
+Step
 ```
 
 A reader names one subject or a family of them. A subject may hold the
@@ -126,7 +126,7 @@ source("raw_events") | sink("orders_raw")
 ```
 
 ```text
-Unit
+Step
 ```
 
 A message is written once the stream answers that it stored it, so a
@@ -248,7 +248,7 @@ tap("orders_raw")
 ```
 
 ```text
-{silver: Unit, rejected: Unit}
+{silver: Step, rejected: Step}
 ```
 
 That table is the shop's first analytical one, and what it is for, the

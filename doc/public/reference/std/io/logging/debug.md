@@ -4,10 +4,10 @@
 In [`std/io/logging`](index.md).
 
 ```hql
-effectful fn debug(log: Logger, message: String, data: Data = {:}) : Unit
+effectful fn debug(log: Logger, message: String, data: Data = {:}) : Step
 ```
 
 Writes one `Debug` event with `message` and `data` to `log`'s
-destination when `log`'s threshold is at most `Debug`, and gives `Unit`.
+destination when `log`'s threshold is at most `Debug`, and gives `Step`.
 Effectful: `log | debug("parsed", {rows: 3})`.
 <!-- hql reference: end -->

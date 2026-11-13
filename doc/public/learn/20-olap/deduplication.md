@@ -176,7 +176,7 @@ canonical JSON are [chapter 30](../30-digests-and-encodings.md).
 
 Deduplication belongs in the load that writes silver, once, at the grain of
 a fact. A batch load reads the replay whole, deduplicates and writes. It
-writes to the lakehouse, so it is shown checked: `Unit` is what `hql check`
+writes to the lakehouse, so it is shown checked: `Step` is what `hql check`
 prints for a pipeline that ends in `target`, a program whose result is what
 it wrote:
 
@@ -192,7 +192,7 @@ rows
 ```
 
 ```text
-Unit
+Step
 ```
 
 A streaming load cannot group a stream that never ends, and the checker
@@ -215,7 +215,7 @@ events
 ```
 
 ```text
-Unit
+Step
 ```
 
 Two copies that land in different batches are not caught by this program,

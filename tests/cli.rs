@@ -711,7 +711,7 @@ fn a_vault_may_decline_the_prelude_and_import_for_every_program() {
 fn the_standard_library_checks_from_the_command_line() {
     let checked = hql(&["check", "lib/std/graph/mod.hql"]);
     assert!(checked.status.success(), "{}", stderr(&checked));
-    assert_eq!(stdout(&checked).trim(), "Unit");
+    assert_eq!(stdout(&checked).trim(), "Step");
     assert_eq!(stderr(&checked), "");
 }
 

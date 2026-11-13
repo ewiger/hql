@@ -45,7 +45,7 @@ wren
 kingfisher
 ```
 
-Both writing steps give `Unit`, and a `Unit` result prints nothing: the two
+Both writing steps give `Step`, and a `Step` result prints nothing: the two
 lines above were written by `sink` while the program ran.
 
 The `io` module is part of the prelude, so none of this needs an `import`.

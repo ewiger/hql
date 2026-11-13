@@ -44,7 +44,7 @@ source(file("examples/io/sightings.jsonl"))
 ```
 
 ```text
-Unit
+Step
 ```
 
 `socket(host, port)` is a TCP connection: its documents are separated as

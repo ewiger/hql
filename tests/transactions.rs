@@ -159,7 +159,7 @@ fn the_isolation_levels_are_types_below_isolation_level() {
     for level in ["ReadCommitted", "RepeatableRead", "Serializable"] {
         assert_eq!(
             checked(&format!("type {level} : IsolationLevel"), &vault),
-            "Unit",
+            "Step",
             "{level}"
         );
         let error = refusal(&format!("type {level} : LogLevel\n1"), &vault);
@@ -249,7 +249,7 @@ fn a_configured_id_is_typed_offline_as_its_kinds_transport() {
     );
     assert_eq!(
         checked(r#"t : Set<Transactional> = {configured("orders")}"#, &vault),
-        "Unit"
+        "Step"
     );
     let error = refusal(r#"configured("ordres")"#, &vault);
     assert!(error.contains("did you mean `orders`"), "{error}");

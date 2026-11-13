@@ -57,7 +57,7 @@ tap("orders_raw")
 ```
 
 ```text
-{silver: Unit, rejected: Unit}
+{silver: Step, rejected: Step}
 ```
 
 Read top to bottom, it is the dataflow diagram a platform would draw:

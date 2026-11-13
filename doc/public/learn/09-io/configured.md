@@ -284,7 +284,7 @@ tallies | filter(t => t.count > 1) | target("counts")
 ```
 
 ```text
-Unit
+Step
 ```
 
 <!-- run: --vault examples/endpoints/station -->

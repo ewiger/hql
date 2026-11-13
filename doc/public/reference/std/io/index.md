@@ -57,6 +57,6 @@ whether the documents end.
 - [`configured`](configured.md) — The endpoint configured under the literal `id` in hql.toml, as the transport its kind states, with its schema boundary: a `postgres` endpoint is a `Postgres`, a `csv` endpoint a `File`.
 - [`source`](source.md) — Every document read from `endpoint` in `format`, decoded to `T`: a `Seq` from a `Replayable` endpoint, a `Stream` from a live one.
 - [`tap`](tap.md) — The documents read from `endpoint` in `format`, one held at a time, as a `Stream<T>`.
-- [`target`](target.md) — Writes `value` as one document to `endpoint` in `format`, or to the target configured under `id`, and gives `Unit`.
-- [`sink`](sink.md) — Writes each of `values` to `endpoint` in `format`, one document per value, and gives `Unit`: `[{a: 1}, {a: 2}] | sink(stdout, Json)` writes `{"a":1}` and `{"a":2}` on two lines.
+- [`target`](target.md) — Writes `value` as one document to `endpoint` in `format`, or to the target configured under `id`, and gives `Step`.
+- [`sink`](sink.md) — Writes each of `values` to `endpoint` in `format`, one document per value, and gives `Step`: `[{a: 1}, {a: 2}] | sink(stdout, Json)` writes `{"a":1}` and `{"a":2}` on two lines.
 <!-- hql reference: end -->

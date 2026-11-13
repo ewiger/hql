@@ -64,7 +64,7 @@ current
 ```
 
 ```text
-Unit
+Step
 ```
 
 The merge rule, which copy wins, is the `max_by` and nothing else. A rule

@@ -269,7 +269,7 @@ configuration and with no connection made, and run against real servers in
 the [hql-demo repository](https://github.com/ewiger/hql-demo), whose output
 is the output the book shows. A checked program is shown with what
 `hql check` prints, the type its result would have, and a pipeline that
-ends in `target` or `sink` has the type `Unit`: its result is nothing,
+ends in `target` or `sink` has the type `Step`: its result is nothing,
 because its work is the writing.
 
 **A job is one run of a program's plan.** An `.hql` file defines the program;
