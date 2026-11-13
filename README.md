@@ -190,6 +190,35 @@ and `module a.b for String` makes its `self` functions receiver functions. The
 [Mighty Types corpus](examples/mighty-types/README.md) walks all of it,
 program by program.
 
+The standard library adds transactions and six general-purpose modules.
+Transactions are in the prelude; each module after them is imported by name,
+`import time` or `import io.fs`:
+
+- **Transactions.** `with transaction(isolation = Serializable) tx on ledger
+  { … }` runs `insert`, `update` and `delete` over its participants as one
+  database transaction, committed together or not at all, and `attempts = n`
+  retries a serialization failure
+  ([a transfer is one transaction](https://hql-lang.org/latest/learn/19-oltp/transfers/)).
+- **`time`.** `Date`, `DateTime`, `Instant` and `Duration`, constructed from
+  ISO 8601 text, with their parts and calendar arithmetic
+  ([time types](https://hql-lang.org/latest/learn/02-data-types/time/)).
+- **`stats`.** `mean`, `median`, `mode`, `variance`, `stdev`, `quantile`,
+  `correlation` and their relatives over a list or a query's column
+  ([statistics](https://hql-lang.org/latest/learn/28-statistics/)).
+- **`random`.** `sample`, `shuffle`, `choice` and `uuid`, each pure when given
+  a `seed` and drawn from the evaluation seed otherwise
+  ([random values](https://hql-lang.org/latest/learn/29-random/)).
+- **`crypto`.** Typed public, private and secret keys, read, written and
+  generated; `sign` and `verify`, `mac` and password hashes; a private key is
+  kept out of every output
+  ([keys and cryptography](https://hql-lang.org/latest/learn/31-cryptography/)).
+- **`io.fs`.** `folder(path)`, its `entries`, `walk` and `glob`, and `exists`,
+  so a program lists a folder before it reads the files
+  ([files and folders](https://hql-lang.org/latest/learn/09-io/files-and-folders/)).
+- **`io.env`.** `env.var(name)` and `env.arg(name)` read the environment and
+  the `--arg name=value` pairs of the invocation, fixed for the whole
+  evaluation ([environment and arguments](https://hql-lang.org/latest/learn/09-io/environment/)).
+
 ### Checked before it runs
 
 `hql check` and every run check the whole program before a step evaluates. A
