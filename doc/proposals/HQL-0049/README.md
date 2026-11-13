@@ -1,6 +1,6 @@
 # HQL-0049: NATS subjects and lakehouse tables as configured endpoints
 
-**Status**: accepted, implemented
+**Status**: implemented
 **Created**: 2026-11-12
 **Source**: [HQL-0046](../HQL-0046/README.md) (Kafka topics and PostgreSQL
 tables), [HQL-0035](../HQL-0035/README.md) (the schema boundary and write

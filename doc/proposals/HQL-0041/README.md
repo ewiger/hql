@@ -1,6 +1,6 @@
 # HQL-0041: Time, statistics, digests and encodings, randomness, and the environment
 
-**Status**: accepted, implemented
+**Status**: implemented
 **Created**: 2026-10-24
 **Source**: a comparison of `lib/std/` against Python's standard library
 (`datetime`, `statistics`, `hashlib` and `base64`, `random`, `os.environ` and

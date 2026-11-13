@@ -1,6 +1,6 @@
 # HQL-0039: Traits, validator traits, a trait's type, and traits a module implements
 
-**Status**: accepted, implemented
+**Status**: implemented
 **Created**: 2026-10-23
 **Source**: [HQL-0024 part 5](../HQL-0024/parts/05-traits.md),
 [HQL-0027](../HQL-0027/README.md), [HQL-0034](../HQL-0034/README.md), and the

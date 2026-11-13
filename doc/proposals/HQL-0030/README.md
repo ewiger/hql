@@ -1,6 +1,7 @@
 # HQL-0030: Supplementary ADR: Structural Types, Open Data Views, Type Contracts, and Data Contracts
 
-**Status**: superseded by [HQL-0032](../HQL-0032/README.md), which extends it
+**Status**: superseded
+**Superseded by**: [HQL-0032](../HQL-0032/README.md), which extends it
 **Created**: 2026-10-23
 **Supplements**: [HQL-0024](../HQL-0024/README.md), the complete type system;
 see also [HQL-0029](../HQL-0029/README.md) and its note on

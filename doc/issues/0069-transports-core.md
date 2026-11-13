@@ -10,14 +10,15 @@ on both), [`lib/std/io/mod.hql`](../../lib/std/io/mod.hql),
 [`src/endpoints.rs`](../../src/endpoints.rs), [`src/net.rs`](../../src/net.rs),
 [endpoints](../public/learn/15-endpoints.md)
 
-HQL-0047 and HQL-0048 are drafted, yet part of them has shipped and accepted
+HQL-0047 and HQL-0048 are implemented in part, and accepted
 records stand on them. HQL-0012 names both as amendments, and HQL-0049
 declares its NATS modules by their rules. What exists:
 
 - `Transport`, `Direct`, `Network` and the three carriages are declared in
   `io`.
-- `io.db.sqlite`, `io.msg.nats` and `io.msg.nats_jetstream` are modules with
-  a transport type and a constructor.
+- `io.db.sqlite`, `io.db.postgres`, `io.db.spark`, `io.msg.nats` and
+  `io.msg.nats_jetstream` are modules with a transport type and a
+  constructor.
 
 What does not:
 
@@ -26,9 +27,8 @@ What does not:
 - `hql render` refuses the network per constructor, in
   `src/extensions/net.rs` and again in `src/extensions/nats.rs`, and not by
   one check over `Network`. Every new transport copies the refusal.
-- `postgres`, `spark` and `kafka` are kinds only: no type, no constructor, no
-  module, no reference page. The endpoints chapter says
-  `import io.db.postgres` brings `postgres(...)` into scope, and it does not.
+- `kafka` is a kind only: no type, no constructor, no module, no reference
+  page.
 - `socket` is not renamed `tcp`; the endpoints chapter lists `tcp`.
 - `http`, `websocket` and `tcp` are not kinds, so a request that needs
   credentials puts its header in program text.
@@ -43,9 +43,9 @@ In the order of HQL-0047's deployment, each step committed with its tests:
    `CHANGELOG.md`.
 2. The locality and carriage of every existing type, and one host check that
    reads `Network` from the type and replaces the per-constructor refusals.
-3. `io.db.postgres`, `io.db.spark` and `io.msg.kafka`: types and
-   constructors resolving to the readers and writers their kinds have, and
-   reference pages.
+3. `io.msg.kafka`: a type and constructor resolving to the reader and writer
+   the `kafka` kind has, and its reference page. `io.db.postgres` and
+   `io.db.spark` exist, built with HQL-0051.
 4. `http`, `websocket` and `tcp` as configured kinds, with `format`,
    `headers` and `token_env`.
 5. Network bounds: a connection fails after 10 seconds and an `http`
@@ -68,6 +68,6 @@ marks as design direction. Each is its own issue.
 - A configured `http` id with `token_env` sends `Authorization`.
 - A loopback server that never answers ends in a failure naming its URL.
 - The endpoints chapter runs as written.
-- HQL-0047 and HQL-0048 read "accepted, implemented in part", with
+- HQL-0047 and HQL-0048 read `implemented in part`, with
   `rest`, `graphql`, `webhook` and the design-direction modules as the part
   left.

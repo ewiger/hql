@@ -1,6 +1,6 @@
 # HQL-0045: The error model: failures as data, diagnostics as events, and the run-scoped diagnostic channel
 
-**Status**: updated, implemented
+**Status**: implemented
 **Created**: 2026-10-25
 **Source**: [HQL-0033](../HQL-0033/README.md) (errors as values),
 [HQL-0032 section 28](../HQL-0032/README.md#28-validation-and-diagnostic-transport-are-separate)

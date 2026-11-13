@@ -1,6 +1,6 @@
 # HQL-0034: Validator types
 
-**Status**: accepted, implemented
+**Status**: implemented
 **Created**: 2026-10-23
 **Source**: [HQL-0032](../HQL-0032/README.md), whose `validate f with V`
 names a validator; tracked by

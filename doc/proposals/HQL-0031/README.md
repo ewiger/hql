@@ -1,6 +1,6 @@
 # HQL-0031: `Decimal`, an exact decimal number type
 
-**Status**: accepted, implemented
+**Status**: implemented
 **Created**: 2026-10-23
 **Source**: [issue 0042](../../issues/archive/0042-decimal.md);
 [HQL-0030](../HQL-0030/README.md) uses `Decimal` in its examples

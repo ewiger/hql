@@ -1,6 +1,6 @@
 # HQL-0035: The schema boundary of a configured endpoint
 
-**Status**: proposed, implemented in part
+**Status**: implemented in part
 **Created**: 2026-10-23
 **Source**: [HQL-0012](../HQL-0012/README.md), whose `[endpoint.<id>]`
 configuration names the systems a program reads;

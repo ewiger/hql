@@ -1,6 +1,6 @@
 # HQL-0047: Transports
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-11-12
 **Source**: [HQL-0021](../HQL-0021/README.md) (endpoints, `source`, `tap`,
 `target`, `sink`, the network and what a host grants),
@@ -422,3 +422,10 @@ cargo clippy --all-targets -- -D warnings
 ## Changelog
 
 - 2026-11-12: drafted
+- 2026-11-13: implemented in part: `Transport`, `Direct`, `Network` and the
+  carriages are declared in `io`, and `Sqlite`, `Postgres`, `Spark`, `Nats`
+  and `NatsJetStream` are transport types with a constructor of their name.
+  Not built: a locality and carriage for `Stdin`, `Stdout`, `Stderr`, `File`,
+  `FileEnd`, `Http`, `WebSocket` and `Socket`; one `hql render` check over
+  `Network`; `socket` renamed `tcp`; `kafka`, `http`, `websocket` and `tcp` as
+  transports; network timeouts ([issue 0069](../../issues/0069-transports-core.md))

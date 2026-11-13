@@ -1,6 +1,6 @@
 # HQL-0013: Joins over named sides
 
-- **Status**: accepted, implemented in part
+- **Status**: implemented in part
 - **Created**: 2026-10-18
 - **Source**: [SQL parity analysis](../../issues/0016-sql-parity-analysis.md)
 

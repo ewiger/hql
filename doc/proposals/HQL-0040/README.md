@@ -1,6 +1,6 @@
 # HQL-0040: `io.fs`: paths, folders, globs and entries
 
-**Status**: accepted, implemented
+**Status**: implemented
 **Created**: 2026-10-23
 **Source**: [HQL-0021](../HQL-0021/README.md), whose non-goals exclude
 directory listing and file metadata, and the sorted walk of

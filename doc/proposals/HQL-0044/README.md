@@ -1,6 +1,6 @@
 # HQL-0044: Type checking is the semantic boundary; compilation is an execution strategy
 
-**Status**: accepted, implemented
+**Status**: implemented
 **Created**: 2026-10-25
 **Source**: the [core architecture](../../models/domain/architecture.md),
 [checking](../../models/behavior/expressions.md#checking) in the expressions

@@ -1,6 +1,7 @@
 # HQL-0008: Presentation is separate from computation
 
-**Status**: superseded by [HQL-0017](../HQL-0017/README.md)
+**Status**: outdated
+**Superseded by**: [HQL-0017](../HQL-0017/README.md)
 **Created**: 2026-09-28
 **Source**: [presentation](../../wiki/hql/presentation.hmd)
 

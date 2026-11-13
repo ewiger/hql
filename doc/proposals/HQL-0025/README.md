@@ -1,6 +1,6 @@
 # HQL-0025: Execution contexts and running modes
 
-**Status**: accepted, implemented in part
+**Status**: implemented in part
 **Created**: 2026-10-22
 
 ## Scope
