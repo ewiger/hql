@@ -1,6 +1,6 @@
 # 0072 — Release 0.6.0: fix, finish, tidy, tag
 
-Status: doing
+Status: done
 Related: [kanban.yaml](kanban.yaml), [ADR status](../status/ADR-status.hmd),
 [Kanban status](../status/kanban-status.hmd), [CHANGELOG](../../CHANGELOG.md),
 [release workflow](../../.github/workflows/release.yml),
@@ -44,6 +44,32 @@ and a severity (P0 blocks the tag, P1 belongs in 0.6.0, P2 can wait).
 - List the Unreleased features whose tests cover only the happy path, and add
   the missing tests to the triage.
 
+### Baseline report (2026-11-13)
+
+Taken on `release-0.6.0` at `e05d0fb`, before any fix. Severity: P0 blocks
+the tag, P1 belongs in 0.6.0, P2 can wait.
+
+| Finding | Where | Severity |
+| --- | --- | --- |
+| `cargo build`, `cargo clippy -D warnings`, `cargo fmt --check` clean | the crate | — |
+| `hql reference --check doc/public/reference` clean: fix 1's nine pages were regenerated in `ffdf810`; CI did not run the check | `.github/workflows/ci.yml` | P1 |
+| `uv run mkdocs build --strict` clean | `mkdocs.yml` | — |
+| `tapping_the_end_of_a_file_follows_what_is_appended` hangs under load: it appends one line after a 500 ms sleep, and a follower that starts later waits for ever | `tests/io.rs` | P1 |
+| A PostgreSQL serialization failure inside a scope panics (`RefCell` borrowed twice); found by hql-demo's concurrent `ledger` run | `src/transaction.rs` | P0 |
+| The doc comment of `TransactionFailure` says `endpoint` and `detail` are filled; the evaluator never fills them | `lib/std/io/mod.hql` | P1 |
+| No library type of a module backed by an extension is declared on import: `doc`'s `HmdDoc`, `HmdCard`, `MdCard`, `knowledge`'s and some of `io`'s | `src/checker.rs`, import of a runtime module | P1 for `doc` (fix 4), P2 for the rest |
+| Fixes 2 to 7 reproduced as the issue states | as listed under "Fixes" | P1 |
+
+Not re-measured: how many of the book's `hql` blocks do not run. hql-demo's
+`run-all.sh` is run by the hql-demo side of the release (step 4).
+
+Pull request #2 (the `ai` extension, HQL-0022) is a new feature, so it is
+out of 0.6.0.
+
+Features whose tests covered only the happy path, added to the work: two
+transactions racing for one balance, an `update` that matches no row, a
+network peer that never answers, and the follower test above.
+
 ## Triage of the deferred list
 
 The audit deferred a long list by size. Re-sort it by **cost of waiting**:
@@ -78,6 +104,24 @@ the rest of issue 0027, HQL-0013's head and extending forms, HQL-0019's join
 and predicate forms, HQL-0020's `knowledge` binding, the splitting backend of
 HQL-0036 and HQL-0050, HQL-0025's extension folders and packages, and the
 rest of HQL-0032.
+
+### Triage outcome (2026-11-13)
+
+The maintainer waived the review; the table is the record. Test: does
+waiting make the item cost more, because a later change would break
+programs or the new I/O surface stays inconsistent with itself?
+
+| Item | Evidence | In or out | Size | Reason |
+| --- | --- | --- | --- | --- |
+| `io.msg.kafka` (HQL-0048, issue 0069) | `kafka` is a configured kind with no module, type or constructor | out | M | Additive: a module added later breaks no program. Stays in issue 0069 |
+| Type names ignore import visibility (issue 0046) | `fn f(c: Card)` checks without `import doc` | out | L | Waiting costs, but tightening refuses every corpus program and book page that names a type without its import, in the release that already carries three renames. It needs a warning-first path, in issue 0046 |
+| HQL-0051: a scope in a function's value block | refused today by the parser | out | M | Additive: admitting it later breaks nothing |
+| HQL-0051: the `Stream` rule | an unbounded `Stream` consumed by a mutation or a `sink` in a scope is accepted | **in** | S | Adding the refusal later would refuse programs that check today |
+| Spark transactions (HQL-0051 phase 5) against Spark 3.5 and Delta 3.3 | HQL-0051 says "not yet run against a lakehouse" | out of hql | — | A run belongs to hql-demo's `lakehouse` case (step 4); HQL-0051 already says it has not run |
+| `http`, `websocket`, `tcp` as configured kinds; one `hql render` refusal over `Network` (issue 0069) | constructors only; per-constructor refusals | out | M | Additive, and the per-constructor refusals already refuse every network endpoint |
+| A CLI reference page (issue 0054) | none | out | S | Documentation; nothing breaks by waiting |
+| Pull request #2, the `ai` extension | open pull request | out | L | New feature |
+| Issues 0049, 0011, 0029, 0071; HQL-0054; the parity analyses 0015, 0016, 0065, 0068; HQL-0052; 0058; the rest of 0027; HQL-0013's head and extending forms; HQL-0019's join and predicate forms; HQL-0020's `knowledge` binding; the splitting backend of HQL-0036 and HQL-0050; HQL-0025's extension folders and packages; the rest of HQL-0032 | as the audit listed | out | — | Confirmed deferred: each is additive or internal |
 
 ## Fixes
 
@@ -246,71 +290,87 @@ above that defines it. Marks: `[ ]` open, `[x]` done with its commit,
 
 Set by the maintainer only. An item behind a closed gate is skipped.
 
-- Triage approved: **no**. Opens step 3 (small features, pulled-in items,
-  decisions) and step 4 (hql-demo, which needs the renames).
-- Issue 0055 decided: **no**. Opens the 0055 item.
+- Triage approved: **yes** (2026-11-13). The maintainer waived the review:
+  the renames were already decided, and hql-demo serves only as a test and a
+  check. The triage table is still written, as a record, and the loop decides
+  each item by the issue's test without stopping to ask. Opens step 3 and
+  step 4.
+- Issue 0055 decided: **yes** (2026-11-13), delegated to the loop. Take the
+  smaller, backward-compatible option unless the evidence says otherwise,
+  and record the reasoning in issue 0055.
 
 ### Step 1: baseline and triage
 
-- [ ] Baseline report written into "Baseline" (checks, `run-all.sh`, the
-  book's blocks that do not run, pull request #2, happy-path-only features)
-- [ ] Triage table written into "Triage of the deferred list" (item,
-  evidence, in or out, size, reason), with the 0063 analysis; then the run
-  ends and asks the maintainer to open the triage gate
+- [x] Baseline report written into "Baseline" (this commit)
+- [x] Triage table written into "Triage of the deferred list" (this
+  commit). The 0063 analysis is in part: what a zero-row `update` returns
+  is recorded in issue 0063 (`949821b`); the comparison of every write's
+  result stays with 0063, whose outcome is open
 
-### Step 2: fixes and transaction correctness (no gate)
+### Step 2: fixes and transaction correctness
 
-- [ ] The release workflow refuses the tag: regenerate the reference pages,
-  `hql reference --check` in `ci.yml`
-- [ ] `http` never times out: connect and read timeouts, WebSocket and TCP
-  checked
-- [ ] Concurrent withdrawals: the SQLite race test in `cargo test`
-- [ ] Transactions documented as built: the Learn page and HQL-0051 against
-  the implementation; examples name their isolation level
-- [ ] A debit or credit matching no row fails the transfer
-- [ ] `hql help` prints part of a block body (issue 0056)
-- [ ] `HmdCard` and `MdCard` are unknown types
-- [ ] `of_type` over a card subtype is refused at check time
-- [ ] A value prints one way (and the book's outputs with it)
+- [x] The release workflow refuses the tag: the pages were regenerated in
+  `ffdf810`; `hql reference --check` in `ci.yml`: `2c78019`
+- [x] `http` never times out: connect 10 s, response 30 s, `timeout_ms` on
+  `http`; WebSocket and TCP bounded: `4dd4782`
+- [x] Concurrent withdrawals: the SQLite race test: `949821b`
+- [x] Transactions documented as built: `949821b`
+- [x] A debit or credit matching no row fails the transfer: the book's
+  transfer checks the rows each `update` changed: `949821b`
+- [x] `hql help` prints part of a block body (issue 0056): `fa50617`
+- [x] `HmdCard` and `MdCard` are unknown types: `892af59`
+- [x] `of_type` over a card subtype is refused at check time: `892af59`
+- [x] A value prints one way: `none` inside a data tree: `3f7be3d`. A
+  declared record inside a data tree stays a map, by design
+- [x] Found by the baseline: a PostgreSQL refusal in a scope panicked:
+  `b51038a`; the file follower test hung under load: `d6a604d`;
+  `TransactionFailure`'s doc comment: `2134b2a`
 
-### Step 3: small features and decisions (gate: triage approved)
+### Step 3: small features and decisions
 
-- [ ] `Unit` renamed `Step`, a subtype of `Aute` (issue 0063, HQL-0055)
-- [ ] A String's `size` replaces `length` (issue 0047)
-- [ ] `socket` renamed `tcp` (issue 0069)
-- [ ] Issue 0064's remainder: `abs` over a `Duration`, `Entry.modified?`,
-  `hql --version` naming its time-zone database; live round trips split out;
-  0064 archived
-- [ ] HQL-0051 warnings: a discarded scope, a non-participant write under
-  `attempts > 1`
-- [ ] Example cases: transactions, `io.env`, execution contexts
-- [ ] The dead match arm in the transaction attempt loop removed
-- [ ] Issue 0019 step 3: "the checker knows" wording in the Learn pages
-- [ ] Items the triage pulled in (one line each, added when the gate opens)
-- [ ] Issue 0055 (gate: 0055 decided)
+- [x] `Unit` renamed `Step`, a subtype of `Aute` (issue 0063, HQL-0055):
+  `a4b02ff`
+- [x] A String's `size` replaces `length` (issue 0047): `e8303c0`
+- [x] `socket` renamed `tcp` (issue 0069): `b52e94f`
+- [x] Issue 0064's remainder; round trips split out as 0074; 0064
+  archived: `d08e30f`
+- [x] HQL-0051 warnings: a discarded scope, a non-participant write under
+  `attempts > 1`: `be84de8`
+- [x] Example cases: transactions and execution contexts: `a99218d`;
+  `io.env` had its cases in `examples/env/`
+- [x] The dead match arm in the transaction attempt loop removed: `949821b`
+- [x] Issue 0019 step 3: `bdecfae`; 0019 stays open for what remains
+- [x] Pulled in by the triage: the HQL-0051 `Stream` rule: `01e6c93`
+- [x] Issue 0055: narrowed to external declarations: `c990e89`
 
-### Step 4: hql-demo as a release gate (gate: triage approved)
+### Step 4: hql-demo as a release gate (in `../hql-demo`, branch `release-0.6.0`)
 
-- [ ] The nine cases audited against this branch, each one run
-- [ ] A transfer's id is not a balance (`ledger/transfer.hql`,
-  `ledger/seed.hql`); the PostgreSQL concurrent-withdrawal run in `ledger`
-- [ ] A failing case prints its step, command and an output diff
-- [ ] CI workflow running `postgres`, `ledger` and `crypto` against an hql ref
-- [ ] `run-all.sh` as a pre-release gate in `doc/DEVELOP.md`
+- [x] The nine cases audited: `run-all.sh` passes all nine against hql
+  `d6a604d`; re-run against the tag's commit before tagging
+- [x] A transfer's id is not a balance; the PostgreSQL concurrent-withdrawal
+  run in `ledger`: hql-demo `82b16ff`, `b6f7f57`
+- [x] A failing case prints its step, command and an output diff: hql-demo
+  `2b939e0`
+- [x] CI workflow running `postgres`, `ledger` and `crypto` against an hql
+  ref: hql-demo `4f0a946`, not yet run on GitHub
+- [x] `run-all.sh` as a pre-release gate in `doc/DEVELOP.md`: `84524f2`
 
 ### Step 5: housekeeping
 
-- [ ] Proposals: HQL-0008 superseded, HQL-0021 "Remaining", HQL-0019's
-  `Graph` changelog line
-- [ ] Board: archive 0012 and 0013; archive 0043 and file its remainder;
-  repair 0046, 0049 and 0019
-- [ ] README: the general-purpose section names the new modules
+- [x] Proposals: HQL-0008 superseded, HQL-0021 implemented, HQL-0019's
+  `Graph` line, HQL-0055 implemented in part: `f2996d1`
+- [x] Board: 0012, 0013 and 0043 archived, 0043's remainder filed as 0075,
+  0046, 0049 and 0019 repaired: `428aeb5`, `fe0c3f9`
+- [x] README: the general-purpose section names the new modules: `04703bf`
 
-### Step 6: release (after every item above is `[x]` or `[-]`)
+### Step 6: release
 
-- [ ] CHANGELOG checked against the merged pull requests, `## [0.6.0]`, with
-  the renames under "Changed"
-- [ ] `Cargo.toml` and `Cargo.lock` at 0.6.0
-- [ ] Reference pages regenerated; ADR status and Kanban status re-rendered
-- [ ] Every "Done when" item checked, the six checks and `run-all.sh` run;
-  0072's card moved to `done`
+- [x] CHANGELOG checked against the merged pull requests (#6 to #14):
+  `1dba683`; `## [0.6.0] — 2026-11-13` with the renames under "Changed":
+  `af89f3d`
+- [x] `Cargo.toml` and `Cargo.lock` at 0.6.0: `af89f3d`
+- [x] Reference pages regenerated; ADR status and Kanban status
+  re-rendered (this commit)
+- [x] The six checks clean on the release commit; 0072's card moved to
+  `done`. Left to the maintainer: hql-demo's `run-all.sh` against the tag's
+  commit, and the tag
