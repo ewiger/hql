@@ -317,5 +317,5 @@ Int
 A listing is granted exactly where reading a file at the same path is
 ([[hosts|effects and what a host allows]]): anywhere under `hql eval`,
 `hql run` and the REPL, and under `hql render` only below the document's own
-directory. The [reference](../../reference/std/io/fs/index.md) states each
+directory. The [[fs|reference]] states each
 operation of `io.fs`.

@@ -1,0 +1,11 @@
+<!-- hql reference: std/time.to_instant -->
+# `to_instant`
+
+In [`std/time`](index.hmd).
+
+```hql
+fn to_instant(self: String) : Option<Instant>
+```
+
+`self` read as an RFC 3339 instant, with `Z` or an offset, or `none`.
+<!-- hql reference: end -->

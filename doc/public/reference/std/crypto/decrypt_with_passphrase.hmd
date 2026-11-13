@@ -1,0 +1,13 @@
+<!-- hql reference: std/crypto.decrypt_with_passphrase -->
+# `decrypt_with_passphrase`
+
+In [`std/crypto`](index.hmd).
+
+```hql
+fn decrypt_with_passphrase(self: Bytes, passphrase: String) : Option<Bytes>
+```
+
+The plaintext of the age message `self` under `passphrase`, or `none`.
+A work factor above 22 is an evaluation error: a message cannot make a
+reader spend unbounded memory and time.
+<!-- hql reference: end -->

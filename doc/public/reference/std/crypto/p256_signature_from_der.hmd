@@ -1,0 +1,12 @@
+<!-- hql reference: std/crypto.p256_signature_from_der -->
+# `p256_signature_from_der`
+
+In [`std/crypto`](index.hmd).
+
+```hql
+fn p256_signature_from_der(self: Bytes) : Option<Bytes>
+```
+
+The `r || s` form of an ASN.1 DER ECDSA P-256 signature, as OpenSSL
+writes one, or `none` where `self` is not one.
+<!-- hql reference: end -->

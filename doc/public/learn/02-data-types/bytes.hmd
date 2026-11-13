@@ -189,5 +189,5 @@ Blob(name = "key", body = 0x6869)
 
 The digest of a `Bytes` value, and the other text encodings, are in
 [[30-digests-and-encodings|Digests and encodings]]. The
-[reference](../../reference/std/bytes/index.md) states each function of the
+[[std/bytes|reference]] states each function of the
 `bytes` module.

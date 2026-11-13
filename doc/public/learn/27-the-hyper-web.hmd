@@ -136,5 +136,5 @@ around it. Data flows: the pipeline, its phases, its unit of execution, and
 the systems it will connect. Knowledge and AI: a vault that is a namespace,
 its graph, retrieval by meaning, documents that compute themselves, agents
 whose runs are values, documents that run them, and the web they point at.
-The [reference](../reference/index.md) states each shipped part precisely,
+The [[reference]] states each shipped part precisely,
 and the [examples](../examples.md) are where the next part is designed.

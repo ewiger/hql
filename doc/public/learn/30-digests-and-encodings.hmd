@@ -221,5 +221,5 @@ source(file("examples/io/counts.csv"), Text) | map(t => t.digest(Sha256) == expe
 ```
 
 The reference states every function of the two modules with its signature:
-[crypto.digest](../reference/std/crypto/digest/index.md) and
-[encoding](../reference/std/encoding/index.md).
+[[crypto/digest|crypto.digest]] and
+[[encoding]].

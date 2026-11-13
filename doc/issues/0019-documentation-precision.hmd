@@ -83,7 +83,7 @@ Each term is defined as the implementation has it.
    [[0054-user-facing-website|0054]] since: the landing page is
    `doc/public/index.md`, retrieval is the Learn chapter
    `doc/public/learn/23-retrieval.hmd`, the reference is
-   `doc/public/reference/index.md`, and the introduction and tour became the
+   `doc/public/reference/index.hmd`, and the introduction and tour became the
    Learn book under `doc/public/learn/`.
 3. **The published pages under `doc/public/`.** Only `doc/public/` is
    published ([[0054-user-facing-website|0054]]), so the wiki cards and the

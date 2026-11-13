@@ -196,5 +196,5 @@ $ SHOP_REGION=eu hql --arg who=owl render notes.hmd
 - owl
 ```
 
-The [reference](../../reference/std/io/env/index.md) states each operation of
+The [[env|reference]] states each operation of
 `io.env`.

@@ -1,0 +1,12 @@
+<!-- hql reference: std/crypto.sign_data -->
+# `sign_data`
+
+In [`std/crypto`](index.hmd).
+
+```hql
+fn sign_data<A : Signing>(self: Data, key: PrivateKey<A>) : Bytes
+```
+
+The signature of `canonical(self)`, the RFC 8785 text of the tree, so
+two trees equal under HQL equality have one signature.
+<!-- hql reference: end -->

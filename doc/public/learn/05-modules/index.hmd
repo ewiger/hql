@@ -134,7 +134,7 @@ regex.split("a1b22c", "[0-9]+")
 ["a", "b", "c"]
 ```
 
-The [reference](../../reference/index.md) has a page per standard module.
+The [[reference]] has a page per standard module.
 
 ## The pages of this chapter
 

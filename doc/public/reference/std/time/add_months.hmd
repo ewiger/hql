@@ -1,0 +1,13 @@
+<!-- hql reference: std/time.add_months -->
+# `add_months`
+
+In [`std/time`](index.hmd).
+
+```hql
+fn add_months(self: Date, n: Int) : Date
+fn add_months(self: DateTime, n: Int) : DateTime
+```
+
+`self` moved by `n` months, clamped to the last day of the month it
+lands in: `Date("2026-01-31").add_months(1)` is `2026-02-28`.
+<!-- hql reference: end -->

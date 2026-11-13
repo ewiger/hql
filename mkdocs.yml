@@ -204,44 +204,44 @@ nav:
   # reached from its module's page. `cargo test` fails when this
   # differs from the library.
   - Reference:
-      - reference/index.md
+      - reference.md
       - std:
-          - std/core: reference/std/core/index.md
-          - std/doc: reference/std/doc/index.md
-          - std/retrieval: reference/std/retrieval/index.md
-          - std/graph: reference/std/graph/index.md
-          - std/knowledge: reference/std/knowledge/index.md
-          - std/collections: reference/std/collections/index.md
-          - std/string: reference/std/string/index.md
-          - std/seq: reference/std/seq/index.md
-          - std/math: reference/std/math/index.md
-          - std/stats: reference/std/stats/index.md
-          - std/time: reference/std/time/index.md
-          - std/random: reference/std/random/index.md
-          - std/option: reference/std/option/index.md
-          - std/result: reference/std/result/index.md
-          - std/regex: reference/std/regex/index.md
-          - std/format: reference/std/format/index.md
-          - std/io: reference/std/io/index.md
-          - std/io/fs: reference/std/io/fs/index.md
-          - std/io/env: reference/std/io/env/index.md
-          - std/io/net: reference/std/io/net/index.md
-          - std/io/logging: reference/std/io/logging/index.md
-          - std/io/db/sqlite: reference/std/io/db/sqlite/index.md
-          - std/io/db/postgres: reference/std/io/db/postgres/index.md
-          - std/io/db/spark: reference/std/io/db/spark/index.md
-          - std/io/transaction: reference/std/io/transaction/index.md
-          - std/io/msg/nats: reference/std/io/msg/nats/index.md
-          - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream/index.md
-          - std/vault: reference/std/vault/index.md
-          - std/crypto/digest: reference/std/crypto/digest/index.md
-          - std/encoding: reference/std/encoding/index.md
-          - std/bytes: reference/std/bytes/index.md
-          - std/crypto: reference/std/crypto/index.md
-          - std/validators: reference/std/validators/index.md
+          - std/core: reference/std/core.md
+          - std/doc: reference/std/doc.md
+          - std/retrieval: reference/std/retrieval.md
+          - std/graph: reference/std/graph.md
+          - std/knowledge: reference/std/knowledge.md
+          - std/collections: reference/std/collections.md
+          - std/string: reference/std/string.md
+          - std/seq: reference/std/seq.md
+          - std/math: reference/std/math.md
+          - std/stats: reference/std/stats.md
+          - std/time: reference/std/time.md
+          - std/random: reference/std/random.md
+          - std/option: reference/std/option.md
+          - std/result: reference/std/result.md
+          - std/regex: reference/std/regex.md
+          - std/format: reference/std/format.md
+          - std/io: reference/std/io.md
+          - std/io/fs: reference/std/io/fs.md
+          - std/io/env: reference/std/io/env.md
+          - std/io/net: reference/std/io/net.md
+          - std/io/logging: reference/std/io/logging.md
+          - std/io/db/sqlite: reference/std/io/db/sqlite.md
+          - std/io/db/postgres: reference/std/io/db/postgres.md
+          - std/io/db/spark: reference/std/io/db/spark.md
+          - std/io/transaction: reference/std/io/transaction.md
+          - std/io/msg/nats: reference/std/io/msg/nats.md
+          - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream.md
+          - std/vault: reference/std/vault.md
+          - std/crypto/digest: reference/std/crypto/digest.md
+          - std/encoding: reference/std/encoding.md
+          - std/bytes: reference/std/bytes.md
+          - std/crypto: reference/std/crypto.md
+          - std/validators: reference/std/validators.md
       - search:
-          - search/lexical: reference/search/lexical/index.md
-          - search/semantic: reference/search/semantic/index.md
+          - search/lexical: reference/search/lexical.md
+          - search/semantic: reference/search/semantic.md
 
 # A primitive's reference page is reached from its module's page, not from the
 # nav.

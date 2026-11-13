@@ -1,0 +1,16 @@
+<!-- hql reference: std/io/db/sqlite -->
+# `std/io/db/sqlite`
+
+```hql
+module io.db.sqlite
+```
+
+SQLite: one table of a database file, as a transport read by `source`
+and `tap` and written by `target` like any other endpoint (module `io`).
+The `sqlite` kind of a configured endpoint is this transport under an
+id, with a schema boundary. A program imports the module:
+`import io.db.sqlite`.
+
+- [`Sqlite`](types/Sqlite.hmd) — One table of an SQLite database file.
+- [`sqlite`](sqlite.hmd) — The table `table` of the database file at `path`, as a `Sqlite` transport; its parameters are the keys of the `sqlite` kind.
+<!-- hql reference: end -->

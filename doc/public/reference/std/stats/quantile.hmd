@@ -1,0 +1,23 @@
+<!-- hql reference: std/stats.quantile -->
+# `quantile`
+
+In [`std/stats`](index.hmd).
+
+```hql
+fn quantile(self: Collection<Int>, q: Float) : Option<Float>
+fn quantile(self: Collection<Float>, q: Float) : Option<Float>
+fn quantile(self: Collection<Decimal>, q: Float) : Option<Decimal>
+fn quantile(self: Collection<Int>, q: Decimal) : Option<Float>
+fn quantile(self: Collection<Float>, q: Decimal) : Option<Float>
+fn quantile(self: Collection<Decimal>, q: Decimal) : Option<Decimal>
+```
+
+The `q` quantile, by linear interpolation between the sorted values
+(Hyndman and Fan's type 7, the default of R and NumPy): with the values
+sorted as `s_0` to `s_(n-1)` and `h = (n - 1) * q`, it is
+`s_floor(h) + (h - floor(h)) * (s_(floor(h) + 1) - s_floor(h))`. `none`
+over an empty collection; a `q` outside `0.0` to `1.0` is an evaluation
+error. `q` is a `Float` or a `Decimal`, so a literal is written as is:
+`prices | quantile(0.95)`. Over `Int` and `Decimal` values the quantile
+is computed exactly, a `Float` `q` read by its shortest decimal digits.
+<!-- hql reference: end -->

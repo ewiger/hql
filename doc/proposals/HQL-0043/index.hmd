@@ -55,10 +55,10 @@ Every primitive the standard library exports has a manual page.
   `Csv` and the function `csv` beside it, or the trait `Index` and the
   module's `index.md`, are two files on any file system. A module's page is
   `doc/public/reference/<package>/<path>/index.md`. `range` in `std/seq` is
-  `doc/public/reference/std/seq/range.md`, `Csv` in `std/format` is
-  `doc/public/reference/std/format/types/Csv.md`, and `std/io/net` is
-  `doc/public/reference/std/io/net/index.md`.
-- `doc/public/reference/index.md` is the Reference page: the command table
+  `doc/public/reference/std/seq/range.hmd`, `Csv` in `std/format` is
+  `doc/public/reference/std/format/types/Csv.hmd`, and `std/io/net` is
+  `doc/public/reference/std/io/net/index.hmd`.
+- `doc/public/reference/index.hmd` is the Reference page: the command table
   and the list of every builtin module.
 - A page has a **marked part**: the primitive's declarations and doc
   strings, as `help` prints them (HQL-0042), written from the library
@@ -163,7 +163,7 @@ For a release `X.Y.Z`:
    `hql reference --check doc/public/reference`, which writes nothing and
    fails on a marked part that differs from the library, a primitive with
    no page, or a page naming no primitive:
-   `` doc/public/reference/std/seq/range.md: the marked part differs from the
+   `` doc/public/reference/std/seq/range.hmd: the marked part differs from the
    library; run `hql reference` ``. A tag whose documentation is stale is not
    released.
 3. **Publish the version.** A `docs` job of `release.yml`, after `release`
@@ -217,7 +217,7 @@ before the commit, the `build` job gains `hql reference --check`, and a
 - Site URLs move under `/vX.Y.Z/` and `/latest/`. The site root redirects to
   `/latest/`; an unversioned page URL from the current site is not
   redirected.
-- `doc/public/reference.md` becomes `doc/public/reference/index.md`: the
+- `doc/public/reference.md` becomes `doc/public/reference/index.hmd`: the
   command table, written by hand, then the marked list of builtin modules.
 
 ## Security Considerations
