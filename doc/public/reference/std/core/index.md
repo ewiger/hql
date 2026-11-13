@@ -23,6 +23,7 @@ over them are the `collections` module's.
 - [`DateTime`](types/DateTime.md) — A date and a time of day with no zone or offset, ordered by time: `DateTime("2026-10-24T09:30:00")`.
 - [`Instant`](types/Instant.md) — A point on the UTC timeline with nanosecond precision, ordered by time: `Instant("2026-10-24T07:30:00Z")`.
 - [`Duration`](types/Duration.md) — A signed length of time in nanoseconds, ordered by length: `Duration("PT1H30M")`.
+- [`Bytes`](types/Bytes.md) — A finite sequence of octets, ordered octet by octet as unsigned numbers, a shorter prefix first (HQL-0053 part 1).
 - [`Iterable`](types/Iterable.md) — A value whose elements can each be visited: the bound an operation states when it only visits each value.
 - [`Collection`](types/Collection.md) — A finite multiset of occurrences, unordered, with no runtime representation.
 - [`Stream`](types/Stream.md) — An ordered, possibly unending run of values `x0, x1, x2, ...`.
@@ -52,7 +53,7 @@ over them are the `collections` module's.
 - [`Range`](types/Range.md) — A window of positions, what a slice takes: `xs[a:b]` is `xs[Range(start = a, end = b)]`, and a bound left out is absent.
 - [`Index`](types/Index.md) — A position: `xs[i]` over a type implementing `Index` is `xs.at(i)`, the element there or its absence.
 - [`Slice`](types/Slice.md) — A part: `xs[a:b]` over a type implementing `Slice` is `xs.slice(Range(start = a, end = b))`, a value of the type itself.
-- [`Validator`](types/Validator.md) — A check a value passes: a trait extending `Validator` is a validator type.
+- [`Validator`](types/Validator.md) — A check a value passes: a trait extending `Validator` is a validator trait.
 - [`Operation`](types/Operation.md) — A function from `I` to `O` that also carries its shape: what an executor may assume about splitting the step.
 - [`Elementwise`](types/Elementwise.md) — An `Operation` whose result for each element depends on that element alone, so it may run over any split of its input: `map` and `filter` are elementwise.
 - [`Partition`](types/Partition.md) — An `Operation` that regroups its input by a key, each group running independently and completing in any order: `group` is one.
@@ -75,10 +76,11 @@ impl Eq for Date
 impl Eq for DateTime
 impl Eq for Instant
 impl Eq for Duration
+impl Eq for Bytes
 ```
 
-`Bool`, `Int`, `Float`, `Decimal`, `String` and the time scalars compare
-with `==` by value.
+`Bool`, `Int`, `Float`, `Decimal`, `String`, the time scalars and
+`Bytes` compare with `==` by value.
 
 ```hql
 impl Ord for Int
@@ -89,11 +91,12 @@ impl Ord for Date
 impl Ord for DateTime
 impl Ord for Instant
 impl Ord for Duration
+impl Ord for Bytes
 ```
 
 `Int`, `Float` and `Decimal` are ordered by value, `String` character by
 character, `Date`, `DateTime` and `Instant` by time, and `Duration` by
-length.
+length, and `Bytes` octet by octet, a shorter prefix first.
 
 ```hql
 impl Add for Int
@@ -101,10 +104,11 @@ impl Add for Float
 impl Add for Decimal
 impl Add for String
 impl Add for Duration
+impl Add for Bytes
 ```
 
 `+` adds `Int`s, `Float`s, `Decimal`s and `Duration`s, and concatenates
-two `String`s: `"ab" + "cd"` is `"abcd"`.
+two `String`s or two `Bytes`: `"ab" + "cd"` is `"abcd"`.
 
 ```hql
 impl Sub for Int
@@ -140,21 +144,14 @@ impl Rem for Decimal
 `%` is the remainder of `Int`s, `Float`s and `Decimal`s: `7 % 2` is `1`.
 
 ```hql
-impl<T> Index<T> for Seq<T>
-impl Index<String> for String
 impl Index<Data> for Data
 ```
 
-`xs[i]` over every sequence, a `List` among them, is the element at
-`i`; over a `String` it is the character there, as text (`"hello"[1]`
-is `"e"`); over `Data` it is the document's own element.
+`xs[i]` over `Data` is the document's own element at `i`.
 
 ```hql
-impl<T> Slice for Seq<T>
-impl Slice for String
 impl Slice for Data
 ```
 
-`xs[a:b]` over every sequence, a `String` and `Data` is the part of the
-same type: `[1, 2, 3][1:]` is `[2, 3]`, and `"hello"[1:3]` is `"el"`.
+`xs[a:b]` over `Data` is the part of the document's sequence, as `Data`.
 <!-- hql reference: end -->

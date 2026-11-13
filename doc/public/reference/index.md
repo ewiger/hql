@@ -53,9 +53,10 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/io/msg/nats`](std/io/msg/nats/index.md) — Core NATS: one subject, as a transport read by `tap` and written by `sink` and `target` like any other endpoint (module `io`).
 - [`std/io/msg/nats_jetstream`](std/io/msg/nats_jetstream/index.md) — NATS JetStream: one subject of a stream, as a transport read by `tap` and written by `sink` and `target` like any other endpoint (module `io`).
 - [`std/vault`](std/vault/index.md) — The current vault: the source a program runs against.
-- [`search/lexical`](search/lexical/index.md) — Lexical retrieval: a corpus ranked by the words it shares with a query, a hashed bag of words compared by cosine.
-- [`search/semantic`](search/semantic/index.md) — Semantic retrieval: a corpus ranked against a query by vectors a language model made ahead of time, read from the index that `[semantics] index` in hql.toml names.
 - [`std/crypto/digest`](std/crypto/digest/index.md) — Cryptographic digests of text and of `Data` trees.
 - [`std/encoding`](std/encoding/index.md) — Text-safe encodings of a text's UTF-8 octets.
-- [`std/validators`](std/validators/index.md) — Validators: the standard validator types, imported where they are used, `import validators`, and never by the prelude, so a program's own `Email` is its own.
+- [`std/bytes`](std/bytes/index.md) — The functions of a `Bytes` value, in the prelude.
+- [`search/lexical`](search/lexical/index.md) — Lexical retrieval: a corpus ranked by the words it shares with a query, a hashed bag of words compared by cosine.
+- [`search/semantic`](search/semantic/index.md) — Semantic retrieval: a corpus ranked against a query by vectors a language model made ahead of time, read from the index that `[semantics] index` in hql.toml names.
+- [`std/validators`](std/validators/index.md) — Validators: the standard validator traits, imported where they are used, `import validators`, and never by the prelude, so a program's own `Email` is its own.
 <!-- hql reference: end -->
