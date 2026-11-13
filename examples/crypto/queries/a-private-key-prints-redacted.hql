@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a private key prints as its public key's thumbprint, never as its material
-// implementation: pending
-// proposal: doc/proposals/HQL-0053/parts/02-keys.md
+// implementation: implemented
 // environment: pure
 // io: sandbox
 // expected-type: List<String>
