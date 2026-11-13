@@ -1,7 +1,8 @@
 # 0067 — `crypto`: keys, signatures, encryption and a key vault
 
 Status: backlog
-Related: [0029](0029-binary-formats-and-codecs.md),
+Related: [HQL-0053](../proposals/HQL-0053/README.md) (the proposal),
+[0029](0029-binary-formats-and-codecs.md),
 [HQL-0041 part 3](../proposals/HQL-0041/parts/03-hash-and-encoding.md),
 [HQL-0024 part 7](../proposals/HQL-0024/parts/07-formats-and-codecs.md),
 [HQL-0021](../proposals/HQL-0021/README.md)
@@ -45,3 +46,12 @@ and its order against that issue is part of the decision.
 - A proposal under `doc/proposals/` specifies modules `crypto` and
   `crypto.keyvault` and their formats, with examples under `examples/` at `status: proposed`.
 - Its implementation is one or more backlog issues, ordered against 0029.
+
+## Proposal
+
+[HQL-0053](../proposals/HQL-0053/README.md), drafted, decides each item
+above in five parts, and its cases are under
+[`examples/crypto/`](../../examples/crypto/README.md) at `status: proposed`.
+Its section "Order of work" orders it against 0029: `Bytes` (part 1) lands
+first and 0029 builds on it, and nothing in `crypto` waits for 0029's
+binary format kind.
