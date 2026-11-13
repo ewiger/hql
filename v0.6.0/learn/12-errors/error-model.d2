@@ -1,0 +1,51 @@
+# The error model: a failure is data or it is a diagnostic.
+# Rendered to error-model.svg with `d2 --layout elk error-model.d2 error-model.svg`.
+
+direction: down
+
+failure: "failure\nan operation did not produce\nthe value its signature promises" {
+  shape: oval
+}
+
+data: "data: the program's" {
+  direction: down
+  style.fill: "#eef6ee"
+  constructs: "err(e) · validate(T) · require · warn · retry"
+  values: "Result<T, E> · Invalid · Violation"
+  handled: "map_err · errs() · match · fork · sink"
+  constructs -> values: "produce"
+  values -> handled: "ordinary values"
+}
+
+diagnostics: "diagnostics: the run's" {
+  direction: down
+  style.fill: "#f6efe6"
+  phases: "phases" {
+    grid-columns: 6
+    load
+    parse
+    check
+    plan
+    execute
+    render
+  }
+  channel: "diagnostic channel\nChannel<Diagnostic>, one per run\ncommitted in order" {
+    shape: queue
+  }
+  record: "Diagnostic\nphase · kind · severity · disposition\nmessage · origin · span\nlabels · help · expected · found\nelement · trace · violations"
+  format: "format\nDiagnosticText · Json" {shape: hexagon}
+  target: "target\nstderr · envelope" {shape: cylinder}
+
+  phases -> channel: "write"
+  channel -> record: "holds" {style.stroke-dash: 3}
+  channel -> format: "consumer"
+  format -> target: "deliver"
+}
+
+failure -> data.constructs: "the program keeps it as a value"
+failure -> diagnostics.phases: "a phase cannot do what the program asked"
+
+data.handled -> diagnostics.channel: "no operation\nmoves a failure across" {
+  style.stroke: "#b23b3b"
+  style.stroke-dash: 5
+}
