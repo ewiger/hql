@@ -39,6 +39,14 @@ marker, and the vault state and configuration it holds, are owned by
 [[card-type]]. The settings in [doc/.hmd/config.toml](../.hmd/config.toml) govern every
 card beneath it and are optional; where a key is absent its default is assumed.
 
+Vaults nest, and a marker below the root ends the vault there. `doc/public/`
+carries its own [`.hmd/`](../public/.hmd/config.toml): it is the published
+site, a second vault inside this one, and none of its pages belongs to `doc/`.
+A page there resolves against `doc/public/`, so `[[/learn/…]]` means the same
+page in the editor, in lint and on the site; and no card here can be reached
+from it by a wikilink. Between the two vaults a link is an ordinary relative
+Markdown link, and a public page reaches the design material only by URL.
+
 Binding a reference to a file is uniform: the reference plus `.hmd` is tried as
 a file, and otherwise the reference is tried as a directory holding an
 `index.hmd`. A trailing `.hmd` may be written and is stripped before matching.

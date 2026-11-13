@@ -160,6 +160,13 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
   `hypermarkdown[mkdocs]` package and [mike](https://github.com/jimporter/mike)
   with [uv](https://docs.astral.sh/uv/), and `uv.lock` pins what the site is
   built with.
+- The pages are hyper-markdown cards. `doc/public/` is a vault of its own,
+  nested in `doc/` (it carries an `.hmd/`), and the `hypermarkdown` MkDocs
+  plugin builds it with that same root: it resolves `[[…]]`, and registers
+  each `.hmd` page under its `.md` name, so the nav in `mkdocs.yml` names
+  `x.md` and the URL is the one a Markdown page had. Every page inherits
+  `nav.visibility: public` from the root `index.hmd`. An absolute reference
+  such as `[[/learn/02-data-types/int]]` is written from the site's root.
 - The site is for people using HQL, not for people designing it. Only
   `doc/public/` is published; the wiki, the models, the proposals and the rest
   of `doc/` stay in the repository, and a public page does not link to them.
@@ -196,6 +203,8 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
 uv sync --locked                  # the site toolchain, into .venv
 uv run mkdocs serve               # http://127.0.0.1:8000, rebuilt on save
 uv run mkdocs build --strict      # what every build runs
+uv run hmd lint --root doc/public # the site's wikilinks
+uv run hmd lint --root doc        # the rest of the knowledge base
 ```
 
 [`pages.yml`](../.github/workflows/pages.yml) builds the site on every pull
