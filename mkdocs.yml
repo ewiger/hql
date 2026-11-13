@@ -158,6 +158,7 @@ nav:
                   - When a mistake is found: learn/19-oltp/mistakes.md
                   - A replay is the same file: learn/19-oltp/replay.md
                   - Streams against tables: learn/19-oltp/streams-against-tables.md
+                  - A transfer is one transaction: learn/19-oltp/transfers.md
               - 20. OLAP:
                   - learn/20-olap/index.md
                   - Bronze, silver and gold: learn/20-olap/bronze-silver-and-gold.md

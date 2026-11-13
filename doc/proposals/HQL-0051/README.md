@@ -1173,3 +1173,8 @@ cargo clippy --locked --all-targets -- -D warnings
   statement with its values written as literals, the count read from
   `num_affected_rows` where the table reports one. Not run against Spark
   3.5 with Delta 3.3 yet
+- 2026-11-13: phase 6: the book's OLTP chapter gains
+  [a transfer is one transaction](../../public/learn/19-oltp/transfers.md),
+  checked against the shop vault, and the merge page and the tables chapter
+  point at it; the `ledger` case of hql-demo runs the transfer against
+  PostgreSQL 17
