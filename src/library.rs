@@ -6,7 +6,6 @@
 //! same way a program's own declarations are.
 
 use crate::ast::{Field, Stmt, TypeAnn};
-use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
 use crate::types::{self, TypeRef};
 use std::collections::HashMap;
@@ -69,6 +68,7 @@ pub const STD: &[(&str, &str)] = &[
     ),
     ("encoding", include_str!("../lib/std/encoding/mod.hql")),
     ("bytes", include_str!("../lib/std/bytes/mod.hql")),
+    ("crypto", include_str!("../lib/std/crypto/mod.hql")),
 ];
 
 /// Every module of the `search` package, by name, in loading order, laid out
@@ -651,14 +651,17 @@ fn records() -> Option<&'static HashMap<String, Record>> {
 }
 
 fn load() -> Result<HashMap<String, Record>, Diagnostic> {
+    // The declarations are read for their names alone. They are checked
+    // where the library is checked as a program of its own ([`check`]): read
+    // here, the first time a program's checking asks, they would be checked
+    // against that program's lattice, where a program's `type R` collides
+    // with `Table<R>`'s parameter and would lose every record's fields.
     let program = crate::parser::parse(&source())?;
-    let mut declarations = Declarations::default();
     let mut records = HashMap::new();
     for statement in program.statements {
         let Stmt::Type(declaration) = statement else {
             continue;
         };
-        declarations.declare(&declaration)?;
         records.insert(
             declaration.name,
             Record {
