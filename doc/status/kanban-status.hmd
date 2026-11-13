@@ -54,7 +54,7 @@ then the archive.
 | todo    | 10     |
 | doing   | 5      |
 | done    | 0      |
-| archive | 50     |
+| archive | 51     |
 <!-- /hql:output -->
 
 ## Board
@@ -84,8 +84,8 @@ range(0, depth)
 <!-- hql:output hash=fc2c6467e9c1 status=ok -->
 | backlog                                                                          | todo                                                                         | doing                                                                    | done |
 | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---- |
-| 0068 General-purpose gap analysis: what Python and its peers have that HQL lacks | 0069 Transports: the core of HQL-0047 and HQL-0048                           | 0064 `Date` as a data type, and the `time` module                        |      |
-| 0067 `crypto`: keys, signatures, encryption and a key vault                      | 0063 The result of a write: `Unit` is the wrong answer                       | 0054 The website is for HQL users                                        |      |
+| 0071 Key vaults: `crypto.keyvault` and its backends                              | 0069 Transports: the core of HQL-0047 and HQL-0048                           | 0064 `Date` as a data type, and the `time` module                        |      |
+| 0068 General-purpose gap analysis: what Python and its peers have that HQL lacks | 0063 The result of a write: `Unit` is the wrong answer                       | 0054 The website is for HQL users                                        |      |
 | 0065 Neo4j parity analysis: graph patterns, traversal and graph schema           | 0058 A value read from a card loses where it came from                       | 0046 Renovate `lib/std/**` under the module, package and extension model |      |
 | 0016 SQL parity analysis: relational operations, aggregation and schema          | 0056 `hql help` prints part of a block body in a signature                   | 0043 Contract validation: rules, structured errors and stream policies   |      |
 | 0015 jq parity analysis: data formats, types and operations                      | 0055 A parameter default on a function with a body                           | 0019 Documentation states semantics, not intuition                       |      |
@@ -111,6 +111,7 @@ issues
 | id   | title                                                                                 |
 | ---- | ------------------------------------------------------------------------------------- |
 | 0070 | The HQL book catches up with the general-purpose leap                                 |
+| 0067 | `crypto`: keys, signatures, encryption and a key vault                                |
 | 0066 | `random`: sampling, shuffling and numbers, seeded or drawn                            |
 | 0062 | NATS subjects and lakehouse tables as configured endpoints                            |
 | 0061 | A configured id names an endpoint: `[endpoint.<id>]`                                  |
