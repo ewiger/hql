@@ -4,7 +4,7 @@
 **Created**: 2026-10-23
 **Supersedes**: [[HQL-0030]], structural types, open Data
 views and contracts, which it restates and extends; tracked by
-[issue 0043](../../issues/archive/0043-contract-validation.md)
+[[0043-contract-validation|issue 0043]]
 
 ## Purpose
 
@@ -2445,7 +2445,7 @@ data-validation layer on top of the structural type system.
   ([the structural examples](../../../examples/structural/README.md)).
   Contract rules, defaults, normalization, validators, structured results,
   events, policies, streams, datasets and versioning are not built
-  ([issue 0043](../../issues/archive/0043-contract-validation.md))
+  ([[0043-contract-validation|issue 0043]])
 - 2026-10-23: a contract's constructor checks its rules and fills its
   defaults; a record subtype has its supertype's fields and rules; a
   default is a literal, a collection of literals included, and never a
@@ -2456,4 +2456,4 @@ data-validation layer on top of the structural type system.
   [[HQL-0033]] where they conflict, and the open
   questions on the result's representation, fail-fast against aggregate
   configuration and stream routing with them
-  ([issue 0045](../../issues/archive/0045-errors-validators-boundaries.md), E6)
+  ([[0045-errors-validators-boundaries|issue 0045]], E6)

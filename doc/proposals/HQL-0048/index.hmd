@@ -179,7 +179,7 @@ one package provides any number of modules
   belongs in `io.db`: the `spark` kind is one table reached over Spark SQL,
   on a Databricks warehouse or a Spark Thrift Server, and runs no pipeline.
 - A **format** decodes and encodes documents. Parquet is a format
-  ([issue 0029](../../issues/0029-binary-formats-and-codecs.md)).
+  ([[0029-binary-formats-and-codecs|issue 0029]]).
 - A **table format**, Delta Lake or Apache Iceberg, is a source kind over a
   store: metadata and transactions on top of objects. It is declared as a
   kind of [[HQL-0012]], reads through an `io.store`
@@ -245,4 +245,4 @@ cargo test
   `io.db.spark`, `io.msg.nats` and `io.msg.nats_jetstream` are modules, each
   declaring its transport type and constructor. Not built: `io.msg.kafka`,
   and the modules marked design direction
-  ([issue 0069](../../issues/0069-transports-core.md))
+  ([[0069-transports-core|issue 0069]])

@@ -2,7 +2,7 @@
 
 Status: `lexical` is implemented and `semantic` reads a committed index; the
 toolchain that produces one is not wired together — see
-[issue 0011](../../issues/0011-wire-the-semantic-search-toolchain.md).
+[[0011-wire-the-semantic-search-toolchain|issue 0011]].
 
 Semantic search is the one HQL feature whose answer depends on things outside
 the binary: a vault, an index, and a model that computed it. These are its

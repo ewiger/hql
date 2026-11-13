@@ -475,7 +475,7 @@ cargo test --locked --test reporting --test cli
   `collect` through steps other than `map` (unit 9), a cell as the `origin`
   of its diagnostics rather than its document, `DiagnosticText` as a format
   a program can name, and the card and model rewrites (unit 11)
-- 2026-10-25: implemented ([issue 0057](../../issues/archive/0057-error-model-remainder.md)).
+- 2026-10-25: implemented ([[0057-error-model-remainder|issue 0057]]).
   `type Diagnostic` in `lib/std/core` reads delivered diagnostics back;
   `call` frames, `bindings` and a bound card's document as `source` are
   recorded when a failure leaves a function or a lambda; `collect` steps

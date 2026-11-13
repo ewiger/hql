@@ -91,7 +91,7 @@ and `filter` do.
 ### Operations over a stream
 
 Each operation declares the weakest input it needs and returns the type it
-was given, in the form [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md)
+was given, in the form [[0018-operator-synonymy-audit|issue 0018]]
 settles: `S` binds the input's own type, `F<_>` its constructor.
 
 ```text
@@ -118,7 +118,7 @@ emit<T>(xs: Stream<Seq<T>>)                          : Stream<T>          -- HQL
 - `drop` MUST skip the first `n` values and return its input's type: a stream
   without its first `n` values is still a stream that may not end, and a
   sequence is still a sequence. `drop` is the `OFFSET` of
-  [issue 0016](../../issues/0016-sql-parity-analysis.md).
+  [[0016-sql-parity-analysis|issue 0016]].
 - `take` MUST accept a `Stream<T>` and return a `List<T>`, because a bounded
   prefix is finite whatever the input. Over a `Seq<T>` it keeps the input's
   type.
@@ -180,7 +180,7 @@ them.
 - `src/extensions/collections.rs` — stream overloads for `map`, `filter`,
   `take`, and `drop`; the finite-input diagnostic for whole-input operations
 - `src/evaluation.rs` — a traversal carrier that does not force its input,
-  shared with [issue 0010](../../issues/archive/0010-yield-and-bind.md)
+  shared with [[0010-yield-and-bind|issue 0010]]
 - `doc/wiki/hql/types/collections/` — a stream card, and `Seq<T>` described as
   the meeting point
 

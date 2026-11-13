@@ -29,7 +29,7 @@ operation.
   convention, and none states it for types in general.
 - Lowercase operations that build a value of one type, such as `list` and
   `graph`, are second names for that type's constructor, which the rule of
-  [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md) does not admit.
+  [[0018-operator-synonymy-audit|issue 0018]] does not admit.
 - The [[expressions]] model leaves open
   whether a constructor may stand where something other than a call is written.
   A pipeline step and a function argument are the two places a program needs
@@ -44,7 +44,7 @@ operation.
   a message naming its concrete subtypes, as HQL-0016 already requires.
 - A record type's constructor takes its fields as named arguments,
   `Edge(source = a, target = b, data = {:})`, once declared records can be
-  constructed ([issue 0016](../../issues/0016-sql-parity-analysis.md),
+  constructed ([[0016-sql-parity-analysis|issue 0016]],
   roadblock "record and pair values").
 - A format type has no constructor: a format is a value of `Format`, not the
   text it encodes ([[07-formats-and-codecs|HQL-0024 part 7]]).
@@ -103,7 +103,7 @@ T<A>(x, …)    ≡  x | T<A>(…)
 ### 4. A constructor as a function value
 
 A constructor is a function value with its signature
-([issue 0009](../../issues/archive/0009-function-type-and-constructor.md)):
+([[0009-function-type-and-constructor|issue 0009]]):
 
 ```hql
 groups | map(Set)        // each List<T> to a Set<T>

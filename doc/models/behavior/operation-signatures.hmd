@@ -2,7 +2,7 @@
 
 Status: audit of the design as of 2026-10-18; **decides nothing by itself**.
 Decisions it points at are owned by the proposals and cards it names, and the
-work is tracked by [issue 0018](../../issues/archive/0018-operator-synonymy-audit.md).
+work is tracked by [[0018-operator-synonymy-audit|issue 0018]].
 
 HQL names its operations on several fronts at once: the implemented core that
 `hql builtins` prints, [[HQL-0004]],
@@ -208,7 +208,7 @@ The type alone cannot separate these. The value does.
 ### Same name, different signatures: one operation declared inconsistently
 
 None. Every source above writes each name with one signature, in the form
-[issue 0018](../../issues/archive/0018-operator-synonymy-audit.md) settles: an
+[[0018-operator-synonymy-audit|issue 0018]] settles: an
 operation returns the type it was given. `filter`, `take`, `drop` and `sort`
 bind the input's type `S` and return it; `map` binds its constructor `F<_>`
 and returns `F<U>`. `take` over a stream and `take` or `sort` over a
@@ -243,4 +243,4 @@ the queries model states, and one name is right.
 
 - **HQL-0004's `collect`.** The proposal still declares
   `collect<T>(Seq<T>) : List<T>`; it reads `List` once
-  [0013](../../issues/archive/0013-typed-pipeline-operations.md) reaches it.
+  [[0013-typed-pipeline-operations|0013]] reaches it.

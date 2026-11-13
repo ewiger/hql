@@ -5,7 +5,7 @@
 **Source**: [issue 0067](../../issues/0067-std-crypto.md);
 [[03-digest-and-encoding|HQL-0041 part 3]] (digests,
 canonical JSON, and cryptography as a non-goal);
-[issue 0029](../../issues/0029-binary-formats-and-codecs.md) (binary formats
+[[0029-binary-formats-and-codecs|issue 0029]] (binary formats
 and codecs); [[07-formats-and-codecs|HQL-0024 part 7]]
 (formats and codecs); [[HQL-0021]] (endpoints, effects
 and host grants); [[HQL-0046]] and

@@ -93,7 +93,7 @@ difference is a line in `hql.toml`.
 - **Laziness and function values come from elsewhere.** Lazy sequences and
   streams are [[HQL-0006]]'s, and a function value passed
   where a lambda is written is
-  [issue 0009](../../issues/archive/0009-function-type-and-constructor.md)'s. This
+  [[0009-function-type-and-constructor|issue 0009]]'s. This
   record relies on both and specifies neither.
 
 ## Specification
@@ -491,4 +491,4 @@ resolved before they are.
   printed by `hql builtins`; `src/backends/` holds the `Backend` trait and
   `localhost`, selected by `--backend`, `[execution] backend` and
   `HQL_BACKEND`, reported by `hql config`, with a conformance test over every
-  registered backend ([issue 0012](../../issues/archive/0012-mapreduce-backends.md))
+  registered backend ([[0012-mapreduce-backends|issue 0012]])

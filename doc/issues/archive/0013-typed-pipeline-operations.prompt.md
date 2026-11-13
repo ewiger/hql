@@ -4,7 +4,7 @@ Paste the block below into a new session, in this repository.
 
 ---
 
-Carry out [issue 0013](0013-typed-pipeline-operations.md): make HQL pipelines
+Carry out [issue 0013](0013-typed-pipeline-operations.hmd): make HQL pipelines
 general typed programs, with `Stream<T>`, batching, aggregation and
 presentation, rather than one MapReduce cycle.
 

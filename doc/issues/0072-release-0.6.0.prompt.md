@@ -6,7 +6,7 @@ issue's "Progress" checklist and ends with a commit.
 
 ---
 
-Carry out [issue 0072](0072-release-0.6.0.md): bring HQL from 0.5.2 to a
+Carry out [issue 0072](0072-release-0.6.0.hmd): bring HQL from 0.5.2 to a
 0.6.0 that the release workflow accepts, with the bugs found in the
 2026-11-13 audit fixed, the small features finished, and the knowledge base
 telling the truth about what is built.
@@ -89,7 +89,7 @@ Never open a gate yourself; only the maintainer edits the "Gates" lines.
    failure diagnostics.
 5. **Housekeeping**: proposals, board, README. Archive an issue by moving its
    file, and its `.prompt.md` if any, to `doc/issues/archive/` and deleting
-   its card, as `doc/issues/README.hmd` says. A new issue takes the next
+   its card, as `doc/issues/index.hmd` says. A new issue takes the next
    number after `last_id` in `kanban.yaml`, and bumps it.
 6. **Release**: changelog section, version, `Cargo.lock`; regenerate the
    reference pages and re-render `doc/status/ADR-status.hmd` and

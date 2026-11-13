@@ -32,7 +32,7 @@ package, typically a Cargo crate, supplies it. Both extensions today are
 internal ([[packages]]). The table in
 `src/extensions/` still registers one entry per Rust source module, and
 `import` binds one of those entries;
-[issue 0049](../../issues/0049-one-extension-per-package.md) folds them into
+[[0049-one-extension-per-package|issue 0049]] folds them into
 `std` and `search`.
 
 The signature declares generic parameters and bounds, input and result types,

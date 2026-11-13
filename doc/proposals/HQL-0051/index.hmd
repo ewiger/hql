@@ -13,8 +13,8 @@ and [[HQL-0049]] (tables as configured endpoints),
 [[HQL-0045]] (failures as data or diagnostics),
 [[HQL-0038]] (blocks), [[HQL-0050]]
 (`Window<T>`, a value that does not leave its scope),
-[issue 0016](../../issues/0016-sql-parity-analysis.md) (SQL parity),
-[issue 0063](../../issues/0063-the-result-of-a-write.md) (the result of a
+[[0016-sql-parity-analysis|issue 0016]] (SQL parity),
+[[0063-the-result-of-a-write|issue 0063]] (the result of a
 write), `lib/std/io/mod.hql`, `lib/std/io/db/sqlite/mod.hql`,
 `src/postgres.rs`, `src/endpoints.rs`, `src/extensions/io.rs`
 
@@ -42,7 +42,7 @@ every construct is proposed, and the record says of each what exists today.
 
 ## Motivation
 
-- [Issue 0016](../../issues/0016-sql-parity-analysis.md) marks `UPDATE`,
+- [[0016-sql-parity-analysis|Issue 0016]] marks `UPDATE`,
   `INSERT` and `DELETE` against a live system as supportable and marks
   transactions out, "HQL is pure; atomicity belongs to whatever persistence
   layer that proposal defines". That proposal is this one: `target` and
@@ -92,7 +92,7 @@ every construct is proposed, and the record says of each what exists today.
 - Pushdown of reads. A `filter` inside a scope reads as
   [[HQL-0012]] reads; only the selection of a mutation
   is required to be translated.
-- The result type of `target` and `sink`, which [issue 0063](../../issues/0063-the-result-of-a-write.md)
+- The result type of `target` and `sink`, which [[0063-the-result-of-a-write|issue 0063]]
   owns. A mutation's result is stated here and is to be reconciled with it.
 - A row-by-row cursor, `FOR UPDATE`, or an ORM's identity map. A mutation
   is one statement over a set of rows.
@@ -1141,7 +1141,7 @@ cargo clippy --locked --all-targets -- -D warnings
   sugar for `tx.rollback("name") given not c`? It reads well and overlaps
   with `rollback`.
 - Should a mutation's result become the write-outcome value
-  [issue 0063](../../issues/0063-the-result-of-a-write.md) decides, with
+  [[0063-the-result-of-a-write|issue 0063]] decides, with
   the count a field of it? The count is what SQL gives and what this record
   gives; the issue owns the type.
 - Savepoints: a nested `with transaction` inside a scope, as a

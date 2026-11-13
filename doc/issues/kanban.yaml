@@ -6,7 +6,7 @@
 # When an issue is done, move its file to doc/issues/archive/ and delete its
 # card here; doc/status/kanban-status.hmd counts and lists the archive.
 #
-# Convention: doc/issues/README.hmd
+# Convention: doc/issues/index.hmd
 
 board:
   title: "doc/issues/ Kanban board"
@@ -22,64 +22,64 @@ board:
     backlog:
       - id: "0016"
         title: "SQL parity analysis: relational operations, aggregation and schema"
-        file: 0016-sql-parity-analysis.md
+        file: 0016-sql-parity-analysis.hmd
       - id: "0015"
         title: "jq parity analysis: data formats, types and operations"
-        file: 0015-jq-parity-analysis.md
+        file: 0015-jq-parity-analysis.hmd
       - id: "0065"
         title: "Neo4j parity analysis: graph patterns, traversal and graph schema"
-        file: 0065-neo4j-parity-analysis.md
+        file: 0065-neo4j-parity-analysis.hmd
       - id: "0071"
         title: "Key vaults: `crypto.keyvault` and its backends"
-        file: 0071-key-vaults.md
+        file: 0071-key-vaults.hmd
       - id: "0068"
         title: "General-purpose gap analysis: what Python and its peers have that HQL lacks"
-        file: 0068-general-purpose-gap-analysis.md
+        file: 0068-general-purpose-gap-analysis.hmd
       - id: "0073"
         title: "Computation plans: align HQL-0056 with the computation life cycle"
-        file: 0073-computation-plans.md
+        file: 0073-computation-plans.hmd
       - id: "0074"
         title: "Time columns read and written against a live PostgreSQL and Spark"
-        file: 0074-time-columns-against-live-servers.md
+        file: 0074-time-columns-against-live-servers.hmd
       - id: "0075"
         title: "Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events"
-        file: 0075-validation-rules-thresholds-and-events.md
+        file: 0075-validation-rules-thresholds-and-events.hmd
     todo:
       - id: "0069"
         title: "Transports: the core of HQL-0047 and HQL-0048"
-        file: 0069-transports-core.md
+        file: 0069-transports-core.hmd
       - id: "0063"
         title: "The result of a write: `Unit` is the wrong answer"
-        file: 0063-the-result-of-a-write.md
+        file: 0063-the-result-of-a-write.hmd
       - id: "0058"
         title: "A value read from a card loses where it came from"
-        file: 0058-card-values-lose-their-provenance.md
+        file: 0058-card-values-lose-their-provenance.hmd
       - id: "0049"
         title: "One extension per package: fold the descriptors into `std` and `search`"
-        file: 0049-one-extension-per-package.md
+        file: 0049-one-extension-per-package.hmd
       - id: "0029"
         title: "Binary formats, and codecs an extension or a package provides"
-        file: 0029-binary-formats-and-codecs.md
+        file: 0029-binary-formats-and-codecs.hmd
       - id: "0027"
         title: A partial record type reads card metadata as typed fields
-        file: 0027-typed-metadata-sort-keys.md
+        file: 0027-typed-metadata-sort-keys.hmd
       - id: "0011"
         title: Wire the semantic-search toolchain together
-        file: 0011-wire-the-semantic-search-toolchain.md
+        file: 0011-wire-the-semantic-search-toolchain.hmd
     doing:
       - id: "0077"
         title: "The knowledge base is hyper-markdown"
         file: 0077-docs-to-hmd.hmd
       - id: "0054"
         title: "The website is for HQL users: Learn, Guides, Reference"
-        file: 0054-user-facing-website.md
+        file: 0054-user-facing-website.hmd
       - id: "0046"
         title: "Renovate `lib/std/**` under the module, package and extension model"
-        file: 0046-renovate-std.md
+        file: 0046-renovate-std.hmd
       - id: "0019"
         title: "Documentation states semantics, not intuition"
-        file: 0019-documentation-precision.md
+        file: 0019-documentation-precision.hmd
     done:
       - id: "0072"
         title: "Release 0.6.0: fix, finish, tidy, tag"
-        file: 0072-release-0.6.0.md
+        file: 0072-release-0.6.0.hmd

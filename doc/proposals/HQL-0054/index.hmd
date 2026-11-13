@@ -3,7 +3,7 @@
 **Status**: accepted
 **Created**: 2026-11-13
 **Source**: [[HQL-0053]], whose part 5 this record was
-split from; [issue 0071](../../issues/0071-key-vaults.md);
+split from; [[0071-key-vaults|issue 0071]];
 [[HQL-0046]] and [[HQL-0049]]
 (configured endpoints and their secrets)
 

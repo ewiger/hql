@@ -3,7 +3,7 @@
 - **Depends on**: [[HQL-0053|the proposal]] for ownership;
   [[03-digest-and-encoding|HQL-0041 part 3]] for
   `crypto.digest` and `encoding`, whose `String` forms this part extends
-- **Needed by**: every other part; [issue 0029](../../../issues/0029-binary-formats-and-codecs.md)
+- **Needed by**: every other part; [[0029-binary-formats-and-codecs|issue 0029]]
   for the in-memory form of a binary format's encoded value
 
 ## Scope
@@ -113,7 +113,7 @@ are not interchangeable, and each has one place.
 | Word | Names | Where |
 | --- | --- | --- |
 | `Bytes` | a value: a finite sequence of octets, held, indexed and sliced | the type in `core`, the receiver module `bytes` |
-| binary | how a format encodes a value: as octets, not as UTF-8 text | a binary format kind, [issue 0029](../../../issues/0029-binary-formats-and-codecs.md) |
+| binary | how a format encodes a value: as octets, not as UTF-8 text | a binary format kind, [issue 0029](../../../issues/0029-binary-formats-and-codecs.hmd) |
 
 - A type name in HQL is a noun for what a value is, as `String`, `Int` and
   `Decimal` are. `Bytes` is that noun; `Binary` would be an adjective, and

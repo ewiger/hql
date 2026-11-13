@@ -65,7 +65,7 @@ clock, the zone, the generator's seed, the environment and the arguments. The in
 - Leap seconds, calendars other than the proleptic Gregorian, and
   sub-nanosecond precision.
 - A `Bytes` type and binary digests or encodings of anything but text.
-  Binary values belong to [issue 0029](../../issues/0029-binary-formats-and-codecs.md);
+  Binary values belong to [[0029-binary-formats-and-codecs|issue 0029]];
   until then every input here is a `String`, which is UTF-8.
 - Cryptography: signing, encryption, keyed MACs and password hashing.
 - Writing to the environment, spawning processes, and a command-line

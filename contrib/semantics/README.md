@@ -17,7 +17,7 @@ chain a query depends on.
 `.hmd/config.toml` inside it is optional and its defaults are assumed where it
 is absent. This tool does not check that yet, and a directory that is not a
 vault reports "no documents" rather than saying so —
-[issue 0011](../../doc/issues/0011-wire-the-semantic-search-toolchain.md) is that
+[issue 0011](../../doc/issues/0011-wire-the-semantic-search-toolchain.hmd) is that
 work.
 
 ## Use
@@ -158,7 +158,7 @@ transport answers the `http` provider and a fake model fills an index, so what i
 under test is this tool's own arithmetic and refusals. The
 HyperMarkDown CLI is a dependency in practice — it owns root discovery and
 `.hmd/config.toml` — but is not declared or used yet; see
-[issue 0011](../../doc/issues/0011-wire-the-semantic-search-toolchain.md).
+[issue 0011](../../doc/issues/0011-wire-the-semantic-search-toolchain.hmd).
 
 ```sh
 pip install -r requirements.txt

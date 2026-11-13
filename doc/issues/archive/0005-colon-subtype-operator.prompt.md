@@ -4,7 +4,7 @@ Paste the block below into a new session, in this repository.
 
 ---
 
-Carry out [issue 0005](0005-colon-subtype-operator.md): replace the HQL subtype
+Carry out [issue 0005](0005-colon-subtype-operator.hmd): replace the HQL subtype
 operator `<:` with `:` everywhere.
 
 Read `doc/memory/` first, as `CLAUDE.md` requires, then the issue in full and

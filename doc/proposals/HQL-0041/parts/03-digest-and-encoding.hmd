@@ -1,7 +1,7 @@
 # Part 3: `crypto.digest` and `encoding`
 
 - **Depends on**: [[HQL-0041|the proposal]] for ownership;
-  [issue 0029](../../../issues/0029-binary-formats-and-codecs.md) for binary
+  [[0029-binary-formats-and-codecs|issue 0029]] for binary
   values, which this part stays out of
 - **Needed by**: [[HQL-0053]], whose `crypto`
   imports `crypto.digest`

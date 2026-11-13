@@ -13,7 +13,7 @@ knowledge format: plain Markdown extended with **wiki features**, above all
 explanations of a single idea. A `.hmd` file is a **card**, and cards live in a
 **vault** — the single directory that bounds the graph. This project's vault is
 `doc/`: the cards in [`doc/wiki/`](index.hmd) and every other `.hmd` file under
-`doc/`, such as the [[README|issues index]] and the
+`doc/`, such as the [[issues|issues index]] and the
 [[ADR-status|status pages]]. A card also reads fine as plain Markdown: the format
 is Markdown plus a wiki graph, nothing more exotic, with no external toolchain
 to satisfy.

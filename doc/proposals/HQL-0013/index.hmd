@@ -2,7 +2,7 @@
 
 - **Status**: implemented in part
 - **Created**: 2026-10-18
-- **Source**: [SQL parity analysis](../../issues/0016-sql-parity-analysis.md)
+- **Source**: [[0016-sql-parity-analysis|SQL parity analysis]]
 
 ## Abstract
 
@@ -30,7 +30,7 @@ materialized by `List` joins as a batch.
 
 ## Motivation
 
-- [Issue 0016](../../issues/0016-sql-parity-analysis.md) ranks joins among the
+- [[0016-sql-parity-analysis|Issue 0016]] ranks joins among the
   largest gaps against SQL. `INNER JOIN` and `CROSS JOIN` are nested-`map`
   workarounds today that produce nested results, and outer joins have no
   spelling at all.
@@ -467,7 +467,7 @@ None.
   without `right` is refused, and a `Set` input is refused naming `sort`.
   The name `join` is shared with `string.join` and `seq.join`, and a call's
   named arguments choose among the modules
-  ([issue 0041](../../issues/archive/0041-binary-joins.md)). The head and extending
+  ([[0041-binary-joins|issue 0041]]). The head and extending
   forms, optional sides `?`, row types and the stream rules of the section
   "Joining across kinds of source" are not built
 - 2026-10-23: a row is a closed anonymous record, read as a declared record

@@ -4,7 +4,7 @@ Paste the block below into a new session, in this repository.
 
 ---
 
-Carry out [issue 0032](0032-generic-traits.md): traits take type parameters.
+Carry out [issue 0032](0032-generic-traits.hmd): traits take type parameters.
 
 Read `doc/memory/` first, as `CLAUDE.md` requires. Then read the issue, and
 before anything else:

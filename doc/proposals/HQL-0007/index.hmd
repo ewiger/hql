@@ -2,7 +2,7 @@
 
 **Status**: implemented
 **Created**: 2026-09-28
-**Source**: [typed pipeline operations](../../issues/archive/0013-typed-pipeline-operations.md)
+**Source**: [[0013-typed-pipeline-operations|typed pipeline operations]]
 
 ## Abstract
 
@@ -191,7 +191,7 @@ exceeds a host limit. The limit is an open question.
   metadata
 - `lib/std/collections/mod.hql` — the signature comments
 - `examples/pipelines/` — the batching queries listed in
-  [issue 0013](../../issues/archive/0013-typed-pipeline-operations.md)
+  [[0013-typed-pipeline-operations|issue 0013]]
 
 ## Test Plan
 

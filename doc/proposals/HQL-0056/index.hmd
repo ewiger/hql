@@ -14,7 +14,7 @@
 > names included, MUST be aligned with the computation life cycle (check,
 > plan, execute, report) into one complete model before this record is
 > specified further. Tracked in
-> [issue 0073](../../issues/0073-computation-plans.md).
+> [[0073-computation-plans|issue 0073]].
 
 ## Abstract
 

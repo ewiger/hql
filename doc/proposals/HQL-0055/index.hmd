@@ -2,8 +2,8 @@
 
 **Status**: implemented in part
 **Created**: 2026-11-13
-**Source**: [issue 0063](../../issues/0063-the-result-of-a-write.md) (the
-result of a write); [issue 0072](../../issues/0072-release-0.6.0.md) (release
+**Source**: [[0063-the-result-of-a-write|issue 0063]] (the
+result of a write); [[0072-release-0.6.0|issue 0072]] (release
 0.6.0); [[HQL-0005]] (pipeline vocabulary and the
 logical/physical separation); [[HQL-0036]] (execution
 stages and tasks); [[HQL-0001]] (purity)

@@ -4,7 +4,7 @@
 - **Created**: 2026-10-19
 - **Source**: [[design-outline|design outline]],
   [[logging-n-net|logging and channels]],
-  [issue 0015](../../issues/0015-jq-parity-analysis.md),
+  [[0015-jq-parity-analysis|issue 0015]],
   [[HQL-0012]], [[HQL-0017]]
 
 ## Companion notes
@@ -813,7 +813,7 @@ Built:
 
 Nothing remains. `source("id")` and `tap("id")` read a configured endpoint,
 decoded by this record's rules, and `max_bytes` bounds one, as the changelog
-records ([issue 0040](../../issues/archive/0040-configured-data-sources.md)).
+records ([[0040-configured-data-sources|issue 0040]]).
 
 ## Test Plan
 
@@ -894,10 +894,10 @@ None.
   specification states `lib/std/io/mod.hql`, `JsonLines` and `Lines` as formats,
   and the `effectful fn` headers; configured endpoints by id and `max_bytes`
   wait for HQL-0012
-  ([issue 0037](../../issues/archive/0037-io-typed-decoding.md))
+  ([[0037-io-typed-decoding|issue 0037]])
 - 2026-10-22: `source("id")` reads a configured endpoint and `tap("id")` a
   finite one one element at a time, a file of documents as `tap` reads the
   file; `max_bytes` bounds a configured endpoint
-  ([issue 0040](../../issues/archive/0040-configured-data-sources.md))
+  ([[0040-configured-data-sources|issue 0040]])
 - 2026-11-13: implemented; the "Remaining" list named only what issue 0040
   built, and now says so (issue 0072)

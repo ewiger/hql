@@ -135,7 +135,7 @@ api_key_env = "OPENAI_API_KEY"                        # the variable's NAME
 dimensions  = 1536                                    # optional declared width
 ```
 
-- Both files stay as [issue 0011](../../issues/0011-wire-the-semantic-search-toolchain.md)
+- Both files stay as [[0011-wire-the-semantic-search-toolchain|issue 0011]]
   divides them: `.hmd/config.toml` is the namespace, `hql.toml` is the index —
   and an embedder is how an index comes to exist, so it belongs here rather than
   in a third file or in flags a contributor has to remember.
@@ -395,7 +395,7 @@ model, no network: `cargo test` runs against the committed index, and a vault
 that ships an index needs none of the producer's dependencies to be queried.
 
 Wiring the producer to `hmd` is
-[issue 0011](../../issues/0011-wire-the-semantic-search-toolchain.md); the chain
+[[0011-wire-the-semantic-search-toolchain|issue 0011]]; the chain
 a query depends on is stated in
 [[requirements/semantic-search|the semantic-search requirements]].
 

@@ -496,7 +496,7 @@ The language continues to be in active development.
 - `hql repl` leaves on the bare words `exit` and `quit`, as it does on
   `:quit` and Ctrl-D; they were unbound names.
 - A value block as a function body ([HQL-0038](doc/proposals/HQL-0038/index.hmd);
-  [issue 0051](doc/issues/archive/0051-value-block.md), shown in the
+  [issue 0051](doc/issues/archive/0051-value-block.hmd), shown in the
   [function examples](examples/functions/README.md)): `{ … }` written without
   `=` is bindings followed by a final expression, which is the function's
   value and has its declared result type. Any `fn` takes one, a trait's
@@ -505,7 +505,7 @@ The language continues to be in active development.
   one that only binds, and `for` in a value block are refused.
 
 - `Decimal`, an exact decimal number ([HQL-0031](doc/proposals/HQL-0031/index.hmd);
-  [issue 0042](doc/issues/archive/0042-decimal.md), shown in the
+  [issue 0042](doc/issues/archive/0042-decimal.hmd), shown in the
   [decimal examples](examples/decimal/README.md)): a number written with a
   decimal point, `12.50` or `1.5e-3`, is an arbitrary-precision `Decimal`
   whose scale is kept for display and whose equality and order are by value;
@@ -522,7 +522,7 @@ The language continues to be in active development.
   A program that passes a literal with a decimal point to a `Float`
   parameter, or mixes one with a `Float`, now writes the suffix `f`.
 - Contract rules and defaults ([HQL-0032](doc/proposals/HQL-0032/index.hmd);
-  [issue 0043](doc/issues/archive/0043-contract-validation.md), shown in the
+  [issue 0043](doc/issues/archive/0043-contract-validation.hmd), shown in the
   [structural examples](examples/structural/README.md)): a `TypeContract` or
   `DataContract` body takes `require P` and `validate f with V` beside its
   fields, and `name: T = literal` defaults. In a rule `f?` reads an optional
@@ -592,7 +592,7 @@ The language continues to be in active development.
   the standard library written in HQL rather than declared for an
   extension; a validator implemented for several types is named in a rule.
 
-- `Table<R>` ([issue 0044](doc/issues/archive/0044-typed-tables.md), shown in the
+- `Table<R>` ([issue 0044](doc/issues/archive/0044-typed-tables.hmd), shown in the
   [constructors examples](examples/constructors/README.md)): a table is
   typed by its row, `[Book(…)] | Table` a `Table<Book>` and a table of
   `Data` maps a `Table<Data>`. `Table` written without its row is
@@ -643,7 +643,7 @@ The language continues to be in active development.
   `(d | Sub).n` reads. A contract's rules read inherited fields, and a value
   read as `Sub` holds `Base`'s rules before its own.
 - `Table` ([HQL-0017](doc/proposals/HQL-0017/index.hmd);
-  [issue 0039](doc/issues/archive/0039-table-shape-and-presentation-review.md), shown
+  [issue 0039](doc/issues/archive/0039-table-shape-and-presentation-review.hmd), shown
   in the [constructors examples](examples/constructors/README.md)):
   `Table(xs, columns = [...])` builds rows from records or `Data` maps, the
   columns in the order named, or the first row's fields. Each format writes a
@@ -654,7 +654,7 @@ The language continues to be in active development.
   [presentation](doc/wiki/hql/presentation.hmd) card states the
   presentation model.
 - Declaration visibility ([HQL-0028](doc/proposals/HQL-0028/index.hmd);
-  [issue 0038](doc/issues/archive/0038-import-units-and-visibility.md), shown in the
+  [issue 0038](doc/issues/archive/0038-import-units-and-visibility.hmd), shown in the
   [Mighty Types programs](examples/mighty-types/README.md)): `private` before
   a function, a type, a trait or a binding of a module makes it visible
   within that module only. No importer reaches it, by name, as a receiver
@@ -663,7 +663,7 @@ The language continues to be in active development.
   refused on an `impl` and in a program, and `internal` is reserved. A
   module's public bindings are read as `m.name`.
 - Typed decoding ([HQL-0021](doc/proposals/HQL-0021/index.hmd), accepted,
-  implemented in part; [issue 0037](doc/issues/archive/0037-io-typed-decoding.md),
+  implemented in part; [issue 0037](doc/issues/archive/0037-io-typed-decoding.hmd),
   shown in the [I/O examples](examples/io/README.md)): the declared type of a
   binding or a function result decodes each document of a read as a declared
   record, `s : Seq<Sighting> = source(file("birds.jsonl"))`, a live read one
@@ -672,7 +672,7 @@ The language continues to be in active development.
   endpoint, the document and the field.
 
 - Purity is declared in HQL ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.hmd),
-  [issue 0036](doc/issues/archive/0036-contracts-receivers-purity-identities.md)):
+  [issue 0036](doc/issues/archive/0036-contracts-receivers-purity-identities.hmd)):
   `effectful fn source(…)` declares an external operation effectful and a
   plain `fn` pure, and binding refuses an extension whose own marking
   differs. `std/io/mod.hql` and `std/io/logging.hql` declare `file`,
@@ -737,7 +737,7 @@ The language continues to be in active development.
   `intersection` and `difference` of `seq`, and `abs`, `pow` and `sign` of
   `math`, over an `Int` or a `Float`. `hql builtins` prints each overload.
   Every core, `seq`, `math`, `string` and `format` operation now takes its
-  types from its declaration ([issue 0033](doc/issues/archive/0033-overloaded-declarations.md),
+  types from its declaration ([issue 0033](doc/issues/archive/0033-overloaded-declarations.hmd),
   shown in the [overloads corpus](examples/overloads/README.md)):
   - A `/` in an external declaration ends the parameters a call supplies by
     position only, and a `*` opens those it supplies by name only:
@@ -759,7 +759,7 @@ The language continues to be in active development.
     a `T -> Is<U>`, binding `U` to the type tested.
 
 - String functions in the prelude
-  ([issue 0031](doc/issues/archive/0031-missing-string-functions.md)):
+  ([issue 0031](doc/issues/archive/0031-missing-string-functions.hmd)):
   `last_index_of`, `occurrences`, `strip_prefix` and `strip_suffix` (an
   `Option`), `trim_prefix` and `trim_suffix` (the text unchanged when the part
   is missing), `is_blank`, `equals_ignore_case`, `to_bool`, `ord`, `chr`,
@@ -835,7 +835,7 @@ The language continues to be in active development.
   that declaration is refused, and a receiver call of the name of an own
   function without `self` is refused rather than reaching an import's.
 - A receiver call, `value.f()`, reaches only a declaration that takes `self`
-  ([issue 0036](doc/issues/archive/0036-contracts-receivers-purity-identities.md),
+  ([issue 0036](doc/issues/archive/0036-contracts-receivers-purity-identities.hmd),
   shown in the [receivers corpus](examples/receivers/README.md)). The core's
   collection operations, `math`, and `seq`'s map and set functions write
   their receiver, `fn size<T>(self: Collection<T>)`, `fn abs(self: Int)`, so
@@ -853,7 +853,7 @@ The language continues to be in active development.
   `pack(1, "owl")`, whose arguments share no declared ancestor.
 
 - A step over a value applied to an optional input is lifted over it
-  ([issue 0033](doc/issues/archive/0033-overloaded-declarations.md)): `none | abs`,
+  ([issue 0033](doc/issues/archive/0033-overloaded-declarations.hmd)): `none | abs`,
   `none | sqrt` and `none | upper` check and evaluate to absence, and
   `some(-2) | abs` is an `Option<Int>`. A step over a collection still takes
   absence as the empty collection.
