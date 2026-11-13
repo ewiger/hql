@@ -4,7 +4,9 @@
 //! policy the host applies to the run's diagnostic channel: the mode that asks
 //! producers for continuation, the lowest severity shown, and the layer each
 //! setting came from — the query, the vault's `hql.toml`, the environment, the
-//! default, in decreasing order of specificity.
+//! default, in decreasing order of specificity. Below the environment, the
+//! host supplies the selected context's and the user and system files'
+//! settings (HQL-0025) where none of these layers states one.
 
 pub use crate::diagnostics::Severity;
 use std::path::Path;
@@ -93,10 +95,19 @@ impl Level {
         }
         Self {
             severity: Severity::Warning,
-            origin: "the default".to_owned(),
+            origin: DEFAULT_ORIGIN.to_owned(),
         }
     }
+
+    /// Whether no layer stated a level.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        self.origin == DEFAULT_ORIGIN
+    }
 }
+
+/// How a setting no layer stated names its origin.
+pub const DEFAULT_ORIGIN: &str = "the default";
 
 /// The environment variable a user sets for their own default.
 pub const ENVIRONMENT: &str = "HQL_REPORT";
@@ -137,8 +148,14 @@ impl Settings {
         }
         Self {
             mode: Mode::default(),
-            origin: "the default".to_owned(),
+            origin: DEFAULT_ORIGIN.to_owned(),
         }
+    }
+
+    /// Whether no layer stated a mode.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        self.origin == DEFAULT_ORIGIN
     }
 }
 

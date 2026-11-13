@@ -153,6 +153,12 @@ pub enum Origin {
     Vault,
     /// `HQL_BACKEND` in the environment.
     Environment,
+    /// The selected named context, `[execution] backend` (HQL-0025).
+    Context,
+    /// The user configuration file in the HQL home.
+    User,
+    /// The system configuration file.
+    System,
     /// Nothing named one.
     Default,
 }
@@ -165,6 +171,9 @@ impl Origin {
             Self::Query => "--backend".to_owned(),
             Self::Vault => format!("the vault's {CONFIG_FILE}"),
             Self::Environment => format!("${ENVIRONMENT}"),
+            Self::Context => "the selected context".to_owned(),
+            Self::User => "user configuration".to_owned(),
+            Self::System => "system configuration".to_owned(),
             Self::Default => "the default".to_owned(),
         }
     }

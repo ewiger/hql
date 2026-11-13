@@ -958,6 +958,50 @@ impl ExecutionContext {
         config.prelude = self.prelude.value;
     }
 
+    /// A scalar setting `[section] key` that the workspace, the environment
+    /// and the command line leave to configuration: the selected context's,
+    /// else the user file's, else the system file's.
+    ///
+    /// # Errors
+    ///
+    /// The setting is stated and is not a string.
+    pub fn setting(
+        &self,
+        section: &str,
+        key: &str,
+    ) -> Result<Option<Contributed<String>>, ContextError> {
+        let named = self.named.iter().map(|named| {
+            (
+                &named.table,
+                &named.path,
+                Origin::Context(named.name.clone()),
+            )
+        });
+        let files = self
+            .layers
+            .user
+            .iter()
+            .chain(self.layers.system.iter())
+            .filter_map(|file| {
+                file.table
+                    .as_ref()
+                    .map(|table| (table, &file.path, file.origin.clone()))
+            });
+        for (table, path, origin) in named.chain(files) {
+            let Some(value) = table.get(section).and_then(|section| section.get(key)) else {
+                continue;
+            };
+            let value = value
+                .as_str()
+                .ok_or_else(|| refuse(path, format!("`[{section}] {key}` is a string")))?;
+            return Ok(Some(Contributed {
+                value: value.to_owned(),
+                origin,
+            }));
+        }
+        Ok(None)
+    }
+
     /// Every configuration file of the layering, in order, present or not.
     pub fn config_files(&self) -> impl Iterator<Item = &ConfigFile> {
         self.layers.files().chain(self.workspace_config.iter())
@@ -1601,5 +1645,44 @@ workspace = \"../srv/production\"
         assert_eq!(merged[CURRENT_CONTEXT].as_str(), Some("b"));
         let contexts = merged["context"].as_table().unwrap();
         assert_eq!(contexts.keys().collect::<Vec<_>>(), ["a", "b"]);
+    }
+
+    #[test]
+    fn a_setting_is_the_contexts_then_the_users_then_the_systems() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        write(
+            &root.join("etc/config.toml"),
+            "[report]\nmode = \"collect\"\nlevel = \"info\"\n[execution]\nbackend = \"x\"\n",
+        );
+        write(
+            &root.join("home/.hql/config.toml"),
+            "[report]\nlevel = \"error\"\n[context.loud.report]\nlevel = \"debug\"\n",
+        );
+        let stated = |context: &ExecutionContext, section: &str, key: &str| {
+            context
+                .setting(section, key)
+                .unwrap()
+                .map(|stated| (stated.value, stated.origin))
+        };
+        let context = ExecutionContext::construct(&Request::default(), &configured(root)).unwrap();
+        assert_eq!(
+            stated(&context, "report", "mode"),
+            Some(("collect".to_owned(), Origin::System))
+        );
+        assert_eq!(
+            stated(&context, "report", "level"),
+            Some(("error".to_owned(), Origin::User))
+        );
+        assert_eq!(stated(&context, "nothing", "here"), None);
+        let request = Request {
+            context: Some("loud".to_owned()),
+            ..Request::default()
+        };
+        let context = ExecutionContext::construct(&request, &configured(root)).unwrap();
+        assert_eq!(
+            stated(&context, "report", "level"),
+            Some(("debug".to_owned(), Origin::Context("loud".to_owned())))
+        );
     }
 }

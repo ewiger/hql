@@ -647,6 +647,18 @@ fn config_action(
     }
 }
 
+/// A setting the context's configuration layers state, below the workspace
+/// and the environment.
+fn configured(
+    context: &crate::context::ExecutionContext,
+    section: &str,
+    key: &str,
+) -> Result<Option<crate::context::Contributed<String>>, String> {
+    context
+        .setting(section, key)
+        .map_err(|error| error.to_string())
+}
+
 /// `hql context`: the execution context, each part with where it came from.
 fn write_context(
     context: &crate::context::ExecutionContext,
@@ -792,18 +804,62 @@ fn dispatch(
         })?),
         None => None,
     };
-    let settings = Settings::resolve(requested, root);
+    let mut settings = Settings::resolve(requested, root);
+    if settings.is_default()
+        && let Some(stated) = configured(context, "report", "mode")?
+    {
+        settings = Settings {
+            mode: Mode::parse(&stated.value).ok_or_else(|| {
+                format!(
+                    "unknown report mode `{}`, which {} states; expected `strict` or `collect`",
+                    stated.value,
+                    stated.origin.label()
+                )
+            })?,
+            origin: stated.origin.label(),
+        };
+    }
     let level = match &cli.options.report_level {
         Some(name) => Some(Severity::parse_level(name).ok_or_else(|| {
             format!("unknown report level `{name}`; expected `debug`, `info`, `warning` or `error`")
         })?),
         None => None,
     };
-    let level = Level::resolve(level, root);
+    let mut level = Level::resolve(level, root);
+    if level.is_default()
+        && let Some(stated) = configured(context, "report", "level")?
+    {
+        level = Level {
+            severity: Severity::parse_level(&stated.value).ok_or_else(|| {
+                format!(
+                    "unknown report level `{}`, which {} states; expected `debug`, `info`, \
+                     `warning` or `error`",
+                    stated.value,
+                    stated.origin.label()
+                )
+            })?,
+            origin: stated.origin.label(),
+        };
+    }
     let shown = level.severity;
     // An unregistered backend fails every program, and `hql config`, naming
     // the layer that supplied it; listing the builtins needs none.
-    let backend = crate::backends::Selection::resolve(cli.options.backend.as_deref(), root);
+    let backend = match crate::backends::Selection::resolve(cli.options.backend.as_deref(), root) {
+        Ok(selection) if selection.origin == crate::backends::Origin::Default => {
+            match configured(context, "execution", "backend")? {
+                Some(stated) => {
+                    let origin = match stated.origin {
+                        crate::context::Origin::System => crate::backends::Origin::System,
+                        crate::context::Origin::User => crate::backends::Origin::User,
+                        _ => crate::backends::Origin::Context,
+                    };
+                    crate::backends::Selection::of(&stated.value, origin)
+                }
+                None => Ok(selection),
+            }
+        }
+        resolved => resolved,
+    };
     if !matches!(
         cli.command,
         Command::Builtins | Command::Help { .. } | Command::Reference { .. }

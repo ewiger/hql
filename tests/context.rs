@@ -496,3 +496,57 @@ fn a_context_selected_for_one_invocation_binds_its_workspace() {
         stderr(&unknown)
     );
 }
+
+#[test]
+fn user_settings_sit_below_the_workspace_and_the_environment() {
+    let sandbox = Sandbox::new();
+    sandbox.write(
+        &sandbox.home().join(".hql/config.toml"),
+        "[report]\nlevel = \"error\"\nmode = \"collect\"\n[execution]\nbackend = \"localhost\"\n",
+    );
+    let tree = sandbox.tree();
+    let shown = ok(&sandbox.run(&tree, &["config"]));
+    assert!(
+        shown.contains("report mode: collect (from user configuration)"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("report level: error (from user configuration)"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("backend: localhost (from user configuration)"),
+        "{shown}"
+    );
+
+    let environment = sandbox
+        .command(&tree, &["config"])
+        .env("HQL_REPORT_LEVEL", "info")
+        .output()
+        .unwrap();
+    assert!(
+        ok(&environment).contains("report level: info (from $HQL_REPORT_LEVEL)"),
+        "{}",
+        stdout(&environment)
+    );
+
+    let project = tree.join("project");
+    sandbox.write(&project.join("hql.toml"), "[report]\nlevel = \"debug\"\n");
+    let shown = ok(&sandbox.run(&project, &["config"]));
+    assert!(
+        shown.contains("report level: debug (from the vault's hql.toml)"),
+        "{shown}"
+    );
+
+    sandbox.write(
+        &sandbox.home().join(".hql/config.toml"),
+        "[execution]\nbackend = \"threads\"\n",
+    );
+    let refused = sandbox.run(&tree, &["1"]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(
+        stderr(&refused).contains("`threads`, which user configuration names"),
+        "{}",
+        stderr(&refused)
+    );
+}
