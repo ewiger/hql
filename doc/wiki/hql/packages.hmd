@@ -1,0 +1,79 @@
+---
+tags: [hql, packages, extensions, modules, design]
+nav:
+  visibility: public
+---
+# Modules, packages, extensions and libraries
+
+Four words name what reaches a program through `import`, and each names one
+thing. A **module** is what a program imports, a **package** is what is
+distributed and installed, an **extension** is the native code that
+implements a package's modules, and a **library** is the compiled file that
+code is loaded from. The rules are
+[HQL-0024, modules](../../proposals/HQL-0024/parts/01-modules.md) ("Three
+identities") and
+[HQL-0057, packages](../../proposals/HQL-0057/parts/01-packages.md).
+
+| Term | What it is | Example |
+| --- | --- | --- |
+| module | the canonical HQL name, a contract of declarations in one `mod.hql`, bound to one provider | `io.net`, `ml.metrics` |
+| package | the distribution unit: a module root holding one or more modules, with the extension that implements them | `std`, `search`, `ml` |
+| extension | the implementation unit: a descriptor, `id`, `abi` and `provides`, and the implementations of the external declarations of the modules it provides | `std`, `ml` |
+| crate | the Cargo form of an installable package's source, named `hql-ext-<package>` | `hql-ext-ml` |
+| library | the shared object an external extension is built into and loaded from | `libhql_ext_ml.dylib` |
+| module root | a directory whose `<path>/mod.hql` files are modules, optionally with a `prelude.hql` | `lib/std/`, `modules/` of a crate |
+
+A program names modules only. `import ml` never says which package provides
+`ml`; the environment settles that, and a module has exactly one provider:
+the runtime, when every declaration has an HQL body or it declares types
+alone, or exactly one extension.
+
+## Builtin and installable packages
+
+A package is **builtin** or **installable**, by how it reaches the binary.
+
+- A **builtin** package lives under `lib/` of the hql repository. Its
+  contracts are bundled with the binary and its extension is compiled into
+  it, so its extension is **internal**. There are two: `std`, the standard
+  package, and `search`.
+- An **installable** package is a crate built into a library and installed
+  under `~/.hql/lib/<package>/`, or named by a workspace's
+  `[packages] paths`. Its extension is **external**: it reaches the process
+  by loading that library.
+
+An installable package is **official** when its crate lives under `crates/`
+of the [hql-extensions](https://github.com/ewiger/hql-extensions)
+repository, **known** when its crate lives elsewhere and the package
+registry admits it by name, and a **path** package when it is installed
+from a directory on the user's machine. Installation by name reaches official
+and known packages only.
+
+A package carries one extension, named as the package is. An installable
+package owns the top-level module namespace of its name: `ml` provides `ml`
+and `ml.metrics` and nothing outside `ml`, and its name is neither a builtin
+package's nor a builtin module's. A builtin package is not held to its
+name: `std` provides `core`, `string`, `io` and the rest, and `search`
+provides `lexical` and `semantic`.
+
+## Three registries
+
+"Registry" is qualified wherever it is written, because three things carry
+the word.
+
+| Name | What it holds | Where |
+| --- | --- | --- |
+| module registry | the modules of the environment, each with its contract | in the process, built from module roots |
+| extension registry | the extensions active in the environment, each with its descriptor | in the process, built by extension discovery ([HQL-0024 part 9](../../proposals/HQL-0024/parts/09-packages-and-extensions.md)) |
+| package registry | every official and known package, pinned to a source | `hql-packages.yaml` at the root of hql-extensions |
+
+## The standard library
+
+"The standard library" is the prose name of the standard package, `std`, and
+stays in use. Elsewhere, "library" alone means the compiled file of an
+external extension, never a package: a prebuilt library is a compiled
+`.dylib`, `.so` or `.dll` for one hql release, not a package of its own.
+
+See [[hql/extensions]] for how a contract is bound to its extension,
+[[hql/std-lib]] for the standard package, and
+[the packages audit](../../status/packages.hmd) for every package this hql
+knows today.

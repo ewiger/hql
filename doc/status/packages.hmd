@@ -1,89 +1,44 @@
 # Packages
 
-Every package the binary carries, with its extension, its modules and what
-each module declares. A **package** is the distribution unit, an
-**extension** the implementation unit, and a **module** the canonical HQL
-name, a contract bound to one provider: the runtime, or exactly one extension
-([HQL-0024, modules](../proposals/HQL-0024/parts/01-modules.md), "Three
-identities"). One extension provides any number of modules.
+Every package this hql knows: the builtin packages the binary carries, and
+the installable packages the package registry lists. The terms, builtin and
+installable, official and known, internal and external, are the
+[packages card](../wiki/hql/packages.hmd)'s. Checked on 2026-11-13 against
+`lib/` of this repository and against `main` of
+[hql-extensions](https://github.com/ewiger/hql-extensions).
 
-A package carries one extension, named as the package is. It carries more
-only when parts of it are enabled or loaded independently: a part compiled out
-of some builds, or a part reaching the process by another transport than the
-rest. How the Rust code of an extension is organized into source modules is
-internal to the extension and never a reason for a second one.
+## Builtin packages
 
-An extension is **internal** when it is built in: its package is a builtin
-package under `lib/` and its code is compiled into the binary. It is
-**external** when its package is installed on its own, typically as a Cargo
-crate, and its code reaches the process through a transport. Every extension
-the binary carries today is internal.
+Under `lib/`, one folder each: contracts bundled with the binary, extension
+compiled in and internal. `src/extensions/mod.rs` registers one descriptor
+per package, each with its `id`, `abi = 1` and `provides`.
 
-The binary carries its builtin packages under `lib/`, one folder each,
-provisioned as builtin: their contracts are bundled with the binary and their
-extensions compiled into it. It carries two: `std`, the standard package
-([std README](../../lib/std/README.md)), and `search`, retrieval over a
-vault's cards ([search README](../../lib/search/README.md)). The root of
-`lib/std/` holds `prelude.hql`, the package's global space, and one folder per
-module; `lib/search/` holds one folder per module and no prelude, so each of its
-modules is imported where it is used.
-
-| Package | Provisioned | Extensions | Modules | Types | Traits |
-| --- | --- | --- | --- | --- | --- |
-| `std` | builtin: contracts bundled, extension compiled in | 1, `std`, internal | 18: 13 provided by the extension, 5 by the runtime | 101 | 14 |
-| `search` | builtin: contracts bundled, extension compiled in | 1, `search`, internal | 2, both provided by the extension | 0 | 0 |
-
-## Extensions
-
-Which modules each extension provides. A module no extension provides is
-implemented by the runtime: every declaration in it has an HQL body, or it
-declares types alone. `src/extensions/mod.rs` registers these two
-descriptors, each with its `id`, `abi = 1` and `provides`; the
-implementations are keyed by module and declared name, and the Rust source
-modules of that directory contribute their step tables to one descriptor.
-Visibility is the module's: `import io.net` makes `io.net` visible and
-nothing else `std` provides.
-
-| Extension | Kind | Package | Provides | Contract |
+| Package | Extension | Modules | Prelude | Contracts |
 | --- | --- | --- | --- | --- |
-| `std` | internal | `std` | `core`, `collections`, `string`, `seq`, `math`, `stats`, `time`, `random`, `option`, `result`, `regex`, `graph`, `format`, `io`, `io.net`, `io.logging`, `io.fs`, `io.env`, `io.db.sqlite`, `io.db.postgres`, `io.db.spark`, `io.transaction`, `io.msg.nats`, `io.msg.nats_jetstream`, `bytes`, `encoding`, `crypto`, `crypto.digest` | `lib/std/`, one folder per module |
-| `search` | internal | `search` | `lexical`, `semantic` | `lib/search/`, one folder per module |
+| `std` | `std`, internal | 33: 28 provided by the extension, 5 by the runtime (`doc`, `retrieval`, `knowledge`, `vault`, `validators`) | yes, `lib/std/prelude.hql`, the implicit import list | [`lib/std/`](../../lib/std/README.md) |
+| `search` | `search`, internal | 2, `lexical` and `semantic`, both provided by the extension | no; each module is imported where it is used | [`lib/search/`](../../lib/search/README.md) |
 
-## Modules
+The modules `std`'s extension provides: `core`, `collections`, `string`,
+`seq`, `math`, `stats`, `time`, `random`, `option`, `result`, `regex`,
+`graph`, `format`, `io`, `io.net`, `io.logging`, `io.fs`, `io.env`,
+`io.db.sqlite`, `io.db.postgres`, `io.db.spark`, `io.transaction`,
+`io.msg.nats`, `io.msg.nats_jetstream`, `bytes`, `encoding`, `crypto`,
+`crypto.digest`. What each module declares is stated in its package's
+README, not here.
 
-Each module of `std`, in import order: its provider, the runtime or an
-extension marked internal or external, the modules it imports,
-its receiver pattern if it is a receiver module, the types and traits it
-declares, its constructors, how many operation names it declares, and how
-many `impl` headers it writes. Read from each module's `mod.hql` on
-2026-10-23; a document reads only files under its own directory, so the table
-is regenerated by hand when a module changes.
+## Installable packages
 
-| Module | Provider | Imports | Receiver | Types | Traits | Constructors | Operations | Impls |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `core` | `std`, internal | — | — | `Orderable`, `Scalar`, `Bool`, `Int`, `Float`, `Decimal`, `String`, `Date`, `Iterable`, `Collection`, `Stream`, `Seq`, `List`, `Set`, `Map`, `OrderedMap`, `SortedMap`, `Data`, `TypeContract`, `DataContract`, `Option`, `Result`, `Ordering`, `Type`, `Format`, `Is`, `Range`, `Operation`, `Elementwise`, `Partition`, `Reduction`, `Barrier`, `Pair`, `Violation`, `Invalid` | `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Index`, `Slice`, `Validator` | `List`, `Set`, `Map`, `OrderedMap`, `SortedMap`, `Data` | 0 | 32 |
-| `doc` | runtime | `core` | — | `Doc`, `HmdHeader`, `HmdDoc`, `Card`, `HmdCard`, `MdCard` | — | — | 0 | 0 |
-| `retrieval` | runtime | `core` | — | `Hit`, `Ranking` | — | — | 0 | 0 |
-| `graph` | `std`, internal | `core`, `doc`, `retrieval` | — | `Edge`, `Graph`, `Link`, `HmdGraph` | — | `Graph` | 0 | 0 |
-| `knowledge` | runtime | `core`, `doc`, `graph` | — | `Concept`, `Proposition`, `Evidence`, `Knowledge`, `Relation`, `ConceptCard`, `RelationCard`, `KnowledgeGraph` | — | — | 0 | 0 |
-| `collections` | `std`, internal | `core`, `doc` | — | `Group` | — | — | 40 | 0 |
-| `string` | `std`, internal | `core` | `String` | — | — | — | 44 | 0 |
-| `seq` | `std`, internal | `core` | `Seq<T>` | — | — | — | 26 | 0 |
-| `math` | `std`, internal | `core` | — | — | — | — | 17 | 0 |
-| `option` | `std`, internal | `core` | `Option<T>` | — | — | — | 7 | 0 |
-| `result` | `std`, internal | `core` | `Result<T, E>` | — | — | — | 9 | 0 |
-| `regex` | `std`, internal | `core` | — | — | — | — | 7 | 0 |
-| `format` | `std`, internal | `core`, `graph` | — | `Text`, `Lines`, `Hql`, `Markdown`, `Hmd`, `Json`, `JsonLines`, `Yaml`, `Csv`, `D2`, `Mermaid`, `Table` | `Decoder`, `Encoder` | `Table` | 12 | 22 |
-| `io` | `std`, internal | `core` | — | `Endpoint`, `Readable`, `Replayable`, `Writable`, `Stdin`, `Stdout`, `Stderr`, `FileEnd`, `File`, `Channel`, `DataSource`, `FiniteSource`, `LiveSource`, `KeyedSource`, `Position`, `Message`, `StreamSource`, `Catalog`, `VaultSource`, `DataTarget` | — | `Channel` | 5 | 0 |
-| `io.net` | `std`, internal | `core`, `io` | — | `Http`, `WebSocket`, `Socket` | — | — | 0 | 0 |
-| `io.logging` | `std`, internal | `core`, `io` | — | `LogLevel`, `Trace`, `Debug`, `Info`, `Warn`, `Error`, `LogEvent`, `Logger`, `Cell` | — | `Logger` | 5 | 0 |
-| `vault` | runtime | `core`, `doc`, `graph` | — | `Vault` | — | — | 0 | 0 |
-| `validators` | runtime | `core`, `string`, `seq`, `option` | — | — | `Email`, `NonEmpty` | — | 1 | 3 |
+Listed in `hql-packages.yaml` at the root of hql-extensions. An official
+package's crate lives under `crates/` of that repository; a known package's
+crate lives elsewhere.
 
-Each module of `search`, in import order, read the same way. Neither is in a
-prelude; a program writes `import lexical` or `import semantic`.
+| Package | Kind | Crate | Version | hql | Provides | State |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ml` | official | `hql-ext-ml` | 0.1.0 | `>=0.7.0, <0.8.0` | `ml`, `ml.metrics` | contracts and a prelude under `modules/`; the library implements none of them |
 
-| Module | Provider | Imports | Receiver | Types | Traits | Constructors | Operations | Impls |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `lexical` | `search`, internal | `core`, `doc`, `retrieval` | — | — | — | — | 1 | 0 |
-| `semantic` | `search`, internal | `core`, `doc`, `retrieval` | — | — | — | — | 1 | 0 |
+There are no known packages. Nothing is installed anywhere: `hql` has no
+`package` command, no `[packages]` table, nothing under `~/.hql/lib/`, and
+no `hql::ext` API a crate can implement an extension against
+([HQL-0057 part 1](../proposals/HQL-0057/parts/01-packages.md), "Current
+state"). No release publishes prebuilt libraries
+([part 3](../proposals/HQL-0057/parts/03-prebuilt-libraries.md)).
