@@ -6,6 +6,6 @@
 // expected-json: [42, 2, 3, 3]
 
 // `fn abs(self: Int)` and `fn size<T>(self: Collection<T>)` write their
-// receiver; `fn length(self)` takes `String`, the pattern of
+// receiver; `fn size(self)` takes `String`, the pattern of
 // `module string for String`. Each is one declaration behind three call forms.
-[(0 - 42).abs(), [1, 2].size(), "abc".length(), string.length("abc")]
+[(0 - 42).abs(), [1, 2].size(), "abc".size(), string.size("abc")]

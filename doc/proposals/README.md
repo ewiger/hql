@@ -115,3 +115,4 @@ outside this list.
 | [HQL-0053](HQL-0053/README.md) | implemented | Bytes, keys, signatures and encryption |
 | [HQL-0054](HQL-0054/README.md) | accepted | Key vaults: stored keys, SSH agents, keychains and cloud key managers |
 | [HQL-0055](HQL-0055/README.md) | drafted | Steps, autes, stages, tasks and jobs: units of computation and units of execution |
+| [HQL-0056](HQL-0056/README.md) | drafted | Logical computation model and backend engines: a `Step` run at once or planned |

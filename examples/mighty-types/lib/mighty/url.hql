@@ -5,6 +5,6 @@ module mighty.url for String
 
 separator = "-"
 
-private fn words(self) : List<String> = self.lower().split(" ").filter(w => w.length() > 0)
+private fn words(self) : List<String> = self.lower().split(" ").filter(w => w.size() > 0)
 
 fn slug(self) : String = self.words().join(separator)

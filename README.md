@@ -263,7 +263,7 @@ reads it as that type, and a `DataContract` states what such a value must
 hold beyond its shape:
 
 ```hql
-fn is_country_code(code: String) : Bool = code.length() == 2 and code.upper() == code
+fn is_country_code(code: String) : Bool = code.size() == 2 and code.upper() == code
 
 type User : DataContract = {
     id: String

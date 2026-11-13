@@ -11,5 +11,5 @@
 // lines to `data/journal.txt`; a program that ends in a write has no value
 // to show.
 source(file("../data/haiku.txt"), Lines)
-| map(l => fmt("{} ({} characters)", l, l.length()))
+| map(l => fmt("{} ({} characters)", l, l.size()))
 | sink(file("../data/journal.txt").end, Lines)

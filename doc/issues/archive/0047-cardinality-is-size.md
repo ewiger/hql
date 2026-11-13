@@ -1,6 +1,6 @@
 # 0047 — Cardinality is `size`: a String's `size` replaces `length`
 
-Status: todo
+Status: done
 Related: [HQL-0014](../proposals/HQL-0014/README.md),
 [HQL-0026](../proposals/HQL-0026/README.md),
 [`lib/std/string`](../../lib/std/string/mod.hql)
@@ -28,3 +28,12 @@ withdrawing `length`.
    operation-signatures model, and every example and card under `doc/` and
    `examples/` that calls it.
 6. HQL-0014 and HQL-0026 changelogs: mark the decision implemented.
+
+## Outcome
+
+Done in 0.6.0 (issue 0072). `fn length(self)` is removed from
+`lib/std/string/mod.hql` and the `string` extension; `s.length()` and
+`s | length` are refused with help naming `s.size()`. `tests/core.rs` pins
+`size` over multi-byte text beside `chars` and `bytes`, and the refusal.
+The corpus, the book, the bracket operator card and HQL-0014 and HQL-0026
+say `size`.

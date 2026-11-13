@@ -7,7 +7,7 @@
 
 // `validate country with is_country_code` is `require is_country_code(country)`.
 // `age` is optional: a rule reads it as `age?`, and holds where it is absent.
-fn is_country_code(code: String) : Bool = code.length() == 2 and code.upper() == code
+fn is_country_code(code: String) : Bool = code.size() == 2 and code.upper() == code
 
 type UserData : DataContract = {
     id: String

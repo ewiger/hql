@@ -225,7 +225,7 @@ fn a_result_is_ok_or_err_and_a_match_covers_both() {
     );
     assert_eq!(
         shown(&format!(
-            "{parse}p(\"x\").map_err(e => e.length()).err().unwrap_or(0)"
+            "{parse}p(\"x\").map_err(e => e.size()).err().unwrap_or(0)"
         )),
         "1"
     );
@@ -237,7 +237,7 @@ fn a_result_is_ok_or_err_and_a_match_covers_both() {
     );
     assert_eq!(
         shown(&format!(
-            "{parse}match p(\"x\") {{ ok(n) => n, err(e) => e.length() }}"
+            "{parse}match p(\"x\") {{ ok(n) => n, err(e) => e.size() }}"
         )),
         "1"
     );

@@ -31,12 +31,8 @@ fn str<T>(self: T) : String
 /// value in a `Format`.
 fn fmt(self, args: ...Any) : String
 
-/// How many characters `self` has, counting code points: `"héllo" | length`
-/// is `5`.
-fn length(self) : Int
-
-/// How many characters `self` has, counting code points; the same as
-/// `length`: `"héllo" | size` is `5`.
+/// How many characters `self` has, counting code points: `"héllo" | size`
+/// is `5`, and `s.size() == s.chars().size()` for every `s`.
 fn size(self) : Int
 
 /// `self` in upper case: `"Straße" | upper` is `"STRASSE"`.

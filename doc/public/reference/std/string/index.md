@@ -16,8 +16,7 @@ through `at` and `slice`: `s[1]` is `s.at(1)`, and `s[1:3]` is
 - [`at`](at.md) — The character of `self` at `position`, as text, or `none` outside the text; a negative position counts from the end: `"hello".at(1)` and `"hello"[1]` are `"e"`.
 - [`str`](str.md) — The text `self` prints as, for a value of any type: `str(some(2))` is `"2"`.
 - [`fmt`](fmt.md) — The template `self` with each `{}` replaced by the text of the next of `args`, in order: `fmt("{} of {}", 1, some(2))` is `"1 of 2"`.
-- [`length`](length.md) — How many characters `self` has, counting code points: `"héllo" | length` is `5`.
-- [`size`](size.md) — How many characters `self` has, counting code points; the same as `length`: `"héllo" | size` is `5`.
+- [`size`](size.md) — How many characters `self` has, counting code points: `"héllo" | size` is `5`, and `s.size() == s.chars().size()` for every `s`.
 - [`upper`](upper.md) — `self` in upper case: `"Straße" | upper` is `"STRASSE"`.
 - [`lower`](lower.md) — `self` in lower case: `"ÀB" | lower` is `"àb"`.
 - [`trim`](trim.md) — `self` without leading and trailing whitespace: `"  a b " | trim` is `"a b"`.

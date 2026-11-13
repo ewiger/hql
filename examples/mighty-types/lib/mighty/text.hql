@@ -4,4 +4,4 @@ module mighty.text for String
 
 fn shout(self) : String = fmt("{}!", self.upper())
 fn initials(self) : String = self.split(" ").map(w => w.chars().first().unwrap_or("")).join("")
-fn is_blank(self) : Bool = self.trim().length() == 0
+fn is_blank(self) : Bool = self.trim().size() == 0

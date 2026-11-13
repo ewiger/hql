@@ -24,7 +24,7 @@ m = Map(["one", "two", "three"], [1, 2, 3])
     m.values() | sort | map(str) | join(","),
     str(m.entries().map(e => e.second).sum()),
     str(m.with("four", 4).keys | size),
-    str(to_map(["apple", "pear", "fig"], w => w, w => w.length()).get("pear").unwrap_or(0)),
+    str(to_map(["apple", "pear", "fig"], w => w, w => w.size()).get("pear").unwrap_or(0)),
     str([3, 1, 3, 2, 1].distinct()),
     str([1, 2, 3, 4, 5, 6] | collect(2)),
 ]

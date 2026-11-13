@@ -266,6 +266,23 @@ fn strings_and_data_literals() {
 }
 
 #[test]
+fn a_string_size_counts_code_points_not_bytes() {
+    assert_eq!(eval(r#""héllo".size()"#), Ok(Value::Int(5)));
+    assert_eq!(eval(r#""héllo" | size"#), Ok(Value::Int(5)));
+    assert_eq!(eval(r#""héllo".chars().size()"#), Ok(Value::Int(5)));
+    assert_eq!(eval(r#""héllo".bytes().size()"#), Ok(Value::Int(6)));
+}
+
+#[test]
+fn a_string_length_is_refused_naming_size() {
+    for source in [r#""héllo".length()"#, r#""héllo" | length"#] {
+        let refusal = check(source).expect_err(source);
+        let help = refusal.to_json().to_string();
+        assert!(help.contains("`length` is now `size`"), "{source}: {help}");
+    }
+}
+
+#[test]
 fn the_link_operator_builds_an_edge() {
     assert_eq!(check("@[[alice]] -> @[[bob]]"), Ok(TypeRef::EDGE));
     assert_eq!(

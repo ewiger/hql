@@ -20,11 +20,18 @@ const RETIRED: &[(&str, &str)] = &[("typed", "of_type"), ("flatten", "emit")];
 
 /// Names that were steps and have no single replacement, with what to write
 /// instead.
-const EXPLAINED: &[(&str, &str)] = &[(
-    "table",
-    "a table is a value of the type `Table`, built by its constructor: \
-     `Table(xs, columns = [...])`",
-)];
+const EXPLAINED: &[(&str, &str)] = &[
+    (
+        "table",
+        "a table is a value of the type `Table`, built by its constructor: \
+         `Table(xs, columns = [...])`",
+    ),
+    (
+        "length",
+        "`length` is now `size`: `s.size()` counts a String's code points, as \
+         `xs.size()` counts a collection's elements",
+    ),
+];
 
 /// The help a diagnostic carries for a name that is not a step: what to
 /// write instead, or the closest name.

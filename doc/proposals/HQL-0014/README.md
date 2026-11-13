@@ -379,3 +379,5 @@ None.
 - 2026-10-23: cardinality has one name: `size`, with `count(xs)` its kept
   alias; a String declares `size(self)`, its number of code points, and
   `length` is withdrawn. Decided, not yet implemented
+- 2026-11-13: implemented in 0.6.0; a String's `length` is removed, and
+  `s.length()` is refused with help naming `s.size()` (issue 0047)

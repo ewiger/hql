@@ -198,7 +198,10 @@ fn unit_is_refused_naming_step() {
         "type Done { last : Unit }",
     ] {
         let message = refused(source);
-        assert!(message.contains("`Unit` is now `Step`"), "{source}: {message}");
+        assert!(
+            message.contains("`Unit` is now `Step`"),
+            "{source}: {message}"
+        );
     }
 }
 
