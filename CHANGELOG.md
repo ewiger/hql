@@ -10,6 +10,22 @@ The language continues to be in active development.
 
 ### Added
 
+- The book's Part II, [Data flows](doc/public/learn/14-etl-pipelines.md):
+  one shop's story from files to a lakehouse, in endpoints, tables and
+  topics, subjects and the lakehouse, APIs and stores (as design), OLTP (the
+  shop's day, mistakes, replays, streams against tables, a transfer as one
+  transaction) and OLAP (bronze, silver and gold, grain and keys,
+  deduplication, windows, merge, incremental loads), with a page on logical
+  steps and physical plans. Checked programs are shown with what
+  `hql check` prints; the programs that reach a server run in hql-demo.
+- Randomness ([HQL-0041](doc/proposals/HQL-0041/README.md) part 4). The
+  module `random`, imported with `import random`, declares `sample`,
+  `shuffle` and `choice` over a sequence, `sample` over a stream by
+  reservoir, `random_int`, `random_float`, a version 7 `uuid()` and a
+  version 5 `uuid(name, namespace)`. A draw with a `seed` argument is pure;
+  without one it is effectful and draws from the evaluation seed, which
+  `--seed` fixes. The generator is ChaCha12 and is not for secrets. The book
+  teaches it in [Random values](doc/public/learn/29-random.md).
 - Descriptive statistics ([HQL-0041](doc/proposals/HQL-0041/README.md)
   part 2). The module `stats`, imported with `import stats`, declares the
   reductions `mean`, `variance` and `stdev` (sample, `n - 1`), `pvariance`
