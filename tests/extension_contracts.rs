@@ -12,7 +12,7 @@ fn every_catalogue_signature_is_generated_from_its_structural_contract() {
     // where they are used, `time`, `random`, `stats`, `crypto`,
     // `crypto.digest`, `encoding`, `io.fs`, `io.env` and `io.db.postgres`
     // among them.
-    assert_eq!(count, 321);
+    assert_eq!(count, 331);
     for provider in providers {
         for step in provider.steps {
             let mut lines = Vec::new();

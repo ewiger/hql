@@ -109,6 +109,22 @@ pub enum Endpoint {
         /// The stream, the subject within it, and how it is read.
         held: crate::endpoints::Subject,
     },
+    /// A byte endpoint whose writes are age-encrypted to recipients
+    /// (HQL-0053 part 4): the format writes a document's octets, this
+    /// layer encrypts them, and `inner` stores the result.
+    Encrypted {
+        /// Where the age file is stored.
+        inner: Box<Endpoint>,
+        /// The X25519 public keys any one of whose private keys decrypts it.
+        recipients: Vec<[u8; 32]>,
+    },
+    /// A byte endpoint whose contents are age-decrypted with an identity.
+    Decrypted {
+        /// Where the age file is read from.
+        inner: Box<Endpoint>,
+        /// The X25519 private key that opens it.
+        identity: crate::crypto::Identity,
+    },
 }
 
 impl Endpoint {
@@ -132,6 +148,34 @@ impl Endpoint {
             Self::Transaction => TypeRef::TRANSACTION,
             Self::Nats { .. } => TypeRef::NATS,
             Self::NatsJetStream { .. } => TypeRef::NATS_JET_STREAM,
+            Self::Encrypted { .. } => TypeRef::ENCRYPTED_END,
+            Self::Decrypted { inner, .. } => {
+                if inner.type_of().is(&TypeRef::REPLAYABLE) {
+                    TypeRef::DECRYPTED_END
+                } else {
+                    TypeRef::DECRYPTED_LIVE
+                }
+            }
+        }
+    }
+
+    /// The path a format is implied by: a file's, and through an age
+    /// wrapper its file's without `.age`, so `orders.jsonl.age` is JSON
+    /// Lines.
+    #[must_use]
+    pub fn format_path(&self) -> Option<PathBuf> {
+        match self {
+            Self::Encrypted { inner, .. } | Self::Decrypted { inner, .. } => {
+                let path = inner.path()?;
+                Some(
+                    if path.extension().is_some_and(|extension| extension == "age") {
+                        path.with_extension("")
+                    } else {
+                        path.to_path_buf()
+                    },
+                )
+            }
+            other => other.path().map(Path::to_path_buf),
         }
     }
 
@@ -178,6 +222,7 @@ impl Endpoint {
             Self::NatsJetStream { held, .. } => {
                 format!("subject `{}` of stream `{}`", held.subject, held.stream)
             }
+            Self::Encrypted { inner, .. } | Self::Decrypted { inner, .. } => inner.describe(),
         }
     }
 }
@@ -296,6 +341,20 @@ impl fmt::Display for Endpoint {
                     write!(f, ", consumer = {consumer:?}")?;
                 }
                 f.write_str(")")
+            }
+            Self::Encrypted { inner, recipients } => {
+                let recipients: Vec<String> = recipients
+                    .iter()
+                    .map(|key| crate::crypto::keys::age_recipient(key).unwrap_or_default())
+                    .collect();
+                write!(f, "encrypted_to({inner}, {recipients:?})")
+            }
+            // The identity prints as a private key does: its thumbprint.
+            Self::Decrypted { inner, identity } => {
+                let key = crate::crypto::Key::Private(crate::crypto::PrivateKey::X25519(
+                    identity.0.as_ref().clone(),
+                ));
+                write!(f, "decrypted_with({inner}, {})", key.redacted())
             }
         }
     }
@@ -1146,6 +1205,11 @@ pub(crate) fn read_all(endpoint: &Endpoint, format: TypeConstructor) -> Result<V
             )
             .collect()
         }
+        // Every chunk is authenticated before any document is given: the
+        // documents are collected, and a chunk that fails fails them all.
+        Endpoint::Decrypted { inner, identity } => {
+            pieces(open_decrypted(inner, identity)?, format, inner.describe()).collect()
+        }
         other => Err(format!("{} is not read as a whole", other.describe())),
     }
 }
@@ -1341,6 +1405,21 @@ impl Reading {
     /// a time, once: every traversal of the stream, the branches of a
     /// `fork` among them, sees the documents that one read gave
     /// (HQL-0037).
+    /// The documents of an age file, each chunk's given once it is
+    /// authenticated.
+    pub(crate) fn decrypted(endpoint: &Endpoint, format: TypeConstructor) -> Self {
+        let named = endpoint.describe();
+        let held = endpoint.clone();
+        let reader = Lazy {
+            connect: Some(Box::new(move || match &held {
+                Endpoint::Decrypted { inner, identity } => open_decrypted(inner, identity),
+                other => Err(format!("{} is not an age endpoint", other.describe())),
+            })),
+            inner: None,
+        };
+        Self::shared(pieces(Box::new(reader), format, named))
+    }
+
     pub(crate) fn file(path: PathBuf, format: TypeConstructor) -> Self {
         let named = path.display().to_string();
         let reader = Lazy {
@@ -1606,6 +1685,231 @@ pub(crate) enum Destination {
     WebSocket(String, Box<crate::net::Connection>),
     /// One message per document, published to a subject.
     Nats(Box<crate::nats::Publisher>),
+    /// An age file being written, its chunks encrypted as they fill.
+    Sealed(Box<Sealed>),
+}
+
+/// An age file being written: to a file beside its destination, renamed
+/// over it once the last chunk is written, or to standard output.
+pub(crate) struct Sealed {
+    writer: Option<age::stream::StreamWriter<Box<dyn Write + Send>>>,
+    /// The file written beside the destination, and the destination.
+    commit: Option<(PathBuf, PathBuf)>,
+    named: String,
+}
+
+impl Sealed {
+    fn open(inner: &Endpoint, recipients: &[[u8; 32]]) -> Result<Self, String> {
+        let named = inner.describe();
+        let (output, commit): (Box<dyn Write + Send>, _) = match inner {
+            Endpoint::File(path) => {
+                let full = record(path, Written::Replaced)?;
+                let beside = beside(&full);
+                let file = fs::File::create(&beside)
+                    .map_err(|error| format!("{}: {error}", path.display()))?;
+                (Box::new(file), Some((beside, full)))
+            }
+            Endpoint::Stdout => (Box::new(std::io::stdout()), None),
+            Endpoint::FileEnd(path) => {
+                return Err(format!(
+                    "{}: an age file is one header and one stream of chunks, and nothing is \
+                     appended to it",
+                    path.display()
+                ));
+            }
+            other => {
+                return Err(format!(
+                    "{}: an age file is stored in a file or written to standard output",
+                    other.describe()
+                ));
+            }
+        };
+        let writer = crate::crypto::encrypt::writer_to(recipients, output)
+            .map_err(|error| format!("{named}: {error}"))?;
+        Ok(Self {
+            writer: Some(writer),
+            commit,
+            named,
+        })
+    }
+
+    fn line(&mut self, text: &str) -> Result<(), String> {
+        let writer = self
+            .writer
+            .as_mut()
+            .ok_or_else(|| format!("{}: the age file is finished", self.named))?;
+        writer
+            .write_all(text.as_bytes())
+            .and_then(|()| writer.write_all(b"\n"))
+            .map_err(|error| format!("{}: {error}", self.named))
+    }
+
+    fn finish(&mut self) -> Result<(), String> {
+        let Some(writer) = self.writer.take() else {
+            return Ok(());
+        };
+        let mut output = writer
+            .finish()
+            .map_err(|error| format!("{}: {error}", self.named))?;
+        output
+            .flush()
+            .map_err(|error| format!("{}: {error}", self.named))?;
+        drop(output);
+        if let Some((beside, full)) = self.commit.take()
+            && let Err(error) = fs::rename(&beside, &full)
+        {
+            let _ = fs::remove_file(&beside);
+            return Err(format!("{}: {error}", self.named));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for Sealed {
+    /// A write that never finished leaves the file it would have replaced.
+    fn drop(&mut self) {
+        if let Some((beside, _)) = self.commit.take() {
+            let _ = fs::remove_file(beside);
+        }
+    }
+}
+
+/// The file a whole write goes to before it is renamed over `full`.
+fn beside(full: &Path) -> PathBuf {
+    let parent = full
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    let name = full
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    parent.join(format!(".{name}.hql-{}", std::process::id()))
+}
+
+/// What has been read through a reader: its count, and its first octets,
+/// where an age header is.
+#[derive(Default)]
+struct Seen {
+    count: u64,
+    prefix: Vec<u8>,
+}
+
+/// A reader that counts what passes through it and keeps the first 64 KiB.
+struct Counting {
+    inner: Box<dyn Read + Send>,
+    seen: Arc<Mutex<Seen>>,
+}
+
+impl Read for Counting {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let read = self.inner.read(buf)?;
+        if let Ok(mut seen) = self.seen.lock() {
+            seen.count += read as u64;
+            let room = (64 * 1024_usize).saturating_sub(seen.prefix.len());
+            seen.prefix.extend_from_slice(&buf[..read.min(room)]);
+        }
+        Ok(read)
+    }
+}
+
+/// The plaintext of an age stream, an error naming the chunk's octet
+/// offset where a chunk does not authenticate or the stream ends early.
+struct Located<R> {
+    inner: R,
+    plaintext: u64,
+    payload: u64,
+    named: String,
+}
+
+impl<R: Read> Read for Located<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self.inner.read(buf) {
+            Ok(read) => {
+                self.plaintext += read as u64;
+                Ok(read)
+            }
+            Err(error) => {
+                // A chunk holds 64 KiB of plaintext and a 16-octet tag.
+                let offset = self.payload + (self.plaintext / 65_536) * (65_536 + 16);
+                Err(std::io::Error::other(format!(
+                    "{}: the age chunk at octet offset {offset} does not authenticate, or the \
+                     file ends without its final chunk ({error})",
+                    self.named
+                )))
+            }
+        }
+    }
+}
+
+/// The stanza types an age header holds: `X25519`, `scrypt`.
+fn stanza_types(header: &[u8]) -> Vec<String> {
+    let mut types: Vec<String> = String::from_utf8_lossy(header)
+        .lines()
+        .take_while(|line| !line.starts_with("---"))
+        .filter_map(|line| line.strip_prefix("-> "))
+        .filter_map(|stanza| stanza.split_whitespace().next())
+        .map(str::to_owned)
+        .collect();
+    types.dedup();
+    types
+}
+
+/// The plaintext of the age file a byte endpoint holds, opened with
+/// `identity` and read one authenticated chunk at a time.
+fn open_decrypted(
+    inner: &Endpoint,
+    identity: &crate::crypto::Identity,
+) -> Result<Box<dyn Read + Send>, String> {
+    let named = inner.describe();
+    let raw: Box<dyn Read + Send> = match inner {
+        Endpoint::File(path) => {
+            let full = readable(path)?;
+            Box::new(fs::File::open(&full).map_err(|error| format!("{}: {error}", path.display()))?)
+        }
+        Endpoint::Http { url, headers, .. } => Box::new(std::io::Cursor::new(
+            fetched(url, headers)?.as_ref().clone(),
+        )),
+        Endpoint::Stdin => Box::new(std::io::stdin()),
+        other => {
+            return Err(format!(
+                "{}: an age file is read from a file, standard input or HTTP",
+                other.describe()
+            ));
+        }
+    };
+    let seen = Arc::new(Mutex::new(Seen::default()));
+    let counting = Counting {
+        inner: raw,
+        seen: Arc::clone(&seen),
+    };
+    let reader = crate::crypto::encrypt::reader_with(&identity.0, counting).map_err(|refusal| {
+        let header = seen
+            .lock()
+            .map(|seen| seen.prefix.clone())
+            .unwrap_or_default();
+        match refusal {
+            crate::crypto::encrypt::Refusal::NoStanza(_) => {
+                let types = stanza_types(&header);
+                format!(
+                    "{named}: the identity opens no stanza of the age header, which holds {}",
+                    if types.is_empty() {
+                        "none".to_owned()
+                    } else {
+                        types.join(", ")
+                    }
+                )
+            }
+            _ => format!("{named}: not an age file, or its header has been changed"),
+        }
+    })?;
+    let payload = seen.lock().map(|seen| seen.count).unwrap_or(0);
+    Ok(Box::new(Located {
+        inner: reader,
+        plaintext: 0,
+        payload,
+        named,
+    }))
 }
 
 impl Destination {
@@ -1686,6 +1990,14 @@ impl Destination {
                 )?)),
                 false,
             )),
+            Endpoint::Encrypted { inner, recipients } => Ok((
+                Self::Sealed(Box::new(Sealed::open(inner, recipients)?)),
+                false,
+            )),
+            Endpoint::Decrypted { inner, .. } => Err(format!(
+                "{} is read through `decrypted_with`; write it through `encrypted_to`",
+                inner.describe()
+            )),
             Endpoint::FileEnd(path) => {
                 let full = record(path, Written::Appended)?;
                 let file = fs::OpenOptions::new()
@@ -1725,6 +2037,7 @@ impl Destination {
             Self::Socket(stream) => return crate::net::line(stream, text),
             Self::WebSocket(url, connection) => return crate::net::post(connection, url, text),
             Self::Nats(publisher) => return publisher.send(text.to_owned()),
+            Self::Sealed(sealed) => return sealed.line(text),
         };
         result.map_err(|error| error.to_string())
     }
@@ -1737,6 +2050,7 @@ impl Destination {
     pub(crate) fn finish(&mut self) -> Result<(), String> {
         match self {
             Self::Nats(publisher) => publisher.flush(),
+            Self::Sealed(sealed) => sealed.finish(),
             _ => Ok(()),
         }
     }
@@ -1748,6 +2062,8 @@ impl Destination {
 /// # Errors
 /// Names the endpoint when the host refuses it or the write fails.
 pub(crate) fn write_whole(endpoint: &Endpoint, text: &str) -> Result<(), String> {
+    // An age file is written whole too: beside its destination, renamed
+    // over it once its last chunk is written.
     let Endpoint::File(path) = endpoint else {
         let (mut destination, _) = Destination::open(endpoint)?;
         destination.line(text)?;

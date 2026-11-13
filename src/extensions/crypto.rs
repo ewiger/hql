@@ -59,7 +59,35 @@ pub(crate) static STEPS: &[Operation] = &[
     declared("verify_mac", eval_verify_mac),
     effectful("hash_password", eval_hash_password),
     declared("verify_password", eval_verify_password),
+    effectful("encrypt", eval_encrypt),
+    declared("decrypt", eval_decrypt),
+    effectful("encrypt_to", eval_encrypt_to),
+    declared("decrypt_with", eval_decrypt_with),
+    effectful("encrypt_with_passphrase", eval_encrypt_with_passphrase),
+    declared("decrypt_with_passphrase", eval_decrypt_with_passphrase),
+    declared("armor", eval_armor),
+    declared("unarmor", eval_unarmor),
+    Operation {
+        check: Some(check_encrypted_to),
+        ..declared("encrypted_to", eval_encrypted_to)
+    },
+    declared("decrypted_with", eval_decrypted_with),
 ];
+
+/// Whether a step is one of `crypto`'s that draws from the host
+/// generator: a key, a nonce, a salt or an age file key.
+/// The six names are declared by `crypto` alone.
+pub(crate) fn reads_host_generator(step: &Operation) -> bool {
+    matches!(
+        step.name,
+        "generate_key_pair"
+            | "generate_secret_key"
+            | "encrypt"
+            | "encrypt_to"
+            | "encrypt_with_passphrase"
+            | "hash_password"
+    )
+}
 
 /// `F` and `A` of a call that names both: a format that holds no key of
 /// the algorithm is refused before anything runs.
@@ -745,6 +773,278 @@ fn eval_verify_password(
     crate::crypto::sign::verify_password(&password, &hash)
         .map(Value::Bool)
         .map_err(|message| fail(&span, message))
+}
+
+// Encryption (part 4).
+
+/// The `aad` a call binds, or no octets.
+fn aad_of(
+    cx: &mut dyn EvalCx,
+    arguments: &[TypedArg],
+    span: &Range<usize>,
+) -> Result<Zeroizing<Vec<u8>>> {
+    match super::named(arguments, "aad") {
+        Some(argument) => {
+            let value = cx.evaluate(&argument.value)?;
+            message_octets(&value, "aad", span)
+        }
+        None => Ok(Zeroizing::new(Vec::new())),
+    }
+}
+
+/// The X25519 public keys a list of recipients holds.
+fn recipient_keys(value: &Value, name: &str, span: &Range<usize>) -> Result<Vec<[u8; 32]>> {
+    let elements = value
+        .elements()
+        .ok_or_else(|| fail(span, format!("`{name}` needs a list of X25519 public keys")))?;
+    elements
+        .iter()
+        .map(|element| match public_of(element, name, span)? {
+            PublicKey::X25519(key) => Ok(*key),
+            other => Err(fail(
+                span,
+                format!(
+                    "`{name}` encrypts to X25519 keys, and one is {}",
+                    other.algorithm().name()
+                ),
+            )),
+        })
+        .collect()
+}
+
+/// The X25519 octets of a private key.
+pub(crate) fn identity_octets(
+    value: &Value,
+    name: &str,
+    span: &Range<usize>,
+) -> Result<Zeroizing<[u8; 32]>> {
+    match private_of(value, name, span)? {
+        PrivateKey::X25519(key) => Ok(key.clone()),
+        other => Err(fail(
+            span,
+            format!(
+                "`{name}` decrypts with an X25519 key, and this is {}",
+                other.algorithm().name()
+            ),
+        )),
+    }
+}
+
+fn optional_bytes(octets: Option<Zeroizing<Vec<u8>>>) -> Value {
+    match octets {
+        Some(octets) => Value::Present(Arc::new(Value::Bytes(octets.as_slice().into()))),
+        None => Value::Absent(TypeRef::BYTES),
+    }
+}
+
+fn eval_encrypt(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let plaintext = message_octets(&input, "encrypt", &span)?;
+    let key = argument(cx, arguments, 0, "encrypt", "a cipher key", &span)?;
+    let aad = aad_of(cx, arguments, &span)?;
+    crate::crypto::encrypt::encrypt(&plaintext, secret_of(&key, "encrypt", &span)?, &aad)
+        .map(|sealed| Value::Bytes(sealed.into()))
+        .map_err(|message| fail(&span, message))
+}
+
+fn eval_decrypt(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let sealed = super::bytes::input_octets(&input, "decrypt", &span)?;
+    let key = argument(cx, arguments, 0, "decrypt", "a cipher key", &span)?;
+    let aad = aad_of(cx, arguments, &span)?;
+    crate::crypto::encrypt::decrypt(&sealed, secret_of(&key, "decrypt", &span)?, &aad)
+        .map(optional_bytes)
+        .map_err(|message| fail(&span, message))
+}
+
+fn eval_encrypt_to(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let plaintext = message_octets(&input, "encrypt_to", &span)?;
+    let recipients = argument(
+        cx,
+        arguments,
+        0,
+        "encrypt_to",
+        "a list of recipients",
+        &span,
+    )?;
+    let keys = recipient_keys(&recipients, "encrypt_to", &span)?;
+    crate::crypto::encrypt::encrypt_to(&plaintext, &keys)
+        .map(|sealed| Value::Bytes(sealed.into()))
+        .map_err(|message| fail(&span, message))
+}
+
+fn eval_decrypt_with(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let sealed = super::bytes::input_octets(&input, "decrypt_with", &span)?;
+    let identity = argument(
+        cx,
+        arguments,
+        0,
+        "decrypt_with",
+        "an X25519 private key",
+        &span,
+    )?;
+    let key = identity_octets(&identity, "decrypt_with", &span)?;
+    Ok(optional_bytes(crate::crypto::encrypt::decrypt_with(
+        &sealed, &key,
+    )))
+}
+
+fn eval_encrypt_with_passphrase(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let plaintext = super::bytes::input_octets(&input, "encrypt_with_passphrase", &span)?;
+    let passphrase = argument(
+        cx,
+        arguments,
+        0,
+        "encrypt_with_passphrase",
+        "a passphrase",
+        &span,
+    )?;
+    let passphrase = Zeroizing::new(text_of(&passphrase, "encrypt_with_passphrase", &span)?);
+    crate::crypto::encrypt::encrypt_with_passphrase(&plaintext, &passphrase)
+        .map(|sealed| Value::Bytes(sealed.into()))
+        .map_err(|message| fail(&span, message))
+}
+
+fn eval_decrypt_with_passphrase(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let sealed = super::bytes::input_octets(&input, "decrypt_with_passphrase", &span)?;
+    let passphrase = argument(
+        cx,
+        arguments,
+        0,
+        "decrypt_with_passphrase",
+        "a passphrase",
+        &span,
+    )?;
+    let passphrase = Zeroizing::new(text_of(&passphrase, "decrypt_with_passphrase", &span)?);
+    crate::crypto::encrypt::decrypt_with_passphrase(&sealed, &passphrase)
+        .map(optional_bytes)
+        .map_err(|message| fail(&span, message))
+}
+
+fn eval_armor(
+    _cx: &mut dyn EvalCx,
+    input: Value,
+    _arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let message = super::bytes::input_octets(&input, "armor", &span)?;
+    crate::crypto::encrypt::armor(&message)
+        .map(|text| Value::Str(Arc::from(text)))
+        .map_err(|message| fail(&span, message))
+}
+
+fn eval_unarmor(
+    _cx: &mut dyn EvalCx,
+    input: Value,
+    _arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let text = text_of(&input, "unarmor", &span)?;
+    Ok(match crate::crypto::encrypt::unarmor(&text) {
+        Some(message) => Value::Present(Arc::new(Value::Bytes(message.into()))),
+        None => Value::Absent(TypeRef::BYTES),
+    })
+}
+
+// Encrypted endpoints (part 4).
+
+/// The endpoint an argument or input holds.
+fn endpoint_of(value: &Value, name: &str, span: &Range<usize>) -> Result<Arc<crate::io::Endpoint>> {
+    match value {
+        Value::Endpoint(endpoint) => Ok(Arc::clone(endpoint)),
+        other => Err(fail(
+            span,
+            format!("`{name}` wraps an endpoint, not {}", other.type_of()),
+        )),
+    }
+}
+
+/// `encrypted_to(file(p).end, …)` is refused before anything runs.
+fn check_encrypted_to(
+    _: &mut dyn CheckCx,
+    call: &super::spec::CheckedCall<'_>,
+    span: Range<usize>,
+) -> Result<()> {
+    if call.input.is(&TypeRef::FILE_END) {
+        return Err(Diagnostic::typing(
+            span,
+            "an age file is one header and one stream of chunks, and nothing is appended to it: \
+             encrypt to the whole file, `file(p)`, not its `.end`",
+        ));
+    }
+    Ok(())
+}
+
+fn eval_encrypted_to(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let (endpoint, rest) = constructor_input(cx, input, arguments)?;
+    let inner = endpoint_of(&endpoint, "encrypted_to", &span)?;
+    let recipients = match rest.first() {
+        Some(argument) => cx.evaluate(&argument.value)?,
+        None => return Err(fail(&span, "`encrypted_to` needs a list of recipients")),
+    };
+    let recipients = recipient_keys(&recipients, "encrypted_to", &span)?;
+    if recipients.is_empty() {
+        return Err(fail(
+            &span,
+            "an age file has at least one recipient, and the list is empty",
+        ));
+    }
+    Ok(Value::Endpoint(Arc::new(crate::io::Endpoint::Encrypted {
+        inner: Box::new(inner.as_ref().clone()),
+        recipients,
+    })))
+}
+
+fn eval_decrypted_with(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let (endpoint, rest) = constructor_input(cx, input, arguments)?;
+    let inner = endpoint_of(&endpoint, "decrypted_with", &span)?;
+    let identity = match rest.first() {
+        Some(argument) => cx.evaluate(&argument.value)?,
+        None => return Err(fail(&span, "`decrypted_with` needs an X25519 private key")),
+    };
+    let key = identity_octets(&identity, "decrypted_with", &span)?;
+    Ok(Value::Endpoint(Arc::new(crate::io::Endpoint::Decrypted {
+        inner: Box::new(inner.as_ref().clone()),
+        identity: crate::crypto::Identity(Arc::new(key)),
+    })))
 }
 
 #[cfg(test)]

@@ -51,10 +51,7 @@ fn copy_tree(from: &Path, to: &Path) {
                 .path()
                 .parent()
                 .is_some_and(|parent| parent.ends_with("keys"))
-                && target
-                    .extension()
-                    .is_some_and(|extension| extension == "pem")
-                && !target.to_string_lossy().ends_with(".pub.pem")
+                && !target.to_string_lossy().contains(".pub.")
             {
                 use std::os::unix::fs::PermissionsExt as _;
                 fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();

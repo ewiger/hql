@@ -256,6 +256,14 @@ fn literal_path(expression: &Expr) -> Option<&str> {
                     _ => None,
                 }
             }
+            // Through an age wrapper, the path without `.age` implies the
+            // format: `encrypted_to(file("orders.jsonl.age"), …)` is JSON
+            // Lines (HQL-0053 part 4).
+            (Kind::Ident(name), [inner, ..]) | (Kind::Field(_, name), [inner, ..])
+                if matches!(name.as_str(), "encrypted_to" | "decrypted_with") =>
+            {
+                literal_path(&inner.value).map(|path| path.strip_suffix(".age").unwrap_or(path))
+            }
             _ => None,
         },
         Kind::Pipe(input, step) => match (&input.kind, &step.kind) {
@@ -1017,8 +1025,8 @@ fn evaluated_format(
         return Ok(TypeConstructor("Json"));
     }
     endpoint
-        .path()
-        .and_then(io::format_of_extension)
+        .format_path()
+        .and_then(|path| io::format_of_extension(&path))
         .ok_or_else(|| Diagnostic::runtime(span.clone(), "no format is named or implied"))
 }
 
@@ -1124,7 +1132,10 @@ fn eval_source(
     let element = io::document_type(format)
         .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     match endpoint.as_ref() {
-        Endpoint::File(_) | Endpoint::Http { .. } => {
+        Endpoint::Decrypted { .. } if !endpoint.type_of().is(&TypeRef::REPLAYABLE) => {
+            Ok(live(Reading::decrypted(&endpoint, format), element, span))
+        }
+        Endpoint::File(_) | Endpoint::Http { .. } | Endpoint::Decrypted { .. } => {
             let values = io::read_all(&endpoint, format)
                 .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             Ok(Value::Traversal(Arc::new(Traversal::kept(element, values))))
@@ -1183,6 +1194,7 @@ fn eval_tap(
             format,
         },
         Endpoint::File(path) => Reading::file(path.clone(), format),
+        Endpoint::Decrypted { .. } => Reading::decrypted(&endpoint, format),
         Endpoint::FileEnd(path) => Reading::Follow {
             path: path.clone(),
             format,

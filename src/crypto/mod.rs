@@ -8,6 +8,7 @@
 //! reaches key material. The only paths to the octets are the operations of
 //! `crypto` that use them and [`keys::export_private`].
 
+pub mod encrypt;
 pub mod keys;
 pub mod sign;
 
@@ -272,6 +273,25 @@ impl PartialEq for Key {
         }
     }
 }
+
+/// An X25519 private key an endpoint decrypts with: held by reference, its
+/// `Debug` redacted, compared in constant time.
+#[derive(Clone)]
+pub struct Identity(pub std::sync::Arc<Zeroizing<[u8; 32]>>);
+
+impl fmt::Debug for Identity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Identity(redacted)")
+    }
+}
+
+impl PartialEq for Identity {
+    fn eq(&self, other: &Self) -> bool {
+        constant_time_eq(&self.0[..], &other.0[..])
+    }
+}
+
+impl Eq for Identity {}
 
 /// Octets from the host's cryptographically secure generator.
 ///

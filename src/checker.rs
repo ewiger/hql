@@ -6297,6 +6297,20 @@ impl<'a> Checker<'a> {
         if let Some(check) = step.check {
             check(self, &call, span.clone())?;
         }
+        // A rendered document is shared, and its output is a function of its
+        // inputs: nothing it runs draws from the host generator (HQL-0053).
+        if matches!(crate::io::policy(), crate::io::Policy::Document { .. })
+            && crate::extensions::crypto::reads_host_generator(step)
+        {
+            return Err(Diagnostic::typing(
+                span,
+                format!(
+                    "`{}` draws from the host's generator, and a rendered document's output is a \
+                     function of its inputs: run it with `hql run`",
+                    step.name
+                ),
+            ));
+        }
         // No format writes private key material: a secret, or a value that
         // holds one, reaching an encoder is refused (HQL-0053).
         if matches!(step.name, "format" | "target" | "sink")

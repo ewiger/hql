@@ -192,3 +192,76 @@ effectful fn hash_password(self: String, *, memory_kib: Int = 19456, iterations:
 /// own parameters. `hash` is a PHC string of Argon2id, Argon2i or Argon2d;
 /// any other is an evaluation error naming its algorithm identifier.
 fn verify_password(self: String, hash: String) : Bool
+
+// Encryption (part 4). Encryption is not a `Format`: over a value it is an
+// operation from `Bytes` to `Bytes`, and over an endpoint a layer between
+// the format and the transport.
+
+/// The authenticated encryption of `self` under `key`, with `aad` bound to
+/// it and not encrypted: a new 12-octet nonce from the host generator, then
+/// the ciphertext, then the 16-octet tag. Under random nonces a key takes
+/// at most 2^32 encryptions, for either cipher.
+effectful fn encrypt<C : Cipher>(self: Bytes, key: SecretKey<C>, *, aad: Bytes = Bytes("")) : Bytes
+
+/// The authenticated encryption of the UTF-8 octets of `self`.
+effectful fn encrypt<C : Cipher>(self: String, key: SecretKey<C>, *, aad: Bytes = Bytes("")) : Bytes
+
+/// The plaintext of `self` under `key` and `aad`, or `none` where `self` is
+/// not an encryption of anything under them: shorter than 28 octets, a
+/// changed octet anywhere, a wrong key or a wrong `aad`.
+fn decrypt<C : Cipher>(self: Bytes, key: SecretKey<C>, *, aad: Bytes = Bytes("")) : Option<Bytes>
+
+/// The age encryption of `self` to every key of `recipients`: any one of
+/// their private keys decrypts it. The `age` command line reads it.
+effectful fn encrypt_to(self: Bytes, recipients: List<PublicKey<X25519>>) : Bytes
+
+/// The age encryption of the UTF-8 octets of `self` to `recipients`.
+effectful fn encrypt_to(self: String, recipients: List<PublicKey<X25519>>) : Bytes
+
+/// The plaintext of the age message `self` for `identity`, or `none` where
+/// it is not a message to that key or has been changed.
+fn decrypt_with(self: Bytes, identity: PrivateKey<X25519>) : Option<Bytes>
+
+/// The age encryption of `self` under a passphrase, by age's scrypt
+/// recipient with work factor 18.
+effectful fn encrypt_with_passphrase(self: Bytes, passphrase: String) : Bytes
+
+/// The plaintext of the age message `self` under `passphrase`, or `none`.
+/// A work factor above 22 is an evaluation error: a message cannot make a
+/// reader spend unbounded memory and time.
+fn decrypt_with_passphrase(self: Bytes, passphrase: String) : Option<Bytes>
+
+/// The ASCII armor of an age message: `-----BEGIN AGE ENCRYPTED FILE-----`.
+fn armor(self: Bytes) : String
+
+/// The age message an armored text holds, or `none`.
+fn unarmor(self: String) : Option<Bytes>
+
+// Encrypted endpoints. The wrappers apply to byte endpoints: files,
+// standard input and output, and HTTP. Where the format is omitted, a
+// literal path ending in `.age` implies the format of the path without it:
+// `file("orders.jsonl.age")` under either wrapper is `JsonLines`.
+
+/// An endpoint whose writes are age-encrypted to `recipients` and stored in
+/// `endpoint`. `target` writes one age file and `sink` encrypts each chunk
+/// as it fills, each replacing the file only once its last chunk is
+/// written. A file's `.end` is refused: nothing is appended to an age file.
+type EncryptedEnd : Writable
+
+/// An endpoint whose contents are those of a replayable `endpoint`,
+/// age-decrypted. `source` authenticates every chunk before it gives any
+/// document; `tap` gives a chunk's documents once that chunk is
+/// authenticated.
+type DecryptedEnd : Replayable
+
+/// An endpoint whose contents are those of a live `endpoint`, age-decrypted.
+type DecryptedLive : Readable
+
+/// `endpoint`, its writes age-encrypted to `recipients`.
+fn encrypted_to(endpoint: Writable, recipients: List<PublicKey<X25519>>) : EncryptedEnd
+
+/// `endpoint`, its contents age-decrypted with `identity`.
+fn decrypted_with(endpoint: Replayable, identity: PrivateKey<X25519>) : DecryptedEnd
+
+/// `endpoint`, its contents age-decrypted with `identity`.
+fn decrypted_with(endpoint: Readable, identity: PrivateKey<X25519>) : DecryptedLive

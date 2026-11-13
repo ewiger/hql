@@ -36,6 +36,8 @@ atoms! {
     SECRET_ALGORITHM => "SecretAlgorithm", CIPHER => "Cipher", MAC => "Mac",
     AES256_GCM => "Aes256Gcm", CHACHA20_POLY1305 => "ChaCha20Poly1305",
     HMAC_SHA256 => "HmacSha256", HMAC_SHA512 => "HmacSha512", SECRET => "Secret",
+    ENCRYPTED_END => "EncryptedEnd", DECRYPTED_END => "DecryptedEnd",
+    DECRYPTED_LIVE => "DecryptedLive",
     KEY_FORMAT => "KeyFormat", PEM => "Pem", JWK => "Jwk", OPEN_SSH => "OpenSsh", AGE => "Age",
     ENDPOINT => "Endpoint", READABLE => "Readable", REPLAYABLE => "Replayable",
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
@@ -521,6 +523,23 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             &[TypeRef::KEY_FORMAT],
         ),
         (TypeRef::AGE, TypeKind::Concrete, &[TypeRef::KEY_FORMAT]),
+        // Encrypted endpoints (HQL-0053 part 4): an age layer between a
+        // format and a byte endpoint.
+        (
+            TypeRef::ENCRYPTED_END,
+            TypeKind::Concrete,
+            &[TypeRef::WRITABLE],
+        ),
+        (
+            TypeRef::DECRYPTED_END,
+            TypeKind::Concrete,
+            &[TypeRef::REPLAYABLE],
+        ),
+        (
+            TypeRef::DECRYPTED_LIVE,
+            TypeKind::Concrete,
+            &[TypeRef::READABLE],
+        ),
     ] {
         system.declare(TypeDefinition {
             kind,

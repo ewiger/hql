@@ -1544,6 +1544,9 @@ mod tests {
                             | "generate_key_pair"
                             | "generate_secret_key"
                             | "hash_password"
+                            | "encrypt"
+                            | "encrypt_to"
+                            | "encrypt_with_passphrase"
                     ))
                 || entry.provider == "io.env";
             let expected = if effectful {
