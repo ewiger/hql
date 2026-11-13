@@ -35,9 +35,6 @@ board:
       - id: "0065"
         title: "Neo4j parity analysis: graph patterns, traversal and graph schema"
         file: 0065-neo4j-parity-analysis.md
-      - id: "0066"
-        title: "`random`: sampling, shuffling and numbers, seeded or drawn"
-        file: 0066-std-random.md
       - id: "0067"
         title: "`crypto`: keys, signatures, encryption and a key vault"
         file: 0067-std-crypto.md

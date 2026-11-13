@@ -23,7 +23,7 @@ ships and what a proposal already specifies, then ranked.
 1. **Time and dates**: instants, durations, zones, the clock.
    Specified by HQL-0041 part 1, `drafted`.
 2. **Randomness**: specified by HQL-0041 part 4; carried by
-   [0066](0066-std-random.md).
+   [0066](archive/0066-std-random.md).
 3. **The file system**: listing, globs and entries are specified by
    HQL-0040, `drafted`. Creating, moving, copying and deleting files and
    folders, file times and watching are its non-goals.

@@ -1,16 +1,17 @@
 # 0066 — `random`: sampling, shuffling and numbers, seeded or drawn
 
-Status: backlog
-Related: [HQL-0041](../proposals/HQL-0041/README.md),
-[HQL-0041 part 4](../proposals/HQL-0041/parts/04-random.md),
-[HQL-0036](../proposals/HQL-0036/README.md)
+Status: done
+Branch: `feat/gen-purpose-leap`
+Related: [HQL-0041](../../proposals/HQL-0041/README.md),
+[HQL-0041 part 4](../../proposals/HQL-0041/parts/04-random.md),
+[HQL-0036](../../proposals/HQL-0036/README.md)
 
 A program cannot put a sequence in random order, take a sample of a vault or a
 stream, or draw a number or a UUID. `range(0, 29) | shuffle` has no meaning
 today; the nearest program sorts by a fixed permutation key, which gives the
 same order on every run.
 
-[HQL-0041 part 4](../proposals/HQL-0041/parts/04-random.md) specifies module
+[HQL-0041 part 4](../../proposals/HQL-0041/parts/04-random.md) specifies module
 `random`: `sample`, `shuffle`, `choice`, `random_int`, `random_float` and
 `uuid`. Each operation is pure when given a `seed` and effectful otherwise,
 drawing from a seed fixed once per evaluation. This issue carries that part
@@ -26,3 +27,10 @@ to code; the other four parts of HQL-0041 (`time`, `stats`, `hash` with
 - The same seed gives the same result across runs and platforms; tests pin
   that for `sample`, `shuffle` and `choice`, and for `sample` over a stream.
 - An example under `examples/` shuffles and samples, with and without a seed.
+
+## Outcome
+
+Every item holds except the rejection of an effectful form where a pure
+function is required: the checker has no context that requires one yet. It
+records the form each call took and the effect that form uses, which such a
+rule reads when it is added.

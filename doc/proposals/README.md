@@ -32,7 +32,7 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | HQL-0022 | reserved | The AI harness extension |
 | [HQL-0023](HQL-0023/README.md) | implemented | A document reference is written `@[[..]]` |
 | [HQL-0024](HQL-0024/README.md) | accepted, implemented in part | A complete type system and the language model around it: traits, modules, receivers, the standard library and extensions |
-| [HQL-0025](HQL-0025/README.md) | accepted | Execution contexts and running modes |
+| [HQL-0025](HQL-0025/README.md) | accepted, implemented in part | Execution contexts and running modes |
 | [HQL-0026](HQL-0026/README.md) | implemented | Positions and slices: `xs[i]`, `xs[a:b]` and the `Slice` capability |
 | [HQL-0027](HQL-0027/README.md) | implemented | Generic traits: type parameters on `trait` and `impl` |
 | [HQL-0028](HQL-0028/README.md) | implemented, with `internal` reserved | Import units, the program module and declaration visibility |
@@ -46,9 +46,9 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0036](HQL-0036/README.md) | proposed, implemented in part | Partitioning, shuffle boundaries and execution scheduling |
 | [HQL-0037](HQL-0037/README.md) | accepted, implemented in part | Dataflow DAG, fan-out, fan-in, fork and merge |
 | [HQL-0038](HQL-0038/README.md) | implemented | Functions |
-| [HQL-0039](HQL-0039/README.md) | drafted | Traits, validator traits, a trait's type, and traits a module implements |
-| [HQL-0040](HQL-0040/README.md) | drafted | `io.fs`: paths, folders, globs and entries |
-| [HQL-0041](HQL-0041/README.md) | accepted | Time, statistics, digests and encodings, randomness, and the environment |
+| [HQL-0039](HQL-0039/README.md) | accepted, implemented | Traits, validator traits, a trait's type, and traits a module implements |
+| [HQL-0040](HQL-0040/README.md) | accepted, implemented | `io.fs`: paths, folders, globs and entries |
+| [HQL-0041](HQL-0041/README.md) | accepted, implemented in part | Time, statistics, digests and encodings, randomness, and the environment |
 | [HQL-0042](HQL-0042/README.md) | implemented | Doc strings: HQL is the one source of a declaration's documentation |
 | [HQL-0043](HQL-0043/README.md) | implemented; the first versioned release publishes it | Public documentation: a reference page per primitive, permanent URLs and versions |
 | [HQL-0044](HQL-0044/README.md) | accepted, implemented | Type checking is the semantic boundary; compilation is an execution strategy |
@@ -58,3 +58,4 @@ as `HQL-0001`, with the proposal itself at `HQL-0001/README.md`.
 | [HQL-0048](HQL-0048/README.md) | drafted | I/O transport namespaces and packaging |
 | [HQL-0049](HQL-0049/README.md) | accepted, implemented | NATS subjects and lakehouse tables as configured endpoints |
 | [HQL-0050](HQL-0050/README.md) | accepted, implemented in part | Analytic windows, and a deterministic order for keyed selection |
+| [HQL-0053](HQL-0053/README.md) | drafted | Bytes, keys, signatures, encryption and a key vault |
