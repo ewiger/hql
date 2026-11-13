@@ -10,6 +10,29 @@ The language continues to be in active development.
 
 ### Added
 
+- Transactions and relational mutations, phase 1
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)): four capabilities of a
+  transport in `io`, `Transactional`, `Insertable`, `Updatable` and
+  `Deletable`, each an abstract type below `Transport` and independent of
+  the others, which `Sqlite` and `Postgres` declare; `IsolationLevel` with
+  `ReadCommitted`, `RepeatableRead` and `Serializable`; and
+  `configured("id")`, the endpoint configured under an id as a value of its
+  kind's transport type, with its boundary, so `source(configured("id"))`
+  reads what `source("id")` reads and `target(xs, configured("id"))` writes
+  what `target(xs, "id")` writes.
+- The module `io.db.postgres` ([HQL-0047](doc/proposals/HQL-0047/README.md),
+  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Postgres :
+  {Network, RowTransport, Replayable, Writable, …}` and its constructor
+  `postgres(dsn_env = …, table = …, order = [])`, every parameter named,
+  which takes the keys of the `postgres` kind, so `source`, `tap` and
+  `target` reach a table with no configured endpoint. The connection string
+  is read from the environment where the endpoint is used.
+
+### Fixed
+
+- A call of a name no import offers, written with named arguments only,
+  reports the missing import rather than a missing positional input.
+
 - Analytic windows ([HQL-0050](doc/proposals/HQL-0050/README.md)):
   `over(by, order, into)` partitions a sequence by `by`, orders each
   partition by `order`, and gives one value per row, at the row's input

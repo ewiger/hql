@@ -55,6 +55,26 @@ pub enum Endpoint {
         /// The columns its rows are ordered by; empty orders by `rowid`.
         order: Vec<String>,
     },
+    /// One table of a PostgreSQL database: one row per element.
+    Postgres {
+        /// The environment variable holding the connection string, read
+        /// where the endpoint is used and never written in a program.
+        dsn_env: String,
+        /// The table, schema-qualified where it holds a dot.
+        table: String,
+        /// The columns its rows are ordered by; empty reads them as the
+        /// table is scanned.
+        order: Vec<String>,
+    },
+    /// A configured endpoint named by its id, `configured("id")`: the
+    /// transport its kind states, with the boundary its configuration
+    /// gives (HQL-0051). Read and written exactly as the id is.
+    Configured {
+        /// The id in `[endpoint.<id>]`.
+        id: String,
+        /// The kind's transport type, fixed when the value was made.
+        ty: TypeRef,
+    },
     /// One core NATS subject: one document per message, published while a
     /// read is subscribed.
     Nats {
@@ -89,8 +109,20 @@ impl Endpoint {
             Self::WebSocket(_) => TypeRef::WEB_SOCKET,
             Self::Socket(..) => TypeRef::SOCKET,
             Self::Sqlite { .. } => TypeRef::SQLITE,
+            Self::Postgres { .. } => TypeRef::POSTGRES,
+            Self::Configured { ty, .. } => ty.clone(),
             Self::Nats { .. } => TypeRef::NATS,
             Self::NatsJetStream { .. } => TypeRef::NATS_JET_STREAM,
+        }
+    }
+
+    /// The id of a configured endpoint named by `configured("id")`, which
+    /// is read and written exactly as the id is; `None` for any other.
+    #[must_use]
+    pub fn configured_id(&self) -> Option<&str> {
+        match self {
+            Self::Configured { id, .. } => Some(id),
+            _ => None,
         }
     }
 
@@ -117,6 +149,10 @@ impl Endpoint {
             Self::Sqlite { path, table, .. } => {
                 format!("table `{table}` of {}", path.display())
             }
+            Self::Postgres { table, dsn_env, .. } => {
+                format!("table `{table}` of the database `{dsn_env}` names")
+            }
+            Self::Configured { id, .. } => format!("endpoint `{id}`"),
             Self::Nats { subject, .. } => format!("subject `{subject}`"),
             Self::NatsJetStream { held, .. } => {
                 format!("subject `{}` of stream `{}`", held.subject, held.stream)
@@ -166,6 +202,18 @@ impl fmt::Display for Endpoint {
                 }
                 f.write_str(")")
             }
+            Self::Postgres {
+                dsn_env,
+                table,
+                order,
+            } => {
+                write!(f, "postgres(dsn_env = {dsn_env:?}, table = {table:?}")?;
+                if !order.is_empty() {
+                    write!(f, ", order = {order:?}")?;
+                }
+                f.write_str(")")
+            }
+            Self::Configured { id, .. } => write!(f, "configured({id:?})"),
             Self::Nats {
                 server,
                 subject,
@@ -1451,9 +1499,13 @@ impl Destination {
             Endpoint::Stdout => Ok((Self::Stdout, false)),
             Endpoint::Stderr => Ok((Self::Stderr, false)),
             Endpoint::Stdin => Err("standard input is not written".to_owned()),
-            Endpoint::Sqlite { .. } => Err(format!(
+            Endpoint::Sqlite { .. } | Endpoint::Postgres { .. } => Err(format!(
                 "{} holds rows, not documents; write it with `target`",
                 endpoint.describe()
+            )),
+            Endpoint::Configured { id, .. } => Err(format!(
+                "endpoint `{id}` is written as its configuration says, by `target(\"{id}\")` or \
+                 `sink(\"{id}\")`"
             )),
             Endpoint::Channel(name, _) => Ok((Self::Channel(name.clone()), false)),
             Endpoint::File(path) => {

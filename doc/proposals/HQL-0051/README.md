@@ -107,16 +107,17 @@ Each construct this record uses is one of three things.
 | --- | --- |
 | `Endpoint`, `Readable`, `Replayable`, `Writable`, `Transport`, `RowTransport` | implemented, `lib/std/io/mod.hql` |
 | `Sqlite` and `sqlite(path, table, order)`, `io.db.sqlite` | implemented |
-| `Postgres` and `postgres(dsn_env, table, order)`, `io.db.postgres` | specified by [HQL-0047](../HQL-0047/README.md) and [HQL-0048](../HQL-0048/README.md); the kind is implemented, the module is not |
+| `Postgres` and `postgres(dsn_env = …, table = …, order = …)`, `io.db.postgres` | specified by [HQL-0047](../HQL-0047/README.md) and [HQL-0048](../HQL-0048/README.md); implemented by phase 1 of this record, every parameter named |
 | `target("id")` of a table in one transaction, `sink("id")` a row per commit | implemented, [HQL-0046](../HQL-0046/README.md) |
 | value blocks, `given … otherwise`, `match`, receiver calls `x.f()` | implemented |
 | `retry(operation, attempts = n, when = …)` over a collection | implemented, [HQL-0033](../HQL-0033/README.md) |
 | `Window<T>`, a value that does not leave the `into` it is handed to | implemented, [HQL-0050](../HQL-0050/README.md) |
-| `Transactional`, `Insertable`, `Updatable`, `Deletable` | **proposed** here |
-| `configured("id")` | **proposed** here |
+| `Transactional`, `Insertable`, `Updatable`, `Deletable` | **proposed** here; implemented by phase 1 |
+| `configured("id")` | **proposed** here; implemented by phase 1 for every kind with a transport type |
 | `insert`, `update … set`, `delete` | **proposed** here |
 | `with transaction tx on … { … }`, `Transaction`, `commit`, `rollback`, `retry` | **proposed** here |
-| `TransactionFailure`, `IsolationLevel` and its three levels | **proposed** here |
+| `IsolationLevel` and its three levels | **proposed** here; implemented by phase 1 |
+| `TransactionFailure` | **proposed** here |
 | `one` over a sequence | **proposed** here, in `seq` |
 
 Every example below that uses a proposed construct is marked `// proposed`
@@ -264,7 +265,10 @@ fn configured(id: String) : Transport
   and `strictness`. `source(configured("id"))` and `source("id")` MUST give
   the same rows, and `target(xs, configured("id"))` and `target(xs, "id")`
   MUST write the same; a constructed transport keeps having no boundary.
-- A `vault` endpoint has no transport and is refused, naming `source`.
+- A `vault` endpoint has no transport and is refused, naming `source`. A
+  kind whose module is not written yet, `kafka` and `spark` until
+  [HQL-0048](../HQL-0048/README.md) declares theirs, has no transport type
+  to give and is refused naming the module.
 - `configured` is in the prelude and needs no import, as `source("id")`
   needs none: the configuration names the kind, and the `std` extension
   provides every kind ([HQL-0048](../HQL-0048/README.md), "Kinds"). A
@@ -1115,3 +1119,7 @@ cargo clippy --locked --all-targets -- -D warnings
 ## Changelog
 
 - 2026-11-13: drafted
+- 2026-11-13: phase 1 implemented: the four capabilities and
+  `IsolationLevel` in `io`, `Sqlite` declaring the four, `io.db.postgres`
+  with `Postgres` and `postgres(dsn_env = …, table = …)`, and
+  `configured("id")` for every kind with a transport type

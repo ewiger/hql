@@ -15,8 +15,10 @@ import io
 /// One table of an SQLite database file. It is on this machine and carries
 /// rows of named columns, so it takes no format. A table ends and reads the
 /// same rows each time in one evaluation, so it is `Replayable`: read, it
-/// is a `Seq`, a row per element.
-type Sqlite : {Direct, RowTransport, Replayable, Writable}
+/// is a `Seq`, a row per element. The database file is one atomic scope
+/// over every table it holds, and a table's rows are inserted, changed and
+/// removed in place (HQL-0051).
+type Sqlite : {Direct, RowTransport, Replayable, Writable, Transactional, Insertable, Updatable, Deletable}
 
 /// The table `table` of the database file at `path`, as a `Sqlite`
 /// transport; its parameters are the keys of the `sqlite` kind. A relative

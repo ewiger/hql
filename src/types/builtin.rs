@@ -33,6 +33,11 @@ atoms! {
     TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
     BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
     ROW_TRANSPORT => "RowTransport", NATS_JET_STREAM => "NatsJetStream", SQLITE => "Sqlite", NATS => "Nats",
+    POSTGRES => "Postgres",
+    TRANSACTIONAL => "Transactional", INSERTABLE => "Insertable", UPDATABLE => "Updatable",
+    DELETABLE => "Deletable", ISOLATION_LEVEL => "IsolationLevel",
+    READ_COMMITTED => "ReadCommitted", REPEATABLE_READ => "RepeatableRead",
+    SERIALIZABLE => "Serializable",
     LOG_LEVEL => "LogLevel", TRACE => "Trace", DEBUG => "Debug", INFO => "Info",
     WARN => "Warn", ERROR => "Error", LOG_EVENT => "LogEvent", LOGGER => "Logger",
     CELL => "Cell", RANGE => "Range", TABLE => "Table",
@@ -238,6 +243,35 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeKind::Abstract,
             &[TypeRef::TRANSPORT],
         ),
+        // What a transport's system can do beyond reading and writing
+        // (HQL-0051): take part in an atomic scope, and take, change or
+        // remove rows in place. Each is independent of the others.
+        (
+            TypeRef::TRANSACTIONAL,
+            TypeKind::Abstract,
+            &[TypeRef::TRANSPORT],
+        ),
+        (TypeRef::INSERTABLE, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
+        (TypeRef::UPDATABLE, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
+        (TypeRef::DELETABLE, TypeKind::Abstract, &[TypeRef::TRANSPORT]),
+        // How much of other transactions a scope sees (HQL-0051): a level is
+        // a type, passed as one, as a logger's threshold is.
+        (TypeRef::ISOLATION_LEVEL, TypeKind::Abstract, &[]),
+        (
+            TypeRef::READ_COMMITTED,
+            TypeKind::Concrete,
+            &[TypeRef::ISOLATION_LEVEL],
+        ),
+        (
+            TypeRef::REPEATABLE_READ,
+            TypeKind::Concrete,
+            &[TypeRef::ISOLATION_LEVEL],
+        ),
+        (
+            TypeRef::SERIALIZABLE,
+            TypeKind::Concrete,
+            &[TypeRef::ISOLATION_LEVEL],
+        ),
         // A table of a database file: `lib/std/io/db/sqlite/mod.hql`.
         (
             TypeRef::SQLITE,
@@ -247,6 +281,25 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
                 TypeRef::ROW_TRANSPORT,
                 TypeRef::REPLAYABLE,
                 TypeRef::WRITABLE,
+                TypeRef::TRANSACTIONAL,
+                TypeRef::INSERTABLE,
+                TypeRef::UPDATABLE,
+                TypeRef::DELETABLE,
+            ],
+        ),
+        // A table of a PostgreSQL database: `lib/std/io/db/postgres/mod.hql`.
+        (
+            TypeRef::POSTGRES,
+            TypeKind::Concrete,
+            &[
+                TypeRef::NETWORK,
+                TypeRef::ROW_TRANSPORT,
+                TypeRef::REPLAYABLE,
+                TypeRef::WRITABLE,
+                TypeRef::TRANSACTIONAL,
+                TypeRef::INSERTABLE,
+                TypeRef::UPDATABLE,
+                TypeRef::DELETABLE,
             ],
         ),
         // A core NATS subject: `lib/std/io/msg/nats/mod.hql`.

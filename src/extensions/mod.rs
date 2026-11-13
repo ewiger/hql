@@ -31,6 +31,7 @@ pub(crate) mod math;
 pub mod nats;
 pub mod net;
 pub(crate) mod option;
+pub mod postgres;
 pub(crate) mod regex;
 pub(crate) mod result;
 pub mod semantic;
@@ -461,6 +462,14 @@ static SQLITE: Extension = Extension {
     metadata: None,
 };
 
+static POSTGRES: Extension = Extension {
+    name: "io.db.postgres",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["io.db.postgres"],
+    steps: postgres::STEPS,
+    metadata: None,
+};
+
 // Each named by the path it provides, not by a word: a transport's module
 // is imported by its full path and has no one-word form (HQL-0048).
 static NATS: Extension = Extension {
@@ -571,6 +580,7 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &NET,
     &LOGGING,
     &SQLITE,
+    &POSTGRES,
     &NATS,
     &NATS_JETSTREAM,
     &LEXICAL,
@@ -1382,7 +1392,7 @@ mod tests {
         // evaluation clock are the effects; every other step, constructing
         // an endpoint or a logger included, is a function of its input.
         for entry in &listed {
-            let effectful = (entry.provider == "io" && entry.name != "file")
+            let effectful = (entry.provider == "io" && !matches!(entry.name, "file" | "configured"))
                 || (entry.provider == "logging" && entry.name != "Logger")
                 || (entry.provider == "time"
                     && matches!(entry.name, "now" | "today" | "local_zone"));

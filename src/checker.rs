@@ -5226,17 +5226,26 @@ impl<'a> Checker<'a> {
                     // declared without one, its input `Unit`: `now()`.
                     if arguments.first().is_none_or(|first| first.name.is_some()) {
                         self.not_declared_below(name, &span)?;
-                        if let Ok(step) = self.resolution.step_for(
+                        match self.resolution.step_for(
                             name,
                             &TypeRef::UNIT,
                             0,
                             &written_names(arguments),
                             &span,
-                        ) && step.takes_no_input()
-                        {
-                            self.checked.steps.insert(span.clone(), step);
-                            self.using(step.name, step.purity() == Purity::Effectful);
-                            return self.step(step, &TypeRef::UNIT, None, arguments, span);
+                        ) {
+                            Ok(step) if step.takes_no_input() => {
+                                self.checked.steps.insert(span.clone(), step);
+                                self.using(step.name, step.purity() == Purity::Effectful);
+                                return self.step(step, &TypeRef::UNIT, None, arguments, span);
+                            }
+                            // A name no import offers is reported as such,
+                            // not as a call missing its input.
+                            Err(refused)
+                                if refused.kind == crate::diagnostics::Kind::UnknownName =>
+                            {
+                                return Err(refused);
+                            }
+                            _ => {}
                         }
                     }
                     let Some((input, arguments)) = arguments.split_first() else {

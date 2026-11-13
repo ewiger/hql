@@ -585,7 +585,7 @@ impl Evaluator<'_> {
                 if crate::extensions::io::reads(step) {
                     // A configured endpoint is read through its boundary.
                     if step.name == "source"
-                        && let Value::Str(id) = &value
+                        && let Some(id) = crate::extensions::io::configured_id(&value)
                     {
                         let mut warnings = Vec::new();
                         let read = crate::extensions::io::configured_source(

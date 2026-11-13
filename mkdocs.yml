@@ -199,6 +199,7 @@ nav:
           - std/io/net: reference/std/io/net/index.md
           - std/io/logging: reference/std/io/logging/index.md
           - std/io/db/sqlite: reference/std/io/db/sqlite/index.md
+          - std/io/db/postgres: reference/std/io/db/postgres/index.md
           - std/io/msg/nats: reference/std/io/msg/nats/index.md
           - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream/index.md
           - std/vault: reference/std/vault/index.md
