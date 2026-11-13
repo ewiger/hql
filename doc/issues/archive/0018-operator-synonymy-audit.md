@@ -2,13 +2,13 @@
 
 Status: done (feature 1 of 0014)
 Analysis: [operation signatures compared](../../models/behavior/operation-signatures.hmd)
-Decisions: [HQL-0004](../../proposals/HQL-0004/README.md),
-[HQL-0006](../../proposals/HQL-0006/README.md),
-[HQL-0007](../../proposals/HQL-0007/README.md)
+Decisions: [HQL-0004](../../proposals/HQL-0004/index.hmd),
+[HQL-0006](../../proposals/HQL-0006/index.hmd),
+[HQL-0007](../../proposals/HQL-0007/index.hmd)
 Related: step 2 and step 5 of [0013](0013-typed-pipeline-operations.md),
 [0016](../0016-sql-parity-analysis.md), [0017](0017-graph-projection-and-view.md),
-[HQL-0015](../../proposals/HQL-0015/README.md), which states the shorthand rule,
-[HQL-0016](../../proposals/HQL-0016/README.md), which separates narrowing from
+[HQL-0015](../../proposals/HQL-0015/index.hmd), which states the shorthand rule,
+[HQL-0016](../../proposals/HQL-0016/index.hmd), which separates narrowing from
 conversion
 
 HQL's operations are declared on several fronts at once: the implemented core,
@@ -89,7 +89,7 @@ one name, as the model intends.
    ```
 
    The second is the narrowing `filter` of
-   [HQL-0016](../../proposals/HQL-0016/README.md), which `of_type(U)` names.
+   [HQL-0016](../../proposals/HQL-0016/index.hmd), which `of_type(U)` names.
 
    `F<_> : Iterable<_>` binds a constructor whose argument is its element
    type: `F<X> : Iterable<X>` for every `X`. `List`, `Seq`, `Set` and `Stream`
@@ -106,14 +106,14 @@ one name, as the model intends.
    registry and HQL-0006; teach the checker to bind `S` and `F<_>`; and give
    `sort` an overload for `Ranking<T>` that returns `Seq<Hit<T>>`, since a
    new order is not the retrieval's
-   ([HQL-0016](../../proposals/HQL-0016/README.md)).
+   ([HQL-0016](../../proposals/HQL-0016/index.hmd)).
 2. **State the shorthand rule and the tree** on the
    [pipes](../../wiki/hql/types/pipes.hmd) card: `reduce` over `sum`, `min`,
    `max`, `size`, `count(x)`; `map` then `emit` over `flat_map`; `filter` over
    `of_type` by way of `is`, and `match` over `is`;
    `match` over `given … otherwise`; `count(xs)` as the declared alias. This
    states on the card the rule and the list
-   [HQL-0015](../../proposals/HQL-0015/README.md) owns.
+   [HQL-0015](../../proposals/HQL-0015/index.hmd) owns.
 3. **Give `somes` a home** on the [option-type](../../wiki/hql/types/option-type.hmd)
    card, with its signature `List<Option<T>> : List<T>`, beside the single-value
    option operations.
@@ -121,7 +121,7 @@ one name, as the model intends.
    `List`. HQL-0004's own text is covered by 0013's Done when.
 5. **0016 names `emit`, not `flatten`,** in the `CROSS JOIN` and `INNER JOIN`
    rows. `flat_map(f)` is the shorthand for `map(f) | emit`, as
-   [HQL-0007](../../proposals/HQL-0007/README.md) states, and `flatten` is an alias
+   [HQL-0007](../../proposals/HQL-0007/index.hmd) states, and `flatten` is an alias
    of nothing.
 6. **Carry `drop`.** The model declares it and nothing else does; 0016 needs it
    for `OFFSET`. Add it to the stream overloads of HQL-0006 or to 0016's plan.

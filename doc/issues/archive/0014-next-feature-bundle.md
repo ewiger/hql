@@ -10,11 +10,11 @@ Bundles: [0008](0008-cards-as-a-vault-binding.md),
 [0017](0017-graph-projection-and-view.md),
 [0018](0018-operator-synonymy-audit.md),
 [0021](0021-of-type-replaces-typed.md),
-[HQL-0009](../../proposals/HQL-0009/README.md),
-[HQL-0010](../../proposals/HQL-0010/README.md),
-[HQL-0014](../../proposals/HQL-0014/README.md),
-[HQL-0017](../../proposals/HQL-0017/README.md),
-[HQL-0018](../../proposals/HQL-0018/README.md)
+[HQL-0009](../../proposals/HQL-0009/index.hmd),
+[HQL-0010](../../proposals/HQL-0010/index.hmd),
+[HQL-0014](../../proposals/HQL-0014/index.hmd),
+[HQL-0017](../../proposals/HQL-0017/index.hmd),
+[HQL-0018](../../proposals/HQL-0018/index.hmd)
 
 Eighteen features, ranked by value per unit of work and ordered so that each
 one's prerequisites come before it. Each one is an existing issue, a step of
@@ -41,9 +41,9 @@ issues, proposals and cards; nothing here restates it.
    built with `Stream<T>`. Every later feature that adds or changes a
    signature writes it in the form this one settles.
 2. **`group` / `reduce` over finite inputs** — the reduce side of
-   [HQL-0004](../../proposals/HQL-0004/README.md), step 5 of
+   [HQL-0004](../../proposals/HQL-0004/index.hmd), step 5 of
    [0013](0013-typed-pipeline-operations.md), with `reduce`'s two forms as
-   [HQL-0014](../../proposals/HQL-0014/README.md) states them: a fold from an
+   [HQL-0014](../../proposals/HQL-0014/index.hmd) states them: a fold from an
    initial value, and a fold from the first element returning `Option<T>`.
    Needs neither `Stream<T>` nor function values: lambdas already work in
    argument position. `sum`, `min`, `max`, `size` and `count(x)` are stated
@@ -61,7 +61,7 @@ issues, proposals and cards; nothing here restates it.
    [expressions](../../models/behavior/expressions.hmd) model. Unblocks `avg`, a
    `HAVING` threshold and every range predicate.
 4. **`is` and `of_type`** — [0021](0021-of-type-replaces-typed.md), by
-   [HQL-0016](../../proposals/HQL-0016/README.md): the `is(U)` test, the
+   [HQL-0016](../../proposals/HQL-0016/index.hmd): the `is(U)` test, the
    narrowing `filter`, `of_type(U)` as a registered step until `:=` exists,
    and `typed` removed. A dependency: the narrowing `filter` signature of
    feature 1 and the structural test of feature 6 both need it.
@@ -82,7 +82,7 @@ issues, proposals and cards; nothing here restates it.
    0013. Reconcile its function type with [0010](0010-yield-and-bind.md)
    before starting, and its `fn` declaration with the `UpperCamelCase`
    constructor functions of HQL-0018 and the `:=` sugar of
-   [HQL-0015](../../proposals/HQL-0015/README.md), which desugars to it.
+   [HQL-0015](../../proposals/HQL-0015/index.hmd), which desugars to it.
 8. **`cards` as a vault binding** —
    [0008](0008-cards-as-a-vault-binding.md). Small and self-contained; ends the
    silently ignored `cards = [1, 2]` binding. Done.
@@ -93,15 +93,15 @@ issues, proposals and cards; nothing here restates it.
    whose capture goes to the report log, ordered by trace. Done; `fail` and
    the language's own `code` / `trace` fields stay designed.
 10. **Pipeline vocabulary rename** — step 1 of 0013,
-   [HQL-0005](../../proposals/HQL-0005/README.md): `Step` to `Operation`, "stage"
+   [HQL-0005](../../proposals/HQL-0005/index.hmd): `Step` to `Operation`, "stage"
    to "step". No behaviour change.
-11. **`tee`** — [HQL-0010](../../proposals/HQL-0010/README.md): `input | tee x =
+11. **`tee`** — [HQL-0010](../../proposals/HQL-0010/index.hmd): `input | tee x =
     branch | next` binds the branch's result and passes the input on
     unchanged. The `localhost` backend evaluates the shared input once. Needs
     the vocabulary rename, so the new step node is named in the new
     vocabulary.
 12. **`Stream<T>` and `yield`** — steps 2 and 3 of 0013,
-    [HQL-0006](../../proposals/HQL-0006/README.md) and
+    [HQL-0006](../../proposals/HQL-0006/index.hmd) and
     [0010](0010-yield-and-bind.md), as one feature: the `Stream<T>`
     declaration, stream overloads of `map`, `filter`, `take` and `drop`, the
     finite-input diagnostic, the push traversal carrier, generated sequences
@@ -135,25 +135,25 @@ issues, proposals and cards; nothing here restates it.
       `Ranking` change: built-in record fields read from declarations, which
       first needs the declarations and the checker's table reconciled.
 15. **Constructors as pipeline steps** — section "Two forms of one call" of
-    [HQL-0018](../../proposals/HQL-0018/README.md): `x | T(a)` is `T(x, a)`,
+    [HQL-0018](../../proposals/HQL-0018/index.hmd): `x | T(a)` is `T(x, a)`,
     and a bare type name in step position is its constructor. A dependency:
     materialization is `xs | List` once `list` is retired, and the graph
     projection is `cards | Graph`.
 16. **`collect(n)`, `emit` and `xs | List`** — step 4 of 0013,
-    [HQL-0007](../../proposals/HQL-0007/README.md), with materialization written
+    [HQL-0007](../../proposals/HQL-0007/index.hmd), with materialization written
     as the `List` constructor, as HQL-0016 retires `list`. Needs `Stream<T>`
     and constructors as pipeline steps.
-17. **Presentation formats** — [HQL-0017](../../proposals/HQL-0017/README.md),
+17. **Presentation formats** — [HQL-0017](../../proposals/HQL-0017/index.hmd),
     which supersedes HQL-0008 and step 6 of 0013: the `format` extension in
     place of `present`, the format types, the shorthands, renderers and their
     configuration, the presentation context with `--to`, `--from` and
     `--envelope`, and incremental formatting of a stream. The `graph` split of
     [0017](0017-graph-projection-and-view.md) is the `Graph` constructor
     here; what `Graph` accepts beyond cards is
-    [HQL-0019](../../proposals/HQL-0019/README.md), not this bundle. Needs
+    [HQL-0019](../../proposals/HQL-0019/index.hmd), not this bundle. Needs
     constructors as pipeline steps, `Stream<T>`, and 0020's document host for
     the `hmd` context.
-18. **Cells** — [HQL-0009](../../proposals/HQL-0009/README.md): cell `id`s,
+18. **Cells** — [HQL-0009](../../proposals/HQL-0009/index.hmd): cell `id`s,
     values shared through the cell dependency graph, saved outputs with a
     source hash, `--cell` and the per-cell JSON record. Needs 0020 done.
 
@@ -172,10 +172,10 @@ These stay in their own issues and are not ticked here:
   in `doing` on its own; the presentation and cells features build on it, and
   cells cannot start until it is done. Its markdown presentation step is
   written against HQL-0008 and moves to HQL-0017's `markdown` shorthand.
-- `:=` ([HQL-0015](../../proposals/HQL-0015/README.md)). Shorthands it would
+- `:=` ([HQL-0015](../../proposals/HQL-0015/index.hmd)). Shorthands it would
   define are registered steps until it lands.
-- Graph construction beyond cards ([HQL-0019](../../proposals/HQL-0019/README.md)).
-- The rest of [HQL-0014](../../proposals/HQL-0014/README.md): named combiners,
+- Graph construction beyond cards ([HQL-0019](../../proposals/HQL-0019/index.hmd)).
+- The rest of [HQL-0014](../../proposals/HQL-0014/index.hmd): named combiners,
   `merge`, combiner properties and execution shape.
 - The rest of [0016](../0016-sql-parity-analysis.md)'s roadblocks: record and pair
   values, `flat_map`, `join` and set operations, the window steps other than

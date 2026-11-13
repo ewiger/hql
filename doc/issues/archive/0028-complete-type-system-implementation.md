@@ -1,7 +1,7 @@
 # 0028 — Implementing HQL-0024: records, receivers, traits, modules and the standard library
 
 Status: done
-Related: [HQL-0024](../../proposals/HQL-0024/README.md), [type system](../../wiki/hql/type-system.hmd),
+Related: [HQL-0024](../../proposals/HQL-0024/index.hmd), [type system](../../wiki/hql/type-system.hmd),
 [naming](../../wiki/hql/naming.hmd), [the Mighty Types corpus](../../../examples/mighty-types/README.md)
 
 HQL-0024 specifies eleven parts. This issue is the implementation plan, in the
@@ -47,7 +47,7 @@ day the binary checks and evaluates it.
 
 ## Decisions taken while implementing
 
-- Part 7 is adopted from [encode, decode and format](../../proposals/HQL-0024/encode-decode-format.md):
+- Part 7 is adopted from [encode, decode and format](../../proposals/HQL-0024/encode-decode-format.hmd):
   `Format` is a category, every format narrows it and none narrows `String`,
   `Lines` and `JsonLines` are framing formats, and `format(x, F)` gives a
   `String`. HQL-0017 keeps its three questions and its renderers.

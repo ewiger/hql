@@ -17,7 +17,7 @@ cards | take(5)
 ```
 
 `graph = vault.graph` binds the vault's knowledge graph the same way
-([HQL-0019](../../proposals/HQL-0019/README.md)).
+([HQL-0019](../../proposals/HQL-0019/index.hmd)).
 
 This depends on [0009](0009-function-type-and-constructor.md): an iterating
 function is a user `fn`. It supersedes the seeding done in

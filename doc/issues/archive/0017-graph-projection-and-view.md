@@ -1,7 +1,7 @@
 # 0017 — `graph` is two operations under one name
 
 Status: done
-Decisions: [HQL-0008](../../proposals/HQL-0008/README.md), its section
+Decisions: [HQL-0008](../../proposals/HQL-0008/index.hmd), its section
 "`graph` is a presentation"
 Related: step 6 of [0013](0013-typed-pipeline-operations.md)
 
@@ -35,6 +35,6 @@ on the birds vault.
 
 The projection is the `Graph` constructor, written `Graph(xs)` or `xs | Graph`;
 the view is formatting, `| d2`, `| mermaid` or `| format(Markdown)`, through
-the renderers of [HQL-0017](../../proposals/HQL-0017/README.md). `cards | graph`
+the renderers of [HQL-0017](../../proposals/HQL-0017/index.hmd). `cards | graph`
 is refused with a diagnostic naming `Graph`, `table` is retired, and `expand`
 refuses depth `0`. No example or test pipes a graph into a presenter.

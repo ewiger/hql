@@ -1,6 +1,6 @@
 //! Loggers through the real process: events written as `sink` would, to a
 //! file's end, a channel, or a cell's logs. See
-//! doc/proposals/HQL-0021/README.md.
+//! doc/proposals/HQL-0021/index.hmd.
 
 use std::fs;
 use std::path::Path;

@@ -1,11 +1,11 @@
 # 0021 — `of_type` replaces `typed`
 
 Status: done (feature 4 of [0014](0014-next-feature-bundle.md))
-Decisions: [HQL-0016](../../proposals/HQL-0016/README.md), its sections "`is(U)`
+Decisions: [HQL-0016](../../proposals/HQL-0016/index.hmd), its sections "`is(U)`
 tests a type", "`filter` narrows, and `of_type(U)` is its shorthand" and
 "`typed` is removed"
 Related: [0018](0018-operator-synonymy-audit.md),
-[HQL-0015](../../proposals/HQL-0015/README.md)
+[HQL-0015](../../proposals/HQL-0015/index.hmd)
 
 `typed(U)` is removed with no alias and no deprecation period. The selection
 it made is `of_type(U)`, the shorthand for `filter(x => x | is(U))`. The
@@ -22,7 +22,7 @@ documents that describe today's behaviour still read `typed`.
    `F<U>`; any other predicate keeps the element type. `filter` over an
    `Option<T>` narrows the same way.
 3. **`of_type(U)`.** Define it by its longhand. Until `:=`
-   ([HQL-0015](../../proposals/HQL-0015/README.md)) and its type parameters are
+   ([HQL-0015](../../proposals/HQL-0015/index.hmd)) and its type parameters are
    implemented, register it as a step in `src/extensions/collections.rs` whose
    check and evaluation are those of the narrowing `filter`.
 4. **Drop `typed`.** Remove the step. `typed` becomes an unknown operation

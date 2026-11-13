@@ -1,11 +1,11 @@
 # 0013 — Typed pipeline operations: streams, batching, aggregation, presentation
 
 Status: done
-Decisions: [HQL-0005](../../proposals/HQL-0005/README.md),
-[HQL-0006](../../proposals/HQL-0006/README.md),
-[HQL-0007](../../proposals/HQL-0007/README.md),
-[HQL-0008](../../proposals/HQL-0008/README.md); the reduce side of
-[HQL-0004](../../proposals/HQL-0004/README.md)
+Decisions: [HQL-0005](../../proposals/HQL-0005/index.hmd),
+[HQL-0006](../../proposals/HQL-0006/index.hmd),
+[HQL-0007](../../proposals/HQL-0007/index.hmd),
+[HQL-0008](../../proposals/HQL-0008/index.hmd); the reduce side of
+[HQL-0004](../../proposals/HQL-0004/index.hmd)
 Prompt: [0013-typed-pipeline-operations.prompt.md](0013-typed-pipeline-operations.prompt.md)
 Depends on: nothing to start; shares the traversal carrier with
 [0010](0010-yield-and-bind.md)
@@ -144,11 +144,11 @@ its own proposal, to be written once HQL's window semantics are settled.
 ## Outcome
 
 Done; archived under [issue 0072](../0072-release-0.6.0.md). The four
-decisions are settled: [HQL-0005](../../proposals/HQL-0005/README.md),
-[HQL-0006](../../proposals/HQL-0006/README.md) and
-[HQL-0007](../../proposals/HQL-0007/README.md) are `implemented`, and
-[HQL-0008](../../proposals/HQL-0008/README.md) is superseded by
-[HQL-0017](../../proposals/HQL-0017/README.md), which built presentation as
+decisions are settled: [HQL-0005](../../proposals/HQL-0005/index.hmd),
+[HQL-0006](../../proposals/HQL-0006/index.hmd) and
+[HQL-0007](../../proposals/HQL-0007/index.hmd) are `implemented`, and
+[HQL-0008](../../proposals/HQL-0008/index.hmd) is superseded by
+[HQL-0017](../../proposals/HQL-0017/index.hmd), which built presentation as
 the format types and `format` with its shorthands.
 
 - `Stream<T>` is in the core, `lib/std/collections/mod.hql` declares the

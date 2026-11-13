@@ -1,9 +1,9 @@
 # Error handling: checking is the boundary
 
 Every program here is wrong on purpose, and each one says where. Together they
-pin [HQL-0044](../../doc/proposals/HQL-0044/README.md): a program is parsed,
+pin [HQL-0044](../../doc/proposals/HQL-0044/index.hmd): a program is parsed,
 then checked as a whole, and only a checked program executes. They also pin
-the error model of [HQL-0045](../../doc/proposals/HQL-0045/README.md): a
+the error model of [HQL-0045](../../doc/proposals/HQL-0045/index.hmd): a
 failure is data or it is a diagnostic, and every diagnostic names its
 `phase`, its `kind`, its `severity` and its `disposition`, and travels on the
 run's one diagnostic channel. From the repository root:

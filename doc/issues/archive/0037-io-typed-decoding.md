@@ -1,9 +1,9 @@
 # 0037 — I/O: typed decoding, and HQL-0021 accepted
 
 Status: done
-Related: [HQL-0021](../../proposals/HQL-0021/README.md),
-[formats and codecs](../../proposals/HQL-0024/parts/07-formats-and-codecs.md),
-[HQL-0012](../../proposals/HQL-0012/README.md),
+Related: [HQL-0021](../../proposals/HQL-0021/index.hmd),
+[formats and codecs](../../proposals/HQL-0024/parts/07-formats-and-codecs.hmd),
+[HQL-0012](../../proposals/HQL-0012/index.hmd),
 [0029](../0029-binary-formats-and-codecs.md),
 [presentation](../../wiki/hql/presentation.hmd),
 [the I/O examples](../../../examples/io/README.md)

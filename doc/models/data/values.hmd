@@ -12,7 +12,7 @@ A `String` is always UTF-8, whatever encoding its text was read from. It
 never holds bytes that are not UTF-8, its positions and `size` count code
 points, and `s.bytes()` is its UTF-8 encoding. An external text encoding is a
 codec's concern: the codec converts it to and from UTF-8 at the boundary
-([HQL-0024 formats and codecs](../../proposals/HQL-0024/parts/07-formats-and-codecs.md)).
+([[07-formats-and-codecs|HQL-0024 formats and codecs]]).
 
 The AST contains literal and addition nodes with zero-based, half-open UTF-8
 byte ranges. Public diagnostics distinguish syntax, type, and evaluation
@@ -21,7 +21,7 @@ conversion is an `Int` beside a `Decimal`, read as a `Decimal` of scale 0;
 there is neither Boolean-to-integer nor integer-to-float widening, so
 addition takes two `Int`, two `Float` or two `Decimal` operands and returns
 that same type. `Decimal` semantics and rounding are
-[HQL-0031](../../proposals/HQL-0031/README.md)'s. The eventual typed
+[[HQL-0031]]'s. The eventual typed
 Card/document model is described as a boundary in
 [[architecture]], not declared as a working value type
 here.

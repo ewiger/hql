@@ -17,11 +17,11 @@ direction, with `localhost` identified as the current implementation.
 - [Chapter 14](../public/learn/14-etl-pipelines.md) introduces the distinction
   in its pipeline and effect sections. Chapters 6, 9, 13 and 17 and the book
   contents link readers to the dedicated explanation.
-- [HQL-0055](../proposals/HQL-0055/README.md) states the preservation contract
+- [[HQL-0055]] states the preservation contract
   and delegated planning explicitly. Its four companion notes align the
   execution vocabulary, effects, local and scheduled execution, and the
   proposed completion type.
-- [HQL-0005](../proposals/HQL-0005/README.md) retains the implemented
+- [[HQL-0005]] retains the implemented
   annotation model, uses task terminology for scheduled work, and points
   to the draft extensions. HQL-0055 remains drafted.
 

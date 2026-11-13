@@ -1,6 +1,6 @@
 // Provided by the `std` extension.
 //
-// See doc/proposals/HQL-0021/README.md.
+// See doc/proposals/HQL-0021/index.hmd.
 
 /// Network endpoints: transports, read and written by `source`, `tap`,
 /// `target` and `sink` like any other endpoint (module `io`). Constructing

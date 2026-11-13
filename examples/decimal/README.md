@@ -1,6 +1,6 @@
 # Decimal, an exact decimal number
 
-The cases follow [HQL-0031](../../doc/proposals/HQL-0031/README.md): a number
+The cases follow [HQL-0031](../../doc/proposals/HQL-0031/index.hmd): a number
 written with a decimal point is a `Decimal`, an arbitrary-precision decimal
 whose value is exactly its digits, and a `Float` is written with the suffix
 `f`. A `Decimal` keeps its scale for display and compares by value; an `Int`

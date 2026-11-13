@@ -1,11 +1,11 @@
 # 0002 — Semantic retrieval over a real embedding index
 
 Status: done
-Decision: [HQL-0002](../../proposals/HQL-0002/README.md)
+Decision: [HQL-0002](../../proposals/HQL-0002/index.hmd)
 Branch: `feat/semantics`, off `feat/extensions`
 Blocked by: [0001](0001-extension-mechanism.md)
 
-The work that carries out [HQL-0002](../../proposals/HQL-0002/README.md). The
+The work that carries out [HQL-0002](../../proposals/HQL-0002/index.hmd). The
 proposal holds the design — the SQLite schema, the text contract, what a ranking
 must report, and what is out of scope. This card holds the sequence and what
 "done" means.
@@ -61,4 +61,4 @@ it compensates.
 
 ## Settle before starting
 
-The five Open Questions at the end of [HQL-0002](../../proposals/HQL-0002/README.md).
+The five Open Questions at the end of [HQL-0002](../../proposals/HQL-0002/index.hmd).

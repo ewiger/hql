@@ -1,7 +1,7 @@
 # 0058 — A value read from a card loses where it came from
 
 Status: todo
-Related: [HQL-0045](../proposals/HQL-0045/README.md),
+Related: [HQL-0045](../proposals/HQL-0045/index.hmd),
 [`src/document.rs`](../../src/document.rs),
 [`src/knowledge.rs`](../../src/knowledge.rs),
 [`src/evaluation.rs`](../../src/evaluation.rs)

@@ -2,7 +2,7 @@
 // the module as `digest`. Every declaration is external: the `std`
 // extension implements it.
 //
-// See doc/proposals/HQL-0041/parts/03-digest-and-encoding.md.
+// See doc/proposals/HQL-0041/parts/03-digest-and-encoding.hmd.
 
 /// Cryptographic digests of text and of `Data` trees. An algorithm is named
 /// by a type, as a format is: `"abc".digest(Sha256)`. Every algorithm is a

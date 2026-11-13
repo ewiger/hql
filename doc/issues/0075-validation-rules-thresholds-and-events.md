@@ -2,8 +2,8 @@
 
 Status: backlog
 Related: [0043](archive/0043-contract-validation.md), whose remainder this
-is; [HQL-0032](../proposals/HQL-0032/README.md),
-[HQL-0033](../proposals/HQL-0033/README.md),
+is; [HQL-0032](../proposals/HQL-0032/index.hmd),
+[HQL-0033](../proposals/HQL-0033/index.hmd),
 [issue 0045](archive/0045-errors-validators-boundaries.md)
 
 Contract rules, structured validation results and the stream policies are

@@ -2,8 +2,8 @@
 
 Status: doing
 Related: [`lib/std/`](../../lib/std/README.md),
-[HQL-0024 part 3](../proposals/HQL-0024/parts/03-standard-library.md),
-[HQL-0028](../proposals/HQL-0028/README.md)
+[HQL-0024 part 3](../proposals/HQL-0024/parts/03-standard-library.hmd),
+[HQL-0028](../proposals/HQL-0028/index.hmd)
 
 Renovate the current `lib/std/**` HQL standard library according to the latest language design.
 

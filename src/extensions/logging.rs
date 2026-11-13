@@ -4,7 +4,7 @@
 //! A logger adds no output of its own. It names a producer, holds a
 //! threshold, and writes each event as `sink` would: one document per event
 //! to a file, a standard stream or the network, or the `LogEvent` value itself
-//! to a channel. See [HQL-0021](../../doc/proposals/HQL-0021/README.md).
+//! to a channel. See [HQL-0021](../../doc/proposals/HQL-0021/index.hmd).
 
 use super::Signature;
 use super::spec::{

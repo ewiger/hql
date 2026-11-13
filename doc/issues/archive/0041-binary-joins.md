@@ -1,8 +1,8 @@
 # 0041 — Joins over one other sequence: HQL-0013's binary form
 
 Status: done
-Related: [HQL-0013](../../proposals/HQL-0013/README.md),
-[HQL-0012](../../proposals/HQL-0012/README.md),
+Related: [HQL-0013](../../proposals/HQL-0013/index.hmd),
+[HQL-0012](../../proposals/HQL-0012/index.hmd),
 [the data sources examples](../../../examples/sources/README.md)
 
 ## Scope

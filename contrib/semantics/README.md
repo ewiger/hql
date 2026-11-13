@@ -8,7 +8,7 @@ Which model does the embedding is the vault's choice — see
 The split is deliberate: the model does not belong in the Rust binary, and the
 binary never invokes this tool. `cargo test` runs against the committed index
 and needs no Python at all. See
-[HQL-0002](../../doc/proposals/HQL-0002/README.md) for the schema, the text
+[HQL-0002](../../doc/proposals/HQL-0002/index.hmd) for the schema, the text
 contract and what is out of scope, and
 [the requirements](../../doc/models/requirements/semantic-search.hmd) for the
 chain a query depends on.

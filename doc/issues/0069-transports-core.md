@@ -1,10 +1,10 @@
 # 0069 — Transports: the core of HQL-0047 and HQL-0048
 
 Status: todo
-Related: [HQL-0047](../proposals/HQL-0047/README.md) (transports),
-[HQL-0048](../proposals/HQL-0048/README.md) (I/O transport namespaces),
-[HQL-0012](../proposals/HQL-0012/README.md) (data sources, amended by both),
-[HQL-0049](../proposals/HQL-0049/README.md) (NATS and lakehouse tables, built
+Related: [HQL-0047](../proposals/HQL-0047/index.hmd) (transports),
+[HQL-0048](../proposals/HQL-0048/index.hmd) (I/O transport namespaces),
+[HQL-0012](../proposals/HQL-0012/index.hmd) (data sources, amended by both),
+[HQL-0049](../proposals/HQL-0049/index.hmd) (NATS and lakehouse tables, built
 on both), [`lib/std/io/mod.hql`](../../lib/std/io/mod.hql),
 [`lib/std/io/net/mod.hql`](../../lib/std/io/net/mod.hql),
 [`src/endpoints.rs`](../../src/endpoints.rs), [`src/net.rs`](../../src/net.rs),

@@ -12,8 +12,8 @@ Cargo.toml
 README.md
 rust-toolchain.toml
 .gitignore
-doc/stack.md
-doc/proposals/README.md
+doc/stack.hmd
+doc/proposals/index.hmd
 doc/issues/kanban.yaml
 src/**
 tests/**

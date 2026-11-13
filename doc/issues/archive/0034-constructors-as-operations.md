@@ -1,9 +1,9 @@
 # 0034 — Constructors declared in HQL, overloaded, and passed as values
 
 Status: done
-Related: [HQL-0018](../../proposals/HQL-0018/README.md),
-[HQL-0017](../../proposals/HQL-0017/README.md),
-[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md),
+Related: [HQL-0018](../../proposals/HQL-0018/index.hmd),
+[HQL-0017](../../proposals/HQL-0017/index.hmd),
+[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.hmd),
 [0033](0033-overloaded-declarations.md),
 [the constructors corpus](../../../examples/constructors/README.md)
 

@@ -1,14 +1,14 @@
 # 0012 — MapReduce: pipeline stages and execution backends
 
 Status: done
-Decision: [HQL-0004](../../proposals/HQL-0004/README.md)
+Decision: [HQL-0004](../../proposals/HQL-0004/index.hmd)
 Branch: `feat/mapreduce`, off `feat/semantic-search`
 Depends on: nothing; [0010](0010-yield-and-bind.md) makes `collect` observable
 Note: the reduce side (commit 2 below) moves to
 [0013](0013-typed-pipeline-operations.md), which respecifies it against
 `Stream<T>`; rewrite this sequence when 0013 moves to `todo`.
 
-The work that carries out [HQL-0004](../../proposals/HQL-0004/README.md). Read the
+The work that carries out [HQL-0004](../../proposals/HQL-0004/index.hmd). Read the
 proposal first; it holds the design, and this card holds only the sequence and
 what "done" means. The example that pins the intended results is already in the
 corpus: [`examples/mapreduce/`](../../../examples/mapreduce/README.md), with three
@@ -54,14 +54,14 @@ makes the rest safe.
 
 ## Settle before starting
 
-The Open Questions at the end of [HQL-0004](../../proposals/HQL-0004/README.md).
+The Open Questions at the end of [HQL-0004](../../proposals/HQL-0004/index.hmd).
 They are frozen before its status moves from `drafted` to `accepted`, and the
 proposal is accepted before this card is picked up.
 
 ## Outcome
 
 Done; archived under [issue 0072](../0072-release-0.6.0.md).
-[HQL-0004](../../proposals/HQL-0004/README.md) is `implemented`, and each
+[HQL-0004](../../proposals/HQL-0004/index.hmd) is `implemented`, and each
 commit of the sequence is in the tree:
 
 - Shapes: a shape is a word before `fn` in the standard library's

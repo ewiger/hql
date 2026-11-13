@@ -1,11 +1,11 @@
 # 0067 — `crypto`: keys, signatures, encryption and a key vault
 
 Status: done
-Related: [HQL-0053](../../proposals/HQL-0053/README.md) (the proposal),
+Related: [HQL-0053](../../proposals/HQL-0053/index.hmd) (the proposal),
 [0029](../0029-binary-formats-and-codecs.md),
-[HQL-0041 part 3](../../proposals/HQL-0041/parts/03-digest-and-encoding.md),
-[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.md),
-[HQL-0021](../../proposals/HQL-0021/README.md)
+[HQL-0041 part 3](../../proposals/HQL-0041/parts/03-digest-and-encoding.hmd),
+[HQL-0024 part 7](../../proposals/HQL-0024/parts/07-formats-and-codecs.hmd),
+[HQL-0021](../../proposals/HQL-0021/index.hmd)
 
 A program cannot sign a value or verify a signature, encrypt a field or a
 file for a recipient, or decrypt one it was sent. HQL-0041 gives digests and
@@ -49,7 +49,7 @@ and its order against that issue is part of the decision.
 
 ## Proposal
 
-[HQL-0053](../../proposals/HQL-0053/README.md), drafted, decides each item
+[HQL-0053](../../proposals/HQL-0053/index.hmd), drafted, decides each item
 above in five parts, and its cases are under
 [`examples/crypto/`](../../../examples/crypto/README.md) at `status: proposed`.
 Its section "Order of work" orders it against 0029: `Bytes` (part 1) lands
@@ -58,9 +58,9 @@ binary format kind.
 
 ## Outcome
 
-[HQL-0053](../../proposals/HQL-0053/README.md) is implemented: `Bytes`, keys
+[HQL-0053](../../proposals/HQL-0053/index.hmd) is implemented: `Bytes`, keys
 in PEM, DER, JWK, OpenSSH and age text, signatures, MACs, password hashes,
 encryption and encrypted endpoints, with the secret-type checks. Module
 `crypto.keyvault` was split into its own record,
-[HQL-0054](../../proposals/HQL-0054/README.md), and its implementation is
+[HQL-0054](../../proposals/HQL-0054/index.hmd), and its implementation is
 [0071](../0071-key-vaults.md).

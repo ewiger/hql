@@ -1,7 +1,7 @@
 # 0057 — The error model's remainder: what HQL-0045 left open
 
 Status: done
-Related: [HQL-0045](../../proposals/HQL-0045/README.md),
+Related: [HQL-0045](../../proposals/HQL-0045/index.hmd),
 [error-handling examples](../../../examples/error-handling/README.md),
 [`src/diagnostics.rs`](../../../src/diagnostics.rs)
 

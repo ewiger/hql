@@ -4,7 +4,7 @@ Status: backlog
 Related: [0015](0015-jq-parity-analysis.md),
 [0014](archive/0014-next-feature-bundle.md),
 [0013](archive/0013-typed-pipeline-operations.md),
-[HQL-0004](../proposals/HQL-0004/README.md)
+[HQL-0004](../proposals/HQL-0004/index.hmd)
 
 HQL is SQL and more: anything a query can compute over a relational database,
 HQL can compute over its own values, and it adds what SQL has no word for —
@@ -38,7 +38,7 @@ The matrix was checked against `target/debug/hql` and `hql builtins` on
 | `DISTINCT` | `Set(xs)` | now | equality over cards and `Data` is not settled |
 | `IN (…)`, `IN (subquery)` | `filter(r => contains(xs, r.k))` | now | — |
 | `EXISTS`, `NOT EXISTS` (semi/anti join) | `filter(a => size(bs \| filter(…)) …)` | workaround | `NOT`, `>`; a `contains`-by-predicate (`any`) |
-| `CROSS JOIN` | `map(a => bs \| map(b => {…}))` | workaround | `emit` ([HQL-0007](../proposals/HQL-0007/README.md)), with `flat_map(f)` as the shorthand for `map(f) \| emit`; today the result is nested |
+| `CROSS JOIN` | `map(a => bs \| map(b => {…}))` | workaround | `emit` ([HQL-0007](../proposals/HQL-0007/index.hmd)), with `flat_map(f)` as the shorthand for `map(f) \| emit`; today the result is nested |
 | `INNER JOIN … ON` | same, with a nested `filter` | workaround | a `join` step, or `map` then `emit`; a pair or record result type |
 | `LEFT` / `RIGHT` / `FULL OUTER JOIN` | — | supportable | `join` whose absent side is `Option<T>`, not `NULL` |
 | `UNION`, `INTERSECT`, `EXCEPT` | — | supportable | set operations on `Set<T>`, `concat` on `Seq<T>` (`UNION ALL`) |
@@ -56,7 +56,7 @@ written with.
 | `COUNT(*)` | `size` | now | — |
 | `COUNT(DISTINCT a)` | `map(r => r.a) \| Set \| size` | workaround | a pipeline step that builds a `Set` |
 | `COUNT(a)` (non-absent) | `filter` then `size` | workaround | a test for absence (`match`, or `is_some`) |
-| `SUM`, `MIN`, `MAX` | — | supportable | `reduce` ([HQL-0004](../proposals/HQL-0004/README.md)); `sum`, `min`, `max` with executor-held combiners |
+| `SUM`, `MIN`, `MAX` | — | supportable | `reduce` ([HQL-0004](../proposals/HQL-0004/index.hmd)); `sum`, `min`, `max` with executor-held combiners |
 | `AVG` | — | supportable | division; an `Int`-to-`Float` conversion, since `Int` never widens |
 | `GROUP BY` | — | supportable | `group` and `Group<K, T>` — the `group` / `reduce` feature of [0014](archive/0014-next-feature-bundle.md) |
 | `HAVING` | `filter` after `group` | supportable | `group` |
@@ -70,7 +70,7 @@ written with.
 | `ORDER BY a DESC, b` | `sort(by = (x, y) => …)` | workaround | `reverse`, and a way to chain comparisons |
 | `NULLS FIRST` / `LAST` | — | supportable | an order on `Option<T>` |
 | `LIMIT n` | `take(n)` | now | — |
-| `OFFSET n` | — | supportable | `drop`, a stream overload of [HQL-0006](../proposals/HQL-0006/README.md) |
+| `OFFSET n` | — | supportable | `drop`, a stream overload of [HQL-0006](../proposals/HQL-0006/index.hmd) |
 | `FETCH … WITH TIES` | — | out | a reader writes it as `group` then `take` |
 
 ## Scalar expressions
@@ -108,7 +108,7 @@ written with.
 | `PARTITION BY` | `group` then per-group `map` | supportable | `group` |
 
 The name "window" is already taken by the window-shaped argument of `collect`
-in [HQL-0007](../proposals/HQL-0007/README.md), which batches a stream. A SQL
+in [HQL-0007](../proposals/HQL-0007/index.hmd), which batches a stream. A SQL
 window frame is a different thing and needs a different name.
 
 ## Schema and integrity
@@ -122,7 +122,7 @@ window frame is a different thing and needs a different name.
 | `CHECK` | — | supportable | constraint types, still design |
 | Validating rows against a schema | `of_type(…)` | now for built-in element types | partial and complete record schemas over `Data` |
 | `ALTER`, `DROP` | — | out | a schema is a declaration in a program, not stored state |
-| Indexes | the semantic index | out of the language | an executor concern; pushdown belongs to a backend ([HQL-0004](../proposals/HQL-0004/README.md)) |
+| Indexes | the semantic index | out of the language | an executor concern; pushdown belongs to a backend ([HQL-0004](../proposals/HQL-0004/index.hmd)) |
 
 ## Writes, transactions and administration
 
@@ -158,7 +158,7 @@ window frame is a different thing and needs a different name.
   `Hit` carries the query, index, model and metric that produced its score.
 - **Knowledge, not only facts.** Conflicting claims are kept with their
   evidence instead of being resolved by a unique constraint.
-- **Streams.** `Stream<T>` ([HQL-0006](../proposals/HQL-0006/README.md)) types
+- **Streams.** `Stream<T>` ([HQL-0006](../proposals/HQL-0006/index.hmd)) types
   an unbounded source and refuses `sort` on it before it runs.
 
 ## Roadblocks, in order

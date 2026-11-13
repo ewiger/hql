@@ -2,7 +2,7 @@
 
 `sightings.jsonl` holds four JSON documents, one per line, and `counts.csv` a
 header and three rows. The cases read them with `source`, from
-[HQL-0021](../../doc/proposals/HQL-0021/README.md), and the
+[HQL-0021](../../doc/proposals/HQL-0021/index.hmd), and the
 [I/O chapter](../../doc/public/learn/14-io/index.md)
 reads the same files from the command line.
 

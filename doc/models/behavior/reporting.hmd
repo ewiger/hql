@@ -3,7 +3,7 @@
 Status: implemented.
 
 A run produces a value and the contents of its **diagnostic channel**
-([HQL-0045](../../proposals/HQL-0045/README.md)). What a diagnostic is, its
+([[HQL-0045]]). What a diagnostic is, its
 four axes and its fields, is the
 [[error-handling|error-handling card]]. This model is the
 host's side: the channel, the outcome, the mode and level, and delivery.

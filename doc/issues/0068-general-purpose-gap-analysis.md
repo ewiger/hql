@@ -4,8 +4,8 @@ Status: backlog
 Related: [0015](0015-jq-parity-analysis.md),
 [0016](0016-sql-parity-analysis.md),
 [0065](0065-neo4j-parity-analysis.md),
-[HQL-0040](../proposals/HQL-0040/README.md),
-[HQL-0041](../proposals/HQL-0041/README.md)
+[HQL-0040](../proposals/HQL-0040/index.hmd),
+[HQL-0041](../proposals/HQL-0041/index.hmd)
 
 HQL is a strongly typed expression and query language. It already has
 functions and recursion, generics, records, traits, modules, `match`, errors

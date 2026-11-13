@@ -2,7 +2,7 @@
 
 Status: done
 Related: [core](../../wiki/hql/core.hmd), [type system](../../wiki/hql/type-system.hmd),
-[issue 0015](../0015-jq-parity-analysis.md), [HQL-0021](../../proposals/HQL-0021/README.md)
+[issue 0015](../0015-jq-parity-analysis.md), [HQL-0021](../../proposals/HQL-0021/index.hmd)
 
 The cards reserve square brackets after a value for indexing, and the parser
 has no such form: `xs[0]` is a syntax error. Reading one document of a file,

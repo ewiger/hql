@@ -34,5 +34,5 @@ written, checks after the modules it follows, and gives every built-in field
 the type its declaration states.
 
 A graph's fields are sets over the vault's cards, `Set<Card>` and
-`Set<Edge>`; [HQL-0019](../../proposals/HQL-0019/README.md)'s `Set<N>` and
+`Set<Edge>`; [HQL-0019](../../proposals/HQL-0019/index.hmd)'s `Set<N>` and
 `Set<E>` arrive when the graph value carries its node and edge types.

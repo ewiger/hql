@@ -111,5 +111,5 @@ The String module keeps `s.slice(start, end)`, which is `s[start:end]`;
 `s.slice(range)` with one argument is `Slice`'s. A call selects one of the two
 by its argument count.
 
-See [HQL-0026](../../../proposals/HQL-0026/README.md) and the
+See [[HQL-0026]] and the
 [slicing corpus](../../../../examples/slicing/README.md).

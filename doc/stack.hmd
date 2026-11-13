@@ -73,8 +73,8 @@ everything.
 The clients of Kafka and NATS are asynchronous, and nothing else in the crate
 is: a Kafka or a NATS connection owns a `tokio` runtime of one thread and
 blocks on it, so the evaluator stays synchronous
-([HQL-0046](proposals/HQL-0046/README.md),
-[HQL-0049](proposals/HQL-0049/README.md)). No dependency may need a C
+([[HQL-0046]],
+[[HQL-0049]]). No dependency may need a C
 toolchain beyond SQLite's bundled build, which is why rskafka's lz4 and zstd
 codecs are off.
 
@@ -178,7 +178,7 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
   that version.
 - Every function, type, trait and module of the builtin packages has a page
   under `doc/public/reference/`, at its permanent `/latest/` URL
-  ([HQL-0043](proposals/HQL-0043/README.md)). A page's marked part is written
+  ([[HQL-0043]]). A page's marked part is written
   by `hql reference` from the library's doc strings when a release is cut;
   the rest of the page is written by hand.
 - `doc/public/` is written for a reader new to HQL.

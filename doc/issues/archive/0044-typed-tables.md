@@ -2,7 +2,7 @@
 
 Status: done
 Related: [0039](0039-table-shape-and-presentation-review.md),
-[HQL-0035](../../proposals/HQL-0035/README.md),
+[HQL-0035](../../proposals/HQL-0035/index.hmd),
 [presentation](../../wiki/hql/presentation.hmd)
 
 `Table` is one type whatever its rows are, so a program cannot say which
@@ -30,5 +30,5 @@ particular columns.
 
 - Writing a `Table<R>` to Postgres. Writing one to SQLite, CSV and JSON
   through a configured target is built with
-  [HQL-0035](../../proposals/HQL-0035/README.md)
+  [HQL-0035](../../proposals/HQL-0035/index.hmd)
   ([issue 0045](0045-errors-validators-boundaries.md), B6).

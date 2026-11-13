@@ -1,6 +1,6 @@
 # Contexts: what a workspace's configuration gives a program
 
-The cases follow [HQL-0025](../../doc/proposals/HQL-0025/README.md). An
+The cases follow [HQL-0025](../../doc/proposals/HQL-0025/index.hmd). An
 invocation runs in an **execution context**: a mode, a workspace or none,
 and the configuration gathered for it. The same program text checks the
 same way in every context; the context sets the module roots, the

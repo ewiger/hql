@@ -1,8 +1,8 @@
 # 0035 — Positions and slices: `xs[a:b]`, negative positions and `Slice`
 
 Status: done
-Related: [HQL-0026](../../proposals/HQL-0026/README.md),
-[HQL-0027](../../proposals/HQL-0027/README.md),
+Related: [HQL-0026](../../proposals/HQL-0026/index.hmd),
+[HQL-0027](../../proposals/HQL-0027/index.hmd),
 [0027](0027-sequence-indexing.md),
 [the bracket operator](../../wiki/hql/operators/bracket-op.hmd),
 [the slicing corpus](../../../examples/slicing/README.md)

@@ -2,9 +2,9 @@
 
 Status: done
 Branch: `feat/kafka-postgres`
-Related: [HQL-0046](../../proposals/HQL-0046/README.md),
-[HQL-0035](../../proposals/HQL-0035/README.md),
-[HQL-0012](../../proposals/HQL-0012/README.md)
+Related: [HQL-0046](../../proposals/HQL-0046/index.hmd),
+[HQL-0035](../../proposals/HQL-0035/index.hmd),
+[HQL-0012](../../proposals/HQL-0012/index.hmd)
 
 An id declared in `hql.toml` is read by `source` and `tap` and written by
 `target` and `sink`. The direction belongs to the function, not the

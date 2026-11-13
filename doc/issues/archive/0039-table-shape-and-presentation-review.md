@@ -1,8 +1,8 @@
 # 0039 — A `Table` shape, and a review of rendering and presentation
 
 Status: done
-Related: [HQL-0017](../../proposals/HQL-0017/README.md),
-[formats and codecs](../../proposals/HQL-0024/parts/07-formats-and-codecs.md),
+Related: [HQL-0017](../../proposals/HQL-0017/index.hmd),
+[formats and codecs](../../proposals/HQL-0024/parts/07-formats-and-codecs.hmd),
 [presentation](../../wiki/hql/presentation.hmd),
 [the ADR status page](../../status/ADR-status.hmd)
 

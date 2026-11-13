@@ -6,8 +6,8 @@ of counts, a JSON array of sightings, a CSV ledger and a JSON array of
 profiles whose fields a boundary maps, and notes and readings whose
 boundaries say what reads as absent, prices written as decimal strings, and the ledger again under
 `strictness = "open"`
-([HQL-0035](../../doc/proposals/HQL-0035/README.md)). A program reads one with
-`source("id")`, as [HQL-0012](../../doc/proposals/HQL-0012/README.md)
+([HQL-0035](../../doc/proposals/HQL-0035/index.hmd)). A program reads one with
+`source("id")`, as [HQL-0012](../../doc/proposals/HQL-0012/index.hmd)
 specifies: the id is a literal, the configuration states the kind, and the
 kind states the type, so checking reads the configuration and opens nothing.
 
@@ -16,7 +16,7 @@ kind states the type, so checking reads the configuration and opens nothing.
 | [two vaults](queries/two-vaults.hql) | two `vault` endpoints side by side, each a `Vault` with its own `cards` | each vault's card names |
 | [typed counts](queries/typed-counts.hql) | a `csv` endpoint read as `Seq<Tally>` | the sum of the counts |
 | [sightings after noon](queries/sightings-after-noon.hql) | a `json` endpoint is the elements of its one array | the species seen after noon |
-| [journal counts](queries/journal-counts.hql) | a vault endpoint joined to a CSV endpoint by species, the binary `join` of [HQL-0013](../../doc/proposals/HQL-0013/README.md) | each card's title beside its count |
+| [journal counts](queries/journal-counts.hql) | a vault endpoint joined to a CSV endpoint by species, the binary `join` of [HQL-0013](../../doc/proposals/HQL-0013/index.hmd) | each card's title beside its count |
 | [ledger through its boundary](queries/ledger-boundary.hql) | a `csv` endpoint whose headers the boundary maps to `Tally`'s fields | each species and its total |
 | [profiles through their boundary](queries/profiles-boundary.hql) | a `json` endpoint whose `name` is read from `profile.display_name` | each id and name |
 | [absent cells](queries/notes-absent.hql) | an empty CSV cell is absent by default; `absent = ["missing"]` reads it as `""` | each species, note and count |

@@ -2,7 +2,7 @@
 
 Status: done
 Related: [`lib/std/`](../../../lib/std/README.md),
-[HQL-0024 part 3](../../proposals/HQL-0024/parts/03-standard-library.md),
+[HQL-0024 part 3](../../proposals/HQL-0024/parts/03-standard-library.hmd),
 [packages](../../status/packages.hmd),
 [issue 0046](../0046-renovate-std.md)
 

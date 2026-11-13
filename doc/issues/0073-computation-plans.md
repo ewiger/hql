@@ -1,9 +1,9 @@
 # 0073 — Computation plans: align HQL-0056 with the computation life cycle
 
 Status: backlog
-Related: [HQL-0056](../proposals/HQL-0056/README.md) (the sketch),
-[HQL-0055](../proposals/HQL-0055/README.md),
-[HQL-0005](../proposals/HQL-0005/README.md),
+Related: [HQL-0056](../proposals/HQL-0056/index.hmd) (the sketch),
+[HQL-0055](../proposals/HQL-0055/index.hmd),
+[HQL-0005](../proposals/HQL-0005/index.hmd),
 [0063](0063-the-result-of-a-write.md)
 
 HQL-0056 is a sketch. Its one firm idea is that a computation plan is a DAG,

@@ -10,38 +10,38 @@ nothing here restates it.
 
 1. **Check-time warnings** — a checker that reports a warning beside a type,
    without failing. Needed by 2 and 6.
-2. **The naming lint** — [HQL-0011](../../proposals/HQL-0011/README.md): a
+2. **The naming lint** — [HQL-0011](../../proposals/HQL-0011/index.hmd): a
    warning at every name a program introduces that breaks its kind's casing,
    and a test that every registered step and every `lib/std/` name passes. The
    sum-type constructor rule is that record's open question and is not in
    scope.
 3. **Generic functions** — [0022](0022-generic-functions.md): rigid type
    variables, instantiation at a call, bounds.
-4. **`:=` aliases** — [HQL-0015](../../proposals/HQL-0015/README.md): the sugar,
+4. **`:=` aliases** — [HQL-0015](../../proposals/HQL-0015/index.hmd): the sugar,
    its inferred signature in `hql check`, and the shorthands it defines. Needs
    3. A sugared parameter that is a type is that record's open question and is
    not in scope.
-5. **The reduction vocabulary** — [HQL-0014](../../proposals/HQL-0014/README.md):
+5. **The reduction vocabulary** — [HQL-0014](../../proposals/HQL-0014/index.hmd):
    an operator in function position, `reduce(0, +)`; binary `min` and `max`;
    the combiners `merge`, `union` and `concat` and their `_all` forms;
    `product` and `average`; `[] | sum` is `0`.
 6. **The open ends of type interpretation** —
-   [HQL-0016](../../proposals/HQL-0016/README.md): a warning for an `is(U)` that
+   [HQL-0016](../../proposals/HQL-0016/index.hmd): a warning for an `is(U)` that
    is always true, `is` over a bare constructor, a narrowing `filter` over an
    `Option`, and a refused annotation that names `of_type` or the constructor.
-7. **Constructors as operations** — [HQL-0018](../../proposals/HQL-0018/README.md):
+7. **Constructors as operations** — [HQL-0018](../../proposals/HQL-0018/index.hmd):
    a constructor passed as a function, `map(Set)`, and an upper-case name kept
    for constructors.
-8. **Graph construction** — [HQL-0019](../../proposals/HQL-0019/README.md):
+8. **Graph construction** — [HQL-0019](../../proposals/HQL-0019/index.hmd):
    `Graph(nodes, edges)` and `Graph(edges)`, and `graph = vault.graph`.
-9. **The vault's fields** — [HQL-0020](../../proposals/HQL-0020/README.md):
+9. **The vault's fields** — [HQL-0020](../../proposals/HQL-0020/index.hmd):
    `vault.name`, `vault.root` and `vault.graph`, and a bare `vault` without a
    vault naming `--vault`.
 10. **Small diagnostics** — a finite-input error naming `collect(n)` as well
-    as `take(n)` ([HQL-0006](../../proposals/HQL-0006/README.md)); `collect(for =
+    as `take(n)` ([HQL-0006](../../proposals/HQL-0006/index.hmd)); `collect(for =
     …)` saying time windows are not implemented
-    ([HQL-0007](../../proposals/HQL-0007/README.md)); an unknown `renderer =` refused at
-    check time ([HQL-0017](../../proposals/HQL-0017/README.md)).
+    ([HQL-0007](../../proposals/HQL-0007/index.hmd)); an unknown `renderer =` refused at
+    check time ([HQL-0017](../../proposals/HQL-0017/index.hmd)).
 11. **The proposals state what is true** — every proposal's status line, and
     the text the bundles since 0.1.0 made stale, brought to the implementation;
     HQL-0008 marked superseded by HQL-0017.

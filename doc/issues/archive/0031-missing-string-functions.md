@@ -2,7 +2,7 @@
 
 Status: done
 Related: [the standard library](../../../lib/std/README.md),
-[HQL-0024 part 12](../../proposals/HQL-0024/parts/12-contracts-and-binding.md),
+[HQL-0024 part 12](../../proposals/HQL-0024/parts/12-contracts-and-binding.hmd),
 [0030](0030-hql-only-signature-authority.md),
 [0029](../0029-binary-formats-and-codecs.md)
 

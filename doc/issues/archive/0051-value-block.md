@@ -1,7 +1,7 @@
 # 0051 — A value block as a function body: bindings, then the value
 
 Status: done
-Related: [HQL-0038, functions](../../proposals/HQL-0038/README.md),
+Related: [HQL-0038, functions](../../proposals/HQL-0038/index.hmd),
 [the implemented grammar](../../models/behavior/expressions.hmd),
 [function examples](../../../examples/functions/README.md)
 

@@ -11,7 +11,7 @@ or the program — and a **namespace** that resolves it. The spelling of a name
 follows one convention whichever provider supplies it, so a reader cannot tell a
 core step from an extension step from a program binding by its case; the
 provider is recorded where the name is bound, not in its spelling. The decision
-record is [HQL-0011](../../proposals/HQL-0011/README.md).
+record is [[HQL-0011]].
 
 ## Lexical form
 
@@ -24,7 +24,7 @@ design direction, specified by HQL-0011. `true` and `false`
 are the only words the lexer reserves; `type`, `abstract`, `import`, `private`
 and the other keywords are recognized by position. `internal`, before a
 declaration, is reserved and refused
-([HQL-0028](../../proposals/HQL-0028/README.md)).
+([[HQL-0028]]).
 
 ## Casing
 
@@ -50,7 +50,7 @@ parameter, a `fn`, a `type`, a type parameter and a declared field. A name off
 its kind's convention is a warning at the name, naming the kind and the
 convention, and never changes the exit status. Every step the binary registers
 and every name in `lib/std/` follows the convention, which a test enforces
-([HQL-0011](../../proposals/HQL-0011/README.md)).
+([[HQL-0011]]).
 
 Three kinds of name are not HQL identifiers. The first two follow no HQL
 convention:
@@ -68,7 +68,7 @@ convention:
   Ids and kind names (`vault`, `git_vault`, `postgres`) are `snake_case`, so a
   binding can carry the id's name: `field_notes = source("field_notes")`. The
   kinds `vault`, `csv`, `json`, `json_lines`, `yaml` and `sqlite` are
-  implemented; [HQL-0012](../../proposals/HQL-0012/README.md) specifies the
+  implemented; [[HQL-0012]] specifies the
   rest.
 
 The value constructors of the core's sum types are spelled two ways today:
@@ -81,7 +81,7 @@ parameter of a receiver function or a trait's function, which `value.f()`
 supplies; `Self`, the implementing type inside a `trait` or an `impl`; and a
 module's local name, the last segment of `import a.b` or its `as` alias, which
 qualifies the module's functions as `b.f(…)` and may not be a binding at the
-same time ([HQL-0024](../../proposals/HQL-0024/README.md)).
+same time ([[HQL-0024]]).
 
 ## Providers
 
@@ -105,7 +105,7 @@ context values before a program starts, into the **program module** alone:
 `vault`, `stdin`, `stdout`, `stderr` and `file`, and the program module's
 bindings over `vault`, `cards` and `graph`; by HQL-0012 every source named in
 configuration. No module sees them
-([HQL-0028](../../proposals/HQL-0028/README.md)).
+([[HQL-0028]]).
 
 **The program** provides bindings: `bird_cards = cards | filter(…)` introduces
 `bird_cards` for the statements after it. A lambda's parameter — `c` in
@@ -113,7 +113,7 @@ configuration. No module sees them
 
 Types are provided by the core or by an extension, never by a program. A
 program-defined function that acts as a pipeline step — an operation by
-[HQL-0005](../../proposals/HQL-0005/README.md) — is design direction: `fn`
+[[HQL-0005]] — is design direction: `fn`
 declarations are not in the grammar.
 
 ## Namespaces
@@ -156,7 +156,7 @@ private function, receiver function, type, trait or binding is visible within
 its own module only: no importer reaches it by name, as a receiver call or as
 a step, and a public signature may not mention a private type or trait.
 `private` is refused on an `impl` and in the program module, whose
-declarations are all public. See [HQL-0028](../../proposals/HQL-0028/README.md).
+declarations are all public. See [[HQL-0028]].
 
 See [[type-system]] for how a type name relates to another, and [[pipes]] for
 what a step is.

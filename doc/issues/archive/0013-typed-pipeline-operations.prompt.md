@@ -9,11 +9,11 @@ general typed programs, with `Stream<T>`, batching, aggregation and
 presentation, rather than one MapReduce cycle.
 
 Read `doc/memory/` first, as `CLAUDE.md` requires. Then read, in this order:
-the issue, [HQL-0005](../../proposals/HQL-0005/README.md) (vocabulary),
-[HQL-0006](../../proposals/HQL-0006/README.md) (`Stream<T>`),
-[HQL-0007](../../proposals/HQL-0007/README.md) (`collect` and `emit`),
-[HQL-0008](../../proposals/HQL-0008/README.md) (presentation), the reduce side of
-[HQL-0004](../../proposals/HQL-0004/README.md), and
+the issue, [HQL-0005](../../proposals/HQL-0005/index.hmd) (vocabulary),
+[HQL-0006](../../proposals/HQL-0006/index.hmd) (`Stream<T>`),
+[HQL-0007](../../proposals/HQL-0007/index.hmd) (`collect` and `emit`),
+[HQL-0008](../../proposals/HQL-0008/index.hmd) (presentation), the reduce side of
+[HQL-0004](../../proposals/HQL-0004/index.hmd), and
 [queries](../../models/behavior/queries.hmd), which holds the collection hierarchy
 and traversal carrier this builds on.
 

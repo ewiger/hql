@@ -1,11 +1,11 @@
 # 0001 — The extension mechanism
 
 Status: done
-Decision: [HQL-0001](../../proposals/HQL-0001/README.md)
+Decision: [HQL-0001](../../proposals/HQL-0001/index.hmd)
 Branch: `feat/extensions`, off `feat/lang-design`
 Blocks: [0002](0002-semantic-retrieval.md)
 
-The work that carries out [HQL-0001](../../proposals/HQL-0001/README.md). Read the
+The work that carries out [HQL-0001](../../proposals/HQL-0001/index.hmd). Read the
 proposal first; it holds the design, and this card holds only the sequence and
 what "done" means.
 
@@ -47,6 +47,6 @@ safe to do.
 
 ## Settle before starting
 
-The four Open Questions at the end of [HQL-0001](../../proposals/HQL-0001/README.md).
+The four Open Questions at the end of [HQL-0001](../../proposals/HQL-0001/index.hmd).
 They are frozen before its status moves from `drafted` to `accepted`, and the
 proposal is accepted before this card is picked up.

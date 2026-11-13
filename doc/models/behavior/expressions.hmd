@@ -82,7 +82,7 @@ tells braces apart: braces without one denote a set, and braces holding
 `key: value` entries denote `Data`. `{}` is the empty set, a `Set<Never>`
 that a declared type such as `Set<Int>` accepts, and `{:}` is the empty
 `Data`; `d : Data = {}` is a type error
-([HQL-0029](../../proposals/HQL-0029/README.md)).
+([[HQL-0029]]).
 
 `abstract type` declares a contract with no independent runtime constructor.
 `Collection` and `Seq` are abstract; `List` and `Set` are concrete. Type arguments
@@ -126,7 +126,7 @@ nest at most 128 deep.
 names. `insert`, `update` and `delete` open a mutation only when a name
 follows them on the same line, the binding or the call an endpoint is held
 by; `update(x)`, `update | f` and `update = 1` keep their meaning
-([HQL-0051](../../proposals/HQL-0051/README.md)). A mutation is a statement
+([[HQL-0051]]). A mutation is a statement
 or the whole value of a binding, its pipeline closed by the grammar above,
 and its value is the `Int` number of rows the endpoint's system changed.
 `with transaction` opens a scope the same way, a statement or a binding's
@@ -198,7 +198,7 @@ zero and `%` keeps the dividend's sign, so `a == (a / b) * b + a % b`.
 `Decimal` `+` and `-` have the larger scale of their operands and `*` the sum
 of their scales; `/` is exact where the quotient terminates and otherwise
 rounded half to even to 100 significant digits
-([HQL-0031](../../proposals/HQL-0031/README.md)).
+([[HQL-0031]]).
 Division or remainder by zero is an evaluation failure. Overflow — an `i64`
 that wraps, or a result that leaves the finite floats — is an evaluation
 failure rather than a wrapped or infinite value.
@@ -261,7 +261,7 @@ forms, the parameter type the receiving operation passes selects the one
 form whose first parameter takes it; none, or more than one, is refused
 naming the candidates' first parameters, so `[] | map(Temp)` is refused when
 `Temp` takes a Float and a String
-([HQL-0018](../../proposals/HQL-0018/README.md)).
+([[HQL-0018]]).
 
 Text is parsed by construction: `Data(s, Json)`, or `s | Data(Json)`, gives
 the tree the text holds in a format whose decoder reads `Data`, Json,

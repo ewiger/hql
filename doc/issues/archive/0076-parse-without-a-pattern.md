@@ -1,7 +1,7 @@
 # 0076 — `parse_date` and its peers read ISO text without a pattern
 
 Status: done
-Related: [HQL-0041 part 1](../../proposals/HQL-0041/parts/01-time.md),
+Related: [HQL-0041 part 1](../../proposals/HQL-0041/parts/01-time.hmd),
 [`lib/std/time`](../../../lib/std/time/mod.hql),
 [`src/extensions/time.rs`](../../../src/extensions/time.rs),
 [0064](0064-date-and-the-time-module.md)

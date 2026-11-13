@@ -1,6 +1,6 @@
 // Provided by the `std` extension.
 //
-// See doc/proposals/HQL-0047/README.md and doc/proposals/HQL-0048/README.md.
+// See doc/proposals/HQL-0047/index.hmd and doc/proposals/HQL-0048/index.hmd.
 
 /// SQLite: one table of a database file, as a transport read by `source`
 /// and `tap` and written by `target` like any other endpoint (module `io`).

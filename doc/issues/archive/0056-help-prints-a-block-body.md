@@ -1,8 +1,8 @@
 # 0056 — `hql help` prints part of a block body in a signature
 
 Status: done
-Related: [HQL-0038](../../proposals/HQL-0038/README.md),
-[HQL-0042](../../proposals/HQL-0042/README.md),
+Related: [HQL-0038](../../proposals/HQL-0038/index.hmd),
+[HQL-0042](../../proposals/HQL-0042/index.hmd),
 [`src/help.rs`](../../../src/help.rs)
 
 `hql help` on a module whose function has a block body prints the start of

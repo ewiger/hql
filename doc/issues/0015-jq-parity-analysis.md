@@ -45,7 +45,7 @@ no code under `src/` changes here.
 2. **Separate names, separate types.** Whether each format gets its own
    operation and its own type (`json`, `yaml`, `csv`; a CSV row is not a
    `Data` tree), and how they fit the presentation rules of
-   [HQL-0008](../proposals/HQL-0008/README.md): reading a format is
+   [HQL-0008](../proposals/HQL-0008/index.hmd): reading a format is
    computation, writing one is presentation.
 3. **Type system roadblocks.** Where `Data` is too weak or too strict to work
    with as freely as jq does:
@@ -65,14 +65,14 @@ no code under `src/` changes here.
    - Aggregation: `reduce`, `group_by`, `unique_by`, `min_by`, `max_by`,
      `add`. These overlap with `group` / `reduce` in
      [0014](archive/0014-next-feature-bundle.md) and
-     [HQL-0004](../proposals/HQL-0004/README.md).
+     [HQL-0004](../proposals/HQL-0004/index.hmd).
    - Updates: `|=`, `del`, `setpath`. In a functional, typed language these
      return a new tree.
    - Strings: interpolation, `split`, `join`, regex `test` / `capture`, and
      formatters such as `@csv`, `@tsv` and `@base64`.
    - Alternatives and errors: `//`, `try` / `catch`, `empty`.
    - Streaming large inputs (`--stream`), against `Stream<T>` in
-     [HQL-0006](../proposals/HQL-0006/README.md).
+     [HQL-0006](../proposals/HQL-0006/index.hmd).
 5. **What HQL adds.** Where static checking, the knowledge graph and retrieval
    give a better answer than jq, so the analysis argues for parity *and more*
    and not for a jq clone.

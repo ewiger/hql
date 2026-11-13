@@ -29,7 +29,7 @@ binary can reach is logic that cannot be tested.
 pipeline. A first argument that is not a command name is a program:
 `hql '<program>'` is `hql eval '<program>'`. The command line names no input
 and no output of a program's own: a program reads with `source` or `tap` and
-writes with `target` or `sink` ([HQL-0021](../../proposals/HQL-0021/README.md)),
+writes with `target` or `sink` ([[HQL-0021]]),
 and a result of type `Unit` is written as nothing.
 
 ## Options
@@ -69,7 +69,7 @@ See [[card-type|Card]] and
 ## Backends
 
 A checked program runs on an execution backend
-([HQL-0004](../../proposals/HQL-0004/README.md)). The backend changes how a
+([[HQL-0004]]). The backend changes how a
 program runs and never its answer, so it is host configuration and never
 syntax, resolved with the precedence [[reporting]] uses:
 
@@ -86,7 +86,7 @@ backend = "localhost"
 `localhost` is the only registered backend: the in-memory evaluator, each step
 run to completion before the next. Before a backend runs a program, the planner
 annotates every step with its stage
-([HQL-0005](../../proposals/HQL-0005/README.md)); `localhost`'s plan is one
+([[HQL-0005]]); `localhost`'s plan is one
 stage per pipeline, in process, and `hql plan` prints it. A name that is not registered fails every
 program, and `hql config`, with a message naming the flag, the file or the
 variable that supplied it. `hql render` runs its cells on `localhost`.
@@ -94,7 +94,7 @@ variable that supplied it. `hql render` runs its cells on `localhost`.
 ## Configured endpoints
 
 A vault declares the endpoints its programs read and write under `[endpoint.<id>]`
-in `hql.toml` ([HQL-0012](../../proposals/HQL-0012/README.md)). A program
+in `hql.toml` ([[HQL-0012]]). A program
 names a source by its id, `source("field_notes")`, and nothing else: paths,
 hosts and credentials are configuration. Paths resolve against the vault
 root.
@@ -135,7 +135,7 @@ it: an id off `[a-z][a-z0-9_]*`, the id `vault` (the vault the program runs
 against), an unknown kind, a missing or unknown key, and a literal secret in
 `password`, `token`, `secret` or `api_key`. A secret is given as the name of
 the environment variable holding it, in a key ending `_env`. A source's
-**boundary** ([HQL-0035](../../proposals/HQL-0035/README.md)) maps its fields
+**boundary** ([[HQL-0035]]) maps its fields
 under `[endpoint.<id>.fields.<field>]`: `name` or a dotted `path`, the latter
 only for `json`, `json_lines` and `yaml`, with `type`, `position`, `read`,
 `write` and `absent`, and keys the kind's extension owns in a subtable named
@@ -308,7 +308,7 @@ naming the cells, and a cell that reads a failed one is skipped, its output
 saying which cell it waited on. An output's `hash` covers the cell's code and
 the hashes of the cells it reads, so an output whose hash differs from the
 cell's is stale, which a host tells without running anything
-([HQL-0009](../../proposals/HQL-0009/README.md)).
+([[HQL-0009]]).
 
 ````markdown
 ```hql#eval id=open
@@ -320,7 +320,7 @@ open | size
 ```
 ````
 
-The output is Markdown, as [HQL-0008](../../proposals/HQL-0008/README.md)
+The output is Markdown, as [[HQL-0008]]
 requires of a document host. A cell's result is written in the `hmd`
 presentation format: a record becomes a pipe table, a sequence a bulleted list,
 a card a wikilink in that list, and a graph a fenced `d2` block. `markdown` and

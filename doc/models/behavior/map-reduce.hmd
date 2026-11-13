@@ -3,7 +3,7 @@
 Status: **design, partly implemented.** `filter`, `map`, `size` and `count` run
 today, sequentially. `reduce`, `group`, `collect`, the shape of a step and the
 backend that runs a program are specified by
-[HQL-0004](../../proposals/HQL-0004/README.md) and carried out by
+[[HQL-0004]] and carried out by
 [issue 0012](../../issues/archive/0012-mapreduce-backends.md). The example that pins
 the intended results is [`examples/mapreduce/`](../../../examples/mapreduce/README.md).
 
@@ -99,7 +99,7 @@ what lets a vault of fifty cards and a vault of a million run the same program.
 The planner records which of them a backend takes: before the backend runs a
 program, every step is annotated with its stage, derived from the shape and
 purity of the operation the step invokes and from what the backend executes
-([HQL-0005](../../proposals/HQL-0005/README.md)). `localhost`'s plan is one
+([[HQL-0005]]). `localhost`'s plan is one
 stage per pipeline. A backend refuses a pipeline that is not fully annotated,
 and no annotation changes a value. `hql plan` prints the plan.
 

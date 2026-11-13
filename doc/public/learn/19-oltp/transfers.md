@@ -7,7 +7,7 @@ to another changes two rows and adds one, and the three changes hold
 together or not at all. `target` cannot say that: it rewrites a table whole,
 and three writes are three commits. This page is the statements that change
 rows in place, and the scope that makes several of them one transaction
-([HQL-0051](https://github.com/ewiger/hql/blob/main/doc/proposals/HQL-0051/README.md)).
+([HQL-0051](https://github.com/ewiger/hql/blob/main/doc/proposals/HQL-0051/index.hmd)).
 
 Every program here is checked, not run: the book's tests connect to
 nothing. The two records are declared once:

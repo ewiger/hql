@@ -1,9 +1,9 @@
 # 0063 — The result of a write: `Unit` is the wrong answer
 
 Status: todo
-Related: [HQL-0021](../proposals/HQL-0021/README.md) (`target` and `sink`),
-[HQL-0045](../proposals/HQL-0045/README.md) (the error model and the
-diagnostic channel), [HQL-0037](../proposals/HQL-0037/README.md) (`fork`,
+Related: [HQL-0021](../proposals/HQL-0021/index.hmd) (`target` and `sink`),
+[HQL-0045](../proposals/HQL-0045/index.hmd) (the error model and the
+diagnostic channel), [HQL-0037](../proposals/HQL-0037/index.hmd) (`fork`,
 whose value is the record of its branches),
 [`lib/std/io/mod.hql`](../../lib/std/io/mod.hql),
 [writing with `target` and `sink`](../public/learn/09-io/target.md),
@@ -54,8 +54,8 @@ in a record. Whatever the type becomes, its one spelling is part of this.
 
 2026-11-13. `Unit` becomes `Step`, a subtype of a new type `Aute`, the
 atomic unit of execution, before the 0.6.0 tag. The reasoning and the
-migration are in [HQL-0055](../proposals/HQL-0055/README.md) and its
-companion note on [the type `Step`](../proposals/HQL-0055/parts/04-the-step-type.md).
+migration are in [HQL-0055](../proposals/HQL-0055/index.hmd) and its
+companion note on [the type `Step`](../proposals/HQL-0055/parts/04-the-step-type.hmd).
 What stays open here is the outcome of a write: a count and an endpoint, a
 subtype of `Step` or a `Result`, once the backends report them uniformly.
 
@@ -76,7 +76,7 @@ row is no failure: its value is the `Int` 0, the count the system reports,
 and a scope goes on past it. A transfer whose credit names an account that
 does not exist therefore commits its debit alone unless the program reads
 the count. Nothing in the evaluator changed: the book's transfer, the
-benchmark of [HQL-0051](../proposals/HQL-0051/README.md) and its Learn page
+benchmark of [HQL-0051](../proposals/HQL-0051/index.hmd) and its Learn page
 bind both counts and roll the scope back where either is not 1, and
 `tests/transactions.rs` pins both the 0 and that rollback. This is the
 real case the count has served: whatever a write's outcome becomes here,

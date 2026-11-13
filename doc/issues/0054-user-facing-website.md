@@ -10,7 +10,7 @@ the stack and build notes all sit in the primary navigation. A reader has to
 see how HQL was invented before seeing how to use it, and the language looks
 unfinished. The site is restructured for users only. Each release's
 documentation is published under its version, and `/latest/` is the newest
-([HQL-0043](../proposals/HQL-0043/README.md)).
+([HQL-0043](../proposals/HQL-0043/index.hmd)).
 
 ## Target navigation
 
@@ -81,7 +81,7 @@ HQL
 4. **Write Reference from the user's side.** Language, I/O and CLI pages
    state what the current release does. The standard library is a page per
    function, type and trait, written from its doc strings by `hql reference`
-   ([HQL-0043](../proposals/HQL-0043/README.md)). Done for the packages
+   ([HQL-0043](../proposals/HQL-0043/index.hmd)). Done for the packages
    `std` and `search`, a section per package and a page per module in the
    navigation, and each release is published under its version; the
    Language, I/O and CLI pages are not written. Extensions are described

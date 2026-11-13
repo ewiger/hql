@@ -2,8 +2,8 @@
 
 Status: done
 Related: [issue 0052](0052-review-follow-ups.md),
-[HQL-0031, Decimal](../../proposals/HQL-0031/README.md),
-[HQL-0035, schema boundaries](../../proposals/HQL-0035/README.md)
+[HQL-0031, Decimal](../../proposals/HQL-0031/index.hmd),
+[HQL-0035, schema boundaries](../../proposals/HQL-0035/index.hmd)
 
 The line-by-line review that issue 0052 left due, over the checker, the parser,
 the collection steps, the schema boundary and the sources. Every item below was

@@ -1,9 +1,9 @@
 # 0043 — Contract validation: rules, structured errors and stream policies
 
 Status: done
-Related: [HQL-0030](../../proposals/HQL-0030/README.md),
-[HQL-0032](../../proposals/HQL-0032/README.md),
-[HQL-0033](../../proposals/HQL-0033/README.md) for errors as values,
+Related: [HQL-0030](../../proposals/HQL-0030/index.hmd),
+[HQL-0032](../../proposals/HQL-0032/index.hmd),
+[HQL-0033](../../proposals/HQL-0033/index.hmd) for errors as values,
 [the structural examples](../../../examples/structural/README.md)
 
 The structural categories HQL-0032 takes over from HQL-0030 are built: `type A = {…}` is closed,
@@ -22,7 +22,7 @@ adds beyond structure is built.
 - **Errors as structured values:** a validation failure as a value with its
   contract, field, path, rule, expected and actual value and severity,
   rather than an error message, so programs, IDEs, logs and event handlers
-  can read it. [HQL-0033](../../proposals/HQL-0033/README.md) specifies it.
+  can read it. [HQL-0033](../../proposals/HQL-0033/index.hmd) specifies it.
 - **Policies for invalid values in streams:** what a stream does with an
   element that does not validate: fail fast, continue, route to a dead
   letter, aggregate errors, quality thresholds.
@@ -50,7 +50,7 @@ adds beyond structure is built.
   `Invalid` are declared in `lib/std/core/mod.hql`.
 - `Violation`'s `expected`, `actual` and `severity` default, and reading a
   stored `Invalid` back with `| Invalid`, are built; so are validator types
-  ([HQL-0034](../../proposals/HQL-0034/README.md)) and the stream policies,
+  ([HQL-0034](../../proposals/HQL-0034/index.hmd)) and the stream policies,
   which are pipelines over results rather than settings of a contract
   ([issue 0045](0045-errors-validators-boundaries.md), E1 to E5): fail fast
   is `x | T`, continue is `validate(T) | oks()`, a dead letter is

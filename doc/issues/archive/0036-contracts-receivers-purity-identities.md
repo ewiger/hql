@@ -1,8 +1,8 @@
 # 0036 — Contracts and binding: explicit receivers, declared purity, identities
 
 Status: done
-Related: [HQL-0024 part 12](../../proposals/HQL-0024/parts/12-contracts-and-binding.md),
-[receiver modules](../../proposals/HQL-0024/parts/04-receiver-modules.md),
+Related: [HQL-0024 part 12](../../proposals/HQL-0024/parts/12-contracts-and-binding.hmd),
+[receiver modules](../../proposals/HQL-0024/parts/04-receiver-modules.hmd),
 [0030](0030-hql-only-signature-authority.md),
 [0033](0033-overloaded-declarations.md),
 [extensions](../../wiki/hql/extensions.hmd),

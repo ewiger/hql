@@ -1,7 +1,7 @@
 # 0074 — Time columns read and written against a live PostgreSQL and Spark
 
 Status: backlog
-Related: [HQL-0041 part 1](../proposals/HQL-0041/parts/01-time.md),
+Related: [HQL-0041 part 1](../proposals/HQL-0041/parts/01-time.hmd),
 [0064](archive/0064-date-and-the-time-module.md),
 [0072](0072-release-0.6.0.md),
 [`src/postgres.rs`](../../src/postgres.rs),

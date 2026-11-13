@@ -1,7 +1,7 @@
 // status: proposed
 // feature: a key in a vault signs a tree, and the vault's public key verifies the signature
 // implementation: pending
-// proposal: doc/proposals/HQL-0054/parts/01-keyvault.md
+// proposal: doc/proposals/HQL-0054/parts/01-keyvault.hmd
 // environment: knowledge-v1
 // vault: crypto/vault
 // expected-type: Bool

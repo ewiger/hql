@@ -1,9 +1,9 @@
 # 0064 — `Date` as a data type, and the `time` module
 
 Status: done
-Related: [HQL-0041](../../proposals/HQL-0041/README.md),
-[HQL-0041 part 1](../../proposals/HQL-0041/parts/01-time.md),
-[HQL-0040](../../proposals/HQL-0040/README.md),
+Related: [HQL-0041](../../proposals/HQL-0041/index.hmd),
+[HQL-0041 part 1](../../proposals/HQL-0041/parts/01-time.hmd),
+[HQL-0040](../../proposals/HQL-0040/index.hmd),
 [`lib/std/core`](../../../lib/std/core/mod.hql),
 [the data-type card](../../wiki/hql/types/data-type.hmd),
 [0074](../0074-time-columns-against-live-servers.md)

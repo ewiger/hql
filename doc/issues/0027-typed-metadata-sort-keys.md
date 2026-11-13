@@ -2,7 +2,7 @@
 
 Status: todo
 Depends on: declared record types in the type lattice, the type-system work
-that follows [HQL-0016](../proposals/HQL-0016/README.md)
+that follows [HQL-0016](../proposals/HQL-0016/index.hmd)
 Source: the [todo example](../../examples/todo/README.md)
 
 `Card.metadata` is `Data`, so a metadata read is `Option<Data>`, and `Data` is
@@ -54,7 +54,7 @@ so `of_type(TaskCard)` is a name error.
 - `of_type(TaskCard)` keeps a card exactly when every field `Task` declares is
   present in its metadata and its leaf reads as the declared type, through
   `Value::interpreted`. A card that does not fit is dropped, not reported:
-  `of_type` is a filter ([HQL-0016](../proposals/HQL-0016/README.md)).
+  `of_type` is a filter ([HQL-0016](../proposals/HQL-0016/index.hmd)).
 - On a kept card, `c.metadata` is a `Task`, and `c.metadata.priority` is an
   `Int` rather than an `Option<Data>`, so it is a sort key. An optional field,
   `due? : String`, reads as `Option<String>`.

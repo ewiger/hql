@@ -1,7 +1,7 @@
 # 0020 — `hql render` compiles a document
 
 Status: done
-Decisions: [HQL-0008](../../proposals/HQL-0008/README.md), its section
+Decisions: [HQL-0008](../../proposals/HQL-0008/index.hmd), its section
 "Presenting into a document"
 Related: [program values](../../models/behavior/program-values.hmd), its section
 "HMD cell contexts"; [CLI](../../models/behavior/cli.hmd), its section "Documents
@@ -58,7 +58,7 @@ A block's info string may override the mode for that block:
 ## Output
 
 The output of a cell is its value written in the `hmd` presentation format
-([HQL-0017](../../proposals/HQL-0017/README.md)): Markdown text is spliced in, and
+([HQL-0017](../../proposals/HQL-0017/index.hmd)): Markdown text is spliced in, and
 text of another format is a fenced block with that format's info string.
 
 ## Failure

@@ -1,4 +1,4 @@
-// See doc/proposals/HQL-0021/README.md and doc/proposals/HQL-0012/README.md.
+// See doc/proposals/HQL-0021/index.hmd and doc/proposals/HQL-0012/index.hmd.
 
 /// Input and output: endpoints, the data sources read from them, and the
 /// data targets written to them. An endpoint names where bytes are and

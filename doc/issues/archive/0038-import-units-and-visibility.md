@@ -1,10 +1,10 @@
 # 0038 — Import units, the program module and declaration visibility
 
 Status: done
-Related: [HQL-0028](../../proposals/HQL-0028/README.md),
-[modules](../../proposals/HQL-0024/parts/01-modules.md),
-[imports](../../proposals/HQL-0024/parts/02-imports.md),
-[receiver modules](../../proposals/HQL-0024/parts/04-receiver-modules.md),
+Related: [HQL-0028](../../proposals/HQL-0028/index.hmd),
+[modules](../../proposals/HQL-0024/parts/01-modules.hmd),
+[imports](../../proposals/HQL-0024/parts/02-imports.hmd),
+[receiver modules](../../proposals/HQL-0024/parts/04-receiver-modules.hmd),
 [the Mighty Types programs](../../../examples/mighty-types/README.md)
 
 Every module is an import unit and a closure over its own source and
@@ -82,4 +82,4 @@ declaration is public unless it is marked `private`.
   operation and reached by no importer, in any spelling, and no `lib/std/` file
   declares one yet.
 - `internal` waits for every resolved module to record its package
-  ([HQL-0025](../../proposals/HQL-0025/README.md)).
+  ([HQL-0025](../../proposals/HQL-0025/index.hmd)).

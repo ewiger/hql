@@ -1,6 +1,6 @@
 // Provided by the `std` extension.
 //
-// See doc/proposals/HQL-0040/README.md.
+// See doc/proposals/HQL-0040/index.hmd.
 
 /// The file system as data: folders, globs over paths, and the entries a
 /// folder holds, with their kinds, sizes and modification times.

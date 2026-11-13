@@ -66,5 +66,5 @@ without using the root discovery changes nothing, and the check in step 4 is
 what makes the rest visible to someone whose query just failed.
 
 See [the semantic-search requirements](../models/requirements/semantic-search.hmd),
-[HQL-0002](../proposals/HQL-0002/README.md) and
+[HQL-0002](../proposals/HQL-0002/index.hmd) and
 [semantic search](../wiki/hql/semantic-search.hmd).

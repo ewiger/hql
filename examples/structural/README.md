@@ -1,6 +1,6 @@
 # Structural types, open views and contracts
 
-The cases follow [HQL-0032](../../doc/proposals/HQL-0032/README.md), which
+The cases follow [HQL-0032](../../doc/proposals/HQL-0032/index.hmd), which
 supersedes HQL-0030: a plain
 structural type is closed, one narrowing `Data` (or `DataContract`) is an open
 view, and `data | T` reads a `Data` as `T` without changing it. A

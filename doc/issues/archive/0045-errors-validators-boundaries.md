@@ -1,12 +1,12 @@
 # 0045 — Dataflow, errors as values, validator types and schema boundaries
 
 Status: done
-Related: [HQL-0032](../../proposals/HQL-0032/README.md),
-[HQL-0033](../../proposals/HQL-0033/README.md),
-[HQL-0034](../../proposals/HQL-0034/README.md),
-[HQL-0035](../../proposals/HQL-0035/README.md),
-[HQL-0036](../../proposals/HQL-0036/README.md),
-[HQL-0037](../../proposals/HQL-0037/README.md),
+Related: [HQL-0032](../../proposals/HQL-0032/index.hmd),
+[HQL-0033](../../proposals/HQL-0033/index.hmd),
+[HQL-0034](../../proposals/HQL-0034/index.hmd),
+[HQL-0035](../../proposals/HQL-0035/index.hmd),
+[HQL-0036](../../proposals/HQL-0036/index.hmd),
+[HQL-0037](../../proposals/HQL-0037/index.hmd),
 [0043](0043-contract-validation.md),
 [0044](0044-typed-tables.md),
 [the structural examples](../../../examples/structural/README.md)
@@ -31,7 +31,7 @@ Each item runs the same cycle.
    verified `expected-type` and `expected`.
 4. `cargo test` and `cargo clippy --all-targets` pass with no warnings.
 5. Update the proposal's status line and changelog, the
-   [proposal index](../../proposals/README.md), `CHANGELOG.md`, the wiki card
+   [proposal index](../../proposals/index.hmd), `CHANGELOG.md`, the wiki card
    that states the feature, and this issue's Progress.
 6. Commit the item on its own.
 
@@ -41,7 +41,7 @@ that in its commit. It does not add open questions.
 
 ## Work items
 
-### The dataflow DAG ([HQL-0037](../../proposals/HQL-0037/README.md))
+### The dataflow DAG ([HQL-0037](../../proposals/HQL-0037/index.hmd))
 
 - **D1 — `fork`.** `xs | fork { a = …, b = … }` parses as a structural
   form, every branch consumes the same upstream, and the result is a record
@@ -58,7 +58,7 @@ that in its commit. It does not add open questions.
   `zip` and `concat` exist over `Seq` and lists and extend to `Stream`.
   `merge` is overloaded for `Map` and `Stream` only, as HQL-0037's section
   on the overload states: the map combiner of
-  [HQL-0014](../../proposals/HQL-0014/README.md) keeps its meaning, a call is
+  [HQL-0014](../../proposals/HQL-0014/index.hmd) keeps its meaning, a call is
   resolved by its argument types, and a named `merge` by the expected
   function type, so `maps | reduce({:}, merge)` still checks and `f = merge`
   is an ambiguous reference. Today the combiner is special-cased by name in
@@ -69,7 +69,7 @@ that in its commit. It does not add open questions.
   `hql`'s plan output show fork, tee and fan-in nodes, and a `fork`'s
   branches as stages of one upstream.
 
-### Errors as values ([HQL-0033](../../proposals/HQL-0033/README.md))
+### Errors as values ([HQL-0033](../../proposals/HQL-0033/index.hmd))
 
 `Result`, `map_err`, `oks()`, `errs()`, `Violation` and `Invalid` exist.
 
@@ -101,7 +101,7 @@ that in its commit. It does not add open questions.
   conflict; [0043](0043-contract-validation.md)'s stream policies are closed
   by E2 to E4. HQL-0033 is marked accepted once E1 to E4 are built.
 
-### Validator types ([HQL-0034](../../proposals/HQL-0034/README.md))
+### Validator types ([HQL-0034](../../proposals/HQL-0034/index.hmd))
 
 - **V1 — `Validator` and validator types.** `trait Validator` in `lib/std/`; a
   type with `Validator` among its supertypes is a validator type;
@@ -114,7 +114,7 @@ that in its commit. It does not add open questions.
   and the identity and message of the `Violation` a validator type reports,
   consistent with the rule identities `as name` gives.
 
-### Schema boundaries ([HQL-0035](../../proposals/HQL-0035/README.md))
+### Schema boundaries ([HQL-0035](../../proposals/HQL-0035/index.hmd))
 
 Scope is the kinds that exist: `csv`, `json`, `json_lines`, `yaml` and
 `sqlite`. Registries, catalog providers other than SQLite's, Postgres,
@@ -155,7 +155,7 @@ refresh, caching, versioning and boundary events are not in this portion.
   boundary: field, external field, both types, origin of each property, and
   read and write status.
 
-### Partitioning ([HQL-0036](../../proposals/HQL-0036/README.md))
+### Partitioning ([HQL-0036](../../proposals/HQL-0036/index.hmd))
 
 - **P1 — `partition(by = …)`.** First the predicate
   `partition(self, by: T -> Bool) : Pair<List<T>, List<T>>` is removed from

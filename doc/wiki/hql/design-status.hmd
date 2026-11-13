@@ -43,7 +43,7 @@ clauses and Rust's trait machinery stay out of the design. HQL's own `trait` is
 a capability contract with an `impl` per type, verified by the checker, written for what
 generic code and the operators quantify over and for nothing else; ancestry
 stays `:` and a shared shape stays a partial schema over `Data` — see
-[[type-system]] and [HQL-0024](../../proposals/HQL-0024/README.md). Records,
+[[type-system]] and [[HQL-0024]]. Records,
 unions of records, `Result<T, E>`, receiver calls `value.f()`, modules
 imported as `import a.b as c` from the standard library or a module root, and
 `module a.b for T` receiver modules are implemented, with the
@@ -69,7 +69,7 @@ declared by `metadata.knowledge.type` and must be checked, not trusted.
 
 HQL has **no field visibility**: no `pub`, `protected` or `private` on a
 field. `private` marks a module's declaration, never a field
-([HQL-0028](../../proposals/HQL-0028/README.md)). Values are
+([[HQL-0028]]). Values are
 data and declared fields are queryable data, so there is no privileged inside for
 a modifier to protect, and a subtype neither hides nor re-exposes what it
 inherits. What a type may declare instead is that a field is optional, `metadata?
@@ -96,7 +96,7 @@ recorded in [[type-system]] and fields in [[fields]].
 - Extension transport, and whether an extension may supply anything beyond
   steps — a type, a renderer or a document source.
 - The reduce side of the pipeline vocabulary and the execution backend that
-  runs a program — drafted in [HQL-0004](../../proposals/HQL-0004/README.md).
+  runs a program — drafted in [[HQL-0004]].
 
 The implemented slice is now larger than the literal core: statements and
 bindings, strings and data literals, document references, the link operator,

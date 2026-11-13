@@ -1,7 +1,7 @@
 # 0042 — Decimal
 
 Status: done
-Related: [HQL-0031](../../proposals/HQL-0031/README.md)
+Related: [HQL-0031](../../proposals/HQL-0031/index.hmd)
 
 A fundamental `Decimal` type, beside `Int`, `Float` and `String`: a number
 with a decimal point that is exact, not floating point, so a long number
@@ -25,7 +25,7 @@ applications and anywhere an amount must stay what it was written as.
   a `Decimal` field with its digits and write it with its scale, shown in
   [the decimal examples](../../../examples/decimal/README.md).
 - A decimal field written as a JSON string is built with
-  [HQL-0035](../../proposals/HQL-0035/README.md)'s boundary
+  [HQL-0035](../../proposals/HQL-0035/index.hmd)'s boundary
   ([issue 0045](0045-errors-validators-boundaries.md), B5): it is a
   `Decimal`'s default representation in JSON and YAML, and a lossy one, a
   JSON number among them, needs `lossy = true`.

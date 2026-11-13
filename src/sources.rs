@@ -1,5 +1,5 @@
 //! How a vault's documents are read, independent of document parsing and
-//! knowledge assembly. See `doc/proposals/HQL-0012/README.md`.
+//! knowledge assembly. See `doc/proposals/HQL-0012/index.hmd`.
 
 use crate::document::Format;
 use std::io;

@@ -1,6 +1,6 @@
 # Dataflow: fork and shared producers
 
-The cases follow [HQL-0037](../../doc/proposals/HQL-0037/README.md): a
+The cases follow [HQL-0037](../../doc/proposals/HQL-0037/index.hmd): a
 program is a logical dataflow graph, and `fork` is its broadcast fan-out.
 `xs | fork { a = …, b = … }` gives every branch the same input, and its
 value is the record of the branches' results, `{a: A, b: B}`, each field

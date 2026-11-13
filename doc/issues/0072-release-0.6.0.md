@@ -226,7 +226,7 @@ no CI.
 Not to be decided in code. Ask before starting either.
 
 - Issue 0063: decided 2026-11-13. `Unit` is renamed `Step`, a subtype of a
-  new builtin `Aute`, in 0.6.0, as [HQL-0055](../proposals/HQL-0055/README.md)
+  new builtin `Aute`, in 0.6.0, as [HQL-0055](../proposals/HQL-0055/index.hmd)
   states; `Unit` is refused naming `Step`, and the change is listed under
   "Changed" with the other two renames. A write's outcome stays open in 0063.
   The analysis below informs that later question: what `target`, `sink`,

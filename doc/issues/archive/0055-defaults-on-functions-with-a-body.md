@@ -1,7 +1,7 @@
 # 0055 — A parameter default on a function with a body
 
 Status: done
-Related: [HQL-0038](../../proposals/HQL-0038/README.md),
+Related: [HQL-0038](../../proposals/HQL-0038/index.hmd),
 [`src/parser.rs`](../../../src/parser.rs),
 [Declaring a function](../../public/learn/04-functions/declaring.md)
 

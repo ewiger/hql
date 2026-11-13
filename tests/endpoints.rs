@@ -1,6 +1,6 @@
 //! Configured endpoints: `[endpoint.<id>]` in a vault's `hql.toml`, read by
 //! `source("id")`, typed offline from the configuration and bounded by the
-//! run context. See doc/proposals/HQL-0012/README.md.
+//! run context. See doc/proposals/HQL-0012/index.hmd.
 
 use hql::reporting::Mode;
 use hql::vault::{self, Vault};

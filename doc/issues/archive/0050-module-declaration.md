@@ -1,14 +1,14 @@
 # 0050 — Every module file declares its name: `module a.b`, `module a.b for T`
 
 Status: done
-Related: [HQL-0024, modules](../../proposals/HQL-0024/parts/01-modules.md),
-[HQL-0024, receiver modules](../../proposals/HQL-0024/parts/04-receiver-modules.md),
+Related: [HQL-0024, modules](../../proposals/HQL-0024/parts/01-modules.hmd),
+[HQL-0024, receiver modules](../../proposals/HQL-0024/parts/04-receiver-modules.hmd),
 [`lib/std/`](../../../lib/std/README.md),
 [Mighty Types](../../../examples/mighty-types/README.md)
 
 A module's name is derived from its file's position under a module root. A
 module file now also states that name on its first line, as
-[the module declaration](../../proposals/HQL-0024/parts/01-modules.md#the-module-declaration)
+[the module declaration](../../proposals/HQL-0024/parts/01-modules.hmd#the-module-declaration)
 in HQL-0024's modules part defines, and loading the module checks the two
 against each other. The declaration is a safety check on the name: a moved or
 copied file, or a typing mistake in the name, fails when the module is loaded

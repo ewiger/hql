@@ -1,7 +1,7 @@
 # Doc strings: `///` above a declaration, printed by `help`
 
 Sessions, not programs: each case is a REPL or command-line transcript of what
-`hql` prints for [HQL-0042](../../doc/proposals/HQL-0042/README.md) doc
+`hql` prints for [HQL-0042](../../doc/proposals/HQL-0042/index.hmd) doc
 strings. From the repository root:
 
 ```sh

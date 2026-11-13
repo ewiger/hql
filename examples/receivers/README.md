@@ -11,7 +11,7 @@ A declaration has a receiver or it does not. `fn trim(self) : String` and
 `fn abs(self: Int) : Int` have one, and `value.f()` reaches them; a
 declaration without `self` is reached by a call, `range(1, 3)`, or a
 pipeline step, `1 | range(3)`, and never by a receiver call
-([HQL-0024 part 12](../../doc/proposals/HQL-0024/parts/12-contracts-and-binding.md)).
+([HQL-0024 part 12](../../doc/proposals/HQL-0024/parts/12-contracts-and-binding.hmd)).
 
 | Query | What it shows | Result |
 | --- | --- | --- |

@@ -1,6 +1,6 @@
 # Transactions: a ledger in one SQLite file
 
-The cases follow [HQL-0051](../../doc/proposals/HQL-0051/README.md). Each
+The cases follow [HQL-0051](../../doc/proposals/HQL-0051/index.hmd). Each
 opens two tables of one SQLite file, `ledger.db`, with the constructor of
 `io.db.sqlite`, writes their opening rows with `target`, and changes them
 with `insert`, `update` and `delete`. `with transaction tx on {accounts,

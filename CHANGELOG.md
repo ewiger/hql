@@ -13,7 +13,7 @@ The language continues to be in active development.
 - `parse_date`, `parse_datetime` and `parse_instant` take no pattern as
   well: `"1982-05-09".parse_date()` reads the ISO text that `to_date`
   reads, and the same for `DateTime` and `Instant`
-  ([HQL-0041](doc/proposals/HQL-0041/README.md) part 1, issue 0076).
+  ([HQL-0041](doc/proposals/HQL-0041/index.hmd) part 1, issue 0076).
 
 ## [0.6.0] — 2026-11-13
 
@@ -27,7 +27,7 @@ The language continues to be in active development.
   deduplication, windows, merge, incremental loads), with a page on logical
   steps and physical plans. Checked programs are shown with what
   `hql check` prints; the programs that reach a server run in hql-demo.
-- Randomness ([HQL-0041](doc/proposals/HQL-0041/README.md) part 4). The
+- Randomness ([HQL-0041](doc/proposals/HQL-0041/index.hmd) part 4). The
   module `random`, imported with `import random`, declares `sample`,
   `shuffle` and `choice` over a sequence, `sample` over a stream by
   reservoir, `random_int`, `random_float`, a version 7 `uuid()` and a
@@ -35,19 +35,19 @@ The language continues to be in active development.
   without one it is effectful and draws from the evaluation seed, which
   `--seed` fixes. The generator is ChaCha12 and is not for secrets. The book
   teaches it in [Random values](doc/public/learn/29-random.md).
-- `abs` over a `Duration` ([HQL-0041](doc/proposals/HQL-0041/README.md)
+- `abs` over a `Duration` ([HQL-0041](doc/proposals/HQL-0041/index.hmd)
   part 1): the prelude's `math` declares `fn abs(self: Duration) : Duration`
   beside the numbers, so `abs(Duration("-PT1H"))` is `PT1H` with no
   `import time`.
 - `Entry.modified? : Instant` in `io.fs`
-  ([HQL-0040](doc/proposals/HQL-0040/README.md)): the time an entry was
+  ([HQL-0040](doc/proposals/HQL-0040/index.hmd)): the time an entry was
   last modified, a link's own and not its target's, absent where the
   platform records none. Every listing and `entry` read it with the rest
   of the entry.
 - `hql --version` names the time-zone database zone names resolve against
   on a second line, `time-zone database: system` for the host's, or the
   release of the database compiled into the binary, `2026e, bundled`.
-- Descriptive statistics ([HQL-0041](doc/proposals/HQL-0041/README.md)
+- Descriptive statistics ([HQL-0041](doc/proposals/HQL-0041/index.hmd)
   part 2). The module `stats`, imported with `import stats`, declares the
   reductions `mean`, `variance` and `stdev` (sample, `n - 1`), `pvariance`
   and `pstdev` (population, `n`), and `covariance` and `correlation` over
@@ -63,7 +63,7 @@ The language continues to be in active development.
   `Float`s is ambiguous with the prelude's population `variance` and is
   written `stats.variance`.
 - Environment variables and invocation arguments
-  ([HQL-0041](doc/proposals/HQL-0041/README.md) part 5). The module
+  ([HQL-0041](doc/proposals/HQL-0041/index.hmd) part 5). The module
   `io.env`, imported with `import io.env` and reached as `env`, declares the
   effectful `var`, `vars`, `arg` and `args`. A program run on its own reads
   every variable; `env = ["NAME", "PREFIX_*"]` in a workspace's `hql.toml`
@@ -71,7 +71,7 @@ The language continues to be in active development.
   non-UTF-8 variable all read as `none`. `--arg name=value`, repeatable,
   passes an argument, always granted; a name outside `[a-z_][a-z0-9_]*` or
   given twice is a usage error, exit 2, before evaluation.
-- The file system as data ([HQL-0040](doc/proposals/HQL-0040/README.md)).
+- The file system as data ([HQL-0040](doc/proposals/HQL-0040/index.hmd)).
   `io` declares `Path`, a place in a file system written as text and
   ordered by its segments, with `join`, `parent`, `name`, `stem` and
   `extension`, which read the text alone; `file(p)` takes a `Path`. The
@@ -83,7 +83,7 @@ The language continues to be in active development.
   and is bounded by `[execution] max_elements`. `Path`, `Folder`, `Glob` and
   `Entry` are built-in type names, so a program declares its own record
   under another name.
-- Traits ([HQL-0039](doc/proposals/HQL-0039/README.md)): `trait Shape as
+- Traits ([HQL-0039](doc/proposals/HQL-0039/index.hmd)): `trait Shape as
   Figure` declares `Figure`, the union of the types implementing `Shape`,
   which holds a value of any of them, matches member by member, dispatches
   `f.area()` on the value's own type and satisfies `T : Shape`. A receiver
@@ -93,7 +93,7 @@ The language continues to be in active development.
   1)`, `seq.at(xs, 1)` and `seq.slice(xs, r)` are calls. A trait written as a
   type is refused, naming the bound `<T : Shape>(x: T)`. A trait extending
   `Validator` is called a validator trait.
-- Execution contexts ([HQL-0025](doc/proposals/HQL-0025/README.md)): a
+- Execution contexts ([HQL-0025](doc/proposals/HQL-0025/index.hmd)): a
   program's file anchors workspace discovery, which stops at the nearest
   directory holding `.hmd/` (a vault) or `hql.toml`. `--workspace` names the
   workspace, `--bare` runs with none, and `hql context` reports the mode,
@@ -106,7 +106,7 @@ The language continues to be in active development.
   `hql config current-context`, `get-contexts`, `use-context` and `view`
   manage them.
 - Transactions and relational mutations, phase 1
-  ([HQL-0051](doc/proposals/HQL-0051/README.md)): four capabilities of a
+  ([HQL-0051](doc/proposals/HQL-0051/index.hmd)): four capabilities of a
   transport in `io`, `Transactional`, `Insertable`, `Updatable` and
   `Deletable`, each an abstract type below `Transport` and independent of
   the others, which `Sqlite` and `Postgres` declare; `IsolationLevel` with
@@ -116,7 +116,7 @@ The language continues to be in active development.
   reads what `source("id")` reads and `target(xs, configured("id"))` writes
   what `target(xs, "id")` writes.
 - Transactions and relational mutations, phase 2
-  ([HQL-0051](doc/proposals/HQL-0051/README.md)): `insert E rows`,
+  ([HQL-0051](doc/proposals/HQL-0051/index.hmd)): `insert E rows`,
   `update E | filter(p) | set(f)` and `delete E | filter(p)` change the
   rows of an `Insertable`, `Updatable` or `Deletable` endpoint in place,
   each as one statement of the endpoint's system, committed when it ends,
@@ -132,7 +132,7 @@ The language continues to be in active development.
 - `one` in `seq`: the one element of a sequence of exactly one, and an
   evaluation failure naming the count otherwise.
 - Transactions and relational mutations, phases 3 and 4
-  ([HQL-0051](doc/proposals/HQL-0051/README.md)): `with
+  ([HQL-0051](doc/proposals/HQL-0051/index.hmd)): `with
   transaction(attempts = 3, isolation = Serializable) tx on {accounts,
   transfers} { … }` runs its block as one atomic unit over `Transactional`
   endpoints of one database, `sqlite` or `postgres`, and commits when the
@@ -150,15 +150,15 @@ The language continues to be in active development.
   transactional endpoint in the block that is no participant, the handle
   outside a control call, a statement after one, and an isolation level
   the kind does not offer.
-- Two transaction warnings ([HQL-0051](doc/proposals/HQL-0051/README.md)),
+- Two transaction warnings ([HQL-0051](doc/proposals/HQL-0051/index.hmd)),
   both of kind `effect`. A scope written as a statement before a program's
   last one, its `Result` neither bound nor the program's result, is warned:
   its failure would be observed by nothing. Under `attempts` written as a
   number above 1, each `target`, `sink` or log call in the block whose
   endpoint is no participant is warned, naming the endpoint: it runs on
   every attempt and is not rolled back.
-- The module `io.db.spark` ([HQL-0047](doc/proposals/HQL-0047/README.md),
-  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Spark :
+- The module `io.db.spark` ([HQL-0047](doc/proposals/HQL-0047/index.hmd),
+  [HQL-0048](doc/proposals/HQL-0048/index.hmd)): the transport `Spark :
   {Network, RowTransport, Replayable, Writable, …}` and its constructor
   `spark(table = …, url = …, url_env = …, token_env = …, order = [])`,
   every parameter named, so `source`, `tap` and `target` reach a lakehouse
@@ -166,15 +166,15 @@ The language continues to be in active development.
   `update` and `delete`, each one Spark SQL statement, and a transaction
   scope over it holds that one table and at most one statement that
   changes it, since a Delta table commits one statement of itself
-  ([HQL-0051](doc/proposals/HQL-0051/README.md)).
-- The module `io.db.postgres` ([HQL-0047](doc/proposals/HQL-0047/README.md),
-  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Postgres :
+  ([HQL-0051](doc/proposals/HQL-0051/index.hmd)).
+- The module `io.db.postgres` ([HQL-0047](doc/proposals/HQL-0047/index.hmd),
+  [HQL-0048](doc/proposals/HQL-0048/index.hmd)): the transport `Postgres :
   {Network, RowTransport, Replayable, Writable, …}` and its constructor
   `postgres(dsn_env = …, table = …, order = [])`, every parameter named,
   which takes the keys of the `postgres` kind, so `source`, `tap` and
   `target` reach a table with no configured endpoint. The connection string
   is read from the environment where the endpoint is used.
-- Analytic windows ([HQL-0050](doc/proposals/HQL-0050/README.md)):
+- Analytic windows ([HQL-0050](doc/proposals/HQL-0050/index.hmd)):
   `over(by, order, into)` partitions a sequence by `by`, orders each
   partition by `order`, and gives one value per row, at the row's input
   position, from the row and its `Window`. A window gives `row_number`,
@@ -183,8 +183,8 @@ The language continues to be in active development.
   a window, and `over` of a `Stream` is refused.
 - `then` composes two comparisons into one, the second deciding a tie:
   `compare(a.at, b.at) | then(compare(a.seq, b.seq))`.
-- The module `io.db.sqlite` ([HQL-0047](doc/proposals/HQL-0047/README.md),
-  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Sqlite :
+- The module `io.db.sqlite` ([HQL-0047](doc/proposals/HQL-0047/index.hmd),
+  [HQL-0048](doc/proposals/HQL-0048/index.hmd)): the transport `Sqlite :
   {Direct, RowTransport, Replayable, Writable}` and its constructor
   `sqlite(path, table, order = [])`, which takes the keys of the `sqlite`
   kind, so `source`, `tap` and `target` reach a table of a database file
@@ -193,7 +193,7 @@ The language continues to be in active development.
   constructed table is refused, naming `target`.
 
 - Kafka topics and PostgreSQL tables as configured endpoints
-  ([HQL-0046](doc/proposals/HQL-0046/README.md)). `kind = "postgres"`
+  ([HQL-0046](doc/proposals/HQL-0046/index.hmd)). `kind = "postgres"`
   (`dsn_env`, `table`, `order`) is read by `source("id")` as a `Seq` through
   the boundary and written by `target("id")` by `mode`, `replace` emptying
   the table and keeping its definition; a `numeric` column keeps its digits.
@@ -205,7 +205,7 @@ The language continues to be in active development.
   moves a topic into a table.
 - `dsn` is a secret key in `[endpoint.<id>]`, named by `dsn_env`.
 - NATS subjects and lakehouse tables as configured endpoints
-  ([HQL-0049](doc/proposals/HQL-0049/README.md)). `kind = "nats"` (`url` or
+  ([HQL-0049](doc/proposals/HQL-0049/index.hmd)). `kind = "nats"` (`url` or
   `url_env`, `subject`, `idle_ms`) is one core NATS subject: `tap("id")`
   subscribes and is given what is published from then on, and `sink("id")`
   publishes with nothing confirming it. `kind = "nats_jetstream"` (`url` or
@@ -224,15 +224,15 @@ The language continues to be in active development.
   later read starts after the last message acknowledged. A message is
   acknowledged once the program asks for the one after it.
 - The modules `io.msg.nats` and `io.msg.nats_jetstream`
-  ([HQL-0047](doc/proposals/HQL-0047/README.md),
-  [HQL-0048](doc/proposals/HQL-0048/README.md)): the transports `Nats` and
+  ([HQL-0047](doc/proposals/HQL-0047/index.hmd),
+  [HQL-0048](doc/proposals/HQL-0048/index.hmd)): the transports `Nats` and
   `NatsJetStream`, and their constructors `nats(subject, url_env = …)` and
   `nats_jetstream(subject, stream = …, url_env = …)`, each taking its kind's
   keys, so `tap`, `sink` and `target` reach a subject with no configured
   endpoint. `io` declares `Transport`, `Direct`,
   `Network`, `ByteTransport`, `MessageTransport` and `RowTransport`; over a
   `MessageTransport` a format may be omitted and is then `Json`.
-- Digests and text encodings ([HQL-0041](doc/proposals/HQL-0041/README.md)
+- Digests and text encodings ([HQL-0041](doc/proposals/HQL-0041/index.hmd)
   part 3). The module `crypto.digest`, imported with `import crypto.digest`
   and reached as `digest`, declares the algorithms `Md5`, `Sha1`, `Sha256`,
   `Sha512` and `Blake3`; `s.digest(Sha256)` is the lowercase hex digest of a
@@ -243,7 +243,7 @@ The language continues to be in active development.
   and `s.decode(E)` reads them back, `none` for text not valid in `E` or
   octets that are not UTF-8. The algorithm and encoding names are built-in
   type names.
-- `Bytes`, a finite sequence of octets ([HQL-0053](doc/proposals/HQL-0053/README.md)
+- `Bytes`, a finite sequence of octets ([HQL-0053](doc/proposals/HQL-0053/index.hmd)
   part 1). `Bytes("hé")` is a text's UTF-8 encoding; `Bytes(t, Hex)`,
   `t.to_bytes(Base64)` and `b.encode(Hex)` convert through `encoding`. The
   prelude's `bytes` module gives `size`, `to_text`, `at` and `slice`, so
@@ -252,7 +252,7 @@ The language continues to be in active development.
   and lowercase hex, a text format writes it as base64, and a declared
   `Bytes` field reads base64 text. `crypto.digest` gains `digest` over
   `Bytes` and `canonical`, the RFC 8785 text `fingerprint` digests.
-- Keys ([HQL-0053](doc/proposals/HQL-0053/README.md) part 2). `import
+- Keys ([HQL-0053](doc/proposals/HQL-0053/index.hmd) part 2). `import
   crypto` declares the algorithms `Ed25519`, `P256`, `Rsa` and `X25519`,
   the key formats `Pem`, `Jwk`, `OpenSsh` and `Age`, and `PublicKey<A>`,
   `PrivateKey<A>`, `KeyPair<A>` and `SecretKey<A>`. Keys are read from
@@ -265,7 +265,7 @@ The language continues to be in active development.
   prints as its public key's thumbprint or `redacted`, no format writes
   one, `==` does not compare one, and a private key written into a
   program's source is refused.
-- Signatures, MACs and password hashes ([HQL-0053](doc/proposals/HQL-0053/README.md)
+- Signatures, MACs and password hashes ([HQL-0053](doc/proposals/HQL-0053/index.hmd)
   part 3). `sign` and `verify` over `String` and `Bytes`, and `sign_data`
   and `verify_data` over the canonical JSON of a tree, for `Ed25519`, `P256`
   (r || s, as JWS ES256; `p256_signature_from_der` converts OpenSSL's DER)
@@ -275,7 +275,7 @@ The language continues to be in active development.
   than OWASP's cost, and `verify_password` checks one.
 - `+` concatenates formatted text, `source(file(p), Text)`'s documents
   among it, as the `String` it is.
-- Encryption ([HQL-0053](doc/proposals/HQL-0053/README.md) part 4).
+- Encryption ([HQL-0053](doc/proposals/HQL-0053/index.hmd) part 4).
   `encrypt` and `decrypt` under `Aes256Gcm` or `ChaCha20Poly1305` (nonce,
   ciphertext, tag; `aad` bound); `encrypt_to` and `decrypt_with` in the age
   v1 format to X25519 recipients, `encrypt_with_passphrase` and
@@ -324,7 +324,7 @@ The language continues to be in active development.
   within 10 seconds fails, and so does an `http` response or a WebSocket
   handshake that sends nothing for 30 seconds; each failure names the URL
   or the address. `http(url, timeout_ms = n)` sets one endpoint's response
-  bound ([HQL-0047](doc/proposals/HQL-0047/README.md), issue 0069).
+  bound ([HQL-0047](doc/proposals/HQL-0047/index.hmd), issue 0069).
 
 ### Changed
 
@@ -364,7 +364,7 @@ The language continues to be in active development.
 
 ### Changed
 
-- The error model ([HQL-0045](doc/proposals/HQL-0045/README.md), shown in the
+- The error model ([HQL-0045](doc/proposals/HQL-0045/index.hmd), shown in the
   [error-handling examples](examples/error-handling/README.md)): a failure is
   data or it is a diagnostic. A diagnostic names its `phase` (`load`,
   `parse`, `check`, `plan`, `execute`, `render`), its `kind`, a stable
@@ -455,7 +455,7 @@ The language continues to be in active development.
 ### Changed
 
 - A `Decimal`'s significand is bounded at 512 bits and its scale at 154
-  digits ([HQL-0031](doc/proposals/HQL-0031/README.md)). A literal outside the
+  digits ([HQL-0031](doc/proposals/HQL-0031/index.hmd)). A literal outside the
   bounds is a syntax error, `to_decimal` gives none, and arithmetic or
   `round` past them is a numeric overflow, where before a large exponent or
   place count exhausted memory.
@@ -469,7 +469,7 @@ The language continues to be in active development.
 
 ### Added
 
-- Doc strings ([HQL-0042](doc/proposals/HQL-0042/README.md), shown in the
+- Doc strings ([HQL-0042](doc/proposals/HQL-0042/index.hmd), shown in the
   [doc-string sessions](examples/doc-strings/README.md)): a block of `///`
   lines opened after an empty line documents the declarations below it, up
   to the next empty line. A doc block anywhere else, one with no declaration
@@ -488,14 +488,14 @@ The language continues to be in active development.
 - The site gains a page for every function, type, trait and module of the
   standard library under `reference/`, written from the doc strings by
   `hql reference` when a release is cut
-  ([HQL-0043](doc/proposals/HQL-0043/README.md)). Each release's site is
+  ([HQL-0043](doc/proposals/HQL-0043/index.hmd)). Each release's site is
   published under `/vX.Y.Z/`, and `/latest/` is the newest.
 - `+` on two strings is concatenation: `String` implements `Add`, so
   `"- [ ] " + title` and `reduce("", +)` over strings type-check. Both
   operands are strings; `"a" + 1` is still a type error.
 - `hql repl` leaves on the bare words `exit` and `quit`, as it does on
   `:quit` and Ctrl-D; they were unbound names.
-- A value block as a function body ([HQL-0038](doc/proposals/HQL-0038/README.md);
+- A value block as a function body ([HQL-0038](doc/proposals/HQL-0038/index.hmd);
   [issue 0051](doc/issues/archive/0051-value-block.md), shown in the
   [function examples](examples/functions/README.md)): `{ … }` written without
   `=` is bindings followed by a final expression, which is the function's
@@ -504,7 +504,7 @@ The language continues to be in active development.
   stays an iterating block; a block that yields and ends in an expression,
   one that only binds, and `for` in a value block are refused.
 
-- `Decimal`, an exact decimal number ([HQL-0031](doc/proposals/HQL-0031/README.md);
+- `Decimal`, an exact decimal number ([HQL-0031](doc/proposals/HQL-0031/index.hmd);
   [issue 0042](doc/issues/archive/0042-decimal.md), shown in the
   [decimal examples](examples/decimal/README.md)): a number written with a
   decimal point, `12.50` or `1.5e-3`, is an arbitrary-precision `Decimal`
@@ -521,7 +521,7 @@ The language continues to be in active development.
   and YAML as a number with its scale, and to CSV and text as its digits.
   A program that passes a literal with a decimal point to a `Float`
   parameter, or mixes one with a `Float`, now writes the suffix `f`.
-- Contract rules and defaults ([HQL-0032](doc/proposals/HQL-0032/README.md);
+- Contract rules and defaults ([HQL-0032](doc/proposals/HQL-0032/index.hmd);
   [issue 0043](doc/issues/archive/0043-contract-validation.md), shown in the
   [structural examples](examples/structural/README.md)): a `TypeContract` or
   `DataContract` body takes `require P` and `validate f with V` beside its
@@ -535,7 +535,7 @@ The language continues to be in active development.
   `Contract.name`. A default may be a list, set or `Data` literal of
   literals, never a call.
 
-- Errors as values ([HQL-0033](doc/proposals/HQL-0033/README.md), shown in
+- Errors as values ([HQL-0033](doc/proposals/HQL-0033/index.hmd), shown in
   the [structural examples](examples/structural/README.md)):
   `x | validate(T)` reads a `Data`, a collection or a stream as `T` and
   gives a `Result<T, Invalid>` for each value instead of stopping. An
@@ -552,7 +552,7 @@ The language continues to be in active development.
   `oks()` and `errs()` take a `Stream` of results to a `Stream`, one value
   at a time, as they take a `List`, `Seq` or `Set` to its own kind.
 
-- `fork`, broadcast fan-out ([HQL-0037](doc/proposals/HQL-0037/README.md),
+- `fork`, broadcast fan-out ([HQL-0037](doc/proposals/HQL-0037/index.hmd),
   shown in the [dataflow examples](examples/dataflow/README.md)):
   `xs | fork { a = …, b = … }` gives every branch the same input, evaluated
   once, and its value is the record of the branches' results, typed
@@ -571,7 +571,7 @@ The language continues to be in active development.
   accepted, and HQL-0032's validation result and stream-routing sections
   are marked superseded by it.
 
-- Fan-in over streams ([HQL-0037](doc/proposals/HQL-0037/README.md)):
+- Fan-in over streams ([HQL-0037](doc/proposals/HQL-0037/index.hmd)):
   `a | merge(b)` interleaves two streams, one value from each in turn,
   `a | zip(b)` pairs them by position, and `a | concat(b)` produces one and
   then the other. `merge` keeps its map form; over a `List`, `Seq`, `Set`
@@ -580,7 +580,7 @@ The language continues to be in active development.
   `hql plan` names each step's topology, `fan-out` or `fan-in`, and lists a
   `fork`'s or `tee`'s branches beneath it.
 
-- Validator types ([HQL-0034](doc/proposals/HQL-0034/README.md), shown in
+- Validator types ([HQL-0034](doc/proposals/HQL-0034/index.hmd), shown in
   the [structural examples](examples/structural/README.md)): a trait may
   extend others, `trait Email : Validator { }`, and has their functions as
   its own. A trait extending the core trait `Validator` is a validator type.
@@ -598,7 +598,7 @@ The language continues to be in active development.
   `Data` maps a `Table<Data>`. `Table` written without its row is
   `Table<Data>`, and a `Table<Book>` is not a `Table<Film>`.
 
-- Schema boundaries in `hql.toml` ([HQL-0035](doc/proposals/HQL-0035/README.md)):
+- Schema boundaries in `hql.toml` ([HQL-0035](doc/proposals/HQL-0035/index.hmd)):
   a configured source maps its fields under
   `[sources.<id>.fields.<field>]` with `name` or a dotted `path`, `type`,
   `position`, `read`, `write` and `absent`, and keys its kind's extension
@@ -627,7 +627,7 @@ The language continues to be in active development.
 
 ### Changed
 
-- `partition` redistributes by key ([HQL-0036](doc/proposals/HQL-0036/README.md),
+- `partition` redistributes by key ([HQL-0036](doc/proposals/HQL-0036/index.hmd),
   shown in the [dataflow examples](examples/dataflow/README.md)):
   `xs | partition(by = f)` over a `Seq` or a `Stream` keeps the input's
   type and every value, and is a stage boundary in a plan; the local
@@ -642,7 +642,7 @@ The language continues to be in active development.
   parent's fields, the parent's first: `Sub(n = 1, m = 2)` builds and
   `(d | Sub).n` reads. A contract's rules read inherited fields, and a value
   read as `Sub` holds `Base`'s rules before its own.
-- `Table` ([HQL-0017](doc/proposals/HQL-0017/README.md);
+- `Table` ([HQL-0017](doc/proposals/HQL-0017/index.hmd);
   [issue 0039](doc/issues/archive/0039-table-shape-and-presentation-review.md), shown
   in the [constructors examples](examples/constructors/README.md)):
   `Table(xs, columns = [...])` builds rows from records or `Data` maps, the
@@ -653,7 +653,7 @@ The language continues to be in active development.
   field of a declared record is a type error. The
   [presentation](doc/wiki/hql/presentation.hmd) card states the
   presentation model.
-- Declaration visibility ([HQL-0028](doc/proposals/HQL-0028/README.md);
+- Declaration visibility ([HQL-0028](doc/proposals/HQL-0028/index.hmd);
   [issue 0038](doc/issues/archive/0038-import-units-and-visibility.md), shown in the
   [Mighty Types programs](examples/mighty-types/README.md)): `private` before
   a function, a type, a trait or a binding of a module makes it visible
@@ -662,7 +662,7 @@ The language continues to be in active development.
   signature that mentions a private type or trait is refused. `private` is
   refused on an `impl` and in a program, and `internal` is reserved. A
   module's public bindings are read as `m.name`.
-- Typed decoding ([HQL-0021](doc/proposals/HQL-0021/README.md), accepted,
+- Typed decoding ([HQL-0021](doc/proposals/HQL-0021/index.hmd), accepted,
   implemented in part; [issue 0037](doc/issues/archive/0037-io-typed-decoding.md),
   shown in the [I/O examples](examples/io/README.md)): the declared type of a
   binding or a function result decodes each document of a read as a declared
@@ -671,7 +671,7 @@ The language continues to be in active development.
   A document that does not decode is an evaluation error naming the
   endpoint, the document and the field.
 
-- Purity is declared in HQL ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.md),
+- Purity is declared in HQL ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.hmd),
   [issue 0036](doc/issues/archive/0036-contracts-receivers-purity-identities.md)):
   `effectful fn source(…)` declares an external operation effectful and a
   plain `fn` pure, and binding refuses an extension whose own marking
@@ -680,7 +680,7 @@ The language continues to be in active development.
   `effectful` before a function with a body is a syntax error: such a
   function is effectful exactly when its body uses an effectful operation.
 
-- Slices ([HQL-0026](doc/proposals/HQL-0026/README.md), shown in the
+- Slices ([HQL-0026](doc/proposals/HQL-0026/index.hmd), shown in the
   [slicing corpus](examples/slicing/README.md) and stated in
   [the bracket operator](doc/wiki/hql/operators/bracket-op.hmd)): `xs[a:b]`,
   either bound left out, takes the part between two positions, of the
@@ -692,7 +692,7 @@ The language continues to be in active development.
   `Data` implement it natively.
 
 - A type's constructor is an operation declared in HQL
-  ([HQL-0018](doc/proposals/HQL-0018/README.md), shown in the
+  ([HQL-0018](doc/proposals/HQL-0018/index.hmd), shown in the
   [constructors corpus](examples/constructors/README.md)): `List`, `Set`,
   `Map`, `OrderedMap`, `SortedMap`, `Graph`, `Channel` and `Data` are
   declared as `fn` beside their types in `std/` and bound to the binary's
@@ -703,14 +703,14 @@ The language continues to be in active development.
   construction: `Data(s, Json)`, `s | Data(Csv)`.
 
 - A `Data` tree is read as a record the program declares, by its shape
-  ([HQL-0016](doc/proposals/HQL-0016/README.md), shown in
+  ([HQL-0016](doc/proposals/HQL-0016/index.hmd), shown in
   [reading records](examples/mighty-types/queries/26-reading-records.hql)):
   `d | is(Book)`, `of_type(Book)` and a `Book b` arm of `match` take a map
   with an entry for every required field at its type, ignore the entries
   `Book` does not name, and bind or keep the `Book` its constructor builds.
   A built-in record, a card kind among them, is not read from a tree.
 
-- Generic traits ([HQL-0027](doc/proposals/HQL-0027/README.md), shown in the
+- Generic traits ([HQL-0027](doc/proposals/HQL-0027/index.hmd), shown in the
   [generic traits corpus](examples/generic-traits/README.md)): a trait takes
   type parameters, `trait Index<T>`, an implementation its own,
   `impl<T> Index<T> for Ring<T>`, and a bound names a generic trait,
@@ -767,7 +767,7 @@ The language continues to be in active development.
   `limit` that keeps at most that many pieces, the last holding the rest.
 
 - A complete type system and the language model around it, from
-  [HQL-0024](doc/proposals/HQL-0024/README.md), shown program by program in
+  [HQL-0024](doc/proposals/HQL-0024/index.hmd), shown program by program in
   the [Mighty Types corpus](examples/mighty-types/README.md):
   - Records: `type Point { x : Int, y : Int }` is a type of the program,
     constructed as `Point(x = 1, y = 2)` or `Point(1, 2)`, read with `p.x`,
@@ -797,7 +797,7 @@ The language continues to be in active development.
     without a native body and a native body without a header; one
     implementation per trait and type across the standard library, imported
     modules and the program, the error naming both; an implementation is
-    declared with its trait or its type ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.md)).
+    declared with its trait or its type ([HQL-0024 part 12](doc/proposals/HQL-0024/parts/12-contracts-and-binding.hmd)).
   - A standard module's `.hql` declaration is its functions' signature: an
     operation implementing one writes no type in Rust, binding derives what
     the checker uses, and an operation that keeps a native signature is
@@ -822,7 +822,7 @@ The language continues to be in active development.
   vault's `[format.<Type>]`, they are refused before the program runs;
   `xs | format(Markdown, renderer = "pipe")` is written
   `xs | Table(columns = [...]) | markdown`.
-- A module is a closure ([HQL-0028](doc/proposals/HQL-0028/README.md)): it
+- A module is a closure ([HQL-0028](doc/proposals/HQL-0028/index.hmd)): it
   sees its own declarations and imports and no host binding, so `vault`,
   `cards`, `graph`, `stdin` and the vault's configured imports belong to the
   program module alone. `cards = vault.cards` and `graph = vault.graph` moved
@@ -845,7 +845,7 @@ The language continues to be in active development.
 
 - A negative position counts from the end: `xs[-1]` is the last element, not
   absence, and `s.slice(start, end)` counts a negative bound from the end
-  ([HQL-0026](doc/proposals/HQL-0026/README.md)). An index that is neither an
+  ([HQL-0026](doc/proposals/HQL-0026/index.hmd)). An index that is neither an
   `Int` nor a `Range` is refused as "an index is an Int position or a Range".
 
 - A generic variadic parameter binds its type from the trailing arguments:
@@ -864,8 +864,8 @@ The language continues to be in active development.
   the first occurrence or to every occurrence.
 
 - A format is a `Format`, a category of its own, not a `String` subtype
-  ([HQL-0024 part 7](doc/proposals/HQL-0024/parts/07-formats-and-codecs.md),
-  from [encode, decode and format](doc/proposals/HQL-0024/encode-decode-format.md)).
+  ([HQL-0024 part 7](doc/proposals/HQL-0024/parts/07-formats-and-codecs.hmd),
+  from [encode, decode and format](doc/proposals/HQL-0024/encode-decode-format.hmd)).
   `format(x, Json)` and its shorthands give a `String` that keeps its format
   for presentation, so `xs | json` is a `String` and encoding it again in
   another format encodes that text. `Lines` and `JsonLines` are framing
@@ -883,7 +883,7 @@ The language continues to be in active development.
 - The binary runs on a thread with a large stack, so a program may recurse
   thousands of calls deep.
 
-- Endpoints, from [HQL-0021](doc/proposals/HQL-0021/README.md): `stdin`,
+- Endpoints, from [HQL-0021](doc/proposals/HQL-0021/index.hmd): `stdin`,
   `stdout` and `stderr`, `file(path)`, and a file's `.end`. `source(e, F)`
   reads an endpoint's documents in a format, as a `Seq` from a file and as a
   `Stream` from standard input; `tap` reads them one at a time, and at a
@@ -924,7 +924,7 @@ The language continues to be in active development.
 - `hql '<program>'` is `hql eval '<program>'`.
 - `--compact` writes each JSON document on one line, as `jq -c` does.
 - In HQL source a document reference is written `@[[name]]`, from
-  [HQL-0023](doc/proposals/HQL-0023/README.md): `@` directly before a
+  [HQL-0023](doc/proposals/HQL-0023/index.hmd): `@` directly before a
   wikilink. `[[` is two brackets, so `[[1, 2], [3]]` is a list of lists. A
   bare `@` is refused, and `[[alice]]` with `alice` unbound is refused,
   naming `@[[alice]]`. Document bodies keep writing `[[name]]`, and a link

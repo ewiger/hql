@@ -1,11 +1,11 @@
 # 0029 — Binary formats, and codecs an extension or a package provides
 
 Status: todo
-Related: [HQL-0024 part 7](../proposals/HQL-0024/parts/07-formats-and-codecs.md),
-[encode, decode and format](../proposals/HQL-0024/encode-decode-format.md),
-[HQL-0024 part 9](../proposals/HQL-0024/parts/09-packages-and-extensions.md),
+Related: [HQL-0024 part 7](../proposals/HQL-0024/parts/07-formats-and-codecs.hmd),
+[encode, decode and format](../proposals/HQL-0024/encode-decode-format.hmd),
+[HQL-0024 part 9](../proposals/HQL-0024/parts/09-packages-and-extensions.hmd),
 [presentation](../wiki/hql/presentation.hmd),
-[HQL-0053 part 1](../proposals/HQL-0053/parts/01-bytes.md)
+[HQL-0053 part 1](../proposals/HQL-0053/parts/01-bytes.hmd)
 
 `Format` is a category of its own and every format today is textual: `Text`,
 `Lines`, `Json`, `JsonLines`, `Yaml`, `Csv`, `Markdown`, `Hmd`, `Hql`, `D2`,
@@ -28,7 +28,7 @@ follow from the format model and are not built:
   `sink`, how a schema is named, and what `format(x, Parquet)` means in memory,
   where the encoded representation is bytes and not a `String`. That
   representation is the `Bytes` of
-  [HQL-0053 part 1](../proposals/HQL-0053/parts/01-bytes.md); "binary" is
+  [HQL-0053 part 1](../proposals/HQL-0053/parts/01-bytes.hmd); "binary" is
   the format's property and names no value type (the section "`Bytes` and
   binary" there).
 - The contract side: an `impl Decoder<Avro, Data> for …` written as an

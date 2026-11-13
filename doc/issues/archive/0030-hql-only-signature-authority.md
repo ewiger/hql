@@ -1,7 +1,7 @@
 # 0030 — HQL is the only signature authority: operations take their types from the contract
 
 Status: done
-Related: [HQL-0024 part 12](../../proposals/HQL-0024/parts/12-contracts-and-binding.md),
+Related: [HQL-0024 part 12](../../proposals/HQL-0024/parts/12-contracts-and-binding.hmd),
 [extensions](../../wiki/hql/extensions.hmd), [the standard library](../../../lib/std/README.md)
 
 A standard module's `.hql` file declares each function's signature, and the

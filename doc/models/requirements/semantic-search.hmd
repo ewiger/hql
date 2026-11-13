@@ -69,6 +69,6 @@ directories does not change its score.
 
 The model in the Rust binary, embedding at query time, multiple indexes, hybrid
 retrieval and approximate search. See
-[HQL-0002](../../proposals/HQL-0002/README.md) for the schema and the full list,
+[[HQL-0002]] for the schema and the full list,
 and [[hql/semantic-search|semantic search]] for what a `Hit`
 carries.

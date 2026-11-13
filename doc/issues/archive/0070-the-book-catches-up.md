@@ -3,11 +3,11 @@
 Status: done
 Related: [0054](../0054-user-facing-website.md),
 [0067](0067-std-crypto.md),
-[HQL-0025](../../proposals/HQL-0025/README.md),
-[HQL-0039](../../proposals/HQL-0039/README.md),
-[HQL-0040](../../proposals/HQL-0040/README.md),
-[HQL-0041](../../proposals/HQL-0041/README.md),
-[HQL-0053](../../proposals/HQL-0053/README.md)
+[HQL-0025](../../proposals/HQL-0025/index.hmd),
+[HQL-0039](../../proposals/HQL-0039/index.hmd),
+[HQL-0040](../../proposals/HQL-0040/index.hmd),
+[HQL-0041](../../proposals/HQL-0041/index.hmd),
+[HQL-0053](../../proposals/HQL-0053/index.hmd)
 
 Branches `feat/gen-purpose-leap` and `feat/stats-env` implement a run of
 standard modules and language features that the reference pages document

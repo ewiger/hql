@@ -2,8 +2,8 @@
 //! folder followed at once by what it holds. The vault reads its documents
 //! in this order and `io.fs` lists entries in it, from this one
 //! implementation, so the two orders agree by construction. See
-//! [HQL-0020](../doc/proposals/HQL-0020/README.md) and
-//! [HQL-0040](../doc/proposals/HQL-0040/README.md).
+//! [HQL-0020](../doc/proposals/HQL-0020/index.hmd) and
+//! [HQL-0040](../doc/proposals/HQL-0040/index.hmd).
 
 use std::fs;
 use std::io;

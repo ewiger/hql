@@ -17,7 +17,7 @@ registry holds.
 2. Instantiation at a call: bind each parameter from the argument types, as
    the step registry binds its patterns, and check the result.
 3. Bounds, `where T : Orderable`, checked at the call.
-4. `:=` ([HQL-0015](../../proposals/HQL-0015/README.md)) desugars to a generic
+4. `:=` ([HQL-0015](../../proposals/HQL-0015/index.hmd)) desugars to a generic
    `fn`, so it lands after this.
 
 ## Done when

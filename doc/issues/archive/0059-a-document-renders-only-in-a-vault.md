@@ -1,7 +1,7 @@
 # 0059 — A document renders only in a vault
 
 Status: done
-Related: [HQL-0045](../../proposals/HQL-0045/README.md),
+Related: [HQL-0045](../../proposals/HQL-0045/index.hmd),
 [the command line](../../models/behavior/cli.hmd),
 [`src/cli.rs`](../../../src/cli.rs), [`src/vault.rs`](../../../src/vault.rs)
 
