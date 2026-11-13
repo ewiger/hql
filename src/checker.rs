@@ -2862,7 +2862,7 @@ impl<'a> Checker<'a> {
             }
             let input_type = self.expression(&input.value)?;
             self.checked.steps.insert(span.clone(), step);
-            self.using(step.name, step.purity() == Purity::Effectful);
+            self.using(step.name, step.effectful_in_every_form());
             return self.step(step, &input_type, Some(&input.value), rest, span);
         }
         let receiver_type = self.expression(receiver)?;
@@ -2985,7 +2985,7 @@ impl<'a> Checker<'a> {
             )?;
             self.checked.steps.insert(span.clone(), step);
             self.checked.receiver_calls.insert(span.clone());
-            self.using(step.name, step.purity() == Purity::Effectful);
+            self.using(step.name, step.effectful_in_every_form());
             return self.step(step, &receiver_type, Some(receiver), arguments, span);
         }
         Err(helped(
@@ -5235,7 +5235,7 @@ impl<'a> Checker<'a> {
                         ) && step.takes_no_input()
                         {
                             self.checked.steps.insert(span.clone(), step);
-                            self.using(step.name, step.purity() == Purity::Effectful);
+                            self.using(step.name, step.effectful_in_every_form());
                             return self.step(step, &TypeRef::UNIT, None, arguments, span);
                         }
                     }
@@ -5263,7 +5263,7 @@ impl<'a> Checker<'a> {
                         &span,
                     )?;
                     self.checked.steps.insert(span.clone(), step);
-                    self.using(step.name, step.purity() == Purity::Effectful);
+                    self.using(step.name, step.effectful_in_every_form());
                     return self.step(step, &input, Some(written), arguments, span);
                 }
                 let _ = arguments;
@@ -5344,7 +5344,7 @@ impl<'a> Checker<'a> {
                 let reference = step_of(step)?;
                 let resolved = self.resolve(&reference, &input_type, &step.span)?;
                 self.checked.steps.insert(span.clone(), resolved);
-                self.using(resolved.name, resolved.purity() == Purity::Effectful);
+                self.using(resolved.name, resolved.effectful_in_every_form());
                 self.step(
                     resolved,
                     &input_type,
@@ -5668,11 +5668,18 @@ impl<'a> Checker<'a> {
         let optional = !raw && input.constructor.0 == "Option";
         let input = if raw { input.clone() } else { lifted.clone() };
         let spec = step.overload(self, &input, arguments, &span)?;
-        if let Some(id) = crate::extensions::binding::Environment::get()
-            .ok()
-            .and_then(|environment| environment.declaration_for(step, spec))
+        if let Ok(environment) = crate::extensions::binding::Environment::get()
+            && let Some(id) = environment.declaration_for(step, spec)
         {
             self.checked.declarations.insert(span.clone(), id);
+            // Where a name's forms differ in purity, the form this call
+            // took decides: `sample(10, seed = 7)` is pure, `sample(10)` not.
+            if environment.mixed_purity(step) {
+                self.using(
+                    step.name,
+                    environment.declaration(id).purity == Purity::Effectful,
+                );
+            }
         }
         let (result, call) = spec.check(step.name, self, &input, input_expr, arguments, &span)?;
         if let Some(check) = step.check {
@@ -5817,7 +5824,7 @@ impl CheckCx for Checker<'_> {
             };
             self.not_declared_below(name, &span)?;
             let step = self.resolution.step_for(name, parameter, 0, &[], &span)?;
-            self.using(step.name, step.purity() == Purity::Effectful);
+            self.using(step.name, step.effectful_in_every_form());
             let produced = self.step(step, parameter, None, &[], span.clone())?;
             if let Some(function) = TypeRef::function(vec![parameter.clone()], produced.clone()) {
                 self.checked.types.insert(span.clone(), function);

@@ -314,12 +314,20 @@ pub(crate) struct OperationType {
 }
 
 impl OperationType {
-    /// A host operation, at the shape its arguments refine it to.
-    pub(crate) fn host(step: &'static Operation, arguments: &[Arg]) -> Self {
+    /// A host operation, at the shape its arguments refine it to and the
+    /// purity of the form the call took.
+    pub(crate) fn host(
+        step: &'static Operation,
+        arguments: &[Arg],
+        form: Option<crate::extensions::binding::DeclarationId>,
+    ) -> Self {
         Self {
             name: step.name.to_owned(),
             shape: shape_of(step, arguments),
-            purity: step.purity(),
+            purity: crate::extensions::binding::Environment::get().map_or_else(
+                |_| step.purity(),
+                |environment| environment.purity_of(step, form),
+            ),
             presentation: crate::extensions::format::STEPS
                 .iter()
                 .any(|presentation| std::ptr::eq(presentation, step)),
@@ -1677,7 +1685,7 @@ fn step_node(
     lifted: bool,
     declaration: Option<crate::extensions::binding::DeclarationId>,
 ) -> Kind {
-    let plan = StepPlan::new(OperationType::host(step, &arguments));
+    let plan = StepPlan::new(OperationType::host(step, &arguments, declaration));
     Kind::Step {
         step,
         input,
